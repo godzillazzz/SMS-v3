@@ -1,0 +1,107 @@
+SMSV3 BACKEND FOUNDATION
+GATE 4 — SUPABASE DEVELOPMENT DEPLOYMENT AND FIRST FRONTEND LOGIN
+Executed: 2026-07-18
+
+OVERALL STATUS: NOT PASSED / BLOCKED ON SUPABASE DEVELOPMENT CREDENTIALS
+Browser-safe authentication and the minimal frontend are implemented and
+verified locally. Supabase development migration, seed, readiness, and API
+verification were not run because no approved Supabase development DATABASE_URL
+or DIRECT_URL was provided. No Supabase project was created or accessed.
+
+FILES ADDED OR CHANGED
+  src/config/env.js
+  src/app.js
+  src/middlewares/browser-session.js
+  src/routes/auth.routes.js
+  .env.example
+  docs/api.md
+  docs/frontend-authentication.md
+  docs/vercel-development.md
+  docs/supabase-deployment.md
+  frontend/package.json
+  frontend/package-lock.json
+  frontend/.env.example
+  frontend/index.html
+  frontend/tsconfig.json
+  frontend/tsconfig.node.json
+  frontend/vite.config.ts
+  frontend/src/api.ts
+  frontend/src/api.test.ts
+  frontend/src/main.tsx
+  frontend/src/styles.css
+  frontend/src/vite-env.d.ts
+  test/browser-session.test.js
+  test/auth-routes-browser.test.js
+  TECHNICAL_REVIEW_GATE_4.txt
+
+BROWSER COOKIE SECURITY RESULT
+  PASS (local route/unit tests).
+  Browser login stores the refresh token only in an HttpOnly cookie at the
+  narrow /api/v1/auth path. Browser JSON responses omit refreshToken. Cookie
+  SameSite defaults to Lax. COOKIE_SAME_SITE is validated. Secure is true when
+  NODE_ENV=production and false only for localhost development.
+  Access tokens remain short-lived and are held only in frontend React memory.
+  The frontend does not use localStorage or sessionStorage.
+  Mobile compatibility remains explicit through clientType: "mobile".
+
+CSRF RESULT
+  PASS (local route/unit tests).
+  Browser refresh/logout requires a readable CSRF cookie and matching
+  X-CSRF-Token header. Missing/mismatched tokens are rejected with 403.
+  The browser frontend sends credentials and obtains the CSRF token from the
+  cookie only at request time.
+
+BACKEND TEST RESULT
+  Command: npm test
+  PASS: 12 passed, 0 failed, 0 skipped, 0 cancelled.
+  Includes browser login cookie/no-refresh-JSON, CSRF rejection/success,
+  refresh route rotation behavior, logout cookie clearing, cookie policies,
+  existing JWT/session/employee/audit tests, and health check.
+
+FRONTEND TEST RESULT
+  Command: frontend/npm test
+  PASS: 1 passed, 0 failed.
+
+FRONTEND BUILD RESULT
+  Command: frontend/npm run build
+  PASS: TypeScript check and Vite 8.1.5 production build completed.
+
+DEPENDENCY AUDIT RESULT
+  Backend command: npm run audit:dependencies
+  PASS: 0 vulnerabilities.
+  Frontend command: npm audit --audit-level=high
+  PASS: 0 vulnerabilities after updating Vite/Vitest tooling.
+
+PRISMA RESULT
+  Commands: npm run prisma:format:check; npx prisma validate
+  PASS: schema formatted and valid.
+  Supabase migration status: NOT RUN — approved development DIRECT_URL is
+  required and was not supplied.
+
+SUPABASE DEVELOPMENT CONNECTION RESULT
+  NOT RUN. The project is prepared through .env.supabase.example and
+  docs/supabase-development.md / docs/supabase-deployment.md. The backend uses
+  Prisma and DATABASE_URL only in business logic; no Supabase SDK was added.
+  No deployment URL is available.
+
+EXACT COMMANDS EXECUTED
+  npm install (frontend)
+  frontend/npm test
+  frontend/npm run build
+  frontend/npm audit --audit-level=high
+  npm test
+  npm run prisma:format:check
+  npx prisma validate (with a non-production placeholder URL)
+  npm run audit:dependencies
+
+REMAINING LIMITATIONS / REQUIRED NEXT STEPS
+  1. Provide approved Supabase development pooled and direct URLs through the
+     secret-management channel. Then run Prisma deploy/status/generate and seed
+     with sample data only; verify users, employees, audit_logs,
+     refresh_sessions, _prisma_migrations, /health, /ready, login, refresh,
+     logout, and sample employee listing.
+  2. Run browser end-to-end testing against the deployed API/frontend origin.
+  3. Set explicit Vercel preview/production origins in CORS_ORIGIN before
+     deployment; never use wildcard CORS with credentials.
+  4. Configure backend hosting separately. This project has no backend host URL
+     or Vercel deployment yet.

@@ -1,0 +1,48 @@
+SMSV3 BACKEND FOUNDATION
+GATE 4.6 — ALTERNATE NETWORK AND EXACT SAFE PSQL DIAGNOSIS
+Executed: 2026-07-19
+
+OVERALL STATUS: NOT PASSED / CONFIGURATION ENDPOINT UNRESOLVED
+
+SAFETY RESULT
+  PASS: .env remains excluded by .gitignore.
+  PASS: Docker Engine was running.
+  PASS: only DATABASE_URL was passed to the temporary official postgres:16-alpine
+  container environment.
+  PASS: temporary credential/output files were deleted after the single test.
+
+PSQL SELECT 1 RESULT
+  Exactly one psql SELECT 1 was executed through the alternate mobile-hotspot
+  network.
+  Result: FAIL.
+  SQLSTATE: none (connection did not reach PostgreSQL).
+  Sanitized first-line psql error:
+    psql: error: could not translate host name "[REDACTED]" to address: Name
+    does not resolve
+  Classification: unknown.
+
+SAFE DIAGNOSIS
+  The failure occurs at DNS name resolution, before TLS, pooler routing, or
+  PostgreSQL authentication. Safe inspection indicates the configured endpoint
+  still contains an unresolved host placeholder rather than a usable approved
+  Session Pooler hostname. No endpoint value is recorded here.
+
+PRISMA COMPARISON / GATE 4 CONTINUATION
+  NOT RUN. The milestone requires stopping after failed psql. No Prisma Client,
+  migration, seed, table verification, API verification, backend/frontend test,
+  or build command was run in this milestone.
+
+EXACT NON-SECRET COMMANDS EXECUTED
+  docker info --format '{{.ServerVersion}}'
+  docker run --rm --env-file <temporary ignored file> postgres:16-alpine
+    psql <approved connection through container environment> -Atqc "SELECT 1"
+  temporary credential/output cleanup check
+
+FILES CHANGED
+  TECHNICAL_REVIEW_GATE_4_6.txt
+
+REMAINING LIMITATION / NEXT ACTION
+  Replace the unresolved host placeholder in the ignored DATABASE_URL and
+  DIRECT_URL with the fresh Session Pooler hostname copied from the approved
+  Supabase development connection screen. Preserve port 5432 and sslmode=require.
+  Then rerun one psql SELECT 1 before any Prisma or Gate 4 continuation step.

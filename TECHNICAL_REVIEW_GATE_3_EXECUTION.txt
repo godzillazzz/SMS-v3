@@ -1,0 +1,108 @@
+SMSV3 BACKEND FOUNDATION
+GATE 3.1 — LOCAL POSTGRESQL EXECUTION VERIFICATION
+Executed: 2026-07-18
+
+OVERALL RESULT: BLOCKED — NOT PASSED
+Gate 3 cannot be marked passed because Docker Engine/Desktop, PostgreSQL,
+pg_dump, pg_restore, and psql are unavailable in this local environment.
+No PostgreSQL containers were started; no database migration, real integration
+test, real backup, checksum validation, or restore verification was claimed.
+
+OPERATING SYSTEM
+  Microsoft Windows 11 Pro
+  Version: 10.0.26200
+  Architecture: 64-bit
+
+TOOL AVAILABILITY
+  Docker version: FAIL — `docker` command not found.
+  Docker Compose version: FAIL — Docker Compose unavailable because Docker is
+    not installed/available on PATH.
+  PostgreSQL server version: NOT AVAILABLE — no local server/container started.
+  pg_dump version: FAIL — pg_dump command not found.
+  pg_restore version: FAIL — pg_restore command not found.
+  psql version: FAIL — psql command not found.
+
+CONFIGURATION INSPECTED
+  package.json
+  docker-compose.yml
+  prisma/schema.prisma
+  prisma/migrations/202607160000_initial_schema/migration.sql
+  prisma/migrations/202607170001_hardening/migration.sql
+  prisma/migrations/202607170002_refresh_sessions/migration.sql
+  README.md
+
+DATABASE EXECUTION RESULT
+  Docker start: NOT RUN (blocked by unavailable Docker).
+  sms_v3_dev isolation check: NOT RUN.
+  sms_v3_test isolation check: NOT RUN.
+  Prisma migration deploy to sms_v3_test: NOT RUN.
+  Prisma migration status: NOT RUN.
+  No database URL, password, secret, real employee data, or production service
+  was used.
+
+UNIT TEST RESULT
+  Command: npm test
+  PASS: 8 tests, 0 failures, 0 skipped, 0 cancelled.
+
+INTEGRATION TEST RESULTS
+  Command: npm run test:integration
+  SAFE SKIP: 0 passed, 0 failed, 1 skipped.
+  Reason: RUN_INTEGRATION_TESTS was not enabled, so no database access occurred.
+
+  Refusal check command: RUN_INTEGRATION_TESTS=true with a redacted URL whose
+  database name did not contain sms_v3_test.
+  PASS: the suite exited with code 1 before connecting and reported:
+  "Integration tests require an isolated sms_v3_test database."
+  Result count: 0 passed, 1 failed (expected refusal), 0 skipped.
+
+INTEGRATION CASES NOT EXECUTED
+  User creation; employee create/update/soft delete; unique employeeCode;
+  foreign-key behavior; transactional audit logging/rollback; pagination/search;
+  refresh rotation/reuse; logout/logout-all; and readiness endpoint behavior.
+  These remain pending until Docker PostgreSQL is available.
+
+BACKUP EXECUTION RESULT
+  Real backup against sms_v3_dev: NOT RUN (pg_dump unavailable; no database).
+  Custom-format file creation: NOT RUN.
+  SHA-256 checksum generation/validation: NOT RUN for a real backup.
+  Restore verification: NOT RUN (pg_restore and psql unavailable).
+  Disposable restore database cleanup: NOT RUN.
+  Incomplete temporary backup cleanup after a real run: NOT RUN.
+
+SAFE BACKUP PROTOTYPE CHECK
+  Command: npm run backup -- --dry-run
+  PASS: exit code 0; dry-run completed. The generated temporary test-only
+  directory and NDJSON result log were then removed.
+
+SECURITY / GIT EXCLUSIONS
+  PASS: .env and .env.* remain excluded from Git.
+  PASS: backups/ and *.log remain excluded from Git.
+  CHANGE: .gitignore now explicitly permits only the non-secret templates:
+    .env.development.example
+    .env.test.example
+    .env.supabase.example
+  No actual .env file, generated backup, database URL, password, JWT secret,
+  or refresh token was added or printed.
+
+EXACT COMMANDS EXECUTED
+  Get-Content package.json; Get-Content docker-compose.yml; inspect migrations
+  and README; docker --version; docker compose version
+  npm test
+  npm run test:integration
+  RUN_INTEGRATION_TESTS=true npm run test:integration (with redacted non-test
+  local URL to verify refusal only)
+  Get-CimInstance Win32_OperatingSystem
+  Get-Command pg_dump, pg_restore, psql
+  npm run backup -- --dry-run
+
+FILES CHANGED
+  .gitignore
+  TECHNICAL_REVIEW_GATE_3_EXECUTION.txt
+
+REMAINING LIMITATIONS / REQUIRED NEXT STEP
+  Install or start Docker Desktop/Engine with Docker Compose, then rerun this
+  milestone using only local sample credentials and the isolated databases.
+  Required success path: docker compose up -d; apply migrations to sms_v3_test;
+  run integration tests with RUN_INTEGRATION_TESTS=true; migrate sms_v3_dev with
+  sample data; run pg_dump backup; validate checksum; run restore verification;
+  confirm disposable database deletion and temporary-file cleanup.

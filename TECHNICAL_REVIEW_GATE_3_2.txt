@@ -1,0 +1,130 @@
+SMSV3 BACKEND FOUNDATION
+GATE 3.2 — COMPLETE POSTGRESQL EXECUTION VERIFICATION
+Executed: 2026-07-18
+
+OVERALL RESULT: PASS — GATE 3.2 EXECUTION CRITERIA COMPLETED
+All required local migration, integration-test, custom-format backup, checksum,
+restore-verification, and cleanup checks completed successfully against isolated
+local Docker PostgreSQL databases using sample data only.
+
+PLATFORM AND TOOL VERSIONS
+  Operating system: Microsoft Windows 11 Pro 10.0.26200, 64-bit
+  Docker: Docker version 29.6.1, build 8900f1d
+  Docker Compose: v5.3.0
+  PostgreSQL server: 16.14
+  pg_dump: PostgreSQL 16.14
+  pg_restore: PostgreSQL 16.14
+
+LOCAL DATABASE ENVIRONMENT
+  Docker Compose service: postgres:16-alpine
+  Status: healthy
+  Isolated databases confirmed: sms_v3_dev and sms_v3_test
+  Credentials: generated locally in an ignored temporary environment file,
+  never displayed, then deleted after verification.
+  Data: sample administrator and one clearly labeled sample employee only.
+
+MIGRATION RESULT
+  sms_v3_test: PASS
+  Applied migrations: 3 of 3
+    202607160000_initial_schema
+    202607170001_hardening
+    202607170002_refresh_sessions
+  prisma migrate status: PASS — Database schema is up to date.
+  sms_v3_dev: PASS — all 3 migrations applied before sample seed data.
+
+UNIT-TEST RESULT
+  Command: npm test
+  PASS: 8 passed, 0 failed, 0 skipped, 0 cancelled.
+
+POSTGRESQL INTEGRATION-TEST RESULT
+  Command: RUN_INTEGRATION_TESTS=true npm run test:integration
+  PASS: 7 passed, 0 failed, 0 skipped, 0 cancelled.
+  Verified against sms_v3_test:
+    - Prisma migration metadata
+    - User creation
+    - Employee creation, update, and soft delete
+    - Unique employeeCode constraint
+    - Foreign-key enforcement
+    - Transactional audit rollback on audit failure
+    - Pagination, search, and department filter
+    - Refresh-token rotation and reuse detection
+    - Logout and logout-all
+    - Readiness endpoint when database is available and simulated unavailable
+
+BACKUP RESULT
+  PASS: real pg_dump ran inside the local PostgreSQL container against
+  sms_v3_dev using --format=custom.
+  Output file: smsv3-20260718T133949Z.dump
+  Output size: 14,202 bytes
+  Custom-format validation: PASS (pg_restore listing completed successfully).
+  Host pg_dump is not installed; the container's PostgreSQL 16.14 pg_dump was
+  intentionally used for this local Docker verification.
+
+CHECKSUM RESULT
+  PASS: SHA-256 sidecar file was generated for the backup.
+  PASS: computed SHA-256 matched the recorded checksum.
+
+RESTORE-VERIFICATION RESULT
+  PASS: a unique disposable PostgreSQL database was created.
+  PASS: pg_restore completed successfully.
+  PASS: _prisma_migrations exists with 3 rows.
+  PASS: users and employees tables exist with basic row counts 1 and 1.
+  PASS: disposable restore database was removed afterward.
+
+CLEANUP RESULT
+  PASS: host temporary .partial backup files remaining: 0.
+  PASS: container temporary dump file removed.
+  PASS: temporary local credential environment file removed.
+  Final generated artifacts remaining in ignored backups/ directory: 2
+  (one .dump file and one .sha256 sidecar).
+
+SECURITY / GIT EXCLUSIONS
+  PASS: .env and .env.* patterns remain excluded.
+  PASS: backups/ and *.log patterns remain excluded.
+  PASS: only non-secret environment example files are explicitly unignored.
+  No production credentials, production database URL, JWT secret, refresh token,
+  or real employee data was used or printed.
+
+EXACT COMMANDS EXECUTED
+  docker --version
+  docker compose version
+  docker compose --env-file .env.execution up -d
+  docker compose --env-file .env.execution ps
+  docker compose --env-file .env.execution exec -T postgres psql ...
+    SELECT datname FROM pg_database WHERE datname IN ('sms_v3_dev','sms_v3_test')
+  npx prisma migrate deploy (DATABASE_URL targets sms_v3_test; credential redacted)
+  npx prisma migrate status (DATABASE_URL targets sms_v3_test; credential redacted)
+  npm test
+  RUN_INTEGRATION_TESTS=true npm run test:integration
+    (DATABASE_URL targets sms_v3_test; credential redacted)
+  npx prisma migrate deploy (DATABASE_URL targets sms_v3_dev; credential redacted)
+  npm run db:seed (DATABASE_URL targets sms_v3_dev; sample administrator)
+  Prisma upsert of one sample employee in sms_v3_dev
+  docker compose --env-file .env.execution exec -T postgres sh -c
+    pg_dump -U "$POSTGRES_USER" -d sms_v3_dev --format=custom --file /tmp/<utc>.dump
+  Get-FileHash -Algorithm SHA256 and sidecar validation
+  docker compose --env-file .env.execution exec -T postgres pg_restore
+    -U <generated-local-user> -d smsv3_restore_<uuid> --no-owner --no-privileges /tmp/<utc>.dump
+  docker compose --env-file .env.execution exec -T postgres psql ...
+    SELECT count(*) FROM "_prisma_migrations";
+    SELECT count(*) FROM users;
+    SELECT count(*) FROM employees;
+  docker compose --env-file .env.execution exec -T postgres psql ...
+    DROP DATABASE IF EXISTS smsv3_restore_<uuid> WITH (FORCE)
+
+FILES CHANGED DURING THIS MILESTONE
+  TECHNICAL_REVIEW_GATE_3_2.txt
+  Generated but Git-ignored artifacts: backups/smsv3-20260718T133949Z.dump
+  and backups/smsv3-20260718T133949Z.dump.sha256
+  No business source code or architecture was changed.
+
+REMAINING LIMITATIONS
+  1. scripts/backup.js was verified previously in dry-run mode; this real
+     execution used pg_dump inside the PostgreSQL Docker container because the
+     Windows host does not have PostgreSQL client tools installed. Install a
+     compatible host pg_dump or configure the company server before declaring
+     the scheduled backup job operational.
+  2. Scheduled execution, encryption command configuration, off-host transfer,
+     retention over time, and failure notification remain operational rollout
+     tasks; they were not required for this local execution milestone.
+  3. The local PostgreSQL container remains running for further development.

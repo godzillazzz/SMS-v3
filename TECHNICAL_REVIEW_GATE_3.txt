@@ -1,0 +1,118 @@
+SMSV3 BACKEND FOUNDATION
+TECHNICAL REVIEW GATE 3
+Milestone: Database Integration, Session Security and Backup Prototype
+Generated: 2026-07-17
+
+FILES ADDED OR CHANGED
+  .env.development.example
+  .env.test.example
+  .env.supabase.example
+  .env.example
+  .github/workflows/ci.yml
+  docker-compose.yml
+  docker/init-test-db.sh
+  package.json
+  prisma/schema.prisma
+  prisma/migrations/202607160000_initial_schema/migration.sql
+  prisma/migrations/202607170001_hardening/migration.sql
+  prisma/migrations/202607170002_refresh_sessions/migration.sql
+  scripts/backup.js
+  scripts/verify-backup.js
+  src/config/env.js
+  src/routes/auth.routes.js
+  src/services/auth.service.js
+  test/auth.service.test.js
+  test/integration/database.integration.test.js
+  README.md
+  docs/api.md
+  docs/backup.md
+  docs/backup-runbook.md
+  docs/security.md
+  docs/supabase-development.md
+  docs/technical-review-gate-3.md
+
+PRISMA MODELS AND MIGRATIONS
+  Added RefreshSession with a hashed refresh token, user/session token version,
+  user agent, IP address, expiry, revocation and last-use timestamps.
+  Updated User with the RefreshSession relation.
+  Extended AuditAction with REFRESH, LOGOUT, LOGOUT_ALL and TOKEN_REUSE.
+  Added an initial schema migration so a blank isolated PostgreSQL database can
+  be migrated before the Gate 1 and Gate 3 migrations are applied.
+  Migration execution result: NOT RUN LOCALLY. Docker/PostgreSQL is unavailable
+  in this environment. CI runs prisma migrate deploy against its PostgreSQL
+  service container.
+
+API ENDPOINTS ADDED
+  POST /api/v1/auth/refresh
+  POST /api/v1/auth/logout
+  POST /api/v1/auth/logout-all
+
+SESSION SECURITY IMPLEMENTED
+  Login creates a cryptographically random refresh token and stores only its
+  SHA-256 hash. Refresh tokens rotate on every successful use. Reuse of a
+  rotated/revoked token revokes all user sessions and increments tokenVersion.
+  Logout revokes the supplied session; logout-all revokes all sessions and also
+  invalidates access tokens through tokenVersion. Tokens and secrets are not
+  included in audit records.
+
+TESTS AND RESULTS
+  npm test
+    PASS: 8 tests, 0 failures.
+    Includes access roles, login rate limiting, successful/failed/inactive login,
+    JWT expiry/tamper/token-version checks, employee lifecycle audit, production
+    error sanitization, and liveness endpoint.
+
+  npm run test:integration
+    SAFE SKIP: 1 skipped, 0 failures.
+    It is disabled until RUN_INTEGRATION_TESTS=true and refuses a URL that does
+    not contain sms_v3_test. The test suite includes migration metadata, user
+    creation, employee mutation/soft delete, unique and foreign-key constraints,
+    audit rollback, pagination/search/filter, readiness availability/unavailability,
+    refresh rotation/reuse, logout, logout-all, and session invalidation cases.
+
+  npx prisma format --check
+    PASS.
+
+  npx prisma validate
+    PASS.
+
+  npm audit --audit-level=high
+    PASS: found 0 vulnerabilities.
+
+BACKUP PROTOTYPE RESULT
+  scripts/backup.js implements custom pg_dump output, UTC filenames, temporary
+  files, optional external-command encryption, SHA-256 sidecars, atomic move,
+  NDJSON results, daily retention, non-zero failures, cleanup, and dry-run.
+  Dry-run result: PASS ("Backup dry run completed.").
+  Real pg_dump result: NOT RUN; pg_dump is unavailable in this environment.
+
+RESTORE VERIFICATION RESULT
+  scripts/verify-backup.js creates a disposable database, calls pg_restore,
+  checks _prisma_migrations and basic users/employees row counts, then attempts
+  to delete the disposable database.
+  Result: NOT RUN; Docker, PostgreSQL, pg_restore, and psql are unavailable in
+  this environment.
+
+EXACT COMMANDS EXECUTED
+  npm test
+  npx prisma format
+  npx prisma format --check
+  npx prisma validate
+  npx prisma generate
+  npm run test:integration
+  npm run backup -- --dry-run
+  npm run audit:dependencies
+
+REMAINING LIMITATIONS
+  1. Run Docker Compose, prisma migrate deploy, and integration tests on an
+     isolated sms_v3_test database before approving the database milestone.
+  2. Run pg_dump, checksum verification, encryption (if required), secure
+     transfer, retention cleanup, and restore verification on the company server
+     before calling backups operational.
+  3. The login rate limiter remains process-local; use shared storage before
+     deploying multiple API instances.
+  4. Refresh tokens are returned in JSON for this API foundation. A browser
+     frontend should use secure HttpOnly cookies with CSRF controls, or a secure
+     platform-specific mobile token store.
+  5. Supabase development documentation is prepared only; no Supabase database
+     was created or connected.

@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ADMIN
+  HR
+  USER
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGIN_FAILED
+  REFRESH
+  LOGOUT
+  LOGOUT_ALL
+  TOKEN_REUSE
+}
+
+model User {
+  id               String           @id @default(uuid()) @db.Uuid
+  email            String           @unique @db.VarChar(255)
+  passwordHash     String           @map("password_hash") @db.VarChar(255)
+  displayName      String           @map("display_name") @db.VarChar(150)
+  role             UserRole         @default(USER)
+  isActive         Boolean          @default(true) @map("is_active")
+  tokenVersion     Int              @default(0) @map("token_version")
+  lastLoginAt      DateTime?        @map("last_login_at")
+  failedLoginCount Int              @default(0) @map("failed_login_count")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  auditLogs        AuditLog[]       @relation("ActorAuditLogs")
+  sessions         RefreshSession[]
+
+  @@map("users")
+}
+
+model RefreshSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String    @unique @map("refresh_token_hash") @db.VarChar(64)
+  tokenVersion     Int       @map("token_version")
+  userAgent        String?   @map("user_agent") @db.VarChar(500)
+  ipAddress        String?   @map("ip_address") @db.VarChar(64)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  lastUsedAt       DateTime? @map("last_used_at")
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("refresh_sessions")
+}
+
+model Employee {
+  id              String    @id @default(uuid()) @db.Uuid
+  employeeCode    String    @unique @map("employee_code") @db.VarChar(50)
+  firstName       String    @map("first_name") @db.VarChar(100)
+  lastName        String    @map("last_name") @db.VarChar(100)
+  email           String?   @unique @db.VarChar(255)
+  phone           String?   @db.VarChar(50)
+  department      String?   @db.VarChar(100)
+  jobTitle        String?   @map("job_title") @db.VarChar(100)
+  hiredAt         DateTime? @map("hired_at") @db.Date
+  isActive        Boolean   @default(true) @map("is_active")
+  deletedAt       DateTime? @map("deleted_at")
+  deletedByUserId String?   @map("deleted_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([isActive, deletedAt])
+  @@index([department])
+  @@map("employees")
+}
+
+// Ready for use by auditService; fields stay database-agnostic for migration.
+model AuditLog {
+  id          String      @id @default(uuid()) @db.Uuid
+  actorUserId String?     @map("actor_user_id") @db.Uuid
+  action      AuditAction
+  entityType  String      @map("entity_type") @db.VarChar(100)
+  entityId    String      @map("entity_id") @db.VarChar(100)
+  metadata    Json?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  actor       User?       @relation("ActorAuditLogs", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@index([action])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
+}

@@ -1,0 +1,25 @@
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const env = require('./config/env');
+const routes = require('./routes');
+const { notFound, errorHandler } = require('./middlewares/error-handler');
+const prisma = require('./config/prisma');
+const requestContext = require('./middlewares/request-context');
+
+const app = express();
+app.use(helmet());
+if (env.nodeEnv === 'production' && env.corsOrigins.length === 0) throw new Error('CORS_ORIGIN must contain at least one allowed origin in production.');
+app.use(cors({ credentials: true, origin(origin, callback) { if (!origin || env.corsOrigins.includes(origin)) return callback(null, true); return callback(new Error('Origin not allowed by CORS')); } }));
+app.use(requestContext);
+app.use(express.json({ limit: '1mb' }));
+app.use(morgan((tokens, req, res) => `${tokens.method(req, res)} ${tokens.url(req, res)} ${tokens.status(req, res)} ${tokens['response-time'](req, res)} ms requestId=${req.requestId}`));
+app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/ready', async (req, res, next) => { try { await prisma.$queryRaw`SELECT 1`; res.json({ status: 'ready', requestId: req.requestId }); } catch (error) { error.statusCode = 503; error.publicMessage = 'Database unavailable.'; next(error); } });
+app.get('/api/v1/ready', async (req, res, next) => { try { await prisma.$queryRaw`SELECT 1`; res.json({ status: 'ready', requestId: req.requestId }); } catch (error) { error.statusCode = 503; error.publicMessage = 'Database unavailable.'; next(error); } });
+app.use('/api/v1', routes);
+app.use(notFound);
+app.use(errorHandler);
+module.exports = app;

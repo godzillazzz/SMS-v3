@@ -1,0 +1,91 @@
+SMSV3 BACKEND FOUNDATION
+GATE 4.1 — SUPABASE DEVELOPMENT CONNECTION VERIFICATION
+Executed: 2026-07-19
+
+OVERALL STATUS: NOT PASSED / BLOCKED
+The local ignored environment file contains the required Supabase development
+settings and SSL was explicitly enabled. Prisma generation and schema validation
+passed. Migration, seed, and database API verification are blocked because
+DIRECT_URL is configured to the same pooled endpoint as DATABASE_URL rather
+than a separate direct PostgreSQL endpoint.
+
+ENVIRONMENT SECURITY RESULT
+  PASS: .env is excluded by .gitignore.
+  PASS: DATABASE_URL, DIRECT_URL, and JWT_SECRET are present (values omitted).
+  PASS: Supabase SSL mode is explicitly required on both URLs.
+  PASS: a compliant development JWT secret was generated locally without being
+  displayed after detecting the prior value did not meet the 32-character policy.
+  INFO: cookie names use reviewed code defaults; no cookie secret is stored.
+
+PRISMA CONFIGURATION RESULT
+  PASS: Prisma remains provider-neutral PostgreSQL.
+  PASS: datasource url uses DATABASE_URL and directUrl uses DIRECT_URL.
+  PASS: no Supabase SDK was added to business logic.
+  PASS: npx prisma generate completed.
+  PASS: npx prisma validate completed.
+  FAIL/BLOCKED: npx prisma migrate deploy and npx prisma migrate status returned
+  Schema engine error. Safe endpoint metadata confirms DATABASE_URL and DIRECT_URL
+  are equal and both point to the Supabase pooler. No connection value is shown.
+
+MIGRATION / SEED / TABLE RESULT
+  NOT RUN: migrations cannot safely proceed without the correct direct endpoint.
+  NOT RUN: sample seed, table verification, migration count, and audit/session
+  table checks were intentionally not attempted.
+
+BACKEND RUNTIME RESULT
+  PASS: local backend starts; GET /health returned status "ok".
+  PARTIAL: GET /ready returned 503 because Supabase runtime credentials were not
+  accepted by the pooled endpoint. The response is sanitized as
+  "Database unavailable." and does not expose connection details.
+  NOT RUN: login, refresh, logout, logout-all, employee listing, and audit-log
+  verification require a successfully migrated/authenticated development database.
+
+SECURITY FIX APPLIED
+  Readiness/database 5xx responses now use a public generic message even in
+  development, preventing Prisma connection detail disclosure.
+
+BACKEND VERIFICATION RESULT
+  npm test: PASS — 12 passed, 0 failed, 0 skipped, 0 cancelled.
+  npm run prisma:format:check: PASS.
+  npx prisma validate: PASS.
+  npm run audit:dependencies: PASS — 0 vulnerabilities.
+
+FRONTEND VERIFICATION RESULT
+  frontend/npm test: PASS — 1 passed, 0 failed.
+  frontend/npm run build: PASS.
+  frontend/npm audit --audit-level=high: PASS — 0 vulnerabilities.
+
+EXACT COMMANDS EXECUTED
+  Safe .env presence/SSL metadata checks (values not printed)
+  npx prisma generate
+  npx prisma migrate deploy
+  npx prisma migrate status
+  npx prisma format
+  npx prisma validate
+  npm test
+  npm run prisma:format:check
+  npm run audit:dependencies
+  frontend/npm test
+  frontend/npm run build
+  frontend/npm audit --audit-level=high
+  brief local backend start; GET /health; GET /ready; backend stopped and
+  temporary logs removed
+
+FILES CHANGED
+  prisma/schema.prisma
+  src/config/env.js
+  src/app.js
+  src/middlewares/error-handler.js
+  TECHNICAL_REVIEW_GATE_4_1.txt
+  Ignored local .env configuration was updated with sslmode=require and a
+  compliant development JWT secret; no value is recorded here.
+
+REMAINING LIMITATIONS / REQUIRED NEXT ACTION
+  Replace DIRECT_URL in the approved ignored .env with the Supabase direct
+  database connection endpoint (not a pooler endpoint), retaining sslmode=require.
+  Confirm DATABASE_URL remains the pooled application endpoint. Then rerun:
+  npx prisma migrate deploy
+  npx prisma migrate status
+  npm run db:seed
+  table verification, /ready, browser login/refresh/logout/logout-all, employee
+  listing, and audit-log verification using sample data only.

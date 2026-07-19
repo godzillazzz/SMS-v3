@@ -1,0 +1,85 @@
+SMSV3 BACKEND FOUNDATION
+GATE 5 — VERCEL STAGING DEPLOYMENT
+Executed: 2026-07-19
+
+OVERALL STATUS: NOT PASSED / STAGING DEPLOYMENT PENDING
+The Vercel-compatible application configuration, single-origin frontend/API
+routing, cookie configuration, documentation, and local quality gates are
+complete. A Vercel staging project/account authorization and staging deployment
+were not available in this environment, so no public URL or deployed verification
+is claimed.
+
+FILES ADDED OR CHANGED
+  api/index.js
+  api/[...path].js
+  vercel.json
+  src/app.js
+  src/config/env.js
+  frontend/src/api.ts
+  frontend/.env.example
+  .env.example
+  docs/vercel-staging.md
+  TECHNICAL_REVIEW_GATE_5.txt
+
+VERCEL ADAPTATION RESULT
+  PASS (local configuration review).
+  The Vercel Function entry points reuse the existing Express app and do not
+  duplicate routes. Local `src/server.js` remains unchanged for development.
+  Prisma Client remains module-scoped for warm function reuse. Runtime requests
+  do not run migrations, background processes, or local-disk work.
+
+SAME-ORIGIN ROUTING RESULT
+  PASS (configuration review).
+  `vercel.json` routes /api/* to the Express catch-all Function before SPA
+  fallback. The React client defaults to relative /api/v1. API paths therefore
+  do not rewrite to index.html. Local development may override the frontend API
+  base URL through its local environment file.
+
+AUTHENTICATION / COOKIE RESULT
+  PASS (existing local tests and Gate 4.7 Supabase verification).
+  Browser refresh cookies are HttpOnly, scoped to /api/v1/auth, SameSite=Lax,
+  omitted from browser JSON, and protected by CSRF. `COOKIE_SECURE=true` is
+  documented for Vercel production/staging. Access tokens remain memory-only.
+  CORS permits credentials only for explicit configured origins; no wildcard
+  credential configuration was added.
+
+SUPABASE CONNECTIVITY RESULT
+  PASS (Gate 4.7 verified Supabase development migration, seed, readiness, API
+  authentication, sample employee list, and audit records). No database URL or
+  Supabase endpoint is recorded here.
+
+LOCAL QUALITY GATE RESULT
+  Backend tests: PASS — 12 passed, 0 failed.
+  Prisma format check: PASS.
+  Prisma validate: PASS.
+  Backend dependency audit: PASS — 0 vulnerabilities.
+  Frontend tests: PASS — 1 passed, 0 failed.
+  Frontend production build: PASS.
+  Frontend dependency audit: PASS — 0 vulnerabilities.
+
+DEPLOYMENT RESULT
+  Frontend deployment: NOT RUN — no authorized Vercel staging project/account.
+  API deployment: NOT RUN — no authorized Vercel staging project/account.
+  Deployed health/readiness, same-origin login/refresh/logout, protected page,
+  invalid login, cookies, CSRF, employee list, and audit verification: NOT RUN.
+  Safe staging URL: none.
+
+EXACT NON-SECRET COMMANDS EXECUTED
+  npm test
+  npm run prisma:format:check
+  npx prisma validate
+  npm run audit:dependencies
+  frontend/npm test
+  frontend/npm run build
+  frontend/npm audit --audit-level=high
+  vercel --version (CLI not available)
+
+REMAINING LIMITATIONS / NEXT ACTION
+  1. Provide or authorize a Vercel staging project, then set server-only staging
+     environment variables documented in docs/vercel-staging.md.
+  2. Run `npx prisma migrate deploy` manually from a trusted environment before
+     deployment; do not run it in request handlers.
+  3. Deploy preview/staging and verify every deployed endpoint and browser flow
+     through the same-origin staging URL before marking Gate 5 passed.
+  4. Configure the company-server backup process separately; it is not part of
+     Vercel deployment.

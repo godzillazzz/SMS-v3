@@ -1,0 +1,100 @@
+SMSV3 BACKEND FOUNDATION
+TECHNICAL REVIEW GATE 2
+Generated: 2026-07-17
+
+SCOPE
+This review record covers the SMSV3 backend hardening completed after
+Technical Review Gate 1. It does not represent a production deployment.
+
+IMPLEMENTED CONTROLS
+1. Environment configuration
+   - DATABASE_URL and JWT_SECRET are required outside automated tests.
+   - JWT_SECRET must be at least 32 characters.
+   - NODE_ENV, PORT, JWT_EXPIRES_IN, CORS_ORIGIN, and login rate-limit
+     settings are validated at startup.
+   - Production requires an explicit CORS_ORIGIN allowlist.
+
+2. Authentication and JWTs
+   - Tokens use the explicitly configured HS256 algorithm.
+   - Issuer and audience are both signed and verified.
+   - Default access-token lifetime is 30 minutes.
+   - User tokenVersion is included in claims and checked on every
+     authenticated request.
+   - Authentication confirms that the user still exists and is active.
+   - Responses do not expose password hashes.
+
+3. Login protection
+   - POST /api/v1/auth/login has an IP-based rate limit.
+   - Successful and failed login attempts are audited without passwords.
+   - Failed logins increment failedLoginCount for known users.
+   - Successful logins set lastLoginAt and reset failedLoginCount.
+   - Invalid credentials and inactive-user login attempts use the same
+     public error message.
+
+4. Employee API and audit trail
+   - UUID route parameter validation is enforced.
+   - GET /employees supports pagination, search, isActive, and department.
+   - pageSize is limited to 100.
+   - GET /employees/:id is available.
+   - Basic USER accounts do not receive employee email, phone, or hiredAt.
+   - Empty PUT bodies are rejected.
+   - DELETE is a soft delete using deletedAt and deletedByUserId.
+   - Create, update, and soft delete write audit records in the same Prisma
+     transaction.
+   - Employee audit snapshots exclude personal contact fields.
+
+5. Error handling and HTTP security
+   - Responses carry an x-request-id correlation ID.
+   - Request IDs are included in server request logs.
+   - Production 500 responses are sanitized.
+   - Common Prisma constraint, missing-record, relation, and input errors
+     have client-safe status mappings.
+   - Helmet and the 1 MB JSON request limit remain enabled.
+   - GET /health provides liveness; GET /ready checks database readiness.
+
+6. Operations and CI
+   - Prisma migration draft: prisma/migrations/202607170001_hardening/
+   - CI runs Prisma format check, Prisma validate, test suite, and
+     npm audit --audit-level=high without modifying dependencies.
+   - scripts/backup.js is explicitly non-production and performs no dump,
+     encryption, or transfer.
+   - docs/backup.md defines the required pg_dump, encryption, checksum,
+     secure transfer, retention, restore verification, and alerting plan.
+
+VERIFICATION RESULTS
+Commands run locally without a production database:
+  npx prisma format --check
+  Result: passed
+
+  npx prisma validate
+  Result: passed
+
+  npm test
+  Result: 8 passed, 0 failed
+
+  npm audit --audit-level=high
+  Result: found 0 vulnerabilities
+
+TEST COVERAGE INCLUDED
+  - Successful, failed, and inactive-user login behavior
+  - Expired, tampered, and token-version-mismatched JWT rejection
+  - ADMIN, HR, and USER authorization behavior
+  - Login rate limiting
+  - Employee create, list, update, soft delete, and audit creation
+  - Production 500 response sanitization
+  - Basic health endpoint
+
+REMAINING LIMITATIONS / GATE 2 FOLLOW-UP
+  - Login rate limiting is in-memory and works per API instance only.
+    Replace with a shared store such as Redis before horizontal scaling.
+  - Tests use isolated Prisma mocks; a disposable PostgreSQL integration-test
+    database is still needed for migration, transaction, and query coverage.
+  - No production database migration was run, by design. Apply and verify the
+    migration in a non-production database before production deployment.
+  - Automated backups are not implemented. They must be scheduled, encrypted,
+    transferred, alerted, and restore-tested before being treated as active.
+  - Refresh-token/session revocation is not yet implemented.
+
+GATE 2 STATUS
+Conditionally ready for technical review. Production release requires closure
+of the remaining limitations or explicit risk acceptance by the project owner.

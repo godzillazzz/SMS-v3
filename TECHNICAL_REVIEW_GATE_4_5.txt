@@ -1,0 +1,53 @@
+SMSV3 BACKEND FOUNDATION
+GATE 4.5 — POSTGRESQL CLIENT DIFFERENTIAL CONNECTIVITY TEST
+Executed: 2026-07-19
+
+OVERALL STATUS: NOT PASSED / BLOCKED ON NETWORK RESTRICTION
+
+SAFETY RESULT
+  PASS: .env remains excluded by .gitignore.
+  PASS: Docker Engine was running.
+  PASS: the temporary container environment contained only DATABASE_URL; no JWT
+  or unrelated application secret was passed to the container.
+  PASS: temporary credential and captured-output files were deleted after test.
+  PASS: Session Pooler port is 5432 and sslmode=require is present.
+
+SUPABASE PROJECT CHECKS
+  Project active/paused status: NOT VERIFIED. This task has database credentials
+  only, not authorized Supabase management/dashboard access.
+  Network restriction allowlist: NOT VERIFIED directly for the same reason.
+  Session Pooler form/port and SSL requirement: PASS by safe URL metadata check.
+
+STANDARD POSTGRESQL CLIENT RESULT
+  Image: official postgres:16-alpine.
+  Exactly one psql SELECT 1 command was executed against the approved Session
+  Pooler connection. The command and connection value were not printed.
+  Result: FAIL.
+  Safe psql category: network restriction.
+  Safe SQLSTATE: none.
+
+PRISMA COMPARISON RESULT
+  NOT RUN. The milestone requires stopping when psql fails. No URL parameters
+  were added, no Prisma Client was created, and no Prisma migration/seed command
+  was run during this milestone.
+
+MIGRATION / API RESULT
+  NOT RUN because the standard PostgreSQL client could not establish a session.
+
+EXACT NON-SECRET COMMANDS EXECUTED
+  docker info --format '{{.ServerVersion}}'
+  Safe .env and URL metadata validation (values omitted)
+  docker run --rm --env-file <temporary ignored file> postgres:16-alpine
+    psql <approved connection via container environment> -Atqc "SELECT 1"
+  Temporary credential/output file removal check
+
+FILES CHANGED
+  TECHNICAL_REVIEW_GATE_4_5.txt
+
+REMAINING LIMITATIONS / NEXT ACTION
+  The differential result indicates the failure is not Prisma-specific: standard
+  psql from Docker also cannot establish the approved Session Pooler database
+  session. In the Supabase development project, verify the project is active and
+  that network restrictions allow this machine's approved public IP for Session
+  Pooler access. After the provider/network condition is corrected, rerun one
+  psql SELECT 1 before any Prisma migration or seed operation.

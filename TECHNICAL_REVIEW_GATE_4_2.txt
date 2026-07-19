@@ -1,0 +1,81 @@
+SMSV3 BACKEND FOUNDATION
+GATE 4.2 — SUPABASE POOLER AUTHENTICATION DIAGNOSIS
+Executed: 2026-07-19
+
+OVERALL STATUS: NOT PASSED / BLOCKED ON DATABASE-LEVEL CONNECTIVITY
+The corrected Session Pooler configuration is accepted: DATABASE_URL and
+DIRECT_URL may be equal for this IPv4 environment. Both URLs passed safe format
+validation, DNS resolution, and TCP port reachability. A single Prisma query
+failed at database initialization with safe category `network` and no reported
+safe error code. No retry was performed.
+
+SAFE CONNECTION VALIDATION RESULT
+  DATABASE_URL: PASS
+  DIRECT_URL: PASS
+  Both connections safely verified as:
+    - PostgreSQL protocol
+    - Supabase Session Pooler endpoint
+    - port 5432
+    - postgres database
+    - sslmode=require
+    - no unresolved placeholder
+    - expected pooler username format
+    - safely URL-encoded password field
+  DATABASE_URL and DIRECT_URL equality: ACCEPTED for this IPv4 Session Pooler
+  development configuration.
+  Prisma datasource remains provider-neutral PostgreSQL. No Supabase SDK is in
+  business logic.
+
+NETWORK / AUTHENTICATION RESULT
+  DNS A record: PASS.
+  TCP port 5432 reachability: PASS.
+  Single Prisma SELECT 1 authentication/query attempt: FAIL.
+  Safe Prisma failure category: network.
+  Safe Prisma error code: none.
+  No URL, host, project reference, username, password, token, or error message
+  detail is recorded here.
+
+DIAGNOSIS
+  The available evidence rules out an unresolved placeholder, invalid protocol,
+  incorrect port/database form, missing SSL requirement, DNS A-record failure,
+  and basic TCP reachability failure. It does not prove database-session
+  authentication or TLS negotiation succeeds. Remaining likely categories are
+  pooler/project state, database-level network policy, or TLS/session routing.
+  Credential failure cannot be proven from the safe Prisma category and must be
+  checked in the Supabase development project without exposing credentials.
+
+MIGRATION / SEED / TABLE VERIFICATION
+  NOT RUN. Per the milestone rule, migrations and seed were not attempted after
+  the authentication/query failure.
+  Therefore _prisma_migrations, users, employees, audit_logs, refresh_sessions,
+  sample administrator, and sample employee were not verified on Supabase.
+
+API VERIFICATION
+  NOT RUN against Supabase because the backend cannot establish a database
+  session. Login, refresh, logout, logout-all, employee list, and audit-log
+  verification remain pending.
+
+EXACT COMMANDS EXECUTED
+  Safe local .env metadata validation of protocol, pooler form, port, database,
+  SSL query parameter, placeholder absence, username format, and password
+  encoding (values omitted)
+  Resolve-DnsName for the approved pooler endpoint (result only)
+  Test-NetConnection to approved pooler port 5432 (result only)
+  PrismaClient SELECT 1 once, reporting only success/category/code
+  Safe classification of the observed Prisma initialization failure
+
+FILES CHANGED
+  TECHNICAL_REVIEW_GATE_4_2.txt
+  No business feature, schema, migration, or architecture change was made in
+  this milestone.
+
+REMAINING LIMITATIONS / NEXT ACTIONS
+  1. In Supabase development settings, confirm the project is active and the
+     Session Pooler is enabled/available for the approved IPv4 network.
+  2. Confirm the database password and pooler role remain current through the
+     approved secret channel; do not paste them into chat or source control.
+  3. Confirm the provider/network allows a complete TLS PostgreSQL session from
+     this development machine, not merely TCP reachability.
+  4. After the Prisma SELECT 1 succeeds, run generate, migrate deploy, migration
+     status, sample seed, table checks, local backend/API checks, and all Gate 4
+     backend/frontend verification commands before marking Gate 4.2 passed.
