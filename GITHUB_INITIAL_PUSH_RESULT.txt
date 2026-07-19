@@ -1,0 +1,30 @@
+SMS v3 — GITHUB INITIAL PRIVATE PUSH RESULT
+Executed: 2026-07-19
+
+REPOSITORY VISIBILITY VERIFICATION
+PASS — Authenticated Git access to the approved SMS-v3 destination succeeded.
+PASS — The unauthenticated GitHub repository endpoint returned HTTP 404 while authenticated Git access succeeded; this confirms the repository is not publicly visible.
+PASS — Remote history check before push found no existing branches or tags.
+
+COMMIT RESULT
+PARTIAL — The existing initial commit was pushed because Git could not amend it without a configured local commit identity. No history was rewritten and no force push was used.
+SAFE INITIAL COMMIT HASH: ca5e6c0ea8b747bdc0a55cfad5b467ca789fe3c2
+INITIAL COMMIT MESSAGE: Initial SMS v3 staging baseline
+FOLLOW-UP ACTION: This result report is committed separately with the requested commit message, preserving the no-force-push requirement.
+
+PUSH RESULT
+PASS — main was pushed to the approved origin using normal Git push.
+PASS — No force push was used.
+
+BRANCH TRACKING RESULT
+PASS — Local main tracks origin/main.
+
+WORKING-TREE RESULT
+PASS — The working tree was clean immediately after the initial push.
+
+FILES EXCLUDED BY IGNORE RULES
+PASS — .env and .env.* (except approved example files), node_modules, backups, dump files, checksum files, log files, temporary files, and credential files remain ignored.
+
+REMAINING LIMITATIONS
+- The initial root commit message differs from the requested text because the unpushed amend could not run without a local Git identity. It was not rewritten after push, in accordance with the no-force-push requirement.
+- No automated secret scanner guarantees detection of every possible secret format; only safe, repository-scoped checks were performed.
