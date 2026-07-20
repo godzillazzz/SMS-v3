@@ -1,6 +1,7 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
 const env = require('../src/config/env');
 const { setBrowserSession, clearBrowserSession, csrfProtection } = require('../src/middlewares/browser-session');
 
@@ -12,6 +13,21 @@ test('browser refresh cookie is HttpOnly, Lax, narrowly scoped, and Secure in pr
   assert.equal(refresh[1], 'refresh-token-value'); assert.equal(refresh[2].httpOnly, true); assert.equal(refresh[2].secure, true); assert.equal(refresh[2].sameSite, 'lax'); assert.equal(refresh[2].path, '/api/v1/auth');
   assert.equal(cookies.find(([name]) => name === env.csrfCookieName)[2].httpOnly, false);
   clearBrowserSession(response); env.cookieSecure = previous;
+});
+test('production configuration cannot disable the Secure cookie attribute', () => {
+  const script = "process.stdout.write(String(require('./src/config/env').cookieSecure))";
+  const output = execFileSync(process.execPath, ['-e', script], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/smsv3_test',
+      JWT_SECRET: 'test-secret-with-at-least-thirty-two-chars',
+      CORS_ORIGIN: 'https://staging.example.test',
+      COOKIE_SECURE: 'false'
+    }
+  }).toString();
+  assert.equal(output, 'true');
 });
 test('CSRF protection rejects missing tokens and accepts matching cookie/header tokens', async () => {
   const run = (headers) => new Promise((resolve) => csrfProtection({ headers, get: (name) => headers[name] }, {}, resolve));

@@ -50,5 +50,7 @@ module.exports = {
   refreshTokenExpiresDays: parsed.REFRESH_TOKEN_EXPIRES_IN ? Number(parsed.REFRESH_TOKEN_EXPIRES_IN.slice(0, -1)) : parsed.REFRESH_TOKEN_EXPIRES_DAYS,
   authCookieName: parsed.AUTH_COOKIE_NAME,
   csrfCookieName: parsed.CSRF_COOKIE_NAME, cookieSameSite: parsed.COOKIE_SAME_SITE,
-  cookieDomain: parsed.COOKIE_DOMAIN, cookieSecure: parsed.COOKIE_SECURE ? parsed.COOKIE_SECURE === 'true' : parsed.NODE_ENV === 'production'
+  cookieDomain: parsed.COOKIE_DOMAIN,
+  // A production browser session must never be downgraded to an insecure cookie.
+  cookieSecure: parsed.NODE_ENV === 'production' || parsed.COOKIE_SECURE === 'true'
 };
