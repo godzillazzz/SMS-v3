@@ -1,0 +1,105 @@
+SMS v3 TECHNICAL REVIEW — GATE 5.2
+Milestone: Staging Closeout and Production Readiness
+Executed: 2026-07-21
+
+FINAL GATE 5.2 RESULT: BLOCKED
+
+The reviewed staging code checks pass, but production readiness is not approved. A real disposable restore rehearsal could not run because the local Docker daemon was unavailable, and this workstation ran Node 24 rather than the pinned Node 22 runtime. Organizational, hosting, backup-scheduling, monitoring, privacy, and security approvals also remain pending.
+
+NODE VERSION RESULT
+PASS — Root and frontend package manifests require Node 22.x.
+PASS — Root and frontend lockfiles contain the matching engine requirement and remain valid.
+PASS — .nvmrc contains 22.
+LOCAL LIMITATION — Version checks reported Node v24.18.0 and npm 11.16.0. Tests passed, but execution under Node 22 must still be confirmed by CI/Vercel or an approved local Node 22 environment.
+
+FILES CHANGED
+- .gitignore
+- .nvmrc
+- package.json
+- package-lock.json
+- frontend/package.json
+- frontend/package-lock.json
+- src/config/env.js
+- src/services/audit.service.js
+- scripts/backup.js
+- scripts/verify-backup.js
+- test/auth-routes-browser.test.js
+- test/auth.service.test.js
+- test/browser-session.test.js
+- docs/backup-runbook.md
+- docs/backup.md
+- docs/frontend-authentication.md
+- docs/STAGING_RUNBOOK.md
+- docs/PRODUCTION_READINESS_CHECKLIST.md
+- TECHNICAL_REVIEW_GATE_5_2.txt (review report commit)
+
+BACKEND TEST RESULT
+PASS — 16 tests passed; 0 failed.
+Coverage includes authorization, login rate limiting, browser login/refresh/logout/logout-all, CSRF validation, login sanitization, JWT validation, cookie attributes, wildcard-CORS rejection, audit behavior, employee mutations, production error sanitization, and health.
+
+FRONTEND TEST RESULT
+PASS — 3 tests passed; 0 failed.
+Browser refresh, logout, logout-all, credentials inclusion, CSRF headers, and protected-route startup refresh are covered.
+
+PRISMA VERIFICATION RESULT
+PASS — Prisma format check completed successfully.
+PASS — Prisma schema validation completed successfully.
+LIMITATION — The package.json Prisma configuration emits a deprecation warning for a future Prisma major version; migration to a Prisma config file is deferred.
+
+FRONTEND BUILD RESULT
+PASS — TypeScript and Vite production build completed successfully.
+
+DEPENDENCY-AUDIT RESULTS
+PASS — Backend audit found 0 vulnerabilities at the requested threshold.
+PASS — Frontend audit found 0 vulnerabilities at the requested threshold.
+
+RATE-LIMIT RESULT
+PASS — Login rate-limit regression coverage rejects attempts over the configured maximum.
+LIMITATION — The current in-memory limiter is process-local; a shared limiter remains required if the deployed topology needs consistent limits across multiple instances.
+
+COOKIE AND CSRF RESULT
+PASS — Browser JSON login and refresh responses exclude refresh tokens.
+PASS — Refresh cookie is HttpOnly, Secure in production, SameSite=Lax, and scoped to /api/v1/auth.
+PASS — CSRF cookie is readable, Secure in production, SameSite=Lax, and scoped to /.
+PASS — Refresh, logout, and logout-all require a matching CSRF cookie/header pair using timing-safe validation.
+PASS — Frontend requests include credentials and protected content waits for authentication initialization.
+PASS — Credentialed CORS rejects wildcard configuration.
+
+AUDIT-LOG RESULT
+PASS — Regression coverage verifies successful login, failed login, refresh, logout, logout-all, employee create, employee update, and employee soft-delete audit behavior.
+PASS — Audit metadata sanitization is recursive and removes password, token, secret, cookie, authorization, and database-connection keys.
+PASS — No password, token, cookie, JWT secret, or database connection value is intentionally written to audit metadata.
+
+BACKUP-SCRIPT RESULT
+PASS — Backup and restore scripts pass JavaScript syntax checks.
+PASS — Backup dry-run completed without a database connection attempt or credential output.
+PASS — The backup script reads its connection only from environment variables, creates a timestamped PostgreSQL custom-format dump, validates the dump format, produces a SHA-256 sidecar, uses temporary files, and returns failure status when required operations fail.
+PASS — Generated backup, encrypted dump, checksum, partial, result-log, and general log patterns remain ignored by Git.
+PASS — The restore verifier validates the checksum and custom format, rejects non-local hosts, restores only to a random disposable local database, verifies required tables, and attempts mandatory cleanup.
+LIMITATION — Scheduling, encryption-key management, secure transfer, retention policy approval, and failure notification are not operational yet.
+
+RESTORE-REHEARSAL RESULT
+PENDING — Docker Desktop/Engine was not running and the local Docker API was unavailable. No approved disposable PostgreSQL environment was available, so no backup or restore was attempted and no pass is claimed.
+
+DOCUMENTATION RESULT
+PASS — docs/STAGING_RUNBOOK.md documents deployment, environment key names, health/readiness, session/CSRF verification, rollback, secret rotation, backup/restore, and placeholder incident contacts.
+PASS — docs/PRODUCTION_READINESS_CHECKLIST.md clearly identifies staging/sample-data-only status and all outstanding organizational and operational approvals.
+PASS — Backup and frontend-authentication documentation reflects the hardened scripts and cookie paths.
+
+COMMIT AND PUSH RESULT
+PASS — Reviewed implementation commit: 61a2c9266f9b038722367bebbda22197e07bdc36
+PASS — Commit message: chore: complete Gate 5.2 readiness hardening
+PASS — The implementation commit was pushed normally to main.
+PASS — No force push was used.
+
+REMAINING LIMITATIONS
+- Run the full verification suite under Node 22.x.
+- Start an approved local disposable PostgreSQL environment and complete a real custom-format backup, checksum validation, restore verification, table verification, and cleanup rehearsal.
+- Verify the deployed staging commit is 61a2c92 or newer after Vercel redeploys main.
+- Complete organizational, hosting/commercial-use, privacy, and security approvals before production.
+- Implement and test company-server/NAS backup scheduling, encryption, secure transfer, retention, alerts, and ownership.
+- Assign monitoring, incident response, and audit-log operational owners.
+- Replace or supplement process-local rate limiting if multi-instance enforcement is required.
+
+PRODUCTION READINESS
+NOT APPROVED. The system remains staging-only and sample-data-only.
