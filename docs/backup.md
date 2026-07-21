@@ -1,6 +1,6 @@
 # Nightly backup plan
 
-`npm run backup` is a non-production working prototype. It is still **not an operational backup service** until pg_dump, checksum validation, restore verification, scheduling, retention, and alerts are proven in the company environment. See [backup runbook](backup-runbook.md).
+`npm run backup` is a controlled utility. It is still **not an operational backup service** until pg_dump, checksum validation, restore verification, scheduling, retention, secure transfer, encryption where required, and alerts are proven in the company environment. See [backup runbook](backup-runbook.md).
 
 Before enabling a company-server schedule:
 

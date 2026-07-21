@@ -10,14 +10,20 @@ const sessions = [];
 const fakePrisma = {
   user: {
     findUnique: async ({ where }) => users.find((user) => user.email === where.email || user.id === where.id) || null,
-    update: async ({ where, data }) => { const user = users.find((item) => item.id === where.id); if (data.failedLoginCount?.increment) user.failedLoginCount += data.failedLoginCount.increment; else Object.assign(user, data); return user; }
+    update: async ({ where, data }) => { const user = users.find((item) => item.id === where.id); if (data.failedLoginCount?.increment) user.failedLoginCount += data.failedLoginCount.increment; else if (data.tokenVersion?.increment) user.tokenVersion += data.tokenVersion.increment; else Object.assign(user, data); return user; }
   },
-  refreshSession: { create: async ({ data }) => { sessions.push({ id: `session-${sessions.length}`, ...data }); return sessions.at(-1); } },
+  refreshSession: {
+    create: async ({ data }) => { sessions.push({ id: `session-${sessions.length}`, revokedAt: null, lastUsedAt: null, ...data }); return sessions.at(-1); },
+    findUnique: async ({ where }) => { const session = sessions.find((item) => item.refreshTokenHash === where.refreshTokenHash); return session ? { ...session, user: users.find((item) => item.id === session.userId) } : null; },
+    update: async ({ where, data }) => { const session = sessions.find((item) => item.id === where.id); Object.assign(session, data); return session; },
+    updateMany: async ({ where, data }) => { const matches = sessions.filter((item) => item.userId === where.userId && (where.revokedAt !== null || item.revokedAt === null)); matches.forEach((item) => Object.assign(item, data)); return { count: matches.length }; }
+  },
   auditLog: { create: async ({ data }) => { audits.push(data); return data; } },
   $transaction: async (operations) => Array.isArray(operations) ? Promise.all(operations) : operations(fakePrisma)
 };
 require.cache[require.resolve('../src/config/prisma')] = { exports: fakePrisma };
 const auth = require('../src/services/auth.service');
+const audit = require('../src/services/audit.service');
 const { authenticate } = require('../src/middlewares/authenticate');
 const env = require('../src/config/env');
 
@@ -33,6 +39,17 @@ test('failed and inactive login share one public error and are audited', async (
   await assert.rejects(() => auth.login('admin@example.com', 'correct-password', 'req-3'), { message: auth.genericFailure });
   users[0].isActive = true;
   assert.equal(audits.filter((entry) => entry.action === 'LOGIN_FAILED').length, 2);
+});
+test('refresh, logout, and logout-all create sanitized audit records', async () => {
+  const first = await auth.login('admin@example.com', 'correct-password', 'req-session-1');
+  const refreshed = await auth.refresh(first.refreshToken, 'req-session-2');
+  await auth.logout(refreshed.refreshToken, 'req-session-3');
+  const second = await auth.login('admin@example.com', 'correct-password', 'req-session-4');
+  await auth.logoutAll(users[0].id, 'req-session-5');
+  assert.ok(second.refreshToken);
+  assert.deepEqual(audits.slice(-5).map((entry) => entry.action), ['LOGIN', 'REFRESH', 'LOGOUT', 'LOGIN', 'LOGOUT_ALL']);
+  const sanitized = audit.safeMetadata({ requestId: 'safe-request', nested: { password: 'fixture', refreshToken: 'fixture', cookie: 'fixture', allowed: true } });
+  assert.deepEqual(sanitized, { requestId: 'safe-request', nested: { allowed: true } });
 });
 test('middleware rejects expired, tampered, and token-version-mismatched JWTs', async () => {
   const run = (token) => new Promise((resolve) => authenticate({ headers: { authorization: `Bearer ${token}` } }, {}, (error) => resolve(error)));

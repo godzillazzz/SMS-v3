@@ -30,6 +30,20 @@ test('production configuration cannot disable the Secure cookie attribute', () =
   }).toString();
   assert.equal(output, 'true');
 });
+test('credentialed CORS configuration rejects wildcard origins', () => {
+  const script = "require('./src/config/env')";
+  assert.throws(() => execFileSync(process.execPath, ['-e', script], {
+    cwd: process.cwd(),
+    stdio: 'pipe',
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/smsv3_test',
+      JWT_SECRET: 'test-secret-with-at-least-thirty-two-chars',
+      CORS_ORIGIN: '*'
+    }
+  }));
+});
 test('CSRF protection rejects missing tokens and accepts matching cookie/header tokens', async () => {
   const run = (headers) => new Promise((resolve) => csrfProtection({ headers, get: (name) => headers[name] }, {}, resolve));
   assert.equal((await run({})).statusCode, 403);
