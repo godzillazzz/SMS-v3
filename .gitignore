@@ -16,6 +16,10 @@ backups/
 *.tmp
 *.credential
 *.credentials
+*.credential.*
+*.credentials.*
+temp-credential*
+temporary-credential*
 dist/
 *.log
 backup-results.ndjson

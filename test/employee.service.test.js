@@ -23,5 +23,7 @@ test('employee create, list, update, and soft delete create safe audit entries',
   await service.update(created.id, { department: 'Ops' }, actor);
   await service.remove(created.id, actor);
   assert.ok(employees[0].deletedAt); assert.equal(employees[0].isActive, false);
+  const listedAfterDelete = await service.list({ page: 1, pageSize: 20 }, 'ADMIN');
+  assert.equal(listedAfterDelete.data.length, 0); assert.equal(listedAfterDelete.meta.total, 0);
   assert.equal(audits.length, 3); assert.equal(audits[0].metadata.after.email, undefined);
 });
