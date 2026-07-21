@@ -1,0 +1,208 @@
+SMS v3 TECHNICAL REVIEW GATE 5.4
+Milestone: Production Readiness Review Without Backup Automation
+Review date: 2026-07-21
+
+FINAL GATE 5.4 TECHNICAL RESULT: PARTIAL
+
+This review confirms a strong local staging baseline, successful deployment metadata for the approved Vercel staging environment, and completion of the required operational documentation. It does not approve production use. Hosted functional verification is incomplete because Vercel Authentication redirects unauthenticated requests before they reach the application. Automated Windows Server or NAS backup scheduling and organizational approvals remain intentionally deferred.
+
+SAFETY AND SCOPE
+
+- Review scope remained staging-only and sample-data-only.
+- No production credentials or real employee data were used.
+- No staging records were created, modified, or deleted during this review.
+- No database connection value, database endpoint, credential, secret, token, cookie value, Supabase reference, backup content, or employee record is included in this report.
+- No force push was used.
+
+A. RUNTIME AND DEPLOYMENT VERIFICATION
+
+1. Root package.json Node requirement: PASS — engines.node is 22.x.
+2. Frontend package.json Node requirement: PASS — engines.node is 22.x.
+3. .nvmrc: PASS — contains 22.
+4. Active local Node runtime: LIMITATION — v24.18.0 was active; Node version management was not installed on this computer. The project declarations remain 22.x.
+5. Approved Vercel staging deployment: PASS at metadata level — state is success and the deployed SHA matches current origin/main commit 8bdddc79c818.
+6. Deployed Node 22.x runtime: NOT INDEPENDENTLY VERIFIED — source declarations require Node 22.x, but the protected Vercel dashboard/runtime evidence was unavailable in the current authenticated session.
+7. Safe approved staging URL: https://sms-v3-staging-gw24gkbc3-godzillazz.vercel.app
+8. Deployed root: BLOCKED — HTTP 302 to Vercel Authentication.
+9. Deployed GET /api/v1/health: BLOCKED — HTTP 302 to Vercel Authentication; application HTTP 200 could not be observed.
+10. Deployed GET /api/v1/ready: BLOCKED — HTTP 302 to Vercel Authentication; database readiness could not be observed.
+11. Same-origin frontend/API design: PASS by source review — the frontend defaults to /api/v1 and vercel.json routes /api requests to the Express function before the SPA fallback. Hosted behavioral confirmation is blocked by Vercel Authentication.
+12. Credentialed CORS: PASS by source and automated test — origins use an explicit allowlist and wildcard configuration is rejected.
+13. Production error sanitization: PASS by automated test — HTTP 500 responses return a generic message and request ID while detailed errors remain server-side.
+14. Additional environment observation: a separate Vercel environment named Production – sms-v3 reported failure for the same commit. It is not the approved sms-v3-staging environment and requires owner review or deconfiguration before any production decision.
+
+B. AUTHENTICATION AND SESSION SECURITY
+
+Local source/test verification:
+
+- Valid login: PASS.
+- Invalid and inactive login: PASS — same generic public response.
+- Login rate limiting: PASS for the configured middleware test.
+- Browser login and refresh JSON exclude refresh tokens: PASS.
+- Refresh cookie: PASS — HttpOnly, Secure in production, SameSite=Lax, Path=/api/v1/auth.
+- CSRF cookie: PASS — readable by browser JavaScript, Secure in production, SameSite=Lax, Path=/.
+- Refresh, logout, and logout-all require a matching CSRF cookie and x-csrf-token header: PASS.
+- Frontend credentials mode: PASS — browser requests use credentials: include.
+- Protected-route initialization: PASS — the application remains in loading state until startup refresh completes.
+- Protected-route reload/F5 behavior: PASS in frontend regression test for /dashboard startup refresh.
+- Logout cookie clearing: PASS.
+- Logout-all session revocation and tokenVersion increment: PASS by service test/source review.
+- Refresh token rotation and audit creation: PASS by backend tests.
+
+Hosted browser verification:
+
+- Login, invalid login, refresh, protected route, F5 session continuity, logout, and logout-all: BLOCKED by Vercel Authentication before application routing.
+- Hosted cookie and CSRF attributes: BLOCKED for the same reason.
+
+Operational limitation: the login rate limiter is process-local. It does not provide a global distributed limit across independent serverless instances and requires a shared rate-limit store before production approval.
+
+C. AUTHORIZATION AND AUDIT
+
+- ADMIN, HR, and USER role checks: PASS by automated test.
+- Unauthenticated employee endpoint rejection: PASS — GET /api/v1/employees returned HTTP 401 in the regression test.
+- Privileged employee mutations: PASS by route/source review — create and update require ADMIN or HR; soft delete requires ADMIN.
+- Successful login audit: PASS by test.
+- Failed login audit: PASS by test.
+- Refresh audit: PASS by test.
+- Logout audit: PASS by test.
+- Logout-all audit: PASS by test.
+- Employee create, update, and soft-delete audits: PASS by transactional service test.
+- Audit metadata sanitization: PASS — password, token, secret, cookie, authorization, database URL, and connection-string keys are recursively removed.
+- Soft-deleted employee filtering: PASS — a new regression assertion confirms normal listing returns zero records after the sample record is soft-deleted.
+- Live staging audit-row and role verification: NOT EXECUTED because this review prohibited staging-data mutation except isolated test records and hosted access was blocked. No database contents were printed.
+
+D. QUALITY, BUILD, DEPENDENCY, AND SECRET CHECKS
+
+Backend tests:
+- Test files: Node test runner set
+- Tests: 17
+- Passed: 17
+- Failed: 0
+- Skipped: 0
+- Result: PASS
+
+Frontend tests:
+- Test files: 1 passed
+- Tests: 3
+- Passed: 3
+- Failed: 0
+- Result: PASS
+
+Prisma:
+- Format check: PASS
+- Schema validate: PASS
+- Remaining warning: package.json#prisma configuration is deprecated for Prisma 7 and should later move to a Prisma config file.
+
+Frontend production build:
+- TypeScript build: PASS
+- Vite production build: PASS
+- Modules transformed: 15
+
+Dependency audits:
+- Backend: PASS — 0 vulnerabilities reported at the configured high threshold.
+- Frontend: PASS — 0 vulnerabilities reported at the configured high threshold.
+
+Secret and artifact safety:
+- Unsafe connection URLs found outside approved placeholder/test contexts: 0.
+- Live Supabase provider references found: 0.
+- Non-example/non-test secret literals found: 0.
+- Non-sample email findings: 0.
+- Tracked .env, dump, backup, checksum, or log artifacts: 0.
+- Required ignore-rule failures: 0 after adding credential filename variants.
+- Seed review: sample markers present; no non-sample email domain detected.
+- Baseline worktree was clean before Gate 5.4 changes.
+- Worktree was clean and main matched origin/main after the reviewed implementation commit and push.
+
+E. MONITORING AND INCIDENT PLAN
+
+Created docs/MONITORING_AND_INCIDENT_PLAN.md with:
+- health and readiness monitoring;
+- failed-login and repeated 401/403/429 monitoring;
+- Vercel function and Supabase connectivity monitoring;
+- audit-review ownership and escalation placeholders;
+- incident severity levels and response steps;
+- rollback criteria; and
+- a post-incident review checklist.
+
+Owners, thresholds, escalation destinations, response-time commitments, and on-call coverage remain pending organizational approval.
+
+F. PRIVACY AND SECURITY CHECKLIST
+
+Created docs/PRIVACY_SECURITY_APPROVAL_CHECKLIST.md with staging/sample-data status, data classification, access control, least privilege, privacy/PDPA placeholders, security and vulnerability review, retention/deletion placeholders, backup deferral, production hosting/commercial approval status, and approval placeholders.
+
+The checklist explicitly states that it does not grant production approval.
+
+G. RELEASE AND ROLLBACK RUNBOOK
+
+Created docs/RELEASE_ROLLBACK_RUNBOOK.md with pre-release checks, Vercel release verification, known-good deployment rollback, failed-deployment response, secret rotation, migration cautions, a prohibition on destructive database rollback, and post-rollback verification.
+
+H. FILES ADDED OR CHANGED
+
+- .gitignore
+- test/access-control.test.js
+- test/employee.service.test.js
+- docs/MONITORING_AND_INCIDENT_PLAN.md
+- docs/PRIVACY_SECURITY_APPROVAL_CHECKLIST.md
+- docs/RELEASE_ROLLBACK_RUNBOOK.md
+- TECHNICAL_REVIEW_GATE_5_4.txt
+
+No business functionality was changed.
+
+I. COMMIT AND PUSH RESULT
+
+- Reviewed implementation commit: 8bdddc79c818
+- Commit message: docs: complete Gate 5.4 staging readiness review
+- Push: PASS — normal push to origin/main; no force push.
+- Branch tracking: PASS — main tracks origin/main.
+- Approved staging deployment for this commit: success in GitHub deployment metadata.
+- Repository visibility observed through authenticated GitHub metadata: private.
+
+J. SIGNIFICANT NON-SECRET COMMANDS EXECUTED
+
+- node --version
+- git status --short --branch
+- git rev-parse HEAD
+- git rev-parse origin/main
+- git rev-parse --abbrev-ref --symbolic-full-name @{u}
+- git ls-files
+- git ls-files --others --exclude-standard
+- git check-ignore -q -- <safe synthetic path>
+- git diff --check
+- git diff --cached --check
+- npm test
+- npm --prefix frontend test
+- npm run prisma:format:check
+- npx prisma validate
+- npm --prefix frontend run build
+- npm run audit:dependencies
+- npm --prefix frontend audit --audit-level=high
+- Invoke-WebRequest -MaximumRedirection 0 <approved-staging-origin>/
+- Invoke-WebRequest -MaximumRedirection 0 <approved-staging-origin>/api/v1/health
+- Invoke-WebRequest -MaximumRedirection 0 <approved-staging-origin>/api/v1/ready
+- git add -- .gitignore test/access-control.test.js test/employee.service.test.js docs/MONITORING_AND_INCIDENT_PLAN.md docs/PRIVACY_SECURITY_APPROVAL_CHECKLIST.md docs/RELEASE_ROLLBACK_RUNBOOK.md
+- git commit -m "docs: complete Gate 5.4 staging readiness review"
+- git push origin main
+
+GitHub deployment metadata was queried with the existing approved credential held only in process memory. The credential-handling command is intentionally not reproduced because a standalone form could expose authentication material.
+
+K. BACKUP AUTOMATION STATUS
+
+- Technical custom-format backup, checksum, and disposable local restore rehearsal: previously passed using sample staging data.
+- Automatic Windows Server or NAS scheduling: DEFERRED and not implemented in this gate.
+- Recurring failure notification, retention operation, encryption-key custody, and scheduled restore verification: pending operational implementation and approval.
+
+L. REMAINING LIMITATIONS AND REQUIRED NEXT ACTIONS
+
+1. Authenticate an approved reviewer to Vercel or provide an approved protection-bypass mechanism, then repeat root, health, readiness, login, invalid login, refresh, protected-route reload, logout, logout-all, employee authorization/listing, cookie, CSRF, and audit verification on the approved staging deployment.
+2. Independently confirm the deployed Vercel function runtime is Node 22.x. The repository declarations alone are not runtime evidence.
+3. Review or disable the separate failed Production – sms-v3 deployment so it cannot be mistaken for the approved staging environment.
+4. Run the verification commands under local Node 22.x, or install an approved Node version manager, to match the declared runtime exactly.
+5. Replace the process-local login rate limiter with an approved shared serverless-compatible store before production approval.
+6. Implement and test automated encrypted backup scheduling, retention, notification, and recurring restore verification before production approval.
+7. Assign monitoring, incident, audit, privacy, security, data, application, operations, and escalation owners.
+8. Complete PDPA/privacy, security, vulnerability, retention/deletion, least-privilege, hosting, and commercial approvals.
+9. Plan the Prisma configuration migration before Prisma 7 adoption.
+
+FINAL DECISION
+
+PARTIAL. Local code quality, security regression coverage, documentation, secret hygiene, commit/push, and approved staging deployment metadata pass. Hosted application verification, direct Node 22 runtime evidence, backup automation, shared serverless rate limiting, and organizational approvals are incomplete. SMS v3 remains staging-only and sample-data-only and is not approved for production.
