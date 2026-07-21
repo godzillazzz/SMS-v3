@@ -1,0 +1,90 @@
+SMS v3 TECHNICAL REVIEW — GATE 5.2.1
+Milestone: Restore Rehearsal
+Executed: 2026-07-21
+
+FINAL GATE 5.2 TECHNICAL RESULT: PASS
+
+This PASS applies to the requested staging backup and disposable local restore rehearsal. It does not grant production approval. The system remains staging-only and sample-data-only.
+
+DOCKER AVAILABILITY
+PASS — Docker Engine 29.6.1 was available.
+PASS — A non-published, isolated local PostgreSQL container and temporary Docker network were used for restore verification.
+
+NODE 22 VERIFICATION
+PASS — Root package configuration requires Node 22.x.
+PASS — Frontend package configuration requires Node 22.x.
+PASS — .nvmrc selects Node 22.
+LIMITATION — The available local/container command environment reported Node 24, so the complete suite should also continue to run in CI or Vercel under the configured Node 22 runtime.
+
+BACKUP RESULT
+PASS — The approved backup script completed once against the approved sample staging database.
+PASS — Backup scope is restricted to the application schema so managed platform schemas are not copied.
+PASS — The connection value was passed only through process environment variables and was not printed or written to source.
+PASS — No credential, token, cookie, employee record, or connection detail was printed.
+
+CUSTOM-FORMAT VALIDATION RESULT
+PASS — A PostgreSQL custom-format dump was created.
+PASS — Independent archive-list validation completed successfully without printing archive contents.
+
+CHECKSUM RESULT
+PASS — A SHA-256 sidecar was created.
+PASS — The generated SHA-256 checksum matched the backup before restore.
+
+RESTORE RESULT
+PASS — Restore occurred only inside a disposable local PostgreSQL container with no published host port.
+PASS — The restore verifier checked the checksum and archive format before creating its random disposable restore database.
+PASS — The verifier prepared only the newly created disposable database for the archive schema and never connected to staging for restore.
+
+REQUIRED-TABLE VERIFICATION
+PASS — All required application and migration tables existed after restore.
+
+SAMPLE ROW-COUNT VERIFICATION
+PASS — Representative sample row presence was verified for migration, user, and employee data.
+PASS — No row contents or exact record values were printed.
+
+CLEANUP RESULT
+PASS — The disposable restore database was dropped by the verifier.
+PASS — No Gate 5.2.1 disposable containers remain.
+PASS — No Gate 5.2.1 disposable Docker networks remain.
+PASS — The verified rehearsal dump and checksum were removed from the local workspace after verification.
+PASS — The credential-free operational result log remains under the ignored backups directory.
+PRESERVED — One older ignored dump/checksum pair predating this rehearsal remains untouched; it is not tracked or staged.
+
+GIT IGNORE RESULT
+PASS — Backup dumps, encrypted dumps, checksums, partial files, backup result logs, and general logs remain excluded by Git ignore rules.
+PASS — No backup, checksum, log, environment file, or credential file was staged or committed.
+
+BACKEND TEST RESULT
+PASS — 16 tests passed; 0 failed.
+
+FRONTEND TEST RESULT
+PASS — 3 tests passed; 0 failed.
+
+PRISMA RESULT
+PASS — Prisma schema validation completed successfully.
+LIMITATION — The current Prisma package configuration emits a deprecation warning for a future major release.
+
+FRONTEND BUILD RESULT
+PASS — TypeScript and Vite production build completed successfully.
+
+FILES CHANGED
+- scripts/backup.js
+  - limits logical dumps to the application schema;
+  - records only safe failure stages.
+- scripts/verify-backup.js
+  - validates representative sample row presence;
+  - reports safe restore stages;
+  - prepares only the disposable target database for schema restore.
+- TECHNICAL_REVIEW_GATE_5_2_1.txt
+
+PUSH RESULT
+NOT PERFORMED — This task did not request a commit or push. No force push was used.
+
+REMAINING LIMITATIONS
+- Run the full verification suite under the configured Node 22 runtime in CI/Vercel.
+- Production backup scheduling, encryption-key custody, secure transfer, retention, alerts, and operational ownership remain pending.
+- Organizational, commercial-hosting, privacy, and security approvals remain required before production use.
+- Continue periodic restore rehearsals using an approved disposable local environment.
+
+PRODUCTION READINESS
+NOT APPROVED. Gate 5.2.1 technical restore rehearsal passed, but the application remains staging-only with sample data only.

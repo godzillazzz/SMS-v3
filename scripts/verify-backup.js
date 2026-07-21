@@ -48,31 +48,39 @@ async function main() {
   const targetEnv = { ...adminEnv, PGDATABASE: database };
   let created = false;
   let primaryError;
+  let stage = 'checksum';
   try {
     await validateChecksum(backup, sidecar);
+    stage = 'custom-format-validation';
     await run('pg_restore', ['--list', backup], adminEnv);
+    stage = 'database-create';
     await run('psql', ['-v', 'ON_ERROR_STOP=1', '-q', '-c', `CREATE DATABASE ${database}`], adminEnv);
     created = true;
+    stage = 'restore-preparation';
+    await run('psql', ['-v', 'ON_ERROR_STOP=1', '-q', '-c', 'DROP SCHEMA IF EXISTS public CASCADE'], targetEnv);
+    stage = 'restore';
     await run('pg_restore', ['--exit-on-error', '--no-owner', '--no-privileges', '--dbname', database, backup], targetEnv);
     const verificationSql = `DO $$ BEGIN
       IF to_regclass('public."_prisma_migrations"') IS NULL OR to_regclass('public."users"') IS NULL OR to_regclass('public."employees"') IS NULL THEN
         RAISE EXCEPTION 'Required restored tables are missing';
       END IF;
-      PERFORM count(*) FROM "_prisma_migrations";
-      PERFORM count(*) FROM "users";
-      PERFORM count(*) FROM "employees";
+      IF (SELECT count(*) FROM "_prisma_migrations") < 1 OR (SELECT count(*) FROM "users") < 1 OR (SELECT count(*) FROM "employees") < 1 THEN
+        RAISE EXCEPTION 'Required sample rows are missing';
+      END IF;
     END $$;`;
+    stage = 'table-and-row-verification';
     await run('psql', ['-v', 'ON_ERROR_STOP=1', '-q', '-c', verificationSql], targetEnv);
   } catch (error) {
+    error.safeStage = stage;
     primaryError = error;
   } finally {
     if (created) {
       try { await run('psql', ['-v', 'ON_ERROR_STOP=1', '-q', '-c', `DROP DATABASE IF EXISTS ${database} WITH (FORCE)`], adminEnv); }
-      catch (cleanupError) { primaryError ||= cleanupError; }
+      catch (cleanupError) { cleanupError.safeStage = 'cleanup'; primaryError ||= cleanupError; }
     }
   }
   if (primaryError) throw primaryError;
   console.log('Backup checksum and disposable restore verification completed.');
 }
 
-main().catch(() => { console.error('Backup restore verification failed.'); process.exitCode = 1; });
+main().catch((error) => { console.error(`Backup restore verification failed during ${error.safeStage || 'configuration'}.`); process.exitCode = 1; });
