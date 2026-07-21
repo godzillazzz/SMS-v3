@@ -3,15 +3,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const env = require('../src/config/env');
-const { setBrowserSession, clearBrowserSession, csrfProtection } = require('../src/middlewares/browser-session');
+const { setBrowserSession, clearBrowserSession, csrfProtection, refreshCookiePath, csrfCookiePath } = require('../src/middlewares/browser-session');
 
 test('browser refresh cookie is HttpOnly, Lax, narrowly scoped, and Secure in production mode', () => {
   const cookies = []; const response = { cookie: (...args) => cookies.push(args), clearCookie: (...args) => cookies.push(args) };
   const previous = env.cookieSecure; env.cookieSecure = true;
   setBrowserSession(response, 'refresh-token-value');
   const refresh = cookies.find(([name]) => name === env.authCookieName);
-  assert.equal(refresh[1], 'refresh-token-value'); assert.equal(refresh[2].httpOnly, true); assert.equal(refresh[2].secure, true); assert.equal(refresh[2].sameSite, 'lax'); assert.equal(refresh[2].path, '/api/v1/auth');
-  assert.equal(cookies.find(([name]) => name === env.csrfCookieName)[2].httpOnly, false);
+  assert.equal(refresh[1], 'refresh-token-value'); assert.equal(refresh[2].httpOnly, true); assert.equal(refresh[2].secure, true); assert.equal(refresh[2].sameSite, 'lax'); assert.equal(refresh[2].path, refreshCookiePath);
+  const csrf = cookies.find(([name]) => name === env.csrfCookieName)[2];
+  assert.equal(csrf.httpOnly, false); assert.equal(csrf.secure, true); assert.equal(csrf.sameSite, 'lax'); assert.equal(csrf.path, csrfCookiePath);
   clearBrowserSession(response); env.cookieSecure = previous;
 });
 test('production configuration cannot disable the Secure cookie attribute', () => {
