@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm --prefix frontend run build",
+  "buildCommand": "node --version && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/[...path].js" },
