@@ -27,7 +27,7 @@ enum AuditAction {
 }
 
 model User {
-  id               String           @id @default(uuid()) @db.Uuid
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email            String           @unique @db.VarChar(255)
   passwordHash     String           @map("password_hash") @db.VarChar(255)
   displayName      String           @map("display_name") @db.VarChar(150)
@@ -45,7 +45,7 @@ model User {
 }
 
 model RefreshSession {
-  id               String    @id @default(uuid()) @db.Uuid
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId           String    @map("user_id") @db.Uuid
   refreshTokenHash String    @unique @map("refresh_token_hash") @db.VarChar(64)
   tokenVersion     Int       @map("token_version")
@@ -63,7 +63,7 @@ model RefreshSession {
 }
 
 model Employee {
-  id              String    @id @default(uuid()) @db.Uuid
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   employeeCode    String    @unique @map("employee_code") @db.VarChar(50)
   firstName       String    @map("first_name") @db.VarChar(100)
   lastName        String    @map("last_name") @db.VarChar(100)
@@ -85,7 +85,7 @@ model Employee {
 
 // Ready for use by auditService; fields stay database-agnostic for migration.
 model AuditLog {
-  id          String      @id @default(uuid()) @db.Uuid
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   actorUserId String?     @map("actor_user_id") @db.Uuid
   action      AuditAction
   entityType  String      @map("entity_type") @db.VarChar(100)
@@ -103,7 +103,7 @@ model AuditLog {
 }
 
 model RateLimitBucket {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   scope       String   @db.VarChar(50)
   keyHash     String   @map("key_hash") @db.VarChar(64)
   windowStart DateTime @map("window_start")
@@ -118,7 +118,7 @@ model RateLimitBucket {
 }
 
 model AlertDeduplicationState {
-  id                    String    @id @default(uuid()) @db.Uuid
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   eventCategory         String    @map("event_category") @db.VarChar(64)
   dedupKeyHash          String    @map("dedup_key_hash") @db.VarChar(64)
   severity              String    @db.VarChar(16)

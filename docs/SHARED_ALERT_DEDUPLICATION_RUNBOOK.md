@@ -43,6 +43,10 @@ Allowed delivery states are `pending`, `suppressed`, `delivered` and `failed`.
 
 The unique constraint covers event category, keyed hash and aggregation window. The expiry index supports controlled cleanup. No relationship to user, employee, audit or session records exists.
 
+## UUID default representation
+
+Database-generated UUID defaults defined by the reviewed migration SQL are authoritative. Prisma represents these defaults with `dbgenerated("gen_random_uuid()")` so schema comparison matches the database behavior without removing the default. Historical migration files must not be edited, and future UUID-backed models must use this same reviewed pattern. This representation alignment performs no database change.
+
 ## Configuration key names
 
 Values belong only in approved secure backend configuration controls. Do not copy values into source control, tickets, screenshots or reports.
