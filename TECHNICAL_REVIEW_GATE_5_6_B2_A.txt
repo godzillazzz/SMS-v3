@@ -1,0 +1,141 @@
+SMS v3 Gate 5.6B2A Technical Review
+Milestone: Shared PostgreSQL Alert Deduplication Foundation
+Review date: 2026-07-22
+
+CURRENT COOLDOWN LIMITATION
+PASS - The prior implementation used process-local memory. Separate serverless
+instances could therefore maintain independent counters and cooldowns and could
+independently consider the same alert eligible for delivery.
+
+SHARED DEDUPLICATION ARCHITECTURE
+PASS - A vendor-independent alert-deduplication store abstraction now supports
+an in-memory local/test implementation and a PostgreSQL shared-state
+implementation. Memory remains the default. The PostgreSQL implementation uses
+the existing Prisma data-access boundary. External alert delivery remains
+disabled by default.
+
+PRISMA MODEL AND MIGRATION RESULT
+PASS - A dedicated alert-deduplication model and migration were added. The
+migration creates only the alert-deduplication table, its primary key, one
+delivery-state check constraint, one coordination unique index, and one expiry
+index. It contains no seed data and does not alter, drop, truncate, update, or
+delete any existing application table.
+
+PRIVACY-SAFE KEY RESULT
+PASS - Deduplication keys use keyed HMAC-SHA256. Inputs are limited to an
+approved event category, sanitized route template or a global label, safe
+deployment-environment label, and aggregation-window timestamp. Tests confirm
+that identity, request ID, raw error data, and route query strings do not affect
+the key. Raw key input and resulting HMAC values are not logged or returned.
+
+ATOMIC COUNTER AND AGGREGATION RESULT
+PASS - The PostgreSQL store uses one atomic insert-or-update statement with a
+unique coordination key. The in-memory concurrency regression test completed
+50 parallel reservations with an exact final occurrence count of 50 and no lost
+updates. Threshold aggregation, duplicate suppression, cooldown expiry, and
+key-specific reset tests passed.
+
+SHARED-INSTANCE TEST RESULT
+PASS - Two independently constructed policy-engine instances using the same
+store observed the same occurrence counter and cooldown decision.
+
+DELIVERY-STATE RESULT
+PASS - Stored delivery states are restricted to pending, suppressed, delivered,
+and failed. No destination, message body, provider response, credential, token,
+cookie, or raw identity is stored. The no-op delivery path continues to report
+that no external delivery occurred.
+
+FAILURE-POLICY RESULT
+PASS - Shared-store failure returns a safe unavailable category, reports neither
+deduplication nor delivery success, and does not invoke delivery. Failure while
+updating delivery state also cannot produce a false delivered result. Operational
+failure logging uses allowlisted fields only.
+
+CLEANUP AND RETENTION RESULT
+PASS - An explicit cleanup operation deletes only expired records through the
+dedicated alert-deduplication Prisma model. Suggested staging retention is seven
+days and remains subject to operational approval. Cleanup was not scheduled or
+added to build, startup, serverless initialization, or ordinary request handling.
+
+FILES CHANGED IN COMMIT
+- .env.example
+- .env.supabase.example
+- docs/ALERTING_APPROVAL_CHECKLIST.md
+- docs/ALERTING_CONFIGURATION_RUNBOOK.md
+- docs/OBSERVABILITY_FOUNDATION.md
+- docs/SHARED_ALERT_DEDUPLICATION_RUNBOOK.md
+- prisma/migrations/202607220002_shared_alert_deduplication/migration.sql
+- prisma/schema.prisma
+- src/app.js
+- src/config/env.js
+- src/services/alert-dedup-key.js
+- src/services/alert-dedup-store.js
+- src/services/alert-policy.js
+- src/services/alert-safety.js
+- src/services/alerting.service.js
+- src/utils/logger.js
+- test/alert-dedup.test.js
+- test/alerting.test.js
+
+VERIFICATION RESULTS
+- Backend tests: PASS - 65 passed, 0 failed, 0 skipped.
+- Frontend tests: PASS - 3 passed, 0 failed.
+- Prisma format check: PASS.
+- Prisma validation: PASS.
+- Prisma Client generation: PASS.
+- Frontend production build: PASS - 15 modules transformed.
+- Backend dependency audit: PASS - 0 vulnerabilities.
+- Frontend dependency audit: PASS - 0 vulnerabilities.
+- Git diff check: PASS.
+- Reviewed change scope: PASS - 18 approved files only.
+- Migration runtime-invocation check: PASS - no migration command was added to
+  build, startup, serverless initialization, or request execution.
+
+SECRET-SAFETY RESULT
+PASS - The reviewed changes contain safe environment-variable names and example
+placeholders only. No live credential, connection value, provider/project
+identifier, recipient detail, employee record, raw identity, stored HMAC value,
+token, cookie, authorization value, backup, dump, checksum, log, real environment
+file, or deployment metadata was committed. Existing ignore rules continue to
+exclude real environment files, deployment metadata, backups, dumps, checksums,
+and logs.
+
+MIGRATION APPLICATION STATUS
+NOT APPLIED - The new migration was not applied to the shared staging database.
+
+VERCEL ACTIVATION STATUS
+NOT CONFIGURED / NOT PERFORMED - Shared PostgreSQL deduplication configuration
+was not added to hosted environment settings, and no hosted activation or
+cross-instance verification was performed.
+
+REAL NOTIFICATION DELIVERY STATUS
+NOT ACTIVATED - No provider, destination, recipient, or real delivery mechanism
+was configured or invoked.
+
+REPOSITORY PUBLICATION
+- Commit: d4044544f47c56341c546e5f5733b8c250779a24
+- Commit message: feat: add shared alert deduplication foundation
+- Push: PASS - normal push to origin/main; no force push.
+- Branch state after push: PASS - main matched origin/main.
+- Working tree before report creation: CLEAN.
+
+REMAINING LIMITATIONS
+- The migration requires separate review and controlled application to the
+  approved staging database.
+- Hosted shared-store selection and its dedicated backend-only HMAC secret are
+  not configured.
+- A Ready hosted deployment matching the activated configuration has not been
+  verified.
+- Hosted cross-instance atomic aggregation and cooldown behavior have not been
+  exercised against the shared staging database.
+- Cleanup scheduling, ownership, retention approval, and failure escalation are
+  unresolved operational decisions.
+- A real organization-approved notification channel, recipients, and accountable
+  owners do not yet exist.
+- Prisma reports the existing configuration-location deprecation warning; it
+  does not fail validation or generation but should be addressed separately.
+
+GATE RESULTS
+- Gate 5.6B2A result: PASS.
+- Overall Gate 5.6 result: PARTIAL.
+- Production readiness: NOT APPROVED.
