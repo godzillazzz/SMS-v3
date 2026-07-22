@@ -1,0 +1,227 @@
+SMS v3 Gate 5.5 — Shared PostgreSQL Serverless Rate Limiter
+Review date: 2026-07-22
+
+FINAL RESULT
+
+Staging technical result: PARTIAL
+Production readiness: NOT APPROVED
+
+PARTIAL is required because the migration was intentionally not applied to
+Supabase, Vercel environment variables were intentionally not changed, a new
+Ready deployment was not created, and hosted multi-request/multi-instance
+behavior was not verified. Local implementation and verification passed.
+
+CURRENT LIMITER REVIEW
+
+Previous store: one in-process JavaScript Map.
+Previous algorithm: fixed window.
+Previous scope/key: request IP only through Express req.ip.
+Previous default window: 15 minutes.
+Previous default maximum: 10 login requests per window.
+Previous denial response: generic HTTP 429.
+Previous risk: each Vercel function instance had an independent counter, so
+limits could be bypassed across cold starts and parallel instances. Proxy IP
+handling was also not explicit.
+
+CHOSEN ARCHITECTURE
+
+PASS — A rate-limit store abstraction now provides:
+- an in-memory implementation for tests and local development;
+- a PostgreSQL implementation for shared serverless staging state.
+
+PASS — Login uses separate fixed-window scopes for normalized client IP and
+normalized account identifier.
+
+PASS — In Vercel context, client IP is read from the platform-provided
+x-vercel-forwarded-for header. Local execution ignores forwarded headers and
+uses the direct Express request IP.
+
+PASS — Each identity is transformed with HMAC-SHA256 using a dedicated backend
+secret before storage. Rate-limit rows contain no raw IP address or raw account
+identifier.
+
+PASS — The PostgreSQL counter uses a single INSERT ... ON CONFLICT ... DO UPDATE
+statement and increments the existing count atomically.
+
+PASS — PostgreSQL unavailability fails closed with a generic HTTP 503. There is
+no silent fallback to an in-process store and no internal failure detail in the
+public response or limiter log event.
+
+PASS — Above-limit login returns a generic HTTP 429 with Retry-After,
+RateLimit-Limit, RateLimit-Remaining, and RateLimit-Reset headers. Existing
+browser/mobile authentication behavior was not otherwise changed.
+
+PASS — Password-reset endpoints do not exist. Refresh throttling was not added
+because it requires a separate session-aware policy and could disrupt browser
+startup session restoration.
+
+PRISMA MODEL AND MIGRATION
+
+PASS — Added RateLimitBucket mapped to rate_limit_buckets with:
+- UUID primary key;
+- scope;
+- 64-character key hash;
+- fixed-window start;
+- count;
+- expiry timestamp;
+- created and updated timestamps;
+- unique constraint on scope + key hash + window start;
+- expiry index.
+
+Migration file:
+prisma/migrations/202607220001_shared_rate_limit_buckets/migration.sql
+
+Migration application status: NOT APPLIED BY THIS GATE.
+No Supabase migration command was run.
+No migration was added to build, startup, function, or request execution.
+
+ENVIRONMENT CONFIGURATION
+
+Documented backend-only key names:
+- RATE_LIMIT_STORE
+- RATE_LIMIT_HASH_SECRET
+- LOGIN_RATE_LIMIT_WINDOW_MS
+- LOGIN_RATE_LIMIT_MAX
+
+PASS — PostgreSQL store selection requires RATE_LIMIT_HASH_SECRET at startup.
+PASS — The secret must contain at least 32 characters.
+PASS — No secret value is present in an example file, report, frontend variable,
+API response, or limiter log.
+PASS — Vercel environment variables were not changed.
+
+LIMITER POLICY
+
+Algorithm: fixed window.
+Default window: 900000 milliseconds (15 minutes).
+Default maximum: 10 requests per login scope per window.
+Scopes: login-ip and login-account.
+Denial threshold: the first 10 requests are allowed; request 11 is denied.
+Reset behavior: a new bucket begins at the next fixed-window boundary.
+Failure behavior: generic HTTP 503 when the selected PostgreSQL store cannot
+evaluate a request.
+
+AUTOMATED VERIFICATION
+
+Backend tests: PASS — 29 passed, 0 failed, 0 skipped.
+Frontend tests: PASS — 3 passed, 0 failed.
+Frontend production build: PASS — 15 modules transformed.
+Prisma format check: PASS.
+Prisma validation: PASS.
+Prisma Client generation: PASS; generated output remained ignored.
+Backend dependency audit: PASS — 0 vulnerabilities.
+Frontend dependency audit: PASS — 0 vulnerabilities.
+Diff whitespace check: PASS.
+
+Rate-limiter regression coverage passed for:
+- below-limit, exact-limit, and above-limit requests;
+- generic HTTP 429 and Retry-After/header behavior;
+- fixed-window reset and expired-row cleanup behavior;
+- identity isolation;
+- concurrent increments;
+- two limiter instances sharing one store;
+- atomic PostgreSQL conflict-increment statement;
+- cleanup targeting only the rate-limit model/table;
+- PostgreSQL failure returning generic HTTP 503;
+- missing PostgreSQL hash secret failing startup validation;
+- raw account/IP exclusion from stored records and logs;
+- Vercel platform IP header use and local spoofed-header rejection.
+
+ATOMIC COUNTER AND MULTI-INSTANCE RESULT
+
+PASS (automated local verification) — Concurrent calls exercised the atomic
+conflict-increment path and produced a continuous counter sequence without lost
+updates. Two independent limiter instances sharing one store observed the same
+counter and enforced the same limit.
+
+HOSTED VERIFICATION
+
+Supabase migration: NOT RUN.
+Vercel rate-limit environment configuration: NOT CHANGED.
+New Vercel deployment: NOT CREATED.
+Hosted below/exact/above-limit verification: NOT RUN.
+Hosted cross-instance verification: NOT RUN.
+
+RUNBOOK
+
+PASS — docs/SHARED_RATE_LIMIT_RUNBOOK.md documents architecture, controlled
+migration procedure, environment key names only, staging activation order,
+rollback, monitoring, failure behavior, privacy considerations, expired-row
+cleanup, and ownership placeholders.
+
+FILES ADDED
+
+- TECHNICAL_REVIEW_GATE_5_5.txt
+- docs/SHARED_RATE_LIMIT_RUNBOOK.md
+- prisma/migrations/202607220001_shared_rate_limit_buckets/migration.sql
+- src/services/rate-limit-key.js
+- src/services/rate-limit-store.js
+- src/services/rate-limit.service.js
+- test/rate-limit.test.js
+
+FILES CHANGED
+
+- .env.example
+- .env.supabase.example
+- prisma/schema.prisma
+- src/config/env.js
+- src/middlewares/login-rate-limit.js
+
+SAFETY REVIEW
+
+PASS — .env files, Vercel metadata, backups, dumps, checksums, logs, temporary
+credential files, and generated dependencies remain ignored.
+PASS — Reviewed changes contain no live credential, database connection value,
+provider reference, token, cookie value, employee record, backup content, or
+Vercel authentication material.
+PASS — A value-redacting safety scan covered all 12 reviewed files. One email
+match was confirmed as an example-domain placeholder; no real data was found.
+PASS — No live database URL or secret was printed during this work.
+PASS — No Supabase data or schema was modified.
+
+EXACT NON-SECRET COMMANDS EXECUTED
+
+- node --test test/rate-limit.test.js test/access-control.test.js
+- git diff --stat
+- git diff --check
+- npx prisma format --check
+- npm run prisma:format:check
+- npx prisma validate
+- npx prisma generate
+- npm test
+- npm --prefix frontend test
+- npm --prefix frontend run build
+- npm run audit:dependencies
+- npm --prefix frontend audit --audit-level=high
+- git check-ignore -v .env .env.local .vercel/project.json backups/probe.dump backups/probe.sha256 logs/probe.log temp-credentials.txt node_modules/probe
+- git status --short --branch
+- git rev-parse --short=12 HEAD
+- git rev-parse --short=12 origin/main
+
+COMMANDS INTENTIONALLY NOT EXECUTED
+
+- npx prisma migrate deploy
+- any Supabase schema-changing command
+- any Vercel environment-variable command
+- any Vercel deployment or hosted limiter request
+- any force push
+
+REMAINING LIMITATIONS AND REQUIRED CLOSEOUT
+
+1. Review and apply the migration through the controlled staging procedure.
+2. Configure RATE_LIMIT_HASH_SECRET securely in Vercel staging and select the
+PostgreSQL store only after the table exists.
+3. Redeploy the approved commit and confirm the deployment is Ready.
+4. Run hosted below-limit, exact-limit, above-limit, expiry/reset, and parallel
+multi-instance login checks using sample staging identities only.
+5. Monitor PostgreSQL latency, 429/503 responses, table growth, cleanup behavior,
+and Vercel function errors.
+6. Decide a separate session-aware refresh-endpoint abuse policy before adding
+refresh throttling.
+7. The existing Prisma package configuration emits a Prisma 7 deprecation
+warning; migration to a Prisma config file remains future maintenance and was
+not required for this gate.
+
+FINAL DECLARATION
+
+Gate 5.5 implementation status: PARTIAL.
+Production readiness: NOT APPROVED.

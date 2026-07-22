@@ -101,3 +101,18 @@ model AuditLog {
   @@index([actorUserId, createdAt])
   @@map("audit_logs")
 }
+
+model RateLimitBucket {
+  id          String   @id @default(uuid()) @db.Uuid
+  scope       String   @db.VarChar(50)
+  keyHash     String   @map("key_hash") @db.VarChar(64)
+  windowStart DateTime @map("window_start")
+  count       Int      @default(1)
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([scope, keyHash, windowStart])
+  @@index([expiresAt])
+  @@map("rate_limit_buckets")
+}

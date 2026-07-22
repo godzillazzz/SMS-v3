@@ -3,6 +3,7 @@ const { z } = require('zod');
 dotenv.config();
 
 const isTest = process.env.NODE_ENV === 'test';
+const emptyToUndefined = (value) => value === '' ? undefined : value;
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().url().min(1),
@@ -15,6 +16,8 @@ const schema = z.object({
   CORS_ORIGIN: z.string().min(1).refine((value) => !value.split(',').map((origin) => origin.trim()).includes('*'), 'CORS_ORIGIN cannot contain a wildcard when credentials are enabled.').default('http://localhost:5173'),
   LOGIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(15 * 60 * 1000),
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1000).default(10),
+  RATE_LIMIT_STORE: z.enum(['memory', 'postgres']).default('memory'),
+  RATE_LIMIT_HASH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32, 'RATE_LIMIT_HASH_SECRET must be at least 32 characters.').optional()),
   REFRESH_TOKEN_EXPIRES_DAYS: z.coerce.number().int().min(1).max(90).default(14),
   AUTH_COOKIE_NAME: z.string().regex(/^[A-Za-z0-9_-]+$/).default('smsv3_refresh'),
   CSRF_COOKIE_NAME: z.string().regex(/^[A-Za-z0-9_-]+$/).default('smsv3_csrf'),
@@ -22,6 +25,10 @@ const schema = z.object({
   COOKIE_DOMAIN: z.string().optional(),
   COOKIE_SECURE: z.enum(['true', 'false']).optional(),
   REFRESH_TOKEN_EXPIRES_IN: z.string().regex(/^\d+d$/).optional()
+}).superRefine((value, context) => {
+  if (value.RATE_LIMIT_STORE === 'postgres' && !value.RATE_LIMIT_HASH_SECRET) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['RATE_LIMIT_HASH_SECRET'], message: 'RATE_LIMIT_HASH_SECRET is required when RATE_LIMIT_STORE=postgres.' });
+  }
 });
 
 let parsed;
@@ -29,7 +36,9 @@ if (isTest) {
   parsed = schema.parse({
     ...process.env,
     DATABASE_URL: process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/smsv3_test',
-    JWT_SECRET: process.env.JWT_SECRET?.length >= 32 ? process.env.JWT_SECRET : 'test-secret-with-at-least-thirty-two-chars'
+    JWT_SECRET: process.env.JWT_SECRET?.length >= 32 ? process.env.JWT_SECRET : 'test-secret-with-at-least-thirty-two-chars',
+    RATE_LIMIT_STORE: process.env.RATE_LIMIT_STORE || 'memory',
+    RATE_LIMIT_HASH_SECRET: process.env.RATE_LIMIT_HASH_SECRET?.length >= 32 ? process.env.RATE_LIMIT_HASH_SECRET : 'test-rate-limit-secret-with-at-least-thirty-two-chars'
   });
 } else {
   if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) throw new Error('Invalid environment configuration: CORS_ORIGIN is required in production.');
@@ -47,6 +56,7 @@ module.exports = {
   jwtIssuer: parsed.JWT_ISSUER, jwtAudience: parsed.JWT_AUDIENCE,
   corsOrigins: parsed.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean),
   loginRateLimitWindowMs: parsed.LOGIN_RATE_LIMIT_WINDOW_MS, loginRateLimitMax: parsed.LOGIN_RATE_LIMIT_MAX,
+  rateLimitStore: parsed.RATE_LIMIT_STORE, rateLimitHashSecret: parsed.RATE_LIMIT_HASH_SECRET,
   refreshTokenExpiresDays: parsed.REFRESH_TOKEN_EXPIRES_IN ? Number(parsed.REFRESH_TOKEN_EXPIRES_IN.slice(0, -1)) : parsed.REFRESH_TOKEN_EXPIRES_DAYS,
   authCookieName: parsed.AUTH_COOKIE_NAME,
   csrfCookieName: parsed.CSRF_COOKIE_NAME, cookieSameSite: parsed.COOKIE_SAME_SITE,
