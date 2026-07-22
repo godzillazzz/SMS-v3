@@ -1,0 +1,215 @@
+SMS v3 Gate 5.5B2 - Hosted Shared PostgreSQL Rate-Limiter Activation
+Review date: 2026-07-22
+
+FINAL RESULT
+
+Gate 5.5B2 result: PASS
+Overall Gate 5.5 result: PASS
+Production readiness: NOT APPROVED
+
+The Vercel environment named production belongs to the approved staging-only
+project. Its environment name does not represent production approval.
+
+REPOSITORY AND DEPLOYMENT VERIFICATION
+
+PASS - Current branch was main.
+PASS - main matched origin/main.
+PASS - Working tree was clean.
+PASS - HEAD contained the reviewed Gate 5.5 implementation.
+Reviewed implementation commit: 48c2f19a1610
+PASS - The latest approved staging deployment was Ready and matched HEAD.
+PASS - The approved additive migration was applied and the limiter table had
+the expected structure.
+Pre-test limiter rows: zero.
+
+Hosted checks before activation:
+- GET /: PASS
+- GET /api/v1/health: PASS
+- GET /api/v1/ready: PASS
+
+SECURE ENVIRONMENT CONFIGURATION
+
+Configured Vercel environment name: production
+Configured backend variable names:
+- RATE_LIMIT_HASH_SECRET
+- RATE_LIMIT_STORE
+
+PASS - A cryptographically secure 48-byte random secret was generated only in
+process memory and supplied to the CLI through standard input.
+PASS - The secret was stored as a sensitive environment entry.
+PASS - The secret was not echoed, printed, inspected, written to a file, placed
+in command history, or included in this report.
+PASS - The shared PostgreSQL limiter store selector was configured in the same
+approved environment scope.
+PASS - Existing environment-entry metadata was preserved.
+PASS - No frontend variable or database/authentication variable was modified.
+PASS - Existing login window and maximum settings remained without an override,
+so the reviewed application defaults remain effective.
+
+CONTROLLED DEPLOYMENT
+
+PASS - Exactly one new deployment was triggered from the approved current main
+commit to the approved staging target.
+PASS - The deployment became Ready and matched the reviewed commit.
+PASS - No other project was redeployed.
+PASS - Deployment Protection remained enabled.
+
+Build-log review:
+- Direct Node 22 evidence: PASS
+- Missing or weak hash-secret startup failure: NOT DETECTED
+- Secret, connection, raw-identity, token, cookie, or stored-hash indicator:
+  NOT DETECTED
+
+Function-log review:
+- Safely inspected runtime entries: 27
+- Shared-store failure indicator: NOT DETECTED
+- Secret, connection, raw-identity, token, cookie, or stored-hash indicator:
+  NOT DETECTED
+
+BASIC HOSTED VERIFICATION
+
+After activation:
+- GET /: PASS
+- GET /api/v1/health: PASS
+- GET /api/v1/ready: PASS
+
+The application response was reached through authenticated CLI access; the
+checks did not stop at hosted-platform authentication.
+
+HOSTED LOGIN RATE-LIMIT VERIFICATION
+
+Below-limit requests: PASS - requests reached normal invalid-login handling and
+were not rate-limited.
+Request exactly at the configured limit: PASS - allowed by the limiter.
+Next request: PASS - HTTP 429.
+HTTP 429 response: PASS - generic and free of account-existence or
+implementation details.
+
+Header verification:
+- Retry-After: PASS
+- RateLimit-Limit: PASS
+- RateLimit-Remaining: PASS
+- RateLimit-Reset: PASS
+
+Only an approved sample account and in-memory synthetic invalid identities were
+used. No credential, identifier, response token, cookie, CSRF value, or body was
+printed or persisted.
+
+IDENTITY ISOLATION AND SHARED COUNTER
+
+Identity isolation: PASS - separate synthetic account identities produced
+separate account buckets.
+Shared hosted counter: PASS - two independent request sequences continued the
+same PostgreSQL-backed counter.
+New-client bypass prevention: PASS - starting a new client sequence did not
+bypass the shared source bucket.
+
+Safe peak aggregate during the hosted test:
+- Total limiter rows: 4
+- Source-scope rows: 1
+- Account-scope rows: 3
+
+No stored key value or row content was displayed.
+
+PRIVACY-SAFE STORAGE
+
+PASS - The table column set contained only identifier, scope, HMAC key,
+fixed-window timestamp, counter, expiry timestamp, and lifecycle timestamps.
+PASS - Stored keys matched the expected HMAC hexadecimal shape.
+PASS - No raw source address, account identifier, credential, token, cookie,
+employee field, or request body column exists.
+PASS - Only the approved limiter scopes were present.
+
+SESSION AND AUDIT REGRESSION
+
+Sample login: PASS.
+Secure browser cookie policy: PASS.
+Refresh-token JSON exclusion: PASS.
+Refresh rotation: PASS.
+F5-style session continuity: PASS.
+Logout: PASS.
+Browser-cookie clearing: PASS.
+Latest sample refresh session revoked: PASS.
+
+Safe audit aggregates:
+- Login/refresh/logout flow added 3 expected audit entries.
+- Invalid-login requests that reached authentication added 9 expected audit
+  entries.
+- Rate-limited requests did not expose or persist request secrets.
+
+RESET AND EXPIRY
+
+Expired-only cleanup: PASS - the approved limiter cleanup operation removed 4
+expired synthetic buckets and touched no other table or record.
+Limiter rows after cleanup: zero.
+
+Post-expiry request reset verification: PENDING. No temporary short-window
+override was approved, the normal staging policy was preserved, and no policy
+change or extended wait was introduced merely to force this check. Automated
+local expiry/reset coverage passed.
+
+FAILURE POLICY
+
+Automated isolated verification: PASS - PostgreSQL-store failure returns a
+generic HTTP 503 and does not fall back silently to memory.
+Hosted outage simulation: PENDING. Deliberately damaging the staging connection
+or database would create an avoidable outage and was prohibited. No hosted
+connection value was changed.
+
+POST-TEST HEALTH
+
+- GET /: PASS
+- GET /api/v1/health: PASS
+- GET /api/v1/ready: PASS
+
+QUALITY VERIFICATION
+
+Backend tests: PASS - 29 passed, 0 failed, 0 skipped.
+Frontend tests: PASS - 3 passed, 0 failed.
+Prisma format check: PASS.
+Prisma schema validation: PASS.
+Frontend production build: PASS - 15 modules transformed.
+Backend dependency audit: PASS - 0 vulnerabilities.
+Frontend dependency audit: PASS - 0 vulnerabilities.
+Git diff whitespace check: PASS.
+
+TRACKED-FILE SAFETY
+
+PASS - No secret environment file, hosted-project metadata, backup, dump,
+checksum, log, temporary credential artifact, or generated output is tracked.
+PASS - No source file, migration, frontend environment file, or application
+configuration file changed during this milestone.
+
+FILES CHANGED
+
+Tracked repository files: NONE.
+Application source or migration files: NONE.
+Local review report created: TECHNICAL_REVIEW_GATE_5_5_B2.txt.
+Local-only ignore metadata contains an exact rule for this report. It is not
+tracked or pushed.
+
+COMMIT AND PUSH RESULT
+
+Commit: NOT CREATED - no reviewed source correction was required.
+Push: NOT PERFORMED - main already matched origin/main.
+Force push: NOT USED.
+
+REMAINING LIMITATIONS
+
+1. A forced hosted database-outage simulation remains pending for safety; the
+isolated fail-closed test passed.
+2. A hosted request immediately after expiry remains pending because no
+temporary window override was approved; automated reset coverage passed and
+expired hosted buckets were safely removed.
+3. Denial-rate, query-latency, store-failure, and cleanup monitoring must remain
+under staging observation before any later production decision.
+4. Privacy, security, operations, and production-hosting approvals remain
+separate gates.
+5. The existing Prisma package configuration emits a future-version
+deprecation warning; it did not affect this activation.
+
+FINAL DECLARATION
+
+Gate 5.5B2 hosted shared limiter activation: PASS.
+Overall Gate 5.5: PASS.
+Production readiness: NOT APPROVED.
