@@ -1,0 +1,292 @@
+SMS v3 Gate 5.6B1 Technical Review
+Milestone: Alerting Architecture and Operational Approval Package
+Review date: 2026-07-22 (Asia/Bangkok)
+
+SECURITY AND SCOPE
+
+- The application remains staging-only and sample-data-only.
+- No real notification destination was configured, contacted or tested.
+- No email, chat, webhook, telephone or external monitoring provider was
+  implemented or activated.
+- No paid monitoring service was purchased or connected.
+- No credential, environment value, connection detail, authentication/session
+  material, provider identifier, employee record, raw identity or stored
+  cryptographic value is included in this report.
+- Deployment Protection was not weakened.
+- No source-controlled real environment file or hosted metadata was added.
+- No force push was used.
+
+REVIEWED MONITORING DOCUMENTS
+
+Result: PASS.
+
+The following existing documents were reviewed and preserved as the operational
+baseline:
+
+- docs/MONITORING_ALERT_MATRIX.md
+- docs/INCIDENT_RESPONSE_RUNBOOK.md
+- docs/OBSERVABILITY_FOUNDATION.md
+- docs/OPERATIONAL_OWNERSHIP.md
+
+Existing structured event names and the safe logging contract were preserved.
+The alert matrix now distinguishes immediate system-failure candidates from
+dashboard-only staging observations. No production traffic baseline was invented.
+
+ALERT-DELIVERY ABSTRACTION RESULT
+
+Result: PASS.
+
+A vendor-independent delivery boundary was added with two implementations:
+
+- disabled/no-op delivery for normal staging and any other default execution;
+- in-memory recording restricted to automated tests.
+
+The source implementation contains no network delivery primitive and imports no
+email, chat, webhook, telephone or monitoring-provider client. Disabled delivery
+returns an explicit non-delivery outcome. Test delivery records an explicit
+test-only result. Unsupported or incomplete enabled configuration fails validation
+with a generic safe error. Delivery/policy exceptions produce a safe failure event
+and are never reported as delivered.
+
+DEFAULT-DISABLED RESULT
+
+Result: PASS.
+
+- External alert delivery is disabled by default.
+- All login/refresh/rate-limit/latency/timeout threshold hooks are unset by
+  default.
+- Committed environment examples contain safe configuration names/placeholders
+  only and keep delivery disabled.
+- The approved hosted application initialized and served requests successfully
+  under the default-disabled policy.
+- No real delivery occurred locally or in hosted staging.
+
+POLICY-EVENT RESULT
+
+Result: PASS.
+
+Immediate policy candidates, effective only after a real channel is separately
+approved and implemented:
+
+- readiness_failure;
+- unexpected_http_5xx;
+- rate_limit_store_unavailable;
+- repeated rate_limit_cleanup_failure;
+- application_config_invalid;
+- startup_dependency_failure.
+
+Dashboard-only observations unless an approved threshold is configured:
+
+- authentication_failure and ordinary HTTP 401;
+- refresh_failure;
+- rate_limit_denied and ordinary HTTP 429;
+- database_latency;
+- function_timeout.
+
+Successful health/readiness/cleanup events remain observations. Repeated cleanup
+failure requires aggregation before policy delivery. Ordinary individual 401 and
+429 outcomes do not create notification storms.
+
+PAYLOAD-SANITIZATION RESULT
+
+Result: PASS.
+
+Alert payload construction is allowlist-only. Permitted fields are:
+
+- event category;
+- severity;
+- safe timestamp;
+- deployment environment label;
+- safe request/correlation ID when present;
+- sanitized route template when present;
+- constant generic response guidance.
+
+Raw input objects are not copied. Automated tests proved that request/response
+bodies, raw headers, complete/query-bearing URLs, raw Error details, account/source
+identities, credentials, session material and stored-hash-shaped values are absent.
+Unsafe request IDs and routes are omitted rather than repaired or forwarded.
+
+COOLDOWN AND DEDUPLICATION RESULT
+
+Result: PASS for the foundation.
+
+- Repeated identical eligible events are suppressed during an in-process
+  cooldown.
+- Keys use event category and sanitized route only; no identity is included.
+- Internal aggregation retains safe numeric counts only.
+- Cooldown expiry permits a later alert decision.
+- Key-specific reset and full reset are explicitly tested.
+- Alert policy aggregate state can also be reset for deterministic testing.
+
+PRODUCTION SHARED-DEDUPLICATION LIMITATION
+
+In-process cooldown state is not shared across serverless/runtime instances and
+is not production-grade. A reviewed shared store, concurrency behavior, retention,
+failure mode, owner and operational test remain production blockers. No shared
+alert-deduplication database or external service was created in this milestone.
+
+APPROVAL-CHECKLIST RESULT
+
+Result: PASS for documentation; all approvals remain unresolved.
+
+docs/ALERTING_APPROVAL_CHECKLIST.md contains production-blocker placeholders for:
+
+- approved notification channel;
+- application, technical, database, security and privacy/PDPA owners;
+- incident commander and after-hours role;
+- warning/critical thresholds;
+- maintenance windows and escalation timing;
+- evidence retention/access;
+- approval dates and approver roles;
+- shared-deduplication ownership/design.
+
+It contains no real name, recipient address or telephone number. Every unresolved
+field is explicitly marked as a production blocker.
+
+CONFIGURATION-RUNBOOK RESULT
+
+Result: PASS for documentation.
+
+docs/ALERTING_CONFIGURATION_RUNBOOK.md covers the secure configuration sequence,
+configuration key names only, synthetic staging procedure, acknowledgement,
+delivery failure handling, cooldown behavior, rollback/disabling, evidence
+handling and prohibited content. It contains no destination, credential or real
+contact value and does not authorize activation during Gate 5.6B1.
+
+AUTOMATED TEST RESULTS
+
+- Backend: PASS, 51 passed, 0 failed, 0 skipped.
+- Gate 5.6B1 alerting tests: 16 passed.
+- Frontend: PASS, 3 passed, 0 failed; 1 test file passed.
+- Existing authentication, session, authorization, employee audit, error,
+  logging and shared-rate-limit regressions remained functional.
+
+The alerting suite covers default-disabled behavior, no-network no-op delivery,
+test-only delivery, payload allowlisting, prohibited-value removal, body/header/
+Error/identity exclusion, unsupported configuration, cooldown suppression,
+expiry/reset, dashboard-only 401/429, all threshold hooks, immediate failure
+categories, repeated cleanup failure and explicit policy-delivery failure.
+
+PRISMA, BUILD AND AUDIT RESULTS
+
+- Prisma format check: PASS.
+- Prisma validation: PASS.
+- Frontend production build: PASS; 15 modules transformed.
+- Backend high-severity dependency audit: PASS, 0 vulnerabilities.
+- Frontend high-severity dependency audit: PASS, 0 vulnerabilities.
+- git diff --check: PASS.
+- Alerting source network-delivery primitive matches: 0.
+- Tracked real environment files: 0.
+- Tracked hosted metadata files: 0.
+- Tracked backup/dump/checksum/log artifacts: 0.
+
+HOSTED DEPLOYMENT RESULT
+
+Result: PASS.
+
+- Reviewed implementation commit: 19f1fca34ba617f3e31a125c4dbe4178671ef84e
+- Deployment matching the reviewed commit: READY.
+- Deployment target: approved protected staging project.
+- Normal push to origin/main: PASS.
+- Local main matches origin/main at the reviewed commit.
+
+HOSTED REGRESSION RESULTS
+
+Result: PASS.
+
+- GET /: HTTP 200.
+- GET /api/v1/health: HTTP 200.
+- GET /api/v1/ready: HTTP 200.
+- Sample browser login: PASS.
+- Refresh/F5 session continuity: PASS.
+- Logout: PASS.
+- Hosted shared rate limiting: PASS; the bounded test stopped at the first HTTP
+  429 after 10 attempts.
+- Temporary hosted verification files were removed.
+
+HOSTED LOG-SAFETY RESULT
+
+Result: PASS.
+
+- Hosted request-log records reviewed: 15.
+- Hosted structured application events reviewed: 28.
+- application_startup: 2.
+- readiness_check: 1.
+- http_request: 15.
+- authentication_failure: 9.
+- rate_limit_denied: 1.
+- Prohibited-value pattern matches: 0.
+- Alert-policy failure events: 0.
+- Expected safe event categories present: PASS.
+
+REAL NOTIFICATION DELIVERY STATUS
+
+Result: NOT ACTIVATED, as required.
+
+No real destination exists in the implementation. No recipient, webhook, chat,
+telephone or external monitoring provider was contacted. The hosted application
+ran with the default-disabled delivery path. No notification delivery was claimed.
+
+FILES ADDED
+
+- docs/ALERTING_APPROVAL_CHECKLIST.md
+- docs/ALERTING_CONFIGURATION_RUNBOOK.md
+- src/services/alert-cooldown.js
+- src/services/alert-delivery.js
+- src/services/alert-policy.js
+- src/services/alerting.service.js
+- test/alerting.test.js
+- TECHNICAL_REVIEW_GATE_5_6_B1.txt (post-verification report; not part of the
+  implementation commit)
+
+FILES CHANGED
+
+- .env.example
+- .env.supabase.example
+- docs/MONITORING_ALERT_MATRIX.md
+- docs/OBSERVABILITY_FOUNDATION.md
+- src/app.js
+- src/config/env.js
+- src/utils/logger.js
+
+COMMIT AND PUSH RESULT
+
+- Commit: 19f1fca34ba617f3e31a125c4dbe4178671ef84e
+- Commit message: feat: add alerting policy foundation
+- Commit scope: exactly 14 reviewed source, test, safe-example and documentation
+  files.
+- Push result: PASS, normal push to origin/main.
+- Force push: not used.
+
+REMAINING LIMITATIONS
+
+- No organization-approved real notification channel exists.
+- No real notification acknowledgement or delivery-failure exercise has run.
+- All owners, after-hours roles, escalation timing and approval dates remain
+  unresolved.
+- Warning and critical thresholds remain unapproved and disabled.
+- In-process cooldown does not coordinate across runtime instances.
+- A startup configuration failure can prevent the in-process policy subscriber
+  from initializing; platform/supervisor detection and an approved external path
+  remain necessary for that scenario.
+- Function-timeout and database-latency policy hooks exist but their observations,
+  thresholds and delivery remain unapproved.
+- Alert evidence location, access and retention remain unapproved.
+- Automated backup scheduling and backup-failure notification remain deferred.
+- Prisma reports a future major-version configuration deprecation; current format
+  and validation pass.
+- The application remains staging-only and sample-data-only.
+
+GATE DECISION
+
+- Gate 5.6B1 result: PASS.
+- Overall Gate 5.6 result: PARTIAL.
+- Production readiness: NOT APPROVED.
+
+Gate 5.6B1 passes because the disabled vendor-independent delivery foundation,
+safe policy allowlist, payload sanitization, cooldown controls, automated tests,
+approval package, configuration runbook, reviewed commit/deployment, hosted
+regression and hosted log-safety checks all passed without real notification
+delivery. Overall Gate 5.6 remains PARTIAL until an organization-approved real
+channel, owners, thresholds, shared deduplication and delivery/acknowledgement
+tests are configured and approved.
