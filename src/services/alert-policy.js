@@ -1,4 +1,7 @@
-const { InProcessAlertCooldown } = require('./alert-cooldown');
+const crypto = require('node:crypto');
+const { MemoryAlertDedupStore } = require('./alert-dedup-store');
+const { createAlertDedupKey } = require('./alert-dedup-key');
+const { safeTimestamp, safeEnvironment, safeRequestId, safeRoute } = require('./alert-safety');
 
 const IMMEDIATE_POLICIES = {
   readiness_failure: { severity: 'critical', guidance: 'Follow the approved readiness incident procedure.' },
@@ -23,23 +26,6 @@ const DATABASE_LATENCY_POLICY = {
   severity: 'warning', guidance: 'Review approved database latency and capacity signals.'
 };
 
-function safeTimestamp(value, fallback) {
-  const parsed = value ? new Date(value) : fallback;
-  return Number.isNaN(parsed.getTime()) ? fallback.toISOString() : parsed.toISOString();
-}
-
-function safeEnvironment(value) {
-  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(value) ? value : 'unknown';
-}
-
-function safeRequestId(value) {
-  return typeof value === 'string' && /^[A-Za-z0-9:_-]{1,128}$/.test(value) ? value : undefined;
-}
-
-function safeRoute(value) {
-  return typeof value === 'string' && /^\/[A-Za-z0-9_/:.-]{0,199}$/.test(value) && !value.includes('//') ? value : undefined;
-}
-
 function safePayload(record, policy, clock) {
   const fallback = new Date(Number(clock()));
   const payload = {
@@ -62,22 +48,12 @@ class AlertPolicyEngine {
     this.delivery = options.delivery;
     this.clock = options.clock || Date.now;
     this.cooldownSeconds = options.cooldownSeconds || 300;
-    this.cooldown = options.cooldown || new InProcessAlertCooldown({ clock: this.clock });
     this.thresholds = options.thresholds || {};
     this.windowMs = options.windowMs || 5 * 60 * 1000;
-    this.counters = new Map();
-  }
-
-  count(eventCategory) {
-    const now = Number(this.clock());
-    const current = this.counters.get(eventCategory);
-    if (!current || now >= current.windowEndsAt) {
-      const next = { count: 1, windowEndsAt: now + this.windowMs };
-      this.counters.set(eventCategory, next);
-      return next.count;
-    }
-    current.count += 1;
-    return current.count;
+    this.retentionSeconds = options.retentionSeconds || 7 * 24 * 60 * 60;
+    this.dedupStore = options.dedupStore || new MemoryAlertDedupStore();
+    this.dedupHashSecret = options.dedupHashSecret || crypto.randomBytes(32).toString('hex');
+    this.onStoreFailure = options.onStoreFailure;
   }
 
   policyFor(record) {
@@ -95,25 +71,82 @@ class AlertPolicyEngine {
     return { policy: thresholdPolicy, threshold };
   }
 
-  evaluate(record = {}) {
-    const selected = this.policyFor(record);
-    if (!selected) return { delivered: false, status: 'dashboard_only', aggregateCount: 0 };
-    const aggregateCount = this.count(record.event);
-    if (aggregateCount < selected.threshold) return { delivered: false, status: 'threshold_pending', aggregateCount };
-
-    const route = safeRoute(record.route) || 'global';
-    const cooldownKey = `${record.event}:${route}`;
-    const cooldown = this.cooldown.evaluate(cooldownKey, this.cooldownSeconds);
-    if (!cooldown.allowed) return { delivered: false, status: 'cooldown_suppressed', aggregateCount };
-
-    const payload = safePayload(record, selected.policy, this.clock);
-    const result = this.delivery.deliver(payload);
-    return { delivered: result.delivered === true, status: result.status, aggregateCount };
+  dedupInput(record, selected) {
+    const now = Number(this.clock());
+    const occurredAt = new Date(now);
+    const windowStart = new Date(Math.floor(now / this.windowMs) * this.windowMs);
+    const route = safeRoute(record.route);
+    const deploymentEnvironment = safeEnvironment(record.deploymentEnvironment);
+    return {
+      eventCategory: record.event,
+      dedupKeyHash: createAlertDedupKey({
+        eventCategory: record.event, route, deploymentEnvironment, windowStart
+      }, this.dedupHashSecret),
+      severity: selected.policy.severity,
+      route,
+      deploymentEnvironment,
+      windowStart,
+      threshold: selected.threshold,
+      occurredAt,
+      cooldownSeconds: this.cooldownSeconds,
+      expiresAt: new Date(now + this.retentionSeconds * 1000)
+    };
   }
 
-  reset() {
-    this.counters.clear();
-    this.cooldown.reset();
+  storeFailure(record) {
+    const result = {
+      delivered: false, status: 'store_unavailable', eligible: false, suppressed: false,
+      occurrenceCount: 0, cooldownUntil: null, failureCategory: 'alert_dedup_store_unavailable'
+    };
+    try { this.onStoreFailure?.({ eventCategory: record.event, errorCategory: result.failureCategory }); } catch {}
+    return result;
+  }
+
+  async evaluate(record = {}) {
+    const selected = this.policyFor(record);
+    if (!selected) return { delivered: false, status: 'dashboard_only', eligible: false, suppressed: false, occurrenceCount: 0, cooldownUntil: null };
+    let input;
+    let decision;
+    try {
+      input = this.dedupInput(record, selected);
+      decision = await this.dedupStore.reserve(input);
+    } catch {
+      return this.storeFailure(record);
+    }
+    const safeState = {
+      eligible: decision.eligible,
+      suppressed: decision.suppressed,
+      occurrenceCount: decision.occurrenceCount,
+      cooldownUntil: decision.cooldownUntil.toISOString()
+    };
+    if (!decision.eligible) {
+      const status = decision.occurrenceCount < selected.threshold ? 'threshold_pending' : 'cooldown_suppressed';
+      return { delivered: false, status, ...safeState };
+    }
+
+    const payload = safePayload(record, selected.policy, this.clock);
+    let result;
+    try {
+      result = await this.delivery.deliver(payload);
+    } catch {
+      try { await this.dedupStore.recordDelivery(input, 'failed', new Date(Number(this.clock()))); } catch { return this.storeFailure(record); }
+      return { delivered: false, status: 'delivery_failed', ...safeState };
+    }
+    const deliveryStatus = result.delivered === true ? 'delivered' : (result.status === 'disabled' ? 'suppressed' : 'failed');
+    const attemptedAt = result.status === 'disabled' ? undefined : new Date(Number(this.clock()));
+    try {
+      await this.dedupStore.recordDelivery(input, deliveryStatus, attemptedAt);
+    } catch {
+      return this.storeFailure(record);
+    }
+    return { delivered: result.delivered === true, status: result.status, ...safeState };
+  }
+
+  async reset(record) {
+    if (!record) return this.dedupStore.reset();
+    const selected = this.policyFor(record);
+    if (!selected) return;
+    return this.dedupStore.reset(this.dedupInput(record, selected));
   }
 }
 

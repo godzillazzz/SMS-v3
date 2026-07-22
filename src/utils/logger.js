@@ -63,11 +63,17 @@ function createLogger(options = {}) {
     const record = { timestamp: clock().toISOString(), level, event, deploymentEnvironment: environment, ...safeFields };
     writer(level, JSON.stringify(record));
     if (eventSink) {
-      try { eventSink(record); } catch (error) {
+      const writePolicyFailure = (error) => {
         writer('error', JSON.stringify({
           timestamp: clock().toISOString(), level: 'error', event: 'alert_policy_failure',
           deploymentEnvironment: environment, errorCategory: errorCategory(error)
         }));
+      };
+      try {
+        const outcome = eventSink(record);
+        if (outcome && typeof outcome.catch === 'function') outcome.catch(writePolicyFailure);
+      } catch (error) {
+        writePolicyFailure(error);
       }
     }
     return record;

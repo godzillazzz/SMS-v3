@@ -30,6 +30,9 @@ const schema = z.object({
   ALERTING_ENABLED: z.enum(['true', 'false']).default('false'),
   ALERTING_PROVIDER: z.string().regex(/^[A-Za-z0-9_-]+$/).default('disabled'),
   ALERT_COOLDOWN_SECONDS: z.coerce.number().int().min(1).max(86400).default(300),
+  ALERT_DEDUP_STORE: z.enum(['memory', 'postgres']).default('memory'),
+  ALERT_DEDUP_HASH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32, 'ALERT_DEDUP_HASH_SECRET must be at least 32 characters.').optional()),
+  ALERT_DEDUP_RETENTION_SECONDS: z.coerce.number().int().min(300).max(90 * 24 * 60 * 60).default(7 * 24 * 60 * 60),
   ALERT_LOGIN_FAILURE_THRESHOLD: optionalPositiveInteger,
   ALERT_REFRESH_FAILURE_THRESHOLD: optionalPositiveInteger,
   ALERT_HTTP_429_THRESHOLD: optionalPositiveInteger,
@@ -41,6 +44,9 @@ const schema = z.object({
   }
   if (value.ALERTING_ENABLED === 'true' && !(value.NODE_ENV === 'test' && value.ALERTING_PROVIDER === 'memory')) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['ALERTING_PROVIDER'], message: 'Enabled alert delivery is unsupported or incomplete.' });
+  }
+  if (value.ALERT_DEDUP_STORE === 'postgres' && !value.ALERT_DEDUP_HASH_SECRET) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['ALERT_DEDUP_HASH_SECRET'], message: 'ALERT_DEDUP_HASH_SECRET is required when ALERT_DEDUP_STORE=postgres.' });
   }
 });
 
@@ -83,6 +89,9 @@ module.exports = {
   alertingEnabled: parsed.ALERTING_ENABLED === 'true',
   alertingProvider: parsed.ALERTING_PROVIDER,
   alertCooldownSeconds: parsed.ALERT_COOLDOWN_SECONDS,
+  alertDedupStore: parsed.ALERT_DEDUP_STORE,
+  alertDedupHashSecret: parsed.ALERT_DEDUP_HASH_SECRET,
+  alertDedupRetentionSeconds: parsed.ALERT_DEDUP_RETENTION_SECONDS,
   alertThresholds: {
     loginFailureSpike: parsed.ALERT_LOGIN_FAILURE_THRESHOLD,
     refreshFailureSpike: parsed.ALERT_REFRESH_FAILURE_THRESHOLD,

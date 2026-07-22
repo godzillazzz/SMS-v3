@@ -116,3 +116,23 @@ model RateLimitBucket {
   @@index([expiresAt])
   @@map("rate_limit_buckets")
 }
+
+model AlertDeduplicationState {
+  id                    String    @id @default(uuid()) @db.Uuid
+  eventCategory         String    @map("event_category") @db.VarChar(64)
+  dedupKeyHash          String    @map("dedup_key_hash") @db.VarChar(64)
+  severity              String    @db.VarChar(16)
+  windowStart           DateTime  @map("window_start")
+  occurrenceCount       Int       @default(1) @map("occurrence_count")
+  lastOccurrenceAt      DateTime  @map("last_occurrence_at")
+  deliveryStatus        String    @default("pending") @map("delivery_status") @db.VarChar(16)
+  lastDeliveryAttemptAt DateTime? @map("last_delivery_attempt_at")
+  cooldownUntil         DateTime  @map("cooldown_until")
+  expiresAt             DateTime  @map("expires_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@unique([eventCategory, dedupKeyHash, windowStart], map: "alert_deduplication_states_event_hash_window_key")
+  @@index([expiresAt], map: "alert_deduplication_states_expires_at_idx")
+  @@map("alert_deduplication_states")
+}

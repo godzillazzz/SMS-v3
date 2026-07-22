@@ -20,6 +20,8 @@ Every unresolved field below is a **PRODUCTION BLOCKER**. Actual names and conta
 | After-hours contact role | `[AFTER_HOURS_CONTACT_ROLE]` | UNRESOLVED — PRODUCTION BLOCKER |
 | Delivery-system owner | `[ALERT_DELIVERY_OWNER]` | UNRESOLVED — PRODUCTION BLOCKER |
 | Shared-deduplication owner | `[SHARED_DEDUPLICATION_OWNER]` | UNRESOLVED — PRODUCTION BLOCKER |
+| Shared deduplication-store owner | `[SHARED_DEDUPLICATION_STORE_OWNER]` | UNRESOLVED — PRODUCTION BLOCKER |
+| Alert deduplication cleanup owner | `[ALERT_DEDUP_CLEANUP_OWNER]` | UNRESOLVED — PRODUCTION BLOCKER |
 
 ## Policy approvals
 
@@ -34,6 +36,11 @@ Every unresolved field below is a **PRODUCTION BLOCKER**. Actual names and conta
 | Evidence-retention period | `[EVIDENCE_RETENTION_PERIOD]` | UNRESOLVED — PRODUCTION BLOCKER |
 | Evidence access policy | `[EVIDENCE_ACCESS_POLICY]` | UNRESOLVED — PRODUCTION BLOCKER |
 | Shared cooldown/deduplication design | `[APPROVED_SHARED_DEDUPLICATION]` | UNRESOLVED — PRODUCTION BLOCKER |
+| Shared deduplication store | `[APPROVED_SHARED_DEDUPLICATION_STORE]` | UNRESOLVED — PRODUCTION BLOCKER |
+| Alert-state retention | `[APPROVED_ALERT_STATE_RETENTION]` | UNRESOLVED — PRODUCTION BLOCKER |
+| Delivery-state retention | `[APPROVED_DELIVERY_STATE_RETENTION]` | UNRESOLVED — PRODUCTION BLOCKER |
+| Cleanup frequency and verification | `[APPROVED_ALERT_DEDUP_CLEANUP]` | UNRESOLVED — PRODUCTION BLOCKER |
+| Shared-store failure policy | `[APPROVED_ALERT_DEDUP_FAILURE_POLICY]` | UNRESOLVED — PRODUCTION BLOCKER |
 
 ## Approval record
 
@@ -55,6 +62,8 @@ Every unresolved field below is a **PRODUCTION BLOCKER**. Actual names and conta
 - Maintenance suppression, escalation timing and after-hours handling are exercised.
 - Delivery failure produces an explicit failure result and never a false success claim.
 - Shared cooldown/deduplication behavior is tested across concurrent runtime instances.
+- Shared-store migration, atomic concurrency, store failure and rollback are tested in staging.
+- Retention, delivery-state retention and cleanup ownership are approved.
 - Evidence access and retention are approved and tested.
 - Alert payload samples contain only approved safe fields.
 - Rollback and disabling procedures are rehearsed.

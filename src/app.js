@@ -11,7 +11,9 @@ const { logger, errorCategory, setOperationalEventSink } = require('./utils/logg
 const { createConfiguredAlerting } = require('./services/alerting.service');
 
 const app = express();
-const alerting = createConfiguredAlerting(env);
+const alerting = createConfiguredAlerting(env, {
+  onStoreFailure: (fields) => logger.error('alert_dedup_store_unavailable', fields)
+});
 setOperationalEventSink((record) => alerting.evaluate(record));
 app.locals.alerting = alerting;
 logger.info('application_startup', { configStatus: 'valid', status: 'initialized' });

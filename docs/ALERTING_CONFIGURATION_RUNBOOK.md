@@ -18,6 +18,9 @@ Only these key names are documented here. Values belong in approved secure confi
 - `ALERT_HTTP_429_THRESHOLD`
 - `ALERT_DATABASE_LATENCY_MS`
 - `ALERT_FUNCTION_TIMEOUT_THRESHOLD`
+- `ALERT_DEDUP_STORE`
+- `ALERT_DEDUP_HASH_SECRET`
+- `ALERT_DEDUP_RETENTION_SECONDS`
 
 The committed examples keep external delivery disabled. Spike/latency/timeout thresholds remain unset until operational approval.
 
@@ -64,12 +67,14 @@ No real staging notification is authorized during Gate 5.6B1.
 
 ## Cooldown and deduplication
 
-- Gate 5.6B1 provides in-process cooldown/deduplication for foundation tests.
+- Memory remains the local/test default and is isolated to one runtime instance.
 - Deduplication keys use event category and sanitized route template only; they do not contain identities.
-- Repeated identical events are suppressed during the configured cooldown.
+- The PostgreSQL foundation uses an independent keyed HMAC, safe environment label and aggregation window to coordinate concurrent runtime instances.
+- Repeated identical events are atomically counted and suppressed during the configured cooldown.
 - Explicit reset and expiry behavior are covered by automated tests.
-- In-process state is not shared between serverless instances and is not production-grade.
-- An approved shared store, ownership, retention, concurrency behavior and failure policy remain required before production.
+- PostgreSQL selection fails safely when the independent secret or store is unavailable and never falls back silently.
+- The migration and hosted shared-store configuration are intentionally not activated in Gate 5.6B2A.
+- See `SHARED_ALERT_DEDUPLICATION_RUNBOOK.md` for migration, activation, failure, rollback and cleanup procedures.
 
 ## Rollback and disabling procedure
 

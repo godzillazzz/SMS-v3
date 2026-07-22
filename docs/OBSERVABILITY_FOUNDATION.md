@@ -79,6 +79,9 @@ The application generates a UUID for each request. In Vercel execution, it may a
 | `rate_limit_store_unavailable` | Signals fail-closed limiter HTTP 503 | request ID, route template, method, status, store-unavailable category |
 | `rate_limit_cleanup_result` | Records explicit expired-row cleanup outcome | status, removed count |
 | `rate_limit_cleanup_failure` | Signals explicit cleanup failure | status, safe error category |
+| `alert_dedup_store_unavailable` | Signals unknown shared alert eligibility after store failure | approved event category, safe error category |
+| `alert_dedup_cleanup_result` | Records explicit expired alert-state cleanup outcome | status, removed count |
+| `alert_dedup_cleanup_failure` | Signals explicit alert-state cleanup failure | status, safe error category |
 
 Authentication audit behavior remains unchanged and authoritative. Platform events contain only the aggregate operational category and request ID; they do not duplicate confidential audit metadata.
 
