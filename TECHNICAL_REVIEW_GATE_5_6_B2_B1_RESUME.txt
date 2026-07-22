@@ -1,0 +1,151 @@
+SMS v3 Gate 5.6B2B1 Resume Technical Review
+Milestone: Controlled Shared Alert-Deduplication Migration
+Review date: 2026-07-23
+
+REPOSITORY AND COMMIT VERIFICATION
+PASS - The current branch was main, main matched origin/main, and the working
+tree was clean before migration work. Current history contained the published
+Gate 5.6B2B0A verification commit. Real environment files and deployment
+metadata remained ignored and untracked.
+
+CLEAN READ-ONLY DRIFT RESULT
+PASS - Raw comparison output was captured only in an ignored temporary file,
+was not displayed or executed, and was deleted after sanitized classification.
+
+- Existing-table references: 0.
+- Existing-table alteration operations: 0.
+- Default-removal operations: 0.
+- Drop-table operations: 0.
+- Drop-column operations: 0.
+- Data-mutation operations: 0.
+- Remaining generated statements: 3.
+- Approved pending table creations: 1.
+- Approved pending index creations: 2.
+- Unexpected pending objects: 0.
+
+MIGRATION-HISTORY AND CHECKSUM RESULT
+PASS - Before deployment, four recorded migrations were complete, in expected
+order, not rolled back, and matched their local migration-file checksums. Exactly
+one approved migration was pending. No checksum value was displayed. No migration
+file or migration-history row was edited, reset, repaired, or resolved manually.
+
+PRE-MIGRATION ENDPOINT RESULTS
+- Root: PASS - HTTP 200.
+- Health: PASS - HTTP 200.
+- Readiness: PASS - HTTP 200.
+
+PRE-MIGRATION SAFE SNAPSHOT
+- Users: 1.
+- Employees: 1.
+- Audit records: 86.
+- Refresh sessions: 41.
+- Shared rate-limit buckets: 12.
+- Dedicated alert-deduplication table present: NO.
+
+MIGRATION DEPLOYMENT RESULT
+PASS - The controlled migration deployment command was invoked exactly once.
+It completed successfully and applied only the approved committed pending
+migration. No retry, repair, development migration, database push, reset, or
+migration resolution command was executed.
+
+POST-MIGRATION STATUS
+PASS - Migration status reported zero pending migrations. Recorded migration
+count increased from four to five, and the approved migration was recorded as
+complete and not rolled back.
+
+TABLE, COLUMN, CONSTRAINT, AND INDEX VERIFICATION
+- Dedicated table exists: PASS.
+- Expected column count: PASS - 13 present, 0 missing, 0 extra.
+- Primary key: PASS.
+- Delivery-state check constraint: PASS.
+- Coordination unique index: PASS.
+- Expiry index: PASS.
+- Initial dedicated-table row count: 0.
+
+EXISTING-TABLE AND RECORD SAFETY RESULT
+PASS - The immediate post-migration snapshot exactly matched the pre-migration
+snapshot for users, employees, audit records, refresh sessions, and shared
+rate-limit buckets. The migration created no application record and modified or
+deleted no existing application record. No alert-deduplication test row was
+inserted, and its row count remained zero after hosted regressions.
+
+POST-MIGRATION HOSTED RESULTS
+- Root: PASS - HTTP 200.
+- Health: PASS - HTTP 200.
+- Readiness: PASS - HTTP 200.
+
+AUTHENTICATION AND RATE-LIMIT REGRESSION RESULTS
+- Sample browser login: PASS - HTTP 200.
+- Browser login JSON excluded the refresh token: PASS.
+- Refresh: PASS.
+- Refresh JSON excluded the refresh token: PASS.
+- F5/session continuity through a second rotation: PASS.
+- Logout and browser-cookie clearing: PASS.
+- Shared login rate limiting: PASS - HTTP 429 reached after 10 isolated
+  synthetic attempts.
+- Authentication temporary credential/cookie/response files remaining: 0.
+
+Expected application writes from these post-migration regressions were isolated
+to normal sample authentication metadata, sanitized authentication audit events,
+refresh-session creation/rotation/revocation, and shared rate-limit counters.
+These occurred only after the migration-only unchanged-record snapshot. No
+employee record was created, modified, or deleted.
+
+ALERT DELIVERY STATUS
+DISABLED - The no-op delivery configuration remains the default. No real
+notification destination or delivery was configured, tested, or activated.
+
+VERCEL ENVIRONMENT STATUS
+- Shared alert-deduplication store selection: NOT CONFIGURED.
+- Dedicated alert-deduplication secret: NOT CONFIGURED.
+- Vercel environment changes: NONE.
+
+LOCAL QUALITY RESULTS
+- Backend tests: PASS - 65 passed, 0 failed, 0 skipped.
+- Frontend tests: PASS - 3 passed, 0 failed.
+- Prisma format check: PASS.
+- Prisma schema validation: PASS.
+- Frontend production build: PASS - 15 modules transformed.
+- Backend dependency audit: PASS - 0 vulnerabilities.
+- Frontend dependency audit: PASS - 0 vulnerabilities.
+- Git diff check: PASS.
+- Tracked real environment files: 0.
+- Tracked deployment metadata: 0.
+- Tracked dump, backup, checksum, log, or temporary artifact: 0.
+- Workspace auth/diff/catalog/backup/log artifacts remaining: 0.
+
+DATABASE WRITES PERFORMED
+- Controlled schema migration: YES - one approved migration-history record and
+  the dedicated table, primary key, check constraint, unique index, and expiry
+  index were created.
+- Application records changed by migration: NONE.
+- Post-verification sample auth/rate-limit regression writes: YES, limited to the
+  expected operational records and metadata described above.
+- Alert-deduplication rows inserted: NONE.
+
+FILES CHANGED
+- TECHNICAL_REVIEW_GATE_5_6_B2_B1_RESUME.txt (local report only).
+- No source, Prisma schema, migration, test, environment, or deployment file
+  changed.
+
+COMMIT AND PUSH RESULT
+NOT PERFORMED - No genuine reviewed repository correction was required. The
+report remains local for review. Main continued to match origin/main at the
+published Gate 5.6B2B0A verification commit.
+
+REMAINING LIMITATIONS
+- Shared hosted alert deduplication is not active because its store selection
+  and dedicated secret remain unconfigured.
+- Hosted cross-instance atomic aggregation, cooldown suppression, and generic
+  delivery-state behavior have not been exercised against the new table.
+- Cleanup scheduling, retention approval, operational ownership, and failure
+  escalation remain unresolved.
+- Real notification delivery remains disabled and no approved notification
+  channel or accountable owners are active.
+- Prisma continues to report the existing configuration-location deprecation
+  warning; it does not fail formatting, validation, tests, or migration status.
+
+GATE RESULTS
+- Gate 5.6B2B1 result: PASS.
+- Overall Gate 5.6 status: PARTIAL.
+- Production readiness: NOT APPROVED.
