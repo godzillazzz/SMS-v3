@@ -1,0 +1,165 @@
+SMS v3 TECHNICAL REVIEW GATE 5.4.2
+Milestone: Direct Hosted Node 22 Build Evidence
+Review date: 2026-07-22
+
+STAGING TECHNICAL RESULT: PASS
+PRODUCTION READINESS: NOT APPROVED
+
+SUMMARY
+
+The approved protected sms-v3-staging deployment now records a direct Node v22.x line in its authenticated Vercel build log. The new deployment is Ready, references the reviewed Gate 5.4.2 commit, and passes authenticated root, health, and database-readiness checks.
+
+The change is limited to the Vercel build command. Frontend build behavior, frontend output directory, API routing, SPA fallback, business functionality, database behavior, and Deployment Protection remain unchanged.
+
+SECURITY CONFIRMATION
+
+- No credential, environment-variable value, database detail, token, cookie value, password, provider reference, database identifier, employee record, or Vercel authentication material was printed or included.
+- No Deployment Protection setting or public exception was changed.
+- .vercel/ and its project metadata remain ignored and untracked.
+- Raw deployment metadata and build logs were inspected only in temporary local files and deleted immediately.
+- The separate failed sms-v3 project was not modified, paused, deleted, or redeployed.
+- No force push or history amendment was used.
+
+A. BUILD CONFIGURATION INSPECTED
+
+Repository configuration:
+
+- Root package.json requires Node 22.x.
+- Frontend package.json requires Node 22.x.
+- .nvmrc contains 22.
+- Frontend production build remains: tsc -b && vite build.
+- Vercel output directory remains frontend/dist.
+- API routing and SPA fallback in vercel.json remain unchanged.
+- Previous Vercel build command: npm --prefix frontend run build.
+- Updated Vercel build command: node --version && npm --prefix frontend run build.
+
+Linked project configuration:
+
+- Local workspace link to approved sms-v3-staging: PASS.
+- Authenticated linked-project inspection: PASS.
+- Linked output-directory setting matches repository configuration: PASS.
+- A linked-project build-command setting is visible but differs from the repository command. The deployed build uses the checked-in vercel.json command, as confirmed by the new direct Node-version output. This difference remains an operator-clarity item but did not block the deployment.
+
+B. FILES CHANGED
+
+- vercel.json — one buildCommand line changed to run node --version before the existing frontend build.
+- TECHNICAL_REVIEW_GATE_5_4_2.txt — this local review report, intentionally not included in the build-configuration commit.
+
+No package, dependency, application source, test behavior, Prisma schema, migration, environment file, employee data, or deployment-protection configuration was changed.
+
+C. LOCAL VERIFICATION
+
+Exact build-command check:
+
+- Node version command executed before the frontend build: PASS.
+- Existing frontend TypeScript and Vite build completed afterward: PASS.
+- Output directory behavior preserved: PASS.
+- Active local Node runtime was v24.18.0; this local result is not used as hosted Node 22 evidence.
+
+Backend tests:
+
+- Tests: 17
+- Passed: 17
+- Failed: 0
+- Skipped: 0
+- Result: PASS
+
+Frontend tests:
+
+- Test files: 1 passed
+- Tests: 3
+- Passed: 3
+- Failed: 0
+- Result: PASS
+
+Prisma:
+
+- Schema validation: PASS.
+- Remaining warning: package.json#prisma configuration is deprecated for Prisma 7.
+
+Frontend production build:
+
+- TypeScript build: PASS.
+- Vite build: PASS.
+- Modules transformed: 15.
+
+Dependency audits:
+
+- Backend: PASS — 0 vulnerabilities reported at the configured threshold.
+- Frontend: PASS — 0 vulnerabilities reported at the configured threshold.
+
+D. COMMIT AND PUSH RESULT
+
+- Committed file: vercel.json only.
+- Commit: d7d3d2112206
+- Commit message: build: record Node version in Vercel logs
+- Push: PASS — normal non-force push to origin/main.
+- History amended: no.
+- main matches origin/main after push: PASS.
+- Branch tracking: main tracks origin/main.
+
+E. DEPLOYMENT AND NODE 22 EVIDENCE
+
+- New deployment for commit d7d3d2112206 found: PASS.
+- Approved project: sms-v3-staging.
+- Approved safe origin: https://sms-v3-staging-ten.vercel.app
+- Deployment state: Ready — PASS.
+- Authenticated direct deployment build-log inspection: PASS.
+- Direct Node v22.x line in build log: PASS.
+- Current commit evidence in build log: PASS.
+- Raw build log or deployment URL printed: no.
+- Temporary deployment list, metadata, and build-log files removed: PASS.
+
+This direct build-log result resolves the sole Gate 5.4.1 evidence gap. It does not rely only on package.json, .nvmrc, or deployment metadata.
+
+F. AUTHENTICATED HOSTED RECHECK
+
+- GET /: PASS — HTTP 200 and expected React application shell.
+- GET /api/v1/health: PASS — HTTP 200 and expected health response.
+- GET /api/v1/ready: PASS — HTTP 200 and expected database-ready response without printing database details.
+- Application reached instead of Vercel Authentication redirect: PASS for all endpoints.
+- Temporary endpoint-response files removed: PASS.
+
+All hosted checks used authenticated Vercel CLI handling for Deployment Protection.
+
+G. SIGNIFICANT NON-SECRET COMMANDS EXECUTED
+
+- vercel project inspect sms-v3-staging
+- cmd.exe /d /c "node --version && npm --prefix frontend run build"
+- npm test
+- npm --prefix frontend test
+- npx prisma validate
+- npm --prefix frontend run build
+- npm run audit:dependencies
+- npm --prefix frontend audit --audit-level=high
+- git add -- vercel.json
+- git commit -m "build: record Node version in Vercel logs"
+- git push origin main
+- vercel list sms-v3-staging --format=json --limit 10
+- vercel inspect <approved deployment> --logs
+- vercel inspect <approved deployment> --json
+- vercel curl <approved path> --deployment https://sms-v3-staging-ten.vercel.app
+- git status --short --branch
+- git rev-parse HEAD
+- git rev-parse origin/main
+
+No command containing a secret, credential, token value, cookie value, connection value, database identifier, protection material, or employee record is included.
+
+H. REPORT COMMIT STATUS
+
+- TECHNICAL_REVIEW_GATE_5_4_2.txt was created after the build-configuration commit and was not staged, committed, or pushed.
+- Reason: this gate explicitly required committing only the reviewed build-configuration change.
+
+I. REMAINING LIMITATIONS
+
+1. The separate sms-v3 project still has an ERROR deployment requiring owner review; it was not modified in this gate.
+2. The linked-project build-command setting differs from the repository vercel.json command and should be aligned or documented to reduce operator ambiguity.
+3. Automated Windows Server or NAS backup scheduling, retention execution, failure notification, and recurring restore verification remain deferred.
+4. The login rate limiter remains process-local and requires an approved shared serverless-compatible store before production approval.
+5. Privacy/PDPA, security, vulnerability, least-privilege, retention/deletion, monitoring ownership, hosting, commercial, and escalation approvals remain incomplete.
+6. Local validation still runs on Node 24.18.0 rather than Node 22.x.
+7. Prisma package.json configuration deprecation remains to be addressed before Prisma 7.
+
+FINAL DECISION
+
+PASS for Gate 5.4.2 staging verification. The approved deployment is Ready, the authenticated build log contains a direct Node v22.x line, the deployed commit matches the reviewed build-configuration commit, and root, health, and readiness checks pass. Production readiness remains NOT APPROVED because operational automation, shared serverless rate limiting, organizational approvals, and the separate failed-project review remain incomplete.
