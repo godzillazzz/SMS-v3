@@ -9,6 +9,7 @@ const { MemoryRateLimitStore, PostgresRateLimitStore } = require('../src/service
 const { createRateLimitEvaluator } = require('../src/services/rate-limit.service');
 const { getRequestIpIdentity, normalizeAccountIdentity, normalizeIpIdentity } = require('../src/services/rate-limit-key');
 const { createLoginRateLimit, publicLimitMessage, publicStoreFailureMessage } = require('../src/middlewares/login-rate-limit');
+const { createLogger } = require('../src/utils/logger');
 
 const hashSecret = 'test-rate-limit-secret-with-at-least-thirty-two-chars';
 
@@ -32,7 +33,9 @@ test('fixed-window requests below and exactly at the limit pass, then the next r
 });
 
 test('login middleware returns generic HTTP 429 details and Retry-After after the configured limit', async () => {
-  const middleware = createLoginRateLimit({ store: new MemoryRateLimitStore(), storeType: 'memory', hashSecret, limit: 1, windowMs: 60_000, clock: () => new Date('2026-07-22T00:00:10.000Z') });
+  const logLines = [];
+  const safeLogger = createLogger({ environment: 'test', writer: (_level, line) => logLines.push(line) });
+  const middleware = createLoginRateLimit({ store: new MemoryRateLimitStore(), storeType: 'memory', hashSecret, limit: 1, windowMs: 60_000, clock: () => new Date('2026-07-22T00:00:10.000Z'), logger: safeLogger });
   const request = { ip: '192.0.2.2', body: { email: 'sample@example.invalid' }, requestId: 'safe-request' };
   assert.equal((await runMiddleware(middleware, request)).error, undefined);
   const blocked = await runMiddleware(middleware, request);
@@ -42,6 +45,9 @@ test('login middleware returns generic HTTP 429 details and Retry-After after th
   assert.equal(blocked.headers['RateLimit-Limit'], 1);
   assert.equal(blocked.headers['RateLimit-Remaining'], 0);
   assert.ok(Number.isInteger(blocked.headers['RateLimit-Reset']));
+  const event = JSON.parse(logLines.at(-1));
+  assert.equal(event.event, 'rate_limit_denied'); assert.equal(event.status, 429);
+  assert.equal(logLines.at(-1).includes(request.ip), false); assert.equal(logLines.at(-1).includes(request.body.email), false);
 });
 
 test('expired fixed windows reset safely', async () => {
@@ -105,20 +111,23 @@ test('PostgreSQL store uses one atomic conflict increment statement under concur
 });
 
 test('PostgreSQL cleanup targets only the rate-limit model', async () => {
-  let where;
+  let where; const logLines = [];
   const client = {
     rateLimitBucket: { deleteMany: async (args) => { where = args.where; return { count: 2 }; } },
     employee: { deleteMany: async () => { throw new Error('unexpected table'); } }
   };
-  const removed = await new PostgresRateLimitStore(client).cleanupExpired(new Date('2026-07-22T00:02:00.000Z'));
+  const safeLogger = createLogger({ environment: 'test', writer: (_level, line) => logLines.push(line) });
+  const removed = await new PostgresRateLimitStore(client, { logger: safeLogger }).cleanupExpired(new Date('2026-07-22T00:02:00.000Z'));
   assert.equal(removed, 2); assert.ok(where.expiresAt.lte instanceof Date);
+  assert.equal(JSON.parse(logLines[0]).event, 'rate_limit_cleanup_result');
 });
 
 test('PostgreSQL store failure fails closed without exposing implementation details', async () => {
   const logs = [];
+  const safeLogger = createLogger({ environment: 'test', writer: (_level, line) => logs.push(line) });
   const middleware = createLoginRateLimit({
     store: { increment: async () => { throw new Error('private database failure'); } }, storeType: 'postgres', hashSecret,
-    limit: 2, windowMs: 60_000, logger: { error: (value) => logs.push(value) }
+    limit: 2, windowMs: 60_000, logger: safeLogger
   });
   const request = { ip: '192.0.2.55', body: { email: 'sensitive@example.invalid' }, requestId: 'safe-request' };
   const result = await runMiddleware(middleware, request);
@@ -128,6 +137,7 @@ test('PostgreSQL store failure fails closed without exposing implementation deta
   assert.equal(serialized.includes(request.body.email), false);
   assert.equal(serialized.includes(hashSecret), false);
   assert.equal(serialized.includes('private database failure'), false);
+  assert.equal(JSON.parse(logs[0]).event, 'rate_limit_store_unavailable');
 });
 
 test('PostgreSQL selection fails fast when RATE_LIMIT_HASH_SECRET is missing', () => {

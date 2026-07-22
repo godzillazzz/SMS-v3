@@ -5,6 +5,7 @@ const prisma = require('../config/prisma');
 const env = require('../config/env');
 const HttpError = require('../utils/http-error');
 const audit = require('./audit.service');
+const { logger } = require('../utils/logger');
 
 const genericFailure = 'Invalid email or password.';
 const refreshFailure = 'Invalid or expired refresh token.';
@@ -25,6 +26,7 @@ async function login(email, password, requestId, request) {
   if (!user || !user.isActive || !(await bcrypt.compare(password, user.passwordHash))) {
     if (user) await prisma.user.update({ where: { id: user.id }, data: { failedLoginCount: { increment: 1 } } });
     await audit.log({ actorUserId: user?.id, action: 'LOGIN_FAILED', entityType: 'User', entityId: user?.id || 'unknown', metadata: { requestId } });
+    logger.warn('authentication_failure', { requestId, errorCategory: 'invalid_credentials_or_inactive', status: 401 });
     throw new HttpError(401, genericFailure);
   }
   const tokens = await prisma.$transaction(async (tx) => {
@@ -44,12 +46,20 @@ async function revokeAllForUser(userId, action, requestId, client) {
 }
 
 async function refresh(refreshToken, requestId, request) {
+  if (!refreshToken) {
+    logger.warn('refresh_failure', { requestId, errorCategory: 'session_missing', status: 401 });
+    throw new HttpError(401, refreshFailure);
+  }
   const tokenHash = hashRefreshToken(refreshToken);
   const session = await prisma.refreshSession.findUnique({ where: { refreshTokenHash: tokenHash }, include: { user: true } });
-  if (!session) throw new HttpError(401, refreshFailure);
+  if (!session) {
+    logger.warn('refresh_failure', { requestId, errorCategory: 'session_not_found', status: 401 });
+    throw new HttpError(401, refreshFailure);
+  }
   const invalid = session.revokedAt || session.expiresAt <= new Date() || !session.user.isActive || session.tokenVersion !== session.user.tokenVersion;
   if (invalid) {
     if (session.revokedAt) await prisma.$transaction((tx) => revokeAllForUser(session.userId, 'TOKEN_REUSE', requestId, tx));
+    logger.warn('refresh_failure', { requestId, errorCategory: 'session_invalid', status: 401 });
     throw new HttpError(401, refreshFailure);
   }
   return prisma.$transaction(async (tx) => {

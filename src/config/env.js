@@ -1,5 +1,6 @@
 const dotenv = require('dotenv');
 const { z } = require('zod');
+const { logger } = require('../utils/logger');
 dotenv.config();
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -41,9 +42,13 @@ if (isTest) {
     RATE_LIMIT_HASH_SECRET: process.env.RATE_LIMIT_HASH_SECRET?.length >= 32 ? process.env.RATE_LIMIT_HASH_SECRET : 'test-rate-limit-secret-with-at-least-thirty-two-chars'
   });
 } else {
-  if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) throw new Error('Invalid environment configuration: CORS_ORIGIN is required in production.');
+  if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
+    logger.error('application_config_invalid', { errorCategory: 'environment_validation', issueCount: 1 });
+    throw new Error('Invalid environment configuration: CORS_ORIGIN is required in production.');
+  }
   const result = schema.safeParse(process.env);
   if (!result.success) {
+    logger.error('application_config_invalid', { errorCategory: 'environment_validation', issueCount: result.error.issues.length });
     const message = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
     throw new Error(`Invalid environment configuration: ${message}`);
   }

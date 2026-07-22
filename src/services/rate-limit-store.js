@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { logger: defaultLogger, errorCategory } = require('../utils/logger');
 
 class MemoryRateLimitStore {
   constructor() { this.buckets = new Map(); }
@@ -24,7 +25,7 @@ class MemoryRateLimitStore {
 }
 
 class PostgresRateLimitStore {
-  constructor(client = prisma) { this.client = client; }
+  constructor(client = prisma, options = {}) { this.client = client; this.logger = options.logger || defaultLogger; }
 
   async increment({ scope, keyHash, windowStart, expiresAt, now }) {
     const rows = await this.client.$queryRaw`
@@ -51,8 +52,14 @@ class PostgresRateLimitStore {
   }
 
   async cleanupExpired(now = new Date()) {
-    const result = await this.client.rateLimitBucket.deleteMany({ where: { expiresAt: { lte: now } } });
-    return result.count;
+    try {
+      const result = await this.client.rateLimitBucket.deleteMany({ where: { expiresAt: { lte: now } } });
+      this.logger.info('rate_limit_cleanup_result', { removedCount: result.count, status: 'success' });
+      return result.count;
+    } catch (error) {
+      this.logger.error('rate_limit_cleanup_failure', { status: 'failed', errorCategory: errorCategory(error) });
+      throw error;
+    }
   }
 }
 
