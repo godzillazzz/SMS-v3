@@ -1,0 +1,225 @@
+SMS v3 Gate 5.6B2B0 Technical Review
+Milestone: Read-Only Staging Schema-Drift Investigation
+Review date: 2026-07-22
+
+REPOSITORY STATE
+PASS - The current branch was main, main matched origin/main, and the working
+tree was clean after keeping the prior blocked report local and unstaged through
+the repository-local exclude list. Current history contains both the reviewed
+Gate 5.6B2A implementation commit and its publication commit. Real environment
+files and deployment metadata remain ignored and untracked.
+
+MIGRATION-HISTORY INTEGRITY RESULT
+PASS - Four migrations are recorded as applied and one approved migration is
+pending locally. Applied order matches local chronological order. Every recorded
+migration has a corresponding local file, is complete, and is not marked failed
+or rolled back. No recorded migration is missing locally.
+
+Sanitized recorded order:
+1. 202607160000_initial_schema - complete; not rolled back.
+2. 202607170001_hardening - complete; not rolled back.
+3. 202607170002_refresh_sessions - complete; not rolled back.
+4. 202607220001_shared_rate_limit_buckets - complete; not rolled back.
+
+Expected local-only pending migration:
+- 202607220002_shared_alert_deduplication
+
+CHECKSUM CONSISTENCY RESULT
+PASS - The locally calculated checksum of every recorded migration file matched
+its recorded checksum. No checksum value was displayed or copied. There is no
+evidence that an applied migration file was edited after application.
+
+READ-ONLY DRIFT CAPTURE
+PASS - The live-schema comparison was reproduced using existing ignored staging
+configuration. Raw generated SQL was written only to an ignored temporary file,
+was never displayed or executed, and was deleted after sanitized analysis.
+
+DRIFT ITEM COUNT
+- Unexpected existing-schema items: 5.
+- Expected pending table creation: 1, separately identified and not counted as
+  existing-schema drift.
+- Unknown or unclassified items: 0.
+- Drop-table operations: 0.
+- Drop-column operations: 0.
+- Application data-mutation operations: 0.
+
+SANITIZED DRIFT CLASSIFICATION
+
+Item 1: audit_logs.id
+- Category: default / Prisma representation difference.
+- Expected state from committed migration: database-generated UUID default.
+- Observed state: UUID, not null, database-generated UUID default present.
+- Generated comparison action: remove column default.
+- Potentially destructive: YES, because default metadata would be removed.
+- Direct existing-row data-loss risk: NO.
+- Functional risk: clients relying on the database default could fail inserts.
+- Resolution status: EXPECTED_REPRESENTATION_DIFFERENCE.
+- Likely origin: committed SQL defines a database default while the Prisma model
+  represents a Prisma-generated UUID default.
+- Evidence: matching recorded checksum, tracked migration, tracked Prisma model,
+  read-only catalog classification, and sanitized diff classification.
+- Confidence: HIGH.
+- Predates pending alert-deduplication migration: YES.
+- Safe aggregate row count: 86.
+
+Item 2: employees.id
+- Category: default / Prisma representation difference.
+- Expected state from committed migration: database-generated UUID default.
+- Observed state: UUID, not null, database-generated UUID default present.
+- Generated comparison action: remove column default.
+- Potentially destructive: YES, because default metadata would be removed.
+- Direct existing-row data-loss risk: NO.
+- Functional risk: clients relying on the database default could fail inserts.
+- Resolution status: EXPECTED_REPRESENTATION_DIFFERENCE.
+- Likely origin: committed SQL defines a database default while the Prisma model
+  represents a Prisma-generated UUID default.
+- Evidence: matching recorded checksum, tracked migration, tracked Prisma model,
+  read-only catalog classification, and sanitized diff classification.
+- Confidence: HIGH.
+- Predates pending alert-deduplication migration: YES.
+- Safe aggregate row count: 1.
+
+Item 3: rate_limit_buckets.id
+- Category: default / Prisma representation difference.
+- Expected state from committed migration: database-generated UUID default.
+- Observed state: UUID, not null, database-generated UUID default present.
+- Generated comparison action: remove column default.
+- Potentially destructive: YES, because default metadata would be removed.
+- Direct existing-row data-loss risk: NO.
+- Functional risk: clients relying on the database default could fail inserts.
+- Resolution status: EXPECTED_REPRESENTATION_DIFFERENCE.
+- Likely origin: committed SQL defines a database default while the Prisma model
+  represents a Prisma-generated UUID default.
+- Evidence: matching recorded checksum, tracked migration, tracked Prisma model,
+  read-only catalog classification, and sanitized diff classification.
+- Confidence: HIGH.
+- Predates pending alert-deduplication migration: YES.
+- Safe aggregate row count: 12.
+
+Item 4: refresh_sessions.id
+- Category: default / Prisma representation difference.
+- Expected state from committed migration: database-generated UUID default.
+- Observed state: UUID, not null, database-generated UUID default present.
+- Generated comparison action: remove column default.
+- Potentially destructive: YES, because default metadata would be removed.
+- Direct existing-row data-loss risk: NO.
+- Functional risk: clients relying on the database default could fail inserts.
+- Resolution status: EXPECTED_REPRESENTATION_DIFFERENCE.
+- Likely origin: committed SQL defines a database default while the Prisma model
+  represents a Prisma-generated UUID default.
+- Evidence: matching recorded checksum, tracked migration, tracked Prisma model,
+  read-only catalog classification, and sanitized diff classification.
+- Confidence: HIGH.
+- Predates pending alert-deduplication migration: YES.
+- Safe aggregate row count: 41.
+
+Item 5: users.id
+- Category: default / Prisma representation difference.
+- Expected state from committed migration: database-generated UUID default.
+- Observed state: UUID, not null, database-generated UUID default present.
+- Generated comparison action: remove column default.
+- Potentially destructive: YES, because default metadata would be removed.
+- Direct existing-row data-loss risk: NO.
+- Functional risk: clients relying on the database default could fail inserts.
+- Resolution status: EXPECTED_REPRESENTATION_DIFFERENCE.
+- Likely origin: committed SQL defines a database default while the Prisma model
+  represents a Prisma-generated UUID default.
+- Evidence: matching recorded checksum, tracked migration, tracked Prisma model,
+  read-only catalog classification, and sanitized diff classification.
+- Confidence: HIGH.
+- Predates pending alert-deduplication migration: YES.
+- Safe aggregate row count: 1.
+
+LINEAGE CONCLUSION
+PASS - All five defaults originate in committed migrations that were applied in
+recorded order with matching checksums. Catalog state matches those migrations.
+The Prisma datamodel uses a different UUID-default representation, explaining
+why comparison output proposes removing database defaults. No evidence supports
+a manually added object, provider-managed object, outside-repository migration,
+edited applied migration, or incomplete migration as the cause.
+
+DESTRUCTIVE AND DATA-LOSS RISK
+- Executing the generated default-removal operations is NOT RECOMMENDED.
+- All five affected tables are non-empty based on aggregate counts only.
+- Removing a default does not rewrite or delete existing rows, so direct current
+  row-data loss risk is none.
+- Removing defaults is still potentially destructive because direct database
+  inserts or other clients that rely on database-generated identifiers could
+  fail or change behavior.
+
+HOSTED READ-ONLY CHECKS
+- Root: PASS - HTTP 200.
+- Health: PASS - HTTP 200.
+- Readiness: PASS - HTTP 200.
+- Authentication and rate-limit stress tests: not run; not required for basic
+  forensic health confirmation.
+- Real alert delivery: remains disabled; no delivery was tested or activated.
+
+LOCAL QUALITY CHECKS
+- Prisma format check: PASS.
+- Prisma schema validation: PASS.
+- Git diff check: PASS.
+- Tracked real environment files: none.
+- Tracked deployment metadata: none.
+- Tracked dump, backup, checksum, log, or temporary drift artifact: none.
+- Raw temporary drift file cleanup: PASS.
+
+DATABASE AND DEPLOYMENT SAFETY
+- Database writes performed: NONE.
+- Migration deployment performed: NONE.
+- Migration-history rows modified: NONE.
+- Schema correction performed: NONE.
+- Vercel changes performed: NONE.
+- Environment-variable changes performed: NONE.
+- Real alert activation performed: NONE.
+
+RECOMMENDED RESOLUTION OPTION
+Use the no-database-change option. Preserve the database-generated UUID defaults
+documented by the applied migrations. In a separate reviewed source-only task,
+align the Prisma representation of the five existing identifier fields with the
+database-generated default. Align the pending alert-deduplication identifier
+representation at the same time so it does not introduce the same representation
+difference after later deployment. Do not edit any historical migration file.
+
+After that reviewed correction:
+1. Run Prisma format and validation.
+2. Repeat the read-only live-schema comparison.
+3. Require the comparison to contain only the approved pending alert-
+   deduplication objects and no existing-table operation.
+4. Re-run migration-history/checksum integrity verification.
+5. Obtain explicit approval before resuming Gate 5.6B2B1.
+
+Do not use migration reset, database push, migration resolve, or generated
+default-removal SQL against staging.
+
+EXACT APPROVALS REQUIRED
+- Database owner approval that database-generated UUID defaults are the intended
+  state for the five existing tables and the pending deduplication table.
+- Backend/Prisma owner approval for a source-only Prisma representation change.
+- Technical reviewer approval that the resulting read-only diff contains only
+  the approved pending migration objects.
+- Security/release owner approval to resume the controlled migration gate.
+- Gate owner approval to reopen Gate 5.6B2B1 after all evidence passes.
+
+FILES CHANGED
+- TECHNICAL_REVIEW_GATE_5_6_B2_B0_DRIFT.txt (local report only).
+- Repository-local exclude metadata was updated only to keep the prior blocked
+  B2B1 report local and unstaged.
+- No tracked source, schema, migration, test, environment, or deployment file
+  changed.
+
+REMAINING LIMITATIONS
+- The recommended Prisma representation correction has not been implemented or
+  reviewed.
+- A clean post-correction read-only diff has not yet been produced.
+- The approved alert-deduplication migration remains pending and blocked.
+- Shared hosted deduplication configuration is not active.
+- Hosted cross-instance deduplication has not been tested.
+- Real notification delivery remains disabled and operational ownership remains
+  unresolved.
+
+GATE RESULTS
+- Gate 5.6B2B0 forensic investigation result: PASS.
+- Gate 5.6B2B1 migration status: BLOCKED.
+- Overall Gate 5.6 status: PARTIAL.
+- Production readiness: NOT APPROVED.
