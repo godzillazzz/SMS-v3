@@ -23,3 +23,4 @@ temporary-credential*
 dist/
 *.log
 backup-results.ndjson
+.vercel/

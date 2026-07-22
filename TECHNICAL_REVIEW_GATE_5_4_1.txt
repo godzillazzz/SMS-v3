@@ -1,0 +1,204 @@
+SMS v3 TECHNICAL REVIEW GATE 5.4.1
+Milestone: Authenticated Hosted Staging Verification
+Review date: 2026-07-22
+
+STAGING TECHNICAL RESULT: PARTIAL
+PRODUCTION READINESS: NOT APPROVED
+
+SUMMARY
+
+Authenticated hosted functional verification completed successfully against the approved protected Vercel staging project. The approved deployment is Ready and its build log identifies the reviewed current commit. Root, health, readiness, browser-style authentication, cookie and CSRF controls, startup refresh, authorization, logout, logout-all, and required authentication audit events passed. Deployment metadata identifies a Node 22 function runtime, but the current build log does not contain direct Node 22 evidence; this item remains pending under the gate rule.
+
+The system remains staging-only and sample-data-only. This result does not approve production use. Automated Windows Server or NAS backup scheduling remains intentionally deferred.
+
+SECURITY AND DATA-HANDLING CONFIRMATION
+
+- Vercel authentication output was discarded and never displayed.
+- No Vercel token or Deployment Protection bypass value was supplied, printed, stored, or placed in a URL.
+- Deployment Protection was not disabled or bypassed through a public exception.
+- Sample credentials were read only from the ignored local environment and sent through process standard input.
+- Access tokens, refresh tokens, cookie values, CSRF values, passwords, database connection values, database identifiers, provider references, and employee records were never printed.
+- Temporary CLI output, response, build-log, metadata, and verification files were deleted.
+- No employee record was created, modified, or deleted.
+- No force push was used.
+
+A. VERCEL AUTHORIZATION AND PROJECT VERIFICATION
+
+- Vercel CLI installed: PASS.
+- Vercel CLI version observed: 56.4.1.
+- Authenticated Vercel CLI session: PASS; account output was discarded.
+- Workspace linked to approved sms-v3-staging project: PASS.
+- Local Vercel project metadata ignored by Git: PASS.
+- Approved safe origin: https://sms-v3-staging-ten.vercel.app
+- Deployment state: Ready — PASS.
+- Deployed commit evidence: PASS — authenticated build evidence identifies current reviewed commit 0f4088aa169a, which is newer than required baseline 8bdddc79c818.
+
+B. AUTHENTICATED HOSTED ENDPOINTS
+
+- GET /: PASS — HTTP 200 and React application shell detected.
+- GET /api/v1/health: PASS — HTTP 200 and expected health response detected.
+- GET /api/v1/ready: PASS — HTTP 200 and database-ready response detected without printing database details.
+- Application reached instead of Vercel Authentication redirect: PASS for all three endpoints.
+
+All requests used authenticated Vercel CLI handling for the protected deployment.
+
+C. HOSTED BROWSER AUTHENTICATION AND SESSION SECURITY
+
+- Invalid login: PASS — HTTP 401 with the generic sanitized public response.
+- Valid browser login: PASS — HTTP 200.
+- Login JSON excludes refresh token: PASS.
+- Access token returned for in-memory use: PASS; value was not printed or persisted.
+- Refresh cookie attributes: PASS — HttpOnly, Secure, SameSite=Lax, Path=/api/v1/auth.
+- CSRF cookie attributes: PASS — not HttpOnly, Secure, SameSite=Lax, Path=/.
+- Matching CSRF header on refresh: PASS — HTTP 200.
+- Refresh JSON excludes refresh token: PASS.
+- Refresh-token rotation: PASS — replacement refresh cookie issued.
+- Protected /dashboard route: PASS — HTTP 200 and React application shell detected.
+- Protected-dashboard startup/F5 refresh sequence: PASS — subsequent cookie-authenticated refresh returned HTTP 200 with an in-memory access token.
+- Logout: PASS — HTTP 204.
+- Logout cookie clearing: PASS — both browser cookies returned expiration directives with their correct paths.
+- Logged-out session revocation: PASS — attempted refresh using the prior session returned HTTP 401.
+- Second sample login for logout-all verification: PASS.
+- Logout-all: PASS — HTTP 204.
+- Logout-all cookie clearing: PASS.
+- Logout-all revocation: PASS — attempted refresh using the prior session returned HTTP 401.
+
+The F5/session-continuity check reproduced the deployed browser startup sequence through authenticated CLI: load the protected SPA route, retain browser cookies in memory, read only the CSRF value intended for JavaScript, and issue the startup refresh with matching CSRF header.
+
+D. HOSTED AUTHORIZATION AND AUDIT
+
+- Unauthenticated GET /api/v1/employees: PASS — HTTP 401.
+- Authorized sample-user employee listing: PASS — HTTP 200 with expected paginated response shape.
+- Employee records printed: no.
+- Employee mutations performed: none.
+
+Authentication audit events created during this verification:
+
+- LOGIN_FAILED: PASS.
+- LOGIN: PASS.
+- REFRESH: PASS.
+- LOGOUT: PASS.
+- LOGOUT_ALL: PASS.
+
+Audit metadata safety: PASS. Newly created audit metadata was checked recursively and contained no password, token, secret, cookie, authorization, database URL, or connection-string key.
+
+Employee create, update, and soft-delete audit events were not regenerated because hosted employee mutation was expressly prohibited for this review.
+
+E. NODE 22 AND BUILD EVIDENCE
+
+- Authenticated Vercel build-log inspection: PASS.
+- Authenticated deployment metadata inspection: PASS.
+- Node 22 function-runtime metadata: PASS — deployment metadata identifies the Node 22 runtime.
+- Direct Node 22 evidence in the current build log: PENDING — no direct Node 22 line was present.
+- Direct current deployed-commit evidence in the build log: PASS.
+- Raw build logs printed: no.
+- Temporary build-log and metadata files removed: PASS.
+
+Repository declarations also require Node 22.x in root package.json, frontend/package.json, and .nvmrc. The active local test runtime remains Node 24.18.0. Repository declarations and runtime metadata do not replace the build-log evidence explicitly required by this gate, so the build-log item remains pending.
+
+F. SEPARATE VERCEL PROJECT OBSERVATION
+
+- Approved sms-v3-staging project visible through authenticated CLI: PASS.
+- Separate sms-v3 project visible through authenticated CLI: yes.
+- Separate sms-v3 project still has at least one ERROR deployment: yes.
+- Separate project modified, deleted, paused, or redeployed: no.
+
+The separate failed project remains an owner-review item and must not be confused with the approved sms-v3-staging project.
+
+G. LOCAL QUALITY CONFIRMATION
+
+Backend tests:
+- Tests: 17
+- Passed: 17
+- Failed: 0
+- Skipped: 0
+- Result: PASS
+
+Frontend tests:
+- Test files: 1 passed
+- Tests: 3
+- Passed: 3
+- Failed: 0
+- Result: PASS
+
+Prisma:
+- Schema validation: PASS.
+- Remaining warning: package.json#prisma configuration is deprecated for Prisma 7.
+
+Frontend production build:
+- TypeScript build: PASS.
+- Vite production build: PASS.
+- Modules transformed: 15.
+
+Dependency audits:
+- Backend: PASS — 0 vulnerabilities reported at the configured threshold.
+- Frontend: PASS — 0 vulnerabilities reported at the configured threshold.
+
+Repository safety:
+- Unsafe connection URLs outside approved placeholder/test contexts: 0.
+- Live provider references: 0.
+- Non-sample email findings: 0.
+- Tracked secret, credential, Vercel metadata, environment, dump, backup, checksum, or log artifacts: 0.
+- Required ignore-rule failures: 0.
+- Safe example environment files remain allowed: PASS.
+- Temporary Gate 5.4.1 files remaining: 0.
+
+H. FILES CHANGED
+
+- .gitignore — added .vercel/ while preserving the existing secure environment rules and safe example-file exceptions.
+- TECHNICAL_REVIEW_GATE_5_4_1.txt — replaced the earlier blocked report with authenticated hosted results.
+
+The Vercel CLI initially appended a broad .env* rule while linking. That rule was removed because it would override the existing exceptions for safe example environment files. No business source, schema, migration, test behavior, or staging employee data was changed.
+
+I. COMMIT AND PUSH RESULT
+
+- Commit: NOT PERFORMED during this verification turn.
+- Push: NOT PERFORMED.
+- Reason: the user requested continuation of verification and report replacement, not repository publication. The reviewed .gitignore correction and report remain available for explicit commit approval.
+- No force push was used.
+
+J. SIGNIFICANT NON-SECRET COMMANDS EXECUTED
+
+- vercel --version
+- vercel whoami (output discarded)
+- vercel link --project sms-v3-staging --yes (output discarded)
+- vercel inspect https://sms-v3-staging-ten.vercel.app --json
+- vercel inspect https://sms-v3-staging-ten.vercel.app --logs
+- vercel curl <approved path> --deployment https://sms-v3-staging-ten.vercel.app
+- vercel curl <approved auth path> --deployment https://sms-v3-staging-ten.vercel.app -- --config -
+- vercel project list --filter sms-v3 --format=json
+- vercel list sms-v3 --status ERROR --format=json --limit 20
+- npm test
+- npm --prefix frontend test
+- npx prisma validate
+- npm --prefix frontend run build
+- npm run audit:dependencies
+- npm --prefix frontend audit --audit-level=high
+- git ls-files
+- git ls-files --others --exclude-standard
+- git check-ignore -q -- <safe synthetic path>
+- git diff --check
+- git status --short --branch
+
+Credential-bearing headers, request bodies, tokens, cookies, and CSRF values were supplied only through redirected process standard input and are intentionally absent from this command list.
+
+K. BACKUP AUTOMATION STATUS
+
+- Technical sample-data backup, checksum, and disposable restore rehearsal: previously completed successfully.
+- Automated Windows Server or NAS backup scheduling: DEFERRED.
+- Recurring operational notification, retention execution, encryption-key custody, and scheduled restore verification remain pending.
+
+L. REMAINING LIMITATIONS AND REQUIRED ACTIONS
+
+1. Review or deconfigure the separate failed sms-v3 project/deployment so it cannot be mistaken for the approved staging project.
+2. Obtain direct Node 22 evidence in an approved build/function log; current deployment metadata indicates Node 22, but the current build log does not state it directly.
+3. Run local validation under Node 22.x to match the declared and hosted runtime metadata; this workstation currently uses Node 24.18.0.
+4. Replace the process-local login rate limiter with an approved shared serverless-compatible store before production approval.
+5. Implement and test automated encrypted backup scheduling, retention, failure notification, and recurring restore verification.
+6. Complete privacy/PDPA, security, vulnerability, least-privilege, retention/deletion, hosting, commercial, monitoring-ownership, and escalation approvals.
+7. Plan migration from deprecated package.json#prisma configuration before Prisma 7 adoption.
+8. Commit and push the reviewed .gitignore correction and this report only after explicit repository publication approval.
+
+FINAL DECISION
+
+PARTIAL for Gate 5.4.1 authenticated staging verification. The approved protected deployment is Ready, the build log identifies the current reviewed commit, deployment metadata indicates Node 22, and all hosted endpoint, browser-session, authorization, and audit checks passed. Direct Node 22 evidence is absent from the current build log and therefore remains pending. Production readiness remains NOT APPROVED because backup automation, shared serverless rate limiting, organizational approvals, and the separate failed-project review also remain incomplete.
