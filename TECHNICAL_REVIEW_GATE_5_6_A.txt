@@ -1,0 +1,279 @@
+SMS v3 Gate 5.6A Technical Review
+Milestone: Monitoring and Operational Readiness Foundation
+Review date: 2026-07-22 (Asia/Bangkok)
+
+SECURITY SCOPE
+
+- Environment values, credentials, access/refresh tokens, cookies, CSRF values,
+  authorization headers, database connection details, provider identifiers, raw
+  network/account identities, employee records, and stored HMAC values were not
+  included in this report.
+- Verification used staging sample data only.
+- No paid monitoring service was activated or connected.
+- Deployment Protection was not weakened.
+- No database outage was intentionally caused and no credential was invalidated.
+
+CURRENT OBSERVABILITY ASSESSMENT
+
+Result: PASS for the Gate 5.6A foundation.
+
+Before this change, Vercel build and function logs, application audit records,
+Supabase database monitoring, and the health/readiness endpoints provided partial
+visibility. The application did not have a single safe structured-log contract.
+The previous HTTP logger could include a complete URL, raw Error objects could
+reach server logging, arbitrary incoming request IDs were accepted, and several
+operational failure categories had no consistent event name.
+
+The available sources now have these defined uses:
+
+- Vercel build logs: build/runtime selection and deployment success or failure.
+- Vercel function logs: structured application events and request outcomes.
+- Application audit records: durable security/business actions with the existing
+  audit behavior preserved.
+- Supabase monitoring: database availability, resource use, latency, and table
+  inspection performed through approved administrative access.
+- Health endpoint: lightweight process liveness only.
+- Readiness endpoint: required database dependency availability without returning
+  dependency or connection details.
+
+The assessment and remaining signal gaps are documented in
+docs/OBSERVABILITY_FOUNDATION.md. General HTTP request events can be queried for
+401, 403, 429, 503, and 5xx status trends. Dedicated safe events cover the most
+important application, authentication, database, readiness, and rate-limit cases.
+
+STRUCTURED LOGGER RESULT
+
+Result: PASS.
+
+A centralized JSON-line logger was added. Its standard safe fields are timestamp,
+level, event, deployment environment, request ID, route template, method, status,
+duration, and safe error category when applicable. HTTP logging uses route
+templates rather than complete URLs. Request/response bodies and raw headers are
+not logged. Prisma client events, configuration failures, HTTP errors,
+authentication failures, and limiter events now use the same safe logger.
+
+Error objects are reduced to a safe name and category. Internal messages, stack
+traces, connection strings, request credentials, and database error text are not
+serialized into platform logs.
+
+REDACTION RESULT
+
+Result: PASS.
+
+Recursive key-based redaction/drop rules cover passwords, tokens, secrets,
+cookies, CSRF material, authorization data, connection strings, database URLs,
+headers, bodies, raw network/account identity fields, and hashes. Defensive value
+patterns redact connection URLs, token-shaped values, long hexadecimal values,
+raw network addresses, and email-shaped identities.
+
+Local regression tests proved that prohibited headers, request bodies, raw source
+addresses, raw account identities, stored-hash-shaped values, connection strings,
+token-shaped values, and Error details do not survive structured serialization.
+
+The changed-file and tracked-file scans found no live credential, external
+database URL, token-shaped value, provider reference, or real identity. Two
+database URL matches were confirmed as localhost test fixtures. Environment
+example matches were confirmed as safe placeholders. Identity matches were
+confirmed as reserved synthetic test fixtures.
+
+REQUEST-ID RESULT
+
+Result: PASS.
+
+- A correlation ID is generated for each request.
+- An arbitrary client x-request-id is ignored.
+- A hosted platform request ID is accepted only in the hosted environment and
+  only when it satisfies a strict safe-character and length rule.
+- x-request-id is returned to the client.
+- Required hosted operational events contained request IDs.
+- Hosted log review found zero missing request IDs in the required categories.
+
+HEALTH AND READINESS SAFETY RESULT
+
+Result: PASS.
+
+- GET /api/v1/health remains lightweight and returned HTTP 200.
+- GET /api/v1/ready performed the database readiness check and returned HTTP 200.
+- The readiness dependency-failure regression returned sanitized HTTP 503.
+- Health/readiness responses did not expose database host, provider identifier,
+  database/schema name, connection error text, stack trace, or environment value.
+- The successful public response format was preserved.
+
+MONITORED EVENT CATEGORIES
+
+Implemented safe event categories:
+
+- application startup and configuration validation;
+- application listening state;
+- HTTP request completion;
+- readiness success and readiness failure;
+- operational and unexpected HTTP 5xx;
+- authentication failure;
+- refresh failure category;
+- rate-limit denial;
+- rate-limit store unavailable;
+- database operation/client failure category;
+- expired rate-limit cleanup success or failure.
+
+Existing authentication and employee audit behavior remained intact. Confidential
+audit metadata is not duplicated into platform log events.
+
+MONITORING ALERT MATRIX RESULT
+
+Result: PASS for documentation; activation remains pending.
+
+docs/MONITORING_ALERT_MATRIX.md defines staging baseline conditions for readiness,
+HTTP 5xx, HTTP 429, limiter-store 503, login failures, refresh failures, function
+timeouts, database latency, limiter-table growth, cleanup failures, and backup
+failure. Each entry includes signal source, observation window, proposed warning
+and critical threshold, severity, first response, owner placeholder, and
+false-positive considerations. All values are explicitly marked as staging
+baselines requiring operational approval; no production traffic volume was
+fabricated.
+
+INCIDENT RUNBOOK RESULT
+
+Result: PASS for documentation.
+
+docs/INCIDENT_RESPONSE_RUNBOOK.md defines severity levels, evidence preservation,
+safe communication, escalation placeholders, rollback criteria, and procedures for
+application/readiness outages, authentication spikes, 429/503 incidents, database
+latency/failure, credential exposure, unauthorized access, audit anomalies, failed
+deployments, and rollback to a last-known Ready deployment. It prohibits credentials,
+cookies, employee records, and connection details in logs and screenshots.
+
+OWNERSHIP DOCUMENT RESULT
+
+Result: PASS for placeholders; unresolved ownership remains a production blocker.
+
+docs/OPERATIONAL_OWNERSHIP.md contains unassigned placeholders for the application,
+technical, database, security, privacy/PDPA, incident-command, backup, and
+after-hours escalation roles. No personal names or contact details were invented.
+
+LOCAL VERIFICATION RESULTS
+
+- Backend tests: PASS, 35 passed, 0 failed, 0 skipped.
+- Frontend tests: PASS, 3 passed, 0 failed; 1 test file passed.
+- Prisma format check: PASS.
+- Prisma validation: PASS.
+- Frontend production build: PASS; 15 modules transformed.
+- Backend dependency audit at high severity: PASS, 0 vulnerabilities.
+- Frontend dependency audit at high severity: PASS, 0 vulnerabilities.
+- git diff --check: PASS.
+- Tracked real environment files: 0.
+- Tracked .vercel metadata files: 0.
+- Tracked backup/dump/checksum/log artifacts: 0.
+
+HOSTED DEPLOYMENT RESULT
+
+Result: PASS.
+
+- Reviewed implementation commit: 6a5a8b16b9df27642e823d32c4e2e049d1d1c693
+- Normal push to origin/main: PASS; no force push used.
+- Deployment matching the reviewed commit: READY.
+- Deployment target: approved staging project.
+- GET /: HTTP 200.
+- GET /api/v1/health: HTTP 200.
+- GET /api/v1/ready: HTTP 200.
+
+AUTHENTICATION AND RATE-LIMIT REGRESSION RESULTS
+
+Result: PASS.
+
+- Sample browser login: PASS.
+- Refresh/F5 session continuity: PASS.
+- Browser refresh JSON refresh-token exposure: none detected.
+- Refresh cookie: HttpOnly, Secure, SameSite=Lax, Path=/api/v1/auth.
+- CSRF cookie: readable by the browser, Secure, SameSite=Lax, Path=/.
+- Matching CSRF cookie/header refresh flow: PASS.
+- Logout: PASS.
+- Logout-all: PASS.
+- Sanitized refresh failure: PASS.
+- Hosted shared rate-limit HTTP 429: PASS; the bounded check stopped on the first
+  denial after 9 attempts.
+
+HOSTED LOG-SAFETY RESULT
+
+Result: PASS.
+
+The authenticated value-redacting review inspected 17 hosted request-log records
+and 30 structured application events. Expected hosted categories were present:
+
+- application_startup: 2;
+- http_request: 17;
+- readiness_check: 1;
+- authentication_failure: 8;
+- refresh_failure: 1;
+- rate_limit_denied: 1.
+
+Review results:
+
+- prohibited-value pattern matches: 0;
+- required request IDs missing: 0;
+- complete URL or query-string route leaks: 0;
+- secret, cookie, token, raw identity, employee record, connection detail, and
+  stored-hash exposure: none detected.
+
+FILES ADDED
+
+- docs/INCIDENT_RESPONSE_RUNBOOK.md
+- docs/MONITORING_ALERT_MATRIX.md
+- docs/OBSERVABILITY_FOUNDATION.md
+- docs/OPERATIONAL_OWNERSHIP.md
+- src/middlewares/request-logger.js
+- src/utils/logger.js
+- test/logger.test.js
+- TECHNICAL_REVIEW_GATE_5_6_A.txt (post-verification report; not part of the
+  implementation commit)
+
+FILES CHANGED
+
+- src/app.js
+- src/config/env.js
+- src/config/prisma.js
+- src/middlewares/error-handler.js
+- src/middlewares/login-rate-limit.js
+- src/middlewares/request-context.js
+- src/server.js
+- src/services/auth.service.js
+- src/services/rate-limit-store.js
+- test/health.test.js
+- test/rate-limit.test.js
+
+IMPLEMENTATION COMMIT AND PUSH
+
+- Commit: 6a5a8b16b9df27642e823d32c4e2e049d1d1c693
+- Commit message: feat: add safe operational observability foundation
+- Push result: PASS, main matches origin/main at the reviewed commit.
+- Commit scope: exactly 18 reviewed source, test, and safe documentation files.
+
+REMAINING LIMITATIONS
+
+- No real alert-notification destination or delivery test is configured.
+- Monitoring thresholds are staging baselines and have not received operational
+  approval against real production traffic.
+- Operational owners and after-hours escalation contacts remain unassigned.
+- Vercel/Supabase dashboard review is still manual; no paid monitoring service was
+  approved or connected.
+- General status events support 401/403/429/503 trend queries, but no automated
+  notification rule has been configured.
+- Function timeout and database-latency alerts are not automatically delivered.
+- Rate-limit table growth and cleanup require operational monitoring/scheduling;
+  explicit cleanup events exist but a production schedule is not approved.
+- Automated Windows Server/NAS backup scheduling and backup-failure notification
+  remain deferred.
+- Prisma reports that package.json-based Prisma configuration is deprecated for a
+  future major release; current format and validation pass.
+- The application remains staging-only and sample-data-only.
+
+GATE DECISION
+
+- Gate 5.6A result: PASS.
+- Overall Gate 5.6 result: PARTIAL.
+- Production readiness: NOT APPROVED.
+
+Gate 5.6A passes because structured safe logging, redaction, request correlation,
+health/readiness safety, monitoring/incident/ownership documentation, regression
+tests, staging deployment, hosted authentication/rate-limit checks, and hosted
+safe-log review all passed. Overall Gate 5.6 remains PARTIAL until real notification
+delivery, operational ownership, and approved thresholds are configured and tested.
