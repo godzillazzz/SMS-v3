@@ -5,6 +5,7 @@ dotenv.config();
 
 const isTest = process.env.NODE_ENV === 'test';
 const emptyToUndefined = (value) => value === '' ? undefined : value;
+const optionalPositiveInteger = z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).optional());
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().url().min(1),
@@ -25,10 +26,21 @@ const schema = z.object({
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   COOKIE_DOMAIN: z.string().optional(),
   COOKIE_SECURE: z.enum(['true', 'false']).optional(),
-  REFRESH_TOKEN_EXPIRES_IN: z.string().regex(/^\d+d$/).optional()
+  REFRESH_TOKEN_EXPIRES_IN: z.string().regex(/^\d+d$/).optional(),
+  ALERTING_ENABLED: z.enum(['true', 'false']).default('false'),
+  ALERTING_PROVIDER: z.string().regex(/^[A-Za-z0-9_-]+$/).default('disabled'),
+  ALERT_COOLDOWN_SECONDS: z.coerce.number().int().min(1).max(86400).default(300),
+  ALERT_LOGIN_FAILURE_THRESHOLD: optionalPositiveInteger,
+  ALERT_REFRESH_FAILURE_THRESHOLD: optionalPositiveInteger,
+  ALERT_HTTP_429_THRESHOLD: optionalPositiveInteger,
+  ALERT_DATABASE_LATENCY_MS: optionalPositiveInteger,
+  ALERT_FUNCTION_TIMEOUT_THRESHOLD: optionalPositiveInteger
 }).superRefine((value, context) => {
   if (value.RATE_LIMIT_STORE === 'postgres' && !value.RATE_LIMIT_HASH_SECRET) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['RATE_LIMIT_HASH_SECRET'], message: 'RATE_LIMIT_HASH_SECRET is required when RATE_LIMIT_STORE=postgres.' });
+  }
+  if (value.ALERTING_ENABLED === 'true' && !(value.NODE_ENV === 'test' && value.ALERTING_PROVIDER === 'memory')) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['ALERTING_PROVIDER'], message: 'Enabled alert delivery is unsupported or incomplete.' });
   }
 });
 
@@ -67,5 +79,15 @@ module.exports = {
   csrfCookieName: parsed.CSRF_COOKIE_NAME, cookieSameSite: parsed.COOKIE_SAME_SITE,
   cookieDomain: parsed.COOKIE_DOMAIN,
   // A production browser session must never be downgraded to an insecure cookie.
-  cookieSecure: parsed.NODE_ENV === 'production' || parsed.COOKIE_SECURE === 'true'
+  cookieSecure: parsed.NODE_ENV === 'production' || parsed.COOKIE_SECURE === 'true',
+  alertingEnabled: parsed.ALERTING_ENABLED === 'true',
+  alertingProvider: parsed.ALERTING_PROVIDER,
+  alertCooldownSeconds: parsed.ALERT_COOLDOWN_SECONDS,
+  alertThresholds: {
+    loginFailureSpike: parsed.ALERT_LOGIN_FAILURE_THRESHOLD,
+    refreshFailureSpike: parsed.ALERT_REFRESH_FAILURE_THRESHOLD,
+    http429Spike: parsed.ALERT_HTTP_429_THRESHOLD,
+    databaseLatencyMs: parsed.ALERT_DATABASE_LATENCY_MS,
+    functionTimeoutCount: parsed.ALERT_FUNCTION_TIMEOUT_THRESHOLD
+  }
 };

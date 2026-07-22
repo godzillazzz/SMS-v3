@@ -27,3 +27,29 @@ No paid external monitoring service is activated by this document.
 - Notifications must not contain raw identities, employee data, headers, bodies, credentials, tokens, cookies, stored hashes or connection details.
 - Threshold changes require a recorded reason, reviewer and rollback decision.
 - Real notification delivery and escalation tests are required before overall Gate 5.6 can close.
+
+## Gate 5.6B1 notification classification
+
+The classification below preserves the existing event names. It is a staging architecture decision, not an approved production threshold.
+
+### Immediate notification candidates after a real channel is approved
+
+- `readiness_failure`
+- `unexpected_http_5xx`
+- `rate_limit_store_unavailable`
+- repeated `rate_limit_cleanup_failure`
+- `application_config_invalid`
+- `startup_dependency_failure`
+
+The current provider remains disabled, so these categories produce policy decisions but no external notification.
+
+### Dashboard-only observations unless an approved threshold is reached
+
+- individual `authentication_failure` and ordinary HTTP 401;
+- individual `refresh_failure`;
+- individual `rate_limit_denied` and ordinary HTTP 429;
+- successful `readiness_check` and `rate_limit_cleanup_result`;
+- database latency observations;
+- function duration/timeout observations.
+
+Configurable hooks exist for login-failure, refresh-failure, HTTP 429, database-latency and function-timeout thresholds. They are unset by default and remain production blockers until owners and thresholds are approved.

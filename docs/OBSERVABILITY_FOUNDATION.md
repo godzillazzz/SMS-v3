@@ -106,3 +106,17 @@ Authentication audit behavior remains unchanged and authoritative. Platform even
 4. Redact screenshots before sharing and verify they contain no credentials, cookies, employee records or connection details.
 5. Preserve necessary evidence with access control, a retention decision and an incident reference.
 6. Escalate according to `INCIDENT_RESPONSE_RUNBOOK.md` and the ownership placeholders.
+
+## Alerting policy foundation
+
+Gate 5.6B1 adds a vendor-independent policy and delivery boundary without connecting a real notification destination:
+
+- normal staging delivery is disabled/no-op;
+- an in-memory delivery implementation is restricted to automated tests;
+- unsupported or incomplete enabled configuration fails validation safely;
+- payload construction is allowlist-only and excludes raw log/audit inputs;
+- immediate system-failure categories and configurable aggregate hooks are separated;
+- ordinary HTTP 401 and individual HTTP 429 observations do not generate notifications by default;
+- in-process cooldown prevents duplicate test alerts without using identity-based keys.
+
+The cooldown is not shared between runtime instances. Real delivery, shared deduplication, threshold approval, operational owners and acknowledgement testing remain production blockers. See `ALERTING_CONFIGURATION_RUNBOOK.md` and `ALERTING_APPROVAL_CHECKLIST.md`.

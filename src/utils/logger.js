@@ -48,14 +48,28 @@ function defaultWriter(level, line) {
   stream.write(`${line}\n`);
 }
 
+let operationalEventSink;
+function setOperationalEventSink(sink) {
+  operationalEventSink = typeof sink === 'function' ? sink : undefined;
+}
+
 function createLogger(options = {}) {
   const writer = options.writer || defaultWriter;
   const clock = options.clock || (() => new Date());
   const environment = options.environment || process.env.VERCEL_ENV || process.env.NODE_ENV || 'development';
+  const eventSink = options.eventSink;
   function write(level, event, fields = {}) {
     const safeFields = sanitize(fields) || {};
     const record = { timestamp: clock().toISOString(), level, event, deploymentEnvironment: environment, ...safeFields };
     writer(level, JSON.stringify(record));
+    if (eventSink) {
+      try { eventSink(record); } catch (error) {
+        writer('error', JSON.stringify({
+          timestamp: clock().toISOString(), level: 'error', event: 'alert_policy_failure',
+          deploymentEnvironment: environment, errorCategory: errorCategory(error)
+        }));
+      }
+    }
     return record;
   }
   return {
@@ -65,5 +79,5 @@ function createLogger(options = {}) {
   };
 }
 
-const logger = createLogger();
-module.exports = { logger, createLogger, sanitize, errorCategory, isSensitiveKey };
+const logger = createLogger({ eventSink: (record) => operationalEventSink?.(record) });
+module.exports = { logger, createLogger, sanitize, errorCategory, isSensitiveKey, setOperationalEventSink };

@@ -7,9 +7,13 @@ const { notFound, errorHandler } = require('./middlewares/error-handler');
 const prisma = require('./config/prisma');
 const requestContext = require('./middlewares/request-context');
 const requestLogger = require('./middlewares/request-logger');
-const { logger, errorCategory } = require('./utils/logger');
+const { logger, errorCategory, setOperationalEventSink } = require('./utils/logger');
+const { createConfiguredAlerting } = require('./services/alerting.service');
 
 const app = express();
+const alerting = createConfiguredAlerting(env);
+setOperationalEventSink((record) => alerting.evaluate(record));
+app.locals.alerting = alerting;
 logger.info('application_startup', { configStatus: 'valid', status: 'initialized' });
 app.use(helmet());
 if (env.nodeEnv === 'production' && env.corsOrigins.length === 0) throw new Error('CORS_ORIGIN must contain at least one allowed origin in production.');
