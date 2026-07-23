@@ -19,7 +19,7 @@ shift
 :loop
 if "%~1"=="" goto end
 echo %~1 | findstr /r "^--file=" >nul
-if errorlevel 0 (
+if not errorlevel 1 (
     set arg=%~1
     call :writefile
 )
