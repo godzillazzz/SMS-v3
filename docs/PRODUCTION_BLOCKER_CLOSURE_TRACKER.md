@@ -1,0 +1,24 @@
+# Production Blocker Closure Tracker
+
+This document tracks the closure criteria and status of remaining production blockers. All unresolved blockers remain **OPEN**.
+
+---
+
+## Blocker Closure Matrix
+
+| Blocker Name | Current Status | Owner Role | Required Evidence | Target Action | Closure Criteria | Blocker Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **1. Real Notification Channel**| Disabled | Notification Owner | Signed channel choice matrix | Select and configure provider | Delivery verified in console | **OPEN** |
+| **2. Alert Thresholds** | Mocked | Monitoring Owner | Signed threshold document | Configure target alerting levels | Dashboards active and valid | **OPEN** |
+| **3. Operational Owners** | Placeholders | Application Owner | Finalized staff directory mapping | Assign staff to on-call roles | Registry matches active roles | **OPEN** |
+| **4. Escalation Path** | Placeholders | Incident Commander | On-call escalation rota list | Test escalation triggers | Dry-run drill completes | **OPEN** |
+| **5. Backup Host** | Unconfigured | Backup Owner | Host server specs sheet | Provision backup server environment| Host server responds to ping | **OPEN** |
+| **6. Backup Storage** | Unconfigured | Backup Owner | NAS folder permissions sheet | Map network share drive | Target directory writable | **OPEN** |
+| **7. Encryption Key Custody** | Unconfigured | Security Owner | Secure key vault registry record | Generate GnuPG production keys | Keys registered in vault | **OPEN** |
+| **8. Backup Schedule** | Deactivated | Backup Owner | Windows Task Scheduler configurations| Activate task scheduling | Trigger logs recorded | **OPEN** |
+| **9. Restore Rehearsal** | Deactivated | Restore-Test Owner | Rehearsal task configurations | Activate weekly rehearsal task | Rehearsal logs clean | **OPEN** |
+| **10. Backup Failure Alerting** | Disabled | Monitoring Owner | Alert policy configurations | Bind failure triggers to channels | Failures alert target channel | **OPEN** |
+| **11. PDPA/Privacy Sign-off** | Pending | Privacy/PDPA Owner | Certified audit report | Complete PDPA data flow audit | Signed compliance document | **OPEN** |
+| **12. Security Sign-off** | Pending | Security Owner | SAST/DAST scanner report | Complete penetration testing | Zero high findings signed | **OPEN** |
+| **13. Real Data Import** | Prohibited | Database Owner | Import log data verification | Audit data import scripts | Validated counts matching DB | **OPEN** |
+| **14. Production Go/No-Go** | Not Approved | Business Owner | Sign-off packet with all approvals| Execute Go/No-Go check grid | Signed approval checklist | **OPEN** |
