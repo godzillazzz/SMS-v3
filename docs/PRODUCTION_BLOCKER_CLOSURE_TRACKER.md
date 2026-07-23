@@ -1,6 +1,6 @@
 # Production Blocker Closure Tracker
 
-This document tracks the closure criteria and status of remaining production blockers. All unresolved blockers remain **OPEN**.
+This document tracks the closure criteria and status of remaining production blockers. All unresolved blockers remain **OPEN**. Decisions corresponding to these blockers are managed in the [Owner Decision Log](file:///c:/Users/sermp/OneDrive/ドキュメント/Move%20Gas/docs/OWNER_DECISION_LOG.md), and progress is tracked in the [Owner Review Action Item Tracker](file:///c:/Users/sermp/OneDrive/ドキュメント/Move%20Gas/docs/OWNER_REVIEW_ACTION_ITEM_TRACKER.md).
 
 ---
 
