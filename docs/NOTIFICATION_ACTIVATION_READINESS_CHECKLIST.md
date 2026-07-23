@@ -57,7 +57,7 @@ This checklist tracks the requirements for future controlled staging notificatio
 ---
 
 ## Checklist Status
-- **Overall Status**: **READY**
+- **Overall Status**: **BLOCKED** (Staging activation blocked due to missing provider support)
 - Real notification delivery remains **DISABLED**.
 - No notification test has been sent.
 - Environment variables have not been changed.
