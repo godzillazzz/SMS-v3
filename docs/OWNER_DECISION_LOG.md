@@ -108,8 +108,8 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-12: Controlled Staging Notification Test Closeout
 - **Owner Role**: Notification Owner
 - **Decision Options**: ACCEPT CLOSEOUT / REQUEST ITERATION / REJECT
-- **Current Decision**: **PENDING** (Staging closeout closeout package under review)
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: Controlled staging activation result document, regression results.
 - **Restrictions**: Staging channel must remain disabled post-test. Production notification activation remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **PENDING**
+- **Approval Status**: **APPROVED WITH RESTRICTIONS**

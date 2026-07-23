@@ -34,4 +34,8 @@ All action items default to **OPEN** status. These items represent required step
 | **Approve Staging Notification Activation Change**| Business Owner| Change window ticket | DEC-14 | Active change ticket | **CLOSED** | Blocks channel activation |
 | **Approve Synthetic Notification Test**| Technical Owner| Test suite validation | DEC-15 | Verification test log trace | **CLOSED** | Blocks channel activation |
 | **Assign Notification Rollback Owner**| Business Owner| Staff assignment | None | Signed rollback role sheet | **CLOSED** | Blocks channel activation |
-| **Approve Controlled Staging Notification Test Closeout**| Notification Owner| Review staging closeout summary | DEC-12 | Owner signature placeholder | **OPEN** | Blocks future production change planning |
+| **Approve Controlled Staging Notification Test Closeout**| Notification Owner| Review staging closeout summary | DEC-12 | Owner signature placeholder | **CLOSED** | Blocks future production change planning |
+| **Request Additional Synthetic Test**| Notification Owner| Additional test request option | None | Staging activation log sheet | **CLOSED** | Blocks production change planning |
+| **Prepare Production Notification Change Plan**| Release Manager| Change management registry | None | Signed change execution runbook | **OPEN** | Blocks production notification release |
+| **Define Production Notification Approval Evidence**| Security Owner| Production vault registration | None | Vault audit logs checklist | **OPEN** | Blocks production notification release |
+| **Confirm Notification Remains Disabled After Rollback**| Technical Owner| Staging configuration validation | None | Vercel scope settings check | **CLOSED** | Blocks production notification release |

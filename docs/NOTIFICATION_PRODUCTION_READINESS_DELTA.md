@@ -1,30 +1,35 @@
 # Notification Production-Readiness Delta
 
-## 1. Verified Controls (Staging)
-- **Adapter Safety**: Enterprise chat provider adapter is implemented and verified under mock and controlled staging environments.
-- **PII Isolation**: Outbound alerts filter and sanitize data fields to exclude private employee or configuration details.
-- **Deduplication & Cooldown**: Successfully limits network storm overhead via token-based cooldown limits.
-- **Rollback Runbook**: Verified path to immediately disable alerting by setting `ALERTING_ENABLED=false` and purging keys from environment variables.
+## 1. Staging Notification Test Accepted Evidence
+- **Owner Acceptance Status**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
+- **Review Meta**: Documented under `docs/NOTIFICATION_CONTROLLED_TEST_OWNER_ACCEPTANCE_OUTCOME.md`.
+- **Verified Controls**:
+  - Outbound payload sanitization (non-PII metadata only).
+  - Bounded timeouts (fetch timeout set to 5000ms).
+  - Cooldown deduplication active (duplicate suppression verified).
+  - Active rollback verified (keys purged from staging and de-activated).
 
 ---
 
-## 2. Remaining Gaps & Requirements (Production)
-- **Production Notification Approval**: The success of the staging test is isolated from production approval. Production notification activation remains **NOT APPROVED**.
-- **Credentials & Destination Vaulting**: Production tokens and endpoints must be registered in the enterprise vault (`VAULT_SECRET_REFERENCE_PLACEHOLDER`) and never committed to Git.
-- **Required Owner Decisions**: Formal production change ticket sign-offs.
-- **Security & Privacy Reviews**: Sign-offs on GDPR/PDPA data flow diagrams.
-- **Operational Evidence**: On-call responder rotations must be validated for alerts.
+## 2. Production Notification Gaps & Remaining Approvals
+- **Production Notification Activation Status**: **NOT APPROVED**
+- **Production Gaps**:
+  - Production credential storage in key vault (`VAULT_SECRET_REFERENCE_PLACEHOLDER`).
+  - Production webhook destination registration (`ENTERPRISE_CHAT_DESTINATION_PLACEHOLDER`).
+  - Sign-off on GDPR/PDPA compliance flow.
+  - Final change management execution window ticket approval.
 
 ---
 
-## 3. Rollback & Emergency Disable
-- In the event of alert floods, service degradation, or security anomalies:
-  1. Trigger emergency toggle: `ALERTING_ENABLED=false` in environment variables.
-  2. Purge production token variables.
-  3. Deploy/re-apply configurations to force immediate termination of all outgoing requests.
+## 3. Rollback & Emergency-Disable Requirements
+- **De-activation Method**:
+  1. Set environment variable `ALERTING_ENABLED=false`.
+  2. Purge `ALERTING_API_TOKEN` and `ALERTING_DESTINATION_ID` from the environment.
+  3. Redeply or restart application containers to terminate existing socket and fetch references.
+- **Verification of Rollback**: Staging environment remains disabled.
 
 ---
 
-## 4. Production Blocker Status
-- **Notification Blocker**: **OPEN** (Staging verification complete, production activation blocker remains OPEN).
+## 4. Production Status
+- **Production Blocker Status**: **OPEN** (Staging verification closeout approved, but production activation blocker remains OPEN).
 - **Production Readiness**: **NOT APPROVED**

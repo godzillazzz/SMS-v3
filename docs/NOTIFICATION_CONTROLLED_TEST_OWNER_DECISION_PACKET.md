@@ -10,8 +10,8 @@ This decision packet tracks decisions and approvals required for staging test cl
 - **Owner Role**: Notification Owner
 - **Description**: Accept the completed staging notification retry results and close the staging test milestone.
 - **Decision Options**: ACCEPT / ADDITIONAL TEST REQUIRED / REJECT
-- **Current Decision**: **PENDING** (Staging closeout closeout package under review)
-- **Status**: **NOT APPROVED**
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **APPROVED**
 
 ### DEC-STG-02: Request Additional Synthetic Test
 - **Owner Role**: Notification Owner
