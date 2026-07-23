@@ -158,3 +158,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Restrictions**: Notification route disabled post-test. Production alerting is NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **ACCEPTED WITH RESTRICTIONS**
+
+### DEC-18: Final Staging Technical Acceptance Package
+- **Owner Role**: Technical Steering Committee / Application Owner
+- **Decision Options**: ACCEPT FINAL STAGING ACCEPTANCE / ACCEPT WITH RESTRICTIONS / REJECT
+- **Current Decision**: **READY FOR FINAL OWNER STAGING ACCEPTANCE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Required Evidence**: Final staging technical acceptance package, final blocker register, decision packets.
+- **Restrictions**: Staging scope only. Production readiness remains NOT APPROVED.
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **READY FOR FINAL OWNER STAGING ACCEPTANCE**
