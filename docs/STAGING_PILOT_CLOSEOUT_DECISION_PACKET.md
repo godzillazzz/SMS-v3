@@ -9,10 +9,10 @@ This packet details the required owner decision logs to formally close out the S
 ### DEC-CP-01: Accept Synthetic-Data Staging Pilot Results
 - **Owner Role**: Application Owner & Technical Owner
 - **Decision Options**: ACCEPT RESULTS / REJECT RESULTS / REQUEST CLARIFICATION
-- **Current Decision**: **PENDING**
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: `docs/STAGING_PILOT_CLOSEOUT_SUMMARY.md` and safe log checklist traces.
-- **Restrictions**: Accept results does not constitute production release permission.
-- **Approval Status**: **NOT APPROVED**
+- **Restrictions**: Accept results does not constitute production release permission. Synthetic staging data bounds remain active.
+- **Approval Status**: **APPROVED WITH RESTRICTIONS**
 
 ### DEC-CP-02: Continue Another Pilot Round
 - **Owner Role**: Technical Owner

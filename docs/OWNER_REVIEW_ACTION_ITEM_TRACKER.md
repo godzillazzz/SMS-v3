@@ -23,3 +23,9 @@ All action items default to **OPEN** status. These items represent required step
 | **Approve Restore Schedule** | Restore-Test Owner | Rehearsal task config | DEC-09 | Task execution log sheet | **OPEN** | Blocks restore testing |
 | **Approve Pilot Participants** | Application Owner | Tester list | DEC-02 | Anonymized user listing sheet| **CLOSED** | Blocks staging pilot start |
 | **Approve Real Import Criteria**| Privacy/PDPA Owner | Script verification | DEC-10 | Script check review sheet | **OPEN** | Blocks database migration |
+| **Accept Pilot Closeout** | Application Owner | Closeout review sign-off | DEC-CP-01 | Signed closeout review form | **CLOSED** | Blocks operational planning |
+| **Request Additional Evidence** | Security Owner | Evidence verification requests | DEC-CP-04 | Audit request logs | **CLOSED** | Blocks operational planning |
+| **Authorize Next Operational Gates**| Business Owner | Phase entry approval | DEC-CP-06 | Signed phase transition form | **CLOSED** | Blocks operational planning |
+| **Assign Owners for Notification**| Business Owner | Notification owners mapping | None | Signed role mapping sheet | **OPEN** | Blocks notification setup |
+| **Assign Owners for Backup** | Business Owner | Backup owners mapping | None | Signed role mapping sheet | **OPEN** | Blocks backup setup |
+| **Prepare Production Go/No-Go** | Business Owner | Sign-off package compilation | DEC-11 | Completed sign-off grids | **OPEN** | Blocks production release |

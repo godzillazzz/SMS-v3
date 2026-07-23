@@ -9,9 +9,9 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-01: Staging Technical Acceptance
 - **Owner Role**: Technical Owner
 - **Decision Options**: APPROVE STAGING / REJECT STAGING / REQUEST CHANGES
-- **Current Decision**: **APPROVED FOR SYNTHETIC-DATA STAGING PILOT**
+- **Current Decision**: **ACCEPTED FOR SYNTHETIC-DATA STAGING PILOT CLOSEOUT** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: Complete test coverage reports (69 passing tests) and code safety review. Safe Evidence Reference: `INTERNAL-EVIDENCE-REF-PLACEHOLDER`.
-- **Restrictions**: Staging remains isolated; no deployment to production. Synthetic data only.
+- **Restrictions**: Staging remains isolated; no deployment to production. Synthetic staging pilot completed.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **APPROVED WITH RESTRICTIONS**
 
