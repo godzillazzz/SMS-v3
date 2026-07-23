@@ -171,8 +171,8 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-19: Real Data Import & Production Go/No-Go Approval Package
 - **Owner Role**: Technical Steering Committee / Executive Owner
 - **Decision Options**: APPROVE FOR OWNER REVIEW / APPROVE PLANNING ONLY / REJECT
-- **Current Decision**: **READY FOR OWNER REVIEW** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Current Decision**: **APPROVED FOR FUTURE CONTROLLED IMPORT & ACTIVATION PLANNING** (via `REAL-DATA-OWNER-APPROVAL-REF-PLACEHOLDER`, `PRODUCTION-GO-NO-GO-REF-PLACEHOLDER`)
 - **Required Evidence**: Real data import package, production go/no-go package, readiness checklist, cutover runbook draft.
-- **Restrictions**: Governance packaging only. Production activation and real employee data import remain NOT APPROVED.
+- **Restrictions**: Governance planning authorized. Real employee data import remains NOT IMPORTED. Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **READY FOR OWNER REVIEW**
+- **Approval Status**: **APPROVED FOR FUTURE PLANNING ONLY**
