@@ -185,3 +185,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Restrictions**: Synthetic/sample data only (100 rows). Real employee data import remains NOT IMPORTED. Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **ACCEPTED WITH RESTRICTIONS**
+
+### DEC-21: Controlled Real Data Import Pre-Activation Approval Package
+- **Owner Role**: Technical Steering Committee / Data Owner
+- **Decision Options**: READY FOR CONTROLLED IMPORT OWNER GO/NO-GO / READY WITH RESTRICTIONS / REJECT
+- **Current Decision**: **READY FOR CONTROLLED IMPORT OWNER GO/NO-GO** (via `CONTROLLED-IMPORT-GO-NO-GO-REF-PLACEHOLDER`)
+- **Required Evidence**: Pre-activation package, execution runbook draft, Go/No-Go checklist, post-import validation plan, rollback plan, evidence capture plan.
+- **Restrictions**: Governance packaging only. Real employee data import remains NOT IMPORTED. Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **READY FOR CONTROLLED IMPORT OWNER GO/NO-GO**
