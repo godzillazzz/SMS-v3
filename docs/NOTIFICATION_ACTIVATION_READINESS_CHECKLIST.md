@@ -57,7 +57,7 @@ This checklist tracks the requirements for future controlled staging notificatio
 ---
 
 ## Checklist Status
-- **Overall Status**: **READY FOR RETRY** (Provider adapter implemented and mock tests pass)
+- **Overall Status**: **READY** (Staging activation retry completed successfully; rolled back post-verification)
 - Real notification delivery remains **DISABLED**.
 - No notification test has been sent.
 - Environment variables have not been changed.

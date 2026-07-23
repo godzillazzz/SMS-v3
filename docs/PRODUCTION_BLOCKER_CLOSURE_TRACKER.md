@@ -8,7 +8,7 @@ This document tracks the closure criteria and status of remaining production blo
 
 | Blocker Name | Current Status | Owner Role | Required Evidence | Target Action | Closure Criteria | Blocker Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1. Real Notification Channel**| Adapter Implemented | Notification Owner | Signed channel choice matrix | Select and configure provider | Delivery verified in console | **READY FOR RETRY** |
+| **1. Real Notification Channel**| Staging Test Passed | Notification Owner | Signed channel choice matrix | Select and configure provider | Delivery verified in console | **CONDITIONALLY CLEARED** |
 | **2. Alert Thresholds** | Mocked | Monitoring Owner | Signed threshold document | Configure target alerting levels | Dashboards active and valid | **OPEN** |
 | **3. Operational Owners** | Assigned and closed | Application Owner | Staff directory mapping | Assign staff to on-call roles | Registry matches active roles | **CLOSED** |
 | **4. Escalation Path** | Placeholders | Incident Commander | On-call escalation rota list | Test escalation triggers | Dry-run drill completes | **OPEN** |

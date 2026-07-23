@@ -27,7 +27,7 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-03: Real Notification Channel Selection
 - **Owner Role**: Notification Owner
 - **Decision Options**: TELEGRAM CHAT / SMS GATEWAY / SIEM WEBHOOK / ENTERPRISE_CHAT_CATEGORY / NONE (STAY MOCKED)
-- **Current Decision**: **ENTERPRISE_CHAT_CATEGORY** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`). Staging activation: **BLOCKED** due to missing provider support.
+- **Current Decision**: **ENTERPRISE_CHAT_CATEGORY** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`). Staging activation: **PASSED AND ROLLED BACK** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
 - **Required Evidence**: Vendor comparison sheet, cost estimation, SLA terms.
 - **Restrictions**: Provider credentials must not be tracked in codebase. Selected category only; channel activation remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
