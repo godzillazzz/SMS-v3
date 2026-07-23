@@ -29,7 +29,7 @@ This document outlines the required sign-offs and go/no-go criteria necessary be
 
 | Go/No-Go Test Case | Description / Verification Target | Expected Result | Pass / Fail |
 | :--- | :--- | :--- | :--- |
-| **Dry-Run Success** | Execute backup script with `--dry-run` parameter | Creates dry-run log entry; no backup file generated | PASS (STAGING) |
+| **Dry-Run Success** | Execute backup script with `--dry-run` parameter | Creates dry-run log entry; no backup file generated | PASS (STAGING DRY-RUN) |
 | **Encrypted Backup Success** | Execute manual backup and encrypt with symmetric key | Output `.enc` file created; raw dump removed | PASS (STAGING) |
 | **Checksum Verification** | Generate and verify SHA-256 hash against encrypted file | Checksums match exactly | PASS (STAGING) |
 | **Isolated Restore Success** | Restore test dump on clean, disposable target schema | Restore completes without schema or dependency errors | PASS (STAGING) |

@@ -72,7 +72,7 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-08: Backup Schedule Activation
 - **Owner Role**: Backup Owner
 - **Decision Options**: DAILY TASK SCHEDULE / WEEKLY TASK SCHEDULE / MANUAL RUNS ONLY
-- **Current Decision**: **DAILY TASK SCHEDULE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`). Manual test status: **PASSED**. Dry-run planning status: **READY FOR NO-OP SCHEDULER DRY RUN** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
+- **Current Decision**: **DAILY TASK SCHEDULE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`). Manual test status: **PASSED**. Dry-run execution status: **NO-OP DRY RUN PASSED** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
 - **Required Evidence**: Windows Task Scheduler dry-run execution log.
 - **Restrictions**: Backups must not write to network destinations until DEC-06 is approved.
 - **Due Date Placeholder**: `[DUE_DATE]`
