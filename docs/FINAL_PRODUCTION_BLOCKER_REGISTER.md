@@ -26,6 +26,6 @@ This document provides the consolidated production blocker register for SMS v3, 
 
 ## Summary
 - **Total Production Blockers**: 13
-- **Staging Controls Cleared**: All staging technical controls accepted by owner (Accepted with Restrictions via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
+- **Staging Controls Cleared**: All staging technical controls accepted by owner; Gate 5.13 Real Data Import & Go/No-Go packages ready for review (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
 - **Production Status**: All 13 production blockers remain **OPEN / NOT APPROVED**.
 - **Production Readiness**: **NOT APPROVED**.

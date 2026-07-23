@@ -167,3 +167,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Restrictions**: Staging scope only. Production readiness remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **ACCEPTED WITH RESTRICTIONS**
+
+### DEC-19: Real Data Import & Production Go/No-Go Approval Package
+- **Owner Role**: Technical Steering Committee / Executive Owner
+- **Decision Options**: APPROVE FOR OWNER REVIEW / APPROVE PLANNING ONLY / REJECT
+- **Current Decision**: **READY FOR OWNER REVIEW** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Required Evidence**: Real data import package, production go/no-go package, readiness checklist, cutover runbook draft.
+- **Restrictions**: Governance packaging only. Production activation and real employee data import remain NOT APPROVED.
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **READY FOR OWNER REVIEW**
