@@ -47,6 +47,8 @@ try {
     Write-Output "Transferring to secure NAS directory..."
     Copy-Item $EncryptedFile $NasDestDirectory
     Copy-Item $ChecksumFile $NasDestDirectory
+    Remove-Item $EncryptedFile
+    Remove-Item $ChecksumFile
     
     # 5. Apply Retention Policy
     Write-Output "Applying retention policy..."
