@@ -16,11 +16,11 @@ All action items default to **OPEN** status. These items represent required step
 | **Assign Infrastructure Owner**| Business Owner | Staff assignment | None | Signed role mapping sheet | **CLOSED** | Blocks production deployment|
 | **Select Notification Channel Category**| Notification Owner| Category choice | DEC-03 | Selection outcome document | **CLOSED** | Blocks channel activation |
 | **Approve Alert Thresholds** | Monitoring Owner | Alert rules config | DEC-04 | Dashboards config screenshot | **CLOSED** | Blocks operational alerting |
-| **Approve Backup Host** | Backup Owner | Server specs | DEC-05 | Host compliance checklist | **OPEN** | Blocks backup scheduling |
-| **Approve Backup Storage** | Backup Owner | NAS folder permissions| DEC-06 | Network mapping logs sheet | **OPEN** | Blocks backup scheduling |
-| **Approve Encryption Key** | Security Owner | Keyring generation | DEC-07 | Public GPG key file | **OPEN** | Blocks backup encryption |
-| **Approve Backup Schedule** | Backup Owner | Task scheduler setup | DEC-08 | Scheduled task export XML | **OPEN** | Blocks backup scheduling |
-| **Approve Restore Schedule** | Restore-Test Owner | Rehearsal task config | DEC-09 | Task execution log sheet | **OPEN** | Blocks restore testing |
+| **Approve Backup Host** | Backup Owner | Server specs | DEC-05 | Host compliance checklist | **CLOSED** | Blocks backup scheduling |
+| **Approve Backup Storage** | Backup Owner | NAS folder permissions| DEC-06 | Network mapping logs sheet | **CLOSED** | Blocks backup scheduling |
+| **Approve Encryption Key** | Security Owner | Keyring generation | DEC-07 | Public GPG key file | **CLOSED** | Blocks backup encryption |
+| **Approve Backup Schedule** | Backup Owner | Task scheduler setup | DEC-08 | Scheduled task export XML | **CLOSED** | Blocks backup scheduling |
+| **Approve Restore Schedule** | Restore-Test Owner | Rehearsal task config | DEC-09 | Task execution log sheet | **CLOSED** | Blocks restore testing |
 | **Approve Pilot Participants** | Application Owner | Tester list | DEC-02 | Anonymized user listing sheet| **CLOSED** | Blocks staging pilot start |
 | **Approve Real Import Criteria**| Privacy/PDPA Owner | Script verification | DEC-10 | Script check review sheet | **OPEN** | Blocks database migration |
 | **Accept Pilot Closeout** | Application Owner | Closeout review sign-off | DEC-CP-01 | Signed closeout review form | **CLOSED** | Blocks operational planning |

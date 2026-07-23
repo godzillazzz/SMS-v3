@@ -4,22 +4,26 @@
 This document represents the official backup readiness and organizational approval checklist for the SMS v3 application. All items must be signed off by designated organizational roles before production deployment is approved.
 
 > [!IMPORTANT]
-> All fields currently represent unresolved placeholders. Unresolved approvals are **production blockers**.
+> - Backup automation remains **NOT ACTIVATED**.
+> - No backup job has been scheduled.
+> - No real backup has been created.
+> - No real NAS path or credential has been configured.
+> - Production readiness remains **NOT APPROVED**.
 
 ## Approval Checklist Matrix
 
 | Checklist Item | Required Authority / Approving Owner | Proposed Staging/Placeholder Setup | Approval Status |
 | :--- | :--- | :--- | :--- |
-| **Backup Owner Role** | `[BACKUP_OWNER_ROLE]` | Manage backup scripts and execution schedules | UNRESOLVED - PRODUCTION BLOCKER |
-| **Database Owner Role** | `[DATABASE_OWNER_ROLE]` | Database schema and access control management | UNRESOLVED - PRODUCTION BLOCKER |
-| **Infrastructure Owner Role** | `[INFRASTRUCTURE_OWNER_ROLE]`| Windows Server / NAS hardware host provisioning | UNRESOLVED - PRODUCTION BLOCKER |
-| **Security Owner Role** | `[SECURITY_OWNER_ROLE]` | Cryptographic key management and compliance audits | UNRESOLVED - PRODUCTION BLOCKER |
-| **Privacy/PDPA Owner Role** | `[PRIVACY_PDPA_OWNER_ROLE]` | Regulatory validation of personal data retention | UNRESOLVED - PRODUCTION BLOCKER |
-| **Restore Test Owner Role** | `[RESTORE_TEST_OWNER_ROLE]` | Regular dry-run verification and rehearsal logs | UNRESOLVED - PRODUCTION BLOCKER |
-| **Storage Location Approval** | `[INFRASTRUCTURE_OWNER_ROLE]`| Approved destination path on NAS | UNRESOLVED - PRODUCTION BLOCKER |
-| **Encryption-Key Custody** | `[SECURITY_OWNER_ROLE]` | Key rotation schedule and custody guidelines | UNRESOLVED - PRODUCTION BLOCKER |
-| **Retention Period** | `[PRIVACY_PDPA_OWNER_ROLE]` | 30-day retention period for database dumps | UNRESOLVED - PRODUCTION BLOCKER |
-| **Restore-Test Frequency** | `[RESTORE_TEST_OWNER_ROLE]` | Weekly automated isolated restore rehearsal | UNRESOLVED - PRODUCTION BLOCKER |
-| **Failure-Notification Channel**| `[BACKUP_OWNER_ROLE]` | Target integration alerts channel | UNRESOLVED - PRODUCTION BLOCKER |
-| **Access-Control Approval** | `[SECURITY_OWNER_ROLE]` | Access control list (ACL) rules on NAS directory | UNRESOLVED - PRODUCTION BLOCKER |
-| **Deletion Approval** | `[PRIVACY_PDPA_OWNER_ROLE]` | Policy for purging expired or decommissioned backups | UNRESOLVED - PRODUCTION BLOCKER |
+| **Backup Owner Role** | Backup Owner | Manage backup scripts and execution schedules | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Database Owner Role** | Database Owner | Database schema and access control management | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Infrastructure Owner Role** | Infrastructure Owner| Windows Server / NAS hardware host provisioning | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Security Owner Role** | Security Owner | Cryptographic key management and compliance audits | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Privacy/PDPA Owner Role** | Privacy/PDPA Owner | Regulatory validation of personal data retention | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Restore Test Owner Role** | Restore-Test Owner | Regular dry-run verification and rehearsal logs | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Storage Location Approval** | Infrastructure Owner| Approved destination path on NAS | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Encryption-Key Custody** | Security Owner | Key rotation schedule and custody guidelines | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Retention Period** | Privacy/PDPA Owner | 30-day retention period for database dumps | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Restore-Test Frequency** | Restore-Test Owner | Weekly automated isolated restore rehearsal | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Failure-Notification Channel**| Backup Owner | Target integration alerts channel | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Access-Control Approval** | Security Owner | Access control list (ACL) rules on NAS directory | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |
+| **Deletion Approval** | Privacy/PDPA Owner | Policy for purging expired or decommissioned backups | APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION |

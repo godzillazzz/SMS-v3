@@ -45,47 +45,47 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-05: Backup Host Server Approval
 - **Owner Role**: Backup Owner
 - **Decision Options**: PHYSICAL WINDOWS SERVER / NAS HOST / CLOUD BUCKET
-- **Current Decision**: **NOT APPROVED**
+- **Current Decision**: **PHYSICAL WINDOWS SERVER** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: Host specs checklist and security authorization.
 - **Restrictions**: Script templates must target the approved host only.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **NOT APPROVED**
+- **Approval Status**: **APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION**
 
 ### DEC-06: Backup Storage Destination Approval
 - **Owner Role**: Backup Owner
 - **Decision Options**: LOCAL SYSTEM DRIVE / NETWORK NAS SHARE / OFFSITE TAPE
-- **Current Decision**: **NOT APPROVED**
+- **Current Decision**: **NETWORK NAS SHARE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: NAS access permissions control sheet and path mapping.
 - **Restrictions**: Storage destination must exclude public cloud shares.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **NOT APPROVED**
+- **Approval Status**: **APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION**
 
 ### DEC-07: Encryption Key Custody
 - **Owner Role**: Security Owner
 - **Decision Options**: LOCAL KEYRING / HARDWARE SECURITY MODULE / ENCRYPTED VAULT
-- **Current Decision**: **NOT APPROVED**
+- **Current Decision**: **ENCRYPTED VAULT** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: Secure vault registration receipt and key custodians signature.
 - **Restrictions**: Private keys must never be committed to repository.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **NOT APPROVED**
+- **Approval Status**: **APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION**
 
 ### DEC-08: Backup Schedule Activation
 - **Owner Role**: Backup Owner
 - **Decision Options**: DAILY TASK SCHEDULE / WEEKLY TASK SCHEDULE / MANUAL RUNS ONLY
-- **Current Decision**: **NOT APPROVED**
+- **Current Decision**: **DAILY TASK SCHEDULE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: Windows Task Scheduler dry-run execution log.
 - **Restrictions**: Backups must not write to network destinations until DEC-06 is approved.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **NOT APPROVED**
+- **Approval Status**: **APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION**
 
 ### DEC-09: Restore Rehearsal Schedule
 - **Owner Role**: Restore-Test Owner
 - **Decision Options**: WEEKLY REHEARSAL / MONTHLY REHEARSAL / NO SCHEDULE
-- **Current Decision**: **NOT APPROVED**
+- **Current Decision**: **WEEKLY REHEARSAL** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: Automated rehearsal script validation reports.
 - **Restrictions**: Rehearsal restores must use staging target databases only.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **NOT APPROVED**
+- **Approval Status**: **APPROVED FOR CONTROLLED STAGING BACKUP ACTIVATION**
 
 ### DEC-10: Real Employee Data Import Approval
 - **Owner Role**: Privacy/PDPA Owner

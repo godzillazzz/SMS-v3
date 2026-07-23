@@ -15,7 +15,7 @@ This document tracks the closure criteria and status of remaining production blo
 | **5. Backup Host** | Unconfigured | Backup Owner | Host server specs sheet | Provision backup server environment| Host server responds to ping | **OPEN** |
 | **6. Backup Storage** | Unconfigured | Backup Owner | NAS folder permissions sheet | Map network share drive | Target directory writable | **OPEN** |
 | **7. Encryption Key Custody** | Unconfigured | Security Owner | Secure key vault registry record | Generate GnuPG production keys | Keys registered in vault | **OPEN** |
-| **8. Backup Schedule** | Deactivated | Backup Owner | Windows Task Scheduler configurations| Activate task scheduling | Trigger logs recorded | **OPEN** |
+| **8. Backup Schedule** | Staging Approved | Backup Owner | Windows Task Scheduler configurations| Activate task scheduling | Trigger logs recorded | **READY FOR CONTROLLED STAGING ACTIVATION** |
 | **9. Restore Rehearsal** | Deactivated | Restore-Test Owner | Rehearsal task configurations | Activate weekly rehearsal task | Rehearsal logs clean | **OPEN** |
 | **10. Backup Failure Alerting** | Disabled | Monitoring Owner | Alert policy configurations | Bind failure triggers to channels | Failures alert target channel | **OPEN** |
 | **11. PDPA/Privacy Sign-off** | Pending | Privacy/PDPA Owner | Certified audit report | Complete PDPA data flow audit | Signed compliance document | **OPEN** |
