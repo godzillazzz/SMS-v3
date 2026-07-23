@@ -10,29 +10,29 @@ This decision packet presents the schedule activation test evidence for formal o
 - **Owner Role**: Backup Owner
 - **Description**: Accept overall controlled staging backup schedule activation test results and close Gate 5.11I testing.
 - **Decision Options**: ACCEPT / ADDITIONAL RUN REQUIRED / REJECT
-- **Current Decision**: **PENDING**
-- **Status**: **READY FOR OWNER ACCEPTANCE**
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **APPROVED WITH RESTRICTIONS**
 
 ### DEC-SCHED-CLOSE-02: Accept Single Scheduled Staging Backup Run Result
 - **Owner Role**: Restore-Test Owner
 - **Description**: Accept execution outcome of the single scheduled staging backup run.
 - **Decision Options**: ACCEPT / REJECT
-- **Current Decision**: **PENDING**
-- **Status**: **NOT APPROVED**
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **APPROVED WITH RESTRICTIONS**
 
 ### DEC-SCHED-CLOSE-03: Accept Checksum / Encryption / Storage Evidence
 - **Owner Role**: Security Owner
 - **Description**: Accept SHA-256 checksum, GPG key encryption, and storage destination transfer evidence.
 - **Decision Options**: ACCEPT / REJECT
-- **Current Decision**: **PENDING**
-- **Status**: **NOT APPROVED**
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **APPROVED WITH RESTRICTIONS**
 
 ### DEC-SCHED-CLOSE-04: Accept Integrity Verification Evidence
 - **Owner Role**: Restore-Test Owner
 - **Description**: Accept schema structure and sample count verification evidence against baseline.
 - **Decision Options**: ACCEPT / REJECT
-- **Current Decision**: **PENDING**
-- **Status**: **NOT APPROVED**
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **APPROVED WITH RESTRICTIONS**
 
 ### DEC-SCHED-CLOSE-05: Request Additional Scheduled Staging Run
 - **Owner Role**: Backup Owner
