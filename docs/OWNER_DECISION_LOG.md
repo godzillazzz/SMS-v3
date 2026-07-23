@@ -144,7 +144,7 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-16: Backup Failure Alert Controlled Activation Readiness
 - **Owner Role**: Monitoring Owner
 - **Decision Options**: APPROVE READINESS FOR CONTROLLED TEST / REQUEST REVISION / REJECT
-- **Current Decision**: **APPROVED READINESS FOR CONTROLLED TEST** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Current Decision**: **ACTIVATED AND TESTED (DISABLED AFTER ROLLBACK)** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`). Controlled staging test executed and route disabled post-test.
 - **Required Evidence**: Failure alert readiness checklist, payload policy, test plan.
 - **Restrictions**: Notification delivery remains DISABLED AFTER ROLLBACK. Production alerting is NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`

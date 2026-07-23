@@ -18,7 +18,7 @@ This checklist tracks readiness prerequisites before controlled staging backup a
 | **Restore Rehearsal Target Approved**| Disposable target sandbox database schema verified | `INTERNAL-EVIDENCE-REF-PLACEHOLDER` | **READY** |
 | **Restore Rehearsal Schedule Approved**| Weekly rehearsal validation checks configured | `INTERNAL-EVIDENCE-REF-PLACEHOLDER` | **READY** |
 | **Monitoring Evidence Approved** | Central audit logging files location defined | `INTERNAL-EVIDENCE-REF-PLACEHOLDER` | **READY** |
-| **Failure Notification Approved** | Alert policy triggers mapped to notifications | `INTERNAL-EVIDENCE-REF-PLACEHOLDER` | **READY FOR CONTROLLED TEST** |
+| **Failure Notification Approved** | Alert policy triggers mapped to notifications | `INTERNAL-EVIDENCE-REF-PLACEHOLDER` | **ACTIVATED AND TESTED** |
 | **Rollback/Disable Owner Assigned** | Rollback team role and task cleanup owner assigned | `INTERNAL-EVIDENCE-REF-PLACEHOLDER` | **READY** |
 | **Change Window Approved** | Scheduled maintenance window registered in system | `INTERNAL-EVIDENCE-REF-PLACEHOLDER` | **READY** |
 
