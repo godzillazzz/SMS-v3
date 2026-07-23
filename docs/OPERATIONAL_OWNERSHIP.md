@@ -1,24 +1,22 @@
 # Operational Ownership
 
-## Approval status
+## Approval Status
+All ownership entries are unresolved placeholders. Unresolved primary/backup ownership, escalation paths, and approval authority are production blockers.
 
-All ownership entries are unresolved placeholders. Unresolved primary/backup ownership, escalation paths and approval authority are production blockers.
+| Responsibility Role | Primary Responsibility | Backup Responsibility | Acknowledgement Time Target | Escalation Time Target | Approval Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Application Owner** | Business alignment & roadmap | Backup business operations | 4 hours | 24 hours | UNRESOLVED - PRODUCTION BLOCKER |
+| **Technical Owner** | Architecture & code quality | Backup system architecture | 1 hour | 4 hours | UNRESOLVED - PRODUCTION BLOCKER |
+| **Database Owner** | Schema & database engine stability | Backup database management | 30 minutes | 2 hours | UNRESOLVED - PRODUCTION BLOCKER |
+| **Security Owner** | Security compliance & audits | Security incident response backup | 15 minutes | 1 hour | UNRESOLVED - PRODUCTION BLOCKER |
+| **Privacy/PDPA Owner** | Personal data privacy & regulatory compliance | Backup data privacy officer | 2 hours | 8 hours | UNRESOLVED - PRODUCTION BLOCKER |
+| **Monitoring Owner** | Telemetry ingestion & metrics config | Backup monitoring pipeline setup | 1 hour | 4 hours | UNRESOLVED - PRODUCTION BLOCKER |
+| **Incident Commander** | Outage coordination & triage | Backup incident coordinator | 15 minutes | 1 hour | UNRESOLVED - PRODUCTION BLOCKER |
+| **Backup Owner** | Backup execution & recovery tests | Backup restore automation verification | 4 hours | 12 hours | UNRESOLVED - automation deferred |
+| **After-Hours Escalation Role** | On-call duty & overnight response | Secondary on-call contact | 30 minutes | 1 hour | UNRESOLVED - PRODUCTION BLOCKER |
+| **Notification-Channel Owner** | Alert destination & credential config | Backup notifier admin | 2 hours | 8 hours | UNRESOLVED - PRODUCTION BLOCKER |
 
-| Responsibility | Primary owner | Backup owner | Approval/status |
-| --- | --- | --- | --- |
-| Application owner | `[APPLICATION_OWNER]` | `[APPLICATION_OWNER_BACKUP]` | UNRESOLVED - PRODUCTION BLOCKER |
-| Technical owner | `[TECHNICAL_OWNER]` | `[TECHNICAL_OWNER_BACKUP]` | UNRESOLVED - PRODUCTION BLOCKER |
-| Database owner | `[DATABASE_OWNER]` | `[DATABASE_OWNER_BACKUP]` | UNRESOLVED - PRODUCTION BLOCKER |
-| Security contact | `[SECURITY_CONTACT]` | `[SECURITY_CONTACT_BACKUP]` | UNRESOLVED - PRODUCTION BLOCKER |
-| Privacy/PDPA contact | `[PRIVACY_PDPA_CONTACT]` | `[PRIVACY_PDPA_BACKUP]` | UNRESOLVED - PRODUCTION BLOCKER |
-| Incident commander | `[INCIDENT_COMMANDER]` | `[INCIDENT_COMMANDER_BACKUP]` | UNRESOLVED - PRODUCTION BLOCKER |
-| Backup owner | `[BACKUP_OWNER]` | `[BACKUP_OWNER_BACKUP]` | UNRESOLVED - automation deferred |
-| After-hours escalation | `[AFTER_HOURS_ESCALATION]` | `[AFTER_HOURS_BACKUP]` | UNRESOLVED - PRODUCTION BLOCKER |
-| Deployment approver | `[DEPLOYMENT_APPROVER]` | `[DEPLOYMENT_APPROVER_BACKUP]` | UNRESOLVED - PRODUCTION BLOCKER |
-| Migration approver | `[MIGRATION_APPROVER]` | `[MIGRATION_APPROVER_BACKUP]` | UNRESOLVED - PRODUCTION BLOCKER |
-| Monitoring/threshold approver | `[MONITORING_APPROVER]` | `[MONITORING_APPROVER_BACKUP]` | UNRESOLVED - PRODUCTION BLOCKER |
-
-## Decision responsibilities
+## Decision Responsibilities
 
 | Decision | Responsible placeholder | Required consultation |
 | --- | --- | --- |
@@ -31,7 +29,7 @@ All ownership entries are unresolved placeholders. Unresolved primary/backup own
 | Approve data retention/deletion | `[PRIVACY_PDPA_CONTACT]` | Security, application and database owners |
 | Approve backup automation | `[BACKUP_OWNER]` | Database, security and operations owners |
 
-## Required completion evidence
+## Required Completion Evidence
 
 Before production consideration, record without personal contact data in this repository:
 
