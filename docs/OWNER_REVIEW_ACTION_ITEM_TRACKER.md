@@ -44,3 +44,4 @@ All action items default to **OPEN** status. These items represent required step
 | **Plan Backup Failure Alert Policy**| Monitoring Owner| Failure alert scenarios matrix | DEC-10 | Failure alert planning doc | **CLOSED** | Blocks automated alert delivery |
 | **Approve Controlled Staging Backup Schedule Activation**| Backup Owner| Review dry-run closeout & schedule packet | DEC-14 | Owner decision outcome | **CLOSED** | Blocks automated schedule execution |
 | **Execute Controlled Staging Backup Schedule Activation**| Backup Owner| Controlled schedule activation execution | DEC-08 | Schedule activation result doc | **CLOSED** | Blocks future schedule activation planning |
+| **Approve Controlled Staging Backup Schedule Activation Closeout**| Backup Owner| Review schedule activation closeout package | DEC-15 | Closeout owner decision packet | **OPEN** | Blocks future production backup planning |

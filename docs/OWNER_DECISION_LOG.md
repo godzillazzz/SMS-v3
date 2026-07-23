@@ -131,3 +131,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Restrictions**: Backup automation remains NOT ACTIVATED in this gate. Production backup activation remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **APPROVED WITH RESTRICTIONS**
+
+### DEC-15: Controlled Staging Backup Schedule Activation Closeout
+- **Owner Role**: Backup Owner
+- **Decision Options**: ACCEPT SCHEDULE ACTIVATION CLOSEOUT / REQUEST ITERATION / REJECT
+- **Current Decision**: **READY FOR OWNER ACCEPTANCE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Required Evidence**: Controlled schedule activation result document, closeout summary.
+- **Restrictions**: Backup task disabled post-test. Backup automation is NOT APPROVED FOR PRODUCTION.
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **READY FOR OWNER ACCEPTANCE**
