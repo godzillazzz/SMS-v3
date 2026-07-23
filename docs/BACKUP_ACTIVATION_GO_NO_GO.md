@@ -6,8 +6,8 @@ This document outlines the required sign-offs and go/no-go criteria necessary be
 > [!IMPORTANT]
 > - Preflight verification: **PASSED** (Staging preflight completed; manual test completed).
 > - Closeout status: **ACCEPTED WITH RESTRICTIONS** (Owner acceptance recorded).
-> - Dry-run status: **READY FOR NO-OP SCHEDULER DRY RUN** (Safety checklist and plan completed).
-> - Backup automation status: **NOT ACTIVATED** (Task Scheduler automation remains disabled).
+> - Schedule activation status: **ACTIVATED AND TESTED** (Single scheduled backup run executed).
+> - Backup automation status: **DISABLED AFTER TEST** (Task Scheduler disabled post-test).
 > - Production backup activation remains **NOT APPROVED**.
 
 ## 1. Required Approval Gates

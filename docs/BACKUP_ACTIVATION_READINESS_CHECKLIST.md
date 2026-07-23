@@ -25,9 +25,9 @@ This checklist tracks readiness prerequisites before controlled staging backup a
 ---
 
 ## 2. Checklist Status Summary
-- **Overall Staging Status**: **NO-OP DRY RUN PASSED** (no-op scheduler dry-run completed and task disabled via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
+- **Overall Staging Status**: **ACTIVATED AND TESTED** (single scheduled backup run executed and task disabled post-test via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
 - **Production Status**: **NOT APPROVED**.
-- Backup automation remains **NOT ACTIVATED**.
-- No backup job has been scheduled.
-- No real backup has been created.
+- Backup automation remains **DISABLED AFTER TEST**.
+- No real backup job has been scheduled in production.
+- No production backup has been created.
 - No real NAS path or credential has been configured.
