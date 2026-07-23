@@ -198,8 +198,17 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-22: Controlled Real Data Import Execution Readiness Verification
 - **Owner Role**: Technical Lead / Database Owner
 - **Decision Options**: READY FOR FINAL PRE-EXECUTION CONFIRMATION / READY WITH RESTRICTIONS / REJECT
-- **Current Decision**: **READY FOR FINAL PRE-EXECUTION CONFIRMATION** (via `CONTROLLED-IMPORT-GO-NO-GO-REF-PLACEHOLDER`, `PRE-IMPORT-BACKUP-READINESS-REF-PLACEHOLDER`, `IMPORT-EVIDENCE-CAPTURE-REF-PLACEHOLDER`)
+- **Current Decision**: **FINAL PRE-EXECUTION CONFIRMED** (via `CONTROLLED-IMPORT-GO-NO-GO-REF-PLACEHOLDER`, `PRE-IMPORT-BACKUP-READINESS-REF-PLACEHOLDER`, `IMPORT-EVIDENCE-CAPTURE-REF-PLACEHOLDER`)
 - **Required Evidence**: Execution readiness verification document, final pre-execution checklist, pre-import backup prerequisite registration, evidence capture plan.
 - **Restrictions**: Verification authorized for final pre-execution confirmation. Actual import is NOT EXECUTED in this gate. Real employee data import remains NOT IMPORTED. Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **READY FOR FINAL PRE-EXECUTION CONFIRMATION**
+- **Approval Status**: **FINAL PRE-EXECUTION CONFIRMED**
+
+### DEC-23: Controlled Real Data Import Final Pre-Execution Confirmation
+- **Owner Role**: Executive Owner / Data Owner / Technical Lead
+- **Decision Options**: APPROVED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE / APPROVED WITH RESTRICTIONS / ADDITIONAL EVIDENCE REQUIRED / DEFERRED / NOT APPROVED / BLOCKED
+- **Current Decision**: **APPROVED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE** (via `FINAL-PRE-EXECUTION-CONFIRMATION-REF-PLACEHOLDER`)
+- **Required Evidence**: Final pre-execution confirmation outcome, 13/13 checklist items confirmed, source custody confirmed, pre-import backup prerequisite confirmed, rollback readiness confirmed, audit/evidence readiness confirmed.
+- **Restrictions**: Confirmation recording only. Actual real-data import is NOT EXECUTED in this gate. Actual import requires Gate 5.17. Real employee data import remains NOT IMPORTED. Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **APPROVED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE**

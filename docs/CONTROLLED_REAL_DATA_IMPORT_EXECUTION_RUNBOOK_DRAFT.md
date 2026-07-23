@@ -21,7 +21,7 @@ This document details the planned step-by-step operational workflow for future c
 | **08** | **Audit Trail Logging** | Verify NDJSON transaction log stream active | **PLANNED ONLY** |
 | **09** | **Post-Import Reconciliation** | Verify record count & key checksum alignment | **PLANNED ONLY** |
 | **10** | **Rollback Checkpoint** | Evaluate error threshold (<2%) or trigger snapshot abort | **PLANNED ONLY** |
-| **11** | **Final Owner Confirmation** | Collect post-import sign-off from Data Owner | **PLANNED ONLY** |
+| **11** | **Final Owner Confirmation** | Collect post-import sign-off from Data Owner (`FINAL-PRE-EXECUTION-CONFIRMATION-REF-PLACEHOLDER`) | **PLANNED ONLY** |
 
 ---
 
