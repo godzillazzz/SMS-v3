@@ -27,11 +27,11 @@ This document outlines the required sign-offs and go/no-go criteria necessary be
 
 | Go/No-Go Test Case | Description / Verification Target | Expected Result | Pass / Fail |
 | :--- | :--- | :--- | :--- |
-| **Dry-Run Success** | Execute backup script with `--dry-run` parameter | Creates dry-run log entry; no backup file generated | PENDING |
-| **Encrypted Backup Success** | Execute manual backup and encrypt with symmetric key | Output `.enc` file created; raw dump removed | PENDING |
-| **Checksum Verification** | Generate and verify SHA-256 hash against encrypted file | Checksums match exactly | PENDING |
-| **Isolated Restore Success** | Restore test dump on clean, disposable target schema | Restore completes without schema or dependency errors | PENDING |
-| **Retention Cleanup Test** | Simulate expired file presence in target directory | Expired test files purged; unexpired files retained | PENDING |
-| **Failure-Notification Test** | Trigger backup failure (e.g. invalid host environment) | Sanitized error log created; alert notification sent | PENDING |
-| **Evidence Capture** | Verify audit log records contain correct parameters | Success/failure states appended to central audit NDJSON | PENDING |
-| **Rollback Readiness** | Verify disabling procedure for task scheduler | Task successfully disabled; no scheduled executions run | PENDING |
+| **Dry-Run Success** | Execute backup script with `--dry-run` parameter | Creates dry-run log entry; no backup file generated | PASS (STAGING) |
+| **Encrypted Backup Success** | Execute manual backup and encrypt with symmetric key | Output `.enc` file created; raw dump removed | PASS (STAGING) |
+| **Checksum Verification** | Generate and verify SHA-256 hash against encrypted file | Checksums match exactly | PASS (STAGING) |
+| **Isolated Restore Success** | Restore test dump on clean, disposable target schema | Restore completes without schema or dependency errors | PASS (STAGING) |
+| **Retention Cleanup Test** | Simulate expired file presence in target directory | Expired test files purged; unexpired files retained | PASS (STAGING) |
+| **Failure-Notification Test** | Trigger backup failure (e.g. invalid host environment) | Sanitized error log created; alert notification sent | PASS (STAGING) |
+| **Evidence Capture** | Verify audit log records contain correct parameters | Success/failure states appended to central audit NDJSON | PASS (STAGING) |
+| **Rollback Readiness** | Verify disabling procedure for task scheduler | Task successfully disabled; no scheduled executions run | PASS (STAGING) |

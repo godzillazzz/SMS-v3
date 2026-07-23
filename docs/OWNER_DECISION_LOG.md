@@ -72,7 +72,7 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-08: Backup Schedule Activation
 - **Owner Role**: Backup Owner
 - **Decision Options**: DAILY TASK SCHEDULE / WEEKLY TASK SCHEDULE / MANUAL RUNS ONLY
-- **Current Decision**: **DAILY TASK SCHEDULE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Current Decision**: **DAILY TASK SCHEDULE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`). Manual test status: **PASSED** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
 - **Required Evidence**: Windows Task Scheduler dry-run execution log.
 - **Restrictions**: Backups must not write to network destinations until DEC-06 is approved.
 - **Due Date Placeholder**: `[DUE_DATE]`
@@ -81,7 +81,7 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-09: Restore Rehearsal Schedule
 - **Owner Role**: Restore-Test Owner
 - **Decision Options**: WEEKLY REHEARSAL / MONTHLY REHEARSAL / NO SCHEDULE
-- **Current Decision**: **WEEKLY REHEARSAL** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Current Decision**: **WEEKLY REHEARSAL** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`). Restore rehearsal status: **PASSED** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
 - **Required Evidence**: Automated rehearsal script validation reports.
 - **Restrictions**: Rehearsal restores must use staging target databases only.
 - **Due Date Placeholder**: `[DUE_DATE]`
