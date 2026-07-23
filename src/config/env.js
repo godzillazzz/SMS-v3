@@ -29,6 +29,9 @@ const schema = z.object({
   REFRESH_TOKEN_EXPIRES_IN: z.string().regex(/^\d+d$/).optional(),
   ALERTING_ENABLED: z.enum(['true', 'false']).default('false'),
   ALERTING_PROVIDER: z.string().regex(/^[A-Za-z0-9_-]+$/).default('disabled'),
+  ALERTING_API_TOKEN: z.preprocess(emptyToUndefined, z.string().optional()),
+  ALERTING_DESTINATION_ID: z.preprocess(emptyToUndefined, z.string().optional()),
+  ALERTING_TIMEOUT_MS: optionalPositiveInteger,
   ALERT_COOLDOWN_SECONDS: z.coerce.number().int().min(1).max(86400).default(300),
   ALERT_DEDUP_STORE: z.enum(['memory', 'postgres']).default('memory'),
   ALERT_DEDUP_HASH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32, 'ALERT_DEDUP_HASH_SECRET must be at least 32 characters.').optional()),
@@ -42,8 +45,17 @@ const schema = z.object({
   if (value.RATE_LIMIT_STORE === 'postgres' && !value.RATE_LIMIT_HASH_SECRET) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['RATE_LIMIT_HASH_SECRET'], message: 'RATE_LIMIT_HASH_SECRET is required when RATE_LIMIT_STORE=postgres.' });
   }
-  if (value.ALERTING_ENABLED === 'true' && !(value.NODE_ENV === 'test' && value.ALERTING_PROVIDER === 'memory')) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['ALERTING_PROVIDER'], message: 'Enabled alert delivery is unsupported or incomplete.' });
+  if (value.ALERTING_ENABLED === 'true') {
+    if (value.ALERTING_PROVIDER === 'enterprise_chat') {
+      if (!value.ALERTING_API_TOKEN) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['ALERTING_API_TOKEN'], message: 'ALERTING_API_TOKEN is required when ALERTING_PROVIDER=enterprise_chat.' });
+      }
+      if (!value.ALERTING_DESTINATION_ID) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['ALERTING_DESTINATION_ID'], message: 'ALERTING_DESTINATION_ID is required when ALERTING_PROVIDER=enterprise_chat.' });
+      }
+    } else if (!(value.NODE_ENV === 'test' && value.ALERTING_PROVIDER === 'memory')) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['ALERTING_PROVIDER'], message: 'Enabled alert delivery is unsupported or incomplete.' });
+    }
   }
   if (value.ALERT_DEDUP_STORE === 'postgres' && !value.ALERT_DEDUP_HASH_SECRET) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['ALERT_DEDUP_HASH_SECRET'], message: 'ALERT_DEDUP_HASH_SECRET is required when ALERT_DEDUP_STORE=postgres.' });
@@ -88,6 +100,9 @@ module.exports = {
   cookieSecure: parsed.NODE_ENV === 'production' || parsed.COOKIE_SECURE === 'true',
   alertingEnabled: parsed.ALERTING_ENABLED === 'true',
   alertingProvider: parsed.ALERTING_PROVIDER,
+  alertingApiToken: parsed.ALERTING_API_TOKEN,
+  alertingDestinationId: parsed.ALERTING_DESTINATION_ID,
+  alertingTimeoutMs: parsed.ALERTING_TIMEOUT_MS,
   alertCooldownSeconds: parsed.ALERT_COOLDOWN_SECONDS,
   alertDedupStore: parsed.ALERT_DEDUP_STORE,
   alertDedupHashSecret: parsed.ALERT_DEDUP_HASH_SECRET,

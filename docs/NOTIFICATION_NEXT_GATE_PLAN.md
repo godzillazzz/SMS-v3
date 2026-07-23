@@ -1,17 +1,15 @@
 # Notification Next Gate Plan
 
-This document details the transition criteria for proceeding to the next gate. No notification activation is permitted during Gate 5.10A.
+This document details the transition criteria for proceeding to the next gate. No notification activation is permitted during Gate 5.10C1.
 
 ---
 
 ## Next Gate Roadmap
-- **Next Gate**: **Gate 5.10B - Controlled Staging Notification Activation**
+- **Next Gate**: **Gate 5.10C - Controlled Staging Notification Activation (Retry)**
 
-## Gate 5.10B Entry Criteria
-Controlled staging activation in Gate 5.10B may proceed only when the following prerequisites are met:
-1. **Channel Category Approved**: `docs/NOTIFICATION_CHANNEL_SELECTION_OUTCOME.md` completed.
-2. **Recipient/Destination Approved**: Stored securely outside Git; no PII or direct addresses checked in.
-3. **Credential Custody Approved**: Cryptographic storage or environment mapping reviewed by Security Owner.
-4. **Thresholds & Escalation Approved**: Alerting cooldown rules approved.
-5. **Rollback Owner Assigned**: Active staff role identified in escalation matrices.
-6. **Change Window Approved**: Maintenance slot scheduled and registered in the ticketing database.
+## Gate 5.10C Retry Entry Criteria
+Controlled staging activation retry in Gate 5.10C may proceed only when the following prerequisites are met:
+1. **Adapter Tests Pass**: Enterprise chat provider adapter unit tests pass.
+2. **Outside-Git Configuration**: Real destination and credential variables must be configured securely outside Git (via Vercel environment mapping).
+3. **Change Management Approved**: Change window and rollback runbook registered.
+4. **Separate Gate Constraint**: Controlled staging activation must remain a separate dedicated gate; no activation is permitted during the coding gate (Gate 5.10C1).

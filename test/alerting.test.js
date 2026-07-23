@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const env = require('../src/config/env');
 const {
-  AlertConfigurationError, DisabledAlertDelivery, InMemoryAlertDelivery, createAlertDelivery
+  AlertConfigurationError, DisabledAlertDelivery, InMemoryAlertDelivery, EnterpriseChatAlertDelivery, createAlertDelivery
 } = require('../src/services/alert-delivery');
 const { InProcessAlertCooldown } = require('../src/services/alert-cooldown');
 const { AlertPolicyEngine } = require('../src/services/alert-policy');
@@ -211,4 +211,110 @@ test('policy delivery failure is recorded safely and never reported as delivered
   assert.equal(lines[1].errorCategory, 'internal_error');
   assert.equal(JSON.stringify(lines).includes('synthetic private delivery detail'), false);
   assert.equal(JSON.stringify(lines).includes('delivered'), false);
+});
+
+test('enterprise chat provider is not active unless explicitly selected', () => {
+  const delivery = createAlertDelivery({ enabled: false });
+  assert.equal(delivery instanceof DisabledAlertDelivery, true);
+});
+
+test('missing destination/credential fails closed', () => {
+  assert.throws(() => new EnterpriseChatAlertDelivery({ enabled: true, destination: '', token: '' }), AlertConfigurationError);
+  assert.throws(() => new EnterpriseChatAlertDelivery({ enabled: true, destination: 'http://localhost', token: '' }), AlertConfigurationError);
+  assert.throws(() => new EnterpriseChatAlertDelivery({ enabled: true, destination: '', token: 'token' }), AlertConfigurationError);
+});
+
+test('invalid destination config fails safely during construct', () => {
+  assert.throws(() => createAlertDelivery({ enabled: true, provider: 'enterprise_chat' }), AlertConfigurationError);
+});
+
+test('successful mock delivery records safe state only', async () => {
+  const prevFetch = global.fetch;
+  let fetchCall = null;
+  global.fetch = async (url, options) => {
+    fetchCall = { url, options };
+    return { ok: true, status: 200 };
+  };
+
+  try {
+    const delivery = new EnterpriseChatAlertDelivery({
+      enabled: true,
+      destination: 'https://chat.example.com/webhook',
+      token: 'super-secret-token'
+    });
+
+    const payload = {
+      event: 'database_latency',
+      timestamp: '2026-07-23T00:00:00.000Z',
+      message: 'Too slow',
+      unwantedField: 'should-be-removed',
+      cookie: 'session=123',
+      csrf: 'token-abc',
+      token: 'jwt-xyz'
+    };
+
+    const res = await delivery.deliver(payload);
+    assert.equal(res.delivered, true);
+    assert.equal(res.status, 'sent');
+    assert.equal(fetchCall.url, 'https://chat.example.com/webhook');
+    assert.equal(fetchCall.options.headers['Authorization'], 'Bearer super-secret-token');
+
+    const body = JSON.parse(fetchCall.options.body);
+    assert.equal(body.message, 'Too slow');
+    assert.equal(body.unwantedField, undefined);
+    assert.equal(body.cookie, undefined);
+    assert.equal(body.csrf, undefined);
+    assert.equal(body.token, undefined);
+  } finally {
+    global.fetch = prevFetch;
+  }
+});
+
+test('failed mock delivery does not claim success and sanitizes error', async () => {
+  const prevFetch = global.fetch;
+  global.fetch = async () => {
+    return { ok: false, status: 500 };
+  };
+
+  try {
+    const delivery = new EnterpriseChatAlertDelivery({
+      enabled: true,
+      destination: 'https://chat.example.com/webhook',
+      token: 'secret-token'
+    });
+    const res = await delivery.deliver({ message: 'Error' });
+    assert.equal(res.delivered, false);
+    assert.equal(res.status, 'failed');
+    assert.equal(res.statusCode, 500);
+  } finally {
+    global.fetch = prevFetch;
+  }
+});
+
+test('timeout handling is bounded and sanitized', async () => {
+  const prevFetch = global.fetch;
+  global.fetch = async (url, options) => {
+    return new Promise((_, reject) => {
+      options.signal.addEventListener('abort', () => {
+        const err = new Error('The operation was aborted.');
+        err.name = 'AbortError';
+        reject(err);
+      });
+    });
+  };
+
+  try {
+    const delivery = new EnterpriseChatAlertDelivery({
+      enabled: true,
+      destination: 'https://chat.example.com/webhook',
+      token: 'secret-token',
+      timeoutMs: 10
+    });
+    const res = await delivery.deliver({ message: 'Timeout' });
+    assert.equal(res.delivered, false);
+    assert.equal(res.status, 'failed');
+    assert.equal(res.error, 'timeout');
+  } finally {
+    global.fetch = prevFetch;
+  }
 });

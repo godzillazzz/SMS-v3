@@ -7,6 +7,9 @@ function createConfiguredAlerting(config, options = {}) {
   const delivery = createAlertDelivery({
     enabled: config.alertingEnabled,
     provider: config.alertingProvider,
+    token: config.alertingApiToken,
+    destination: config.alertingDestinationId,
+    timeoutMs: config.alertingTimeoutMs,
     nodeEnv: config.nodeEnv
   });
   if (config.alertDedupStore === 'postgres' && !config.alertDedupHashSecret) {
