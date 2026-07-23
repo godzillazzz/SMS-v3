@@ -13,6 +13,7 @@ This document details the delta between verified staging backup controls and ful
 - Encrypted file transfer to designated storage destination verified (`BACKUP_STORAGE_PLACEHOLDER`).
 - Isolated restore rehearsal into disposable target schema verified (`RESTORE_REHEARSAL_TARGET_PLACEHOLDER`); target purged post-test.
 - Script template safety controls verified (fails closed when required environment variables are absent).
+- Owner acceptance decision: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
 
 ### Remaining Production Backup Gaps
 1. **Production Infrastructure Provisioning**: Production backup host server (`BACKUP_HOST_PLACEHOLDER`) and production storage target (`BACKUP_STORAGE_PLACEHOLDER`) are not yet provisioned or network-isolated.

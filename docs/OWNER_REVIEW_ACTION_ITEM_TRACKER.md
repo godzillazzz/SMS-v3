@@ -39,4 +39,4 @@ All action items default to **OPEN** status. These items represent required step
 | **Prepare Production Notification Change Plan**| Release Manager| Change management registry | None | Signed change execution runbook | **OPEN** | Blocks production notification release |
 | **Define Production Notification Approval Evidence**| Security Owner| Production vault registration | None | Vault audit logs checklist | **OPEN** | Blocks production notification release |
 | **Confirm Notification Remains Disabled After Rollback**| Technical Owner| Staging configuration validation | None | Vercel scope settings check | **CLOSED** | Blocks production notification release |
-| **Approve Controlled Staging Backup Test Closeout**| Backup Owner| Review staging backup closeout package | DEC-13 | Owner decision packet | **OPEN** | Blocks future production backup planning |
+| **Approve Controlled Staging Backup Test Closeout**| Backup Owner| Review staging backup closeout package | DEC-13 | Owner decision packet | **CLOSED** | Blocks future production backup planning |

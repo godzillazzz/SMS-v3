@@ -117,8 +117,8 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-13: Controlled Staging Backup Test Closeout
 - **Owner Role**: Backup Owner
 - **Decision Options**: ACCEPT CLOSEOUT / REQUEST ITERATION / REJECT
-- **Current Decision**: **READY FOR OWNER ACCEPTANCE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: Manual controlled staging backup result document, isolated restore rehearsal evidence.
 - **Restrictions**: Backup automation remains NOT ACTIVATED. Production backup activation remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **READY FOR OWNER ACCEPTANCE**
+- **Approval Status**: **APPROVED WITH RESTRICTIONS**

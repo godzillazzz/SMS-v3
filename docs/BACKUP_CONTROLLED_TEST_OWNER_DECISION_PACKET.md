@@ -10,15 +10,15 @@ This decision packet tracks decisions and approvals required for manual backup t
 - **Owner Role**: Backup Owner
 - **Description**: Accept the single manual staging backup test results and close the manual test milestone.
 - **Decision Options**: ACCEPT / ADDITIONAL TEST REQUIRED / REJECT
-- **Current Decision**: **PENDING** (Staging closeout package under review)
-- **Status**: **NOT APPROVED**
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **APPROVED WITH RESTRICTIONS**
 
 ### DEC-STG-BK-02: Accept Isolated Restore Rehearsal Result
 - **Owner Role**: Restore-Test Owner
 - **Description**: Accept the sandbox restore rehearsal results and verification logs.
 - **Decision Options**: ACCEPT / ADDITIONAL REHEARSAL REQUIRED / REJECT
-- **Current Decision**: **PENDING**
-- **Status**: **NOT APPROVED**
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **APPROVED WITH RESTRICTIONS**
 
 ### DEC-STG-BK-03: Request Additional Backup Test
 - **Owner Role**: Backup Owner
