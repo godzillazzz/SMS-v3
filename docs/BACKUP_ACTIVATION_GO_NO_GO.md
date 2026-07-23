@@ -5,7 +5,8 @@ This document outlines the required sign-offs and go/no-go criteria necessary be
 
 > [!IMPORTANT]
 > - Preflight verification: **PASSED** (Staging preflight completed; manual test completed).
-> - Closeout status: **READY FOR OWNER ACCEPTANCE** (Manual staging backup test closeout package complete).
+> - Closeout status: **ACCEPTED WITH RESTRICTIONS** (Owner acceptance recorded).
+> - Dry-run status: **READY FOR NO-OP SCHEDULER DRY RUN** (Safety checklist and plan completed).
 > - Backup automation status: **NOT ACTIVATED** (Task Scheduler automation remains disabled).
 > - Production backup activation remains **NOT APPROVED**.
 

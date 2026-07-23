@@ -40,3 +40,5 @@ All action items default to **OPEN** status. These items represent required step
 | **Define Production Notification Approval Evidence**| Security Owner| Production vault registration | None | Vault audit logs checklist | **OPEN** | Blocks production notification release |
 | **Confirm Notification Remains Disabled After Rollback**| Technical Owner| Staging configuration validation | None | Vercel scope settings check | **CLOSED** | Blocks production notification release |
 | **Approve Controlled Staging Backup Test Closeout**| Backup Owner| Review staging backup closeout package | DEC-13 | Owner decision packet | **CLOSED** | Blocks future production backup planning |
+| **Prepare Backup Schedule Dry-Run Package**| Backup Owner| No-op dry-run plan & safety checklist | DEC-08 | Dry-run plan & checklist | **OPEN** | Blocks automated schedule execution |
+| **Plan Backup Failure Alert Policy**| Monitoring Owner| Failure alert scenarios matrix | DEC-10 | Failure alert planning doc | **OPEN** | Blocks automated alert delivery |
