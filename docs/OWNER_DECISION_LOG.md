@@ -140,3 +140,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Restrictions**: Backup task disabled post-test. Backup automation is NOT APPROVED FOR PRODUCTION.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **APPROVED WITH RESTRICTIONS**
+
+### DEC-16: Backup Failure Alert Controlled Activation Readiness
+- **Owner Role**: Monitoring Owner
+- **Decision Options**: APPROVE READINESS FOR CONTROLLED TEST / REQUEST REVISION / REJECT
+- **Current Decision**: **APPROVED READINESS FOR CONTROLLED TEST** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Required Evidence**: Failure alert readiness checklist, payload policy, test plan.
+- **Restrictions**: Notification delivery remains DISABLED AFTER ROLLBACK. Production alerting is NOT APPROVED.
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **APPROVED FOR CONTROLLED TEST READINESS**

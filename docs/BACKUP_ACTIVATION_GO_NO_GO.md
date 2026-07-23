@@ -34,6 +34,6 @@ This document outlines the required sign-offs and go/no-go criteria necessary be
 | **Checksum Verification** | Generate and verify SHA-256 hash against encrypted file | Checksums match exactly | PASS (STAGING) |
 | **Isolated Restore Success** | Restore test dump on clean, disposable target schema | Restore completes without schema or dependency errors | PASS (STAGING) |
 | **Retention Cleanup Test** | Simulate expired file presence in target directory | Expired test files purged; unexpired files retained | PASS (STAGING) |
-| **Failure-Notification Test** | Trigger backup failure (e.g. invalid host environment) | Sanitized error log created; alert notification sent | PASS (STAGING) |
+| **Failure-Notification Test** | Trigger backup failure (e.g. invalid host environment) | Sanitized error log created; alert notification sent | READY FOR CONTROLLED TEST |
 | **Evidence Capture** | Verify audit log records contain correct parameters | Success/failure states appended to central audit NDJSON | PASS (STAGING) |
 | **Rollback Readiness** | Verify disabling procedure for task scheduler | Task successfully disabled; no scheduled executions run | PASS (STAGING) |
