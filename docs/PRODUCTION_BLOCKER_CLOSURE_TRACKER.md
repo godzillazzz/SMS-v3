@@ -10,7 +10,7 @@ This document tracks the closure criteria and status of remaining production blo
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **1. Real Notification Channel**| Disabled | Notification Owner | Signed channel choice matrix | Select and configure provider | Delivery verified in console | **OPEN** |
 | **2. Alert Thresholds** | Mocked | Monitoring Owner | Signed threshold document | Configure target alerting levels | Dashboards active and valid | **OPEN** |
-| **3. Operational Owners** | Placeholders | Application Owner | Finalized staff directory mapping | Assign staff to on-call roles | Registry matches active roles | **OPEN** |
+| **3. Operational Owners** | Assigned for pilot | Application Owner | Staff directory mapping | Assign staff to on-call roles | Registry matches active roles | **CONDITIONALLY CLEARED** |
 | **4. Escalation Path** | Placeholders | Incident Commander | On-call escalation rota list | Test escalation triggers | Dry-run drill completes | **OPEN** |
 | **5. Backup Host** | Unconfigured | Backup Owner | Host server specs sheet | Provision backup server environment| Host server responds to ping | **OPEN** |
 | **6. Backup Storage** | Unconfigured | Backup Owner | NAS folder permissions sheet | Map network share drive | Target directory writable | **OPEN** |
