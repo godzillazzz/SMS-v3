@@ -26,12 +26,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 
 ### DEC-03: Real Notification Channel Selection
 - **Owner Role**: Notification Owner
-- **Decision Options**: TELEGRAM CHAT / SMS GATEWAY / SIEM WEBHOOK / NONE (STAY MOCKED)
-- **Current Decision**: **NOT APPROVED** (Mocked)
+- **Decision Options**: TELEGRAM CHAT / SMS GATEWAY / SIEM WEBHOOK / ENTERPRISE_CHAT_CATEGORY / NONE (STAY MOCKED)
+- **Current Decision**: **ENTERPRISE_CHAT_CATEGORY** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: Vendor comparison sheet, cost estimation, SLA terms.
-- **Restrictions**: Provider credentials must not be tracked in codebase.
+- **Restrictions**: Provider credentials must not be tracked in codebase. Selected category only; channel activation remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **NOT APPROVED**
+- **Approval Status**: **APPROVED WITH RESTRICTIONS**
 
 ### DEC-04: Alert Threshold Approval
 - **Owner Role**: Monitoring Owner
