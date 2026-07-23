@@ -180,8 +180,8 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-20: Controlled Real Data Import Planning and Dry-Run Package
 - **Owner Role**: Database Owner / Data Governance Owner
 - **Decision Options**: READY FOR OWNER DRY-RUN ACCEPTANCE / READY WITH RESTRICTIONS / REJECT
-- **Current Decision**: **READY FOR OWNER DRY-RUN ACCEPTANCE** (via `IMPORT-DRY-RUN-EVIDENCE-REF-PLACEHOLDER`)
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `IMPORT-DRY-RUN-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: Field mapping package, validation checklist, synthetic dry-run plan, rollback/audit plan.
 - **Restrictions**: Synthetic/sample data only (100 rows). Real employee data import remains NOT IMPORTED. Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **READY FOR OWNER DRY-RUN ACCEPTANCE**
+- **Approval Status**: **ACCEPTED WITH RESTRICTIONS**
