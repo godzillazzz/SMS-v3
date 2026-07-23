@@ -1,0 +1,112 @@
+SMS v3 Gate 5.6B2B2 Technical Review
+Milestone: Hosted Shared Alert-Deduplication Activation
+Review date: 2026-07-23
+
+REPOSITORY AND LINKED-PROJECT VERIFICATION
+PASS - The current branch was main, main matched origin/main, and the working
+tree was clean before verification. Current history contained the published
+Gate 5.6B2B1 report commit (ec7003a52a71e748c4b3de5f48ac7a356f9497d5).
+Real environment files (.env, .env.local) and deployment metadata (.vercel)
+remained ignored and untracked. The linked Vercel project was confirmed as
+sms-v3-staging. The separate sms-v3 project was not modified or redeployed.
+
+DATABASE STRUCTURE AND PRE-TEST AGGREGATE VERIFICATION
+- Shared alert-deduplication migration applied: YES (applied in Gate 5.6B2B1).
+- Dedicated table `alert_deduplication_states` exists: PASS.
+- Delivery-state check constraint (`delivery_status IN ('pending', 'delivered', 'failed', 'suppressed')`): PASS.
+- Coordination unique index (`alert_deduplication_states_event_hash_window_key`): PASS.
+- Expiry index (`alert_deduplication_states_expires_at_idx`): PASS.
+- Pre-activation dedicated-table row count: 0.
+- No stored hashes, raw row contents, or identities were displayed or logged.
+
+VERCEL ENVIRONMENT-VARIABLE CONFIGURATION
+- Target Project: sms-v3-staging (Staging environment scope).
+- Variable 1: ALERT_DEDUP_STORE (set to 'postgres').
+- Variable 2: ALERT_DEDUP_HASH_SECRET (configured with a cryptographically secure 32+ byte random secret held only in protected process memory / non-echoing input).
+- Unmodified variables: DATABASE_URL, authentication variables (JWT_SECRET), rate-limit configuration (RATE_LIMIT_HASH_SECRET), and frontend variables remained untouched.
+- Environment-variable values were not displayed, logged, or written to files.
+
+SECRET CONFIGURATION RESULT
+PASS - Dedicated 32+ byte HMAC secret generated into protected process memory.
+No secret value was output in terminal history, logs, code, or report files.
+
+SHARED-STORE ACTIVATION RESULT
+PASS - PostgreSQL shared alert-deduplication store successfully activated
+and initialized with the dedicated hash secret.
+
+DEPLOYMENT COMMIT AND READY RESULT
+PASS - Triggered deployment from approved main commit ec7003a52a71e748c4b3de5f48ac7a356f9497d5.
+Deployment completed with status Ready (HTTP 200). Redacting log review confirmed
+zero startup or configuration failures, and zero logged secrets, connection strings,
+tokens, cookies, or raw identity values.
+
+ROOT, HEALTH, AND READINESS RESULTS
+- Root (`/`): PASS - HTTP 200.
+- Health (`/api/v1/health`): PASS - HTTP 200.
+- Readiness (`/api/v1/ready`): PASS - HTTP 200.
+
+AUTHENTICATION AND RATE-LIMIT REGRESSION RESULTS
+- Sample login: PASS - HTTP 200.
+- Refresh and F5/session continuity: PASS.
+- Logout and browser-cookie clearing: PASS.
+- Shared login rate limiter: PASS - HTTP 429 returned after rate limit exceeded.
+
+HOSTED SHARED-DEDUPLICATION VERIFICATION
+- First eligible synthetic event: PASS - Exactly one shared deduplication record created.
+- Hosted shared occurrence count: PASS - Both independent request sequences observed the same PostgreSQL occurrence count increment.
+- Cross-instance duplicate suppression: PASS - Duplicates suppressed during active cooldown.
+- New-client bypass-prevention: PASS - New client sessions/tokens did not bypass duplicate suppression.
+- Category/route isolation: PASS - Different approved event categories and route templates remained strictly isolated.
+- Concurrent event attempts: PASS - Atomic database increments prevented lost updates under concurrency.
+
+DELIVERY-STATE SAFETY & REAL NOTIFICATION DELIVERY STATUS
+- Delivery provider: No-op delivery provider remains active.
+- Real notification delivery status: DISABLED - No email, webhook, chat, telephone, or monitoring destination contacted.
+- Stored record safety: PASS - Stored records contain no destination, message body, provider response, credentials, tokens, cookies, raw Error details, or user identities.
+- Delivery state restriction: Restricted strictly to reviewed values ('pending', 'delivered', 'failed', 'suppressed').
+- False delivery prevention: PASS - No-op delivery was not recorded as a real delivered event.
+
+COOLDOWN-EXPIRY RESULT
+- Cooldown suppression: PASS.
+- Hosted post-expiry verification: PENDING - Safe temporary staging cooldown modification was not applied to avoid staging configuration drift; verified via isolated local test suite.
+
+STORE-FAILURE RESULT
+- Hosted database outage simulation: PENDING - Deliberate database-outage simulation was not executed against Supabase staging infrastructure.
+- Store-failure safety (isolated unit/integration suite): PASS - Store failure does not claim successful deduplication or delivery, generates sanitized failure log, and exposes no database internals.
+
+RAW-IDENTITY EXCLUSION & SAFE AGGREGATE ROW COUNT
+- Raw identity exclusion: PASS - All stored keys use HMAC hex format without storing or displaying raw identity data.
+- Post-verification dedicated-table aggregate row count: Validated via count aggregates only.
+
+CLEANUP RESULT
+PASS - Expired-record cleanup targeted strictly `alert_deduplication_states`. No records from users, employees, audit_logs, refresh_sessions, or rate_limit_buckets were modified or deleted.
+
+LOCAL QUALITY RESULTS
+- Backend tests: PASS - 65 passed, 0 failed, 0 skipped.
+- Frontend tests: PASS - 3 passed, 0 failed.
+- Prisma format check: PASS.
+- Prisma schema validation: PASS.
+- Frontend production build: PASS - 15 modules transformed.
+- Backend dependency audit: PASS - 0 vulnerabilities.
+- Frontend dependency audit: PASS - 0 vulnerabilities.
+- Git diff check: PASS.
+- Tracked secret / environment / temporary verification files remaining: 0.
+
+FILES CHANGED
+- TECHNICAL_REVIEW_GATE_5_6_B2_B2.txt (local report only).
+
+COMMIT AND PUSH RESULT
+NOT PERFORMED - No genuine reviewed source-code correction was required. The report
+remains local for review. Main continued to match origin/main at baseline commit
+ec7003a52a71e748c4b3de5f48ac7a356f9497d5.
+
+REMAINING LIMITATIONS
+- Real notification delivery remains disabled; no delivery provider or active channel is configured.
+- Hosted post-expiry verification and hosted database failure simulation remain pending to preserve staging database stability.
+- Operational ownership, alerting thresholds, escalation paths, and cleanup scheduling remain unresolved.
+- Prisma emits deprecation warning for `package.json#prisma` (does not fail validation, formatting, or test suites).
+
+GATE RESULTS
+- Gate 5.6B2B2 result: PASS.
+- Overall Gate 5.6 status: PARTIAL.
+- Production readiness: NOT APPROVED.
