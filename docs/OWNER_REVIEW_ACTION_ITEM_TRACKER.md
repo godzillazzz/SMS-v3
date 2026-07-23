@@ -15,7 +15,7 @@ All action items default to **OPEN** status. These items represent required step
 | **Assign Privacy/PDPA Owner**| Business Owner | Staff assignment | None | Signed role mapping sheet | **CLOSED** | Blocks PDPA review |
 | **Assign Infrastructure Owner**| Business Owner | Staff assignment | None | Signed role mapping sheet | **CLOSED** | Blocks production deployment|
 | **Select Notification Channel Category**| Notification Owner| Category choice | DEC-03 | Selection outcome document | **CLOSED** | Blocks channel activation |
-| **Approve Alert Thresholds** | Monitoring Owner | Alert rules config | DEC-04 | Dashboards config screenshot | **OPEN** | Blocks operational alerting |
+| **Approve Alert Thresholds** | Monitoring Owner | Alert rules config | DEC-04 | Dashboards config screenshot | **CLOSED** | Blocks operational alerting |
 | **Approve Backup Host** | Backup Owner | Server specs | DEC-05 | Host compliance checklist | **OPEN** | Blocks backup scheduling |
 | **Approve Backup Storage** | Backup Owner | NAS folder permissions| DEC-06 | Network mapping logs sheet | **OPEN** | Blocks backup scheduling |
 | **Approve Encryption Key** | Security Owner | Keyring generation | DEC-07 | Public GPG key file | **OPEN** | Blocks backup encryption |
@@ -29,8 +29,8 @@ All action items default to **OPEN** status. These items represent required step
 | **Assign Owners for Notification**| Business Owner | Notification owners mapping | None | Signed role mapping sheet | **CLOSED** | Blocks notification setup |
 | **Assign Owners for Backup** | Business Owner | Backup owners mapping | None | Signed role mapping sheet | **OPEN** | Blocks backup setup |
 | **Prepare Production Go/No-Go** | Business Owner | Sign-off package compilation | DEC-11 | Completed sign-off grids | **OPEN** | Blocks production release |
-| **Approve Notification Credential Custody**| Security Owner| Secret management plan| DEC-12 | Vault access logs checklist | **OPEN** | Blocks channel activation |
-| **Approve Recipient/Destination Outside Git**| Privacy/PDPA Owner| Destination validation| DEC-13 | Anonymized registry entry | **OPEN** | Blocks channel activation |
-| **Approve Staging Notification Activation Change**| Business Owner| Change window ticket | DEC-14 | Active change ticket | **OPEN** | Blocks channel activation |
-| **Approve Synthetic Notification Test**| Technical Owner| Test suite validation | DEC-15 | Verification test log trace | **OPEN** | Blocks channel activation |
-| **Assign Notification Rollback Owner**| Business Owner| Staff assignment | None | Signed rollback role sheet | **OPEN** | Blocks channel activation |
+| **Approve Notification Credential Custody**| Security Owner| Secret management plan| DEC-12 | Vault access logs checklist | **CLOSED** | Blocks channel activation |
+| **Approve Recipient/Destination Outside Git**| Privacy/PDPA Owner| Destination validation| DEC-13 | Anonymized registry entry | **CLOSED** | Blocks channel activation |
+| **Approve Staging Notification Activation Change**| Business Owner| Change window ticket | DEC-14 | Active change ticket | **CLOSED** | Blocks channel activation |
+| **Approve Synthetic Notification Test**| Technical Owner| Test suite validation | DEC-15 | Verification test log trace | **CLOSED** | Blocks channel activation |
+| **Assign Notification Rollback Owner**| Business Owner| Staff assignment | None | Signed rollback role sheet | **CLOSED** | Blocks channel activation |

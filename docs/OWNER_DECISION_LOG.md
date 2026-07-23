@@ -36,11 +36,11 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-04: Alert Threshold Approval
 - **Owner Role**: Monitoring Owner
 - **Decision Options**: ADOPT PROPOSED THRESHOLDS / DEFINE CUSTOM THRESHOLDS
-- **Current Decision**: **NOT APPROVED**
+- **Current Decision**: **ADOPT PROPOSED THRESHOLDS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: Staging log analytics showing normal metric bounds.
-- **Restrictions**: Configured alert thresholds must trigger mock alerts only in staging.
+- **Restrictions**: Configured alert thresholds must trigger mock alerts only in staging until activation is cleared.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **NOT APPROVED**
+- **Approval Status**: **APPROVED WITH RESTRICTIONS**
 
 ### DEC-05: Backup Host Server Approval
 - **Owner Role**: Backup Owner
