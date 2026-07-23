@@ -122,3 +122,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Restrictions**: Backup automation remains NOT ACTIVATED. Production backup activation remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **APPROVED WITH RESTRICTIONS**
+
+### DEC-14: Backup Scheduler Dry-Run Closeout & Staging Schedule Approval
+- **Owner Role**: Backup Owner
+- **Decision Options**: ACCEPT DRY-RUN & APPROVE STAGING SCHEDULE / REQUEST ITERATION / REJECT
+- **Current Decision**: **APPROVED FOR CONTROLLED STAGING SCHEDULE ACTIVATION** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Required Evidence**: Scheduler dry-run result document, dry-run closeout summary.
+- **Restrictions**: Backup automation remains NOT ACTIVATED in this gate. Production backup activation remains NOT APPROVED.
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **APPROVED WITH RESTRICTIONS**
