@@ -17,7 +17,7 @@ This document analyzes the gap between controlled staging backup failure alert t
 ---
 
 ## 2. Production Blocker Status
-- **Blocker 10 (Backup Failure Alerting)**: **CONDITIONALLY CLEARED FOR STAGING (Ready for Owner Acceptance)**. Production alert channel activation remains **OPEN**.
+- **Blocker 10 (Backup Failure Alerting)**: **CONDITIONALLY CLEARED FOR STAGING (Accepted with Restrictions)**. Production alert channel activation remains **OPEN**.
 - **Blocker 7 (Encryption Key Custody)**: **OPEN** (Requires production GPG vault registration).
 - **Blocker 8 (Backup Schedule)**: **CONDITIONALLY CLEARED FOR STAGING**. Production schedule activation remains **OPEN**.
 - **Production Failure Alert Activation**: **NOT APPROVED**.

@@ -10,36 +10,36 @@ This decision packet presents the controlled backup failure alert activation tes
 - **Owner Role**: Monitoring Owner
 - **Description**: Accept overall controlled staging backup failure alert activation test results and close Gate 5.11M testing.
 - **Decision Options**: ACCEPT / ADDITIONAL TEST REQUIRED / REJECT
-- **Current Decision**: **PENDING**
-- **Status**: **READY FOR OWNER ACCEPTANCE**
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **ACCEPTED WITH RESTRICTIONS**
 
 ### DEC-ALERT-CLOSE-02: Accept Synthetic Alert Delivery Evidence
 - **Owner Role**: Incident Commander
 - **Description**: Accept execution outcome of single sanitized alert delivery.
 - **Decision Options**: ACCEPT / REJECT
-- **Current Decision**: **PENDING**
-- **Status**: **NOT APPROVED**
+- **Current Decision**: **ACCEPTED** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **ACCEPTED**
 
 ### DEC-ALERT-CLOSE-03: Accept Acknowledgement Evidence
 - **Owner Role**: Monitoring Owner
 - **Description**: Accept aggregate on-call alert receipt acknowledgement evidence.
 - **Decision Options**: ACCEPT / REJECT
-- **Current Decision**: **PENDING**
-- **Status**: **NOT APPROVED**
+- **Current Decision**: **ACCEPTED** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **ACCEPTED**
 
 ### DEC-ALERT-CLOSE-04: Accept Deduplication Evidence
 - **Owner Role**: Technical Owner
 - **Description**: Accept duplicate alert suppression evidence during cooldown period.
 - **Decision Options**: ACCEPT / REJECT
-- **Current Decision**: **PENDING**
-- **Status**: **NOT APPROVED**
+- **Current Decision**: **ACCEPTED** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **ACCEPTED**
 
 ### DEC-ALERT-CLOSE-05: Accept Fail-Closed and Rollback Evidence
 - **Owner Role**: Security Owner
 - **Description**: Accept fail-closed handling and post-test route rollback evidence.
 - **Decision Options**: ACCEPT / REJECT
-- **Current Decision**: **PENDING**
-- **Status**: **NOT APPROVED**
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Status**: **ACCEPTED WITH RESTRICTIONS**
 
 ### DEC-ALERT-CLOSE-06: Request Additional Failure Alert Test
 - **Owner Role**: Monitoring Owner

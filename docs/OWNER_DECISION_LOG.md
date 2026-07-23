@@ -153,8 +153,8 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-17: Backup Failure Alert Controlled Test Closeout
 - **Owner Role**: Monitoring Owner
 - **Decision Options**: ACCEPT FAILURE ALERT TEST CLOSEOUT / REQUEST ITERATION / REJECT
-- **Current Decision**: **READY FOR OWNER ACCEPTANCE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Current Decision**: **ACCEPTED WITH RESTRICTIONS** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
 - **Required Evidence**: Failure alert test result document, closeout summary.
 - **Restrictions**: Notification route disabled post-test. Production alerting is NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **READY FOR OWNER ACCEPTANCE**
+- **Approval Status**: **ACCEPTED WITH RESTRICTIONS**
