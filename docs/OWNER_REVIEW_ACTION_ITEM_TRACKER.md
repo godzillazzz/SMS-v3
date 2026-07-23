@@ -34,3 +34,4 @@ All action items default to **OPEN** status. These items represent required step
 | **Approve Staging Notification Activation Change**| Business Owner| Change window ticket | DEC-14 | Active change ticket | **CLOSED** | Blocks channel activation |
 | **Approve Synthetic Notification Test**| Technical Owner| Test suite validation | DEC-15 | Verification test log trace | **CLOSED** | Blocks channel activation |
 | **Assign Notification Rollback Owner**| Business Owner| Staff assignment | None | Signed rollback role sheet | **CLOSED** | Blocks channel activation |
+| **Approve Controlled Staging Notification Test Closeout**| Notification Owner| Review staging closeout summary | DEC-12 | Owner signature placeholder | **OPEN** | Blocks future production change planning |

@@ -104,3 +104,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Restrictions**: Default status is NO-GO. Production environment deployment remains disabled.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **NOT APPROVED**
+
+### DEC-12: Controlled Staging Notification Test Closeout
+- **Owner Role**: Notification Owner
+- **Decision Options**: ACCEPT CLOSEOUT / REQUEST ITERATION / REJECT
+- **Current Decision**: **PENDING** (Staging closeout closeout package under review)
+- **Required Evidence**: Controlled staging activation result document, regression results.
+- **Restrictions**: Staging channel must remain disabled post-test. Production notification activation remains NOT APPROVED.
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **PENDING**
