@@ -14,7 +14,7 @@ This document details the planned step-by-step operational workflow for future c
 | **01** | **Pre-Import Go/No-Go Check** | Confirm 100% Go sign-offs (`CONTROLLED-IMPORT-GO-NO-GO-REF-PLACEHOLDER`)| **PLANNED ONLY** |
 | **02** | **Source File Custody Check**| Verify encrypted payload hash (`REAL-DATA-SOURCE-PLACEHOLDER`) | **PLANNED ONLY** |
 | **03** | **Target Database Verification**| Verify database schema & connection pool baseline | **PLANNED ONLY** |
-| **04** | **Pre-Import Checkpoint** | Capture point-in-time snapshot (`IMPORT-ROLLBACK-OWNER-PLACEHOLDER`) | **PLANNED ONLY** |
+| **04** | **Pre-Import Checkpoint** | Capture point-in-time snapshot (`PRE-IMPORT-BACKUP-READINESS-REF-PLACEHOLDER`, `IMPORT-ROLLBACK-OWNER-PLACEHOLDER`) | **PLANNED ONLY** |
 | **05** | **Pre-Parse Validation** | Parse payload against field mapping (`IMPORT-MAPPING-PLACEHOLDER`)| **PLANNED ONLY** |
 | **06** | **Atomic Batch Execution** | Process sanitized rows via service account (`REAL-DATA-SOURCE-PLACEHOLDER`)| **PLANNED ONLY** |
 | **07** | **Quarantine Handling** | Quarantine invalid rows to `import_rejection_audit.log` | **PLANNED ONLY** |
