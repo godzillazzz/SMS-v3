@@ -45,7 +45,7 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-05: Backup Host Server Approval
 - **Owner Role**: Backup Owner
 - **Decision Options**: PHYSICAL WINDOWS SERVER / NAS HOST / CLOUD BUCKET
-- **Current Decision**: **PHYSICAL WINDOWS SERVER** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Current Decision**: **PHYSICAL WINDOWS SERVER** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`). Preflight status: **PASSED** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
 - **Required Evidence**: Host specs checklist and security authorization.
 - **Restrictions**: Script templates must target the approved host only.
 - **Due Date Placeholder**: `[DUE_DATE]`
@@ -54,7 +54,7 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-06: Backup Storage Destination Approval
 - **Owner Role**: Backup Owner
 - **Decision Options**: LOCAL SYSTEM DRIVE / NETWORK NAS SHARE / OFFSITE TAPE
-- **Current Decision**: **NETWORK NAS SHARE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`)
+- **Current Decision**: **NETWORK NAS SHARE** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`). Preflight status: **PASSED** (via `INTERNAL-EVIDENCE-REF-PLACEHOLDER`).
 - **Required Evidence**: NAS access permissions control sheet and path mapping.
 - **Restrictions**: Storage destination must exclude public cloud shares.
 - **Due Date Placeholder**: `[DUE_DATE]`

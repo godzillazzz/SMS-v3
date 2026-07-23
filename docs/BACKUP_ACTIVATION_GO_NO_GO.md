@@ -4,6 +4,7 @@
 This document outlines the required sign-offs and go/no-go criteria necessary before activating automated database backups on the production-equivalent host.
 
 > [!IMPORTANT]
+> - Preflight verification: **PASSED** (Staging preflight completed; ready for manual test).
 > - Activation status: **NOT APPROVED** (Staging activation is approved for planning, but actual task execution remains pending Go/No-Go tests).
 > - Production backup activation remains **NOT APPROVED**.
 
