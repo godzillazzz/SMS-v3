@@ -29,27 +29,17 @@ A separate, read-only metadata audit of the separate Vercel project was performe
 
 ---
 
-## 4. Deconfliction Options (Owner Approval Required)
-The following options are defined. No option may be executed without direct sign-off from the Application and Technical Owners.
+## 4. Deconfliction Execution Result (Owner-Approved)
+The recommended option (Option 1) has been executed following explicit owner approval.
+- **Action Date**: 2026-07-23
+- **Old Project Name**: `sms-v3`
+- **New Project Name**: `sms-v3-legacy-do-not-use`
+- **Post-Change Verification**:
+  - `sms-v3-staging` remains fully linked and operational.
+  - Staging endpoints `/`, `/api/v1/health`, and `/api/v1/ready` serve successfully without downtime or routing changes.
+  - The legacy project successfully exists under the name `sms-v3-legacy-do-not-use`.
+  - No custom domains, environment variable values, or deployment parameters were altered.
 
-### Option 1: Rename Legacy Project (Recommended)
-- **Action**: Rename the legacy Vercel project from `sms-v3` to `sms-v3-legacy-do-not-use` via Vercel dashboard.
-- **Pros**: Instantly prevents CLI target confusion; preserves historic configuration if needed.
-- **Rollback**: Rename back to `sms-v3`.
-- **Constraint**: Must not change environment secrets or linked repository settings.
-
-### Option 2: Remove Unused Domains
-- **Action**: Audit and remove any custom domain names associated with the legacy project.
-- **Pros**: Prevents DNS/alias confusion.
-- **Rollback**: Re-add domains and verify DNS TXT record ownership.
-
-### Option 3: Decommission / Delete Project
-- **Action**: Permanently delete the legacy Vercel project `sms-v3`.
-- **Pros**: Complete removal of target risk.
-- **Rollback**: None (requires complete manual reconfiguration).
-
----
-
-## 5. Next Steps
-- Status remains **BLOCKED** pending owner review.
-- Do not modify Vercel project configurations or environment variables during this gate.
+## 5. Next Steps & Restrictions
+- No further changes or deletions are permitted on the legacy project to preserve its configuration history.
+- The deconfliction gap is now **RESOLVED**.
