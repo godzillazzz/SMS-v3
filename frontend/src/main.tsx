@@ -4,7 +4,7 @@ import { api } from './api';
 import './styles.css';
 
 type User = { id: string; email: string; displayName: string; role: string };
-type Employee = { id: string; employeeId: string; firstName: string; lastName: string; department: string; position: string; status: string };
+type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
 type Auth = { token?: string; user?: User; loading: boolean; error?: string; login(email: string, password: string): Promise<void>; logout(): Promise<void> };
 
 const AuthContext = createContext<Auth | undefined>(undefined);
@@ -113,14 +113,25 @@ function Dashboard() {
   const auth = useContext(AuthContext)!;
   const [activeTab, setActiveTab] = useState<'overview' | 'employees' | 'audit'>('overview');
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [empLoading, setEmpLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string>();
 
   useEffect(() => {
     if (activeTab === 'employees' && auth.token) {
       setEmpLoading(true);
+      setFetchError(undefined);
       api.employees(auth.token)
-        .then((res) => setEmployees(res.data || []))
-        .catch(() => setEmployees([]))
+        .then((res) => {
+          const records = res?.data || [];
+          setEmployees(records);
+          setTotalCount(res?.meta?.total ?? records.length);
+        })
+        .catch((err) => {
+          setFetchError(err instanceof Error ? err.message : 'Failed to fetch personnel directory.');
+          setEmployees([]);
+          setTotalCount(0);
+        })
         .finally(() => setEmpLoading(false));
     }
   }, [activeTab, auth.token]);
@@ -205,9 +216,14 @@ function Dashboard() {
           {activeTab === 'employees' && (
             <div className="view-pane">
               <div className="pane-header">
-                <h1>Personnel Directory</h1>
+                <div>
+                  <h1>Personnel Directory</h1>
+                  <p className="subtitle">Aggregate Active Records: {totalCount}</p>
+                </div>
                 <span className="badge-info">Active Database Connection</span>
               </div>
+
+              {fetchError && <div className="alert alert-error mb-4" role="alert">{fetchError}</div>}
 
               {empLoading ? (
                 <div className="loading-spinner">Loading personnel records…</div>
@@ -216,10 +232,10 @@ function Dashboard() {
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Employee ID</th>
+                        <th>Employee Code</th>
                         <th>Name</th>
                         <th>Department</th>
-                        <th>Position</th>
+                        <th>Job Title</th>
                         <th>Status</th>
                       </tr>
                     </thead>
@@ -227,17 +243,21 @@ function Dashboard() {
                       {employees.length > 0 ? (
                         employees.map((emp) => (
                           <tr key={emp.id}>
-                            <td><code>{emp.employeeId}</code></td>
+                            <td><code>{emp.employeeCode}</code></td>
                             <td>{emp.firstName} {emp.lastName}</td>
-                            <td>{emp.department}</td>
-                            <td>{emp.position}</td>
-                            <td><span className="badge-success">{emp.status || 'Active'}</span></td>
+                            <td>{emp.department || '-'}</td>
+                            <td>{emp.jobTitle || '-'}</td>
+                            <td>
+                              <span className={emp.isActive ? 'badge-success' : 'badge-error'}>
+                                {emp.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
                           </tr>
                         ))
                       ) : (
                         <tr>
                           <td colSpan={5} className="text-center">
-                            Personnel records loaded securely under authorized RBAC session.
+                            No personnel records found. (REAL DATA MIGRATION NOT EXECUTED)
                           </td>
                         </tr>
                       )}
