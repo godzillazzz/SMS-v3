@@ -7,6 +7,8 @@ type User = { id: string; email: string; displayName: string; role: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
 type Page = 'dashboard' | 'employees' | 'licenses' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'quota' | 'users' | 'audit' | 'reports';
 type Auth = { token?: string; user?: User; loading: boolean; error?: string; login(email: string, password: string): Promise<void>; logout(): Promise<void> };
+type DataRow = Record<string, unknown>;
+type DataResponse = { data?: DataRow[] | DataRow; meta?: { total?: number; page?: number; totalPages?: number } };
 
 const AuthContext = createContext<Auth | undefined>(undefined);
 
@@ -126,8 +128,57 @@ function Login() {
   );
 }
 
-function Placeholder({ title, description }: { title: string; description: string }) {
-  return <section className="view-pane empty-pane"><span className="empty-icon">◌</span><h1>{title}</h1><p>{description}</p><div className="migration-note"><strong>สถานะข้อมูล:</strong> โครงสร้างและข้อมูลเดิมถูกย้ายเข้าสู่ staging แล้ว หน้าการใช้งานและ API ของเมนูนี้กำลังย้ายจากระบบเดิมโดยรักษากฎธุรกิจเดิม</div></section>;
+const text = (value: unknown) => value === null || value === undefined || value === '' ? '-' : String(value);
+const date = (value: unknown) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(String(value))) : '-';
+const nested = (value: unknown): DataRow => value && typeof value === 'object' ? value as DataRow : {};
+
+const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports'>, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
+  licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
+    { label: 'พนักงาน', value: (row) => { const employee = nested(row.employee); return `${text(employee.firstName)} ${text(employee.lastName)}`; } },
+    { label: 'รหัส', value: (row) => text(nested(row.employee).employeeCode) }, { label: 'ประเภท', value: (row) => text(row.licenseType) },
+    { label: 'เลขที่ใบอนุญาต', value: (row) => text(row.licenseNumber) }, { label: 'วันหมดอายุ', value: (row) => date(row.expiryDate) },
+    { label: 'สถานะ', value: (row) => <span className="status-badge active">{text(row.status)}</span> }
+  ] },
+  schedule: { title: 'ตารางกะ', eyebrow: 'ตารางและกฎการทำงาน', description: 'ตารางกะย้อนหลังเรียงจากวันที่ล่าสุด', columns: [
+    { label: 'วันที่', value: (row) => date(row.workDate) }, { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) },
+    { label: 'หน่วยงาน', value: (row) => text(row.departmentSnapshot) }, { label: 'กะ', value: (row) => text(nested(row.shiftType).code) },
+    { label: 'เวลา', value: (row) => `${text(row.startTime)}–${text(row.endTime)}` }, { label: 'ชั่วโมง', value: (row) => text(row.hours) }
+  ] },
+  approvals: { title: 'อนุมัติตารางกะ', eyebrow: 'ตารางและกฎการทำงาน', description: 'ประวัติสถานะและ revision การอนุมัติตาราง', columns: [
+    { label: 'เดือน', value: (row) => date(row.month) }, { label: 'Revision', value: (row) => text(row.revision) },
+    { label: 'สถานะ', value: (row) => <span className="status-badge active">{text(row.status)}</span> },
+    { label: 'ประเภทการเปลี่ยน', value: (row) => text(row.changeType) }, { label: 'อนุมัติเมื่อ', value: (row) => date(row.approvedAt) }, { label: 'หมายเหตุ', value: (row) => text(row.approvalNote) }
+  ] },
+  rules: { title: 'กฎการทำงาน', eyebrow: 'ตารางและกฎการทำงาน', description: 'กฎที่ใช้ตรวจสอบและจัดตารางกำลังคน', columns: [
+    { label: 'รหัสกฎ', value: (row) => text(row.ruleId) }, { label: 'ชื่อกฎ', value: (row) => text(row.name) },
+    { label: 'ค่า', value: (row) => text(row.value) }, { label: 'หน่วย', value: (row) => text(row.unit) },
+    { label: 'สถานะ', value: (row) => <span className={row.enabled ? 'status-badge active' : 'status-badge inactive'}>{row.enabled ? 'เปิดใช้' : 'ปิดใช้'}</span> }
+  ] },
+  leave: { title: 'คำขอลา', eyebrow: 'การลา', description: 'ประวัติคำขอลาและสถานะการอนุมัติ', columns: [
+    { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) }, { label: 'ประเภท', value: (row) => text(row.leaveType) },
+    { label: 'วันที่เริ่ม', value: (row) => date(row.startDate) }, { label: 'วันที่สิ้นสุด', value: (row) => date(row.endDate) },
+    { label: 'จำนวนวัน', value: (row) => text(row.dayCount) }, { label: 'สถานะ', value: (row) => <span className="status-badge active">{text(row.status)}</span> }
+  ] },
+  quota: { title: 'โควตาวันลา', eyebrow: 'การลา', description: 'สิทธิ์วันลาที่นำเข้าจากระบบเดิม', columns: [
+    { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) }, { label: 'ลาป่วย', value: (row) => text(row.sickLeave) },
+    { label: 'ลากิจ', value: (row) => text(row.personalLeave) }, { label: 'ลาพักร้อน', value: (row) => text(row.vacationLeave) },
+    { label: 'การจับคู่ข้อมูล', value: (row) => text(row.matchStatus) }
+  ] },
+  users: { title: 'ผู้ใช้และสิทธิ์', eyebrow: 'ผู้ดูแลระบบ', description: 'บัญชี บทบาท สถานะ และข้อกำหนดเปลี่ยนรหัสผ่าน', columns: [
+    { label: 'ชื่อผู้ใช้', value: (row) => text(row.displayName) }, { label: 'อีเมล', value: (row) => text(row.email) },
+    { label: 'บทบาท', value: (row) => text(row.role) }, { label: 'สถานะบัญชี', value: (row) => text(row.accountStatus) },
+    { label: 'เปลี่ยนรหัสผ่าน', value: (row) => row.passwordResetRequired ? 'จำเป็น' : 'ไม่จำเป็น' }
+  ] },
+  audit: { title: 'ประวัติการทำรายการ', eyebrow: 'ผู้ดูแลระบบ', description: 'เหตุการณ์สำคัญของระบบโดยไม่แสดง payload ที่อ่อนไหว', columns: [
+    { label: 'เวลา', value: (row) => date(row.createdAt) }, { label: 'เหตุการณ์', value: (row) => text(row.action) },
+    { label: 'ประเภทข้อมูล', value: (row) => text(row.entityType) }, { label: 'ผู้ดำเนินการ', value: (row) => text(nested(row.actor).displayName) }
+  ] }
+};
+
+function OperationalTable({ page, response, loading, error }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports'>; response: DataResponse; loading: boolean; error?: string }) {
+  const config = tablePages[page];
+  const rows = Array.isArray(response.data) ? response.data : [];
+  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span></div>{error && <div className="alert alert-error">{error}</div>}<div className="table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}</tr></thead><tbody>{rows.length ? rows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}</tr>) : <tr><td colSpan={config.columns.length} className="no-rows">ไม่มีข้อมูลในหมวดนี้</td></tr>}</tbody></table></div>}</div>{response.meta?.totalPages && response.meta.totalPages > 1 && <p className="pagination-note">แสดงหน้า {response.meta.page} จาก {response.meta.totalPages} — ครั้งละ 100 รายการ</p>}</section>;
 }
 
 function Dashboard() {
@@ -138,6 +189,9 @@ function Dashboard() {
   const [empLoading, setEmpLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string>();
   const [search, setSearch] = useState('');
+  const [operationResponse, setOperationResponse] = useState<DataResponse>({});
+  const [operationLoading, setOperationLoading] = useState(false);
+  const [operationError, setOperationError] = useState<string>();
 
   useEffect(() => {
     if (!auth.token) return;
@@ -156,6 +210,22 @@ function Dashboard() {
       })
       .finally(() => setEmpLoading(false));
   }, [auth.token]);
+
+  useEffect(() => {
+    if (!auth.token || activePage === 'dashboard' || activePage === 'employees') return;
+    const loaders: Record<Exclude<Page, 'dashboard' | 'employees'>, (token: string) => Promise<DataResponse>> = {
+      licenses: api.licenses, schedule: api.shifts, approvals: api.scheduleApprovals,
+      rules: api.schedulingRules, leave: api.leaveRequests, quota: api.leaveQuotas,
+      users: api.users, audit: api.auditEvents, reports: api.reportSummary
+    };
+    setOperationLoading(true);
+    setOperationError(undefined);
+    setOperationResponse({});
+    loaders[activePage](auth.token)
+      .then((response) => setOperationResponse(response))
+      .catch((reason) => setOperationError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านข้อมูลได้'))
+      .finally(() => setOperationLoading(false));
+  }, [activePage, auth.token]);
 
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -189,19 +259,12 @@ function Dashboard() {
         </div>
       </section>
     );
-    const placeholders: Record<Exclude<Page, 'dashboard' | 'employees'>, [string, string]> = {
-      licenses: ['ใบอนุญาตพนักงาน', 'จัดการข้อมูลใบอนุญาต วันหมดอายุ และสถานะเอกสาร'],
-      schedule: ['ตารางกะ', 'จัดการตารางกะรายเดือน ตรวจสอบกำลังคน และกะย้อนหลัง'],
-      approvals: ['อนุมัติตารางกะ', 'ตรวจสอบและอนุมัติการเปลี่ยนแปลงตารางกะ'],
-      rules: ['กฎการทำงาน', 'ตั้งค่าและตรวจสอบกฎชั่วโมงทำงาน การพัก และคุณสมบัติใบอนุญาต'],
-      leave: ['คำขอลา', 'ส่ง ตรวจสอบ และอนุมัติคำขอลาพนักงาน'],
-      quota: ['โควตาวันลา', 'ติดตามสิทธิ์วันลาของพนักงานแต่ละราย'],
-      users: ['ผู้ใช้และสิทธิ์', 'บริหารบัญชีผู้ใช้ บทบาท และสถานะการอนุมัติ'],
-      audit: ['ประวัติการทำรายการ', 'ตรวจสอบเหตุการณ์ด้านความปลอดภัยและการเปลี่ยนแปลงข้อมูล'],
-      reports: ['รายงานและส่งออก', 'สรุปตารางกะ การลา และข้อมูลกำลังคนสำหรับการส่งออก']
-    };
-    const [title, description] = placeholders[activePage as Exclude<Page, 'dashboard' | 'employees'>];
-    return <Placeholder title={title} description={description} />;
+    if (activePage === 'reports') {
+      const summary = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
+      const cards: Array<[string, unknown]> = [['พนักงานทั้งหมด', summary.employees], ['พนักงานที่ใช้งาน', summary.activeEmployees], ['ใบอนุญาต', summary.licenses], ['รายการกะ', summary.shifts], ['คำขอลา', summary.leaveRequests], ['โควตาวันลา', summary.leaveQuotas], ['บัญชีผู้ใช้', summary.users]];
+      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">รายงาน</p><h1>รายงานและส่งออก</h1><p>ยอดรวมจากฐานข้อมูลกลาง ณ เวลาที่เปิดหน้านี้</p></div></div>{operationError && <div className="alert alert-error">{operationError}</div>}<div className="metrics-grid report-grid">{operationLoading ? <div className="loading-row">กำลังสรุปข้อมูล…</div> : cards.map(([label, value]) => <article className="metric-card" key={String(label)}><span className="metric-icon blue">▦</span><div><p>{label}</p><strong>{text(value)}</strong><small>รายการใน staging</small></div></article>)}</div></section>;
+    }
+    return <OperationalTable page={activePage} response={operationResponse} loading={operationLoading} error={operationError} />;
   };
 
   return (
