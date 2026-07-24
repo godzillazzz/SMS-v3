@@ -79,16 +79,33 @@ function Logo() {
 
 function Login() {
   const auth = useContext(AuthContext)!;
+  const [mode, setMode] = useState<'login' | 'register' | 'registerVerify' | 'reset' | 'resetVerify'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [department, setDepartment] = useState('');
+  const [code, setCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [helpMessage, setHelpMessage] = useState<string>();
+  const [formMessage, setFormMessage] = useState<string>();
+  const [formError, setFormError] = useState<string>();
+
+  const resetView = (next: typeof mode) => { setMode(next); setFormError(undefined); setFormMessage(undefined); setCode(''); };
+  const title = mode === 'login' ? 'ยินดีต้อนรับ' : mode === 'register' ? 'ลงทะเบียนเข้าใช้ระบบ' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'รีเซ็ตรหัสผ่านด้วย OTP' : 'ตั้งรหัสผ่านใหม่';
+  const lead = mode === 'login' ? 'เข้าสู่ระบบเพื่อเปิด Dashboard' : mode === 'register' ? 'กรอกข้อมูลเพื่อรับรหัสยืนยันทางอีเมล' : mode === 'registerVerify' ? 'กรอกรหัส 6 หลักที่ส่งไปยังอีเมลของคุณ' : mode === 'reset' ? 'เราจะส่งรหัสยืนยันไปยังอีเมลของคุณ' : 'กรอกรหัส 6 หลักและรหัสผ่านใหม่';
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setFormError(undefined); setFormMessage(undefined);
     setBusy(true);
-    try { await auth.login(email, password); } catch { /* Public error is supplied by the API. */ } finally { setBusy(false); }
+    try {
+      if (mode === 'login') await auth.login(email, password);
+      else if (mode === 'register') { await api.requestRegistrationOtp({ displayName, email, password, ...(department.trim() && { department }) }); resetView('registerVerify'); setFormMessage('ส่งรหัสยืนยันแล้ว โปรดตรวจกล่องจดหมายของคุณ'); }
+      else if (mode === 'registerVerify') { const result = await api.verifyRegistrationOtp(email, code); resetView('login'); setPassword(''); setFormMessage(result.message); }
+      else if (mode === 'reset') { await api.requestPasswordResetOtp(email); resetView('resetVerify'); setFormMessage('หากอีเมลนี้ใช้งานได้ ระบบได้ส่งรหัสยืนยันแล้ว'); }
+      else { const result = await api.completePasswordReset(email, code, password); resetView('login'); setPassword(''); setFormMessage(result.message); }
+    } catch (reason) { setFormError(reason instanceof Error ? reason.message : 'ไม่สามารถดำเนินการได้'); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -104,26 +121,27 @@ function Login() {
         </aside>
         <section className="login-form-panel">
           <form className="login-form" onSubmit={submit}>
-            <h2>ยินดีต้อนรับ</h2>
-            <p className="form-lead">เข้าสู่ระบบเพื่อเปิด Dashboard</p>
-            {auth.error && <div className="alert alert-error" role="alert">{auth.error}</div>}
+            <h2>{title}</h2>
+            <p className="form-lead">{lead}</p>
+            {mode === 'login' && auth.error && <div className="alert alert-error" role="alert">{auth.error}</div>}
+            {formError && <div className="alert alert-error" role="alert">{formError}</div>}
+            {formMessage && <div className="login-help-action" role="status">{formMessage}</div>}
+            {mode === 'register' && <label className="field-group" htmlFor="display-name"><span>ชื่อสำหรับแสดงผล</span><input id="display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} type="text" required autoComplete="name" /></label>}
             <label className="field-group" htmlFor="email">
               <span>อีเมล</span>
               <input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete="username" />
             </label>
-            <label className="field-group" htmlFor="password">
+            {mode === 'register' && <label className="field-group" htmlFor="department"><span>หน่วยงาน (ถ้ามี)</span><input id="department" value={department} onChange={(event) => setDepartment(event.target.value)} type="text" maxLength={100} /></label>}
+            {(mode === 'registerVerify' || mode === 'resetVerify') && <label className="field-group" htmlFor="otp-code"><span>รหัส OTP 6 หลัก</span><input id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" /></label>}
+            {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group" htmlFor="password">
               <span>รหัสผ่าน</span>
               <span className="password-field">
-                <input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder="กรอกรหัสผ่าน" required autoComplete="current-password" />
+                <input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'รหัสผ่านใหม่อย่างน้อย 12 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 12} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
                 <button className="password-toggle" type="button" onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? 'ซ่อน' : 'แสดง'}</button>
               </span>
-            </label>
-            <button className="btn-primary" type="submit" disabled={busy}>{busy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}</button>
-            <div className="login-links">
-              <button type="button" onClick={() => setHelpMessage('การลงทะเบียนเข้าใช้ระบบต้องได้รับอนุมัติจากผู้ดูแลก่อน กรุณาติดต่อผู้ดูแลระบบเพื่อสร้างบัญชีและกำหนดสิทธิ์ให้เหมาะสมกับหน้าที่งาน')}>ยังไม่มีบัญชี? <b>ลงทะเบียนเข้าใช้ระบบ</b></button>
-              <button type="button" onClick={() => setHelpMessage('การรีเซ็ตรหัสผ่านด้วย OTP ยังไม่เปิดใช้ใน staging เนื่องจากยังไม่ได้เชื่อมผู้ให้บริการส่ง OTP อย่างปลอดภัย กรุณาติดต่อผู้ดูแลระบบเพื่อตั้งรหัสผ่านใหม่')}>ลืมรหัสผ่าน? <b>รีเซ็ตรหัสผ่านด้วย OTP</b></button>
-            </div>
-            {helpMessage && <div className="login-help-action" role="status">{helpMessage}<button type="button" onClick={() => setHelpMessage(undefined)}>ปิด</button></div>}
+            </label>}
+            <button className="btn-primary" type="submit" disabled={busy}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
+            {mode === 'login' ? <div className="login-links"><button type="button" onClick={() => resetView('register')}>ยังไม่มีบัญชี? <b>ลงทะเบียนเข้าใช้ระบบ</b></button><button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน? <b>รีเซ็ตรหัสผ่านด้วย OTP</b></button></div> : <div className="login-links"><button type="button" onClick={() => resetView('login')}>← กลับไปหน้าเข้าสู่ระบบ</button></div>}
             <p className="login-help">พบปัญหาการใช้งาน: ติดต่อผู้ดูแลระบบของหน่วยงาน</p>
           </form>
         </section>

@@ -7,6 +7,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe('API client', () => {
   it('exposes the browser authentication operations', () => {
     expect(typeof api.login).toBe('function'); expect(typeof api.refresh).toBe('function'); expect(typeof api.logout).toBe('function'); expect(typeof api.logoutAll).toBe('function');
+    expect(typeof api.requestRegistrationOtp).toBe('function'); expect(typeof api.verifyRegistrationOtp).toBe('function'); expect(typeof api.requestPasswordResetOtp).toBe('function'); expect(typeof api.completePasswordReset).toBe('function');
   });
   it('sends the readable CSRF cookie in browser refresh, logout, and logout-all requests', async () => {
     const fetchMock = vi.fn().mockResolvedValue(success());

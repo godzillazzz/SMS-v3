@@ -13,6 +13,10 @@ async function call(path: string, init: RequestInit = {}) {
 }
 export const api = {
   login: (email: string, password: string) => call('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, clientType: 'browser' }) }),
+  requestRegistrationOtp: (data: { displayName: string; email: string; password: string; department?: string }) => call('/auth/register/request-otp', { method: 'POST', body: JSON.stringify(data) }),
+  verifyRegistrationOtp: (email: string, code: string) => call('/auth/register/verify-otp', { method: 'POST', body: JSON.stringify({ email, code }) }),
+  requestPasswordResetOtp: (email: string) => call('/auth/password-reset/request-otp', { method: 'POST', body: JSON.stringify({ email }) }),
+  completePasswordReset: (email: string, code: string, newPassword: string) => call('/auth/password-reset/complete', { method: 'POST', body: JSON.stringify({ email, code, newPassword }) }),
   refresh: () => call('/auth/refresh', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }) }),
   logout: () => call('/auth/logout', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }) }),
   logoutAll: (accessToken: string) => call('/auth/logout-all', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }), headers: { Authorization: `Bearer ${accessToken}` } }),

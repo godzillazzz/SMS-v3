@@ -27,6 +27,17 @@ const schema = z.object({
   COOKIE_DOMAIN: z.string().optional(),
   COOKIE_SECURE: z.enum(['true', 'false']).optional(),
   REFRESH_TOKEN_EXPIRES_IN: z.string().regex(/^\d+d$/).optional(),
+  OTP_DELIVERY_PROVIDER: z.enum(['disabled', 'gmail_smtp']).default('disabled'),
+  OTP_HASH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32, 'OTP_HASH_SECRET must be at least 32 characters.').optional()),
+  OTP_FROM_EMAIL: z.preprocess(emptyToUndefined, z.string().email().optional()),
+  SMTP_HOST: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  SMTP_PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(65535).optional()),
+  SMTP_SECURE: z.enum(['true', 'false']).default('true'),
+  SMTP_USERNAME: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  SMTP_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  OTP_CODE_EXPIRES_MINUTES: z.coerce.number().int().min(5).max(30).default(10),
+  OTP_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(10).default(5),
+  OTP_REQUEST_LIMIT_PER_HOUR: z.coerce.number().int().min(1).max(20).default(5),
   ALERTING_ENABLED: z.enum(['true', 'false']).default('false'),
   ALERTING_PROVIDER: z.string().regex(/^[A-Za-z0-9_-]+$/).default('disabled'),
   ALERTING_API_TOKEN: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -44,6 +55,11 @@ const schema = z.object({
 }).superRefine((value, context) => {
   if (value.RATE_LIMIT_STORE === 'postgres' && !value.RATE_LIMIT_HASH_SECRET) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['RATE_LIMIT_HASH_SECRET'], message: 'RATE_LIMIT_HASH_SECRET is required when RATE_LIMIT_STORE=postgres.' });
+  }
+  if (value.OTP_DELIVERY_PROVIDER === 'gmail_smtp') {
+    for (const field of ['OTP_HASH_SECRET', 'OTP_FROM_EMAIL', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USERNAME', 'SMTP_PASSWORD']) {
+      if (!value[field]) context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required when OTP_DELIVERY_PROVIDER=gmail_smtp.` });
+    }
   }
   if (value.ALERTING_ENABLED === 'true') {
     if (value.ALERTING_PROVIDER === 'enterprise_chat') {
@@ -98,6 +114,17 @@ module.exports = {
   cookieDomain: parsed.COOKIE_DOMAIN,
   // A production browser session must never be downgraded to an insecure cookie.
   cookieSecure: parsed.NODE_ENV === 'production' || parsed.COOKIE_SECURE === 'true',
+  otpDeliveryProvider: parsed.OTP_DELIVERY_PROVIDER,
+  otpHashSecret: parsed.OTP_HASH_SECRET,
+  otpFromEmail: parsed.OTP_FROM_EMAIL,
+  smtpHost: parsed.SMTP_HOST,
+  smtpPort: parsed.SMTP_PORT,
+  smtpSecure: parsed.SMTP_SECURE === 'true',
+  smtpUsername: parsed.SMTP_USERNAME,
+  smtpPassword: parsed.SMTP_PASSWORD,
+  otpCodeExpiresMinutes: parsed.OTP_CODE_EXPIRES_MINUTES,
+  otpMaxAttempts: parsed.OTP_MAX_ATTEMPTS,
+  otpRequestLimitPerHour: parsed.OTP_REQUEST_LIMIT_PER_HOUR,
   alertingEnabled: parsed.ALERTING_ENABLED === 'true',
   alertingProvider: parsed.ALERTING_PROVIDER,
   alertingApiToken: parsed.ALERTING_API_TOKEN,

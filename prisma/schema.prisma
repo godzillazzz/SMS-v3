@@ -35,34 +35,59 @@ enum AuditAction {
   TOKEN_REUSE
 }
 
+enum AuthOtpPurpose {
+  REGISTRATION
+  PASSWORD_RESET
+}
+
 model User {
-  id                    String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                 String           @unique @db.VarChar(255)
-  passwordHash          String           @map("password_hash") @db.VarChar(255)
-  displayName           String           @map("display_name") @db.VarChar(150)
-  role                  UserRole         @default(USER)
-  isActive              Boolean          @default(true) @map("is_active")
-  tokenVersion          Int              @default(0) @map("token_version")
-  lastLoginAt           DateTime?        @map("last_login_at")
-  failedLoginCount      Int              @default(0) @map("failed_login_count")
-  legacyUserId          String?          @unique @map("legacy_user_id") @db.VarChar(100)
-  employeeId            String?          @unique @map("employee_id") @db.Uuid
-  legacyRole            String?          @map("legacy_role") @db.VarChar(50)
-  accountStatus         AccountStatus    @default(ACTIVE) @map("account_status")
-  passwordResetRequired Boolean          @default(false) @map("password_reset_required")
-  department            String?          @db.VarChar(100)
-  requestedAt           DateTime?        @map("requested_at")
-  approvedByLegacyRef   String?          @map("approved_by_legacy_ref") @db.VarChar(255)
-  approvedAt            DateTime?        @map("approved_at")
-  rejectionReason       String?          @map("rejection_reason") @db.VarChar(2000)
-  legacyUpdatedAt       DateTime?        @map("legacy_updated_at")
-  createdAt             DateTime         @default(now()) @map("created_at")
-  updatedAt             DateTime         @updatedAt @map("updated_at")
-  auditLogs             AuditLog[]       @relation("ActorAuditLogs")
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                 String             @unique @db.VarChar(255)
+  passwordHash          String             @map("password_hash") @db.VarChar(255)
+  displayName           String             @map("display_name") @db.VarChar(150)
+  role                  UserRole           @default(USER)
+  isActive              Boolean            @default(true) @map("is_active")
+  tokenVersion          Int                @default(0) @map("token_version")
+  lastLoginAt           DateTime?          @map("last_login_at")
+  failedLoginCount      Int                @default(0) @map("failed_login_count")
+  legacyUserId          String?            @unique @map("legacy_user_id") @db.VarChar(100)
+  employeeId            String?            @unique @map("employee_id") @db.Uuid
+  legacyRole            String?            @map("legacy_role") @db.VarChar(50)
+  accountStatus         AccountStatus      @default(ACTIVE) @map("account_status")
+  passwordResetRequired Boolean            @default(false) @map("password_reset_required")
+  department            String?            @db.VarChar(100)
+  requestedAt           DateTime?          @map("requested_at")
+  approvedByLegacyRef   String?            @map("approved_by_legacy_ref") @db.VarChar(255)
+  approvedAt            DateTime?          @map("approved_at")
+  rejectionReason       String?            @map("rejection_reason") @db.VarChar(2000)
+  legacyUpdatedAt       DateTime?          @map("legacy_updated_at")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+  auditLogs             AuditLog[]         @relation("ActorAuditLogs")
   sessions              RefreshSession[]
-  employee              Employee?        @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  otpChallenges         AuthOtpChallenge[]
+  employee              Employee?          @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
   @@map("users")
+}
+
+model AuthOtpChallenge {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String?        @map("user_id") @db.Uuid
+  emailHash     String         @map("email_hash") @db.Char(64)
+  purpose       AuthOtpPurpose
+  codeHash      String         @map("code_hash") @db.Char(64)
+  expiresAt     DateTime       @map("expires_at")
+  attempts      Int            @default(0)
+  maxAttempts   Int            @default(5) @map("max_attempts")
+  consumedAt    DateTime?      @map("consumed_at")
+  deliveryState String         @default("PENDING") @map("delivery_state") @db.VarChar(30)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  user          User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([emailHash, purpose, createdAt])
+  @@index([expiresAt])
+  @@map("auth_otp_challenges")
 }
 
 model RefreshSession {

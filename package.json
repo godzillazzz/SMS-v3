@@ -30,13 +30,14 @@
   "dependencies": {
     "@prisma/client": "^6.11.1",
     "bcryptjs": "^3.0.2",
-    "csv-parse": "^6.1.0",
     "cors": "^2.8.5",
+    "csv-parse": "^6.1.0",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "nodemailer": "^9.0.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {
