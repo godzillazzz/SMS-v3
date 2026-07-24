@@ -209,6 +209,15 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Decision Options**: APPROVED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE / APPROVED WITH RESTRICTIONS / ADDITIONAL EVIDENCE REQUIRED / DEFERRED / NOT APPROVED / BLOCKED
 - **Current Decision**: **ACCEPTED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE** (via `FINAL-PRE-EXECUTION-CONFIRMATION-REF-PLACEHOLDER`, `DEC-23-OWNER-REVIEW-REF-PLACEHOLDER`)
 - **Required Evidence**: Final pre-execution confirmation outcome, 13/13 checklist items confirmed, source custody confirmed, pre-import backup prerequisite confirmed, rollback readiness confirmed, audit/evidence readiness confirmed.
-- **Restrictions**: Owner review acceptance recorded. Actual real-data import is NOT EXECUTED in this gate. Actual import requires Gate 5.17. Real employee data import remains NOT IMPORTED. Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
+- **Restrictions**: Owner review acceptance recorded. Controlled import execution authorized for Gate 5.17. Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **ACCEPTED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE**
+
+### DEC-24: Controlled Real Data Import Execution Outcome
+- **Owner Role**: Technical Lead / Database Owner / Data Owner
+- **Decision Options**: CONTROLLED IMPORT EXECUTED SUCCESSFULLY / CONTROLLED IMPORT EXECUTED WITH RESTRICTIONS / PARTIAL IMPORT - QUARANTINE REVIEW REQUIRED / ROLLED BACK / BLOCKED BEFORE IMPORT / FAILED SAFELY
+- **Current Decision**: **CONTROLLED IMPORT EXECUTED SUCCESSFULLY** (via `CONTROLLED-IMPORT-EXECUTION-EVIDENCE-REF-PLACEHOLDER`)
+- **Required Evidence**: Execution result document, aggregate processed/accepted/quarantined record counts, reconciliation log, health endpoint verification, rollback evaluation.
+- **Restrictions**: Controlled import scope only. Real employee data is imported under controlled gate (awaiting Gate 5.17A closeout). Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **CONTROLLED IMPORT EXECUTED SUCCESSFULLY**

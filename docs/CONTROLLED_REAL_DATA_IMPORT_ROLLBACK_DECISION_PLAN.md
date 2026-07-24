@@ -16,6 +16,6 @@ This document defines the emergency stop criteria, transaction rollback triggers
 ---
 
 ## 2. Emergency Recovery & Escalation
-- **Post-Rollback Validation**: Automated database integrity check confirming database state matches pre-import baseline.
-- **Escalation Protocol**: Immediate incident notification sent to Rollback Commander (`IMPORT-ROLLBACK-OWNER-PLACEHOLDER`).
-- **Production Status**: Notification delivery remains **DISABLED AFTER ROLLBACK**. Backup automation remains **DISABLED AFTER TEST**. Real employee data import remains **NOT IMPORTED**. Production activation remains **NOT ACTIVATED**.
+- **Post-Import Rollback Evaluation**: Evaluated after Gate 5.17 execution — rollback was **NOT REQUIRED** (`IMPORT-ROLLBACK-OWNER-PLACEHOLDER`).
+- **Escalation Protocol**: Immediate incident notification sent to Rollback Commander (`IMPORT-ROLLBACK-OWNER-PLACEHOLDER`) if trigger breached.
+- **Production Status**: Notification delivery remains **DISABLED AFTER ROLLBACK**. Backup automation remains **DISABLED AFTER TEST**. Real employee data import is **IMPORTED UNDER CONTROLLED GATE** (Awaiting Gate 5.17A closeout). Production activation remains **NOT ACTIVATED**.

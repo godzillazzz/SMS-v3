@@ -18,4 +18,4 @@ This document establishes the audit-safe evidence collection standards, allowed/
 ## 2. Retention & Audit Controls
 - **Retention Requirement**: Evidence logs retained for policy period (`[EVIDENCE_RETENTION_PERIOD_PLACEHOLDER]`).
 - **Audit Compliance**: Zero raw employee records, PII, passwords, connection strings, or screenshots permitted in tracked git documentation.
-- **Production Status**: Real employee data import remains **NOT IMPORTED / NOT APPROVED**. Production activation remains **NOT ACTIVATED**. Production readiness remains **NOT APPROVED**.
+- **Production Status**: Real employee data import is **IMPORTED UNDER CONTROLLED GATE** (`CONTROLLED-IMPORT-EXECUTION-EVIDENCE-REF-PLACEHOLDER`, Awaiting Gate 5.17A closeout). Production activation remains **NOT ACTIVATED**. Production readiness remains **NOT APPROVED**.

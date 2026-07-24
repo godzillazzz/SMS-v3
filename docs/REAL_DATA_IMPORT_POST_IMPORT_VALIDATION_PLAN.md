@@ -19,6 +19,6 @@ This document details the post-import audit protocols, aggregate record count re
 
 ## 2. Governance Sign-Off Checkpoint
 - **Data Owner Sign-Off**: Final post-import acceptance signed by Data Owner role (`REAL-DATA-OWNER-APPROVAL-REF-PLACEHOLDER`).
-- **Real Employee Data Status**: Real employee data remains **NOT IMPORTED / NOT APPROVED**.
+- **Real Employee Data Status**: Real employee data is **IMPORTED UNDER CONTROLLED GATE** (`CONTROLLED-IMPORT-EXECUTION-EVIDENCE-REF-PLACEHOLDER`, Awaiting Gate 5.17A closeout).
 - **Production Activation Status**: Production activation remains **NOT ACTIVATED**.
 - **Production Readiness**: **NOT APPROVED**.
