@@ -20,5 +20,5 @@ This document tracks the closure criteria and status of remaining production blo
 | **10. Backup Failure Alerting** | Staging Acceptance Recorded | Monitoring Owner | Alert policy configurations | Bind failure triggers to channels | Failures alert target channel | **CONDITIONALLY CLEARED** |
 | **11. PDPA/Privacy Sign-off** | Pending | Privacy/PDPA Owner | Certified audit report | Complete PDPA data flow audit | Signed compliance document | **OPEN** |
 | **12. Security Sign-off** | Pending | Security Owner | SAST/DAST scanner report | Complete penetration testing | Zero high findings signed | **OPEN** |
-| **13. Real Data Import** | Hypercare Active (Day-14 Reviewed) | Database Owner | Import log data verification | Audit data import scripts | Validated counts matching DB | **HYPERCARE ACTIVE (DAY-14 REVIEWED)** |
-| **14. Production Go/No-Go** | Day-14 Hypercare Checkpoint Reviewed (Gate 5.21-W2) | Business Owner | Sign-off packet with all approvals| Execute Go/No-Go check grid | Signed approval checklist | **HYPERCARE ACTIVE (DAY-14 REVIEWED)** |
+| **13. Real Data Import** | Hypercare Active (Day-21 Reviewed) | Database Owner | Import log data verification | Audit data import scripts | Validated counts matching DB | **HYPERCARE ACTIVE (DAY-21 REVIEWED)** |
+| **14. Production Go/No-Go** | Day-21 Hypercare Checkpoint Reviewed (Gate 5.21-W3) | Business Owner | Sign-off packet with all approvals| Execute Go/No-Go check grid | Signed approval checklist | **HYPERCARE ACTIVE (DAY-21 REVIEWED)** |
