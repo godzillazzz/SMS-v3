@@ -33,3 +33,26 @@ test('all operational data endpoints reject unauthenticated requests', async () 
     assert.equal(response.body.error, 'Authentication required.', path);
   }
 });
+test('all operational mutation endpoints reject unauthenticated requests', async () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  const requests = [
+    request(app).post('/api/v1/licenses').send({}),
+    request(app).put(`/api/v1/licenses/${id}`).send({}),
+    request(app).delete(`/api/v1/licenses/${id}`),
+    request(app).post('/api/v1/shifts').send({}),
+    request(app).put(`/api/v1/shifts/${id}`).send({}),
+    request(app).delete(`/api/v1/shifts/${id}`),
+    request(app).put(`/api/v1/schedule-approvals/${id}`).send({}),
+    request(app).put(`/api/v1/scheduling-rules/${id}`).send({}),
+    request(app).post('/api/v1/leave-requests').send({}),
+    request(app).put(`/api/v1/leave-requests/${id}`).send({}),
+    request(app).put(`/api/v1/leave-quotas/${id}`).send({}),
+    request(app).put(`/api/v1/users/${id}`).send({}),
+    request(app).post(`/api/v1/users/${id}/reset-password`).send({})
+  ];
+  for (const pendingRequest of requests) {
+    const response = await pendingRequest;
+    assert.equal(response.status, 401);
+    assert.equal(response.body.error, 'Authentication required.');
+  }
+});

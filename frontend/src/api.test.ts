@@ -43,4 +43,16 @@ describe('API client', () => {
       expect(typeof api[operation]).toBe('function');
     }
   });
+  it('exposes the protected operational mutation methods', () => {
+    for (const operation of [
+      'createEmployee', 'updateEmployee', 'deleteEmployee',
+      'createLicense', 'updateLicense', 'deleteLicense',
+      'createShift', 'updateShift', 'deleteShift',
+      'updateScheduleApproval', 'updateSchedulingRule',
+      'createLeaveRequest', 'updateLeaveRequest', 'updateLeaveQuota',
+      'updateUser', 'resetUserPassword'
+    ] as const) {
+      expect(typeof api[operation]).toBe('function');
+    }
+  });
 });

@@ -131,6 +131,14 @@ function Login() {
 const text = (value: unknown) => value === null || value === undefined || value === '' ? '-' : String(value);
 const date = (value: unknown) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(String(value))) : '-';
 const nested = (value: unknown): DataRow => value && typeof value === 'object' ? value as DataRow : {};
+const csvValue = (value: unknown) => `"${(value && typeof value === 'object' ? JSON.stringify(value) : text(value)).replace(/"/g, '""')}"`;
+function downloadCsv(rows: DataRow[], filename: string) {
+  if (!rows.length) return;
+  const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
+  const csv = [`\uFEFF${headers.map(csvValue).join(',')}`, ...rows.map((row) => headers.map((header) => csvValue(row[header])).join(','))].join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${filename}.csv`; anchor.click(); URL.revokeObjectURL(url);
+}
 
 const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports'>, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
@@ -175,10 +183,20 @@ const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports'>, {
   ] }
 };
 
-function OperationalTable({ page, response, loading, error, onPageChange }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports'>; response: DataResponse; loading: boolean; error?: string; onPageChange(page: number): void }) {
+function OperationalTable({ page, response, loading, error, onPageChange, onAction, canManage }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports'>; response: DataResponse; loading: boolean; error?: string; onPageChange(page: number): void; onAction(row: DataRow, action: string): void; canManage: boolean }) {
   const config = tablePages[page];
   const rows = Array.isArray(response.data) ? response.data : [];
-  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span></div>{error && <div className="alert alert-error">{error}</div>}<div className="table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}</tr></thead><tbody>{rows.length ? rows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}</tr>) : <tr><td colSpan={config.columns.length} className="no-rows">ไม่มีข้อมูลในหมวดนี้</td></tr>}</tbody></table></div>}</div>{response.meta?.totalPages && response.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(response.meta.page || 1) <= 1 || loading} onClick={() => onPageChange((response.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {response.meta.page} จาก {response.meta.totalPages}</span><button disabled={(response.meta.page || 1) >= response.meta.totalPages || loading} onClick={() => onPageChange((response.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}</section>;
+  const actionPages = ['schedule', 'approvals', 'rules', 'leave', 'users'];
+  const rowActions = (row: DataRow) => {
+    if (!canManage || !actionPages.includes(page)) return null;
+    if (page === 'approvals') return <><button onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
+    if (page === 'leave') return <><button onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
+    if (page === 'rules') return <button onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button>;
+    if (page === 'schedule') return <button onClick={() => onAction(row, 'toggle-lock')}>{row.locked ? 'ปลดล็อก' : 'ล็อก'}</button>;
+    return <button onClick={() => onAction(row, 'toggle-user')}>{row.isActive ? 'ระงับ' : 'เปิดใช้'}</button>;
+  };
+  const showActions = canManage && actionPages.includes(page);
+  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions"><span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><button className="small-action" disabled={!rows.length} onClick={() => downloadCsv(rows, page)}>CSV</button><button className="small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div>{error && <div className="alert alert-error">{error}</div>}<div className="table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <th>ดำเนินการ</th>}</tr></thead><tbody>{rows.length ? rows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}{showActions && <td className="row-actions">{rowActions(row)}</td>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows">ไม่มีข้อมูลในหมวดนี้</td></tr>}</tbody></table></div>}</div>{response.meta?.totalPages && response.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(response.meta.page || 1) <= 1 || loading} onClick={() => onPageChange((response.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {response.meta.page} จาก {response.meta.totalPages}</span><button disabled={(response.meta.page || 1) >= response.meta.totalPages || loading} onClick={() => onPageChange((response.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}</section>;
 }
 
 function Dashboard() {
@@ -193,6 +211,8 @@ function Dashboard() {
   const [operationLoading, setOperationLoading] = useState(false);
   const [operationError, setOperationError] = useState<string>();
   const [operationPage, setOperationPage] = useState(1);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [operationRefresh, setOperationRefresh] = useState(0);
 
   useEffect(() => {
     if (!auth.token) return;
@@ -226,7 +246,7 @@ function Dashboard() {
       .then((response) => setOperationResponse(response))
       .catch((reason) => setOperationError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านข้อมูลได้'))
       .finally(() => setOperationLoading(false));
-  }, [activePage, auth.token, operationPage]);
+  }, [activePage, auth.token, operationPage, operationRefresh]);
 
   useEffect(() => { setOperationPage(1); }, [activePage]);
 
@@ -238,6 +258,21 @@ function Dashboard() {
 
   const pageTitle = navigation.flatMap((section) => section.items).find((item) => item.id === activePage)?.label || 'Dashboard';
   const initials = auth.user?.displayName?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'SM';
+  const canManage = ['ADMIN', 'HR', 'MANAGER'].includes(auth.user?.role || '');
+
+  const handleOperationAction = async (row: DataRow, action: string) => {
+    if (!auth.token || !row.id || !window.confirm('ยืนยันการดำเนินการนี้ในฐานข้อมูล staging?')) return;
+    setOperationLoading(true); setOperationError(undefined);
+    try {
+      if (activePage === 'approvals') await api.updateScheduleApproval(auth.token, String(row.id), { status: action === 'approve' ? 'APPROVED' : 'REJECTED' });
+      else if (activePage === 'leave') await api.updateLeaveRequest(auth.token, String(row.id), { status: action === 'approve' ? 'APPROVED' : 'REJECTED' });
+      else if (activePage === 'rules') await api.updateSchedulingRule(auth.token, String(row.id), { enabled: !row.enabled });
+      else if (activePage === 'schedule') await api.updateShift(auth.token, String(row.id), { locked: !row.locked });
+      else if (activePage === 'users') await api.updateUser(auth.token, String(row.id), { isActive: !row.isActive, accountStatus: row.isActive ? 'SUSPENDED' : 'ACTIVE' });
+      setOperationRefresh((value) => value + 1);
+    } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'ดำเนินการไม่สำเร็จ'); }
+    finally { setOperationLoading(false); }
+  };
 
   const content = () => {
     if (activePage === 'dashboard') return (
@@ -267,18 +302,19 @@ function Dashboard() {
       const cards: Array<[string, unknown]> = [['พนักงานทั้งหมด', summary.employees], ['พนักงานที่ใช้งาน', summary.activeEmployees], ['ใบอนุญาต', summary.licenses], ['รายการกะ', summary.shifts], ['คำขอลา', summary.leaveRequests], ['โควตาวันลา', summary.leaveQuotas], ['บัญชีผู้ใช้', summary.users]];
       return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">รายงาน</p><h1>รายงานและส่งออก</h1><p>ยอดรวมจากฐานข้อมูลกลาง ณ เวลาที่เปิดหน้านี้</p></div></div>{operationError && <div className="alert alert-error">{operationError}</div>}<div className="metrics-grid report-grid">{operationLoading ? <div className="loading-row">กำลังสรุปข้อมูล…</div> : cards.map(([label, value]) => <article className="metric-card" key={String(label)}><span className="metric-icon blue">▦</span><div><p>{label}</p><strong>{text(value)}</strong><small>รายการใน staging</small></div></article>)}</div></section>;
     }
-    return <OperationalTable page={activePage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} />;
+    return <OperationalTable page={activePage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} canManage={canManage} />;
   };
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)} />}
+      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="sidebar-brand"><Logo /><div><strong>Security Management</strong><span>System v3</span></div></div>
-        <nav className="nav-menu" aria-label="เมนูหลัก">{navigation.map((section) => <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${activePage === item.id ? 'active' : ''}`} onClick={() => setActivePage(item.id)}><span className="nav-icon">{item.icon}</span><span>{item.label}</span></button>)}</div>)}</nav>
+        <nav className="nav-menu" aria-label="เมนูหลัก">{navigation.map((section) => <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${activePage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon">{item.icon}</span><span>{item.label}</span></button>)}</div>)}</nav>
         <button className="sidebar-user" onClick={() => auth.logout()} title="ออกจากระบบ"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'USER'} · ออกจากระบบ</small></span><i>↗</i></button>
       </aside>
       <main className="main-area">
-        <header className="topbar"><div><span className="mobile-brand"><Logo /> SMS v3</span><span className="breadcrumb">ระบบบริหารงานรักษาความปลอดภัย <b>/</b> {pageTitle}</span></div><div className="topbar-actions"><span className="environment-pill">STAGING</span><button className="signout-button" onClick={() => auth.logout()}>ออกจากระบบ</button></div></header>
+        <header className="topbar"><div className="topbar-left"><button className="mobile-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileMenuOpen(true)}>☰</button><span className="mobile-brand"><Logo /> SMS v3</span><span className="breadcrumb">ระบบบริหารงานรักษาความปลอดภัย <b>/</b> {pageTitle}</span></div><div className="topbar-actions"><span className="environment-pill">STAGING</span><button className="signout-button" onClick={() => auth.logout()}>ออกจากระบบ</button></div></header>
         <div className="content-area">{content()}</div>
       </main>
     </div>
