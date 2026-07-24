@@ -8,7 +8,7 @@ This document provides the consolidated production blocker register for SMS v3, 
 
 | Blocker ID & Category | Description | Current Status | Required Evidence | Owner Role Placeholder | Risk Level | Next Gate Dependency | Closure Condition |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **BLK-01: Real Data Import** | Production database population | **FINAL PRE-EXECUTION CONFIRMED / NOT IMPORTED** | Validated data import audit log & data counts | Database Owner | **CRITICAL** | Data Import Package | Formal data owner sign-off |
+| **BLK-01: Real Data Import** | Production database population | **DEC-23 OWNER REVIEW ACCEPTED / NOT IMPORTED** | Validated data import audit log & data counts | Database Owner | **CRITICAL** | Data Import Package | Formal data owner sign-off |
 | **BLK-02: User Accounts** | Production employee account provisioning | **OPEN** | Role-Based Access Control matrix sign-off | Security Owner | **HIGH** | Go/No-Go Package | RBAC audit report signed |
 | **BLK-03: Production Supabase** | Production Supabase project provisioning | **UNCONFIGURED / OPEN** | Hardware tier & replication audit report | Infrastructure Owner| **HIGH** | Infrastructure Package| Production DB operational |
 | **BLK-04: Production Vercel** | Production Vercel project deployment | **UNCONFIGURED / OPEN** | Domain SSL & header security audit report | Release Owner | **HIGH** | Release Package | Production domain active |

@@ -207,8 +207,8 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 ### DEC-23: Controlled Real Data Import Final Pre-Execution Confirmation
 - **Owner Role**: Executive Owner / Data Owner / Technical Lead
 - **Decision Options**: APPROVED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE / APPROVED WITH RESTRICTIONS / ADDITIONAL EVIDENCE REQUIRED / DEFERRED / NOT APPROVED / BLOCKED
-- **Current Decision**: **APPROVED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE** (via `FINAL-PRE-EXECUTION-CONFIRMATION-REF-PLACEHOLDER`)
+- **Current Decision**: **ACCEPTED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE** (via `FINAL-PRE-EXECUTION-CONFIRMATION-REF-PLACEHOLDER`, `DEC-23-OWNER-REVIEW-REF-PLACEHOLDER`)
 - **Required Evidence**: Final pre-execution confirmation outcome, 13/13 checklist items confirmed, source custody confirmed, pre-import backup prerequisite confirmed, rollback readiness confirmed, audit/evidence readiness confirmed.
-- **Restrictions**: Confirmation recording only. Actual real-data import is NOT EXECUTED in this gate. Actual import requires Gate 5.17. Real employee data import remains NOT IMPORTED. Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
+- **Restrictions**: Owner review acceptance recorded. Actual real-data import is NOT EXECUTED in this gate. Actual import requires Gate 5.17. Real employee data import remains NOT IMPORTED. Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **APPROVED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE**
+- **Approval Status**: **ACCEPTED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE**
