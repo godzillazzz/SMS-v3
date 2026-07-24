@@ -27,7 +27,7 @@ test('protected employee endpoints reject unauthenticated requests', async () =>
   assert.equal(response.body.error, 'Authentication required.');
 });
 test('all operational data endpoints reject unauthenticated requests', async () => {
-  for (const path of ['/api/v1/licenses', '/api/v1/shifts', '/api/v1/schedule-approvals', '/api/v1/scheduling-rules', '/api/v1/leave-requests', '/api/v1/leave-quotas', '/api/v1/audit-events', '/api/v1/reports/summary']) {
+  for (const path of ['/api/v1/licenses', '/api/v1/shift-types', '/api/v1/shifts', '/api/v1/schedule-approvals', '/api/v1/scheduling-rules', '/api/v1/leave-requests', '/api/v1/leave-quotas', '/api/v1/audit-events', '/api/v1/reports/summary']) {
     const response = await request(app).get(path);
     assert.equal(response.status, 401, path);
     assert.equal(response.body.error, 'Authentication required.', path);

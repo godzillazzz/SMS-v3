@@ -9,6 +9,8 @@ type Page = 'dashboard' | 'employees' | 'licenses' | 'schedule' | 'approvals' | 
 type Auth = { token?: string; user?: User; loading: boolean; error?: string; login(email: string, password: string): Promise<void>; logout(): Promise<void> };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; meta?: { total?: number; page?: number; totalPages?: number } };
+type FormField = { name: string; label: string; type?: 'text' | 'email' | 'password' | 'date' | 'number' | 'select' | 'textarea'; required?: boolean; options?: Array<{ value: string; label: string }> };
+type Editor = { title: string; submitLabel: string; fields: FormField[]; values: Record<string, string>; submit(values: Record<string, string>): Promise<void> };
 
 const AuthContext = createContext<Auth | undefined>(undefined);
 
@@ -130,7 +132,9 @@ function Login() {
 
 const text = (value: unknown) => value === null || value === undefined || value === '' ? '-' : String(value);
 const date = (value: unknown) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(String(value))) : '-';
+const inputDate = (value: unknown) => value ? new Date(String(value)).toISOString().slice(0, 10) : '';
 const nested = (value: unknown): DataRow => value && typeof value === 'object' ? value as DataRow : {};
+const formPayload = (values: Record<string, string>, nullable: string[] = []) => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, nullable.includes(key) && value === '' ? null : value]));
 const csvValue = (value: unknown) => `"${(value && typeof value === 'object' ? JSON.stringify(value) : text(value)).replace(/"/g, '""')}"`;
 function downloadCsv(rows: DataRow[], filename: string) {
   if (!rows.length) return;
@@ -138,6 +142,28 @@ function downloadCsv(rows: DataRow[], filename: string) {
   const csv = [`\uFEFF${headers.map(csvValue).join(',')}`, ...rows.map((row) => headers.map((header) => csvValue(row[header])).join(','))].join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${filename}.csv`; anchor.click(); URL.revokeObjectURL(url);
+}
+
+function EditDialog({ editor, busy, error, onClose }: { editor: Editor; busy: boolean; error?: string; onClose(): void }) {
+  const [values, setValues] = useState(editor.values);
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await editor.submit(values);
+  };
+  return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+    <section className="edit-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-dialog-title">
+      <div className="dialog-heading"><div><p className="eyebrow">SMS v3 staging</p><h2 id="edit-dialog-title">{editor.title}</h2></div><button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}>×</button></div>
+      {error && <div className="alert alert-error">{error}</div>}
+      <form onSubmit={submit}>
+        <div className="dialog-grid">{editor.fields.map((field) => <label className={field.type === 'textarea' ? 'field-group full' : 'field-group'} key={field.name}><span>{field.label}</span>
+          {field.type === 'select' ? <select required={field.required} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}><option value="">— เลือก —</option>{field.options?.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select>
+            : field.type === 'textarea' ? <textarea required={field.required} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />
+              : <input required={field.required} type={field.type || 'text'} step={field.type === 'number' ? '0.01' : undefined} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />}
+        </label>)}</div>
+        <div className="dialog-actions"><button className="btn-secondary" type="button" disabled={busy} onClick={onClose}>ยกเลิก</button><button className="btn-primary compact" type="submit" disabled={busy}>{busy ? 'กำลังบันทึก…' : editor.submitLabel}</button></div>
+      </form>
+    </section>
+  </div>;
 }
 
 const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports'>, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
@@ -183,20 +209,23 @@ const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports'>, {
   ] }
 };
 
-function OperationalTable({ page, response, loading, error, onPageChange, onAction, canManage }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports'>; response: DataResponse; loading: boolean; error?: string; onPageChange(page: number): void; onAction(row: DataRow, action: string): void; canManage: boolean }) {
+function OperationalTable({ page, response, loading, error, onPageChange, onAction, onCreate, canManage }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports'>; response: DataResponse; loading: boolean; error?: string; onPageChange(page: number): void; onAction(row: DataRow, action: string): void; onCreate(): void; canManage: boolean }) {
   const config = tablePages[page];
   const rows = Array.isArray(response.data) ? response.data : [];
-  const actionPages = ['schedule', 'approvals', 'rules', 'leave', 'users'];
+  const actionPages = ['licenses', 'schedule', 'approvals', 'rules', 'leave', 'quota', 'users'];
   const rowActions = (row: DataRow) => {
     if (!canManage || !actionPages.includes(page)) return null;
     if (page === 'approvals') return <><button onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
     if (page === 'leave') return <><button onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
-    if (page === 'rules') return <button onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button>;
-    if (page === 'schedule') return <button onClick={() => onAction(row, 'toggle-lock')}>{row.locked ? 'ปลดล็อก' : 'ล็อก'}</button>;
-    return <button onClick={() => onAction(row, 'toggle-user')}>{row.isActive ? 'ระงับ' : 'เปิดใช้'}</button>;
+    if (page === 'rules') return <><button onClick={() => onAction(row, 'edit')}>แก้ไข</button><button onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button></>;
+    if (page === 'licenses') return <><button onClick={() => onAction(row, 'edit')}>แก้ไข</button><button className="danger-action" onClick={() => onAction(row, 'delete')}>ลบ</button></>;
+    if (page === 'quota') return <button onClick={() => onAction(row, 'edit')}>แก้ไขโควตา</button>;
+    if (page === 'schedule') return <><button onClick={() => onAction(row, 'edit')}>แก้ไข</button><button onClick={() => onAction(row, 'toggle-lock')}>{row.locked ? 'ปลดล็อก' : 'ล็อก'}</button><button className="danger-action" onClick={() => onAction(row, 'delete')}>ลบ</button></>;
+    return <><button onClick={() => onAction(row, 'edit')}>สิทธิ์</button><button onClick={() => onAction(row, 'reset-password')}>ตั้งรหัสผ่าน</button><button onClick={() => onAction(row, 'toggle-user')}>{row.isActive ? 'ระงับ' : 'เปิดใช้'}</button></>;
   };
   const showActions = canManage && actionPages.includes(page);
-  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions"><span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><button className="small-action" disabled={!rows.length} onClick={() => downloadCsv(rows, page)}>CSV</button><button className="small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div>{error && <div className="alert alert-error">{error}</div>}<div className="table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <th>ดำเนินการ</th>}</tr></thead><tbody>{rows.length ? rows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}{showActions && <td className="row-actions">{rowActions(row)}</td>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows">ไม่มีข้อมูลในหมวดนี้</td></tr>}</tbody></table></div>}</div>{response.meta?.totalPages && response.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(response.meta.page || 1) <= 1 || loading} onClick={() => onPageChange((response.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {response.meta.page} จาก {response.meta.totalPages}</span><button disabled={(response.meta.page || 1) >= response.meta.totalPages || loading} onClick={() => onPageChange((response.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}</section>;
+  const canCreate = canManage && ['licenses', 'schedule', 'leave'].includes(page);
+  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions">{canCreate && <button className="btn-primary compact" onClick={onCreate}>+ เพิ่มรายการ</button>}<span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><button className="small-action" disabled={!rows.length} onClick={() => downloadCsv(rows, page)}>CSV</button><button className="small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div>{error && <div className="alert alert-error">{error}</div>}<div className="table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <th>ดำเนินการ</th>}</tr></thead><tbody>{rows.length ? rows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}{showActions && <td className="row-actions">{rowActions(row)}</td>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows">ไม่มีข้อมูลในหมวดนี้</td></tr>}</tbody></table></div>}</div>{response.meta?.totalPages && response.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(response.meta.page || 1) <= 1 || loading} onClick={() => onPageChange((response.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {response.meta.page} จาก {response.meta.totalPages}</span><button disabled={(response.meta.page || 1) >= response.meta.totalPages || loading} onClick={() => onPageChange((response.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}</section>;
 }
 
 function Dashboard() {
@@ -213,6 +242,11 @@ function Dashboard() {
   const [operationPage, setOperationPage] = useState(1);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [operationRefresh, setOperationRefresh] = useState(0);
+  const [employeeRefresh, setEmployeeRefresh] = useState(0);
+  const [shiftTypes, setShiftTypes] = useState<DataRow[]>([]);
+  const [editor, setEditor] = useState<Editor>();
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [editorError, setEditorError] = useState<string>();
 
   useEffect(() => {
     if (!auth.token) return;
@@ -230,7 +264,12 @@ function Dashboard() {
         setTotalCount(0);
       })
       .finally(() => setEmpLoading(false));
-  }, [auth.token]);
+  }, [auth.token, employeeRefresh]);
+
+  useEffect(() => {
+    if (!auth.token || activePage !== 'schedule') return;
+    api.shiftTypes(auth.token).then((result) => setShiftTypes(result?.data || [])).catch(() => setShiftTypes([]));
+  }, [activePage, auth.token]);
 
   useEffect(() => {
     if (!auth.token || activePage === 'dashboard' || activePage === 'employees') return;
@@ -259,16 +298,112 @@ function Dashboard() {
   const pageTitle = navigation.flatMap((section) => section.items).find((item) => item.id === activePage)?.label || 'Dashboard';
   const initials = auth.user?.displayName?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'SM';
   const canManage = ['ADMIN', 'HR', 'MANAGER'].includes(auth.user?.role || '');
+  const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName}` }));
+  const shiftTypeOptions = shiftTypes.map((shiftType) => ({ value: String(shiftType.id), label: `${text(shiftType.code)} · ${text(shiftType.name)}` }));
+
+  const runEditor = (definition: Omit<Editor, 'submit'>, action: (values: Record<string, string>) => Promise<unknown>, refresh: 'employees' | 'operations' = 'operations') => {
+    setEditorError(undefined);
+    setEditor({
+      ...definition,
+      submit: async (values) => {
+        setEditorBusy(true); setEditorError(undefined);
+        try {
+          await action(values);
+          setEditor(undefined);
+          if (refresh === 'employees') setEmployeeRefresh((value) => value + 1);
+          else setOperationRefresh((value) => value + 1);
+        } catch (reason) {
+          setEditorError(reason instanceof Error ? reason.message : 'บันทึกข้อมูลไม่สำเร็จ');
+        } finally { setEditorBusy(false); }
+      }
+    });
+  };
+
+  const employeeFields: FormField[] = [
+    { name: 'employeeCode', label: 'รหัสพนักงาน', required: true }, { name: 'firstName', label: 'ชื่อ', required: true },
+    { name: 'lastName', label: 'นามสกุล', required: true }, { name: 'email', label: 'อีเมล', type: 'email' },
+    { name: 'phone', label: 'โทรศัพท์' }, { name: 'department', label: 'หน่วยงาน' },
+    { name: 'jobTitle', label: 'ตำแหน่ง' }, { name: 'hiredAt', label: 'วันที่เริ่มงาน', type: 'date' }
+  ];
+
+  const openEmployeeEditor = (employee?: Employee) => {
+    if (!auth.token) return;
+    const values = employee ? Object.fromEntries(employeeFields.map((field) => [field.name, field.name === 'hiredAt' ? inputDate((employee as unknown as DataRow)[field.name]) : String((employee as unknown as DataRow)[field.name] || '')])) : {};
+    runEditor(
+      { title: employee ? 'แก้ไขข้อมูลพนักงาน' : 'เพิ่มพนักงาน', submitLabel: 'บันทึกพนักงาน', fields: employeeFields, values },
+      (form) => employee ? api.updateEmployee(auth.token!, employee.id, formPayload(form, ['email', 'phone', 'department', 'jobTitle', 'hiredAt'])) : api.createEmployee(auth.token!, formPayload(form, ['email', 'phone', 'department', 'jobTitle', 'hiredAt'])),
+      'employees'
+    );
+  };
+
+  const openCreateOperation = () => {
+    if (!auth.token) return;
+    if (activePage === 'licenses') runEditor({
+      title: 'เพิ่มใบอนุญาตพนักงาน', submitLabel: 'บันทึกใบอนุญาต',
+      fields: [{ name: 'employeeId', label: 'พนักงาน', type: 'select', required: true, options: employeeOptions }, { name: 'licenseType', label: 'ประเภทใบอนุญาต', required: true }, { name: 'licenseNumber', label: 'เลขที่ใบอนุญาต' }, { name: 'issueDate', label: 'วันที่ออก', type: 'date' }, { name: 'expiryDate', label: 'วันหมดอายุ', type: 'date' }, { name: 'status', label: 'สถานะ' }, { name: 'remark', label: 'หมายเหตุ', type: 'textarea' }],
+      values: {}
+    }, (form) => api.createLicense(auth.token!, formPayload(form, ['licenseNumber', 'issueDate', 'expiryDate', 'status', 'remark'])));
+    if (activePage === 'schedule') runEditor({
+      title: 'เพิ่มตารางกะ', submitLabel: 'บันทึกกะ',
+      fields: [{ name: 'employeeId', label: 'พนักงาน', type: 'select', required: true, options: employeeOptions }, { name: 'shiftTypeId', label: 'ประเภทกะ', type: 'select', required: true, options: shiftTypeOptions }, { name: 'workDate', label: 'วันที่', type: 'date', required: true }, { name: 'startTime', label: 'เวลาเริ่ม' }, { name: 'endTime', label: 'เวลาสิ้นสุด' }, { name: 'hours', label: 'จำนวนชั่วโมง', type: 'number', required: true }, { name: 'remark', label: 'หมายเหตุ', type: 'textarea' }],
+      values: {}
+    }, (form) => api.createShift(auth.token!, formPayload(form, ['startTime', 'endTime', 'remark'])));
+    if (activePage === 'leave') runEditor({
+      title: 'สร้างคำขอลา', submitLabel: 'ส่งคำขอลา',
+      fields: [{ name: 'employeeId', label: 'พนักงาน', type: 'select', required: true, options: employeeOptions }, { name: 'leaveType', label: 'ประเภทการลา', required: true }, { name: 'startDate', label: 'วันที่เริ่ม', type: 'date', required: true }, { name: 'endDate', label: 'วันที่สิ้นสุด', type: 'date', required: true }, { name: 'dayCount', label: 'จำนวนวัน', type: 'number', required: true }, { name: 'reason', label: 'เหตุผล', type: 'textarea' }],
+      values: {}
+    }, (form) => api.createLeaveRequest(auth.token!, formPayload(form, ['reason'])));
+  };
 
   const handleOperationAction = async (row: DataRow, action: string) => {
-    if (!auth.token || !row.id || !window.confirm('ยืนยันการดำเนินการนี้ในฐานข้อมูล staging?')) return;
+    if (!auth.token || !row.id) return;
+    const id = String(row.id);
+    if (action === 'edit') {
+      if (activePage === 'licenses') runEditor({
+        title: 'แก้ไขใบอนุญาต', submitLabel: 'บันทึกการแก้ไข',
+        fields: [{ name: 'licenseType', label: 'ประเภทใบอนุญาต', required: true }, { name: 'licenseNumber', label: 'เลขที่ใบอนุญาต' }, { name: 'issueDate', label: 'วันที่ออก', type: 'date' }, { name: 'expiryDate', label: 'วันหมดอายุ', type: 'date' }, { name: 'status', label: 'สถานะ' }, { name: 'remark', label: 'หมายเหตุ', type: 'textarea' }],
+        values: { licenseType: String(row.licenseType || ''), licenseNumber: String(row.licenseNumber || ''), issueDate: inputDate(row.issueDate), expiryDate: inputDate(row.expiryDate), status: String(row.status || ''), remark: String(row.remark || '') }
+      }, (form) => api.updateLicense(auth.token!, id, formPayload(form, ['licenseNumber', 'issueDate', 'expiryDate', 'status', 'remark'])));
+      else if (activePage === 'schedule') runEditor({
+        title: 'แก้ไขตารางกะ', submitLabel: 'บันทึกการแก้ไข',
+        fields: [{ name: 'employeeId', label: 'พนักงาน', type: 'select', required: true, options: employeeOptions }, { name: 'shiftTypeId', label: 'ประเภทกะ', type: 'select', required: true, options: shiftTypeOptions }, { name: 'workDate', label: 'วันที่', type: 'date', required: true }, { name: 'startTime', label: 'เวลาเริ่ม' }, { name: 'endTime', label: 'เวลาสิ้นสุด' }, { name: 'hours', label: 'จำนวนชั่วโมง', type: 'number', required: true }, { name: 'remark', label: 'หมายเหตุ', type: 'textarea' }],
+        values: { employeeId: String(row.employeeId || ''), shiftTypeId: String(row.shiftTypeId || nested(row.shiftType).id || ''), workDate: inputDate(row.workDate), startTime: String(row.startTime || ''), endTime: String(row.endTime || ''), hours: String(row.hours || ''), remark: String(row.remark || '') }
+      }, (form) => api.updateShift(auth.token!, id, formPayload(form, ['startTime', 'endTime', 'remark'])));
+      else if (activePage === 'rules') runEditor({
+        title: 'แก้ไขกฎการทำงาน', submitLabel: 'บันทึกกฎ',
+        fields: [{ name: 'value', label: 'ค่า', required: true }, { name: 'unit', label: 'หน่วย' }],
+        values: { value: String(row.value || ''), unit: String(row.unit || '') }
+      }, (form) => api.updateSchedulingRule(auth.token!, id, formPayload(form, ['unit'])));
+      else if (activePage === 'quota') runEditor({
+        title: 'แก้ไขโควตาวันลา', submitLabel: 'บันทึกโควตา',
+        fields: [{ name: 'sickLeave', label: 'ลาป่วย', type: 'number', required: true }, { name: 'personalLeave', label: 'ลากิจ', type: 'number', required: true }, { name: 'vacationLeave', label: 'ลาพักร้อน', type: 'number', required: true }],
+        values: { sickLeave: String(row.sickLeave || '0'), personalLeave: String(row.personalLeave || '0'), vacationLeave: String(row.vacationLeave || '0') }
+      }, (form) => api.updateLeaveQuota(auth.token!, id, form));
+      else if (activePage === 'users') runEditor({
+        title: 'แก้ไขผู้ใช้และสิทธิ์', submitLabel: 'บันทึกสิทธิ์',
+        fields: [{ name: 'role', label: 'บทบาท', type: 'select', required: true, options: ['ADMIN', 'HR', 'MANAGER', 'VIEWER', 'USER'].map((value) => ({ value, label: value })) }, { name: 'accountStatus', label: 'สถานะบัญชี', type: 'select', required: true, options: ['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED'].map((value) => ({ value, label: value })) }],
+        values: { role: String(row.role || ''), accountStatus: String(row.accountStatus || '') }
+      }, (form) => api.updateUser(auth.token!, id, form));
+      return;
+    }
+    if (action === 'reset-password') {
+      runEditor({
+        title: 'ตั้งรหัสผ่านใหม่', submitLabel: 'ตั้งรหัสผ่านและยกเลิก session เดิม',
+        fields: [{ name: 'newPassword', label: 'รหัสผ่านใหม่ (อย่างน้อย 12 ตัวอักษร)', type: 'password', required: true }],
+        values: {}
+      }, (form) => api.resetUserPassword(auth.token!, id, form.newPassword));
+      return;
+    }
+    if (!window.confirm('ยืนยันการดำเนินการนี้ในฐานข้อมูล staging?')) return;
     setOperationLoading(true); setOperationError(undefined);
     try {
-      if (activePage === 'approvals') await api.updateScheduleApproval(auth.token, String(row.id), { status: action === 'approve' ? 'APPROVED' : 'REJECTED' });
-      else if (activePage === 'leave') await api.updateLeaveRequest(auth.token, String(row.id), { status: action === 'approve' ? 'APPROVED' : 'REJECTED' });
-      else if (activePage === 'rules') await api.updateSchedulingRule(auth.token, String(row.id), { enabled: !row.enabled });
-      else if (activePage === 'schedule') await api.updateShift(auth.token, String(row.id), { locked: !row.locked });
-      else if (activePage === 'users') await api.updateUser(auth.token, String(row.id), { isActive: !row.isActive, accountStatus: row.isActive ? 'SUSPENDED' : 'ACTIVE' });
+      if (action === 'delete' && activePage === 'licenses') await api.deleteLicense(auth.token, id);
+      else if (action === 'delete' && activePage === 'schedule') await api.deleteShift(auth.token, id);
+      else if (activePage === 'approvals') await api.updateScheduleApproval(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED' });
+      else if (activePage === 'leave') await api.updateLeaveRequest(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED' });
+      else if (activePage === 'rules') await api.updateSchedulingRule(auth.token, id, { enabled: !row.enabled });
+      else if (activePage === 'schedule') await api.updateShift(auth.token, id, { locked: !row.locked });
+      else if (activePage === 'users') await api.updateUser(auth.token, id, { isActive: !row.isActive, accountStatus: row.isActive ? 'SUSPENDED' : 'ACTIVE' });
       setOperationRefresh((value) => value + 1);
     } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'ดำเนินการไม่สำเร็จ'); }
     finally { setOperationLoading(false); }
@@ -289,11 +424,11 @@ function Dashboard() {
     );
     if (activePage === 'employees') return (
       <section className="view-pane">
-        <div className="page-heading"><div><p className="eyebrow">จัดการบุคลากร</p><h1>พนักงาน</h1><p>รายชื่อพนักงานทั้งหมด {totalCount} รายการ</p></div><span className="record-chip">ฐานข้อมูลกลาง</span></div>
+        <div className="page-heading"><div><p className="eyebrow">จัดการบุคลากร</p><h1>พนักงาน</h1><p>รายชื่อพนักงานทั้งหมด {totalCount} รายการ</p></div><div className="heading-actions">{canManage && <button className="btn-primary compact" onClick={() => openEmployeeEditor()}>+ เพิ่มพนักงาน</button>}<span className="record-chip">ฐานข้อมูลกลาง</span></div></div>
         <div className="toolbar"><label className="search-box"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหารหัส ชื่อ หน่วยงาน หรือตำแหน่ง" /></label><span className="toolbar-count">แสดง {filteredEmployees.length} จาก {totalCount} รายการ</span></div>
         {fetchError && <div className="alert alert-error" role="alert">{fetchError}</div>}
         <div className="table-card">
-          {empLoading ? <div className="loading-row">กำลังอ่านข้อมูลพนักงาน…</div> : <div className="table-scroll"><table className="data-table"><thead><tr><th>รหัสพนักงาน</th><th>ชื่อ-นามสกุล</th><th>หน่วยงาน</th><th>ตำแหน่ง</th><th>สถานะ</th></tr></thead><tbody>{filteredEmployees.length ? filteredEmployees.map((employee) => <tr key={employee.id}><td><code>{employee.employeeCode}</code></td><td className="employee-name">{employee.firstName} {employee.lastName}</td><td>{employee.department || '-'}</td><td>{employee.jobTitle || '-'}</td><td><span className={employee.isActive ? 'status-badge active' : 'status-badge inactive'}>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td></tr>) : <tr><td colSpan={5} className="no-rows">ไม่พบรายการที่ตรงกับคำค้นหา</td></tr>}</tbody></table></div>}
+          {empLoading ? <div className="loading-row">กำลังอ่านข้อมูลพนักงาน…</div> : <div className="table-scroll"><table className="data-table"><thead><tr><th>รหัสพนักงาน</th><th>ชื่อ-นามสกุล</th><th>หน่วยงาน</th><th>ตำแหน่ง</th><th>สถานะ</th>{canManage && <th>ดำเนินการ</th>}</tr></thead><tbody>{filteredEmployees.length ? filteredEmployees.map((employee) => <tr key={employee.id}><td><code>{employee.employeeCode}</code></td><td className="employee-name">{employee.firstName} {employee.lastName}</td><td>{employee.department || '-'}</td><td>{employee.jobTitle || '-'}</td><td><span className={employee.isActive ? 'status-badge active' : 'status-badge inactive'}>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td>{canManage && <td className="row-actions"><button onClick={() => openEmployeeEditor(employee)}>แก้ไข</button>{auth.user?.role === 'ADMIN' && <button className="danger-action" onClick={async () => { if (!auth.token || !window.confirm('ยืนยันการปิดใช้งานพนักงานรายการนี้?')) return; try { await api.deleteEmployee(auth.token, employee.id); setEmployeeRefresh((value) => value + 1); } catch (reason) { setFetchError(reason instanceof Error ? reason.message : 'ปิดใช้งานพนักงานไม่สำเร็จ'); } }}>ปิดใช้งาน</button>}</td>}</tr>) : <tr><td colSpan={canManage ? 6 : 5} className="no-rows">ไม่พบรายการที่ตรงกับคำค้นหา</td></tr>}</tbody></table></div>}
         </div>
       </section>
     );
@@ -302,11 +437,12 @@ function Dashboard() {
       const cards: Array<[string, unknown]> = [['พนักงานทั้งหมด', summary.employees], ['พนักงานที่ใช้งาน', summary.activeEmployees], ['ใบอนุญาต', summary.licenses], ['รายการกะ', summary.shifts], ['คำขอลา', summary.leaveRequests], ['โควตาวันลา', summary.leaveQuotas], ['บัญชีผู้ใช้', summary.users]];
       return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">รายงาน</p><h1>รายงานและส่งออก</h1><p>ยอดรวมจากฐานข้อมูลกลาง ณ เวลาที่เปิดหน้านี้</p></div></div>{operationError && <div className="alert alert-error">{operationError}</div>}<div className="metrics-grid report-grid">{operationLoading ? <div className="loading-row">กำลังสรุปข้อมูล…</div> : cards.map(([label, value]) => <article className="metric-card" key={String(label)}><span className="metric-icon blue">▦</span><div><p>{label}</p><strong>{text(value)}</strong><small>รายการใน staging</small></div></article>)}</div></section>;
     }
-    return <OperationalTable page={activePage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} canManage={canManage} />;
+    return <OperationalTable page={activePage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} canManage={canManage} />;
   };
 
   return (
     <div className="app-shell">
+      {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)} />}
       <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="sidebar-brand"><Logo /><div><strong>Security Management</strong><span>System v3</span></div></div>

@@ -77,6 +77,16 @@ router.delete('/licenses/:id', authorize('ADMIN', 'HR'), async (req, res, next) 
   try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.employeeLicense.delete({ where: { id } }); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'EmployeeLicense', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'licenseType', 'expiryDate', 'status']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); }
 });
 
+router.get('/shift-types', async (_req, res, next) => {
+  try {
+    const data = await prisma.shiftType.findMany({
+      select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true },
+      orderBy: { code: 'asc' }
+    });
+    res.json({ data });
+  } catch (error) { next(error); }
+});
+
 router.get('/shifts', async (req, res, next) => {
   try {
     const filters = z.object({
@@ -87,9 +97,9 @@ router.get('/shifts', async (req, res, next) => {
     res.json(await paged(prisma.shiftAssignment, filters, {
       where,
       select: {
-        id: true, workDate: true, employeeNameSnapshot: true, departmentSnapshot: true,
+        id: true, employeeId: true, shiftTypeId: true, workDate: true, employeeNameSnapshot: true, departmentSnapshot: true,
         startTime: true, endTime: true, hours: true, remark: true, locked: true,
-        licenseStatus: true, shiftType: { select: { code: true, name: true, color: true } }
+        licenseStatus: true, shiftType: { select: { id: true, code: true, name: true, color: true } }
       },
       orderBy: [{ workDate: 'desc' }, { employeeNameSnapshot: 'asc' }]
     }));
@@ -141,7 +151,7 @@ router.get('/leave-requests', authorize('ADMIN', 'HR', 'MANAGER'), async (req, r
   try {
     res.json(await paged(prisma.leaveRequest, req.query, {
       select: {
-        id: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true,
+        id: true, employeeId: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true,
         leaveType: true, startDate: true, endDate: true, dayCount: true, reason: true,
         attachmentMigrationStatus: true, status: true, approvedAt: true
       },

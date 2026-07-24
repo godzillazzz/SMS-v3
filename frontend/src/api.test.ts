@@ -39,7 +39,7 @@ describe('API client', () => {
     expect(options.headers.get('authorization')).toBe('Bearer test-access-token');
   });
   it('exposes every migrated operational data endpoint', () => {
-    for (const operation of ['licenses', 'shifts', 'scheduleApprovals', 'schedulingRules', 'leaveRequests', 'leaveQuotas', 'users', 'auditEvents', 'reportSummary'] as const) {
+    for (const operation of ['licenses', 'shiftTypes', 'shifts', 'scheduleApprovals', 'schedulingRules', 'leaveRequests', 'leaveQuotas', 'users', 'auditEvents', 'reportSummary'] as const) {
       expect(typeof api[operation]).toBe('function');
     }
   });
