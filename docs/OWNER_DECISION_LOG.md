@@ -275,3 +275,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Restrictions**: Day-7 hypercare observation passed cleanly. Authorizes progression to Gate 5.21-W2 (Day-14 Production Hypercare Checkpoint Review). Production readiness status is PRODUCTION ACTIVATED - HYPERCARE.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **CONTINUE HYPERCARE**
+
+### DEC-31: Day-14 Production Hypercare Checkpoint Review Outcome
+- **Owner Role**: Executive Steering Committee / Operations Owner / Hypercare Lead
+- **Decision Options**: CONTINUE HYPERCARE / CONTINUE HYPERCARE WITH RESTRICTIONS / ADDITIONAL VALIDATION REQUIRED / INCIDENT REMEDIATION REQUIRED / ROLLBACK REVIEW REQUIRED / EMERGENCY STOP REQUIRED / BLOCKED
+- **Current Decision**: **CONTINUE HYPERCARE** (via `DAY-14-HYPERCARE-CHECKPOINT-REF-PLACEHOLDER`, `PRODUCTION-HYPERCARE-REF-PLACEHOLDER`, `HYPERCARE-INCIDENT-AGGREGATE-REF-PLACEHOLDER`)
+- **Required Evidence**: Day-14 observation register log entries, 14-day health diagnostic endpoint status (HTTP 200 OK across `/`, `/api/v1/health`, `/api/v1/ready`), 14-day cumulative zero incident report count, active monitoring/alert/backup status, Day-14 hypercare checkpoint review document.
+- **Restrictions**: Day-14 mid-term hypercare observation passed cleanly. Authorizes progression to Gate 5.21-W3 (Day-21 Production Hypercare Checkpoint Review). Production readiness status is PRODUCTION ACTIVATED - HYPERCARE.
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **CONTINUE HYPERCARE**
