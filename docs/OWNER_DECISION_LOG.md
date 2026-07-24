@@ -248,3 +248,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Restrictions**: Controlled production activation executed safely. Notification delivery, failure alerting, backup automation, and monitoring active under production hypercare. Authorizes progression to Gate 5.20A (Production Activation Closeout, Owner Acceptance, and Hypercare Start).
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **PRODUCTION ACTIVATED - ENTER HYPERCARE**
+
+### DEC-28: Production Activation Closeout & Formal Hypercare Start Decision
+- **Owner Role**: Executive Steering Committee / Data Owner / Technical Steering Committee
+- **Decision Options**: ACCEPTED - ENTER HYPERCARE / ACCEPTED WITH RESTRICTIONS / ADDITIONAL VALIDATION REQUIRED / ROLLBACK REVIEW REQUIRED / EMERGENCY STOP REQUIRED / NOT APPROVED / BLOCKED
+- **Current Decision**: **ACCEPTED - ENTER HYPERCARE** (via `PRODUCTION-ACTIVATION-OWNER-ACCEPTANCE-REF-PLACEHOLDER`, `PRODUCTION-HYPERCARE-REF-PLACEHOLDER`)
+- **Required Evidence**: Gate 5.20 activation result document, aggregate health validation receipt, notification/alert active binding log, backup schedule registration receipt, signed owner acceptance outcome document, hypercare operating plan, hypercare observation register.
+- **Restrictions**: Production activation result formally accepted by executive owners. Initiates 30-day production hypercare observation period (`PRODUCTION-HYPERCARE-REF-PLACEHOLDER`). Authorizes progression to Gate 5.21 (Production Hypercare Checkpoint Review).
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **ACCEPTED - ENTER HYPERCARE**
