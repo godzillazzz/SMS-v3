@@ -7,7 +7,7 @@ const env = require('../src/config/env');
 const calls = [];
 const logoutAllCalls = [];
 require.cache[require.resolve('../src/services/auth.service')] = { exports: {
-  login: async () => ({ accessToken: 'access-token', refreshToken: 'refresh-token-not-in-json', tokenType: 'Bearer', user: { id: 'user-1', email: 'sample@example.test', displayName: 'Sample', role: 'USER' } }),
+  login: async () => ({ accessToken: 'access-token', refreshToken: 'refresh-token-not-in-json', tokenType: 'Bearer', user: { id: 'user-1', email: 'sample@example.test', displayName: 'Sample', role: 'VIEWER' } }),
   refresh: async (token) => { calls.push(token); return { accessToken: 'rotated-access', refreshToken: 'rotated-refresh', tokenType: 'Bearer' }; },
   logout: async (token) => calls.push(token), logoutAll: async (userId) => logoutAllCalls.push(userId), genericFailure: 'Invalid email or password.', refreshFailure: 'Invalid or expired refresh token.'
 } };

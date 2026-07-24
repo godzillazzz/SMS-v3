@@ -38,7 +38,7 @@ const paged = async (model, query, options = {}) => {
 
 router.use(authenticate);
 
-router.get('/licenses', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, next) => {
+router.get('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     res.json(await paged(prisma.employeeLicense, req.query, {
       select: {
@@ -50,7 +50,7 @@ router.get('/licenses', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, ne
     }));
   } catch (error) { next(error); }
 });
-router.post('/licenses', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, next) => {
+router.post('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const input = licenseInput.parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
@@ -61,7 +61,7 @@ router.post('/licenses', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, n
     res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
-router.put('/licenses/:id', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, next) => {
+router.put('/licenses/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id); const input = licenseInput.omit({ employeeId: true }).partial().parse(req.body);
     if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.');
@@ -73,7 +73,7 @@ router.put('/licenses/:id', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res
     }); res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.delete('/licenses/:id', authorize('ADMIN', 'HR'), async (req, res, next) => {
+router.delete('/licenses/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.employeeLicense.delete({ where: { id } }); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'EmployeeLicense', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'licenseType', 'expiryDate', 'status']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); }
 });
 
@@ -105,7 +105,7 @@ router.get('/shifts', async (req, res, next) => {
     }));
   } catch (error) { next(error); }
 });
-router.post('/shifts', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, next) => {
+router.post('/shifts', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const input = shiftInput.parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
@@ -116,13 +116,13 @@ router.post('/shifts', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, nex
     }); res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
-router.put('/shifts/:id', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, next) => {
+router.put('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id); const input = shiftInput.partial().parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.');
     const result = await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.findUniqueOrThrow({ where: { id } }); const after = await tx.shiftAssignment.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']), after: safeRecord(after, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']) } }, tx); return after; }); res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.delete('/shifts/:id', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.delete({ where: { id } }); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); } });
+router.delete('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.delete({ where: { id } }); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); } });
 
 router.get('/schedule-approvals', async (req, res, next) => {
   try {
@@ -147,7 +147,7 @@ router.get('/scheduling-rules', async (_req, res, next) => {
 });
 router.put('/scheduling-rules/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ value: z.string().trim().min(1).max(1000).optional(), unit: nullableText(100), enabled: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.schedulingRule.findUniqueOrThrow({ where: { id } }); const after = await tx.schedulingRule.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'SchedulingRule', entityId: id, metadata: { before: safeRecord(before, ['value', 'unit', 'enabled']), after: safeRecord(after, ['value', 'unit', 'enabled']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
-router.get('/leave-requests', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, next) => {
+router.get('/leave-requests', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     res.json(await paged(prisma.leaveRequest, req.query, {
       select: {
@@ -159,10 +159,10 @@ router.get('/leave-requests', authorize('ADMIN', 'HR', 'MANAGER'), async (req, r
     }));
   } catch (error) { next(error); }
 });
-router.post('/leave-requests', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, next) => { try { const input = leaveInput.parse(req.body); const result = await prisma.$transaction(async (tx) => { const employee = await tx.employee.findUniqueOrThrow({ where: { id: input.employeeId } }); const leave = await tx.leaveRequest.create({ data: { ...input, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: 'NONE', status: 'PENDING' } }); await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']) } }, tx); return leave; }); res.status(201).json({ data: result }); } catch (error) { next(error); } });
-router.put('/leave-requests/:id', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ status: z.enum(['PENDING', 'APPROVED', 'REJECTED']), reason: nullableText(2000) }).parse(req.body); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } }); const after = await tx.leaveRequest.update({ where: { id }, data: { ...input, approvedAt: input.status === 'APPROVED' ? new Date() : null } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
+router.post('/leave-requests', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const input = leaveInput.parse(req.body); const result = await prisma.$transaction(async (tx) => { const employee = await tx.employee.findUniqueOrThrow({ where: { id: input.employeeId } }); const leave = await tx.leaveRequest.create({ data: { ...input, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: 'NONE', status: 'PENDING' } }); await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']) } }, tx); return leave; }); res.status(201).json({ data: result }); } catch (error) { next(error); } });
+router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ status: z.enum(['PENDING', 'APPROVED', 'REJECTED']), reason: nullableText(2000) }).parse(req.body); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } }); const after = await tx.leaveRequest.update({ where: { id }, data: { ...input, approvedAt: input.status === 'APPROVED' ? new Date() : null } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
-router.get('/leave-quotas', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res, next) => {
+router.get('/leave-quotas', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     res.json(await paged(prisma.leaveQuota, req.query, {
       select: { id: true, employeeNameSnapshot: true, sickLeave: true, personalLeave: true, vacationLeave: true, matchStatus: true, updatedAt: true },
@@ -170,9 +170,9 @@ router.get('/leave-quotas', authorize('ADMIN', 'HR', 'MANAGER'), async (req, res
     }));
   } catch (error) { next(error); }
 });
-router.put('/leave-quotas/:id', authorize('ADMIN', 'HR'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ sickLeave: z.coerce.number().min(0).max(999).optional(), personalLeave: z.coerce.number().min(0).max(999).optional(), vacationLeave: z.coerce.number().min(0).max(999).optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveQuota.findUniqueOrThrow({ where: { id } }); const after = await tx.leaveQuota.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveQuota', entityId: id, metadata: { before: safeRecord(before, ['sickLeave', 'personalLeave', 'vacationLeave']), after: safeRecord(after, ['sickLeave', 'personalLeave', 'vacationLeave']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
+router.put('/leave-quotas/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ sickLeave: z.coerce.number().min(0).max(999).optional(), personalLeave: z.coerce.number().min(0).max(999).optional(), vacationLeave: z.coerce.number().min(0).max(999).optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveQuota.findUniqueOrThrow({ where: { id } }); const after = await tx.leaveQuota.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveQuota', entityId: id, metadata: { before: safeRecord(before, ['sickLeave', 'personalLeave', 'vacationLeave']), after: safeRecord(after, ['sickLeave', 'personalLeave', 'vacationLeave']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
-router.put('/users/:id', authorize('ADMIN'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ role: z.enum(['ADMIN', 'HR', 'USER', 'MANAGER', 'VIEWER']).optional(), accountStatus: z.enum(['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED']).optional(), isActive: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.user.findUniqueOrThrow({ where: { id } }); const after = await tx.user.update({ where: { id }, data: { ...input, tokenVersion: { increment: 1 } }, select: { id: true, displayName: true, email: true, role: true, accountStatus: true, isActive: true, passwordResetRequired: true } }); await tx.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'User', entityId: id, metadata: { before: safeRecord(before, ['role', 'accountStatus', 'isActive']), after: safeRecord(after, ['role', 'accountStatus', 'isActive']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
+router.put('/users/:id', authorize('ADMIN'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ role: z.enum(['ADMIN', 'MANAGER', 'VIEWER']).optional(), department: nullableText(100), accountStatus: z.enum(['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED']).optional(), isActive: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.user.findUniqueOrThrow({ where: { id } }); const after = await tx.user.update({ where: { id }, data: { ...input, tokenVersion: { increment: 1 } }, select: { id: true, legacyUserId: true, displayName: true, email: true, role: true, department: true, accountStatus: true, isActive: true, passwordResetRequired: true } }); await tx.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'User', entityId: id, metadata: { before: safeRecord(before, ['role', 'department', 'accountStatus', 'isActive']), after: safeRecord(after, ['role', 'department', 'accountStatus', 'isActive']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 router.post('/users/:id/reset-password', authorize('ADMIN'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const { newPassword } = z.object({ newPassword: z.string().min(8).max(128) }).parse(req.body); const passwordHash = await bcrypt.hash(newPassword, 12); const result = await prisma.$transaction(async (tx) => { const after = await tx.user.update({ where: { id }, data: { passwordHash, passwordResetRequired: false, failedLoginCount: 0, tokenVersion: { increment: 1 } }, select: { id: true, displayName: true, email: true, role: true, accountStatus: true, isActive: true, passwordResetRequired: true } }); await tx.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'UserCredential', entityId: id, metadata: { passwordResetRequired: false, sessionsRevoked: true } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
 router.get('/audit-events', authorize('ADMIN'), async (req, res, next) => {
@@ -195,7 +195,7 @@ router.get('/audit-events', authorize('ADMIN'), async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/reports/summary', authorize('ADMIN', 'HR', 'MANAGER'), async (_req, res, next) => {
+router.get('/reports/summary', authorize('ADMIN', 'MANAGER'), async (_req, res, next) => {
   try {
     const [employees, activeEmployees, licenses, shifts, leaveRequests, leaveQuotas, users] = await prisma.$transaction([
       prisma.employee.count({ where: { deletedAt: null } }),

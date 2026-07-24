@@ -95,7 +95,7 @@ function mapAccountStatus(status, rowNumber) {
 
 function mapRole(role, accountStatus, rowNumber) {
   const value = clean(role).toLowerCase();
-  if (!value && accountStatus === 'PENDING') return { role: 'USER', legacyRole: null };
+  if (!value && accountStatus === 'PENDING') return { role: 'VIEWER', legacyRole: null };
   const mapping = { admin: 'ADMIN', manager: 'MANAGER', viewer: 'VIEWER' };
   if (!mapping[value]) throw new Error(`Users row ${rowNumber}: unsupported role.`);
   return { role: mapping[value], legacyRole: clean(role) };

@@ -6,7 +6,7 @@ function publicEmployee(employee) {
   const { email, phone, hiredAt, ...basic } = employee;
   return basic;
 }
-const requiresBasicView = (role) => role === 'USER' || role === 'VIEWER';
+const requiresBasicView = (role) => role === 'VIEWER';
 function auditSnapshot(employee) {
   const { id, employeeCode, firstName, lastName, department, jobTitle, isActive, deletedAt, deletedByUserId } = employee;
   return { id, employeeCode, firstName, lastName, department, jobTitle, isActive, deletedAt, deletedByUserId };

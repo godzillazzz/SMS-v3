@@ -74,7 +74,7 @@ function createOtpService({ prismaClient = prisma, auditService = audit, mailer 
       const existing = await tx.user.findUnique({ where: { email: normalizedEmail } });
       if (existing && existing.accountStatus !== 'PENDING') return null;
       if (existing) return tx.user.update({ where: { id: existing.id }, data: { displayName, passwordHash, department: department || null, requestedAt: new Date(), isActive: false } });
-      const pending = await tx.user.create({ data: { email: normalizedEmail, displayName, passwordHash, department: department || null, role: 'USER', accountStatus: 'PENDING', isActive: false, requestedAt: new Date() } });
+      const pending = await tx.user.create({ data: { email: normalizedEmail, displayName, passwordHash, department: department || null, role: 'VIEWER', accountStatus: 'PENDING', isActive: false, requestedAt: new Date() } });
       await auditService.log({ actorUserId: null, action: 'CREATE', entityType: 'RegistrationRequest', entityId: pending.id, metadata: { accountStatus: 'PENDING' } }, tx);
       return pending;
     });

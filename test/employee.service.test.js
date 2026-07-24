@@ -18,7 +18,7 @@ const service = require('../src/services/employee.service');
 test('employee create, list, update, and soft delete create safe audit entries', async () => {
   const actor = '11111111-1111-4111-8111-111111111111';
   const created = await service.create({ employeeCode: 'E-1', firstName: 'A', lastName: 'B', email: 'private@example.com', phone: '123' }, actor);
-  const listed = await service.list({ page: 1, pageSize: 20 }, 'USER');
+  const listed = await service.list({ page: 1, pageSize: 20 }, 'VIEWER');
   assert.equal(listed.data[0].email, undefined); assert.equal(listed.meta.total, 1);
   await service.update(created.id, { department: 'Ops' }, actor);
   await service.remove(created.id, actor);

@@ -42,7 +42,7 @@ test('migration plan preserves roles/statuses but excludes legacy password hashe
   assert.equal(plan.summary.shiftAssignments, 1);
   assert.equal(plan.summary.quotaUnmatched, 1);
   assert.equal(plan.users[0].role, 'ADMIN');
-  assert.equal(plan.users[1].role, 'USER');
+  assert.equal(plan.users[1].role, 'VIEWER');
   assert.equal(plan.users[1].accountStatus, 'PENDING');
   assert.equal(plan.users[1].isActive, false);
   assert.equal(plan.users.every((user) => user.passwordResetRequired), true);

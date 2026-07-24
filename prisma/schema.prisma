@@ -10,8 +10,6 @@ datasource db {
 
 enum UserRole {
   ADMIN
-  HR
-  USER
   MANAGER
   VIEWER
 }
@@ -45,7 +43,7 @@ model User {
   email                 String             @unique @db.VarChar(255)
   passwordHash          String             @map("password_hash") @db.VarChar(255)
   displayName           String             @map("display_name") @db.VarChar(150)
-  role                  UserRole           @default(USER)
+  role                  UserRole           @default(VIEWER)
   isActive              Boolean            @default(true) @map("is_active")
   tokenVersion          Int                @default(0) @map("token_version")
   lastLoginAt           DateTime?          @map("last_login_at")

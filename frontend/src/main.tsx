@@ -317,11 +317,11 @@ function Dashboard() {
 
   const pageTitle = navigation.flatMap((section) => section.items).find((item) => item.id === activePage)?.label || 'Dashboard';
   const initials = auth.user?.displayName?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'SM';
-  const canManage = ['ADMIN', 'HR', 'MANAGER'].includes(auth.user?.role || '');
+  const canManage = ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
   const canViewPage = (page: Page) => {
     if (page === 'audit') return auth.user?.role === 'ADMIN';
     if (page === 'users') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
-    if (['licenses', 'leave', 'quota', 'reports'].includes(page)) return ['ADMIN', 'HR', 'MANAGER'].includes(auth.user?.role || '');
+    if (['licenses', 'leave', 'quota', 'reports'].includes(page)) return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
     return true;
   };
   const canManageActivePage = activePage === 'users' ? auth.user?.role === 'ADMIN' : canManage;
@@ -408,8 +408,8 @@ function Dashboard() {
       }, (form) => api.updateLeaveQuota(auth.token!, id, form));
       else if (activePage === 'users') runEditor({
         title: 'แก้ไขผู้ใช้และสิทธิ์', submitLabel: 'บันทึกสิทธิ์',
-        fields: [{ name: 'role', label: 'บทบาท', type: 'select', required: true, options: ['ADMIN', 'HR', 'MANAGER', 'VIEWER', 'USER'].map((value) => ({ value, label: value })) }, { name: 'accountStatus', label: 'สถานะบัญชี', type: 'select', required: true, options: ['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED'].map((value) => ({ value, label: value })) }],
-        values: { role: String(row.role || ''), accountStatus: String(row.accountStatus || '') }
+        fields: [{ name: 'role', label: 'บทบาท', type: 'select', required: true, options: ['ADMIN', 'MANAGER', 'VIEWER'].map((value) => ({ value, label: value })) }, { name: 'department', label: 'หน่วยงาน' }, { name: 'accountStatus', label: 'สถานะบัญชี', type: 'select', required: true, options: ['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED'].map((value) => ({ value, label: value })) }],
+        values: { role: String(row.role || ''), department: String(row.department || ''), accountStatus: String(row.accountStatus || '') }
       }, (form) => api.updateUser(auth.token!, id, form));
       return;
     }
@@ -459,6 +459,17 @@ function Dashboard() {
         </div>
       </section>
     );
+    if (activePage === 'users') {
+      const users = Array.isArray(operationResponse.data) ? operationResponse.data : [];
+      const pendingCount = users.filter((user) => user.accountStatus === 'PENDING').length;
+      const departments = Array.from(new Set(users.map((user) => String(user.department || '')).filter(Boolean))).sort();
+      return <section className="view-pane users-roles-page">
+        <div className="page-heading"><div><h1>Users &amp; Roles</h1><p>Admin กำหนด Role และแผนกก่อนอนุมัติบัญชี</p></div></div>
+        {operationError && <div className="alert alert-error">{operationError}</div>}
+        <div className="users-roles-toolbar"><strong>คำขอรออนุมัติ {pendingCount} บัญชี</strong><button className="small-action" disabled={operationLoading} onClick={() => setOperationRefresh((value) => value + 1)}>รีเฟรช</button></div>
+        <div className="table-card"><div className="table-scroll"><table className="data-table users-roles-table"><thead><tr><th>User ID</th><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Status</th><th>จัดการ</th></tr></thead><tbody>{operationLoading ? <tr><td colSpan={7} className="loading-row">กำลังอ่านข้อมูลบัญชี…</td></tr> : users.length ? users.map((user, index) => <tr key={text(user.id) + index}><td><code>{text(user.legacyUserId || user.id)}</code>{user.role === 'ADMIN' && <small className="user-id-note">Primary Admin</small>}</td><td className="employee-name">{text(user.displayName)}</td><td>{text(user.email)}</td><td><select className="inline-select" name={`role-${text(user.id)}`} defaultValue={text(user.role)} disabled={!canManageActivePage}>{['ADMIN', 'MANAGER', 'VIEWER'].map((role) => <option key={role} value={role}>{role[0] + role.slice(1).toLowerCase()}</option>)}</select></td><td><select className="inline-select" name={`department-${text(user.id)}`} defaultValue={text(user.department)} disabled={!canManageActivePage}><option value="">All</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></td><td><span className={user.isActive && user.accountStatus === 'ACTIVE' ? 'status-badge active' : 'status-badge inactive'}>{user.isActive && user.accountStatus === 'ACTIVE' ? '● Active' : `● ${text(user.accountStatus)}`}</span></td><td className="row-actions">{canManageActivePage && <><button className="btn-primary compact" onClick={async () => { try { const role = (document.querySelector(`[name="role-${text(user.id)}"]`) as HTMLSelectElement)?.value; const department = (document.querySelector(`[name="department-${text(user.id)}"]`) as HTMLSelectElement)?.value; await api.updateUser(auth.token!, String(user.id), { role, department: department || null }); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'บันทึกสิทธิ์ไม่สำเร็จ'); } }}>บันทึกสิทธิ์</button><button onClick={() => handleOperationAction(user, 'toggle-user')}>{user.isActive ? 'ระงับ' : 'เปิดใช้งาน'}</button><button onClick={() => handleOperationAction(user, 'reset-password')}>ตั้งรหัสผ่าน</button></>}</td></tr>) : <tr><td colSpan={7} className="no-rows">ไม่มีข้อมูลบัญชีผู้ใช้</td></tr>}</tbody></table></div></div>
+      </section>;
+    }
     if (activePage === 'reports') {
       const summary = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
       const cards: Array<[string, unknown]> = [['พนักงานทั้งหมด', summary.employees], ['พนักงานที่ใช้งาน', summary.activeEmployees], ['ใบอนุญาต', summary.licenses], ['รายการกะ', summary.shifts], ['คำขอลา', summary.leaveRequests], ['โควตาวันลา', summary.leaveQuotas], ['บัญชีผู้ใช้', summary.users]];
@@ -477,7 +488,7 @@ function Dashboard() {
           const items = section.items.filter((item) => canViewPage(item.id));
           return items.length ? <div className="nav-section" key={section.label}><p>{section.label}</p>{items.map((item) => <button type="button" key={item.id} className={`nav-item ${activePage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon">{item.icon}</span><span>{item.label}</span></button>)}</div> : null;
         })}</nav>
-        <button className="sidebar-user" onClick={() => auth.logout()} title="ออกจากระบบ"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'USER'} · ออกจากระบบ</small></span><i>↗</i></button>
+        <button className="sidebar-user" onClick={() => auth.logout()} title="ออกจากระบบ"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'} · ออกจากระบบ</small></span><i>↗</i></button>
       </aside>
       <main className="main-area">
         <header className="topbar"><div className="topbar-left"><button className="mobile-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileMenuOpen(true)}>☰</button><span className="mobile-brand"><Logo /> SMS v3</span><span className="breadcrumb">ระบบบริหารงานรักษาความปลอดภัย <b>/</b> {pageTitle}</span></div><div className="topbar-actions"><span className="environment-pill">STAGING</span><button className="signout-button" onClick={() => auth.logout()}>ออกจากระบบ</button></div></header>
