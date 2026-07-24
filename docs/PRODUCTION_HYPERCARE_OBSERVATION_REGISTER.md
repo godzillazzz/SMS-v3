@@ -21,7 +21,7 @@ This document provides the sanitized operational observation register for tracki
 | `[DAY-7-DATE-PLACEHOLDER]` | Day-7 Checkpoint | **HTTP 200 OK** | **ACTIVE** | **ACTIVE** | **ACTIVE** | **ACTIVE** | **READY** | 0 | **STANDBY** | **REVIEWED** | Progress to Day-14 observation |
 | `[DAY-14-DATE-PLACEHOLDER]` | Day-14 Checkpoint | **HTTP 200 OK** | **ACTIVE** | **ACTIVE** | **ACTIVE** | **ACTIVE** | **READY** | 0 | **STANDBY** | **REVIEWED** | Progress to Day-21 observation |
 | `[DAY-21-DATE-PLACEHOLDER]` | Day-21 Checkpoint | **HTTP 200 OK** | **ACTIVE** | **ACTIVE** | **ACTIVE** | **ACTIVE** | **READY** | 0 | **STANDBY** | **REVIEWED** | Progress to Day-30 observation |
-| `[DAY-30-DATE-PLACEHOLDER]` | Day-30 Checkpoint | **HTTP 200 OK** | **ACTIVE** | **ACTIVE** | **ACTIVE** | **ACTIVE** | **READY** | 0 | **STANDBY** | **OPEN** | Final Hypercare Exit Review |
+| `[DAY-30-DATE-PLACEHOLDER]` | Day-30 Exit Review | **HTTP 200 OK** | **ACTIVE** | **ACTIVE** | **ACTIVE** | **ACTIVE** | **READY** | 0 | **STANDBY** | **REVIEWED** | Hypercare Exit & Steady State Handover |
 
 ---
 

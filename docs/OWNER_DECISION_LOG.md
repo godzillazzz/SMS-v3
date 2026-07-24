@@ -293,3 +293,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Restrictions**: Day-21 hypercare observation passed cleanly. Authorizes progression to Gate 5.21-W4 (Day-30 Production Hypercare Exit and Final Review). Production readiness status is PRODUCTION ACTIVATED - HYPERCARE.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **CONTINUE HYPERCARE**
+
+### DEC-33: Day-30 Production Hypercare Exit & Operational Handover Acceptance
+- **Owner Role**: Executive Steering Committee / Data Owner / Technical Steering Committee / Operations Lead
+- **Decision Options**: EXIT HYPERCARE - PRODUCTION STEADY STATE / EXIT HYPERCARE WITH RESTRICTIONS / EXTEND HYPERCARE / ADDITIONAL VALIDATION REQUIRED / INCIDENT REMEDIATION REQUIRED / ROLLBACK REVIEW REQUIRED / EMERGENCY STOP REQUIRED / BLOCKED
+- **Current Decision**: **EXIT HYPERCARE - PRODUCTION STEADY STATE** (via `DAY-30-HYPERCARE-EXIT-REF-PLACEHOLDER`, `OPERATIONAL-HANDOVER-REF-PLACEHOLDER`, `STEADY-STATE-OPERATIONS-REF-PLACEHOLDER`)
+- **Required Evidence**: 30-day observation register log entries, 30-day health diagnostic endpoint status (HTTP 200 OK across `/`, `/api/v1/health`, `/api/v1/ready`), 30-day cumulative zero incident report count, active monitoring/alert/backup status, Day-30 hypercare exit review document, operational handover acceptance document, post hypercare exit final status document.
+- **Restrictions**: None. 30-day hypercare period formally completed. Operational handover to steady-state operations accepted by executive owners. Production readiness status is PRODUCTION STEADY STATE.
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **EXIT HYPERCARE - PRODUCTION STEADY STATE**
