@@ -298,6 +298,13 @@ function Dashboard() {
   const pageTitle = navigation.flatMap((section) => section.items).find((item) => item.id === activePage)?.label || 'Dashboard';
   const initials = auth.user?.displayName?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'SM';
   const canManage = ['ADMIN', 'HR', 'MANAGER'].includes(auth.user?.role || '');
+  const canViewPage = (page: Page) => {
+    if (page === 'audit') return auth.user?.role === 'ADMIN';
+    if (page === 'users') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
+    if (['licenses', 'leave', 'quota', 'reports'].includes(page)) return ['ADMIN', 'HR', 'MANAGER'].includes(auth.user?.role || '');
+    return true;
+  };
+  const canManageActivePage = activePage === 'users' ? auth.user?.role === 'ADMIN' : canManage;
   const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName}` }));
   const shiftTypeOptions = shiftTypes.map((shiftType) => ({ value: String(shiftType.id), label: `${text(shiftType.code)} · ${text(shiftType.name)}` }));
 
@@ -437,7 +444,7 @@ function Dashboard() {
       const cards: Array<[string, unknown]> = [['พนักงานทั้งหมด', summary.employees], ['พนักงานที่ใช้งาน', summary.activeEmployees], ['ใบอนุญาต', summary.licenses], ['รายการกะ', summary.shifts], ['คำขอลา', summary.leaveRequests], ['โควตาวันลา', summary.leaveQuotas], ['บัญชีผู้ใช้', summary.users]];
       return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">รายงาน</p><h1>รายงานและส่งออก</h1><p>ยอดรวมจากฐานข้อมูลกลาง ณ เวลาที่เปิดหน้านี้</p></div></div>{operationError && <div className="alert alert-error">{operationError}</div>}<div className="metrics-grid report-grid">{operationLoading ? <div className="loading-row">กำลังสรุปข้อมูล…</div> : cards.map(([label, value]) => <article className="metric-card" key={String(label)}><span className="metric-icon blue">▦</span><div><p>{label}</p><strong>{text(value)}</strong><small>รายการใน staging</small></div></article>)}</div></section>;
     }
-    return <OperationalTable page={activePage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} canManage={canManage} />;
+    return <OperationalTable page={activePage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} canManage={canManageActivePage} />;
   };
 
   return (
@@ -446,7 +453,10 @@ function Dashboard() {
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)} />}
       <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="sidebar-brand"><Logo /><div><strong>Security Management</strong><span>System v3</span></div></div>
-        <nav className="nav-menu" aria-label="เมนูหลัก">{navigation.map((section) => <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${activePage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon">{item.icon}</span><span>{item.label}</span></button>)}</div>)}</nav>
+        <nav className="nav-menu" aria-label="เมนูหลัก">{navigation.map((section) => {
+          const items = section.items.filter((item) => canViewPage(item.id));
+          return items.length ? <div className="nav-section" key={section.label}><p>{section.label}</p>{items.map((item) => <button type="button" key={item.id} className={`nav-item ${activePage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon">{item.icon}</span><span>{item.label}</span></button>)}</div> : null;
+        })}</nav>
         <button className="sidebar-user" onClick={() => auth.logout()} title="ออกจากระบบ"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'USER'} · ออกจากระบบ</small></span><i>↗</i></button>
       </aside>
       <main className="main-area">
