@@ -175,10 +175,10 @@ const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports'>, {
   ] }
 };
 
-function OperationalTable({ page, response, loading, error }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports'>; response: DataResponse; loading: boolean; error?: string }) {
+function OperationalTable({ page, response, loading, error, onPageChange }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports'>; response: DataResponse; loading: boolean; error?: string; onPageChange(page: number): void }) {
   const config = tablePages[page];
   const rows = Array.isArray(response.data) ? response.data : [];
-  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span></div>{error && <div className="alert alert-error">{error}</div>}<div className="table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}</tr></thead><tbody>{rows.length ? rows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}</tr>) : <tr><td colSpan={config.columns.length} className="no-rows">ไม่มีข้อมูลในหมวดนี้</td></tr>}</tbody></table></div>}</div>{response.meta?.totalPages && response.meta.totalPages > 1 && <p className="pagination-note">แสดงหน้า {response.meta.page} จาก {response.meta.totalPages} — ครั้งละ 100 รายการ</p>}</section>;
+  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span></div>{error && <div className="alert alert-error">{error}</div>}<div className="table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}</tr></thead><tbody>{rows.length ? rows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}</tr>) : <tr><td colSpan={config.columns.length} className="no-rows">ไม่มีข้อมูลในหมวดนี้</td></tr>}</tbody></table></div>}</div>{response.meta?.totalPages && response.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(response.meta.page || 1) <= 1 || loading} onClick={() => onPageChange((response.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {response.meta.page} จาก {response.meta.totalPages}</span><button disabled={(response.meta.page || 1) >= response.meta.totalPages || loading} onClick={() => onPageChange((response.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}</section>;
 }
 
 function Dashboard() {
@@ -192,6 +192,7 @@ function Dashboard() {
   const [operationResponse, setOperationResponse] = useState<DataResponse>({});
   const [operationLoading, setOperationLoading] = useState(false);
   const [operationError, setOperationError] = useState<string>();
+  const [operationPage, setOperationPage] = useState(1);
 
   useEffect(() => {
     if (!auth.token) return;
@@ -213,7 +214,7 @@ function Dashboard() {
 
   useEffect(() => {
     if (!auth.token || activePage === 'dashboard' || activePage === 'employees') return;
-    const loaders: Record<Exclude<Page, 'dashboard' | 'employees'>, (token: string) => Promise<DataResponse>> = {
+    const loaders: Record<Exclude<Page, 'dashboard' | 'employees'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, schedule: api.shifts, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, quota: api.leaveQuotas,
       users: api.users, audit: api.auditEvents, reports: api.reportSummary
@@ -221,11 +222,13 @@ function Dashboard() {
     setOperationLoading(true);
     setOperationError(undefined);
     setOperationResponse({});
-    loaders[activePage](auth.token)
+    loaders[activePage](auth.token, operationPage)
       .then((response) => setOperationResponse(response))
       .catch((reason) => setOperationError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านข้อมูลได้'))
       .finally(() => setOperationLoading(false));
-  }, [activePage, auth.token]);
+  }, [activePage, auth.token, operationPage]);
+
+  useEffect(() => { setOperationPage(1); }, [activePage]);
 
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -264,7 +267,7 @@ function Dashboard() {
       const cards: Array<[string, unknown]> = [['พนักงานทั้งหมด', summary.employees], ['พนักงานที่ใช้งาน', summary.activeEmployees], ['ใบอนุญาต', summary.licenses], ['รายการกะ', summary.shifts], ['คำขอลา', summary.leaveRequests], ['โควตาวันลา', summary.leaveQuotas], ['บัญชีผู้ใช้', summary.users]];
       return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">รายงาน</p><h1>รายงานและส่งออก</h1><p>ยอดรวมจากฐานข้อมูลกลาง ณ เวลาที่เปิดหน้านี้</p></div></div>{operationError && <div className="alert alert-error">{operationError}</div>}<div className="metrics-grid report-grid">{operationLoading ? <div className="loading-row">กำลังสรุปข้อมูล…</div> : cards.map(([label, value]) => <article className="metric-card" key={String(label)}><span className="metric-icon blue">▦</span><div><p>{label}</p><strong>{text(value)}</strong><small>รายการใน staging</small></div></article>)}</div></section>;
     }
-    return <OperationalTable page={activePage} response={operationResponse} loading={operationLoading} error={operationError} />;
+    return <OperationalTable page={activePage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} />;
   };
 
   return (

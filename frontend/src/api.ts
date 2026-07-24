@@ -17,13 +17,13 @@ export const api = {
   logout: () => call('/auth/logout', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }) }),
   logoutAll: (accessToken: string) => call('/auth/logout-all', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }), headers: { Authorization: `Bearer ${accessToken}` } }),
   employees: (token: string) => call('/employees?page=1&pageSize=100', { headers: { Authorization: `Bearer ${token}` } }),
-  licenses: (token: string) => call('/licenses?page=1&pageSize=100', { headers: { Authorization: `Bearer ${token}` } }),
+  licenses: (token: string, page = 1) => call(`/licenses?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   shifts: (token: string, page = 1) => call(`/shifts?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
-  scheduleApprovals: (token: string) => call('/schedule-approvals?page=1&pageSize=100', { headers: { Authorization: `Bearer ${token}` } }),
+  scheduleApprovals: (token: string, page = 1) => call(`/schedule-approvals?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   schedulingRules: (token: string) => call('/scheduling-rules', { headers: { Authorization: `Bearer ${token}` } }),
-  leaveRequests: (token: string) => call('/leave-requests?page=1&pageSize=100', { headers: { Authorization: `Bearer ${token}` } }),
-  leaveQuotas: (token: string) => call('/leave-quotas?page=1&pageSize=100', { headers: { Authorization: `Bearer ${token}` } }),
+  leaveRequests: (token: string, page = 1) => call(`/leave-requests?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
+  leaveQuotas: (token: string, page = 1) => call(`/leave-quotas?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   users: (token: string) => call('/users', { headers: { Authorization: `Bearer ${token}` } }),
-  auditEvents: (token: string) => call('/audit-events?page=1&pageSize=100', { headers: { Authorization: `Bearer ${token}` } }),
+  auditEvents: (token: string, page = 1) => call(`/audit-events?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   reportSummary: (token: string) => call('/reports/summary', { headers: { Authorization: `Bearer ${token}` } })
 };
