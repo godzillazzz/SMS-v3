@@ -27,7 +27,7 @@ const audit = require('../src/services/audit.service');
 const { authenticate } = require('../src/middlewares/authenticate');
 const env = require('../src/config/env');
 
-test.before(async () => { users.push({ id: '11111111-1111-4111-8111-111111111111', email: 'admin@example.com', passwordHash: await bcrypt.hash('correct-password', 4), displayName: 'Admin', role: 'ADMIN', isActive: true, tokenVersion: 0, failedLoginCount: 0 }); });
+test.before(async () => { users.push({ id: '11111111-1111-4111-8111-111111111111', email: 'admin@example.com', passwordHash: await bcrypt.hash('correct-password', 4), displayName: 'Admin', role: 'ADMIN', accountStatus: 'ACTIVE', passwordResetRequired: false, isActive: true, tokenVersion: 0, failedLoginCount: 0 }); });
 test('successful login issues constrained access/refresh tokens and creates an audit record', async () => {
   const result = await auth.login('admin@example.com', 'correct-password', 'req-1');
   const claims = jwt.verify(result.accessToken, env.jwtSecret, { algorithms: [env.jwtAlgorithm], issuer: env.jwtIssuer, audience: env.jwtAudience });
@@ -39,6 +39,11 @@ test('failed and inactive login share one public error and are audited', async (
   await assert.rejects(() => auth.login('admin@example.com', 'correct-password', 'req-3'), { message: auth.genericFailure });
   users[0].isActive = true;
   assert.equal(audits.filter((entry) => entry.action === 'LOGIN_FAILED').length, 2);
+});
+test('an imported account requiring password reset cannot log in', async () => {
+  users[0].passwordResetRequired = true;
+  await assert.rejects(() => auth.login('admin@example.com', 'correct-password', 'req-reset'), { message: auth.genericFailure });
+  users[0].passwordResetRequired = false;
 });
 test('refresh, logout, and logout-all create sanitized audit records', async () => {
   const first = await auth.login('admin@example.com', 'correct-password', 'req-session-1');

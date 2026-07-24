@@ -8,10 +8,12 @@ const loginRateLimit = require('../src/middlewares/login-rate-limit');
 const app = require('../src/app');
 
 function nextResult(middleware, req) { return new Promise((resolve) => middleware(req, { setHeader() {} }, resolve)); }
-test('ADMIN, HR, and USER authorization is enforced', async () => {
+test('ADMIN, HR, MANAGER, VIEWER, and USER authorization is enforced', async () => {
   assert.equal(await nextResult(authorize('ADMIN'), { user: { role: 'ADMIN' } }), undefined);
   assert.equal((await nextResult(authorize('ADMIN', 'HR'), { user: { role: 'USER' } })).statusCode, 403);
   assert.equal(await nextResult(authorize('ADMIN', 'HR'), { user: { role: 'HR' } }), undefined);
+  assert.equal(await nextResult(authorize('ADMIN', 'HR', 'MANAGER'), { user: { role: 'MANAGER' } }), undefined);
+  assert.equal((await nextResult(authorize('ADMIN', 'HR', 'MANAGER'), { user: { role: 'VIEWER' } })).statusCode, 403);
 });
 test('login rate limiter rejects attempts beyond its configured maximum', async () => {
   const req = { ip: '192.0.2.5' };

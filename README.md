@@ -17,7 +17,7 @@ docs/           API and deployment notes
 
 ## Local setup
 
-1. Install Node.js 20 or later and PostgreSQL 15 or later.
+1. Install Node.js 22.x and PostgreSQL 15 or later.
 2. Copy `.env.example` to `.env` and replace all example secrets.
 3. Create an empty PostgreSQL database named `smsv3` (or change `DATABASE_URL`).
 4. Install dependencies: `npm install`.
@@ -40,10 +40,10 @@ All API routes are versioned under `/api/v1`. Send `Authorization: Bearer <acces
 | Method | Route | Access | Purpose |
 | --- | --- | --- | --- |
 | POST | `/api/v1/auth/login` | Public | Receive a JWT access token |
-| GET | `/api/v1/users` | Admin | List application users |
+| GET | `/api/v1/users` | Admin, Manager | List application users |
 | GET | `/api/v1/employees` | Any signed-in user | List employees |
-| POST | `/api/v1/employees` | Admin, HR | Create an employee |
-| PUT | `/api/v1/employees/:id` | Admin, HR | Update an employee |
+| POST | `/api/v1/employees` | Admin, HR, Manager | Create an employee |
+| PUT | `/api/v1/employees/:id` | Admin, HR, Manager | Update an employee |
 | DELETE | `/api/v1/employees/:id` | Admin | Delete an employee |
 
 Example login body:
@@ -55,6 +55,8 @@ Example login body:
 ## Database portability and operations
 
 Prisma uses one `DATABASE_URL`; moving from a managed/cloud database to a company-hosted PostgreSQL server is a configuration change. Run `npm run prisma:deploy` against the new database to apply the same versioned migrations.
+
+The legacy Google Sheets export is migrated with a source-only dry run and an explicitly enabled one-time PostgreSQL importer. Source files must remain outside the repository. See the [legacy SMS data migration guide](docs/legacy-data-migration.md) for dataset mappings, role handling, password-reset requirements and cutover controls.
 
 `npm run backup` is deliberately a safe placeholder. See [backup plan](docs/backup.md) before connecting it to a company scheduler. Audit records are written centrally through `src/services/audit.service.js` for employee mutations and logins.
 

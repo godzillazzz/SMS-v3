@@ -12,6 +12,15 @@ enum UserRole {
   ADMIN
   HR
   USER
+  MANAGER
+  VIEWER
+}
+
+enum AccountStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  REJECTED
 }
 
 enum AuditAction {
@@ -27,19 +36,31 @@ enum AuditAction {
 }
 
 model User {
-  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email            String           @unique @db.VarChar(255)
-  passwordHash     String           @map("password_hash") @db.VarChar(255)
-  displayName      String           @map("display_name") @db.VarChar(150)
-  role             UserRole         @default(USER)
-  isActive         Boolean          @default(true) @map("is_active")
-  tokenVersion     Int              @default(0) @map("token_version")
-  lastLoginAt      DateTime?        @map("last_login_at")
-  failedLoginCount Int              @default(0) @map("failed_login_count")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
-  auditLogs        AuditLog[]       @relation("ActorAuditLogs")
-  sessions         RefreshSession[]
+  id                    String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                 String           @unique @db.VarChar(255)
+  passwordHash          String           @map("password_hash") @db.VarChar(255)
+  displayName           String           @map("display_name") @db.VarChar(150)
+  role                  UserRole         @default(USER)
+  isActive              Boolean          @default(true) @map("is_active")
+  tokenVersion          Int              @default(0) @map("token_version")
+  lastLoginAt           DateTime?        @map("last_login_at")
+  failedLoginCount      Int              @default(0) @map("failed_login_count")
+  legacyUserId          String?          @unique @map("legacy_user_id") @db.VarChar(100)
+  employeeId            String?          @unique @map("employee_id") @db.Uuid
+  legacyRole            String?          @map("legacy_role") @db.VarChar(50)
+  accountStatus         AccountStatus    @default(ACTIVE) @map("account_status")
+  passwordResetRequired Boolean          @default(false) @map("password_reset_required")
+  department            String?          @db.VarChar(100)
+  requestedAt           DateTime?        @map("requested_at")
+  approvedByLegacyRef   String?          @map("approved_by_legacy_ref") @db.VarChar(255)
+  approvedAt            DateTime?        @map("approved_at")
+  rejectionReason       String?          @map("rejection_reason") @db.VarChar(2000)
+  legacyUpdatedAt       DateTime?        @map("legacy_updated_at")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+  auditLogs             AuditLog[]       @relation("ActorAuditLogs")
+  sessions              RefreshSession[]
+  employee              Employee?        @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
   @@map("users")
 }
@@ -63,24 +84,245 @@ model RefreshSession {
 }
 
 model Employee {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeCode    String    @unique @map("employee_code") @db.VarChar(50)
-  firstName       String    @map("first_name") @db.VarChar(100)
-  lastName        String    @map("last_name") @db.VarChar(100)
-  email           String?   @unique @db.VarChar(255)
-  phone           String?   @db.VarChar(50)
-  department      String?   @db.VarChar(100)
-  jobTitle        String?   @map("job_title") @db.VarChar(100)
-  hiredAt         DateTime? @map("hired_at") @db.Date
-  isActive        Boolean   @default(true) @map("is_active")
-  deletedAt       DateTime? @map("deleted_at")
-  deletedByUserId String?   @map("deleted_by_user_id") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeCode     String            @unique @map("employee_code") @db.VarChar(50)
+  firstName        String            @map("first_name") @db.VarChar(100)
+  lastName         String            @map("last_name") @db.VarChar(100)
+  email            String?           @unique @db.VarChar(255)
+  phone            String?           @db.VarChar(50)
+  department       String?           @db.VarChar(100)
+  jobTitle         String?           @map("job_title") @db.VarChar(100)
+  hiredAt          DateTime?         @map("hired_at") @db.Date
+  isActive         Boolean           @default(true) @map("is_active")
+  deletedAt        DateTime?         @map("deleted_at")
+  deletedByUserId  String?           @map("deleted_by_user_id") @db.Uuid
+  legacyEmployeeId String?           @unique @map("legacy_employee_id") @db.VarChar(100)
+  displayName      String?           @map("display_name") @db.VarChar(255)
+  skill            String?           @db.VarChar(255)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  user             User?
+  licenses         EmployeeLicense[]
+  shiftAssignments ShiftAssignment[]
+  leaveRequests    LeaveRequest[]
+  leaveQuotas      LeaveQuota[]
 
   @@index([isActive, deletedAt])
   @@index([department])
   @@map("employees")
+}
+
+model ShiftType {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code             String            @unique @db.VarChar(50)
+  name             String            @db.VarChar(150)
+  startTime        String?           @map("start_time") @db.VarChar(20)
+  endTime          String?           @map("end_time") @db.VarChar(20)
+  hours            Decimal           @db.Decimal(6, 2)
+  color            String?           @db.VarChar(50)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  shiftAssignments ShiftAssignment[]
+
+  @@map("shift_types")
+}
+
+model ShiftAssignment {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId           String    @map("employee_id") @db.Uuid
+  shiftTypeId          String    @map("shift_type_id") @db.Uuid
+  workDate             DateTime  @map("work_date") @db.Date
+  employeeNameSnapshot String    @map("employee_name_snapshot") @db.VarChar(255)
+  departmentSnapshot   String?   @map("department_snapshot") @db.VarChar(100)
+  startTime            String?   @map("start_time") @db.VarChar(20)
+  endTime              String?   @map("end_time") @db.VarChar(20)
+  hours                Decimal   @db.Decimal(6, 2)
+  remark               String?   @db.VarChar(2000)
+  source               String?   @db.VarChar(100)
+  locked               Boolean   @default(false)
+  updatedByLegacyRef   String?   @map("updated_by_legacy_ref") @db.VarChar(255)
+  legacyUpdatedAt      DateTime? @map("legacy_updated_at")
+  licenseStatus        String?   @map("license_status") @db.VarChar(100)
+  licenseExpiryDate    DateTime? @map("license_expiry_date") @db.Date
+  licenseOverride      Boolean   @default(false) @map("license_override")
+  overrideReason       String?   @map("override_reason") @db.VarChar(2000)
+  overrideByLegacyRef  String?   @map("override_by_legacy_ref") @db.VarChar(255)
+  overrideAt           DateTime? @map("override_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  shiftType            ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
+
+  @@unique([workDate, employeeId])
+  @@index([employeeId, workDate])
+  @@index([shiftTypeId, workDate])
+  @@map("shift_assignments")
+}
+
+model EmployeeLicense {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyLicenseId         String    @unique @map("legacy_license_id") @db.VarChar(100)
+  employeeId              String    @map("employee_id") @db.Uuid
+  licenseType             String    @map("license_type") @db.VarChar(150)
+  licenseNumber           String?   @map("license_number") @db.VarChar(255)
+  issueDate               DateTime? @map("issue_date") @db.Date
+  expiryDate              DateTime? @map("expiry_date") @db.Date
+  status                  String?   @db.VarChar(100)
+  documentUrl             String?   @map("document_url") @db.VarChar(2000)
+  documentMigrationStatus String    @default("NONE") @map("document_migration_status") @db.VarChar(40)
+  remark                  String?   @db.VarChar(2000)
+  updatedByLegacyRef      String?   @map("updated_by_legacy_ref") @db.VarChar(255)
+  legacyUpdatedAt         DateTime? @map("legacy_updated_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  employee                Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId])
+  @@index([expiryDate])
+  @@map("employee_licenses")
+}
+
+model LeaveRequest {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceFingerprint         String    @unique @map("source_fingerprint") @db.VarChar(64)
+  employeeId                String    @map("employee_id") @db.Uuid
+  requestedAt               DateTime  @map("requested_at")
+  employeeNameSnapshot      String    @map("employee_name_snapshot") @db.VarChar(255)
+  departmentSnapshot        String?   @map("department_snapshot") @db.VarChar(100)
+  leaveType                 String    @map("leave_type") @db.VarChar(100)
+  startDate                 DateTime  @map("start_date") @db.Date
+  endDate                   DateTime  @map("end_date") @db.Date
+  dayCount                  Decimal   @map("day_count") @db.Decimal(6, 2)
+  reason                    String?   @db.VarChar(2000)
+  attachmentUrl             String?   @map("attachment_url") @db.VarChar(2000)
+  attachmentMigrationStatus String    @default("NONE") @map("attachment_migration_status") @db.VarChar(40)
+  status                    String    @db.VarChar(100)
+  approvedByLegacyRef       String?   @map("approved_by_legacy_ref") @db.VarChar(255)
+  approvedAt                DateTime? @map("approved_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+  employee                  Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, startDate])
+  @@index([status])
+  @@map("leave_requests")
+}
+
+model LeaveQuota {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceFingerprint    String    @unique @map("source_fingerprint") @db.VarChar(64)
+  employeeId           String?   @map("employee_id") @db.Uuid
+  employeeNameSnapshot String    @map("employee_name_snapshot") @db.VarChar(255)
+  sickLeave            Decimal   @map("sick_leave") @db.Decimal(7, 2)
+  personalLeave        Decimal   @map("personal_leave") @db.Decimal(7, 2)
+  vacationLeave        Decimal   @map("vacation_leave") @db.Decimal(7, 2)
+  matchStatus          String    @map("match_status") @db.VarChar(30)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  employee             Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId])
+  @@index([matchStatus])
+  @@map("leave_quotas")
+}
+
+model ScheduleApproval {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  month               DateTime  @db.Date
+  status              String    @db.VarChar(100)
+  revision            Int
+  changedByLegacyRef  String?   @map("changed_by_legacy_ref") @db.VarChar(255)
+  changedAt           DateTime? @map("changed_at")
+  changeType          String?   @map("change_type") @db.VarChar(100)
+  approvedByLegacyRef String?   @map("approved_by_legacy_ref") @db.VarChar(255)
+  approvedAt          DateTime? @map("approved_at")
+  approvalNote        String?   @map("approval_note") @db.VarChar(2000)
+  scheduleHash        String?   @map("schedule_hash") @db.VarChar(255)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@unique([month, revision])
+  @@index([month, status])
+  @@map("schedule_approvals")
+}
+
+model ScheduleApprovalEvent {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceFingerprint    String   @unique @map("source_fingerprint") @db.VarChar(64)
+  occurredAt           DateTime @map("occurred_at")
+  action               String   @db.VarChar(100)
+  month                DateTime @db.Date
+  revision             Int
+  status               String?  @db.VarChar(100)
+  changeType           String?  @map("change_type") @db.VarChar(100)
+  performedByLegacyRef String?  @map("performed_by_legacy_ref") @db.VarChar(255)
+  note                 String?  @db.VarChar(2000)
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@index([month, occurredAt])
+  @@map("schedule_approval_events")
+}
+
+model SchedulingRule {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ruleId    String   @unique @map("rule_id") @db.VarChar(100)
+  name      String   @db.VarChar(255)
+  value     String   @db.VarChar(1000)
+  unit      String?  @db.VarChar(100)
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("scheduling_rules")
+}
+
+model SystemSetting {
+  key         String   @id @db.VarChar(150)
+  value       String   @db.VarChar(2000)
+  description String?  @db.VarChar(2000)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+model LegacyUserAuditEvent {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceFingerprint    String   @unique @map("source_fingerprint") @db.VarChar(64)
+  occurredAt           DateTime @map("occurred_at")
+  action               String   @db.VarChar(100)
+  legacyUserId         String?  @map("legacy_user_id") @db.VarChar(100)
+  emailSnapshot        String?  @map("email_snapshot") @db.VarChar(255)
+  roleSnapshot         String?  @map("role_snapshot") @db.VarChar(50)
+  departmentSnapshot   String?  @map("department_snapshot") @db.VarChar(100)
+  reason               String?  @db.VarChar(2000)
+  performedByLegacyRef String?  @map("performed_by_legacy_ref") @db.VarChar(255)
+  legacyEmployeeId     String?  @map("legacy_employee_id") @db.VarChar(100)
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@index([legacyUserId, occurredAt])
+  @@index([action, occurredAt])
+  @@map("legacy_user_audit_events")
+}
+
+model LegacyLicenseAuditEvent {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceFingerprint   String    @unique @map("source_fingerprint") @db.VarChar(64)
+  occurredAt          DateTime  @map("occurred_at")
+  action              String    @db.VarChar(100)
+  legacyEmployeeId    String?   @map("legacy_employee_id") @db.VarChar(100)
+  legacyLicenseId     String?   @map("legacy_license_id") @db.VarChar(100)
+  workDate            DateTime? @map("work_date") @db.Date
+  shiftCode           String?   @map("shift_code") @db.VarChar(50)
+  licenseStatus       String?   @map("license_status") @db.VarChar(100)
+  expiryDate          DateTime? @map("expiry_date") @db.Date
+  reason              String?   @db.VarChar(2000)
+  approvedByLegacyRef String?   @map("approved_by_legacy_ref") @db.VarChar(255)
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  @@index([legacyEmployeeId, occurredAt])
+  @@index([action, occurredAt])
+  @@map("legacy_license_audit_events")
 }
 
 // Ready for use by auditService; fields stay database-agnostic for migration.

@@ -23,7 +23,7 @@ async function createSessionTokens(user, request, client) {
 
 async function login(email, password, requestId, request) {
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-  if (!user || !user.isActive || !(await bcrypt.compare(password, user.passwordHash))) {
+  if (!user || !user.isActive || user.accountStatus !== 'ACTIVE' || user.passwordResetRequired || !(await bcrypt.compare(password, user.passwordHash))) {
     if (user) await prisma.user.update({ where: { id: user.id }, data: { failedLoginCount: { increment: 1 } } });
     await audit.log({ actorUserId: user?.id, action: 'LOGIN_FAILED', entityType: 'User', entityId: user?.id || 'unknown', metadata: { requestId } });
     logger.warn('authentication_failure', { requestId, errorCategory: 'invalid_credentials_or_inactive', status: 401 });
@@ -56,7 +56,7 @@ async function refresh(refreshToken, requestId, request) {
     logger.warn('refresh_failure', { requestId, errorCategory: 'session_not_found', status: 401 });
     throw new HttpError(401, refreshFailure);
   }
-  const invalid = session.revokedAt || session.expiresAt <= new Date() || !session.user.isActive || session.tokenVersion !== session.user.tokenVersion;
+  const invalid = session.revokedAt || session.expiresAt <= new Date() || !session.user.isActive || session.user.accountStatus !== 'ACTIVE' || session.user.passwordResetRequired || session.tokenVersion !== session.user.tokenVersion;
   if (invalid) {
     if (session.revokedAt) await prisma.$transaction((tx) => revokeAllForUser(session.userId, 'TOKEN_REUSE', requestId, tx));
     logger.warn('refresh_failure', { requestId, errorCategory: 'session_invalid', status: 401 });

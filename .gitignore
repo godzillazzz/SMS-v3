@@ -20,6 +20,9 @@ backups/
 *.credentials.*
 temp-credential*
 temporary-credential*
+SMSv3-migration-input/
+legacy-migration-input/
+migration-input/
 dist/
 *.log
 backup-results.ndjson

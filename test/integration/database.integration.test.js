@@ -15,9 +15,15 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   const actorId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const badActorId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const employee = (suffix = '1') => ({ employeeCode: `TEST-${suffix}`, firstName: 'Test', lastName: `User${suffix}`, department: suffix === '2' ? 'HR' : 'Operations' });
-  async function createUser(overrides = {}) { return prisma.user.create({ data: { id: actorId, email: 'gate3@example.test', passwordHash: await bcrypt.hash('test-password', 4), displayName: 'Gate 3 User', role: 'ADMIN', ...overrides } }); }
-  test.beforeEach(async () => { await prisma.auditLog.deleteMany(); await prisma.refreshSession.deleteMany(); await prisma.employee.deleteMany(); await prisma.user.deleteMany(); await createUser(); });
-  test.after(async () => prisma.$disconnect());
+  async function createUser(overrides = {}) { return prisma.user.create({ data: { id: actorId, email: 'gate3@example.test', passwordHash: await bcrypt.hash('test-password', 4), displayName: 'Gate 3 User', role: 'ADMIN', accountStatus: 'ACTIVE', passwordResetRequired: false, ...overrides } }); }
+  async function cleanupFixtures() {
+    await prisma.auditLog.deleteMany({ where: { actorUserId: actorId } });
+    await prisma.refreshSession.deleteMany({ where: { userId: actorId } });
+    await prisma.employee.deleteMany({ where: { employeeCode: { startsWith: 'TEST-' } } });
+    await prisma.user.deleteMany({ where: { id: actorId } });
+  }
+  test.beforeEach(async () => { await cleanupFixtures(); await createUser(); });
+  test.after(async () => { await cleanupFixtures(); await prisma.$disconnect(); });
 
   test('Prisma migrations are applied to the isolated test database', async () => { const rows = await prisma.$queryRawUnsafe('SELECT migration_name FROM "_prisma_migrations"'); assert.ok(rows.length >= 3); });
   test('real database creates, updates, and soft deletes an employee with transactional audit', async () => { const created = await employees.create(employee(), actorId); const updated = await employees.update(created.id, { department: 'HR' }, actorId); await employees.remove(created.id, actorId); const stored = await prisma.employee.findUnique({ where: { id: created.id } }); const logs = await prisma.auditLog.findMany({ where: { entityId: created.id }, orderBy: { createdAt: 'asc' } }); assert.equal(updated.department, 'HR'); assert.ok(stored.deletedAt); assert.equal(stored.isActive, false); assert.equal(logs.length, 3); });

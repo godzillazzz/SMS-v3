@@ -13,6 +13,8 @@
     "db:seed": "prisma db seed",
     "backup": "node scripts/backup.js",
     "verify-backup": "node scripts/verify-backup.js",
+    "migration:legacy:dry-run": "node scripts/migrate-legacy-data.js",
+    "migration:legacy:apply": "node scripts/migrate-legacy-data.js --apply",
     "test": "node --test test/*.test.js",
     "test:integration": "node --test test/integration/*.test.js",
     "db:test:migrate": "prisma migrate deploy",
@@ -28,6 +30,7 @@
   "dependencies": {
     "@prisma/client": "^6.11.1",
     "bcryptjs": "^3.0.2",
+    "csv-parse": "^6.1.0",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",

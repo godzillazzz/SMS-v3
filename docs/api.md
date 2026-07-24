@@ -2,7 +2,7 @@
 
 The API returns JSON. Successful collection responses use `{ "data": [...] }`; errors use `{ "error": "message" }`.
 
-`GET /employees` accepts `page`, `pageSize` (maximum 100), `search`, `isActive`, and `department`. `GET /employees/:id` returns one active employee. DELETE is a soft delete. Basic USER accounts do not receive employee email, phone, or hire-date fields.
+`GET /employees` accepts `page`, `pageSize` (maximum 100), `search`, `isActive`, and `department`. `GET /employees/:id` returns one active employee. DELETE is a soft delete. Basic `USER` and legacy-compatible `VIEWER` accounts do not receive employee email, phone, or hire-date fields. `ADMIN`, `HR`, and `MANAGER` can create or update employees; delete remains `ADMIN` only. `ADMIN` and `MANAGER` can list users without password hashes.
 
 ## Employee body
 
