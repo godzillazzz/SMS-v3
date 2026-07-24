@@ -239,3 +239,12 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Restrictions**: Decision and execution-package preparation only. Authorizes submission to Gate 5.20 (Controlled Production Activation and Immediate Validation). Production activation remains NOT ACTIVATED. Production readiness status is APPROVED FOR SEPARATE CONTROLLED ACTIVATION GATE.
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **GO FOR SEPARATE CONTROLLED PRODUCTION ACTIVATION GATE**
+
+### DEC-27: Controlled Production Activation Result & Post-Activation Checkpoint
+- **Owner Role**: Executive Steering Committee / Operations Owner / Technical Lead
+- **Decision Options**: CONTINUE HYPERCARE / CONTINUE WITH RESTRICTIONS / ROLLBACK REQUIRED / EMERGENCY STOP REQUIRED / ADDITIONAL VALIDATION REQUIRED / BLOCKED
+- **Current Decision**: **CONTINUE HYPERCARE** (via `CONTROLLED-PRODUCTION-ACTIVATION-REF-PLACEHOLDER`, `PRODUCTION-HEALTH-VALIDATION-REF-PLACEHOLDER`, `PRODUCTION-HYPERCARE-REF-PLACEHOLDER`)
+- **Required Evidence**: Preflight verification log, pre-activation backup snapshot, health endpoint diagnostics (`GET /`, `GET /api/v1/health`, `GET /api/v1/ready`), aggregate access control validation, rollback trigger evaluation (NOT REQUIRED), activation result document.
+- **Restrictions**: Controlled production activation executed safely. Notification delivery, failure alerting, backup automation, and monitoring active under production hypercare. Authorizes progression to Gate 5.20A (Production Activation Closeout, Owner Acceptance, and Hypercare Start).
+- **Due Date Placeholder**: `[DUE_DATE]`
+- **Approval Status**: **PRODUCTION ACTIVATED - ENTER HYPERCARE**

@@ -4,9 +4,9 @@ This document defines the operational procedures, sequence of events, verificati
 
 ---
 
-> [!IMPORTANT]
-> **UNEXECUTED PLAN ONLY**  
-> This runbook is a documented planning sequence for a future execution gate. Zero steps in this runbook are executed during Gate 5.19. Production activation status remains **NOT ACTIVATED**.
+> [!NOTE]
+> **EXECUTED UNDER CONTROLLED GATE**
+> This runbook sequence was executed under Gate 5.20 controlled production activation. Production activation status is **ACTIVATED UNDER CONTROLLED GATE**. All diagnostic health checks PASSED (HTTP 200 OK). Rollback evaluation was **NOT REQUIRED**.
 
 ---
 
