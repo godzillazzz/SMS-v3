@@ -28,4 +28,14 @@ describe('API client', () => {
     expect(path).toBe('/api/v1/auth/refresh');
     expect(options.headers.get('x-csrf-token')).toBe('test-csrf-value');
   });
+  it('requests the complete employee directory within the API page-size limit', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: [], meta: { total: 0 } }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    await api.employees('test-access-token');
+    const [path, options] = fetchMock.mock.calls[0];
+    expect(path).toBe('/api/v1/employees?page=1&pageSize=100');
+    expect(options.credentials).toBe('include');
+    expect(options.headers.get('authorization')).toBe('Bearer test-access-token');
+  });
 });
