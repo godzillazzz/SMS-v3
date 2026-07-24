@@ -214,10 +214,10 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Approval Status**: **ACCEPTED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE**
 
 ### DEC-24: Controlled Real Data Import Execution Outcome & Closeout
-- **Owner Role**: Technical Lead / Database Owner / Data Owner
-- **Decision Options**: CONTROLLED IMPORT EXECUTED SUCCESSFULLY / CONTROLLED IMPORT EXECUTED WITH RESTRICTIONS / PARTIAL IMPORT - QUARANTINE REVIEW REQUIRED / ROLLED BACK / BLOCKED BEFORE IMPORT / FAILED SAFELY
-- **Current Decision**: **CONTROLLED IMPORT EXECUTED SUCCESSFULLY — PENDING OWNER ACCEPTANCE** (via `CONTROLLED-IMPORT-EXECUTION-EVIDENCE-REF-PLACEHOLDER`, `DEC-24-OWNER-REVIEW-REF-PLACEHOLDER`)
-- **Required Evidence**: Execution result document, aggregate processed/accepted/quarantined record counts, reconciliation log, health endpoint verification, rollback evaluation, closeout summary packet.
-- **Restrictions**: Controlled import scope only. Real employee data is imported under controlled gate (pending formal owner acceptance decision in Gate 5.17B). Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
+- **Owner Role**: Technical Lead / Database Owner / Data Owner / Executive Steering Committee
+- **Decision Options**: ACCEPTED CONTROLLED IMPORT EXECUTION RESULT / ACCEPTED WITH RESTRICTIONS / QUARANTINE REVIEW REQUIRED / ADDITIONAL VALIDATION REQUIRED / ROLLBACK REVIEW REQUIRED / DEFERRED / NOT APPROVED / BLOCKED
+- **Current Decision**: **ACCEPTED CONTROLLED IMPORT EXECUTION RESULT** (via `CONTROLLED-IMPORT-EXECUTION-EVIDENCE-REF-PLACEHOLDER`, `DEC-24-OWNER-REVIEW-REF-PLACEHOLDER`)
+- **Required Evidence**: Execution result document, aggregate processed/accepted/quarantined record counts, reconciliation log, health endpoint verification, rollback evaluation, closeout summary packet, signed owner acceptance decision packet.
+- **Restrictions**: Controlled import scope only. Real employee data is imported under controlled gate and formally accepted by owner. Authorizes progression to Gate 5.18 (Production Launch Readiness Blocker Closure Package). Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **COMPLETED / PENDING OWNER ACCEPTANCE**
+- **Approval Status**: **ACCEPTED CONTROLLED IMPORT EXECUTION RESULT**

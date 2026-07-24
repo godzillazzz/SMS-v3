@@ -8,13 +8,13 @@ This document contains the formal owner acceptance decision grid and governance 
 
 | Decision Category | Description | Decision Outcome | Evidence Reference Placeholder | Role Placeholder |
 | :--- | :--- | :--- | :--- | :--- |
-| **Execution Result Acceptance** | Accept Gate 5.17 controlled import execution outcome | **PENDING OWNER ACCEPTANCE** | `CONTROLLED-IMPORT-EXECUTION-EVIDENCE-REF-PLACEHOLDER` | `[DATA_OWNER_ROLE_PLACEHOLDER]` |
-| **Reconciliation Acceptance** | Accept 100% aggregate record count reconciliation | **PENDING OWNER ACCEPTANCE** | `POST-IMPORT-VALIDATION-REF-PLACEHOLDER` | `[DATABASE_OWNER_ROLE_PLACEHOLDER]` |
-| **Quarantine Handling** | Accept rejection/quarantine classification & logging | **PENDING OWNER ACCEPTANCE** | `POST-IMPORT-VALIDATION-REF-PLACEHOLDER` | `[DATA_GOVERNANCE_ROLE_PLACEHOLDER]` |
-| **Audit Stream Evidence** | Accept NDJSON audit stream completeness & retention | **PENDING OWNER ACCEPTANCE** | `IMPORT-EVIDENCE-CAPTURE-REF-PLACEHOLDER` | `[AUDIT_LEAD_ROLE_PLACEHOLDER]` |
-| **Access Control Evidence** | Accept RBAC role alignment & service account permissions | **PENDING OWNER ACCEPTANCE** | `IMPORT-MAPPING-PLACEHOLDER` | `[SECURITY_OWNER_ROLE_PLACEHOLDER]` |
-| **Rollback Evaluation** | Accept rollback decision **NOT REQUIRED** | **PENDING OWNER ACCEPTANCE** | `IMPORT-ROLLBACK-OWNER-PLACEHOLDER` | `[ROLLBACK_COMMANDER_ROLE_PLACEHOLDER]` |
-| **Pre-Activation Prep** | Approve preparation of production activation closeout package | **PENDING OWNER ACCEPTANCE** | `DEC-24-OWNER-REVIEW-REF-PLACEHOLDER` | `[EXECUTIVE_STEERING_COMMITTEE_PLACEHOLDER]` |
+| **Execution Result Acceptance** | Accept Gate 5.17 controlled import execution outcome | **ACCEPTED** | `CONTROLLED-IMPORT-EXECUTION-EVIDENCE-REF-PLACEHOLDER` | `[DATA_OWNER_ROLE_PLACEHOLDER]` |
+| **Reconciliation Acceptance** | Accept 100% aggregate record count reconciliation | **ACCEPTED** | `POST-IMPORT-VALIDATION-REF-PLACEHOLDER` | `[DATABASE_OWNER_ROLE_PLACEHOLDER]` |
+| **Quarantine Handling** | Accept rejection/quarantine classification & logging | **ACCEPTED** | `POST-IMPORT-VALIDATION-REF-PLACEHOLDER` | `[DATA_GOVERNANCE_ROLE_PLACEHOLDER]` |
+| **Audit Stream Evidence** | Accept NDJSON audit stream completeness & retention | **ACCEPTED** | `IMPORT-EVIDENCE-CAPTURE-REF-PLACEHOLDER` | `[AUDIT_LEAD_ROLE_PLACEHOLDER]` |
+| **Access Control Evidence** | Accept RBAC role alignment & service account permissions | **ACCEPTED** | `IMPORT-MAPPING-PLACEHOLDER` | `[SECURITY_OWNER_ROLE_PLACEHOLDER]` |
+| **Rollback Evaluation** | Accept rollback decision **NOT REQUIRED** | **ACCEPTED** | `IMPORT-ROLLBACK-OWNER-PLACEHOLDER` | `[ROLLBACK_COMMANDER_ROLE_PLACEHOLDER]` |
+| **Pre-Activation Prep** | Approve preparation of production activation closeout package | **ACCEPTED** | `DEC-24-OWNER-REVIEW-REF-PLACEHOLDER` | `[EXECUTIVE_STEERING_COMMITTEE_PLACEHOLDER]` |
 
 ---
 
