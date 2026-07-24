@@ -3,7 +3,7 @@
   background: #f4f7fb;
   font-family: 'Sarabun', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-synthesis: none;
-  font-size: 18px;
+  font-size: 14px;
 }
 
 * { box-sizing: border-box; }
@@ -175,3 +175,44 @@ button { cursor: pointer; }
 @media (max-width: 1050px) { .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sidebar { width: 228px; flex-basis: 228px; } .content-area { padding: 28px; } }
 @media print { .sidebar, .topbar, .heading-actions, .pagination-bar { display: none !important; }.content-area { padding: 0; }.table-card { border: 0; box-shadow: none; }.data-table { min-width: 0; } }
 @media (max-width: 760px) { .login-page { padding: 0; }.login-shell { min-height: 100vh; grid-template-columns: 1fr; border-radius: 0; }.login-intro { min-height: 260px; padding: 32px 28px; }.intro-copy { margin-top: 35px; }.intro-copy h1 { font-size: 38px; }.intro-copy p, .intro-check { font-size: 18px; }.login-form-panel { padding: 36px 28px; align-items: start; }.sidebar { position: fixed; z-index: 40; display: flex; width: 270px; left: -280px; transition: left .22s ease; box-shadow: 12px 0 35px rgba(9, 23, 48, .25); }.sidebar.open { left: 0; }.sidebar-overlay { position: fixed; z-index: 35; display: block; inset: 0; border: 0; background: rgba(8, 18, 35, .48); }.mobile-menu-button { display: inline-grid; width: 34px; height: 34px; place-items: center; border: 1px solid #dce5f0; border-radius: 8px; color: #334963; background: #fff; }.topbar { min-height: 62px; padding: 0 20px; }.breadcrumb { display: none; }.mobile-brand { display: inline-flex; align-items: center; gap: 8px; color: #31425b; font-size: 18px; font-weight: 800; }.mobile-brand .brand-mark { width: 30px; height: 30px; border-radius: 9px; font-size: 14px; }.environment-pill { display: none; }.content-area { padding: 24px 18px; }.metrics-grid, .dialog-grid { grid-template-columns: 1fr; }.dialog-grid .full { grid-column: auto; }.edit-dialog { padding: 20px; }.page-heading, .toolbar, .dashboard-card { align-items: flex-start; flex-direction: column; }.dashboard-card { gap: 17px; }.btn-secondary { width: 100%; }.toolbar-count { margin-left: 2px; }.signout-button { font-size: 17px; } }
+
+/* Restores the legacy SMS visual scale now that the application uses Sarabun. */
+.brand-mark { font-size: 14px; }
+.intro-brand { font-size: 16px; }
+.intro-copy h1 { font-size: clamp(31px, 3.4vw, 42px); }
+.intro-copy p { font-size: 17px; }
+.intro-check { font-size: 14px; }
+.login-form h2 { font-size: 30px; }
+.form-lead { font-size: 15px; }
+.login-form .field-group { font-size: 14px; }
+.password-toggle { font-size: 12px; }
+.login-links button { font-size: 16px; }
+.login-help-action, .login-help-action button { font-size: 15px; }
+.login-help { font-size: 12px; }
+.alert { font-size: 13px; }
+.sidebar-brand .brand-mark { font-size: 12px; }
+.sidebar-brand strong, .sidebar-user b { font-size: 13px; }
+.sidebar-brand span, .sidebar-user small { font-size: 11px; }
+.nav-section > p { font-size: 10px; }
+.nav-item { font-size: 14px; }
+.nav-icon { font-size: 17px; }
+.sidebar-user > i { font-size: 15px; }
+.avatar { font-size: 11px; }
+.breadcrumb, .signout-button { font-size: 13px; }
+.environment-pill, .record-chip { font-size: 10px; }
+.page-heading h1, .empty-pane h1 { font-size: 29px; }
+.page-heading p { font-size: 14px; }
+.eyebrow { font-size: 11px !important; }
+.live-status { font-size: 12px; }
+.small-action, .row-actions button { font-size: 11px; }
+.metric-icon { font-size: 20px; }
+.metric-card p { font-size: 12px; }.metric-card strong { font-size: 25px; }.metric-card small { font-size: 11px; }
+.dashboard-card h2 { font-size: 18px; }.dashboard-card p { font-size: 14px; }
+.btn-secondary { font-size: 13px; }
+.search-box input { font-size: 13px; }.toolbar-count { font-size: 12px; }
+.data-table th { font-size: 11px; }.data-table td { font-size: 13px; }.data-table code { font-size: 12px; }
+.status-badge { font-size: 11px; }
+.empty-pane p { font-size: 15px; }.empty-icon { font-size: 27px; }.migration-note { font-size: 13px; }
+.pagination-bar, .pagination-bar button { font-size: 12px; }
+.dialog-heading h2 { font-size: 23px; }.dialog-heading > button { font-size: 27px; }.dialog-grid .field-group { font-size: 13px; }
+@media (max-width: 760px) { .intro-copy h1 { font-size: 27px; }.intro-copy p, .intro-check { font-size: 13px; }.mobile-brand { font-size: 13px; }.mobile-brand .brand-mark { font-size: 10px; }.signout-button { font-size: 12px; } }

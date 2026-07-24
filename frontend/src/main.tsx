@@ -136,7 +136,7 @@ function Login() {
             {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group" htmlFor="password">
               <span>รหัสผ่าน</span>
               <span className="password-field">
-                <input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'รหัสผ่านใหม่อย่างน้อย 12 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 12} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+                <input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
                 <button className="password-toggle" type="button" onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? 'ซ่อน' : 'แสดง'}</button>
               </span>
             </label>}
@@ -416,7 +416,7 @@ function Dashboard() {
     if (action === 'reset-password') {
       runEditor({
         title: 'ตั้งรหัสผ่านใหม่', submitLabel: 'ตั้งรหัสผ่านและยกเลิก session เดิม',
-        fields: [{ name: 'newPassword', label: 'รหัสผ่านใหม่ (อย่างน้อย 12 ตัวอักษร)', type: 'password', required: true }],
+        fields: [{ name: 'newPassword', label: 'รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)', type: 'password', required: true }],
         values: {}
       }, (form) => api.resetUserPassword(auth.token!, id, form.newPassword));
       return;

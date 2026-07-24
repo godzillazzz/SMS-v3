@@ -12,10 +12,10 @@ const loginSchema = z.object({ email: z.string().email(), password: z.string().m
 const refreshSchema = z.object({ refreshToken: z.string().min(40).max(500).optional(), clientType: clientType.optional() });
 const requestDetails = (req) => ({ userAgent: req.get('user-agent'), ipAddress: req.ip });
 const otp = createOtpService();
-const registrationRequestSchema = z.object({ displayName: z.string().trim().min(2).max(150), email: z.string().email().max(255), password: z.string().min(12).max(128), department: z.string().trim().max(100).optional() });
+const registrationRequestSchema = z.object({ displayName: z.string().trim().min(2).max(150), email: z.string().email().max(255), password: z.string().min(8).max(128), department: z.string().trim().max(100).optional() });
 const registrationVerifySchema = z.object({ email: z.string().email().max(255), code: z.string().regex(/^\d{6}$/) });
 const passwordResetRequestSchema = z.object({ email: z.string().email().max(255) });
-const passwordResetCompleteSchema = z.object({ email: z.string().email().max(255), code: z.string().regex(/^\d{6}$/), newPassword: z.string().min(12).max(128) });
+const passwordResetCompleteSchema = z.object({ email: z.string().email().max(255), code: z.string().regex(/^\d{6}$/), newPassword: z.string().min(8).max(128) });
 function browserResponse(tokens, user) { return { accessToken: tokens.accessToken, tokenType: tokens.tokenType, user }; }
 function getRefreshToken(req) { return parseCookies(req.headers.cookie)[require('../config/env').authCookieName]; }
 
