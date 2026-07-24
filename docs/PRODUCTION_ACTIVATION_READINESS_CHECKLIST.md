@@ -8,8 +8,8 @@ This checklist tracks the technical, operational, and compliance readiness items
 
 | Item | Dimension | Verification Standard | Evidence Placeholder | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **01** | **Owner Approvals** | 10 operational role sign-offs collected | `FINAL-PRODUCTION-GO-NO-GO-REF-PLACEHOLDER` | **HYPERCARE ACTIVE (DAY-1 REVIEWED)** |
-| **02** | **Data Owner Approval** | Data import authorization signed | `REAL-DATA-OWNER-APPROVAL-REF-PLACEHOLDER` | **HYPERCARE ACTIVE (DAY-1 REVIEWED)** |
+| **01** | **Owner Approvals** | 10 operational role sign-offs collected | `FINAL-PRODUCTION-GO-NO-GO-REF-PLACEHOLDER` | **HYPERCARE ACTIVE (DAY-7 REVIEWED)** |
+| **02** | **Data Owner Approval** | Data import authorization signed | `REAL-DATA-OWNER-APPROVAL-REF-PLACEHOLDER` | **HYPERCARE ACTIVE (DAY-7 REVIEWED)** |
 | **03** | **PDPA Approval** | Privacy audit compliance certificate signed | `PDPA-APPROVAL-REF-PLACEHOLDER` | **ACTIVATED UNDER CONTROLLED GATE** |
 | **04** | **Security Sign-Off** | Penetration test report (zero high findings)| `SECURITY-SIGNOFF-REF-PLACEHOLDER` | **ACTIVATED UNDER CONTROLLED GATE** |
 | **05** | **Production Env Readiness** | Production Supabase & Vercel active | `CONTROLLED-PRODUCTION-ACTIVATION-REF-PLACEHOLDER` | **ACTIVATED UNDER CONTROLLED GATE** |
