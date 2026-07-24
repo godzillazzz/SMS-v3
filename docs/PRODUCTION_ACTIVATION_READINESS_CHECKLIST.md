@@ -9,7 +9,7 @@ This checklist tracks the technical, operational, and compliance readiness items
 | Item | Dimension | Verification Standard | Evidence Placeholder | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | **01** | **Owner Approvals** | 10 operational role sign-offs collected | `PRODUCTION-GO-NO-GO-REF-PLACEHOLDER` | **PLANNING APPROVED (NOT ACTIVATED)** |
-| **02** | **Data Owner Approval** | Data import authorization signed | `REAL-DATA-OWNER-APPROVAL-REF-PLACEHOLDER` | **IMPORTED UNDER CONTROLLED GATE (AWAITING 5.17A CLOSEOUT)** |
+| **02** | **Data Owner Approval** | Data import authorization signed | `REAL-DATA-OWNER-APPROVAL-REF-PLACEHOLDER` | **COMPLETED / PENDING OWNER ACCEPTANCE (NOT ACTIVATED)** |
 | **03** | **PDPA Approval** | Privacy audit compliance certificate signed | `PDPA-APPROVAL-REF-PLACEHOLDER` | **OPEN / NOT APPROVED** |
 | **04** | **Security Sign-Off** | Penetration test report (zero high findings)| `SECURITY-SIGNOFF-REF-PLACEHOLDER` | **OPEN / NOT APPROVED** |
 | **05** | **Production Env Readiness** | Production Supabase & Vercel active | `INTERNAL-EVIDENCE-REF-PLACEHOLDER` | **OPEN / NOT APPROVED** |

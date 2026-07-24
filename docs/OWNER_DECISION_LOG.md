@@ -213,11 +213,11 @@ All decisions default to **NOT APPROVED**. This document serves as the formal lo
 - **Due Date Placeholder**: `[DUE_DATE]`
 - **Approval Status**: **ACCEPTED FOR FUTURE CONTROLLED IMPORT EXECUTION GATE**
 
-### DEC-24: Controlled Real Data Import Execution Outcome
+### DEC-24: Controlled Real Data Import Execution Outcome & Closeout
 - **Owner Role**: Technical Lead / Database Owner / Data Owner
 - **Decision Options**: CONTROLLED IMPORT EXECUTED SUCCESSFULLY / CONTROLLED IMPORT EXECUTED WITH RESTRICTIONS / PARTIAL IMPORT - QUARANTINE REVIEW REQUIRED / ROLLED BACK / BLOCKED BEFORE IMPORT / FAILED SAFELY
-- **Current Decision**: **CONTROLLED IMPORT EXECUTED SUCCESSFULLY** (via `CONTROLLED-IMPORT-EXECUTION-EVIDENCE-REF-PLACEHOLDER`)
-- **Required Evidence**: Execution result document, aggregate processed/accepted/quarantined record counts, reconciliation log, health endpoint verification, rollback evaluation.
-- **Restrictions**: Controlled import scope only. Real employee data is imported under controlled gate (awaiting Gate 5.17A closeout). Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
+- **Current Decision**: **CONTROLLED IMPORT EXECUTED SUCCESSFULLY — PENDING OWNER ACCEPTANCE** (via `CONTROLLED-IMPORT-EXECUTION-EVIDENCE-REF-PLACEHOLDER`, `DEC-24-OWNER-REVIEW-REF-PLACEHOLDER`)
+- **Required Evidence**: Execution result document, aggregate processed/accepted/quarantined record counts, reconciliation log, health endpoint verification, rollback evaluation, closeout summary packet.
+- **Restrictions**: Controlled import scope only. Real employee data is imported under controlled gate (pending formal owner acceptance decision in Gate 5.17B). Production activation remains NOT ACTIVATED. Production readiness remains NOT APPROVED.
 - **Due Date Placeholder**: `[DUE_DATE]`
-- **Approval Status**: **CONTROLLED IMPORT EXECUTED SUCCESSFULLY**
+- **Approval Status**: **COMPLETED / PENDING OWNER ACCEPTANCE**
