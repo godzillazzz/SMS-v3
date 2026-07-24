@@ -83,6 +83,7 @@ function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [helpMessage, setHelpMessage] = useState<string>();
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -119,9 +120,10 @@ function Login() {
             </label>
             <button className="btn-primary" type="submit" disabled={busy}>{busy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}</button>
             <div className="login-links">
-              <span>ยังไม่มีบัญชี? <b>ติดต่อผู้ดูแลระบบ</b></span>
-              <span>ลืมรหัสผ่าน? <b>ระบบรีเซ็ตรหัสผ่านกำลังเปิดใช้งาน</b></span>
+              <button type="button" onClick={() => setHelpMessage('การลงทะเบียนเข้าใช้ระบบต้องได้รับอนุมัติจากผู้ดูแลก่อน กรุณาติดต่อผู้ดูแลระบบเพื่อสร้างบัญชีและกำหนดสิทธิ์ให้เหมาะสมกับหน้าที่งาน')}>ยังไม่มีบัญชี? <b>ลงทะเบียนเข้าใช้ระบบ</b></button>
+              <button type="button" onClick={() => setHelpMessage('การรีเซ็ตรหัสผ่านด้วย OTP ยังไม่เปิดใช้ใน staging เนื่องจากยังไม่ได้เชื่อมผู้ให้บริการส่ง OTP อย่างปลอดภัย กรุณาติดต่อผู้ดูแลระบบเพื่อตั้งรหัสผ่านใหม่')}>ลืมรหัสผ่าน? <b>รีเซ็ตรหัสผ่านด้วย OTP</b></button>
             </div>
+            {helpMessage && <div className="login-help-action" role="status">{helpMessage}<button type="button" onClick={() => setHelpMessage(undefined)}>ปิด</button></div>}
             <p className="login-help">พบปัญหาการใช้งาน: ติดต่อผู้ดูแลระบบของหน่วยงาน</p>
           </form>
         </section>
