@@ -491,7 +491,11 @@ body {
     page-break-inside: avoid;
     box-sizing: border-box;
     padding: 0;
-    margin-bottom: 20px;
+    margin-bottom: 0;
+    min-height: 185mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
     background: #fff !important;
     color: #000 !important;
     font-family: 'Sarabun', sans-serif !important;
@@ -633,7 +637,8 @@ body {
     display: flex !important;
     justify-content: space-between !important;
     align-items: flex-end !important;
-    margin-top: 15px !important;
+    margin-top: auto !important;
+    padding-top: 15px !important;
     page-break-inside: avoid !important;
   }
 
