@@ -68,8 +68,7 @@ async function getAllEmployeeAndUserEmails() {
         where: {
           isActive: true,
           deletedAt: null,
-          email: { not: null },
-          user: { isActive: true, accountStatus: 'ACTIVE' }
+          email: { not: null }
         },
         select: { email: true }
       })

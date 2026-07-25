@@ -88,11 +88,12 @@ if (isTest) {
     RATE_LIMIT_HASH_SECRET: process.env.RATE_LIMIT_HASH_SECRET?.length >= 32 ? process.env.RATE_LIMIT_HASH_SECRET : 'test-rate-limit-secret-with-at-least-thirty-two-chars'
   });
 } else {
-  if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
-    logger.error('application_config_invalid', { errorCategory: 'environment_validation', issueCount: 1 });
-    throw new Error('Invalid environment configuration: CORS_ORIGIN is required in production.');
-  }
-  const result = schema.safeParse(process.env);
+  const effectiveCorsOrigin = process.env.CORS_ORIGIN || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL},https://sms-v3-staging-ten.vercel.app,http://localhost:5173` : 'https://sms-v3-staging-ten.vercel.app,http://localhost:5173');
+  const envToParse = {
+    ...process.env,
+    CORS_ORIGIN: effectiveCorsOrigin
+  };
+  const result = schema.safeParse(envToParse);
   if (!result.success) {
     logger.error('application_config_invalid', { errorCategory: 'environment_validation', issueCount: result.error.issues.length });
     const message = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
