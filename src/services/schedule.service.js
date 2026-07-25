@@ -144,24 +144,41 @@ async function saveBatchAssignments(assignments, actorUserId) {
     for (const mStr of monthsToTouch) {
       const [y, m] = mStr.split('-').map(Number);
       const monthDate = new Date(Date.UTC(y, m - 1, 1));
-      const latest = await tx.scheduleApproval.findFirst({
-        where: { month: monthDate },
+      const latestApproved = await tx.scheduleApproval.findFirst({
+        where: { month: monthDate, status: 'APPROVED' },
         orderBy: { revision: 'desc' },
         select: { revision: true }
       });
-      await tx.scheduleApproval.create({
-        data: {
-          month: monthDate,
-          status: 'PENDING',
-          revision: (latest?.revision || 0) + 1,
-          changedByLegacyRef: actorUserId || 'SYSTEM',
-          changedAt: new Date(),
-          changeType: 'BATCH_UPDATE_SHIFT',
-          approvedAt: null,
-          approvedByLegacyRef: null,
-          scheduleHash: null
-        }
+      const currentRevision = latestApproved ? latestApproved.revision : 1;
+      const existingPending = await tx.scheduleApproval.findFirst({
+        where: { month: monthDate, status: 'PENDING' },
+        orderBy: { updatedAt: 'desc' }
       });
+
+      if (existingPending) {
+        await tx.scheduleApproval.update({
+          where: { id: existingPending.id },
+          data: {
+            changedByLegacyRef: actorUserId || 'SYSTEM',
+            changedAt: new Date(),
+            changeType: 'BATCH_UPDATE_SHIFT'
+          }
+        });
+      } else {
+        await tx.scheduleApproval.create({
+          data: {
+            month: monthDate,
+            status: 'PENDING',
+            revision: currentRevision,
+            changedByLegacyRef: actorUserId || 'SYSTEM',
+            changedAt: new Date(),
+            changeType: 'BATCH_UPDATE_SHIFT',
+            approvedAt: null,
+            approvedByLegacyRef: null,
+            scheduleHash: null
+          }
+        });
+      }
     }
 
     return list;
@@ -211,15 +228,24 @@ async function autoPlanMonth(yearMonth) {
 async function approveMonth(yearMonth, note, actorUserId) {
   const { startDate } = parseMonthDates(yearMonth);
 
-  const existing = await prisma.scheduleApproval.findFirst({
-    where: { month: startDate }
+  const lastApproved = await prisma.scheduleApproval.findFirst({
+    where: { month: startDate, status: 'APPROVED' },
+    orderBy: { revision: 'desc' },
+    select: { revision: true }
+  });
+  const nextRevision = (lastApproved?.revision || 0) + 1;
+
+  const existingPending = await prisma.scheduleApproval.findFirst({
+    where: { month: startDate, status: 'PENDING' },
+    orderBy: { updatedAt: 'desc' }
   });
 
-  if (existing) {
+  if (existingPending) {
     return prisma.scheduleApproval.update({
-      where: { id: existing.id },
+      where: { id: existingPending.id },
       data: {
         status: 'APPROVED',
+        revision: nextRevision,
         approvalNote: note || 'Approved by administrator',
         approvedByLegacyRef: actorUserId,
         approvedAt: new Date()
@@ -230,7 +256,7 @@ async function approveMonth(yearMonth, note, actorUserId) {
   return prisma.scheduleApproval.create({
     data: {
       month: startDate,
-      revision: 1,
+      revision: nextRevision,
       status: 'APPROVED',
       approvalNote: note || 'Approved by administrator',
       approvedByLegacyRef: actorUserId,

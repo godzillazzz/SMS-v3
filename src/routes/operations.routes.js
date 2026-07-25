@@ -66,8 +66,13 @@ const licenseStateForShift = async (tx, { employeeId, workDate, shiftCode, overr
 };
 const touchScheduleApproval = async (tx, workDate, actorUserId, changeType) => {
   const month = new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth(), 1));
-  const latest = await tx.scheduleApproval.findFirst({ where: { month }, orderBy: { revision: 'desc' }, select: { revision: true } });
-  return tx.scheduleApproval.create({ data: { month, status: 'PENDING', revision: (latest?.revision || 0) + 1, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType, approvedAt: null, approvedByLegacyRef: null, scheduleHash: null } });
+  const latestApproved = await tx.scheduleApproval.findFirst({ where: { month, status: 'APPROVED' }, orderBy: { revision: 'desc' }, select: { revision: true } });
+  const currentRevision = latestApproved ? latestApproved.revision : 1;
+  const existingPending = await tx.scheduleApproval.findFirst({ where: { month, status: 'PENDING' }, orderBy: { updatedAt: 'desc' } });
+  if (existingPending) {
+    return tx.scheduleApproval.update({ where: { id: existingPending.id }, data: { changedByLegacyRef: actorUserId, changedAt: new Date(), changeType } });
+  }
+  return tx.scheduleApproval.create({ data: { month, status: 'PENDING', revision: currentRevision, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType, approvedAt: null, approvedByLegacyRef: null, scheduleHash: null } });
 };
 
 const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
@@ -337,12 +342,14 @@ router.post('/schedule/approve-month', authorize('ADMIN'), async (req, res, next
     const [year, monthIndex] = month.split('-').map(Number);
     const monthStart = new Date(Date.UTC(year, monthIndex - 1, 1));
     const result = await prisma.$transaction(async (tx) => {
-      const latest = await tx.scheduleApproval.findFirst({ where: { month: monthStart }, orderBy: { revision: 'desc' } });
+      const lastApproved = await tx.scheduleApproval.findFirst({ where: { month: monthStart, status: 'APPROVED' }, orderBy: { revision: 'desc' }, select: { revision: true } });
+      const nextRevision = (lastApproved?.revision || 0) + 1;
+      const latestPending = await tx.scheduleApproval.findFirst({ where: { month: monthStart, status: 'PENDING' }, orderBy: { updatedAt: 'desc' } });
       let after;
-      if (latest) {
-        after = await tx.scheduleApproval.update({ where: { id: latest.id }, data: { status: 'APPROVED', approvedAt: new Date(), approvedByLegacyRef: req.user.sub, ...(approvalNote !== undefined && { approvalNote }) } });
+      if (latestPending) {
+        after = await tx.scheduleApproval.update({ where: { id: latestPending.id }, data: { status: 'APPROVED', revision: nextRevision, approvedAt: new Date(), approvedByLegacyRef: req.user.sub, ...(approvalNote !== undefined && { approvalNote }) } });
       } else {
-        after = await tx.scheduleApproval.create({ data: { month: monthStart, status: 'APPROVED', revision: 1, changedByLegacyRef: req.user.sub, changedAt: new Date(), approvedAt: new Date(), approvedByLegacyRef: req.user.sub, changeType: 'MANUAL_SCHEDULE', approvalNote: approvalNote || 'อนุมัติตารางกะประจำเดือน' } });
+        after = await tx.scheduleApproval.create({ data: { month: monthStart, status: 'APPROVED', revision: nextRevision, changedByLegacyRef: req.user.sub, changedAt: new Date(), approvedAt: new Date(), approvedByLegacyRef: req.user.sub, changeType: 'MANUAL_SCHEDULE', approvalNote: approvalNote || 'อนุมัติตารางกะประจำเดือน' } });
       }
       await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ScheduleApproval', entityId: after.id, metadata: { after: safeRecord(after, ['status', 'revision', 'approvedAt']) } }, tx);
       return after;
