@@ -98,7 +98,10 @@ async function saveBatchAssignments(assignments, actorUserId) {
       const shift = typeMap.get(ass.shiftTypeId);
       if (!emp || !shift) continue;
 
-      const parsedDate = new Date(ass.workDate);
+      const dateParts = String(ass.workDate).slice(0, 10).split('-').map(Number);
+      const parsedDate = dateParts.length === 3 && !dateParts.some(isNaN)
+        ? new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2]))
+        : new Date(ass.workDate);
       if (isNaN(parsedDate.getTime())) continue;
 
       const monthKey = `${parsedDate.getUTCFullYear()}-${String(parsedDate.getUTCMonth() + 1).padStart(2, '0')}`;

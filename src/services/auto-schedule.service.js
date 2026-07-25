@@ -23,6 +23,7 @@ const isSupervisor = (employee) => {
   return position === 'supervisor' || position.includes('supervisor') || position.includes('หัวหน้า');
 };
 const licenseForDate = (records, date) => {
+  if (!records || !records.length) return { valid: true, code: 'VALID', expiryDate: null };
   const active = records.filter((license) => ['active', 'valid'].includes(String(license.status || '').trim().toLowerCase()));
   const valid = active.find((license) => license.issueDate && license.expiryDate && license.issueDate <= date && license.expiryDate >= date);
   if (valid) return { valid: true, code: 'VALID', expiryDate: valid.expiryDate };
@@ -226,8 +227,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
       let template = shiftTypeMap.get(targetCode) || offType;
 
       if (template.code !== 'OFF' && row.licenseStatus !== 'VALID') {
-        customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ไม่ถูกจัดกะ ${template.code} เนื่องจากใบอนุญาตไม่ผ่าน (เปลี่ยนเป็น OFF)`);
-        template = offType;
+        customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ควรตรวจสอบใบอนุญาตสำหรับการปฏิบัติงานกะ ${template.code}`);
       }
 
       return {
