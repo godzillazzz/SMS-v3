@@ -104,11 +104,13 @@ async function buildAutoSchedulePlan(client, month) {
     if (row) assign(employee, date, row.shiftType, { source: row.source || 'MANUAL', locked: true, remark: row.remark || '', existingRow: row });
   }));
 
-  const cycle = ['D', 'D', 'D', 'D', 'D', 'D', 'OFF', 'N', 'N', 'N', 'N', 'N', 'N', 'OFF'];
-  const phases = { D1: 0, D2: 1, D3: 2, D4: 3, D5: 4, D6: 5, 'OFF-D': 6, N1: 7, N2: 8, N3: 9, N4: 10, N5: 11, N6: 12, 'OFF-N': 13 };
   employees.forEach((employee) => {
     const supervisor = isSupervisor(employee);
-    let cycleIndex = supervisor ? 0 : (phases[suggestedPhase(histories.get(employee.id) || [])] || 0);
+    const phaseCode = suggestedPhase(histories.get(employee.id) || []);
+    const isNightPhase = phaseCode.startsWith('N') || phaseCode === 'OFF-N';
+    const empCycle = supervisor ? ['D', 'D', 'D', 'D', 'D', 'D', 'OFF'] : (isNightPhase ? ['N', 'N', 'N', 'N', 'N', 'N', 'OFF'] : ['D', 'D', 'D', 'D', 'D', 'D', 'OFF']);
+    const phaseOffsetMap = isNightPhase ? { N1: 0, N2: 1, N3: 2, N4: 3, N5: 4, N6: 5, 'OFF-N': 6 } : { D1: 0, D2: 1, D3: 2, D4: 3, D5: 4, D6: 5, 'OFF-D': 6 };
+    let cycleIndex = supervisor ? 0 : (phaseOffsetMap[phaseCode] ?? 0);
     dates.forEach((date) => {
       const key = `${employee.id}|${isoDate(date)}`;
       if (planned.has(key)) { if (!supervisor) cycleIndex += 1; return; }
@@ -119,7 +121,7 @@ async function buildAutoSchedulePlan(client, month) {
         if (!supervisor) cycleIndex += 1;
         return;
       }
-      const code = supervisor ? (date.getUTCDay() === 0 ? 'OFF' : 'D') : cycle[cycleIndex % cycle.length];
+      const code = supervisor ? (date.getUTCDay() === 0 ? 'OFF' : 'D') : empCycle[cycleIndex % empCycle.length];
       const assigned = assign(employee, date, shifts.get(code), { remark: supervisor ? 'Auto Supervisor Pattern' : 'Auto Rotating Pattern' });
       if (!assigned) assign(employee, date, shifts.get('OFF'), { remark: 'Weekly hour limit' });
       if (!supervisor) cycleIndex += 1;
@@ -213,13 +215,16 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
       };
     });
   } else if (startPhase !== 'AUTO') {
-    const phaseIndex = employeePhaseIndexes[startPhase];
+    const isNight = startPhase.startsWith('N') || startPhase === 'OFF-N';
+    const targetCycle = isNight ? ['N', 'N', 'N', 'N', 'N', 'N', 'OFF'] : ['D', 'D', 'D', 'D', 'D', 'D', 'OFF'];
+    const phaseOffsetMap = isNight ? { N1: 0, N2: 1, N3: 2, N4: 3, N5: 4, N6: 5, 'OFF-N': 6 } : { D1: 0, D2: 1, D3: 2, D4: 3, D5: 4, D6: 5, 'OFF-D': 6 };
+    const phaseIndex = phaseOffsetMap[startPhase];
     if (phaseIndex === undefined) throw new HttpError(400, 'Unsupported employee schedule start phase.');
     const templates = new Map();
     plan.rows.forEach((row) => { if (!templates.has(row.code)) templates.set(row.code, row); });
     rows = rows.map((row, index) => {
       if (row.locked || row.code === 'AL') return row;
-      const code = employeeCycle[(phaseIndex + index) % employeeCycle.length];
+      const code = targetCycle[(phaseIndex + index) % targetCycle.length];
       let template = templates.get(code);
       if (!template) return row;
 
