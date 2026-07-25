@@ -70,55 +70,96 @@ async function getMonthlyGrid(yearMonth) {
   };
 }
 
-async function saveBatchAssignments(assignments) {
+async function saveBatchAssignments(assignments, actorUserId) {
   if (!Array.isArray(assignments) || assignments.length === 0) {
     return { count: 0 };
   }
 
-  const results = [];
-  for (const ass of assignments) {
-    const { employeeId, shiftTypeId, workDate, remark } = ass;
+  const empIds = [...new Set(assignments.map(a => a.employeeId).filter(Boolean))];
+  const typeIds = [...new Set(assignments.map(a => a.shiftTypeId).filter(Boolean))];
 
-    const [emp, shift] = await Promise.all([
-      prisma.employee.findUnique({ where: { id: employeeId } }),
-      prisma.shiftType.findUnique({ where: { id: shiftTypeId } })
-    ]);
+  const [employees, shiftTypes] = await Promise.all([
+    prisma.employee.findMany({ where: { id: { in: empIds } } }),
+    prisma.shiftType.findMany({ where: { id: { in: typeIds } } })
+  ]);
 
-    if (!emp || !shift) continue;
+  const empMap = new Map(employees.map(e => [e.id, e]));
+  const typeMap = new Map(shiftTypes.map(t => [t.id, t]));
 
-    const parsedDate = new Date(workDate);
+  const results = await prisma.$transaction(async (tx) => {
+    const list = [];
+    const monthsToTouch = new Set();
 
-    const record = await prisma.shiftAssignment.upsert({
-      where: {
-        workDate_employeeId: {
+    for (const ass of assignments) {
+      const emp = empMap.get(ass.employeeId);
+      const shift = typeMap.get(ass.shiftTypeId);
+      if (!emp || !shift) continue;
+
+      const parsedDate = new Date(ass.workDate);
+      if (isNaN(parsedDate.getTime())) continue;
+
+      const monthKey = `${parsedDate.getUTCFullYear()}-${String(parsedDate.getUTCMonth() + 1).padStart(2, '0')}`;
+      monthsToTouch.add(monthKey);
+
+      const record = await tx.shiftAssignment.upsert({
+        where: {
+          workDate_employeeId: {
+            workDate: parsedDate,
+            employeeId: ass.employeeId
+          }
+        },
+        update: {
+          shiftTypeId: ass.shiftTypeId,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          hours: shift.hours,
+          employeeNameSnapshot: emp.displayName || `${emp.firstName} ${emp.lastName}`,
+          departmentSnapshot: emp.department,
+          remark: ass.remark || null,
+          locked: true
+        },
+        create: {
+          employeeId: ass.employeeId,
+          shiftTypeId: ass.shiftTypeId,
           workDate: parsedDate,
-          employeeId
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          hours: shift.hours,
+          employeeNameSnapshot: emp.displayName || `${emp.firstName} ${emp.lastName}`,
+          departmentSnapshot: emp.department,
+          remark: ass.remark || null,
+          locked: true,
+          source: 'SMS_V3'
         }
-      },
-      update: {
-        shiftTypeId,
-        startTime: shift.startTime,
-        endTime: shift.endTime,
-        hours: shift.hours,
-        employeeNameSnapshot: `${emp.firstName} ${emp.lastName}`,
-        departmentSnapshot: emp.department,
-        remark: remark || null
-      },
-      create: {
-        employeeId,
-        shiftTypeId,
-        workDate: parsedDate,
-        startTime: shift.startTime,
-        endTime: shift.endTime,
-        hours: shift.hours,
-        employeeNameSnapshot: `${emp.firstName} ${emp.lastName}`,
-        departmentSnapshot: emp.department,
-        remark: remark || null
-      }
-    });
+      });
+      list.push(record);
+    }
 
-    results.push(record);
-  }
+    for (const mStr of monthsToTouch) {
+      const [y, m] = mStr.split('-').map(Number);
+      const monthDate = new Date(Date.UTC(y, m - 1, 1));
+      const latest = await tx.scheduleApproval.findFirst({
+        where: { month: monthDate },
+        orderBy: { revision: 'desc' },
+        select: { revision: true }
+      });
+      await tx.scheduleApproval.create({
+        data: {
+          month: monthDate,
+          status: 'PENDING',
+          revision: (latest?.revision || 0) + 1,
+          changedByLegacyRef: actorUserId || 'SYSTEM',
+          changedAt: new Date(),
+          changeType: 'BATCH_UPDATE_SHIFT',
+          approvedAt: null,
+          approvedByLegacyRef: null,
+          scheduleHash: null
+        }
+      });
+    }
+
+    return list;
+  });
 
   return { count: results.length, data: results };
 }
