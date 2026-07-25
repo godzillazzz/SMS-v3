@@ -306,9 +306,9 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
   try {
     const input = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), scope: z.enum(['selected', 'all']).default('selected'), departments: z.array(z.string().trim().min(1).max(100)).max(100).default([]) }).parse(req.body);
     const { start, end } = monthBounds(input.month);
-    let approval = await prisma.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true } });
-    if (!approval) {
-      approval = { id: 'temp', status: 'APPROVED', revision: 1, approvedAt: new Date() };
+    const approval = await prisma.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true } });
+    if (!approval || approval.status !== 'APPROVED') {
+      throw new HttpError(409, 'ตารางกะประจำเดือนนี้ต้องได้รับการอนุมัติ (Approve) จาก Admin ก่อนส่งออกไฟล์ Excel');
     }
     const available = await prisma.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end } }, distinct: ['departmentSnapshot'], select: { departmentSnapshot: true } });
     const availableDepartments = available.map((row) => row.departmentSnapshot).filter(Boolean).sort();
