@@ -1,7 +1,7 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildAutoSchedulePlan, monthBounds, suggestedPhase } = require('../src/services/auto-schedule.service');
+const { buildAutoSchedulePlan, buildEmployeeAutoSchedulePlan, monthBounds, suggestedPhase } = require('../src/services/auto-schedule.service');
 
 const shiftTypes = [
   { id: 'shift-d', code: 'D', name: 'Day', startTime: '08:00', endTime: '20:00', hours: 12, color: '#10B981' },
@@ -44,6 +44,14 @@ test('auto schedule preview preserves locked and approved-leave assignments', as
   assert.equal(plan.rows.find((row) => row.employeeId === 'worker' && row.date === '2026-07-01').code, 'N');
   assert.equal(plan.rows.find((row) => row.employeeId === 'worker' && row.date === '2026-07-02').code, 'AL');
   assert.equal(plan.summary.manualLocked, 2);
+});
+
+test('individual magic-wand plan writes only the selected employee six-on/one-off rotation', async () => {
+  const plan = await buildEmployeeAutoSchedulePlan(client(), '2026-07', 'worker');
+  assert.equal(plan.summary.employees, 1);
+  assert.equal(plan.rows.length, 31);
+  assert.ok(plan.rows.every((row) => row.employeeId === 'worker'));
+  assert.deepEqual(plan.rows.slice(0, 7).map((row) => row.code), ['D', 'D', 'D', 'D', 'D', 'D', 'OFF']);
 });
 
 test('auto schedule substitutes OFF and warns when a working license is unavailable', async () => {

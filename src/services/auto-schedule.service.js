@@ -134,6 +134,18 @@ async function buildAutoSchedulePlan(client, month) {
   return { month, startDate: isoDate(start), endDate: isoDate(new Date(end.getTime() - DAY_MS)), dates: dates.map(isoDate), rows, warnings, summary: { employees: employees.length, days: dates.length, totalRows: rows.length, manualLocked: rows.filter((row) => row.locked).length, counts, maxWeeklyHours, dayMinimum, nightMinimum } };
 }
 
+async function buildEmployeeAutoSchedulePlan(client, month, employeeId) {
+  const plan = await buildAutoSchedulePlan(client, month);
+  const rows = plan.rows.filter((row) => row.employeeId === employeeId);
+  if (!rows.length) throw new HttpError(404, 'Eligible employee was not found for automatic scheduling.');
+  return {
+    ...plan,
+    rows,
+    warnings: plan.warnings.filter((warning) => warning.includes(rows[0].employeeName)),
+    summary: { ...plan.summary, employees: 1, totalRows: rows.length, manualLocked: rows.filter((row) => row.locked).length }
+  };
+}
+
 async function commitAutoSchedule(prisma, month, actorUserId) {
   return prisma.$transaction(async (tx) => {
     const plan = await buildAutoSchedulePlan(tx, month);
@@ -154,4 +166,23 @@ async function commitAutoSchedule(prisma, month, actorUserId) {
   }, { timeout: 15000 });
 }
 
-module.exports = { buildAutoSchedulePlan, commitAutoSchedule, monthBounds, suggestedPhase };
+async function commitEmployeeAutoSchedule(prisma, month, employeeId, actorUserId) {
+  return prisma.$transaction(async (tx) => {
+    const plan = await buildEmployeeAutoSchedulePlan(tx, month, employeeId);
+    const al = await tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' }, select: { id: true } });
+    const { start, end } = monthBounds(month);
+    const deleted = await tx.shiftAssignment.deleteMany({ where: { employeeId, workDate: { gte: start, lt: end }, locked: false, shiftTypeId: { not: al.id } } });
+    const generated = plan.rows.filter((row) => !row.locked);
+    if (generated.length) await tx.shiftAssignment.createMany({ data: generated.map((row) => ({
+      employeeId: row.employeeId, shiftTypeId: row.shiftTypeId, workDate: new Date(`${row.date}T00:00:00Z`), employeeNameSnapshot: row.employeeName,
+      departmentSnapshot: row.department, startTime: row.startTime, endTime: row.endTime, hours: row.hours, remark: row.remark, source: 'AUTO', locked: false,
+      updatedByLegacyRef: actorUserId, licenseStatus: row.licenseStatus, licenseExpiryDate: row.licenseExpiryDate ? new Date(`${row.licenseExpiryDate}T00:00:00Z`) : null, licenseOverride: false
+    })) });
+    const latest = await tx.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { revision: true } });
+    const approval = await tx.scheduleApproval.create({ data: { month: start, status: 'PENDING', revision: (latest?.revision || 0) + 1, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType: 'AUTO_SCHEDULE_EMPLOYEE' } });
+    await audit.log({ actorUserId, action: 'CREATE', entityType: 'EmployeeAutoSchedule', entityId: `${month}:${employeeId}`, metadata: { month, generatedRows: generated.length, replacedRows: deleted.count, preservedRows: plan.summary.manualLocked, revision: approval.revision, warningCount: plan.warnings.length } }, tx);
+    return { writtenRows: generated.length, replacedRows: deleted.count, preservedRows: plan.summary.manualLocked, warnings: plan.warnings, startDate: plan.startDate, endDate: plan.endDate, approval: { id: approval.id, status: approval.status, revision: approval.revision } };
+  }, { timeout: 15000 });
+}
+
+module.exports = { buildAutoSchedulePlan, buildEmployeeAutoSchedulePlan, commitAutoSchedule, commitEmployeeAutoSchedule, monthBounds, suggestedPhase };

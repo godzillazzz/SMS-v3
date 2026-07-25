@@ -41,6 +41,8 @@ export const api = {
   scheduleCalendar: (token: string, month: string, page = 1, department = '') => call(`/schedule-calendar?month=${encodeURIComponent(month)}&page=${page}&pageSize=20${department ? `&department=${encodeURIComponent(department)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
   previewAutoSchedule: (token: string, month: string) => call('/schedule/auto-preview', { method: 'POST', body: JSON.stringify({ month }), headers: { Authorization: `Bearer ${token}` } }),
   commitAutoSchedule: (token: string, month: string) => call('/schedule/auto-commit', { method: 'POST', body: JSON.stringify({ month }), headers: { Authorization: `Bearer ${token}` } }),
+  previewEmployeeAutoSchedule: (token: string, month: string, employeeId: string) => call('/schedule/employee-auto-preview', { method: 'POST', body: JSON.stringify({ month, employeeId }), headers: { Authorization: `Bearer ${token}` } }),
+  commitEmployeeAutoSchedule: (token: string, month: string, employeeId: string) => call('/schedule/employee-auto-commit', { method: 'POST', body: JSON.stringify({ month, employeeId }), headers: { Authorization: `Bearer ${token}` } }),
   exportScheduleExcel: (token: string, data: { month: string; scope: 'selected' | 'all'; departments: string[] }) => binaryCall('/schedule/export.xlsx', { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }),
   scheduleApprovals: (token: string, page = 1) => call(`/schedule-approvals?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   schedulingRules: (token: string) => call('/scheduling-rules', { headers: { Authorization: `Bearer ${token}` } }),

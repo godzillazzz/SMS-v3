@@ -53,9 +53,11 @@ test('legacy schedule and leave controls remain available to Admin and Manager',
   const employees = read('src/services/employee.service.js');
 
   assert.match(frontend, /เครื่องมือไม้กายสิทธิ์สำหรับ Admin และ Manager/);
+  assert.match(frontend, /จัดกะแพทเทิร์นด่วน: 6 วันทำงาน \/ 1 วันหยุด/);
   assert.match(frontend, /Pending Approval Queue/);
   assert.match(frontend, /Submit Leave Request/);
   assert.match(routes, /schedule\/auto-preview', authorize\('ADMIN', 'MANAGER'\)/);
   assert.match(routes, /schedule\/auto-commit', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(routes, /schedule\/employee-auto-commit', authorize\('ADMIN', 'MANAGER'\)/);
   assert.match(employees, /orderBy: \[\{ employeeCode: 'asc' \}\]/);
 });

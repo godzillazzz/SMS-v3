@@ -7,7 +7,7 @@ const prisma = require('../config/prisma');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const audit = require('../services/audit.service');
 const { evaluateScheduleRules } = require('../services/schedule-rules.service');
-const { buildAutoSchedulePlan, commitAutoSchedule, monthBounds } = require('../services/auto-schedule.service');
+const { buildAutoSchedulePlan, buildEmployeeAutoSchedulePlan, commitAutoSchedule, commitEmployeeAutoSchedule, monthBounds } = require('../services/auto-schedule.service');
 const { buildApprovedScheduleWorkbook } = require('../services/schedule-export.service');
 const HttpError = require('../utils/http-error');
 
@@ -288,6 +288,18 @@ router.post('/schedule/auto-commit', authorize('ADMIN', 'MANAGER'), async (req, 
   try {
     const { month } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).parse(req.body);
     res.json({ data: await commitAutoSchedule(prisma, month, req.user.sub) });
+  } catch (error) { next(error); }
+});
+router.post('/schedule/employee-auto-preview', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const { month, employeeId } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid }).parse(req.body);
+    res.json({ data: await buildEmployeeAutoSchedulePlan(prisma, month, employeeId) });
+  } catch (error) { next(error); }
+});
+router.post('/schedule/employee-auto-commit', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const { month, employeeId } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid }).parse(req.body);
+    res.json({ data: await commitEmployeeAutoSchedule(prisma, month, employeeId, req.user.sub) });
   } catch (error) { next(error); }
 });
 router.post('/schedule/export.xlsx', async (req, res, next) => {

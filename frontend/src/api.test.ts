@@ -50,7 +50,7 @@ describe('API client', () => {
       'createLicense', 'updateLicense', 'deleteLicense',
       'createShiftType', 'deleteShiftType',
       'createShift', 'updateShift', 'deleteShift',
-      'previewAutoSchedule', 'commitAutoSchedule', 'exportScheduleExcel',
+      'previewAutoSchedule', 'commitAutoSchedule', 'previewEmployeeAutoSchedule', 'commitEmployeeAutoSchedule', 'exportScheduleExcel',
       'updateScheduleApproval', 'updateSchedulingRule', 'updateSystemSetting',
       'createLeaveRequest', 'createLeaveRequestWithAttachment', 'downloadLeaveAttachment', 'updateLeaveRequest', 'updateLeaveQuota',
       'updateUser', 'resetUserPassword', 'viewAsUser'

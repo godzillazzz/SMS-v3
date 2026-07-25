@@ -42,6 +42,8 @@ test('all operational mutation endpoints reject unauthenticated requests', async
     request(app).post('/api/v1/shifts').send({}),
     request(app).post('/api/v1/schedule/auto-preview').send({ month: '2026-07' }),
     request(app).post('/api/v1/schedule/auto-commit').send({ month: '2026-07' }),
+    request(app).post('/api/v1/schedule/employee-auto-preview').send({ month: '2026-07', employeeId: id }),
+    request(app).post('/api/v1/schedule/employee-auto-commit').send({ month: '2026-07', employeeId: id }),
     request(app).post('/api/v1/schedule/export.xlsx').send({ month: '2026-07', scope: 'all', departments: [] }),
     request(app).put(`/api/v1/shifts/${id}`).send({}),
     request(app).delete(`/api/v1/shifts/${id}`),
