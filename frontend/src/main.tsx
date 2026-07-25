@@ -233,11 +233,11 @@ function EmployeeMagicWandModal({
   onSubmit(autoContinue: boolean, startPhase: string, patternType: string): Promise<void>;
 }) {
   const isSupervisorTarget = String(target.jobTitle || '').toLowerCase().includes('supervisor') || String(target.jobTitle || '').includes('หัวหน้า');
-  const [patternType, setPatternType] = useState<'SUPERVISOR' | 'ROTATE'>(isSupervisorTarget ? 'SUPERVISOR' : 'ROTATE');
+  const [patternType, setPatternType] = useState<'SUPERVISOR' | 'DAY' | 'NIGHT'>(isSupervisorTarget ? 'SUPERVISOR' : 'DAY');
   const [autoContinue, setAutoContinue] = useState(true);
   const [startPhase, setStartPhase] = useState('D1');
-  const [analysisText, setAnalysisText] = useState('วิเคราะห์จากประวัติ: ล่าสุดทำกะดึกติดต่อกัน 5 วัน -> เริ่มกะดึกวันที่ 6 (N6)');
-  const [suggestedCode, setSuggestedCode] = useState('N6');
+  const [analysisText, setAnalysisText] = useState('วิเคราะห์จากประวัติ: ล่าสุดทำกะเช้าติดต่อกัน 5 วัน -> เริ่มกะเช้าวันที่ 6 (D6)');
+  const [suggestedCode, setSuggestedCode] = useState('D1');
 
   useEffect(() => {
     if (!token || !target.id) return;
@@ -246,12 +246,18 @@ function EmployeeMagicWandModal({
         const analysis = nested(res.data).analysis as DataRow;
         if (analysis?.text) setAnalysisText(text(analysis.text));
         if (analysis?.code) {
-          setSuggestedCode(text(analysis.code));
-          setStartPhase(text(analysis.code));
+          const code = text(analysis.code);
+          setSuggestedCode(code);
+          if (code.startsWith('N') || code === 'OFF-N') {
+            setPatternType('NIGHT');
+          } else if (!isSupervisorTarget) {
+            setPatternType('DAY');
+          }
+          setStartPhase(code);
         }
       })
       .catch(() => {});
-  }, [token, scheduleMonth, target.id]);
+  }, [token, scheduleMonth, target.id, isSupervisorTarget]);
 
   const [yearStr, monthStr] = (scheduleMonth || '2026-08').split('-');
   const dateObj = new Date(Date.UTC(Number(yearStr || 2026), Number(monthStr || 8) - 1, 1));
@@ -264,7 +270,14 @@ function EmployeeMagicWandModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(autoContinue, autoContinue ? suggestedCode : startPhase, patternType);
+    const finalPattern = patternType === 'SUPERVISOR' ? 'SUPERVISOR' : 'ROTATE';
+    let finalPhase = startPhase;
+    if (patternType === 'DAY') {
+      finalPhase = autoContinue ? (suggestedCode.startsWith('D') ? suggestedCode : 'D1') : (startPhase.startsWith('D') ? startPhase : 'D1');
+    } else if (patternType === 'NIGHT') {
+      finalPhase = autoContinue ? (suggestedCode.startsWith('N') ? suggestedCode : 'N1') : (startPhase.startsWith('N') ? startPhase : 'N1');
+    }
+    onSubmit(autoContinue, finalPhase, finalPattern);
   };
 
   return (
@@ -283,6 +296,32 @@ function EmployeeMagicWandModal({
             <div className="wand-section">
               <h3 className="wand-section-title">1. เลือกรูปแบบแพทเทิร์น (Pattern)</h3>
               <div className="wand-options-list">
+                <label className={`wand-option-card ${patternType === 'DAY' ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="pattern-type"
+                    checked={patternType === 'DAY'}
+                    onChange={() => { setPatternType('DAY'); setStartPhase('D1'); }}
+                  />
+                  <div className="option-text">
+                    <strong>☀️ กะเช้าล้วน (D D D D D D OFF)</strong>
+                    <p>เข้ากะเช้า 6 วัน (D) แล้วหยุด 1 วัน (OFF) วนลูปต่อเนื่อง (ไม่มีกะดึกแทรก)</p>
+                  </div>
+                </label>
+
+                <label className={`wand-option-card ${patternType === 'NIGHT' ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="pattern-type"
+                    checked={patternType === 'NIGHT'}
+                    onChange={() => { setPatternType('NIGHT'); setStartPhase('N1'); }}
+                  />
+                  <div className="option-text">
+                    <strong>🌙 กะดึกล้วน (N N N N N N OFF)</strong>
+                    <p>เข้ากะดึก 6 วัน (N) แล้วหยุด 1 วัน (OFF) วนลูปต่อเนื่อง (ไม่มีกะเช้าแทรก)</p>
+                  </div>
+                </label>
+
                 <label className={`wand-option-card ${patternType === 'SUPERVISOR' ? 'selected' : ''}`}>
                   <input
                     type="radio"
@@ -291,27 +330,14 @@ function EmployeeMagicWandModal({
                     onChange={() => setPatternType('SUPERVISOR')}
                   />
                   <div className="option-text">
-                    <strong>กะหัวหน้างาน (Supervisor)</strong>
+                    <strong>👮 กะหัวหน้างาน (Supervisor)</strong>
                     <p>เข้ากะเช้า 6 วัน (จันทร์-เสาร์) และหยุดวันอาทิตย์ (OFF) ทุกสัปดาห์</p>
-                  </div>
-                </label>
-
-                <label className={`wand-option-card ${patternType === 'ROTATE' ? 'selected' : ''}`}>
-                  <input
-                    type="radio"
-                    name="pattern-type"
-                    checked={patternType === 'ROTATE'}
-                    onChange={() => setPatternType('ROTATE')}
-                  />
-                  <div className="option-text">
-                    <strong>กะพนักงานเวียนลูป 1 เดือน</strong>
-                    <p>กะเช้า 6 วัน -&gt; หยุด 1 วัน -&gt; กะดึก 6 วัน -&gt; หยุด 1 วัน (วนลูปต่อเนื่อง)</p>
                   </div>
                 </label>
               </div>
             </div>
 
-            {patternType === 'ROTATE' && (
+            {patternType !== 'SUPERVISOR' && (
               <div className="wand-section">
                 <h3 className="wand-section-title">2. เลือกจุดเริ่มของเดือนนี้ (สำหรับวันที่ {thaiFullDateStr})</h3>
                 <label className="wand-checkbox-label">
@@ -333,23 +359,30 @@ function EmployeeMagicWandModal({
                   <select
                     id="phase-select"
                     disabled={autoContinue}
-                    value={autoContinue ? suggestedCode : startPhase}
+                    value={autoContinue ? (patternType === 'NIGHT' ? (suggestedCode.startsWith('N') ? suggestedCode : 'N1') : (suggestedCode.startsWith('D') ? suggestedCode : 'D1')) : startPhase}
                     onChange={(e) => setStartPhase(e.target.value)}
                   >
-                    <option value="D1">กะเช้า วันที่ 1 (D1)</option>
-                    <option value="D2">กะเช้า วันที่ 2 (D2)</option>
-                    <option value="D3">กะเช้า วันที่ 3 (D3)</option>
-                    <option value="D4">กะเช้า วันที่ 4 (D4)</option>
-                    <option value="D5">กะเช้า วันที่ 5 (D5)</option>
-                    <option value="D6">กะเช้า วันที่ 6 (D6)</option>
-                    <option value="OFF-D">วันหยุด (OFF)</option>
-                    <option value="N1">กะดึก วันที่ 1 (N1)</option>
-                    <option value="N2">กะดึก วันที่ 2 (N2)</option>
-                    <option value="N3">กะดึก วันที่ 3 (N3)</option>
-                    <option value="N4">กะดึก วันที่ 4 (N4)</option>
-                    <option value="N5">กะดึก วันที่ 5 (N5)</option>
-                    <option value="N6">กะดึก วันที่ 6 (N6)</option>
-                    <option value="OFF-N">วันหยุด (OFF)</option>
+                    {patternType === 'DAY' ? (
+                      <>
+                        <option value="D1">กะเช้า วันที่ 1 (D1)</option>
+                        <option value="D2">กะเช้า วันที่ 2 (D2)</option>
+                        <option value="D3">กะเช้า วันที่ 3 (D3)</option>
+                        <option value="D4">กะเช้า วันที่ 4 (D4)</option>
+                        <option value="D5">กะเช้า วันที่ 5 (D5)</option>
+                        <option value="D6">กะเช้า วันที่ 6 (D6)</option>
+                        <option value="OFF-D">วันหยุด (OFF)</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="N1">กะดึก วันที่ 1 (N1)</option>
+                        <option value="N2">กะดึก วันที่ 2 (N2)</option>
+                        <option value="N3">กะดึก วันที่ 3 (N3)</option>
+                        <option value="N4">กะดึก วันที่ 4 (N4)</option>
+                        <option value="N5">กะดึก วันที่ 5 (N5)</option>
+                        <option value="N6">กะดึก วันที่ 6 (N6)</option>
+                        <option value="OFF-N">วันหยุด (OFF)</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
@@ -551,6 +584,8 @@ function Dashboard() {
   const [scheduleExportBusy, setScheduleExportBusy] = useState(false);
   const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, { action: 'create' | 'update' | 'delete'; id?: string; employeeId: string; workDate: string; shiftTypeId?: string; shiftCode?: string; shiftName?: string; startTime?: string; endTime?: string; color?: string; remark?: string; licenseOverride?: boolean; overrideReason?: string; payload?: unknown }>>({});
   const [batchSaveBusy, setBatchSaveBusy] = useState(false);
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [deptMenuOpen, setDeptMenuOpen] = useState(false);
 
   const saveAllDrafts = async () => {
     if (!auth.token || !Object.keys(scheduleDrafts).length) return;
@@ -860,7 +895,10 @@ function Dashboard() {
       const calendar = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
       const dates = Array.isArray(calendar.dates) ? calendar.dates.map(String) : [];
       const rawCalendarEmployees = Array.isArray(calendar.employees) ? calendar.employees as DataRow[] : [];
-      const calendarEmployees = [...rawCalendarEmployees].sort((a, b) => (String(a.employeeCode || '')).localeCompare(String(b.employeeCode || ''), undefined, { numeric: true }));
+      const allCalendarEmployees = [...rawCalendarEmployees].sort((a, b) => (String(a.employeeCode || '')).localeCompare(String(b.employeeCode || ''), undefined, { numeric: true }));
+      const calendarEmployees = selectedDepartments.length > 0
+        ? allCalendarEmployees.filter((emp) => selectedDepartments.includes(text(emp.department)))
+        : allCalendarEmployees;
       const approval = nested(calendar.approval);
       const [yStr, mStr] = scheduleMonth.split('-');
       const thaiYearNum = Number(yStr) + 543;
@@ -923,13 +961,13 @@ function Dashboard() {
         if (!auth.token) return;
         setScheduleExportBusy(true); setOperationError(undefined);
         try {
-          const result = await api.exportScheduleExcel(auth.token, { month: scheduleMonth, scope: scheduleDepartment ? 'selected' : 'all', departments: scheduleDepartment ? [scheduleDepartment] : [] });
+          const result = await api.exportScheduleExcel(auth.token, { month: scheduleMonth, scope: selectedDepartments.length ? 'selected' : 'all', departments: selectedDepartments });
           downloadBlob(result.blob, result.fileName || `SMS-Schedule-${scheduleMonth}.xlsx`);
         } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'ส่งออก Excel ไม่สำเร็จ'); }
         finally { setScheduleExportBusy(false); }
       };
       return <section className="view-pane schedule-calendar-page">
-        <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Schedule Calendar</h1><p>จัดกะรายเดือน (โหมดบันทึกด้วยตนเอง: แก้ไขกะหรือลบกะในตารางได้ต่อเนื่อง แล้วกด 💾 บันทึกการเปลี่ยนแปลง เพื่อบันทึกทีเดียว)</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${scheduleDepartment ? ` · ${scheduleDepartment}` : ''}`}</button><button className="small-action" onClick={() => window.print()}>📄 Export PDF</button></>}</div></div>
+        <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Schedule Calendar</h1><p>จัดกะรายเดือน (โหมดบันทึกด้วยตนเอง: แก้ไขกะหรือลบกะในตารางได้ต่อเนื่อง แล้วกด 💾 บันทึกการเปลี่ยนแปลง เพื่อบันทึกทีเดียว)</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="small-action" onClick={() => window.print()}>📄 Export PDF</button></>}</div></div>
         <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ Approved' : '● Pending Approval'} · {monthLabel}</strong><small>Revision {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'Admin')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้าง revision ใหม่โดยอัตโนมัติ'}</small></div>{auth.user?.role === 'ADMIN' && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token || !window.confirm(`ยืนยันอนุมัติตารางกะประจำเดือน ${monthLabel}?`)) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'อนุมัติตารางไม่สำเร็จ'); } }}>Approve ตารางเดือนนี้</button>}</div>
         <div className="calendar-toolbar-box" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px 20px', margin: '14px 0 16px 0', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.05)' }}>
           <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px' }}>
@@ -947,6 +985,47 @@ function Dashboard() {
             </select>
             <button className="small-action" onClick={() => moveMonth(-1)}>‹ เดือนก่อน</button>
             <button className="small-action" onClick={() => moveMonth(1)}>เดือนถัดไป ›</button>
+
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <button
+                type="button"
+                className="small-action"
+                style={{ fontWeight: 600, padding: '7px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => setDeptMenuOpen((prev) => !prev)}
+              >
+                🏢 แผนก: {selectedDepartments.length === 0 ? 'ทุกแผนก' : `${selectedDepartments.length} แผนกที่เลือก`} ▾
+              </button>
+              {deptMenuOpen && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', padding: '10px 12px', zIndex: 100, minWidth: '220px', maxWidth: '300px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9', fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
+                    <span>เลือกแผนกที่ต้องการกรอง</span>
+                    <button type="button" style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', padding: 0 }} onClick={() => setSelectedDepartments([])}>แสดงทุกแผนก</button>
+                  </div>
+                  <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {departments.map((dept) => {
+                      const checked = selectedDepartments.includes(dept);
+                      return (
+                        <label key={dept} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#1e293b', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedDepartments((prev) => [...prev, dept]);
+                              } else {
+                                setSelectedDepartments((prev) => prev.filter((d) => d !== dept));
+                              }
+                            }}
+                          />
+                          <span>{dept}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {auth.user?.role === 'ADMIN' && (
               <button className="btn-primary compact" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)', border: 'none', fontWeight: 'bold', padding: '8px 14px', borderRadius: '8px' }} disabled={autoScheduleBusy} onClick={previewAutoSchedule}>
                 {autoScheduleBusy ? 'กำลังคำนวณ…' : '✨ ดูตัวอย่างจัดกะอัตโนมัติ'}
@@ -965,8 +1044,13 @@ function Dashboard() {
             <button className="btn-primary compact" style={{ backgroundColor: '#2563eb', padding: '8px 18px', fontWeight: 'bold', fontSize: '14px', borderRadius: '8px' }} disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0} onClick={saveAllDrafts}>
               {batchSaveBusy ? 'กำลังบันทึก…' : `บันทึกการเปลี่ยนแปลงทั้งหมด (${Object.keys(scheduleDrafts).length})`}
             </button>
-            <button className="btn-secondary compact" style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', fontSize: '13px' }} disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0} onClick={() => setScheduleDrafts({})}>
-              ยกเลิกรายการที่รอบันทึก
+            <button
+              className="btn-danger compact"
+              style={{ backgroundColor: '#dc2626', color: '#ffffff', border: '1px solid #b91c1c', fontSize: '13px', fontWeight: 'bold', padding: '8px 16px', borderRadius: '8px', cursor: Object.keys(scheduleDrafts).length === 0 ? 'not-allowed' : 'pointer', opacity: Object.keys(scheduleDrafts).length === 0 ? 0.5 : 1 }}
+              disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0}
+              onClick={() => { if (Object.keys(scheduleDrafts).length > 0 && window.confirm('ยกเลิกรายการเปลี่ยนแปลงทั้งหมดที่ยังไม่ได้บันทึกหรือไม่?')) { setScheduleDrafts({}); } }}
+            >
+              ยกเลิกรายการเปลี่ยนแปลงทั้งหมด
             </button>
             <span style={{ fontSize: '13px', color: '#475569' }}>
               คลิกช่องกะเพื่อแก้หลายรายการ แล้วค่อยบันทึกครั้งเดียว
