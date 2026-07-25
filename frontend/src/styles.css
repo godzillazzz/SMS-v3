@@ -460,3 +460,193 @@ body {
   .wand-option-card { padding: 10px 12px; }
   .wand-section-title { font-size: 14px; }
 }
+
+@media screen {
+  .print-only { display: none !important; }
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 8mm 10mm;
+  }
+  
+  body, html {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .app-shell, .sidebar, .topbar, .main-area, .content-area, .page-heading, .approval-banner, .calendar-toolbar-box, .calendar-card {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+    width: 100% !important;
+    background: #fff !important;
+  }
+
+  .print-page {
+    page-break-after: always;
+    page-break-inside: avoid;
+    box-sizing: border-box;
+    padding: 0;
+    margin-bottom: 20px;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: 'Sarabun', sans-serif !important;
+  }
+
+  .print-page:last-child {
+    page-break-after: avoid;
+  }
+
+  .print-header {
+    background-color: #1e3a8a !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #ffffff !important;
+    padding: 10px 16px;
+    text-align: center;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 4px;
+    margin-bottom: 4px;
+  }
+
+  .print-metadata {
+    background-color: #e0f2fe !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #0369a1 !important;
+    padding: 8px 12px;
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    border: 1px solid #bae6fd !important;
+  }
+
+  .print-metadata strong {
+    color: #0c4a6e !important;
+  }
+
+  .print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-bottom: 12px;
+    font-size: 10px;
+  }
+
+  .print-table th, .print-table td {
+    border: 1px solid #94a3b8 !important;
+    padding: 4px 2px !important;
+    text-align: center !important;
+  }
+
+  .print-table th {
+    background-color: #1e293b !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #ffffff !important;
+    font-weight: bold;
+  }
+
+  .print-table th b {
+    display: block;
+    font-size: 11px;
+  }
+
+  .print-table th small {
+    display: block;
+    font-size: 8px;
+    font-weight: normal;
+  }
+
+  .print-table td.emp-name-col {
+    text-align: left !important;
+    padding-left: 6px !important;
+    font-weight: bold;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .print-table td.emp-role-col {
+    text-align: left !important;
+    padding-left: 6px !important;
+    color: #334155 !important;
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  .print-table td.weekend {
+    background-color: #fef2f2 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-table th.weekend {
+    background-color: #dc2626 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #ffffff !important;
+  }
+
+  .print-footer-container {
+    display: flex !important;
+    justify-content: space-between !important;
+    margin-top: 15px !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-legend {
+    width: 45% !important;
+  }
+
+  .print-legend-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8px;
+  }
+
+  .print-legend-table th, .print-legend-table td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 3px 6px !important;
+    text-align: left !important;
+  }
+
+  .print-legend-table td {
+    color: #000 !important;
+  }
+
+  .print-legend-badge {
+    display: inline-block;
+    width: 28px;
+    text-align: center;
+    font-weight: bold;
+    border-radius: 4px;
+    padding: 1px 0;
+    font-size: 9px;
+  }
+
+  .print-signatures {
+    width: 45% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 25px !important;
+    align-items: flex-end !important;
+    justify-content: flex-end !important;
+  }
+
+  .signature-box {
+    width: 320px !important;
+    font-size: 11px !important;
+    text-align: right !important;
+    line-height: 1.6;
+  }
+
+  .signature-line {
+    margin-bottom: 2px;
+  }
+}

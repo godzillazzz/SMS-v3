@@ -170,6 +170,14 @@ const date = (value: unknown) => {
   const thaiDayMonth = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(d);
   return `${thaiDayMonth} ${thaiYear}`;
 };
+const formatApprovalDateTime = (value: unknown) => {
+  if (!value) return '-';
+  const d = new Date(String(value));
+  if (isNaN(d.getTime())) return String(value);
+  const datePart = new Intl.DateTimeFormat('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Bangkok' }).format(d);
+  const timePart = new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' }).format(d);
+  return `${datePart} ${timePart}`;
+};
 const inputDate = (value: unknown) => value ? new Date(String(value)).toISOString().slice(0, 10) : '';
 const nested = (value: unknown): DataRow => value && typeof value === 'object' ? value as DataRow : {};
 const formPayload = (values: Record<string, string>, nullable: string[] = []) => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, nullable.includes(key) && value === '' ? null : value]));
@@ -966,7 +974,9 @@ function Dashboard() {
         } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'ส่งออก Excel ไม่สำเร็จ'); }
         finally { setScheduleExportBusy(false); }
       };
-      return <section className="view-pane schedule-calendar-page">
+      return (
+        <>
+          <section className="view-pane schedule-calendar-page">
         <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Schedule Calendar</h1><p>จัดกะรายเดือน (โหมดบันทึกด้วยตนเอง: แก้ไขกะหรือลบกะในตารางได้ต่อเนื่อง แล้วกด 💾 บันทึกการเปลี่ยนแปลง เพื่อบันทึกทีเดียว)</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="small-action" onClick={() => window.print()}>📄 Export PDF</button></>}</div></div>
         <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ Approved' : '● Pending Approval'} · {monthLabel}</strong><small>Revision {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'Admin')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้าง revision ใหม่โดยอัตโนมัติ'}</small></div>{auth.user?.role === 'ADMIN' && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token || !window.confirm(`ยืนยันอนุมัติตารางกะประจำเดือน ${monthLabel}?`)) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'อนุมัติตารางไม่สำเร็จ'); } }}>Approve ตารางเดือนนี้</button>}</div>
         <div className="calendar-toolbar-box" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px 20px', margin: '14px 0 16px 0', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.05)' }}>
@@ -1075,7 +1085,117 @@ function Dashboard() {
         <div className="table-card calendar-card">{operationLoading && !calendarEmployees.length ? <div className="loading-row">กำลังอ่านตารางกะรายเดือน…</div> : <div className="table-scroll" onMouseDown={(e) => { const el = e.currentTarget; el.dataset.isDown = 'true'; el.dataset.startX = String(e.pageX - el.offsetLeft); el.dataset.startY = String(e.pageY - el.offsetTop); el.dataset.scrollLeft = String(el.scrollLeft); el.dataset.scrollTop = String(el.scrollTop); }} onMouseLeave={(e) => { e.currentTarget.dataset.isDown = 'false'; }} onMouseUp={(e) => { e.currentTarget.dataset.isDown = 'false'; }} onMouseMove={(e) => { const el = e.currentTarget; if (el.dataset.isDown !== 'true') return; e.preventDefault(); const x = e.pageX - el.offsetLeft; const y = e.pageY - el.offsetTop; const walkX = (x - Number(el.dataset.startX || 0)) * 1.5; const walkY = (y - Number(el.dataset.startY || 0)) * 1.5; el.scrollLeft = Number(el.dataset.scrollLeft || 0) - walkX; el.scrollTop = Number(el.dataset.scrollTop || 0) - walkY; }}><table className="schedule-grid"><thead><tr><th className="employee-sticky">พนักงาน</th>{dates.map((day) => { const dayValue = new Date(`${day}T00:00:00Z`); const weekend = [0, 6].includes(dayValue.getUTCDay()); return <th key={day} className={weekend ? 'weekend' : ''}><b>{dayValue.getUTCDate()}</b><small>{new Intl.DateTimeFormat('th-TH', { weekday: 'short', timeZone: 'UTC' }).format(dayValue)}</small></th>; })}</tr></thead><tbody>{calendarEmployees.length ? calendarEmployees.map((employee) => { const employeeShifts = Array.isArray(employee.shifts) ? employee.shifts as DataRow[] : []; const isSchedulingEmployee = employeeAutoScheduleBusyId === String(employee.id); return <tr key={text(employee.id)}><td className="employee-sticky"><strong>{text(employee.displayName || `${text(employee.firstName)} ${text(employee.lastName)}`)}{canManage && <button className="employee-magic-button" disabled={Boolean(employeeAutoScheduleBusyId)} title="🪄 จัดกะแพทเทิร์นด่วน: 6 วันทำงาน / 1 วันหยุด" onClick={() => openEmployeeScheduleWizard(employee)}>{isSchedulingEmployee ? '…' : '🪄'}</button>}</strong><small>{text(employee.employeeCode)} · {text(employee.department)}</small></td>{dates.map((day) => { const draftKey = `${employee.id}_${day}`; const draftItem = scheduleDrafts[draftKey]; const shift = employeeShifts.find((item) => inputDate(item.workDate) === day); const shiftType = nested(shift?.shiftType); const shiftCode = text(shiftType.code).toLowerCase(); const coreShift = ['d', 'n', 'off', 'al'].includes(shiftCode); const weekend = [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay()); if (draftItem) { if (draftItem.action === 'delete') { return <td key={day} className={weekend ? 'weekend' : ''}><div className="calendar-shift-wrap"><button className="empty-shift" style={{ color: '#ef4444', borderColor: '#fca5a5' }} title="กะถูกลบในฉบับร่าง (คลิกคืนค่า)" onClick={() => { const next = { ...scheduleDrafts }; delete next[draftKey]; setScheduleDrafts(next); }}>✕ ลบแล้ว</button></div></td>; } const draftCore = ['d', 'n', 'off', 'al'].includes((draftItem.shiftCode || '').toLowerCase()); return <td key={day} className={weekend ? 'weekend' : ''}><div className="calendar-shift-wrap"><button className={`calendar-shift shift-${(draftItem.shiftCode || 'd').toLowerCase()}`} style={draftCore ? { border: '2px dashed #2563eb' } : { backgroundColor: String(draftItem.color || '#64748B'), border: '2px dashed #2563eb' }} title="กะฉบับร่าง (ยังไม่ได้บันทึก)" onClick={() => canManage && openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day, shiftTypeId: String(draftItem.shiftTypeId || '') })}><b>{text(draftItem.shiftCode)} *</b><small>{text(draftItem.startTime)}–{text(draftItem.endTime)}</small><small className="shift-note" style={{ color: '#2563eb', fontWeight: 'bold' }}>ร่าง</small></button><button className="calendar-delete" title="ยกเลิกฉบับร่าง" onClick={() => { const next = { ...scheduleDrafts }; delete next[draftKey]; setScheduleDrafts(next); }}>×</button></div></td>; } return <td key={day} className={weekend ? 'weekend' : ''}>{shift ? <div className="calendar-shift-wrap"><button className={`calendar-shift shift-${shiftCode}`} style={coreShift ? undefined : { backgroundColor: String(shiftType.color || '#64748B') }} title={`${text(shiftType.name)} · ${text(shift.startTime)}-${text(shift.endTime)}`} onClick={() => canManage && openShiftEditor(shift)}><b>{text(shiftType.code).toUpperCase()}</b><small>{text(shiftType.code).toUpperCase() === 'OFF' ? 'วันหยุด' : `${text(shift.startTime || '07:00')}–${text(shift.endTime || '19:00')}`}</small>{Boolean(shift.locked) && <small className="shift-note" style={{ color: '#d97706', fontWeight: 700 }}>MANUAL 🔒</small>}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={() => { const key = `${employee.id}_${day}`; setScheduleDrafts((prev) => ({ ...prev, [key]: { action: 'delete', id: String(shift.id), employeeId: String(employee.id), workDate: day } })); }}>×</button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={() => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day })}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
         {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} scheduleMonth={scheduleMonth} token={auth.token} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { const preview = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); const rows = Array.isArray(preview.data?.rows) ? preview.data.rows as DataRow[] : []; applyPreviewToDrafts(rows); setEmployeeAutoScheduleTarget(undefined); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'จัดกะอัตโนมัติรายบุคคลไม่สำเร็จ'); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
-      </section>;
+      </section>
+      <div className="print-only">
+        {Array.from(new Set(calendarEmployees.map((e) => String(e.department || '')))).sort().map((dept) => {
+          const deptEmployees = calendarEmployees.filter((e) => String(e.department || '') === dept);
+          const printMonthLabel = `${monthNameOnly} ${thaiYearNum}`;
+          return (
+            <div className="print-page" key={dept}>
+              <div className="print-header">
+                Security Management System - ตารางกะที่อนุมัติแล้ว - {printMonthLabel}
+              </div>
+              <div className="print-metadata">
+                <div className="print-metadata-left">
+                  <span>แผนก: <strong>{dept || 'ทั่วไป'}</strong></span>
+                  <span style={{ marginLeft: '12px' }}>Revision: <strong>{text(approval.revision || 1)}</strong></span>
+                  <span style={{ marginLeft: '12px' }}>อนุมัติโดย: <strong>{text(approval.approvedBy || approval.approvedByDisplayName || 'Admin')}</strong></span>
+                  <span style={{ marginLeft: '12px' }}>วันที่อนุมัติ: <strong>{approval.approvedAt ? formatApprovalDateTime(approval.approvedAt) : '-'}</strong></span>
+                </div>
+                <div className="print-metadata-right">
+                  <span>Export โดย: <strong>{auth.user?.email || 'Admin'}</strong></span>
+                  <span style={{ marginLeft: '12px' }}>วันที่ Export: <strong>{formatApprovalDateTime(new Date())}</strong></span>
+                </div>
+              </div>
+              <table className="print-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '40px' }}>ลำดับ</th>
+                    <th>ชื่อ-นามสกุล</th>
+                    <th>ตำแหน่ง</th>
+                    {dates.map((day) => {
+                      const dayValue = new Date(`${day}T00:00:00Z`);
+                      const weekend = [0, 6].includes(dayValue.getUTCDay());
+                      return (
+                        <th key={day} className={weekend ? 'weekend' : ''}>
+                          <b>{dayValue.getUTCDate()}</b>
+                          <small>{new Intl.DateTimeFormat('th-TH', { weekday: 'short', timeZone: 'UTC' }).format(dayValue).replace(/\./g, '')}</small>
+                        </th>
+                      );
+                    })}
+                    <th>ชม.รวมเดือน</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deptEmployees.map((employee, idx) => {
+                    const employeeShifts = Array.isArray(employee.shifts) ? (employee.shifts as DataRow[]) : [];
+                    let totalHours = 0;
+                    return (
+                      <tr key={String(employee.id)}>
+                        <td>{idx + 1}</td>
+                        <td className="emp-name-col">
+                          {text(employee.displayName || `${text(employee.firstName)} ${text(employee.lastName)}`)}
+                        </td>
+                        <td className="emp-role-col">{text(employee.jobTitle || 'Security Guard')}</td>
+                        {dates.map((day) => {
+                          const shift = employeeShifts.find((item) => inputDate(item.workDate) === day);
+                          const shiftType = nested(shift?.shiftType);
+                          const shiftTypeCode = shift ? String(shiftType.code || '').toUpperCase() : 'OFF';
+                          const dayValue = new Date(`${day}T00:00:00Z`);
+                          const weekend = [0, 6].includes(dayValue.getUTCDay());
+                          const hours = shift ? Number(shift.hours || 0) : 0;
+                          totalHours += hours;
+                          return (
+                            <td key={day} className={weekend ? 'weekend' : ''} style={shift ? { fontWeight: 'bold' } : undefined}>
+                              {shiftTypeCode}
+                            </td>
+                          );
+                        })}
+                        <td style={{ fontWeight: 'bold' }}>{totalHours.toFixed(1)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="print-footer-container">
+                <div className="print-legend">
+                  <div style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '10px', color: '#1e293b' }}>คำอธิบายรหัสกะ</div>
+                  <table className="print-legend-table">
+                    <tbody>
+                      {shiftTypes.map((t) => (
+                        <tr key={String(t.id)}>
+                          <td style={{ width: '40px', textAlign: 'center' }}>
+                            <span className="print-legend-badge" style={{ backgroundColor: String(t.color || '#cbd5e1'), color: '#fff' }}>
+                              {text(t.code).toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: 'bold' }}>{text(t.name)}</td>
+                          <td>{text(t.code).toUpperCase() === 'OFF' ? '-' : `${text(t.startTime)} - ${text(t.endTime)}`}</td>
+                          <td>{Number(t.hours || 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="print-signatures">
+                  <div className="signature-box">
+                    <div className="signature-line">ลงชื่อ....................................................................................</div>
+                    <div style={{ marginRight: '110px' }}>(....................................................................................)</div>
+                    <div style={{ color: '#475569', fontSize: '10px', marginTop: '2px', marginRight: '60px', fontWeight: 'bold' }}>พนักงานผู้จัดพิมพ์รายงาน / หัวหน้าพนักงานรักษาความปลอดภัย</div>
+                  </div>
+                  <div className="signature-box" style={{ marginTop: '12px' }}>
+                    <div className="signature-line">ทราบ / ลงชื่อ..........................................................................</div>
+                    <div style={{ marginRight: '110px' }}>(....................................................................................)</div>
+                    <div style={{ color: '#475569', fontSize: '10px', marginTop: '2px', marginRight: '150px', fontWeight: 'bold' }}>ผู้จัดการเขต (ผู้อนุมัติ)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      </>
+      );
     }
     if (activePage === 'leave') {
       const rows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
