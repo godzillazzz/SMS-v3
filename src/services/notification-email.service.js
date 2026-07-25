@@ -56,34 +56,56 @@ async function sendNotification({ to, subject, html, text }) {
   }
 }
 
+async function getAllEmployeeAndUserEmails() {
+  try {
+    const [users, employees] = await Promise.all([
+      prisma.user.findMany({
+        where: { isActive: true, email: { not: '' } },
+        select: { email: true }
+      }),
+      prisma.employee.findMany({
+        where: { isActive: true, deletedAt: null, email: { not: null } },
+        select: { email: true }
+      })
+    ]);
+    const userEmails = users.map((u) => u.email.trim().toLowerCase());
+    const empEmails = employees.map((e) => (e.email || '').trim().toLowerCase());
+    return [...new Set([...userEmails, ...empEmails].filter(Boolean))];
+  } catch (err) {
+    logger.error('Failed to query all employee and user emails', { error: err.message });
+    return [];
+  }
+}
+
 /**
- * 1. Admin approves monthly schedule -> Notify Admin & Manager group
+ * 1. Admin approves monthly schedule -> Notify ALL employees & users
  */
 async function notifyScheduleApproved({ month, approvedBy, revision }) {
   try {
-    const adminManagerEmails = await getAdminAndManagerEmails();
-    if (!adminManagerEmails.length) return;
+    const allRecipientEmails = await getAllEmployeeAndUserEmails();
+    if (!allRecipientEmails.length) return;
 
     const [yearStr, monthStr] = month.split('-');
     const thaiMonth = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(yearStr), Number(monthStr) - 1, 1)));
     const thaiYear = Number(yearStr) + 543;
     const monthText = `${thaiMonth} ${thaiYear}`;
 
-    const subject = `SMS v3: อนุมัติตารางกะประจำเดือน ${monthText}`;
+    const subject = `SMS v3: แจ้งเตือนอนุมัติตารางกะประจำเดือน ${monthText}`;
     const html = `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">
         <h2 style="color: #059669; margin-top: 0;">✓ อนุมัติตารางกะประจำเดือนเรียบร้อยแล้ว</h2>
-        <p>เรียน ผู้ดูแลระบบและหัวหน้างาน (Admins & Managers),</p>
-        <p>ตารางกะการทำงานประจำเดือน <strong>${monthText}</strong> ได้รับการอนุมัติอย่างเป็นทางการแล้ว</p>
+        <p>เรียน พนักงานและทีมผู้บริหารทุกท่าน (All Employees & Management Team),</p>
+        <p>ตารางกะการทำงานประจำเดือน <strong>${monthText}</strong> ได้รับการตรวจสอบและอนุมัติอย่างเป็นทางการเรียบร้อยแล้ว</p>
         <table style="border-collapse: collapse; margin: 15px 0; width: 100%; background: #f8fafc; border-radius: 8px;">
-          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 140px;">เดือน:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${monthText} (${month})</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 140px;">ประจำเดือน:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${monthText} (${month})</td></tr>
           <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">ผู้อนุมัติ:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${approvedBy || 'Admin'}</td></tr>
-          <tr><td style="padding: 10px; font-weight: bold;">Revision:</td><td style="padding: 10px;">Revision ${revision || 1}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold;">สถานะตาราง:</td><td style="padding: 10px; color: #059669; font-weight: bold;">Approved (Revision ${revision || 1})</td></tr>
         </table>
+        <p>ท่านสามารถเข้าสู่ระบบเพื่อตรวจสอบปฏิทินตารางกะการทำงานของตนเองได้ที่หน้า <strong>Schedule Calendar</strong></p>
         <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">ระบบ Security Management System v3</p>
       </div>
     `;
-    await sendNotification({ to: adminManagerEmails, subject, html });
+    await sendNotification({ to: allRecipientEmails, subject, html });
   } catch (err) {
     logger.error('notifyScheduleApproved failed', { error: err.message });
   }
