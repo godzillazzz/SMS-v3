@@ -11,7 +11,6 @@ const router = express.Router();
 router.use('/auth', authRoutes);
 router.use('/users', usersRoutes);
 router.use('/employees', employeesRoutes);
-router.use('/shifts', shiftsRoutes);
 router.use('/shift-types', shiftsRoutes);
 router.use('/schedules', schedulesRoutes);
 router.use('/schedule-calendar', schedulesRoutes);
