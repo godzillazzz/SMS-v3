@@ -206,29 +206,47 @@ model EmployeeLicense {
 }
 
 model LeaveRequest {
-  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sourceFingerprint         String    @unique @map("source_fingerprint") @db.VarChar(64)
-  employeeId                String    @map("employee_id") @db.Uuid
-  requestedAt               DateTime  @map("requested_at")
-  employeeNameSnapshot      String    @map("employee_name_snapshot") @db.VarChar(255)
-  departmentSnapshot        String?   @map("department_snapshot") @db.VarChar(100)
-  leaveType                 String    @map("leave_type") @db.VarChar(100)
-  startDate                 DateTime  @map("start_date") @db.Date
-  endDate                   DateTime  @map("end_date") @db.Date
-  dayCount                  Decimal   @map("day_count") @db.Decimal(6, 2)
-  reason                    String?   @db.VarChar(2000)
-  attachmentUrl             String?   @map("attachment_url") @db.VarChar(2000)
-  attachmentMigrationStatus String    @default("NONE") @map("attachment_migration_status") @db.VarChar(40)
-  status                    String    @db.VarChar(100)
-  approvedByLegacyRef       String?   @map("approved_by_legacy_ref") @db.VarChar(255)
-  approvedAt                DateTime? @map("approved_at")
-  createdAt                 DateTime  @default(now()) @map("created_at")
-  updatedAt                 DateTime  @updatedAt @map("updated_at")
-  employee                  Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  id                        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceFingerprint         String           @unique @map("source_fingerprint") @db.VarChar(64)
+  employeeId                String           @map("employee_id") @db.Uuid
+  requestedAt               DateTime         @map("requested_at")
+  employeeNameSnapshot      String           @map("employee_name_snapshot") @db.VarChar(255)
+  departmentSnapshot        String?          @map("department_snapshot") @db.VarChar(100)
+  leaveType                 String           @map("leave_type") @db.VarChar(100)
+  startDate                 DateTime         @map("start_date") @db.Date
+  endDate                   DateTime         @map("end_date") @db.Date
+  dayCount                  Decimal          @map("day_count") @db.Decimal(6, 2)
+  reason                    String?          @db.VarChar(2000)
+  attachmentUrl             String?          @map("attachment_url") @db.VarChar(2000)
+  attachmentMigrationStatus String           @default("NONE") @map("attachment_migration_status") @db.VarChar(40)
+  status                    String           @db.VarChar(100)
+  approvedByLegacyRef       String?          @map("approved_by_legacy_ref") @db.VarChar(255)
+  approvedAt                DateTime?        @map("approved_at")
+  createdAt                 DateTime         @default(now()) @map("created_at")
+  updatedAt                 DateTime         @updatedAt @map("updated_at")
+  employee                  Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  attachment                LeaveAttachment?
 
   @@index([employeeId, startDate])
   @@index([status])
   @@map("leave_requests")
+}
+
+model LeaveAttachment {
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leaveRequestId      String       @unique @map("leave_request_id") @db.Uuid
+  fileName            String       @map("file_name") @db.VarChar(255)
+  mimeType            String       @map("mime_type") @db.VarChar(100)
+  sizeBytes           Int          @map("size_bytes")
+  sha256              String       @db.Char(64)
+  content             Bytes
+  uploadedByLegacyRef String?      @map("uploaded_by_legacy_ref") @db.VarChar(255)
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+  leaveRequest        LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("leave_attachments")
 }
 
 model LeaveQuota {

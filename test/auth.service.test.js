@@ -67,3 +67,17 @@ test('middleware rejects expired, tampered, and token-version-mismatched JWTs', 
   assert.equal((await run(valid)).statusCode, 401);
   users[0].tokenVersion = 0;
 });
+test('View As tokens require an active Admin and reject every mutation', async () => {
+  const viewer = { id: '22222222-2222-4222-8222-222222222222', email: 'viewer@example.com', displayName: 'Sample Viewer', role: 'VIEWER', accountStatus: 'ACTIVE', passwordResetRequired: false, isActive: true, tokenVersion: 0 };
+  users.push(viewer);
+  const token = auth.accessTokenFor(viewer, { impersonatorSub: users[0].id, impersonatorTokenVersion: users[0].tokenVersion, expiresIn: '10m' });
+  const run = (method) => new Promise((resolve) => { const req = { method, headers: { authorization: `Bearer ${token}` } }; authenticate(req, {}, (error) => resolve({ error, req })); });
+  const read = await run('GET');
+  assert.equal(read.error, undefined);
+  assert.equal(read.req.user.impersonation, true);
+  const mutation = await run('POST');
+  assert.equal(mutation.error.statusCode, 403);
+  users[0].tokenVersion += 1;
+  assert.equal((await run('GET')).error.statusCode, 401);
+  users[0].tokenVersion -= 1;
+});

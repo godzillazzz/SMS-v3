@@ -40,16 +40,22 @@ test('all operational mutation endpoints reject unauthenticated requests', async
     request(app).post('/api/v1/shift-types').send({}),
     request(app).delete(`/api/v1/shift-types/${id}`),
     request(app).post('/api/v1/shifts').send({}),
+    request(app).post('/api/v1/schedule/auto-preview').send({ month: '2026-07' }),
+    request(app).post('/api/v1/schedule/auto-commit').send({ month: '2026-07' }),
+    request(app).post('/api/v1/schedule/export.xlsx').send({ month: '2026-07', scope: 'all', departments: [] }),
     request(app).put(`/api/v1/shifts/${id}`).send({}),
     request(app).delete(`/api/v1/shifts/${id}`),
     request(app).put(`/api/v1/schedule-approvals/${id}`).send({}),
     request(app).put(`/api/v1/scheduling-rules/${id}`).send({}),
     request(app).put('/api/v1/system-settings/UI_LABEL').send({}),
     request(app).post('/api/v1/leave-requests').send({}),
+    request(app).post('/api/v1/leave-requests/with-attachment').field('leaveType', 'Sick'),
+    request(app).get(`/api/v1/leave-requests/${id}/attachment`),
     request(app).put(`/api/v1/leave-requests/${id}`).send({}),
     request(app).put(`/api/v1/leave-quotas/${id}`).send({}),
     request(app).put(`/api/v1/users/${id}`).send({}),
-    request(app).post(`/api/v1/users/${id}/reset-password`).send({})
+    request(app).post(`/api/v1/users/${id}/reset-password`).send({}),
+    request(app).post(`/api/v1/users/${id}/view-as`).send({})
   ];
   for (const pendingRequest of requests) {
     const response = await pendingRequest;

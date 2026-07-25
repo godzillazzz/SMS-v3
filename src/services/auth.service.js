@@ -11,8 +11,8 @@ const genericFailure = 'Invalid email or password.';
 const refreshFailure = 'Invalid or expired refresh token.';
 const hashRefreshToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const requestMeta = (request = {}) => ({ userAgent: request.userAgent?.slice(0, 500), ipAddress: request.ipAddress?.slice(0, 64) });
-function accessTokenFor(user) {
-  return jwt.sign({ sub: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion }, env.jwtSecret, { algorithm: env.jwtAlgorithm, expiresIn: env.jwtExpiresIn, issuer: env.jwtIssuer, audience: env.jwtAudience });
+function accessTokenFor(user, options = {}) {
+  return jwt.sign({ sub: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion, ...(options.impersonatorSub && { impersonation: true, impersonatorSub: options.impersonatorSub, impersonatorTokenVersion: options.impersonatorTokenVersion }) }, env.jwtSecret, { algorithm: env.jwtAlgorithm, expiresIn: options.expiresIn || env.jwtExpiresIn, issuer: env.jwtIssuer, audience: env.jwtAudience });
 }
 async function createSessionTokens(user, request, client) {
   const refreshToken = crypto.randomBytes(48).toString('base64url');
@@ -81,4 +81,4 @@ async function logout(refreshToken, requestId) {
 
 async function logoutAll(userId, requestId) { await prisma.$transaction((tx) => revokeAllForUser(userId, 'LOGOUT_ALL', requestId, tx)); }
 
-module.exports = { login, refresh, logout, logoutAll, genericFailure, refreshFailure, hashRefreshToken };
+module.exports = { login, refresh, logout, logoutAll, genericFailure, refreshFailure, hashRefreshToken, accessTokenFor };

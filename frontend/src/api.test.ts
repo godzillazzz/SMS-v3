@@ -50,9 +50,10 @@ describe('API client', () => {
       'createLicense', 'updateLicense', 'deleteLicense',
       'createShiftType', 'deleteShiftType',
       'createShift', 'updateShift', 'deleteShift',
+      'previewAutoSchedule', 'commitAutoSchedule', 'exportScheduleExcel',
       'updateScheduleApproval', 'updateSchedulingRule', 'updateSystemSetting',
-      'createLeaveRequest', 'updateLeaveRequest', 'updateLeaveQuota',
-      'updateUser', 'resetUserPassword'
+      'createLeaveRequest', 'createLeaveRequestWithAttachment', 'downloadLeaveAttachment', 'updateLeaveRequest', 'updateLeaveQuota',
+      'updateUser', 'resetUserPassword', 'viewAsUser'
     ] as const) {
       expect(typeof api[operation]).toBe('function');
     }

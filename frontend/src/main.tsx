@@ -3,14 +3,14 @@ import { createRoot } from 'react-dom/client';
 import { api } from './api';
 import './styles.css';
 
-type User = { id: string; email: string; displayName: string; role: string };
+type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
 type Page = 'dashboard' | 'employees' | 'licenses' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'quota' | 'users' | 'audit' | 'reports' | 'settings';
-type Auth = { token?: string; user?: User; loading: boolean; error?: string; login(email: string, password: string): Promise<void>; logout(): Promise<void> };
+type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; meta?: { total?: number; page?: number; totalPages?: number } };
-type FormField = { name: string; label: string; type?: 'text' | 'email' | 'password' | 'date' | 'number' | 'select' | 'textarea'; required?: boolean; options?: Array<{ value: string; label: string }> };
-type Editor = { title: string; submitLabel: string; fields: FormField[]; values: Record<string, string>; submit(values: Record<string, string>): Promise<void> };
+type FormField = { name: string; label: string; type?: 'text' | 'email' | 'password' | 'date' | 'number' | 'select' | 'textarea' | 'file'; required?: boolean; accept?: string; hint?: string; options?: Array<{ value: string; label: string }> };
+type Editor = { title: string; submitLabel: string; fields: FormField[]; values: Record<string, string>; submit(values: Record<string, string>, files: Record<string, File>): Promise<void> };
 
 const AuthContext = createContext<Auth | undefined>(undefined);
 
@@ -33,6 +33,7 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: string; 
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string>();
   const [user, setUser] = useState<User>();
+  const [viewAs, setViewAs] = useState<{ token: string; user: User }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
@@ -40,6 +41,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     const result = await api.refresh();
     setToken(result.accessToken);
     setUser(result.user);
+    setViewAs(undefined);
   };
 
   useEffect(() => {
@@ -52,6 +54,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await api.login(email, password);
       setToken(result.accessToken);
       setUser(result.user);
+      setViewAs(undefined);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'ไม่สามารถเข้าสู่ระบบได้');
       throw reason;
@@ -62,9 +65,18 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     await api.logout();
     setToken(undefined);
     setUser(undefined);
+    setViewAs(undefined);
   };
 
-  return <AuthContext.Provider value={{ token, user, loading, error, login, logout }}>{children}</AuthContext.Provider>;
+  const beginViewAs = async (userId: string) => {
+    if (!token || user?.role !== 'ADMIN') throw new Error('View As requires an Admin account.');
+    const result = await api.viewAsUser(token, userId);
+    setViewAs({ token: result.data.accessToken, user: result.data.user });
+  };
+
+  const endViewAs = () => setViewAs(undefined);
+
+  return <AuthContext.Provider value={{ token: viewAs?.token || token, user: viewAs?.user || user, originalUser: user, loading, error, isViewingAs: Boolean(viewAs), login, logout, beginViewAs, endViewAs }}>{children}</AuthContext.Provider>;
 }
 
 function Logo() {
@@ -158,21 +170,34 @@ function downloadCsv(rows: DataRow[], filename: string) {
   const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${filename}.csv`; anchor.click(); URL.revokeObjectURL(url);
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function EditDialog({ editor, busy, error, onClose }: { editor: Editor; busy: boolean; error?: string; onClose(): void }) {
   const [values, setValues] = useState(editor.values);
+  const [files, setFiles] = useState<Record<string, File>>({});
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    await editor.submit(values);
+    await editor.submit(values, files);
   };
   return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
     <section className="edit-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-dialog-title">
       <div className="dialog-heading"><div><p className="eyebrow">SMS v3 staging</p><h2 id="edit-dialog-title">{editor.title}</h2></div><button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}>×</button></div>
       {error && <div className="alert alert-error">{error}</div>}
       <form onSubmit={submit}>
-        <div className="dialog-grid">{editor.fields.map((field) => <label className={field.type === 'textarea' ? 'field-group full' : 'field-group'} key={field.name}><span>{field.label}</span>
+        <div className="dialog-grid">{editor.fields.map((field) => <label className={['textarea', 'file'].includes(field.type || '') ? 'field-group full' : 'field-group'} key={field.name}><span>{field.label}</span>
           {field.type === 'select' ? <select required={field.required} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}><option value="">— เลือก —</option>{field.options?.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select>
             : field.type === 'textarea' ? <textarea required={field.required} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />
-              : <input required={field.required} type={field.type || 'text'} step={field.type === 'number' ? '0.01' : undefined} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />}
+              : field.type === 'file' ? <><input required={field.required} type="file" accept={field.accept} onChange={(event) => { const file = event.target.files?.[0]; if (file) setFiles({ ...files, [field.name]: file }); }} />{field.hint && <small className="field-hint">{field.hint}</small>}</>
+                : <input required={field.required} type={field.type || 'text'} step={field.type === 'number' ? '0.01' : undefined} value={values[field.name] || ''} onChange={(event) => setValues({ ...values, [field.name]: event.target.value })} />}
         </label>)}</div>
         <div className="dialog-actions"><button className="btn-secondary" type="button" disabled={busy} onClick={onClose}>ยกเลิก</button><button className="btn-primary compact" type="submit" disabled={busy}>{busy ? 'กำลังบันทึก…' : editor.submitLabel}</button></div>
       </form>
@@ -275,6 +300,9 @@ function Dashboard() {
   const [scheduleDepartment, setScheduleDepartment] = useState('');
   const [leaveSummary, setLeaveSummary] = useState<DataRow>({});
   const [ruleCheckResponse, setRuleCheckResponse] = useState<DataRow>({});
+  const [autoSchedulePreview, setAutoSchedulePreview] = useState<DataRow>();
+  const [autoScheduleBusy, setAutoScheduleBusy] = useState(false);
+  const [scheduleExportBusy, setScheduleExportBusy] = useState(false);
 
   useEffect(() => {
     if (!auth.token) return;
@@ -341,6 +369,7 @@ function Dashboard() {
 
   useEffect(() => { setOperationPage(1); }, [activePage]);
   useEffect(() => { setOperationPage(1); }, [scheduleDepartment, scheduleMonth]);
+  useEffect(() => { setAutoSchedulePreview(undefined); }, [scheduleMonth]);
 
   const filteredEmployees = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -367,7 +396,7 @@ function Dashboard() {
     audit: 'ประวัติการใช้งานและการเปลี่ยนแปลงข้อมูล',
   };
   const initials = auth.user?.displayName?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'SM';
-  const canManage = ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
+  const canManage = !auth.isViewingAs && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
   const canViewPage = (page: Page) => {
     if (page === 'audit') return auth.user?.role === 'ADMIN';
     if (page === 'settings') return auth.user?.role === 'ADMIN';
@@ -378,14 +407,14 @@ function Dashboard() {
   const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName}` }));
   const shiftTypeOptions = shiftTypes.map((shiftType) => ({ value: String(shiftType.id), label: `${text(shiftType.code)} · ${text(shiftType.name)}` }));
 
-  const runEditor = (definition: Omit<Editor, 'submit'>, action: (values: Record<string, string>) => Promise<unknown>, refresh: 'employees' | 'operations' = 'operations') => {
+  const runEditor = (definition: Omit<Editor, 'submit'>, action: (values: Record<string, string>, files: Record<string, File>) => Promise<unknown>, refresh: 'employees' | 'operations' = 'operations') => {
     setEditorError(undefined);
     setEditor({
       ...definition,
-      submit: async (values) => {
+      submit: async (values, files) => {
         setEditorBusy(true); setEditorError(undefined);
         try {
-          await action(values);
+          await action(values, files);
           setEditor(undefined);
           if (refresh === 'employees') setEmployeeRefresh((value) => value + 1);
           else setOperationRefresh((value) => value + 1);
@@ -446,9 +475,9 @@ function Dashboard() {
     if (activePage === 'schedule') openShiftEditor();
     if (activePage === 'leave') runEditor({
       title: 'สร้างคำขอลา', submitLabel: 'ส่งคำขอลา',
-      fields: [{ name: 'employeeId', label: 'พนักงาน', type: 'select', required: auth.user?.role !== 'VIEWER', options: employeeOptions }, { name: 'leaveType', label: 'ประเภทการลา', type: 'select', required: true, options: ['ลาป่วย', 'ลากิจ', 'ลาพักร้อน'].map((value) => ({ value, label: value })) }, { name: 'startDate', label: 'วันที่เริ่ม', type: 'date', required: true }, { name: 'endDate', label: 'วันที่สิ้นสุด', type: 'date', required: true }, { name: 'reason', label: 'เหตุผล', type: 'textarea' }],
+      fields: [{ name: 'employeeId', label: 'พนักงาน', type: 'select', required: auth.user?.role !== 'VIEWER', options: employeeOptions }, { name: 'leaveType', label: 'ประเภทการลา', type: 'select', required: true, options: ['ลาป่วย', 'ลากิจ', 'ลาพักร้อน'].map((value) => ({ value, label: value })) }, { name: 'startDate', label: 'วันที่เริ่ม', type: 'date', required: true }, { name: 'endDate', label: 'วันที่สิ้นสุด', type: 'date', required: true }, { name: 'substitute', label: 'ผู้เข้าเวร / ปฏิบัติงานแทน', required: true }, { name: 'reason', label: 'เหตุผล', type: 'textarea' }, { name: 'attachment', label: 'ไฟล์แนบ (ถ้ามี)', type: 'file', accept: '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png', hint: 'PDF, JPG หรือ PNG ขนาดไม่เกิน 4 MB' }],
       values: {}
-    }, (form) => api.createLeaveRequest(auth.token!, formPayload(form, ['reason'])));
+    }, (form, files) => files.attachment ? api.createLeaveRequestWithAttachment(auth.token!, form, files.attachment) : api.createLeaveRequest(auth.token!, { ...formPayload(form, ['reason']), reason: form.substitute ? `[แทน: ${form.substitute}] ${form.reason || '-'}` : form.reason, substitute: undefined }));
   };
 
   const openShiftTypeCreator = () => runEditor({
@@ -545,10 +574,37 @@ function Dashboard() {
       const departments = Array.from(new Set(employees.map((employee) => employee.department || '').filter(Boolean))).sort();
       const moveMonth = (delta: number) => { const value = new Date(`${scheduleMonth}-01T00:00:00Z`); value.setUTCMonth(value.getUTCMonth() + delta); setScheduleMonth(value.toISOString().slice(0, 7)); };
       const monthLabel = new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${scheduleMonth}-01T00:00:00Z`));
+      const previewRows = Array.isArray(autoSchedulePreview?.rows) ? autoSchedulePreview.rows as DataRow[] : [];
+      const previewWarnings = Array.isArray(autoSchedulePreview?.warnings) ? autoSchedulePreview.warnings : [];
+      const previewSummary = nested(autoSchedulePreview?.summary);
+      const previewAutoSchedule = async () => {
+        if (!auth.token) return;
+        setAutoScheduleBusy(true); setOperationError(undefined);
+        try { const result = await api.previewAutoSchedule(auth.token, scheduleMonth); setAutoSchedulePreview(result.data || {}); }
+        catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'สร้างตัวอย่างตารางอัตโนมัติไม่สำเร็จ'); }
+        finally { setAutoScheduleBusy(false); }
+      };
+      const saveAutoSchedule = async () => {
+        if (!auth.token || !window.confirm(`ยืนยันบันทึกตารางอัตโนมัติเดือน ${monthLabel}? ระบบจะคงกะที่ล็อกและวันลาไว้`)) return;
+        setAutoScheduleBusy(true); setOperationError(undefined);
+        try { await api.commitAutoSchedule(auth.token, scheduleMonth); setAutoSchedulePreview(undefined); setOperationRefresh((value) => value + 1); }
+        catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'บันทึกตารางอัตโนมัติไม่สำเร็จ'); }
+        finally { setAutoScheduleBusy(false); }
+      };
+      const exportApprovedExcel = async () => {
+        if (!auth.token) return;
+        setScheduleExportBusy(true); setOperationError(undefined);
+        try {
+          const result = await api.exportScheduleExcel(auth.token, { month: scheduleMonth, scope: scheduleDepartment ? 'selected' : 'all', departments: scheduleDepartment ? [scheduleDepartment] : [] });
+          downloadBlob(result.blob, result.fileName || `SMS-Schedule-${scheduleMonth}.xlsx`);
+        } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'ส่งออก Excel ไม่สำเร็จ'); }
+        finally { setScheduleExportBusy(false); }
+      };
       return <section className="view-pane schedule-calendar-page">
-        <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Schedule Calendar</h1><p>จัดกะรายเดือน หรือคลิกช่องกะเพื่อเพิ่มและแก้ไขรายคน</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && <button className="small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{canManage && <button className="btn-primary compact" onClick={() => openShiftEditor()}>+ เพิ่มกะ</button>}</div></div>
+        <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Schedule Calendar</h1><p>จัดกะรายเดือน หรือคลิกช่องกะเพื่อเพิ่มและแก้ไขรายคน</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${scheduleDepartment ? ` · ${scheduleDepartment}` : ''}`}</button>}{canManage && <button className="btn-primary compact" onClick={() => openShiftEditor()}>+ เพิ่มกะ</button>}</div></div>
         <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ Approved' : approval.id ? '● Pending Approval' : '○ ยังไม่มีตารางกะ'} · {monthLabel}</strong><small>Revision {text(approval.revision || 0)}{approval.approvedAt ? ` · อนุมัติเมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้าง revision ใหม่โดยอัตโนมัติ'}</small></div>{auth.user?.role === 'ADMIN' && Boolean(approval.id) && approval.status !== 'APPROVED' && <button className="btn-primary compact" onClick={async () => { if (!auth.token || !window.confirm(`ยืนยันอนุมัติตาราง ${monthLabel}?`)) return; try { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'อนุมัติตารางไม่สำเร็จ'); } }}>Approve ตารางเดือนนี้</button>}</div>
         <div className="calendar-toolbar"><label><span>เดือน</span><input type="month" value={scheduleMonth} onChange={(event) => setScheduleMonth(event.target.value)} /></label><button className="small-action" onClick={() => moveMonth(-1)}>‹ เดือนก่อน</button><button className="small-action" onClick={() => moveMonth(1)}>เดือนถัดไป ›</button><label><span>แผนก</span><select value={scheduleDepartment} onChange={(event) => setScheduleDepartment(event.target.value)}><option value="">ทุกแผนก</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></label><span className="toolbar-count">แสดง {calendarEmployees.length} จาก {operationResponse.meta?.total || 0} คน</span></div>
+        {auth.user?.role === 'ADMIN' && !auth.isViewingAs && <section className="auto-schedule-panel"><div className="auto-schedule-heading"><div><span className="auto-schedule-icon">✨</span><div><h2>Auto Schedule</h2><p>สร้างตัวอย่างก่อนบันทึก โดยคงกะที่ล็อกและวันลา (AL) ตามระบบเดิม</p></div></div><button className="btn-primary compact" disabled={autoScheduleBusy} onClick={previewAutoSchedule}>{autoScheduleBusy ? 'กำลังคำนวณ…' : 'Preview ตารางอัตโนมัติ'}</button></div>{autoSchedulePreview && <div className="auto-schedule-preview"><div className="preview-summary"><span><b>{text(previewSummary.employees)}</b> พนักงาน</span><span><b>{text(previewSummary.totalRows)}</b> กะทั้งหมด</span><span><b>{text(previewSummary.manualLocked)}</b> รายการที่คงไว้</span><span><b>{previewWarnings.length}</b> คำเตือน</span></div>{previewWarnings.length > 0 && <div className="preview-warning"><strong>รายการที่ต้องตรวจสอบ</strong>{previewWarnings.slice(0, 8).map((warning, index) => <p key={`${String(warning)}-${index}`}>• {text(warning)}</p>)}</div>}<div className="table-scroll preview-table-wrap"><table className="data-table preview-table"><thead><tr><th>พนักงาน</th><th>วันที่</th><th>กะ</th><th>เหตุผล</th></tr></thead><tbody>{previewRows.slice(0, 20).map((row, index) => <tr key={`${text(row.employeeId)}-${text(row.date)}-${index}`}><td>{text(row.employeeName)}</td><td>{date(row.date)}</td><td><span className={`status-badge ${row.code === 'OFF' ? 'inactive' : 'active'}`}>{text(row.code)}</span></td><td>{text(row.remark)}</td></tr>)}</tbody></table></div>{previewRows.length > 20 && <small className="preview-more">แสดงตัวอย่าง 20 จาก {previewRows.length} รายการ</small>}<div className="preview-actions"><button className="btn-secondary" disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>ยกเลิก Preview</button><button className="btn-primary compact" disabled={autoScheduleBusy} onClick={saveAutoSchedule}>ยืนยันบันทึกตาราง</button></div></div>}</section>}
         {operationError && <div className="alert alert-error">{operationError}</div>}
         <div className="table-card calendar-card">{operationLoading ? <div className="loading-row">กำลังอ่านตารางกะรายเดือน…</div> : <div className="table-scroll"><table className="schedule-grid"><thead><tr><th className="employee-sticky">พนักงาน</th>{dates.map((day) => { const dayValue = new Date(`${day}T00:00:00Z`); const weekend = [0, 6].includes(dayValue.getUTCDay()); return <th key={day} className={weekend ? 'weekend' : ''}><b>{dayValue.getUTCDate()}</b><small>{new Intl.DateTimeFormat('th-TH', { weekday: 'short', timeZone: 'UTC' }).format(dayValue)}</small></th>; })}</tr></thead><tbody>{calendarEmployees.length ? calendarEmployees.map((employee) => { const employeeShifts = Array.isArray(employee.shifts) ? employee.shifts as DataRow[] : []; return <tr key={text(employee.id)}><td className="employee-sticky"><strong>{text(employee.displayName || `${text(employee.firstName)} ${text(employee.lastName)}`)}</strong><small>{text(employee.employeeCode)} · {text(employee.department)}</small></td>{dates.map((day) => { const shift = employeeShifts.find((item) => inputDate(item.workDate) === day); const shiftType = nested(shift?.shiftType); const shiftCode = text(shiftType.code).toLowerCase(); const coreShift = ['d', 'n', 'off', 'al'].includes(shiftCode); const weekend = [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay()); return <td key={day} className={weekend ? 'weekend' : ''}>{shift ? <div className="calendar-shift-wrap"><button className={`calendar-shift shift-${shiftCode}`} style={coreShift ? undefined : { backgroundColor: String(shiftType.color || '#64748B') }} title={`${text(shiftType.name)} · ${text(shift.startTime)}-${text(shift.endTime)}`} onClick={() => canManage && openShiftEditor(shift)}><b>{text(shiftType.code)}</b><small>{text(shift.startTime)}–{text(shift.endTime)}</small>{Boolean(shift.locked) && <small className="shift-note">ล็อก</small>}{Boolean(shift.licenseOverride) && <small className="shift-note">OVR</small>}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={async () => { if (!auth.token || !window.confirm('ยืนยันการลบกะรายการนี้?')) return; try { await api.deleteShift(auth.token, String(shift.id)); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'ลบกะไม่สำเร็จ'); } }}>×</button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={() => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day })}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
@@ -564,7 +620,7 @@ function Dashboard() {
         {leaveSummary.linked ? <div className="leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <article className={`leave-quota-card ${tone}`} key={label}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ประจำปี (วัน)</small></div><span>{icon}</span></article>)}</div> : auth.user?.role === 'VIEWER' && <div className="alert alert-error">บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อ Admin ก่อนส่งคำขอลา</div>}
         <div className="leave-section-heading"><div><h2>{canManage ? 'คำขอลาพนักงานทั้งหมด' : 'ประวัติคำขอลาของฉัน'}</h2><p>{canManage ? `รายการรออนุมัติ ${pendingCount} รายการ` : 'ติดตามสถานะและพิมพ์ประวัติคำขอลา'}</p></div><div className="heading-actions">{canManage && <button className="small-action" onClick={() => setActivePage('quota')}>จัดการโควตาวันลา</button>}<button className="btn-primary compact" disabled={auth.user?.role === 'VIEWER' && !leaveSummary.linked} onClick={openCreateOperation}>+ ส่งคำขอลา</button><button className="small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div>
         {operationError && <div className="alert alert-error">{operationError}</div>}
-        <div className="table-card">{operationLoading ? <div className="loading-row">กำลังอ่านประวัติการลา…</div> : <div className="table-scroll"><table className="data-table"><thead><tr><th>พนักงาน</th><th>ประเภท</th><th>วันที่ลา</th><th>วัน</th><th>เหตุผล</th><th>สถานะ</th>{canManage && <th>จัดการ</th>}</tr></thead><tbody>{rows.length ? rows.map((row) => <tr key={text(row.id)}><td className="employee-name">{text(row.employeeNameSnapshot)}<small className="cell-note">{text(row.departmentSnapshot)}</small></td><td>{text(row.leaveType)}</td><td>{date(row.startDate)} – {date(row.endDate)}</td><td>{text(row.dayCount)}</td><td>{text(row.reason)}</td><td><span className={`status-badge ${row.status === 'APPROVED' ? 'active' : row.status === 'REJECTED' ? 'inactive' : 'pending'}`}>{text(row.status)}</span></td>{canManage && <td className="row-actions">{row.status === 'PENDING' ? <><button className="btn-primary compact" onClick={() => handleOperationAction(row, 'approve')}>อนุมัติ</button><button className="danger-action" onClick={() => handleOperationAction(row, 'reject')}>ไม่อนุมัติ</button></> : <span className="muted-text">ดำเนินการแล้ว</span>}</td>}</tr>) : <tr><td colSpan={canManage ? 7 : 6} className="no-rows">ยังไม่มีประวัติคำขอลา</td></tr>}</tbody></table></div>}</div>
+        <div className="table-card">{operationLoading ? <div className="loading-row">กำลังอ่านประวัติการลา…</div> : <div className="table-scroll"><table className="data-table"><thead><tr><th>พนักงาน</th><th>ประเภท</th><th>วันที่ลา</th><th>วัน</th><th>เหตุผล</th><th>เอกสาร</th><th>สถานะ</th>{canManage && <th>จัดการ</th>}</tr></thead><tbody>{rows.length ? rows.map((row) => <tr key={text(row.id)}><td className="employee-name">{text(row.employeeNameSnapshot)}<small className="cell-note">{text(row.departmentSnapshot)}</small></td><td>{text(row.leaveType)}</td><td>{date(row.startDate)} – {date(row.endDate)}</td><td>{text(row.dayCount)}</td><td>{text(row.reason)}</td><td>{row.attachmentUrl ? <button className="attachment-link" onClick={async () => { if (!auth.token) return; try { const result = await api.downloadLeaveAttachment(auth.token, String(row.id)); const url = URL.createObjectURL(result.blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'เปิดไฟล์แนบไม่สำเร็จ'); } }}>📎 ดูเอกสาร</button> : <span className="muted-text">–</span>}</td><td><span className={`status-badge ${row.status === 'APPROVED' ? 'active' : row.status === 'REJECTED' ? 'inactive' : 'pending'}`}>{text(row.status)}</span></td>{canManage && <td className="row-actions">{row.status === 'PENDING' ? <><button className="btn-primary compact" onClick={() => handleOperationAction(row, 'approve')}>อนุมัติ</button><button className="danger-action" onClick={() => handleOperationAction(row, 'reject')}>ไม่อนุมัติ</button></> : <span className="muted-text">ดำเนินการแล้ว</span>}</td>}</tr>) : <tr><td colSpan={canManage ? 8 : 7} className="no-rows">ยังไม่มีประวัติคำขอลา</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
       </section>;
     }
@@ -591,7 +647,7 @@ function Dashboard() {
         <div className="page-heading"><div><h1>Users &amp; Roles</h1><p>{isManager ? 'Manager อนุมัติบัญชีใหม่เป็น Viewer และกำหนดแผนก' : 'Admin กำหนด Role และแผนกก่อนอนุมัติบัญชี'}</p></div></div>
         {operationError && <div className="alert alert-error">{operationError}</div>}
         <div className="users-roles-toolbar"><strong>คำขอรออนุมัติ {pendingCount} บัญชี</strong><button className="small-action" disabled={operationLoading} onClick={() => setOperationRefresh((value) => value + 1)}>รีเฟรช</button></div>
-        <div className="table-card"><div className="table-scroll"><table className="data-table users-roles-table"><thead><tr><th>User ID</th><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Status</th><th>จัดการ</th></tr></thead><tbody>{operationLoading ? <tr><td colSpan={7} className="loading-row">กำลังอ่านข้อมูลบัญชี…</td></tr> : users.length ? users.map((user, index) => <tr key={text(user.id) + index}><td><code>{text(user.legacyUserId || user.id)}</code>{user.role === 'ADMIN' && <small className="user-id-note">Primary Admin</small>}</td><td className="employee-name">{text(user.displayName)}</td><td>{text(user.email)}</td><td>{isManager ? <span>Viewer</span> : <select className="inline-select" name={`role-${text(user.id)}`} defaultValue={text(user.role)}>{['ADMIN', 'MANAGER', 'VIEWER'].map((role) => <option key={role} value={role}>{role[0] + role.slice(1).toLowerCase()}</option>)}</select>}</td><td><select className="inline-select" name={`department-${text(user.id)}`} defaultValue={text(user.department)}><option value="">All</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></td><td><span className={user.isActive && user.accountStatus === 'ACTIVE' ? 'status-badge active' : 'status-badge inactive'}>{user.isActive && user.accountStatus === 'ACTIVE' ? '● Active' : `● ${text(user.accountStatus)}`}</span></td><td className="row-actions"><button className="btn-primary compact" onClick={async () => { try { const role = isManager ? 'VIEWER' : (document.querySelector(`[name="role-${text(user.id)}"]`) as HTMLSelectElement)?.value; const department = (document.querySelector(`[name="department-${text(user.id)}"]`) as HTMLSelectElement)?.value; await api.updateUser(auth.token!, String(user.id), isManager ? { role, department: department || null, accountStatus: 'ACTIVE', isActive: true } : { role, department: department || null }); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'บันทึกสิทธิ์ไม่สำเร็จ'); } }}>{isManager ? 'อนุมัติเป็น Viewer' : 'บันทึกสิทธิ์'}</button>{!isManager && <><button onClick={() => handleOperationAction(user, 'toggle-user')}>{user.isActive ? 'ระงับ' : 'เปิดใช้งาน'}</button><button onClick={() => handleOperationAction(user, 'reset-password')}>ตั้งรหัสผ่าน</button></>}</td></tr>) : <tr><td colSpan={7} className="no-rows">ไม่มีข้อมูลบัญชีผู้ใช้</td></tr>}</tbody></table></div></div>
+        <div className="table-card"><div className="table-scroll"><table className="data-table users-roles-table"><thead><tr><th>User ID</th><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Status</th><th>จัดการ</th></tr></thead><tbody>{operationLoading ? <tr><td colSpan={7} className="loading-row">กำลังอ่านข้อมูลบัญชี…</td></tr> : users.length ? users.map((user, index) => <tr key={text(user.id) + index}><td><code>{text(user.legacyUserId || user.id)}</code>{user.role === 'ADMIN' && <small className="user-id-note">Primary Admin</small>}</td><td className="employee-name">{text(user.displayName)}</td><td>{text(user.email)}</td><td>{isManager ? <span>Viewer</span> : <select className="inline-select" name={`role-${text(user.id)}`} defaultValue={text(user.role)}>{['ADMIN', 'MANAGER', 'VIEWER'].map((role) => <option key={role} value={role}>{role[0] + role.slice(1).toLowerCase()}</option>)}</select>}</td><td><select className="inline-select" name={`department-${text(user.id)}`} defaultValue={text(user.department)}><option value="">All</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></td><td><span className={user.isActive && user.accountStatus === 'ACTIVE' ? 'status-badge active' : 'status-badge inactive'}>{user.isActive && user.accountStatus === 'ACTIVE' ? '● Active' : `● ${text(user.accountStatus)}`}</span></td><td className="row-actions"><button className="btn-primary compact" onClick={async () => { try { const role = isManager ? 'VIEWER' : (document.querySelector(`[name="role-${text(user.id)}"]`) as HTMLSelectElement)?.value; const department = (document.querySelector(`[name="department-${text(user.id)}"]`) as HTMLSelectElement)?.value; await api.updateUser(auth.token!, String(user.id), isManager ? { role, department: department || null, accountStatus: 'ACTIVE', isActive: true } : { role, department: department || null }); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'บันทึกสิทธิ์ไม่สำเร็จ'); } }}>{isManager ? 'อนุมัติเป็น Viewer' : 'บันทึกสิทธิ์'}</button>{!isManager && <><button onClick={() => handleOperationAction(user, 'toggle-user')}>{user.isActive ? 'ระงับ' : 'เปิดใช้งาน'}</button><button onClick={() => handleOperationAction(user, 'reset-password')}>ตั้งรหัสผ่าน</button>{String(user.id) !== auth.originalUser?.id && user.isActive && user.accountStatus === 'ACTIVE' && <button className="view-as-action" onClick={async () => { if (!window.confirm(`เปิดมุมมองของ ${text(user.displayName)} แบบอ่านอย่างเดียว?`)) return; try { await auth.beginViewAs(String(user.id)); setActivePage('dashboard'); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'เปิด View As ไม่สำเร็จ'); } }}>🐞 View As</button>}</>}</td></tr>) : <tr><td colSpan={7} className="no-rows">ไม่มีข้อมูลบัญชีผู้ใช้</td></tr>}</tbody></table></div></div>
       </section>;
     }
     if (activePage === 'settings') {
@@ -607,8 +663,9 @@ function Dashboard() {
   };
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''}`}>
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
+      {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({auth.user?.role}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)} />}
       <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="sidebar-brand"><Logo /><div><strong>Security Management</strong><span>System v3</span></div></div>

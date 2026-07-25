@@ -1,11 +1,14 @@
 const express = require('express');
 const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
 const { z } = require('zod');
 const prisma = require('../config/prisma');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const audit = require('../services/audit.service');
 const { evaluateScheduleRules } = require('../services/schedule-rules.service');
+const { buildAutoSchedulePlan, commitAutoSchedule, monthBounds } = require('../services/auto-schedule.service');
+const { buildApprovedScheduleWorkbook } = require('../services/schedule-export.service');
 const HttpError = require('../utils/http-error');
 
 const router = express.Router();
@@ -30,6 +33,9 @@ const shiftTypeInput = z.object({
 });
 const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.coerce.date(), startTime: nullableText(20), endTime: nullableText(20), hours: z.coerce.number().min(0).max(24).optional(), remark: nullableText(2000), locked: z.boolean().optional(), licenseOverride: z.boolean().optional(), overrideReason: nullableText(2000) });
 const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('attachment');
+const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'Attachment must not exceed 4 MB.' : 'Attachment upload is invalid.')) : next());
+const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const safeRecord = (record, fields) => Object.fromEntries(fields.map((field) => [field, record[field]]));
 const leaveQuotaField = (leaveType) => {
   const value = String(leaveType).toLowerCase();
@@ -61,6 +67,35 @@ const touchScheduleApproval = async (tx, workDate, actorUserId, changeType) => {
   const month = new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth(), 1));
   const latest = await tx.scheduleApproval.findFirst({ where: { month }, orderBy: { revision: 'desc' }, select: { revision: true } });
   return tx.scheduleApproval.create({ data: { month, status: 'PENDING', revision: (latest?.revision || 0) + 1, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType, approvedAt: null, approvedByLegacyRef: null, scheduleHash: null } });
+};
+
+const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
+  const currentUser = await tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employeeId: true } });
+  const employeeId = currentUser.role === 'VIEWER' ? currentUser.employeeId : input.employeeId;
+  if (!employeeId) throw new HttpError(400, 'Employee is required.');
+  const employee = await tx.employee.findUniqueOrThrow({ where: { id: employeeId } });
+  const dayCount = inclusiveDays(input.startDate, input.endDate);
+  const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } });
+  if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.');
+  await ensureLeaveAvailable(tx, employeeId, input.leaveType, dayCount);
+  if (file && !allowedAttachmentTypes.has(file.mimetype)) throw new HttpError(415, 'Attachment must be PDF, JPEG, or PNG.');
+  const safeFileName = file?.originalname.replace(/[\\/\0]/g, '_').slice(0, 255);
+  const reasonText = input.reason || '-';
+  const reason = substitute ? `[แทน: ${String(substitute).trim().slice(0, 255)}] ${reasonText}` : reasonText;
+  const leave = await tx.leaveRequest.create({ data: { ...input, reason, employeeId, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: file ? 'STORED' : 'NONE', status: 'PENDING' } });
+  if (file) {
+    await tx.leaveAttachment.create({ data: { leaveRequestId: leave.id, fileName: safeFileName || 'attachment', mimeType: file.mimetype, sizeBytes: file.size, sha256: crypto.createHash('sha256').update(file.buffer).digest('hex'), content: file.buffer, uploadedByLegacyRef: requestUser.sub } });
+    await tx.leaveRequest.update({ where: { id: leave.id }, data: { attachmentUrl: `/api/v1/leave-requests/${leave.id}/attachment` } });
+  }
+  await audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']), attachment: file ? { present: true, mimeType: file.mimetype, sizeBytes: file.size } : { present: false } } }, tx);
+  return {
+    id: leave.id, employeeId: leave.employeeId, requestedAt: leave.requestedAt,
+    employeeNameSnapshot: leave.employeeNameSnapshot, departmentSnapshot: leave.departmentSnapshot,
+    leaveType: leave.leaveType, startDate: leave.startDate, endDate: leave.endDate,
+    dayCount: leave.dayCount, reason: leave.reason, status: leave.status,
+    attachmentUrl: file ? `/api/v1/leave-requests/${leave.id}/attachment` : null,
+    attachment: file ? { fileName: safeFileName, mimeType: file.mimetype, sizeBytes: file.size } : null
+  };
 };
 
 const paged = async (model, query, options = {}) => {
@@ -243,6 +278,46 @@ router.get('/schedule-calendar', async (req, res, next) => {
     res.json({ data: { month: filters.month, dates, approval, employees: employees.map((employee) => ({ ...employee, shifts: shifts.filter((shift) => shift.employeeId === employee.id) })) }, meta: { page: filters.page, pageSize: filters.pageSize, total, totalPages: Math.ceil(total / filters.pageSize) } });
   } catch (error) { next(error); }
 });
+router.post('/schedule/auto-preview', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const { month } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).parse(req.body);
+    res.json({ data: await buildAutoSchedulePlan(prisma, month) });
+  } catch (error) { next(error); }
+});
+router.post('/schedule/auto-commit', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const { month } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).parse(req.body);
+    res.json({ data: await commitAutoSchedule(prisma, month, req.user.sub) });
+  } catch (error) { next(error); }
+});
+router.post('/schedule/export.xlsx', async (req, res, next) => {
+  try {
+    const input = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), scope: z.enum(['selected', 'all']).default('selected'), departments: z.array(z.string().trim().min(1).max(100)).max(100).default([]) }).parse(req.body);
+    const { start, end } = monthBounds(input.month);
+    const approval = await prisma.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true } });
+    if (!approval || approval.status !== 'APPROVED') throw new HttpError(409, 'The selected schedule must be approved before export.');
+    const available = await prisma.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end } }, distinct: ['departmentSnapshot'], select: { departmentSnapshot: true } });
+    const availableDepartments = available.map((row) => row.departmentSnapshot).filter(Boolean).sort();
+    const selectedDepartments = input.scope === 'all' || !input.departments.length ? availableDepartments : input.departments.filter((department) => availableDepartments.includes(department));
+    if (!selectedDepartments.length) throw new HttpError(404, 'No schedule rows were found for the selected departments.');
+    const shifts = await prisma.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end }, departmentSnapshot: { in: selectedDepartments } }, select: { employeeId: true, employeeNameSnapshot: true, departmentSnapshot: true, workDate: true, hours: true, shiftType: { select: { code: true } } }, orderBy: [{ departmentSnapshot: 'asc' }, { employeeNameSnapshot: 'asc' }, { workDate: 'asc' }] });
+    if (!shifts.length) throw new HttpError(404, 'No schedule rows were found for export.');
+    const employeeIds = [...new Set(shifts.map((shift) => shift.employeeId))];
+    const [employees, shiftTypes, actor] = await Promise.all([
+      prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, jobTitle: true } }),
+      prisma.shiftType.findMany({ select: { code: true, name: true, startTime: true, endTime: true, hours: true }, orderBy: { code: 'asc' } }),
+      prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { displayName: true } })
+    ]);
+    const workbook = buildApprovedScheduleWorkbook({ month: input.month, approval, departments: selectedDepartments, shifts, employees, shiftTypes, exportedBy: actor.displayName });
+    const latest = await prisma.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true } });
+    if (!latest || latest.id !== approval.id || latest.status !== 'APPROVED' || latest.revision !== approval.revision) throw new HttpError(409, 'The schedule changed while the export was being generated. Approve it again before export.');
+    await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'ScheduleExport', entityId: `${input.month}-r${approval.revision}`, metadata: { month: input.month, revision: approval.revision, departmentCount: selectedDepartments.length, rowCount: shifts.length, format: 'XLSX' } });
+    const [year, monthNumber] = input.month.split('-');
+    const fileName = `SMS-ตารางกะ-${Number(year) + 543}-${monthNumber}-R${approval.revision}.xlsx`;
+    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`, 'Content-Length': workbook.length, 'Cache-Control': 'private, no-store' });
+    res.send(workbook);
+  } catch (error) { next(error); }
+});
 router.post('/shifts', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const input = shiftInput.parse(req.body);
@@ -330,15 +405,17 @@ router.get('/leave-requests', async (req, res, next) => {
   try {
     const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true } });
     if (currentUser.role === 'VIEWER' && !currentUser.employeeId) throw new HttpError(403, 'This account is not linked to an employee.');
-    res.json(await paged(prisma.leaveRequest, req.query, {
+    const response = await paged(prisma.leaveRequest, req.query, {
       where: currentUser.role === 'VIEWER' ? { employeeId: currentUser.employeeId } : {},
       select: {
         id: true, employeeId: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true,
         leaveType: true, startDate: true, endDate: true, dayCount: true, reason: true,
-        attachmentMigrationStatus: true, status: true, approvedAt: true
+        attachmentUrl: true, attachmentMigrationStatus: true, status: true, approvedAt: true,
+        attachment: { select: { fileName: true, mimeType: true, sizeBytes: true } }
       },
       orderBy: { requestedAt: 'desc' }
-    }));
+    });
+    res.json({ ...response, data: response.data.map((row) => ({ ...row, attachmentUrl: row.attachment ? `/api/v1/leave-requests/${row.id}/attachment` : null })) });
   } catch (error) { next(error); }
 });
 router.get('/leave-summary', async (req, res, next) => {
@@ -355,7 +432,32 @@ router.get('/leave-summary', async (req, res, next) => {
     res.json({ data: { linked: true, entitlement, used, remaining: { sickLeave: Math.max(0, entitlement.sickLeave - used.sickLeave), personalLeave: Math.max(0, entitlement.personalLeave - used.personalLeave), vacationLeave: Math.max(0, entitlement.vacationLeave - used.vacationLeave) } } });
   } catch (error) { next(error); }
 });
-router.post('/leave-requests', async (req, res, next) => { try { const input = leaveInput.parse(req.body); const result = await prisma.$transaction(async (tx) => { const currentUser = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true } }); const employeeId = currentUser.role === 'VIEWER' ? currentUser.employeeId : input.employeeId; if (!employeeId) throw new HttpError(400, 'Employee is required.'); const employee = await tx.employee.findUniqueOrThrow({ where: { id: employeeId } }); const dayCount = inclusiveDays(input.startDate, input.endDate); const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } }); if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.'); await ensureLeaveAvailable(tx, employeeId, input.leaveType, dayCount); const { dayCount: _ignored, ...safeInput } = input; const leave = await tx.leaveRequest.create({ data: { ...safeInput, employeeId, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: 'NONE', status: 'PENDING' } }); await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']) } }, tx); return leave; }); res.status(201).json({ data: result }); } catch (error) { next(error); } });
+router.post('/leave-requests', async (req, res, next) => {
+  try {
+    const input = leaveInput.parse(req.body);
+    const result = await prisma.$transaction((tx) => createLeaveRequest(tx, input, req.user));
+    res.status(201).json({ data: result });
+  } catch (error) { next(error); }
+});
+router.post('/leave-requests/with-attachment', leaveUpload, async (req, res, next) => {
+  try {
+    const input = leaveInput.parse({ ...req.body, employeeId: req.body.employeeId || undefined });
+    const substitute = z.string().trim().min(1).max(255).optional().parse(req.body.substitute || undefined);
+    const result = await prisma.$transaction((tx) => createLeaveRequest(tx, input, req.user, req.file, substitute));
+    res.status(201).json({ data: result });
+  } catch (error) { next(error); }
+});
+router.get('/leave-requests/:id/attachment', async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true } });
+    const leave = await prisma.leaveRequest.findUniqueOrThrow({ where: { id }, select: { employeeId: true, attachment: { select: { fileName: true, mimeType: true, sizeBytes: true, content: true } } } });
+    if (currentUser.role === 'VIEWER' && currentUser.employeeId !== leave.employeeId) throw new HttpError(403, 'You do not have permission to view this attachment.');
+    if (!leave.attachment) throw new HttpError(404, 'Attachment not found.');
+    res.set({ 'Content-Type': leave.attachment.mimeType, 'Content-Length': leave.attachment.sizeBytes, 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(leave.attachment.fileName)}`, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
+    res.send(Buffer.from(leave.attachment.content));
+  } catch (error) { next(error); }
+});
 router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ status: z.enum(['APPROVED', 'REJECTED']), reason: nullableText(2000) }).parse(req.body); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } }); if (before.status !== 'PENDING') throw new HttpError(409, 'This leave request has already been reviewed.'); if (req.user.role === 'MANAGER') { const today = new Date(); today.setUTCHours(0, 0, 0, 0); if (before.startDate < today) throw new HttpError(400, 'Managers cannot approve retroactive leave.'); } if (input.status === 'APPROVED') { await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, Number(before.dayCount), before.id); const [employee, leaveShift] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: before.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' } })]); for (let date = new Date(before.startDate); date <= before.endDate; date.setUTCDate(date.getUTCDate() + 1)) { const workDate = new Date(date); await tx.shiftAssignment.upsert({ where: { workDate_employeeId: { workDate, employeeId: before.employeeId } }, update: { shiftTypeId: leaveShift.id, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, licenseStatus: 'NOT_REQUIRED', licenseOverride: false }, create: { employeeId: before.employeeId, shiftTypeId: leaveShift.id, workDate, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, source: 'LEAVE_APPROVAL', licenseStatus: 'NOT_REQUIRED' } }); } } const after = await tx.leaveRequest.update({ where: { id }, data: { ...input, approvedAt: new Date(), approvedByLegacyRef: req.user.sub } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
 router.get('/leave-quotas', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {

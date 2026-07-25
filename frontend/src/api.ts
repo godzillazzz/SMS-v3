@@ -11,6 +11,17 @@ async function call(path: string, init: RequestInit = {}) {
   if (!response.ok) throw new Error(payload.error || 'Request failed.');
   return payload;
 }
+async function binaryCall(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  const response = await fetch(`${baseUrl}${path}`, { ...init, credentials: 'include', headers });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || 'Request failed.');
+  }
+  const disposition = response.headers.get('content-disposition') || '';
+  const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  return { blob: await response.blob(), fileName: encodedName ? decodeURIComponent(encodedName) : 'download' };
+}
 export const api = {
   login: (email: string, password: string) => call('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, clientType: 'browser' }) }),
   requestRegistrationOtp: (data: { displayName: string; email: string; password: string; department?: string }) => call('/auth/register/request-otp', { method: 'POST', body: JSON.stringify(data) }),
@@ -28,6 +39,9 @@ export const api = {
   deleteShiftType: (token: string, id: string) => call(`/shift-types/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
   shifts: (token: string, page = 1) => call(`/shifts?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   scheduleCalendar: (token: string, month: string, page = 1, department = '') => call(`/schedule-calendar?month=${encodeURIComponent(month)}&page=${page}&pageSize=20${department ? `&department=${encodeURIComponent(department)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
+  previewAutoSchedule: (token: string, month: string) => call('/schedule/auto-preview', { method: 'POST', body: JSON.stringify({ month }), headers: { Authorization: `Bearer ${token}` } }),
+  commitAutoSchedule: (token: string, month: string) => call('/schedule/auto-commit', { method: 'POST', body: JSON.stringify({ month }), headers: { Authorization: `Bearer ${token}` } }),
+  exportScheduleExcel: (token: string, data: { month: string; scope: 'selected' | 'all'; departments: string[] }) => binaryCall('/schedule/export.xlsx', { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }),
   scheduleApprovals: (token: string, page = 1) => call(`/schedule-approvals?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   schedulingRules: (token: string) => call('/scheduling-rules', { headers: { Authorization: `Bearer ${token}` } }),
   ruleChecks: (token: string, month: string) => call(`/rule-checks?month=${encodeURIComponent(month)}`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -51,8 +65,18 @@ export const api = {
   updateScheduleApproval: (token: string, id: string, data: unknown) => call(`/schedule-approvals/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateSchedulingRule: (token: string, id: string, data: unknown) => call(`/scheduling-rules/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   createLeaveRequest: (token: string, data: unknown) => call('/leave-requests', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
+  createLeaveRequestWithAttachment: (token: string, data: Record<string, string>, attachment: File) => { const body = new FormData(); Object.entries(data).forEach(([key, value]) => { if (value) body.append(key, value); }); body.append('attachment', attachment); return callMultipart('/leave-requests/with-attachment', token, body); },
+  downloadLeaveAttachment: (token: string, id: string) => binaryCall(`/leave-requests/${id}/attachment`, { headers: { Authorization: `Bearer ${token}` } }),
   updateLeaveRequest: (token: string, id: string, data: unknown) => call(`/leave-requests/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateLeaveQuota: (token: string, id: string, data: unknown) => call(`/leave-quotas/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateUser: (token: string, id: string, data: unknown) => call(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
-  resetUserPassword: (token: string, id: string, newPassword: string) => call(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }), headers: { Authorization: `Bearer ${token}` } })
+  resetUserPassword: (token: string, id: string, newPassword: string) => call(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }), headers: { Authorization: `Bearer ${token}` } }),
+  viewAsUser: (token: string, id: string) => call(`/users/${id}/view-as`, { method: 'POST', body: '{}', headers: { Authorization: `Bearer ${token}` } })
 };
+
+async function callMultipart(path: string, token: string, body: FormData) {
+  const response = await fetch(`${baseUrl}${path}`, { method: 'POST', body, credentials: 'include', headers: { Authorization: `Bearer ${token}` } });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || 'Request failed.');
+  return payload;
+}

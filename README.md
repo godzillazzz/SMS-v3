@@ -42,9 +42,14 @@ All API routes are versioned under `/api/v1`. Send `Authorization: Bearer <acces
 | POST | `/api/v1/auth/login` | Public | Receive a JWT access token |
 | GET | `/api/v1/users` | Admin, Manager | List application users |
 | GET | `/api/v1/employees` | Any signed-in user | List employees |
-| POST | `/api/v1/employees` | Admin, HR, Manager | Create an employee |
-| PUT | `/api/v1/employees/:id` | Admin, HR, Manager | Update an employee |
+| POST | `/api/v1/employees` | Admin, Manager | Create an employee |
+| PUT | `/api/v1/employees/:id` | Admin, Manager | Update an employee |
 | DELETE | `/api/v1/employees/:id` | Admin | Delete an employee |
+| POST | `/api/v1/schedule/auto-preview` | Admin | Preview the legacy auto-schedule pattern without writes |
+| POST | `/api/v1/schedule/auto-commit` | Admin | Commit an auto-schedule and create a pending revision |
+| POST | `/api/v1/schedule/export.xlsx` | Signed-in user | Export the latest approved schedule as formatted Excel |
+| POST | `/api/v1/leave-requests/with-attachment` | Signed-in user | Submit leave with a PostgreSQL-backed PDF/image attachment |
+| POST | `/api/v1/users/:id/view-as` | Admin | Open a short-lived read-only account view |
 
 Example login body:
 
