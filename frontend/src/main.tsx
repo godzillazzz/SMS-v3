@@ -276,6 +276,57 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions">{showRelated && <button className="small-action" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</button>}{canCreate && <button className="btn-primary compact" onClick={onCreate}>{page === 'leave' ? '+ ส่งคำขอลา' : '+ เพิ่มรายการ'}</button>}<span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><button className="small-action" disabled={!rows.length} onClick={() => downloadCsv(rows, page)}>CSV</button><button className="small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div>{error && <div className="alert alert-error">{error}</div>}<div className="table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <th>ดำเนินการ</th>}</tr></thead><tbody>{rows.length ? rows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}{showActions && <td className="row-actions">{rowActions(row)}</td>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows">ไม่มีข้อมูลในหมวดนี้</td></tr>}</tbody></table></div>}</div>{response.meta?.totalPages && response.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(response.meta.page || 1) <= 1 || loading} onClick={() => onPageChange((response.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {response.meta.page} จาก {response.meta.totalPages}</span><button disabled={(response.meta.page || 1) >= response.meta.totalPages || loading} onClick={() => onPageChange((response.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}</section>;
 }
 
+const defaultNewLeaveTemplate = `🔔 [คำขอลางานใหม่] รอตรวจรับเอกสาร
+--------------------------------
+👤 พนักงาน: {Name}
+📍 แผนก/พื้นที่: {Department}
+📋 ประเภท: {Type} ({Days} วัน)
+📅 วันที่: {StartDate} ถึง {EndDate}
+📝 เหตุผล: {Reason}
+📎 ไฟล์แนบ: {FileUrl}
+--------------------------------
+⚙️ จัดการใบลาคลิกที่ระบบ Security Management System`;
+const defaultLeaveStatusTemplate = `📢 [อัปเดตสถานะใบลาจากระบบ]
+--------------------------------
+👤 พนักงาน: {Name}
+📋 ประเภท: {Type} ({Days} วัน)
+🔄 ผลการตรวจรับ: {Status}
+📅 วันที่: {StartDate} ถึง {EndDate}
+📝 เหตุผล: {Reason}`;
+
+function SettingsPage({ settings, loading, error, onRefresh, onSaveTemplates, onAudit }: { settings: DataRow[]; loading: boolean; error?: string; onRefresh(): void; onSaveTemplates(newLeave: string, leaveStatus: string): Promise<void>; onAudit(): void }) {
+  const readSetting = (key: string, fallback: string) => String(settings.find((setting) => setting.key === key)?.value || fallback);
+  const [newLeaveTemplate, setNewLeaveTemplate] = useState(defaultNewLeaveTemplate);
+  const [leaveStatusTemplate, setLeaveStatusTemplate] = useState(defaultLeaveStatusTemplate);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<string>();
+  useEffect(() => {
+    setNewLeaveTemplate(readSetting('LINE_TEMPLATE_NEW_LEAVE', defaultNewLeaveTemplate));
+    setLeaveStatusTemplate(readSetting('LINE_TEMPLATE_LEAVE_STATUS', defaultLeaveStatusTemplate));
+  }, [settings]);
+  const visibleSettings = settings.filter((setting) => !['LINE_TEMPLATE_NEW_LEAVE', 'LINE_TEMPLATE_LEAVE_STATUS'].includes(String(setting.key)));
+  const saveTemplates = async () => {
+    setSaving(true); setNotice(undefined);
+    try { await onSaveTemplates(newLeaveTemplate, leaveStatusTemplate); setNotice('บันทึกเทมเพลตการแจ้งเตือนสำเร็จแล้ว'); }
+    catch (reason) { setNotice(reason instanceof Error ? reason.message : 'บันทึกเทมเพลตไม่สำเร็จ'); }
+    finally { setSaving(false); }
+  };
+  return <section className="view-pane settings-page">
+    <div className="page-heading settings-heading"><div><h1>Settings</h1><p>ตั้งค่าระบบและการแจ้งเตือน โดยไม่เก็บ token หรือความลับไว้ในฐานข้อมูล</p></div><div className="heading-actions"><button className="small-action" disabled={!visibleSettings.length} onClick={() => downloadCsv(visibleSettings, 'smsv3-settings')}>⇧ Export</button><button className="small-action" onClick={onAudit}>Audit Log</button><button className="btn-primary compact" disabled title="SMS v3 ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก">↻ Google Sheets ถูกยกเลิก</button></div></div>
+    {error && <div className="alert alert-error">{error}</div>}
+    <div className="table-card settings-table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล Settings…</div> : <div className="table-scroll"><table className="data-table settings-table"><thead><tr><th>Key</th><th>Value</th><th>Description</th></tr></thead><tbody>{visibleSettings.length ? visibleSettings.map((setting) => <tr key={text(setting.key)}><td><code>{text(setting.key)}</code></td><td>{setting.configured === undefined ? text(setting.value) : <span className={setting.configured ? 'status-badge active' : 'status-badge inactive'}>{setting.configured ? 'Configured' : 'Not configured'}</span>}</td><td>{text(setting.description)}</td></tr>) : <tr><td colSpan={3} className="no-rows">ยังไม่มีข้อมูล Settings ที่นำเข้าจากระบบเดิม</td></tr>}</tbody></table></div>}</div>
+    <section className="line-settings-card">
+      <div className="line-settings-title"><span>💬</span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
+      <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><input type="password" value="••••••••••••••••" disabled aria-label="LINE access token is managed securely" /><small>ไม่แสดงและไม่บันทึก token ในหน้าจอนี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>
+      <div className="line-template-grid"><label className="field-group"><span>🔔 เทมเพลตคำขอลางานใหม่ (New Leave Request Template)</span><textarea rows={7} value={newLeaveTemplate} onChange={(event) => setNewLeaveTemplate(event.target.value)} maxLength={2000} /></label><label className="field-group"><span>📢 เทมเพลตอัปเดตสถานะใบลา (Leave Status Update Template)</span><textarea rows={7} value={leaveStatusTemplate} onChange={(event) => setLeaveStatusTemplate(event.target.value)} maxLength={2000} /></label></div>
+      <div className="template-help"><strong>💡 ตัวแปรที่ใช้ในข้อความได้</strong><span><code>{'{Name}'}</code> พนักงาน</span><span><code>{'{Department}'}</code> แผนก</span><span><code>{'{Type}'}</code> ประเภทการลา</span><span><code>{'{Days}'}</code> จำนวนวัน</span><span><code>{'{StartDate}'}</code> / <code>{'{EndDate}'}</code> วันที่ลา</span><span><code>{'{Reason}'}</code> เหตุผล</span><span><code>{'{FileUrl}'}</code> ไฟล์แนบ</span><span><code>{'{Status}'}</code> สถานะ</span></div>
+      {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
+      <div className="line-settings-actions"><button className="btn-primary compact" disabled={saving} onClick={saveTemplates}>💾 {saving ? 'กำลังบันทึก…' : 'บันทึกเทมเพลตการแจ้งเตือน'}</button><button className="small-action" disabled title="การส่ง LINE ยังไม่เปิดใช้ใน staging">🔔 ทดสอบส่งข้อความแจ้งเตือน</button><button className="small-action" onClick={onRefresh}>↻ รีเฟรช</button></div>
+      <p className="line-settings-footnote">สถานะปัจจุบัน: การส่ง LINE ยังไม่เปิดใช้งานใน staging — การบันทึกด้านบนเก็บเฉพาะเทมเพลตที่ไม่มีข้อมูลลับ</p>
+    </section>
+  </section>;
+}
+
 function Dashboard() {
   const auth = useContext(AuthContext)!;
   const [activePage, setActivePage] = useState<Page>('dashboard');
@@ -652,7 +703,7 @@ function Dashboard() {
     }
     if (activePage === 'settings') {
       const settings = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">System</p><h1>Settings</h1><p>การตั้งค่าทั่วไปของระบบ ค่าลับต้องจัดการผ่าน Environment Variables เท่านั้น</p></div><div className="heading-actions"><button className="small-action" onClick={() => setActivePage('audit')}>Audit Log</button><span className="record-chip">ทั้งหมด {settings.length} รายการ</span></div></div>{operationError && <div className="alert alert-error">{operationError}</div>}<div className="table-card">{operationLoading ? <div className="loading-row">กำลังอ่านการตั้งค่า…</div> : <div className="table-scroll"><table className="data-table"><thead><tr><th>Setting</th><th>Value / Status</th><th>Description</th><th>Updated</th><th>จัดการ</th></tr></thead><tbody>{settings.length ? settings.map((setting) => <tr key={text(setting.key)}><td><code>{text(setting.key)}</code></td><td>{setting.configured === undefined ? text(setting.value) : <span className={setting.configured ? 'status-badge active' : 'status-badge inactive'}>{setting.configured ? 'Configured' : 'Not configured'}</span>}</td><td>{text(setting.description)}</td><td>{date(setting.updatedAt)}</td><td className="row-actions">{setting.configured === undefined ? <button onClick={() => runEditor({ title: `แก้ไข ${text(setting.key)}`, submitLabel: 'บันทึกการตั้งค่า', fields: [{ name: 'value', label: 'ค่า', required: true }, { name: 'description', label: 'คำอธิบาย', type: 'textarea' }], values: { value: String(setting.value || ''), description: String(setting.description || '') } }, (form) => api.updateSystemSetting(auth.token!, String(setting.key), formPayload(form, ['description'])))}>แก้ไข</button> : <span className="muted-text">แก้ไขผ่าน Environment</span>}</td></tr>) : <tr><td colSpan={5} className="no-rows">ยังไม่มีการตั้งค่าระบบ</td></tr>}</tbody></table></div>}</div></section>;
+      return <SettingsPage settings={settings} loading={operationLoading} error={operationError} onRefresh={() => setOperationRefresh((value) => value + 1)} onAudit={() => setActivePage('audit')} onSaveTemplates={async (newLeave, leaveStatus) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_NEW_LEAVE', { value: newLeave, description: 'เทมเพลตข้อความคำขอลาใหม่ (รูปแบบเดิม)' }), api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_LEAVE_STATUS', { value: leaveStatus, description: 'เทมเพลตข้อความอัปเดตสถานะการลา (รูปแบบเดิม)' })]); setOperationRefresh((value) => value + 1); }} />;
     }
     if (activePage === 'reports') {
       const summary = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
