@@ -41,8 +41,8 @@ export const api = {
   scheduleCalendar: (token: string, month: string, page = 1, department = '') => call(`/schedule-calendar?month=${encodeURIComponent(month)}&page=${page}&pageSize=20${department ? `&department=${encodeURIComponent(department)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
   previewAutoSchedule: (token: string, month: string) => call('/schedule/auto-preview', { method: 'POST', body: JSON.stringify({ month }), headers: { Authorization: `Bearer ${token}` } }),
   commitAutoSchedule: (token: string, month: string) => call('/schedule/auto-commit', { method: 'POST', body: JSON.stringify({ month }), headers: { Authorization: `Bearer ${token}` } }),
-  previewEmployeeAutoSchedule: (token: string, month: string, employeeId: string) => call('/schedule/employee-auto-preview', { method: 'POST', body: JSON.stringify({ month, employeeId }), headers: { Authorization: `Bearer ${token}` } }),
-  commitEmployeeAutoSchedule: (token: string, month: string, employeeId: string) => call('/schedule/employee-auto-commit', { method: 'POST', body: JSON.stringify({ month, employeeId }), headers: { Authorization: `Bearer ${token}` } }),
+  previewEmployeeAutoSchedule: (token: string, month: string, employeeId: string, startPhase = 'AUTO') => call('/schedule/employee-auto-preview', { method: 'POST', body: JSON.stringify({ month, employeeId, startPhase }), headers: { Authorization: `Bearer ${token}` } }),
+  commitEmployeeAutoSchedule: (token: string, month: string, employeeId: string, startPhase = 'AUTO') => call('/schedule/employee-auto-commit', { method: 'POST', body: JSON.stringify({ month, employeeId, startPhase }), headers: { Authorization: `Bearer ${token}` } }),
   exportScheduleExcel: (token: string, data: { month: string; scope: 'selected' | 'all'; departments: string[] }) => binaryCall('/schedule/export.xlsx', { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }),
   scheduleApprovals: (token: string, page = 1) => call(`/schedule-approvals?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   schedulingRules: (token: string) => call('/scheduling-rules', { headers: { Authorization: `Bearer ${token}` } }),
@@ -73,7 +73,17 @@ export const api = {
   updateLeaveQuota: (token: string, id: string, data: unknown) => call(`/leave-quotas/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateUser: (token: string, id: string, data: unknown) => call(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   resetUserPassword: (token: string, id: string, newPassword: string) => call(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }), headers: { Authorization: `Bearer ${token}` } }),
-  viewAsUser: (token: string, id: string) => call(`/users/${id}/view-as`, { method: 'POST', body: '{}', headers: { Authorization: `Bearer ${token}` } })
+  viewAsUser: (token: string, id: string) => call(`/users/${id}/view-as`, { method: 'POST', body: '{}', headers: { Authorization: `Bearer ${token}` } }),
+  shiftsList: (token: string) => call('/shifts', { headers: { Authorization: `Bearer ${token}` } }),
+  schedulesGetGrid: (token: string, month: string) => call(`/schedules?month=${encodeURIComponent(month)}`, { headers: { Authorization: `Bearer ${token}` } }),
+  schedulesSaveBatch: (token: string, assignments: unknown[]) => call('/schedules/batch', { method: 'POST', body: JSON.stringify({ assignments }), headers: { Authorization: `Bearer ${token}` } }),
+  schedulesAutoPlan: (token: string, month: string) => call('/schedules/auto-plan', { method: 'POST', body: JSON.stringify({ month }), headers: { Authorization: `Bearer ${token}` } }),
+  schedulesApprove: (token: string, month: string, note?: string) => call('/schedules/approve', { method: 'POST', body: JSON.stringify({ month, note }), headers: { Authorization: `Bearer ${token}` } }),
+  leavesSubmit: (token: string, data: unknown) => call('/leaves', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
+  leavesList: (token: string, status?: string) => call(`/leaves${status ? `?status=${status}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
+  leavesSummary: (token: string, employeeId?: string) => call(`/leaves/summary${employeeId ? `?employeeId=${employeeId}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
+  leavesApprove: (token: string, id: string) => call(`/leaves/${id}/approve`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }),
+  leavesReject: (token: string, id: string, reason?: string) => call(`/leaves/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }), headers: { Authorization: `Bearer ${token}` } })
 };
 
 async function callMultipart(path: string, token: string, body: FormData) {

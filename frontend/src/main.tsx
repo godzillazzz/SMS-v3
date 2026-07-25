@@ -383,6 +383,9 @@ function Dashboard() {
   const [autoSchedulePreview, setAutoSchedulePreview] = useState<DataRow>();
   const [autoScheduleBusy, setAutoScheduleBusy] = useState(false);
   const [employeeAutoScheduleBusyId, setEmployeeAutoScheduleBusyId] = useState<string>();
+  const [employeeAutoScheduleTarget, setEmployeeAutoScheduleTarget] = useState<DataRow>();
+  const [employeeAutoContinue, setEmployeeAutoContinue] = useState(true);
+  const [employeeAutoStartPhase, setEmployeeAutoStartPhase] = useState('D1');
   const [scheduleExportBusy, setScheduleExportBusy] = useState(false);
 
   useEffect(() => {
@@ -672,18 +675,26 @@ function Dashboard() {
         catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'บันทึกตารางอัตโนมัติไม่สำเร็จ'); }
         finally { setAutoScheduleBusy(false); }
       };
-      const scheduleOneEmployee = async (employee: DataRow) => {
-        if (!auth.token || employeeAutoScheduleBusyId) return;
-        const employeeId = String(employee.id || '');
+      const openEmployeeScheduleWizard = (employee: DataRow) => {
+        if (employeeAutoScheduleBusyId) return;
+        setEmployeeAutoContinue(true); setEmployeeAutoStartPhase('D1'); setEmployeeAutoScheduleTarget(employee);
+      };
+      const scheduleOneEmployee = async (targetParam?: DataRow) => {
+        const target = targetParam || employeeAutoScheduleTarget;
+        if (!auth.token || !target || employeeAutoScheduleBusyId) return;
+        const employeeId = String(target.id || '');
         if (!employeeId) return;
+        const startPhase = employeeAutoContinue ? 'AUTO' : employeeAutoStartPhase;
         setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined);
         try {
-          const preview = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId);
+          const preview = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, startPhase);
           const summary = nested(preview.data).summary as DataRow;
           const written = Number(summary.totalRows || 0) - Number(summary.manualLocked || 0);
-          const label = text(employee.displayName || `${text(employee.firstName)} ${text(employee.lastName)}`);
-          if (!window.confirm(`จัดกะแพทเทิร์นด่วนให้ ${label} สำหรับ ${monthLabel}?\n\nระบบจะจัดรอบ 6 วันทำงาน / 1 วันหยุด และจะคงวันลา (AL) หรือกะล็อกไว้\nรายการที่จะจัด: ${written} วัน`)) return;
-          await api.commitEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId);
+          const label = text(target.displayName || `${text(target.firstName)} ${text(target.lastName)}`);
+          const mode = employeeAutoContinue ? 'ต่อจากกะสุดท้ายของเดือนก่อนหน้าอัตโนมัติ' : `เริ่มวันที่ 1 ด้วย ${employeeAutoStartPhase}`;
+          if (!window.confirm(`จัดกะแพทเทิร์นด่วนให้ ${label} สำหรับ ${monthLabel}?\n\n${mode}\nรอบการทำงาน: D 6 วัน → OFF 1 วัน → N 6 วัน → OFF 1 วัน\nระบบจะคงวันลา (AL) หรือกะล็อกไว้\nรายการที่จะจัด: ${written} วัน`)) return;
+          await api.commitEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, startPhase);
+          setEmployeeAutoScheduleTarget(undefined);
           setOperationRefresh((value) => value + 1);
         } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'จัดกะอัตโนมัติรายบุคคลไม่สำเร็จ'); }
         finally { setEmployeeAutoScheduleBusyId(undefined); }
