@@ -26,7 +26,7 @@ async function getMonthlyGrid(yearMonth) {
   const [rawEmployees, shiftTypes, rawAssignments, approval] = await Promise.all([
     prisma.employee.findMany({
       where: { deletedAt: null, isActive: true },
-      orderBy: [{ department: 'asc' }, { lastName: 'asc' }]
+      orderBy: [{ employeeCode: 'asc' }]
     }),
     prisma.shiftType.findMany({ orderBy: { code: 'asc' } }),
     prisma.shiftAssignment.findMany({

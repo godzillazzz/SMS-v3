@@ -292,14 +292,14 @@ router.post('/schedule/auto-commit', authorize('ADMIN', 'MANAGER'), async (req, 
 });
 router.post('/schedule/employee-auto-preview', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { month, employeeId, startPhase } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid, startPhase: z.enum(['AUTO', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'OFF-D', 'N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'OFF-N']).default('AUTO') }).parse(req.body);
-    res.json({ data: await buildEmployeeAutoSchedulePlan(prisma, month, employeeId, startPhase) });
+    const { month, employeeId, startPhase, patternType } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid, startPhase: z.enum(['AUTO', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'OFF-D', 'N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'OFF-N']).default('AUTO'), patternType: z.enum(['AUTO', 'SUPERVISOR', 'ROTATE']).default('AUTO') }).parse(req.body);
+    res.json({ data: await buildEmployeeAutoSchedulePlan(prisma, month, employeeId, startPhase, patternType) });
   } catch (error) { next(error); }
 });
 router.post('/schedule/employee-auto-commit', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { month, employeeId, startPhase } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid, startPhase: z.enum(['AUTO', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'OFF-D', 'N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'OFF-N']).default('AUTO') }).parse(req.body);
-    res.json({ data: await commitEmployeeAutoSchedule(prisma, month, employeeId, req.user.sub, startPhase) });
+    const { month, employeeId, startPhase, patternType } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid, startPhase: z.enum(['AUTO', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'OFF-D', 'N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'OFF-N']).default('AUTO'), patternType: z.enum(['AUTO', 'SUPERVISOR', 'ROTATE']).default('AUTO') }).parse(req.body);
+    res.json({ data: await commitEmployeeAutoSchedule(prisma, month, employeeId, req.user.sub, startPhase, patternType) });
   } catch (error) { next(error); }
 });
 router.post('/schedule/export.xlsx', async (req, res, next) => {
