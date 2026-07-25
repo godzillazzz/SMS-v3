@@ -180,17 +180,25 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
   });
   const analysis = getPhaseAnalysis(history);
 
+  const customWarnings = [];
+  const offTemplate = plan.rows.find((r) => r.code === 'OFF') || plan.rows[plan.rows.length - 1];
+
   if (patternType === 'SUPERVISOR') {
     const templates = new Map();
     plan.rows.forEach((row) => { if (!templates.has(row.code)) templates.set(row.code, row); });
     const dTemplate = templates.get('D') || templates.get('M') || plan.rows[0];
-    const offTemplate = templates.get('OFF') || plan.rows[plan.rows.length - 1];
 
     rows = rows.map((row) => {
-      if (row.locked || row.licenseStatus !== 'VALID' || row.code === 'AL') return row;
+      if (row.locked || row.code === 'AL') return row;
       const dateValue = new Date(`${row.date}T00:00:00Z`);
       const isSunday = dateValue.getUTCDay() === 0;
-      const template = isSunday ? offTemplate : dTemplate;
+      let template = isSunday ? offTemplate : dTemplate;
+
+      if (template.code !== 'OFF' && row.licenseStatus !== 'VALID') {
+        customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ไม่ถูกจัดกะ ${template.code} เนื่องจากใบอนุญาตไม่ผ่าน (เปลี่ยนเป็น OFF)`);
+        template = offTemplate;
+      }
+
       return {
         ...row,
         shiftTypeId: template.shiftTypeId,
@@ -200,7 +208,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
         endTime: template.endTime,
         hours: template.hours,
         color: template.color,
-        remark: 'Supervisor Pattern (Mon-Sat D, Sun OFF)',
+        remark: template.code === 'OFF' ? 'Weekly off / License unavailable' : 'Supervisor Pattern (Mon-Sat D, Sun OFF)',
         source: 'AUTO'
       };
     });
@@ -210,19 +218,45 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
     const templates = new Map();
     plan.rows.forEach((row) => { if (!templates.has(row.code)) templates.set(row.code, row); });
     rows = rows.map((row, index) => {
-      if (row.locked || row.licenseStatus !== 'VALID' || row.code === 'AL') return row;
+      if (row.locked || row.code === 'AL') return row;
       const code = employeeCycle[(phaseIndex + index) % employeeCycle.length];
-      const template = templates.get(code);
+      let template = templates.get(code);
       if (!template) return row;
-      return { ...row, shiftTypeId: template.shiftTypeId, code, name: template.name, startTime: template.startTime, endTime: template.endTime, hours: template.hours, color: template.color, remark: `Auto rotating pattern (${startPhase})`, source: 'AUTO' };
+
+      if (template.code !== 'OFF' && row.licenseStatus !== 'VALID') {
+        customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ไม่ถูกจัดกะ ${template.code} เนื่องจากใบอนุญาตไม่ผ่าน (เปลี่ยนเป็น OFF)`);
+        template = offTemplate || templates.get('OFF');
+      }
+
+      return { ...row, shiftTypeId: template.shiftTypeId, code: template.code, name: template.name, startTime: template.startTime, endTime: template.endTime, hours: template.hours, color: template.color, remark: template.code === 'OFF' ? 'Weekly off / License unavailable' : `Auto rotating pattern (${startPhase})`, source: 'AUTO' };
+    });
+  } else {
+    rows = rows.map((row) => {
+      if (!row.locked && row.code !== 'OFF' && row.code !== 'AL' && row.licenseStatus !== 'VALID') {
+        customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ไม่ถูกจัดกะ ${row.code} เนื่องจากใบอนุญาตไม่ผ่าน (เปลี่ยนเป็น OFF)`);
+        return {
+          ...row,
+          shiftTypeId: offTemplate.shiftTypeId,
+          code: offTemplate.code,
+          name: offTemplate.name,
+          startTime: offTemplate.startTime,
+          endTime: offTemplate.endTime,
+          hours: offTemplate.hours,
+          color: offTemplate.color,
+          remark: 'License unavailable'
+        };
+      }
+      return row;
     });
   }
+
+  const allWarnings = [...new Set([...plan.warnings.filter((warning) => warning.includes(rows[0]?.employeeName || '')), ...customWarnings])];
 
   return {
     ...plan,
     analysis,
     rows,
-    warnings: plan.warnings.filter((warning) => warning.includes(rows[0]?.employeeName || '')),
+    warnings: allWarnings,
     summary: { ...plan.summary, employees: 1, totalRows: rows.length, manualLocked: rows.filter((row) => row.locked).length }
   };
 }

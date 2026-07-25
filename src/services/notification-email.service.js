@@ -21,6 +21,7 @@ async function getAdminAndManagerEmails() {
       where: {
         role: { in: ['ADMIN', 'MANAGER'] },
         isActive: true,
+        accountStatus: 'ACTIVE',
         email: { not: '' }
       },
       select: { email: true }
@@ -60,11 +61,16 @@ async function getAllEmployeeAndUserEmails() {
   try {
     const [users, employees] = await Promise.all([
       prisma.user.findMany({
-        where: { isActive: true, email: { not: '' } },
+        where: { isActive: true, accountStatus: 'ACTIVE', email: { not: '' } },
         select: { email: true }
       }),
       prisma.employee.findMany({
-        where: { isActive: true, deletedAt: null, email: { not: null } },
+        where: {
+          isActive: true,
+          deletedAt: null,
+          email: { not: null },
+          user: { isActive: true, accountStatus: 'ACTIVE' }
+        },
         select: { email: true }
       })
     ]);

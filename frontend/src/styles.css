@@ -423,10 +423,40 @@ body {
 .phase-select-box select:disabled { background: #f1f5f9; color: #94a3b8; border-color: #cbd5e1; cursor: not-allowed; }
 .wand-submit-btn { background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35) !important; font-weight: 700; }
 
+.table-scroll {
+  cursor: grab;
+  user-select: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
+.table-scroll:active {
+  cursor: grabbing;
+}
+
+@media (max-width: 1024px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar { width: 100%; position: relative; height: auto; border-right: none; border-bottom: 1px solid #e2e8f0; }
+  .view-pane { padding: 16px; }
+  .page-heading { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .heading-actions { width: 100%; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+  .calendar-toolbar { flex-wrap: wrap; gap: 10px; padding: 12px; }
+  .schedule-grid th, .schedule-grid td { min-width: 70px; padding: 6px; }
+  .employee-sticky { position: sticky; left: 0; z-index: 5; background: #ffffff; box-shadow: 2px 0 6px rgba(0, 0, 0, 0.05); }
+}
+
 @media (max-width: 760px) {
   .auto-schedule-heading, .preview-actions, .view-as-banner { align-items: stretch; flex-direction: column; }
   .line-secure-grid, .line-template-grid { grid-template-columns: 1fr; }
   .line-settings-card { padding: 20px; }
   .view-as-banner { text-align: center; }
   .app-shell.view-as-active .sidebar, .app-shell.view-as-active .main-area { padding-top: 78px; }
+}
+
+@media (max-width: 640px) {
+  .page-heading h1 { font-size: 20px; }
+  .calendar-shift { font-size: 11px; padding: 3px 5px; }
+  .calendar-toolbar label { flex-direction: column; align-items: flex-start; width: 100%; }
+  .calendar-toolbar input[type="month"], .calendar-toolbar select { width: 100%; }
+  .wand-option-card { padding: 10px 12px; }
+  .wand-section-title { font-size: 14px; }
 }

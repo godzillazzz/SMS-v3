@@ -278,13 +278,13 @@ router.get('/schedule-calendar', async (req, res, next) => {
     res.json({ data: { month: filters.month, dates, approval, employees: employees.map((employee) => ({ ...employee, shifts: shifts.filter((shift) => shift.employeeId === employee.id) })) }, meta: { page: filters.page, pageSize: filters.pageSize, total, totalPages: Math.ceil(total / filters.pageSize) } });
   } catch (error) { next(error); }
 });
-router.post('/schedule/auto-preview', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/schedule/auto-preview', authorize('ADMIN'), async (req, res, next) => {
   try {
     const { month } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).parse(req.body);
     res.json({ data: await buildAutoSchedulePlan(prisma, month) });
   } catch (error) { next(error); }
 });
-router.post('/schedule/auto-commit', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/schedule/auto-commit', authorize('ADMIN'), async (req, res, next) => {
   try {
     const { month } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).parse(req.body);
     res.json({ data: await commitAutoSchedule(prisma, month, req.user.sub) });
