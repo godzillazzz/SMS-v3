@@ -9,7 +9,10 @@ function notFound(req, _res, next) {
 
 function errorHandler(error, _req, res, _next) {
   if (error instanceof ZodError) {
-    return res.status(400).json({ error: 'Validation failed.', details: error.flatten(), requestId: _req.requestId });
+    const firstIssue = error.issues && error.issues[0];
+    const fieldPath = firstIssue?.path?.join('.') || '';
+    const detailMsg = fieldPath ? `Validation failed: ${fieldPath} (${firstIssue.message})` : 'Validation failed.';
+    return res.status(400).json({ error: detailMsg, details: error.flatten(), requestId: _req.requestId });
   }
   const requestId = _req.requestId;
   const databaseResponses = {

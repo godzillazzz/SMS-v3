@@ -119,7 +119,35 @@ export const api = {
   deleteLicense: (token: string, id: string) => call(`/licenses/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
   createShift: (token: string, data: unknown) => call('/shifts', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateShift: (token: string, id: string, data: unknown) => call(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
-  batchSaveShifts: (token: string, changes: Array<{ action: 'create' | 'update' | 'delete'; id?: string; payload?: unknown }>) => Promise.all(changes.map((c) => c.action === 'create' ? api.createShift(token, c.payload) : c.action === 'update' ? api.updateShift(token, c.id!, c.payload) : api.deleteShift(token, c.id!))),
+  batchSaveShifts: (token: string, changes: Array<{ action: 'create' | 'update' | 'delete'; id?: string; payload?: unknown }>) => {
+    const isUuid = (v?: string) => Boolean(v && typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v));
+    const deletes = changes.filter((c) => c.action === 'delete' && isUuid(c.id));
+    const upserts = changes
+      .filter((c) => c.action !== 'delete')
+      .map((c) => {
+        const p = (c.payload as Record<string, unknown>) || {};
+        return {
+          employeeId: String(p.employeeId || ''),
+          shiftTypeId: String(p.shiftTypeId || ''),
+          workDate: String(p.workDate || '').slice(0, 10),
+          remark: String(p.remark || '')
+        };
+      })
+      .filter((item) => isUuid(item.employeeId) && isUuid(item.shiftTypeId) && item.workDate.length === 10);
+
+    const tasks: Promise<unknown>[] = [];
+    if (upserts.length > 0) {
+      tasks.push(call('/schedules/batch', {
+        method: 'POST',
+        body: JSON.stringify({ assignments: upserts }),
+        headers: { Authorization: `Bearer ${token}` }
+      }));
+    }
+    for (const del of deletes) {
+      tasks.push(api.deleteShift(token, del.id!));
+    }
+    return Promise.all(tasks);
+  },
   deleteShift: (token: string, id: string) => call(`/shifts/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
   updateScheduleApproval: (token: string, id: string, data: unknown) => call(`/schedule-approvals/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   approveScheduleMonth: (token: string, month: string) => call('/schedule/approve-month', { method: 'POST', body: JSON.stringify({ month }), headers: { Authorization: `Bearer ${token}` } }),

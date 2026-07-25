@@ -617,9 +617,9 @@ function Dashboard() {
   }, [auth.token, employeeRefresh]);
 
   useEffect(() => {
-    if (!auth.token || !['schedule', 'shiftSetup'].includes(activePage)) return;
+    if (!auth.token) return;
     api.shiftTypes(auth.token).then((result) => setShiftTypes(result?.data || [])).catch(() => setShiftTypes([]));
-  }, [activePage, auth.token, operationRefresh]);
+  }, [auth.token, operationRefresh]);
 
   useEffect(() => {
     if (!auth.token || activePage !== 'dashboard') return;
