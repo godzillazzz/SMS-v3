@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api } from './api';
+import { api, setTokenRefreshHandler } from './api';
 import './styles.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
@@ -45,7 +45,12 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    setTokenRefreshHandler((newToken, newUser) => {
+      setToken(newToken);
+      if (newUser) setUser(newUser);
+    });
     refresh().catch(() => undefined).finally(() => setLoading(false));
+    return () => setTokenRefreshHandler(null);
   }, []);
 
   const login = async (email: string, password: string) => {

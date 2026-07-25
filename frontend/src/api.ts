@@ -1,22 +1,78 @@
 const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('smsv3_csrf='))?.split('=')[1];
-async function call(path: string, init: RequestInit = {}) {
+
+let isRefreshing = false;
+let refreshPromise: Promise<any> | null = null;
+let onTokenRefreshed: ((token: string, user: any) => void) | null = null;
+
+export function setTokenRefreshHandler(handler: ((token: string, user: any) => void) | null) {
+  onTokenRefreshed = handler;
+}
+
+async function call(path: string, init: RequestInit = {}, isRetry = false): Promise<any> {
   const headers = new Headers(init.headers);
-  headers.set('Content-Type', 'application/json');
+  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   const csrfToken = csrf();
   if (csrfToken) headers.set('X-CSRF-Token', decodeURIComponent(csrfToken));
+
   const response = await fetch(`${baseUrl}${path}`, { ...init, credentials: 'include', headers });
   if (response.status === 204) return undefined;
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || 'Request failed.');
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    if (response.status === 401 && !isRetry && !path.startsWith('/auth/')) {
+      try {
+        if (!isRefreshing) {
+          isRefreshing = true;
+          refreshPromise = api.refresh().finally(() => {
+            isRefreshing = false;
+            refreshPromise = null;
+          });
+        }
+        const refreshResult = await refreshPromise;
+        if (refreshResult?.accessToken) {
+          if (onTokenRefreshed) onTokenRefreshed(refreshResult.accessToken, refreshResult.user);
+          headers.set('Authorization', `Bearer ${refreshResult.accessToken}`);
+          return call(path, { ...init, headers }, true);
+        }
+      } catch (_e) {
+        throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
+      }
+    }
+    const errMessage = payload.error || (response.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
+    throw new Error(errMessage);
+  }
   return payload;
 }
-async function binaryCall(path: string, init: RequestInit = {}) {
+
+async function binaryCall(path: string, init: RequestInit = {}, isRetry = false): Promise<any> {
   const headers = new Headers(init.headers);
+  const csrfToken = csrf();
+  if (csrfToken) headers.set('X-CSRF-Token', decodeURIComponent(csrfToken));
+
   const response = await fetch(`${baseUrl}${path}`, { ...init, credentials: 'include', headers });
   if (!response.ok) {
+    if (response.status === 401 && !isRetry && !path.startsWith('/auth/')) {
+      try {
+        if (!isRefreshing) {
+          isRefreshing = true;
+          refreshPromise = api.refresh().finally(() => {
+            isRefreshing = false;
+            refreshPromise = null;
+          });
+        }
+        const refreshResult = await refreshPromise;
+        if (refreshResult?.accessToken) {
+          if (onTokenRefreshed) onTokenRefreshed(refreshResult.accessToken, refreshResult.user);
+          headers.set('Authorization', `Bearer ${refreshResult.accessToken}`);
+          return binaryCall(path, { ...init, headers }, true);
+        }
+      } catch (_e) {
+        throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
+      }
+    }
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || 'Request failed.');
+    throw new Error(payload.error || 'เกิดข้อผิดพลาดในการดาวน์โหลดเอกสาร');
   }
   const disposition = response.headers.get('content-disposition') || '';
   const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
