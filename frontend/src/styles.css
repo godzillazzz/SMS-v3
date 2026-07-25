@@ -502,34 +502,34 @@ body {
   }
 
   .print-header {
-    background-color: #1e3a8a !important;
+    background-color: #173566 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     color: #ffffff !important;
     padding: 10px 16px;
     text-align: center;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: bold;
     border-radius: 4px;
     margin-bottom: 4px;
   }
 
   .print-metadata {
-    background-color: #e0f2fe !important;
+    background-color: #e8f1ff !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    color: #0369a1 !important;
+    color: #173566 !important;
     padding: 8px 12px;
     font-size: 11px;
     display: flex;
     justify-content: space-between;
     border-radius: 4px;
     margin-bottom: 8px;
-    border: 1px solid #bae6fd !important;
+    border: 1px solid #d7e7fa !important;
   }
 
   .print-metadata strong {
-    color: #0c4a6e !important;
+    color: #173566 !important;
   }
 
   .print-table {
@@ -540,13 +540,13 @@ body {
   }
 
   .print-table th, .print-table td {
-    border: 1px solid #94a3b8 !important;
+    border: 1px solid #d7e7fa !important;
     padding: 4px 2px !important;
     text-align: center !important;
   }
 
   .print-table th {
-    background-color: #1e293b !important;
+    background-color: #173566 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     color: #ffffff !important;
@@ -570,6 +570,7 @@ body {
     font-weight: bold;
     font-size: 10px;
     white-space: nowrap;
+    background-color: #ffffff !important;
   }
 
   .print-table td.emp-role-col {
@@ -578,30 +579,66 @@ body {
     color: #334155 !important;
     font-size: 9px;
     white-space: nowrap;
+    background-color: #ffffff !important;
   }
 
-  .print-table td.weekend {
-    background-color: #fef2f2 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .print-table th.weekend {
-    background-color: #dc2626 !important;
+  .print-table th.weekend.sat {
+    background-color: #1d4ed8 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     color: #ffffff !important;
   }
 
+  .print-table th.weekend.sun {
+    background-color: #b91c1c !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #ffffff !important;
+  }
+
+  /* Shift Cell Colors Matching Excel Export */
+  .print-table td.shift-cell-d {
+    background-color: #cffced !important;
+    color: #065f46 !important;
+    font-weight: bold !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-table td.shift-cell-n {
+    background-color: #efe6ff !important;
+    color: #5b21b6 !important;
+    font-weight: bold !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-table td.shift-cell-off {
+    background-color: #ffe0e5 !important;
+    color: #991b1b !important;
+    font-weight: bold !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-table td.shift-cell-al {
+    background-color: #e8f1ff !important;
+    color: #1e40af !important;
+    font-weight: bold !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .print-footer-container {
     display: flex !important;
     justify-content: space-between !important;
+    align-items: flex-end !important;
     margin-top: 15px !important;
     page-break-inside: avoid !important;
   }
 
   .print-legend {
-    width: 45% !important;
+    width: 42% !important;
   }
 
   .print-legend-table {
@@ -611,7 +648,7 @@ body {
   }
 
   .print-legend-table th, .print-legend-table td {
-    border: 1px solid #cbd5e1 !important;
+    border: 1px solid #d7e7fa !important;
     padding: 3px 6px !important;
     text-align: left !important;
   }
@@ -630,23 +667,54 @@ body {
     font-size: 9px;
   }
 
+  .print-legend-badge.badge-d {
+    background-color: #cffced !important;
+    color: #065f46 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-legend-badge.badge-n {
+    background-color: #efe6ff !important;
+    color: #5b21b6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-legend-badge.badge-off {
+    background-color: #ffe0e5 !important;
+    color: #991b1b !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-legend-badge.badge-al {
+    background-color: #e8f1ff !important;
+    color: #1e40af !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .print-signatures {
-    width: 45% !important;
+    width: 50% !important;
     display: flex !important;
     flex-direction: column !important;
-    gap: 25px !important;
+    gap: 16px !important;
     align-items: flex-end !important;
     justify-content: flex-end !important;
   }
 
   .signature-box {
-    width: 320px !important;
+    width: 340px !important;
     font-size: 11px !important;
-    text-align: right !important;
+    text-align: center !important;
     line-height: 1.6;
   }
 
-  .signature-line {
-    margin-bottom: 2px;
+  .signature-title {
+    color: #475569 !important;
+    font-size: 10px !important;
+    margin-top: 2px !important;
+    font-weight: bold !important;
   }
 }

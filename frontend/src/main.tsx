@@ -1213,9 +1213,12 @@ function Dashboard() {
                     <th>ตำแหน่ง</th>
                     {printData.dates.map((day) => {
                       const dayValue = new Date(`${day}T00:00:00Z`);
-                      const weekend = [0, 6].includes(dayValue.getUTCDay());
+                      const dayOfWeek = dayValue.getUTCDay();
+                      let thClass = '';
+                      if (dayOfWeek === 6) thClass = 'weekend sat';
+                      else if (dayOfWeek === 0) thClass = 'weekend sun';
                       return (
-                        <th key={day} className={weekend ? 'weekend' : ''}>
+                        <th key={day} className={thClass}>
                           <b>{dayValue.getUTCDate()}</b>
                           <small>{new Intl.DateTimeFormat('th-TH', { weekday: 'short', timeZone: 'UTC' }).format(dayValue).replace(/\./g, '')}</small>
                         </th>
@@ -1240,11 +1243,16 @@ function Dashboard() {
                           const shiftType = nested(shift?.shiftType);
                           const shiftTypeCode = shift ? String(shiftType.code || '').toUpperCase() : 'OFF';
                           const dayValue = new Date(`${day}T00:00:00Z`);
-                          const weekend = [0, 6].includes(dayValue.getUTCDay());
+                          const dayOfWeek = dayValue.getUTCDay();
                           const hours = shift ? Number(shift.hours || 0) : 0;
                           totalHours += hours;
+
+                          let cellClass = `shift-cell-${shiftTypeCode.toLowerCase()}`;
+                          if (dayOfWeek === 6) cellClass += ' sat';
+                          if (dayOfWeek === 0) cellClass += ' sun';
+
                           return (
-                            <td key={day} className={weekend ? 'weekend' : ''} style={shift ? { fontWeight: 'bold' } : undefined}>
+                            <td key={day} className={cellClass}>
                               {shiftTypeCode}
                             </td>
                           );
@@ -1260,31 +1268,35 @@ function Dashboard() {
                   <div style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '10px', color: '#1e293b' }}>คำอธิบายรหัสกะ</div>
                   <table className="print-legend-table">
                     <tbody>
-                      {shiftTypes.map((t) => (
-                        <tr key={String(t.id)}>
-                          <td style={{ width: '40px', textAlign: 'center' }}>
-                            <span className="print-legend-badge" style={{ backgroundColor: String(t.color || '#cbd5e1'), color: '#fff' }}>
-                              {text(t.code).toUpperCase()}
-                            </span>
-                          </td>
-                          <td style={{ fontWeight: 'bold' }}>{text(t.name)}</td>
-                          <td>{text(t.code).toUpperCase() === 'OFF' ? '-' : `${text(t.startTime)} - ${text(t.endTime)}`}</td>
-                          <td>{Number(t.hours || 0)}</td>
-                        </tr>
-                      ))}
+                      {shiftTypes.map((t) => {
+                        const codeStr = text(t.code).toUpperCase();
+                        const badgeClass = `print-legend-badge badge-${codeStr.toLowerCase()}`;
+                        return (
+                          <tr key={String(t.id)}>
+                            <td style={{ width: '40px', textAlign: 'center' }}>
+                              <span className={badgeClass} style={['D', 'N', 'OFF', 'AL'].includes(codeStr) ? undefined : { backgroundColor: String(t.color || '#cbd5e1'), color: '#fff' }}>
+                                {codeStr}
+                              </span>
+                            </td>
+                            <td style={{ fontWeight: 'bold' }}>{text(t.name)}</td>
+                            <td>{codeStr === 'OFF' ? '-' : `${text(t.startTime)} - ${text(t.endTime)}`}</td>
+                            <td>{Number(t.hours || 0)} ชม.</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
                 <div className="print-signatures">
                   <div className="signature-box">
-                    <div className="signature-line">ลงชื่อ....................................................................................</div>
-                    <div style={{ marginRight: '110px' }}>(....................................................................................)</div>
-                    <div style={{ color: '#475569', fontSize: '10px', marginTop: '2px', marginRight: '60px', fontWeight: 'bold' }}>พนักงานผู้จัดพิมพ์รายงาน / หัวหน้าพนักงานรักษาความปลอดภัย</div>
+                    <div>ลงชื่อ....................................................................................</div>
+                    <div style={{ marginTop: '4px' }}>(....................................................................................)</div>
+                    <div className="signature-title">พนักงานผู้จัดพิมพ์รายงาน / หัวหน้าพนักงานรักษาความปลอดภัย</div>
                   </div>
-                  <div className="signature-box" style={{ marginTop: '12px' }}>
-                    <div className="signature-line">ทราบ / ลงชื่อ..........................................................................</div>
-                    <div style={{ marginRight: '110px' }}>(....................................................................................)</div>
-                    <div style={{ color: '#475569', fontSize: '10px', marginTop: '2px', marginRight: '150px', fontWeight: 'bold' }}>ผู้จัดการเขต (ผู้อนุมัติ)</div>
+                  <div className="signature-box">
+                    <div>ทราบ / ลงชื่อ..........................................................................</div>
+                    <div style={{ marginTop: '4px' }}>(....................................................................................)</div>
+                    <div className="signature-title">ผู้จัดการเขต (ผู้อนุมัติ)</div>
                   </div>
                 </div>
               </div>
