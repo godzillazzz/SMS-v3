@@ -53,7 +53,7 @@ async function buildAutoSchedulePlan(client, month) {
   const historyStart = new Date(start.getTime() - 366 * DAY_MS);
   const [rules, allEmployees, shiftTypes, currentShifts, historyRows, licenses] = await Promise.all([
     client.schedulingRule.findMany({ select: { ruleId: true, value: true, enabled: true } }),
-    client.employee.findMany({ where: { deletedAt: null, isActive: true }, select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true, jobTitle: true } }),
+    client.employee.findMany({ where: { deletedAt: null, isActive: true }, select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true, jobTitle: true }, orderBy: { employeeCode: 'asc' } }),
     client.shiftType.findMany({ select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } }),
     client.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end } }, include: { shiftType: { select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } } } }),
     client.shiftAssignment.findMany({ where: { workDate: { gte: historyStart, lt: start } }, orderBy: { workDate: 'desc' }, include: { shiftType: { select: { code: true } } } }),

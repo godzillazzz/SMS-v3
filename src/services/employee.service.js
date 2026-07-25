@@ -14,7 +14,7 @@ function auditSnapshot(employee) {
 async function list(query, role) {
   const { page, pageSize, search, isActive, department } = query;
   const where = { deletedAt: null, ...(typeof isActive === 'boolean' && { isActive }), ...(department && { department }), ...(search && { OR: [{ employeeCode: { contains: search, mode: 'insensitive' } }, { firstName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }] }) };
-  const [total, employees] = await prisma.$transaction([prisma.employee.count({ where }), prisma.employee.findMany({ where, orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }], skip: (page - 1) * pageSize, take: pageSize })]);
+  const [total, employees] = await prisma.$transaction([prisma.employee.count({ where }), prisma.employee.findMany({ where, orderBy: [{ employeeCode: 'asc' }], skip: (page - 1) * pageSize, take: pageSize })]);
   return { data: requiresBasicView(role) ? employees.map(publicEmployee) : employees, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
 }
 async function getById(id, role) { const employee = await prisma.employee.findFirst({ where: { id, deletedAt: null } }); if (!employee) throw new HttpError(404, 'Employee not found.'); return requiresBasicView(role) ? publicEmployee(employee) : employee; }
