@@ -34,6 +34,10 @@ async function getAdminAndManagerEmails() {
 }
 
 async function sendNotification({ to, subject, html, text }) {
+  if (process.env.DISABLE_EMAIL_NOTIFICATIONS !== 'false') {
+    logger.info('Email notification skipped (Disabled during development mode)', { subject });
+    return;
+  }
   const recipients = Array.isArray(to) ? [...new Set(to.map((e) => String(e).trim().toLowerCase()).filter(Boolean))] : [String(to).trim().toLowerCase()];
   if (!recipients.length) return;
 

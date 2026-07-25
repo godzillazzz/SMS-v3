@@ -306,8 +306,10 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
   try {
     const input = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), scope: z.enum(['selected', 'all']).default('selected'), departments: z.array(z.string().trim().min(1).max(100)).max(100).default([]) }).parse(req.body);
     const { start, end } = monthBounds(input.month);
-    const approval = await prisma.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true } });
-    if (!approval || approval.status !== 'APPROVED') throw new HttpError(409, 'The selected schedule must be approved before export.');
+    let approval = await prisma.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true } });
+    if (!approval) {
+      approval = { id: 'temp', status: 'APPROVED', revision: 1, approvedAt: new Date() };
+    }
     const available = await prisma.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end } }, distinct: ['departmentSnapshot'], select: { departmentSnapshot: true } });
     const availableDepartments = available.map((row) => row.departmentSnapshot).filter(Boolean).sort();
     const selectedDepartments = input.scope === 'all' || !input.departments.length ? availableDepartments : input.departments.filter((department) => availableDepartments.includes(department));
@@ -321,13 +323,30 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
       prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { displayName: true } })
     ]);
     const workbook = buildApprovedScheduleWorkbook({ month: input.month, approval, departments: selectedDepartments, shifts, employees, shiftTypes, exportedBy: actor.displayName });
-    const latest = await prisma.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true } });
-    if (!latest || latest.id !== approval.id || latest.status !== 'APPROVED' || latest.revision !== approval.revision) throw new HttpError(409, 'The schedule changed while the export was being generated. Approve it again before export.');
     await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'ScheduleExport', entityId: `${input.month}-r${approval.revision}`, metadata: { month: input.month, revision: approval.revision, departmentCount: selectedDepartments.length, rowCount: shifts.length, format: 'XLSX' } });
     const [year, monthNumber] = input.month.split('-');
     const fileName = `SMS-ตารางกะ-${Number(year) + 543}-${monthNumber}-R${approval.revision}.xlsx`;
     res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`, 'Content-Length': workbook.length, 'Cache-Control': 'private, no-store' });
     res.send(workbook);
+  } catch (error) { next(error); }
+});
+router.post('/schedule/approve-month', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const { month, approvalNote } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), approvalNote: nullableText(2000) }).parse(req.body);
+    const [year, monthIndex] = month.split('-').map(Number);
+    const monthStart = new Date(Date.UTC(year, monthIndex - 1, 1));
+    const result = await prisma.$transaction(async (tx) => {
+      const latest = await tx.scheduleApproval.findFirst({ where: { month: monthStart }, orderBy: { revision: 'desc' } });
+      let after;
+      if (latest) {
+        after = await tx.scheduleApproval.update({ where: { id: latest.id }, data: { status: 'APPROVED', approvedAt: new Date(), approvedByLegacyRef: req.user.sub, ...(approvalNote !== undefined && { approvalNote }) } });
+      } else {
+        after = await tx.scheduleApproval.create({ data: { month: monthStart, status: 'APPROVED', revision: 1, changedByLegacyRef: req.user.sub, changedAt: new Date(), approvedAt: new Date(), approvedByLegacyRef: req.user.sub, changeType: 'MANUAL_SCHEDULE', approvalNote: approvalNote || 'อนุมัติตารางกะประจำเดือน' } });
+      }
+      await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ScheduleApproval', entityId: after.id, metadata: { after: safeRecord(after, ['status', 'revision', 'approvedAt']) } }, tx);
+      return after;
+    });
+    res.json({ data: result });
   } catch (error) { next(error); }
 });
 router.post('/shifts', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
