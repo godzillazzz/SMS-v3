@@ -559,7 +559,34 @@ function Dashboard() {
     if (!auth.token || !Object.keys(scheduleDrafts).length) return;
     setBatchSaveBusy(true); setOperationError(undefined);
     try {
-      const changes = Object.values(scheduleDrafts).map((d) => ({ action: d.action, id: d.id, payload: d.payload }));
+      const defaultType = shiftTypes.find((t) => String(t.code).toUpperCase() === 'D') || shiftTypes[0];
+      const validDefaultTypeId = String(defaultType?.id || '');
+
+      const changes = Object.values(scheduleDrafts)
+        .filter((d) => Boolean(d.employeeId && d.workDate))
+        .map((d) => {
+          const shiftTypeId = (d.shiftTypeId && d.shiftTypeId.length >= 10) ? d.shiftTypeId : validDefaultTypeId;
+          return {
+            action: d.action,
+            id: d.id,
+            payload: d.action === 'delete' ? undefined : {
+              employeeId: String(d.employeeId),
+              shiftTypeId,
+              workDate: String(d.workDate),
+              remark: String(d.remark || 'จัดตารางกะ'),
+              locked: true,
+              licenseOverride: Boolean(d.licenseOverride),
+              overrideReason: String(d.overrideReason || '')
+            }
+          };
+        });
+
+      if (!changes.length) {
+        setScheduleDrafts({});
+        setBatchSaveBusy(false);
+        return;
+      }
+
       await api.batchSaveShifts(auth.token, changes);
       setScheduleDrafts({});
       const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment);
