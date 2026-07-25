@@ -886,13 +886,18 @@ function Dashboard() {
           if (!empId || !workDateStr) continue;
           const key = `${empId}_${workDateStr}`;
           const codeStr = String(row.code || 'OFF').toUpperCase();
-          const selectedType = shiftTypes.find((t) => String(t.code).toUpperCase() === codeStr) || shiftTypes.find((t) => String(t.id) === row.shiftTypeId);
+          const selectedType = shiftTypes.find((t) => String(t.code).toUpperCase() === codeStr)
+            || shiftTypes.find((t) => String(t.id) === row.shiftTypeId)
+            || shiftTypes[0];
+          const validShiftTypeId = String(selectedType?.id || '');
+          if (!validShiftTypeId || validShiftTypeId.length < 10) continue;
+
           newDrafts[key] = {
             action: row.existingShiftId ? 'update' : 'create',
             id: row.existingShiftId ? String(row.existingShiftId) : undefined,
             employeeId: empId,
             workDate: workDateStr,
-            shiftTypeId: String(selectedType?.id || row.shiftTypeId || ''),
+            shiftTypeId: validShiftTypeId,
             shiftCode: codeStr,
             shiftName: String(selectedType?.name || codeStr),
             startTime: String(selectedType?.startTime || (codeStr === 'N' ? '22:00' : codeStr === 'D' ? '08:00' : '00:00')),
@@ -902,7 +907,7 @@ function Dashboard() {
             payload: {
               employeeId: empId,
               workDate: workDateStr,
-              shiftTypeId: String(selectedType?.id || row.shiftTypeId || ''),
+              shiftTypeId: validShiftTypeId,
               remark: 'จัดด้วยไม้กายสิทธิ์'
             }
           };
