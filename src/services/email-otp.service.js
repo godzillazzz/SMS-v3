@@ -106,9 +106,14 @@ function createOtpService({ prismaClient = prisma, auditService = audit, mailer 
   async function verifyRegistration({ email, code }) {
     const challenge = await consume({ email, code, purpose: 'REGISTRATION' });
     if (!challenge.userId) throw new HttpError(400, 'Invalid or expired verification code.');
+    const user = await prismaClient.user.findUnique({ where: { id: challenge.userId }, select: { displayName: true, email: true, department: true } });
     await prismaClient.$transaction(async (tx) => {
       await auditService.log({ actorUserId: null, action: 'UPDATE', entityType: 'RegistrationRequest', entityId: challenge.userId, metadata: { emailVerified: true, accountStatus: 'PENDING' } }, tx);
     });
+    if (user) {
+      const { notifyNewRegistration } = require('./notification-email.service');
+      notifyNewRegistration({ displayName: user.displayName, email: user.email, department: user.department }).catch(() => undefined);
+    }
     return { message: 'Email verified. Your account is awaiting administrator approval.' };
   }
 

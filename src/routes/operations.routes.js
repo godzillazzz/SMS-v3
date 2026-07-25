@@ -360,7 +360,27 @@ router.get('/schedule-approvals', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 router.put('/schedule-approvals/:id', authorize('ADMIN'), async (req, res, next) => {
-  try { const id = uuid.parse(req.params.id); const input = z.object({ status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']), approvalNote: nullableText(2000) }).parse(req.body); const result = await prisma.$transaction(async (tx) => { const before = await tx.scheduleApproval.findUniqueOrThrow({ where: { id } }); const after = await tx.scheduleApproval.update({ where: { id }, data: { ...input, approvedAt: input.status === 'APPROVED' ? new Date() : null, approvedByLegacyRef: input.status === 'APPROVED' ? req.user.sub : null } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ScheduleApproval', entityId: id, metadata: { before: safeRecord(before, ['status', 'revision']), after: safeRecord(after, ['status', 'revision', 'approvedAt']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); }
+  try {
+    const id = uuid.parse(req.params.id);
+    const input = z.object({ status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']), approvalNote: nullableText(2000) }).parse(req.body);
+    const result = await prisma.$transaction(async (tx) => {
+      const before = await tx.scheduleApproval.findUniqueOrThrow({ where: { id } });
+      const after = await tx.scheduleApproval.update({ where: { id }, data: { ...input, approvedAt: input.status === 'APPROVED' ? new Date() : null, approvedByLegacyRef: input.status === 'APPROVED' ? req.user.sub : null } });
+      await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ScheduleApproval', entityId: id, metadata: { before: safeRecord(before, ['status', 'revision']), after: safeRecord(after, ['status', 'revision', 'approvedAt']) } }, tx);
+      return after;
+    });
+
+    if (input.status === 'APPROVED') {
+      const actor = await prisma.user.findUnique({ where: { id: req.user.sub }, select: { displayName: true } });
+      const monthStr = result.month ? new Date(result.month).toISOString().slice(0, 7) : '';
+      if (monthStr) {
+        const { notifyScheduleApproved } = require('../services/notification-email.service');
+        notifyScheduleApproved({ month: monthStr, approvedBy: actor?.displayName || 'Admin', revision: result.revision }).catch(() => undefined);
+      }
+    }
+
+    res.json({ data: result });
+  } catch (error) { next(error); }
 });
 
 router.get('/scheduling-rules', async (_req, res, next) => {

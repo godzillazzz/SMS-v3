@@ -1,9 +1,10 @@
 const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const crypto = require('crypto');
+const { notifyLeaveSubmitted, notifyLeaveProcessed } = require('./notification-email.service');
 
 async function submitRequest(data) {
-  const { employeeId, leaveType, startDate, endDate, reason } = data;
+  const { employeeId, leaveType, startDate, endDate, reason, substitute } = data;
 
   const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
   if (!emp) throw new HttpError(404, 'Employee not found.');
@@ -18,7 +19,7 @@ async function submitRequest(data) {
   const dayCount = (end - start) / (1000 * 60 * 60 * 24) + 1;
   const sourceFingerprint = crypto.createHash('sha256').update(`${employeeId}_${startDate}_${endDate}_${Date.now()}`).digest('hex');
 
-  return prisma.leaveRequest.create({
+  const created = await prisma.leaveRequest.create({
     data: {
       employeeId,
       leaveType,
@@ -32,6 +33,19 @@ async function submitRequest(data) {
       departmentSnapshot: emp.department
     }
   });
+
+  notifyLeaveSubmitted({
+    employeeName: `${emp.firstName} ${emp.lastName}`,
+    leaveType,
+    startDate: start,
+    endDate: end,
+    dayCount,
+    reason,
+    substitute,
+    department: emp.department
+  }).catch(() => undefined);
+
+  return created;
 }
 
 async function listRequests(query) {
@@ -56,6 +70,12 @@ async function approveRequest(id, actorUserId) {
 
   if (!request) throw new HttpError(404, 'Leave request not found.');
   if (request.status === 'APPROVED') return request;
+
+  let approverName = 'Admin';
+  if (actorUserId) {
+    const actor = await prisma.user.findUnique({ where: { id: actorUserId }, select: { displayName: true } });
+    if (actor) approverName = actor.displayName;
+  }
 
   // Find or create LEAVE shift type
   let leaveShift = await prisma.shiftType.findFirst({ where: { code: 'LEAVE' } });
@@ -107,6 +127,8 @@ async function approveRequest(id, actorUserId) {
     curr.setDate(curr.getDate() + 1);
   }
 
+  notifyLeaveProcessed({ leave: updatedRequest, status: 'APPROVED', approverName }).catch(() => undefined);
+
   return updatedRequest;
 }
 
@@ -114,7 +136,13 @@ async function rejectRequest(id, reason, actorUserId) {
   const request = await prisma.leaveRequest.findUnique({ where: { id } });
   if (!request) throw new HttpError(404, 'Leave request not found.');
 
-  return prisma.leaveRequest.update({
+  let approverName = 'Admin';
+  if (actorUserId) {
+    const actor = await prisma.user.findUnique({ where: { id: actorUserId }, select: { displayName: true } });
+    if (actor) approverName = actor.displayName;
+  }
+
+  const updated = await prisma.leaveRequest.update({
     where: { id },
     data: {
       status: 'REJECTED',
@@ -122,6 +150,10 @@ async function rejectRequest(id, reason, actorUserId) {
       approvedAt: new Date()
     }
   });
+
+  notifyLeaveProcessed({ leave: updated, status: 'REJECTED', approverName }).catch(() => undefined);
+
+  return updated;
 }
 
 async function getSummary(employeeId) {
