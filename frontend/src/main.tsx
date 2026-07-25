@@ -233,10 +233,10 @@ function EmployeeMagicWandModal({
   onSubmit(autoContinue: boolean, startPhase: string, patternType: string): Promise<void>;
 }) {
   const isSupervisorTarget = String(target.jobTitle || '').toLowerCase().includes('supervisor') || String(target.jobTitle || '').includes('หัวหน้า');
-  const [patternType, setPatternType] = useState<'SUPERVISOR' | 'DAY' | 'NIGHT'>(isSupervisorTarget ? 'SUPERVISOR' : 'DAY');
-  const [autoContinue, setAutoContinue] = useState(true);
+  const [patternType, setPatternType] = useState<'SUPERVISOR' | 'ROTATE'>(isSupervisorTarget ? 'SUPERVISOR' : 'ROTATE');
+  const [autoContinue, setAutoContinue] = useState(false);
   const [startPhase, setStartPhase] = useState('D1');
-  const [analysisText, setAnalysisText] = useState('วิเคราะห์จากประวัติ: ล่าสุดทำกะเช้าติดต่อกัน 5 วัน -> เริ่มกะเช้าวันที่ 6 (D6)');
+  const [analysisText, setAnalysisText] = useState('วิเคราะห์จากประวัติ: เริ่มกะเช้าวันที่ 1 (D1)');
   const [suggestedCode, setSuggestedCode] = useState('D1');
 
   useEffect(() => {
@@ -248,16 +248,11 @@ function EmployeeMagicWandModal({
         if (analysis?.code) {
           const code = text(analysis.code);
           setSuggestedCode(code);
-          if (code.startsWith('N') || code === 'OFF-N') {
-            setPatternType('NIGHT');
-          } else if (!isSupervisorTarget) {
-            setPatternType('DAY');
-          }
           setStartPhase(code);
         }
       })
       .catch(() => {});
-  }, [token, scheduleMonth, target.id, isSupervisorTarget]);
+  }, [token, scheduleMonth, target.id]);
 
   const [yearStr, monthStr] = (scheduleMonth || '2026-08').split('-');
   const dateObj = new Date(Date.UTC(Number(yearStr || 2026), Number(monthStr || 8) - 1, 1));
@@ -270,14 +265,7 @@ function EmployeeMagicWandModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalPattern = patternType === 'SUPERVISOR' ? 'SUPERVISOR' : 'ROTATE';
-    let finalPhase = startPhase;
-    if (patternType === 'DAY') {
-      finalPhase = autoContinue ? (suggestedCode.startsWith('D') ? suggestedCode : 'D1') : (startPhase.startsWith('D') ? startPhase : 'D1');
-    } else if (patternType === 'NIGHT') {
-      finalPhase = autoContinue ? (suggestedCode.startsWith('N') ? suggestedCode : 'N1') : (startPhase.startsWith('N') ? startPhase : 'N1');
-    }
-    onSubmit(autoContinue, finalPhase, finalPattern);
+    onSubmit(autoContinue, autoContinue ? suggestedCode : startPhase, patternType);
   };
 
   return (
@@ -296,32 +284,6 @@ function EmployeeMagicWandModal({
             <div className="wand-section">
               <h3 className="wand-section-title">1. เลือกรูปแบบแพทเทิร์น (Pattern)</h3>
               <div className="wand-options-list">
-                <label className={`wand-option-card ${patternType === 'DAY' ? 'selected' : ''}`}>
-                  <input
-                    type="radio"
-                    name="pattern-type"
-                    checked={patternType === 'DAY'}
-                    onChange={() => { setPatternType('DAY'); setStartPhase('D1'); }}
-                  />
-                  <div className="option-text">
-                    <strong>☀️ กะเช้าล้วน (D D D D D D OFF)</strong>
-                    <p>เข้ากะเช้า 6 วัน (D) แล้วหยุด 1 วัน (OFF) วนลูปต่อเนื่อง (ไม่มีกะดึกแทรก)</p>
-                  </div>
-                </label>
-
-                <label className={`wand-option-card ${patternType === 'NIGHT' ? 'selected' : ''}`}>
-                  <input
-                    type="radio"
-                    name="pattern-type"
-                    checked={patternType === 'NIGHT'}
-                    onChange={() => { setPatternType('NIGHT'); setStartPhase('N1'); }}
-                  />
-                  <div className="option-text">
-                    <strong>🌙 กะดึกล้วน (N N N N N N OFF)</strong>
-                    <p>เข้ากะดึก 6 วัน (N) แล้วหยุด 1 วัน (OFF) วนลูปต่อเนื่อง (ไม่มีกะเช้าแทรก)</p>
-                  </div>
-                </label>
-
                 <label className={`wand-option-card ${patternType === 'SUPERVISOR' ? 'selected' : ''}`}>
                   <input
                     type="radio"
@@ -330,14 +292,27 @@ function EmployeeMagicWandModal({
                     onChange={() => setPatternType('SUPERVISOR')}
                   />
                   <div className="option-text">
-                    <strong>👮 กะหัวหน้างาน (Supervisor)</strong>
+                    <strong>กะหัวหน้างาน (Supervisor)</strong>
                     <p>เข้ากะเช้า 6 วัน (จันทร์-เสาร์) และหยุดวันอาทิตย์ (OFF) ทุกสัปดาห์</p>
+                  </div>
+                </label>
+
+                <label className={`wand-option-card ${patternType === 'ROTATE' ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="pattern-type"
+                    checked={patternType === 'ROTATE'}
+                    onChange={() => setPatternType('ROTATE')}
+                  />
+                  <div className="option-text">
+                    <strong>กะพนักงานเวียนลูป 1 เดือน</strong>
+                    <p>กะเช้า 6 วัน -&gt; หยุด 1 วัน -&gt; กะดึก 6 วัน -&gt; หยุด 1 วัน (วนลูปต่อเนื่อง)</p>
                   </div>
                 </label>
               </div>
             </div>
 
-            {patternType !== 'SUPERVISOR' && (
+            {patternType === 'ROTATE' && (
               <div className="wand-section">
                 <h3 className="wand-section-title">2. เลือกจุดเริ่มของเดือนนี้ (สำหรับวันที่ {thaiFullDateStr})</h3>
                 <label className="wand-checkbox-label">
@@ -359,30 +334,23 @@ function EmployeeMagicWandModal({
                   <select
                     id="phase-select"
                     disabled={autoContinue}
-                    value={autoContinue ? (patternType === 'NIGHT' ? (suggestedCode.startsWith('N') ? suggestedCode : 'N1') : (suggestedCode.startsWith('D') ? suggestedCode : 'D1')) : startPhase}
+                    value={autoContinue ? suggestedCode : startPhase}
                     onChange={(e) => setStartPhase(e.target.value)}
                   >
-                    {patternType === 'DAY' ? (
-                      <>
-                        <option value="D1">กะเช้า วันที่ 1 (D1)</option>
-                        <option value="D2">กะเช้า วันที่ 2 (D2)</option>
-                        <option value="D3">กะเช้า วันที่ 3 (D3)</option>
-                        <option value="D4">กะเช้า วันที่ 4 (D4)</option>
-                        <option value="D5">กะเช้า วันที่ 5 (D5)</option>
-                        <option value="D6">กะเช้า วันที่ 6 (D6)</option>
-                        <option value="OFF-D">วันหยุด (OFF)</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="N1">กะดึก วันที่ 1 (N1)</option>
-                        <option value="N2">กะดึก วันที่ 2 (N2)</option>
-                        <option value="N3">กะดึก วันที่ 3 (N3)</option>
-                        <option value="N4">กะดึก วันที่ 4 (N4)</option>
-                        <option value="N5">กะดึก วันที่ 5 (N5)</option>
-                        <option value="N6">กะดึก วันที่ 6 (N6)</option>
-                        <option value="OFF-N">วันหยุด (OFF)</option>
-                      </>
-                    )}
+                    <option value="D1">กะเช้า วันที่ 1 (D1)</option>
+                    <option value="D2">กะเช้า วันที่ 2 (D2)</option>
+                    <option value="D3">กะเช้า วันที่ 3 (D3)</option>
+                    <option value="D4">กะเช้า วันที่ 4 (D4)</option>
+                    <option value="D5">กะเช้า วันที่ 5 (D5)</option>
+                    <option value="D6">กะเช้า วันที่ 6 (D6)</option>
+                    <option value="OFF-D">วันหยุด (OFF)</option>
+                    <option value="N1">กะดึก วันที่ 1 (N1)</option>
+                    <option value="N2">กะดึก วันที่ 2 (N2)</option>
+                    <option value="N3">กะดึก วันที่ 3 (N3)</option>
+                    <option value="N4">กะดึก วันที่ 4 (N4)</option>
+                    <option value="N5">กะดึก วันที่ 5 (N5)</option>
+                    <option value="N6">กะดึก วันที่ 6 (N6)</option>
+                    <option value="OFF-N">วันหยุด (OFF)</option>
                   </select>
                 </div>
               </div>

@@ -107,9 +107,8 @@ async function buildAutoSchedulePlan(client, month) {
   employees.forEach((employee) => {
     const supervisor = isSupervisor(employee);
     const phaseCode = suggestedPhase(histories.get(employee.id) || []);
-    const isNightPhase = phaseCode.startsWith('N') || phaseCode === 'OFF-N';
-    const empCycle = supervisor ? ['D', 'D', 'D', 'D', 'D', 'D', 'OFF'] : (isNightPhase ? ['N', 'N', 'N', 'N', 'N', 'N', 'OFF'] : ['D', 'D', 'D', 'D', 'D', 'D', 'OFF']);
-    const phaseOffsetMap = isNightPhase ? { N1: 0, N2: 1, N3: 2, N4: 3, N5: 4, N6: 5, 'OFF-N': 6 } : { D1: 0, D2: 1, D3: 2, D4: 3, D5: 4, D6: 5, 'OFF-D': 6 };
+    const empCycle = ['D', 'D', 'D', 'D', 'D', 'D', 'OFF', 'N', 'N', 'N', 'N', 'N', 'N', 'OFF'];
+    const phaseOffsetMap = { D1: 0, D2: 1, D3: 2, D4: 3, D5: 4, D6: 5, 'OFF-D': 6, N1: 7, N2: 8, N3: 9, N4: 10, N5: 11, N6: 12, 'OFF-N': 13 };
     let cycleIndex = supervisor ? 0 : (phaseOffsetMap[phaseCode] ?? 0);
     dates.forEach((date) => {
       const key = `${employee.id}|${isoDate(date)}`;
@@ -217,9 +216,8 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
     });
   } else {
     const effectivePhase = startPhase === 'AUTO' ? (analysis.code || 'D1') : startPhase;
-    const isNight = effectivePhase.startsWith('N') || effectivePhase === 'OFF-N';
-    const targetCycle = isNight ? ['N', 'N', 'N', 'N', 'N', 'N', 'OFF'] : ['D', 'D', 'D', 'D', 'D', 'D', 'OFF'];
-    const phaseOffsetMap = isNight ? { N1: 0, N2: 1, N3: 2, N4: 3, N5: 4, N6: 5, 'OFF-N': 6 } : { D1: 0, D2: 1, D3: 2, D4: 3, D5: 4, D6: 5, 'OFF-D': 6 };
+    const targetCycle = ['D', 'D', 'D', 'D', 'D', 'D', 'OFF', 'N', 'N', 'N', 'N', 'N', 'N', 'OFF'];
+    const phaseOffsetMap = { D1: 0, D2: 1, D3: 2, D4: 3, D5: 4, D6: 5, 'OFF-D': 6, N1: 7, N2: 8, N3: 9, N4: 10, N5: 11, N6: 12, 'OFF-N': 13 };
     const phaseIndex = phaseOffsetMap[effectivePhase] ?? 0;
 
     rows = rows.map((row, index) => {
