@@ -325,17 +325,17 @@ body {
 .schedule-grid th, .schedule-grid td { min-width: 96px; height: 58px; padding: 5px 8px; }
 .schedule-grid th { height: 54px; background: #f3f9ff; }
 .schedule-grid .employee-sticky { min-width: 220px; max-width: 220px; padding: 9px 13px; }
-.schedule-grid .employee-sticky strong { font-size: 13px; }
-.schedule-grid .employee-sticky small { font-size: 10px; }
-.calendar-shift { width: 78px; min-height: 44px; align-content: center; gap: 1px; border-radius: 8px; box-shadow: none; }
-.calendar-shift b { font-size: 13px; line-height: 1.05; }
-.calendar-shift small { font-size: 9px; line-height: 1.1; }
-.calendar-shift .shift-note { font-size: 8px; font-weight: 700; }
-.calendar-shift.shift-d { color: #04775f; background: #cffced; }
-.calendar-shift.shift-n { color: #6732d8; background: #efe6ff; }
-.calendar-shift.shift-off { color: #d82048; background: #ffe0e5; }
-.calendar-shift.shift-al { color: #146bd8; background: #ddf0ff; }
-.empty-shift { width: 76px; height: 42px; }
+.schedule-grid .employee-sticky strong { font-size: 13px; font-weight: 700; color: #0f172a; }
+.schedule-grid .employee-sticky small { font-size: 11px; color: #64748b; margin-top: 2px; }
+.calendar-shift { width: 82px; min-height: 48px; align-content: center; justify-content: center; gap: 2px; border-radius: 8px; box-shadow: none; padding: 4px 2px; border: 1px solid transparent; }
+.calendar-shift b { font-size: 13.5px; line-height: 1.1; font-weight: 800; }
+.calendar-shift small { font-size: 10px; line-height: 1.1; font-weight: 500; }
+.calendar-shift .shift-note { font-size: 9px; font-weight: 700; color: #c2410c; display: flex; align-items: center; justify-content: center; gap: 2px; margin-top: 1px; }
+.calendar-shift.shift-d { color: #04775f; background: #dcfce7; border-color: #bbf7d0; }
+.calendar-shift.shift-n { color: #6732d8; background: #f3e8ff; border-color: #e9d5ff; }
+.calendar-shift.shift-off { color: #d82048; background: #ffe4e6; border-color: #fecdd3; }
+.calendar-shift.shift-al { color: #146bd8; background: #e0f2fe; border-color: #bae6fd; }
+.empty-shift { width: 80px; height: 46px; border-radius: 8px; }
 
 @media (max-width: 1050px) {
   .sidebar { width: 228px; flex-basis: 228px; }

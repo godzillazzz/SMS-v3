@@ -909,26 +909,6 @@ function Dashboard() {
         if (employeeAutoScheduleBusyId) return;
         setEmployeeAutoContinue(true); setEmployeeAutoStartPhase('D1'); setEmployeeAutoScheduleTarget(employee);
       };
-      const scheduleOneEmployee = async (targetParam?: DataRow) => {
-        const target = targetParam || employeeAutoScheduleTarget;
-        if (!auth.token || !target || employeeAutoScheduleBusyId) return;
-        const employeeId = String(target.id || '');
-        if (!employeeId) return;
-        const startPhase = employeeAutoContinue ? 'AUTO' : employeeAutoStartPhase;
-        setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined);
-        try {
-          const preview = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, startPhase);
-          const summary = nested(preview.data).summary as DataRow;
-          const written = Number(summary.totalRows || 0) - Number(summary.manualLocked || 0);
-          const label = text(target.displayName || `${text(target.firstName)} ${text(target.lastName)}`);
-          const mode = employeeAutoContinue ? 'ต่อจากกะสุดท้ายของเดือนก่อนหน้าอัตโนมัติ' : `เริ่มวันที่ 1 ด้วย ${employeeAutoStartPhase}`;
-          if (!window.confirm(`จัดกะแพทเทิร์นด่วนให้ ${label} สำหรับ ${monthLabel}?\n\n${mode}\nรอบการทำงาน: D 6 วัน → OFF 1 วัน → N 6 วัน → OFF 1 วัน\nระบบจะคงวันลา (AL) หรือกะล็อกไว้\nรายการที่จะจัด: ${written} วัน`)) return;
-          await api.commitEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, startPhase);
-          setEmployeeAutoScheduleTarget(undefined);
-          setOperationRefresh((value) => value + 1);
-        } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'จัดกะอัตโนมัติรายบุคคลไม่สำเร็จ'); }
-        finally { setEmployeeAutoScheduleBusyId(undefined); }
-      };
       const exportApprovedExcel = async () => {
         if (!auth.token) return;
         setScheduleExportBusy(true); setOperationError(undefined);
