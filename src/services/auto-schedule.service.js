@@ -137,10 +137,48 @@ async function buildAutoSchedulePlan(client, month) {
 const employeePhaseIndexes = { D1: 0, D2: 1, D3: 2, D4: 3, D5: 4, D6: 5, 'OFF-D': 6, N1: 7, N2: 8, N3: 9, N4: 10, N5: 11, N6: 12, 'OFF-N': 13 };
 const employeeCycle = ['D', 'D', 'D', 'D', 'D', 'D', 'OFF', 'N', 'N', 'N', 'N', 'N', 'N', 'OFF'];
 
+const getPhaseAnalysis = (history) => {
+  if (!history || !history.length) return { code: 'D1', label: 'กะเช้า วันที่ 1 (D1)', text: 'วิเคราะห์จากประวัติ: เริ่มกะเช้าวันที่ 1 (D1)' };
+  const lastCode = String(history[0].shiftType?.code || '').toUpperCase();
+  if (lastCode === 'OFF') {
+    const previousWorked = history.slice(1).find((item) => !['OFF', 'AL'].includes(String(item.shiftType?.code).toUpperCase()));
+    const nextCode = String(previousWorked?.shiftType?.code || 'N').toUpperCase() === 'D' ? 'N1' : 'D1';
+    const shiftName = nextCode === 'N1' ? 'กะดึก' : 'กะเช้า';
+    return { code: nextCode, label: `${shiftName} วันที่ 1 (${nextCode})`, text: `วิเคราะห์จากประวัติ: ล่าสุดหยุดกะ -> เริ่ม${shiftName}วันที่ 1 (${nextCode})` };
+  }
+  if (['D', 'N'].includes(lastCode)) {
+    let consecutive = 0;
+    for (const row of history) {
+      if (String(row.shiftType?.code).toUpperCase() !== lastCode) break;
+      consecutive += 1;
+    }
+    consecutive = Math.min(6, consecutive);
+    const shiftName = lastCode === 'D' ? 'กะเช้า' : 'กะดึก';
+    if (consecutive < 6) {
+      const code = `${lastCode}${consecutive + 1}`;
+      const label = `${shiftName} วันที่ ${consecutive + 1} (${code})`;
+      const text = `วิเคราะห์จากประวัติ: ล่าสุดทำ${shiftName}ติดต่อกัน ${consecutive} วัน -> เริ่ม${shiftName}วันที่ ${consecutive + 1} (${code})`;
+      return { code, label, text };
+    }
+    const code = lastCode === 'D' ? 'OFF-D' : 'OFF-N';
+    return { code, label: 'วันหยุด (OFF)', text: `วิเคราะห์จากประวัติ: ล่าสุดทำ${shiftName}ติดต่อกัน 6 วัน -> เริ่มวันหยุด (OFF)` };
+  }
+  return { code: 'D1', label: 'กะเช้า วันที่ 1 (D1)', text: 'วิเคราะห์จากประวัติ: เริ่มกะเช้าวันที่ 1 (D1)' };
+};
+
 async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPhase = 'AUTO', patternType = 'AUTO') {
   const plan = await buildAutoSchedulePlan(client, month);
   let rows = plan.rows.filter((row) => row.employeeId === employeeId);
   if (!rows.length) throw new HttpError(404, 'Eligible employee was not found for automatic scheduling.');
+
+  const { start } = monthBounds(month);
+  const historyStart = new Date(start.getTime() - 366 * DAY_MS);
+  const history = await client.shiftAssignment.findMany({
+    where: { employeeId, workDate: { gte: historyStart, lt: start } },
+    orderBy: { workDate: 'desc' },
+    include: { shiftType: { select: { code: true } } }
+  });
+  const analysis = getPhaseAnalysis(history);
 
   if (patternType === 'SUPERVISOR') {
     const templates = new Map();
@@ -182,6 +220,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
 
   return {
     ...plan,
+    analysis,
     rows,
     warnings: plan.warnings.filter((warning) => warning.includes(rows[0]?.employeeName || '')),
     summary: { ...plan.summary, employees: 1, totalRows: rows.length, manualLocked: rows.filter((row) => row.locked).length }

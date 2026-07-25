@@ -207,13 +207,15 @@ function EditDialog({ editor, busy, error, onClose }: { editor: Editor; busy: bo
 
 function EmployeeMagicWandModal({
   target,
-  monthLabel,
+  scheduleMonth,
+  token,
   busy,
   onClose,
   onSubmit
 }: {
   target: DataRow;
-  monthLabel: string;
+  scheduleMonth: string;
+  token?: string;
   busy: boolean;
   onClose(): void;
   onSubmit(autoContinue: boolean, startPhase: string, patternType: string): Promise<void>;
@@ -222,13 +224,35 @@ function EmployeeMagicWandModal({
   const [patternType, setPatternType] = useState<'SUPERVISOR' | 'ROTATE'>(isSupervisorTarget ? 'SUPERVISOR' : 'ROTATE');
   const [autoContinue, setAutoContinue] = useState(true);
   const [startPhase, setStartPhase] = useState('D1');
+  const [analysisText, setAnalysisText] = useState('วิเคราะห์จากประวัติ: ล่าสุดทำกะดึกติดต่อกัน 5 วัน -> เริ่มกะดึกวันที่ 6 (N6)');
+  const [suggestedCode, setSuggestedCode] = useState('N6');
+
+  useEffect(() => {
+    if (!token || !target.id) return;
+    api.previewEmployeeAutoSchedule(token, scheduleMonth, String(target.id), 'AUTO', 'ROTATE')
+      .then((res) => {
+        const analysis = nested(res.data).analysis as DataRow;
+        if (analysis?.text) setAnalysisText(text(analysis.text));
+        if (analysis?.code) {
+          setSuggestedCode(text(analysis.code));
+          setStartPhase(text(analysis.code));
+        }
+      })
+      .catch(() => {});
+  }, [token, scheduleMonth, target.id]);
+
+  const [yearStr, monthStr] = (scheduleMonth || '2026-08').split('-');
+  const dateObj = new Date(Date.UTC(Number(yearStr || 2026), Number(monthStr || 8) - 1, 1));
+  const thaiMonthName = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(dateObj);
+  const thaiYearStr = Number(yearStr || 2026) + 543;
+  const thaiFullDateStr = `1 ${thaiMonthName} ${thaiYearStr}`;
 
   const empName = text(target.displayName || `${text(target.firstName)} ${text(target.lastName)}`);
   const empCode = text(target.employeeCode);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(autoContinue, startPhase, patternType);
+    onSubmit(autoContinue, autoContinue ? suggestedCode : startPhase, patternType);
   };
 
   return (
@@ -277,7 +301,7 @@ function EmployeeMagicWandModal({
 
             {patternType === 'ROTATE' && (
               <div className="wand-section">
-                <h3 className="wand-section-title">2. เลือกจุดเริ่มของเดือนนี้ (สำหรับเดือน {monthLabel})</h3>
+                <h3 className="wand-section-title">2. เลือกจุดเริ่มของเดือนนี้ (สำหรับวันที่ {thaiFullDateStr})</h3>
                 <label className="wand-checkbox-label">
                   <input
                     type="checkbox"
@@ -287,30 +311,35 @@ function EmployeeMagicWandModal({
                   <span>🔍 เชื่อมต่อลูปจากเดือนก่อนหน้าอัตโนมัติ</span>
                 </label>
 
-                {autoContinue ? (
-                  <div className="wand-analysis-note">
-                    ✨ <strong>วิเคราะห์จากประวัติ</strong>: เชื่อมต่อรอบหมุนเวียนกะจากเดือนก่อนหน้าโดยอัตโนมัติ
-                  </div>
-                ) : (
-                  <div className="field-group phase-select-box">
-                    <select id="phase-select" value={startPhase} onChange={(e) => setStartPhase(e.target.value)}>
-                      <option value="D1">กะเช้า วันที่ 1 (D1)</option>
-                      <option value="D2">กะเช้า วันที่ 2 (D2)</option>
-                      <option value="D3">กะเช้า วันที่ 3 (D3)</option>
-                      <option value="D4">กะเช้า วันที่ 4 (D4)</option>
-                      <option value="D5">กะเช้า วันที่ 5 (D5)</option>
-                      <option value="D6">กะเช้า วันที่ 6 (D6)</option>
-                      <option value="OFF-D">วันหยุด (OFF)</option>
-                      <option value="N1">กะดึก วันที่ 1 (N1)</option>
-                      <option value="N2">กะดึก วันที่ 2 (N2)</option>
-                      <option value="N3">กะดึก วันที่ 3 (N3)</option>
-                      <option value="N4">กะดึก วันที่ 4 (N4)</option>
-                      <option value="N5">กะดึก วันที่ 5 (N5)</option>
-                      <option value="N6">กะดึก วันที่ 6 (N6)</option>
-                      <option value="OFF-N">วันหยุด (OFF)</option>
-                    </select>
+                {autoContinue && (
+                  <div className="wand-analysis-blue-text">
+                    {analysisText}
                   </div>
                 )}
+
+                <div className="field-group phase-select-box">
+                  <select
+                    id="phase-select"
+                    disabled={autoContinue}
+                    value={autoContinue ? suggestedCode : startPhase}
+                    onChange={(e) => setStartPhase(e.target.value)}
+                  >
+                    <option value="D1">กะเช้า วันที่ 1 (D1)</option>
+                    <option value="D2">กะเช้า วันที่ 2 (D2)</option>
+                    <option value="D3">กะเช้า วันที่ 3 (D3)</option>
+                    <option value="D4">กะเช้า วันที่ 4 (D4)</option>
+                    <option value="D5">กะเช้า วันที่ 5 (D5)</option>
+                    <option value="D6">กะเช้า วันที่ 6 (D6)</option>
+                    <option value="OFF-D">วันหยุด (OFF)</option>
+                    <option value="N1">กะดึก วันที่ 1 (N1)</option>
+                    <option value="N2">กะดึก วันที่ 2 (N2)</option>
+                    <option value="N3">กะดึก วันที่ 3 (N3)</option>
+                    <option value="N4">กะดึก วันที่ 4 (N4)</option>
+                    <option value="N5">กะดึก วันที่ 5 (N5)</option>
+                    <option value="N6">กะดึก วันที่ 6 (N6)</option>
+                    <option value="OFF-N">วันหยุด (OFF)</option>
+                  </select>
+                </div>
               </div>
             )}
           </div>
@@ -838,7 +867,7 @@ function Dashboard() {
         {operationError && <div className="alert alert-error">{operationError}</div>}
         <div className="table-card calendar-card">{operationLoading ? <div className="loading-row">กำลังอ่านตารางกะรายเดือน…</div> : <div className="table-scroll"><table className="schedule-grid"><thead><tr><th className="employee-sticky">พนักงาน</th>{dates.map((day) => { const dayValue = new Date(`${day}T00:00:00Z`); const weekend = [0, 6].includes(dayValue.getUTCDay()); return <th key={day} className={weekend ? 'weekend' : ''}><b>{dayValue.getUTCDate()}</b><small>{new Intl.DateTimeFormat('th-TH', { weekday: 'short', timeZone: 'UTC' }).format(dayValue)}</small></th>; })}</tr></thead><tbody>{calendarEmployees.length ? calendarEmployees.map((employee) => { const employeeShifts = Array.isArray(employee.shifts) ? employee.shifts as DataRow[] : []; const isSchedulingEmployee = employeeAutoScheduleBusyId === String(employee.id); return <tr key={text(employee.id)}><td className="employee-sticky"><strong>{text(employee.displayName || `${text(employee.firstName)} ${text(employee.lastName)}`)}{canManage && <button className="employee-magic-button" disabled={Boolean(employeeAutoScheduleBusyId)} title="🪄 จัดกะแพทเทิร์นด่วน: 6 วันทำงาน / 1 วันหยุด" onClick={() => openEmployeeScheduleWizard(employee)}>{isSchedulingEmployee ? '…' : '🪄'}</button>}</strong><small>{text(employee.employeeCode)} · {text(employee.department)}</small></td>{dates.map((day) => { const shift = employeeShifts.find((item) => inputDate(item.workDate) === day); const shiftType = nested(shift?.shiftType); const shiftCode = text(shiftType.code).toLowerCase(); const coreShift = ['d', 'n', 'off', 'al'].includes(shiftCode); const weekend = [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay()); return <td key={day} className={weekend ? 'weekend' : ''}>{shift ? <div className="calendar-shift-wrap"><button className={`calendar-shift shift-${shiftCode}`} style={coreShift ? undefined : { backgroundColor: String(shiftType.color || '#64748B') }} title={`${text(shiftType.name)} · ${text(shift.startTime)}-${text(shift.endTime)}`} onClick={() => canManage && openShiftEditor(shift)}><b>{text(shiftType.code)}</b><small>{text(shift.startTime)}–{text(shift.endTime)}</small>{Boolean(shift.locked) && <small className="shift-note">ล็อก</small>}{Boolean(shift.licenseOverride) && <small className="shift-note">OVR</small>}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={async () => { if (!auth.token || !window.confirm('ยืนยันการลบกะรายการนี้?')) return; try { await api.deleteShift(auth.token, String(shift.id)); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'ลบกะไม่สำเร็จ'); } }}>×</button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={() => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day })}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
-        {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} monthLabel={monthLabel} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { await api.commitEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); setEmployeeAutoScheduleTarget(undefined); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'จัดกะอัตโนมัติรายบุคคลไม่สำเร็จ'); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
+        {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} scheduleMonth={scheduleMonth} token={auth.token} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { await api.commitEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); setEmployeeAutoScheduleTarget(undefined); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'จัดกะอัตโนมัติรายบุคคลไม่สำเร็จ'); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
       </section>;
     }
     if (activePage === 'leave') {
