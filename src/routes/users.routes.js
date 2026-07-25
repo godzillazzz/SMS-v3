@@ -3,9 +3,10 @@ const prisma = require('../config/prisma');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 
 const router = express.Router();
-router.get('/', authenticate, authorize('ADMIN', 'MANAGER'), async (_req, res, next) => {
+router.get('/', authenticate, authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const users = await prisma.user.findMany({
+      where: req.user.role === 'MANAGER' ? { accountStatus: 'PENDING' } : undefined,
       select: { id: true, legacyUserId: true, email: true, displayName: true, role: true, department: true, accountStatus: true, isActive: true, passwordResetRequired: true, createdAt: true, updatedAt: true },
       orderBy: { displayName: 'asc' }
     });

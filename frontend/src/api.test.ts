@@ -40,7 +40,7 @@ describe('API client', () => {
     expect(options.headers.get('authorization')).toBe('Bearer test-access-token');
   });
   it('exposes every migrated operational data endpoint', () => {
-    for (const operation of ['licenses', 'shiftTypes', 'shifts', 'scheduleApprovals', 'schedulingRules', 'leaveRequests', 'leaveQuotas', 'users', 'auditEvents', 'reportSummary'] as const) {
+    for (const operation of ['dashboard', 'licenses', 'shiftTypes', 'shifts', 'scheduleCalendar', 'scheduleApprovals', 'schedulingRules', 'ruleChecks', 'systemSettings', 'leaveRequests', 'leaveSummary', 'leaveQuotas', 'users', 'auditEvents', 'reportSummary'] as const) {
       expect(typeof api[operation]).toBe('function');
     }
   });
@@ -48,8 +48,9 @@ describe('API client', () => {
     for (const operation of [
       'createEmployee', 'updateEmployee', 'deleteEmployee',
       'createLicense', 'updateLicense', 'deleteLicense',
+      'createShiftType', 'deleteShiftType',
       'createShift', 'updateShift', 'deleteShift',
-      'updateScheduleApproval', 'updateSchedulingRule',
+      'updateScheduleApproval', 'updateSchedulingRule', 'updateSystemSetting',
       'createLeaveRequest', 'updateLeaveRequest', 'updateLeaveQuota',
       'updateUser', 'resetUserPassword'
     ] as const) {

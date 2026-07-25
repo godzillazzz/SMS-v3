@@ -5,6 +5,7 @@ const { z } = require('zod');
 const prisma = require('../config/prisma');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const audit = require('../services/audit.service');
+const { evaluateScheduleRules } = require('../services/schedule-rules.service');
 const HttpError = require('../utils/http-error');
 
 const router = express.Router();
@@ -14,10 +15,53 @@ const paging = z.object({
 });
 const uuid = z.string().uuid();
 const nullableText = (max) => z.string().trim().max(max).nullable().optional();
-const licenseInput = z.object({ employeeId: uuid, licenseType: z.string().trim().min(1).max(150), licenseNumber: nullableText(255), issueDate: z.coerce.date().nullable().optional(), expiryDate: z.coerce.date().nullable().optional(), status: nullableText(100), remark: nullableText(2000) });
-const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.coerce.date(), startTime: nullableText(20), endTime: nullableText(20), hours: z.coerce.number().min(0).max(24), remark: nullableText(2000), locked: z.boolean().optional() });
-const leaveInput = z.object({ employeeId: uuid, leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366), reason: nullableText(2000) });
+const licenseInputBase = z.object({ employeeId: uuid, licenseType: z.string().trim().min(1).max(150), licenseNumber: z.string().trim().min(1).max(255), issueDate: z.coerce.date(), expiryDate: z.coerce.date(), status: z.enum(['Active', 'Suspended', 'Revoked', 'Inactive']).default('Active'), documentUrl: z.string().url().max(2000).nullable().optional(), remark: nullableText(2000) });
+const validLicenseDates = (value) => !value.issueDate || !value.expiryDate || value.issueDate <= value.expiryDate;
+const licenseInput = licenseInputBase.refine(validLicenseDates, { message: 'Issue date must not be after expiry date.', path: ['expiryDate'] });
+const licenseUpdateInput = licenseInputBase.omit({ employeeId: true }).partial().refine(validLicenseDates, { message: 'Issue date must not be after expiry date.', path: ['expiryDate'] });
+const shiftTypeInput = z.object({
+  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,12}$/),
+  name: z.string().trim().min(1).max(150),
+  startTime: nullableText(20), endTime: nullableText(20),
+  hours: z.coerce.number().min(0).max(24),
+  color: z.string().trim().toUpperCase().regex(/^#[0-9A-F]{6}$/).default('#2F80FF')
+}).superRefine((value, context) => {
+  if (value.hours > 0 && (!value.startTime || !value.endTime)) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Working shifts require start and end times.' });
+});
+const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.coerce.date(), startTime: nullableText(20), endTime: nullableText(20), hours: z.coerce.number().min(0).max(24).optional(), remark: nullableText(2000), locked: z.boolean().optional(), licenseOverride: z.boolean().optional(), overrideReason: nullableText(2000) });
+const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
 const safeRecord = (record, fields) => Object.fromEntries(fields.map((field) => [field, record[field]]));
+const leaveQuotaField = (leaveType) => {
+  const value = String(leaveType).toLowerCase();
+  if (value.includes('ป่วย') || value.includes('sick')) return 'sickLeave';
+  if (value.includes('กิจ') || value.includes('personal')) return 'personalLeave';
+  if (value.includes('พักร้อน') || value.includes('vacation')) return 'vacationLeave';
+  throw new HttpError(400, 'Unsupported leave type.');
+};
+const inclusiveDays = (startDate, endDate) => Math.floor((Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()) - Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())) / 86400000) + 1;
+const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedDays, excludeId) => {
+  const field = leaveQuotaField(leaveType);
+  const quota = await tx.leaveQuota.findFirst({ where: { employeeId } });
+  const entitlement = Number(quota?.[field] ?? ({ sickLeave: 30, personalLeave: 6, vacationLeave: 10 })[field]);
+  const approved = await tx.leaveRequest.aggregate({ where: { employeeId, status: 'APPROVED', leaveType, ...(excludeId && { id: { not: excludeId } }) }, _sum: { dayCount: true } });
+  const remaining = entitlement - Number(approved._sum.dayCount || 0);
+  if (requestedDays > remaining) throw new HttpError(400, `Insufficient leave quota. Remaining: ${remaining} day(s).`);
+  return { entitlement, remaining };
+};
+const licenseStateForShift = async (tx, { employeeId, workDate, shiftCode, override, overrideReason, actorRole }) => {
+  if (['OFF', 'AL'].includes(String(shiftCode).toUpperCase())) return { licenseStatus: 'NOT_REQUIRED', licenseExpiryDate: null, licenseOverride: false, overrideReason: null, overrideAt: null };
+  const license = await tx.employeeLicense.findFirst({ where: { employeeId }, orderBy: { expiryDate: 'desc' } });
+  const validStatus = ['active', 'valid'].includes(String(license?.status || '').toLowerCase());
+  const validDate = license?.issueDate && license?.expiryDate && license.issueDate <= workDate && license.expiryDate >= workDate;
+  if (validStatus && validDate) return { licenseStatus: 'VALID', licenseExpiryDate: license.expiryDate, licenseOverride: false, overrideReason: null, overrideAt: null };
+  if (actorRole === 'ADMIN' && override && overrideReason) return { licenseStatus: 'OVERRIDDEN', licenseExpiryDate: license?.expiryDate || null, licenseOverride: true, overrideReason, overrideAt: new Date() };
+  throw new HttpError(400, actorRole === 'ADMIN' ? 'Employee license is invalid. Provide an override reason or select OFF/AL.' : 'Employee license is invalid. Select OFF/AL or contact an administrator.');
+};
+const touchScheduleApproval = async (tx, workDate, actorUserId, changeType) => {
+  const month = new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth(), 1));
+  const latest = await tx.scheduleApproval.findFirst({ where: { month }, orderBy: { revision: 'desc' }, select: { revision: true } });
+  return tx.scheduleApproval.create({ data: { month, status: 'PENDING', revision: (latest?.revision || 0) + 1, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType, approvedAt: null, approvedByLegacyRef: null, scheduleHash: null } });
+};
 
 const paged = async (model, query, options = {}) => {
   const { page, pageSize } = paging.parse(query);
@@ -38,6 +82,27 @@ const paged = async (model, query, options = {}) => {
 
 router.use(authenticate);
 
+router.get('/dashboard', async (_req, res, next) => {
+  try {
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    const warningDate = new Date(now); warningDate.setUTCDate(warningDate.getUTCDate() + 60);
+    const [totalEmployees, activeEmployees, totalShifts, monthShifts, pendingLeaves, pendingUsers, expiringLicenses, pendingApprovals, hourAggregate] = await prisma.$transaction([
+      prisma.employee.count({ where: { deletedAt: null } }),
+      prisma.employee.count({ where: { deletedAt: null, isActive: true } }),
+      prisma.shiftAssignment.count(),
+      prisma.shiftAssignment.count({ where: { workDate: { gte: monthStart, lt: nextMonth } } }),
+      prisma.leaveRequest.count({ where: { status: 'PENDING' } }),
+      prisma.user.count({ where: { accountStatus: 'PENDING' } }),
+      prisma.employeeLicense.count({ where: { expiryDate: { gte: now, lte: warningDate } } }),
+      prisma.scheduleApproval.count({ where: { status: { in: ['DRAFT', 'PENDING'] } } }),
+      prisma.shiftAssignment.aggregate({ _sum: { hours: true } })
+    ]);
+    res.json({ data: { totalEmployees, activeEmployees, totalShifts, monthShifts, totalHours: Number(hourAggregate._sum.hours || 0), pendingLeaves, pendingUsers, expiringLicenses, pendingApprovals } });
+  } catch (error) { next(error); }
+});
+
 router.get('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     res.json(await paged(prisma.employeeLicense, req.query, {
@@ -54,6 +119,8 @@ router.post('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) =
   try {
     const input = licenseInput.parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
+      const duplicate = await tx.employeeLicense.findFirst({ where: { OR: [{ licenseNumber: { equals: input.licenseNumber, mode: 'insensitive' } }, { employeeId: input.employeeId, licenseType: { equals: input.licenseType, mode: 'insensitive' } }] } });
+      if (duplicate) throw new HttpError(409, 'License number or employee license type already exists.');
       const license = await tx.employeeLicense.create({ data: { ...input, legacyLicenseId: `v3:${crypto.randomUUID()}`, documentMigrationStatus: 'NONE' } });
       await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'EmployeeLicense', entityId: license.id, metadata: { after: safeRecord(license, ['employeeId', 'licenseType', 'issueDate', 'expiryDate', 'status']) } }, tx);
       return license;
@@ -61,19 +128,26 @@ router.post('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) =
     res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
-router.put('/licenses/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.put('/licenses/:id', authorize('ADMIN'), async (req, res, next) => {
   try {
-    const id = uuid.parse(req.params.id); const input = licenseInput.omit({ employeeId: true }).partial().parse(req.body);
+    const id = uuid.parse(req.params.id); const input = licenseUpdateInput.parse(req.body);
     if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.');
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.employeeLicense.findUniqueOrThrow({ where: { id } });
+      const issueDate = input.issueDate || before.issueDate;
+      const expiryDate = input.expiryDate || before.expiryDate;
+      if (issueDate > expiryDate) throw new HttpError(400, 'Issue date must not be after expiry date.');
+      if (input.licenseNumber || input.licenseType) {
+        const duplicate = await tx.employeeLicense.findFirst({ where: { id: { not: id }, OR: [...(input.licenseNumber ? [{ licenseNumber: { equals: input.licenseNumber, mode: 'insensitive' } }] : []), ...(input.licenseType ? [{ employeeId: before.employeeId, licenseType: { equals: input.licenseType, mode: 'insensitive' } }] : [])] } });
+        if (duplicate) throw new HttpError(409, 'License number or employee license type already exists.');
+      }
       const after = await tx.employeeLicense.update({ where: { id }, data: input });
       await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'EmployeeLicense', entityId: id, metadata: { before: safeRecord(before, ['licenseType', 'issueDate', 'expiryDate', 'status']), after: safeRecord(after, ['licenseType', 'issueDate', 'expiryDate', 'status']) } }, tx);
       return after;
     }); res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.delete('/licenses/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.delete('/licenses/:id', authorize('ADMIN'), async (req, res, next) => {
   try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.employeeLicense.delete({ where: { id } }); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'EmployeeLicense', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'licenseType', 'expiryDate', 'status']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); }
 });
 
@@ -84,6 +158,29 @@ router.get('/shift-types', async (_req, res, next) => {
       orderBy: { code: 'asc' }
     });
     res.json({ data });
+  } catch (error) { next(error); }
+});
+router.post('/shift-types', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const input = shiftTypeInput.parse(req.body);
+    const result = await prisma.$transaction(async (tx) => {
+      const created = await tx.shiftType.create({ data: input });
+      await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'ShiftType', entityId: created.id, metadata: { after: safeRecord(created, ['code', 'name', 'startTime', 'endTime', 'hours', 'color']) } }, tx);
+      return created;
+    });
+    res.status(201).json({ data: result });
+  } catch (error) { next(error); }
+});
+router.delete('/shift-types/:id', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    await prisma.$transaction(async (tx) => {
+      const before = await tx.shiftType.findUniqueOrThrow({ where: { id } });
+      if (['D', 'N', 'OFF', 'AL'].includes(before.code.toUpperCase())) throw new HttpError(400, `Core shift ${before.code} cannot be deleted.`);
+      await tx.shiftType.delete({ where: { id } });
+      await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'ShiftType', entityId: id, metadata: { before: safeRecord(before, ['code', 'name']) } }, tx);
+    });
+    res.status(204).send();
   } catch (error) { next(error); }
 });
 
@@ -105,12 +202,55 @@ router.get('/shifts', async (req, res, next) => {
     }));
   } catch (error) { next(error); }
 });
+router.get('/schedule-calendar', async (req, res, next) => {
+  try {
+    const filters = z.object({
+      month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+      page: z.coerce.number().int().min(1).default(1),
+      pageSize: z.coerce.number().int().min(1).max(50).default(20),
+      department: z.string().trim().max(100).optional(),
+      search: z.string().trim().max(100).optional()
+    }).parse(req.query);
+    const [year, monthIndex] = filters.month.split('-').map(Number);
+    const monthStart = new Date(Date.UTC(year, monthIndex - 1, 1));
+    const nextMonth = new Date(Date.UTC(year, monthIndex, 1));
+    const employeeWhere = {
+      deletedAt: null,
+      ...(filters.department && { department: filters.department }),
+      ...(filters.search && { OR: [
+        { employeeCode: { contains: filters.search, mode: 'insensitive' } },
+        { firstName: { contains: filters.search, mode: 'insensitive' } },
+        { lastName: { contains: filters.search, mode: 'insensitive' } }
+      ] })
+    };
+    const [total, employees] = await prisma.$transaction([
+      prisma.employee.count({ where: employeeWhere }),
+      prisma.employee.findMany({
+        where: employeeWhere,
+        select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true },
+        orderBy: [{ department: 'asc' }, { employeeCode: 'asc' }],
+        skip: (filters.page - 1) * filters.pageSize,
+        take: filters.pageSize
+      })
+    ]);
+    const employeeIds = employees.map((employee) => employee.id);
+    const [shifts, approval] = await Promise.all([employeeIds.length ? prisma.shiftAssignment.findMany({
+      where: { employeeId: { in: employeeIds }, workDate: { gte: monthStart, lt: nextMonth } },
+      select: { id: true, employeeId: true, shiftTypeId: true, workDate: true, startTime: true, endTime: true, hours: true, remark: true, locked: true, licenseStatus: true, licenseOverride: true, shiftType: { select: { id: true, code: true, name: true, color: true } } },
+      orderBy: [{ employeeId: 'asc' }, { workDate: 'asc' }]
+    }) : Promise.resolve([]), prisma.scheduleApproval.findFirst({ where: { month: monthStart }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true, approvalNote: true } })]);
+    const dates = Array.from({ length: Math.round((nextMonth - monthStart) / 86400000) }, (_, index) => new Date(Date.UTC(year, monthIndex - 1, index + 1)).toISOString().slice(0, 10));
+    res.json({ data: { month: filters.month, dates, approval, employees: employees.map((employee) => ({ ...employee, shifts: shifts.filter((shift) => shift.employeeId === employee.id) })) }, meta: { page: filters.page, pageSize: filters.pageSize, total, totalPages: Math.ceil(total / filters.pageSize) } });
+  } catch (error) { next(error); }
+});
 router.post('/shifts', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const input = shiftInput.parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
       const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: input.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: input.shiftTypeId } })]);
-      const shift = await tx.shiftAssignment.create({ data: { ...input, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, source: 'SMS_V3' } });
+      const licenseState = await licenseStateForShift(tx, { employeeId: input.employeeId, workDate: input.workDate, shiftCode: shiftType.code, override: input.licenseOverride, overrideReason: input.overrideReason, actorRole: req.user.role });
+      const shift = await tx.shiftAssignment.create({ data: { ...input, startTime: input.startTime ?? shiftType.startTime, endTime: input.endTime ?? shiftType.endTime, hours: input.hours ?? shiftType.hours, ...licenseState, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, source: 'SMS_V3' } });
+      await touchScheduleApproval(tx, shift.workDate, req.user.sub, 'CREATE_SHIFT');
       await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'ShiftAssignment', entityId: shift.id, metadata: { after: safeRecord(shift, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']) } }, tx);
       return { ...shift, shiftType: { code: shiftType.code, name: shiftType.name } };
     }); res.status(201).json({ data: result });
@@ -119,10 +259,10 @@ router.post('/shifts', authorize('ADMIN', 'MANAGER'), async (req, res, next) => 
 router.put('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id); const input = shiftInput.partial().parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.');
-    const result = await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.findUniqueOrThrow({ where: { id } }); const after = await tx.shiftAssignment.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']), after: safeRecord(after, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']) } }, tx); return after; }); res.json({ data: result });
+    const result = await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.findUniqueOrThrow({ where: { id } }); const employeeId = input.employeeId || before.employeeId; const shiftTypeId = input.shiftTypeId || before.shiftTypeId; const workDate = input.workDate || before.workDate; const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: shiftTypeId } })]); const licenseState = await licenseStateForShift(tx, { employeeId, workDate, shiftCode: shiftType.code, override: input.licenseOverride, overrideReason: input.overrideReason, actorRole: req.user.role }); const shiftTypeChanged = Boolean(input.shiftTypeId && input.shiftTypeId !== before.shiftTypeId); const after = await tx.shiftAssignment.update({ where: { id }, data: { ...input, ...(shiftTypeChanged && input.startTime === undefined && { startTime: shiftType.startTime }), ...(shiftTypeChanged && input.endTime === undefined && { endTime: shiftType.endTime }), ...(shiftTypeChanged && input.hours === undefined && { hours: shiftType.hours }), ...(input.employeeId && { employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department }), ...licenseState } }); await touchScheduleApproval(tx, after.workDate, req.user.sub, 'UPDATE_SHIFT'); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']), after: safeRecord(after, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']) } }, tx); return after; }); res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.delete('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.delete({ where: { id } }); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); } });
+router.delete('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.delete({ where: { id } }); await touchScheduleApproval(tx, before.workDate, req.user.sub, 'DELETE_SHIFT'); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); } });
 
 router.get('/schedule-approvals', async (req, res, next) => {
   try {
@@ -132,8 +272,8 @@ router.get('/schedule-approvals', async (req, res, next) => {
     }));
   } catch (error) { next(error); }
 });
-router.put('/schedule-approvals/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
-  try { const id = uuid.parse(req.params.id); const input = z.object({ status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']), approvalNote: nullableText(2000) }).parse(req.body); const result = await prisma.$transaction(async (tx) => { const before = await tx.scheduleApproval.findUniqueOrThrow({ where: { id } }); const after = await tx.scheduleApproval.update({ where: { id }, data: { ...input, approvedAt: input.status === 'APPROVED' ? new Date() : null } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ScheduleApproval', entityId: id, metadata: { before: safeRecord(before, ['status', 'revision']), after: safeRecord(after, ['status', 'revision', 'approvedAt']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); }
+router.put('/schedule-approvals/:id', authorize('ADMIN'), async (req, res, next) => {
+  try { const id = uuid.parse(req.params.id); const input = z.object({ status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']), approvalNote: nullableText(2000) }).parse(req.body); const result = await prisma.$transaction(async (tx) => { const before = await tx.scheduleApproval.findUniqueOrThrow({ where: { id } }); const after = await tx.scheduleApproval.update({ where: { id }, data: { ...input, approvedAt: input.status === 'APPROVED' ? new Date() : null, approvedByLegacyRef: input.status === 'APPROVED' ? req.user.sub : null } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ScheduleApproval', entityId: id, metadata: { before: safeRecord(before, ['status', 'revision']), after: safeRecord(after, ['status', 'revision', 'approvedAt']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); }
 });
 
 router.get('/scheduling-rules', async (_req, res, next) => {
@@ -145,11 +285,53 @@ router.get('/scheduling-rules', async (_req, res, next) => {
     res.json({ data });
   } catch (error) { next(error); }
 });
+router.get('/rule-checks', async (req, res, next) => {
+  try {
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const { month } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).default(currentMonth) }).parse(req.query);
+    const [year, monthIndex] = month.split('-').map(Number);
+    const start = new Date(Date.UTC(year, monthIndex - 1, 1));
+    const end = new Date(Date.UTC(year, monthIndex, 1));
+    const [rules, employees, shifts, leaves] = await prisma.$transaction([
+      prisma.schedulingRule.findMany({ orderBy: { ruleId: 'asc' }, select: { ruleId: true, name: true, value: true, unit: true, enabled: true } }),
+      prisma.employee.findMany({ where: { deletedAt: null, isActive: true }, select: { id: true, employeeCode: true, displayName: true, department: true, jobTitle: true } }),
+      prisma.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end } }, select: { employeeId: true, workDate: true, startTime: true, endTime: true, hours: true, remark: true, licenseStatus: true, shiftType: { select: { code: true } } } }),
+      prisma.leaveRequest.findMany({ where: { status: 'APPROVED', startDate: { lt: end }, endDate: { gte: start } }, select: { employeeId: true, startDate: true, endDate: true } })
+    ]);
+    const dates = Array.from({ length: Math.round((end - start) / 86400000) }, (_, index) => new Date(Date.UTC(year, monthIndex - 1, index + 1)).toISOString().slice(0, 10));
+    res.json({ data: { month, ...evaluateScheduleRules({ rules, employees, shifts, leaves, dates }) } });
+  } catch (error) { next(error); }
+});
 router.put('/scheduling-rules/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ value: z.string().trim().min(1).max(1000).optional(), unit: nullableText(100), enabled: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.schedulingRule.findUniqueOrThrow({ where: { id } }); const after = await tx.schedulingRule.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'SchedulingRule', entityId: id, metadata: { before: safeRecord(before, ['value', 'unit', 'enabled']), after: safeRecord(after, ['value', 'unit', 'enabled']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
-router.get('/leave-requests', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.get('/system-settings', authorize('ADMIN'), async (_req, res, next) => {
   try {
+    const sensitive = /secret|token|password|credential|database|smtp|webhook|channel|access[_-]?key/i;
+    const settings = await prisma.systemSetting.findMany({ orderBy: { key: 'asc' }, select: { key: true, value: true, description: true, updatedAt: true } });
+    res.json({ data: settings.map((setting) => ({ key: setting.key, value: sensitive.test(setting.key) ? undefined : setting.value, configured: sensitive.test(setting.key) ? Boolean(setting.value) : undefined, description: setting.description, updatedAt: setting.updatedAt })) });
+  } catch (error) { next(error); }
+});
+router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const key = z.string().trim().regex(/^[A-Z0-9_.-]{1,150}$/).parse(req.params.key);
+    if (/secret|token|password|credential|database|smtp|webhook|channel|access[_-]?key/i.test(key)) throw new HttpError(400, 'Sensitive settings must be configured through the approved environment-variable workflow.');
+    const input = z.object({ value: z.string().max(2000), description: nullableText(2000) }).parse(req.body);
+    const result = await prisma.$transaction(async (tx) => {
+      const before = await tx.systemSetting.findUnique({ where: { key } });
+      const after = await tx.systemSetting.upsert({ where: { key }, update: input, create: { key, ...input } });
+      await audit.log({ actorUserId: req.user.sub, action: before ? 'UPDATE' : 'CREATE', entityType: 'SystemSetting', entityId: key, metadata: { key, configured: Boolean(after.value) } }, tx);
+      return { key: after.key, value: after.value, description: after.description, updatedAt: after.updatedAt };
+    });
+    res.json({ data: result });
+  } catch (error) { next(error); }
+});
+
+router.get('/leave-requests', async (req, res, next) => {
+  try {
+    const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true } });
+    if (currentUser.role === 'VIEWER' && !currentUser.employeeId) throw new HttpError(403, 'This account is not linked to an employee.');
     res.json(await paged(prisma.leaveRequest, req.query, {
+      where: currentUser.role === 'VIEWER' ? { employeeId: currentUser.employeeId } : {},
       select: {
         id: true, employeeId: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true,
         leaveType: true, startDate: true, endDate: true, dayCount: true, reason: true,
@@ -159,8 +341,22 @@ router.get('/leave-requests', authorize('ADMIN', 'MANAGER'), async (req, res, ne
     }));
   } catch (error) { next(error); }
 });
-router.post('/leave-requests', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const input = leaveInput.parse(req.body); const result = await prisma.$transaction(async (tx) => { const employee = await tx.employee.findUniqueOrThrow({ where: { id: input.employeeId } }); const leave = await tx.leaveRequest.create({ data: { ...input, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: 'NONE', status: 'PENDING' } }); await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']) } }, tx); return leave; }); res.status(201).json({ data: result }); } catch (error) { next(error); } });
-router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ status: z.enum(['PENDING', 'APPROVED', 'REJECTED']), reason: nullableText(2000) }).parse(req.body); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } }); const after = await tx.leaveRequest.update({ where: { id }, data: { ...input, approvedAt: input.status === 'APPROVED' ? new Date() : null } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
+router.get('/leave-summary', async (req, res, next) => {
+  try {
+    const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
+    if (!currentUser.employeeId) return res.json({ data: { linked: false } });
+    const [quota, approved] = await Promise.all([
+      prisma.leaveQuota.findFirst({ where: { employeeId: currentUser.employeeId }, select: { sickLeave: true, personalLeave: true, vacationLeave: true } }),
+      prisma.leaveRequest.groupBy({ by: ['leaveType'], where: { employeeId: currentUser.employeeId, status: 'APPROVED' }, _sum: { dayCount: true } })
+    ]);
+    const entitlement = { sickLeave: Number(quota?.sickLeave ?? 30), personalLeave: Number(quota?.personalLeave ?? 6), vacationLeave: Number(quota?.vacationLeave ?? 10) };
+    const used = { sickLeave: 0, personalLeave: 0, vacationLeave: 0 };
+    approved.forEach((item) => { used[leaveQuotaField(item.leaveType)] += Number(item._sum.dayCount || 0); });
+    res.json({ data: { linked: true, entitlement, used, remaining: { sickLeave: Math.max(0, entitlement.sickLeave - used.sickLeave), personalLeave: Math.max(0, entitlement.personalLeave - used.personalLeave), vacationLeave: Math.max(0, entitlement.vacationLeave - used.vacationLeave) } } });
+  } catch (error) { next(error); }
+});
+router.post('/leave-requests', async (req, res, next) => { try { const input = leaveInput.parse(req.body); const result = await prisma.$transaction(async (tx) => { const currentUser = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true } }); const employeeId = currentUser.role === 'VIEWER' ? currentUser.employeeId : input.employeeId; if (!employeeId) throw new HttpError(400, 'Employee is required.'); const employee = await tx.employee.findUniqueOrThrow({ where: { id: employeeId } }); const dayCount = inclusiveDays(input.startDate, input.endDate); const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } }); if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.'); await ensureLeaveAvailable(tx, employeeId, input.leaveType, dayCount); const { dayCount: _ignored, ...safeInput } = input; const leave = await tx.leaveRequest.create({ data: { ...safeInput, employeeId, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: 'NONE', status: 'PENDING' } }); await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']) } }, tx); return leave; }); res.status(201).json({ data: result }); } catch (error) { next(error); } });
+router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ status: z.enum(['APPROVED', 'REJECTED']), reason: nullableText(2000) }).parse(req.body); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } }); if (before.status !== 'PENDING') throw new HttpError(409, 'This leave request has already been reviewed.'); if (req.user.role === 'MANAGER') { const today = new Date(); today.setUTCHours(0, 0, 0, 0); if (before.startDate < today) throw new HttpError(400, 'Managers cannot approve retroactive leave.'); } if (input.status === 'APPROVED') { await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, Number(before.dayCount), before.id); const [employee, leaveShift] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: before.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' } })]); for (let date = new Date(before.startDate); date <= before.endDate; date.setUTCDate(date.getUTCDate() + 1)) { const workDate = new Date(date); await tx.shiftAssignment.upsert({ where: { workDate_employeeId: { workDate, employeeId: before.employeeId } }, update: { shiftTypeId: leaveShift.id, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, licenseStatus: 'NOT_REQUIRED', licenseOverride: false }, create: { employeeId: before.employeeId, shiftTypeId: leaveShift.id, workDate, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, source: 'LEAVE_APPROVAL', licenseStatus: 'NOT_REQUIRED' } }); } } const after = await tx.leaveRequest.update({ where: { id }, data: { ...input, approvedAt: new Date(), approvedByLegacyRef: req.user.sub } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
 router.get('/leave-quotas', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
@@ -172,7 +368,7 @@ router.get('/leave-quotas', authorize('ADMIN', 'MANAGER'), async (req, res, next
 });
 router.put('/leave-quotas/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ sickLeave: z.coerce.number().min(0).max(999).optional(), personalLeave: z.coerce.number().min(0).max(999).optional(), vacationLeave: z.coerce.number().min(0).max(999).optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveQuota.findUniqueOrThrow({ where: { id } }); const after = await tx.leaveQuota.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveQuota', entityId: id, metadata: { before: safeRecord(before, ['sickLeave', 'personalLeave', 'vacationLeave']), after: safeRecord(after, ['sickLeave', 'personalLeave', 'vacationLeave']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
-router.put('/users/:id', authorize('ADMIN'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ role: z.enum(['ADMIN', 'MANAGER', 'VIEWER']).optional(), department: nullableText(100), accountStatus: z.enum(['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED']).optional(), isActive: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.user.findUniqueOrThrow({ where: { id } }); const after = await tx.user.update({ where: { id }, data: { ...input, tokenVersion: { increment: 1 } }, select: { id: true, legacyUserId: true, displayName: true, email: true, role: true, department: true, accountStatus: true, isActive: true, passwordResetRequired: true } }); await tx.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'User', entityId: id, metadata: { before: safeRecord(before, ['role', 'department', 'accountStatus', 'isActive']), after: safeRecord(after, ['role', 'department', 'accountStatus', 'isActive']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
+router.put('/users/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ role: z.enum(['ADMIN', 'MANAGER', 'VIEWER']).optional(), department: nullableText(100), accountStatus: z.enum(['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED']).optional(), isActive: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.user.findUniqueOrThrow({ where: { id } }); if (req.user.role === 'MANAGER') { if (before.accountStatus !== 'PENDING') throw new HttpError(403, 'Managers may approve pending accounts only.'); if (input.role && input.role !== 'VIEWER') throw new HttpError(403, 'Managers may assign the Viewer role only.'); if (input.accountStatus && input.accountStatus !== 'ACTIVE') throw new HttpError(403, 'Managers may only approve pending accounts.'); input.role = 'VIEWER'; input.accountStatus = 'ACTIVE'; input.isActive = true; } const after = await tx.user.update({ where: { id }, data: { ...input, approvedAt: input.accountStatus === 'ACTIVE' ? new Date() : undefined, tokenVersion: { increment: 1 } }, select: { id: true, legacyUserId: true, displayName: true, email: true, role: true, department: true, accountStatus: true, isActive: true, passwordResetRequired: true } }); await tx.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'User', entityId: id, metadata: { before: safeRecord(before, ['role', 'department', 'accountStatus', 'isActive']), after: safeRecord(after, ['role', 'department', 'accountStatus', 'isActive']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 router.post('/users/:id/reset-password', authorize('ADMIN'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const { newPassword } = z.object({ newPassword: z.string().min(8).max(128) }).parse(req.body); const passwordHash = await bcrypt.hash(newPassword, 12); const result = await prisma.$transaction(async (tx) => { const after = await tx.user.update({ where: { id }, data: { passwordHash, passwordResetRequired: false, failedLoginCount: 0, tokenVersion: { increment: 1 } }, select: { id: true, displayName: true, email: true, role: true, accountStatus: true, isActive: true, passwordResetRequired: true } }); await tx.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'UserCredential', entityId: id, metadata: { passwordResetRequired: false, sessionsRevoked: true } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
 router.get('/audit-events', authorize('ADMIN'), async (req, res, next) => {
