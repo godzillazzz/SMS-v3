@@ -66,7 +66,7 @@ async function refresh(refreshToken, requestId, request) {
     await tx.refreshSession.update({ where: { id: session.id }, data: { revokedAt: new Date(), lastUsedAt: new Date() } });
     const tokens = await createSessionTokens(session.user, request, tx);
     await audit.log({ actorUserId: session.userId, action: 'REFRESH', entityType: 'RefreshSession', entityId: session.id, metadata: { requestId } }, tx);
-    return tokens;
+    return { ...tokens, user: { id: session.user.id, email: session.user.email, displayName: session.user.displayName, role: session.user.role, department: session.user.department } };
   });
 }
 

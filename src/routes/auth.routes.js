@@ -16,7 +16,7 @@ const registrationRequestSchema = z.object({ displayName: z.string().trim().min(
 const registrationVerifySchema = z.object({ email: z.string().email().max(255), code: z.string().regex(/^\d{6}$/) });
 const passwordResetRequestSchema = z.object({ email: z.string().email().max(255) });
 const passwordResetCompleteSchema = z.object({ email: z.string().email().max(255), code: z.string().regex(/^\d{6}$/), newPassword: z.string().min(8).max(128) });
-function browserResponse(tokens, user) { return { accessToken: tokens.accessToken, tokenType: tokens.tokenType, user }; }
+function browserResponse(tokens, user) { return { accessToken: tokens.accessToken, tokenType: tokens.tokenType, user: user || tokens.user }; }
 function getRefreshToken(req) { return parseCookies(req.headers.cookie)[require('../config/env').authCookieName]; }
 
 router.post('/login', loginRateLimit, async (req, res, next) => {
@@ -43,7 +43,7 @@ router.post('/refresh', (req, res, next) => isBrowser(req) ? csrfProtection(req,
   try {
     const { refreshToken, clientType: requestedClient = 'browser' } = refreshSchema.parse(req.body);
     const result = await auth.refresh(requestedClient === 'browser' ? getRefreshToken(req) : refreshToken, req.requestId, requestDetails(req));
-    if (requestedClient === 'browser') { setBrowserSession(res, result.refreshToken); return res.json(browserResponse(result)); }
+    if (requestedClient === 'browser') { setBrowserSession(res, result.refreshToken); return res.json(browserResponse(result, result.user)); }
     return res.json(result);
   } catch (error) { return next(error); }
 });

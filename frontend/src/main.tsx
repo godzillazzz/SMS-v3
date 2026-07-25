@@ -205,6 +205,94 @@ function EditDialog({ editor, busy, error, onClose }: { editor: Editor; busy: bo
   </div>;
 }
 
+function EmployeeMagicWandModal({
+  target,
+  monthLabel,
+  busy,
+  onClose,
+  onSubmit
+}: {
+  target: DataRow;
+  monthLabel: string;
+  busy: boolean;
+  onClose(): void;
+  onSubmit(autoContinue: boolean, startPhase: string): Promise<void>;
+}) {
+  const [autoContinue, setAutoContinue] = useState(true);
+  const [startPhase, setStartPhase] = useState('D1');
+  const empName = text(target.displayName || `${text(target.firstName)} ${text(target.lastName)}`);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(autoContinue, startPhase);
+  };
+
+  return (
+    <div className="dialog-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+      <section className="edit-dialog magic-wand-dialog" role="dialog" aria-modal="true" aria-labelledby="magic-wand-title">
+        <div className="dialog-heading">
+          <div>
+            <p className="eyebrow">🪄 Magic Wand Auto-Planner</p>
+            <h2 id="magic-wand-title">จัดกะอัตโนมัติรายบุคคล: {empName}</h2>
+          </div>
+          <button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}>×</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="magic-wand-body">
+            <div className="wand-emp-badge">
+              <strong>👤 {empName}</strong> · <span>{text(target.employeeCode)}</span> ({text(target.department || 'PO11')})
+            </div>
+            <p className="wand-intro">เลือกรูปแบบการจัดกะหมุนเวียน (D 6 วัน → OFF 1 วัน → N 6 วัน → OFF 1 วัน) สำหรับเดือน {monthLabel}:</p>
+            <div className="wand-options-list">
+              <label className={`wand-option-card ${autoContinue ? 'selected' : ''}`}>
+                <input type="radio" name="wand-mode" checked={autoContinue} onChange={() => setAutoContinue(true)} />
+                <div className="option-text">
+                  <strong>🔄 ดึงกะอัตโนมัติต่อจากเดือนก่อนหน้า (Auto-Continue)</strong>
+                  <p>ระบบจะตรวจสอบกะสุดท้ายของเดือนก่อนหน้าให้อัตโนมัติ และรันลำดับกะถัดไปอย่างต่อเนื่อง</p>
+                </div>
+              </label>
+              <label className={`wand-option-card ${!autoContinue ? 'selected' : ''}`}>
+                <input type="radio" name="wand-mode" checked={!autoContinue} onChange={() => setAutoContinue(false)} />
+                <div className="option-text">
+                  <strong>⚙️ เลือกกะเริ่มต้นวันที่ 1 ของเดือนเอง (Manual Phase Selection)</strong>
+                  <p>กำหนดกะวันแรกด้วยตนเอง (เช่น กะเช้า D1, กะดึก N1 หรือ วันหยุด OFF)</p>
+                </div>
+              </label>
+              {!autoContinue && (
+                <div className="field-group phase-select-box">
+                  <label htmlFor="phase-select"><span>📌 กะเริ่มต้นวันที่ 1 ของเดือน:</span></label>
+                  <select id="phase-select" value={startPhase} onChange={(e) => setStartPhase(e.target.value)}>
+                    <option value="D1">☀️ D1: เริ่มกะเช้าวันแรก (D D D D D D → OFF)</option>
+                    <option value="D2">☀️ D2: กะเช้าวันที่ 2 (D D D D D → OFF)</option>
+                    <option value="D3">☀️ D3: กะเช้าวันที่ 3 (D D D D → OFF)</option>
+                    <option value="D4">☀️ D4: กะเช้าวันที่ 4 (D D D → OFF)</option>
+                    <option value="D5">☀️ D5: กะเช้าวันที่ 5 (D D → OFF)</option>
+                    <option value="D6">☀️ D6: กะเช้าวันสุดท้าย (D → OFF)</option>
+                    <option value="OFF-D">🌴 OFF-D: วันหยุดหลังกะเช้า (OFF → N N N N N N)</option>
+                    <option value="N1">🌙 N1: เริ่มกะดึกวันแรก (N N N N N N → OFF)</option>
+                    <option value="N2">🌙 N2: กะดึกวันที่ 2 (N N N N N → OFF)</option>
+                    <option value="N3">🌙 N3: กะดึกวันที่ 3 (N N N → OFF)</option>
+                    <option value="N4">🌙 N4: กะดึกวันที่ 4 (N N N → OFF)</option>
+                    <option value="N5">🌙 N5: กะดึกวันที่ 5 (N N → OFF)</option>
+                    <option value="N6">🌙 N6: กะดึกวันสุดท้าย (N → OFF)</option>
+                    <option value="OFF-N">🌴 OFF-N: วันหยุดหลังกะดึก (OFF → D D D D D D)</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="dialog-actions">
+            <button className="btn-secondary" type="button" disabled={busy} onClick={onClose}>ยกเลิก</button>
+            <button className="btn-primary compact" type="submit" disabled={busy}>
+              {busy ? 'กำลังบันทึกตาราง…' : '🪄 ยืนยันจัดกะอัตโนมัติ'}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'shiftSetup' | 'settings'>, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
     { label: 'พนักงาน', value: (row) => { const employee = nested(row.employee); return `${text(employee.firstName)} ${text(employee.lastName)}`; } },
@@ -714,8 +802,9 @@ function Dashboard() {
         <div className="calendar-toolbar"><label><span>เดือน</span><input type="month" value={scheduleMonth} onChange={(event) => setScheduleMonth(event.target.value)} /></label><button className="small-action" onClick={() => moveMonth(-1)}>‹ เดือนก่อน</button><button className="small-action" onClick={() => moveMonth(1)}>เดือนถัดไป ›</button><label><span>แผนก</span><select value={scheduleDepartment} onChange={(event) => setScheduleDepartment(event.target.value)}><option value="">ทุกแผนก</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></label><span className="toolbar-count">แสดง {calendarEmployees.length} จาก {operationResponse.meta?.total || 0} คน</span></div>
         {canManage && <section className="auto-schedule-panel"><div className="auto-schedule-heading"><div><span className="auto-schedule-icon">🪄</span><div><h2>จัดตารางกะอัตโนมัติ</h2><p>เครื่องมือไม้กายสิทธิ์สำหรับ Admin และ Manager — สร้างตัวอย่างก่อนบันทึก โดยคงกะที่ล็อกและวันลา (AL)</p></div></div><button className="btn-primary compact" disabled={autoScheduleBusy} onClick={previewAutoSchedule}>{autoScheduleBusy ? 'กำลังคำนวณ…' : '🪄 ดูตัวอย่างจัดกะอัตโนมัติ'}</button></div>{autoSchedulePreview && <div className="auto-schedule-preview"><div className="preview-summary"><span><b>{text(previewSummary.employees)}</b> พนักงาน</span><span><b>{text(previewSummary.totalRows)}</b> กะทั้งหมด</span><span><b>{text(previewSummary.manualLocked)}</b> รายการที่คงไว้</span><span><b>{previewWarnings.length}</b> คำเตือน</span></div>{previewWarnings.length > 0 && <div className="preview-warning"><strong>รายการที่ต้องตรวจสอบ</strong>{previewWarnings.slice(0, 8).map((warning, index) => <p key={`${String(warning)}-${index}`}>• {text(warning)}</p>)}</div>}<div className="table-scroll preview-table-wrap"><table className="data-table preview-table"><thead><tr><th>พนักงาน</th><th>วันที่</th><th>กะ</th><th>เหตุผล</th></tr></thead><tbody>{previewRows.slice(0, 20).map((row, index) => <tr key={`${text(row.employeeId)}-${text(row.date)}-${index}`}><td>{text(row.employeeName)}</td><td>{date(row.date)}</td><td><span className={`status-badge ${row.code === 'OFF' ? 'inactive' : 'active'}`}>{text(row.code)}</span></td><td>{text(row.remark)}</td></tr>)}</tbody></table></div>{previewRows.length > 20 && <small className="preview-more">แสดงตัวอย่าง 20 จาก {previewRows.length} รายการ</small>}<div className="preview-actions"><button className="btn-secondary" disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>ยกเลิก Preview</button><button className="btn-primary compact" disabled={autoScheduleBusy} onClick={saveAutoSchedule}>ยืนยันบันทึกตาราง</button></div></div>}</section>}
         {operationError && <div className="alert alert-error">{operationError}</div>}
-        <div className="table-card calendar-card">{operationLoading ? <div className="loading-row">กำลังอ่านตารางกะรายเดือน…</div> : <div className="table-scroll"><table className="schedule-grid"><thead><tr><th className="employee-sticky">พนักงาน</th>{dates.map((day) => { const dayValue = new Date(`${day}T00:00:00Z`); const weekend = [0, 6].includes(dayValue.getUTCDay()); return <th key={day} className={weekend ? 'weekend' : ''}><b>{dayValue.getUTCDate()}</b><small>{new Intl.DateTimeFormat('th-TH', { weekday: 'short', timeZone: 'UTC' }).format(dayValue)}</small></th>; })}</tr></thead><tbody>{calendarEmployees.length ? calendarEmployees.map((employee) => { const employeeShifts = Array.isArray(employee.shifts) ? employee.shifts as DataRow[] : []; const isSchedulingEmployee = employeeAutoScheduleBusyId === String(employee.id); return <tr key={text(employee.id)}><td className="employee-sticky"><strong>{text(employee.displayName || `${text(employee.firstName)} ${text(employee.lastName)}`)}{canManage && <button className="employee-magic-button" disabled={Boolean(employeeAutoScheduleBusyId)} title="🪄 จัดกะแพทเทิร์นด่วน: 6 วันทำงาน / 1 วันหยุด" onClick={() => scheduleOneEmployee(employee)}>{isSchedulingEmployee ? '…' : '🪄'}</button>}</strong><small>{text(employee.employeeCode)} · {text(employee.department)}</small></td>{dates.map((day) => { const shift = employeeShifts.find((item) => inputDate(item.workDate) === day); const shiftType = nested(shift?.shiftType); const shiftCode = text(shiftType.code).toLowerCase(); const coreShift = ['d', 'n', 'off', 'al'].includes(shiftCode); const weekend = [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay()); return <td key={day} className={weekend ? 'weekend' : ''}>{shift ? <div className="calendar-shift-wrap"><button className={`calendar-shift shift-${shiftCode}`} style={coreShift ? undefined : { backgroundColor: String(shiftType.color || '#64748B') }} title={`${text(shiftType.name)} · ${text(shift.startTime)}-${text(shift.endTime)}`} onClick={() => canManage && openShiftEditor(shift)}><b>{text(shiftType.code)}</b><small>{text(shift.startTime)}–{text(shift.endTime)}</small>{Boolean(shift.locked) && <small className="shift-note">ล็อก</small>}{Boolean(shift.licenseOverride) && <small className="shift-note">OVR</small>}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={async () => { if (!auth.token || !window.confirm('ยืนยันการลบกะรายการนี้?')) return; try { await api.deleteShift(auth.token, String(shift.id)); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'ลบกะไม่สำเร็จ'); } }}>×</button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={() => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day })}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
+        <div className="table-card calendar-card">{operationLoading ? <div className="loading-row">กำลังอ่านตารางกะรายเดือน…</div> : <div className="table-scroll"><table className="schedule-grid"><thead><tr><th className="employee-sticky">พนักงาน</th>{dates.map((day) => { const dayValue = new Date(`${day}T00:00:00Z`); const weekend = [0, 6].includes(dayValue.getUTCDay()); return <th key={day} className={weekend ? 'weekend' : ''}><b>{dayValue.getUTCDate()}</b><small>{new Intl.DateTimeFormat('th-TH', { weekday: 'short', timeZone: 'UTC' }).format(dayValue)}</small></th>; })}</tr></thead><tbody>{calendarEmployees.length ? calendarEmployees.map((employee) => { const employeeShifts = Array.isArray(employee.shifts) ? employee.shifts as DataRow[] : []; const isSchedulingEmployee = employeeAutoScheduleBusyId === String(employee.id); return <tr key={text(employee.id)}><td className="employee-sticky"><strong>{text(employee.displayName || `${text(employee.firstName)} ${text(employee.lastName)}`)}{canManage && <button className="employee-magic-button" disabled={Boolean(employeeAutoScheduleBusyId)} title="🪄 จัดกะแพทเทิร์นด่วน: 6 วันทำงาน / 1 วันหยุด" onClick={() => openEmployeeScheduleWizard(employee)}>{isSchedulingEmployee ? '…' : '🪄'}</button>}</strong><small>{text(employee.employeeCode)} · {text(employee.department)}</small></td>{dates.map((day) => { const shift = employeeShifts.find((item) => inputDate(item.workDate) === day); const shiftType = nested(shift?.shiftType); const shiftCode = text(shiftType.code).toLowerCase(); const coreShift = ['d', 'n', 'off', 'al'].includes(shiftCode); const weekend = [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay()); return <td key={day} className={weekend ? 'weekend' : ''}>{shift ? <div className="calendar-shift-wrap"><button className={`calendar-shift shift-${shiftCode}`} style={coreShift ? undefined : { backgroundColor: String(shiftType.color || '#64748B') }} title={`${text(shiftType.name)} · ${text(shift.startTime)}-${text(shift.endTime)}`} onClick={() => canManage && openShiftEditor(shift)}><b>{text(shiftType.code)}</b><small>{text(shift.startTime)}–{text(shift.endTime)}</small>{Boolean(shift.locked) && <small className="shift-note">ล็อก</small>}{Boolean(shift.licenseOverride) && <small className="shift-note">OVR</small>}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={async () => { if (!auth.token || !window.confirm('ยืนยันการลบกะรายการนี้?')) return; try { await api.deleteShift(auth.token, String(shift.id)); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'ลบกะไม่สำเร็จ'); } }}>×</button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={() => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day })}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
+        {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} monthLabel={monthLabel} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { await api.commitEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase); setEmployeeAutoScheduleTarget(undefined); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'จัดกะอัตโนมัติรายบุคคลไม่สำเร็จ'); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
       </section>;
     }
     if (activePage === 'leave') {

@@ -134,10 +134,26 @@ async function buildAutoSchedulePlan(client, month) {
   return { month, startDate: isoDate(start), endDate: isoDate(new Date(end.getTime() - DAY_MS)), dates: dates.map(isoDate), rows, warnings, summary: { employees: employees.length, days: dates.length, totalRows: rows.length, manualLocked: rows.filter((row) => row.locked).length, counts, maxWeeklyHours, dayMinimum, nightMinimum } };
 }
 
-async function buildEmployeeAutoSchedulePlan(client, month, employeeId) {
+const employeePhaseIndexes = { D1: 0, D2: 1, D3: 2, D4: 3, D5: 4, D6: 5, 'OFF-D': 6, N1: 7, N2: 8, N3: 9, N4: 10, N5: 11, N6: 12, 'OFF-N': 13 };
+const employeeCycle = ['D', 'D', 'D', 'D', 'D', 'D', 'OFF', 'N', 'N', 'N', 'N', 'N', 'N', 'OFF'];
+
+async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPhase = 'AUTO') {
   const plan = await buildAutoSchedulePlan(client, month);
-  const rows = plan.rows.filter((row) => row.employeeId === employeeId);
+  let rows = plan.rows.filter((row) => row.employeeId === employeeId);
   if (!rows.length) throw new HttpError(404, 'Eligible employee was not found for automatic scheduling.');
+  if (startPhase !== 'AUTO') {
+    const phaseIndex = employeePhaseIndexes[startPhase];
+    if (phaseIndex === undefined) throw new HttpError(400, 'Unsupported employee schedule start phase.');
+    const templates = new Map();
+    plan.rows.forEach((row) => { if (!templates.has(row.code)) templates.set(row.code, row); });
+    rows = rows.map((row, index) => {
+      if (row.locked || row.licenseStatus !== 'VALID') return row;
+      const code = employeeCycle[(phaseIndex + index) % employeeCycle.length];
+      const template = templates.get(code);
+      if (!template) return row;
+      return { ...row, shiftTypeId: template.shiftTypeId, code, name: template.name, startTime: template.startTime, endTime: template.endTime, hours: template.hours, color: template.color, remark: `Auto rotating pattern (${startPhase})`, source: 'AUTO' };
+    });
+  }
   return {
     ...plan,
     rows,
@@ -166,9 +182,9 @@ async function commitAutoSchedule(prisma, month, actorUserId) {
   }, { timeout: 15000 });
 }
 
-async function commitEmployeeAutoSchedule(prisma, month, employeeId, actorUserId) {
+async function commitEmployeeAutoSchedule(prisma, month, employeeId, actorUserId, startPhase = 'AUTO') {
   return prisma.$transaction(async (tx) => {
-    const plan = await buildEmployeeAutoSchedulePlan(tx, month, employeeId);
+    const plan = await buildEmployeeAutoSchedulePlan(tx, month, employeeId, startPhase);
     const al = await tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' }, select: { id: true } });
     const { start, end } = monthBounds(month);
     const deleted = await tx.shiftAssignment.deleteMany({ where: { employeeId, workDate: { gte: start, lt: end }, locked: false, shiftTypeId: { not: al.id } } });
@@ -180,7 +196,7 @@ async function commitEmployeeAutoSchedule(prisma, month, employeeId, actorUserId
     })) });
     const latest = await tx.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { revision: true } });
     const approval = await tx.scheduleApproval.create({ data: { month: start, status: 'PENDING', revision: (latest?.revision || 0) + 1, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType: 'AUTO_SCHEDULE_EMPLOYEE' } });
-    await audit.log({ actorUserId, action: 'CREATE', entityType: 'EmployeeAutoSchedule', entityId: `${month}:${employeeId}`, metadata: { month, generatedRows: generated.length, replacedRows: deleted.count, preservedRows: plan.summary.manualLocked, revision: approval.revision, warningCount: plan.warnings.length } }, tx);
+    await audit.log({ actorUserId, action: 'CREATE', entityType: 'EmployeeAutoSchedule', entityId: `${month}:${employeeId}`, metadata: { month, startPhase, generatedRows: generated.length, replacedRows: deleted.count, preservedRows: plan.summary.manualLocked, revision: approval.revision, warningCount: plan.warnings.length } }, tx);
     return { writtenRows: generated.length, replacedRows: deleted.count, preservedRows: plan.summary.manualLocked, warnings: plan.warnings, startDate: plan.startDate, endDate: plan.endDate, approval: { id: approval.id, status: approval.status, revision: approval.revision } };
   }, { timeout: 15000 });
 }
