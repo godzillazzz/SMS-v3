@@ -175,83 +175,75 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
 
   const { start } = monthBounds(month);
   const historyStart = new Date(start.getTime() - 366 * DAY_MS);
-  const history = await client.shiftAssignment.findMany({
-    where: { employeeId, workDate: { gte: historyStart, lt: start } },
-    orderBy: { workDate: 'desc' },
-    include: { shiftType: { select: { code: true } } }
-  });
+  const [history, allShiftTypes] = await Promise.all([
+    client.shiftAssignment.findMany({
+      where: { employeeId, workDate: { gte: historyStart, lt: start } },
+      orderBy: { workDate: 'desc' },
+      include: { shiftType: { select: { code: true } } }
+    }),
+    client.shiftType.findMany({ select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } })
+  ]);
+  const shiftTypeMap = new Map(allShiftTypes.map((st) => [String(st.code).toUpperCase(), st]));
   const analysis = getPhaseAnalysis(history);
 
   const customWarnings = [];
-  const offTemplate = plan.rows.find((r) => r.code === 'OFF') || plan.rows[plan.rows.length - 1];
+  const offType = shiftTypeMap.get('OFF') || { id: '', code: 'OFF', name: 'วันหยุด', startTime: '00:00', endTime: '00:00', hours: 0, color: '#64748b' };
+  const dType = shiftTypeMap.get('D') || { id: '', code: 'D', name: 'กะเช้า', startTime: '07:00', endTime: '19:00', hours: 12, color: '#2563eb' };
 
   if (patternType === 'SUPERVISOR') {
-    const templates = new Map();
-    plan.rows.forEach((row) => { if (!templates.has(row.code)) templates.set(row.code, row); });
-    const dTemplate = templates.get('D') || templates.get('M') || plan.rows[0];
-
     rows = rows.map((row) => {
       if (row.locked || row.code === 'AL') return row;
       const dateValue = new Date(`${row.date}T00:00:00Z`);
       const isSunday = dateValue.getUTCDay() === 0;
-      let template = isSunday ? offTemplate : dTemplate;
+      let template = isSunday ? offType : dType;
 
       if (template.code !== 'OFF' && row.licenseStatus !== 'VALID') {
         customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ไม่ถูกจัดกะ ${template.code} เนื่องจากใบอนุญาตไม่ผ่าน (เปลี่ยนเป็น OFF)`);
-        template = offTemplate;
+        template = offType;
       }
 
       return {
         ...row,
-        shiftTypeId: template.shiftTypeId,
+        shiftTypeId: template.id || row.shiftTypeId,
         code: template.code,
         name: template.name,
         startTime: template.startTime,
         endTime: template.endTime,
-        hours: template.hours,
+        hours: Number(template.hours || 0),
         color: template.color,
         remark: template.code === 'OFF' ? 'Weekly off / License unavailable' : 'Supervisor Pattern (Mon-Sat D, Sun OFF)',
         source: 'AUTO'
       };
     });
-  } else if (startPhase !== 'AUTO') {
-    const isNight = startPhase.startsWith('N') || startPhase === 'OFF-N';
+  } else {
+    const effectivePhase = startPhase === 'AUTO' ? (analysis.code || 'D1') : startPhase;
+    const isNight = effectivePhase.startsWith('N') || effectivePhase === 'OFF-N';
     const targetCycle = isNight ? ['N', 'N', 'N', 'N', 'N', 'N', 'OFF'] : ['D', 'D', 'D', 'D', 'D', 'D', 'OFF'];
     const phaseOffsetMap = isNight ? { N1: 0, N2: 1, N3: 2, N4: 3, N5: 4, N6: 5, 'OFF-N': 6 } : { D1: 0, D2: 1, D3: 2, D4: 3, D5: 4, D6: 5, 'OFF-D': 6 };
-    const phaseIndex = phaseOffsetMap[startPhase];
-    if (phaseIndex === undefined) throw new HttpError(400, 'Unsupported employee schedule start phase.');
-    const templates = new Map();
-    plan.rows.forEach((row) => { if (!templates.has(row.code)) templates.set(row.code, row); });
+    const phaseIndex = phaseOffsetMap[effectivePhase] ?? 0;
+
     rows = rows.map((row, index) => {
       if (row.locked || row.code === 'AL') return row;
-      const code = targetCycle[(phaseIndex + index) % targetCycle.length];
-      let template = templates.get(code);
-      if (!template) return row;
+      const targetCode = targetCycle[(phaseIndex + index) % targetCycle.length];
+      let template = shiftTypeMap.get(targetCode) || offType;
 
       if (template.code !== 'OFF' && row.licenseStatus !== 'VALID') {
         customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ไม่ถูกจัดกะ ${template.code} เนื่องจากใบอนุญาตไม่ผ่าน (เปลี่ยนเป็น OFF)`);
-        template = offTemplate || templates.get('OFF');
+        template = offType;
       }
 
-      return { ...row, shiftTypeId: template.shiftTypeId, code: template.code, name: template.name, startTime: template.startTime, endTime: template.endTime, hours: template.hours, color: template.color, remark: template.code === 'OFF' ? 'Weekly off / License unavailable' : `Auto rotating pattern (${startPhase})`, source: 'AUTO' };
-    });
-  } else {
-    rows = rows.map((row) => {
-      if (!row.locked && row.code !== 'OFF' && row.code !== 'AL' && row.licenseStatus !== 'VALID') {
-        customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ไม่ถูกจัดกะ ${row.code} เนื่องจากใบอนุญาตไม่ผ่าน (เปลี่ยนเป็น OFF)`);
-        return {
-          ...row,
-          shiftTypeId: offTemplate.shiftTypeId,
-          code: offTemplate.code,
-          name: offTemplate.name,
-          startTime: offTemplate.startTime,
-          endTime: offTemplate.endTime,
-          hours: offTemplate.hours,
-          color: offTemplate.color,
-          remark: 'License unavailable'
-        };
-      }
-      return row;
+      return {
+        ...row,
+        shiftTypeId: template.id || row.shiftTypeId,
+        code: template.code,
+        name: template.name,
+        startTime: template.startTime,
+        endTime: template.endTime,
+        hours: Number(template.hours || 0),
+        color: template.color,
+        remark: template.code === 'OFF' ? 'Weekly off / License unavailable' : `Auto rotating pattern (${effectivePhase})`,
+        source: 'AUTO'
+      };
     });
   }
 
