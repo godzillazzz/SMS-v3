@@ -38,6 +38,9 @@ async function getMonthlyGrid(yearMonth) {
     prisma.scheduleApproval.findFirst({
       where: {
         month: startDate
+      },
+      orderBy: {
+        revision: 'desc'
       }
     })
   ]);
