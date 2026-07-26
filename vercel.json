@@ -2,6 +2,9 @@
   "version": 2,
   "buildCommand": "node --version && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
+  "crons": [
+    { "path": "/api/v1/internal/license-reconciliation", "schedule": "5 17 * * *" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

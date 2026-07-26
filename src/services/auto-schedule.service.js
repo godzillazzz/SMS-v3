@@ -1,6 +1,7 @@
 const HttpError = require('../utils/http-error');
 const audit = require('./audit.service');
 const { isoWeek } = require('./schedule-rules.service');
+const { licenseStateForWorkDate } = require('./license-state.service');
 
 const DAY_MS = 86400000;
 const isoDate = (value) => new Date(value).toISOString().slice(0, 10);
@@ -22,14 +23,7 @@ const isSupervisor = (employee) => {
   const position = String(employee.jobTitle || '').trim().toLowerCase();
   return position === 'supervisor' || position.includes('supervisor') || position.includes('หัวหน้า');
 };
-const licenseForDate = (records, date) => {
-  if (!records || !records.length) return { valid: false, code: 'MISSING', expiryDate: null, reason: 'ไม่พบข้อมูลใบอนุญาต' };
-  const active = records.filter((license) => ['active', 'valid'].includes(String(license.status || '').trim().toLowerCase()));
-  const valid = active.find((license) => license.issueDate && license.expiryDate && license.issueDate <= date && license.expiryDate >= date);
-  if (valid) return { valid: true, code: 'VALID', expiryDate: valid.expiryDate };
-  const record = active[0] || records[0];
-  return { valid: false, code: String(record?.status || 'MISSING').toUpperCase(), expiryDate: record?.expiryDate || null, reason: record ? 'ใบอนุญาตไม่มีผลในวันที่จัดกะ' : 'ไม่พบข้อมูลใบอนุญาต' };
-};
+const licenseForDate = (records, date) => ({ ...licenseStateForWorkDate(records, date), code: licenseStateForWorkDate(records, date).status });
 const suggestedPhase = (history) => {
   if (!history.length) return 'D1';
   const lastCode = String(history[0].shiftType.code || '').toUpperCase();
@@ -79,7 +73,7 @@ async function buildAutoSchedulePlan(client, month) {
   const weeklyHours = new Map();
   const planned = new Map();
   const licenseBlocked = new Map();
-  const assign = (employee, date, shift, { source = 'AUTO', locked = false, remark = '', existingRow } = {}) => {
+  const assign = (employee, date, shift, { source = 'AUTO', locked = false, remark = '', existingRow, licenseStatus, licenseBlockedFromShiftTypeId, licenseBlockedFromRemark, licenseBlockedAt } = {}) => {
     const dateText = isoDate(date); const key = `${employee.id}|${dateText}`;
     if (planned.has(key)) return false;
     const hours = Number(shift.hours || 0);
@@ -93,8 +87,9 @@ async function buildAutoSchedulePlan(client, month) {
     planned.set(key, {
       date: dateText, employeeId: employee.id, employeeCode: employee.employeeCode, employeeName: displayName(employee), department: employee.department,
       shiftTypeId: shift.id, code: String(shift.code).toUpperCase(), name: shift.name, startTime: shift.startTime, endTime: shift.endTime,
-      hours, color: shift.color, remark, source, locked, licenseStatus: allowedOverride ? 'OVERRIDDEN' : license.code,
-      licenseExpiryDate: license.expiryDate ? isoDate(license.expiryDate) : null, licenseOverride: allowedOverride
+      hours, color: shift.color, remark, source, locked, licenseStatus: allowedOverride ? 'OVERRIDDEN' : (licenseStatus || (hours === 0 ? 'NOT_REQUIRED' : license.code)),
+      licenseExpiryDate: license.expiryDate ? isoDate(license.expiryDate) : null, licenseOverride: allowedOverride,
+      licenseBlockedFromShiftTypeId: licenseBlockedFromShiftTypeId || null, licenseBlockedFromRemark: licenseBlockedFromRemark || null, licenseBlockedAt: licenseBlockedAt || null
     });
     weeklyHours.set(weekKey, weekHours + hours);
     return true;
@@ -114,14 +109,14 @@ async function buildAutoSchedulePlan(client, month) {
     dates.forEach((date) => {
       const key = `${employee.id}|${isoDate(date)}`;
       if (planned.has(key)) { if (!supervisor) cycleIndex += 1; return; }
+      const code = supervisor ? (date.getUTCDay() === 0 ? 'OFF' : 'D') : empCycle[cycleIndex % empCycle.length];
       const license = licenseForDate(licensesByEmployee.get(employee.id) || [], date);
-      if (!license.valid) {
+      if (code !== 'OFF' && !license.valid) {
         licenseBlocked.set(key, license);
-        assign(employee, date, shifts.get('OFF'), { remark: `License Block: ${license.reason}` });
+        assign(employee, date, shifts.get('OFF'), { remark: 'License Block', licenseStatus: license.code, licenseBlockedFromShiftTypeId: shifts.get(code).id, licenseBlockedFromRemark: supervisor ? 'Auto Supervisor Pattern' : 'Auto Rotating Pattern', licenseBlockedAt: new Date().toISOString() });
         if (!supervisor) cycleIndex += 1;
         return;
       }
-      const code = supervisor ? (date.getUTCDay() === 0 ? 'OFF' : 'D') : empCycle[cycleIndex % empCycle.length];
       const assigned = assign(employee, date, shifts.get(code), { remark: supervisor ? 'Auto Supervisor Pattern' : 'Auto Rotating Pattern' });
       if (!assigned) assign(employee, date, shifts.get('OFF'), { remark: 'Weekly hour limit' });
       if (!supervisor) cycleIndex += 1;
@@ -192,7 +187,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
 
   if (patternType === 'SUPERVISOR') {
     rows = rows.map((row) => {
-      if (row.locked || row.code === 'AL') return row;
+      if (row.locked || row.code === 'AL' || row.licenseBlockedFromShiftTypeId) return row;
       const dateValue = new Date(`${row.date}T00:00:00Z`);
       const isSunday = dateValue.getUTCDay() === 0;
       let template = isSunday ? offType : dType;
@@ -223,7 +218,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
     const phaseIndex = phaseOffsetMap[effectivePhase] ?? 0;
 
     rows = rows.map((row, index) => {
-      if (row.locked || row.code === 'AL') return row;
+      if (row.locked || row.code === 'AL' || row.licenseBlockedFromShiftTypeId) return row;
       const targetCode = targetCycle[(phaseIndex + index) % targetCycle.length];
       let template = shiftTypeMap.get(targetCode) || offType;
 
@@ -270,7 +265,8 @@ async function commitAutoSchedule(prisma, month, actorUserId) {
     if (generated.length) await tx.shiftAssignment.createMany({ data: generated.map((row) => ({
       employeeId: row.employeeId, shiftTypeId: row.shiftTypeId, workDate: new Date(`${row.date}T00:00:00Z`), employeeNameSnapshot: row.employeeName,
       departmentSnapshot: row.department, startTime: row.startTime, endTime: row.endTime, hours: row.hours, remark: row.remark, source: 'AUTO', locked: false,
-      updatedByLegacyRef: actorUserId, licenseStatus: row.licenseStatus, licenseExpiryDate: row.licenseExpiryDate ? new Date(`${row.licenseExpiryDate}T00:00:00Z`) : null, licenseOverride: false
+      updatedByLegacyRef: actorUserId, licenseStatus: row.licenseStatus, licenseExpiryDate: row.licenseExpiryDate ? new Date(`${row.licenseExpiryDate}T00:00:00Z`) : null, licenseOverride: false,
+      licenseBlockedFromShiftTypeId: row.licenseBlockedFromShiftTypeId, licenseBlockedFromRemark: row.licenseBlockedFromRemark, licenseBlockedAt: row.licenseBlockedAt ? new Date(row.licenseBlockedAt) : null
     })) });
     const latest = await tx.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { revision: true } });
     const approval = await tx.scheduleApproval.create({ data: { month: start, status: 'PENDING', revision: (latest?.revision || 0) + 1, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType: 'AUTO_SCHEDULE' } });
@@ -289,7 +285,8 @@ async function commitEmployeeAutoSchedule(prisma, month, employeeId, actorUserId
     if (generated.length) await tx.shiftAssignment.createMany({ data: generated.map((row) => ({
       employeeId: row.employeeId, shiftTypeId: row.shiftTypeId, workDate: new Date(`${row.date}T00:00:00Z`), employeeNameSnapshot: row.employeeName,
       departmentSnapshot: row.department, startTime: row.startTime, endTime: row.endTime, hours: row.hours, remark: row.remark, source: 'AUTO', locked: false,
-      updatedByLegacyRef: actorUserId, licenseStatus: row.licenseStatus, licenseExpiryDate: row.licenseExpiryDate ? new Date(`${row.licenseExpiryDate}T00:00:00Z`) : null, licenseOverride: false
+      updatedByLegacyRef: actorUserId, licenseStatus: row.licenseStatus, licenseExpiryDate: row.licenseExpiryDate ? new Date(`${row.licenseExpiryDate}T00:00:00Z`) : null, licenseOverride: false,
+      licenseBlockedFromShiftTypeId: row.licenseBlockedFromShiftTypeId, licenseBlockedFromRemark: row.licenseBlockedFromRemark, licenseBlockedAt: row.licenseBlockedAt ? new Date(row.licenseBlockedAt) : null
     })) });
     const latest = await tx.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { revision: true } });
     const approval = await tx.scheduleApproval.create({ data: { month: start, status: 'PENDING', revision: (latest?.revision || 0) + 1, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType: 'AUTO_SCHEDULE_EMPLOYEE' } });

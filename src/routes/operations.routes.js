@@ -9,7 +9,8 @@ const audit = require('../services/audit.service');
 const { evaluateScheduleRules } = require('../services/schedule-rules.service');
 const { buildAutoSchedulePlan, buildEmployeeAutoSchedulePlan, commitAutoSchedule, commitEmployeeAutoSchedule, monthBounds } = require('../services/auto-schedule.service');
 const { buildApprovedScheduleWorkbook } = require('../services/schedule-export.service');
-const { reconcileEmployeeLicenseSchedules } = require('../services/license-schedule-reconciliation.service');
+const { reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules } = require('../services/license-schedule-reconciliation.service');
+const { licenseStateForWorkDate } = require('../services/license-state.service');
 const HttpError = require('../utils/http-error');
 
 const router = express.Router();
@@ -38,6 +39,10 @@ const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('attachment');
 const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'Attachment must not exceed 4 MB.' : 'Attachment upload is invalid.')) : next());
 const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
+const authorizedLicenseReconciliationCron = (req) => {
+  const secret = process.env.CRON_SECRET;
+  return Boolean(secret) && req.get('authorization') === `Bearer ${secret}`;
+};
 const safeRecord = (record, fields) => Object.fromEntries(fields.map((field) => [field, record[field]]));
 const leaveQuotaField = (leaveType) => {
   const value = String(leaveType).toLowerCase();
@@ -58,12 +63,11 @@ const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedDays, ex
 };
 const licenseStateForShift = async (tx, { employeeId, workDate, shiftCode, override, overrideReason, actorRole }) => {
   if (['OFF', 'AL'].includes(String(shiftCode).toUpperCase())) return { licenseStatus: 'NOT_REQUIRED', licenseExpiryDate: null, licenseOverride: false, overrideReason: null, overrideAt: null };
-  const license = await tx.employeeLicense.findFirst({ where: { employeeId }, orderBy: { expiryDate: 'desc' } });
-  const validStatus = ['active', 'valid'].includes(String(license?.status || '').toLowerCase());
-  const validDate = license?.issueDate && license?.expiryDate && license.issueDate <= workDate && license.expiryDate >= workDate;
-  if (validStatus && validDate) return { licenseStatus: 'VALID', licenseExpiryDate: license.expiryDate, licenseOverride: false, overrideReason: null, overrideAt: null };
-  if (actorRole === 'ADMIN' && override && overrideReason) return { licenseStatus: 'OVERRIDDEN', licenseExpiryDate: license?.expiryDate || null, licenseOverride: true, overrideReason, overrideAt: new Date() };
-  throw new HttpError(400, actorRole === 'ADMIN' ? 'Employee license is invalid. Provide an override reason or select OFF/AL.' : 'Employee license is invalid. Select OFF/AL or contact an administrator.');
+  const licenses = await tx.employeeLicense.findMany({ where: { employeeId }, select: { status: true, issueDate: true, expiryDate: true } });
+  const state = licenseStateForWorkDate(licenses, workDate);
+  if (state.valid) return { licenseStatus: 'VALID', licenseExpiryDate: state.expiryDate, licenseOverride: false, overrideReason: null, overrideAt: null };
+  if (actorRole === 'ADMIN' && override && String(overrideReason || '').trim().length >= 5) return { licenseStatus: 'OVERRIDDEN', licenseExpiryDate: state.expiryDate, licenseOverride: true, overrideReason: String(overrideReason).trim(), overrideAt: new Date() };
+  throw new HttpError(400, actorRole === 'ADMIN' ? 'License Block: employee license is invalid for this date. Select OFF/AL or provide an Admin override reason.' : 'License Block: employee license is invalid for this date. Only an Admin may override this restriction.');
 };
 const touchScheduleApproval = async (tx, workDate, actorUserId, changeType) => {
   const month = new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth(), 1));
@@ -142,6 +146,12 @@ router.get('/dashboard', async (_req, res, next) => {
       prisma.shiftAssignment.aggregate({ _sum: { hours: true } })
     ]);
     res.json({ data: { totalEmployees, activeEmployees, totalShifts, monthShifts, totalHours: Number(hourAggregate._sum.hours || 0), pendingLeaves, pendingUsers, expiringLicenses, pendingApprovals } });
+  } catch (error) { next(error); }
+});
+router.post('/internal/license-reconciliation', async (req, res, next) => {
+  try {
+    if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
+    res.json({ data: await reconcileAllEmployeeLicenseSchedules(prisma) });
   } catch (error) { next(error); }
 });
 
@@ -248,7 +258,7 @@ router.get('/shifts', async (req, res, next) => {
       select: {
         id: true, employeeId: true, shiftTypeId: true, workDate: true, employeeNameSnapshot: true, departmentSnapshot: true,
         startTime: true, endTime: true, hours: true, remark: true, locked: true,
-        licenseStatus: true, shiftType: { select: { id: true, code: true, name: true, color: true } }
+        licenseStatus: true, licenseOverride: true, licenseBlockedFromShiftTypeId: true, shiftType: { select: { id: true, code: true, name: true, color: true } }
       },
       orderBy: [{ workDate: 'desc' }, { employeeNameSnapshot: 'asc' }]
     }));
@@ -288,7 +298,7 @@ router.get('/schedule-calendar', async (req, res, next) => {
     const employeeIds = employees.map((employee) => employee.id);
     const [shifts, approval] = await Promise.all([employeeIds.length ? prisma.shiftAssignment.findMany({
       where: { employeeId: { in: employeeIds }, workDate: { gte: monthStart, lt: nextMonth } },
-      select: { id: true, employeeId: true, shiftTypeId: true, workDate: true, startTime: true, endTime: true, hours: true, remark: true, locked: true, licenseStatus: true, licenseOverride: true, shiftType: { select: { id: true, code: true, name: true, color: true } } },
+      select: { id: true, employeeId: true, shiftTypeId: true, workDate: true, startTime: true, endTime: true, hours: true, remark: true, locked: true, licenseStatus: true, licenseOverride: true, licenseBlockedFromShiftTypeId: true, shiftType: { select: { id: true, code: true, name: true, color: true } } },
       orderBy: [{ employeeId: 'asc' }, { workDate: 'asc' }]
     }) : Promise.resolve([]), prisma.scheduleApproval.findFirst({ where: { month: monthStart }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true, approvalNote: true } })]);
     const dates = Array.from({ length: Math.round((nextMonth - monthStart) / 86400000) }, (_, index) => new Date(Date.UTC(year, monthIndex - 1, index + 1)).toISOString().slice(0, 10));

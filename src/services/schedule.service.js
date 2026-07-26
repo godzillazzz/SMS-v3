@@ -2,6 +2,7 @@ const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { evaluateRulesForAssignments } = require('./schedule-rules.service');
 const audit = require('./audit.service');
+const { licenseStateForWorkDate } = require('./license-state.service');
 
 function parseMonthDates(yearMonth) {
   const [yearStr, monthStr] = yearMonth.split('-');
@@ -126,16 +127,15 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
       if (['OFF', 'AL'].includes(shiftCode)) {
         licenseStatus = 'NOT_REQUIRED';
       } else {
-        const active = empLicenses.filter((l) => ['active', 'valid'].includes(String(l.status || '').trim().toLowerCase()));
-        const validLic = active.find((l) => l.issueDate && l.expiryDate && new Date(l.issueDate) <= parsedDate && new Date(l.expiryDate) >= parsedDate);
-        if (validLic) {
+        const licenseState = licenseStateForWorkDate(empLicenses, parsedDate);
+        if (licenseState.valid) {
           licenseStatus = 'VALID';
-          licenseExpiryDate = validLic.expiryDate;
+          licenseExpiryDate = licenseState.expiryDate;
         } else if (actorRole === 'ADMIN' && licenseOverride && String(overrideReason || '').trim().length >= 5) {
           licenseStatus = 'OVERRIDDEN';
-          licenseExpiryDate = active[0]?.expiryDate || null;
+          licenseExpiryDate = licenseState.expiryDate;
         } else {
-          const status = active[0] ? 'EXPIRED' : 'MISSING';
+          const status = licenseState.status;
           throw new HttpError(400, actorRole === 'ADMIN'
             ? `License Block: employee license is ${status.toLowerCase()}. Select OFF/AL or provide an Admin override reason.`
             : `License Block: employee license is ${status.toLowerCase()}. Only an Admin may override this restriction.`);

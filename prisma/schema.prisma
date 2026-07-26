@@ -151,30 +151,33 @@ model ShiftType {
 }
 
 model ShiftAssignment {
-  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId           String    @map("employee_id") @db.Uuid
-  shiftTypeId          String    @map("shift_type_id") @db.Uuid
-  workDate             DateTime  @map("work_date") @db.Date
-  employeeNameSnapshot String    @map("employee_name_snapshot") @db.VarChar(255)
-  departmentSnapshot   String?   @map("department_snapshot") @db.VarChar(100)
-  startTime            String?   @map("start_time") @db.VarChar(20)
-  endTime              String?   @map("end_time") @db.VarChar(20)
-  hours                Decimal   @db.Decimal(6, 2)
-  remark               String?   @db.VarChar(2000)
-  source               String?   @db.VarChar(100)
-  locked               Boolean   @default(false)
-  updatedByLegacyRef   String?   @map("updated_by_legacy_ref") @db.VarChar(255)
-  legacyUpdatedAt      DateTime? @map("legacy_updated_at")
-  licenseStatus        String?   @map("license_status") @db.VarChar(100)
-  licenseExpiryDate    DateTime? @map("license_expiry_date") @db.Date
-  licenseOverride      Boolean   @default(false) @map("license_override")
-  overrideReason       String?   @map("override_reason") @db.VarChar(2000)
-  overrideByLegacyRef  String?   @map("override_by_legacy_ref") @db.VarChar(255)
-  overrideAt           DateTime? @map("override_at")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
-  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  shiftType            ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
+  id                            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId                    String    @map("employee_id") @db.Uuid
+  shiftTypeId                   String    @map("shift_type_id") @db.Uuid
+  workDate                      DateTime  @map("work_date") @db.Date
+  employeeNameSnapshot          String    @map("employee_name_snapshot") @db.VarChar(255)
+  departmentSnapshot            String?   @map("department_snapshot") @db.VarChar(100)
+  startTime                     String?   @map("start_time") @db.VarChar(20)
+  endTime                       String?   @map("end_time") @db.VarChar(20)
+  hours                         Decimal   @db.Decimal(6, 2)
+  remark                        String?   @db.VarChar(2000)
+  source                        String?   @db.VarChar(100)
+  locked                        Boolean   @default(false)
+  updatedByLegacyRef            String?   @map("updated_by_legacy_ref") @db.VarChar(255)
+  legacyUpdatedAt               DateTime? @map("legacy_updated_at")
+  licenseStatus                 String?   @map("license_status") @db.VarChar(100)
+  licenseExpiryDate             DateTime? @map("license_expiry_date") @db.Date
+  licenseOverride               Boolean   @default(false) @map("license_override")
+  licenseBlockedFromShiftTypeId String?   @map("license_blocked_from_shift_type_id") @db.Uuid
+  licenseBlockedFromRemark      String?   @map("license_blocked_from_remark") @db.VarChar(2000)
+  licenseBlockedAt              DateTime? @map("license_blocked_at")
+  overrideReason                String?   @map("override_reason") @db.VarChar(2000)
+  overrideByLegacyRef           String?   @map("override_by_legacy_ref") @db.VarChar(255)
+  overrideAt                    DateTime? @map("override_at")
+  createdAt                     DateTime  @default(now()) @map("created_at")
+  updatedAt                     DateTime  @updatedAt @map("updated_at")
+  employee                      Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  shiftType                     ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
 
   @@unique([workDate, employeeId])
   @@index([employeeId, workDate])

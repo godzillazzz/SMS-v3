@@ -1,6 +1,7 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { licenseStateForWorkDate } = require('../src/services/license-state.service');
 const { buildLicenseScheduleReconciliation } = require('../src/services/license-schedule-reconciliation.service');
 
 const shifts = [
@@ -9,31 +10,34 @@ const shifts = [
   { id: 'off', code: 'OFF', startTime: null, endTime: null, hours: 0 },
   { id: 'al', code: 'AL', startTime: null, endTime: null, hours: 0 }
 ];
+const oldLicense = { status: 'Active', issueDate: new Date('2026-01-01T00:00:00Z'), expiryDate: new Date('2026-07-23T00:00:00Z') };
+const renewedLicense = { status: 'Active', issueDate: new Date('2026-07-26T00:00:00Z'), expiryDate: new Date('2027-07-25T00:00:00Z') };
 
-test('license reconciliation blocks only current or future unprotected working shifts', () => {
-  const plan = buildLicenseScheduleReconciliation({
-    licenses: [], shiftTypes: shifts, asOf: new Date('2026-07-10T00:00:00Z'),
-    assignments: [
-      { id: 'future', workDate: new Date('2026-07-11T00:00:00Z'), shiftType: { code: 'D' }, locked: false, licenseOverride: false, licenseStatus: 'VALID' },
-      { id: 'past', workDate: new Date('2026-07-09T00:00:00Z'), shiftType: { code: 'N' }, locked: false, licenseOverride: false, licenseStatus: 'VALID' },
-      { id: 'locked', workDate: new Date('2026-07-11T00:00:00Z'), shiftType: { code: 'D' }, locked: true, licenseOverride: false, licenseStatus: 'VALID' }
-    ]
-  });
-  assert.equal(plan.summary.blocked, 1);
-  assert.equal(plan.summary.skippedHistorical, 1);
-  assert.equal(plan.summary.skippedProtected, 1);
-  assert.deepEqual(plan.updates[0].data, { shiftTypeId: 'off', startTime: null, endTime: null, hours: 0, remark: 'License Block: [D]', licenseStatus: 'MISSING', licenseExpiryDate: null, licenseOverride: false, overrideReason: null, overrideAt: null });
+test('license validity is calculated for the work date across old and renewed licenses', () => {
+  assert.equal(licenseStateForWorkDate([oldLicense, renewedLicense], new Date('2026-07-23T00:00:00Z')).valid, true);
+  assert.equal(licenseStateForWorkDate([oldLicense, renewedLicense], new Date('2026-07-24T00:00:00Z')).valid, false);
+  assert.equal(licenseStateForWorkDate([oldLicense, renewedLicense], new Date('2026-07-25T00:00:00Z')).valid, false);
+  assert.equal(licenseStateForWorkDate([oldLicense, renewedLicense], new Date('2026-07-26T00:00:00Z')).valid, true);
 });
 
-test('license reconciliation restores only OFF shifts previously blocked by license automation', () => {
+test('reconciliation blocks invalid work days, preserves Admin overrides, and restores after renewal', () => {
   const plan = buildLicenseScheduleReconciliation({
-    licenses: [{ status: 'Active', issueDate: new Date('2026-07-01T00:00:00Z'), expiryDate: new Date('2026-12-31T00:00:00Z') }], shiftTypes: shifts, asOf: new Date('2026-07-10T00:00:00Z'),
+    licenses: [oldLicense, renewedLicense], shiftTypes: shifts,
     assignments: [
-      { id: 'restore', workDate: new Date('2026-07-11T00:00:00Z'), shiftType: { code: 'OFF' }, remark: 'License Block: [N]', locked: false, licenseOverride: false, licenseStatus: 'EXPIRED' },
-      { id: 'normal-off', workDate: new Date('2026-07-11T00:00:00Z'), shiftType: { code: 'OFF' }, remark: 'Weekly off', locked: false, licenseOverride: false, licenseStatus: 'NOT_REQUIRED' }
+      { id: 'valid-before-expiry', workDate: new Date('2026-07-23T00:00:00Z'), shiftTypeId: 'd', shiftType: { code: 'D' }, licenseStatus: 'EXPIRED', licenseOverride: false, remark: null },
+      { id: 'admin-override', workDate: new Date('2026-07-24T00:00:00Z'), shiftTypeId: 'n', shiftType: { code: 'N' }, licenseStatus: 'OVERRIDDEN', licenseOverride: true, remark: 'Admin approved coverage' },
+      { id: 'block-invalid', workDate: new Date('2026-07-25T00:00:00Z'), shiftTypeId: 'd', shiftType: { code: 'D' }, licenseStatus: 'VALID', licenseOverride: false, remark: 'manual schedule' },
+      { id: 'restore-renewed', workDate: new Date('2026-07-26T00:00:00Z'), shiftTypeId: 'off', shiftType: { code: 'OFF' }, licenseStatus: 'EXPIRED', licenseOverride: false, remark: 'License Block', licenseBlockedFromShiftTypeId: 'n', licenseBlockedFromRemark: 'Auto rotating pattern' }
     ]
   });
+  assert.equal(plan.summary.validated, 1);
+  assert.equal(plan.summary.preservedOverrides, 1);
+  assert.equal(plan.summary.blocked, 1);
   assert.equal(plan.summary.restored, 1);
-  assert.equal(plan.updates[0].data.shiftTypeId, 'n');
-  assert.equal(plan.updates[0].data.remark, null);
+  const blocked = plan.updates.find((update) => update.id === 'block-invalid');
+  assert.equal(blocked.data.shiftTypeId, 'off');
+  assert.equal(blocked.data.remark, 'License Block');
+  assert.equal(blocked.data.licenseBlockedFromShiftTypeId, 'd');
+  assert.equal(plan.updates.find((update) => update.id === 'restore-renewed').data.shiftTypeId, 'n');
+  assert.equal(plan.updates.some((update) => update.id === 'admin-override'), false);
 });
