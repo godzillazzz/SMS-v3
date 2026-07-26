@@ -739,3 +739,127 @@ body {
     font-weight: bold !important;
   }
 }
+
+/* Responsive hardening: tablet keeps the workspace wide; phones use a touch-first layout. */
+@media (max-width: 1024px) {
+  html, body { max-width: 100%; overflow-x: hidden; }
+  .app-shell { display: block; }
+  .main-area { width: 100%; min-width: 0; }
+  .sidebar {
+    position: fixed;
+    z-index: 110;
+    top: 0;
+    bottom: 0;
+    left: -290px;
+    width: 272px;
+    height: 100dvh;
+    flex: 0 0 auto;
+    overflow-y: auto;
+    border: 0;
+    box-shadow: 12px 0 34px rgba(9, 23, 48, .28);
+    transition: left .22s ease;
+  }
+  .sidebar.open { left: 0; }
+  .sidebar-overlay { position: fixed; z-index: 105; display: block; inset: 0; border: 0; background: rgba(8, 18, 35, .48); }
+  .mobile-menu-button { display: inline-grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border: 1px solid #dce5f0; border-radius: 9px; color: #334963; background: #fff; font-size: 20px; }
+  .mobile-brand { display: inline-flex; align-items: center; gap: 8px; color: #31425b; font-size: 16px; font-weight: 800; }
+  .mobile-brand .brand-mark { width: 31px; height: 31px; border-radius: 9px; font-size: 12px; }
+  .content-area { padding: 22px; }
+  .topbar { padding-inline: 22px; }
+  .topbar-search { width: min(34vw, 250px); }
+  .page-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .heading-actions { width: 100%; justify-content: flex-start; }
+  .table-scroll { max-width: 100%; overscroll-behavior-inline: contain; }
+  .schedule-grid .employee-sticky { min-width: 190px; max-width: 190px; }
+  .schedule-grid th, .schedule-grid td { min-width: 78px; }
+  .calendar-shift, .empty-shift { width: 66px; min-height: 46px; }
+  .calendar-shift b { font-size: 12px; }
+  .calendar-shift small { font-size: 9px; }
+  .line-secure-grid, .line-template-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .login-page { padding: 0; }
+  .login-shell { width: 100%; min-height: 100dvh; grid-template-columns: 1fr; border-radius: 0; }
+  .login-intro { min-height: 218px; padding: 26px 24px; }
+  .intro-copy { margin-top: 24px; }
+  .intro-copy h1 { font-size: 27px; }
+  .intro-copy p, .intro-check { font-size: 14px; }
+  .login-form-panel { padding: 28px 24px 34px; }
+  .sidebar { left: min(-90vw, -290px); width: min(86vw, 280px); padding: 18px 12px 14px; }
+  .topbar { min-height: 62px; gap: 10px; padding: 9px 14px; }
+  .topbar-copy, .environment-pill, .topbar-icon { display: none; }
+  .topbar-actions { min-width: 0; gap: 7px; }
+  .topbar-search { display: flex; width: min(40vw, 190px); height: 40px; }
+  .topbar-search input { min-width: 0; font-size: 14px; }
+  .signout-button { min-height: 42px; padding: 0 4px; font-size: 13px; white-space: nowrap; }
+  .content-area { padding: 16px 12px 24px; }
+  .page-heading { margin-bottom: 16px; }
+  .page-heading h1, .empty-pane h1, .settings-heading h1 { font-size: 22px; line-height: 1.15; }
+  .page-heading p, .settings-heading p { font-size: 14px; line-height: 1.35; }
+  .metrics-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .metric-card { gap: 9px; padding: 13px; }
+  .metric-icon { width: 34px; height: 34px; flex-basis: 34px; font-size: 20px; }
+  .metric-card strong { font-size: 23px; }
+  .dashboard-card, .leave-hero, .approval-banner, .auto-schedule-heading, .preview-actions { align-items: stretch; flex-direction: column; }
+  .dashboard-card { gap: 13px; padding: 17px; }
+  .dashboard-card h2 { font-size: 20px; }
+  .dashboard-card p { font-size: 15px; line-height: 1.45; }
+  .btn-secondary, .heading-actions > button, .toolbar > button, .approval-banner .btn-primary { min-height: 44px; }
+  .toolbar, .users-roles-toolbar, .leave-section-heading { align-items: stretch; flex-direction: column; }
+  .search-box { width: 100%; }
+  .search-box input { height: 44px; font-size: 16px; }
+  .toolbar-count { margin: 0; }
+  .table-card { border-radius: 11px; }
+  .data-table th, .data-table td { padding: 12px 14px; font-size: 14px; }
+  .data-table th { font-size: 11px; }
+  .table-scroll::after { display: block; min-width: 1px; height: 1px; content: ''; }
+  .calendar-toolbar { align-items: stretch; padding: 11px; }
+  .calendar-toolbar label { width: 100%; }
+  .calendar-toolbar input, .calendar-toolbar select { width: 100%; min-height: 42px; font-size: 16px; }
+  .calendar-toolbar .toolbar-count { width: 100%; padding: 0; }
+  .schedule-grid .employee-sticky { min-width: 158px; max-width: 158px; padding: 8px; }
+  .schedule-grid .employee-sticky strong { font-size: 12px; }
+  .schedule-grid .employee-sticky small { font-size: 10px; }
+  .schedule-grid th, .schedule-grid td { min-width: 66px; height: 62px; padding: 4px; }
+  .calendar-shift, .empty-shift { width: 56px; min-height: 45px; }
+  .calendar-shift b { font-size: 11px; }
+  .calendar-shift small, .calendar-shift .shift-note { font-size: 8px; }
+  .calendar-delete { display: grid; width: 20px; height: 20px; top: -7px; right: -4px; font-size: 13px; }
+  .employee-magic-button { min-width: 30px; min-height: 30px; margin-left: 2px; font-size: 16px; }
+  .leave-quota-grid, .rule-summary-grid, .leave-main-grid, .line-secure-grid, .line-template-grid, .dialog-grid { grid-template-columns: 1fr; }
+  .leave-submit-card, .leave-history-card, .leave-pending-card, .line-settings-card { padding: 17px; }
+  .leave-date-grid { grid-template-columns: 1fr; }
+  .edit-dialog { width: calc(100% - 20px); max-height: calc(100dvh - 20px); border-radius: 14px; padding: 18px 16px; }
+  .dialog-backdrop, .modal-backdrop { align-items: flex-end; padding: 10px; }
+  .dialog-heading { gap: 10px; margin-bottom: 14px; }
+  .dialog-heading h2 { font-size: 24px; }
+  .dialog-heading > button { min-width: 42px; min-height: 42px; font-size: 32px; }
+  .dialog-grid .field-group { font-size: 15px; }
+  .dialog-grid input, .dialog-grid select, .dialog-grid textarea { min-height: 44px; font-size: 16px; }
+  .dialog-actions { align-items: stretch; flex-direction: column-reverse; margin-top: 18px; }
+  .dialog-actions .btn-secondary, .dialog-actions .btn-primary { width: 100%; min-height: 46px; }
+  .wand-emp-badge { padding: 10px 12px; font-size: 15px; }
+  .wand-option-card { padding: 12px; }
+}
+
+@media (max-width: 420px) {
+  .login-intro { min-height: 190px; padding: 20px; }
+  .intro-brand { font-size: 14px; }
+  .intro-brand .brand-mark { width: 34px; height: 34px; font-size: 11px; }
+  .intro-copy { margin-top: 17px; }
+  .intro-copy h1 { font-size: 23px; }
+  .intro-copy p { display: none; }
+  .intro-check { font-size: 12px; }
+  .login-form-panel { padding: 24px 20px 30px; }
+  .topbar-search { display: none; }
+  .metrics-grid { grid-template-columns: 1fr; }
+  .topbar { padding-inline: 11px; }
+  .mobile-brand { font-size: 14px; }
+  .content-area { padding-inline: 10px; }
+  .page-heading h1, .empty-pane h1, .settings-heading h1 { font-size: 20px; }
+  .schedule-grid .employee-sticky { min-width: 142px; max-width: 142px; }
+  .schedule-grid th, .schedule-grid td { min-width: 60px; }
+  .calendar-shift, .empty-shift { width: 51px; min-height: 43px; }
+  .settings-table-card { border-radius: 12px; }
+}
