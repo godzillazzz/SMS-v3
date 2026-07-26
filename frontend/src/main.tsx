@@ -498,6 +498,264 @@ function SettingsPage({ settings, loading, error, onRefresh, onSaveTemplates, on
   </section>;
 }
 
+interface ShiftEditorModalProps {
+  shift?: DataRow;
+  defaults?: Record<string, string>;
+  employees: DataRow[];
+  shiftTypes: DataRow[];
+  licenses: DataRow[];
+  isAdmin: boolean;
+  onClose: () => void;
+  onSubmit: (data: {
+    employeeId: string;
+    workDate: string;
+    shiftTypeId: string;
+    remark: string;
+    licenseOverride: boolean;
+    overrideReason: string;
+  }) => void;
+}
+
+function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, isAdmin, onClose, onSubmit }: ShiftEditorModalProps) {
+  const initialEmpId = String(shift?.employeeId || defaults?.employeeId || employees[0]?.id || '');
+  const initialDate = shift ? inputDate(shift.workDate) : String(defaults?.workDate || '');
+  const initialType = String(shift?.shiftTypeId || nested(shift?.shiftType).id || defaults?.shiftTypeId || shiftTypes[0]?.id || '');
+  const initialRemark = String(shift?.remark || '');
+  const initialOverride = Boolean(shift?.licenseOverride);
+  const initialOverrideReason = String(shift?.overrideReason || '');
+
+  const [employeeId, setEmployeeId] = useState(initialEmpId);
+  const [workDate, setWorkDate] = useState(initialDate);
+  const [shiftTypeId, setShiftTypeId] = useState(initialType);
+  const [remark, setRemark] = useState(initialRemark);
+  const [licenseOverride, setLicenseOverride] = useState(initialOverride);
+  const [overrideReason, setOverrideReason] = useState(initialOverrideReason);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  const selectedEmp = employees.find((e) => String(e.id) === employeeId);
+  const empName = selectedEmp ? String(selectedEmp.displayName || `${String(selectedEmp.firstName || '')} ${String(selectedEmp.lastName || '')}`).trim() : 'พนักงาน';
+
+  const dateVal = workDate ? new Date(`${workDate}T00:00:00Z`) : null;
+  const dayNameStr = dateVal ? new Intl.DateTimeFormat('th-TH', { weekday: 'long', timeZone: 'UTC' }).format(dateVal) : '';
+  const dayNumStr = dateVal ? dateVal.getUTCDate() : '';
+  const monthNameStr = dateVal ? new Intl.DateTimeFormat('th-TH', { month: 'short', timeZone: 'UTC' }).format(dateVal) : '';
+  const formattedTitleDate = dateVal ? `${dayNameStr} ${dayNumStr} ${monthNameStr}` : workDate;
+
+  const titleStr = shift ? `แก้กะ: ${empName} · ${formattedTitleDate}` : `เพิ่มกะ: ${empName} · ${formattedTitleDate}`;
+
+  const selectedType = shiftTypes.find((t) => String(t.id) === shiftTypeId);
+  const shiftCode = String(selectedType?.code || '').toUpperCase();
+  const isWorkingShift = !['OFF', 'AL'].includes(shiftCode);
+
+  const empLicenses = licenses.filter((l) => String(l.employeeId) === employeeId);
+  const activeLicenses = empLicenses.filter((l) => ['active', 'valid'].includes(String(l.status || '').trim().toLowerCase()));
+  const validLic = activeLicenses.find((l) => {
+    const issue = l.issueDate ? inputDate(l.issueDate) : '';
+    const expiry = l.expiryDate ? inputDate(l.expiryDate) : '';
+    return issue && expiry && issue <= workDate && expiry >= workDate;
+  });
+
+  const isInvalidLicense = isWorkingShift && !validLic;
+
+  const formatThaiYearDate = (dStr?: unknown) => {
+    if (!dStr) return '';
+    const d = new Date(String(dStr));
+    if (isNaN(d.getTime())) return String(dStr);
+    const day = d.getUTCDate();
+    const monthName = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d);
+    const thaiYear = d.getUTCFullYear() + 543;
+    return `${day} ${monthName} ${thaiYear}`;
+  };
+
+  let warningDetailText = 'ไม่พบข้อมูลใบอนุญาต รปภ. ในระบบที่ครอบคลุมวันที่จัดกะนี้';
+  if (activeLicenses.length > 0) {
+    const lic = activeLicenses[0];
+    const issueStr = formatThaiYearDate(lic.issueDate);
+    const expiryStr = formatThaiYearDate(lic.expiryDate);
+    if (lic.issueDate && inputDate(lic.issueDate) > workDate) {
+      warningDetailText = `ใบอนุญาตยังไม่ถึงวันเริ่มใช้งาน · วันหมดอายุ ${expiryStr}`;
+    } else if (lic.expiryDate && inputDate(lic.expiryDate) < workDate) {
+      warningDetailText = `ใบอนุญาตหมดอายุแล้วเมื่อ ${expiryStr}`;
+    } else {
+      warningDetailText = `ใบอนุญาตไม่อยู่ในสถานะที่ใช้งานได้ · วันหมดอายุ ${expiryStr}`;
+    }
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setModalError(null);
+
+    if (isInvalidLicense && !licenseOverride) {
+      setModalError('ใบอนุญาตไม่ผ่านเกณฑ์ กรุณายืนยัน Override (เฉพาะ Admin) หรือเปลี่ยนเป็นกะ OFF / AL');
+      return;
+    }
+
+    if (isInvalidLicense && licenseOverride && overrideReason.trim().length < 5) {
+      setModalError('กรุณาระบุเหตุผล Override อย่างน้อย 5 ตัวอักษร');
+      return;
+    }
+
+    onSubmit({
+      employeeId,
+      workDate,
+      shiftTypeId,
+      remark: remark || 'Manual batch edit',
+      licenseOverride: isInvalidLicense ? licenseOverride : false,
+      overrideReason: isInvalidLicense && licenseOverride ? overrideReason : ''
+    });
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: '540px',
+          backgroundColor: '#fffbeb',
+          border: '2px solid #fde68a',
+          borderRadius: '16px',
+          padding: '24px',
+          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)'
+        }}
+      >
+        <h3 style={{ margin: '0 0 16px 0', fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
+          {titleStr}
+        </h3>
+
+        {modalError && (
+          <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', fontSize: '13px', fontWeight: 600 }}>
+            {modalError}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Shift
+              </label>
+              <select
+                value={shiftTypeId}
+                onChange={(e) => setShiftTypeId(e.target.value)}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff', color: '#0f172a', fontWeight: 600 }}
+              >
+                {shiftTypes.map((t) => (
+                  <option key={String(t.id)} value={String(t.id)}>
+                    {String(t.code || '')} · {String(t.name || '')}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                หมายเหตุ
+              </label>
+              <input
+                type="text"
+                value={remark}
+                onChange={(e) => setRemark(e.target.value)}
+                placeholder="Manual batch edit"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff' }}
+              />
+            </div>
+          </div>
+
+          {isInvalidLicense && (
+            <div style={{
+              backgroundColor: '#fff1f2',
+              border: '1px solid #fecdd3',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '16px',
+              color: '#9f1239'
+            }}>
+              <div style={{ fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px', color: '#be123c', marginBottom: '6px' }}>
+                <span>⚠️</span> ไม่สามารถลงกะทำงานตามปกติได้
+              </div>
+              <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#881337', lineHeight: '1.5' }}>
+                {warningDetailText}
+              </p>
+
+              {isAdmin ? (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '13px', color: '#0f172a', cursor: 'pointer', marginBottom: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={licenseOverride}
+                      onChange={(e) => setLicenseOverride(e.target.checked)}
+                    />
+                    Admin ยืนยันจัดกะแบบ Manual แม้ใบอนุญาตไม่ผ่าน
+                  </label>
+
+                  {licenseOverride && (
+                    <div style={{ marginTop: '10px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                        เหตุผล Override *
+                      </label>
+                      <textarea
+                        value={overrideReason}
+                        onChange={(e) => setOverrideReason(e.target.value)}
+                        placeholder="ระบุเหตุผลอย่างน้อย 5 ตัวอักษร"
+                        rows={2}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  )}
+                  <small style={{ display: 'block', color: '#be123c', marginTop: '8px', fontSize: '11px', lineHeight: '1.4' }}>
+                    การอนุมัตินี้จะถูกบันทึกใน License Audit Log พร้อมชื่อ Admin และเวลา
+                  </small>
+                </>
+              ) : (
+                <small style={{ color: '#be123c', fontSize: '12px', fontWeight: 700, display: 'block', marginTop: '4px' }}>
+                  * เฉพาะ Admin เท่านั้นที่สามารถ Overrule ใบอนุญาตที่ไม่ผ่านได้
+                </small>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: '9px 18px',
+                borderRadius: '10px',
+                border: '1px solid #cbd5e1',
+                backgroundColor: '#ffffff',
+                color: '#334155',
+                fontWeight: 600,
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
+            >
+              ยกเลิก
+            </button>
+
+            <button
+              type="submit"
+              style={{
+                padding: '9px 20px',
+                borderRadius: '10px',
+                border: 'none',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.4)'
+              }}
+            >
+              เก็บรายการนี้ (ยังไม่บันทึก)
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function LeaveManagementPage({ rows, loading, error, linked, remaining, canManage, canSubmit, employeeOptions, onSubmit, onApprove, onReject, onRefresh, onAttachment }: { rows: DataRow[]; loading: boolean; error?: string; linked: boolean; remaining: DataRow; canManage: boolean; canSubmit: boolean; employeeOptions: Array<{ value: string; label: string }>; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onRefresh(): void; onAttachment(row: DataRow): void }) {
   const [form, setForm] = useState({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' });
   const [file, setFile] = useState<File>();
@@ -744,8 +1002,21 @@ function Dashboard() {
     );
   };
 
+  const [shiftEditorTarget, setShiftEditorTarget] = useState<{ shift?: DataRow; defaults?: Record<string, string> } | null>(null);
+  const [licensesData, setLicensesData] = useState<DataRow[]>([]);
+
+  useEffect(() => {
+    if (auth.token) {
+      api.licenses(auth.token).then(res => setLicensesData(Array.isArray(res.data) ? res.data : [])).catch(() => undefined);
+    }
+  }, [auth.token, operationRefresh]);
+
   const openShiftEditor = (shift?: DataRow, defaults: Record<string, string> = {}) => {
     if (!auth.token) return;
+    if ((activePage as string) === 'schedule') {
+      setShiftEditorTarget({ shift, defaults });
+      return;
+    }
     const fields: FormField[] = [
       { name: 'employeeId', label: 'พนักงาน', type: 'select', required: true, options: employeeOptions },
       { name: 'shiftTypeId', label: 'ประเภทกะ', type: 'select', required: true, options: shiftTypeOptions },
@@ -1096,6 +1367,49 @@ function Dashboard() {
 })()}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={() => { const key = `${employee.id}_${day}`; setScheduleDrafts((prev) => ({ ...prev, [key]: { action: 'delete', id: String(shift.id), employeeId: String(employee.id), workDate: day } })); }}>×</button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={() => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day })}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
         {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} scheduleMonth={scheduleMonth} token={auth.token} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { const preview = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); const rows = Array.isArray(preview.data?.rows) ? preview.data.rows as DataRow[] : []; applyPreviewToDrafts(rows); setEmployeeAutoScheduleTarget(undefined); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'จัดกะอัตโนมัติรายบุคคลไม่สำเร็จ'); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
+        {shiftEditorTarget && (
+          <ShiftEditorModal
+            shift={shiftEditorTarget.shift}
+            defaults={shiftEditorTarget.defaults}
+            employees={calendarEmployees.length ? calendarEmployees : (Array.isArray(operationResponse.data) ? operationResponse.data as DataRow[] : [])}
+            shiftTypes={shiftTypes}
+            licenses={licensesData}
+            isAdmin={auth.user?.role === 'ADMIN'}
+            onClose={() => setShiftEditorTarget(null)}
+            onSubmit={(data) => {
+              const key = `${data.employeeId}_${data.workDate}`;
+              const selectedType = shiftTypes.find((t) => String(t.id) === data.shiftTypeId);
+              const payload: Record<string, unknown> = {
+                employeeId: data.employeeId,
+                shiftTypeId: data.shiftTypeId,
+                workDate: data.workDate,
+                remark: data.remark,
+                licenseOverride: data.licenseOverride,
+                overrideReason: data.overrideReason
+              };
+              setScheduleDrafts((prev) => ({
+                ...prev,
+                [key]: {
+                  action: shiftEditorTarget.shift ? 'update' : 'create',
+                  id: shiftEditorTarget.shift ? String(shiftEditorTarget.shift.id) : undefined,
+                  employeeId: data.employeeId,
+                  workDate: data.workDate,
+                  shiftTypeId: data.shiftTypeId,
+                  shiftCode: String(selectedType?.code || ''),
+                  shiftName: String(selectedType?.name || ''),
+                  startTime: String(selectedType?.startTime || ''),
+                  endTime: String(selectedType?.endTime || ''),
+                  color: String(selectedType?.color || '#64748B'),
+                  remark: data.remark,
+                  licenseOverride: data.licenseOverride,
+                  overrideReason: data.overrideReason,
+                  payload
+                }
+              }));
+              setShiftEditorTarget(null);
+            }}
+          />
+        )}
       </section>;
     }
     if (activePage === 'leave') {
