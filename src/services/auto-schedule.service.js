@@ -23,7 +23,13 @@ const isSupervisor = (employee) => {
   const position = String(employee.jobTitle || '').trim().toLowerCase();
   return position === 'supervisor' || position.includes('supervisor') || position.includes('หัวหน้า');
 };
-const licenseForDate = (records, date) => ({ ...licenseStateForWorkDate(records, date), code: licenseStateForWorkDate(records, date).status });
+const licenseForDate = (records, date) => {
+  const state = licenseStateForWorkDate(records, date);
+  return { ...state, code: state.status };
+};
+const isSystemLicenseBlock = (row) => Boolean(
+  row?.licenseBlockedFromShiftTypeId || /^License Block(?:\s|:|$)/i.test(String(row?.remark || ''))
+);
 const suggestedPhase = (history) => {
   if (!history.length) return 'D1';
   const lastCode = String(history[0].shiftType.code || '').toUpperCase();
@@ -89,6 +95,7 @@ async function buildAutoSchedulePlan(client, month) {
       shiftTypeId: shift.id, code: String(shift.code).toUpperCase(), name: shift.name, startTime: shift.startTime, endTime: shift.endTime,
       hours, color: shift.color, remark, source, locked, licenseStatus: allowedOverride ? 'OVERRIDDEN' : (licenseStatus || (hours === 0 ? 'NOT_REQUIRED' : license.code)),
       licenseExpiryDate: license.expiryDate ? isoDate(license.expiryDate) : null, licenseOverride: allowedOverride,
+      licenseValidForWorkDate: license.valid, licenseStateForWorkDate: license.code,
       licenseBlockedFromShiftTypeId: licenseBlockedFromShiftTypeId || null, licenseBlockedFromRemark: licenseBlockedFromRemark || null, licenseBlockedAt: licenseBlockedAt || null
     });
     weeklyHours.set(weekKey, weekHours + hours);
@@ -97,7 +104,11 @@ async function buildAutoSchedulePlan(client, month) {
 
   employees.forEach((employee) => dates.forEach((date) => {
     const row = existing.get(`${employee.id}|${isoDate(date)}`);
-    if (row) assign(employee, date, row.shiftType, { source: row.source || 'MANUAL', locked: true, remark: row.remark || '', existingRow: row });
+    if (row) assign(employee, date, row.shiftType, {
+      source: row.source || 'MANUAL', locked: true, remark: row.remark || '', existingRow: row,
+      licenseStatus: row.licenseStatus, licenseBlockedFromShiftTypeId: row.licenseBlockedFromShiftTypeId,
+      licenseBlockedFromRemark: row.licenseBlockedFromRemark, licenseBlockedAt: row.licenseBlockedAt
+    });
   }));
 
   employees.forEach((employee) => {
@@ -187,12 +198,12 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
 
   if (patternType === 'SUPERVISOR') {
     rows = rows.map((row) => {
-      if (row.locked || row.code === 'AL' || row.licenseBlockedFromShiftTypeId) return row;
+      if ((row.locked && !isSystemLicenseBlock(row)) || row.code === 'AL') return row;
       const dateValue = new Date(`${row.date}T00:00:00Z`);
       const isSunday = dateValue.getUTCDay() === 0;
       let template = isSunday ? offType : dType;
 
-      const licenseBlocked = template.code !== 'OFF' && row.licenseStatus !== 'VALID';
+      const licenseBlocked = template.code !== 'OFF' && !row.licenseValidForWorkDate;
       if (licenseBlocked) {
         customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ไม่ถูกจัดกะ ${template.code} เนื่องจากใบอนุญาตไม่ผ่าน (เปลี่ยนเป็น OFF)`);
         template = offType;
@@ -208,7 +219,10 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
         hours: Number(template.hours || 0),
         color: template.color,
         remark: licenseBlocked ? 'License Block: ใบอนุญาตไม่ผ่าน' : (template.code === 'OFF' ? 'Weekly off' : 'Supervisor Pattern (Mon-Sat D, Sun OFF)'),
-        source: 'AUTO'
+        source: 'AUTO', locked: false, licenseStatus: licenseBlocked ? row.licenseStateForWorkDate : (template.code === 'OFF' ? 'NOT_REQUIRED' : 'VALID'),
+        licenseOverride: false, licenseBlockedFromShiftTypeId: licenseBlocked ? (shiftTypeMap.get('D') || dType).id : null,
+        licenseBlockedFromRemark: licenseBlocked ? 'Supervisor Pattern (Mon-Sat D, Sun OFF)' : null,
+        licenseBlockedAt: licenseBlocked ? new Date().toISOString() : null
       };
     });
   } else {
@@ -218,11 +232,11 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
     const phaseIndex = phaseOffsetMap[effectivePhase] ?? 0;
 
     rows = rows.map((row, index) => {
-      if (row.locked || row.code === 'AL' || row.licenseBlockedFromShiftTypeId) return row;
+      if ((row.locked && !isSystemLicenseBlock(row)) || row.code === 'AL') return row;
       const targetCode = targetCycle[(phaseIndex + index) % targetCycle.length];
       let template = shiftTypeMap.get(targetCode) || offType;
 
-      const licenseBlocked = template.code !== 'OFF' && row.licenseStatus !== 'VALID';
+      const licenseBlocked = template.code !== 'OFF' && !row.licenseValidForWorkDate;
       if (licenseBlocked) {
         customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ไม่ถูกจัดกะ ${template.code} เนื่องจากใบอนุญาตไม่ผ่าน (เปลี่ยนเป็น OFF)`);
         template = offType;
@@ -238,7 +252,10 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
         hours: Number(template.hours || 0),
         color: template.color,
         remark: licenseBlocked ? 'License Block: ใบอนุญาตไม่ผ่าน' : (template.code === 'OFF' ? 'Weekly off' : `Auto rotating pattern (${effectivePhase})`),
-        source: 'AUTO'
+        source: 'AUTO', locked: false, licenseStatus: licenseBlocked ? row.licenseStateForWorkDate : (template.code === 'OFF' ? 'NOT_REQUIRED' : 'VALID'),
+        licenseOverride: false, licenseBlockedFromShiftTypeId: licenseBlocked ? (shiftTypeMap.get(targetCode) || template).id : null,
+        licenseBlockedFromRemark: licenseBlocked ? `Auto rotating pattern (${effectivePhase})` : null,
+        licenseBlockedAt: licenseBlocked ? new Date().toISOString() : null
       };
     });
   }
@@ -280,7 +297,16 @@ async function commitEmployeeAutoSchedule(prisma, month, employeeId, actorUserId
     const plan = await buildEmployeeAutoSchedulePlan(tx, month, employeeId, startPhase, patternType);
     const al = await tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' }, select: { id: true } });
     const { start, end } = monthBounds(month);
-    const deleted = await tx.shiftAssignment.deleteMany({ where: { employeeId, workDate: { gte: start, lt: end }, locked: false, shiftTypeId: { not: al.id } } });
+    const deleted = await tx.shiftAssignment.deleteMany({
+      where: {
+        employeeId, workDate: { gte: start, lt: end }, shiftTypeId: { not: al.id },
+        OR: [
+          { locked: false },
+          { locked: true, licenseOverride: false, licenseBlockedFromShiftTypeId: { not: null } },
+          { locked: true, licenseOverride: false, remark: { startsWith: 'License Block', mode: 'insensitive' } }
+        ]
+      }
+    });
     const generated = plan.rows.filter((row) => !row.locked);
     if (generated.length) await tx.shiftAssignment.createMany({ data: generated.map((row) => ({
       employeeId: row.employeeId, shiftTypeId: row.shiftTypeId, workDate: new Date(`${row.date}T00:00:00Z`), employeeNameSnapshot: row.employeeName,

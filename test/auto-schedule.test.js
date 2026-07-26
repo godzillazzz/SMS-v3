@@ -67,6 +67,24 @@ test('individual magic-wand converts an expired-license work pattern to OFF Lice
   assert.ok(plan.rows.some((row) => String(row.remark).includes('License Block')));
 });
 
+test('individual magic-wand replaces a prior locked License Block when a renewal is effective', async () => {
+  const current = [{
+    employeeId: 'worker', workDate: new Date('2026-07-26T00:00:00Z'), locked: true, source: 'MANUAL',
+    remark: 'License Block', licenseStatus: 'EXPIRED', licenseOverride: false,
+    licenseBlockedFromShiftTypeId: 'shift-d', licenseBlockedFromRemark: 'Auto rotating pattern (D1)', shiftType: shiftTypes[2]
+  }];
+  const renewed = [
+    { employeeId: 'worker', issueDate: new Date('2026-07-26T00:00:00Z'), expiryDate: new Date('2027-07-25T00:00:00Z'), status: 'Active' },
+    ...licenses.filter((license) => license.employeeId !== 'worker')
+  ];
+  const plan = await buildEmployeeAutoSchedulePlan(client({ current, licenseRows: renewed }), '2026-07', 'worker', 'D1', 'ROTATE');
+  const day = plan.rows.find((row) => row.date === '2026-07-26');
+  assert.equal(day.code, 'N');
+  assert.equal(day.locked, false);
+  assert.equal(day.licenseStatus, 'VALID');
+  assert.equal(day.licenseBlockedFromShiftTypeId, null);
+});
+
 test('auto schedule date and history helpers are deterministic', () => {
   assert.equal(monthBounds('2026-02').dates.length, 28);
   assert.equal(suggestedPhase([{ shiftType: { code: 'D' } }, { shiftType: { code: 'D' } }]), 'D3');
