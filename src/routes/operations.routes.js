@@ -9,6 +9,7 @@ const audit = require('../services/audit.service');
 const { evaluateScheduleRules } = require('../services/schedule-rules.service');
 const { buildAutoSchedulePlan, buildEmployeeAutoSchedulePlan, commitAutoSchedule, commitEmployeeAutoSchedule, monthBounds } = require('../services/auto-schedule.service');
 const { buildApprovedScheduleWorkbook } = require('../services/schedule-export.service');
+const { reconcileEmployeeLicenseSchedules } = require('../services/license-schedule-reconciliation.service');
 const HttpError = require('../utils/http-error');
 
 const router = express.Router();
@@ -164,6 +165,7 @@ router.post('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) =
       if (duplicate) throw new HttpError(409, 'License number or employee license type already exists.');
       const license = await tx.employeeLicense.create({ data: { ...input, legacyLicenseId: `v3:${crypto.randomUUID()}`, documentMigrationStatus: 'NONE' } });
       await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'EmployeeLicense', entityId: license.id, metadata: { after: safeRecord(license, ['employeeId', 'licenseType', 'issueDate', 'expiryDate', 'status']) } }, tx);
+      await reconcileEmployeeLicenseSchedules(tx, license.employeeId, req.user.sub);
       return license;
     });
     res.status(201).json({ data: result });
@@ -184,12 +186,21 @@ router.put('/licenses/:id', authorize('ADMIN'), async (req, res, next) => {
       }
       const after = await tx.employeeLicense.update({ where: { id }, data: input });
       await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'EmployeeLicense', entityId: id, metadata: { before: safeRecord(before, ['licenseType', 'issueDate', 'expiryDate', 'status']), after: safeRecord(after, ['licenseType', 'issueDate', 'expiryDate', 'status']) } }, tx);
+      await reconcileEmployeeLicenseSchedules(tx, after.employeeId, req.user.sub);
       return after;
     }); res.json({ data: result });
   } catch (error) { next(error); }
 });
 router.delete('/licenses/:id', authorize('ADMIN'), async (req, res, next) => {
-  try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.employeeLicense.delete({ where: { id } }); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'EmployeeLicense', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'licenseType', 'expiryDate', 'status']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); }
+  try {
+    const id = uuid.parse(req.params.id);
+    await prisma.$transaction(async (tx) => {
+      const before = await tx.employeeLicense.delete({ where: { id } });
+      await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'EmployeeLicense', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'licenseType', 'expiryDate', 'status']) } }, tx);
+      await reconcileEmployeeLicenseSchedules(tx, before.employeeId, req.user.sub);
+    });
+    res.status(204).send();
+  } catch (error) { next(error); }
 });
 
 router.get('/shift-types', async (_req, res, next) => {
