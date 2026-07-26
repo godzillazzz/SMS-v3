@@ -148,7 +148,7 @@ router.get('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) =>
   try {
     res.json(await paged(prisma.employeeLicense, req.query, {
       select: {
-        id: true, licenseType: true, licenseNumber: true, issueDate: true, expiryDate: true,
+        id: true, employeeId: true, licenseType: true, licenseNumber: true, issueDate: true, expiryDate: true,
         status: true, documentMigrationStatus: true, remark: true,
         employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true, department: true } }
       },

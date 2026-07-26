@@ -547,7 +547,10 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   const shiftCode = String(selectedType?.code || '').toUpperCase();
   const isWorkingShift = !['OFF', 'AL'].includes(shiftCode);
 
-  const empLicenses = licenses.filter((l) => String(l.employeeId) === employeeId);
+  const empLicenses = licenses.filter((l) => {
+    const eId = String(l.employeeId || nested(l.employee).id || '');
+    return eId === employeeId;
+  });
   const activeLicenses = empLicenses.filter((l) => ['active', 'valid'].includes(String(l.status || '').trim().toLowerCase()));
   const validLic = activeLicenses.find((l) => {
     const issue = l.issueDate ? inputDate(l.issueDate) : '';
