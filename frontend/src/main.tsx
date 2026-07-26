@@ -1337,18 +1337,51 @@ function Dashboard() {
           </div>
         </div>
         {auth.user?.role === 'ADMIN' && autoSchedulePreview && (
-          <section className="auto-schedule-panel" style={{ margin: '12px 0' }}>
-            <div className="auto-schedule-preview">
-              <div className="preview-summary"><span><b>{text(previewSummary.employees)}</b> พนักงาน</span><span><b>{text(previewSummary.totalRows)}</b> กะทั้งหมด</span><span><b>{text(previewSummary.manualLocked)}</b> รายการที่คงไว้</span><span><b>{previewWarnings.length}</b> คำเตือน</span></div>
-              {previewWarnings.length > 0 && <div className="preview-warning"><strong>รายการที่ต้องตรวจสอบ</strong>{previewWarnings.slice(0, 8).map((warning, index) => <p key={`${String(warning)}-${index}`}>• {text(warning)}</p>)}</div>}
-              <div className="table-scroll preview-table-wrap"><table className="data-table preview-table"><thead><tr><th>พนักงาน</th><th>วันที่</th><th>กะ</th><th>เหตุผล</th></tr></thead><tbody>{previewRows.slice(0, 20).map((row, index) => <tr key={`${text(row.employeeId)}-${text(row.date)}-${index}`}><td>{text(row.employeeName)}</td><td>{date(row.date)}</td><td><span className={`status-badge ${row.code === 'OFF' ? 'inactive' : 'active'}`}>{text(row.code)}</span></td><td>{text(row.remark)}</td></tr>)}</tbody></table></div>
-              {previewRows.length > 20 && <small className="preview-more">แสดงตัวอย่าง 20 จาก {previewRows.length} รายการ</small>}
-              <div className="preview-actions">
-                <button className="btn-secondary" disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>ยกเลิก Preview</button>
-                <button className="btn-primary compact" disabled={autoScheduleBusy} onClick={saveAutoSchedule}>🪄 ใส่ลงในฉบับร่าง (ยังไม่บันทึก)</button>
+          <div className="dialog-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !autoScheduleBusy) setAutoSchedulePreview(undefined); }}>
+            <section className="edit-dialog" style={{ maxWidth: '780px', backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+              <div className="dialog-heading" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>🪄 ตัวอย่างตารางจัดกะอัตโนมัติ ( Auto Schedule Preview )</h2>
+                <button type="button" style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>×</button>
               </div>
-            </div>
-          </section>
+
+              <div className="preview-summary" style={{ display: 'flex', gap: '16px', marginBottom: '14px', fontSize: '13px', color: '#334155' }}>
+                <span><b>{text(previewSummary.employees)}</b> พนักงาน</span>
+                <span><b>{text(previewSummary.totalRows)}</b> กะทั้งหมด</span>
+                <span><b>{text(previewSummary.manualLocked)}</b> รายการที่คงไว้</span>
+                <span><b>{previewWarnings.length}</b> คำเตือน</span>
+              </div>
+
+              {previewWarnings.length > 0 && (
+                <div className="preview-warning" style={{ backgroundColor: '#fff7ed', border: '1px solid #ffedd5', color: '#c2410c', padding: '12px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px' }}>
+                  <strong>รายการที่ต้องตรวจสอบ:</strong>
+                  {previewWarnings.slice(0, 8).map((warning, index) => <p key={`${String(warning)}-${index}`} style={{ margin: '4px 0 0 0' }}>• {text(warning)}</p>)}
+                </div>
+              )}
+
+              <div className="table-scroll preview-table-wrap" style={{ maxHeight: '320px', overflowY: 'auto', marginBottom: '16px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                <table className="data-table preview-table" style={{ width: '100%' }}>
+                  <thead>
+                    <tr><th>พนักงาน</th><th>วันที่</th><th>กะ</th><th>เหตุผล</th></tr>
+                  </thead>
+                  <tbody>
+                    {previewRows.slice(0, 50).map((row, index) => (
+                      <tr key={`${text(row.employeeId)}-${text(row.date)}-${index}`}>
+                        <td>{text(row.employeeName)}</td>
+                        <td>{date(row.date)}</td>
+                        <td><span className={`status-badge ${row.code === 'OFF' ? 'inactive' : 'active'}`}>{text(row.code)}</span></td>
+                        <td>{text(row.remark)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="preview-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button className="btn-secondary" style={{ padding: '9px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>ยกเลิก Preview</button>
+                <button className="btn-primary compact" style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)', color: '#ffffff', fontWeight: 700, cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={saveAutoSchedule}>🪄 ใส่ลงในฉบับร่าง (ยังไม่บันทึก)</button>
+              </div>
+            </section>
+          </div>
         )}
         {operationError && <div className="alert alert-error">{operationError}</div>}
         <div className="table-card calendar-card">{operationLoading && !calendarEmployees.length ? <div className="loading-row">กำลังอ่านตารางกะรายเดือน…</div> : <div className="table-scroll" onMouseDown={(e) => { const el = e.currentTarget; el.dataset.isDown = 'true'; el.dataset.startX = String(e.pageX - el.offsetLeft); el.dataset.startY = String(e.pageY - el.offsetTop); el.dataset.scrollLeft = String(el.scrollLeft); el.dataset.scrollTop = String(el.scrollTop); }} onMouseLeave={(e) => { e.currentTarget.dataset.isDown = 'false'; }} onMouseUp={(e) => { e.currentTarget.dataset.isDown = 'false'; }} onMouseMove={(e) => { const el = e.currentTarget; if (el.dataset.isDown !== 'true') return; e.preventDefault(); const x = e.pageX - el.offsetLeft; const y = e.pageY - el.offsetTop; const walkX = (x - Number(el.dataset.startX || 0)) * 1.5; const walkY = (y - Number(el.dataset.startY || 0)) * 1.5; el.scrollLeft = Number(el.dataset.scrollLeft || 0) - walkX; el.scrollTop = Number(el.dataset.scrollTop || 0) - walkY; }}><table className="schedule-grid"><thead><tr><th className="employee-sticky">พนักงาน</th>{dates.map((day) => { const dayValue = new Date(`${day}T00:00:00Z`); const weekend = [0, 6].includes(dayValue.getUTCDay()); return <th key={day} className={weekend ? 'weekend' : ''}><b>{dayValue.getUTCDate()}</b><small>{new Intl.DateTimeFormat('th-TH', { weekday: 'short', timeZone: 'UTC' }).format(dayValue)}</small></th>; })}</tr></thead><tbody>{calendarEmployees.length ? calendarEmployees.map((employee) => { const employeeShifts = Array.isArray(employee.shifts) ? employee.shifts as DataRow[] : []; const isSchedulingEmployee = employeeAutoScheduleBusyId === String(employee.id); return <tr key={text(employee.id)}><td className="employee-sticky"><strong>{text(employee.displayName || `${text(employee.firstName)} ${text(employee.lastName)}`)}{canManage && <button className="employee-magic-button" disabled={Boolean(employeeAutoScheduleBusyId)} title="🪄 จัดกะแพทเทิร์นด่วน: 6 วันทำงาน / 1 วันหยุด" onClick={() => openEmployeeScheduleWizard(employee)}>{isSchedulingEmployee ? '…' : '🪄'}</button>}</strong><small>{text(employee.employeeCode)} · {text(employee.department)}</small></td>{dates.map((day) => { const draftKey = `${employee.id}_${day}`; const draftItem = scheduleDrafts[draftKey]; const shift = employeeShifts.find((item) => inputDate(item.workDate) === day); const shiftType = nested(shift?.shiftType); const shiftCode = text(shiftType.code).toLowerCase(); const coreShift = ['d', 'n', 'off', 'al'].includes(shiftCode); const weekend = [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay()); if (draftItem) { if (draftItem.action === 'delete') { return <td key={day} className={weekend ? 'weekend' : ''}><div className="calendar-shift-wrap"><button className="empty-shift" style={{ color: '#ef4444', borderColor: '#fca5a5' }} title="กะถูกลบในฉบับร่าง (คลิกคืนค่า)" onClick={() => { const next = { ...scheduleDrafts }; delete next[draftKey]; setScheduleDrafts(next); }}>✕ ลบแล้ว</button></div></td>; } const draftCore = ['d', 'n', 'off', 'al'].includes((draftItem.shiftCode || '').toLowerCase()); return <td key={day} className={weekend ? 'weekend' : ''}><div className="calendar-shift-wrap"><button className={`calendar-shift shift-${(draftItem.shiftCode || 'd').toLowerCase()}`} style={draftCore ? { border: '2px dashed #2563eb' } : { backgroundColor: String(draftItem.color || '#64748B'), border: '2px dashed #2563eb' }} title="กะฉบับร่าง (ยังไม่ได้บันทึก)" onClick={() => canManage && openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day, shiftTypeId: String(draftItem.shiftTypeId || '') })}><b>{text(draftItem.shiftCode)} *</b><small>{text(draftItem.startTime)}–{text(draftItem.endTime)}</small><small className="shift-note" style={{ color: '#2563eb', fontWeight: 'bold' }}>ร่าง</small></button><button className="calendar-delete" title="ยกเลิกฉบับร่าง" onClick={() => { const next = { ...scheduleDrafts }; delete next[draftKey]; setScheduleDrafts(next); }}>×</button></div></td>; } return <td key={day} className={weekend ? 'weekend' : ''}>{shift ? <div className="calendar-shift-wrap"><button className={`calendar-shift shift-${shiftCode}`} style={coreShift ? undefined : { backgroundColor: String(shiftType.color || '#64748B') }} title={`${text(shiftType.name)} · ${text(shift.startTime)}-${text(shift.endTime)}`} onClick={() => canManage && openShiftEditor(shift)}><b>{text(shiftType.code).toUpperCase()}</b><small>{text(shiftType.code).toUpperCase() === 'OFF' ? 'วันหยุด' : `${text(shift.startTime || '07:00')}–${text(shift.endTime || '19:00')}`}</small>{(() => {
