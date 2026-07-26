@@ -14,7 +14,7 @@ const HttpError = require('../utils/http-error');
 const router = express.Router();
 const paging = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(100)
+  pageSize: z.coerce.number().int().min(1).max(1000).default(100)
 });
 const uuid = z.string().uuid();
 const nullableText = (max) => z.string().trim().max(max).nullable().optional();
@@ -228,7 +228,7 @@ router.delete('/shift-types/:id', authorize('ADMIN'), async (req, res, next) => 
 router.get('/shifts', async (req, res, next) => {
   try {
     const filters = z.object({
-      page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(100),
+      page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(1000).default(100),
       from: z.coerce.date().optional(), to: z.coerce.date().optional()
     }).parse(req.query);
     const where = filters.from || filters.to ? { workDate: { ...(filters.from && { gte: filters.from }), ...(filters.to && { lte: filters.to }) } } : {};
