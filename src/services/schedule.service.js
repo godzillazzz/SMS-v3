@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { evaluateRulesForAssignments } = require('./schedule-rules.service');
+const audit = require('./audit.service');
 
 function parseMonthDates(yearMonth) {
   const [yearStr, monthStr] = yearMonth.split('-');
@@ -130,12 +131,14 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
         if (validLic) {
           licenseStatus = 'VALID';
           licenseExpiryDate = validLic.expiryDate;
-        } else if (licenseOverride && overrideReason) {
+        } else if (actorRole === 'ADMIN' && licenseOverride && String(overrideReason || '').trim().length >= 5) {
           licenseStatus = 'OVERRIDDEN';
           licenseExpiryDate = active[0]?.expiryDate || null;
         } else {
-          licenseStatus = active[0] ? 'EXPIRED' : 'MISSING';
-          licenseExpiryDate = active[0]?.expiryDate || null;
+          const status = active[0] ? 'EXPIRED' : 'MISSING';
+          throw new HttpError(400, actorRole === 'ADMIN'
+            ? `License Block: employee license is ${status.toLowerCase()}. Select OFF/AL or provide an Admin override reason.`
+            : `License Block: employee license is ${status.toLowerCase()}. Only an Admin may override this restriction.`);
         }
       }
 
@@ -180,6 +183,9 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
           overrideAt
         }
       });
+      if (licenseStatus === 'OVERRIDDEN') {
+        await audit.log({ actorUserId, action: 'UPDATE', entityType: 'LicenseOverride', entityId: record.id, metadata: { employeeId: ass.employeeId, workDate: parsedDate.toISOString().slice(0, 10), reasonProvided: true } }, tx);
+      }
       list.push(record);
     }
 

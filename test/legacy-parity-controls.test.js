@@ -6,6 +6,8 @@ const path = require('node:path');
 
 const operations = fs.readFileSync(path.join(process.cwd(), 'src/routes/operations.routes.js'), 'utf8');
 const frontend = fs.readFileSync(path.join(process.cwd(), 'frontend/src/main.tsx'), 'utf8');
+const batchSchedules = fs.readFileSync(path.join(process.cwd(), 'src/routes/schedules.routes.js'), 'utf8');
+const scheduleService = fs.readFileSync(path.join(process.cwd(), 'src/services/schedule.service.js'), 'utf8');
 
 test('legacy protected shift codes and Admin-only schedule approval remain enforced', () => {
   assert.match(operations, /\['D', 'N', 'OFF', 'AL'\]\.includes\(before\.code\.toUpperCase\(\)\)/);
@@ -17,6 +19,9 @@ test('legacy license permissions and date validation remain enforced', () => {
   assert.match(operations, /router\.put\('\/licenses\/:id', authorize\('ADMIN'\)/);
   assert.match(operations, /router\.delete\('\/licenses\/:id', authorize\('ADMIN'\)/);
   assert.match(operations, /Issue date must not be after expiry date/);
+  assert.match(batchSchedules, /saveBatchAssignments\(assignments, req\.user\.sub, req\.user\.role\)/);
+  assert.match(scheduleService, /actorRole === 'ADMIN'/);
+  assert.match(scheduleService, /License Block/);
 });
 
 test('Manager account approval is constrained to Viewer and sensitive settings stay environment-managed', () => {

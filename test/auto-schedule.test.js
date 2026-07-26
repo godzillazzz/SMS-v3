@@ -61,6 +61,12 @@ test('auto schedule substitutes OFF and warns when a working license is unavaila
   assert.match(plan.warnings[0], /Sample Worker/);
 });
 
+test('individual magic-wand converts an expired-license work pattern to OFF License Block rows', async () => {
+  const plan = await buildEmployeeAutoSchedulePlan(client({ licenseRows: licenses.filter((license) => license.employeeId !== 'worker') }), '2026-07', 'worker', 'D1', 'ROTATE');
+  assert.ok(plan.rows.every((row) => row.code === 'OFF'));
+  assert.ok(plan.rows.some((row) => String(row.remark).includes('License Block')));
+});
+
 test('auto schedule date and history helpers are deterministic', () => {
   assert.equal(monthBounds('2026-02').dates.length, 28);
   assert.equal(suggestedPhase([{ shiftType: { code: 'D' } }, { shiftType: { code: 'D' } }]), 'D3');

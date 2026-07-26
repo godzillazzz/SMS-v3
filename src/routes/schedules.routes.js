@@ -45,7 +45,7 @@ router.get('/', async (req, res, next) => {
 router.post('/batch', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { assignments } = batchSchema.parse(req.body);
-    res.json({ data: await scheduleService.saveBatchAssignments(assignments, req.user.sub) });
+    res.json({ data: await scheduleService.saveBatchAssignments(assignments, req.user.sub, req.user.role) });
   } catch (error) {
     next(error);
   }

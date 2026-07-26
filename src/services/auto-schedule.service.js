@@ -23,7 +23,7 @@ const isSupervisor = (employee) => {
   return position === 'supervisor' || position.includes('supervisor') || position.includes('หัวหน้า');
 };
 const licenseForDate = (records, date) => {
-  if (!records || !records.length) return { valid: true, code: 'VALID', expiryDate: null };
+  if (!records || !records.length) return { valid: false, code: 'MISSING', expiryDate: null, reason: 'ไม่พบข้อมูลใบอนุญาต' };
   const active = records.filter((license) => ['active', 'valid'].includes(String(license.status || '').trim().toLowerCase()));
   const valid = active.find((license) => license.issueDate && license.expiryDate && license.issueDate <= date && license.expiryDate >= date);
   if (valid) return { valid: true, code: 'VALID', expiryDate: valid.expiryDate };
@@ -117,7 +117,7 @@ async function buildAutoSchedulePlan(client, month) {
       const license = licenseForDate(licensesByEmployee.get(employee.id) || [], date);
       if (!license.valid) {
         licenseBlocked.set(key, license);
-        assign(employee, date, shifts.get('OFF'), { remark: `License blocked: ${license.reason}` });
+        assign(employee, date, shifts.get('OFF'), { remark: `License Block: ${license.reason}` });
         if (!supervisor) cycleIndex += 1;
         return;
       }
@@ -197,7 +197,8 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
       const isSunday = dateValue.getUTCDay() === 0;
       let template = isSunday ? offType : dType;
 
-      if (template.code !== 'OFF' && row.licenseStatus !== 'VALID') {
+      const licenseBlocked = template.code !== 'OFF' && row.licenseStatus !== 'VALID';
+      if (licenseBlocked) {
         customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ไม่ถูกจัดกะ ${template.code} เนื่องจากใบอนุญาตไม่ผ่าน (เปลี่ยนเป็น OFF)`);
         template = offType;
       }
@@ -211,7 +212,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
         endTime: template.endTime,
         hours: Number(template.hours || 0),
         color: template.color,
-        remark: template.code === 'OFF' ? 'Weekly off / License unavailable' : 'Supervisor Pattern (Mon-Sat D, Sun OFF)',
+        remark: licenseBlocked ? 'License Block: ใบอนุญาตไม่ผ่าน' : (template.code === 'OFF' ? 'Weekly off' : 'Supervisor Pattern (Mon-Sat D, Sun OFF)'),
         source: 'AUTO'
       };
     });
@@ -226,8 +227,10 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
       const targetCode = targetCycle[(phaseIndex + index) % targetCycle.length];
       let template = shiftTypeMap.get(targetCode) || offType;
 
-      if (template.code !== 'OFF' && row.licenseStatus !== 'VALID') {
-        customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ควรตรวจสอบใบอนุญาตสำหรับการปฏิบัติงานกะ ${template.code}`);
+      const licenseBlocked = template.code !== 'OFF' && row.licenseStatus !== 'VALID';
+      if (licenseBlocked) {
+        customWarnings.push(`${row.employeeName}: วันที่ ${row.date} ไม่ถูกจัดกะ ${template.code} เนื่องจากใบอนุญาตไม่ผ่าน (เปลี่ยนเป็น OFF)`);
+        template = offType;
       }
 
       return {
@@ -239,7 +242,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
         endTime: template.endTime,
         hours: Number(template.hours || 0),
         color: template.color,
-        remark: template.code === 'OFF' ? 'Weekly off / License unavailable' : `Auto rotating pattern (${effectivePhase})`,
+        remark: licenseBlocked ? 'License Block: ใบอนุญาตไม่ผ่าน' : (template.code === 'OFF' ? 'Weekly off' : `Auto rotating pattern (${effectivePhase})`),
         source: 'AUTO'
       };
     });
