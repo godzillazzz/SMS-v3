@@ -171,8 +171,8 @@ router.post('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) =
   try {
     const input = licenseInput.parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
-      const duplicate = await tx.employeeLicense.findFirst({ where: { OR: [{ licenseNumber: { equals: input.licenseNumber, mode: 'insensitive' } }, { employeeId: input.employeeId, licenseType: { equals: input.licenseType, mode: 'insensitive' } }] } });
-      if (duplicate) throw new HttpError(409, 'License number or employee license type already exists.');
+      const duplicate = await tx.employeeLicense.findFirst({ where: { licenseNumber: { equals: input.licenseNumber, mode: 'insensitive' } } });
+      if (duplicate) throw new HttpError(409, 'License number already exists.');
       const license = await tx.employeeLicense.create({ data: { ...input, legacyLicenseId: `v3:${crypto.randomUUID()}`, documentMigrationStatus: 'NONE' } });
       await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'EmployeeLicense', entityId: license.id, metadata: { after: safeRecord(license, ['employeeId', 'licenseType', 'issueDate', 'expiryDate', 'status']) } }, tx);
       await reconcileEmployeeLicenseSchedules(tx, license.employeeId, req.user.sub);
@@ -190,9 +190,9 @@ router.put('/licenses/:id', authorize('ADMIN'), async (req, res, next) => {
       const issueDate = input.issueDate || before.issueDate;
       const expiryDate = input.expiryDate || before.expiryDate;
       if (issueDate > expiryDate) throw new HttpError(400, 'Issue date must not be after expiry date.');
-      if (input.licenseNumber || input.licenseType) {
-        const duplicate = await tx.employeeLicense.findFirst({ where: { id: { not: id }, OR: [...(input.licenseNumber ? [{ licenseNumber: { equals: input.licenseNumber, mode: 'insensitive' } }] : []), ...(input.licenseType ? [{ employeeId: before.employeeId, licenseType: { equals: input.licenseType, mode: 'insensitive' } }] : [])] } });
-        if (duplicate) throw new HttpError(409, 'License number or employee license type already exists.');
+      if (input.licenseNumber) {
+        const duplicate = await tx.employeeLicense.findFirst({ where: { id: { not: id }, licenseNumber: { equals: input.licenseNumber, mode: 'insensitive' } } });
+        if (duplicate) throw new HttpError(409, 'License number already exists.');
       }
       const after = await tx.employeeLicense.update({ where: { id }, data: input });
       await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'EmployeeLicense', entityId: id, metadata: { before: safeRecord(before, ['licenseType', 'issueDate', 'expiryDate', 'status']), after: safeRecord(after, ['licenseType', 'issueDate', 'expiryDate', 'status']) } }, tx);
