@@ -555,7 +555,17 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
     return issue && expiry && issue <= workDate && expiry >= workDate;
   });
 
-  const isInvalidLicense = isWorkingShift && !validLic;
+  const shiftLicStatus = String(shift?.licenseStatus || '').toUpperCase();
+  const isShiftBlocked = ['EXPIRED', 'MISSING', 'INVALID'].includes(shiftLicStatus) || String(shift?.remark || '').includes('License block') || String(shift?.remark || '').includes('ใบอนุญาตไม่ผ่าน');
+
+  let isInvalidLicense = false;
+  if (isWorkingShift) {
+    if (activeLicenses.length > 0) {
+      isInvalidLicense = !validLic;
+    } else {
+      isInvalidLicense = isShiftBlocked;
+    }
+  }
 
   const formatThaiYearDate = (dStr?: unknown) => {
     if (!dStr) return '';
