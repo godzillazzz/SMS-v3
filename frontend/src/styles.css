@@ -195,8 +195,8 @@ button { cursor: pointer; }
   align-items: center !important;
   justify-content: center !important;
   padding: 20px !important;
-  background: rgba(9, 21, 42, .62) !important;
-  backdrop-filter: blur(4px) !important;
+  background: rgba(15, 23, 42, 0.18) !important;
+  backdrop-filter: blur(2px) !important;
   margin: 0 !important;
 }
 .edit-dialog { width: min(720px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; border: 1px solid #dfe8f3; border-radius: 16px; padding: 24px; background: #fff; box-shadow: 0 24px 70px rgba(8, 23, 48, .3); }
