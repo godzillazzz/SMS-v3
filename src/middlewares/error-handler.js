@@ -25,10 +25,15 @@ function errorHandler(error, _req, res, _next) {
     logger.warn('database_operation_failure', { requestId, status, errorCategory: errorCategory(error) });
     return res.status(status).json({ error: message, requestId });
   }
-  const isDatabaseConnectionError = ['P1000', 'P1001', 'P1017'].includes(error.code);
+  // These are transient database availability conditions. Returning 503 lets
+  // browsers and monitoring distinguish them from an application defect.
+  const isDatabaseConnectionError = ['P1000', 'P1001', 'P1002', 'P1008', 'P1011', 'P1017', 'P2024'].includes(error.code);
   const status = isDatabaseConnectionError ? 503 : (error.statusCode || 500);
-  if (isDatabaseConnectionError) logger.error('database_operation_failure', { requestId, status, errorCategory: errorCategory(error) });
-  if (status >= 500) logger.error(error.isOperational ? 'http_5xx' : 'unexpected_http_5xx', { requestId, status, errorCategory: errorCategory(error), error });
+  if (isDatabaseConnectionError) {
+    logger.error('database_operation_failure', { requestId, status, errorCategory: errorCategory(error) });
+  } else if (status >= 500) {
+    logger.error(error.isOperational ? 'http_5xx' : 'unexpected_http_5xx', { requestId, status, errorCategory: errorCategory(error), error });
+  }
   const message = error.publicMessage || (isDatabaseConnectionError ? 'Database unavailable.' : (status >= 500 ? 'Internal server error.' : (error.message || 'Internal server error.')));
   return res.status(status).json({ error: message, requestId, ...(error.details && status < 500 && { details: error.details }) });
 }
