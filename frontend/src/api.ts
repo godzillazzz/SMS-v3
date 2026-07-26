@@ -130,7 +130,9 @@ export const api = {
           employeeId: String(p.employeeId || ''),
           shiftTypeId: String(p.shiftTypeId || ''),
           workDate: String(p.workDate || '').slice(0, 10),
-          remark: String(p.remark || '')
+          remark: String(p.remark || ''),
+          licenseOverride: Boolean(p.licenseOverride),
+          overrideReason: String(p.overrideReason || '')
         };
       })
       .filter((item) => isUuid(item.employeeId) && isUuid(item.shiftTypeId) && item.workDate.length === 10);

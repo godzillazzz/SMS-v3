@@ -73,7 +73,7 @@ async function getMonthlyGrid(yearMonth) {
   };
 }
 
-async function saveBatchAssignments(assignments, actorUserId) {
+async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN') {
   if (!Array.isArray(assignments) || assignments.length === 0) {
     return { count: 0 };
   }
@@ -81,13 +81,20 @@ async function saveBatchAssignments(assignments, actorUserId) {
   const empIds = [...new Set(assignments.map(a => a.employeeId).filter(Boolean))];
   const typeIds = [...new Set(assignments.map(a => a.shiftTypeId).filter(Boolean))];
 
-  const [employees, shiftTypes] = await Promise.all([
+  const [employees, shiftTypes, licenses] = await Promise.all([
     prisma.employee.findMany({ where: { id: { in: empIds } } }),
-    prisma.shiftType.findMany({ where: { id: { in: typeIds } } })
+    prisma.shiftType.findMany({ where: { id: { in: typeIds } } }),
+    prisma.employeeLicense.findMany({ where: { employeeId: { in: empIds } } })
   ]);
 
   const empMap = new Map(employees.map(e => [e.id, e]));
   const typeMap = new Map(shiftTypes.map(t => [t.id, t]));
+  const licMap = new Map();
+  licenses.forEach(l => {
+    const list = licMap.get(l.employeeId) || [];
+    list.push(l);
+    licMap.set(l.employeeId, list);
+  });
 
   const results = await prisma.$transaction(async (tx) => {
     const list = [];
@@ -107,6 +114,31 @@ async function saveBatchAssignments(assignments, actorUserId) {
       const monthKey = `${parsedDate.getUTCFullYear()}-${String(parsedDate.getUTCMonth() + 1).padStart(2, '0')}`;
       monthsToTouch.add(monthKey);
 
+      const empLicenses = licMap.get(ass.employeeId) || [];
+      const shiftCode = String(shift.code || '').toUpperCase();
+      let licenseStatus = 'VALID';
+      let licenseExpiryDate = null;
+      let licenseOverride = Boolean(ass.licenseOverride);
+      let overrideReason = ass.overrideReason || null;
+      let overrideAt = licenseOverride ? new Date() : null;
+
+      if (['OFF', 'AL'].includes(shiftCode)) {
+        licenseStatus = 'NOT_REQUIRED';
+      } else {
+        const active = empLicenses.filter((l) => ['active', 'valid'].includes(String(l.status || '').trim().toLowerCase()));
+        const validLic = active.find((l) => l.issueDate && l.expiryDate && new Date(l.issueDate) <= parsedDate && new Date(l.expiryDate) >= parsedDate);
+        if (validLic) {
+          licenseStatus = 'VALID';
+          licenseExpiryDate = validLic.expiryDate;
+        } else if (licenseOverride && overrideReason) {
+          licenseStatus = 'OVERRIDDEN';
+          licenseExpiryDate = active[0]?.expiryDate || null;
+        } else {
+          licenseStatus = active[0] ? 'EXPIRED' : 'MISSING';
+          licenseExpiryDate = active[0]?.expiryDate || null;
+        }
+      }
+
       const record = await tx.shiftAssignment.upsert({
         where: {
           workDate_employeeId: {
@@ -122,7 +154,12 @@ async function saveBatchAssignments(assignments, actorUserId) {
           employeeNameSnapshot: emp.displayName || `${emp.firstName} ${emp.lastName}`,
           departmentSnapshot: emp.department,
           remark: ass.remark || null,
-          locked: true
+          locked: true,
+          licenseStatus,
+          licenseExpiryDate,
+          licenseOverride,
+          overrideReason,
+          overrideAt
         },
         create: {
           employeeId: ass.employeeId,
@@ -135,7 +172,12 @@ async function saveBatchAssignments(assignments, actorUserId) {
           departmentSnapshot: emp.department,
           remark: ass.remark || null,
           locked: true,
-          source: 'SMS_V3'
+          source: 'SMS_V3',
+          licenseStatus,
+          licenseExpiryDate,
+          licenseOverride,
+          overrideReason,
+          overrideAt
         }
       });
       list.push(record);
@@ -165,24 +207,25 @@ async function saveBatchAssignments(assignments, actorUserId) {
           }
         });
       } else {
-        await tx.scheduleApproval.create({
-          data: {
-            month: monthDate,
-            status: 'PENDING',
-            revision: currentRevision,
-            changedByLegacyRef: actorUserId || 'SYSTEM',
-            changedAt: new Date(),
-            changeType: 'BATCH_UPDATE_SHIFT',
-            approvedAt: null,
-            approvedByLegacyRef: null,
-            scheduleHash: null
-          }
-        });
+        try {
+          await tx.scheduleApproval.create({
+            data: {
+              month: monthDate,
+              status: 'PENDING',
+              revision: currentRevision,
+              changedByLegacyRef: actorUserId || 'SYSTEM',
+              changedAt: new Date(),
+              changeType: 'BATCH_UPDATE_SHIFT'
+            }
+          });
+        } catch (err) {
+          // ignore duplicate pending
+        }
       }
     }
 
     return list;
-  });
+  }, { timeout: 30000 });
 
   return { count: results.length, data: results };
 }
