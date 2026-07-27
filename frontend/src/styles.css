@@ -1456,3 +1456,7 @@ button, select, input, textarea {
 .leave-mode-history .leave-pending-card { display: none; }
 .leave-mode-all .leave-pending-card { display: none; }
 .nav-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; margin-left: 8px; padding: 0 6px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 11px; line-height: 1; }
+.my-leave-quota-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: -4px 0 16px; padding: 10px 12px; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fbff; color: #52637a; font-size: 12px; }
+.my-leave-quota-strip strong { color: #1e3a8a; margin-right: 4px; }
+.my-leave-quota-strip span { padding: 4px 8px; border-radius: 999px; background: #fff; }
+.my-leave-quota-strip b { color: #0f172a; }
