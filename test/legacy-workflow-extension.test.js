@@ -131,6 +131,20 @@ test('approved schedule PDF keeps the shift legend directly below the roster and
   assert.match(styles, /\.print-signatures\s*\{[\s\S]*?gap: 16mm/);
 });
 
+test('interface keeps operational feedback, mobile tables, and schedule draft actions usable', () => {
+  const frontend = read('frontend/src/main.tsx');
+  const styles = read('frontend/src/styles.css');
+
+  assert.match(frontend, /function ErrorAlert/);
+  assert.match(frontend, /ระบบไม่สามารถดำเนินการได้ชั่วคราว/);
+  assert.match(frontend, /className="empty-state"/);
+  assert.match(frontend, /className="calendar-toolbar-box schedule-workbench"/);
+  assert.match(frontend, /className="schedule-draft-actions"/);
+  assert.match(styles, /\.data-table:not\(\.schedule-grid\) th:first-child/);
+  assert.match(styles, /\.schedule-draft-actions\s*\{[\s\S]*?position: sticky/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
+});
+
 test('individual magic wand creates a schedule draft instead of saving immediately', () => {
   const frontend = read('frontend/src/main.tsx');
   assert.match(frontend, /ใส่ลงในฉบับร่าง/);
