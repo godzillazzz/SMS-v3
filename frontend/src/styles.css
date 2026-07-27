@@ -656,15 +656,17 @@ body {
 
   .print-footer-container {
     display: flex !important;
-    justify-content: space-between !important;
-    align-items: flex-end !important;
-    margin-top: auto !important;
-    padding-top: 15px !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    margin-top: 4px !important;
+    padding-top: 4px !important;
     page-break-inside: avoid !important;
   }
 
   .print-legend {
     width: 42% !important;
+    margin-bottom: 4px !important;
   }
 
   .print-legend-table {
@@ -722,10 +724,10 @@ body {
   }
 
   .print-signatures {
-    width: 50% !important;
+    width: 100% !important;
     display: flex !important;
     flex-direction: column !important;
-    gap: 16px !important;
+    gap: 55mm !important;
     align-items: flex-end !important;
     justify-content: flex-end !important;
   }

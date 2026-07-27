@@ -120,6 +120,13 @@ test('approved leave prints a dedicated A4 leave form rather than the applicatio
   assert.match(styles, /body\.printing-leave \.leave-print-document/);
 });
 
+test('approved schedule PDF keeps the shift legend directly below the roster and spaces signatures for review', () => {
+  const styles = read('frontend/src/styles.css');
+  assert.match(styles, /\.print-footer-container\s*\{[\s\S]*?flex-direction: column/);
+  assert.match(styles, /\.print-footer-container\s*\{[\s\S]*?margin-top: 4px/);
+  assert.match(styles, /\.print-signatures\s*\{[\s\S]*?gap: 55mm/);
+});
+
 test('individual magic wand creates a schedule draft instead of saving immediately', () => {
   const frontend = read('frontend/src/main.tsx');
   assert.match(frontend, /ใส่ลงในฉบับร่าง/);
