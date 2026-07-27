@@ -24,7 +24,6 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: string; 
   ] },
   { label: 'ตารางกะ', items: [
     { id: 'schedule', icon: '▤', label: 'ตารางกะรายเดือน' },
-    { id: 'approvals', icon: '✓', label: 'อนุมัติตารางกะ' },
     { id: 'shiftSetup', icon: '◷', label: 'รหัสกะและเวลา' }
   ] },
   { label: 'การลา', items: [
@@ -983,6 +982,9 @@ function Dashboard() {
     if (['licenses', 'quota', 'reports'].includes(page)) return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
     return true;
   };
+  const visibleNavigation = navigation
+    .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)) }))
+    .filter((section) => section.items.length > 0);
   const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName}` }));
   const shiftTypeOptions = shiftTypes.map((shiftType) => ({ value: String(shiftType.id), label: `${text(shiftType.code)} · ${text(shiftType.name)}` }));
 
@@ -1551,10 +1553,9 @@ function Dashboard() {
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)} />}
       <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="sidebar-brand"><Logo /><div><strong>Security Management</strong><span>System v3</span></div></div>
-        <nav className="nav-menu" aria-label="เมนูหลัก">{navigation.map((section) => {
-          const items = section.items.filter((item) => canViewPage(item.id));
-          return items.length ? <div className="nav-section" key={section.label}><p>{section.label}</p>{items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon">{item.icon}</span><span>{item.label}</span></button>)}</div> : null;
-        })}</nav>
+        <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
+          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon">{item.icon}</span><span>{item.label}</span></button>)}</div>
+        ))}</nav>
         <button className="sidebar-user" onClick={() => auth.logout()} title="ออกจากระบบ"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'} · ออกจากระบบ</small></span><i>↗</i></button>
       </aside>
       <main className="main-area">
@@ -1571,6 +1572,14 @@ function Dashboard() {
             <button className="signout-button" onClick={() => auth.logout()}>ออกจากระบบ</button>
           </div>
         </header>
+        <nav className="mobile-nav-strip" aria-label="เมนูหลักสำหรับมือถือและแท็บเล็ต">
+          {visibleNavigation.map((section) => (
+            <div className="mobile-nav-group" key={section.label}>
+              <span className="mobile-nav-section">{section.label}</span>
+              {section.items.map((item) => <button type="button" key={item.id} className={`mobile-nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span>{item.icon}</span>{item.label}</button>)}
+            </div>
+          ))}
+        </nav>
         <div className="content-area">{content()}</div>
       </main>
     </div>
