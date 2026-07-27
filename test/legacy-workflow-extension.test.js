@@ -81,6 +81,15 @@ test('leave workflow uses the consolidated leave-requests route and policy valid
   assert.doesNotMatch(frontend, /reason: `\[แทน:/);
 });
 
+test('leave quota management exposes entitlement, approved usage, and remaining balances', () => {
+  const routes = read('src/routes/operations.routes.js');
+  const frontend = read('frontend/src/main.tsx');
+  assert.match(routes, /router\.get\('\/leave-quotas', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(routes, /where: \{ employeeId: \{ in: employeeIds \}, status: 'APPROVED' \}/);
+  assert.match(routes, /personalLeaveRemaining: Math\.max\(0, entitlement\.personalLeave - used\.personalLeave\)/);
+  assert.match(frontend, /คงเหลือ \/ \$\{text\(row\.personalLeaveUsed\)\} ใช้แล้ว/);
+});
+
 test('individual magic wand creates a schedule draft instead of saving immediately', () => {
   const frontend = read('frontend/src/main.tsx');
   assert.match(frontend, /ใส่ลงในฉบับร่าง/);

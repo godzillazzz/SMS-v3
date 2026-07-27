@@ -474,9 +474,11 @@ const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports' | '
     { label: 'วันที่เริ่ม', value: (row) => date(row.startDate) }, { label: 'วันที่สิ้นสุด', value: (row) => date(row.endDate) },
     { label: 'จำนวนวัน', value: (row) => text(row.dayCount) }, { label: 'สถานะ', value: (row) => <span className="status-badge active">{text(row.status)}</span> }
   ] },
-  quota: { title: 'โควตาวันลา', eyebrow: 'การลา', description: 'สิทธิ์วันลาที่นำเข้าจากระบบเดิม', columns: [
-    { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) }, { label: 'ลาป่วย', value: (row) => text(row.sickLeave) },
-    { label: 'ลากิจ', value: (row) => text(row.personalLeave) }, { label: 'ลาพักร้อน', value: (row) => text(row.vacationLeave) },
+  quota: { title: 'โควตาวันลา', eyebrow: 'การลา', description: 'แสดงสิทธิ์ทั้งหมด ใช้แล้ว และคงเหลือจากใบลาที่อนุมัติ', columns: [
+    { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) },
+    { label: 'ลาป่วย', value: (row) => `${text(row.sickLeaveRemaining)} คงเหลือ / ${text(row.sickLeaveUsed)} ใช้แล้ว / ${text(row.sickLeave)} สิทธิ์` },
+    { label: 'ลากิจ', value: (row) => `${text(row.personalLeaveRemaining)} คงเหลือ / ${text(row.personalLeaveUsed)} ใช้แล้ว / ${text(row.personalLeave)} สิทธิ์` },
+    { label: 'ลาพักร้อน', value: (row) => `${text(row.vacationLeaveRemaining)} คงเหลือ / ${text(row.vacationLeaveUsed)} ใช้แล้ว / ${text(row.vacationLeave)} สิทธิ์` },
     { label: 'การจับคู่ข้อมูล', value: (row) => text(row.matchStatus) }
   ] },
   users: { title: 'ผู้ใช้และสิทธิ์', eyebrow: 'ผู้ดูแลระบบ', description: 'บัญชี บทบาท สถานะ และข้อกำหนดเปลี่ยนรหัสผ่าน', columns: [

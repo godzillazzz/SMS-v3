@@ -605,10 +605,45 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
 
 router.get('/leave-quotas', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    res.json(await paged(prisma.leaveQuota, req.query, {
-      select: { id: true, employeeNameSnapshot: true, sickLeave: true, personalLeave: true, vacationLeave: true, matchStatus: true, updatedAt: true },
-      orderBy: { employeeNameSnapshot: 'asc' }
-    }));
+    const { page, pageSize } = paging.parse(req.query);
+    const [total, quotas] = await prisma.$transaction([
+      prisma.leaveQuota.count(),
+      prisma.leaveQuota.findMany({
+        select: { id: true, employeeId: true, employeeNameSnapshot: true, sickLeave: true, personalLeave: true, vacationLeave: true, matchStatus: true, updatedAt: true },
+        orderBy: { employeeNameSnapshot: 'asc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize
+      })
+    ]);
+    const employeeIds = quotas.map((quota) => quota.employeeId).filter(Boolean);
+    const approved = employeeIds.length ? await prisma.leaveRequest.groupBy({
+      by: ['employeeId', 'leaveType'],
+      where: { employeeId: { in: employeeIds }, status: 'APPROVED' },
+      _sum: { dayCount: true }
+    }) : [];
+    const usedByEmployee = new Map();
+    approved.forEach((row) => {
+      const current = usedByEmployee.get(row.employeeId) || { sickLeave: 0, personalLeave: 0, vacationLeave: 0 };
+      current[leaveQuotaField(row.leaveType)] += Number(row._sum.dayCount || 0);
+      usedByEmployee.set(row.employeeId, current);
+    });
+    const data = quotas.map((quota) => {
+      const used = usedByEmployee.get(quota.employeeId) || { sickLeave: 0, personalLeave: 0, vacationLeave: 0 };
+      const entitlement = { sickLeave: Number(quota.sickLeave), personalLeave: Number(quota.personalLeave), vacationLeave: Number(quota.vacationLeave) };
+      return {
+        ...quota,
+        sickLeave: entitlement.sickLeave,
+        personalLeave: entitlement.personalLeave,
+        vacationLeave: entitlement.vacationLeave,
+        sickLeaveUsed: used.sickLeave,
+        personalLeaveUsed: used.personalLeave,
+        vacationLeaveUsed: used.vacationLeave,
+        sickLeaveRemaining: Math.max(0, entitlement.sickLeave - used.sickLeave),
+        personalLeaveRemaining: Math.max(0, entitlement.personalLeave - used.personalLeave),
+        vacationLeaveRemaining: Math.max(0, entitlement.vacationLeave - used.vacationLeave)
+      };
+    });
+    res.json({ data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
   } catch (error) { next(error); }
 });
 router.put('/leave-quotas/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ sickLeave: z.coerce.number().min(0).max(999).optional(), personalLeave: z.coerce.number().min(0).max(999).optional(), vacationLeave: z.coerce.number().min(0).max(999).optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveQuota.findUniqueOrThrow({ where: { id } }); const after = await tx.leaveQuota.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveQuota', entityId: id, metadata: { before: safeRecord(before, ['sickLeave', 'personalLeave', 'vacationLeave']), after: safeRecord(after, ['sickLeave', 'personalLeave', 'vacationLeave']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
