@@ -134,8 +134,7 @@ function Login() {
           <form className="login-form" onSubmit={submit}>
             <h2>{title}</h2>
             <p className="form-lead">{lead}</p>
-            {mode === 'login' && auth.error && <div className="alert alert-error" role="alert">{auth.error}</div>}
-            {formError && <div className="alert alert-error" role="alert">{formError}</div>}
+            {(formError || (mode === 'login' ? auth.error : undefined)) && <div className="alert alert-error" role="alert">{formError || auth.error}</div>}
             {formMessage && <div className="login-help-action" role="status">{formMessage}</div>}
             {mode === 'register' && <label className="field-group" htmlFor="display-name"><span>ชื่อสำหรับแสดงผล</span><input id="display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} type="text" required autoComplete="name" /></label>}
             <label className="field-group" htmlFor="email">
