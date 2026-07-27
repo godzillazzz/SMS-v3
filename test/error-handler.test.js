@@ -10,7 +10,7 @@ test('production errors are sanitized and include the request ID', () => {
   process.env.NODE_ENV = previous;
 });
 
-for (const code of ['P1002', 'P1008', 'P1011', 'P2024']) {
+for (const code of ['P1002', 'P1008', 'P1011', 'P2024', 'P2028']) {
   test(`database availability error ${code} returns a retryable 503`, () => {
     let statusCode; let body;
     const response = {

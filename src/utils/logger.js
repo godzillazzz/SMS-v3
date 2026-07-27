@@ -7,7 +7,7 @@ const DROP_KEYS = new Set(['headers', 'requestheaders', 'responseheaders', 'body
 const SAFE_ERROR_CODES = {
   P1000: 'database_authentication', P1001: 'database_unreachable', P1002: 'database_connection_timeout',
   P1008: 'database_operation_timeout', P1011: 'database_tls_error', P1017: 'database_connection_closed',
-  P2024: 'database_connection_pool_timeout',
+  P2024: 'database_connection_pool_timeout', P2028: 'database_transaction_timeout',
   P2002: 'database_unique_constraint', P2003: 'database_foreign_key', P2023: 'database_invalid_input',
   P2025: 'database_record_not_found'
 };

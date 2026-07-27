@@ -231,7 +231,10 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
     }
 
     return list;
-  }, { timeout: 30000 });
+  // A monthly per-employee draft can legitimately contain 31+ rows. Keep one
+  // atomic transaction, but allow enough time for the serverless pooler round
+  // trips instead of timing out midway through a valid batch.
+  }, { maxWait: 10000, timeout: 60000 });
 
   return { count: results.length, data: results };
 }
