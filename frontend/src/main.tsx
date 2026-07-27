@@ -870,7 +870,12 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, employee
     event.preventDefault();
     if (!formReady) return;
     setSubmitting(true); setNotice(undefined);
-    try { await onSubmit(form, file); setForm({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' }); setFile(undefined); setNotice('ส่งคำขอลาสำเร็จแล้ว'); }
+    try {
+      const payload: Record<string, string> = { ...form };
+      if (!canManage) delete payload.employeeId;
+      await onSubmit(payload, file);
+      setForm({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' }); setFile(undefined); setNotice('ส่งคำขอลาสำเร็จแล้ว');
+    }
     catch (reason) { setNotice(reason instanceof Error ? reason.message : 'ส่งคำขอลาไม่สำเร็จ'); }
     finally { setSubmitting(false); }
   };

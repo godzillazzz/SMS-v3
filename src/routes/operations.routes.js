@@ -550,7 +550,9 @@ router.get('/leave-summary', async (req, res, next) => {
 });
 router.post('/leave-requests', async (req, res, next) => {
   try {
-    const input = leaveInput.parse(req.body);
+    // Viewer forms intentionally omit employee selection. Treat an empty HTML
+    // value as absent so the authenticated Viewer employee link is used.
+    const input = leaveInput.parse({ ...req.body, employeeId: req.body.employeeId || undefined });
     const result = await prisma.$transaction((tx) => createLeaveRequest(tx, input, req.user));
     res.status(201).json({ data: result });
   } catch (error) { next(error); }

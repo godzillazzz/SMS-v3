@@ -72,6 +72,7 @@ test('leave workflow uses the consolidated leave-requests route and policy valid
   assert.doesNotMatch(index, /router\.use\('\/leave-requests',\s*leavesRoutes\)/);
   assert.doesNotMatch(api, /\/leaves/);
   assert.match(routes, /substitute: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(255\)/);
+  assert.match(routes, /employeeId: req\.body\.employeeId \|\| undefined/);
   assert.match(routes, /Sick leave longer than 3 days requires an attachment/);
   assert.match(routes, /Supervisor leave requests require Admin approval/);
   assert.match(routes, /Manager leave requests require Supervisor-level approval or higher/);
@@ -79,6 +80,7 @@ test('leave workflow uses the consolidated leave-requests route and policy valid
   assert.match(frontend, /const formReady = Boolean/);
   assert.match(frontend, /เหตุผลการลา<\/span><textarea rows=\{3\}/);
   assert.doesNotMatch(frontend, /reason: `\[แทน:/);
+  assert.match(frontend, /if \(!canManage\) delete payload\.employeeId/);
 });
 
 test('leave quota management exposes entitlement, approved usage, and remaining balances', () => {
