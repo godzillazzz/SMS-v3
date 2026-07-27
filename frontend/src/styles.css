@@ -121,7 +121,7 @@ button { cursor: pointer; }
 .sidebar-brand span { color: #96a9c7; font-size: 15px; }
 .nav-menu { flex: 1; overflow-y: auto; padding-right: 2px; }
 .nav-section { margin: 0 0 19px; }
-.nav-section > p { margin: 0 0 7px; padding: 0 12px; color: #7e91b0; font-size: 14px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.nav-section > p { margin: 0 0 7px; padding: 0 12px; color: #7e91b0; font-size: 14px; font-weight: 800; letter-spacing: .03em; }
 .nav-item { display: flex; width: 100%; align-items: center; gap: 12px; min-height: 42px; border: 0; border-radius: 8px; padding: 0 12px; color: #c5d3e8; background: transparent; font-size: 20px; text-align: left; transition: .15s ease; }
 .nav-item:hover { color: #fff; background: rgba(74, 144, 255, .22); transform: translateX(2px); }
 .nav-item.active { color: #fff; background: #2f80ff; box-shadow: 0 7px 16px rgba(7, 42, 99, .25); }

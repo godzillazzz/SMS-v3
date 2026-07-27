@@ -33,8 +33,11 @@ test('Manager account approval is constrained to Viewer and sensitive settings s
 });
 
 test('legacy navigation and three-role model are represented in the frontend', () => {
-  for (const label of ['Dashboard', 'Master Data', 'Shift Setup', 'Schedule Calendar', 'จัดการการลา', 'Rule Checking', 'Reports', 'Users & Roles', 'Settings']) {
+  for (const label of ['Dashboard', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ตารางกะรายเดือน', 'อนุมัติตารางกะ', 'รหัสกะและเวลา', 'คำขอลา', 'โควต้าวันลา', 'กฎการทำงาน', 'Audit Log', 'ผู้ใช้และสิทธิ์', 'รายงานและ Export', 'ตั้งค่าระบบ']) {
     assert.ok(frontend.includes(`label: '${label}'`), label);
+  }
+  for (const section of ['ภาพรวม', 'พนักงาน', 'ตารางกะ', 'การลา', 'ตรวจสอบ', 'ผู้ใช้และสิทธิ์', 'รายงาน', 'ตั้งค่า']) {
+    assert.ok(frontend.includes(`label: '${section}'`), section);
   }
   assert.match(frontend, /\['ADMIN', 'MANAGER', 'VIEWER'\]/);
   assert.doesNotMatch(frontend, /\['ADMIN', 'HR', 'USER'\]/);

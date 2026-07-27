@@ -15,18 +15,34 @@ type Editor = { title: string; submitLabel: string; fields: FormField[]; values:
 const AuthContext = createContext<Auth | undefined>(undefined);
 
 const navigation: Array<{ label: string; items: Array<{ id: Page; icon: string; label: string }> }> = [
-  { label: 'Workspace', items: [
-    { id: 'dashboard', icon: '⌂', label: 'Dashboard' },
-    { id: 'employees', icon: '♙', label: 'Master Data' },
-    { id: 'shiftSetup', icon: '◷', label: 'Shift Setup' },
-    { id: 'schedule', icon: '▤', label: 'Schedule Calendar' },
-    { id: 'leave', icon: '▣', label: 'จัดการการลา' },
-    { id: 'rules', icon: '✓', label: 'Rule Checking' },
-    { id: 'reports', icon: '↗', label: 'Reports' }
+  { label: 'ภาพรวม', items: [
+    { id: 'dashboard', icon: '⌂', label: 'Dashboard' }
   ] },
-  { label: 'System', items: [
-    { id: 'users', icon: '♧', label: 'Users & Roles' },
-    { id: 'settings', icon: '⚙', label: 'Settings' }
+  { label: 'พนักงาน', items: [
+    { id: 'employees', icon: '♙', label: 'ข้อมูลพนักงาน' },
+    { id: 'licenses', icon: '▣', label: 'ใบอนุญาต รปภ.' }
+  ] },
+  { label: 'ตารางกะ', items: [
+    { id: 'schedule', icon: '▤', label: 'ตารางกะรายเดือน' },
+    { id: 'approvals', icon: '✓', label: 'อนุมัติตารางกะ' },
+    { id: 'shiftSetup', icon: '◷', label: 'รหัสกะและเวลา' }
+  ] },
+  { label: 'การลา', items: [
+    { id: 'leave', icon: '▥', label: 'คำขอลา' },
+    { id: 'quota', icon: '▧', label: 'โควต้าวันลา' }
+  ] },
+  { label: 'ตรวจสอบ', items: [
+    { id: 'rules', icon: '!', label: 'กฎการทำงาน' },
+    { id: 'audit', icon: '◌', label: 'Audit Log' }
+  ] },
+  { label: 'ผู้ใช้และสิทธิ์', items: [
+    { id: 'users', icon: '♧', label: 'ผู้ใช้และสิทธิ์' }
+  ] },
+  { label: 'รายงาน', items: [
+    { id: 'reports', icon: '↗', label: 'รายงานและ Export' }
+  ] },
+  { label: 'ตั้งค่า', items: [
+    { id: 'settings', icon: '⚙', label: 'ตั้งค่าระบบ' }
   ] }
 ];
 
@@ -940,7 +956,7 @@ function Dashboard() {
     return employees.filter((employee) => [employee.employeeCode, employee.firstName, employee.lastName, employee.department, employee.jobTitle].filter(Boolean).join(' ').toLowerCase().includes(term));
   }, [employees, search]);
 
-  const parentPage: Partial<Record<Page, Page>> = { licenses: 'employees', approvals: 'schedule', quota: 'leave', audit: 'settings' };
+  const parentPage: Partial<Record<Page, Page>> = {};
   const navigationPage = parentPage[activePage] || activePage;
   const pageTitle = navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || 'Dashboard';
   const pageSubtitle: Record<Page, string> = {
