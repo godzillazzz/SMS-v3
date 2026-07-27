@@ -35,7 +35,7 @@ const shiftTypeInput = z.object({
 });
 const booleanCoerce = z.union([z.boolean(), z.string().transform((val) => val === 'true' || val === '1'), z.number().transform((val) => val === 1)]).optional();
 const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.coerce.date(), startTime: nullableText(20), endTime: nullableText(20), hours: z.coerce.number().min(0).max(24).optional(), remark: nullableText(2000), locked: booleanCoerce, licenseOverride: booleanCoerce, overrideReason: nullableText(2000) });
-const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
+const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), substitute: z.string().trim().min(1).max(255), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('attachment');
 const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'Attachment must not exceed 4 MB.' : 'Attachment upload is invalid.')) : next());
 const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
@@ -52,6 +52,19 @@ const leaveQuotaField = (leaveType) => {
   throw new HttpError(400, 'Unsupported leave type.');
 };
 const inclusiveDays = (startDate, endDate) => Math.floor((Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()) - Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())) / 86400000) + 1;
+const positionText = (employee) => String(employee?.jobTitle || '').toLowerCase();
+const isSupervisorPosition = (employee) => /supervisor|หัวหน้า|ซุปเปอร์ไวเซอร์/.test(positionText(employee));
+const isManagerPosition = (employee) => /manager|ผู้จัดการ/.test(positionText(employee));
+const hasSupervisorApprovalLevel = (user) => user.role === 'ADMIN' || isSupervisorPosition(user.employee) || isManagerPosition(user.employee);
+const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser) => {
+  if (requestUser.role === 'ADMIN') return;
+  const [leaveEmployee, approver] = await Promise.all([
+    tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true } }),
+    tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employee: { select: { jobTitle: true } } } })
+  ]);
+  if (isSupervisorPosition(leaveEmployee)) throw new HttpError(403, 'Supervisor leave requests require Admin approval.');
+  if (isManagerPosition(leaveEmployee) && !hasSupervisorApprovalLevel(approver)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.');
+};
 const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedDays, excludeId) => {
   const field = leaveQuotaField(leaveType);
   const quota = await tx.leaveQuota.findFirst({ where: { employeeId } });
@@ -90,10 +103,13 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.');
   await ensureLeaveAvailable(tx, employeeId, input.leaveType, dayCount);
   if (file && !allowedAttachmentTypes.has(file.mimetype)) throw new HttpError(415, 'Attachment must be PDF, JPEG, or PNG.');
+  if ((input.leaveType.includes('ป่วย') || input.leaveType.toLowerCase().includes('sick')) && dayCount > 3 && !file) throw new HttpError(400, 'Sick leave longer than 3 days requires an attachment.');
   const safeFileName = file?.originalname.replace(/[\\/\0]/g, '_').slice(0, 255);
-  const reasonText = input.reason || '-';
-  const reason = substitute ? `[แทน: ${String(substitute).trim().slice(0, 255)}] ${reasonText}` : reasonText;
-  const leave = await tx.leaveRequest.create({ data: { ...input, reason, employeeId, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: file ? 'STORED' : 'NONE', status: 'PENDING' } });
+  const substituteText = String(substitute ?? input.substitute ?? '').trim();
+  if (!substituteText) throw new HttpError(400, 'Substitute is required.');
+  const reasonText = String(input.reason || '-').trim() || '-';
+  const reason = `[แทน: ${substituteText.slice(0, 255)}] ${reasonText}`;
+  const leave = await tx.leaveRequest.create({ data: { employeeId, leaveType: input.leaveType, startDate: input.startDate, endDate: input.endDate, reason, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: file ? 'STORED' : 'NONE', status: 'PENDING' } });
   if (file) {
     await tx.leaveAttachment.create({ data: { leaveRequestId: leave.id, fileName: safeFileName || 'attachment', mimeType: file.mimetype, sizeBytes: file.size, sha256: crypto.createHash('sha256').update(file.buffer).digest('hex'), content: file.buffer, uploadedByLegacyRef: requestUser.sub } });
     await tx.leaveRequest.update({ where: { id: leave.id }, data: { attachmentUrl: `/api/v1/leave-requests/${leave.id}/attachment` } });
@@ -532,8 +548,7 @@ router.post('/leave-requests', async (req, res, next) => {
 router.post('/leave-requests/with-attachment', leaveUpload, async (req, res, next) => {
   try {
     const input = leaveInput.parse({ ...req.body, employeeId: req.body.employeeId || undefined });
-    const substitute = z.string().trim().min(1).max(255).optional().parse(req.body.substitute || undefined);
-    const result = await prisma.$transaction((tx) => createLeaveRequest(tx, input, req.user, req.file, substitute));
+    const result = await prisma.$transaction((tx) => createLeaveRequest(tx, input, req.user, req.file));
     res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
@@ -548,7 +563,38 @@ router.get('/leave-requests/:id/attachment', async (req, res, next) => {
     res.send(Buffer.from(leave.attachment.content));
   } catch (error) { next(error); }
 });
-router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ status: z.enum(['APPROVED', 'REJECTED']), reason: nullableText(2000) }).parse(req.body); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } }); if (before.status !== 'PENDING') throw new HttpError(409, 'This leave request has already been reviewed.'); if (req.user.role === 'MANAGER') { const today = new Date(); today.setUTCHours(0, 0, 0, 0); if (before.startDate < today) throw new HttpError(400, 'Managers cannot approve retroactive leave.'); } if (input.status === 'APPROVED') { await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, Number(before.dayCount), before.id); const [employee, leaveShift] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: before.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' } })]); for (let date = new Date(before.startDate); date <= before.endDate; date.setUTCDate(date.getUTCDate() + 1)) { const workDate = new Date(date); await tx.shiftAssignment.upsert({ where: { workDate_employeeId: { workDate, employeeId: before.employeeId } }, update: { shiftTypeId: leaveShift.id, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, licenseStatus: 'NOT_REQUIRED', licenseOverride: false }, create: { employeeId: before.employeeId, shiftTypeId: leaveShift.id, workDate, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, source: 'LEAVE_APPROVAL', licenseStatus: 'NOT_REQUIRED' } }); } } const after = await tx.leaveRequest.update({ where: { id }, data: { ...input, approvedAt: new Date(), approvedByLegacyRef: req.user.sub } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
+router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const input = z.object({ status: z.enum(['APPROVED', 'REJECTED']), reason: nullableText(2000) }).parse(req.body);
+    const result = await prisma.$transaction(async (tx) => {
+      const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
+      if (before.status !== 'PENDING') throw new HttpError(409, 'This leave request has already been reviewed.');
+      await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user);
+      if (req.user.role === 'MANAGER') {
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        if (before.startDate < today) throw new HttpError(400, 'Managers cannot approve retroactive leave.');
+      }
+      if (input.status === 'APPROVED') {
+        await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, Number(before.dayCount), before.id);
+        const [employee, leaveShift] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: before.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' } })]);
+        for (let date = new Date(before.startDate); date <= before.endDate; date.setUTCDate(date.getUTCDate() + 1)) {
+          const workDate = new Date(date);
+          await tx.shiftAssignment.upsert({
+            where: { workDate_employeeId: { workDate, employeeId: before.employeeId } },
+            update: { shiftTypeId: leaveShift.id, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, licenseStatus: 'NOT_REQUIRED', licenseOverride: false },
+            create: { employeeId: before.employeeId, shiftTypeId: leaveShift.id, workDate, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, source: 'LEAVE_APPROVAL', licenseStatus: 'NOT_REQUIRED' }
+          });
+        }
+      }
+      const after = await tx.leaveRequest.update({ where: { id }, data: { status: input.status, approvedAt: new Date(), approvedByLegacyRef: req.user.sub } });
+      await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx);
+      return after;
+    });
+    res.json({ data: result });
+  } catch (error) { next(error); }
+});
 
 router.get('/leave-quotas', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {

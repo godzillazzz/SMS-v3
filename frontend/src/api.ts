@@ -167,12 +167,7 @@ export const api = {
   schedulesGetGrid: (token: string, month: string) => call(`/schedules?month=${encodeURIComponent(month)}`, { headers: { Authorization: `Bearer ${token}` } }),
   schedulesSaveBatch: (token: string, assignments: unknown[]) => call('/schedules/batch', { method: 'POST', body: JSON.stringify({ assignments }), headers: { Authorization: `Bearer ${token}` } }),
   schedulesAutoPlan: (token: string, month: string) => call('/schedules/auto-plan', { method: 'POST', body: JSON.stringify({ month }), headers: { Authorization: `Bearer ${token}` } }),
-  schedulesApprove: (token: string, month: string, note?: string) => call('/schedules/approve', { method: 'POST', body: JSON.stringify({ month, note }), headers: { Authorization: `Bearer ${token}` } }),
-  leavesSubmit: (token: string, data: unknown) => call('/leaves', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
-  leavesList: (token: string, status?: string) => call(`/leaves${status ? `?status=${status}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
-  leavesSummary: (token: string, employeeId?: string) => call(`/leaves/summary${employeeId ? `?employeeId=${employeeId}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
-  leavesApprove: (token: string, id: string) => call(`/leaves/${id}/approve`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }),
-  leavesReject: (token: string, id: string, reason?: string) => call(`/leaves/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }), headers: { Authorization: `Bearer ${token}` } })
+  schedulesApprove: (token: string, month: string, note?: string) => call('/schedules/approve', { method: 'POST', body: JSON.stringify({ month, note }), headers: { Authorization: `Bearer ${token}` } })
 };
 
 async function callMultipart(path: string, token: string, body: FormData) {

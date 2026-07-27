@@ -62,6 +62,25 @@ test('legacy schedule and leave controls remain available to Admin and Manager',
   assert.match(employees, /orderBy: \[\{ employeeCode: 'asc' \}\]/);
 });
 
+test('leave workflow uses the consolidated leave-requests route and policy validations', () => {
+  const index = read('src/routes/index.js');
+  const routes = read('src/routes/operations.routes.js');
+  const frontend = read('frontend/src/main.tsx');
+  const api = read('frontend/src/api.ts');
+
+  assert.doesNotMatch(index, /leavesRoutes/);
+  assert.doesNotMatch(index, /router\.use\('\/leave-requests',\s*leavesRoutes\)/);
+  assert.doesNotMatch(api, /\/leaves/);
+  assert.match(routes, /substitute: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(255\)/);
+  assert.match(routes, /Sick leave longer than 3 days requires an attachment/);
+  assert.match(routes, /Supervisor leave requests require Admin approval/);
+  assert.match(routes, /Manager leave requests require Supervisor-level approval or higher/);
+  assert.match(routes, /const after = await tx\.leaveRequest\.update\(\{ where: \{ id \}, data: \{ status: input\.status, approvedAt:/);
+  assert.match(frontend, /const formReady = Boolean/);
+  assert.match(frontend, /เหตุผลการลา<\/span><textarea rows=\{3\}/);
+  assert.doesNotMatch(frontend, /reason: `\[แทน:/);
+});
+
 test('individual magic wand creates a schedule draft instead of saving immediately', () => {
   const frontend = read('frontend/src/main.tsx');
   assert.match(frontend, /ใส่ลงในฉบับร่าง/);
