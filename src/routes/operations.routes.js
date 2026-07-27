@@ -44,12 +44,18 @@ const authorizedLicenseReconciliationCron = (req) => {
   return Boolean(secret) && req.get('authorization') === `Bearer ${secret}`;
 };
 const safeRecord = (record, fields) => Object.fromEntries(fields.map((field) => [field, record[field]]));
-const leaveQuotaField = (leaveType) => {
-  const value = String(leaveType).toLowerCase();
-  if (value.includes('ป่วย') || value.includes('sick')) return 'sickLeave';
-  if (value.includes('กิจ') || value.includes('personal')) return 'personalLeave';
-  if (value.includes('พักร้อน') || value.includes('vacation')) return 'vacationLeave';
+const normalizeLeaveType = (leaveType) => {
+  const value = String(leaveType).trim().toLowerCase();
+  if (value.includes('ป่วย') || value.includes('sick')) return 'SICK';
+  if (value.includes('กิจ') || value.includes('personal')) return 'PERSONAL';
+  if (value.includes('พักร้อน') || value.includes('vacation')) return 'VACATION';
   throw new HttpError(400, 'Unsupported leave type.');
+};
+const leaveQuotaField = (leaveType) => {
+  const value = normalizeLeaveType(leaveType);
+  if (value === 'SICK') return 'sickLeave';
+  if (value === 'PERSONAL') return 'personalLeave';
+  return 'vacationLeave';
 };
 const inclusiveDays = (startDate, endDate) => Math.floor((Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()) - Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())) / 86400000) + 1;
 const positionText = (employee) => String(employee?.jobTitle || '').toLowerCase();
@@ -98,18 +104,19 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   const employeeId = currentUser.role === 'VIEWER' ? currentUser.employeeId : input.employeeId;
   if (!employeeId) throw new HttpError(400, 'Employee is required.');
   const employee = await tx.employee.findUniqueOrThrow({ where: { id: employeeId } });
+  const leaveType = normalizeLeaveType(input.leaveType);
   const dayCount = inclusiveDays(input.startDate, input.endDate);
   const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } });
   if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.');
-  await ensureLeaveAvailable(tx, employeeId, input.leaveType, dayCount);
+  await ensureLeaveAvailable(tx, employeeId, leaveType, dayCount);
   if (file && !allowedAttachmentTypes.has(file.mimetype)) throw new HttpError(415, 'Attachment must be PDF, JPEG, or PNG.');
-  if ((input.leaveType.includes('ป่วย') || input.leaveType.toLowerCase().includes('sick')) && dayCount > 3 && !file) throw new HttpError(400, 'Sick leave longer than 3 days requires an attachment.');
+  if (leaveType === 'SICK' && dayCount > 3 && !file) throw new HttpError(400, 'Sick leave longer than 3 days requires an attachment.');
   const safeFileName = file?.originalname.replace(/[\\/\0]/g, '_').slice(0, 255);
   const substituteText = String(substitute ?? input.substitute ?? '').trim();
   if (!substituteText) throw new HttpError(400, 'Substitute is required.');
   const reasonText = String(input.reason || '-').trim() || '-';
   const reason = `[แทน: ${substituteText.slice(0, 255)}] ${reasonText}`;
-  const leave = await tx.leaveRequest.create({ data: { employeeId, leaveType: input.leaveType, startDate: input.startDate, endDate: input.endDate, reason, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: file ? 'STORED' : 'NONE', status: 'PENDING' } });
+  const leave = await tx.leaveRequest.create({ data: { employeeId, leaveType, startDate: input.startDate, endDate: input.endDate, reason, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: file ? 'STORED' : 'NONE', status: 'PENDING' } });
   if (file) {
     await tx.leaveAttachment.create({ data: { leaveRequestId: leave.id, fileName: safeFileName || 'attachment', mimeType: file.mimetype, sizeBytes: file.size, sha256: crypto.createHash('sha256').update(file.buffer).digest('hex'), content: file.buffer, uploadedByLegacyRef: requestUser.sub } });
     await tx.leaveRequest.update({ where: { id: leave.id }, data: { attachmentUrl: `/api/v1/leave-requests/${leave.id}/attachment` } });

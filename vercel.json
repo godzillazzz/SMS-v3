@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "node --version && npm --prefix frontend run build",
+  "buildCommand": "node --version && npx prisma generate && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "functions": {
     "api/[...path].js": { "maxDuration": 60 }
