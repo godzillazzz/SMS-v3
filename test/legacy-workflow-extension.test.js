@@ -122,8 +122,8 @@ test('approved leave prints a dedicated A4 leave form rather than the applicatio
 
 test('approved schedule PDF keeps the shift legend directly below the roster and spaces signatures for review', () => {
   const styles = read('frontend/src/styles.css');
-  assert.match(styles, /\.print-footer-container\s*\{[\s\S]*?flex-direction: column/);
-  assert.match(styles, /\.print-footer-container\s*\{[\s\S]*?margin-top: 4px/);
+  assert.match(styles, /\.print-footer-container\s*\{[\s\S]*?justify-content: space-between/);
+  assert.match(styles, /\.print-footer-container\s*\{[\s\S]*?margin-top: auto/);
   assert.match(styles, /\.print-signatures\s*\{[\s\S]*?gap: 16mm/);
 });
 
