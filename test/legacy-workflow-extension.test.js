@@ -127,6 +127,7 @@ test('approved schedule PDF keeps the shift legend directly below the roster and
   assert.match(frontend, /<div className="print-footer-container">\s*<div className="print-signatures">/);
   assert.match(styles, /\.print-footer-container\s*\{[\s\S]*?justify-content: space-between/);
   assert.match(styles, /\.print-footer-container\s*\{[\s\S]*?margin-top: auto/);
+  assert.match(styles, /\.print-signatures\s*\{[\s\S]*?margin-left: auto/);
   assert.match(styles, /\.print-signatures\s*\{[\s\S]*?gap: 16mm/);
 });
 

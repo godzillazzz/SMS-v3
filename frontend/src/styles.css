@@ -725,6 +725,7 @@ body {
 
   .print-signatures {
     width: 50% !important;
+    margin-left: auto !important;
     display: flex !important;
     flex-direction: column !important;
     gap: 16mm !important;
