@@ -27,9 +27,6 @@ const licenseForDate = (records, date) => {
   const state = licenseStateForWorkDate(records, date);
   return { ...state, code: state.status };
 };
-const isSystemLicenseBlock = (row) => Boolean(
-  row?.licenseBlockedFromShiftTypeId || /^License Block(?:\s|:|$)/i.test(String(row?.remark || ''))
-);
 const suggestedPhase = (history) => {
   if (!history.length) return 'D1';
   const lastCode = String(history[0].shiftType.code || '').toUpperCase();
@@ -198,7 +195,9 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
 
   if (patternType === 'SUPERVISOR') {
     rows = rows.map((row) => {
-      if ((row.locked && !isSystemLicenseBlock(row)) || row.code === 'AL') return row;
+      // A new magic-wand action is authoritative for this employee/month.
+      // Only approved leave and an explicit Admin license override survive it.
+      if (row.code === 'AL' || row.licenseOverride) return row;
       const dateValue = new Date(`${row.date}T00:00:00Z`);
       const isSunday = dateValue.getUTCDay() === 0;
       let template = isSunday ? offType : dType;
@@ -232,7 +231,9 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
     const phaseIndex = phaseOffsetMap[effectivePhase] ?? 0;
 
     rows = rows.map((row, index) => {
-      if ((row.locked && !isSystemLicenseBlock(row)) || row.code === 'AL') return row;
+      // A new magic-wand action is authoritative for this employee/month.
+      // Only approved leave and an explicit Admin license override survive it.
+      if (row.code === 'AL' || row.licenseOverride) return row;
       const targetCode = targetCycle[(phaseIndex + index) % targetCycle.length];
       let template = shiftTypeMap.get(targetCode) || offType;
 
@@ -300,11 +301,7 @@ async function commitEmployeeAutoSchedule(prisma, month, employeeId, actorUserId
     const deleted = await tx.shiftAssignment.deleteMany({
       where: {
         employeeId, workDate: { gte: start, lt: end }, shiftTypeId: { not: al.id },
-        OR: [
-          { locked: false },
-          { locked: true, licenseOverride: false, licenseBlockedFromShiftTypeId: { not: null } },
-          { locked: true, licenseOverride: false, remark: { startsWith: 'License Block', mode: 'insensitive' } }
-        ]
+        licenseOverride: false
       }
     });
     const generated = plan.rows.filter((row) => !row.locked);

@@ -287,6 +287,7 @@ function EmployeeMagicWandModal({
             <div className="wand-emp-badge">
               <span>พนักงาน: <strong>{empName} ({empCode})</strong></span>
             </div>
+            <p className="wand-analysis-blue-text">การจัดครั้งนี้จะใช้เป็นตารางล่าสุดของพนักงานทั้งเดือน โดยคงเฉพาะวันลา (AL) และ Admin override ไว้</p>
 
             <div className="wand-section">
               <h3 className="wand-section-title">1. เลือกรูปแบบแพทเทิร์น (Pattern)</h3>

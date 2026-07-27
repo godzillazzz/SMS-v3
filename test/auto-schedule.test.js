@@ -98,6 +98,23 @@ test('individual magic-wand retains an existing Admin license override during an
   assert.equal(override.licenseStatus, 'OVERRIDDEN');
 });
 
+test('the latest magic-wand action replaces prior manual shifts but keeps leave and Admin overrides', async () => {
+  const current = [
+    { employeeId: 'worker', workDate: new Date('2026-07-01T00:00:00Z'), locked: true, source: 'MANUAL', remark: 'old manual', licenseOverride: false, shiftType: shiftTypes[2] },
+    { employeeId: 'worker', workDate: new Date('2026-07-02T00:00:00Z'), locked: true, source: 'MANUAL', remark: 'admin coverage', licenseStatus: 'OVERRIDDEN', licenseOverride: true, shiftType: shiftTypes[1] },
+    { employeeId: 'worker', workDate: new Date('2026-07-03T00:00:00Z'), locked: true, source: 'LEAVE_APPROVAL', remark: 'leave', licenseOverride: false, shiftType: shiftTypes[3] }
+  ];
+  const plan = await buildEmployeeAutoSchedulePlan(client({ current }), '2026-07', 'worker', 'D1', 'ROTATE');
+  const first = plan.rows.find((row) => row.date === '2026-07-01');
+  const override = plan.rows.find((row) => row.date === '2026-07-02');
+  const leave = plan.rows.find((row) => row.date === '2026-07-03');
+  assert.equal(first.code, 'D');
+  assert.equal(first.locked, false);
+  assert.equal(override.code, 'N');
+  assert.equal(override.licenseOverride, true);
+  assert.equal(leave.code, 'AL');
+});
+
 test('auto schedule date and history helpers are deterministic', () => {
   assert.equal(monthBounds('2026-02').dates.length, 28);
   assert.equal(suggestedPhase([{ shiftType: { code: 'D' } }, { shiftType: { code: 'D' } }]), 'D3');
