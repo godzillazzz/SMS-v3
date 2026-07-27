@@ -665,6 +665,8 @@ body {
 
   .print-legend {
     width: 42% !important;
+    margin-top: 4px !important;
+    margin-bottom: 0 !important;
   }
 
   .print-legend-table {

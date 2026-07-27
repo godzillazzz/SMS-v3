@@ -1783,8 +1783,7 @@ function Dashboard() {
                   })}
                 </tbody>
               </table>
-              <div className="print-footer-container">
-                <div className="print-legend">
+              <div className="print-legend">
                   <div style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '10px', color: '#1e293b' }}>คำอธิบายรหัสกะ</div>
                   <table className="print-legend-table">
                     <tbody>
@@ -1806,7 +1805,8 @@ function Dashboard() {
                       })}
                     </tbody>
                   </table>
-                </div>
+              </div>
+              <div className="print-footer-container">
                 <div className="print-signatures">
                   <div className="signature-box">
                     <div>ลงชื่อ....................................................................................</div>
