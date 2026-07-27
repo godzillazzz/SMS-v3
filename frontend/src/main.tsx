@@ -287,7 +287,7 @@ function EmployeeMagicWandModal({
             <div className="wand-emp-badge">
               <span>พนักงาน: <strong>{empName} ({empCode})</strong></span>
             </div>
-            <p className="wand-analysis-blue-text">การจัดครั้งนี้จะใช้เป็นตารางล่าสุดของพนักงานทั้งเดือน โดยคงเฉพาะวันลา (AL) และ Admin override ไว้</p>
+            <p className="wand-analysis-blue-text">การจัดครั้งนี้จะใส่เป็นฉบับร่างล่าสุดของพนักงานทั้งเดือน โดยคงเฉพาะวันลา (AL) และ Admin override ไว้ ต้องกดบันทึกการเปลี่ยนแปลงทั้งหมดเพื่อบันทึกจริง</p>
 
             <div className="wand-section">
               <h3 className="wand-section-title">1. เลือกรูปแบบแพทเทิร์น (Pattern)</h3>
@@ -367,7 +367,7 @@ function EmployeeMagicWandModal({
           <div className="dialog-actions">
             <button className="btn-secondary" type="button" disabled={busy} onClick={onClose}>ยกเลิก</button>
             <button className="btn-primary compact wand-submit-btn" type="submit" disabled={busy}>
-              {busy ? 'กำลังจัดตารางกะ…' : '🪄 จัดและบันทึกแพทเทิร์น'}
+              {busy ? 'กำลังสร้างร่าง…' : '🪄 ใส่ลงในฉบับร่าง'}
             </button>
           </div>
         </form>
@@ -1188,8 +1188,13 @@ function Dashboard() {
       const previewWarnings = Array.isArray(autoSchedulePreview?.warnings) ? autoSchedulePreview.warnings : [];
       const previewSummary = nested(autoSchedulePreview?.summary);
 
-      const applyPreviewToDrafts = (previewRowsParam: DataRow[]) => {
+      const applyPreviewToDrafts = (previewRowsParam: DataRow[], replaceEmployeeId?: string) => {
         const newDrafts = { ...scheduleDrafts };
+        if (replaceEmployeeId) {
+          for (const key of Object.keys(newDrafts)) {
+            if (key.startsWith(`${replaceEmployeeId}_`) && String(newDrafts[key].workDate || '').startsWith(scheduleMonth)) delete newDrafts[key];
+          }
+        }
         for (const row of previewRowsParam) {
           const workDateStr = inputDate(row.date);
           const empId = String(row.employeeId || '');
@@ -1215,11 +1220,15 @@ function Dashboard() {
             color: String(selectedType?.color || (codeStr === 'D' ? '#2563eb' : codeStr === 'N' ? '#7c3aed' : '#64748b')),
             remark: String(row.remark || 'จัดด้วยไม้กายสิทธิ์ (ฉบับร่าง)'),
             licenseStatus: String(row.licenseStatus || ''),
+            licenseOverride: Boolean(row.licenseOverride),
+            overrideReason: String(row.overrideReason || ''),
             payload: {
               employeeId: empId,
               workDate: workDateStr,
               shiftTypeId: validShiftTypeId,
-              remark: String(row.remark || 'จัดด้วยไม้กายสิทธิ์')
+              remark: String(row.remark || 'จัดด้วยไม้กายสิทธิ์'),
+              licenseOverride: Boolean(row.licenseOverride),
+              overrideReason: String(row.overrideReason || '')
             }
           };
         }
@@ -1404,7 +1413,7 @@ function Dashboard() {
   );
 })()}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={() => { const key = `${employee.id}_${day}`; setScheduleDrafts((prev) => ({ ...prev, [key]: { action: 'delete', id: String(shift.id), employeeId: String(employee.id), workDate: day } })); }}>×</button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={(e) => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day }, e)}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
-        {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} scheduleMonth={scheduleMonth} token={auth.token} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { await api.commitEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); setScheduleDrafts({}); const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); setEmployeeAutoScheduleTarget(undefined); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'จัดกะอัตโนมัติรายบุคคลไม่สำเร็จ'); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
+        {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} scheduleMonth={scheduleMonth} token={auth.token} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { const result = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); const rows = Array.isArray(result?.data?.rows) ? result.data.rows as DataRow[] : []; applyPreviewToDrafts(rows, employeeId); setEmployeeAutoScheduleTarget(undefined); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'สร้างฉบับร่างจัดกะอัตโนมัติรายบุคคลไม่สำเร็จ'); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
         {shiftEditorTarget && (
           <ShiftEditorModal
             shift={shiftEditorTarget.shift}

@@ -61,3 +61,12 @@ test('legacy schedule and leave controls remain available to Admin and Manager',
   assert.match(routes, /schedule\/employee-auto-commit', authorize\('ADMIN', 'MANAGER'\)/);
   assert.match(employees, /orderBy: \[\{ employeeCode: 'asc' \}\]/);
 });
+
+test('individual magic wand creates a schedule draft instead of saving immediately', () => {
+  const frontend = read('frontend/src/main.tsx');
+  assert.match(frontend, /ใส่ลงในฉบับร่าง/);
+  assert.match(frontend, /ต้องกดบันทึกการเปลี่ยนแปลงทั้งหมดเพื่อบันทึกจริง/);
+  assert.match(frontend, /api\.previewEmployeeAutoSchedule\(auth\.token, scheduleMonth, employeeId, phase, patternType\)/);
+  assert.match(frontend, /applyPreviewToDrafts\(rows, employeeId\)/);
+  assert.doesNotMatch(frontend, /api\.commitEmployeeAutoSchedule\(auth\.token, scheduleMonth, employeeId, phase, patternType\)/);
+});
