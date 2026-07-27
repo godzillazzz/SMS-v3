@@ -1476,4 +1476,6 @@ button, select, input, textarea {
 .my-leave-quota-grid .leave-quota-card > span { width: 30px; height: 30px; font-size: 15px; }
 .leave-status-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .leave-action-log { color: #64748b; font-size: 10px; line-height: 1.35; }
+.leave-print-button { border: 0; border-radius: 8px; padding: 7px 12px; color: #fff; background: #35a872; box-shadow: 0 3px 7px rgba(53, 168, 114, .22); font-size: 12px; font-weight: 800; white-space: nowrap; }
+.leave-print-button:hover { background: #278b5b; }
 @media (max-width: 900px) { .my-leave-quota-grid { grid-template-columns: 1fr; } }
