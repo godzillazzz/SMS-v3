@@ -87,7 +87,22 @@ test('leave quota management exposes entitlement, approved usage, and remaining 
   assert.match(routes, /router\.get\('\/leave-quotas', authorize\('ADMIN', 'MANAGER'\)/);
   assert.match(routes, /where: \{ employeeId: \{ in: employeeIds \}, status: 'APPROVED' \}/);
   assert.match(routes, /personalLeaveRemaining: Math\.max\(0, entitlement\.personalLeave - used\.personalLeave\)/);
-  assert.match(frontend, /คงเหลือ \/ \$\{text\(row\.personalLeaveUsed\)\} ใช้แล้ว/);
+  assert.match(frontend, /quotaBalanceText\(row\.personalLeave, row\.personalLeaveUsed\)/);
+  assert.match(frontend, /DUPLICATE_MATCHED/);
+});
+
+test('approved test leave can be cancelled to restore quota and remove leave-generated AL shifts', () => {
+  const routes = read('src/routes/operations.routes.js');
+  const frontend = read('frontend/src/main.tsx');
+  const api = read('frontend/src/api.ts');
+  assert.match(routes, /router\.post\('\/leave-requests\/:id\/cancel', authorize\('ADMIN'\)/);
+  assert.match(routes, /before\.status !== 'APPROVED'/);
+  assert.match(routes, /status: 'CANCELLED'/);
+  assert.match(routes, /source: 'LEAVE_APPROVAL'/);
+  assert.match(routes, /removedLeaveShifts/);
+  assert.match(api, /cancelLeaveRequest/);
+  assert.match(frontend, /ยกเลิกใบลาที่อนุมัติแล้ว/);
+  assert.match(frontend, /row\.status === 'APPROVED' \? <button className="small-action"/);
 });
 
 test('individual magic wand creates a schedule draft instead of saving immediately', () => {

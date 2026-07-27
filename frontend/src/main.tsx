@@ -252,6 +252,13 @@ const inputDate = (value: unknown) => value ? new Date(String(value)).toISOStrin
 const nested = (value: unknown): DataRow => value && typeof value === 'object' ? value as DataRow : {};
 const formPayload = (values: Record<string, string>, nullable: string[] = []) => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, nullable.includes(key) && value === '' ? null : value]));
 const csvValue = (value: unknown) => `"${(value && typeof value === 'object' ? JSON.stringify(value) : text(value)).replace(/"/g, '""')}"`;
+const quotaBalanceText = (entitlement: unknown, used: unknown) => `${text(entitlement)} สิทธิ์ / ${text(used)} ใช้แล้ว`;
+const quotaMatchStatusText = (value: unknown) => {
+  const status = String(value || '');
+  if (status === 'MATCHED' || status === 'DUPLICATE_MATCHED') return status === 'DUPLICATE_MATCHED' ? 'จับคู่แล้ว (พบชื่อซ้ำ)' : 'จับคู่แล้ว';
+  if (status === 'UNMATCHED' || status === 'DUPLICATE_UNMATCHED') return status === 'DUPLICATE_UNMATCHED' ? 'ยังไม่จับคู่ (พบชื่อซ้ำ)' : 'ยังไม่จับคู่';
+  return text(value);
+};
 function downloadCsv(rows: DataRow[], filename: string) {
   if (!rows.length) return;
   const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
@@ -476,10 +483,10 @@ const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports' | '
   ] },
   quota: { title: 'โควตาวันลา', eyebrow: 'การลา', description: 'แสดงสิทธิ์ทั้งหมด ใช้แล้ว และคงเหลือจากใบลาที่อนุมัติ', columns: [
     { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) },
-    { label: 'ลาป่วย', value: (row) => `${text(row.sickLeaveRemaining)} คงเหลือ / ${text(row.sickLeaveUsed)} ใช้แล้ว / ${text(row.sickLeave)} สิทธิ์` },
-    { label: 'ลากิจ', value: (row) => `${text(row.personalLeaveRemaining)} คงเหลือ / ${text(row.personalLeaveUsed)} ใช้แล้ว / ${text(row.personalLeave)} สิทธิ์` },
-    { label: 'ลาพักร้อน', value: (row) => `${text(row.vacationLeaveRemaining)} คงเหลือ / ${text(row.vacationLeaveUsed)} ใช้แล้ว / ${text(row.vacationLeave)} สิทธิ์` },
-    { label: 'การจับคู่ข้อมูล', value: (row) => text(row.matchStatus) }
+    { label: 'ลาป่วย', value: (row) => quotaBalanceText(row.sickLeave, row.sickLeaveUsed) },
+    { label: 'ลากิจ', value: (row) => quotaBalanceText(row.personalLeave, row.personalLeaveUsed) },
+    { label: 'ลาพักร้อน', value: (row) => quotaBalanceText(row.vacationLeave, row.vacationLeaveUsed) },
+    { label: 'การจับคู่ข้อมูล', value: (row) => quotaMatchStatusText(row.matchStatus) }
   ] },
   users: { title: 'ผู้ใช้และสิทธิ์', eyebrow: 'ผู้ดูแลระบบ', description: 'บัญชี บทบาท สถานะ และข้อกำหนดเปลี่ยนรหัสผ่าน', columns: [
     { label: 'ชื่อผู้ใช้', value: (row) => text(row.displayName) }, { label: 'อีเมล', value: (row) => text(row.email) },
@@ -846,7 +853,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   );
 }
 
-function LeaveManagementPage({ rows, loading, error, linked, remaining, canManage, canSubmit, employeeOptions, onSubmit, onApprove, onReject, onRefresh, onAttachment }: { rows: DataRow[]; loading: boolean; error?: string; linked: boolean; remaining: DataRow; canManage: boolean; canSubmit: boolean; employeeOptions: Array<{ value: string; label: string }>; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onRefresh(): void; onAttachment(row: DataRow): void }) {
+function LeaveManagementPage({ rows, loading, error, linked, remaining, canManage, canSubmit, canCancelApprovedLeave, employeeOptions, onSubmit, onApprove, onReject, onCancel, onRefresh, onAttachment }: { rows: DataRow[]; loading: boolean; error?: string; linked: boolean; remaining: DataRow; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; employeeOptions: Array<{ value: string; label: string }>; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onAttachment(row: DataRow): void }) {
   const [form, setForm] = useState({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' });
   const [file, setFile] = useState<File>();
   const [submitting, setSubmitting] = useState(false);
@@ -865,7 +872,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, canManag
     finally { setSubmitting(false); }
   };
   const status = (value: unknown) => <span className={`status-badge ${value === 'APPROVED' ? 'active' : value === 'REJECTED' ? 'inactive' : 'pending'}`}>{text(value)}</span>;
-  const leaveTable = (items: DataRow[], actions = false) => <div className="table-scroll"><table className="data-table leave-data-table"><thead><tr><th>พนักงาน</th><th>ประเภท</th><th>วันที่ลา</th><th>วัน</th><th>แทน / เหตุผล</th><th>เอกสาร</th>{!actions && <th>สถานะ</th>}<th>พิมพ์</th>{actions && <th>จัดการ</th>}</tr></thead><tbody>{items.length ? items.map((row) => <tr key={text(row.id)}><td className="employee-name">{text(row.employeeNameSnapshot)}<small className="cell-note">{text(row.departmentSnapshot)}</small></td><td>{text(row.leaveType)}</td><td>{date(row.startDate)} – {date(row.endDate)}</td><td>{text(row.dayCount)}</td><td>{text(row.reason)}</td><td>{row.attachmentUrl ? <button className="attachment-link" onClick={() => onAttachment(row)}>📎 เอกสาร</button> : <span className="muted-text">–</span>}</td>{!actions && <td>{status(row.status)}</td>}<td><button className="small-action" onClick={() => window.print()}>🖨 A4</button></td>{actions && <td className="row-actions"><button className="btn-primary compact" onClick={() => onApprove(row)}>อนุมัติ</button><button className="danger-action" onClick={() => onReject(row)}>ไม่อนุมัติ</button></td>}</tr>) : <tr><td colSpan={actions ? 8 : 8} className="no-rows">ไม่มีรายการ</td></tr>}</tbody></table></div>;
+  const leaveTable = (items: DataRow[], actions = false) => <div className="table-scroll"><table className="data-table leave-data-table"><thead><tr><th>พนักงาน</th><th>ประเภท</th><th>วันที่ลา</th><th>วัน</th><th>แทน / เหตุผล</th><th>เอกสาร</th>{!actions && <th>สถานะ</th>}<th>พิมพ์</th>{(actions || canCancelApprovedLeave) && <th>จัดการ</th>}</tr></thead><tbody>{items.length ? items.map((row) => <tr key={text(row.id)}><td className="employee-name">{text(row.employeeNameSnapshot)}<small className="cell-note">{text(row.departmentSnapshot)}</small></td><td>{text(row.leaveType)}</td><td>{date(row.startDate)} – {date(row.endDate)}</td><td>{text(row.dayCount)}</td><td>{text(row.reason)}</td><td>{row.attachmentUrl ? <button className="attachment-link" onClick={() => onAttachment(row)}>📎 เอกสาร</button> : <span className="muted-text">–</span>}</td>{!actions && <td>{status(row.status)}</td>}<td>{row.status === 'APPROVED' ? <button className="small-action" onClick={() => window.print()}>🖨 A4</button> : <span className="muted-text">–</span>}</td>{actions && <td className="row-actions"><button className="btn-primary compact" onClick={() => onApprove(row)}>อนุมัติ</button><button className="danger-action" onClick={() => onReject(row)}>ไม่อนุมัติ</button></td>}{!actions && canCancelApprovedLeave && <td className="row-actions">{row.status === 'APPROVED' ? <button className="danger-action" onClick={() => onCancel(row)}>ยกเลิกใบลาที่อนุมัติแล้ว</button> : <span className="muted-text">–</span>}</td>}</tr>) : <tr><td colSpan={(actions || canCancelApprovedLeave) ? 9 : 8} className="no-rows">ไม่มีรายการ</td></tr>}</tbody></table></div>;
   const quotaCards: Array<[string, string, unknown, string]> = [['🩺', 'ลาป่วยคงเหลือ', remaining.sickLeave, 'green'], ['🏢', 'ลากิจคงเหลือ', remaining.personalLeave, 'blue'], ['🌴', 'ลาพักร้อนคงเหลือ', remaining.vacationLeave, 'amber']];
   return <section className="view-pane leave-page">
     <div className="leave-hero"><div><span>🗓️</span><div><h1>ระบบจัดการการลา (Leave Management)</h1><p>ยื่นคำขอลา ตรวจสอบโควตา และอนุมัติรายการเข้าสู่ตารางกะ</p></div></div><button onClick={onRefresh}>↻ รีเฟรชข้อมูล</button></div>
@@ -1223,6 +1230,7 @@ function Dashboard() {
       if (action === 'delete' && activePage === 'licenses') await api.deleteLicense(auth.token, id);
       else if (action === 'delete' && activePage === 'schedule') await api.deleteShift(auth.token, id);
       else if (activePage === 'approvals') await api.updateScheduleApproval(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED' });
+      else if (activePage === 'leave' && action === 'cancel') await api.cancelLeaveRequest(auth.token, id, 'restore quota from test leave');
       else if (activePage === 'leave') await api.updateLeaveRequest(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED' });
       else if (activePage === 'rules') await api.updateSchedulingRule(auth.token, id, { enabled: !row.enabled });
       else if (activePage === 'schedule') await api.updateShift(auth.token, id, { locked: !row.locked });
@@ -1547,7 +1555,8 @@ function Dashboard() {
     if (activePage === 'leave') {
       const rows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       const remaining = nested(leaveSummary.remaining);
-        return <LeaveManagementPage rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} canManage={canManage} canSubmit={auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked)} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onAttachment={async (row) => { if (!auth.token) return; try { const result = await api.downloadLeaveAttachment(auth.token, String(row.id)); const url = URL.createObjectURL(result.blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'เปิดไฟล์แนบไม่สำเร็จ'); } }} onSubmit={async (form, file) => { if (!auth.token) return; if (file) await api.createLeaveRequestWithAttachment(auth.token, form, file); else await api.createLeaveRequest(auth.token, form); setOperationRefresh((value) => value + 1); }} />;
+        const canCancelApprovedLeave = auth.user?.role === 'ADMIN';
+        return <LeaveManagementPage rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} canManage={canManage} canSubmit={auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked)} canCancelApprovedLeave={canCancelApprovedLeave} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onCancel={(row) => handleOperationAction(row, 'cancel')} onAttachment={async (row) => { if (!auth.token) return; try { const result = await api.downloadLeaveAttachment(auth.token, String(row.id)); const url = URL.createObjectURL(result.blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'เปิดไฟล์แนบไม่สำเร็จ'); } }} onSubmit={async (form, file) => { if (!auth.token) return; if (file) await api.createLeaveRequestWithAttachment(auth.token, form, file); else await api.createLeaveRequest(auth.token, form); setOperationRefresh((value) => value + 1); }} />;
     }
     if (activePage === 'rules') {
       const rules = Array.isArray(operationResponse.data) ? operationResponse.data : [];

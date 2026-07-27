@@ -590,7 +590,7 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
           const workDate = new Date(date);
           await tx.shiftAssignment.upsert({
             where: { workDate_employeeId: { workDate, employeeId: before.employeeId } },
-            update: { shiftTypeId: leaveShift.id, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, licenseStatus: 'NOT_REQUIRED', licenseOverride: false },
+            update: { shiftTypeId: leaveShift.id, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, source: 'LEAVE_APPROVAL', licenseStatus: 'NOT_REQUIRED', licenseOverride: false },
             create: { employeeId: before.employeeId, shiftTypeId: leaveShift.id, workDate, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, source: 'LEAVE_APPROVAL', licenseStatus: 'NOT_REQUIRED' }
           });
         }
@@ -598,6 +598,46 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
       const after = await tx.leaveRequest.update({ where: { id }, data: { status: input.status, approvedAt: new Date(), approvedByLegacyRef: req.user.sub } });
       await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx);
       return after;
+    });
+    res.json({ data: result });
+  } catch (error) { next(error); }
+});
+
+router.post('/leave-requests/:id/cancel', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const input = z.object({ reason: nullableText(2000) }).parse(req.body || {});
+    const result = await prisma.$transaction(async (tx) => {
+      const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
+      if (before.status !== 'APPROVED') throw new HttpError(409, 'Only approved leave requests can be cancelled for quota restoration.');
+      await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user);
+      const alShift = await tx.shiftType.findUnique({ where: { code: 'AL' }, select: { id: true } });
+      const removedLeaveShifts = alShift ? await tx.shiftAssignment.deleteMany({
+        where: {
+          employeeId: before.employeeId,
+          shiftTypeId: alShift.id,
+          workDate: { gte: before.startDate, lte: before.endDate },
+          OR: [{ source: 'LEAVE_APPROVAL' }, { remark: `Leave: ${before.leaveType}` }]
+        }
+      }) : { count: 0 };
+      const after = await tx.leaveRequest.update({
+        where: { id },
+        data: { status: 'CANCELLED', approvedAt: null, approvedByLegacyRef: null }
+      });
+      await audit.log({
+        actorUserId: req.user.sub,
+        action: 'UPDATE',
+        entityType: 'LeaveRequest',
+        entityId: id,
+        metadata: {
+          before: safeRecord(before, ['status', 'leaveType', 'startDate', 'endDate', 'dayCount']),
+          after: safeRecord(after, ['status']),
+          quotaRestored: true,
+          removedLeaveShifts: removedLeaveShifts.count,
+          reason: input.reason ? 'provided' : 'not_provided'
+        }
+      }, tx);
+      return { ...after, removedLeaveShifts: removedLeaveShifts.count };
     });
     res.json({ data: result });
   } catch (error) { next(error); }

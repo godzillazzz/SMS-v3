@@ -159,6 +159,7 @@ export const api = {
   createLeaveRequestWithAttachment: (token: string, data: Record<string, string>, attachment: File) => { const body = new FormData(); Object.entries(data).forEach(([key, value]) => { if (value) body.append(key, value); }); body.append('attachment', attachment); return callMultipart('/leave-requests/with-attachment', token, body); },
   downloadLeaveAttachment: (token: string, id: string) => binaryCall(`/leave-requests/${id}/attachment`, { headers: { Authorization: `Bearer ${token}` } }),
   updateLeaveRequest: (token: string, id: string, data: unknown) => call(`/leave-requests/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
+  cancelLeaveRequest: (token: string, id: string, reason?: string) => call(`/leave-requests/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }), headers: { Authorization: `Bearer ${token}` } }),
   updateLeaveQuota: (token: string, id: string, data: unknown) => call(`/leave-quotas/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateUser: (token: string, id: string, data: unknown) => call(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   resetUserPassword: (token: string, id: string, newPassword: string) => call(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }), headers: { Authorization: `Bearer ${token}` } }),
