@@ -125,6 +125,11 @@ const paged = async (model, query, options = {}) => {
   ]);
   return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
 };
+const sortByEmployeeCode = (left, right) => {
+  const codeCompare = String(left.employee?.employeeCode || '').localeCompare(String(right.employee?.employeeCode || ''), undefined, { numeric: true, sensitivity: 'base' });
+  if (codeCompare !== 0) return codeCompare;
+  return new Date(left.expiryDate).getTime() - new Date(right.expiryDate).getTime();
+};
 
 router.use(authenticate);
 
@@ -157,14 +162,19 @@ router.post('/internal/license-reconciliation', async (req, res, next) => {
 
 router.get('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    res.json(await paged(prisma.employeeLicense, req.query, {
-      select: {
-        id: true, employeeId: true, licenseType: true, licenseNumber: true, issueDate: true, expiryDate: true,
-        status: true, documentMigrationStatus: true, remark: true,
-        employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true, department: true } }
-      },
-      orderBy: [{ employee: { employeeCode: 'asc' } }, { expiryDate: 'asc' }]
-    }));
+    const { page, pageSize } = paging.parse(req.query);
+    const [total, licenses] = await prisma.$transaction([
+      prisma.employeeLicense.count(),
+      prisma.employeeLicense.findMany({
+        select: {
+          id: true, employeeId: true, licenseType: true, licenseNumber: true, issueDate: true, expiryDate: true,
+          status: true, documentMigrationStatus: true, remark: true,
+          employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true, department: true } }
+        }
+      })
+    ]);
+    const data = licenses.sort(sortByEmployeeCode).slice((page - 1) * pageSize, page * pageSize);
+    res.json({ data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
   } catch (error) { next(error); }
 });
 router.post('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
