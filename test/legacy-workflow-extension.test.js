@@ -124,7 +124,7 @@ test('approved schedule PDF keeps the shift legend directly below the roster and
   const styles = read('frontend/src/styles.css');
   assert.match(styles, /\.print-footer-container\s*\{[\s\S]*?flex-direction: column/);
   assert.match(styles, /\.print-footer-container\s*\{[\s\S]*?margin-top: 4px/);
-  assert.match(styles, /\.print-signatures\s*\{[\s\S]*?gap: 55mm/);
+  assert.match(styles, /\.print-signatures\s*\{[\s\S]*?gap: 16mm/);
 });
 
 test('individual magic wand creates a schedule draft instead of saving immediately', () => {

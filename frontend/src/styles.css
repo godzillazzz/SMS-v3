@@ -727,7 +727,7 @@ body {
     width: 100% !important;
     display: flex !important;
     flex-direction: column !important;
-    gap: 55mm !important;
+    gap: 16mm !important;
     align-items: flex-end !important;
     justify-content: flex-end !important;
   }
