@@ -85,6 +85,19 @@ test('individual magic-wand replaces a prior locked License Block when a renewal
   assert.equal(day.licenseBlockedFromShiftTypeId, null);
 });
 
+test('individual magic-wand retains an existing Admin license override during an expired interval', async () => {
+  const current = [{
+    employeeId: 'worker', workDate: new Date('2026-07-01T00:00:00Z'), locked: true, source: 'MANUAL',
+    remark: 'Admin coverage', licenseStatus: 'OVERRIDDEN', licenseOverride: true, overrideReason: 'Approved coverage', shiftType: shiftTypes[1]
+  }];
+  const plan = await buildEmployeeAutoSchedulePlan(client({ current, licenseRows: licenses.filter((license) => license.employeeId !== 'worker') }), '2026-07', 'worker', 'D1', 'ROTATE');
+  const override = plan.rows.find((row) => row.date === '2026-07-01');
+  assert.equal(override.code, 'N');
+  assert.equal(override.locked, true);
+  assert.equal(override.licenseOverride, true);
+  assert.equal(override.licenseStatus, 'OVERRIDDEN');
+});
+
 test('auto schedule date and history helpers are deterministic', () => {
   assert.equal(monthBounds('2026-02').dates.length, 28);
   assert.equal(suggestedPhase([{ shiftType: { code: 'D' } }, { shiftType: { code: 'D' } }]), 'D3');
