@@ -523,12 +523,15 @@ router.get('/leave-requests', async (req, res, next) => {
       select: {
         id: true, employeeId: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true,
         leaveType: true, startDate: true, endDate: true, dayCount: true, reason: true,
-        attachmentUrl: true, attachmentMigrationStatus: true, status: true, approvedAt: true,
+        attachmentUrl: true, attachmentMigrationStatus: true, status: true, approvedAt: true, approvedByLegacyRef: true,
         attachment: { select: { fileName: true, mimeType: true, sizeBytes: true } }
       },
       orderBy: { requestedAt: 'desc' }
     });
-    res.json({ ...response, data: response.data.map((row) => ({ ...row, attachmentUrl: row.attachment ? `/api/v1/leave-requests/${row.id}/attachment` : null })) });
+    const approverIds = [...new Set(response.data.map((row) => row.approvedByLegacyRef).filter((value) => uuid.safeParse(value).success))];
+    const approvers = approverIds.length ? await prisma.user.findMany({ where: { id: { in: approverIds } }, select: { id: true, displayName: true, role: true } }) : [];
+    const approverById = new Map(approvers.map((user) => [user.id, user]));
+    res.json({ ...response, data: response.data.map((row) => { const approver = approverById.get(row.approvedByLegacyRef); return { ...row, attachmentUrl: row.attachment ? `/api/v1/leave-requests/${row.id}/attachment` : null, approvedByDisplayName: approver?.displayName || null, approvedByRole: approver?.role || null }; }) });
   } catch (error) { next(error); }
 });
 router.get('/leave-summary', async (req, res, next) => {

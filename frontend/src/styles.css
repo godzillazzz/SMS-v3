@@ -1454,7 +1454,6 @@ button, select, input, textarea {
 .leave-mode-pending .leave-history-card { display: none; }
 .leave-mode-history .leave-submit-card,
 .leave-mode-history .leave-pending-card { display: none; }
-.leave-mode-history .leave-quota-grid { display: none; }
 .leave-mode-history .leave-main-grid { display: block; }
 .leave-mode-history .leave-data-table th:nth-child(6),
 .leave-mode-history .leave-data-table td:nth-child(6) { display: none; }
@@ -1473,4 +1472,6 @@ button, select, input, textarea {
 .my-leave-quota-grid .leave-quota-card strong { font-size: 22px; }
 .my-leave-quota-grid .leave-quota-card small { font-size: 9px; }
 .my-leave-quota-grid .leave-quota-card > span { width: 30px; height: 30px; font-size: 15px; }
+.leave-status-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.leave-action-log { color: #64748b; font-size: 10px; line-height: 1.35; }
 @media (max-width: 900px) { .my-leave-quota-grid { grid-template-columns: 1fr; } }
