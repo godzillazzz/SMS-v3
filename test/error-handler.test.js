@@ -22,3 +22,14 @@ for (const code of ['P1002', 'P1008', 'P1011', 'P2024']) {
     assert.deepEqual(body, { error: 'Database unavailable.', requestId: 'request-503' });
   });
 }
+
+test('Prisma client initialization failure returns a retryable 503', () => {
+  let statusCode; let body;
+  const response = {
+    status: (value) => { statusCode = value; return response; },
+    json: (value) => { body = value; return response; }
+  };
+  errorHandler({ name: 'PrismaClientInitializationError' }, { requestId: 'request-init' }, response, () => {});
+  assert.equal(statusCode, 503);
+  assert.deepEqual(body, { error: 'Database unavailable.', requestId: 'request-init' });
+});

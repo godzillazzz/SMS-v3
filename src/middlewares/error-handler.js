@@ -27,7 +27,8 @@ function errorHandler(error, _req, res, _next) {
   }
   // These are transient database availability conditions. Returning 503 lets
   // browsers and monitoring distinguish them from an application defect.
-  const isDatabaseConnectionError = ['P1000', 'P1001', 'P1002', 'P1008', 'P1011', 'P1017', 'P2024'].includes(error.code);
+  const isDatabaseConnectionError = ['P1000', 'P1001', 'P1002', 'P1008', 'P1011', 'P1017', 'P2024'].includes(error.code)
+    || error.name === 'PrismaClientInitializationError';
   const status = isDatabaseConnectionError ? 503 : (error.statusCode || 500);
   if (isDatabaseConnectionError) {
     logger.error('database_operation_failure', { requestId, status, errorCategory: errorCategory(error) });

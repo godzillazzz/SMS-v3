@@ -17,6 +17,7 @@ function isSensitiveKey(key) { const normalized = normalizedKey(key); return SEN
 function errorCategory(error) {
   if (!error) return 'unknown_error';
   if (SAFE_ERROR_CODES[error.code]) return SAFE_ERROR_CODES[error.code];
+  if (error.name === 'PrismaClientInitializationError') return 'database_client_initialization';
   if (Number(error.statusCode) === 429) return 'rate_limited';
   if (Number(error.statusCode) === 401) return 'authentication_rejected';
   if (Number(error.statusCode) === 403) return 'authorization_rejected';
