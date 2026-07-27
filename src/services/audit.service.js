@@ -5,7 +5,7 @@ const sensitiveFragments = ['password', 'token', 'secret', 'cookie', 'authorizat
 const isSensitiveKey = (key) => sensitiveFragments.some((fragment) => key.toLowerCase().replace(/[_-]/g, '').includes(fragment));
 function safeMetadata(value) {
   if (!value || typeof value !== 'object') return value;
-  if (value instanceof Date) return value;
+  if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map(safeMetadata);
   return Object.fromEntries(Object.entries(value).filter(([key]) => !isSensitiveKey(key)).map(([key, nested]) => [key, safeMetadata(nested)]));
 }

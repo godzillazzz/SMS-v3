@@ -53,8 +53,8 @@ test('refresh, logout, and logout-all create sanitized audit records', async () 
   await auth.logoutAll(users[0].id, 'req-session-5');
   assert.ok(second.refreshToken);
   assert.deepEqual(audits.slice(-5).map((entry) => entry.action), ['LOGIN', 'REFRESH', 'LOGOUT', 'LOGIN', 'LOGOUT_ALL']);
-  const sanitized = audit.safeMetadata({ requestId: 'safe-request', nested: { password: 'fixture', refreshToken: 'fixture', cookie: 'fixture', allowed: true } });
-  assert.deepEqual(sanitized, { requestId: 'safe-request', nested: { allowed: true } });
+  const sanitized = audit.safeMetadata({ requestId: 'safe-request', happenedAt: new Date('2026-07-27T00:00:00.000Z'), nested: { password: 'fixture', refreshToken: 'fixture', cookie: 'fixture', allowed: true, date: new Date('2026-07-28T00:00:00.000Z') } });
+  assert.deepEqual(sanitized, { requestId: 'safe-request', happenedAt: '2026-07-27T00:00:00.000Z', nested: { allowed: true, date: '2026-07-28T00:00:00.000Z' } });
 });
 test('middleware rejects expired, tampered, and token-version-mismatched JWTs', async () => {
   const run = (token) => new Promise((resolve) => authenticate({ headers: { authorization: `Bearer ${token}` } }, {}, (error) => resolve(error)));
