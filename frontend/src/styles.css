@@ -1478,4 +1478,36 @@ button, select, input, textarea {
 .leave-action-log { color: #64748b; font-size: 10px; line-height: 1.35; }
 .leave-print-button { border: 0; border-radius: 8px; padding: 7px 12px; color: #fff; background: #35a872; box-shadow: 0 3px 7px rgba(53, 168, 114, .22); font-size: 12px; font-weight: 800; white-space: nowrap; }
 .leave-print-button:hover { background: #278b5b; }
+.leave-print-document { display: none; }
+@media print {
+  body.printing-leave .print-only { display: none !important; }
+  body.printing-leave .leave-print-document {
+    display: block !important;
+    box-sizing: border-box;
+    min-height: 273mm;
+    color: #000 !important;
+    background: #fff !important;
+    font-family: "TH Sarabun New", "Sarabun", sans-serif !important;
+    font-size: 16pt;
+    line-height: 1.18;
+  }
+  .leave-print-topline { display: flex; justify-content: space-between; gap: 12px; font-family: Arial, sans-serif; font-size: 8pt; font-weight: 700; }
+  .leave-print-heading { margin-top: 29mm; text-align: center; }
+  .leave-print-heading h1 { margin: 0; font-size: 25pt; line-height: 1.15; }
+  .leave-print-heading p { margin: 2mm 0 0; font-size: 17pt; font-weight: 700; }
+  .leave-print-person { display: flex; justify-content: space-between; gap: 15mm; margin-top: 9mm; padding-bottom: 2mm; border-bottom: 1px solid #000; font-size: 15pt; }
+  .leave-print-table { width: 100%; margin-top: 7mm; border-collapse: collapse; font-size: 15pt; }
+  .leave-print-table th, .leave-print-table td { border: 1px solid #000 !important; padding: 4mm 3mm; vertical-align: top; }
+  .leave-print-table th { text-align: center; background: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; }
+  .leave-print-table th:nth-child(1) { width: 27%; }
+  .leave-print-table th:nth-child(2) { width: 19%; }
+  .leave-print-table th:nth-child(3) { width: 16%; }
+  .leave-print-table td:nth-child(-n+3) { text-align: center; }
+  .leave-print-table td:last-child { min-height: 38mm; white-space: pre-wrap; }
+  .leave-print-signatures { width: 54%; margin: 35mm 0 0 auto; text-align: center; font-size: 15pt; }
+  .leave-print-signatures > div + div { margin-top: 16mm; }
+  .leave-print-signatures p { margin: 0 0 3mm; }
+  .leave-print-signatures strong { display: block; margin-top: 4mm; }
+  .leave-print-footer { position: fixed; right: 0; bottom: 0; left: 0; display: flex; justify-content: space-between; font-family: Arial, sans-serif; font-size: 8pt; }
+}
 @media (max-width: 900px) { .my-leave-quota-grid { grid-template-columns: 1fr; } }

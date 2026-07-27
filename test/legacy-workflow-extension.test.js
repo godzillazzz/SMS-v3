@@ -102,7 +102,20 @@ test('approved test leave can be cancelled to restore quota and remove leave-gen
   assert.match(routes, /removedLeaveShifts/);
   assert.match(api, /cancelLeaveRequest/);
   assert.match(frontend, /ยกเลิกใบลาที่อนุมัติแล้ว/);
-  assert.match(frontend, /row\.status === 'APPROVED' \? <button className="small-action"/);
+  assert.match(frontend, /row\.status === 'APPROVED' \? <button className="leave-print-button"/);
+});
+
+test('approved leave prints a dedicated A4 leave form rather than the application screen', () => {
+  const frontend = read('frontend/src/main.tsx');
+  const styles = read('frontend/src/styles.css');
+
+  assert.match(frontend, /function LeavePrintDocument/);
+  assert.match(frontend, /ใบขออนุมัติลางาน/);
+  assert.match(frontend, /ผู้ปฏิบัติงานแทน \/ รายละเอียด/);
+  assert.match(frontend, /onPrint=\{setLeavePrintTarget\}/);
+  assert.match(frontend, /window\.setTimeout\(\(\) => window\.print\(\), 80\)/);
+  assert.match(frontend, /size: A4 portrait/);
+  assert.match(styles, /body\.printing-leave \.leave-print-document/);
 });
 
 test('individual magic wand creates a schedule draft instead of saving immediately', () => {
