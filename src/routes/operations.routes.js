@@ -534,7 +534,7 @@ router.get('/leave-requests', async (req, res, next) => {
 router.get('/leave-summary', async (req, res, next) => {
   try {
     const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
-    if (!currentUser.employeeId) return res.json({ data: { linked: false } });
+    if (!currentUser.employeeId) return res.json({ data: { linked: false, employeeId: null } });
     const [quota, approved] = await Promise.all([
       prisma.leaveQuota.findFirst({ where: { employeeId: currentUser.employeeId }, select: { sickLeave: true, personalLeave: true, vacationLeave: true } }),
       prisma.leaveRequest.groupBy({ by: ['leaveType'], where: { employeeId: currentUser.employeeId, status: 'APPROVED' }, _sum: { dayCount: true } })
@@ -542,7 +542,7 @@ router.get('/leave-summary', async (req, res, next) => {
     const entitlement = { sickLeave: Number(quota?.sickLeave ?? 30), personalLeave: Number(quota?.personalLeave ?? 6), vacationLeave: Number(quota?.vacationLeave ?? 10) };
     const used = { sickLeave: 0, personalLeave: 0, vacationLeave: 0 };
     approved.forEach((item) => { used[leaveQuotaField(item.leaveType)] += Number(item._sum.dayCount || 0); });
-    res.json({ data: { linked: true, entitlement, used, remaining: { sickLeave: Math.max(0, entitlement.sickLeave - used.sickLeave), personalLeave: Math.max(0, entitlement.personalLeave - used.personalLeave), vacationLeave: Math.max(0, entitlement.vacationLeave - used.vacationLeave) } } });
+    res.json({ data: { linked: true, employeeId: currentUser.employeeId, entitlement, used, remaining: { sickLeave: Math.max(0, entitlement.sickLeave - used.sickLeave), personalLeave: Math.max(0, entitlement.personalLeave - used.personalLeave), vacationLeave: Math.max(0, entitlement.vacationLeave - used.vacationLeave) } } });
   } catch (error) { next(error); }
 });
 router.post('/leave-requests', async (req, res, next) => {
