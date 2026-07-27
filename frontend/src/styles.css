@@ -1120,6 +1120,117 @@ button, select, input, textarea {
   font-weight: 700;
 }
 
+.month-grid-picker {
+  position: relative;
+  display: inline-block;
+  min-width: 236px;
+}
+
+.month-grid-trigger {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1.5px solid #cfe0f5;
+  border-radius: 10px;
+  padding: 0 14px;
+  color: #10233f;
+  background: #ffffff;
+  font-size: 18px;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, .06);
+}
+
+.month-grid-trigger b {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 7px;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 16px;
+}
+
+.month-grid-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 250;
+  width: 324px;
+  border: 1px solid #d9e6f4;
+  border-radius: 16px;
+  padding: 18px 18px 20px;
+  background: #ffffff;
+  box-shadow: 0 22px 42px rgba(15, 35, 65, .18);
+}
+
+.month-grid-year {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  color: #26354c;
+}
+
+.month-grid-year strong {
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.month-grid-year span {
+  display: inline-flex;
+  gap: 10px;
+}
+
+.month-grid-year button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: #8a939f;
+  background: transparent;
+  font-size: 14px;
+}
+
+.month-grid-year button:hover {
+  color: #1d6fd8;
+  background: #edf6ff;
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px 16px;
+}
+
+.month-grid button {
+  display: grid;
+  min-height: 48px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: #3c4654;
+  background: transparent;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.month-grid button:hover {
+  color: #0b75d1;
+  background: #eef7ff;
+}
+
+.month-grid button.selected {
+  color: #ffffff;
+  background: #0b75d1;
+  box-shadow: 0 10px 22px rgba(11, 117, 209, .32);
+}
+
 .schedule-grid th,
 .schedule-grid td {
   min-width: 108px;
@@ -1299,6 +1410,7 @@ button, select, input, textarea {
   .calendar-shift { width: 72px; min-height: 50px; }
   .calendar-shift b { font-size: 16px; }
   .calendar-shift small { font-size: 11px; }
+  .month-grid-panel { width: min(324px, calc(100vw - 32px)); }
 }
 
 @media (max-width: 760px) {
@@ -1322,6 +1434,8 @@ button, select, input, textarea {
   .calendar-shift b { font-size: 14px; }
   .calendar-shift small,
   .calendar-shift .shift-note { font-size: 9px; }
+  .month-grid-picker { width: 100%; min-width: 0; }
+  .month-grid-panel { position: fixed; top: 92px; left: 12px; right: 12px; width: auto; }
   .leave-hero h1,
   .leave-submit-card h2,
   .leave-history-card h2,

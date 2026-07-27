@@ -47,3 +47,10 @@ test('legacy navigation and three-role model are represented in the frontend', (
   assert.match(frontend, /\['ADMIN', 'MANAGER', 'VIEWER'\]/);
   assert.doesNotMatch(frontend, /\['ADMIN', 'HR', 'USER'\]/);
 });
+
+test('schedule month picker and license search match legacy usability expectations', () => {
+  assert.match(frontend, /function MonthGridPicker/);
+  assert.match(frontend, /<MonthGridPicker value=\{scheduleMonth\} onChange=\{setScheduleMonth\} \/>/);
+  assert.match(frontend, /page === 'licenses' && <div className="toolbar">/);
+  assert.match(frontend, /ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ/);
+});

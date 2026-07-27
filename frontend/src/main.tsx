@@ -104,6 +104,43 @@ function Logo() {
   return <span className="brand-mark" aria-label="SMS">SMS</span>;
 }
 
+function MonthGridPicker({ value, onChange }: { value: string; onChange(value: string): void }) {
+  const [open, setOpen] = useState(false);
+  const [year, setYear] = useState(Number(value.split('-')[0]) || new Date().getFullYear());
+  const selectedYear = Number(value.split('-')[0]) || year;
+  const selectedMonth = Number(value.split('-')[1]) || 1;
+  const selectedDate = new Date(Date.UTC(selectedYear, selectedMonth - 1, 1));
+  const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(selectedDate);
+  const monthNames = Array.from({ length: 12 }, (_, index) => new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(year, index, 1))));
+  const choose = (monthIndex: number) => {
+    onChange(`${year}-${String(monthIndex + 1).padStart(2, '0')}`);
+    setOpen(false);
+  };
+
+  useEffect(() => {
+    const nextYear = Number(value.split('-')[0]);
+    if (nextYear && nextYear !== year) setYear(nextYear);
+  }, [value]);
+
+    return <div className="month-grid-picker">
+    <button type="button" className="month-grid-trigger" onClick={() => setOpen((visible) => !visible)} aria-expanded={open}>
+      <span>{monthLabel}, {selectedYear}</span><b>⌄</b>
+    </button>
+    {open && <div className="month-grid-panel">
+      <div className="month-grid-year">
+        <strong>{year}</strong>
+        <span><button type="button" onClick={() => setYear((current) => current - 1)}>▲</button><button type="button" onClick={() => setYear((current) => current + 1)}>▼</button></span>
+      </div>
+      <div className="month-grid">
+        {monthNames.map((name, index) => {
+          const selected = year === selectedYear && index + 1 === selectedMonth;
+          return <button type="button" key={name} className={selected ? 'selected' : ''} onClick={() => choose(index)}>{name}</button>;
+        })}
+      </div>
+    </div>}
+  </div>;
+}
+
 function Login() {
   const auth = useContext(AuthContext)!;
   const [mode, setMode] = useState<'login' | 'register' | 'registerVerify' | 'reset' | 'resetVerify'>('login');
@@ -456,6 +493,20 @@ const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports' | '
 function OperationalTable({ page, response, loading, error, onPageChange, onAction, onCreate, onNavigate, role }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'shiftSetup' | 'settings'>; response: DataResponse; loading: boolean; error?: string; onPageChange(page: number): void; onAction(row: DataRow, action: string): void; onCreate(): void; onNavigate(page: Page): void; role: string }) {
   const config = tablePages[page];
   const rows = Array.isArray(response.data) ? response.data : [];
+  const [tableSearch, setTableSearch] = useState('');
+  useEffect(() => { setTableSearch(''); }, [page]);
+  const visibleRows = useMemo(() => {
+    if (page !== 'licenses') return rows;
+    const term = tableSearch.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((row) => {
+      const employee = nested(row.employee);
+      return [
+        employee.employeeCode, employee.firstName, employee.lastName, employee.department,
+        row.licenseType, row.licenseNumber, row.status, row.remark
+      ].map(text).join(' ').toLowerCase().includes(term);
+    });
+  }, [page, rows, tableSearch]);
   const actionPages = ['licenses', 'schedule', 'approvals', 'rules', 'leave', 'quota', 'users'];
   const canManage = ['ADMIN', 'MANAGER'].includes(role);
   const canEditRows = canManage && !(['licenses', 'approvals'].includes(page) && role !== 'ADMIN');
@@ -478,7 +529,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   };
   const relatedPage = related[page];
   const showRelated = relatedPage && (relatedPage.page !== 'approvals' || role === 'ADMIN') && (relatedPage.page !== 'quota' || canManage);
-  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions">{showRelated && <button className="small-action" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</button>}{canCreate && <button className="btn-primary compact" onClick={onCreate}>{page === 'leave' ? '+ ส่งคำขอลา' : '+ เพิ่มรายการ'}</button>}<span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><button className="small-action" disabled={!rows.length} onClick={() => downloadCsv(rows, page)}>CSV</button><button className="small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div>{error && <div className="alert alert-error">{error}</div>}<div className="table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <th>ดำเนินการ</th>}</tr></thead><tbody>{rows.length ? rows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}{showActions && <td className="row-actions">{rowActions(row)}</td>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows">ไม่มีข้อมูลในหมวดนี้</td></tr>}</tbody></table></div>}</div>{response.meta?.totalPages && response.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(response.meta.page || 1) <= 1 || loading} onClick={() => onPageChange((response.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {response.meta.page} จาก {response.meta.totalPages}</span><button disabled={(response.meta.page || 1) >= response.meta.totalPages || loading} onClick={() => onPageChange((response.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}</section>;
+  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions">{showRelated && <button className="small-action" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</button>}{canCreate && <button className="btn-primary compact" onClick={onCreate}>{page === 'leave' ? '+ ส่งคำขอลา' : '+ เพิ่มรายการ'}</button>}<span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><button className="small-action" disabled={!visibleRows.length} onClick={() => downloadCsv(visibleRows, page)}>CSV</button><button className="small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div>{error && <div className="alert alert-error">{error}</div>}{page === 'licenses' && <div className="toolbar"><label className="search-box"><span>⌕</span><input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ" /></label><span className="toolbar-count">แสดง {visibleRows.length} จาก {rows.length} รายการ</span></div>}<div className="table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <th>ดำเนินการ</th>}</tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}{showActions && <td className="row-actions">{rowActions(row)}</td>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows">{page === 'licenses' && tableSearch ? 'ไม่พบใบอนุญาตที่ตรงกับคำค้นหา' : 'ไม่มีข้อมูลในหมวดนี้'}</td></tr>}</tbody></table></div>}</div>{response.meta?.totalPages && response.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(response.meta.page || 1) <= 1 || loading} onClick={() => onPageChange((response.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {response.meta.page} จาก {response.meta.totalPages}</span><button disabled={(response.meta.page || 1) >= response.meta.totalPages || loading} onClick={() => onPageChange((response.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}</section>;
 }
 
 const defaultNewLeaveTemplate = `🔔 [คำขอลางานใหม่] รอตรวจรับเอกสาร
@@ -1304,15 +1355,7 @@ function Dashboard() {
             เลือกเดือนที่จะจัดกะ: {monthLabel} (สูงสุด 1 เดือน)
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-            <select value={scheduleMonth} onChange={(event) => setScheduleMonth(event.target.value)} style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '14px', backgroundColor: '#ffffff', color: '#0f172a' }}>
-              {Array.from({ length: 24 }, (_, i) => {
-                const d = new Date(Date.UTC(2025, i, 1));
-                const val = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-                const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d);
-                const thaiYear = d.getUTCFullYear() + 543;
-                return <option key={val} value={val}>{name} พ.ศ. {thaiYear}</option>;
-              })}
-            </select>
+            <MonthGridPicker value={scheduleMonth} onChange={setScheduleMonth} />
             <button className="small-action" onClick={() => moveMonth(-1)}>‹ เดือนก่อน</button>
             <button className="small-action" onClick={() => moveMonth(1)}>เดือนถัดไป ›</button>
 
