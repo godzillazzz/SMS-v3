@@ -859,3 +859,480 @@ body {
   .calendar-shift, .empty-shift { width: 51px; min-height: 43px; }
   .settings-table-card { border-radius: 12px; }
 }
+
+/* SMS v3 visual polish layer: closer to the legacy portal, stronger Thai hierarchy. */
+:root {
+  --sms-font: 'TH Sarabun New', 'Sarabun', 'Noto Sans Thai', 'IBM Plex Sans Thai', Arial, sans-serif;
+  --sms-text: #10233f;
+  --sms-muted: #536985;
+  --sms-line: #d8e7f8;
+  --sms-soft: #f3f9ff;
+  --sms-card-shadow: 0 10px 26px rgba(35, 75, 125, .065);
+  font-family: var(--sms-font);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+body, button, input, select, textarea {
+  font-family: var(--sms-font);
+}
+
+body {
+  color: var(--sms-text);
+  background: linear-gradient(135deg, #f7fbff 0%, #edf7ff 48%, #f8fbff 100%);
+}
+
+button, select, input, textarea {
+  font-weight: 600;
+}
+
+.page-heading h1,
+.empty-pane h1,
+.settings-heading h1 {
+  color: var(--sms-text);
+  font-size: clamp(28px, 2.4vw, 36px);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -.15px;
+}
+
+.page-heading p,
+.settings-heading p,
+.dashboard-card p,
+.empty-pane p {
+  color: var(--sms-muted);
+  font-size: 18px;
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+.eyebrow,
+.record-chip,
+.environment-pill {
+  font-weight: 800;
+}
+
+.btn-primary,
+.btn-secondary,
+.small-action,
+.row-actions button,
+.excel-action,
+.signout-button {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: .01em;
+}
+
+.btn-primary {
+  border-radius: 11px;
+  background: linear-gradient(100deg, #347ef4 0%, #5968f1 55%, #7657f2 100%);
+  box-shadow: 0 11px 22px rgba(73, 99, 225, .22);
+}
+
+.small-action,
+.row-actions button {
+  border-color: #cfe0f5;
+  color: #254d81;
+  background: #ffffff;
+}
+
+.table-card,
+.dashboard-card,
+.metric-card,
+.line-settings-card,
+.leave-submit-card,
+.leave-history-card,
+.leave-pending-card,
+.leave-quota-card {
+  border-color: var(--sms-line);
+  border-radius: 16px;
+  box-shadow: var(--sms-card-shadow);
+}
+
+.data-table th {
+  padding: 15px 18px;
+  color: #506789;
+  background: var(--sms-soft);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: .045em;
+}
+
+.data-table td {
+  padding: 15px 18px;
+  color: #263f60;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.32;
+}
+
+.data-table code {
+  color: #0d355c;
+  font-family: var(--sms-font);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.employee-name,
+.cell-note + .employee-name {
+  color: #10233f !important;
+  font-weight: 800;
+}
+
+.cell-note,
+.muted-text,
+.user-id-note {
+  color: #607492;
+  font-weight: 600;
+}
+
+.status-badge {
+  padding: 5px 11px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.topbar-copy strong,
+.sidebar-brand strong {
+  font-weight: 800;
+}
+
+.nav-item {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.nav-section > p {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.mobile-nav-item {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* Login/Register: keep the legacy split-panel look, with readable Thai text. */
+.login-shell {
+  width: min(100%, 1030px);
+  min-height: 645px;
+}
+
+.intro-brand {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.intro-copy h1 {
+  font-size: clamp(36px, 4vw, 48px);
+  line-height: 1.22;
+  font-weight: 800;
+}
+
+.intro-copy p {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.intro-check {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.login-form {
+  width: min(100%, 380px);
+}
+
+.login-form h2 {
+  font-size: 36px;
+  line-height: 1.12;
+  font-weight: 800;
+}
+
+.form-lead {
+  color: #637894;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.login-form .field-group {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.field-group input,
+.field-group select,
+.field-group textarea {
+  min-height: 54px;
+  border: 1.5px solid #cfe0f5;
+  border-radius: 12px;
+  color: #10233f;
+  background: #f8fbff;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.field-group textarea {
+  line-height: 1.35;
+}
+
+.password-toggle {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.login-links button {
+  color: #71839b;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.login-links b {
+  color: #1f6fe5;
+  font-weight: 900;
+}
+
+.login-help,
+.login-help-action,
+.login-help-action button,
+.alert {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+/* Schedule calendar: primary operational screen, legible on desktop and touch screens. */
+.calendar-toolbar {
+  border-color: var(--sms-line);
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.calendar-toolbar label {
+  color: #365170;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.calendar-toolbar input,
+.calendar-toolbar select {
+  min-height: 42px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.schedule-grid th,
+.schedule-grid td {
+  min-width: 108px;
+  height: 70px;
+  border-color: #dceaf8;
+}
+
+.schedule-grid th {
+  height: 58px;
+  color: #48627f;
+  background: #f1f8ff;
+  font-weight: 800;
+}
+
+.schedule-grid th b {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.schedule-grid th small {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.schedule-grid .employee-sticky {
+  min-width: 230px;
+  max-width: 230px;
+  background: #ffffff;
+}
+
+.schedule-grid thead .employee-sticky {
+  background: #eaf4ff;
+}
+
+.schedule-grid .employee-sticky strong {
+  color: #10233f;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.schedule-grid .employee-sticky small {
+  color: #5b708d;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.employee-magic-button {
+  min-width: 28px;
+  min-height: 28px;
+  color: #7c3aed;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.calendar-shift {
+  width: 92px;
+  min-height: 52px;
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.calendar-shift b {
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.calendar-shift small {
+  font-size: 12px;
+  line-height: 1.12;
+  font-weight: 700;
+}
+
+.calendar-shift .shift-note {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .01em;
+}
+
+.calendar-shift.shift-d { color: #04775f; background: #dcfce7; border-color: #bbf7d0; }
+.calendar-shift.shift-n { color: #6732d8; background: #f3e8ff; border-color: #e9d5ff; }
+.calendar-shift.shift-off { color: #d82048; background: #ffe4e6; border-color: #fecdd3; }
+.calendar-shift.shift-al { color: #146bd8; background: #e0f2fe; border-color: #bae6fd; }
+
+.empty-shift {
+  width: 58px;
+  height: 46px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+/* Users & Roles: legacy-like admin table. */
+.users-roles-toolbar strong {
+  color: #10233f;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.users-roles-table th {
+  text-align: center;
+}
+
+.users-roles-table td {
+  vertical-align: middle;
+}
+
+.inline-select {
+  min-height: 34px;
+  border-color: #b9cbe2;
+  border-radius: 6px;
+  color: #10233f;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.view-as-action {
+  border-color: #f59e0b !important;
+  color: #b45309 !important;
+  background: #fff8eb !important;
+}
+
+/* Leave and Settings: clearer sections and stronger legacy form feel. */
+.leave-hero h1 {
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.leave-hero p,
+.leave-submit-card p,
+.leave-history-card p,
+.leave-pending-card p {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.leave-submit-card h2,
+.leave-history-card h2,
+.leave-pending-card h2,
+.line-settings-title h2 {
+  color: #10233f;
+  font-size: 25px;
+  font-weight: 900;
+}
+
+.line-settings-title p,
+.template-help,
+.line-settings-footnote {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.line-settings-card .field-group {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.line-settings-card .field-group textarea {
+  min-height: 190px;
+  color: #10233f;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.settings-table td,
+.settings-table th {
+  font-size: 17px;
+}
+
+@media (max-width: 1024px) {
+  .page-heading h1,
+  .empty-pane h1,
+  .settings-heading h1 { font-size: 30px; }
+  .schedule-grid .employee-sticky { min-width: 205px; max-width: 205px; }
+  .schedule-grid th, .schedule-grid td { min-width: 86px; }
+  .calendar-shift { width: 72px; min-height: 50px; }
+  .calendar-shift b { font-size: 16px; }
+  .calendar-shift small { font-size: 11px; }
+}
+
+@media (max-width: 760px) {
+  :root { font-size: 15px; }
+  .login-form h2 { font-size: 31px; }
+  .intro-copy h1 { font-size: 31px; }
+  .intro-copy p,
+  .intro-check { font-size: 16px; }
+  .page-heading h1,
+  .empty-pane h1,
+  .settings-heading h1 { font-size: 26px; }
+  .page-heading p,
+  .settings-heading p { font-size: 16px; }
+  .data-table th { font-size: 13px; }
+  .data-table td { font-size: 16px; }
+  .schedule-grid .employee-sticky { min-width: 166px; max-width: 166px; }
+  .schedule-grid .employee-sticky strong { font-size: 15px; }
+  .schedule-grid .employee-sticky small { font-size: 12px; }
+  .schedule-grid th, .schedule-grid td { min-width: 70px; height: 64px; }
+  .calendar-shift, .empty-shift { width: 58px; min-height: 48px; }
+  .calendar-shift b { font-size: 14px; }
+  .calendar-shift small,
+  .calendar-shift .shift-note { font-size: 9px; }
+  .leave-hero h1,
+  .leave-submit-card h2,
+  .leave-history-card h2,
+  .leave-pending-card h2,
+  .line-settings-title h2 { font-size: 23px; }
+}
+
+@media (max-width: 420px) {
+  .login-form h2 { font-size: 28px; }
+  .intro-copy h1 { font-size: 26px; }
+  .schedule-grid .employee-sticky { min-width: 150px; max-width: 150px; }
+  .schedule-grid th, .schedule-grid td { min-width: 64px; }
+  .calendar-shift, .empty-shift { width: 53px; min-height: 45px; }
+}
