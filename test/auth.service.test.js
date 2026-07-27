@@ -55,6 +55,8 @@ test('refresh, logout, and logout-all create sanitized audit records', async () 
   assert.deepEqual(audits.slice(-5).map((entry) => entry.action), ['LOGIN', 'REFRESH', 'LOGOUT', 'LOGIN', 'LOGOUT_ALL']);
   const sanitized = audit.safeMetadata({ requestId: 'safe-request', happenedAt: new Date('2026-07-27T00:00:00.000Z'), nested: { password: 'fixture', refreshToken: 'fixture', cookie: 'fixture', allowed: true, date: new Date('2026-07-28T00:00:00.000Z') } });
   assert.deepEqual(sanitized, { requestId: 'safe-request', happenedAt: '2026-07-27T00:00:00.000Z', nested: { allowed: true, date: '2026-07-28T00:00:00.000Z' } });
+  class Decimal { toString() { return '3.00'; } }
+  assert.equal(audit.safeMetadata({ dayCount: new Decimal() }).dayCount, '3.00');
 });
 test('middleware rejects expired, tampered, and token-version-mismatched JWTs', async () => {
   const run = (token) => new Promise((resolve) => authenticate({ headers: { authorization: `Bearer ${token}` } }, {}, (error) => resolve(error)));

@@ -6,6 +6,10 @@ const isSensitiveKey = (key) => sensitiveFragments.some((fragment) => key.toLowe
 function safeMetadata(value) {
   if (!value || typeof value !== 'object') return value;
   if (value instanceof Date) return value.toISOString();
+  // Prisma Decimal values are class instances. Convert them before placing
+  // metadata into a JSON column; serializing their internal fields produces
+  // a Prisma validation error at mutation time.
+  if (value.constructor?.name === 'Decimal' && typeof value.toString === 'function') return value.toString();
   if (Array.isArray(value)) return value.map(safeMetadata);
   return Object.fromEntries(Object.entries(value).filter(([key]) => !isSensitiveKey(key)).map(([key, nested]) => [key, safeMetadata(nested)]));
 }
