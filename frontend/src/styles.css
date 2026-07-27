@@ -1452,6 +1452,8 @@ button, select, input, textarea {
 }
 .leave-mode-pending .leave-submit-card,
 .leave-mode-pending .leave-history-card { display: none; }
+.leave-mode-pending .leave-quota-grid,
+.leave-mode-history .leave-quota-grid { display: none; }
 .leave-mode-history .leave-submit-card,
 .leave-mode-history .leave-pending-card { display: none; }
 .leave-mode-history .leave-main-grid { display: block; }
