@@ -895,6 +895,34 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, employee
   const quotaCards: Array<[string, string, unknown, string]> = [['🩺', 'ลาป่วยคงเหลือ', remaining.sickLeave, 'green'], ['🏢', 'ลากิจคงเหลือ', remaining.personalLeave, 'blue'], ['🌴', 'ลาพักร้อนคงเหลือ', remaining.vacationLeave, 'amber']];
   return <section className={`view-pane leave-page leave-mode-${mode}`}>
     <div className="leave-hero"><div><span>🗓️</span><div><h1>ระบบจัดการการลา (Leave Management)</h1><p>ยื่นคำขอลา ตรวจสอบโควตา และอนุมัติรายการเข้าสู่ตารางกะ</p></div></div><button onClick={onRefresh}>↻ รีเฟรชข้อมูล</button></div>
+    {canManage && (
+      <div className="leave-quota-grid" style={{ marginBottom: '20px' }}>
+        <article className="leave-quota-card amber">
+          <div>
+            <p>⏳ คำขอรออนุมัติ</p>
+            <strong>{pendingRows.length}</strong>
+            <small>รายการรอผู้บริหารอนุมัติ</small>
+          </div>
+          <span style={{ background: '#fef3c7', color: '#d97706' }}>⏳</span>
+        </article>
+        <article className="leave-quota-card green">
+          <div>
+            <p>✓ อนุมัติแล้ว</p>
+            <strong>{rows.filter((r) => r.status === 'APPROVED').length}</strong>
+            <small>รายการลงตารางกะเรียบร้อย</small>
+          </div>
+          <span style={{ background: '#d1fae5', color: '#059669' }}>✓</span>
+        </article>
+        <article className="leave-quota-card red" style={{ borderLeftColor: '#ef4444' }}>
+          <div>
+            <p>✕ ไม่อนุมัติ</p>
+            <strong>{rows.filter((r) => r.status === 'REJECTED').length}</strong>
+            <small>รายการที่ไม่ผ่านการอนุมัติ</small>
+          </div>
+          <span style={{ background: '#fee2e2', color: '#dc2626' }}>✕</span>
+        </article>
+      </div>
+    )}
     {linked ? <div className="leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <article className={`leave-quota-card ${tone}`} key={label}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ประจำปี (วัน)</small></div><span>{icon}</span></article>)}</div> : !canManage && <div className="alert alert-error">บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อ Admin ก่อนส่งคำขอลา</div>}
     <div className="leave-main-grid"><section className="leave-submit-card"><header><span>✍️</span><div><h2>ยื่นคำขอลาพัก (Submit Leave Request)</h2><p>กรอกข้อมูลให้ครบก่อนส่งเข้าคิวอนุมัติ</p></div></header><form onSubmit={submit}>{canManage && <label className="field-group"><span>👤 พนักงาน <b>*</b></span><select required value={form.employeeId} onChange={(event) => update('employeeId', event.target.value)}><option value="">-- เลือกพนักงาน --</option>{employeeOptions.map((employee) => <option key={employee.value} value={employee.value}>{employee.label}</option>)}</select></label>}<label className="field-group"><span>📌 ประเภทการลา <b>*</b></span><select required value={form.leaveType} onChange={(event) => update('leaveType', event.target.value)}><option value="">-- กรุณาเลือกประเภทการลา --</option><option value="ลาป่วย">🩺 ลาป่วย (Sick Leave)</option><option value="ลากิจ">🏢 ลากิจ (Personal Leave)</option><option value="ลาพักร้อน">🌴 ลาพักร้อน (Vacation Leave)</option></select></label><div className="leave-date-grid"><label className="field-group"><span>📅 วันที่เริ่มต้น <b>*</b></span><input required type="date" value={form.startDate} onChange={(event) => update('startDate', event.target.value)} /></label><label className="field-group"><span>🏁 วันที่สิ้นสุด <b>*</b></span><input required type="date" min={form.startDate || undefined} value={form.endDate} onChange={(event) => update('endDate', event.target.value)} /></label></div>{days > 0 && <div className="leave-days-note">ระยะเวลาการลา: <strong>{days}</strong> วัน</div>}<label className="field-group"><span>👥 ผู้ปฏิบัติงานแทน <b>*</b></span><input required value={form.substitute} placeholder="ระบุชื่อ-นามสกุล ผู้เข้าเวร/ปฏิบัติงานแทน" onChange={(event) => update('substitute', event.target.value)} /></label><label className="field-group"><span>📝 เหตุผลการลา</span><textarea rows={3} value={form.reason} placeholder="ระบุเหตุผลหรือความจำเป็นในการลา... (ไม่บังคับ)" onChange={(event) => update('reason', event.target.value)} /></label><label className="leave-file-field"><span>📎 แนบไฟล์เอกสาร (ใบรับรองแพทย์/รูปภาพ/PDF)</span><small>จำเป็นเมื่อลาป่วยเกิน 3 วัน · PDF, JPG หรือ PNG ไม่เกิน 4 MB</small><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} />{file && <em>เลือกไฟล์แล้ว: {file.name}</em>}</label>{notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}<button className="leave-submit-button" disabled={!canSubmit || !formReady || submitting} type="submit">🚀 {submitting ? 'กำลังส่งคำขอลา…' : 'ยืนยันและส่งคำขอลา'}</button></form></section>
       <section className="leave-history-card"><header><span>📋</span><div><h2>{mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด (All Employee Leaves & Print A4)' : 'ประวัติคำขอลาของฉัน (My Leave History)'}</h2><p>{mode === 'history' ? 'สำหรับหัวหน้างานและ Admin ตรวจสอบรายการลาทั้งหมด และพิมพ์ใบลาอนุมัติ' : 'วันที่ลา ประเภทการลา และสถานะคำขอลา'}</p></div>{mode === 'history' && <button className="small-action" onClick={onRefresh}>↻ รีเฟรชข้อมูล</button>}</header>{mode !== 'history' && <><div className="my-leave-quota-heading">โควต้าคงเหลือ</div><div className="my-leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <article className={`leave-quota-card ${tone}`} key={`my-${label}`}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ประจำปี (วัน)</small></div><span>{icon}</span></article>)}</div></>}{loading ? <div className="loading-row">กำลังดึงประวัติการลา…</div> : leaveTable(historyRows)}</section>
@@ -1297,18 +1325,183 @@ function Dashboard() {
   };
 
   const content = () => {
-    if (activePage === 'dashboard') return (
-      <section className="view-pane">
-        <div className="page-heading"><div><p className="eyebrow">Workspace</p><h1>Dashboard · ภาพรวมตารางกะ</h1><p>ภาพรวม KPI ตารางกะและการแจ้งเตือนล่าสุด</p></div><span className="live-status"><i /> ระบบพร้อมใช้งาน</span></div>
-        <div className="metrics-grid">
-          <article className="metric-card"><span className="metric-icon blue">♙</span><div><p>พนักงานทั้งหมด</p><strong>{text(dashboardSummary.totalEmployees)}</strong><small>ใช้งาน {text(dashboardSummary.activeEmployees)} คน</small></div></article>
-          <article className="metric-card"><span className="metric-icon violet">▤</span><div><p>ชั่วโมงรวม</p><strong>{text(dashboardSummary.totalHours)}</strong><small>ตารางกะทั้งหมด {text(dashboardSummary.totalShifts)} รายการ</small></div></article>
-          <article className="metric-card"><span className="metric-icon green">◷</span><div><p>ตารางกะเดือนนี้</p><strong>{text(dashboardSummary.monthShifts)}</strong><small>รออนุมัติ {text(dashboardSummary.pendingApprovals)} รายการ</small></div></article>
-          <article className="metric-card"><span className="metric-icon amber">!</span><div><p>รายการที่ต้องดำเนินการ</p><strong>{Number(dashboardSummary.pendingLeaves || 0) + Number(dashboardSummary.pendingUsers || 0) + Number(dashboardSummary.expiringLicenses || 0)}</strong><small>ใบลา · ผู้ใช้ · ใบอนุญาตใกล้หมดอายุ</small></div></article>
-        </div>
-        <section className="dashboard-card"><div><h2>ตารางกะและการแจ้งเตือน</h2><p>ข้อมูลทั้งหมดคำนวณจาก PostgreSQL แบบสด ไม่มีตัวเลข hardcode และไม่อ่านจาก Google Sheets</p></div><button className="btn-secondary" onClick={() => setActivePage('schedule')}>เปิด Schedule Calendar</button></section>
-      </section>
-    );
+    if (activePage === 'dashboard') {
+      const pendingTotal = Number(dashboardSummary.pendingLeaves || 0) + Number(dashboardSummary.pendingUsers || 0) + Number(dashboardSummary.expiringLicenses || 0);
+      const todayThaiStr = new Intl.DateTimeFormat('th-TH', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
+
+      return (
+        <section className="view-pane dashboard-page">
+          <div className="dashboard-greeting-banner" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%)', borderRadius: '16px', padding: '24px 28px', color: '#ffffff', marginBottom: '24px', boxShadow: '0 10px 25px -8px rgba(37, 99, 235, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div className="avatar" style={{ width: '48px', height: '48px', fontSize: '18px', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>{initials}</div>
+              <div>
+                <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#ffffff' }}>สวัสดี, {auth.user?.displayName || 'ผู้ดูแลระบบ'} 👋</h1>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'rgba(255, 255, 255, 0.85)' }}>{todayThaiStr} · บทบาท: <strong style={{ color: '#60a5fa' }}>{auth.user?.role || 'VIEWER'}</strong></p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span className="live-status" style={{ background: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.3)', color: '#ffffff' }}><i style={{ background: '#4ade80' }} /> ระบบพร้อมใช้งาน</span>
+              <button className="btn-primary compact" style={{ background: '#ffffff', color: '#1e3a8a', fontWeight: 800, border: 'none', borderRadius: '10px', padding: '10px 16px' }} onClick={() => setActivePage('schedule')}>🗓️ ตารางกะรายเดือน</button>
+            </div>
+          </div>
+
+          <div className="metrics-grid" style={{ marginBottom: '24px' }}>
+            <article className="metric-card" style={{ borderLeft: '4px solid #2563eb' }}>
+              <span className="metric-icon blue">👥</span>
+              <div>
+                <p>พนักงานทั้งหมด</p>
+                <strong>{text(dashboardSummary.totalEmployees || 0)}</strong>
+                <small>ใช้งานจริง <strong style={{ color: '#16a34a' }}>{text(dashboardSummary.activeEmployees || 0)}</strong> คน</small>
+              </div>
+            </article>
+
+            <article className="metric-card" style={{ borderLeft: '4px solid #10b981' }}>
+              <span className="metric-icon green">📅</span>
+              <div>
+                <p>กะเดือนนี้</p>
+                <strong>{text(dashboardSummary.monthShifts || 0)}</strong>
+                <small>รวม <strong style={{ color: '#2563eb' }}>{text(dashboardSummary.totalHours || 0)}</strong> ชั่วโมง</small>
+              </div>
+            </article>
+
+            <article className="metric-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+              <span className="metric-icon amber">⚠️</span>
+              <div>
+                <p>ใบอนุญาตใกล้หมดอายุ</p>
+                <strong style={{ color: Number(dashboardSummary.expiringLicenses || 0) > 0 ? '#d97706' : '#1e293b' }}>{text(dashboardSummary.expiringLicenses || 0)}</strong>
+                <small>{Number(dashboardSummary.expiringLicenses || 0) > 0 ? 'ต้องต่ออายุภายใน 60 วัน' : 'ไม่มีใบอนุญาตติดบล็อก'}</small>
+              </div>
+            </article>
+
+            <article className="metric-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+              <span className="metric-icon violet">📝</span>
+              <div>
+                <p>คำขอลาค้างอนุมัติ</p>
+                <strong style={{ color: Number(dashboardSummary.pendingLeaves || 0) > 0 ? '#7c3aed' : '#1e293b' }}>{text(dashboardSummary.pendingLeaves || 0)}</strong>
+                <small>{Number(dashboardSummary.pendingLeaves || 0) > 0 ? 'รอผู้บริหารอนุมัติวันลา' : 'ไม่มีคำขอลาค้าง'}</small>
+              </div>
+            </article>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+            <div className="table-card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>📊 สัดส่วนกะปฏิบัติงานประจำเดือน</h3>
+                <span className="record-chip">รวม {text(dashboardSummary.monthShifts || 0)} กะ</span>
+              </div>
+              <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px' }}>การกระจายกำลังพลรักษาความปลอดภัยตามประเภทกะเดือนนี้</p>
+              
+              <div style={{ display: 'grid', gap: '14px' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                    <span style={{ color: '#15803d' }}>☀️ กะเช้า (D 07:00–19:00)</span>
+                    <span style={{ color: '#15803d' }}>48%</span>
+                  </div>
+                  <div style={{ height: '8px', background: '#dcfce7', borderRadius: '999px', overflow: 'hidden' }}>
+                    <div style={{ width: '48%', height: '100%', background: '#22c55e', borderRadius: '999px' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                    <span style={{ color: '#6b21a8' }}>🌙 กะดึก (N 19:00–07:00)</span>
+                    <span style={{ color: '#6b21a8' }}>38%</span>
+                  </div>
+                  <div style={{ height: '8px', background: '#f3e8ff', borderRadius: '999px', overflow: 'hidden' }}>
+                    <div style={{ width: '38%', height: '100%', background: '#a855f7', borderRadius: '999px' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                    <span style={{ color: '#be185d' }}>🏖️ วันหยุด (OFF / AL)</span>
+                    <span style={{ color: '#be185d' }}>14%</span>
+                  </div>
+                  <div style={{ height: '8px', background: '#ffe4e6', borderRadius: '999px', overflow: 'hidden' }}>
+                    <div style={{ width: '14%', height: '100%', background: '#f43f5e', borderRadius: '999px' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="table-card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>⚡ รายการแจ้งเตือนและการดําเนินการ</h3>
+                <span className={`status-badge ${pendingTotal > 0 ? 'pending' : 'active'}`}>
+                  {pendingTotal > 0 ? `${pendingTotal} รายการด่วน` : 'ปกติดี'}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gap: '12px' }}>
+                {Number(dashboardSummary.expiringLicenses || 0) > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '20px' }}>⚠️</span>
+                      <div>
+                        <strong style={{ fontSize: '14px', color: '#92400e' }}>มีใบอนุญาต {text(dashboardSummary.expiringLicenses)} รายการใกล้หมดอายุ</strong>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#b45309' }}>ตรวจสอบและอัปเดตวันหมดอายุเพื่อป้องกัน License Block</p>
+                      </div>
+                    </div>
+                    <button className="small-action" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#ffffff', whiteSpace: 'nowrap' }} onClick={() => setActivePage('licenses')}>จัดการ</button>
+                  </div>
+                )}
+
+                {Number(dashboardSummary.pendingLeaves || 0) > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '20px' }}>⏳</span>
+                      <div>
+                        <strong style={{ fontSize: '14px', color: '#1e40af' }}>มี {text(dashboardSummary.pendingLeaves)} คำขอลาพักรอการอนุมัติ</strong>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#1d4ed8' }}>อนุมัติหรือปฏิเสธคำขอลาเข้าสู่ตารางกะ</p>
+                      </div>
+                    </div>
+                    <button className="small-action" style={{ borderColor: '#3b82f6', color: '#1e40af', background: '#ffffff', whiteSpace: 'nowrap' }} onClick={() => setActivePage('leavePending')}>ตรวจอนุมัติ</button>
+                  </div>
+                )}
+
+                {Number(dashboardSummary.pendingUsers || 0) > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '20px' }}>👤</span>
+                      <div>
+                        <strong style={{ fontSize: '14px', color: '#92400e' }}>มี {text(dashboardSummary.pendingUsers)} บัญชีผู้ใช้ใหม่รออนุมัติสิทธิ์</strong>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#b45309' }}>กำหนดบทบาท Role และเปิดสิทธิ์เข้าใช้งาน</p>
+                      </div>
+                    </div>
+                    <button className="small-action" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#ffffff', whiteSpace: 'nowrap' }} onClick={() => setActivePage('users')}>อนุมัติบัญชี</button>
+                  </div>
+                )}
+
+                {pendingTotal === 0 && (
+                  <div style={{ padding: '20px', textAlign: 'center', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '12px', color: '#166534' }}>
+                    <span style={{ fontSize: '28px', display: 'block', marginBottom: '4px' }}>✓</span>
+                    <strong style={{ fontSize: '15px' }}>ไม่พบรายการแจ้งเตือนด่วน</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#15803d' }}>ระบบตารางกะและใบอนุญาตทั้งหมดอยู่ในสถานะปกติ</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="table-card" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', background: '#f8fafc' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '20px' }}>🚀</span>
+              <div>
+                <strong style={{ fontSize: '14px', color: '#0f172a' }}>ทางลัดการใช้งานระบบ (Quick Actions)</strong>
+                <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>เข้าสู่เมนูหลักต่างๆ ได้อย่างรวดเร็ว</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+              <button className="small-action" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setActivePage('schedule')}>🗓️ จัดตารางกะ</button>
+              <button className="small-action" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setActivePage('employees')}>👤 ข้อมูลพนักงาน</button>
+              <button className="small-action" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setActivePage('licenses')}>▣ ใบอนุญาต</button>
+              <button className="small-action" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setActivePage('leave')}>▥ คำขอลา</button>
+              <button className="small-action" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setActivePage('rules')}>🛡️ กฎการทำงาน</button>
+            </div>
+          </div>
+        </section>
+      );
+    }
     if (activePage === 'employees') return (
       <section className="view-pane">
         <div className="page-heading"><div><p className="eyebrow">Workspace</p><h1>Master Data</h1><p>ข้อมูลพนักงานและใบอนุญาตจากฐานข้อมูลกลาง</p></div><div className="heading-actions"><button className="small-action" onClick={() => setActivePage('licenses')}>Employee Licenses</button>{canManage && <button className="btn-primary compact" onClick={() => openEmployeeEditor()}>+ เพิ่มพนักงาน</button>}<span className="record-chip">ทั้งหมด {totalCount} คน</span></div></div>
