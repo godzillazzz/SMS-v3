@@ -163,7 +163,7 @@ router.get('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) =>
         status: true, documentMigrationStatus: true, remark: true,
         employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true, department: true } }
       },
-      orderBy: [{ expiryDate: 'asc' }, { employee: { lastName: 'asc' } }]
+      orderBy: [{ employee: { employeeCode: 'asc' } }, { expiryDate: 'asc' }]
     }));
   } catch (error) { next(error); }
 });

@@ -24,6 +24,7 @@ test('legacy license permissions and date validation remain enforced', () => {
   assert.match(batchSchedules, /saveBatchAssignments\(assignments, req\.user\.sub, req\.user\.role\)/);
   assert.match(scheduleService, /actorRole === 'ADMIN'/);
   assert.match(scheduleService, /License Block/);
+  assert.match(operations, /orderBy: \[\{ employee: \{ employeeCode: 'asc' \} \}, \{ expiryDate: 'asc' \}\]/);
 });
 
 test('Manager account approval is constrained to Viewer and sensitive settings stay environment-managed', () => {
