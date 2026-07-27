@@ -12,7 +12,7 @@ const loginSchema = z.object({ email: z.string().email(), password: z.string().m
 const refreshSchema = z.object({ refreshToken: z.string().min(40).max(500).optional(), clientType: clientType.optional() });
 const requestDetails = (req) => ({ userAgent: req.get('user-agent'), ipAddress: req.ip });
 const otp = createOtpService();
-const registrationRequestSchema = z.object({ displayName: z.string().trim().min(2).max(150), email: z.string().email().max(255), password: z.string().min(8).max(128), department: z.string().trim().max(100).optional() });
+const registrationRequestSchema = z.object({ employeeId: z.string().uuid(), email: z.string().email().max(255), password: z.string().min(8).max(128) });
 const registrationVerifySchema = z.object({ email: z.string().email().max(255), code: z.string().regex(/^\d{6}$/) });
 const passwordResetRequestSchema = z.object({ email: z.string().email().max(255) });
 const passwordResetCompleteSchema = z.object({ email: z.string().email().max(255), code: z.string().regex(/^\d{6}$/), newPassword: z.string().min(8).max(128) });
@@ -29,6 +29,9 @@ router.post('/login', loginRateLimit, async (req, res, next) => {
 });
 router.post('/register/request-otp', async (req, res, next) => {
   try { res.status(202).json(await otp.requestRegistration(registrationRequestSchema.parse(req.body))); } catch (error) { next(error); }
+});
+router.get('/register/available-employees', async (_req, res, next) => {
+  try { res.json(await otp.listRegistrationEmployees()); } catch (error) { next(error); }
 });
 router.post('/register/verify-otp', async (req, res, next) => {
   try { res.json(await otp.verifyRegistration(registrationVerifySchema.parse(req.body))); } catch (error) { next(error); }

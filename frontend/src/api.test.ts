@@ -7,7 +7,16 @@ afterEach(() => vi.unstubAllGlobals());
 describe('API client', () => {
   it('exposes the browser authentication operations', () => {
     expect(typeof api.login).toBe('function'); expect(typeof api.refresh).toBe('function'); expect(typeof api.logout).toBe('function'); expect(typeof api.logoutAll).toBe('function');
-    expect(typeof api.requestRegistrationOtp).toBe('function'); expect(typeof api.verifyRegistrationOtp).toBe('function'); expect(typeof api.requestPasswordResetOtp).toBe('function'); expect(typeof api.completePasswordReset).toBe('function');
+    expect(typeof api.registrationEmployees).toBe('function'); expect(typeof api.requestRegistrationOtp).toBe('function'); expect(typeof api.verifyRegistrationOtp).toBe('function'); expect(typeof api.requestPasswordResetOtp).toBe('function'); expect(typeof api.completePasswordReset).toBe('function');
+  });
+  it('loads only backend-approved employees for registration', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: [] }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    await api.registrationEmployees();
+    const [path, options] = fetchMock.mock.calls[0];
+    expect(path).toBe('/api/v1/auth/register/available-employees');
+    expect(options.credentials).toBe('include');
   });
   it('sends the readable CSRF cookie in browser refresh, logout, and logout-all requests', async () => {
     const fetchMock = vi.fn().mockResolvedValue(success());

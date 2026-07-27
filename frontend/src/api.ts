@@ -80,7 +80,8 @@ async function binaryCall(path: string, init: RequestInit = {}, isRetry = false)
 }
 export const api = {
   login: (email: string, password: string) => call('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, clientType: 'browser' }) }),
-  requestRegistrationOtp: (data: { displayName: string; email: string; password: string; department?: string }) => call('/auth/register/request-otp', { method: 'POST', body: JSON.stringify(data) }),
+  registrationEmployees: () => call('/auth/register/available-employees'),
+  requestRegistrationOtp: (data: { employeeId: string; email: string; password: string }) => call('/auth/register/request-otp', { method: 'POST', body: JSON.stringify(data) }),
   verifyRegistrationOtp: (email: string, code: string) => call('/auth/register/verify-otp', { method: 'POST', body: JSON.stringify({ email, code }) }),
   requestPasswordResetOtp: (email: string) => call('/auth/password-reset/request-otp', { method: 'POST', body: JSON.stringify({ email }) }),
   completePasswordReset: (email: string, code: string, newPassword: string) => call('/auth/password-reset/complete', { method: 'POST', body: JSON.stringify({ email, code, newPassword }) }),

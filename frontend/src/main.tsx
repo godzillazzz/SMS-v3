@@ -5,6 +5,7 @@ import './styles.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
+type RegistrationEmployee = { id: string; employeeCode: string; displayName: string; department?: string; jobTitle?: string };
 type Page = 'dashboard' | 'employees' | 'licenses' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'quota' | 'users' | 'audit' | 'reports' | 'settings';
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
@@ -108,25 +109,44 @@ function Login() {
   const [mode, setMode] = useState<'login' | 'register' | 'registerVerify' | 'reset' | 'resetVerify'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [department, setDepartment] = useState('');
+  const [registrationEmployeeId, setRegistrationEmployeeId] = useState('');
+  const [registrationEmployees, setRegistrationEmployees] = useState<RegistrationEmployee[]>([]);
+  const [registrationEmployeesLoading, setRegistrationEmployeesLoading] = useState(false);
   const [code, setCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formMessage, setFormMessage] = useState<string>();
   const [formError, setFormError] = useState<string>();
 
-  const resetView = (next: typeof mode) => { setMode(next); setFormError(undefined); setFormMessage(undefined); setCode(''); };
+  const resetView = (next: typeof mode) => { setMode(next); setFormError(undefined); setFormMessage(undefined); setCode(''); if (next !== 'register') setRegistrationEmployeeId(''); };
   const title = mode === 'login' ? 'ยินดีต้อนรับ' : mode === 'register' ? 'ลงทะเบียนเข้าใช้ระบบ' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'รีเซ็ตรหัสผ่านด้วย OTP' : 'ตั้งรหัสผ่านใหม่';
-  const lead = mode === 'login' ? 'เข้าสู่ระบบเพื่อเปิด Dashboard' : mode === 'register' ? 'กรอกข้อมูลเพื่อรับรหัสยืนยันทางอีเมล' : mode === 'registerVerify' ? 'กรอกรหัส 6 หลักที่ส่งไปยังอีเมลของคุณ' : mode === 'reset' ? 'เราจะส่งรหัสยืนยันไปยังอีเมลของคุณ' : 'กรอกรหัส 6 หลักและรหัสผ่านใหม่';
+  const lead = mode === 'login' ? 'เข้าสู่ระบบเพื่อเปิด Dashboard' : mode === 'register' ? 'เลือกชื่อพนักงานและยืนยันอีเมลก่อนให้ Admin อนุมัติ' : mode === 'registerVerify' ? 'กรอกรหัส 6 หลักที่ส่งไปยังอีเมลของคุณ' : mode === 'reset' ? 'เราจะส่งรหัสยืนยันไปยังอีเมลของคุณ' : 'กรอกรหัส 6 หลักและรหัสผ่านใหม่';
+
+  useEffect(() => {
+    if (mode !== 'register') return;
+    let active = true;
+    setRegistrationEmployeesLoading(true);
+    api.registrationEmployees()
+      .then((result) => { if (active) setRegistrationEmployees(Array.isArray(result.data) ? result.data : []); })
+      .catch((reason) => { if (active) setFormError(reason instanceof Error ? reason.message : 'โหลดรายชื่อพนักงานไม่สำเร็จ'); })
+      .finally(() => { if (active) setRegistrationEmployeesLoading(false); });
+    return () => { active = false; };
+  }, [mode]);
+
+  const registrationEmployeeOptions = registrationEmployees.map((employee) => {
+    const details = [employee.employeeCode, employee.department, employee.jobTitle].filter(Boolean).join(' · ');
+    return { value: employee.id, label: `${employee.displayName}${details ? ` (${details})` : ''}` };
+  });
+  const submitDisabled = busy || (mode === 'register' && (registrationEmployeesLoading || !registrationEmployeeId));
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setFormError(undefined); setFormMessage(undefined);
+    if (mode === 'register' && !registrationEmployeeId) { setFormError('กรุณาเลือกชื่อพนักงานของคุณ'); return; }
     setBusy(true);
     try {
       if (mode === 'login') await auth.login(email, password);
-      else if (mode === 'register') { await api.requestRegistrationOtp({ displayName, email, password, ...(department.trim() && { department }) }); resetView('registerVerify'); setFormMessage('ส่งรหัสยืนยันแล้ว โปรดตรวจกล่องจดหมายของคุณ'); }
+      else if (mode === 'register') { await api.requestRegistrationOtp({ employeeId: registrationEmployeeId, email, password }); resetView('registerVerify'); setFormMessage('ส่งรหัสยืนยันแล้ว โปรดตรวจกล่องจดหมายของคุณ'); }
       else if (mode === 'registerVerify') { const result = await api.verifyRegistrationOtp(email, code); resetView('login'); setPassword(''); setFormMessage(result.message); }
       else if (mode === 'reset') { await api.requestPasswordResetOtp(email); resetView('resetVerify'); setFormMessage('หากอีเมลนี้ใช้งานได้ ระบบได้ส่งรหัสยืนยันแล้ว'); }
       else { const result = await api.completePasswordReset(email, code, password); resetView('login'); setPassword(''); setFormMessage(result.message); }
@@ -151,12 +171,11 @@ function Login() {
             <p className="form-lead">{lead}</p>
             {(formError || (mode === 'login' ? auth.error : undefined)) && <div className="alert alert-error" role="alert">{formError || auth.error}</div>}
             {formMessage && <div className="login-help-action" role="status">{formMessage}</div>}
-            {mode === 'register' && <label className="field-group" htmlFor="display-name"><span>ชื่อสำหรับแสดงผล</span><input id="display-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} type="text" required autoComplete="name" /></label>}
+            {mode === 'register' && <label className="field-group" htmlFor="registration-employee"><span>ชื่อพนักงาน</span><select id="registration-employee" value={registrationEmployeeId} onChange={(event) => setRegistrationEmployeeId(event.target.value)} required disabled={registrationEmployeesLoading}><option value="">{registrationEmployeesLoading ? 'กำลังโหลดรายชื่อพนักงาน...' : '-- เลือกชื่อของคุณ --'}</option>{registrationEmployeeOptions.map((employee) => <option key={employee.value} value={employee.value}>{employee.label}</option>)}</select>{!registrationEmployeesLoading && !registrationEmployeeOptions.length && <small className="field-hint">ไม่มีรายชื่อพนักงานที่เปิดให้สมัคร หากเคยสมัครแล้วให้ติดต่อ Admin เพื่ออนุมัติ/รีเซ็ตรหัสผ่าน</small>}</label>}
             <label className="field-group" htmlFor="email">
               <span>อีเมล</span>
               <input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete="username" />
             </label>
-            {mode === 'register' && <label className="field-group" htmlFor="department"><span>หน่วยงาน (ถ้ามี)</span><input id="department" value={department} onChange={(event) => setDepartment(event.target.value)} type="text" maxLength={100} /></label>}
             {(mode === 'registerVerify' || mode === 'resetVerify') && <label className="field-group" htmlFor="otp-code"><span>รหัส OTP 6 หลัก</span><input id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" /></label>}
             {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group" htmlFor="password">
               <span>รหัสผ่าน</span>
@@ -165,7 +184,7 @@ function Login() {
                 <button className="password-toggle" type="button" onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? 'ซ่อน' : 'แสดง'}</button>
               </span>
             </label>}
-            <button className="btn-primary" type="submit" disabled={busy}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
+            <button className="btn-primary" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
             {mode === 'login' ? <div className="login-links"><button type="button" onClick={() => resetView('register')}>ยังไม่มีบัญชี? <b>ลงทะเบียนเข้าใช้ระบบ</b></button><button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน? <b>รีเซ็ตรหัสผ่านด้วย OTP</b></button></div> : <div className="login-links"><button type="button" onClick={() => resetView('login')}>← กลับไปหน้าเข้าสู่ระบบ</button></div>}
             <p className="login-help">พบปัญหาการใช้งาน: ติดต่อผู้ดูแลระบบของหน่วยงาน</p>
           </form>

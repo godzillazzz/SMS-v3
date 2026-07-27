@@ -4,15 +4,20 @@ const assert = require('node:assert/strict');
 const bcrypt = require('bcryptjs');
 const { createOtpService } = require('../src/services/email-otp.service');
 
-function fakePrisma(initialUsers = []) {
+function fakePrisma(initialUsers = [], initialEmployees = []) {
   const users = initialUsers.map((user) => ({ ...user }));
+  const employees = initialEmployees.map((employee) => ({ ...employee }));
   const challenges = [];
   const sessions = [];
   const tx = {
     user: {
-      findUnique: async ({ where }) => users.find((user) => user.email === where.email || user.id === where.id) || null,
+      findUnique: async ({ where }) => users.find((user) => user.email === where.email || user.id === where.id || (where.employeeId && user.employeeId === where.employeeId)) || null,
       create: async ({ data }) => { const user = { id: `user-${users.length + 1}`, tokenVersion: 0, failedLoginCount: 0, ...data }; users.push(user); return user; },
       update: async ({ where, data }) => { const user = users.find((entry) => entry.id === where.id); Object.entries(data).forEach(([key, value]) => { if (value && typeof value === 'object' && 'increment' in value) user[key] = (user[key] || 0) + value.increment; else user[key] = value; }); return user; }
+    },
+    employee: {
+      findMany: async () => employees.filter((employee) => employee.deletedAt === null && employee.isActive !== false && !users.some((user) => user.employeeId === employee.id)).sort((a, b) => a.employeeCode.localeCompare(b.employeeCode)),
+      findFirst: async ({ where }) => employees.find((employee) => employee.id === where.id && employee.deletedAt === null && employee.isActive !== false) || null
     },
     authOtpChallenge: {
       count: async ({ where }) => challenges.filter((item) => item.emailHash === where.emailHash && item.purpose === where.purpose && item.createdAt >= where.createdAt.gte).length,
@@ -22,21 +27,44 @@ function fakePrisma(initialUsers = []) {
     },
     refreshSession: { updateMany: async ({ where, data }) => { sessions.push({ where, data }); return { count: 0 }; } }
   };
-  return { ...tx, $transaction: async (operation) => typeof operation === 'function' ? operation(tx) : Promise.all(operation), _users: users, _challenges: challenges, _sessions: sessions };
+  return { ...tx, $transaction: async (operation) => typeof operation === 'function' ? operation(tx) : Promise.all(operation), _users: users, _employees: employees, _challenges: challenges, _sessions: sessions };
 }
 
 const config = { otpDeliveryProvider: 'gmail_smtp', otpHashSecret: 'otp-test-secret-that-is-at-least-thirty-two-characters', otpCodeExpiresMinutes: 10, otpMaxAttempts: 5, otpRequestLimitPerHour: 5 };
 const auditService = { log: async () => undefined };
 
 test('registration sends a one-time email code and leaves the account pending after verification', async () => {
-  const prisma = fakePrisma(); let delivered;
+  const prisma = fakePrisma([], [{ id: 'employee-1', employeeCode: 'EMP001', displayName: 'New Employee', department: 'Operations', deletedAt: null, isActive: true }]); let delivered;
   const service = createOtpService({ prismaClient: prisma, auditService, configuration: config, mailer: { send: async (message) => { delivered = message; } } });
-  await service.requestRegistration({ displayName: 'New User', email: 'new.user@example.test', password: 'long-password-for-test', department: 'Operations' });
+  await service.requestRegistration({ employeeId: 'employee-1', email: 'new.user@example.test', password: 'long-password-for-test' });
   assert.equal(delivered.purpose, 'REGISTRATION'); assert.match(delivered.code, /^\d{6}$/);
   assert.equal(prisma._users[0].accountStatus, 'PENDING'); assert.equal(prisma._users[0].isActive, false);
+  assert.equal(prisma._users[0].employeeId, 'employee-1'); assert.equal(prisma._users[0].displayName, 'New Employee');
   assert.equal(Object.prototype.hasOwnProperty.call(prisma._challenges[0], 'code'), false);
   await service.verifyRegistration({ email: 'new.user@example.test', code: delivered.code });
   assert.ok(prisma._challenges[0].consumedAt);
+});
+
+test('registration employee directory excludes employees that already have an account', async () => {
+  const prisma = fakePrisma(
+    [{ id: 'user-1', email: 'linked@example.test', employeeId: 'employee-2', accountStatus: 'PENDING' }],
+    [
+      { id: 'employee-2', employeeCode: 'EMP002', displayName: 'Linked Employee', deletedAt: null, isActive: true },
+      { id: 'employee-1', employeeCode: 'EMP001', displayName: 'Available Employee', deletedAt: null, isActive: true }
+    ]
+  );
+  const service = createOtpService({ prismaClient: prisma, auditService, configuration: config, mailer: { send: async () => undefined } });
+  const result = await service.listRegistrationEmployees();
+  assert.deepEqual(result.data.map((employee) => employee.employeeCode), ['EMP001']);
+});
+
+test('registration rejects an employee that already has an account request', async () => {
+  const prisma = fakePrisma(
+    [{ id: 'user-1', email: 'linked@example.test', employeeId: 'employee-1', accountStatus: 'PENDING' }],
+    [{ id: 'employee-1', employeeCode: 'EMP001', displayName: 'Linked Employee', deletedAt: null, isActive: true }]
+  );
+  const service = createOtpService({ prismaClient: prisma, auditService, configuration: config, mailer: { send: async () => undefined } });
+  await assert.rejects(() => service.requestRegistration({ employeeId: 'employee-1', email: 'other@example.test', password: 'long-password-for-test' }), { statusCode: 409 });
 });
 
 test('password reset consumes the email OTP, rotates token version, and revokes sessions', async () => {
@@ -51,9 +79,9 @@ test('password reset consumes the email OTP, rotates token version, and revokes 
 });
 
 test('invalid OTP codes are rejected without exposing stored code material', async () => {
-  const prisma = fakePrisma(); let delivered;
+  const prisma = fakePrisma([], [{ id: 'employee-1', employeeCode: 'EMP001', displayName: 'New User', deletedAt: null, isActive: true }]); let delivered;
   const service = createOtpService({ prismaClient: prisma, auditService, configuration: config, mailer: { send: async (message) => { delivered = message; } } });
-  await service.requestRegistration({ displayName: 'New User', email: 'new.user@example.test', password: 'long-password-for-test' });
+  await service.requestRegistration({ employeeId: 'employee-1', email: 'new.user@example.test', password: 'long-password-for-test' });
   await assert.rejects(() => service.verifyRegistration({ email: 'new.user@example.test', code: delivered.code === '000000' ? '111111' : '000000' }), { message: 'Invalid or expired verification code.' });
   assert.equal(prisma._challenges[0].attempts, 1);
 });

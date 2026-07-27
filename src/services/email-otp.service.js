@@ -12,6 +12,14 @@ const emailHash = (email, secret = env.otpHashSecret) => crypto.createHmac('sha2
 const codeHash = (purpose, email, code, secret = env.otpHashSecret) => crypto.createHmac('sha256', secret).update(`${purpose}:${normalizeEmail(email)}:${code}`).digest('hex');
 const sameHash = (left, right) => left.length === right.length && crypto.timingSafeEqual(Buffer.from(left), Buffer.from(right));
 const genericSuccess = { message: 'If the request can be processed, a verification code has been sent.' };
+const employeeName = (employee) => employee.displayName || `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+const publicEmployee = (employee) => ({
+  id: employee.id,
+  employeeCode: employee.employeeCode,
+  displayName: employeeName(employee),
+  department: employee.department,
+  jobTitle: employee.jobTitle
+});
 
 function createMailer(configuration = env) {
   if (configuration.otpDeliveryProvider !== 'gmail_smtp') {
@@ -67,15 +75,40 @@ function createOtpService({ prismaClient = prisma, auditService = audit, mailer 
     }
   }
 
-  async function requestRegistration({ displayName, email, password, department }) {
+  async function listRegistrationEmployees() {
+    const employees = await prismaClient.employee.findMany({
+      where: { deletedAt: null, isActive: true, user: { is: null } },
+      select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true, jobTitle: true },
+      orderBy: { employeeCode: 'asc' },
+      take: 500
+    });
+    return { data: employees.map(publicEmployee) };
+  }
+
+  async function requestRegistration({ employeeId, email, password }) {
     const normalizedEmail = normalizeEmail(email);
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await prismaClient.$transaction(async (tx) => {
-      const existing = await tx.user.findUnique({ where: { email: normalizedEmail } });
-      if (existing && existing.accountStatus !== 'PENDING') return null;
-      if (existing) return tx.user.update({ where: { id: existing.id }, data: { displayName, passwordHash, department: department || null, requestedAt: new Date(), isActive: false } });
-      const pending = await tx.user.create({ data: { email: normalizedEmail, displayName, passwordHash, department: department || null, role: 'VIEWER', accountStatus: 'PENDING', isActive: false, requestedAt: new Date() } });
-      await auditService.log({ actorUserId: null, action: 'CREATE', entityType: 'RegistrationRequest', entityId: pending.id, metadata: { accountStatus: 'PENDING' } }, tx);
+      const employee = await tx.employee.findFirst({
+        where: { id: employeeId, deletedAt: null, isActive: true },
+        select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true }
+      });
+      if (!employee) throw new HttpError(400, 'Selected employee is unavailable for registration.');
+
+      const [existingByEmail, existingByEmployee] = await Promise.all([
+        tx.user.findUnique({ where: { email: normalizedEmail } }),
+        tx.user.findUnique({ where: { employeeId: employee.id } })
+      ]);
+      if (existingByEmail?.employeeId && existingByEmail.employeeId !== employee.id) throw new HttpError(409, 'This employee or email already has an account request.');
+      if (existingByEmployee && existingByEmployee.email !== normalizedEmail) throw new HttpError(409, 'This employee or email already has an account request.');
+      const existing = existingByEmail || existingByEmployee;
+      if (existing && existing.accountStatus !== 'PENDING') throw new HttpError(409, 'This employee already has an account.');
+
+      const displayName = employeeName(employee);
+      const department = employee.department || null;
+      if (existing) return tx.user.update({ where: { id: existing.id }, data: { employeeId: employee.id, displayName, passwordHash, department, requestedAt: new Date(), isActive: false } });
+      const pending = await tx.user.create({ data: { email: normalizedEmail, employeeId: employee.id, displayName, passwordHash, department, role: 'VIEWER', accountStatus: 'PENDING', isActive: false, requestedAt: new Date() } });
+      await auditService.log({ actorUserId: null, action: 'CREATE', entityType: 'RegistrationRequest', entityId: pending.id, metadata: { accountStatus: 'PENDING', employeeLinked: true } }, tx);
       return pending;
     });
     return createChallenge({ userId: user?.id || null, email: normalizedEmail, purpose: 'REGISTRATION', deliver: Boolean(user) });
@@ -129,7 +162,7 @@ function createOtpService({ prismaClient = prisma, auditService = audit, mailer 
     return { message: 'Password reset successfully. Please sign in with your new password.' };
   }
 
-  return { requestRegistration, requestPasswordReset, verifyRegistration, completePasswordReset };
+  return { listRegistrationEmployees, requestRegistration, requestPasswordReset, verifyRegistration, completePasswordReset };
 }
 
 module.exports = { createOtpService, createMailer, normalizeEmail, emailHash, codeHash };
