@@ -1,6 +1,6 @@
 # SMS v3 UX/UI Route Redesign Matrix
 
-Status date: 2026-07-28  
+Status date: 2026-07-28
 Scope: frontend presentation only on `feature/full-ui-redesign`.
 
 The current React application is a single-page application that switches its
