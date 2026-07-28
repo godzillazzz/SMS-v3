@@ -7,7 +7,18 @@
 - Backend, database, Prisma migrations, Supabase configuration, authentication
   contracts, RBAC logic, production configuration and deployment were not
   changed.
-- No commit, push, preview deployment or production deployment was performed.
+- After owner approval, the isolated branch was pushed and a Vercel Preview was
+  created. It is not a Production deployment and no `main` merge was performed.
+
+## Preview deployment
+
+- Target: Preview only.
+- Status: Ready.
+- Preview URL: `https://sms-v3-staging-65n6n14fy-godzillazz.vercel.app`
+- The unauthenticated root, health and readiness requests redirect to Deployment
+  Protection. This is expected; protection was not disabled or weakened.
+- The hosted build recorded Node 22.22.2 and completed the frontend production
+  build successfully.
 
 ## Detected application stack
 
