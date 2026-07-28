@@ -24,6 +24,7 @@ SMSv3-migration-input/
 legacy-migration-input/
 migration-input/
 dist/
+ui-review/
 *.log
 backup-results.ndjson
 .vercel/
