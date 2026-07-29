@@ -2,9 +2,12 @@
 :root {
   --navy-950:#071a38; --navy-900:#0b2245; --indigo-600:#5746d9; --indigo-500:#6d5ce7;
   --page:#f5f7fb; --card:#fff; --text:#14213d; --muted:#667085; --border:#e4e8f0;
-  font-family:"Noto Sans Thai",Inter,system-ui,sans-serif; font-size:14px; color:var(--text); background:var(--page);
+  --font-sans:"IBM Plex Sans Thai",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+  font-family:var(--font-sans); font-size:14px; color:var(--text); background:var(--page);
 }
 body{background:var(--page);color:var(--text)} button,input,select,textarea{font-size:14px} button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(109,92,231,.2)}
+html, body, button, input, select, textarea, table, dialog, [role="dialog"] { font-family: var(--font-sans); }
 /* Login */
 .login-page{padding:24px;background:#071a38}.login-shell{width:min(100%,1120px);min-height:660px;grid-template-columns:47% 53%;border-radius:16px}.login-intro{padding:46px 44px;background:radial-gradient(circle at 72% 73%,rgba(109,92,231,.4),transparent 34%),linear-gradient(150deg,#071a38,#0b2245)}.intro-brand{font-size:16px}.intro-brand .brand-mark{width:36px;height:36px;border-radius:10px;font-size:15px;background:linear-gradient(135deg,#5746d9,#8a72ee)}.intro-copy{margin-top:74px}.intro-copy h1{font-size:clamp(30px,3.25vw,40px);line-height:1.28}.intro-copy p{margin:14px 0 30px;font-size:16px}.intro-check{font-size:14px}.login-form-panel{padding:48px 64px}.login-form{width:min(100%,380px)}.login-form h2{font-size:30px}.form-lead{margin:6px 0 28px;font-size:14px}.login-form .field-group{gap:7px;margin-bottom:16px;font-size:13px}.field-group input,.field-group select,.field-group textarea{min-height:46px;padding:0 13px;border-color:#d9e1ee;background:#fbfcff;font-size:14px}.btn-primary{height:46px;border-radius:8px;background:linear-gradient(100deg,var(--indigo-600),var(--indigo-500));box-shadow:0 8px 18px rgba(87,70,217,.22);font-size:14px}.password-toggle,.login-links button,.login-help-action,.login-help,.alert{font-size:13px}.login-links{margin:20px 0 15px;gap:4px}
 /* Application frame */
