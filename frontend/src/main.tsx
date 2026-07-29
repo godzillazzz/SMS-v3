@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { api, setTokenRefreshHandler } from './api';
 import './styles.css';
 import './design-system.css';
+import './styles/dashboard.css';
+import { DashboardPage } from './pages/dashboard/DashboardPage';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
@@ -991,6 +993,8 @@ function Dashboard() {
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorError, setEditorError] = useState<string>();
   const [dashboardSummary, setDashboardSummary] = useState<DataRow>({});
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState<string>();
   const [scheduleMonth, setScheduleMonth] = useState(new Date().toISOString().slice(0, 7));
   const [scheduleDepartment, setScheduleDepartment] = useState('');
   const [leaveSummary, setLeaveSummary] = useState<DataRow>({});
@@ -1089,7 +1093,12 @@ function Dashboard() {
 
   useEffect(() => {
     if (!auth.token || activePage !== 'dashboard') return;
-    api.dashboard(auth.token).then((result) => setDashboardSummary(result?.data || {})).catch((reason) => setOperationError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่าน Dashboard ได้'));
+    setDashboardLoading(true);
+    setDashboardError(undefined);
+    api.dashboard(auth.token)
+      .then((result) => setDashboardSummary(result?.data || {}))
+      .catch((reason) => setDashboardError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่าน Dashboard ได้'))
+      .finally(() => setDashboardLoading(false));
   }, [activePage, auth.token, operationRefresh]);
 
   useEffect(() => {
@@ -1350,7 +1359,10 @@ function Dashboard() {
   };
 
   const content = () => {
-    if (activePage === 'dashboard') {
+    if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} onNavigate={setActivePage} />;
+    // The former inline dashboard is intentionally disabled. DashboardPage above
+    // is the only runtime dashboard presentation.
+    if (false) {
       const pendingTotal = Number(dashboardSummary.pendingLeaves || 0) + Number(dashboardSummary.pendingUsers || 0) + Number(dashboardSummary.expiringLicenses || 0);
       const todayThaiStr = new Intl.DateTimeFormat('th-TH', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
 

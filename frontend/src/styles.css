@@ -895,7 +895,7 @@ body {
   .sidebar {
     display: none;
   }
-  .sidebar-overlay, .mobile-menu-button { display: none !important; }
+  .sidebar-overlay { display: none !important; }
   .mobile-brand { display: inline-flex; align-items: center; gap: 8px; color: #31425b; font-size: 16px; font-weight: 800; }
   .mobile-brand .brand-mark { width: 31px; height: 31px; border-radius: 9px; font-size: 12px; }
   .mobile-nav-strip { position: sticky; top: 0; z-index: 30; display: flex; gap: 14px; overflow-x: auto; border-bottom: 1px solid #dbe7f7; padding: 10px 14px; background: rgba(248, 251, 255, .96); box-shadow: 0 8px 20px rgba(15, 23, 42, .05); -webkit-overflow-scrolling: touch; }
