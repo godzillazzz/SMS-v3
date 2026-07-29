@@ -12,6 +12,6 @@ export function QuickActionsCard({ canManage, onNavigate }: QuickActionsCardProp
   ];
   return <section className="dashboard-panel dashboard-quick-actions">
     <header className="dashboard-panel__header"><div><p>QUICK ACTIONS</p><h2>ทางลัดการทำงาน</h2></div></header>
-    <div className="dashboard-quick-actions__grid">{actions.map((action) => <button key={action.title} onClick={() => onNavigate(action.page)}><span>{action.icon}</span><b>{action.title}</b><small>{action.detail}</small></button>)}</div>
+    <div className="dashboard-quick-actions__grid">{actions.map((action) => <button className="btn-ghost" key={action.title} onClick={() => onNavigate(action.page)}><span>{action.icon}</span><b>{action.title}</b><small>{action.detail}</small></button>)}</div>
   </section>;
 }

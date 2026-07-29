@@ -9,6 +9,43 @@
   text-rendering: optimizeLegibility;
 }
 
+/* Semantic action hierarchy. Legacy classes remain as sizing hooks only. */
+button.btn-primary,
+button.btn-secondary,
+button.btn-info,
+button.btn-success,
+button.btn-warning,
+button.btn-danger,
+button.btn-neutral,
+button.btn-ghost,
+button.small-action,
+button.danger-action,
+button.leave-print-button,
+button.leave-submit-button { min-height: 40px; border-radius: 8px; font: inherit; font-weight: 700; transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease; }
+button.btn-primary { color:#fff; background:var(--action-primary); border:1px solid var(--action-primary); }
+button.btn-primary:hover:not(:disabled) { background:var(--action-primary-hover); border-color:var(--action-primary-hover); }
+button.btn-primary:active:not(:disabled) { background:var(--action-primary-active); border-color:var(--action-primary-active); transform:translateY(1px); }
+button.btn-secondary { color:var(--action-primary); background:#fff; border:1px solid #9f96ee; }
+button.btn-secondary:hover:not(:disabled) { color:var(--action-primary-hover); background:#f7f6ff; border-color:var(--action-primary-hover); }
+button.btn-neutral { color:var(--action-neutral-text); background:#fff; border:1px solid var(--action-neutral-border); }
+button.btn-neutral:hover:not(:disabled) { background:var(--action-neutral-hover); border-color:#aeb7c5; }
+button.btn-info { color:#fff; background:var(--action-info); border:1px solid var(--action-info); }
+button.btn-info:hover:not(:disabled) { background:var(--action-info-hover); border-color:var(--action-info-hover); }
+button.btn-success { color:#fff; background:var(--action-success); border:1px solid var(--action-success); }
+button.btn-success:hover:not(:disabled) { background:var(--action-success-hover); border-color:var(--action-success-hover); }
+button.btn-warning { color:#fff; background:var(--action-warning); border:1px solid var(--action-warning); }
+button.btn-warning:hover:not(:disabled) { background:var(--action-warning-hover); border-color:var(--action-warning-hover); }
+button.btn-danger, button.danger-action { color:#fff; background:var(--action-danger); border:1px solid var(--action-danger); }
+button.btn-danger:hover:not(:disabled), button.danger-action:hover:not(:disabled) { background:var(--action-danger-hover); border-color:var(--action-danger-hover); }
+button.btn-ghost { color:var(--action-neutral-text); background:transparent; border:1px solid transparent; }
+button.btn-ghost:hover:not(:disabled) { color:var(--action-primary); background:#f7f6ff; border-color:#d9d5fb; }
+button.btn-icon-only { display:inline-grid; min-width:40px; min-height:40px; place-items:center; padding:0; color:var(--action-neutral-text); background:transparent; border:1px solid transparent; }
+button.btn-icon-only:hover:not(:disabled) { background:var(--action-neutral-hover); border-color:var(--action-neutral-border); }
+button.btn-primary:focus-visible, button.btn-secondary:focus-visible, button.btn-info:focus-visible, button.btn-success:focus-visible, button.btn-warning:focus-visible, button.btn-danger:focus-visible, button.btn-neutral:focus-visible, button.btn-ghost:focus-visible, button.btn-icon-only:focus-visible, button.danger-action:focus-visible { outline:3px solid rgba(87,70,217,.35); outline-offset:2px; box-shadow:0 0 0 1px #fff; }
+button.btn-primary:disabled, button.btn-secondary:disabled, button.btn-info:disabled, button.btn-success:disabled, button.btn-warning:disabled, button.btn-danger:disabled, button.btn-neutral:disabled, button.btn-ghost:disabled, button.btn-icon-only:disabled, button.danger-action:disabled { color:#7d8795; background:#edf0f4; border-color:#d7dce4; opacity:1; cursor:not-allowed; box-shadow:none; }
+button.btn-info.compact, button.btn-success.compact, button.btn-warning.compact, button.btn-danger.compact { padding:8px 12px; }
+button.action-nowrap { white-space:nowrap; }
+
 /* SMS v3 enterprise design system.  Kept here as the final cascade so the
    legacy operational markup can retain its established API behaviour. */
 :root {
@@ -83,7 +120,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .topbar-profile b { font-size: 12px; }.topbar-profile small, .signout-button { font-size: 11px; }
 .content-area { max-width: 1600px; padding: 28px; }
 .page-heading { margin-bottom: 20px; }.page-heading h1, .empty-pane h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: -.4px; }.page-heading p { font-size: 14px; }.eyebrow { font-size: 10px !important; }
-.small-action { min-height: 34px; border-radius: 8px; padding: 7px 11px; color: var(--sms-indigo-600); border-color: #d7dcef; font-size: 12px; }
+.small-action { min-height: 34px; border-radius: 8px; padding: 7px 11px; font-size: 12px; }
 .btn-primary.compact { min-height: 34px; padding: 8px 12px; font-size: 12px; }
 
 /* Reusable data surfaces */
@@ -278,7 +315,7 @@ button { cursor: pointer; }
 .eyebrow { color: #4078d8 !important; font-size: 15px !important; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .live-status { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #c7edd6; border-radius: 999px; padding: 8px 11px; color: #208b55; background: #f4fcf7; font-size: 17px; font-weight: 700; }
 .live-status i { width: 7px; height: 7px; border-radius: 50%; background: #32bc72; }
-.heading-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }.small-action { border: 1px solid #dce6f2; border-radius: 7px; padding: 7px 10px; color: #3c6fbe; background: #fff; font-size: 15px; font-weight: 700; }.small-action:disabled { opacity: .45; cursor: not-allowed; }
+.heading-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }.small-action { padding: 7px 10px; font-size: 15px; font-weight: 700; }.small-action:disabled { opacity: .45; cursor: not-allowed; }
 .row-actions { white-space: nowrap; }.row-actions button { margin: 2px 4px 2px 0; border: 1px solid #d9e5f2; border-radius: 6px; padding: 5px 8px; color: #356fc9; background: #fff; font-size: 15px; font-weight: 700; }.row-actions button:hover { background: #eef5ff; }.row-actions .danger-action { color: #b42318; border-color: #f6d0cd; }.btn-primary.compact { width: auto; height: auto; padding: 9px 14px; box-shadow: none; }
 .metrics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .metric-card { display: flex; min-width: 0; gap: 14px; border: 1px solid #e3eaf3; border-radius: 12px; padding: 19px; background: #fff; box-shadow: 0 3px 11px rgba(37, 57, 86, .035); transition: all .25s cubic-bezier(.4,0,.2,1); }
@@ -1807,7 +1844,7 @@ textarea {
 .btn-secondary { transition: all .2s ease; }
 .btn-secondary:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(47, 128, 255, .3); }
 .small-action { transition: all .18s ease; }
-.small-action:hover:not(:disabled) { background: #f0f5ff; border-color: #93b4e6; transform: translateY(-1px); }
+.btn-neutral.small-action:hover:not(:disabled) { transform: translateY(-1px); }
 .row-actions button { transition: all .15s ease; }
 .row-actions button:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(53, 111, 201, .12); }
 
@@ -1997,8 +2034,8 @@ textarea {
   }
   .btn-primary:hover:not(:disabled), .leave-submit-button:hover:not(:disabled) { box-shadow: 0 10px 20px rgba(87,70,217,.30); transform: translateY(-1px); }
   .btn-primary.compact { min-height: 38px; padding: 0 13px; }
-  .small-action, .row-actions button { min-height: 36px; border-color: #dde3ed; border-radius: 8px; color: #526079; background: #fff; font-size: 11px; font-weight: 680; }
-  .small-action:hover:not(:disabled), .row-actions button:hover:not(:disabled) { border-color: #b7b0ee; color: var(--sms-indigo-600); background: #f9f8ff; box-shadow: none; }
+  .small-action, .row-actions button { min-height: 36px; border-radius: 8px; font-size: 11px; font-weight: 680; }
+  .btn-neutral.small-action:hover:not(:disabled) { box-shadow: none; }\n  .row-actions button:hover:not(:disabled) { border-color: #b7b0ee; color: var(--sms-indigo-600); background: #f9f8ff; box-shadow: none; }
 
   .metrics-grid { gap: 16px; }
   .metric-card { gap: 13px; border: 1px solid var(--sms-border); border-radius: var(--sms-radius-md); padding: 17px; background: var(--sms-card); box-shadow: var(--sms-shadow-sm); }
@@ -2155,4 +2192,26 @@ textarea {
   .dashboard-greeting-banner h1 { font-size: 18px !important; }
   .drawer-personnel-identity h2 { font-size: 18px; }
 }
+
+/* Final semantic overrides keep legacy sizing classes from defining color. */
+button.btn-primary { color:#fff; background:var(--action-primary); border-color:var(--action-primary); }
+button.btn-primary:hover:not(:disabled) { background:var(--action-primary-hover); border-color:var(--action-primary-hover); }
+button.btn-secondary { color:var(--action-primary); background:#fff; border:1px solid #9f96ee; }
+button.btn-secondary:hover:not(:disabled) { background:#f7f6ff; border-color:var(--action-primary-hover); }
+button.btn-neutral { color:var(--action-neutral-text); background:#fff; border:1px solid var(--action-neutral-border); }
+button.btn-neutral:hover:not(:disabled) { background:var(--action-neutral-hover); border-color:#aeb7c5; }
+button.btn-info { color:#fff; background:var(--action-info); border:1px solid var(--action-info); }
+button.btn-info:hover:not(:disabled) { background:var(--action-info-hover); border-color:var(--action-info-hover); }
+button.btn-success { color:#fff; background:var(--action-success); border:1px solid var(--action-success); }
+button.btn-success:hover:not(:disabled) { background:var(--action-success-hover); border-color:var(--action-success-hover); }
+button.btn-warning { color:#fff; background:var(--action-warning); border:1px solid var(--action-warning); }
+button.btn-warning:hover:not(:disabled) { background:var(--action-warning-hover); border-color:var(--action-warning-hover); }
+button.btn-danger, button.danger-action { color:#fff; background:var(--action-danger); border:1px solid var(--action-danger); }
+button.btn-danger:hover:not(:disabled), button.danger-action:hover:not(:disabled) { background:var(--action-danger-hover); border-color:var(--action-danger-hover); }
+button.btn-ghost { color:var(--action-neutral-text); background:transparent; border:1px solid transparent; }
+button.btn-ghost:hover:not(:disabled) { color:var(--action-primary); background:#f7f6ff; border-color:#d9d5fb; }
+button.btn-icon-only { display:inline-grid; min-width:40px; min-height:40px; place-items:center; padding:0; color:var(--action-neutral-text); background:transparent; border:1px solid transparent; }
+button.btn-icon-only:hover:not(:disabled) { background:var(--action-neutral-hover); border-color:var(--action-neutral-border); }
+button.btn-primary:focus-visible, button.btn-secondary:focus-visible, button.btn-info:focus-visible, button.btn-success:focus-visible, button.btn-warning:focus-visible, button.btn-danger:focus-visible, button.btn-neutral:focus-visible, button.btn-ghost:focus-visible, button.btn-icon-only:focus-visible, button.danger-action:focus-visible { outline:3px solid rgba(87,70,217,.35); outline-offset:2px; box-shadow:0 0 0 1px #fff; }
+button.btn-primary:disabled, button.btn-secondary:disabled, button.btn-info:disabled, button.btn-success:disabled, button.btn-warning:disabled, button.btn-danger:disabled, button.btn-neutral:disabled, button.btn-ghost:disabled, button.btn-icon-only:disabled, button.danger-action:disabled { color:#7d8795; background:#edf0f4; border-color:#d7dce4; opacity:1; cursor:not-allowed; box-shadow:none; }
 
