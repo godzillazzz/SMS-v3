@@ -12,6 +12,8 @@ This inventory describes the user-visible views currently implemented by the fro
 | Leave request, pending queue and history | `LeaveManagementPage` | Quota cards, request form and history cards | Desktop, tablet, mobile | Leave endpoints / existing approval rules | COMPLETED |
 | Leave quota | Operational table | Consistent data surface and empty/error state | Desktop, tablet, mobile | Quota endpoint / ADMIN | COMPLETED |
 | Rules and audit log | Operational table | Governance data surfaces and status badges | Desktop, tablet, mobile | Existing endpoints / RBAC | COMPLETED |
+| Organizational Structure | Not implemented | Enterprise hierarchy workspace | Desktop, tablet, mobile | No existing route, API, domain model, hierarchy data, organization-specific RBAC rule, or supported workflow | BLOCKED |
+| Audit & Compliance | `audit` via `OperationalTable` | Structural compliance console with safe normalized events | Desktop, tablet, mobile | `/api/v1/audit-events` / ADMIN only | IN PROGRESS |
 | Users and roles | Users view | Access-management table with role/status controls | Desktop, tablet, mobile | User endpoint / ADMIN and MANAGER | COMPLETED |
 | Reports | Reports view | Reusable report cards and action controls | Desktop, tablet, mobile | Existing report data / RBAC | COMPLETED |
 | Settings | `SettingsPage` | Card-based administrative settings | Desktop, tablet, mobile | Settings endpoint / ADMIN | COMPLETED |
@@ -19,7 +21,9 @@ This inventory describes the user-visible views currently implemented by the fro
 
 ## Not created
 
-Organizational Structure, Data Synchronization and System Health do not have existing frontend routes or API contracts in this application. They remain **NOT APPLICABLE** rather than being represented with non-functional mock screens.
+Organizational Structure is **BLOCKED**. No existing activePage, navigation item, page, API, domain model, hierarchy data, organization-specific RBAC rule, or supported workflow exists. Resolution requires a separately approved product/backend feature before UX/UI implementation.
+
+Data Synchronization and System Health do not have existing frontend routes or API contracts in this application. They remain **NOT APPLICABLE** rather than being represented with non-functional mock screens.
 
 ## Risks retained
 
