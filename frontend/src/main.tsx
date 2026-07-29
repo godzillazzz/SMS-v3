@@ -5,6 +5,7 @@ import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
+import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
@@ -107,29 +108,6 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
 function Logo() {
   return <span className="brand-mark" aria-label="SMS v3"><span aria-hidden="true">◈</span><b>SMS</b></span>;
-}
-
-function PersonnelDetailDrawer({ employee, canManage, onClose, onEdit }: { employee?: Employee; canManage: boolean; onClose(): void; onEdit(): void }) {
-  if (!employee) return null;
-  const fullName = `${employee.firstName} ${employee.lastName}`.trim();
-  const detailRows = [
-    ['รหัสพนักงาน', employee.employeeCode],
-    ['หน่วยงาน', employee.department || 'ไม่ระบุ'],
-    ['ตำแหน่ง', employee.jobTitle || 'ไม่ระบุ'],
-    ['สถานะการทำงาน', employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน']
-  ];
-  return <div className="detail-drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <aside className="personnel-detail-drawer" role="dialog" aria-modal="true" aria-labelledby="personnel-drawer-title">
-      <header className="drawer-header">
-        <div className="drawer-personnel-identity"><span className="drawer-avatar" aria-hidden="true">{fullName.split(/\s+/).map((value) => value[0]).join('').slice(0, 2) || 'SM'}</span><div><p>Personnel profile</p><h2 id="personnel-drawer-title">{fullName || 'พนักงาน'}</h2><span>{employee.employeeCode}</span></div></div>
-        <button type="button" className="drawer-close" aria-label="ปิดรายละเอียดพนักงาน" onClick={onClose}>×</button>
-      </header>
-      <div className="drawer-tabs" role="tablist" aria-label="รายละเอียดพนักงาน"><span role="tab" aria-selected="true">ภาพรวม</span><span role="tab" aria-disabled="true">การทำงาน</span><span role="tab" aria-disabled="true">สิทธิ์และ Audit</span></div>
-      <section className="drawer-section" aria-labelledby="personnel-overview-title"><h3 id="personnel-overview-title">ข้อมูลพนักงาน</h3><dl>{detailRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>
-      <section className="drawer-section drawer-notice"><h3>การเข้าถึง</h3><p>แสดงเฉพาะข้อมูลที่บัญชีปัจจุบันได้รับอนุญาตให้เห็น</p></section>
-      <footer className="drawer-actions"><button type="button" className="small-action" onClick={onClose}>ปิด</button>{canManage && <button type="button" className="btn-primary compact" onClick={onEdit}>แก้ไขข้อมูล</button>}</footer>
-    </aside>
-  </div>;
 }
 
 function MonthGridPicker({ value, onChange }: { value: string; onChange(value: string): void }) {
@@ -1010,7 +988,6 @@ function Dashboard() {
   const [batchSaveBusy, setBatchSaveBusy] = useState(false);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [deptMenuOpen, setDeptMenuOpen] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee>();
 
   useEffect(() => {
     if (!leavePrintTarget) return;
@@ -1144,12 +1121,6 @@ function Dashboard() {
   useEffect(() => { setOperationPage(1); }, [activePage]);
   useEffect(() => { setOperationPage(1); }, [scheduleDepartment, scheduleMonth]);
   useEffect(() => { setAutoSchedulePreview(undefined); }, [scheduleMonth]);
-
-  const filteredEmployees = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return employees;
-    return employees.filter((employee) => [employee.employeeCode, employee.firstName, employee.lastName, employee.department, employee.jobTitle].filter(Boolean).join(' ').toLowerCase().includes(term));
-  }, [employees, search]);
 
   const parentPage: Partial<Record<Page, Page>> = {};
   const navigationPage = parentPage[activePage] || activePage;
@@ -1539,16 +1510,7 @@ function Dashboard() {
         </section>
       );
     }
-    if (activePage === 'employees') return (
-      <section className="view-pane personnel-directory-page">
-        <div className="page-heading"><div><p className="eyebrow">People · personnel operations</p><h1>Personnel Directory</h1><p>ข้อมูลพนักงานและสถานะการปฏิบัติงานจากฐานข้อมูลกลาง</p></div><div className="heading-actions"><button className="small-action" onClick={() => setActivePage('licenses')}>Employee Licenses</button>{canManage && <button className="btn-primary compact" onClick={() => openEmployeeEditor()}>+ เพิ่มพนักงาน</button>}<span className="record-chip">ทั้งหมด {totalCount} คน</span></div></div>
-        <div className="toolbar"><label className="search-box"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหารหัส ชื่อ หน่วยงาน หรือตำแหน่ง" /></label><span className="toolbar-count">แสดง {filteredEmployees.length} จาก {totalCount} รายการ</span></div>
-        {fetchError && <div className="alert alert-error" role="alert">{fetchError}</div>}
-        <div className="table-card">
-          {empLoading ? <div className="loading-row">กำลังอ่านข้อมูลพนักงาน…</div> : <div className="table-scroll"><table className="data-table"><thead><tr><th>รหัสพนักงาน</th><th>ชื่อ-นามสกุล</th><th>หน่วยงาน</th><th>ตำแหน่ง</th><th>สถานะ</th>{canManage && <th>ดำเนินการ</th>}</tr></thead><tbody>{filteredEmployees.length ? filteredEmployees.map((employee) => <tr key={employee.id} className="personnel-row"><td><code>{employee.employeeCode}</code></td><td className="employee-name"><button type="button" className="personnel-name-button" onClick={() => setSelectedEmployee(employee)} aria-label={`ดูรายละเอียด ${employee.firstName} ${employee.lastName}`}>{employee.firstName} {employee.lastName}</button></td><td>{employee.department || '-'}</td><td>{employee.jobTitle || '-'}</td><td><span className={employee.isActive ? 'status-badge active' : 'status-badge inactive'}>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td>{canManage && <td className="row-actions"><button onClick={() => openEmployeeEditor(employee)}>แก้ไข</button>{auth.user?.role === 'ADMIN' && <button className="danger-action" onClick={async () => { if (!auth.token || !window.confirm('ยืนยันการปิดใช้งานพนักงานรายการนี้?')) return; try { await api.deleteEmployee(auth.token, employee.id); setEmployeeRefresh((value) => value + 1); } catch (reason) { setFetchError(reason instanceof Error ? reason.message : 'ปิดใช้งานพนักงานไม่สำเร็จ'); } }}>ปิดใช้งาน</button>}</td>}</tr>) : <tr><td colSpan={canManage ? 6 : 5} className="no-rows">ไม่พบรายการที่ตรงกับคำค้นหา</td></tr>}</tbody></table></div>}
-        </div>
-      </section>
-    );
+    if (activePage === 'employees') return <PersonnelDirectoryPage employees={employees} totalCount={totalCount} loading={empLoading} error={fetchError} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onEdit={openEmployeeEditor} onDeactivate={async (employee) => { if (!auth.token || !window.confirm('ยืนยันการปิดใช้งานพนักงานรายการนี้?')) return; try { await api.deleteEmployee(auth.token, employee.id); setEmployeeRefresh((value) => value + 1); } catch (reason) { setFetchError(reason instanceof Error ? reason.message : 'ปิดใช้งานพนักงานไม่สำเร็จ'); } }} onRefresh={() => setEmployeeRefresh((value) => value + 1)} />;
     if (activePage === 'shiftSetup') return (
       <section className="view-pane">
         <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Shift Setup</h1><p>กำหนดรหัสกะ และเวลาปฏิบัติงานที่ใช้ใน Schedule Calendar</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && <button className="btn-primary compact" onClick={openShiftTypeCreator}>+ เพิ่มรหัสกะ</button>}<span className="record-chip">ทั้งหมด {shiftTypes.length} รหัสกะ</span></div></div>
@@ -1911,7 +1873,6 @@ function Dashboard() {
     <>
       <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''}`}>
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
-      <PersonnelDetailDrawer employee={selectedEmployee} canManage={canManage} onClose={() => setSelectedEmployee(undefined)} onEdit={() => { if (!selectedEmployee) return; openEmployeeEditor(selectedEmployee); setSelectedEmployee(undefined); }} />
       {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({auth.user?.role}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)} />}
       <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
