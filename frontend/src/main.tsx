@@ -14,6 +14,8 @@ import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage';
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
+import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
+import { canLoadAccessManagement } from './components/access-management/access-management-utils';
 import './styles/responsive-shell.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
@@ -1132,6 +1134,12 @@ function Dashboard() {
 
   useEffect(() => {
     if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit') return;
+    if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
+      setOperationLoading(false);
+      setOperationError(undefined);
+      setOperationResponse({ data: [] });
+      return;
+    }
     const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'shiftSetup' | 'schedule'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
@@ -1144,7 +1152,7 @@ function Dashboard() {
       .then((response) => setOperationResponse(response))
       .catch((reason) => setOperationError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านข้อมูลได้'))
       .finally(() => setOperationLoading(false));
-  }, [activePage, auth.token, operationPage, operationRefresh]);
+  }, [activePage, auth.token, auth.user?.role, operationPage, operationRefresh]);
 
   useEffect(() => {
     if (!auth.token || activePage !== 'schedule') return;
@@ -1863,15 +1871,18 @@ function Dashboard() {
     }
     if (activePage === 'users') {
       const users = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      const pendingCount = users.filter((user) => user.accountStatus === 'PENDING').length;
-      const departments = Array.from(new Set(users.map((user) => String(user.department || '')).filter(Boolean))).sort();
-      const isManager = auth.user?.role === 'MANAGER';
-      return <section className="view-pane users-roles-page">
-        <div className="page-heading"><div><h1>Users &amp; Roles</h1><p>{isManager ? 'Manager อนุมัติบัญชีใหม่เป็น Viewer และกำหนดแผนก' : 'Admin กำหนด Role และแผนกก่อนอนุมัติบัญชี'}</p></div></div>
-        {operationError && <div className="alert alert-error">{operationError}</div>}
-        <div className="users-roles-toolbar"><strong>คำขอรออนุมัติ {pendingCount} บัญชี</strong><button className="btn-neutral small-action" disabled={operationLoading} onClick={() => setOperationRefresh((value) => value + 1)}>รีเฟรช</button></div>
-        <div className="table-card"><div className="table-scroll"><table className="data-table users-roles-table"><thead><tr><th>User ID</th><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Status</th><th>จัดการ</th></tr></thead><tbody>{operationLoading ? <tr><td colSpan={7} className="loading-row">กำลังอ่านข้อมูลบัญชี…</td></tr> : users.length ? users.map((user, index) => <tr key={text(user.id) + index}><td><code>{text(user.legacyUserId || user.id)}</code>{user.role === 'ADMIN' && <small className="user-id-note">Primary Admin</small>}</td><td className="employee-name">{text(user.displayName)}</td><td>{text(user.email)}</td><td>{isManager ? <span>Viewer</span> : <select className="inline-select" name={`role-${text(user.id)}`} defaultValue={text(user.role)}>{['ADMIN', 'MANAGER', 'VIEWER'].map((role) => <option key={role} value={role}>{role[0] + role.slice(1).toLowerCase()}</option>)}</select>}</td><td><select className="inline-select" name={`department-${text(user.id)}`} defaultValue={text(user.department)}><option value="">All</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></td><td><span className={user.isActive && user.accountStatus === 'ACTIVE' ? 'status-badge active' : 'status-badge inactive'}>{user.isActive && user.accountStatus === 'ACTIVE' ? '● Active' : `● ${text(user.accountStatus)}`}</span></td><td className="row-actions"><button className="btn-primary compact" onClick={async () => { try { const role = isManager ? 'VIEWER' : (document.querySelector(`[name="role-${text(user.id)}"]`) as HTMLSelectElement)?.value; const department = (document.querySelector(`[name="department-${text(user.id)}"]`) as HTMLSelectElement)?.value; await api.updateUser(auth.token!, String(user.id), isManager ? { role, department: department || null, accountStatus: 'ACTIVE', isActive: true } : { role, department: department || null }); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'บันทึกสิทธิ์ไม่สำเร็จ'); } }}>{isManager ? 'อนุมัติเป็น Viewer' : 'บันทึกสิทธิ์'}</button>{!isManager && <><button onClick={() => handleOperationAction(user, 'toggle-user')}>{user.isActive ? 'ระงับ' : 'เปิดใช้งาน'}</button><button onClick={() => handleOperationAction(user, 'reset-password')}>ตั้งรหัสผ่าน</button>{String(user.id) !== auth.originalUser?.id && user.isActive && user.accountStatus === 'ACTIVE' && <button className="view-as-action" onClick={async () => { if (!window.confirm(`เปิดมุมมองของ ${text(user.displayName)} แบบอ่านอย่างเดียว?`)) return; try { await auth.beginViewAs(String(user.id)); setActivePage('dashboard'); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'เปิด View As ไม่สำเร็จ'); } }}>🐞 View As</button>}</>}</td></tr>) : <tr><td colSpan={7} className="no-rows">ไม่มีข้อมูลบัญชีผู้ใช้</td></tr>}</tbody></table></div></div>
-      </section>;
+      return <AccessManagementPage
+        rows={users as Array<{ id: string; displayName?: string; role?: string; department?: string | null; accountStatus?: string; isActive?: boolean; passwordResetRequired?: boolean; createdAt?: string; updatedAt?: string }>}
+        loading={operationLoading}
+        error={operationError}
+        role={auth.user?.role || 'VIEWER'}
+        originalUserId={auth.originalUser?.id}
+        onRefresh={() => setOperationRefresh((value) => value + 1)}
+        onUpdate={async (id, payload) => { await api.updateUser(auth.token!, id, payload); setOperationRefresh((value) => value + 1); }}
+        onResetPassword={async (id, newPassword) => { await api.resetUserPassword(auth.token!, id, newPassword); setOperationRefresh((value) => value + 1); }}
+        onViewAs={async (id) => { await auth.beginViewAs(id); setActivePage('dashboard'); }}
+        onOpenAudit={() => setActivePage('audit')}
+      />;
     }
     if (activePage === 'settings') {
       const settings = Array.isArray(operationResponse.data) ? operationResponse.data : [];
