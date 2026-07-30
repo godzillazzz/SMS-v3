@@ -5,10 +5,10 @@ function configuredDatabaseUrl(rawUrl) {
   if (!rawUrl) return undefined;
   try {
     const url = new URL(rawUrl);
-    const isSupabaseSessionPooler = /(^|\.)pooler\.supabase\.com$/i.test(url.hostname) && url.port === '5432';
-    if (isSupabaseSessionPooler) {
+    const isSupabasePooler = /(^|\.)pooler\.supabase\.com$/i.test(url.hostname) && ['5432', '6543'].includes(url.port);
+    if (isSupabasePooler) {
       // Serverless invocations must not open a large Prisma pool. Keep the
-      // approved Session Pooler endpoint and add conservative client limits.
+      // approved Pooler endpoint (5432 Session or 6543 Transaction) and add conservative client limits.
       if (!url.searchParams.has('pgbouncer')) url.searchParams.set('pgbouncer', 'true');
       if (!url.searchParams.has('connection_limit')) url.searchParams.set('connection_limit', '1');
       if (!url.searchParams.has('pool_timeout')) url.searchParams.set('pool_timeout', '15');
