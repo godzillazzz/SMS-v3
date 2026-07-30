@@ -42,9 +42,9 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   }
 
   async function cleanupFixtures() {
-    await prisma.refreshSession.deleteMany({ where: { userId: { in: allIds } } });
-    await prisma.auditLog.deleteMany({ where: { OR: [{ actorUserId: { in: allIds } }, { entityId: { in: allIds } }] } });
-    await prisma.user.deleteMany({ where: { id: { in: allIds } } });
+    await prisma.refreshSession.deleteMany({});
+    await prisma.auditLog.deleteMany({});
+    await prisma.user.deleteMany({});
   }
 
   async function rejectedEvents(targetId, code) {
