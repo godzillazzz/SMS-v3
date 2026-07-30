@@ -102,21 +102,53 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
     const list = [];
     const monthsToTouch = new Set();
 
+    const existingAssList = await prisma.shiftAssignment.findMany({
+      where: {
+        OR: assignments.map(a => {
+          const pDate = new Date(String(a.workDate).slice(0, 10) + 'T00:00:00.000Z');
+          return { employeeId: a.employeeId, workDate: pDate };
+        })
+      },
+      include: { shiftType: { select: { code: true } } }
+    });
+    const existingAssMap = new Map(existingAssList.map(a => [`${a.workDate.toISOString().slice(0, 10)}|${a.employeeId}`, a]));
+
+    const monthChangeStats = {};
+
     for (const ass of assignments) {
       const emp = empMap.get(ass.employeeId);
       const shift = typeMap.get(ass.shiftTypeId);
       if (!emp || !shift) continue;
 
       const dateParts = String(ass.workDate).slice(0, 10).split('-').map(Number);
-      const parsedDate = dateParts.length === 3 && !dateParts.some(isNaN)
-        ? new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2]))
-        : new Date(ass.workDate);
-      if (isNaN(parsedDate.getTime())) continue;
+      const parsedDate = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2]));
+      const mStr = `${dateParts[0]}-${String(dateParts[1]).padStart(2, '0')}`;
+      monthsToTouch.add(mStr);
 
-      const monthKey = `${parsedDate.getUTCFullYear()}-${String(parsedDate.getUTCMonth() + 1).padStart(2, '0')}`;
-      monthsToTouch.add(monthKey);
+      if (!monthChangeStats[mStr]) {
+        monthChangeStats[mStr] = { totalChanged: 0, nonAlChanged: 0 };
+      }
 
-      const empLicenses = licMap.get(ass.employeeId) || [];
+      const key = `${parsedDate.toISOString().slice(0, 10)}|${ass.employeeId}`;
+      const beforeAss = existingAssMap.get(key);
+      const codeBefore = beforeAss ? String(beforeAss.shiftType.code || '').toUpperCase() : null;
+      const codeAfter = String(shift.code || '').toUpperCase();
+
+      const isAssChanged = !beforeAss ||
+        beforeAss.shiftTypeId !== ass.shiftTypeId ||
+        Number(beforeAss.hours) !== Number(shift.hours) ||
+        beforeAss.startTime !== shift.startTime ||
+        beforeAss.endTime !== shift.endTime ||
+        (beforeAss.remark || null) !== (ass.remark || null);
+
+      if (isAssChanged) {
+        monthChangeStats[mStr].totalChanged += 1;
+        const isAlOnlyChange = (codeBefore !== 'AL' && codeAfter === 'AL');
+        if (!isAlOnlyChange) {
+          monthChangeStats[mStr].nonAlChanged += 1;
+        }
+      }
+
       const shiftCode = String(shift.code || '').toUpperCase();
       let licenseStatus = 'VALID';
       let licenseExpiryDate = null;
@@ -127,6 +159,7 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
       if (['OFF', 'AL'].includes(shiftCode)) {
         licenseStatus = 'NOT_REQUIRED';
       } else {
+        const empLicenses = licMap.get(ass.employeeId) || [];
         const licenseState = licenseStateForWorkDate(empLicenses, parsedDate);
         if (licenseState.valid) {
           licenseStatus = 'VALID';
@@ -192,51 +225,196 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
     for (const mStr of monthsToTouch) {
       const [y, m] = mStr.split('-').map(Number);
       const monthDate = new Date(Date.UTC(y, m - 1, 1));
-      const latestApproved = await tx.scheduleApproval.findFirst({
-        where: { month: monthDate, status: 'APPROVED' },
-        orderBy: { revision: 'desc' },
-        select: { revision: true }
-      });
-      const currentRevision = latestApproved ? latestApproved.revision : 1;
-      const existingPending = await tx.scheduleApproval.findFirst({
-        where: { month: monthDate, status: 'PENDING' },
-        orderBy: { updatedAt: 'desc' }
-      });
+      const stats = monthChangeStats[mStr] || { totalChanged: 0, nonAlChanged: 0 };
+      const isNoOp = stats.totalChanged === 0;
+      const isAlOnly = !isNoOp && stats.nonAlChanged === 0;
 
-      if (existingPending) {
-        await tx.scheduleApproval.update({
-          where: { id: existingPending.id },
-          data: {
-            changedByLegacyRef: actorUserId || 'SYSTEM',
-            changedAt: new Date(),
-            changeType: 'BATCH_UPDATE_SHIFT'
-          }
-        });
-      } else {
-        try {
-          await tx.scheduleApproval.create({
-            data: {
-              month: monthDate,
-              status: 'PENDING',
-              revision: currentRevision,
-              changedByLegacyRef: actorUserId || 'SYSTEM',
-              changedAt: new Date(),
-              changeType: 'BATCH_UPDATE_SHIFT'
-            }
-          });
-        } catch (err) {
-          // ignore duplicate pending
-        }
-      }
+      await updateScheduleApprovalState(tx, {
+        month: monthDate,
+        actorUserId: actorUserId || 'SYSTEM',
+        isAlOnly,
+        isNoOp,
+        changeType: 'BATCH_UPDATE_SHIFT'
+      });
     }
 
     return list;
-  // A monthly per-employee draft can legitimately contain 31+ rows. Keep one
-  // atomic transaction, but allow enough time for the serverless pooler round
-  // trips instead of timing out midway through a valid batch.
   }, { maxWait: 10000, timeout: 60000 });
 
   return { count: results.length, data: results };
+}
+
+async function updateScheduleApprovalState(tx, { workDate, month, actorUserId, isAlOnly = false, isNoOp = false, changeType = 'UPDATE_SHIFT' }) {
+  const monthDate = month ? new Date(month) : new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth(), 1));
+
+  if (isNoOp) {
+    return tx.scheduleApproval.findFirst({
+      where: { month: monthDate },
+      orderBy: [{ revision: 'desc' }, { updatedAt: 'desc' }]
+    });
+  }
+
+  const currentApproval = await tx.scheduleApproval.findFirst({
+    where: { month: monthDate },
+    orderBy: [{ revision: 'desc' }, { updatedAt: 'desc' }]
+  });
+
+  if (isAlOnly) {
+    let result;
+    if (currentApproval) {
+      result = await tx.scheduleApproval.update({
+        where: { id: currentApproval.id },
+        data: {
+          changedByLegacyRef: actorUserId || 'SYSTEM',
+          changedAt: new Date(),
+          changeType
+        }
+      });
+    } else {
+      result = await tx.scheduleApproval.create({
+        data: {
+          month: monthDate,
+          status: 'PENDING',
+          revision: 1,
+          changedByLegacyRef: actorUserId || 'SYSTEM',
+          changedAt: new Date(),
+          changeType,
+          approvedAt: null,
+          approvedByLegacyRef: null
+        }
+      });
+    }
+
+    await audit.log({
+      actorUserId: actorUserId || null,
+      action: 'UPDATE',
+      entityType: 'ScheduleApproval',
+      entityId: result.id,
+      metadata: {
+        changeType: 'AL_ONLY_CHANGE',
+        month: monthDate.toISOString().slice(0, 7),
+        status: result.status,
+        revision: result.revision
+      }
+    }, tx);
+
+    return result;
+  }
+
+  let result;
+  if (currentApproval) {
+    result = await tx.scheduleApproval.update({
+      where: { id: currentApproval.id },
+      data: {
+        status: 'PENDING',
+        approvedAt: null,
+        approvedByLegacyRef: null,
+        changedByLegacyRef: actorUserId || 'SYSTEM',
+        changedAt: new Date(),
+        changeType
+      }
+    });
+  } else {
+    result = await tx.scheduleApproval.create({
+      data: {
+        month: monthDate,
+        status: 'PENDING',
+        revision: 1,
+        changedByLegacyRef: actorUserId || 'SYSTEM',
+        changedAt: new Date(),
+        changeType,
+        approvedAt: null,
+        approvedByLegacyRef: null
+      }
+    });
+  }
+
+  await audit.log({
+    actorUserId: actorUserId || null,
+    action: 'UPDATE',
+    entityType: 'ScheduleApproval',
+    entityId: result.id,
+    metadata: {
+      changeType: 'REAPPROVAL_REQUIRED',
+      month: monthDate.toISOString().slice(0, 7),
+      status: 'PENDING',
+      revision: result.revision
+    }
+  }, tx);
+
+  return result;
+}
+
+async function approveMonthlySchedule(tx, { month, approvalNote, actorUser }) {
+  if (actorUser.role !== 'ADMIN') {
+    await audit.log({
+      actorUserId: actorUser.sub,
+      action: 'REJECTED',
+      entityType: 'ScheduleApproval',
+      entityId: month instanceof Date ? month.toISOString().slice(0, 7) : String(month),
+      metadata: {
+        reason: 'UNAUTHORIZED_APPROVAL_ATTEMPT',
+        role: actorUser.role
+      }
+    }, tx);
+    throw new HttpError(403, 'Only an Admin may approve monthly schedules.');
+  }
+
+  const monthDate = month instanceof Date ? month : new Date(month);
+
+  const currentApproval = await tx.scheduleApproval.findFirst({
+    where: { month: monthDate },
+    orderBy: [{ revision: 'desc' }, { updatedAt: 'desc' }]
+  });
+
+  if (currentApproval && currentApproval.status === 'APPROVED') {
+    return currentApproval;
+  }
+
+  const nextRevision = (currentApproval?.revision || 0) + 1;
+
+  let result;
+  if (currentApproval) {
+    result = await tx.scheduleApproval.update({
+      where: { id: currentApproval.id },
+      data: {
+        status: 'APPROVED',
+        revision: nextRevision,
+        approvedAt: new Date(),
+        approvedByLegacyRef: actorUser.sub,
+        ...(approvalNote !== undefined && { approvalNote })
+      }
+    });
+  } else {
+    result = await tx.scheduleApproval.create({
+      data: {
+        month: monthDate,
+        status: 'APPROVED',
+        revision: nextRevision,
+        changedByLegacyRef: actorUser.sub,
+        changedAt: new Date(),
+        approvedAt: new Date(),
+        approvedByLegacyRef: actorUser.sub,
+        changeType: 'MANUAL_SCHEDULE',
+        approvalNote: approvalNote || 'อนุมัติตารางกะประจำเดือน'
+      }
+    });
+  }
+
+  await audit.log({
+    actorUserId: actorUser.sub,
+    action: 'UPDATE',
+    entityType: 'ScheduleApproval',
+    entityId: result.id,
+    metadata: {
+      action: 'ADMIN_SCHEDULE_APPROVED',
+      status: 'APPROVED',
+      revision: result.revision,
+      approvedAt: result.approvedAt
+    }
+  }, tx);
+
+  return result;
 }
 
 async function autoPlanMonth(yearMonth) {
@@ -279,47 +457,14 @@ async function autoPlanMonth(yearMonth) {
 
 async function approveMonth(yearMonth, note, actorUserId) {
   const { startDate } = parseMonthDates(yearMonth);
-
-  const lastApproved = await prisma.scheduleApproval.findFirst({
-    where: { month: startDate, status: 'APPROVED' },
-    orderBy: { revision: 'desc' },
-    select: { revision: true }
-  });
-  const nextRevision = (lastApproved?.revision || 0) + 1;
-
-  const existingPending = await prisma.scheduleApproval.findFirst({
-    where: { month: startDate, status: 'PENDING' },
-    orderBy: { updatedAt: 'desc' }
-  });
-
-  if (existingPending) {
-    return prisma.scheduleApproval.update({
-      where: { id: existingPending.id },
-      data: {
-        status: 'APPROVED',
-        revision: nextRevision,
-        approvalNote: note || 'Approved by administrator',
-        approvedByLegacyRef: actorUserId,
-        approvedAt: new Date()
-      }
-    });
-  }
-
-  return prisma.scheduleApproval.create({
-    data: {
-      month: startDate,
-      revision: nextRevision,
-      status: 'APPROVED',
-      approvalNote: note || 'Approved by administrator',
-      approvedByLegacyRef: actorUserId,
-      approvedAt: new Date()
-    }
-  });
+  return approveMonthlySchedule(prisma, { month: startDate, approvalNote: note, actorUser: { sub: actorUserId, role: 'ADMIN' } });
 }
 
 module.exports = {
   getMonthlyGrid,
   saveBatchAssignments,
   autoPlanMonth,
-  approveMonth
+  approveMonth,
+  updateScheduleApprovalState,
+  approveMonthlySchedule
 };
