@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@fontsource/ibm-plex-sans-thai/400.css';
 import '@fontsource/ibm-plex-sans-thai/500.css';
@@ -14,6 +14,7 @@ import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage';
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
+import './styles/responsive-shell.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
@@ -563,7 +564,9 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   const relatedPage = related[page];
   const showRelated = relatedPage && (relatedPage.page !== 'approvals' || role === 'ADMIN') && (relatedPage.page !== 'quota' || role === 'ADMIN');
   const noResultsMessage = page === 'licenses' && tableSearch ? 'ไม่พบใบอนุญาตที่ตรงกับคำค้นหา' : 'ยังไม่มีข้อมูลในหมวดนี้';
-  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions">{showRelated && <button className="btn-neutral small-action" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</button>}{canCreate && <button className="btn-primary compact" onClick={onCreate}>{page === 'leave' ? '+ ส่งคำขอลา' : '+ เพิ่มรายการ'}</button>}<span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><button className="btn-info small-action" disabled={!visibleRows.length} onClick={() => downloadCsv(visibleRows, page)}>CSV</button><button className="btn-info small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div><ErrorAlert message={error} />{page === 'licenses' && <div className="toolbar"><label className="search-box"><span>⌕</span><input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ" /></label><span className="toolbar-count">แสดง {visibleRows.length} จาก {rows.length} รายการ</span></div>}<div className="table-card">{loading ? <div className="loading-row" role="status">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <th>ดำเนินการ</th>}</tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}{showActions && <td className="row-actions">{rowActions(row)}</td>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows"><div className="empty-state"><span aria-hidden="true">⌁</span><strong>{noResultsMessage}</strong><p>{page === 'licenses' && tableSearch ? 'ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองแล้วค้นหาอีกครั้ง' : 'เพิ่มข้อมูลรายการแรกเพื่อเริ่มใช้งานหน้านี้'}</p>{canCreate && !(page === 'licenses' && tableSearch) && <button className="btn-neutral small-action" onClick={onCreate}>+ เพิ่มรายการแรก</button>}</div></td></tr>}</tbody></table></div>}</div>{response.meta?.totalPages && response.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(response.meta.page || 1) <= 1 || loading} onClick={() => onPageChange((response.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {response.meta.page} จาก {response.meta.totalPages}</span><button disabled={(response.meta.page || 1) >= response.meta.totalPages || loading} onClick={() => onPageChange((response.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}</section>;
+  const currentPage = response.meta?.page ?? 1;
+  const totalPages = response.meta?.totalPages ?? 0;
+  return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions">{showRelated && <button className="btn-neutral small-action" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</button>}{canCreate && <button className="btn-primary compact" onClick={onCreate}>{page === 'leave' ? '+ ส่งคำขอลา' : '+ เพิ่มรายการ'}</button>}<span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><button className="btn-info small-action" disabled={!visibleRows.length} onClick={() => downloadCsv(visibleRows, page)}>CSV</button><button className="btn-info small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div><ErrorAlert message={error} />{page === 'licenses' && <div className="toolbar"><label className="search-box"><span>⌕</span><input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ" /></label><span className="toolbar-count">แสดง {visibleRows.length} จาก {rows.length} รายการ</span></div>}<div className="table-card">{loading ? <div className="loading-row" role="status">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <th>ดำเนินการ</th>}</tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}{showActions && <td className="row-actions">{rowActions(row)}</td>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows"><div className="empty-state"><span aria-hidden="true">⌁</span><strong>{noResultsMessage}</strong><p>{page === 'licenses' && tableSearch ? 'ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองแล้วค้นหาอีกครั้ง' : 'เพิ่มข้อมูลรายการแรกเพื่อเริ่มใช้งานหน้านี้'}</p>{canCreate && !(page === 'licenses' && tableSearch) && <button className="btn-neutral small-action" onClick={onCreate}>+ เพิ่มรายการแรก</button>}</div></td></tr>}</tbody></table></div>}</div>{totalPages > 1 && <div className="pagination-bar"><button disabled={currentPage <= 1 || loading} onClick={() => onPageChange(currentPage - 1)}>‹ ก่อนหน้า</button><span>หน้า {currentPage} จาก {totalPages}</span><button disabled={currentPage >= totalPages || loading} onClick={() => onPageChange(currentPage + 1)}>หน้าถัดไป ›</button></div>}</section>;
 }
 
 const defaultNewLeaveTemplate = `🔔 [คำขอลางานใหม่] รอตรวจรับเอกสาร
@@ -972,6 +975,22 @@ function Dashboard() {
   const [operationPage, setOperationPage] = useState(1);
   const [auditPageSize, setAuditPageSize] = useState(100);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousDocumentOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileMenuOpen(false); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousDocumentOverflow;
+      mobileMenuTriggerRef.current?.focus();
+    };
+  }, [mobileMenuOpen]);
   const [operationRefresh, setOperationRefresh] = useState(0);
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
   const [employeeRefresh, setEmployeeRefresh] = useState(0);
@@ -1697,12 +1716,12 @@ function Dashboard() {
           </div>
 
           <div className="schedule-draft-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', paddingTop: '12px', borderTop: '1px dashed #bfdbfe' }}>
-            <button type="button" className="btn-primary compact" style={{ backgroundColor: '#2563eb', padding: '8px 18px', fontWeight: 'bold', fontSize: '14px', borderRadius: '8px', cursor: batchSaveBusy || Object.keys(scheduleDrafts).length === 0 ? 'not-allowed' : 'pointer', opacity: batchSaveBusy || Object.keys(scheduleDrafts).length === 0 ? 0.65 : 1 }} disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0} onClick={saveAllDrafts}>
+            <button type="button" className="btn-primary compact" style={{ padding: '8px 18px', fontWeight: 'bold', fontSize: '14px', borderRadius: '8px' }} disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0} onClick={saveAllDrafts}>
               {batchSaveBusy ? 'กำลังบันทึก…' : `บันทึกการเปลี่ยนแปลงทั้งหมด (${Object.keys(scheduleDrafts).length})`}
             </button>
             <button
               className="btn-danger compact"
-              style={{ backgroundColor: '#dc2626', color: '#ffffff', border: '1px solid #b91c1c', fontSize: '13px', fontWeight: 'bold', padding: '8px 16px', borderRadius: '8px', cursor: Object.keys(scheduleDrafts).length === 0 ? 'not-allowed' : 'pointer', opacity: Object.keys(scheduleDrafts).length === 0 ? 0.5 : 1 }}
+              style={{ fontSize: '13px', fontWeight: 'bold', padding: '8px 16px', borderRadius: '8px' }}
               disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0}
               onClick={() => { if (Object.keys(scheduleDrafts).length > 0 && window.confirm('ยกเลิกรายการเปลี่ยนแปลงทั้งหมดที่ยังไม่ได้บันทึกหรือไม่?')) { setScheduleDrafts({}); } }}
             >
@@ -1907,7 +1926,7 @@ function Dashboard() {
       <main className="main-area">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="mobile-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileMenuOpen(true)}>☰</button>
+            <button ref={mobileMenuTriggerRef} className="mobile-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileMenuOpen(true)}>☰</button>
             <span className="mobile-brand"><Logo /> SMS v3</span>
             <span className="topbar-copy"><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></span>
           </div>
