@@ -12,6 +12,7 @@ const { buildAutoSchedulePlan, buildEmployeeAutoSchedulePlan, commitAutoSchedule
 const { buildApprovedScheduleWorkbook } = require('../services/schedule-export.service');
 const { reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules } = require('../services/license-schedule-reconciliation.service');
 const { licenseStateForWorkDate } = require('../services/license-state.service');
+const { updateScheduleApprovalState, approveMonthlySchedule } = require('../services/schedule.service');
 const HttpError = require('../utils/http-error');
 
 const router = express.Router();
@@ -89,15 +90,8 @@ const licenseStateForShift = async (tx, { employeeId, workDate, shiftCode, overr
   if (actorRole === 'ADMIN' && override && String(overrideReason || '').trim().length >= 5) return { licenseStatus: 'OVERRIDDEN', licenseExpiryDate: state.expiryDate, licenseOverride: true, overrideReason: String(overrideReason).trim(), overrideAt: new Date() };
   throw new HttpError(400, actorRole === 'ADMIN' ? 'License Block: employee license is invalid for this date. Select OFF/AL or provide an Admin override reason.' : 'License Block: employee license is invalid for this date. Only an Admin may override this restriction.');
 };
-const touchScheduleApproval = async (tx, workDate, actorUserId, changeType) => {
-  const month = new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth(), 1));
-  const latestApproved = await tx.scheduleApproval.findFirst({ where: { month, status: 'APPROVED' }, orderBy: { revision: 'desc' }, select: { revision: true } });
-  const currentRevision = latestApproved ? latestApproved.revision : 1;
-  const existingPending = await tx.scheduleApproval.findFirst({ where: { month, status: 'PENDING' }, orderBy: { updatedAt: 'desc' } });
-  if (existingPending) {
-    return tx.scheduleApproval.update({ where: { id: existingPending.id }, data: { changedByLegacyRef: actorUserId, changedAt: new Date(), changeType } });
-  }
-  return tx.scheduleApproval.create({ data: { month, status: 'PENDING', revision: currentRevision, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType, approvedAt: null, approvedByLegacyRef: null, scheduleHash: null } });
+const touchScheduleApproval = async (tx, workDate, actorUserId, changeType, options = {}) => {
+  return updateScheduleApprovalState(tx, { workDate, actorUserId, changeType, ...options });
 };
 
 const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
@@ -397,17 +391,7 @@ router.post('/schedule/approve-month', authorize('ADMIN'), async (req, res, next
     const [year, monthIndex] = month.split('-').map(Number);
     const monthStart = new Date(Date.UTC(year, monthIndex - 1, 1));
     const result = await prisma.$transaction(async (tx) => {
-      const lastApproved = await tx.scheduleApproval.findFirst({ where: { month: monthStart, status: 'APPROVED' }, orderBy: { revision: 'desc' }, select: { revision: true } });
-      const nextRevision = (lastApproved?.revision || 0) + 1;
-      const latestPending = await tx.scheduleApproval.findFirst({ where: { month: monthStart, status: 'PENDING' }, orderBy: { updatedAt: 'desc' } });
-      let after;
-      if (latestPending) {
-        after = await tx.scheduleApproval.update({ where: { id: latestPending.id }, data: { status: 'APPROVED', revision: nextRevision, approvedAt: new Date(), approvedByLegacyRef: req.user.sub, ...(approvalNote !== undefined && { approvalNote }) } });
-      } else {
-        after = await tx.scheduleApproval.create({ data: { month: monthStart, status: 'APPROVED', revision: nextRevision, changedByLegacyRef: req.user.sub, changedAt: new Date(), approvedAt: new Date(), approvedByLegacyRef: req.user.sub, changeType: 'MANUAL_SCHEDULE', approvalNote: approvalNote || 'อนุมัติตารางกะประจำเดือน' } });
-      }
-      await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ScheduleApproval', entityId: after.id, metadata: { after: safeRecord(after, ['status', 'revision', 'approvedAt']) } }, tx);
-      return after;
+      return approveMonthlySchedule(tx, { month: monthStart, approvalNote, actorUser: { sub: req.user.sub, role: req.user.role } });
     });
     res.json({ data: result });
   } catch (error) { next(error); }
@@ -419,7 +403,8 @@ router.post('/shifts', authorize('ADMIN', 'MANAGER'), async (req, res, next) => 
       const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: input.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: input.shiftTypeId } })]);
       const licenseState = await licenseStateForShift(tx, { employeeId: input.employeeId, workDate: input.workDate, shiftCode: shiftType.code, override: input.licenseOverride, overrideReason: input.overrideReason, actorRole: req.user.role });
       const shift = await tx.shiftAssignment.create({ data: { ...input, startTime: input.startTime ?? shiftType.startTime, endTime: input.endTime ?? shiftType.endTime, hours: input.hours ?? shiftType.hours, ...licenseState, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, source: 'SMS_V3' } });
-      await touchScheduleApproval(tx, shift.workDate, req.user.sub, 'CREATE_SHIFT');
+      const isAlOnly = String(shiftType.code || '').toUpperCase() === 'AL';
+      await updateScheduleApprovalState(tx, { workDate: shift.workDate, actorUserId: req.user.sub, isAlOnly, changeType: 'CREATE_SHIFT' });
       await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'ShiftAssignment', entityId: shift.id, metadata: { after: safeRecord(shift, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']) } }, tx);
       return { ...shift, shiftType: { code: shiftType.code, name: shiftType.name } };
     }); res.status(201).json({ data: result });
@@ -428,10 +413,36 @@ router.post('/shifts', authorize('ADMIN', 'MANAGER'), async (req, res, next) => 
 router.put('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id); const input = shiftInput.partial().parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.');
-    const result = await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.findUniqueOrThrow({ where: { id } }); const employeeId = input.employeeId || before.employeeId; const shiftTypeId = input.shiftTypeId || before.shiftTypeId; const workDate = input.workDate || before.workDate; const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: shiftTypeId } })]); const licenseState = await licenseStateForShift(tx, { employeeId, workDate, shiftCode: shiftType.code, override: input.licenseOverride, overrideReason: input.overrideReason, actorRole: req.user.role }); const shiftTypeChanged = Boolean(input.shiftTypeId && input.shiftTypeId !== before.shiftTypeId); const after = await tx.shiftAssignment.update({ where: { id }, data: { ...input, ...(shiftTypeChanged && input.startTime === undefined && { startTime: shiftType.startTime }), ...(shiftTypeChanged && input.endTime === undefined && { endTime: shiftType.endTime }), ...(shiftTypeChanged && input.hours === undefined && { hours: shiftType.hours }), ...(input.employeeId && { employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department }), ...licenseState } }); await touchScheduleApproval(tx, after.workDate, req.user.sub, 'UPDATE_SHIFT'); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']), after: safeRecord(after, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']) } }, tx); return after; }); res.json({ data: result });
+    const result = await prisma.$transaction(async (tx) => {
+      const before = await tx.shiftAssignment.findUniqueOrThrow({ where: { id } });
+      const beforeType = await tx.shiftType.findUniqueOrThrow({ where: { id: before.shiftTypeId } });
+      const employeeId = input.employeeId || before.employeeId;
+      const shiftTypeId = input.shiftTypeId || before.shiftTypeId;
+      const workDate = input.workDate || before.workDate;
+      const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: shiftTypeId } })]);
+      const licenseState = await licenseStateForShift(tx, { employeeId, workDate, shiftCode: shiftType.code, override: input.licenseOverride, overrideReason: input.overrideReason, actorRole: req.user.role });
+      const shiftTypeChanged = Boolean(input.shiftTypeId && input.shiftTypeId !== before.shiftTypeId);
+      const after = await tx.shiftAssignment.update({ where: { id }, data: { ...input, ...(shiftTypeChanged && input.startTime === undefined && { startTime: shiftType.startTime }), ...(shiftTypeChanged && input.endTime === undefined && { endTime: shiftType.endTime }), ...(shiftTypeChanged && input.hours === undefined && { hours: shiftType.hours }), ...(input.employeeId && { employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department }), ...licenseState } });
+
+      const codeBefore = String(beforeType.code || '').toUpperCase();
+      const codeAfter = String(shiftType.code || '').toUpperCase();
+      const hasCodeChanged = Boolean(input.shiftTypeId && input.shiftTypeId !== before.shiftTypeId);
+      const hasDateChanged = Boolean(input.workDate && input.workDate.getTime() !== before.workDate.getTime());
+      const hasHoursChanged = (input.hours !== undefined && Number(input.hours) !== Number(before.hours));
+      const hasTimesChanged = (input.startTime !== undefined && input.startTime !== before.startTime) || (input.endTime !== undefined && input.endTime !== before.endTime);
+      const hasRemarkChanged = (input.remark !== undefined && (input.remark || null) !== (before.remark || null));
+      const hasEmpChanged = Boolean(input.employeeId && input.employeeId !== before.employeeId);
+
+      const isNoOp = !hasCodeChanged && !hasDateChanged && !hasHoursChanged && !hasTimesChanged && !hasRemarkChanged && !hasEmpChanged;
+      const isAlOnly = !isNoOp && !hasDateChanged && !hasEmpChanged && (codeBefore !== 'AL' && codeAfter === 'AL');
+
+      await updateScheduleApprovalState(tx, { workDate: after.workDate, actorUserId: req.user.sub, isAlOnly, isNoOp, changeType: 'UPDATE_SHIFT' });
+      await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']), after: safeRecord(after, ['employeeId', 'shiftTypeId', 'workDate', 'hours', 'locked']) } }, tx);
+      return after;
+    }); res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.delete('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.findUnique({ where: { id } }); if (!before) return; await tx.shiftAssignment.delete({ where: { id } }); await touchScheduleApproval(tx, before.workDate, req.user.sub, 'DELETE_SHIFT'); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); } });
+router.delete('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.findUnique({ where: { id } }); if (!before) return; await tx.shiftAssignment.delete({ where: { id } }); await updateScheduleApprovalState(tx, { workDate: before.workDate, actorUserId: req.user.sub, isAlOnly: false, changeType: 'DELETE_SHIFT' }); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); } });
 
 router.get('/schedule-approvals', async (req, res, next) => {
   try {
@@ -447,7 +458,12 @@ router.put('/schedule-approvals/:id', authorize('ADMIN'), async (req, res, next)
     const input = z.object({ status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']), approvalNote: nullableText(2000) }).parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.scheduleApproval.findUniqueOrThrow({ where: { id } });
-      const after = await tx.scheduleApproval.update({ where: { id }, data: { ...input, approvedAt: input.status === 'APPROVED' ? new Date() : null, approvedByLegacyRef: input.status === 'APPROVED' ? req.user.sub : null } });
+      let after;
+      if (input.status === 'APPROVED') {
+        after = await approveMonthlySchedule(tx, { month: before.month, approvalNote: input.approvalNote, actorUser: { sub: req.user.sub, role: req.user.role } });
+      } else {
+        after = await tx.scheduleApproval.update({ where: { id }, data: { status: input.status, approvedAt: null, approvedByLegacyRef: null, ...(input.approvalNote !== undefined && { approvalNote: input.approvalNote }) } });
+      }
       await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'ScheduleApproval', entityId: id, metadata: { before: safeRecord(before, ['status', 'revision']), after: safeRecord(after, ['status', 'revision', 'approvedAt']) } }, tx);
       return after;
     });

@@ -952,12 +952,30 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, employee
 function LeavePrintDocument({ row }: { row: DataRow }) {
   const leaveDates = inputDate(row.startDate) === inputDate(row.endDate) ? date(row.startDate) : `${date(row.startDate)} – ${date(row.endDate)}`;
   return <section className="leave-print-document" aria-hidden="true">
-    <style media="print">{'@page { size: A4 portrait; margin: 12mm 18mm; }'}</style>
+    <style media="print">{'@page { size: A4 portrait; margin: 10mm 15mm; }'}</style>
     <div className="leave-print-topline"><span>{formatApprovalDateTime(new Date())}</span><span>Security Management System — แบบบันทึกการลาพนักงานรักษาความปลอดภัย</span></div>
     <div className="leave-print-heading"><h1>ใบขออนุมัติลางาน</h1><p>พนักงานรักษาความปลอดภัย</p></div>
     <div className="leave-print-person"><strong>ชื่อพนักงาน: {text(row.employeeNameSnapshot)}</strong><strong>วันที่พิมพ์: {date(new Date())}</strong></div>
     <table className="leave-print-table"><thead><tr><th>วันที่ลางาน</th><th>ประเภทการลา</th><th>จำนวนวัน</th><th>ผู้ปฏิบัติงานแทน / รายละเอียด</th></tr></thead><tbody><tr><td>{leaveDates}</td><td>{text(row.leaveType)}</td><td>{text(row.dayCount)} วัน</td><td>{text(row.reason)}</td></tr></tbody></table>
-    <div className="leave-print-signatures"><div><p>ลงชื่อ........................................................</p><p>(........................................................)</p><strong>หัวหน้าพนักงานรักษาความปลอดภัย</strong></div><div><p>ทราบ / ลงชื่อ..............................................</p><p>(........................................................)</p><strong>ผู้จัดการเขต (ผู้อนุมัติ)</strong></div></div>
+    <div className="leave-print-signatures">
+      <div className="leave-print-signature-block">
+        <div className="leave-print-signature-line">
+          <span className="leave-print-sig-label">ลงชื่อ</span>
+          <span className="leave-print-dots">........................................................</span>
+        </div>
+        <div className="leave-print-name">(........................................................)</div>
+        <strong className="leave-print-title">หัวหน้าพนักงานรักษาความปลอดภัย</strong>
+      </div>
+      <div className="leave-print-signature-block">
+        <div className="leave-print-signature-line">
+          <span className="leave-print-notice">ทราบ /</span>
+          <span className="leave-print-sig-label">ลงชื่อ</span>
+          <span className="leave-print-dots">........................................................</span>
+        </div>
+        <div className="leave-print-name">(........................................................)</div>
+        <strong className="leave-print-title">ผู้จัดการเขต (ผู้อนุมัติ)</strong>
+      </div>
+    </div>
     <footer className="leave-print-footer"><span>Security Management System</span><span>1/1</span></footer>
   </section>;
 }

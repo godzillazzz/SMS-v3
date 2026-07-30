@@ -98,9 +98,11 @@ async function approveRequest(id, actorUserId) {
   // Automatically sync employee schedule for all dates in leave range
   const curr = new Date(request.startDate);
   const end = new Date(request.endDate);
+  const monthsTouched = new Set();
 
   while (curr <= end) {
     const workDate = new Date(curr);
+    monthsTouched.add(new Date(Date.UTC(workDate.getUTCFullYear(), workDate.getUTCMonth(), 1)).toISOString());
     await prisma.shiftAssignment.upsert({
       where: {
         workDate_employeeId: {
@@ -125,6 +127,11 @@ async function approveRequest(id, actorUserId) {
     });
 
     curr.setDate(curr.getDate() + 1);
+  }
+
+  const { updateScheduleApprovalState } = require('./schedule.service');
+  for (const mIso of monthsTouched) {
+    await updateScheduleApprovalState(prisma, { month: new Date(mIso), actorUserId, isAlOnly: true, changeType: 'LEAVE_APPROVAL' });
   }
 
   notifyLeaveProcessed({ leave: updatedRequest, status: 'APPROVED', approverName }).catch(() => undefined);
