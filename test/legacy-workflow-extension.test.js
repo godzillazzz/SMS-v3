@@ -104,7 +104,7 @@ test('approved test leave can be cancelled to restore quota and remove leave-gen
   assert.match(routes, /removedLeaveShifts/);
   assert.match(api, /cancelLeaveRequest/);
   assert.match(frontend, /ยกเลิกใบลาที่อนุมัติแล้ว/);
-  assert.match(frontend, /row\.status === 'APPROVED' \? <button className="leave-print-button"/);
+  assert.match(frontend, /row\.status === 'APPROVED' \? <button className="btn-info leave-print-button"/);
 });
 
 test('approved leave prints a dedicated A4 leave form rather than the application screen', () => {

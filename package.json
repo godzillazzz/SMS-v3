@@ -16,7 +16,7 @@
     "migration:legacy:dry-run": "node scripts/migrate-legacy-data.js",
     "migration:legacy:apply": "node scripts/migrate-legacy-data.js --apply",
     "test": "node --test test/*.test.js",
-    "test:integration": "node --test test/integration/*.test.js",
+    "test:integration": "node --test --test-concurrency=1 test/integration/*.test.js",
     "db:test:migrate": "prisma migrate deploy",
     "prisma:format:check": "prisma format --check",
     "audit:dependencies": "npm audit --audit-level=high"
