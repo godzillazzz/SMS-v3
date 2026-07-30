@@ -32,9 +32,20 @@ jobs:
       - run: echo "JWT_SECRET=ci-test-only-secret-at-least-thirty-two-characters" >> $GITHUB_ENV
       - run: echo "NODE_ENV=test" >> $GITHUB_ENV
       - run: npm run prisma:format:check
-      - run: npx prisma validate
-      - run: npx prisma generate
-      - run: npm run db:test:migrate
+      - name: Validate Prisma schema
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/sms_ci?schema=public
+          DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/sms_ci?schema=public
+        run: npx prisma validate
+      - name: Generate Prisma client
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/sms_ci?schema=public
+          DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/sms_ci?schema=public
+        run: npx prisma generate
+      - name: Apply isolated CI test migrations
+        env:
+          DIRECT_URL: postgresql://ci_user:ci_test_only_password@127.0.0.1:5432/sms_v3_test?schema=public
+        run: npm run db:test:migrate
       - run: npm test
       - run: RUN_INTEGRATION_TESTS=true npm run test:integration
       - run: npm run audit:dependencies

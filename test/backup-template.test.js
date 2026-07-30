@@ -7,6 +7,7 @@ const { spawnSync } = require('node:child_process');
 
 const SCRIPT_PATH = path.resolve(__dirname, '../scripts/backup/backup.example.ps1');
 const REHEARSAL_PATH = path.resolve(__dirname, '../scripts/backup/restore-rehearsal.example.ps1');
+const POWERSHELL_COMMAND = process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
 
 // Helper to create mock binary directory
 async function setupMocks(tempDir) {
@@ -55,11 +56,24 @@ exit /b 0
   // pg_restore mock: exits successfully
   await fsp.writeFile(path.join(mockBinDir, 'pg_restore.cmd'), '@echo off\nexit /b 0\n');
 
+  if (process.platform !== 'win32') {
+    const portableMocks = {
+      pg_dump: '#!/usr/bin/env sh\nset -eu\nfile=""\nfor arg in "$@"; do\n  case "$arg" in\n    --file=*) file="${arg#--file=}" ;;\n  esac\ndone\n[ -n "$file" ]\nprintf "%s\\n" "MOCK DUMP CONTENT" > "$file"\n',
+      gpg: '#!/usr/bin/env sh\nset -eu\noutput=""\nprevious=""\nfor arg in "$@"; do\n  if [ "$previous" = "--output" ]; then output="$arg"; fi\n  previous="$arg"\ndone\n[ -n "$output" ]\nprintf "%s\\n" "MOCK ENCRYPTED CONTENT" > "$output"\n',
+      pg_restore: '#!/usr/bin/env sh\nexit 0\n'
+    };
+    for (const [name, content] of Object.entries(portableMocks)) {
+      const file = path.join(mockBinDir, name);
+      await fsp.writeFile(file, content);
+      await fsp.chmod(file, 0o755);
+    }
+  }
+
   return mockBinDir;
 }
 
 test('backup template fails closed when required variables are missing', async () => {
-  const result = spawnSync('powershell.exe', [
+  const result = spawnSync(POWERSHELL_COMMAND, [
     '-ExecutionPolicy', 'Bypass',
     '-File', SCRIPT_PATH
   ], {
@@ -92,13 +106,13 @@ test('backup template never echoes database password or connection parameters', 
     const secretPassword = 'SUPER_SECRET_PASSWORD_123_DO_NOT_ECHO';
     const secretHost = 'SECRET_DB_HOST_XYZ.database.windows.net';
 
-    const result = spawnSync('powershell.exe', [
+    const result = spawnSync(POWERSHELL_COMMAND, [
       '-ExecutionPolicy', 'Bypass',
       '-Command', `function Get-FileHash { param($Path, $Algorithm); return [PSCustomObject]@{ Hash = 'c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2' } }; & '${SCRIPT_PATH.replace(/\\/g, '\\\\')}'`
     ], {
       env: {
         ...process.env,
-        PATH: `${mockBinDir};${process.env.PATH}`,
+        PATH: `${mockBinDir}${path.delimiter}${process.env.PATH || ''}`,
         BACKUP_DIRECTORY_PLACEHOLDER: localBackupDir,
         DATABASE_HOST_PLACEHOLDER: secretHost,
         DATABASE_USER_PLACEHOLDER: 'db_user_placeholder',
@@ -133,13 +147,13 @@ test('backup template runs successfully and cleans up temp files in mock scenari
     const localBackupDir = path.join(tempDir, 'local_backup');
     await fsp.mkdir(localBackupDir, { recursive: true });
 
-    const result = spawnSync('powershell.exe', [
+    const result = spawnSync(POWERSHELL_COMMAND, [
       '-ExecutionPolicy', 'Bypass',
       '-Command', `function Get-FileHash { param($Path, $Algorithm); return [PSCustomObject]@{ Hash = 'c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2' } }; & '${SCRIPT_PATH.replace(/\\/g, '\\\\')}'`
     ], {
       env: {
         ...process.env,
-        PATH: `${mockBinDir};${process.env.PATH}`,
+        PATH: `${mockBinDir}${path.delimiter}${process.env.PATH || ''}`,
         BACKUP_DIRECTORY_PLACEHOLDER: localBackupDir,
         DATABASE_HOST_PLACEHOLDER: 'db_host_placeholder',
         DATABASE_USER_PLACEHOLDER: 'db_user_placeholder',
@@ -171,7 +185,7 @@ test('backup template runs successfully and cleans up temp files in mock scenari
 });
 
 test('restore rehearsal template fails closed when required variables are missing', async () => {
-  const result = spawnSync('powershell.exe', [
+  const result = spawnSync(POWERSHELL_COMMAND, [
     '-ExecutionPolicy', 'Bypass',
     '-File', REHEARSAL_PATH
   ], {

@@ -110,7 +110,7 @@ export const api = {
   leaveSummary: (token: string) => call('/leave-summary', { headers: { Authorization: `Bearer ${token}` } }),
   leaveQuotas: (token: string, page = 1) => call(`/leave-quotas?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   users: (token: string) => call('/users', { headers: { Authorization: `Bearer ${token}` } }),
-  auditEvents: (token: string, page = 1) => call(`/audit-events?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
+  auditEvents: (token: string, page = 1, pageSize = 100) => call(`/audit-events?page=${page}&pageSize=${pageSize}`, { headers: { Authorization: `Bearer ${token}` } }),
   reportSummary: (token: string) => call('/reports/summary', { headers: { Authorization: `Bearer ${token}` } }),
   createEmployee: (token: string, data: unknown) => call('/employees', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateEmployee: (token: string, id: string, data: unknown) => call(`/employees/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),

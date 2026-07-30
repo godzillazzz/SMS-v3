@@ -8,6 +8,7 @@ const operations = fs.readFileSync(path.join(process.cwd(), 'src/routes/operatio
 const frontend = fs.readFileSync(path.join(process.cwd(), 'frontend/src/main.tsx'), 'utf8');
 const batchSchedules = fs.readFileSync(path.join(process.cwd(), 'src/routes/schedules.routes.js'), 'utf8');
 const scheduleService = fs.readFileSync(path.join(process.cwd(), 'src/services/schedule.service.js'), 'utf8');
+const userAccessService = fs.readFileSync(path.join(process.cwd(), 'src/services/user-access.service.js'), 'utf8');
 
 test('legacy protected shift codes and Admin-only schedule approval remain enforced', () => {
   assert.match(operations, /\['D', 'N', 'OFF', 'AL'\]\.includes\(before\.code\.toUpperCase\(\)\)/);
@@ -29,8 +30,8 @@ test('legacy license permissions and date validation remain enforced', () => {
 });
 
 test('Manager account approval is constrained to Viewer and sensitive settings stay environment-managed', () => {
-  assert.match(operations, /Managers may assign the Viewer role only/);
-  assert.match(operations, /input\.role = 'VIEWER'/);
+  assert.match(userAccessService, /Managers may assign the Viewer role only/);
+  assert.match(userAccessService, /effectiveInput\.role = 'VIEWER'/);
   assert.match(operations, /Sensitive settings must be configured through the approved environment-variable workflow/);
 });
 

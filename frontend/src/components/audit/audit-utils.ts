@@ -1,0 +1,3 @@
+import type { AuditEvent } from './AuditTable';
+export function filterAuditEvents(rows: AuditEvent[], search: string) { const term = search.trim().toLowerCase(); if (!term) return rows; return rows.filter((row) => [row.action, row.entityType, row.actor?.displayName, row.actor?.role].map((value) => String(value ?? '')).join(' ').toLowerCase().includes(term)); }
+export function summarizeAuditEvents(rows: AuditEvent[]) { return { categories: new Set(rows.map((row) => `${String(row.action || '')}:${String(row.entityType || '')}`)).size, actors: new Set(rows.map((row) => `${String(row.actor?.displayName || '')}:${String(row.actor?.role || '')}`)).size }; }
