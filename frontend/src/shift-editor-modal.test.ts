@@ -14,6 +14,8 @@ describe('Shift editor modal viewport isolation', () => {
   test('the monthly schedule renders one ShiftEditorModal implementation', () => {
     expect(mainTsx.match(/function ShiftEditorModal\(/g)).toHaveLength(1);
     expect(mainTsx.match(/<ShiftEditorModal/g)).toHaveLength(1);
+    expect(mainTsx.match(/function EmployeeMagicWandModal\(/g)).toHaveLength(1);
+    expect(mainTsx.match(/<EmployeeMagicWandModal/g)).toHaveLength(1);
     expect(mainTsx).toContain("if ((activePage as string) === 'schedule')");
     expect(mainTsx).toContain('{shiftEditorTarget && (');
   });
@@ -62,5 +64,13 @@ describe('Shift editor modal viewport isolation', () => {
     expect(mainTsx).toContain('document.body.style.overflow = previousOverflow');
     expect(mainTsx).toContain('initialFocusRef.current?.focus({ preventScroll: true })');
     expect(mainTsx).toContain('previouslyFocusedElement?.focus({ preventScroll: true })');
+  });
+
+  test('the magic-wand modal also renders in the dedicated viewport portal', () => {
+    expect(mainTsx).toContain('className="employee-magic-wand-modal__viewport"');
+    expect(mainTsx).toContain('className="employee-magic-wand-modal__dialog magic-wand-dialog"');
+    expect(mainTsx).not.toContain('className="dialog-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}');
+    expect(stylesCss).toContain('.employee-magic-wand-modal__viewport {');
+    expect(stylesCss).toContain('.employee-magic-wand-modal__dialog {');
   });
 });

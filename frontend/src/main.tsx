@@ -351,6 +351,12 @@ function EmployeeMagicWandModal({
   const [startPhase, setStartPhase] = useState('D1');
   const [analysisText, setAnalysisText] = useState('วิเคราะห์จากประวัติ: เริ่มกะเช้าวันที่ 1 (D1)');
   const [suggestedCode, setSuggestedCode] = useState('D1');
+  const modalRoot = useShiftEditorModalRoot();
+  const initialFocusRef = useRef<HTMLInputElement>(null);
+  const onCloseRef = useRef(onClose);
+  const canCloseRef = useRef(!busy);
+  onCloseRef.current = onClose;
+  canCloseRef.current = !busy;
 
   useEffect(() => {
     if (!token || !target.id) return;
@@ -367,6 +373,24 @@ function EmployeeMagicWandModal({
       .catch(() => {});
   }, [token, scheduleMonth, target.id]);
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.body.style.overflow = 'hidden';
+    initialFocusRef.current?.focus({ preventScroll: true });
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && canCloseRef.current) onCloseRef.current();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocusedElement?.focus({ preventScroll: true });
+    };
+  }, []);
+
   const [yearStr, monthStr] = (scheduleMonth || '2026-08').split('-');
   const dateObj = new Date(Date.UTC(Number(yearStr || 2026), Number(monthStr || 8) - 1, 1));
   const thaiMonthName = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(dateObj);
@@ -381,9 +405,13 @@ function EmployeeMagicWandModal({
     onSubmit(autoContinue, autoContinue ? suggestedCode : startPhase, patternType);
   };
 
-  return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
-      <section className="edit-dialog magic-wand-dialog" role="dialog" aria-modal="true" aria-labelledby="magic-wand-title">
+  const handleBackdropMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget && !busy) onClose();
+  };
+
+  return createPortal(
+    <div className="employee-magic-wand-modal__viewport" role="presentation" onMouseDown={handleBackdropMouseDown}>
+      <section className="employee-magic-wand-modal__dialog magic-wand-dialog" role="dialog" aria-modal="true" aria-labelledby="magic-wand-title" onMouseDown={(event) => event.stopPropagation()}>
         <div className="dialog-heading">
           <h2 id="magic-wand-title">🪄 จัดกะแพทเทิร์นด่วน</h2>
           <button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}>×</button>
@@ -400,6 +428,7 @@ function EmployeeMagicWandModal({
               <div className="wand-options-list">
                 <label className={`wand-option-card ${patternType === 'SUPERVISOR' ? 'selected' : ''}`}>
                   <input
+                    ref={initialFocusRef}
                     type="radio"
                     name="pattern-type"
                     checked={patternType === 'SUPERVISOR'}
@@ -478,7 +507,8 @@ function EmployeeMagicWandModal({
           </div>
         </form>
       </section>
-    </div>
+    </div>,
+    modalRoot
   );
 }
 
