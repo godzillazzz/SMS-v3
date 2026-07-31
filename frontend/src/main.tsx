@@ -641,6 +641,40 @@ interface ShiftEditorModalProps {
   }) => void;
 }
 
+let ownedModalRoot: HTMLElement | null = null;
+let modalRootUsers = 0;
+
+function getOrCreateModalRoot() {
+  const existingRoot = document.getElementById('modal-root');
+  if (existingRoot) return existingRoot;
+
+  const modalRoot = document.createElement('div');
+  modalRoot.id = 'modal-root';
+  document.body.appendChild(modalRoot);
+  ownedModalRoot = modalRoot;
+  return modalRoot;
+}
+
+function useShiftEditorModalRoot() {
+  const [modalRoot] = useState<HTMLElement>(getOrCreateModalRoot);
+
+  useEffect(() => {
+    modalRootUsers += 1;
+
+    return () => {
+      modalRootUsers = Math.max(0, modalRootUsers - 1);
+      window.setTimeout(() => {
+        if (modalRootUsers === 0 && modalRoot === ownedModalRoot && modalRoot.childElementCount === 0) {
+          modalRoot.remove();
+          ownedModalRoot = null;
+        }
+      }, 0);
+    };
+  }, [modalRoot]);
+
+  return modalRoot;
+}
+
 function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, isAdmin, onClose, onSubmit }: ShiftEditorModalProps) {
   const initialEmpId = String(shift?.employeeId || defaults?.employeeId || employees[0]?.id || '');
   const initialDate = shift ? inputDate(shift.workDate) : String(defaults?.workDate || '');
@@ -656,6 +690,10 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   const [licenseOverride, setLicenseOverride] = useState(initialOverride);
   const [overrideReason, setOverrideReason] = useState(initialOverrideReason);
   const [modalError, setModalError] = useState<string | null>(null);
+  const modalRoot = useShiftEditorModalRoot();
+  const initialFocusRef = useRef<HTMLSelectElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const selectedEmp = employees.find((e) => String(e.id) === employeeId);
   const empName = selectedEmp ? String(selectedEmp.displayName || `${String(selectedEmp.firstName || '')} ${String(selectedEmp.lastName || '')}`).trim() : 'พนักงาน';
@@ -735,27 +773,34 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
+    const previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = 'hidden';
+    initialFocusRef.current?.focus({ preventScroll: true });
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', handleKeyDown);
 
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocusedElement?.focus({ preventScroll: true });
     };
-  }, [onClose]);
+  }, []);
+
+  const handleBackdropMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget) onClose();
+  };
 
   return createPortal(
-    <div className="schedule-modal-overlay" onClick={onClose}>
-      <div
-        className="schedule-modal-dialog"
+    <div className="shift-editor-modal__viewport" role="presentation" onMouseDown={handleBackdropMouseDown}>
+      <section
+        className="shift-editor-modal__dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="shift-editor-title"
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
       >
         <h3 id="shift-editor-title" style={{ margin: '0 0 16px 0', fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
           {titleStr}
@@ -774,6 +819,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
                 Shift
               </label>
               <select
+                ref={initialFocusRef}
                 value={shiftTypeId}
                 onChange={(e) => setShiftTypeId(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff', color: '#0f172a', fontWeight: 600 }}
@@ -889,9 +935,9 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
             </button>
           </div>
         </form>
-      </div>
+      </section>
     </div>,
-    document.body
+    modalRoot
   );
 }
 

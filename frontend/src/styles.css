@@ -384,24 +384,30 @@ button { cursor: pointer; }
   margin: 0 !important;
 }
 .edit-dialog { width: min(720px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; border: 1px solid #dfe8f3; border-radius: 16px; padding: 24px; background: #fff; box-shadow: 0 24px 70px rgba(8, 23, 48, .3); }
-.schedule-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
+.shift-editor-modal__viewport {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000;
   display: flex;
   align-items: center;
   justify-content: center;
+  isolation: isolate;
+  width: 100vw;
+  height: 100dvh;
   box-sizing: border-box;
   padding: 16px;
   background: rgba(15, 23, 42, 0.45);
-  overflow-y: auto;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
-.schedule-modal-dialog {
+.shift-editor-modal__dialog {
   position: relative;
-  width: min(100%, 570px);
+  flex: 0 1 570px;
+  width: min(570px, 100%);
   max-height: calc(100dvh - 32px);
   box-sizing: border-box;
   overflow-y: auto;
+  margin: auto;
   border: 2px solid #fde68a;
   border-radius: 20px;
   padding: 24px;
@@ -415,7 +421,7 @@ button { cursor: pointer; }
 
 @media (max-width: 1050px) { .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sidebar { width: 228px; flex-basis: 228px; } .content-area { padding: 28px; } }
 @media print { .sidebar, .topbar, .heading-actions, .pagination-bar { display: none !important; }.table-card { border: 0; box-shadow: none; }.data-table { min-width: 0; } }
-@media (max-width: 760px) { .login-page { padding: 0; }.login-shell { min-height: 100vh; grid-template-columns: 1fr; border-radius: 0; }.login-intro { min-height: 260px; padding: 32px 28px; }.intro-copy { margin-top: 35px; }.intro-copy h1 { font-size: 38px; }.intro-copy p, .intro-check { font-size: 18px; }.login-form-panel { padding: 36px 28px; align-items: start; }.sidebar { position: fixed; z-index: 40; display: flex; width: 270px; left: -280px; transition: left .22s ease; box-shadow: 12px 0 35px rgba(9, 23, 48, .25); }.sidebar.open { left: 0; }.sidebar-overlay { position: fixed; z-index: 35; display: block; inset: 0; border: 0; background: rgba(8, 18, 35, .48); }.mobile-menu-button { display: inline-grid; width: 34px; height: 34px; place-items: center; border: 1px solid #dce5f0; border-radius: 8px; color: #334963; background: #fff; }.topbar { min-height: 62px; padding: 0 20px; }.breadcrumb { display: none; }.mobile-brand { display: inline-flex; align-items: center; gap: 8px; color: #31425b; font-size: 18px; font-weight: 700; }.mobile-brand .brand-mark { width: 30px; height: 30px; border-radius: 9px; font-size: 14px; }.environment-pill { display: none; }.content-area { padding: 24px 18px; }.metrics-grid, .dialog-grid { grid-template-columns: 1fr; }.dialog-grid .full { grid-column: auto; }.edit-dialog { padding: 20px; }.schedule-modal-dialog { padding: 18px 16px; border-radius: 16px; }.schedule-modal-form-grid { grid-template-columns: 1fr; }.page-heading, .toolbar, .dashboard-card { align-items: flex-start; flex-direction: column; }.dashboard-card { gap: 17px; }.btn-secondary { width: 100%; }.toolbar-count { margin-left: 2px; }.signout-button { font-size: 17px; } }
+@media (max-width: 760px) { .login-page { padding: 0; }.login-shell { min-height: 100vh; grid-template-columns: 1fr; border-radius: 0; }.login-intro { min-height: 260px; padding: 32px 28px; }.intro-copy { margin-top: 35px; }.intro-copy h1 { font-size: 38px; }.intro-copy p, .intro-check { font-size: 18px; }.login-form-panel { padding: 36px 28px; align-items: start; }.sidebar { position: fixed; z-index: 40; display: flex; width: 270px; left: -280px; transition: left .22s ease; box-shadow: 12px 0 35px rgba(9, 23, 48, .25); }.sidebar.open { left: 0; }.sidebar-overlay { position: fixed; z-index: 35; display: block; inset: 0; border: 0; background: rgba(8, 18, 35, .48); }.mobile-menu-button { display: inline-grid; width: 34px; height: 34px; place-items: center; border: 1px solid #dce5f0; border-radius: 8px; color: #334963; background: #fff; }.topbar { min-height: 62px; padding: 0 20px; }.breadcrumb { display: none; }.mobile-brand { display: inline-flex; align-items: center; gap: 8px; color: #31425b; font-size: 18px; font-weight: 700; }.mobile-brand .brand-mark { width: 30px; height: 30px; border-radius: 9px; font-size: 14px; }.environment-pill { display: none; }.content-area { padding: 24px 18px; }.metrics-grid, .dialog-grid { grid-template-columns: 1fr; }.dialog-grid .full { grid-column: auto; }.edit-dialog { padding: 20px; }.shift-editor-modal__dialog { padding: 18px 16px; border-radius: 16px; }.schedule-modal-form-grid { grid-template-columns: 1fr; }.page-heading, .toolbar, .dashboard-card { align-items: flex-start; flex-direction: column; }.dashboard-card { gap: 17px; }.btn-secondary { width: 100%; }.toolbar-count { margin-left: 2px; }.signout-button { font-size: 17px; } }
 
 /* Restores the legacy SMS visual scale matching sample screenshot (input_file_0.png) */
 .brand-mark { font-size: 14px; }
