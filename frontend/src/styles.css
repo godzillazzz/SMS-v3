@@ -738,25 +738,6 @@ body {
 
 @media screen {
   .print-only { display: none !important; }
-
-  html.schedule-printing,
-  html.schedule-printing body {
-    min-height: 0 !important;
-    height: auto !important;
-    background: #fff !important;
-  }
-
-  html.schedule-printing .app-shell {
-    display: none !important;
-  }
-
-  html.schedule-printing .print-only {
-    display: block !important;
-    width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    background: #fff !important;
-  }
 }
 
 @media print {

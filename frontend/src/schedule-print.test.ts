@@ -8,7 +8,7 @@ const stylesCss = fs.readFileSync(path.join(__dirname, 'styles.css'), 'utf-8');
 const printHelper = fs.readFileSync(path.join(__dirname, 'schedule-print.ts'), 'utf-8');
 
 describe('schedule PDF export', () => {
-  test('waits for the browser paint cycle before calling print', async () => {
+  test('waits for the browser paint cycle before calling the test print fallback', async () => {
     const print = vi.fn();
     const pendingPrint = printScheduleDocument(print);
 
@@ -25,10 +25,12 @@ describe('schedule PDF export', () => {
   test('uses print-safe fragmentation rules for multi-page schedules', () => {
     expect(mainTsx).toContain("import { printScheduleDocument } from './schedule-print';");
     expect(mainTsx).toContain('onClick={() => void printScheduleDocument()}');
-    expect(printHelper).toContain("classList.add('schedule-printing')");
-    expect(printHelper).toContain("addEventListener('afterprint', cleanup");
-    expect(stylesCss).toContain('html.schedule-printing .app-shell');
-    expect(stylesCss).toContain('html.schedule-printing .print-only');
+    expect(printHelper).toContain("const PRINT_ROOT_SELECTOR = '.print-only'");
+    expect(printHelper).toContain("document.createElement('iframe')");
+    expect(printHelper).toContain("frameWindow.addEventListener('afterprint', cleanup");
+    expect(printHelper).toContain('copyPrintStyles(document, frameDocument)');
+    expect(printHelper).toContain('preparePrintLayout(frameDocument)');
+    expect(printHelper).toContain('frameDocument.body.append(printRoot.cloneNode(true))');
     expect(stylesCss).toContain('size: A4 landscape;');
     expect(stylesCss).toContain('min-height: 0 !important;');
     expect(stylesCss).toContain('#root');
