@@ -30,6 +30,7 @@ const schema = z.object({
   COOKIE_DOMAIN: z.string().optional(),
   COOKIE_SECURE: z.enum(['true', 'false']).optional(),
   REFRESH_TOKEN_EXPIRES_IN: z.string().regex(/^\d+d$/).optional(),
+  DISABLE_EMAIL_NOTIFICATIONS: z.enum(['true', 'false']).default('true'),
   OTP_DELIVERY_PROVIDER: z.enum(['disabled', 'gmail_smtp']).default('disabled'),
   OTP_HASH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32, 'OTP_HASH_SECRET must be at least 32 characters.').optional()),
   OTP_FROM_EMAIL: z.preprocess(emptyToUndefined, z.string().email().optional()),
@@ -133,6 +134,7 @@ module.exports = {
   cookieDomain: parsed.COOKIE_DOMAIN,
   // A production browser session must never be downgraded to an insecure cookie.
   cookieSecure: parsed.NODE_ENV === 'production' || parsed.COOKIE_SECURE === 'true',
+  emailNotificationsEnabled: parsed.DISABLE_EMAIL_NOTIFICATIONS === 'false',
   otpDeliveryProvider: parsed.OTP_DELIVERY_PROVIDER,
   otpHashSecret: parsed.OTP_HASH_SECRET,
   otpFromEmail: parsed.OTP_FROM_EMAIL,

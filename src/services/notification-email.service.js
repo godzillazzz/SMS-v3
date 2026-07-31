@@ -1,7 +1,7 @@
 const nodemailer = require('nodemailer');
 const prisma = require('../config/prisma');
 const env = require('../config/env');
-const logger = require('../utils/logger');
+const { logger, errorCategory } = require('../utils/logger');
 
 function createTransporter(configuration = env) {
   if (configuration.otpDeliveryProvider !== 'gmail_smtp' || !configuration.smtpHost) {
@@ -33,31 +33,34 @@ async function getAdminAndManagerEmails() {
   }
 }
 
-async function sendNotification({ to, subject, html, text }) {
-  if (process.env.DISABLE_EMAIL_NOTIFICATIONS !== 'false') {
-    logger.info('Email notification skipped (Disabled during development mode)', { subject });
+async function sendNotification({ to, subject, html, text }, options = {}) {
+  const configuration = options.configuration || env;
+  const log = options.logger || logger;
+  const createConfiguredTransporter = options.createTransporter || createTransporter;
+  if (configuration.emailNotificationsEnabled !== true) {
+    log.info('Email notification skipped (system disabled)', { subject });
     return;
   }
   const recipients = Array.isArray(to) ? [...new Set(to.map((e) => String(e).trim().toLowerCase()).filter(Boolean))] : [String(to).trim().toLowerCase()];
   if (!recipients.length) return;
 
-  const transporter = createTransporter();
+  const transporter = createConfiguredTransporter(configuration);
   if (!transporter) {
-    logger.info('Email notification skipped (SMTP disabled or not configured)', { subject, recipientCount: recipients.length });
+    log.info('Email notification skipped (SMTP disabled or not configured)', { subject, recipientCount: recipients.length });
     return;
   }
 
   try {
     await transporter.sendMail({
-      from: env.otpFromEmail || env.smtpUsername,
+      from: configuration.otpFromEmail || configuration.smtpUsername,
       to: recipients.join(', '),
       subject,
       text: text || html.replace(/<[^>]+>/g, ''),
       html
     });
-    logger.info('Notification email sent successfully', { subject, recipientCount: recipients.length });
+    log.info('Notification email sent successfully', { subject, recipientCount: recipients.length });
   } catch (error) {
-    logger.error('Failed to send notification email', { error: error.message, subject, recipientCount: recipients.length });
+    log.error('Failed to send notification email', { errorCategory: errorCategory(error), subject, recipientCount: recipients.length });
   }
 }
 
@@ -236,5 +239,7 @@ module.exports = {
   notifyScheduleApproved,
   notifyNewRegistration,
   notifyLeaveSubmitted,
-  notifyLeaveProcessed
+  notifyLeaveProcessed,
+  sendNotification,
+  createTransporter
 };
