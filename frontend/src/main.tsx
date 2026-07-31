@@ -9,6 +9,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
+import { printScheduleDocument } from './schedule-print';
 import { currentBangkokMonth, formatThaiMonth, MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
 import './styles.css';
 import './design-system.css';
@@ -1762,7 +1763,7 @@ function Dashboard() {
         finally { setScheduleExportBusy(false); }
       };
       return <section className="view-pane schedule-calendar-page">
-        <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Schedule Calendar</h1><p>จัดกะรายเดือน (โหมดบันทึกด้วยตนเอง: แก้ไขกะหรือลบกะในตารางได้ต่อเนื่อง แล้วกด 💾 บันทึกการเปลี่ยนแปลง เพื่อบันทึกทีเดียว)</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="btn-info small-action" onClick={() => window.print()}>📄 Export PDF</button></>}</div></div>
+        <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Schedule Calendar</h1><p>จัดกะรายเดือน (โหมดบันทึกด้วยตนเอง: แก้ไขกะหรือลบกะในตารางได้ต่อเนื่อง แล้วกด 💾 บันทึกการเปลี่ยนแปลง เพื่อบันทึกทีเดียว)</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="btn-info small-action" onClick={() => void printScheduleDocument()}>📄 Export PDF</button></>}</div></div>
         <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ Approved' : '● Pending Approval'} · {monthLabel}</strong><small>Revision {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'Admin')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้าง revision ใหม่โดยอัตโนมัติ'}</small></div>{auth.user?.role === 'ADMIN' && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token || !window.confirm(`ยืนยันอนุมัติตารางกะประจำเดือน ${monthLabel}?`)) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'อนุมัติตารางไม่สำเร็จ'); } }}>Approve ตารางเดือนนี้</button>}</div>
         <div className="calendar-toolbar-box schedule-workbench" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px 20px', margin: '14px 0 16px 0', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.05)' }}>
           <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px' }}>
@@ -2066,6 +2067,17 @@ function Dashboard() {
     </div>
     {printData && (
       <div className="print-only">
+        {printData.printDepartments.length === 0 && (
+          <div className="print-page print-empty-page">
+            <div className="print-header">
+              Security Management System - ตารางกะที่อนุมัติแล้ว - {printData.printMonthLabel}
+            </div>
+            <div className="print-empty-state">
+              <strong>ไม่พบข้อมูลตารางกะสำหรับเดือนนี้</strong>
+              <span>กรุณาตรวจสอบเดือนหรือแผนกที่เลือกก่อนส่งออก PDF</span>
+            </div>
+          </div>
+        )}
         {printData.printDepartments.map((dept) => {
           const deptEmployees = printData.calendarEmployees.filter((e) => String(e.department || '') === dept);
           return (

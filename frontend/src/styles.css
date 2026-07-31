@@ -742,11 +742,12 @@ body {
 
 @media print {
   @page {
-    size: landscape;
+    size: A4 landscape;
     margin: 8mm 10mm;
   }
   
   body, html {
+    margin: 0 !important;
     background: #fff !important;
     color: #000 !important;
   }
@@ -764,15 +765,15 @@ body {
   }
 
   .print-page {
+    break-after: page;
     page-break-after: always;
-    page-break-inside: avoid;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
     box-sizing: border-box;
     padding: 0;
     margin-bottom: 0;
     min-height: 185mm !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: space-between !important;
+    display: block !important;
     background: #fff !important;
     color: #000 !important;
     font-family: var(--font-sans, "IBM Plex Sans Thai", system-ui, sans-serif) !important;
@@ -781,7 +782,29 @@ body {
   }
 
   .print-page:last-child {
+    break-after: auto;
     page-break-after: avoid;
+  }
+
+  .print-empty-state {
+    min-height: 120mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #334155 !important;
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .print-empty-state strong {
+    color: #173566 !important;
+    font-size: 18px;
+  }
+
+  .print-empty-state span {
+    color: #64748b !important;
   }
 
   .print-header {
@@ -820,6 +843,17 @@ body {
     border-collapse: collapse !important;
     margin-bottom: 12px;
     font-size: 10px;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .print-table thead {
+    display: table-header-group;
+  }
+
+  .print-table tbody tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .print-table th, .print-table td {
@@ -919,6 +953,7 @@ body {
     margin-top: auto !important;
     padding-top: 15px !important;
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .print-legend {
