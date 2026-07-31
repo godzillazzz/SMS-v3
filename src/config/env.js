@@ -1,13 +1,16 @@
 const dotenv = require('dotenv');
 const { z } = require('zod');
 const { logger } = require('../utils/logger');
-dotenv.config();
 
 const isTest = process.env.NODE_ENV === 'test';
+const isHostedVercel = ['preview', 'production'].includes(process.env.VERCEL_ENV);
+const allowLocalTestDefaults = isTest && !isHostedVercel;
+if (!isTest && !isHostedVercel) dotenv.config();
 const emptyToUndefined = (value) => value === '' ? undefined : value;
 const optionalPositiveInteger = z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).optional());
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  VERCEL_ENV: z.enum(['development', 'preview', 'production']).optional(),
   DATABASE_URL: z.string().url().min(1),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters.'),
   JWT_EXPIRES_IN: z.string().regex(/^\d+[smhd]$/, 'JWT_EXPIRES_IN must use forms such as 30m or 1h.').default('30m'),
@@ -53,6 +56,21 @@ const schema = z.object({
   ALERT_DATABASE_LATENCY_MS: optionalPositiveInteger,
   ALERT_FUNCTION_TIMEOUT_THRESHOLD: optionalPositiveInteger
 }).superRefine((value, context) => {
+  if (['preview', 'production'].includes(value.VERCEL_ENV)) {
+    let databaseUrl;
+    try {
+      databaseUrl = new URL(value.DATABASE_URL);
+    } catch {
+      return;
+    }
+    const databaseName = decodeURIComponent(databaseUrl.pathname.replace(/^\//, '')).toLowerCase();
+    const hostname = databaseUrl.hostname.toLowerCase();
+    const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+    const isLocalDatabase = ['sms_v3_dev', 'sms_v3_test', 'smsv3_test'].includes(databaseName);
+    if (isLocalHost || isLocalDatabase) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['DATABASE_URL'], message: 'DATABASE_URL must use a non-local, non-test database in Vercel environments.' });
+    }
+  }
   if (value.RATE_LIMIT_STORE === 'postgres' && !value.RATE_LIMIT_HASH_SECRET) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['RATE_LIMIT_HASH_SECRET'], message: 'RATE_LIMIT_HASH_SECRET is required when RATE_LIMIT_STORE=postgres.' });
   }
@@ -79,7 +97,7 @@ const schema = z.object({
 });
 
 let parsed;
-if (isTest) {
+if (allowLocalTestDefaults) {
   parsed = schema.parse({
     ...process.env,
     DATABASE_URL: process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/smsv3_test',
@@ -96,8 +114,8 @@ if (isTest) {
   const result = schema.safeParse(envToParse);
   if (!result.success) {
     logger.error('application_config_invalid', { errorCategory: 'environment_validation', issueCount: result.error.issues.length });
-    const message = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
-    throw new Error(`Invalid environment configuration: ${message}`);
+    const invalidVariables = [...new Set(result.error.issues.map((issue) => issue.path[0] || 'environment'))];
+    throw new Error(`Invalid environment configuration: ${invalidVariables.join(', ')}`);
   }
   parsed = result.data;
 }

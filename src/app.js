@@ -31,18 +31,23 @@ app.use(requestLogger);
 app.use(express.json({ limit: '1mb' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
-async function readiness(req, res, next) {
+async function readiness(req, res) {
   const startedAt = process.hrtime.bigint();
   try {
     await prisma.$queryRaw`SELECT 1`;
     logger.info('readiness_check', { requestId: req.requestId, status: 200, durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6 });
-    return res.json({ status: 'ready', requestId: req.requestId });
+    return res.json({ status: 'ready', database: 'ok', requestId: req.requestId });
   } catch (error) {
-    logger.error('readiness_failure', { requestId: req.requestId, status: 503, errorCategory: errorCategory(error) });
-    error.statusCode = 503;
-    error.publicMessage = 'Database unavailable.';
-    error.isOperational = true;
-    return next(error);
+    logger.error('readiness_failure', {
+      requestId: req.requestId,
+      status: 503,
+      operation: 'readiness_check',
+      errorName: error?.name,
+      errorCode: error?.code,
+      errorMessage: 'Database readiness check failed.',
+      errorCategory: errorCategory(error)
+    });
+    return res.status(503).json({ status: 'not_ready', database: 'unavailable', requestId: req.requestId });
   }
 }
 app.get('/ready', readiness);
