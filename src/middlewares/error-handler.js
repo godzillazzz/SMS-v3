@@ -31,7 +31,18 @@ function errorHandler(error, _req, res, _next) {
     || error.name === 'PrismaClientInitializationError';
   const status = isDatabaseConnectionError ? 503 : (error.statusCode || 500);
   if (isDatabaseConnectionError) {
-    logger.error('database_operation_failure', { requestId, status, errorCategory: errorCategory(error) });
+    logger.error('database_operation_failure', {
+      requestId,
+      status,
+      operation: 'request_database_operation',
+      errorName: error?.name,
+      errorCode: error?.code,
+      errorMessage: error?.message,
+      errorDetails: error?.meta?.details || error?.details,
+      errorHint: error?.meta?.hint || error?.hint,
+      stack: error?.stack,
+      errorCategory: errorCategory(error)
+    });
   } else if (status >= 500) {
     logger.error(error.isOperational ? 'http_5xx' : 'unexpected_http_5xx', { requestId, status, errorCategory: errorCategory(error), error });
   }
