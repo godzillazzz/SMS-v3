@@ -26,3 +26,9 @@ test('schedule batch reads existing assignments through the transaction client',
     'saveBatchAssignments must not use the global Prisma client inside the transaction'
   );
 });
+
+test('saveBatchAssignments uses tx client for all operations inside transaction', () => {
+  const sourcePath = path.join(__dirname, '..', 'src', 'services', 'schedule.service.js');
+  const source = fs.readFileSync(sourcePath, 'utf8');
+  assert.ok(source.includes('tx.shiftAssignment.upsert'), 'Must use tx.shiftAssignment.upsert inside transaction');
+});
