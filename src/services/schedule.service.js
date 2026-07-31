@@ -102,7 +102,7 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
     const list = [];
     const monthsToTouch = new Set();
 
-    const existingAssList = await prisma.shiftAssignment.findMany({
+    const existingAssList = await tx.shiftAssignment.findMany({
       where: {
         OR: assignments.map(a => {
           const pDate = new Date(String(a.workDate).slice(0, 10) + 'T00:00:00.000Z');
