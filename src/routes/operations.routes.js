@@ -13,6 +13,7 @@ const { buildApprovedScheduleWorkbook } = require('../services/schedule-export.s
 const { reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules } = require('../services/license-schedule-reconciliation.service');
 const { licenseStateForWorkDate } = require('../services/license-state.service');
 const { updateScheduleApprovalState, approveMonthlySchedule } = require('../services/schedule.service');
+const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
 const HttpError = require('../utils/http-error');
 
 const router = express.Router();
@@ -38,6 +39,7 @@ const shiftTypeInput = z.object({
 const booleanCoerce = z.union([z.boolean(), z.string().transform((val) => val === 'true' || val === '1'), z.number().transform((val) => val === 1)]).optional();
 const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.coerce.date(), startTime: nullableText(20), endTime: nullableText(20), hours: z.coerce.number().min(0).max(24).optional(), remark: nullableText(2000), locked: booleanCoerce, licenseOverride: booleanCoerce, overrideReason: nullableText(2000) });
 const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), substitute: z.string().trim().min(1).max(255), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
+const leaveListQuery = paging.extend({ status: z.string().trim().min(1).max(100).optional(), employeeId: uuid.optional(), department: z.string().trim().max(100).optional(), search: z.string().trim().max(255).optional(), year: z.coerce.number().int().optional(), month: z.coerce.number().int().optional() });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('attachment');
 const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'Attachment must not exceed 4 MB.' : 'Attachment upload is invalid.')) : next());
 const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
@@ -535,8 +537,15 @@ router.get('/leave-requests', async (req, res, next) => {
   try {
     const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true } });
     if (currentUser.role === 'VIEWER' && !currentUser.employeeId) throw new HttpError(403, 'This account is not linked to an employee.');
+    const filters = leaveListQuery.parse(req.query);
+    let monthFilter;
+    try { monthFilter = parseLeaveMonth(filters); } catch (error) { throw new HttpError(400, error.message); }
+    const viewerWhere = currentUser.role === 'VIEWER' ? { employeeId: currentUser.employeeId } : {};
+    const requestedEmployeeWhere = currentUser.role === 'VIEWER' ? {} : (filters.employeeId ? { employeeId: filters.employeeId } : {});
+    const searchWhere = filters.search ? { OR: [{ employeeNameSnapshot: { contains: filters.search, mode: 'insensitive' } }, { departmentSnapshot: { contains: filters.search, mode: 'insensitive' } }, { reason: { contains: filters.search, mode: 'insensitive' } }] } : {};
+    const where = { ...viewerWhere, ...requestedEmployeeWhere, ...(filters.status ? { status: filters.status } : {}), ...(filters.department ? { departmentSnapshot: { contains: filters.department, mode: 'insensitive' } } : {}), ...searchWhere, ...leaveMonthWhere(monthFilter) };
     const response = await paged(prisma.leaveRequest, req.query, {
-      where: currentUser.role === 'VIEWER' ? { employeeId: currentUser.employeeId } : {},
+      where,
       select: {
         id: true, employeeId: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true,
         leaveType: true, startDate: true, endDate: true, dayCount: true, reason: true,
@@ -545,6 +554,8 @@ router.get('/leave-requests', async (req, res, next) => {
       },
       orderBy: { requestedAt: 'desc' }
     });
+    const statusCounts = await prisma.leaveRequest.groupBy({ by: ['status'], where, _count: { _all: true } });
+    response.meta.statusCounts = Object.fromEntries(statusCounts.map((row) => [row.status, row._count._all]));
     const approverIds = [...new Set(response.data.map((row) => row.approvedByLegacyRef).filter((value) => uuid.safeParse(value).success))];
     const approvers = approverIds.length ? await prisma.user.findMany({ where: { id: { in: approverIds } }, select: { id: true, displayName: true, role: true } }) : [];
     const approverById = new Map(approvers.map((user) => [user.id, user]));

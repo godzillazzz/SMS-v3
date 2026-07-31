@@ -1416,17 +1416,41 @@ button, select, input, textarea {
 }
 
 .month-grid-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 250;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 2147483001;
   width: 324px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   border: 1px solid #d9e6f4;
   border-radius: 16px;
   padding: 18px 18px 20px;
   background: #ffffff;
   box-shadow: 0 22px 42px rgba(15, 35, 65, .18);
 }
+
+.month-grid-panel-portal { margin: 0; }
+
+.leave-history-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 14px 0 18px;
+  padding: 14px 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.leave-history-filter > div:first-child { display: grid; gap: 3px; }
+.leave-history-filter small { color: #475569; }
+.leave-history-month-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.leave-history-month-controls .month-grid-picker { min-width: 220px; }
+.leave-history-total { margin-top: 10px; color: #64748b; font-size: 13px; text-align: right; }
 
 .month-grid-year {
   display: flex;
@@ -1699,7 +1723,11 @@ button, select, input, textarea {
   .calendar-shift small,
   .calendar-shift .shift-note { font-size: 9px; }
   .month-grid-picker { width: 100%; min-width: 0; }
-  .month-grid-panel { position: fixed; top: 92px; left: 12px; right: 12px; width: auto; }
+  .month-grid-panel { top: 16px; left: 16px; width: calc(100vw - 32px); max-width: calc(100vw - 32px); }
+  .leave-history-filter { align-items: stretch; flex-direction: column; }
+  .leave-history-month-controls { justify-content: stretch; }
+  .leave-history-month-controls .month-grid-picker { flex: 1 1 100%; }
+  .leave-history-month-controls > button { flex: 1 1 0; }
   .leave-hero h1,
   .leave-submit-card h2,
   .leave-history-card h2,

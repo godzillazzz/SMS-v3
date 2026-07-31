@@ -6,6 +6,7 @@ const path = require('node:path');
 
 const operations = fs.readFileSync(path.join(process.cwd(), 'src/routes/operations.routes.js'), 'utf8');
 const frontend = fs.readFileSync(path.join(process.cwd(), 'frontend/src/main.tsx'), 'utf8');
+const monthPicker = fs.readFileSync(path.join(process.cwd(), 'frontend/src/components/MonthGridPicker.tsx'), 'utf8');
 const batchSchedules = fs.readFileSync(path.join(process.cwd(), 'src/routes/schedules.routes.js'), 'utf8');
 const scheduleService = fs.readFileSync(path.join(process.cwd(), 'src/services/schedule.service.js'), 'utf8');
 const userAccessService = fs.readFileSync(path.join(process.cwd(), 'src/services/user-access.service.js'), 'utf8');
@@ -50,7 +51,7 @@ test('legacy navigation and three-role model are represented in the frontend', (
 });
 
 test('schedule month picker and license search match legacy usability expectations', () => {
-  assert.match(frontend, /function MonthGridPicker/);
+  assert.match(monthPicker, /export function MonthGridPicker/);
   assert.match(frontend, /<MonthGridPicker value=\{scheduleMonth\} onChange=\{setScheduleMonth\} \/>/);
   assert.match(frontend, /page === 'licenses' && <div className="toolbar">/);
   assert.match(frontend, /ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ/);

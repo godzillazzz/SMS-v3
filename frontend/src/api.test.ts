@@ -53,6 +53,14 @@ describe('API client', () => {
       expect(typeof api[operation]).toBe('function');
     }
   });
+  it('sends the selected leave history month with the paginated request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: [], meta: { total: 0 } }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    await api.leaveRequests('test-access-token', 1, { year: 2026, month: 8 });
+    const [path] = fetchMock.mock.calls[0];
+    expect(path).toBe('/api/v1/leave-requests?page=1&pageSize=100&year=2026&month=8');
+  });
   it('exposes the protected operational mutation methods', () => {
     for (const operation of [
       'createEmployee', 'updateEmployee', 'deleteEmployee',
