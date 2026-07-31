@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import '@fontsource/ibm-plex-sans-thai/400.css';
 import '@fontsource/ibm-plex-sans-thai/500.css';
@@ -732,21 +733,31 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
     });
   };
 
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div className="schedule-modal-overlay" onClick={onClose}>
       <div
-        className="modal-card"
+        className="schedule-modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shift-editor-title"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          maxWidth: '540px',
-          backgroundColor: '#fffbeb',
-          border: '2px solid #fde68a',
-          borderRadius: '16px',
-          padding: '24px',
-          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)'
-        }}
       >
-        <h3 style={{ margin: '0 0 16px 0', fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
+        <h3 id="shift-editor-title" style={{ margin: '0 0 16px 0', fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
           {titleStr}
         </h3>
 
@@ -757,7 +768,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
         )}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+          <div className="schedule-modal-form-grid" style={{ display: 'grid', gap: '14px', marginBottom: '14px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
                 Shift
@@ -879,7 +890,8 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
