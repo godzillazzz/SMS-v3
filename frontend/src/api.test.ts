@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api } from './api';
+import { ApiRequestError, api } from './api';
+import { sanitizeLicenseDocumentError } from './components/license-document-utils';
 
 const success = () => ({ status: 200, ok: true, json: async () => ({ accessToken: 'test-access-token', user: {} }) });
 afterEach(() => vi.unstubAllGlobals());
@@ -60,6 +61,16 @@ describe('API client', () => {
     await api.leaveRequests('test-access-token', 1, { year: 2026, month: 8 });
     const [path] = fetchMock.mock.calls[0];
     expect(path).toBe('/api/v1/leave-requests?page=1&pageSize=100&year=2026&month=8');
+  });
+  it('preserves known approval errors and request IDs without exposing response internals', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 409, ok: false, json: async () => ({ error: 'สถานะเอกสารมีการเปลี่ยนแปลง กรุณารีเฟรชและลองใหม่', requestId: 'req-approval-409' }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(api.approveLicenseDocument('test-access-token', 'document-id')).rejects.toMatchObject({ name: 'ApiRequestError', status: 409, requestId: 'req-approval-409', message: 'สถานะเอกสารมีการเปลี่ยนแปลง กรุณารีเฟรชและลองใหม่' });
+  });
+  it('adds a safe reference ID only to sanitized server errors', () => {
+    expect(sanitizeLicenseDocumentError(new ApiRequestError('Database unavailable.', 503, 'req-db-503'))).toBe('ระบบไม่สามารถดำเนินการเอกสารได้ชั่วคราว กรุณาลองใหม่อีกครั้ง (รหัสอ้างอิง: req-db-503)');
+    expect(sanitizeLicenseDocumentError(new ApiRequestError('คุณไม่มีสิทธิ์อนุมัติเอกสารนี้', 403, 'req-auth-403'))).toBe('คุณไม่มีสิทธิ์อนุมัติเอกสารนี้');
   });
   it('exposes the protected operational mutation methods', () => {
     for (const operation of [

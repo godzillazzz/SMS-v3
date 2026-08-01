@@ -1,6 +1,18 @@
 const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('smsv3_csrf='))?.split('=')[1];
 
+export class ApiRequestError extends Error {
+  status: number;
+  requestId?: string;
+
+  constructor(message: string, status: number, requestId?: unknown) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.requestId = typeof requestId === 'string' ? requestId : undefined;
+  }
+}
+
 let isRefreshing = false;
 let refreshPromise: Promise<any> | null = null;
 let onTokenRefreshed: ((token: string, user: any) => void) | null = null;
@@ -40,7 +52,7 @@ async function call(path: string, init: RequestInit = {}, isRetry = false): Prom
       }
     }
     const errMessage = payload.error || (response.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
-    throw new Error(errMessage);
+    throw new ApiRequestError(errMessage, response.status, payload.requestId);
   }
   return payload;
 }
@@ -72,7 +84,7 @@ async function binaryCall(path: string, init: RequestInit = {}, isRetry = false)
       }
     }
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || 'เกิดข้อผิดพลาดในการดาวน์โหลดเอกสาร');
+    throw new ApiRequestError(payload.error || 'เกิดข้อผิดพลาดในการดาวน์โหลดเอกสาร', response.status, payload.requestId);
   }
   const disposition = response.headers.get('content-disposition') || '';
   const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];

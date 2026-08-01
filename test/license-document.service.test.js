@@ -7,7 +7,7 @@ const { createFakeLicenseDocumentStorage } = require('./support/fake-license-doc
 const ids = { admin: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', manager: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', employee: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', license: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', document: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
 const pdf = { buffer: Buffer.from('%PDF-1.7\nfixture'), mimetype: 'application/pdf', originalname: '../guard license.pdf', size: 16 };
 
-function harness({ createFailure = false } = {}) {
+function harness({ createFailure = false, requireApprovalTransactionOptions = false } = {}) {
   const state = {
     license: { id: ids.license, employeeId: ids.employee, issueDate: new Date('2026-01-01'), expiryDate: new Date('2026-12-31') },
     employee: { id: ids.employee, department: 'Operations' },
@@ -31,7 +31,12 @@ function harness({ createFailure = false } = {}) {
       update: async ({ where, data }) => Object.assign(state.documents.find((item) => item.id === where.id), data)
     }
   };
-  const prisma = { $transaction: async (callback) => callback(tx) };
+  const prisma = { $transaction: async (callback, options) => {
+    if (requireApprovalTransactionOptions && (!options || options.timeout < 30000 || options.maxWait < 10000)) {
+      const error = new Error('Transaction expired before approval completed.'); error.code = 'P2028'; throw error;
+    }
+    return callback(tx);
+  } };
   const storage = createFakeLicenseDocumentStorage();
   const audit = { log: async (entry) => { state.audits.push(entry); return entry; } };
   const reconcileSchedules = async (...args) => state.reconciles.push(args);
@@ -98,6 +103,13 @@ test('admin self-approval updates master dates, supersedes old current, and writ
   assert.equal(state.documents[0].status, 'SUPERSEDED'); assert.equal(state.documents[0].isCurrent, false);
   assert.equal(state.license.expiryDate.toISOString().slice(0, 10), '2027-12-31');
   assert.equal(state.audits.at(-1).metadata.selfApproved, true); assert.equal(state.documents.filter((item) => item.isCurrent).length, 1);
+});
+
+test('approval uses an extended transaction budget for schedule reconciliation', async () => {
+  const { state, service } = harness({ requireApprovalTransactionOptions: true });
+  state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, uploadedById: ids.admin, proposedLicenseNumber: 'LN-2027', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31'), status: 'PENDING', isCurrent: false, version: 1 });
+  const approved = await service.approve({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } });
+  assert.equal(approved.status, 'APPROVED');
 });
 
 test('double approval and non-pending rejection return conflict without deleting storage', async () => {

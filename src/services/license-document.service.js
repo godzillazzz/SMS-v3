@@ -2,6 +2,8 @@ const crypto = require('node:crypto');
 const HttpError = require('../utils/http-error');
 const { validateUpload, safeName } = require('./license-document-storage.service');
 
+const APPROVAL_TRANSACTION_OPTIONS = Object.freeze({ maxWait: 10000, timeout: 30000 });
+
 const historySelect = {
   id: true, employeeId: true, licenseId: true, safeDisplayFileName: true, mimeType: true, fileSize: true,
   proposedStartDate: true, proposedExpiryDate: true, proposedLicenseNumber: true, status: true, isCurrent: true, uploadedAt: true,
@@ -114,7 +116,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
         await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'APPROVE', licenseId: document.licenseId, uploadedById: document.uploadedById, reviewedById: requestUser.sub, selfApproved: document.uploadedById === requestUser.sub } }, tx);
         await reconcileSchedules(tx, license.employeeId, requestUser.sub);
         return approved;
-      });
+      }, APPROVAL_TRANSACTION_OPTIONS);
     } catch (error) {
       if (error?.code === 'P2034' || error?.code === 'P2002') throw new HttpError(409, 'This license document was already reviewed.');
       throw error;
