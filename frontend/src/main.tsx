@@ -23,6 +23,7 @@ import { LicenseEditModal, LicenseTableDocumentColumns } from './components/Lice
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/license-table.css';
 import './styles/responsive-shell.css';
+import './styles/action-system.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; department?: string; jobTitle?: string; isActive: boolean };
@@ -562,13 +563,13 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   const canEditRows = canManage && (page !== 'approvals' || role === 'ADMIN');
   const rowActions = (row: DataRow) => {
     if (!canEditRows || !actionPages.includes(page)) return null;
-    if (page === 'approvals') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
-    if (page === 'leave') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
-    if (page === 'rules') return <><button onClick={() => onAction(row, 'edit')}>แก้ไข</button><button onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button></>;
-    if (page === 'licenses') return <><button onClick={() => (onEditLicense ? onEditLicense(row) : onAction(row, 'edit'))}>แก้ไข</button>{role === 'ADMIN' && <button className="btn-danger compact" onClick={() => onAction(row, 'delete')}>ลบ</button>}</>;
-    if (page === 'quota') return <>{<button onClick={() => onAction(row, 'edit')}>แก้ไขโควตา</button>}{role === 'ADMIN' && String(row.matchStatus || '').includes('UNMATCHED') && <button className="btn-info compact" onClick={() => onAction(row, 'link')}>จับคู่พนักงาน</button>}</>;
-    if (page === 'schedule') return <><button onClick={() => onAction(row, 'edit')}>แก้ไข</button><button onClick={() => onAction(row, 'toggle-lock')}>{row.locked ? 'ปลดล็อก' : 'ล็อก'}</button><button className="btn-danger compact" onClick={() => onAction(row, 'delete')}>ลบ</button></>;
-    return <><button onClick={() => onAction(row, 'edit')}>สิทธิ์</button><button onClick={() => onAction(row, 'reset-password')}>ตั้งรหัสผ่าน</button><button onClick={() => onAction(row, 'toggle-user')}>{row.isActive ? 'ระงับ' : 'เปิดใช้'}</button></>;
+    if (page === 'approvals') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
+    if (page === 'leave') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
+    if (page === 'rules') return <><button className="btn-info-outline" onClick={() => onAction(row, 'edit')}>แก้ไข</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button></>;
+    if (page === 'licenses') return <><button className="btn-info-outline" aria-label="แก้ไขใบอนุญาต" onClick={() => (onEditLicense ? onEditLicense(row) : onAction(row, 'edit'))}>แก้ไข</button>{role === 'ADMIN' && <button className="btn-danger-outline compact" aria-label="ลบใบอนุญาต" onClick={() => onAction(row, 'delete')}>ลบ</button>}</>;
+    if (page === 'quota') return <>{<button className="btn-info-outline" onClick={() => onAction(row, 'edit')}>แก้ไขโควตา</button>}{role === 'ADMIN' && String(row.matchStatus || '').includes('UNMATCHED') && <button className="btn-info compact" onClick={() => onAction(row, 'link')}>จับคู่พนักงาน</button>}</>;
+    if (page === 'schedule') return <><button className="btn-info-outline" onClick={() => onAction(row, 'edit')}>แก้ไข</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle-lock')}>{row.locked ? 'ปลดล็อก' : 'ล็อก'}</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'delete')}>ลบ</button></>;
+    return <><button className="btn-info-outline" onClick={() => onAction(row, 'edit')}>สิทธิ์</button><button className="btn-neutral" onClick={() => onAction(row, 'reset-password')}>ตั้งรหัสผ่าน</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle-user')}>{row.isActive ? 'ระงับ' : 'เปิดใช้'}</button></>;
   };
   const showActions = canEditRows && actionPages.includes(page);
   const canCreate = page === 'leave' || (canManage && ['schedule'].includes(page)) || (role === 'ADMIN' && page === 'licenses');

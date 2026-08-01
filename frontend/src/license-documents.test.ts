@@ -15,6 +15,7 @@ import {
 const componentSource = fs.readFileSync(path.join(__dirname, 'components', 'LicenseDocuments.tsx'), 'utf-8');
 const mainSource = fs.readFileSync(path.join(__dirname, 'main.tsx'), 'utf-8');
 const styleSource = fs.readFileSync(path.join(__dirname, 'styles', 'license-documents.css'), 'utf-8');
+const actionStyleSource = fs.readFileSync(path.join(__dirname, 'styles', 'action-system.css'), 'utf-8');
 
 const documentRow = (overrides: Partial<LicenseDocument> = {}): LicenseDocument => ({
   id: 'doc-1', employeeId: 'emp-1', licenseId: 'license-1', safeDisplayFileName: 'license.pdf', mimeType: 'application/pdf', fileSize: 1000,
@@ -36,7 +37,7 @@ describe('license document table state', () => {
   it('uses the required eye label without personal data and keeps role-specific actions', () => {
     expect(componentSource).toContain('aria-label="ดูไฟล์ใบอนุญาต"');
     expect(componentSource).not.toMatch(/aria-label=\{`ดูไฟล์/);
-    expect(mainSource).toContain("role === 'ADMIN' && <button className=\"btn-danger compact\"");
+    expect(mainSource).toContain('className="btn-danger-outline compact" aria-label="ลบใบอนุญาต"');
     expect(mainSource).toContain("page === 'licenses' ? renderLicenseCell");
   });
 
@@ -125,6 +126,21 @@ describe('license document viewer and review', () => {
     expect(componentSource).toContain("if (!cleaned) { setError('กรุณาระบุเหตุผลที่ไม่อนุมัติ')");
     expect(componentSource).toContain('disabled={busy || !reason.trim()}');
     expect(componentSource).toContain('if (busy) return;');
+  });
+
+  it('uses centralized accessible action colors without changing license handlers', () => {
+    expect(mainSource).toContain('import \'./styles/action-system.css\';');
+    expect(actionStyleSource).toContain('--sms-action-primary: #2563eb');
+    expect(actionStyleSource).toContain('.btn-info-outline');
+    expect(actionStyleSource).toContain('.btn-danger-outline');
+    expect(actionStyleSource).toContain('.license-table-view .btn-icon-only');
+    expect(actionStyleSource).toContain('button.btn-success');
+    expect(actionStyleSource).toContain('button.btn-danger:focus-visible');
+    expect(componentSource).toContain('className="btn-danger-outline"');
+    expect(componentSource).toContain('className="btn-success"');
+    expect(componentSource).toContain('className="btn-ghost license-view-button"');
+    expect(componentSource).toContain('onClick={() => setMode(\'reject\')}');
+    expect(componentSource).toContain('onClick={() => setMode(\'approve\')}');
   });
 });
 
