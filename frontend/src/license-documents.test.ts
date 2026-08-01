@@ -6,6 +6,8 @@ import {
   LicenseDocument,
   licenseValidityLabel,
   sanitizeLicenseDocumentError,
+  licenseTableStatus,
+  selectLicenseDocumentForTable,
   selectLicenseDocumentSummary,
   sortLicenseDocuments
 } from './components/license-document-utils';
@@ -23,6 +25,42 @@ const documentRow = (overrides: Partial<LicenseDocument> = {}): LicenseDocument 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('license document table state', () => {
+  it('keeps document management out of the table and puts the view column between status and actions', () => {
+    expect(mainSource).not.toContain('LicenseDocumentsCell');
+    expect(mainSource).toContain('LicenseTableDocumentColumns');
+    expect(mainSource.indexOf("{ label: 'สถานะ'"))
+      .toBeLessThan(mainSource.indexOf("{ label: 'ดูไฟล์'"));
+    expect(mainSource).toContain("if (column.label === 'ดูไฟล์') return null;");
+  });
+
+  it('uses the required eye label without personal data and keeps role-specific actions', () => {
+    expect(componentSource).toContain('aria-label="ดูไฟล์ใบอนุญาต"');
+    expect(componentSource).not.toMatch(/aria-label=\{`ดูไฟล์/);
+    expect(mainSource).toContain("role === 'ADMIN' && <button className=\"btn-danger compact\"");
+    expect(mainSource).toContain("page === 'licenses' ? renderLicenseCell");
+  });
+
+  it('selects the approved current file before pending renewals', () => {
+    const current = documentRow({ id: 'approved', status: 'APPROVED', isCurrent: true, version: 2 });
+    const renewal = documentRow({ id: 'pending', status: 'PENDING', version: 3 });
+    expect(selectLicenseDocumentForTable([renewal, current])?.id).toBe('approved');
+    expect(licenseTableStatus([renewal, current]).label).toBe('มีรายการรอตรวจสอบ');
+  });
+
+  it('selects pending or rejected files only when no current file exists', () => {
+    const pending = documentRow({ id: 'pending', status: 'PENDING', version: 2 });
+    const rejected = documentRow({ id: 'rejected', status: 'REJECTED', version: 1 });
+    expect(selectLicenseDocumentForTable([pending])?.id).toBe('pending');
+    expect(selectLicenseDocumentForTable([rejected])?.id).toBe('rejected');
+    expect(selectLicenseDocumentForTable([])).toBeUndefined();
+  });
+
+  it('does not make a retention-deleted file clickable', () => {
+    const deleted = documentRow({ status: 'APPROVED', isCurrent: true, storageDeletedAt: '2026-08-01T00:00:00Z' });
+    expect(selectLicenseDocumentForTable([deleted])?.storageDeletedAt).toBeTruthy();
+    expect(componentSource).toContain('ไฟล์ต้นฉบับถูกลบตามนโยบายจัดเก็บข้อมูล');
+  });
+
   it('supports empty, pending, approved, and rejected Thai badges', () => {
     expect(componentSource).toContain('ยังไม่มีไฟล์');
     expect(componentSource).toContain('licenseDocumentStatusLabel[document.status]');

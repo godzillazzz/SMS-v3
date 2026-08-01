@@ -48,6 +48,26 @@ export function selectLicenseDocumentSummary(documents: LicenseDocument[]) {
   };
 }
 
+export function selectLicenseDocumentForTable(documents: LicenseDocument[]) {
+  const summary = selectLicenseDocumentSummary(documents);
+  if (summary.current) return summary.current;
+  return summary.pending.find((item) => item.fileAvailable !== false) || (summary.latestRejected?.fileAvailable !== false ? summary.latestRejected : undefined);
+}
+
+export function licenseTableStatus(documents: LicenseDocument[], issueDate?: string | null, expiryDate?: string | null, status?: string | null, now = new Date()) {
+  const summary = selectLicenseDocumentSummary(documents);
+  if (summary.pending.length && summary.current) return { label: 'มีรายการรอตรวจสอบ', tone: 'pending' as const };
+  if (summary.current) {
+    const validity = licenseValidityLabel(issueDate, expiryDate, status, now);
+    if (validity === 'หมดอายุ') return { label: 'หมดอายุ', tone: 'expired' as const };
+    if (validity === 'ใกล้หมดอายุ') return { label: 'ใกล้หมดอายุ', tone: 'expiring' as const };
+    return { label: 'อนุมัติแล้ว', tone: 'approved' as const };
+  }
+  if (summary.pending.length) return { label: 'รอตรวจสอบ', tone: 'pending' as const };
+  if (summary.latestRejected) return { label: 'ไม่อนุมัติ', tone: 'rejected' as const };
+  return { label: 'ยังไม่มีเอกสาร', tone: 'empty' as const };
+}
+
 export function formatLicenseDate(value?: string | null) {
   if (!value) return '-';
   const dateOnly = String(value).slice(0, 10);

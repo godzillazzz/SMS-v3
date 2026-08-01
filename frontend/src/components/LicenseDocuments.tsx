@@ -4,10 +4,12 @@ import {
   formatFileSize,
   formatLicenseDate,
   formatLicenseDateTime,
+  licenseTableStatus,
   licenseValidityLabel,
   LicenseDocument,
   licenseDocumentStatusLabel,
   sanitizeLicenseDocumentError,
+  selectLicenseDocumentForTable,
   selectLicenseDocumentSummary,
   sortLicenseDocuments
 } from './license-document-utils';
@@ -80,6 +82,28 @@ export function LicenseDocumentViewerModal({ documentId, onRequestView, onClose 
   </ModalFrame>;
 }
 
+export function LicenseTableDocumentColumns({ license, refreshSignal, services }: { license: LicenseIdentity; refreshSignal: number; services: Services }) {
+  const [documents, setDocuments] = useState<LicenseDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+  const [viewerId, setViewerId] = useState<string>();
+  const load = async () => {
+    setLoading(true); setError(undefined);
+    try { setDocuments(sortLicenseDocuments(await services.list(license.id))); }
+    catch (reason) { setError(sanitizeLicenseDocumentError(reason)); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, [license.id, refreshSignal]);
+  const selected = selectLicenseDocumentForTable(documents);
+  const tableStatus = licenseTableStatus(documents, license.issueDate, license.expiryDate, license.status);
+  const fileDeleted = Boolean(selected?.storageDeletedAt);
+  return <>
+    <td className="license-table-status"><span className={`status-badge license-status-${tableStatus.tone}`}>{loading ? 'กำลังอ่าน…' : error ? 'ไม่พร้อมใช้งาน' : tableStatus.label}</span></td>
+    <td className="license-table-view">{!loading && !error && selected && !fileDeleted && <button type="button" className="btn-icon-only" aria-label="ดูไฟล์ใบอนุญาต" title="ดูไฟล์ใบอนุญาต" onClick={() => setViewerId(selected.id)}>◉</button>}{!loading && !error && (!selected || fileDeleted) && <span className="license-file-unavailable" title={fileDeleted ? 'ไฟล์ต้นฉบับถูกลบตามนโยบายจัดเก็บข้อมูล' : undefined}>{fileDeleted ? 'ไฟล์ถูกลบตามนโยบาย' : 'ไม่มีไฟล์'}</span>}</td>
+    {viewerId && <LicenseDocumentViewerModal documentId={viewerId} onRequestView={services.view} onClose={() => setViewerId(undefined)} />}
+  </>;
+}
+
 function DocumentFacts({ document }: { document: LicenseDocument }) {
   return <dl className="license-document-facts">
     <div><dt>ชื่อไฟล์</dt><dd>{document.safeDisplayFileName}</dd></div>
@@ -118,7 +142,7 @@ function ReviewModal({ document, license, services, onClose, onChanged }: { docu
     <ModalFrame labelledBy="license-review-title" className="license-review-dialog" onClose={onClose} escapeEnabled={!viewerId}>
       <header className="license-modal-heading"><div><p>ตรวจสอบเอกสารใบอนุญาต</p><h2 id="license-review-title">{employeeName}</h2><span>{license.employee.employeeCode} · {license.employee.department || '-'}</span></div></header>
       <DocumentFacts document={document} />
-      <button type="button" className="btn-neutral license-view-button" aria-label={`ดูไฟล์ ${document.safeDisplayFileName}`} onClick={() => setViewerId(document.id)}>◉ ดูไฟล์</button>
+      <button type="button" className="btn-neutral license-view-button" aria-label="ดูไฟล์ใบอนุญาต" onClick={() => setViewerId(document.id)}>◉ ดูไฟล์</button>
       <section className="license-date-comparison" aria-label="เปรียบเทียบวันที่ใบอนุญาต">
         <div><h3>วันที่ปัจจุบัน</h3><p>{formatLicenseDate(license.issueDate)} – {formatLicenseDate(license.expiryDate)}</p></div>
         <div><h3>วันที่เสนอ</h3><p>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</p></div>
@@ -147,7 +171,7 @@ function HistoryModal({ documents, services, onClose }: { documents: LicenseDocu
         <small>ผู้ตรวจ: {document.reviewedBy?.displayName || '-'} · {formatLicenseDateTime(document.reviewedAt)}</small>
         {document.rejectionReason && <p className="license-rejection-reason">เหตุผล: {document.rejectionReason}</p>}
         {document.proposedLicenseNumber && <p>เลขใบอนุญาต: {document.proposedLicenseNumber}</p>}
-        {document.fileAvailable !== false && <button type="button" className="btn-neutral compact" aria-label={`ดูไฟล์ ${document.safeDisplayFileName}`} onClick={() => setViewerId(document.id)}>◉ ดูไฟล์</button>}
+        {document.fileAvailable !== false && <button type="button" className="btn-neutral compact" aria-label="ดูไฟล์ใบอนุญาต" onClick={() => setViewerId(document.id)}>◉ ดูไฟล์</button>}
       </article>)}</div>
     </ModalFrame>
     {viewerId && <LicenseDocumentViewerModal documentId={viewerId} onRequestView={services.view} onClose={() => setViewerId(undefined)} />}
@@ -181,7 +205,7 @@ export function LicenseEditModal({ license, isAdmin, services, onUpload, onChang
     finally { setBusy(false); }
   };
   const changed = async (message: string) => { await load(); onChanged(message); };
-  const documentLine = (document: LicenseDocument) => <div className="license-edit-document" key={document.id}><div><span className={`license-doc-badge is-${document.status.toLowerCase()}`}>{licenseDocumentStatusLabel[document.status]}</span><strong>{document.proposedLicenseNumber || license.licenseNumber || 'ยังไม่มีเลขใบอนุญาต'}</strong><small>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</small></div><div className="license-inline-actions">{document.fileAvailable !== false && <button type="button" className="btn-icon-only" aria-label={`ดูไฟล์ ${document.safeDisplayFileName}`} onClick={() => setViewerId(document.id)}>◉</button>}{isAdmin && document.status === 'PENDING' && <button type="button" className="btn-warning compact" onClick={() => setReviewDocument(document)}>ตรวจสอบ</button>}</div></div>;
+  const documentLine = (document: LicenseDocument) => <div className="license-edit-document" key={document.id}><div><span className={`license-doc-badge is-${document.status.toLowerCase()}`}>{licenseDocumentStatusLabel[document.status]}</span><strong>{document.proposedLicenseNumber || license.licenseNumber || 'ยังไม่มีเลขใบอนุญาต'}</strong><small>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</small></div><div className="license-inline-actions">{document.fileAvailable !== false && <button type="button" className="btn-icon-only" aria-label="ดูไฟล์ใบอนุญาต" title="ดูไฟล์ใบอนุญาต" onClick={() => setViewerId(document.id)}>◉</button>}{document.fileAvailable === false && <span title="ไฟล์ต้นฉบับถูกลบตามนโยบายจัดเก็บข้อมูล">ไฟล์ถูกลบตามนโยบาย</span>}{isAdmin && document.status === 'PENDING' && <button type="button" className="btn-warning compact" onClick={() => setReviewDocument(document)}>ตรวจสอบ</button>}</div></div>;
   return <>
     <ModalFrame labelledBy="license-edit-title" className="license-edit-dialog" onClose={onClose} escapeEnabled={!reviewDocument && !viewerId}>
       <header className="license-modal-heading"><div><p>จัดการใบอนุญาต</p><h2 id="license-edit-title">{license.employee.firstName} {license.employee.lastName}</h2><span>{license.employee.employeeCode} · {license.employee.department || '-'}</span></div></header>
@@ -214,7 +238,7 @@ export function LicenseDocumentsCell({ license, isAdmin, refreshSignal, services
   const changed = async (message: string) => { await load(); setNotice(message); window.setTimeout(() => onChanged(message), 1200); };
   const documentLine = (document: LicenseDocument, renewal = false) => <div className="license-document-line" key={document.id}>
     <div><span className={`license-doc-badge is-${document.status.toLowerCase()}`}>{renewal ? 'ฉบับต่ออายุรอตรวจสอบ' : licenseDocumentStatusLabel[document.status]}</span>{document.proposedLicenseNumber && <small>{renewal ? `เลขใหม่รอตรวจสอบ: ${document.proposedLicenseNumber}` : `เลขใบอนุญาต: ${document.proposedLicenseNumber}`}</small>}<small>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</small></div>
-    <div className="license-inline-actions">{document.fileAvailable !== false && <button type="button" className="btn-icon-only" aria-label={`ดูไฟล์ ${document.safeDisplayFileName}`} onClick={() => setViewerId(document.id)}>◉</button>}{isAdmin && document.status === 'PENDING' && <button type="button" className="btn-warning compact" onClick={() => setReviewDocument(document)}>ตรวจสอบ</button>}</div>
+    <div className="license-inline-actions">{document.fileAvailable !== false && <button type="button" className="btn-icon-only" aria-label="ดูไฟล์ใบอนุญาต" title="ดูไฟล์ใบอนุญาต" onClick={() => setViewerId(document.id)}>◉</button>}{isAdmin && document.status === 'PENDING' && <button type="button" className="btn-warning compact" onClick={() => setReviewDocument(document)}>ตรวจสอบ</button>}</div>
   </div>;
   return <div className="license-documents-cell">
     {loading && <span className="license-doc-loading" role="status">กำลังอ่านเอกสาร…</span>}

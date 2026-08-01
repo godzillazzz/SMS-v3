@@ -205,7 +205,7 @@ router.get('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) =>
     res.json({ data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
   } catch (error) { next(error); }
 });
-router.post('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/licenses', authorize('ADMIN'), async (req, res, next) => {
   try {
     const input = licenseInput.parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
@@ -219,7 +219,7 @@ router.post('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) =
     res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
-router.put('/licenses/:id', authorize('ADMIN'), async (req, res, next) => {
+router.put('/licenses/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id); const input = licenseUpdateInput.parse(req.body);
     if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.');

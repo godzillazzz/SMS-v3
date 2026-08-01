@@ -56,11 +56,11 @@ test('storage failure creates no record and database failure removes the orphan 
   assert.equal(second.storage.calls.remove.length, 1); assert.equal(second.storage.objects.size, 0);
 });
 
-test('manager access is limited to matching department', async () => {
+test('manager license access is not limited by department', async () => {
   const { state, service } = harness();
   await service.list({ licenseId: ids.license, requestUser: { sub: ids.manager, role: 'MANAGER' } });
   state.manager.department = 'HR';
-  await assert.rejects(() => service.list({ licenseId: ids.license, requestUser: { sub: ids.manager, role: 'MANAGER' } }), { statusCode: 403 });
+  await service.list({ licenseId: ids.license, requestUser: { sub: ids.manager, role: 'MANAGER' } });
 });
 
 test('viewer access and non-admin review operations are rejected', async () => {

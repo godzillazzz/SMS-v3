@@ -45,13 +45,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
 
   async function canAccess(tx, requestUser, employeeId) {
     if (requestUser.role === 'ADMIN') return true;
-    if (requestUser.role !== 'MANAGER') return false;
-    const [manager, employee] = await Promise.all([
-      tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { department: true, employee: { select: { department: true } } } }),
-      tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { department: true } })
-    ]);
-    const department = manager.department || manager.employee?.department;
-    return Boolean(department && employee.department && department === employee.department);
+    return requestUser.role === 'MANAGER';
   }
 
   async function list({ licenseId, requestUser }) {
