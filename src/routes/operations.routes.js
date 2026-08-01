@@ -13,6 +13,9 @@ const { buildApprovedScheduleWorkbook } = require('../services/schedule-export.s
 const { reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules } = require('../services/license-schedule-reconciliation.service');
 const { licenseStateForWorkDate } = require('../services/license-state.service');
 const { updateScheduleApprovalState, approveMonthlySchedule } = require('../services/schedule.service');
+const { linkLeaveQuota } = require('../services/leave-quota-link.service');
+const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
+const { createLicenseDocumentService } = require('../services/license-document.service');
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
 const HttpError = require('../utils/http-error');
 
@@ -42,6 +45,8 @@ const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string()
 const leaveListQuery = paging.extend({ status: z.string().trim().min(1).max(100).optional(), employeeId: uuid.optional(), department: z.string().trim().max(100).optional(), search: z.string().trim().max(255).optional(), year: z.coerce.number().int().optional(), month: z.coerce.number().int().optional() });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('attachment');
 const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'Attachment must not exceed 4 MB.' : 'Attachment upload is invalid.')) : next());
+const licenseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('document');
+const licenseDocumentUpload = (req, res, next) => licenseUpload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'License document must not exceed 4 MB.' : 'License document upload is invalid.')) : next());
 const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const authorizedLicenseReconciliationCron = (req) => {
   const secret = process.env.CRON_SECRET;
@@ -65,6 +70,7 @@ const inclusiveDays = (startDate, endDate) => Math.floor((Date.UTC(endDate.getUT
 const positionText = (employee) => String(employee?.jobTitle || '').toLowerCase();
 const isSupervisorPosition = (employee) => /supervisor|หัวหน้า|ซุปเปอร์ไวเซอร์/.test(positionText(employee));
 const isManagerPosition = (employee) => /manager|ผู้จัดการ/.test(positionText(employee));
+const licenseDocuments = createLicenseDocumentService({ prisma, storage: createSupabaseLicenseDocumentStorage(), audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
 const hasSupervisorApprovalLevel = (user) => user.role === 'ADMIN' || isSupervisorPosition(user.employee) || isManagerPosition(user.employee);
 const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser) => {
   if (requestUser.role === 'ADMIN') return;
@@ -229,6 +235,37 @@ router.put('/licenses/:id', authorize('ADMIN'), async (req, res, next) => {
       await reconcileEmployeeLicenseSchedules(tx, after.employeeId, req.user.sub);
       return after;
     }); res.json({ data: result });
+  } catch (error) { next(error); }
+});
+router.get('/licenses/:id/documents', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const licenseId = uuid.parse(req.params.id);
+    res.json({ data: await licenseDocuments.list({ licenseId, requestUser: req.user }) });
+  } catch (error) { next(error); }
+});
+router.post('/licenses/:id/documents', authorize('ADMIN', 'MANAGER'), licenseDocumentUpload, async (req, res, next) => {
+  try {
+    const licenseId = uuid.parse(req.params.id);
+    const input = z.object({ proposedStartDate: z.coerce.date(), proposedExpiryDate: z.coerce.date(), note: nullableText(2000) }).refine((value) => value.proposedStartDate <= value.proposedExpiryDate, { message: 'Start date must not be after expiry date.', path: ['proposedExpiryDate'] }).parse(req.body);
+    res.status(201).json({ data: await licenseDocuments.upload({ licenseId, requestUser: req.user, file: req.file, input }) });
+  } catch (error) { next(error); }
+});
+router.get('/license-documents/:id/view', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    res.json({ data: await licenseDocuments.view({ id, requestUser: req.user }) });
+  } catch (error) { next(error); }
+});
+router.post('/license-documents/:id/approve', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    res.json({ data: await licenseDocuments.approve({ id, requestUser: req.user }) });
+  } catch (error) { next(error); }
+});
+router.post('/license-documents/:id/reject', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id); const { rejectionReason } = z.object({ rejectionReason: z.string().trim().min(1).max(2000) }).parse(req.body);
+    res.json({ data: await licenseDocuments.reject({ id, requestUser: req.user, rejectionReason }) });
   } catch (error) { next(error); }
 });
 router.delete('/licenses/:id', authorize('ADMIN'), async (req, res, next) => {
@@ -717,6 +754,14 @@ router.get('/leave-quotas', authorize('ADMIN', 'MANAGER'), async (req, res, next
       };
     });
     res.json({ data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
+  } catch (error) { next(error); }
+});
+router.put('/leave-quotas/:id/link', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const input = z.object({ employeeId: uuid }).parse(req.body);
+    const result = await linkLeaveQuota({ quotaId: id, employeeId: input.employeeId, actorUserId: req.user.sub });
+    res.json({ data: result });
   } catch (error) { next(error); }
 });
 router.put('/leave-quotas/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ sickLeave: z.coerce.number().min(0).max(999).optional(), personalLeave: z.coerce.number().min(0).max(999).optional(), vacationLeave: z.coerce.number().min(0).max(999).optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveQuota.findUniqueOrThrow({ where: { id } }); const after = await tx.leaveQuota.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveQuota', entityId: id, metadata: { before: safeRecord(before, ['sickLeave', 'personalLeave', 'vacationLeave']), after: safeRecord(after, ['sickLeave', 'personalLeave', 'vacationLeave']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
