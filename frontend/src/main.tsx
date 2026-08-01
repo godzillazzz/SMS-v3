@@ -19,7 +19,7 @@ import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
-import { LicenseDocumentsCell } from './components/LicenseDocuments';
+import { LicenseDocumentsCell, LicenseEditModal } from './components/LicenseDocuments';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/responsive-shell.css';
 
@@ -539,7 +539,7 @@ const tablePages: Record<Exclude<Page, 'dashboard' | 'employees' | 'reports' | '
   ] }
 };
 
-function OperationalTable({ page, response, loading, error, onPageChange, onAction, onCreate, onNavigate, role, token, refreshSignal, onLicenseDocumentChanged }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory'>; response: DataResponse; loading: boolean; error?: string; onPageChange(page: number): void; onAction(row: DataRow, action: string): void; onCreate(): void; onNavigate(page: Page): void; role: string; token?: string; refreshSignal: number; onLicenseDocumentChanged(message: string): void }) {
+function OperationalTable({ page, response, loading, error, onPageChange, onAction, onCreate, onNavigate, role, token, refreshSignal, onLicenseDocumentChanged, onEditLicense }: { page: Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory'>; response: DataResponse; loading: boolean; error?: string; onPageChange(page: number): void; onAction(row: DataRow, action: string): void; onCreate(): void; onNavigate(page: Page): void; role: string; token?: string; refreshSignal: number; onLicenseDocumentChanged(message: string): void; onEditLicense?: (row: DataRow) => void }) {
   const config = tablePages[page];
   const rows = Array.isArray(response.data) ? response.data : [];
   const [tableSearch, setTableSearch] = useState('');
@@ -564,7 +564,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     if (page === 'approvals') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
     if (page === 'leave') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
     if (page === 'rules') return <><button onClick={() => onAction(row, 'edit')}>แก้ไข</button><button onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button></>;
-    if (page === 'licenses') return <><button onClick={() => onAction(row, 'edit')}>แก้ไข</button><button className="btn-danger compact" onClick={() => onAction(row, 'delete')}>ลบ</button></>;
+    if (page === 'licenses') return <><button onClick={() => (onEditLicense ? onEditLicense(row) : onAction(row, 'edit'))}>แก้ไข</button><button className="btn-danger compact" onClick={() => onAction(row, 'delete')}>ลบ</button></>;
     if (page === 'quota') return <>{<button onClick={() => onAction(row, 'edit')}>แก้ไขโควตา</button>}{role === 'ADMIN' && String(row.matchStatus || '').includes('UNMATCHED') && <button className="btn-info compact" onClick={() => onAction(row, 'link')}>จับคู่พนักงาน</button>}</>;
     if (page === 'schedule') return <><button onClick={() => onAction(row, 'edit')}>แก้ไข</button><button onClick={() => onAction(row, 'toggle-lock')}>{row.locked ? 'ปลดล็อก' : 'ล็อก'}</button><button className="btn-danger compact" onClick={() => onAction(row, 'delete')}>ลบ</button></>;
     return <><button onClick={() => onAction(row, 'edit')}>สิทธิ์</button><button onClick={() => onAction(row, 'reset-password')}>ตั้งรหัสผ่าน</button><button onClick={() => onAction(row, 'toggle-user')}>{row.isActive ? 'ระงับ' : 'เปิดใช้'}</button></>;
@@ -590,7 +590,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   const tableValue = (row: DataRow, column: { label: string; value: (row: DataRow) => React.ReactNode }) => {
     if (page !== 'licenses' || column.label !== 'พนักงาน' || !token) return column.value(row);
     const employee = nested(row.employee);
-    return <div className="license-employee-cell"><strong>{column.value(row)}</strong><LicenseDocumentsCell license={{ id: String(row.id), issueDate: row.issueDate ? String(row.issueDate) : null, expiryDate: row.expiryDate ? String(row.expiryDate) : null, status: row.status ? String(row.status) : null, employee: { employeeCode: String(employee.employeeCode || ''), firstName: String(employee.firstName || ''), lastName: String(employee.lastName || ''), department: employee.department ? String(employee.department) : undefined } }} isAdmin={role === 'ADMIN'} refreshSignal={refreshSignal} services={documentServices} onUpload={() => onAction(row, 'document')} onChanged={onLicenseDocumentChanged} /></div>;
+    return <div className="license-employee-cell"><strong>{column.value(row)}</strong><LicenseDocumentsCell license={{ id: String(row.id), licenseNumber: row.licenseNumber ? String(row.licenseNumber) : null, licenseType: row.licenseType ? String(row.licenseType) : null, issueDate: row.issueDate ? String(row.issueDate) : null, expiryDate: row.expiryDate ? String(row.expiryDate) : null, status: row.status ? String(row.status) : null, employee: { employeeCode: String(employee.employeeCode || ''), firstName: String(employee.firstName || ''), lastName: String(employee.lastName || ''), department: employee.department ? String(employee.department) : undefined } }} isAdmin={role === 'ADMIN'} refreshSignal={refreshSignal} services={documentServices} onUpload={() => onAction(row, 'document')} onEdit={() => onEditLicense?.(row)} onChanged={onLicenseDocumentChanged} /></div>;
   };
   return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions">{showRelated && <button className="btn-neutral small-action" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</button>}{canCreate && <button className="btn-primary compact" onClick={onCreate}>{page === 'leave' ? '+ ส่งคำขอลา' : '+ เพิ่มรายการ'}</button>}<span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><button className="btn-info small-action" disabled={!visibleRows.length} onClick={() => downloadCsv(visibleRows, page)}>CSV</button><button className="btn-info small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div><ErrorAlert message={error} />{page === 'licenses' && <div className="toolbar"><label className="search-box"><span>⌕</span><input value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ" /></label><span className="toolbar-count">แสดง {visibleRows.length} จาก {rows.length} รายการ</span></div>}<div className="table-card">{loading ? <div className="loading-row" role="status">กำลังอ่านข้อมูล…</div> : <div className="table-scroll"><table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <th>ดำเนินการ</th>}</tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index}>{config.columns.map((column) => <td key={column.label}>{tableValue(row, column)}</td>)}{showActions && <td className="row-actions">{rowActions(row)}</td>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows"><div className="empty-state"><span aria-hidden="true">⌁</span><strong>{noResultsMessage}</strong><p>{page === 'licenses' && tableSearch ? 'ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองแล้วค้นหาอีกครั้ง' : 'เพิ่มข้อมูลรายการแรกเพื่อเริ่มใช้งานหน้านี้'}</p>{canCreate && !(page === 'licenses' && tableSearch) && <button className="btn-neutral small-action" onClick={onCreate}>+ เพิ่มรายการแรก</button>}</div></td></tr>}</tbody></table></div>}</div>{totalPages > 1 && <div className="pagination-bar"><button disabled={currentPage <= 1 || loading} onClick={() => onPageChange(currentPage - 1)}>‹ ก่อนหน้า</button><span>หน้า {currentPage} จาก {totalPages}</span><button disabled={currentPage >= totalPages || loading} onClick={() => onPageChange(currentPage + 1)}>หน้าถัดไป ›</button></div>}</section>;
 }
@@ -1099,6 +1099,7 @@ function Dashboard() {
   const [editor, setEditor] = useState<Editor>();
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorError, setEditorError] = useState<string>();
+  const [licenseEditTarget, setLicenseEditTarget] = useState<DataRow>();
   const [dashboardSummary, setDashboardSummary] = useState<DataRow>({});
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string>();
@@ -1340,6 +1341,14 @@ function Dashboard() {
     });
   };
 
+  const licenseDocumentServices = {
+    list: async (licenseId: string) => (await api.licenseDocuments(auth.token!, licenseId))?.data as LicenseDocument[] || [],
+    view: async (documentId: string) => (await api.viewLicenseDocument(auth.token!, documentId))?.data,
+    approve: async (documentId: string) => { await api.approveLicenseDocument(auth.token!, documentId); },
+    reject: async (documentId: string, reason: string) => { await api.rejectLicenseDocument(auth.token!, documentId, reason); }
+  };
+  const openLicenseEdit = (row: DataRow) => { if (auth.token) setLicenseEditTarget(row); };
+
   const employeeFields: FormField[] = [
     { name: 'employeeCode', label: 'รหัสพนักงาน', required: true }, { name: 'firstName', label: 'ชื่อ', required: true },
     { name: 'lastName', label: 'นามสกุล', required: true }, { name: 'email', label: 'อีเมล', type: 'email' },
@@ -1453,15 +1462,15 @@ function Dashboard() {
       runEditor({
         title: `แนบใบอนุญาต · ${text(employee.employeeCode)} ${text(employee.firstName)} ${text(employee.lastName)}`,
         submitLabel: 'ส่งตรวจสอบ',
-        fields: [{ name: 'document', label: 'ไฟล์ใบอนุญาต', type: 'file', required: true, accept: '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png', hint: 'PDF, JPG หรือ PNG ขนาดไม่เกิน 4 MB' }, { name: 'proposedStartDate', label: 'วันที่เริ่มต้น', type: 'date', required: true }, { name: 'proposedExpiryDate', label: 'วันหมดอายุ', type: 'date', required: true }, { name: 'note', label: 'หมายเหตุ', type: 'textarea' }],
-        values: { proposedStartDate: inputDate(row.issueDate), proposedExpiryDate: inputDate(row.expiryDate) }
+        fields: [{ name: 'licenseNumber', label: 'เลขใบอนุญาต', required: true }, { name: 'document', label: 'ไฟล์ใบอนุญาต', type: 'file', required: true, accept: '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png', hint: 'PDF, JPG หรือ PNG ขนาดไม่เกิน 4 MB' }, { name: 'proposedStartDate', label: 'วันที่เริ่มต้น', type: 'date', required: true }, { name: 'proposedExpiryDate', label: 'วันหมดอายุ', type: 'date', required: true }, { name: 'note', label: 'หมายเหตุ', type: 'textarea' }],
+        values: { licenseNumber: String(row.licenseNumber || ''), proposedStartDate: inputDate(row.issueDate), proposedExpiryDate: inputDate(row.expiryDate) }
       }, (form, files) => {
         const document = files.document;
         if (!document) return Promise.reject(new Error('กรุณาเลือกไฟล์ใบอนุญาต'));
         if (document.size > 4 * 1024 * 1024) return Promise.reject(new Error('ไฟล์ต้องมีขนาดไม่เกิน 4 MB'));
         if (!['application/pdf', 'image/jpeg', 'image/png'].includes(document.type)) return Promise.reject(new Error('รองรับเฉพาะ PDF, JPG และ PNG'));
         if (!form.proposedStartDate || !form.proposedExpiryDate || form.proposedStartDate > form.proposedExpiryDate) return Promise.reject(new Error('วันที่เริ่มต้นต้องไม่เกินวันหมดอายุ'));
-        return api.uploadLicenseDocument(auth.token!, id, { proposedStartDate: form.proposedStartDate, proposedExpiryDate: form.proposedExpiryDate, note: form.note }, document).catch((reason: unknown) => Promise.reject(new Error(sanitizeLicenseDocumentError(reason))));
+        return api.uploadLicenseDocument(auth.token!, id, { licenseNumber: form.licenseNumber, proposedStartDate: form.proposedStartDate, proposedExpiryDate: form.proposedExpiryDate, note: form.note }, document).catch((reason: unknown) => Promise.reject(new Error(sanitizeLicenseDocumentError(reason))));
       });
       return;
     }
@@ -2032,7 +2041,7 @@ function Dashboard() {
       const cards: Array<[string, unknown]> = [['พนักงานทั้งหมด', summary.employees], ['พนักงานที่ใช้งาน', summary.activeEmployees], ['ใบอนุญาต', summary.licenses], ['รายการกะ', summary.shifts], ['คำขอลา', summary.leaveRequests], ['โควตาวันลา', summary.leaveQuotas], ['บัญชีผู้ใช้', summary.users]];
       return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">รายงาน</p><h1>รายงานและส่งออก</h1><p>ยอดรวมจากฐานข้อมูลกลาง ณ เวลาที่เปิดหน้านี้</p></div></div>{operationError && <div className="alert alert-error">{operationError}</div>}<div className="metrics-grid report-grid">{operationLoading ? <div className="loading-row">กำลังสรุปข้อมูล…</div> : cards.map(([label, value]) => <article className="metric-card" key={String(label)}><span className="metric-icon blue">▦</span><div><p>{label}</p><strong>{text(value)}</strong><small>รายการใน staging</small></div></article>)}</div></section>;
     }
-    return <OperationalTable page={activePage as Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory'>} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} token={auth.token} refreshSignal={operationRefresh} onLicenseDocumentChanged={() => setOperationRefresh((value) => value + 1)} />;
+    return <><OperationalTable page={activePage as Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory'>} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} token={auth.token} refreshSignal={operationRefresh} onLicenseDocumentChanged={() => setOperationRefresh((value) => value + 1)} onEditLicense={activePage === 'licenses' ? openLicenseEdit : undefined} />{licenseEditTarget && auth.token && <LicenseEditModal license={{ id: String(licenseEditTarget.id), licenseNumber: licenseEditTarget.licenseNumber ? String(licenseEditTarget.licenseNumber) : null, licenseType: licenseEditTarget.licenseType ? String(licenseEditTarget.licenseType) : null, issueDate: licenseEditTarget.issueDate ? String(licenseEditTarget.issueDate) : null, expiryDate: licenseEditTarget.expiryDate ? String(licenseEditTarget.expiryDate) : null, status: licenseEditTarget.status ? String(licenseEditTarget.status) : null, employee: { employeeCode: String(nested(licenseEditTarget.employee).employeeCode || ''), firstName: String(nested(licenseEditTarget.employee).firstName || ''), lastName: String(nested(licenseEditTarget.employee).lastName || ''), department: nested(licenseEditTarget.employee).department ? String(nested(licenseEditTarget.employee).department) : undefined } }} isAdmin={auth.user?.role === 'ADMIN'} services={licenseDocumentServices} onUpload={async (data, file) => { await api.uploadLicenseDocument(auth.token!, String(licenseEditTarget.id), data, file); }} onChanged={() => setOperationRefresh((value) => value + 1)} onClose={() => setLicenseEditTarget(undefined)} />}</>;
   };
 
   const printData = useMemo(() => {

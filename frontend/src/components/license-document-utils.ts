@@ -9,6 +9,7 @@ export type LicenseDocument = {
   fileSize: number;
   proposedStartDate: string;
   proposedExpiryDate: string;
+  proposedLicenseNumber?: string | null;
   status: LicenseDocumentStatus;
   isCurrent: boolean;
   uploadedAt: string;
@@ -16,6 +17,9 @@ export type LicenseDocument = {
   rejectionReason?: string | null;
   version: number;
   note?: string | null;
+  fileAvailable?: boolean;
+  storageDeletedAt?: string | null;
+  storageDeleteAfter?: string | null;
   uploadedBy?: { id: string; displayName: string } | null;
   reviewedBy?: { id: string; displayName: string } | null;
 };

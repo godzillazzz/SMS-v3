@@ -7,7 +7,8 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   test('license document integration suite requires RUN_INTEGRATION_TESTS=true', { skip: true }, () => {});
 } else {
   const target = new URL(process.env.DATABASE_URL || '');
-  if (target.hostname !== 'host.docker.internal' || target.port !== '5433' || target.pathname.replace(/^\//, '') !== 'sms_v3_test') throw new Error('License document integration tests require host.docker.internal:5433/sms_v3_test.');
+  const isConfiguredTestTarget = target.pathname.replace(/^\//, '') === 'sms_v3_test' && ((target.hostname === 'host.docker.internal' && target.port === '5433') || (target.hostname === '127.0.0.1' && target.port === '5432' && process.env.TEST_DATABASE_RUNNER === 'docker-container-network'));
+  if (!isConfiguredTestTarget) throw new Error('License document integration tests require the isolated sms_v3_test target.');
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Production storage credentials must not be present in license document integration tests.');
 
   const prisma = require('../../src/config/prisma');
@@ -56,11 +57,13 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
 
   async function runWorkflow(round) {
     const context = await fixture(`round-${round}`);
-    const first = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: pdf, input: { proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31'), note: `round ${round}` } });
+    const first = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: pdf, input: { licenseNumber: `LN-${context.marker}-1`, proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31'), note: `round ${round}` } });
     created.documentIds.push(first.id);
     assert.equal(first.status, 'PENDING'); assert.equal(first.isCurrent, false);
     const beforeApprove = await prisma.employeeLicense.findUniqueOrThrow({ where: { id: context.license.id } });
     assert.equal(beforeApprove.expiryDate.toISOString().slice(0, 10), '2026-12-31');
+    assert.equal(beforeApprove.licenseNumber, `LN-${context.marker}`);
+    assert.equal(first.proposedLicenseNumber, `LN-${context.marker}-1`);
     const history = await context.service.list({ licenseId: context.license.id, requestUser: context.requestUser });
     assert.equal(history[0].id, first.id); assert.equal('storageObjectKey' in history[0], false);
     const view = await context.service.view({ id: first.id, requestUser: context.requestUser });
@@ -69,22 +72,26 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     assert.equal(approved.uploadedById, context.user.id); assert.equal(approved.reviewedById, context.user.id); assert.equal(approved.isCurrent, true);
     const approvedMaster = await prisma.employeeLicense.findUniqueOrThrow({ where: { id: context.license.id } });
     assert.equal(approvedMaster.expiryDate.toISOString().slice(0, 10), '2027-12-31');
+    assert.equal(approvedMaster.licenseNumber, `LN-${context.marker}-1`);
 
-    const renewal = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nrenewal'), size: 18 }, input: { proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') } });
+    const renewal = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nrenewal'), size: 18 }, input: { licenseNumber: `LN-${context.marker}-2`, proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') } });
     created.documentIds.push(renewal.id);
     assert.equal((await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: first.id } })).isCurrent, true);
     await context.service.approve({ id: renewal.id, requestUser: context.requestUser });
     const versions = await prisma.employeeLicenseDocument.findMany({ where: { licenseId: context.license.id }, orderBy: { version: 'asc' } });
     assert.equal(versions[0].status, 'SUPERSEDED'); assert.equal(versions[0].isCurrent, false);
     assert.equal(versions[1].status, 'APPROVED'); assert.equal(versions[1].isCurrent, true);
+    assert.ok(versions[0].storageDeleteAfter);
+    assert.equal((await prisma.employeeLicense.findUniqueOrThrow({ where: { id: context.license.id } })).licenseNumber, `LN-${context.marker}-2`);
     assert.equal(versions.filter((document) => document.isCurrent).length, 1);
 
-    const rejectedCandidate = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreject'), size: 17 }, input: { proposedStartDate: new Date('2029-01-01'), proposedExpiryDate: new Date('2029-12-31') } });
+    const rejectedCandidate = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreject'), size: 17 }, input: { licenseNumber: `LN-${context.marker}-3`, proposedStartDate: new Date('2029-01-01'), proposedExpiryDate: new Date('2029-12-31') } });
     created.documentIds.push(rejectedCandidate.id);
     const currentBeforeReject = (await prisma.employeeLicense.findUniqueOrThrow({ where: { id: context.license.id } })).expiryDate;
     await context.service.reject({ id: rejectedCandidate.id, requestUser: context.requestUser, rejectionReason: 'Integration rejection' });
     const afterReject = await prisma.employeeLicense.findUniqueOrThrow({ where: { id: context.license.id } });
     assert.equal(afterReject.expiryDate.getTime(), currentBeforeReject.getTime());
+    assert.equal(afterReject.licenseNumber, `LN-${context.marker}-2`);
     assert.equal((await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: renewal.id } })).isCurrent, true);
     assert.equal(context.storage.objectExists(rejectedCandidate.storageObjectKey), true);
     await trackAudits(context.user.id);
@@ -97,7 +104,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
 
   test('approval rolls back when audit creation fails', async () => {
     const context = await fixture('rollback');
-    const pending = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: pdf, input: { proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } });
+    const pending = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: pdf, input: { licenseNumber: `LN-${context.marker}-1`, proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } });
     created.documentIds.push(pending.id);
     const failingService = createLicenseDocumentService({ prisma, storage: context.storage, audit: { log: async () => { throw new Error('injected audit failure'); } }, reconcileSchedules: reconcileEmployeeLicenseSchedules });
     await assert.rejects(() => failingService.approve({ id: pending.id, requestUser: context.requestUser }), /injected audit failure/);
@@ -109,7 +116,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
 
   test('concurrent self-approval produces one success, one conflict, and one current document', async () => {
     const context = await fixture('concurrency');
-    const pending = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: pdf, input: { proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } });
+    const pending = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: pdf, input: { licenseNumber: `LN-${context.marker}-1`, proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } });
     created.documentIds.push(pending.id);
     const results = await Promise.allSettled([context.service.approve({ id: pending.id, requestUser: context.requestUser }), context.service.approve({ id: pending.id, requestUser: context.requestUser })]);
     assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);

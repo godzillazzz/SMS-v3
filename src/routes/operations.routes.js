@@ -16,6 +16,8 @@ const { updateScheduleApprovalState, approveMonthlySchedule } = require('../serv
 const { linkLeaveQuota } = require('../services/leave-quota-link.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
+const { cleanupSupersededLicenseDocuments } = require('../services/license-document-retention.service');
+const { normalizeLicenseNumber } = require('../services/license-document.service');
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
 const HttpError = require('../utils/http-error');
 
@@ -221,6 +223,9 @@ router.put('/licenses/:id', authorize('ADMIN'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id); const input = licenseUpdateInput.parse(req.body);
     if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.');
+    if (['licenseType', 'licenseNumber', 'issueDate', 'expiryDate', 'status', 'documentUrl'].some((field) => Object.prototype.hasOwnProperty.call(input, field))) {
+      throw new HttpError(409, 'License number and dates require a new document for review.');
+    }
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.employeeLicense.findUniqueOrThrow({ where: { id } });
       const issueDate = input.issueDate || before.issueDate;
@@ -246,9 +251,13 @@ router.get('/licenses/:id/documents', authorize('ADMIN', 'MANAGER'), async (req,
 router.post('/licenses/:id/documents', authorize('ADMIN', 'MANAGER'), licenseDocumentUpload, async (req, res, next) => {
   try {
     const licenseId = uuid.parse(req.params.id);
-    const input = z.object({ proposedStartDate: z.coerce.date(), proposedExpiryDate: z.coerce.date(), note: nullableText(2000) }).refine((value) => value.proposedStartDate <= value.proposedExpiryDate, { message: 'Start date must not be after expiry date.', path: ['proposedExpiryDate'] }).parse(req.body);
+    const input = z.object({ licenseNumber: z.string().transform(normalizeLicenseNumber), proposedStartDate: z.coerce.date(), proposedExpiryDate: z.coerce.date(), note: nullableText(2000) }).refine((value) => value.proposedStartDate <= value.proposedExpiryDate, { message: 'Start date must not be after expiry date.', path: ['proposedExpiryDate'] }).parse(req.body);
     res.status(201).json({ data: await licenseDocuments.upload({ licenseId, requestUser: req.user, file: req.file, input }) });
   } catch (error) { next(error); }
+});
+router.post('/license-documents/retention-cleanup', authorize('ADMIN'), async (req, res, next) => {
+  try { res.json({ data: await cleanupSupersededLicenseDocuments({ prisma, storage: createSupabaseLicenseDocumentStorage() }) }); }
+  catch (error) { next(error); }
 });
 router.get('/license-documents/:id/view', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {

@@ -41,7 +41,7 @@ function harness({ createFailure = false } = {}) {
 test('upload creates PENDING metadata without changing master dates and uses a random object key', async () => {
   const { state, storage, service } = harness();
   const before = state.license.expiryDate;
-  const document = await service.upload({ licenseId: ids.license, requestUser: { sub: ids.admin, role: 'ADMIN' }, file: pdf, input: { proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } });
+  const document = await service.upload({ licenseId: ids.license, requestUser: { sub: ids.admin, role: 'ADMIN' }, file: pdf, input: { licenseNumber: 'LN-2027', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } });
   assert.equal(document.status, 'PENDING'); assert.equal(document.isCurrent, false); assert.equal(state.license.expiryDate, before);
   assert.equal(storage.calls.put.length, 1); assert.doesNotMatch(storage.calls.put[0].objectKey, /guard license/);
   assert.equal(document.safeDisplayFileName, '.._guard license.pdf');
@@ -49,10 +49,10 @@ test('upload creates PENDING metadata without changing master dates and uses a r
 
 test('storage failure creates no record and database failure removes the orphan object', async () => {
   const first = harness(); first.storage.failNextPut();
-  await assert.rejects(() => first.service.upload({ licenseId: ids.license, requestUser: { sub: ids.admin, role: 'ADMIN' }, file: pdf, input: { proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } }));
+  await assert.rejects(() => first.service.upload({ licenseId: ids.license, requestUser: { sub: ids.admin, role: 'ADMIN' }, file: pdf, input: { licenseNumber: 'LN-2027', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } }));
   assert.equal(first.state.documents.length, 0);
   const second = harness({ createFailure: true });
-  await assert.rejects(() => second.service.upload({ licenseId: ids.license, requestUser: { sub: ids.admin, role: 'ADMIN' }, file: pdf, input: { proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } }));
+  await assert.rejects(() => second.service.upload({ licenseId: ids.license, requestUser: { sub: ids.admin, role: 'ADMIN' }, file: pdf, input: { licenseNumber: 'LN-2027', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } }));
   assert.equal(second.storage.calls.remove.length, 1); assert.equal(second.storage.objects.size, 0);
 });
 
@@ -75,8 +75,8 @@ test('viewer access and non-admin review operations are rejected', async () => {
 test('upload rejects invalid or reversed proposed dates before storage writes', async () => {
   const { storage, service } = harness();
   const requestUser = { sub: ids.admin, role: 'ADMIN' };
-  await assert.rejects(() => service.upload({ licenseId: ids.license, requestUser, file: pdf, input: { proposedStartDate: new Date('invalid'), proposedExpiryDate: new Date('2027-12-31') } }), { statusCode: 400 });
-  await assert.rejects(() => service.upload({ licenseId: ids.license, requestUser, file: pdf, input: { proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2027-12-31') } }), { statusCode: 400 });
+  await assert.rejects(() => service.upload({ licenseId: ids.license, requestUser, file: pdf, input: { licenseNumber: 'LN-2027', proposedStartDate: new Date('invalid'), proposedExpiryDate: new Date('2027-12-31') } }), { statusCode: 400 });
+  await assert.rejects(() => service.upload({ licenseId: ids.license, requestUser, file: pdf, input: { licenseNumber: 'LN-2027', proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2027-12-31') } }), { statusCode: 400 });
   assert.equal(storage.calls.put.length, 0);
 });
 

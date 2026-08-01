@@ -233,6 +233,7 @@ model EmployeeLicenseDocument {
   checksum            String?               @db.Char(64)
   proposedStartDate   DateTime              @map("proposed_start_date") @db.Date
   proposedExpiryDate  DateTime              @map("proposed_expiry_date") @db.Date
+  proposedLicenseNumber String?             @map("proposed_license_number") @db.VarChar(100)
   status              LicenseDocumentStatus @default(PENDING)
   isCurrent           Boolean               @default(false) @map("is_current")
   uploadedById        String                @map("uploaded_by_id") @db.Uuid
@@ -242,6 +243,11 @@ model EmployeeLicenseDocument {
   rejectionReason     String?               @map("rejection_reason") @db.VarChar(2000)
   version             Int
   note                String?               @db.VarChar(2000)
+  storageDeleteAfter  DateTime?             @map("storage_delete_after")
+  storageDeletedAt    DateTime?             @map("storage_deleted_at")
+  storageDeleteAttempts Int                 @default(0) @map("storage_delete_attempts")
+  storageDeleteLastErrorAt DateTime?        @map("storage_delete_last_error_at")
+  storageDeleteLastErrorCode String?        @map("storage_delete_last_error_code") @db.VarChar(80)
   createdAt           DateTime              @default(now()) @map("created_at")
   updatedAt           DateTime              @updatedAt @map("updated_at")
   employee            Employee              @relation(fields: [employeeId], references: [id], onDelete: Restrict)
