@@ -95,6 +95,11 @@ function runBuild({ env = process.env, run = runCommand, log = console.log, erro
     return 1;
   }
 
+  if (env.CI_MIGRATION_COMPLETED === 'true') {
+    log('CI migration gate accepted; production migration skipped');
+    return runApplicationBuild({ env, run, log, error });
+  }
+
   log('Production environment guard passed');
   log(`DATABASE_URL present = ${Boolean(env.DATABASE_URL)}`);
   if (!env.DATABASE_URL) {

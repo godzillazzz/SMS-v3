@@ -65,6 +65,15 @@ test('production build rejects an unexpected project', () => {
   assert.match(result.errors[0], /project mismatch/);
 });
 
+test('production build accepts an explicit CI migration gate', () => {
+  const runner = createRunner();
+  const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', VERCEL_PROJECT_ID: 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s', CI_MIGRATION_COMPLETED: 'true' }, runner);
+
+  assert.equal(result.status, 0);
+  assert.equal(runner.calls.some(({ args }) => args.includes('migrate') && args.includes('deploy')), false);
+  assert.match(result.logs[0], /CI migration gate accepted/);
+});
+
 test('production migration requires DIRECT_URL before the application build', () => {
   const runner = createRunner();
   const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', DATABASE_URL: 'present-only', DIRECT_URL: 'present-only' }, runner);

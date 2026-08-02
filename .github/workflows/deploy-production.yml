@@ -1,0 +1,187 @@
+name: Deploy sms-v3-staging Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact commit SHA already present on fix/serverless-database-reliability
+        required: true
+        type: string
+      confirm_project_name:
+        description: Type sms-v3-staging to confirm the target project
+        required: true
+        type: string
+      confirm_environment:
+        description: Type production to confirm the Vercel target
+        required: true
+        type: string
+      rollback_deployment_id:
+        description: Known-good rollback target for the summary only
+        required: false
+        default: dpl_2fFBpA923SKdf72unemSkvcyCstw
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-staging-production
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      commit_sha: ${{ steps.commit.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+      - name: Validate exact branch commit and confirmations
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirm_project_name }}" = "$EXPECTED_PROJECT_NAME"
+          test "${{ inputs.confirm_environment }}" = "production"
+          git fetch --no-tags origin fix/serverless-database-reliability
+          git cat-file -e "${{ inputs.commit_sha }}^{commit}"
+          git merge-base --is-ancestor "${{ inputs.commit_sha }}" origin/fix/serverless-database-reliability
+          test "$(git rev-parse HEAD)" = "${{ inputs.commit_sha }}"
+          test -z "$(git status --porcelain)"
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  migrate:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      NODE_ENV: production
+      VERCEL_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.commit_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: node scripts/ci/verify-deployment-target.js
+      - name: Check migration status before deploy
+        run: node scripts/ci/prisma-migration.js status
+      - name: Apply pending migrations with direct connection
+        run: node scripts/ci/prisma-migration.js deploy
+      - name: Verify no pending migrations remain
+        run: node scripts/ci/prisma-migration.js status
+
+  deploy:
+    needs: [validate, migrate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      deployment_url: ${{ steps.deploy.outputs.deployment_url }}
+      deployment_id: ${{ steps.deploy.outputs.deployment_id }}
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.commit_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify Vercel project linkage
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=production --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/vercel-pull.log 2>&1
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
+          if (project.projectId !== process.env.EXPECTED_PROJECT_ID || project.orgId !== process.env.EXPECTED_ORG_ID) process.exit(1);
+          NODE
+      - name: Build prebuilt artifact after migration gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_log=$(mktemp)
+          trap 'rm -f "$build_log"' EXIT
+          CI_MIGRATION_COMPLETED=true npx --yes vercel@"$VERCEL_CLI_VERSION" build --prod --token "$VERCEL_TOKEN" >"$build_log" 2>&1
+          grep -Fq 'CI migration gate accepted; production migration skipped' "$build_log"
+          grep -Fq 'Application build passed' "$build_log"
+          if grep -Eiq 'postgresql://|DATABASE_URL=.*[^<]|DIRECT_URL=.*[^<]|password=|SUPABASE_SERVICE_ROLE_KEY' "$build_log"; then
+            echo 'Vercel build log secret scan failed'
+            exit 1
+          fi
+      - name: Deploy prebuilt artifact to the approved production project
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_log=$(mktemp)
+          inspect_log=$(mktemp)
+          trap 'rm -f "$deploy_log" "$inspect_log"' EXIT
+          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --prod --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$deploy_log" 2>&1
+          deployment_url=$(grep -Eo 'https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app|https://sms-v3-staging-ten\.vercel\.app' "$deploy_log" | tail -n 1)
+          test -n "$deployment_url"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$deployment_url" --format=json --token "$VERCEL_TOKEN" >"$inspect_log" 2>&1
+          deployment_id=$(node -e "const fs=require('node:fs'); const raw=fs.readFileSync(process.argv[1],'utf8'); const match=raw.match(/\{[\s\S]*\}/); const data=match ? JSON.parse(match[0]) : {}; process.stdout.write(data.id || '')" "$inspect_log")
+          test -n "$deployment_id"
+          echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
+          echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
+          {
+            echo '### Vercel deployment'
+            echo "- Project: $EXPECTED_PROJECT_NAME"
+            echo "- Deployment URL: $deployment_url"
+            echo "- Deployment ID: $deployment_id"
+            echo "- Rollback target: ${{ inputs.rollback_deployment_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  health:
+    needs: [validate, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.commit_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify deployment and canonical health
+        env:
+          DEPLOYMENT_URL: ${{ needs.deploy.outputs.deployment_url }}
+          CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+        run: node scripts/ci/verify-health.js
+      - name: Report manual acceptance status
+        run: |
+          {
+            echo '### Post-deploy gate'
+            echo '- Root/health/readiness: verified by health script'
+            echo '- Authenticated ADMIN/MANAGER smoke: pending dedicated non-human account'
+            echo '- Automatic rollback: disabled; use rollback-production.yml after approval'
+          } >> "$GITHUB_STEP_SUMMARY"
