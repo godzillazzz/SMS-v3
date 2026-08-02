@@ -34,11 +34,14 @@ jobs:
       RUN_INTEGRATION_TESTS: "true"
       DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
       DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
+      TEST_DATABASE_RUNNER: docker-container-network
       JWT_SECRET: ci-test-secret-at-least-thirty-two-characters
       DISABLE_EMAIL_NOTIFICATIONS: "true"
       OTP_DELIVERY_PROVIDER: disabled
       ALERTING_ENABLED: "false"
       RATE_LIMIT_STORE: memory
+      SEED_ADMIN_EMAIL: ci-admin@example.test
+      SEED_ADMIN_PASSWORD: ci-seed-password-only-for-ephemeral-db
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,6 +54,7 @@ jobs:
       - run: npx prisma validate
       - run: npx prisma generate
       - run: npm run db:test:migrate
+      - run: npm run db:seed
       - run: node scripts/ci/prisma-migration.js status
       - run: npm test
       - run: npm run test:integration
