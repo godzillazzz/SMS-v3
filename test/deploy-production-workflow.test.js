@@ -28,6 +28,20 @@ test('production deploy and migration jobs share the approved GitHub Environment
   }
 });
 
+test('diagnostic-only mode skips migration, build, deploy, and health', () => {
+  const migrate = jobBlock('migrate');
+  const diagnose = jobBlock('diagnose');
+  const deploy = jobBlock('deploy');
+  const health = jobBlock('health');
+
+  assert.match(workflow, /diagnostic_only:/);
+  assert.match(diagnose, /node scripts\/ci\/vercel-linkage\.js --diagnostic/);
+  assert.doesNotMatch(diagnose, /DATABASE_URL|DIRECT_URL|prisma|vercel (?:build|deploy)/i);
+  assert.match(migrate, /if: \$\{\{ inputs\.diagnostic_only != true \}\}/);
+  assert.match(deploy, /if: \$\{\{ inputs\.diagnostic_only != true \}\}/);
+  assert.match(health, /if: \$\{\{ inputs\.diagnostic_only != true \}\}/);
+});
+
 test('deploy job remains migration-gated and bound to the approved Vercel project', () => {
   const deploy = jobBlock('deploy');
 

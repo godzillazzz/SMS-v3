@@ -20,6 +20,11 @@ on:
         required: false
         default: dpl_2fFBpA923SKdf72unemSkvcyCstw
         type: string
+      diagnostic_only:
+        description: Run sanitized Vercel identity/linkage diagnostics without migration or deployment
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -61,6 +66,7 @@ jobs:
           echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   migrate:
+    if: ${{ inputs.diagnostic_only != true }}
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -130,7 +136,32 @@ jobs:
       - name: Verify no pending migrations remain
         run: node scripts/ci/prisma-migration.js status
 
+  diagnose:
+    if: ${{ inputs.diagnostic_only == true }}
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.commit_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run sanitized Vercel identity and linkage diagnostics
+        run: node scripts/ci/vercel-linkage.js --diagnostic
+
   deploy:
+    if: ${{ inputs.diagnostic_only != true }}
     needs: [validate, migrate]
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -204,6 +235,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   health:
+    if: ${{ inputs.diagnostic_only != true }}
     needs: [validate, deploy]
     runs-on: ubuntu-latest
     timeout-minutes: 10
