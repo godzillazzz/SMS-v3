@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const workflowPath = path.join(__dirname, '..', '.github', 'workflows', 'deploy-production.yml');
-const workflow = fs.readFileSync(workflowPath, 'utf8');
+const workflow = fs.readFileSync(workflowPath, 'utf8').replaceAll('\r\n', '\n');
 
 function jobBlock(jobName) {
   const heading = `  ${jobName}:`;
@@ -55,6 +55,15 @@ test('deploy job remains migration-gated and bound to the approved Vercel projec
   assert.match(deploy, /test "\$VERCEL_ORG_ID" = "\$EXPECTED_ORG_ID"/);
   assert.doesNotMatch(deploy, /vercel\s+(?:project\s+)?(?:add|create)/i);
   assert.doesNotMatch(deploy, /(?:^|[\s"'])sms-v3(?:[\s"']|$)/);
+});
+
+test('deployment identity comes from deploy JSON and rejects rollback reuse', () => {
+  const deploy = jobBlock('deploy');
+  assert.match(deploy, /deploy --prebuilt --prod .*--project "\$EXPECTED_PROJECT_ID"/);
+  assert.match(deploy, /--format=json/);
+  assert.match(deploy, /scripts\/ci\/vercel-deployment\.js/);
+  assert.match(deploy, /rollback_deployment_id/);
+  assert.doesNotMatch(deploy, /grep -Eo .*vercel\.app/);
 });
 
 test('production workflow is manual-only and has no automatic deployment triggers', () => {

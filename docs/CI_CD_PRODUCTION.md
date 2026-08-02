@@ -118,7 +118,15 @@ The post-deploy gate checks both the deployment URL and the canonical domain:
 - `/api/v1/ready`
 - discovered CSS/JavaScript assets
 
-Readiness must return `status=ready` and `database=ok`. Authenticated Dashboard and License smoke tests remain pending until an approved dedicated non-human test account is available. No production user credentials are embedded in workflows.
+The root route may return `200`, or an HTTP redirect to the internal `/login` route on
+the deployment or approved canonical host. The login destination must return `200` and
+its discovered CSS/JavaScript assets must load successfully. External redirects,
+missing `Location` headers, redirect loops, and non-login destinations fail closed.
+Readiness must return `status=ready` and `database=ok`. Dashboard and License API
+probes allow only an expected unauthenticated `401/403` or a successful `2xx`; all
+other statuses fail. Authenticated Dashboard and License smoke tests remain pending
+until an approved dedicated non-human test account is available. No production user
+credentials are embedded in workflows.
 
 ## Application Rollback
 
