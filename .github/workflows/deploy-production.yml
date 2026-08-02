@@ -83,7 +83,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
-      - run: node scripts/ci/verify-deployment-target.js
+      - name: Verify production database target guard
+        run: node scripts/ci/verify-deployment-target.js --verify
       - name: Check migration status before deploy
         run: node scripts/ci/prisma-migration.js status
       - name: Apply pending migrations with direct connection

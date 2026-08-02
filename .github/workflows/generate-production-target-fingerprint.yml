@@ -1,0 +1,102 @@
+name: Generate Production Target Fingerprint
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact commit SHA already present on fix/serverless-database-reliability
+        required: true
+        type: string
+      confirm_project_name:
+        description: Type sms-v3-staging to confirm the target project
+        required: true
+        type: string
+      confirm_environment:
+        description: Type production to confirm the target environment
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-staging-production
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      commit_sha: ${{ steps.commit.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+      - name: Validate exact branch commit and confirmations
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirm_project_name }}" = "$EXPECTED_PROJECT_NAME"
+          test "${{ inputs.confirm_environment }}" = "production"
+          git fetch --no-tags origin fix/serverless-database-reliability
+          git cat-file -e "${{ inputs.commit_sha }}^{commit}"
+          git merge-base --is-ancestor "${{ inputs.commit_sha }}" origin/fix/serverless-database-reliability
+          test "$(git rev-parse HEAD)" = "${{ inputs.commit_sha }}"
+          test -z "$(git status --porcelain)"
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  generate:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.commit_sha }}
+      - name: Verify approved project metadata and secret presence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_ORG_ID"
+          test -n "$VERCEL_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test -n "$DATABASE_URL"
+          test -n "$DIRECT_URL"
+      - name: Generate normalized target fingerprint without connecting
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=$(node scripts/ci/verify-deployment-target.js --generate-fingerprint)
+          printf '%s\n' "$output"
+          fingerprint=$(printf '%s\n' "$output" | sed -n 's/^APPROVED_DATABASE_TARGET_FINGERPRINT=//p')
+          test "$(printf '%s' "$fingerprint" | wc -c)" -eq 64
+          printf '%s' "$fingerprint" | grep -Eq '^[a-f0-9]{64}$'
+          printf '%s\n' "$output" | grep -Fxq 'TARGET_PAIR_MATCH=true'
+          printf '%s\n' "$output" | grep -Fxq 'DIRECT_CONNECTION_MODE=direct'
+          {
+            echo '### Production target fingerprint'
+            echo '- Guard: passed'
+            echo '- Direct URL verified: true'
+            echo '- Logical target pair match: true'
+            echo "- APPROVED_DATABASE_TARGET_FINGERPRINT: $fingerprint"
+            echo '- No database connection, Prisma migration, Vercel API, build, or deployment performed'
+            echo '- Set this exact fingerprint as the `APPROVED_DATABASE_TARGET_FINGERPRINT` Environment Variable'
+          } >> "$GITHUB_STEP_SUMMARY"

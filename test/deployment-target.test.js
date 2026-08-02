@@ -1,15 +1,33 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { targetFingerprint, verifyDeploymentTarget } = require('../scripts/ci/verify-deployment-target');
+const {
+  generateFingerprint,
+  normalizeLogicalTarget,
+  parseTarget,
+  targetFingerprint,
+  verifyDeploymentTarget
+} = require('../scripts/ci/verify-deployment-target');
 
-const databaseUrl = 'postgresql://runtime:placeholder@aws-0-example.pooler.supabase.com:5432/postgres?sslmode=require';
-const directUrl = 'postgresql://migration:placeholder@db.example.supabase.co:5432/postgres?sslmode=require';
+const databaseUrl = 'postgresql://postgres.project-ref@aws-0-region.pooler.supabase.com:5432/postgres?sslmode=require';
+const directUrl = 'postgresql://postgres:placeholder@db.project-ref.supabase.co:5432/postgres?sslmode=require';
+const approvedFingerprint = targetFingerprint(parseTarget('DATABASE_URL', databaseUrl), parseTarget('DIRECT_URL', directUrl));
 
 function runWith(overrides = {}) {
   const logs = [];
   const errors = [];
   const status = verifyDeploymentTarget({
-    env: { DATABASE_URL: databaseUrl, DIRECT_URL: directUrl, APPROVED_DATABASE_TARGET_FINGERPRINT: targetFingerprint(require('../scripts/ci/verify-deployment-target').parseTarget('DATABASE_URL', databaseUrl), require('../scripts/ci/verify-deployment-target').parseTarget('DIRECT_URL', directUrl)), ...overrides },
+    env: { DATABASE_URL: databaseUrl, DIRECT_URL: directUrl, APPROVED_DATABASE_TARGET_FINGERPRINT: approvedFingerprint, NODE_ENV: 'production', ...overrides },
+    log: (message) => logs.push(message),
+    error: (message) => errors.push(message)
+  });
+  return { status, logs, errors };
+}
+
+function runGenerate(overrides = {}) {
+  const logs = [];
+  const errors = [];
+  const status = generateFingerprint({
+    env: { DATABASE_URL: databaseUrl, DIRECT_URL: directUrl, ...overrides },
     log: (message) => logs.push(message),
     error: (message) => errors.push(message)
   });
@@ -29,24 +47,102 @@ test('missing DIRECT_URL fails', () => {
   assert.match(result.errors[0], /DIRECT_URL is missing/);
 });
 
-test('local and isolated test databases fail', () => {
-  for (const value of ['postgresql://x:y@127.0.0.1:5432/sms_v3_test', 'postgresql://x:y@db.example.supabase.co:5432/sms_v3_dev']) {
-    const result = runWith({ DATABASE_URL: value });
+test('malformed DATABASE_URL and DIRECT_URL fail', () => {
+  assert.match(runWith({ DATABASE_URL: 'not-a-url' }).errors[0], /DATABASE_URL is malformed/);
+  assert.match(runWith({ DIRECT_URL: 'not-a-url' }).errors[0], /DIRECT_URL is malformed/);
+});
+
+test('local, development, and isolated test databases fail', () => {
+  for (const value of ['postgresql://x:y@127.0.0.1:5432/postgres', 'postgresql://x:y@db.project-ref.supabase.co:5432/sms_v3_test', 'postgresql://x:y@db.project-ref.supabase.co:5432/sms_v3_dev']) {
+    const result = runWith({ DIRECT_URL: value });
     assert.equal(result.status, 1);
   }
 });
 
-test('malformed URL fails', () => {
-  const result = runWith({ DIRECT_URL: 'not-a-url' });
+test('transaction pooler DIRECT_URL fails closed', () => {
+  const result = runWith({ DIRECT_URL: 'postgresql://postgres:placeholder@db.project-ref.supabase.co:6543/postgres' });
   assert.equal(result.status, 1);
-  assert.match(result.errors[0], /DIRECT_URL is malformed/);
+  assert.match(result.errors[0], /pooled PostgreSQL connection/);
 });
 
-test('approved pooled/direct target passes', () => {
+test('session pooler DIRECT_URL fails closed', () => {
+  const result = runWith({ DIRECT_URL: 'postgresql://postgres.project-ref@aws-0-region.pooler.supabase.com:5432/postgres' });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /pooled PostgreSQL connection/);
+});
+
+test('pgbouncer query DIRECT_URL fails closed', () => {
+  const result = runWith({ DIRECT_URL: 'postgresql://postgres:placeholder@db.project-ref.supabase.co:5432/postgres?pgbouncer=true' });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /pooled PostgreSQL connection/);
+});
+
+test('pooler hostname DIRECT_URL fails closed', () => {
+  const result = runWith({ DIRECT_URL: 'postgresql://postgres.project-ref@pooler.example.com:5432/postgres' });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /pooled PostgreSQL connection/);
+});
+
+test('unknown DIRECT_URL mode fails closed', () => {
+  const result = runWith({ DIRECT_URL: 'postgresql://postgres:placeholder@database.example.com:5432/postgres' });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /mode could not be verified as direct/);
+});
+
+test('verified direct URL passes with pooled DATABASE_URL', () => {
   const result = runWith();
   assert.equal(result.status, 0);
+  assert.match(result.logs.join('\n'), /DATABASE_MODE=pooled/);
+  assert.match(result.logs.join('\n'), /DIRECT_MODE=direct/);
   assert.match(result.logs.join('\n'), /TARGET_FINGERPRINT_MATCH=true/);
   assert.doesNotMatch(result.logs.join('\n'), /placeholder|supabase\.co|postgresql:\/\//i);
+});
+
+test('direct DATABASE_URL is allowed when direct target is verified', () => {
+  const runtime = 'postgresql://postgres:placeholder@db.project-ref.supabase.co:5432/postgres';
+  const result = runWith({ DATABASE_URL: runtime, APPROVED_DATABASE_TARGET_FINGERPRINT: targetFingerprint(parseTarget('DATABASE_URL', runtime), parseTarget('DIRECT_URL', directUrl)) });
+  assert.equal(result.status, 0);
+  assert.match(result.logs.join('\n'), /DATABASE_MODE=direct/);
+});
+
+test('logical project mismatch fails', () => {
+  const result = runWith({ DIRECT_URL: 'postgresql://postgres:placeholder@db.other-project.supabase.co:5432/postgres' });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /project identities differ/);
+});
+
+test('different provider identity fails closed', () => {
+  assert.throws(() => normalizeLogicalTarget(
+    { provider: 'supabase', mode: 'pooled', database: 'postgres', projectRef: 'project-ref', hostname: 'pooler.example', port: '5432' },
+    { provider: 'postgresql', mode: 'direct', database: 'postgres', hostname: 'db.example', port: '5432' }
+  ), /provider identities differ/);
+});
+
+test('fingerprint is deterministic and normalized across pooled/direct endpoints', () => {
+  const first = targetFingerprint(parseTarget('DATABASE_URL', databaseUrl), parseTarget('DIRECT_URL', directUrl));
+  const second = targetFingerprint(parseTarget('DATABASE_URL', 'postgresql://postgres.project-ref@aws-0-another-region.pooler.supabase.com:6543/postgres'), parseTarget('DIRECT_URL', 'postgresql://postgres:other@db.project-ref.supabase.co:5432/postgres'));
+  assert.equal(first, second);
+  assert.match(first, /^[a-f0-9]{64}$/);
+});
+
+test('bootstrap generator outputs only safe status and fingerprint fields', () => {
+  const result = runGenerate();
+  assert.equal(result.status, 0);
+  const output = result.logs.join('\n');
+  assert.match(output, /DATABASE_URL_PRESENT=true/);
+  assert.match(output, /DIRECT_URL_PRESENT=true/);
+  assert.match(output, /DATABASE_CONNECTION_MODE=pooled/);
+  assert.match(output, /DIRECT_CONNECTION_MODE=direct/);
+  assert.match(output, /TARGET_PAIR_MATCH=true/);
+  assert.match(output, /APPROVED_DATABASE_TARGET_FINGERPRINT=[a-f0-9]{64}/);
+  assert.doesNotMatch(output, /postgresql:\/\/|placeholder|supabase\.co|project-ref/i);
+});
+
+test('bootstrap generator rejects pooled DIRECT_URL without exposing details', () => {
+  const result = runGenerate({ DIRECT_URL: 'postgresql://postgres.project-ref@aws-0-region.pooler.supabase.com:6543/postgres' });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /pooled PostgreSQL connection/);
+  assert.doesNotMatch(result.errors.join('\n'), /postgresql:\/\/|project-ref|placeholder/i);
 });
 
 test('mismatched approved fingerprint fails', () => {
