@@ -41,7 +41,7 @@ function classifyVercelFailure(text, exitCode, context = '') {
   if (Number(exitCode) === 0) return 'NONE';
   const normalized = String(text || '').toLowerCase();
   if (/unknown option|unknown command|invalid option|unexpected argument|too many arguments/.test(normalized)) return 'CLI_ARGUMENT_ERROR';
-  if (/invalid token|token .*invalid|token .*expired|authentication failed|unauthorized|\b401\b/.test(normalized)) return 'INVALID_OR_EXPIRED_TOKEN';
+  if (/invalid token|token .*invalid|token .*expired|authentication failed|unauthorized|user not found|\b401\b/.test(normalized)) return 'INVALID_OR_EXPIRED_TOKEN';
   if (/project .*not found|project does not exist|no such project/.test(normalized)) return 'PROJECT_NOT_FOUND';
   if (/team .*not found|team .*mismatch|org(?:anization)? .*mismatch|scope .*mismatch|invalid scope/.test(normalized)) return 'ORG_SCOPE_MISMATCH';
   if (/\b404\b|not found/.test(normalized) && context === 'team') return 'ORG_SCOPE_MISMATCH';

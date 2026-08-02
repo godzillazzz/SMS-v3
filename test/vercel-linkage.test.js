@@ -15,6 +15,7 @@ const path = require('node:path');
 
 test('classifies Vercel linkage failures fail-closed', () => {
   assert.equal(classifyVercelFailure('401 invalid token', 1), 'INVALID_OR_EXPIRED_TOKEN');
+  assert.equal(classifyVercelFailure('Error: User not found. (404)', 1), 'INVALID_OR_EXPIRED_TOKEN');
   assert.equal(classifyVercelFailure('403 forbidden', 1), 'TOKEN_SCOPE_OR_PROJECT_ACCESS');
   assert.equal(classifyVercelFailure('project not found', 1), 'PROJECT_NOT_FOUND');
   assert.equal(classifyVercelFailure('team scope mismatch', 1), 'ORG_SCOPE_MISMATCH');
