@@ -10,7 +10,7 @@ function parseJsonOutput(raw) {
 
 function deploymentRecord(raw) {
   const parsed = parseJsonOutput(raw);
-  const record = Array.isArray(parsed) ? parsed[0] : parsed;
+  const record = parsed.deployment || (Array.isArray(parsed) ? parsed[0] : parsed);
   if (!record || typeof record !== 'object') throw new Error('Vercel deploy JSON did not contain a deployment record');
   const id = record.id || record.deploymentId;
   const url = record.url || record.deploymentUrl;
@@ -22,6 +22,7 @@ function deploymentRecord(raw) {
     projectId: record.projectId || '',
     createdAt: record.createdAt || '',
     readyState: record.readyState || record.state || '',
+    target: record.target || '',
     source: 'prebuilt'
   };
 }

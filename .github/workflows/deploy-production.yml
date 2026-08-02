@@ -215,12 +215,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          deploy_log=$(mktemp)
+          deploy_stdout=$(mktemp)
+          deploy_stderr=$(mktemp)
           deployment_output=$(mktemp)
           inspect_log=$(mktemp)
-          trap 'rm -f "$deploy_log" "$deployment_output" "$inspect_log"' EXIT
-          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --prod --yes --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json >"$deploy_log" 2>&1
-          node scripts/ci/vercel-deployment.js "$deploy_log" "$EXPECTED_PROJECT_ID" "${{ inputs.rollback_deployment_id }}" >"$deployment_output"
+          inspection_output=$(mktemp)
+          trap 'rm -f "$deploy_stdout" "$deploy_stderr" "$deployment_output" "$inspect_log" "$inspection_output"' EXIT
+          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --prod --yes --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json >"$deploy_stdout" 2>"$deploy_stderr"
+          node scripts/ci/vercel-deployment.js "$deploy_stdout" "$EXPECTED_PROJECT_ID" "${{ inputs.rollback_deployment_id }}" >"$deployment_output"
           while IFS='=' read -r key value; do
             case "$key" in
               deployment_id) deployment_id="$value" ;;
@@ -233,7 +235,7 @@ jobs:
           test -n "${deployment_id:-}"
           test -n "${deployment_url:-}"
           npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$deployment_id" --format=json --token "$VERCEL_TOKEN" >"$inspect_log" 2>&1
-          node - "$inspect_log" "$deployment_id" "$EXPECTED_PROJECT_ID" "${{ needs.validate.outputs.commit_sha }}" <<'NODE'
+          node - "$inspect_log" "$deployment_id" "$EXPECTED_PROJECT_ID" "${{ needs.validate.outputs.commit_sha }}" <<'NODE' >"$inspection_output"
           const fs = require('node:fs');
           const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
           const [file, expectedId, expectedProjectId, expectedCommit] = process.argv.slice(2);
@@ -242,6 +244,13 @@ jobs:
           if (record.commitSha && record.commitSha !== expectedCommit) throw new Error('Vercel deployment commit mismatch');
           process.stdout.write(`inspection_id=${record.id}\ninspection_created_at=${record.createdAt || 'unknown'}\ninspection_commit=${record.commitSha || expectedCommit}\ninspection_source=prebuilt\n`);
           NODE
+          while IFS='=' read -r key value; do
+            case "$key" in
+              inspection_created_at) inspection_created_at="$value" ;;
+              inspection_commit) inspection_commit="$value" ;;
+              inspection_source) inspection_source="$value" ;;
+            esac
+          done <"$inspection_output"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           {
@@ -250,8 +259,8 @@ jobs:
             echo "- Deployment URL: $deployment_url"
             echo "- Deployment ID: $deployment_id"
             echo "- Source: $deployment_source"
-            echo "- Build commit: ${{ needs.validate.outputs.commit_sha }}"
-            echo "- Created at: $deployment_created_at"
+            echo "- Build commit: $inspection_commit"
+            echo "- Created at: $inspection_created_at"
             echo "- Ready state: $deployment_ready_state"
             echo "- Rollback target: ${{ inputs.rollback_deployment_id }}"
           } >> "$GITHUB_STEP_SUMMARY"
