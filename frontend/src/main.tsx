@@ -587,6 +587,8 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     list: async (licenseId: string) => (await api.licenseDocuments(token!, licenseId))?.data as LicenseDocument[] || [],
     view: async (documentId: string) => (await api.viewLicenseDocument(token!, documentId))?.data,
     approve: async (documentId: string) => { await api.approveLicenseDocument(token!, documentId); },
+    returnForCorrection: async (documentId: string, reason: string) => { await api.returnLicenseDocumentForCorrection(token!, documentId, reason); },
+    resubmit: async (documentId: string, data: { licenseNumber: string; proposedStartDate: string; proposedExpiryDate: string; note?: string }, file?: File) => { await api.resubmitLicenseDocument(token!, documentId, data, file); },
     reject: async (documentId: string, reason: string) => { await api.rejectLicenseDocument(token!, documentId, reason); }
   };
   const tableValue = (row: DataRow, column: { label: string; value: (row: DataRow) => React.ReactNode }) => column.value(row);
@@ -1349,6 +1351,8 @@ function Dashboard() {
     list: async (licenseId: string) => (await api.licenseDocuments(auth.token!, licenseId))?.data as LicenseDocument[] || [],
     view: async (documentId: string) => (await api.viewLicenseDocument(auth.token!, documentId))?.data,
     approve: async (documentId: string) => { await api.approveLicenseDocument(auth.token!, documentId); },
+    returnForCorrection: async (documentId: string, reason: string) => { await api.returnLicenseDocumentForCorrection(auth.token!, documentId, reason); },
+    resubmit: async (documentId: string, data: { licenseNumber: string; proposedStartDate: string; proposedExpiryDate: string; note?: string }, file?: File) => { await api.resubmitLicenseDocument(auth.token!, documentId, data, file); },
     reject: async (documentId: string, reason: string) => { await api.rejectLicenseDocument(auth.token!, documentId, reason); }
   };
   const openLicenseEdit = (row: DataRow) => { if (auth.token) setLicenseEditTarget(row); };

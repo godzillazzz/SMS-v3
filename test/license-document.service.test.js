@@ -28,7 +28,7 @@ function harness({ createFailure = false, requireApprovalTransactionOptions = fa
       findUniqueOrThrow: async ({ where }) => { const document = state.documents.find((item) => item.id === where.id); if (!document) { const error = new Error('missing'); error.code = 'P2025'; throw error; } return document; },
       findMany: async () => [...state.documents].sort((a, b) => b.version - a.version),
       updateMany: async ({ where, data }) => { for (const document of state.documents.filter((item) => item.licenseId === where.licenseId && item.isCurrent === where.isCurrent)) Object.assign(document, data); },
-      update: async ({ where, data }) => Object.assign(state.documents.find((item) => item.id === where.id), data)
+      update: async ({ where, data }) => { const document = state.documents.find((item) => item.id === where.id); const next = { ...data }; if (data.storageDeleteAttempts?.increment) { document.storageDeleteAttempts = Number(document.storageDeleteAttempts || 0) + data.storageDeleteAttempts.increment; delete next.storageDeleteAttempts; } return Object.assign(document, next); }
     }
   };
   const prisma = { $transaction: async (callback, options) => {
@@ -37,6 +37,7 @@ function harness({ createFailure = false, requireApprovalTransactionOptions = fa
     }
     return callback(tx);
   } };
+  prisma.employeeLicenseDocument = tx.employeeLicenseDocument;
   const storage = createFakeLicenseDocumentStorage();
   const audit = { log: async (entry) => { state.audits.push(entry); return entry; } };
   const reconcileSchedules = async (...args) => state.reconciles.push(args);
@@ -87,7 +88,7 @@ test('upload rejects invalid or reversed proposed dates before storage writes', 
 
 test('view uses a short-lived signed URL and returns only safe viewer metadata', async () => {
   const { state, storage, service } = harness();
-  state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: 'licenses/e/random', safeDisplayFileName: 'safe.pdf', mimeType: 'application/pdf', version: 1 });
+  state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: 'licenses/e/random', safeDisplayFileName: 'safe.pdf', mimeType: 'application/pdf', status: 'PENDING', version: 1 });
   await storage.put('licenses/e/random', pdf);
   const result = await service.view({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } });
   assert.deepEqual(Object.keys(result).sort(), ['fileName', 'mimeType', 'url']);
@@ -120,12 +121,72 @@ test('double approval and non-pending rejection return conflict without deleting
   assert.equal(storage.calls.remove.length, 0);
 });
 
-test('reject records reviewer and reason without changing master/current document', async () => {
-  const { state, service } = harness();
+test('reject records reviewer and reason, preserves master/current, then deletes storage', async () => {
+  const { state, storage, service } = harness();
   const masterExpiry = state.license.expiryDate;
   state.documents.push({ id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', employeeId: ids.employee, licenseId: ids.license, status: 'APPROVED', isCurrent: true, version: 1 });
-  state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, status: 'PENDING', isCurrent: false, version: 2 });
+  state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: 'licenses/e/rejected', status: 'PENDING', isCurrent: false, version: 2 });
+  await storage.put('licenses/e/rejected', pdf);
   const rejected = await service.reject({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' }, rejectionReason: 'Unreadable' });
   assert.equal(rejected.status, 'REJECTED'); assert.equal(rejected.reviewedById, ids.admin); assert.equal(rejected.rejectionReason, 'Unreadable');
   assert.equal(state.documents[0].isCurrent, true); assert.equal(state.license.expiryDate, masterExpiry);
+  assert.equal(storage.calls.remove.length, 1); assert.equal(storage.objectExists('licenses/e/rejected'), false); assert.ok(state.documents[1].storageDeletedAt);
+});
+
+test('admin can return pending document for correction without deleting or changing master/current', async () => {
+  const { state, storage, service } = harness();
+  state.documents.push({ id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', employeeId: ids.employee, licenseId: ids.license, status: 'APPROVED', isCurrent: true, version: 1 });
+  state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: 'licenses/e/returned', status: 'PENDING', isCurrent: false, version: 2 });
+  await storage.put('licenses/e/returned', pdf);
+  const beforeExpiry = state.license.expiryDate;
+  const returned = await service.returnForCorrection({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' }, correctionReason: '  กรุณาแนบวันที่ให้ชัดเจน  ' });
+  assert.equal(returned.status, 'RETURNED_FOR_CORRECTION');
+  assert.equal(returned.correctionReason, 'กรุณาแนบวันที่ให้ชัดเจน');
+  assert.equal(returned.returnedById, ids.admin);
+  assert.equal(state.documents[0].status, 'APPROVED'); assert.equal(state.documents[0].isCurrent, true);
+  assert.equal(state.license.expiryDate, beforeExpiry);
+  assert.equal(storage.calls.remove.length, 0); assert.equal(storage.objectExists('licenses/e/returned'), true);
+  await service.view({ id: ids.document, requestUser: { sub: ids.manager, role: 'MANAGER' } });
+  assert.equal(state.audits.at(-1).metadata.event, 'VIEW');
+});
+
+test('return for correction validates reason, role, and pending state', async () => {
+  const { state, service } = harness();
+  state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, status: 'APPROVED', isCurrent: true, version: 1 });
+  await assert.rejects(() => service.returnForCorrection({ id: ids.document, requestUser: { sub: ids.manager, role: 'MANAGER' }, correctionReason: 'fix' }), { statusCode: 403 });
+  await assert.rejects(() => service.returnForCorrection({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' }, correctionReason: '   ' }), { statusCode: 400 });
+  await assert.rejects(() => service.returnForCorrection({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' }, correctionReason: 'fix' }), { statusCode: 409 });
+});
+
+test('manager resubmits a returned document with the existing file', async () => {
+  const { state, storage, service } = harness();
+  state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: 'licenses/e/reuse', proposedLicenseNumber: 'OLD', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31'), status: 'RETURNED_FOR_CORRECTION', isCurrent: false, version: 1, correctionReason: 'แก้เลขใบอนุญาต' });
+  await storage.put('licenses/e/reuse', pdf);
+  const updated = await service.resubmit({ id: ids.document, requestUser: { sub: ids.manager, role: 'MANAGER' }, input: { licenseNumber: 'NEW', proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31'), note: 'แก้ไขแล้ว' } });
+  assert.equal(updated.status, 'PENDING'); assert.equal(updated.proposedLicenseNumber, 'NEW'); assert.equal(updated.note, 'แก้ไขแล้ว');
+  assert.equal(updated.storageObjectKey, 'licenses/e/reuse'); assert.equal(storage.calls.put.length, 1); assert.equal(storage.calls.remove.length, 0);
+  assert.equal(state.license.expiryDate.toISOString().slice(0, 10), '2026-12-31');
+  assert.equal(state.audits.at(-1).metadata.event, 'RESUBMIT');
+});
+
+test('manager replacement upload commits the new file before deleting the old file', async () => {
+  const { state, storage, service } = harness();
+  state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: 'licenses/e/old', proposedLicenseNumber: 'OLD', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31'), status: 'RETURNED_FOR_CORRECTION', isCurrent: false, version: 1 });
+  await storage.put('licenses/e/old', pdf);
+  const replacement = { buffer: Buffer.from('%PDF-1.7\nreplacement'), mimetype: 'application/pdf', originalname: 'replacement.pdf', size: 23 };
+  const updated = await service.resubmit({ id: ids.document, requestUser: { sub: ids.manager, role: 'MANAGER' }, input: { licenseNumber: 'NEW', proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') }, file: replacement });
+  assert.equal(updated.status, 'PENDING'); assert.notEqual(updated.storageObjectKey, 'licenses/e/old');
+  assert.equal(storage.calls.put.length, 2); assert.equal(storage.calls.remove.length, 1);
+  assert.equal(storage.objectExists('licenses/e/old'), false); assert.equal(storage.objectExists(updated.storageObjectKey), true);
+  assert.equal(state.documents[0].storageDeleteObjectKey, null);
+});
+
+test('rejected document remains rejected when immediate storage deletion fails and signed view is denied', async () => {
+  const { state, storage, service } = harness();
+  state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: 'licenses/e/failing-delete', status: 'PENDING', isCurrent: false, version: 1 });
+  await storage.put('licenses/e/failing-delete', pdf); storage.failNextRemove();
+  const rejected = await service.reject({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' }, rejectionReason: 'ไฟล์อ่านไม่ได้' });
+  assert.equal(rejected.status, 'REJECTED'); assert.equal(state.documents[0].status, 'REJECTED');
+  assert.equal(state.documents[0].storageDeleteAttempts, 1); assert.equal(state.documents[0].storageDeletedAt, null);
+  await assert.rejects(() => service.view({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } }), { statusCode: 410 });
 });

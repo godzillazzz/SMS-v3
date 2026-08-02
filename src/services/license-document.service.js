@@ -1,19 +1,28 @@
 const crypto = require('node:crypto');
 const HttpError = require('../utils/http-error');
 const { validateUpload, safeName } = require('./license-document-storage.service');
+const { LICENSE_DOCUMENT_TRANSACTION_OPTIONS, removeLicenseDocumentFile } = require('./license-document-retention.service');
 
-const APPROVAL_TRANSACTION_OPTIONS = Object.freeze({ maxWait: 10000, timeout: 30000 });
+const APPROVAL_TRANSACTION_OPTIONS = LICENSE_DOCUMENT_TRANSACTION_OPTIONS;
+const VIEWABLE_STATUSES = new Set(['PENDING', 'RETURNED_FOR_CORRECTION', 'APPROVED', 'SUPERSEDED']);
 
 const historySelect = {
   id: true, employeeId: true, licenseId: true, safeDisplayFileName: true, mimeType: true, fileSize: true,
   proposedStartDate: true, proposedExpiryDate: true, proposedLicenseNumber: true, status: true, isCurrent: true, uploadedAt: true,
-  reviewedAt: true, rejectionReason: true, version: true, note: true,
+  reviewedAt: true, rejectionReason: true, correctionReason: true, returnedAt: true, resubmittedAt: true,
+  immediateDeletionRequestedAt: true, expirationProcessedAt: true, version: true, note: true,
   storageDeletedAt: true, storageDeleteAfter: true,
-  uploadedBy: { select: { id: true, displayName: true } }, reviewedBy: { select: { id: true, displayName: true } }
+  uploadedBy: { select: { id: true, displayName: true } },
+  reviewedBy: { select: { id: true, displayName: true } },
+  returnedBy: { select: { id: true, displayName: true } }
 };
 
 function ensureAdmin(requestUser) {
   if (requestUser?.role !== 'ADMIN') throw new HttpError(403, 'Administrator access is required.');
+}
+
+function ensureEditor(requestUser) {
+  if (!['ADMIN', 'MANAGER'].includes(requestUser?.role)) throw new HttpError(403, 'Manager or administrator access is required.');
 }
 
 function ensureProposedDates(startDate, expiryDate) {
@@ -31,6 +40,20 @@ function normalizeLicenseNumber(value) {
   return normalized;
 }
 
+function normalizeReason(value, label, max) {
+  if (typeof value !== 'string') throw new HttpError(400, `${label} is required.`);
+  const normalized = value.trim();
+  if (!normalized) throw new HttpError(400, `${label} is required.`);
+  if (normalized.length > max || /[\u0000-\u001f\u007f]/.test(normalized)) throw new HttpError(400, `${label} is invalid.`);
+  return normalized;
+}
+
+function normalizeNote(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || value.length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)) throw new HttpError(400, 'Note is invalid.');
+  return value.trim() || null;
+}
+
 function retentionDays(environment = process.env) {
   const value = Number.parseInt(environment.LICENSE_DOCUMENT_RETENTION_DAYS || '30', 10);
   return Number.isInteger(value) && value >= 0 && value <= 3650 ? value : 30;
@@ -42,12 +65,24 @@ function addRetentionDays(date, days) {
   return result;
 }
 
+function isDocumentFileAvailable(document, now = new Date()) {
+  if (!VIEWABLE_STATUSES.has(document.status) || document.storageDeletedAt) return false;
+  if (document.status === 'SUPERSEDED' && document.storageDeleteAfter && new Date(document.storageDeleteAfter) <= now) return false;
+  return true;
+}
+
+function unavailableMessage(document) {
+  if (document.status === 'REJECTED') return 'ไฟล์ต้นฉบับถูกลบแล้ว เนื่องจากเอกสารไม่ได้รับการอนุมัติ';
+  if (document.status === 'EXPIRED') return 'ไฟล์ต้นฉบับถูกลบแล้ว เนื่องจากใบอนุญาตหมดอายุ';
+  return 'License document file is no longer available.';
+}
+
 function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedules }) {
   if (!prisma || !storage || !audit || !reconcileSchedules) throw new Error('License document service dependencies are required.');
 
-  async function canAccess(tx, requestUser, employeeId) {
+  async function canAccess(_tx, requestUser, employeeId) {
     if (requestUser.role === 'ADMIN') return true;
-    return requestUser.role === 'MANAGER';
+    return requestUser.role === 'MANAGER' && Boolean(employeeId);
   }
 
   async function list({ licenseId, requestUser }) {
@@ -55,7 +90,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
       const license = await tx.employeeLicense.findUniqueOrThrow({ where: { id: licenseId }, select: { employeeId: true } });
       if (!(await canAccess(tx, requestUser, license.employeeId))) throw new HttpError(403, 'You cannot access this employee license.');
       const rows = await tx.employeeLicenseDocument.findMany({ where: { licenseId }, orderBy: [{ version: 'desc' }], select: historySelect });
-      return rows.map((row) => ({ ...row, fileAvailable: !row.storageDeletedAt }));
+      return rows.map((row) => ({ ...row, fileAvailable: isDocumentFileAvailable(row) }));
     });
   }
 
@@ -63,6 +98,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
     ensureProposedDates(input?.proposedStartDate, input?.proposedExpiryDate);
     const proposedLicenseNumber = normalizeLicenseNumber(input?.licenseNumber);
     const fileInfo = validateUpload(file);
+    const note = normalizeNote(input?.note);
     const license = await prisma.$transaction(async (tx) => {
       const found = await tx.employeeLicense.findUniqueOrThrow({ where: { id: licenseId }, select: { id: true, employeeId: true, issueDate: true, expiryDate: true } });
       if (!(await canAccess(tx, requestUser, found.employeeId))) throw new HttpError(403, 'You cannot upload for this employee license.');
@@ -78,7 +114,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
       return await prisma.$transaction(async (tx) => {
         const version = (await tx.employeeLicenseDocument.aggregate({ where: { licenseId }, _max: { version: true } }))._max.version || 0;
         const displayName = safeName(file.originalname);
-        const document = await tx.employeeLicenseDocument.create({ data: { employeeId: license.employeeId, licenseId, storageProvider: stored.provider, storageBucket: stored.bucket, storageObjectKey: objectKey, originalFileName: displayName, safeDisplayFileName: displayName, mimeType: fileInfo.mimeType, fileSize: file.size, checksum: fileInfo.checksum, proposedStartDate: input.proposedStartDate, proposedExpiryDate: input.proposedExpiryDate, proposedLicenseNumber, version: version + 1, note: input.note || null, uploadedById: requestUser.sub } });
+        const document = await tx.employeeLicenseDocument.create({ data: { employeeId: license.employeeId, licenseId, storageProvider: stored.provider, storageBucket: stored.bucket, storageObjectKey: objectKey, originalFileName: displayName, safeDisplayFileName: displayName, mimeType: fileInfo.mimeType, fileSize: file.size, checksum: fileInfo.checksum, proposedStartDate: input.proposedStartDate, proposedExpiryDate: input.proposedExpiryDate, proposedLicenseNumber, version: version + 1, note, uploadedById: requestUser.sub } });
         await audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'EmployeeLicenseDocument', entityId: document.id, metadata: { licenseId, employeeId: license.employeeId, status: 'PENDING', version: document.version, mimeType: document.mimeType, fileSize: document.fileSize } }, tx);
         return document;
       });
@@ -92,7 +128,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
     const document = await prisma.$transaction(async (tx) => {
       const found = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
       if (!(await canAccess(tx, requestUser, found.employeeId))) throw new HttpError(403, 'You cannot view this license document.');
-      if (found.storageDeletedAt) throw new HttpError(410, 'License document file is no longer available.');
+      if (!isDocumentFileAvailable(found)) throw new HttpError(410, unavailableMessage(found));
       await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'VIEW' } }, tx);
       return found;
     });
@@ -123,19 +159,76 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
     }
   }
 
-  async function reject({ id, requestUser, rejectionReason }) {
+  async function returnForCorrection({ id, requestUser, correctionReason }) {
     ensureAdmin(requestUser);
+    const reason = normalizeReason(correctionReason, 'Correction reason', 1000);
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM employee_license_documents WHERE id = ${id}::uuid FOR UPDATE`;
       const document = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
-      if (document.status !== 'PENDING') throw new HttpError(409, 'Only pending license documents can be rejected.');
-      const rejected = await tx.employeeLicenseDocument.update({ where: { id }, data: { status: 'REJECTED', reviewedById: requestUser.sub, reviewedAt: new Date(), rejectionReason } });
-      await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'REJECT', licenseId: document.licenseId } }, tx);
-      return rejected;
-    });
+      if (document.status !== 'PENDING') throw new HttpError(409, 'Only pending license documents can be returned for correction.');
+      const returnedAt = new Date();
+      const returned = await tx.employeeLicenseDocument.update({ where: { id }, data: { status: 'RETURNED_FOR_CORRECTION', isCurrent: false, correctionReason: reason, returnedById: requestUser.sub, returnedAt, resubmittedAt: null, rejectionReason: null, storageDeleteAfter: null, immediateDeletionRequestedAt: null } });
+      await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'RETURN_FOR_CORRECTION', licenseId: document.licenseId, returnedById: requestUser.sub } }, tx);
+      return returned;
+    }, APPROVAL_TRANSACTION_OPTIONS);
   }
 
-  return { list, upload, view, approve, reject, canAccess };
+  async function resubmit({ id, requestUser, input, file }) {
+    ensureEditor(requestUser);
+    const proposedLicenseNumber = normalizeLicenseNumber(input?.proposedLicenseNumber ?? input?.licenseNumber);
+    ensureProposedDates(input?.proposedStartDate, input?.proposedExpiryDate);
+    const note = normalizeNote(input?.note);
+    const fileInfo = file ? validateUpload(file) : null;
+    const previous = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM employee_license_documents WHERE id = ${id}::uuid FOR UPDATE`;
+      const document = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
+      if (document.status !== 'RETURNED_FOR_CORRECTION') throw new HttpError(409, 'Only returned license documents can be resubmitted.');
+      if (!(await canAccess(tx, requestUser, document.employeeId))) throw new HttpError(403, 'You cannot edit this employee license.');
+      if (!file && !isDocumentFileAvailable(document)) throw new HttpError(410, 'The returned license document file is no longer available.');
+      return document;
+    }, APPROVAL_TRANSACTION_OPTIONS);
+    const objectKey = file ? `licenses/${previous.employeeId}/${crypto.randomUUID()}` : null;
+    let uploaded = false;
+    try {
+      const stored = file ? await storage.put(objectKey, { ...file, mimetype: fileInfo.mimeType }) : null;
+      uploaded = Boolean(stored);
+      const updated = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM employee_license_documents WHERE id = ${id}::uuid FOR UPDATE`;
+        const document = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
+        if (document.status !== 'RETURNED_FOR_CORRECTION') throw new HttpError(409, 'Only returned license documents can be resubmitted.');
+        if (!(await canAccess(tx, requestUser, document.employeeId))) throw new HttpError(403, 'You cannot edit this employee license.');
+        const resubmittedAt = new Date();
+        const data = { status: 'PENDING', isCurrent: false, proposedLicenseNumber, proposedStartDate: input.proposedStartDate, proposedExpiryDate: input.proposedExpiryDate, note, reviewedById: null, reviewedAt: null, rejectionReason: null, resubmittedAt, storageDeleteAfter: null, immediateDeletionRequestedAt: null };
+        if (file) Object.assign(data, { storageProvider: stored.provider, storageBucket: stored.bucket, storageObjectKey: objectKey, originalFileName: safeName(file.originalname), safeDisplayFileName: safeName(file.originalname), mimeType: fileInfo.mimeType, fileSize: file.size, checksum: fileInfo.checksum, storageDeleteObjectKey: document.storageObjectKey, storageDeleteAfter: new Date() , storageDeleteAttempts: 0, storageDeleteLastErrorAt: null, storageDeleteLastErrorCode: null, storageDeletedAt: null });
+        const resubmitted = await tx.employeeLicenseDocument.update({ where: { id }, data });
+        await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'RESUBMIT', licenseId: document.licenseId, replacedFile: Boolean(file) } }, tx);
+        return resubmitted;
+      }, APPROVAL_TRANSACTION_OPTIONS);
+      if (file) await removeLicenseDocumentFile({ prisma, storage, document: updated, now: new Date() });
+      return updated;
+    } catch (error) {
+      if (uploaded) await storage.remove(objectKey).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async function reject({ id, requestUser, rejectionReason }) {
+    ensureAdmin(requestUser);
+    const reason = normalizeReason(rejectionReason, 'Rejection reason', 2000);
+    const reviewedAt = new Date();
+    const rejected = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM employee_license_documents WHERE id = ${id}::uuid FOR UPDATE`;
+      const document = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
+      if (document.status !== 'PENDING') throw new HttpError(409, 'Only pending license documents can be rejected.');
+      const next = await tx.employeeLicenseDocument.update({ where: { id }, data: { status: 'REJECTED', isCurrent: false, reviewedById: requestUser.sub, reviewedAt, rejectionReason: reason, storageDeleteAfter: reviewedAt, immediateDeletionRequestedAt: reviewedAt, storageDeletedAt: null } });
+      await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'REJECT', licenseId: document.licenseId } }, tx);
+      return next;
+    }, APPROVAL_TRANSACTION_OPTIONS);
+    const cleanup = await removeLicenseDocumentFile({ prisma, storage, document: rejected, now: reviewedAt });
+    return cleanup.document || rejected;
+  }
+
+  return { list, upload, view, approve, returnForCorrection, resubmit, reject, canAccess };
 }
 
-module.exports = { createLicenseDocumentService, historySelect, normalizeLicenseNumber, retentionDays };
+module.exports = { createLicenseDocumentService, historySelect, normalizeLicenseNumber, normalizeReason, retentionDays, isDocumentFileAvailable, APPROVAL_TRANSACTION_OPTIONS };

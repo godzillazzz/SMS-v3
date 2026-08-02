@@ -1,0 +1,6 @@
+.license-doc-badge.is-returned{background:#fff7db;color:#9a6700}
+.license-doc-badge.is-expired{background:#fff0f2;color:#b42318}
+.license-status-returned{background:#fff7db;color:#9a6700}
+.license-correction-reason{color:#9a6700}
+.license-correction-reason-panel{margin-bottom:14px;padding:12px;border:1px solid #f2d58a;border-radius:10px;background:#fffaf0;color:#9a6700}
+.license-correction-reason-panel p{margin:4px 0 0}

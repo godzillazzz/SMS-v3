@@ -15,6 +15,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   const audit = require('../../src/services/audit.service');
   const { reconcileEmployeeLicenseSchedules } = require('../../src/services/license-schedule-reconciliation.service');
   const { createLicenseDocumentService } = require('../../src/services/license-document.service');
+  const { expireDueLicenseDocuments } = require('../../src/services/license-document-retention.service');
   const { createFakeLicenseDocumentStorage } = require('../support/fake-license-document-storage');
 
   const pdf = { buffer: Buffer.from('%PDF-1.7\nintegration fixture'), mimetype: 'application/pdf', originalname: 'integration-license.pdf', size: 32 };
@@ -51,7 +52,8 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   }
 
   async function trackAudits(userId) {
-    const rows = await prisma.auditLog.findMany({ where: { actorUserId: userId }, select: { id: true } });
+    const entityIds = [...created.documentIds, ...created.licenseIds];
+    const rows = await prisma.auditLog.findMany({ where: { OR: [{ actorUserId: userId }, ...(entityIds.length ? [{ entityId: { in: entityIds } }] : [])] }, select: { id: true } });
     created.auditIds.push(...rows.map((row) => row.id).filter((id) => !created.auditIds.includes(id)));
   }
 
@@ -93,7 +95,11 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     assert.equal(afterReject.expiryDate.getTime(), currentBeforeReject.getTime());
     assert.equal(afterReject.licenseNumber, `LN-${context.marker}-2`);
     assert.equal((await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: renewal.id } })).isCurrent, true);
-    assert.equal(context.storage.objectExists(rejectedCandidate.storageObjectKey), true);
+    const rejected = await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: rejectedCandidate.id } });
+    assert.equal(rejected.status, 'REJECTED');
+    assert.ok(rejected.storageDeletedAt);
+    assert.equal(context.storage.objectExists(rejectedCandidate.storageObjectKey), false);
+    await assert.rejects(() => context.service.view({ id: rejectedCandidate.id, requestUser: context.requestUser }), { statusCode: 410 });
     await trackAudits(context.user.id);
   }
 
@@ -126,5 +132,34 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const approvalAudits = await prisma.auditLog.count({ where: { entityId: pending.id, metadata: { path: ['event'], equals: 'APPROVE' } } });
     assert.equal(approvalAudits, 1);
     await trackAudits(context.user.id);
+  });
+
+  test('return, reuse/resubmit, reject deletion, and expiration preserve history safely', async () => {
+    const context = await fixture('correction-disposal');
+    try {
+      const pending = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: pdf, input: { licenseNumber: `LN-${context.marker}-return`, proposedStartDate: new Date('2025-01-01'), proposedExpiryDate: new Date('2025-12-31'), note: 'initial' } });
+      created.documentIds.push(pending.id);
+      const returned = await context.service.returnForCorrection({ id: pending.id, requestUser: context.requestUser, correctionReason: 'กรุณาตรวจสอบวันที่และเลขใบอนุญาต' });
+      assert.equal(returned.status, 'RETURNED_FOR_CORRECTION'); assert.equal(context.storage.objectExists(pending.storageObjectKey), true); assert.equal(context.storage.calls.remove.length, 0);
+      await context.service.view({ id: pending.id, requestUser: { sub: context.user.id, role: 'MANAGER' } });
+      const resubmitted = await context.service.resubmit({ id: pending.id, requestUser: { sub: context.user.id, role: 'MANAGER' }, input: { licenseNumber: `LN-${context.marker}-fixed`, proposedStartDate: new Date('2025-01-01'), proposedExpiryDate: new Date('2025-12-31'), note: 'corrected' } });
+      assert.equal(resubmitted.status, 'PENDING'); assert.equal(resubmitted.storageObjectKey, pending.storageObjectKey); assert.equal(context.storage.calls.remove.length, 0);
+      const approved = await context.service.approve({ id: pending.id, requestUser: context.requestUser });
+      assert.equal(approved.status, 'APPROVED'); assert.equal(approved.isCurrent, true);
+      const rejectedCandidate = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreject-correction'), size: 26 }, input: { licenseNumber: `LN-${context.marker}-reject`, proposedStartDate: new Date('2026-01-01'), proposedExpiryDate: new Date('2026-12-31') } });
+      created.documentIds.push(rejectedCandidate.id);
+      await context.service.reject({ id: rejectedCandidate.id, requestUser: context.requestUser, rejectionReason: 'เอกสารไม่ชัดเจน' });
+      assert.equal((await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: rejectedCandidate.id } })).status, 'REJECTED');
+      assert.equal(context.storage.objectExists(rejectedCandidate.storageObjectKey), false);
+      await assert.rejects(() => context.service.view({ id: rejectedCandidate.id, requestUser: context.requestUser }), { statusCode: 410 });
+      const expiration = await expireDueLicenseDocuments({ prisma, storage: context.storage, audit, now: new Date('2026-08-02T00:00:00Z') });
+      assert.equal(expiration.expired, 1); assert.equal(expiration.deleted, 1);
+      const expired = await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: pending.id } });
+      assert.equal(expired.status, 'EXPIRED'); assert.equal(expired.isCurrent, false); assert.ok(expired.expirationProcessedAt); assert.ok(expired.storageDeletedAt);
+      await assert.rejects(() => context.service.view({ id: pending.id, requestUser: context.requestUser }), { statusCode: 410 });
+      await trackAudits(context.user.id);
+    } finally {
+      await trackAudits(context.user.id);
+    }
   });
 }

@@ -16,7 +16,7 @@ const { updateScheduleApprovalState, approveMonthlySchedule } = require('../serv
 const { linkLeaveQuota } = require('../services/leave-quota-link.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
-const { cleanupSupersededLicenseDocuments } = require('../services/license-document-retention.service');
+const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
 const { normalizeLicenseNumber } = require('../services/license-document.service');
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
 const HttpError = require('../utils/http-error');
@@ -72,7 +72,8 @@ const inclusiveDays = (startDate, endDate) => Math.floor((Date.UTC(endDate.getUT
 const positionText = (employee) => String(employee?.jobTitle || '').toLowerCase();
 const isSupervisorPosition = (employee) => /supervisor|หัวหน้า|ซุปเปอร์ไวเซอร์/.test(positionText(employee));
 const isManagerPosition = (employee) => /manager|ผู้จัดการ/.test(positionText(employee));
-const licenseDocuments = createLicenseDocumentService({ prisma, storage: createSupabaseLicenseDocumentStorage(), audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
+const licenseStorage = createSupabaseLicenseDocumentStorage();
+const licenseDocuments = createLicenseDocumentService({ prisma, storage: licenseStorage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
 const hasSupervisorApprovalLevel = (user) => user.role === 'ADMIN' || isSupervisorPosition(user.employee) || isManagerPosition(user.employee);
 const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser) => {
   if (requestUser.role === 'ADMIN') return;
@@ -184,7 +185,10 @@ router.get('/dashboard', async (_req, res, next) => {
 router.post('/internal/license-reconciliation', async (req, res, next) => {
   try {
     if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
-    res.json({ data: await reconcileAllEmployeeLicenseSchedules(prisma) });
+    const schedule = await reconcileAllEmployeeLicenseSchedules(prisma);
+    const expired = await expireDueLicenseDocuments({ prisma, storage: licenseStorage, audit });
+    const cleanup = await cleanupDueLicenseDocuments({ prisma, storage: licenseStorage });
+    res.json({ data: { schedule, expired, cleanup } });
   } catch (error) { next(error); }
 });
 
@@ -256,7 +260,7 @@ router.post('/licenses/:id/documents', authorize('ADMIN', 'MANAGER'), licenseDoc
   } catch (error) { next(error); }
 });
 router.post('/license-documents/retention-cleanup', authorize('ADMIN'), async (req, res, next) => {
-  try { res.json({ data: await cleanupSupersededLicenseDocuments({ prisma, storage: createSupabaseLicenseDocumentStorage() }) }); }
+  try { res.json({ data: await cleanupDueLicenseDocuments({ prisma, storage: licenseStorage }) }); }
   catch (error) { next(error); }
 });
 router.get('/license-documents/:id/view', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
@@ -269,6 +273,20 @@ router.post('/license-documents/:id/approve', authorize('ADMIN'), async (req, re
   try {
     const id = uuid.parse(req.params.id);
     res.json({ data: await licenseDocuments.approve({ id, requestUser: req.user }) });
+  } catch (error) { next(error); }
+});
+router.post('/license-documents/:id/return-for-correction', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const { correctionReason } = z.object({ correctionReason: z.string().trim().min(1).max(1000) }).parse(req.body);
+    res.json({ data: await licenseDocuments.returnForCorrection({ id, requestUser: req.user, correctionReason }) });
+  } catch (error) { next(error); }
+});
+router.post('/license-documents/:id/resubmit', authorize('ADMIN', 'MANAGER'), licenseDocumentUpload, async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const input = z.object({ licenseNumber: z.string().transform(normalizeLicenseNumber), proposedStartDate: z.coerce.date(), proposedExpiryDate: z.coerce.date(), note: nullableText(2000) }).refine((value) => value.proposedStartDate <= value.proposedExpiryDate, { message: 'Start date must not be after expiry date.', path: ['proposedExpiryDate'] }).parse(req.body);
+    res.json({ data: await licenseDocuments.resubmit({ id, requestUser: req.user, input, file: req.file }) });
   } catch (error) { next(error); }
 });
 router.post('/license-documents/:id/reject', authorize('ADMIN'), async (req, res, next) => {

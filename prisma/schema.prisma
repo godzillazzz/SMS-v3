@@ -66,6 +66,7 @@ model User {
   otpChallenges            AuthOtpChallenge[]
   uploadedLicenseDocuments EmployeeLicenseDocument[] @relation("UploadedLicenseDocuments")
   reviewedLicenseDocuments EmployeeLicenseDocument[] @relation("ReviewedLicenseDocuments")
+  returnedLicenseDocuments EmployeeLicenseDocument[] @relation("ReturnedLicenseDocuments")
   employee                 Employee?                 @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
   @@map("users")
@@ -214,51 +215,63 @@ model EmployeeLicense {
 
 enum LicenseDocumentStatus {
   PENDING
+  RETURNED_FOR_CORRECTION
   APPROVED
   REJECTED
   SUPERSEDED
+  EXPIRED
 }
 
 model EmployeeLicenseDocument {
-  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId          String                @map("employee_id") @db.Uuid
-  licenseId           String                @map("license_id") @db.Uuid
-  storageProvider     String                @map("storage_provider") @db.VarChar(50)
-  storageBucket       String                @map("storage_bucket") @db.VarChar(255)
-  storageObjectKey    String                @unique @map("storage_object_key") @db.VarChar(500)
-  originalFileName    String                @map("original_file_name") @db.VarChar(255)
-  safeDisplayFileName String                @map("safe_display_file_name") @db.VarChar(255)
-  mimeType            String                @map("mime_type") @db.VarChar(100)
-  fileSize            Int                   @map("file_size")
-  checksum            String?               @db.Char(64)
-  proposedStartDate   DateTime              @map("proposed_start_date") @db.Date
-  proposedExpiryDate  DateTime              @map("proposed_expiry_date") @db.Date
-  proposedLicenseNumber String?             @map("proposed_license_number") @db.VarChar(100)
-  status              LicenseDocumentStatus @default(PENDING)
-  isCurrent           Boolean               @default(false) @map("is_current")
-  uploadedById        String                @map("uploaded_by_id") @db.Uuid
-  uploadedAt          DateTime              @default(now()) @map("uploaded_at")
-  reviewedById        String?               @map("reviewed_by_id") @db.Uuid
-  reviewedAt          DateTime?             @map("reviewed_at")
-  rejectionReason     String?               @map("rejection_reason") @db.VarChar(2000)
-  version             Int
-  note                String?               @db.VarChar(2000)
-  storageDeleteAfter  DateTime?             @map("storage_delete_after")
-  storageDeletedAt    DateTime?             @map("storage_deleted_at")
-  storageDeleteAttempts Int                 @default(0) @map("storage_delete_attempts")
-  storageDeleteLastErrorAt DateTime?        @map("storage_delete_last_error_at")
-  storageDeleteLastErrorCode String?        @map("storage_delete_last_error_code") @db.VarChar(80)
-  createdAt           DateTime              @default(now()) @map("created_at")
-  updatedAt           DateTime              @updatedAt @map("updated_at")
-  employee            Employee              @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  license             EmployeeLicense       @relation(fields: [licenseId], references: [id], onDelete: Restrict)
-  uploadedBy          User                  @relation("UploadedLicenseDocuments", fields: [uploadedById], references: [id], onDelete: Restrict)
-  reviewedBy          User?                 @relation("ReviewedLicenseDocuments", fields: [reviewedById], references: [id], onDelete: Restrict)
+  id                           String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId                   String                @map("employee_id") @db.Uuid
+  licenseId                    String                @map("license_id") @db.Uuid
+  storageProvider              String                @map("storage_provider") @db.VarChar(50)
+  storageBucket                String                @map("storage_bucket") @db.VarChar(255)
+  storageObjectKey             String                @unique @map("storage_object_key") @db.VarChar(500)
+  originalFileName             String                @map("original_file_name") @db.VarChar(255)
+  safeDisplayFileName          String                @map("safe_display_file_name") @db.VarChar(255)
+  mimeType                     String                @map("mime_type") @db.VarChar(100)
+  fileSize                     Int                   @map("file_size")
+  checksum                     String?               @db.Char(64)
+  proposedStartDate            DateTime              @map("proposed_start_date") @db.Date
+  proposedExpiryDate           DateTime              @map("proposed_expiry_date") @db.Date
+  proposedLicenseNumber        String?               @map("proposed_license_number") @db.VarChar(100)
+  status                       LicenseDocumentStatus @default(PENDING)
+  isCurrent                    Boolean               @default(false) @map("is_current")
+  uploadedById                 String                @map("uploaded_by_id") @db.Uuid
+  uploadedAt                   DateTime              @default(now()) @map("uploaded_at")
+  reviewedById                 String?               @map("reviewed_by_id") @db.Uuid
+  reviewedAt                   DateTime?             @map("reviewed_at")
+  rejectionReason              String?               @map("rejection_reason") @db.VarChar(2000)
+  correctionReason             String?               @map("correction_reason") @db.VarChar(1000)
+  returnedById                 String?               @map("returned_by_id") @db.Uuid
+  returnedAt                   DateTime?             @map("returned_at")
+  resubmittedAt                DateTime?             @map("resubmitted_at")
+  version                      Int
+  note                         String?               @db.VarChar(2000)
+  storageDeleteAfter           DateTime?             @map("storage_delete_after")
+  storageDeletedAt             DateTime?             @map("storage_deleted_at")
+  storageDeleteObjectKey       String?               @map("storage_delete_object_key") @db.VarChar(500)
+  storageDeleteAttempts        Int                   @default(0) @map("storage_delete_attempts")
+  storageDeleteLastErrorAt     DateTime?             @map("storage_delete_last_error_at")
+  storageDeleteLastErrorCode   String?               @map("storage_delete_last_error_code") @db.VarChar(80)
+  immediateDeletionRequestedAt DateTime?             @map("immediate_deletion_requested_at")
+  expirationProcessedAt        DateTime?             @map("expiration_processed_at")
+  createdAt                    DateTime              @default(now()) @map("created_at")
+  updatedAt                    DateTime              @updatedAt @map("updated_at")
+  employee                     Employee              @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  license                      EmployeeLicense       @relation(fields: [licenseId], references: [id], onDelete: Restrict)
+  uploadedBy                   User                  @relation("UploadedLicenseDocuments", fields: [uploadedById], references: [id], onDelete: Restrict)
+  reviewedBy                   User?                 @relation("ReviewedLicenseDocuments", fields: [reviewedById], references: [id], onDelete: Restrict)
+  returnedBy                   User?                 @relation("ReturnedLicenseDocuments", fields: [returnedById], references: [id], onDelete: Restrict)
 
   @@unique([licenseId, version])
   @@index([employeeId, status])
   @@index([licenseId, isCurrent])
   @@index([proposedExpiryDate])
+  @@index([status, isCurrent, expirationProcessedAt])
+  @@index([storageDeleteObjectKey])
   @@map("employee_license_documents")
 }
 

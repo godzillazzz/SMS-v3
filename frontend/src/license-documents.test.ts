@@ -5,6 +5,7 @@ import { api } from './api';
 import {
   LicenseDocument,
   licenseValidityLabel,
+  licenseDocumentStatusLabel,
   sanitizeLicenseDocumentError,
   licenseTableStatus,
   selectLicenseDocumentForTable,
@@ -65,7 +66,14 @@ describe('license document table state', () => {
   it('supports empty, pending, approved, and rejected Thai badges', () => {
     expect(componentSource).toContain('ยังไม่มีไฟล์');
     expect(componentSource).toContain('licenseDocumentStatusLabel[document.status]');
-    expect(componentSource).toContain('เหตุผล: {document.rejectionReason}');
+    expect(componentSource).toContain('เหตุผลไม่อนุมัติ: {document.rejectionReason}');
+  });
+
+  it('labels returned, superseded, and expired documents with the required business wording', () => {
+    expect(licenseDocumentStatusLabel.RETURNED_FOR_CORRECTION).toBe('ส่งกลับแก้ไข');
+    expect(licenseDocumentStatusLabel.SUPERSEDED).toBe('ถูกแทนที่แล้ว');
+    expect(licenseDocumentStatusLabel.EXPIRED).toBe('หมดอายุ');
+    expect(componentSource).toContain('ส่งกลับแก้ไข');
   });
 
   it('keeps an approved current document and pending renewal visible together', () => {
@@ -75,6 +83,16 @@ describe('license document table state', () => {
     expect(summary.current?.id).toBe('approved');
     expect(summary.pending.map((item) => item.id)).toEqual(['pending']);
     expect(componentSource).toContain('ฉบับต่ออายุรอตรวจสอบ');
+  });
+
+  it('keeps approved current data while exposing a returned correction request', () => {
+    const current = documentRow({ id: 'approved', status: 'APPROVED', isCurrent: true, version: 2 });
+    const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 3, correctionReason: 'แก้วันที่' });
+    const summary = selectLicenseDocumentSummary([current, returned]);
+    expect(summary.current?.id).toBe('approved');
+    expect(summary.returned.map((item) => item.id)).toEqual(['returned']);
+    expect(licenseTableStatus([current, returned]).label).toBe('มีรายการส่งกลับแก้ไข');
+    expect(componentSource).toContain('แก้ไขและส่งตรวจสอบใหม่');
   });
 
   it('uses the existing 60-day warning rule without timezone shifting date-only values', () => {
@@ -119,6 +137,8 @@ describe('license document viewer and review', () => {
     expect(componentSource).not.toMatch(/uploadedBy[^\n]+disabled/);
     expect(componentSource).toContain('วันหลักจะเปลี่ยนจาก');
     expect(componentSource).toContain("setMode('approve')");
+    expect(componentSource).toContain('ยืนยันส่งกลับแก้ไข');
+    expect(componentSource).toContain('เมื่อไม่อนุมัติ ระบบจะลบไฟล์ต้นฉบับ');
   });
 
   it('requires a non-whitespace rejection reason and prevents double submission', () => {
@@ -139,7 +159,7 @@ describe('license document viewer and review', () => {
     expect(componentSource).toContain('className="btn-danger-outline"');
     expect(componentSource).toContain('className="btn-success"');
     expect(componentSource).toContain('className="btn-ghost license-view-button"');
-    expect(componentSource).toContain('onClick={() => setMode(\'reject\')}');
+    expect(componentSource).toContain("setMode('reject')");
     expect(componentSource).toContain('onClick={() => setMode(\'approve\')}');
   });
 });
@@ -164,5 +184,7 @@ describe('license document history and safety', () => {
     expect(componentSource).toContain('await load(); setNotice(message); window.setTimeout(() => onChanged(message), 1200)');
     expect(mainSource).toContain('onLicenseDocumentChanged={() => setOperationRefresh((value) => value + 1)}');
     expect(mainSource).toContain("if (action === 'document' && activePage === 'licenses')");
+    expect(mainSource).toContain('returnLicenseDocumentForCorrection');
+    expect(mainSource).toContain('resubmitLicenseDocument');
   });
 });

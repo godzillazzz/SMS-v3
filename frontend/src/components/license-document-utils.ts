@@ -1,4 +1,4 @@
-export type LicenseDocumentStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+export type LicenseDocumentStatus = 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED' | 'EXPIRED';
 
 export type LicenseDocument = {
   id: string;
@@ -15,6 +15,11 @@ export type LicenseDocument = {
   uploadedAt: string;
   reviewedAt?: string | null;
   rejectionReason?: string | null;
+  correctionReason?: string | null;
+  returnedAt?: string | null;
+  resubmittedAt?: string | null;
+  immediateDeletionRequestedAt?: string | null;
+  expirationProcessedAt?: string | null;
   version: number;
   note?: string | null;
   fileAvailable?: boolean;
@@ -22,13 +27,16 @@ export type LicenseDocument = {
   storageDeleteAfter?: string | null;
   uploadedBy?: { id: string; displayName: string } | null;
   reviewedBy?: { id: string; displayName: string } | null;
+  returnedBy?: { id: string; displayName: string } | null;
 };
 
 export const licenseDocumentStatusLabel: Record<LicenseDocumentStatus, string> = {
   PENDING: 'รอตรวจสอบ',
+  RETURNED_FOR_CORRECTION: 'ส่งกลับแก้ไข',
   APPROVED: 'อนุมัติแล้ว',
   REJECTED: 'ไม่อนุมัติ',
-  SUPERSEDED: 'ฉบับเดิม'
+  SUPERSEDED: 'ถูกแทนที่แล้ว',
+  EXPIRED: 'หมดอายุ'
 };
 
 export function sortLicenseDocuments(documents: LicenseDocument[]) {
@@ -44,19 +52,24 @@ export function selectLicenseDocumentSummary(documents: LicenseDocument[]) {
   return {
     current: sorted.find((item) => item.status === 'APPROVED' && item.isCurrent),
     pending: sorted.filter((item) => item.status === 'PENDING'),
-    latestRejected: sorted.find((item) => item.status === 'REJECTED')
+    returned: sorted.filter((item) => item.status === 'RETURNED_FOR_CORRECTION'),
+    latestRejected: sorted.find((item) => item.status === 'REJECTED'),
+    latestExpired: sorted.find((item) => item.status === 'EXPIRED')
   };
 }
 
 export function selectLicenseDocumentForTable(documents: LicenseDocument[]) {
   const summary = selectLicenseDocumentSummary(documents);
   if (summary.current) return summary.current;
-  return summary.pending.find((item) => item.fileAvailable !== false) || (summary.latestRejected?.fileAvailable !== false ? summary.latestRejected : undefined);
+  return summary.pending.find((item) => item.fileAvailable !== false)
+    || summary.returned.find((item) => item.fileAvailable !== false)
+    || (summary.latestRejected?.fileAvailable !== false ? summary.latestRejected : undefined);
 }
 
 export function licenseTableStatus(documents: LicenseDocument[], issueDate?: string | null, expiryDate?: string | null, status?: string | null, now = new Date()) {
   const summary = selectLicenseDocumentSummary(documents);
   if (summary.pending.length && summary.current) return { label: 'มีรายการรอตรวจสอบ', tone: 'pending' as const };
+  if (summary.returned.length && summary.current) return { label: 'มีรายการส่งกลับแก้ไข', tone: 'returned' as const };
   if (summary.current) {
     const validity = licenseValidityLabel(issueDate, expiryDate, status, now);
     if (validity === 'หมดอายุ') return { label: 'หมดอายุ', tone: 'expired' as const };
@@ -64,7 +77,9 @@ export function licenseTableStatus(documents: LicenseDocument[], issueDate?: str
     return { label: 'อนุมัติแล้ว', tone: 'approved' as const };
   }
   if (summary.pending.length) return { label: 'รอตรวจสอบ', tone: 'pending' as const };
+  if (summary.returned.length) return { label: 'ส่งกลับแก้ไข', tone: 'returned' as const };
   if (summary.latestRejected) return { label: 'ไม่อนุมัติ', tone: 'rejected' as const };
+  if (summary.latestExpired) return { label: 'หมดอายุ', tone: 'expired' as const };
   return { label: 'ยังไม่มีเอกสาร', tone: 'empty' as const };
 }
 

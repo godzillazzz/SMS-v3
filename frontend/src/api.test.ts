@@ -68,6 +68,23 @@ describe('API client', () => {
     vi.stubGlobal('fetch', fetchMock);
     await expect(api.approveLicenseDocument('test-access-token', 'document-id')).rejects.toMatchObject({ name: 'ApiRequestError', status: 409, requestId: 'req-approval-409', message: 'สถานะเอกสารมีการเปลี่ยนแปลง กรุณารีเฟรชและลองใหม่' });
   });
+  it('uses dedicated correction and resubmission endpoints without leaking storage fields', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: {} }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    await api.returnLicenseDocumentForCorrection('test-access-token', 'document-id', 'แก้ไขวันที่');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/license-documents/document-id/return-for-correction');
+    expect(fetchMock.mock.calls[0][1].headers.get('Authorization')).toBe('Bearer test-access-token');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ correctionReason: 'แก้ไขวันที่' });
+    await api.resubmitLicenseDocument('test-access-token', 'document-id', { licenseNumber: 'LN-1', proposedStartDate: '2026-01-01', proposedExpiryDate: '2026-12-31' });
+    const [path, options] = fetchMock.mock.calls[1];
+    expect(path).toBe('/api/v1/license-documents/document-id/resubmit');
+    expect(options.headers.Authorization).toBe('Bearer test-access-token');
+    expect(options.body.get('licenseNumber')).toBe('LN-1');
+    expect(options.body.get('proposedStartDate')).toBe('2026-01-01');
+    expect(options.body.get('document')).toBeNull();
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain('storageObjectKey');
+  });
   it('adds a safe reference ID only to sanitized server errors', () => {
     expect(sanitizeLicenseDocumentError(new ApiRequestError('Database unavailable.', 503, 'req-db-503'))).toBe('ระบบไม่สามารถดำเนินการเอกสารได้ชั่วคราว กรุณาลองใหม่อีกครั้ง (รหัสอ้างอิง: req-db-503)');
     expect(sanitizeLicenseDocumentError(new ApiRequestError('คุณไม่มีสิทธิ์อนุมัติเอกสารนี้', 403, 'req-auth-403'))).toBe('คุณไม่มีสิทธิ์อนุมัติเอกสารนี้');
