@@ -77,6 +77,19 @@ test('production migration runs before the application build', () => {
   assert.ok(commands.includes('--prefix frontend run build'));
 });
 
+test('production migration falls back to DATABASE_URL when DIRECT_URL is absent', () => {
+  let migrationEnvironment;
+  const runner = (command, args, options) => {
+    if (args.includes('migrate') && args.includes('deploy')) migrationEnvironment = options.env;
+    return { status: 0 };
+  };
+
+  const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', DATABASE_URL: 'present-only' }, { run: runner });
+
+  assert.equal(result.status, 0);
+  assert.equal(migrationEnvironment.DIRECT_URL, 'present-only');
+});
+
 test('migration failure prevents the application build', () => {
   const runner = createRunner(new Map([['migration', 17]]));
   const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', DATABASE_URL: 'present-only' }, runner);

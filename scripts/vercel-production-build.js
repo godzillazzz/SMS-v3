@@ -103,7 +103,11 @@ function runBuild({ env = process.env, run = runCommand, log = console.log, erro
   }
 
   log('Prisma migrate deploy started');
-  const migration = run(npxCommand(), ['--no-install', 'prisma', 'migrate', 'deploy'], { env });
+  const migrationEnv = {
+    ...env,
+    DIRECT_URL: env.DIRECT_URL || env.DATABASE_URL,
+  };
+  const migration = run(npxCommand(), ['--no-install', 'prisma', 'migrate', 'deploy'], { env: migrationEnv });
   if (migration.status !== 0) {
     error(`Prisma migrate deploy failed (exit=${migration.status})`);
     return 1;
