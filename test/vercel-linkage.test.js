@@ -6,6 +6,7 @@ const {
   classifyVercelFailure,
   redactVercelOutput,
   runVercelDiagnostic,
+  selectDiagnosticMessage,
   writeTemporaryProjectLinkage
 } = require('../scripts/ci/vercel-linkage');
 const fs = require('node:fs');
@@ -20,6 +21,12 @@ test('classifies Vercel linkage failures fail-closed', () => {
   assert.equal(classifyVercelFailure('unknown option --project', 1), 'CLI_ARGUMENT_ERROR');
   assert.equal(classifyVercelFailure('network timeout', 1), 'NETWORK_ERROR');
   assert.equal(classifyVercelFailure('unexpected response', 1), 'UNKNOWN_VERCEL_LINKAGE_ERROR');
+  assert.equal(classifyVercelFailure('HTTP 404 Not Found', 1, 'team'), 'ORG_SCOPE_MISMATCH');
+  assert.equal(classifyVercelFailure('HTTP 404 Not Found', 1, 'project'), 'PROJECT_NOT_FOUND');
+});
+
+test('diagnostic message skips the CLI banner and keeps only a safe error line', () => {
+  assert.equal(selectDiagnosticMessage('Vercel CLI 56.4.1\nError: HTTP 404 Not Found'), 'Error: HTTP 404 Not Found');
 });
 
 test('redacts tokens, credential URLs, database URLs, headers, emails, and paths', () => {
