@@ -18,6 +18,7 @@
     "test": "node --test test/*.test.js",
     "test:integration": "node --test --test-concurrency=1 test/integration/*.test.js",
     "db:test:migrate": "prisma migrate deploy",
+    "vercel-build": "node scripts/vercel-production-build.js",
     "prisma:format:check": "prisma format --check",
     "audit:dependencies": "npm audit --audit-level=high"
   },
