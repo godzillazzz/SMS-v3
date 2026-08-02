@@ -62,6 +62,9 @@ jobs:
       - run: npx tsc --noEmit
         working-directory: frontend
       - run: npm --prefix frontend run build
+      - name: Restore tracked frontend build metadata
+        shell: bash
+        run: git restore -- frontend/tsconfig.tsbuildinfo
       - name: Verify repository hygiene
         shell: bash
         run: |
