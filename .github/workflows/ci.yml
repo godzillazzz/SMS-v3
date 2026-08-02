@@ -66,7 +66,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git grep -n -I -E 'ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|vercel_[A-Za-z0-9]{20,}|-----BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY-----' -- ':!test/**' ':!docs/**' ':!**/*.example' >/dev/null; then
+          secret_patterns='ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|ver''cel_[A-Za-z0-9]{20,}|-----BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY-----'
+          if git grep -n -I -E "$secret_patterns" -- ':!test/**' ':!docs/**' ':!**/*.example' >/dev/null; then
             echo 'Secret-pattern scan failed'
             exit 1
           fi
