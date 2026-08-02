@@ -95,6 +95,9 @@ jobs:
     needs: [validate, migrate]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
     outputs:
       deployment_url: ${{ steps.deploy.outputs.deployment_url }}
       deployment_id: ${{ steps.deploy.outputs.deployment_id }}
