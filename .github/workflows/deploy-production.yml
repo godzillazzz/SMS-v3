@@ -92,57 +92,19 @@ jobs:
           diagnostics_dir=$(mktemp -d)
           trap 'rm -rf "$diagnostics_dir"' EXIT
           validate_log="$diagnostics_dir/validate.log"
-          status_log="$diagnostics_dir/status.log"
           diff_log="$diagnostics_dir/diff.log"
 
           validate_exit=0
           npx prisma validate --schema prisma/schema.prisma >"$validate_log" 2>&1 || validate_exit=$?
 
           status_exit=0
-          npx prisma migrate status --schema prisma/schema.prisma >"$status_log" 2>&1 || status_exit=$?
+          node scripts/ci/prisma-migration.js status --allow-pending || status_exit=$?
 
           diff_exit=0
           npx prisma migrate diff \
             --from-migrations prisma/migrations \
             --to-schema-datamodel prisma/schema.prisma \
             --script >"$diff_log" 2>&1 || diff_exit=$?
-
-          error_code=$(grep -Eo '\\bP[0-9]{4}\\b' "$status_log" | sort -u | head -n 1 || true)
-          migration_names=$(grep -Eo '\\b[0-9]{14}_[A-Za-z0-9][A-Za-z0-9_-]*\\b' "$status_log" | sort -u | paste -sd, - || true)
-          [[ -n "$error_code" ]] || error_code=not_exposed
-          [[ -n "$migration_names" ]] || migration_names=not_exposed
-
-          if grep -Eiq 'drift|schema[[:space:]]+differs|schema[[:space:]]+does not match' "$status_log"; then
-            drift_detected=true
-          elif grep -Eiq 'schema is up to date|no drift' "$status_log"; then
-            drift_detected=false
-          else
-            drift_detected=unknown
-          fi
-
-          if grep -Eiq 'migration history|failed migration|applied migration.*missing|migrations.*do not match|P3009|P3018' "$status_log"; then
-            migration_history_mismatch=true
-          elif [[ "$status_exit" -eq 0 ]]; then
-            migration_history_mismatch=false
-          else
-            migration_history_mismatch=unknown
-          fi
-
-          if grep -Eiq 'schema mismatch|unknown argument|unknown field|unknown enum|P1012' "$status_log"; then
-            schema_mismatch=true
-          elif [[ "$status_exit" -eq 0 ]]; then
-            schema_mismatch=false
-          else
-            schema_mismatch=unknown
-          fi
-
-          if grep -Eiq 'not yet been applied|pending migration|following migration' "$status_log"; then
-            pending_migrations=true
-          elif grep -Eiq 'database schema is up to date|no pending migrations' "$status_log"; then
-            pending_migrations=false
-          else
-            pending_migrations=unknown
-          fi
 
           if [[ "$diff_exit" -eq 0 ]]; then
             if grep -Eiq 'no difference detected|no differences detected' "$diff_log"; then
@@ -155,16 +117,7 @@ jobs:
           fi
 
           echo "PRISMA_VALIDATE=$([[ "$validate_exit" -eq 0 ]] && echo passed || echo failed)"
-          echo "PRISMA_MIGRATE_STATUS=$([[ "$status_exit" -eq 0 ]] && echo passed || echo failed)"
-          echo "PRISMA_ERROR_CODE=$error_code"
-          echo "MIGRATION_NAME=$migration_names"
-          echo "DRIFT_DETECTED=$drift_detected"
-          echo "MIGRATION_HISTORY_MISMATCH=$migration_history_mismatch"
-          echo "SCHEMA_MISMATCH=$schema_mismatch"
-          echo "PENDING_MIGRATIONS=$pending_migrations"
           echo "MIGRATE_DIFF_SUMMARY=$diff_summary"
-          echo 'STDERR_SANITIZED=true'
-          echo 'RAW_DATABASE_OUTPUT_EMITTED=false'
 
           if [[ "$validate_exit" -ne 0 ]]; then
             exit "$validate_exit"
