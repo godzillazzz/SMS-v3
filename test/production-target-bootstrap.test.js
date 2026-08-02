@@ -37,6 +37,6 @@ test('bootstrap output is restricted to safe status and fingerprint fields', () 
   assert.match(workflow, /verify-deployment-target\.js --generate-fingerprint/);
   assert.match(workflow, /APPROVED_DATABASE_TARGET_FINGERPRINT/);
   assert.match(workflow, /TARGET_PAIR_MATCH=true/);
-  assert.match(workflow, /DIRECT_CONNECTION_MODE=direct/);
+  assert.match(workflow, /DIRECT_CONNECTION_MODE=\(direct\|verified-supabase-session\)/);
   assert.doesNotMatch(workflow, /(?:DATABASE_URL|DIRECT_URL).*GITHUB_OUTPUT/);
 });

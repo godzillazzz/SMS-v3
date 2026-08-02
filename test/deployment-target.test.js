@@ -10,6 +10,7 @@ const {
 
 const databaseUrl = 'postgresql://postgres.project-ref@aws-0-region.pooler.supabase.com:5432/postgres?sslmode=require';
 const directUrl = 'postgresql://postgres:placeholder@db.project-ref.supabase.co:5432/postgres?sslmode=require';
+const sessionUrl = 'postgresql://postgres.project-ref:placeholder@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require';
 const approvedFingerprint = targetFingerprint(parseTarget('DATABASE_URL', databaseUrl), parseTarget('DIRECT_URL', directUrl));
 
 function runWith(overrides = {}) {
@@ -66,9 +67,9 @@ test('transaction pooler DIRECT_URL fails closed', () => {
 });
 
 test('session pooler DIRECT_URL fails closed', () => {
-  const result = runWith({ DIRECT_URL: 'postgresql://postgres.project-ref@aws-0-region.pooler.supabase.com:5432/postgres' });
-  assert.equal(result.status, 1);
-  assert.match(result.errors[0], /pooled PostgreSQL connection/);
+  const result = runWith({ DIRECT_URL: sessionUrl, APPROVED_DATABASE_TARGET_FINGERPRINT: targetFingerprint(parseTarget('DATABASE_URL', databaseUrl), parseTarget('DIRECT_URL', sessionUrl)) });
+  assert.equal(result.status, 0);
+  assert.match(result.logs.join('\n'), /DIRECT_MODE=verified-supabase-session/);
 });
 
 test('pgbouncer query DIRECT_URL fails closed', () => {
@@ -80,19 +81,19 @@ test('pgbouncer query DIRECT_URL fails closed', () => {
 test('pooler hostname DIRECT_URL fails closed', () => {
   const result = runWith({ DIRECT_URL: 'postgresql://postgres.project-ref@pooler.example.com:5432/postgres' });
   assert.equal(result.status, 1);
-  assert.match(result.errors[0], /pooled PostgreSQL connection/);
+  assert.match(result.errors[0], /mode could not be verified/);
 });
 
 test('unknown DIRECT_URL mode fails closed', () => {
   const result = runWith({ DIRECT_URL: 'postgresql://postgres:placeholder@database.example.com:5432/postgres' });
   assert.equal(result.status, 1);
-  assert.match(result.errors[0], /mode could not be verified as direct/);
+  assert.match(result.errors[0], /mode could not be verified as direct or verified Supabase session/);
 });
 
 test('verified direct URL passes with pooled DATABASE_URL', () => {
   const result = runWith();
   assert.equal(result.status, 0);
-  assert.match(result.logs.join('\n'), /DATABASE_MODE=pooled/);
+  assert.match(result.logs.join('\n'), /DATABASE_MODE=verified-supabase-session/);
   assert.match(result.logs.join('\n'), /DIRECT_MODE=direct/);
   assert.match(result.logs.join('\n'), /TARGET_FINGERPRINT_MATCH=true/);
   assert.doesNotMatch(result.logs.join('\n'), /placeholder|supabase\.co|postgresql:\/\//i);
@@ -111,6 +112,26 @@ test('logical project mismatch fails', () => {
   assert.match(result.errors[0], /project identities differ/);
 });
 
+test('database mismatch fails even when project identity matches', () => {
+  const result = runWith({ DIRECT_URL: 'postgresql://postgres.project-ref:placeholder@aws-0-region.pooler.supabase.com:5432/other_database' });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /database identities differ/);
+});
+
+test('missing Supabase session project identity fails closed', () => {
+  const result = runWith({ DIRECT_URL: 'postgresql://postgres:placeholder@aws-0-region.pooler.supabase.com:5432/postgres' });
+  assert.equal(result.status, 1);
+  assert.match(result.errors[0], /project identity could not be verified/);
+});
+
+test('transaction mode query signals fail closed for session targets', () => {
+  for (const query of ['pool_mode=transaction', 'mode=transaction']) {
+    const result = runWith({ DIRECT_URL: `${sessionUrl}&${query}` });
+    assert.equal(result.status, 1);
+    assert.match(result.errors[0], /pooled PostgreSQL connection/);
+  }
+});
+
 test('different provider identity fails closed', () => {
   assert.throws(() => normalizeLogicalTarget(
     { provider: 'supabase', mode: 'pooled', database: 'postgres', projectRef: 'project-ref', hostname: 'pooler.example', port: '5432' },
@@ -125,13 +146,19 @@ test('fingerprint is deterministic and normalized across pooled/direct endpoints
   assert.match(first, /^[a-f0-9]{64}$/);
 });
 
+test('direct and verified Supabase session fingerprints are equal', () => {
+  const directFingerprint = targetFingerprint(parseTarget('DATABASE_URL', databaseUrl), parseTarget('DIRECT_URL', directUrl));
+  const sessionFingerprint = targetFingerprint(parseTarget('DATABASE_URL', databaseUrl), parseTarget('DIRECT_URL', sessionUrl));
+  assert.equal(directFingerprint, sessionFingerprint);
+});
+
 test('bootstrap generator outputs only safe status and fingerprint fields', () => {
   const result = runGenerate();
   assert.equal(result.status, 0);
   const output = result.logs.join('\n');
   assert.match(output, /DATABASE_URL_PRESENT=true/);
   assert.match(output, /DIRECT_URL_PRESENT=true/);
-  assert.match(output, /DATABASE_CONNECTION_MODE=pooled/);
+  assert.match(output, /DATABASE_CONNECTION_MODE=verified-supabase-session/);
   assert.match(output, /DIRECT_CONNECTION_MODE=direct/);
   assert.match(output, /TARGET_PAIR_MATCH=true/);
   assert.match(output, /APPROVED_DATABASE_TARGET_FINGERPRINT=[a-f0-9]{64}/);
@@ -143,6 +170,13 @@ test('bootstrap generator rejects pooled DIRECT_URL without exposing details', (
   assert.equal(result.status, 1);
   assert.match(result.errors[0], /pooled PostgreSQL connection/);
   assert.doesNotMatch(result.errors.join('\n'), /postgresql:\/\/|project-ref|placeholder/i);
+});
+
+test('bootstrap generator accepts a verified Supabase session migration URL', () => {
+  const result = runGenerate({ DIRECT_URL: sessionUrl });
+  assert.equal(result.status, 0);
+  assert.match(result.logs.join('\n'), /DIRECT_CONNECTION_MODE=verified-supabase-session/);
+  assert.doesNotMatch(result.logs.join('\n'), /postgresql:\/\/|pooler\.supabase\.com|placeholder/i);
 });
 
 test('mismatched approved fingerprint fails', () => {

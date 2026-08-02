@@ -5,7 +5,9 @@ const crypto = require('node:crypto');
 const blockedHosts = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0', 'host.docker.internal']);
 const blockedDatabases = new Set(['sms_v3_test', 'sms_v3_dev', 'smsv3_test']);
 const pooledPorts = new Set(['6543']);
-const pooledQueryKeys = new Set(['connection_pool', 'connection_pool_mode', 'pool_mode', 'poolmode', 'pgbouncer', 'pooling']);
+const pooledQueryKeys = new Set(['connection_pool', 'connection_pool_mode', 'pool_mode', 'poolmode', 'pgbouncer', 'pooling', 'mode']);
+const supabaseSessionHostPattern = /^aws-\d+-[a-z0-9-]+\.pooler\.supabase\.com$/i;
+const supabaseProjectRefPattern = /^[a-z0-9-]+$/i;
 
 function hash(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -15,23 +17,44 @@ function isSupabaseHost(hostname) {
   return /(?:\.supabase\.co|\.pooler\.supabase\.com)$/i.test(hostname);
 }
 
+function queryConnectionMode(url) {
+  let mode = null;
+  for (const [key, value] of url.searchParams.entries()) {
+    const normalizedKey = key.toLowerCase();
+    const normalizedValue = value.toLowerCase();
+    if (!pooledQueryKeys.has(normalizedKey)) continue;
+    if (normalizedKey === 'pool_mode' || normalizedKey === 'mode') {
+      if (normalizedValue === 'transaction') return 'pooled';
+      if (normalizedValue === 'session') {
+        if (mode && mode !== 'session') return 'unknown';
+        mode = 'session';
+        continue;
+      }
+    }
+    return normalizedKey === 'pgbouncer' && normalizedValue === 'true' ? 'pooled' : 'unknown';
+  }
+  return mode;
+}
+
 function detectConnectionMode(url, provider) {
   const hostname = url.hostname.toLowerCase();
-  const queryHasPoolSignal = [...url.searchParams.keys()].some((key) => pooledQueryKeys.has(key.toLowerCase())) ||
-    [...url.searchParams.entries()].some(([key, value]) => pooledQueryKeys.has(key.toLowerCase()) && /^(1|true|transaction|session)$/i.test(value));
-  if (pooledPorts.has(url.port) || /(^|[.-])(pooler|pgbouncer)([.-]|$)/i.test(hostname) || queryHasPoolSignal) return 'pooled';
-  if (provider === 'supabase' && /^db\.[^.]+\.supabase\.co$/i.test(hostname)) return 'direct';
+  const port = url.port || '5432';
+  const queryMode = queryConnectionMode(url);
+  if (pooledPorts.has(port) || queryMode === 'pooled') return 'pooled';
+  if (queryMode === 'unknown') return 'unknown';
+  if (provider === 'supabase' && /^db\.[a-z0-9-]+\.supabase\.co$/i.test(hostname) && port === '5432' && queryMode !== 'session') return 'direct';
+  if (provider === 'supabase' && supabaseSessionHostPattern.test(hostname) && port === '5432') return 'verified-supabase-session';
   return 'unknown';
 }
 
 function supabaseProjectRef(url, mode) {
   const hostname = url.hostname.toLowerCase();
-  const directMatch = hostname.match(/^db\.([^.]+)\.supabase\.co$/i);
+  const directMatch = hostname.match(/^db\.([a-z0-9-]+)\.supabase\.co$/i);
   if (directMatch) return directMatch[1];
-  if (mode === 'pooled') {
+  if (mode === 'pooled' || mode === 'verified-supabase-session') {
     const username = decodeURIComponent(url.username || '');
-    const usernameMatch = username.match(/^postgres\.([a-z0-9-]+)$/i);
-    if (usernameMatch) return usernameMatch[1].toLowerCase();
+    const usernameMatch = username.match(/^[^.\s@]+\.([a-z0-9-]+)$/i);
+    if (usernameMatch && supabaseProjectRefPattern.test(usernameMatch[1])) return usernameMatch[1].toLowerCase();
   }
   return null;
 }
@@ -48,25 +71,37 @@ function parseTarget(name, rawUrl) {
 
   if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new Error(`${name} must use PostgreSQL`);
   const hostname = url.hostname.toLowerCase();
-  const database = decodeURIComponent(url.pathname.replace(/^\//, '')).toLowerCase();
+  let database;
+  try {
+    database = decodeURIComponent(url.pathname.replace(/^\//, '')).toLowerCase();
+    if (isSupabaseHost(hostname)) decodeURIComponent(url.username || '');
+  } catch {
+    throw new Error(`${name} is malformed`);
+  }
   if (!hostname || !database) throw new Error(`${name} must include a host and database`);
   if (blockedHosts.has(hostname) || blockedDatabases.has(database)) throw new Error(`${name} points to a local or test database`);
 
   const provider = isSupabaseHost(hostname) ? 'supabase' : 'postgresql';
   const mode = detectConnectionMode(url, provider);
+  let projectRef = null;
+  try {
+    projectRef = provider === 'supabase' ? supabaseProjectRef(url, mode) : null;
+  } catch {
+    throw new Error(`${name} is malformed`);
+  }
   return {
     provider,
     hostname,
     port: url.port || '5432',
     database,
     mode,
-    projectRef: provider === 'supabase' ? supabaseProjectRef(url, mode) : null
+    projectRef
   };
 }
 
 function assertDirectMigrationTarget(target) {
   if (target.mode === 'pooled') throw new Error('DIRECT_URL is configured as a pooled PostgreSQL connection');
-  if (target.mode !== 'direct') throw new Error('DIRECT_URL connection mode could not be verified as direct');
+  if (!['direct', 'verified-supabase-session'].includes(target.mode)) throw new Error('DIRECT_URL connection mode could not be verified as direct or verified Supabase session');
   return target;
 }
 

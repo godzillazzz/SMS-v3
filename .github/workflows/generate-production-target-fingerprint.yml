@@ -90,11 +90,11 @@ jobs:
           test "$(printf '%s' "$fingerprint" | wc -c)" -eq 64
           printf '%s' "$fingerprint" | grep -Eq '^[a-f0-9]{64}$'
           printf '%s\n' "$output" | grep -Fxq 'TARGET_PAIR_MATCH=true'
-          printf '%s\n' "$output" | grep -Fxq 'DIRECT_CONNECTION_MODE=direct'
+          printf '%s\n' "$output" | grep -Eq '^DIRECT_CONNECTION_MODE=(direct|verified-supabase-session)$'
           {
             echo '### Production target fingerprint'
             echo '- Guard: passed'
-            echo '- Direct URL verified: true'
+            echo '- Migration URL verified: direct or Supabase session'
             echo '- Logical target pair match: true'
             echo "- APPROVED_DATABASE_TARGET_FINGERPRINT: $fingerprint"
             echo '- No database connection, Prisma migration, Vercel API, build, or deployment performed'
