@@ -94,12 +94,15 @@ The reviewer approval occurs before the migration job. The migration job runs:
 
 ```text
 prisma generate
-prisma migrate status
+prisma validate
+prisma migrate status --allow-pending
 prisma migrate deploy
 prisma migrate status
 ```
 
-The application deploy cannot start if the target guard, migration, or post-migration status fails.
+The pre-migration status is classified without printing connection details. A non-zero status is allowed only when every pending migration is present in the repository migration list and no connection, failed-migration, history-divergence, missing-table, or schema/configuration error is detected. An up-to-date database is also allowed. Any unknown or unsafe classification stops the job.
+
+After `prisma migrate deploy`, the post-migration status must be up to date with zero pending and failed migrations. The application deploy cannot start if the target guard, migration, or post-migration status fails.
 
 The deployment target guard runs before Prisma migration status. A pooled or unknown `DIRECT_URL`, a logical target mismatch, or a fingerprint mismatch stops the job before database access and before Vercel deployment.
 
