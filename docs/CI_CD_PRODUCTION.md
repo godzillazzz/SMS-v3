@@ -90,6 +90,8 @@ From GitHub Actions, run **Deploy sms-v3-staging Production** with:
 - `confirm_environment`: `production`
 - `rollback_deployment_id`: the known-good deployment for reporting only
 
+For a linkage investigation, set `diagnostic_only` to `true`. This mode uses the same protected Vercel Environment and exact project guards, captures Vercel CLI output through the sanitizer, and reports only identity/linkage categories. It does not run Prisma, build, deploy, or health jobs. Keep it `false` for a production deployment.
+
 The reviewer approval occurs before the migration job. The migration job runs:
 
 ```text
