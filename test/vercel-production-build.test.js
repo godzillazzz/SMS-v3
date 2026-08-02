@@ -65,9 +65,9 @@ test('production build rejects an unexpected project', () => {
   assert.match(result.errors[0], /project mismatch/);
 });
 
-test('production migration runs before the application build', () => {
+test('production migration requires DIRECT_URL before the application build', () => {
   const runner = createRunner();
-  const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', DATABASE_URL: 'present-only' }, runner);
+  const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', DATABASE_URL: 'present-only', DIRECT_URL: 'present-only' }, runner);
   const commands = runner.calls.map(({ args }) => args.join(' '));
 
   assert.equal(result.status, 0);
@@ -77,22 +77,18 @@ test('production migration runs before the application build', () => {
   assert.ok(commands.includes('--prefix frontend run build'));
 });
 
-test('production migration falls back to DATABASE_URL when DIRECT_URL is absent', () => {
-  let migrationEnvironment;
-  const runner = (command, args, options) => {
-    if (args.includes('migrate') && args.includes('deploy')) migrationEnvironment = options.env;
-    return { status: 0 };
-  };
+test('production build fails before migration when DIRECT_URL is missing', () => {
+  const runner = createRunner();
+  const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', DATABASE_URL: 'present-only' }, runner);
 
-  const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', DATABASE_URL: 'present-only' }, { run: runner });
-
-  assert.equal(result.status, 0);
-  assert.equal(migrationEnvironment.DIRECT_URL, 'present-only');
+  assert.equal(result.status, 1);
+  assert.equal(runner.calls.length, 0);
+  assert.match(result.errors[0], /DIRECT_URL is missing/);
 });
 
 test('migration failure prevents the application build', () => {
   const runner = createRunner(new Map([['migration', 17]]));
-  const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', DATABASE_URL: 'present-only' }, runner);
+  const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', DATABASE_URL: 'present-only', DIRECT_URL: 'present-only' }, runner);
 
   assert.equal(result.status, 1);
   assert.equal(runner.calls.length, 1);
@@ -101,7 +97,7 @@ test('migration failure prevents the application build', () => {
 
 test('application build failure fails the deployment', () => {
   const runner = createRunner(new Map([['application-build', 23]]));
-  const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', DATABASE_URL: 'present-only' }, runner);
+  const result = runWith({ VERCEL: '1', VERCEL_ENV: 'production', DATABASE_URL: 'present-only', DIRECT_URL: 'present-only' }, runner);
 
   assert.equal(result.status, 1);
   assert.equal(runner.calls.some(({ args }) => args.includes('migrate') && args.includes('deploy')), true);

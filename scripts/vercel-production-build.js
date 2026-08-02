@@ -101,13 +101,13 @@ function runBuild({ env = process.env, run = runCommand, log = console.log, erro
     error('Vercel build guard failed: DATABASE_URL is missing');
     return 1;
   }
+  if (!env.DIRECT_URL) {
+    error('Vercel build guard failed: DIRECT_URL is missing');
+    return 1;
+  }
 
   log('Prisma migrate deploy started');
-  const migrationEnv = {
-    ...env,
-    DIRECT_URL: env.DIRECT_URL || env.DATABASE_URL,
-  };
-  const migration = run(npxCommand(), ['--no-install', 'prisma', 'migrate', 'deploy'], { env: migrationEnv });
+  const migration = run(npxCommand(), ['--no-install', 'prisma', 'migrate', 'deploy'], { env });
   if (migration.status !== 0) {
     error(`Prisma migrate deploy failed (exit=${migration.status})`);
     return 1;
