@@ -13,10 +13,13 @@ const styles = read('styles/dashboard.css');
 
 describe('executive dashboard contract', () => {
   it('renders real summary fields for KPI, action, license, leave, and activity widgets', () => {
-    for (const field of ['workingToday', 'leaveToday', 'pendingLicenseDocuments', 'notScheduledToday', 'licenseSummary', 'leaveSummary', 'actionRequired', 'recentActivity']) expect(page).toContain(field);
+    for (const field of ['workingToday', 'leaveToday', 'pendingLicenseDocuments', 'notScheduledToday', 'licenseSummary', 'leaveSummary', 'actionRequired', 'recentActivity', 'expiringLicenseDetails']) expect(page).toContain(field);
     expect(page).toContain('canAdmin');
     expect(metrics).toContain('onNavigate');
     expect(actions).toContain('rows');
+    expect(actions).toContain('ดูทั้งหมด');
+    expect(actions).toContain('หมดอายุแล้ว');
+    expect(actions).toContain('dashboard-expiring-row');
     expect(licenses).toContain('RETURNED_FOR_CORRECTION');
   });
 
@@ -37,5 +40,14 @@ describe('executive dashboard contract', () => {
 
   it('formats dashboard counts with Thai number formatting', () => {
     expect(formatMetric(1234)).toMatch(/[0-9๑-๙],[0-9๑-๙]{3}/);
+  });
+
+  it('keeps expiring license records actionable without exposing file URLs', () => {
+    expect(actions).toContain('employeeName');
+    expect(actions).toContain('expiryDate');
+    expect(actions).toContain('daysRemaining');
+    expect(actions).toContain('urgency');
+    expect(actions).toContain("onNavigate('licenses')");
+    expect(actions).not.toContain('signedUrl');
   });
 });

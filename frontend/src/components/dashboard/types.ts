@@ -4,6 +4,7 @@ export type DashboardSummary = Record<string, unknown>;
 
 export type DashboardAction = { key: string; title: string; count: number; severity: 'urgent' | 'warning' | 'follow-up'; page: DashboardPage };
 export type DashboardActivity = { id: string; action: string; entityType: string; createdAt: string; actor?: { displayName?: string; role?: string } | null };
+export type DashboardExpiringLicense = { employeeId: string; employeeCode?: string | null; employeeName: string; licenseId: string; expiryDate: string; daysRemaining: number; urgency: 'expired' | 'urgent' | 'warning' };
 
 export type DashboardUser = {
   displayName?: string;

@@ -18,6 +18,34 @@ function licenseStatusSummary(rows) {
   return summary;
 }
 
+function expiringLicenseWhere(relationScope, expiry30) {
+  return { ...relationScope, status: 'APPROVED', isCurrent: true, proposedExpiryDate: { lte: expiry30 } };
+}
+
+function buildExpiringLicenseDetails(rows, todayStart) {
+  return rows.map((row) => {
+    const expiryDate = new Date(row.proposedExpiryDate);
+    const daysRemaining = Math.round((Date.UTC(expiryDate.getUTCFullYear(), expiryDate.getUTCMonth(), expiryDate.getUTCDate()) - todayStart.getTime()) / 86400000);
+    const urgency = daysRemaining < 0 ? 'expired' : daysRemaining <= 7 ? 'urgent' : 'warning';
+    const employee = row.employee || {};
+    const employeeName = String(employee.displayName || `${employee.firstName || ''} ${employee.lastName || ''}`).trim();
+    return {
+      employeeId: row.employeeId,
+      employeeCode: employee.employeeCode || null,
+      employeeName,
+      licenseId: row.licenseId,
+      expiryDate: expiryDate.toISOString(),
+      daysRemaining,
+      urgency
+    };
+  }).sort((left, right) => {
+    const urgencyOrder = (value) => value === 'expired' ? 0 : 1;
+    return urgencyOrder(left.urgency) - urgencyOrder(right.urgency)
+      || left.daysRemaining - right.daysRemaining
+      || new Date(left.expiryDate).getTime() - new Date(right.expiryDate).getTime();
+  });
+}
+
 function actionRequired(summary, canManage, canAdmin) {
   const rows = [
     { key: 'licensePending', title: 'เอกสารใบอนุญาตรอตรวจสอบ', count: summary.licenseSummary.PENDING, severity: 'urgent', page: 'licenses' },
@@ -48,7 +76,7 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   const shiftWhere = { ...relationScope };
   const quotaWhere = canAdmin ? {} : relationScope;
 
-  const [totalEmployees, activeEmployees, organizationalUnits, todayAssignments, monthShifts, leaveToday, leaveMonth, pendingLeaves, pendingUsers, pendingApprovals, licenseStatusRows, expiringLicenses, unmatchedQuotas, recentActivity] = await Promise.all([
+  const [totalEmployees, activeEmployees, organizationalUnits, todayAssignments, monthShifts, leaveToday, leaveMonth, pendingLeaves, pendingUsers, pendingApprovals, licenseStatusRows, expiringLicenseRows, unmatchedQuotas, recentActivity] = await Promise.all([
     client.employee.count({ where: employeeWhere }),
     client.employee.count({ where: { ...employeeWhere, isActive: true } }),
     client.employee.findMany({ where: employeeWhere, select: { department: true }, distinct: ['department'] }),
@@ -60,12 +88,17 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
     canAdmin || (requestUser.role === 'MANAGER' && requestUser.department) ? client.user.count({ where: { accountStatus: 'PENDING', ...(requestUser.role === 'MANAGER' ? { department: requestUser.department } : {}) } }) : 0,
     canManage ? client.scheduleApproval.count({ where: { status: { in: ['DRAFT', 'PENDING'] } } }) : 0,
     client.employeeLicenseDocument.groupBy({ by: ['status'], where: licenseWhere, _count: { _all: true } }),
-    client.employeeLicenseDocument.count({ where: { ...licenseWhere, status: 'APPROVED', isCurrent: true, proposedExpiryDate: { gte: todayStart, lte: expiry30 } } }),
+    client.employeeLicenseDocument.findMany({
+      where: expiringLicenseWhere(licenseWhere, expiry30),
+      select: { employeeId: true, licenseId: true, proposedExpiryDate: true, employee: { select: { employeeCode: true, firstName: true, lastName: true, displayName: true } } },
+      orderBy: { proposedExpiryDate: 'asc' }
+    }),
     canAdmin ? client.leaveQuota.count({ where: { matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] } } }) : client.leaveQuota.count({ where: { ...quotaWhere, matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] } } }),
     canAdmin ? client.auditLog.findMany({ take: 8, orderBy: { createdAt: 'desc' }, select: { id: true, action: true, entityType: true, createdAt: true, actor: { select: { displayName: true, role: true } } } }) : []
   ]);
 
   const workingToday = todayAssignments.length;
+  const expiringLicenses = buildExpiringLicenseDetails(expiringLicenseRows, todayStart);
   const licenseSummary = licenseStatusSummary(licenseStatusRows);
   const summary = {
     totalEmployees,
@@ -77,7 +110,8 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
     monthShifts,
     notScheduledToday: Math.max(0, activeEmployees - workingToday),
     incompleteSites: null,
-    expiringLicenses,
+    expiringLicenses: expiringLicenses.length,
+    expiringLicenseDetails: expiringLicenses,
     pendingLicenseDocuments: licenseSummary.PENDING,
     pendingLeaves,
     pendingUsers,
@@ -95,4 +129,4 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   return summary;
 }
 
-module.exports = { LICENSE_STATUSES, actionRequired, employeeScope, getDashboardSummary, licenseStatusSummary };
+module.exports = { LICENSE_STATUSES, actionRequired, buildExpiringLicenseDetails, employeeScope, expiringLicenseWhere, getDashboardSummary, licenseStatusSummary };
