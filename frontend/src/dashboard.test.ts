@@ -5,6 +5,7 @@ import { formatMetric } from './components/dashboard/types';
 
 const read = (file: string) => fs.readFileSync(path.join(__dirname, file), 'utf8');
 const page = read('pages/dashboard/DashboardPage.tsx');
+const app = read('main.tsx');
 const metrics = read('components/dashboard/MetricsGrid.tsx');
 const actions = read('components/dashboard/AttentionNeededCard.tsx');
 const licenses = read('components/dashboard/LicenseSummaryCard.tsx');
@@ -17,6 +18,13 @@ describe('executive dashboard contract', () => {
     expect(metrics).toContain('onNavigate');
     expect(actions).toContain('rows');
     expect(licenses).toContain('RETURNED_FOR_CORRECTION');
+  });
+
+  it('routes the authenticated Dashboard page to the executive component', () => {
+    expect(app).toContain("import { DashboardPage } from './pages/dashboard/DashboardPage';");
+    expect(app).toContain("if (activePage === 'dashboard') return <DashboardPage");
+    expect(app).toContain('summary={dashboardSummary}');
+    expect(app).toContain('canManage={canManage}');
   });
 
   it('includes loading, empty, accessible navigation, and mobile layout contracts', () => {
