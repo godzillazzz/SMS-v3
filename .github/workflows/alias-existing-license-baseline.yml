@@ -1,0 +1,83 @@
+name: Alias existing license baseline
+
+on:
+  workflow_dispatch:
+
+env:
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  TARGET_DEPLOYMENT_ID: dpl_CttK4VepNiFXeULDXGBWzNYAvmi6
+  ROLLBACK_DEPLOYMENT_ID: dpl_BJR3sPwckPjx1kJ25ocA1AwLWKN7
+  CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+
+jobs:
+  alias:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    permissions:
+      contents: read
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Check target and credentials presence
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VERCEL_PROJECT_ID" == "$EXPECTED_PROJECT_ID" ]]
+          [[ "$VERCEL_ORG_ID" == "$EXPECTED_ORG_ID" ]]
+          test -n "$VERCEL_TOKEN"
+          echo 'TARGET_PROJECT=sms-v3-staging'
+          echo 'PROJECT_ID_MATCH=true'
+          echo 'ORG_ID_MATCH=true'
+          echo 'VERCEL_TOKEN=PRESENT'
+
+      - name: Inspect existing deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@56.4.1 inspect "$TARGET_DEPLOYMENT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json > "$RUNNER_TEMP/deployment.json"
+          node <<'NODE'
+          const fs = require('fs');
+          const value = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/deployment.json', 'utf8'));
+          const projectId = value.projectId || value.project?.id;
+          const state = value.readyState || value.state;
+          if (projectId !== process.env.EXPECTED_PROJECT_ID || state !== 'READY') process.exit(1);
+          console.log(`DEPLOYMENT_ID=${process.env.TARGET_DEPLOYMENT_ID}`);
+          console.log('PROJECT=sms-v3-staging');
+          console.log('STATE=READY');
+          NODE
+
+      - name: Alias existing deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@56.4.1 alias set "$TARGET_DEPLOYMENT_ID" "sms-v3-staging-ten.vercel.app" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
+          echo 'ALIAS_UPDATED=true'
+
+      - name: Verify canonical and rollback alias on failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          rollback() {
+            npx --yes vercel@56.4.1 alias set "$ROLLBACK_DEPLOYMENT_ID" "sms-v3-staging-ten.vercel.app" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >/dev/null 2>&1 || true
+            echo 'ALIAS_ROLLBACK_ATTEMPTED=true'
+          }
+          trap rollback ERR
+          for path in / /login /api/v1/health; do
+            test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$CANONICAL_URL$path")" = 200
+          done
+          for attempt in 1 2 3; do
+            body="$(curl --silent --show-error --fail "$CANONICAL_URL/api/v1/ready")"
+            node -e 'const v=JSON.parse(process.argv[1]); if(v.status!=="ready" || v.database!=="ok") process.exit(1)' "$body"
+            echo "READINESS_$attempt=200,status=ready,database=ok"
+          done
+          echo 'CANONICAL_UAT=PASS'
+
+      - name: Cleanup
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deployment.json"
