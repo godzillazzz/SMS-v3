@@ -191,14 +191,22 @@ router.post('/internal/license-reconciliation', async (req, res, next) => {
     const expired = await expireDueLicenseDocuments({ prisma, storage: licenseStorage, audit });
     const cleanup = await cleanupDueLicenseDocuments({ prisma, storage: licenseStorage });
     res.json({ data: { schedule, expired, cleanup } });
-  } catch (error) { next(error); }
+  } catch (error) {
+    const { reportOperationalAnomaly } = require('../services/operational-anomaly.service');
+    reportOperationalAnomaly({ type: 'expiry_cron_failure', safeMessage: error?.code || 'cron_failure' }).catch(() => undefined);
+    next(error);
+  }
 });
 router.post('/internal/notifications/daily-digest', async (req, res, next) => {
   try {
     if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
     const result = await operationalNotifications.runDailyOperationalNotifications();
     res.json({ data: result });
-  } catch (error) { next(error); }
+  } catch (error) {
+    const { reportOperationalAnomaly } = require('../services/operational-anomaly.service');
+    reportOperationalAnomaly({ type: 'daily_digest_failure', safeMessage: error?.code || 'cron_failure' }).catch(() => undefined);
+    next(error);
+  }
 });
 
 router.get('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {

@@ -143,6 +143,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
       return document;
     } catch (error) {
       if (uploaded) await storage.remove(objectKey).catch(() => undefined);
+      notifications?.reportOperationalAnomaly?.({ type: 'storage_failure', safeMessage: 'license_upload_storage_failure' }).catch(() => undefined);
       throw error;
     }
   }
@@ -240,6 +241,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
       return updated;
     } catch (error) {
       if (uploaded) await storage.remove(objectKey).catch(() => undefined);
+      notifications?.reportOperationalAnomaly?.({ type: 'storage_failure', safeMessage: 'license_resubmit_storage_failure' }).catch(() => undefined);
       throw error;
     }
   }

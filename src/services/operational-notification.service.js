@@ -54,6 +54,10 @@ async function recordAnomaly({ type, entityId, details }, client = prisma) {
   try {
     const existing = await client.auditLog.findFirst({ where: { entityType: 'NotificationAnomaly', entityId: eventKey }, select: { id: true } });
     if (!existing) await client.auditLog.create({ data: { action: 'CREATE', entityType: 'NotificationAnomaly', entityId: eventKey, metadata: { type, ...details } } });
+    if (client === prisma) {
+      const { reportOperationalAnomaly } = require('./operational-anomaly.service');
+      await reportOperationalAnomaly({ type: type === 'MISSING_MANAGER' ? 'missing_manager' : 'missing_recipient', entityId, safeMessage: type });
+    }
   } catch (error) {
     logger.error('notification_anomaly_record_failed', { errorCategory: errorCategory(error), type });
   }
@@ -150,4 +154,6 @@ async function runDailyOperationalNotifications(options = {}) {
   return { expiry, digest };
 }
 
-module.exports = { EXPIRY_THRESHOLDS, escapeHtml, daysUntil, notifyNewRegistrationForManagers, notifyLicenseDocumentEvent, notifyLicenseExpiry, sendDailyApprovalDigest, runDailyOperationalNotifications, recordAnomaly };
+const { reportOperationalAnomaly } = require('./operational-anomaly.service');
+
+module.exports = { EXPIRY_THRESHOLDS, escapeHtml, daysUntil, notifyNewRegistrationForManagers, notifyLicenseDocumentEvent, notifyLicenseExpiry, sendDailyApprovalDigest, runDailyOperationalNotifications, recordAnomaly, reportOperationalAnomaly };

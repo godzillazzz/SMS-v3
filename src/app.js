@@ -47,6 +47,8 @@ async function readiness(req, res) {
       errorMessage: 'Database readiness check failed.',
       errorCategory: errorCategory(error)
     });
+    const { reportOperationalAnomaly } = require('./services/operational-anomaly.service');
+    reportOperationalAnomaly({ type: 'readiness_failure', safeMessage: errorCategory(error) }).catch(() => undefined);
     return res.status(503).json({ status: 'not_ready', database: 'unavailable', requestId: req.requestId });
   }
 }

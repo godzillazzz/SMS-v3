@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { sendNotification } = require('../src/services/notification-email.service');
+const { MemoryEmailDeliveryStore } = require('../src/services/email-delivery-store');
 
 function logger() {
   return { info() {}, error() {} };
@@ -37,7 +38,7 @@ test('provider errors are logged without being thrown to the caller', async () =
   await assert.doesNotReject(() => sendNotification({ to: 'fixture@example.invalid', subject: 'fixture', html: '<p>fixture</p>' }, {
     configuration: { emailNotificationsEnabled: true },
     createTransporter: () => ({ sendMail: async () => { throw new Error('synthetic provider failure'); } }),
-    logger: { info() {}, error(_event, fields) { errors.push(fields); } }
+    logger: { info() {}, error(_event, fields) { errors.push(fields); } }, isAnomaly: true
   }));
   assert.equal(errors.length, 1);
   assert.equal(errors[0].recipientCount, 1);
@@ -46,19 +47,42 @@ test('provider errors are logged without being thrown to the caller', async () =
 
 test('staging subjects are prefixed and event keys suppress duplicate delivery', async () => {
   const messages = [];
-  let recorded = false;
-  const fakePrisma = { auditLog: {
-    findFirst: async () => (recorded ? { id: 'delivery-1' } : null),
-    create: async () => { recorded = true; }
-  } };
+  const deliveryStore = new MemoryEmailDeliveryStore();
   const options = {
     configuration: { emailNotificationsEnabled: true, otpFromEmail: 'sender@example.invalid', smtpUsername: 'sender@example.invalid' },
     createTransporter: () => ({ sendMail: async (message) => { messages.push(message); } }),
-    logger: logger(), prismaClient: fakePrisma, eventKey: 'fixture:event:1'
+    logger: logger(), deliveryStore, eventKey: 'fixture:event:1'
   };
   const { sendNotification } = require('../src/services/notification-email.service');
   await sendNotification({ to: 'fixture@example.invalid', subject: 'Fixture', html: '<p>Fixture</p>' }, options);
   await sendNotification({ to: 'fixture@example.invalid', subject: 'Fixture', html: '<p>Fixture</p>' }, options);
   assert.equal(messages.length, 1);
   assert.equal(messages[0].subject, '[STAGING] Fixture');
+});
+
+test('concurrent event reservation permits one provider send and retry after failure', async () => {
+  const deliveryStore = new MemoryEmailDeliveryStore();
+  let sends = 0;
+  const options = {
+    configuration: { emailNotificationsEnabled: true, otpFromEmail: 'sender@example.invalid', smtpUsername: 'sender@example.invalid' },
+    createTransporter: () => ({ sendMail: async () => { sends += 1; } }),
+    logger: logger(), deliveryStore, eventKey: 'fixture:concurrent:1'
+  };
+  await Promise.all(Array.from({ length: 20 }, () => sendNotification({ to: 'fixture@example.invalid', subject: 'Fixture', html: '<p>Fixture</p>' }, options)));
+  assert.equal(sends, 1);
+  assert.equal(deliveryStore.entries()[0].status, 'SENT');
+});
+
+test('failed delivery is marked failed and becomes retryable after policy delay', async () => {
+  let now = new Date('2026-08-03T00:00:00Z');
+  const deliveryStore = new MemoryEmailDeliveryStore({ now: () => now });
+  const options = {
+    configuration: { emailNotificationsEnabled: true },
+    createTransporter: () => ({ sendMail: async () => { throw new Error('synthetic provider failure'); } }),
+    logger: logger(), deliveryStore, eventKey: 'fixture:retry:1', isAnomaly: true
+  };
+  assert.equal((await sendNotification({ to: 'fixture@example.invalid', subject: 'Fixture', html: '<p>Fixture</p>' }, options)).status, 'failed');
+  assert.equal((await sendNotification({ to: 'fixture@example.invalid', subject: 'Fixture', html: '<p>Fixture</p>' }, options)).status, 'RETRY_LATER');
+  now = new Date('2026-08-03T00:01:01Z');
+  assert.equal((await sendNotification({ to: 'fixture@example.invalid', subject: 'Fixture', html: '<p>Fixture</p>' }, { ...options, createTransporter: () => ({ sendMail: async () => {} }) })).status, 'sent');
 });

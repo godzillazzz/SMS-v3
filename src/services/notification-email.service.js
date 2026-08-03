@@ -2,6 +2,7 @@ const nodemailer = require('nodemailer');
 const prisma = require('../config/prisma');
 const env = require('../config/env');
 const { logger, errorCategory } = require('../utils/logger');
+const { PostgresEmailDeliveryStore } = require('./email-delivery-store');
 
 function createTransporter(configuration = env) {
   if (configuration.otpDeliveryProvider !== 'gmail_smtp' || !configuration.smtpHost) {
@@ -38,26 +39,30 @@ async function sendNotification({ to, subject, html, text }, options = {}) {
   const log = options.logger || logger;
   const createConfiguredTransporter = options.createTransporter || createTransporter;
   const eventKey = options.eventKey ? String(options.eventKey) : null;
-  const eventPrisma = options.prismaClient || prisma;
   if (configuration.emailNotificationsEnabled !== true) {
     log.info('Email notification skipped (system disabled)', { subject });
-    return;
+    return { status: 'disabled' };
   }
   const recipients = Array.isArray(to) ? [...new Set(to.map((e) => String(e).trim().toLowerCase()).filter(Boolean))] : [String(to).trim().toLowerCase()];
-  if (!recipients.length) return;
-
-  if (eventKey && eventPrisma?.auditLog?.findFirst) {
-    const delivered = await eventPrisma.auditLog.findFirst({ where: { entityType: 'NotificationEmail', entityId: eventKey }, select: { id: true } }).catch(() => null);
-    if (delivered) {
-      log.info('Email notification skipped (duplicate event)', { eventKey });
-      return;
-    }
-  }
+  if (!recipients.length) return { status: 'no_recipients' };
 
   const transporter = createConfiguredTransporter(configuration);
   if (!transporter) {
     log.info('Email notification skipped (SMTP disabled or not configured)', { subject, recipientCount: recipients.length });
-    return;
+    return { status: 'disabled' };
+  }
+
+  const deliveryStore = eventKey ? (options.deliveryStore || new PostgresEmailDeliveryStore(options.prismaClient || prisma)) : null;
+  if (deliveryStore) {
+    let reservation;
+    try { reservation = await deliveryStore.reserve(eventKey); } catch (error) {
+      log.error('Email delivery reservation failed', { errorCategory: errorCategory(error) });
+      return { status: 'reservation_failed' };
+    }
+    if (reservation.status !== 'RESERVED') {
+      log.info('Email notification skipped (delivery state)', { deliveryStatus: reservation.status });
+      return { status: reservation.status };
+    }
   }
 
   try {
@@ -69,14 +74,17 @@ async function sendNotification({ to, subject, html, text }, options = {}) {
       text: text || html.replace(/<[^>]+>/g, ''),
       html
     });
-    if (eventKey && eventPrisma?.auditLog?.create) {
-      await eventPrisma.auditLog.create({ data: { action: 'CREATE', entityType: 'NotificationEmail', entityId: eventKey, metadata: { recipientCount: recipients.length, subject: outboundSubject } } }).catch((error) => {
-        log.error('Notification idempotency record failed', { errorCategory: errorCategory(error) });
-      });
-    }
+    if (deliveryStore && !(await deliveryStore.markSent(eventKey))) log.error('Email delivery sent state failed', { errorCategory: 'delivery_state_update_failed' });
     log.info('Notification email sent successfully', { subject: outboundSubject, recipientCount: recipients.length });
+    return { status: 'sent' };
   } catch (error) {
+    if (deliveryStore) await deliveryStore.markFailed(eventKey, error).catch((stateError) => log.error('Email delivery failed state failed', { errorCategory: errorCategory(stateError) }));
     log.error('Failed to send notification email', { errorCategory: errorCategory(error), subject, recipientCount: recipients.length });
+    if (!options.isAnomaly) {
+      const { reportOperationalAnomaly } = require('./operational-anomaly.service');
+      reportOperationalAnomaly({ type: 'email_delivery_failure', safeMessage: errorCategory(error) }).catch(() => undefined);
+    }
+    return { status: 'failed', errorCategory: errorCategory(error) };
   }
 }
 
