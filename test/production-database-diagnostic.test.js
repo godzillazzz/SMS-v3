@@ -6,8 +6,12 @@ const {
   classifyConnectivityOutput,
   classifyTargetValues,
   redactDiagnosticText,
-  validateTargetSha
+  validateTargetSha,
+  probeDatabase
 } = require('../scripts/ci/production-database-diagnostic');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const workflowSource = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '.github', 'workflows', 'diagnose-production-database.yml'), 'utf8');
 
 const transactionUrl = (project = 'projectref') => `postgresql://postgres.${project}@aws-1-us-east-1.pooler.supabase.com:6543/postgres`;
@@ -71,4 +75,27 @@ test('workflow fetches the validated target and keeps commit existence guard', (
   const dependencyInstall = workflowSource.indexOf('run: npm ci');
   assert.ok(validationStart >= 0 && dependencyInstall > validationStart);
   assert.doesNotMatch(workflowSource, /fetch-depth:\s*0/);
+});
+
+test('runs one SELECT 1 with the existing client and disconnects without a Prisma schema', async () => {
+  const envFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-diagnostic-test-')), 'vercel.env');
+  fs.writeFileSync(envFile, 'DATABASE_URL=postgresql://redacted\nDIRECT_URL=postgresql://redacted\n');
+  let queryCount = 0;
+  let disconnectCount = 0;
+  const result = await probeDatabase(envFile, {
+    clientFactory: () => ({
+      $queryRawUnsafe: async (query) => {
+        queryCount += 1;
+        assert.equal(query, 'SELECT 1');
+        return [{ '?column?': 1 }];
+      },
+      $disconnect: async () => {
+        disconnectCount += 1;
+      }
+    })
+  });
+  fs.rmSync(path.dirname(envFile), { recursive: true, force: true });
+  assert.equal(result.classification, 'PASS');
+  assert.equal(queryCount, 1);
+  assert.equal(disconnectCount, 1);
 });
