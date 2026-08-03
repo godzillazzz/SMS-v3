@@ -5,8 +5,10 @@ const assert = require('node:assert/strict');
 const {
   classifyConnectivityOutput,
   classifyTargetValues,
-  redactDiagnosticText
+  redactDiagnosticText,
+  validateTargetSha
 } = require('../scripts/ci/production-database-diagnostic');
+const workflowSource = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '.github', 'workflows', 'diagnose-production-database.yml'), 'utf8');
 
 const transactionUrl = (project = 'projectref') => `postgresql://postgres.${project}@aws-1-us-east-1.pooler.supabase.com:6543/postgres`;
 const sessionUrl = (project = 'projectref') => `postgresql://db-user.${project}@aws-1-us-east-1.pooler.supabase.com:5432/postgres`;
@@ -50,4 +52,18 @@ test('classifies Prisma connectivity failures', () => {
   assert.equal(classifyConnectivityOutput('P2024 connection pool timeout', 1).classification, 'POOL_EXHAUSTED');
   assert.equal(classifyConnectivityOutput('P1012 invalid datasource', 1).classification, 'CONFIG_ERROR');
   assert.equal(classifyConnectivityOutput('', 1).classification, 'UNKNOWN');
+});
+
+test('validates only full SHA-1 target commits', () => {
+  assert.equal(validateTargetSha('0123456789abcdef0123456789abcdef01234567'), true);
+  assert.equal(validateTargetSha('0123456'), false);
+  assert.equal(validateTargetSha('0123456789abcdef0123456789abcdef0123456g'), false);
+  assert.equal(validateTargetSha(''), false);
+});
+
+test('workflow fetches the validated target and keeps commit existence guard', () => {
+  assert.match(workflowSource, /validate-sha \"\$TARGET_SHA\"/);
+  assert.match(workflowSource, /git fetch --no-tags --depth=1 origin \"\$TARGET_SHA\"/);
+  assert.match(workflowSource, /git cat-file -e \"\$\{TARGET_SHA\}\^\{commit\}\"/);
+  assert.doesNotMatch(workflowSource, /fetch-depth:\s*0/);
 });
