@@ -3,17 +3,22 @@ import { MetricCard } from './MetricCard';
 type MetricsGridProps = {
   totalEmployees: number;
   activeEmployees: number;
-  organizationalUnits?: number;
-  complianceAttention: number;
+  workingToday: number;
+  leaveToday: number;
+  expiringLicenses: number;
+  pendingLicenseDocuments: number;
+  notScheduledToday: number;
   loading: boolean;
+  onNavigate: (page: 'employees' | 'schedule' | 'leave' | 'licenses') => void;
 };
 
-export function MetricsGrid({ totalEmployees, activeEmployees, organizationalUnits, complianceAttention, loading }: MetricsGridProps) {
-  const unitsAvailable = organizationalUnits !== undefined;
+export function MetricsGrid({ totalEmployees, activeEmployees, workingToday, leaveToday, expiringLicenses, pendingLicenseDocuments, notScheduledToday, loading, onNavigate }: MetricsGridProps) {
   return <section className="dashboard-metrics" aria-label="ตัวชี้วัดการปฏิบัติงาน">
-    <MetricCard icon="◉" label="PERSONNEL RECORDS" value={totalEmployees} context="ข้อมูลพนักงานในระบบ" tone="indigo" loading={loading} />
-    <MetricCard icon="✓" label="ACTIVE PERSONNEL" value={activeEmployees} context={totalEmployees ? `${Math.round((activeEmployees / totalEmployees) * 100)}% ของข้อมูลทั้งหมด` : 'ยังไม่มีข้อมูลพนักงาน'} tone="green" loading={loading} />
-    <MetricCard icon="⌘" label="ORGANIZATIONAL UNITS" value={organizationalUnits} context="หน่วยงานที่มีข้อมูลรองรับ" tone="teal" loading={loading} unavailable={!loading && !unitsAvailable} />
-    <MetricCard icon="!" label="COMPLIANCE ATTENTION" value={complianceAttention} context={complianceAttention ? 'รายการที่ต้องติดตาม' : 'ไม่พบรายการที่ต้องติดตาม'} tone="warning" loading={loading} />
+    <MetricCard icon="◉" label="พนักงานทั้งหมด" value={totalEmployees} context="ข้อมูลพนักงานที่อยู่ในขอบเขตสิทธิ์" tone="indigo" loading={loading} onClick={() => onNavigate('employees')} ariaLabel="ดูพนักงานทั้งหมด" />
+    <MetricCard icon="✓" label="กำลังปฏิบัติงานวันนี้" value={workingToday} context={activeEmployees ? `กำลังใช้งาน ${activeEmployees} คน` : 'ยังไม่มีข้อมูลกำลังพล'} tone="green" loading={loading} onClick={() => onNavigate('schedule')} ariaLabel="ดูตารางกะวันนี้" />
+    <MetricCard icon="⌁" label="ลาวันนี้" value={leaveToday} context="คำขอลาที่อยู่ในช่วงวันนี้" tone="teal" loading={loading} onClick={() => onNavigate('leave')} ariaLabel="ดูรายการลาวันนี้" />
+    <MetricCard icon="!" label="ใบอนุญาตใกล้หมดอายุ" value={expiringLicenses} context="ภายใน 30 วัน" tone="warning" loading={loading} onClick={() => onNavigate('licenses')} ariaLabel="ดูใบอนุญาตใกล้หมดอายุ" />
+    <MetricCard icon="▣" label="เอกสารรอตรวจสอบ" value={pendingLicenseDocuments} context="ใบอนุญาตสถานะ PENDING" tone="warning" loading={loading} onClick={() => onNavigate('licenses')} ariaLabel="ดูเอกสารใบอนุญาตรอตรวจสอบ" />
+    <MetricCard icon="⌂" label="ยังไม่มีกะวันนี้" value={notScheduledToday} context="พนักงานที่ active แต่ไม่พบกะ" tone="indigo" loading={loading} onClick={() => onNavigate('schedule')} ariaLabel="ดูพนักงานที่ยังไม่มีกะวันนี้" />
   </section>;
 }
