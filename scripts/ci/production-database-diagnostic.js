@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const { parse } = require('dotenv');
-const { PrismaClient } = require('@prisma/client');
+const { Client } = require('pg');
 
 const pooledQueryKeys = new Set(['connection_pool', 'connection_pool_mode', 'pool_mode', 'poolmode', 'pgbouncer', 'pooling', 'mode']);
 const supabaseSessionHostPattern = /^aws-\d+-[a-z0-9-]+\.pooler\.supabase\.com$/i;
@@ -28,7 +28,7 @@ function queryConnectionMode(url) {
 }
 
 function parseTarget(rawUrl) {
-  const url = new URL(rawUrl);
+  const url = new URL(normalizeConnectionValue(rawUrl).normalizedValue);
   if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new Error('not-postgresql');
   const hostname = url.hostname.toLowerCase();
   const database = decodeURIComponent(url.pathname.replace(/^\//, '')).toLowerCase();
@@ -65,6 +65,65 @@ function summarizeTarget(rawUrl) {
   }
 }
 
+function readRawEnvironment(filePath) {
+  const source = fs.readFileSync(filePath, 'utf8');
+  const values = {};
+  for (const key of ['DATABASE_URL', 'DIRECT_URL']) {
+    const match = source.match(new RegExp(`^${key}=(.*)$`, 'm'));
+    if (match) values[key] = match[1];
+  }
+  return values;
+}
+
+function normalizeConnectionValue(rawValue) {
+  const original = String(rawValue || '');
+  const trimmed = original.trim();
+  const quoted = trimmed.length >= 2 && ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")));
+  const normalizedValue = quoted ? trimmed.slice(1, -1).trim() : trimmed;
+  return { original, trimmed, normalizedValue, quoted, hasControlCharacters: /[\r\n]/.test(original) };
+}
+
+function parseConnectionUrl(value, { raw = false } = {}) {
+  const normalized = normalizeConnectionValue(value);
+  if (raw && normalized.quoted) return { ok: false, reason: 'QUOTED_VALUE' };
+  if (raw && normalized.hasControlCharacters) return { ok: false, reason: 'CONTROL_CHARACTERS' };
+  try {
+    const url = new URL(raw ? normalized.trimmed : normalized.normalizedValue);
+    if (!['postgres:', 'postgresql:'].includes(url.protocol)) return { ok: false, reason: 'UNSUPPORTED_PROTOCOL' };
+    const hasHost = Boolean(url.hostname);
+    const hasUser = Boolean(url.username);
+    const hasPassword = Boolean(url.password);
+    const hasDatabase = Boolean(url.pathname && url.pathname !== '/');
+    if (!hasHost) return { ok: false, reason: 'MISSING_HOST' };
+    if (!hasDatabase) return { ok: false, reason: 'MISSING_DATABASE' };
+    return {
+      ok: true,
+      protocol: url.protocol,
+      port: url.port || '5432',
+      hasHost,
+      hasUser,
+      hasPassword,
+      hasDatabase,
+      normalizedValue: normalized.normalizedValue
+    };
+  } catch {
+    return { ok: false, reason: 'MALFORMED_URL' };
+  }
+}
+
+function connectionDiagnostics(rawValue) {
+  const raw = parseConnectionUrl(rawValue, { raw: true });
+  const normalized = parseConnectionUrl(rawValue);
+  return { raw, normalized };
+}
+
+function parseDiagnosticsFor(values, rawValues = values) {
+  return {
+    database: connectionDiagnostics(rawValues.DATABASE_URL || values.DATABASE_URL),
+    direct: connectionDiagnostics(rawValues.DIRECT_URL || values.DIRECT_URL)
+  };
+}
+
 function classifyTargetValues(values) {
   const database = summarizeTarget(values.DATABASE_URL);
   const direct = summarizeTarget(values.DIRECT_URL);
@@ -84,9 +143,27 @@ function classifyTargetValues(values) {
   };
 }
 
-function formatTargetDiagnostics(values) {
+function formatTargetDiagnostics(values, rawValues = values) {
   const summary = classifyTargetValues(values);
-  return [
+  const parsed = parseDiagnosticsFor(values, rawValues);
+  const lines = [
+    `DATABASE_URL_RAW_PARSE=${parsed.database.raw.ok ? 'PASS' : 'FAIL'}`,
+    `DATABASE_URL_NORMALIZED_PARSE=${parsed.database.normalized.ok ? 'PASS' : 'FAIL'}`,
+    `DIRECT_URL_RAW_PARSE=${parsed.direct.raw.ok ? 'PASS' : 'FAIL'}`,
+    `DIRECT_URL_NORMALIZED_PARSE=${parsed.direct.normalized.ok ? 'PASS' : 'FAIL'}`
+  ];
+  for (const [name, result] of [['DATABASE_URL', parsed.database.normalized], ['DIRECT_URL', parsed.direct.normalized]]) {
+    lines.push(`${name}_PARSE_REASON=${result.ok ? 'PASS' : result.reason}`);
+    if (result.ok) {
+      lines.push(`${name}_PROTOCOL=${result.protocol}`);
+      lines.push(`${name}_PARSED_PORT=${result.port}`);
+      lines.push(`${name}_HAS_HOST=${result.hasHost}`);
+      lines.push(`${name}_HAS_USER=${result.hasUser}`);
+      lines.push(`${name}_HAS_PASSWORD=${result.hasPassword}`);
+      lines.push(`${name}_HAS_DATABASE=${result.hasDatabase}`);
+    }
+  }
+  lines.push(
     `DATABASE_URL_PRESENT=${summary.databaseUrl.present}`,
     `DATABASE_URL_MODE=${summary.databaseUrl.mode}`,
     `DATABASE_URL_PORT=${summary.databaseUrl.port}`,
@@ -94,7 +171,8 @@ function formatTargetDiagnostics(values) {
     `DIRECT_URL_MODE=${summary.directUrl.mode}`,
     `DIRECT_URL_PORT=${summary.directUrl.port}`,
     `LOGICAL_PAIR_MATCH=${summary.logicalPairMatch}`
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
 
 function redactDiagnosticText(value, secretValues = []) {
@@ -122,9 +200,14 @@ function classifyConnectivityOutput(output, exitCode, timedOut = false) {
   if (codes.includes('P2024') || /pool timeout|connection pool|pool exhausted/i.test(normalized)) classification = 'POOL_EXHAUSTED';
   else if (timedOut || codes.includes('P1002') || codes.includes('P2028') || /timed out|timeout/i.test(normalized)) classification = 'TIMEOUT';
   else if (codes.includes('P1001') || /econnrefused|enotfound|could not connect|connection refused|database unavailable/i.test(normalized)) classification = 'CONNECTION_ERROR';
-  else if (codes.includes('P1012') || /schema|datasource|configuration|invalid provider/i.test(normalized)) classification = 'CONFIG_ERROR';
+  else if (codes.includes('P1012') || /schema|datasource|configuration|invalid provider|malformed_url|missing_(?:host|database)|unsupported_protocol|quoted_value|control_characters/i.test(normalized)) classification = 'CONFIG_ERROR';
   else if (exitCode === 0) classification = 'PASS';
-  return { classification, errorCode: codes[0] || 'none', safeSummary: classification === 'PASS' ? 'SELECT 1 completed.' : `Database connectivity ${classification.toLowerCase()}.` };
+  const safeReason = normalized.match(/(?:malformed_url|missing_(?:host|database)|unsupported_protocol|quoted_value|control_characters)/i)?.[0]?.toUpperCase();
+  return {
+    classification,
+    errorCode: codes[0] || 'none',
+    safeSummary: classification === 'PASS' ? 'SELECT 1 completed.' : safeReason ? `Database connection configuration ${safeReason}.` : `Database connectivity ${classification.toLowerCase()}.`
+  };
 }
 
 function parsePulledEnvironment(filePath) {
@@ -135,15 +218,19 @@ function validateTargetSha(value) {
   return /^[0-9a-f]{40}$/.test(String(value || ''));
 }
 
-async function probeDatabase(filePath, { timeoutMs = 10000, clientFactory = (url) => new PrismaClient({ datasources: { db: { url } } }) } = {}) {
+async function probeDatabase(filePath, { timeoutMs = 10000, clientFactory = (url) => new Client({ connectionString: url, connectionTimeoutMillis: timeoutMs }) } = {}) {
   const values = parsePulledEnvironment(filePath);
   if (!values.DATABASE_URL) return { ...classifyConnectivityOutput('DATABASE_URL missing', 1), values };
   if (!values.DIRECT_URL) return { ...classifyConnectivityOutput('DIRECT_URL missing', 1), values };
-
+  const rawValues = readRawEnvironment(filePath);
+  const parsed = parseDiagnosticsFor(values, rawValues);
+  if (!parsed.database.normalized.ok) {
+    return { ...classifyConnectivityOutput(`DATABASE_URL ${parsed.database.normalized.reason}`, 1), values };
+  }
   let client;
   let timer;
   try {
-    client = clientFactory(values.DATABASE_URL);
+    client = clientFactory(parsed.database.normalized.normalizedValue);
     const timeout = new Promise((_, reject) => {
       timer = setTimeout(() => {
         const error = new Error('database connection timeout');
@@ -151,7 +238,8 @@ async function probeDatabase(filePath, { timeoutMs = 10000, clientFactory = (url
         reject(error);
       }, timeoutMs);
     });
-    await Promise.race([client.$queryRawUnsafe('SELECT 1'), timeout]);
+    await client.connect();
+    await Promise.race([client.query('SELECT 1'), timeout]);
     return { ...classifyConnectivityOutput('', 0), values };
   } catch (error) {
     const output = redactDiagnosticText([error?.code, error?.message].filter(Boolean).join(' '));
@@ -160,7 +248,7 @@ async function probeDatabase(filePath, { timeoutMs = 10000, clientFactory = (url
     if (timer) clearTimeout(timer);
     if (client) {
       try {
-        await client.$disconnect();
+        await client.end();
       } catch {
         // Preserve the one-shot query result if disconnect itself fails.
       }
@@ -183,7 +271,7 @@ async function main() {
     return 2;
   }
   if (command === 'format') {
-    console.log(formatTargetDiagnostics(parsePulledEnvironment(filePath)));
+    console.log(formatTargetDiagnostics(parsePulledEnvironment(filePath), readRawEnvironment(filePath)));
     return 0;
   }
   const result = await probeDatabase(filePath);
@@ -205,11 +293,13 @@ if (require.main === module) {
 module.exports = {
   classifyConnectivityOutput,
   classifyTargetValues,
+  connectionDiagnostics,
   displayMode,
   formatTargetDiagnostics,
   parsePulledEnvironment,
   probeDatabase,
   redactDiagnosticText,
   summarizeTarget,
+  normalizeConnectionValue,
   validateTargetSha
 };
