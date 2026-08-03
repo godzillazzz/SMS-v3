@@ -117,17 +117,15 @@ describe('license document table state', () => {
     expect(canPermanentlyDeleteDocument(pending, [returned, pending, approved])).toBe(false);
   });
 
-  it('uses status-based compact view for an approved current document', () => {
-    expect(componentSource).toContain('const [showUploadForm, setShowUploadForm] = useState(false)');
-    expect(componentSource).toContain("const hasApprovedCurrentDocument = summary.current?.status === 'APPROVED'");
+  it('shows the upload form immediately for an approved current document', () => {
+    expect(componentSource).not.toContain('showUploadForm');
+    expect(componentSource).not.toContain('แนบฉบับใหม่');
     expect(componentSource).toContain("document.status === 'RETURNED_FOR_CORRECTION'");
-    expect(componentSource).toContain('hasApprovedCurrentDocument && !hasActiveCorrection && !showUploadForm');
-    expect(componentSource).toContain('แนบฉบับใหม่');
-    expect(componentSource).toContain('shouldShowUploadForm');
+    expect(componentSource).toContain('<form className="license-upload-form" onSubmit={submit}>');
+    expect(componentSource).toContain('PDF, JPG หรือ PNG ขนาดไม่เกิน 2 MB');
   });
 
   it('opens and cancels the upload form without changing stored documents', () => {
-    expect(componentSource).toContain('onClick={() => setShowUploadForm(true)}');
     expect(componentSource).toContain('onClick={resetUploadForm}>ยกเลิก</button>');
     expect(componentSource).toContain('setError(undefined)');
     expect(componentSource).toContain('await onUpload(');
@@ -232,6 +230,14 @@ describe('license document viewer and review', () => {
     expect(componentSource).toContain('ลบรายการและไฟล์ถาวรแล้ว');
     expect(componentSource).toContain('services.permanentlyDelete(document.id)');
     expect(componentSource).toContain('isAdmin && canPermanentlyDeleteDocument');
+  });
+
+  it('enforces the 2 MB limit before upload and resubmit requests', () => {
+    expect(componentSource).toContain('MAX_LICENSE_DOCUMENT_BYTES');
+    expect(componentSource).toContain("setError('ไฟล์ต้องมีขนาดไม่เกิน 2 MB')");
+    expect(mainSource).toContain('MAX_LICENSE_DOCUMENT_BYTES');
+    expect(mainSource).toContain("ไฟล์ต้องมีขนาดไม่เกิน 2 MB");
+    expect(componentSource).not.toContain('4 MB');
   });
 });
 

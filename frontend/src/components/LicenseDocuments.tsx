@@ -5,6 +5,7 @@ import {
   formatLicenseDate,
   formatLicenseDateTime,
   canPermanentlyDeleteDocument,
+  MAX_LICENSE_DOCUMENT_BYTES,
   licenseTableStatus,
   licenseValidityLabel,
   LicenseDocument,
@@ -237,6 +238,7 @@ function CorrectionModal({ document, services, onClose, onChanged }: { document:
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!licenseNumber.trim()) { setError('กรุณากรอกเลขใบอนุญาต'); return; }
+    if (file && file.size > MAX_LICENSE_DOCUMENT_BYTES) { setError('ไฟล์ต้องมีขนาดไม่เกิน 2 MB'); return; }
     if (!proposedStartDate || !proposedExpiryDate || proposedStartDate > proposedExpiryDate) { setError('วันที่เริ่มต้นต้องไม่เกินวันหมดอายุ'); return; }
     if (busy) return;
     setBusy(true); setError(undefined);
@@ -262,21 +264,21 @@ export function LicenseEditModal({ license, isAdmin, services, onUpload, onChang
   const [tab, setTab] = useState<'details' | 'documents'>('details');
   const [documents, setDocuments] = useState<LicenseDocument[]>([]);
   const [file, setFile] = useState<File>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [licenseNumber, setLicenseNumber] = useState(String(license.licenseNumber || ''));
   const [proposedStartDate, setProposedStartDate] = useState(String(license.issueDate || '').slice(0, 10));
   const [proposedExpiryDate, setProposedExpiryDate] = useState(String(license.expiryDate || '').slice(0, 10));
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [showUploadForm, setShowUploadForm] = useState(false);
   const [reviewDocument, setReviewDocument] = useState<LicenseDocument>();
   const [correctionDocument, setCorrectionDocument] = useState<LicenseDocument>();
   const [viewerId, setViewerId] = useState<string>();
   const [historyOpen, setHistoryOpen] = useState(false);
   const load = async () => { try { setDocuments(sortLicenseDocuments(await services.list(license.id))); } catch (reason) { setError(sanitizeLicenseDocumentError(reason)); } };
   const resetUploadForm = () => {
-    setShowUploadForm(false);
     setFile(undefined);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setLicenseNumber(String(license.licenseNumber || ''));
     setProposedStartDate(String(license.issueDate || '').slice(0, 10));
     setProposedExpiryDate(String(license.expiryDate || '').slice(0, 10));
@@ -294,13 +296,12 @@ export function LicenseEditModal({ license, isAdmin, services, onUpload, onChang
     void load();
   }, [license.id]);
   const summary = selectLicenseDocumentSummary(documents);
-  const hasApprovedCurrentDocument = summary.current?.status === 'APPROVED';
   const activeReturnedDocuments = summary.activeReturned ? [summary.activeReturned] : [];
   const hasActiveCorrection = activeReturnedDocuments.length > 0;
-  const shouldShowUploadForm = !hasApprovedCurrentDocument || showUploadForm;
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!file) { setError('กรุณาเลือกไฟล์ใบอนุญาต'); return; }
+    if (file.size > MAX_LICENSE_DOCUMENT_BYTES) { setError('ไฟล์ต้องมีขนาดไม่เกิน 2 MB'); return; }
     if (!licenseNumber.trim()) { setError('กรุณากรอกเลขใบอนุญาต'); return; }
     if (!proposedStartDate || !proposedExpiryDate || proposedStartDate > proposedExpiryDate) { setError('วันที่เริ่มต้นต้องไม่เกินวันหมดอายุ'); return; }
     setBusy(true); setError(undefined);
@@ -322,17 +323,16 @@ export function LicenseEditModal({ license, isAdmin, services, onUpload, onChang
            {summary.pending.length > 0 && <><h3>เอกสารต่ออายุที่รอตรวจสอบ</h3>{summary.pending.map(documentLine)}</>}
            {hasActiveCorrection && <><h3>เอกสารที่ส่งกลับแก้ไข</h3>{activeReturnedDocuments.map(documentLine)}</>}
            {documents.length > 0 && <button type="button" className="btn-info-outline compact" onClick={() => setHistoryOpen(true)}>ดูประวัติการดำเนินการ</button>}
-           {hasApprovedCurrentDocument && !hasActiveCorrection && !showUploadForm && <button type="button" className="btn-primary compact" onClick={() => setShowUploadForm(true)}>แนบฉบับใหม่</button>}
          </div>
-         {shouldShowUploadForm && <form className="license-upload-form" onSubmit={submit}>
+         <form className="license-upload-form" onSubmit={submit}>
            <h3>แนบใบอนุญาตใหม่</h3>
            <label className="field-group"><span>เลขใบอนุญาต <b>*</b></span><input value={licenseNumber} maxLength={100} onChange={(event) => setLicenseNumber(event.target.value)} required /></label>
-           <label className="field-group"><span>ไฟล์ใบอนุญาต <b>*</b></span><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} required /><small>PDF, JPG หรือ PNG ขนาดไม่เกิน 4 MB</small></label>
+            <label className="field-group"><span>ไฟล์ใบอนุญาต <b>*</b></span><input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} required /><small>PDF, JPG หรือ PNG ขนาดไม่เกิน 2 MB</small></label>
            <div className="license-date-comparison"><label className="field-group"><span>วันที่เริ่มต้น <b>*</b></span><input type="date" value={proposedStartDate} onChange={(event) => setProposedStartDate(event.target.value)} required /></label><label className="field-group"><span>วันหมดอายุ <b>*</b></span><input type="date" value={proposedExpiryDate} onChange={(event) => setProposedExpiryDate(event.target.value)} required /></label></div>
            <label className="field-group"><span>หมายเหตุ</span><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} /></label>
            {error && <div className="license-modal-error" role="alert">{error}</div>}
            <div className="license-modal-actions"><button type="button" className="btn-neutral" disabled={busy} onClick={resetUploadForm}>ยกเลิก</button><button type="submit" className="btn-primary" disabled={busy}>{busy ? 'กำลังส่ง…' : 'ส่งตรวจสอบ'}</button></div>
-         </form>}
+         </form>
        </div>}
     </ModalFrame>
     {reviewDocument && <ReviewModal document={reviewDocument} license={license} services={services} isAdmin={isAdmin} onClose={() => setReviewDocument(undefined)} onChanged={changed} />}

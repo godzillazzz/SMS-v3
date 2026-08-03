@@ -1,4 +1,5 @@
 export type LicenseDocumentStatus = 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED' | 'EXPIRED';
+export const MAX_LICENSE_DOCUMENT_BYTES = 2 * 1024 * 1024;
 
 export type LicenseDocument = {
   id: string;

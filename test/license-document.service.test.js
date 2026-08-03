@@ -2,6 +2,7 @@ process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createLicenseDocumentService } = require('../src/services/license-document.service');
+const { MAX_FILE_SIZE } = require('../src/services/license-document-storage.service');
 const { createFakeLicenseDocumentStorage } = require('./support/fake-license-document-storage');
 
 const ids = { admin: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', manager: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', employee: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', license: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', document: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
@@ -63,6 +64,17 @@ test('storage failure creates no record and database failure removes the orphan 
   const second = harness({ createFailure: true });
   await assert.rejects(() => second.service.upload({ licenseId: ids.license, requestUser: { sub: ids.admin, role: 'ADMIN' }, file: pdf, input: { licenseNumber: 'LN-2027', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } }));
   assert.equal(second.storage.calls.remove.length, 1); assert.equal(second.storage.objects.size, 0);
+});
+
+test('upload and resubmit reject license files over 2 MB before storage writes', async () => {
+  const uploadHarness = harness();
+  await assert.rejects(() => uploadHarness.service.upload({ licenseId: ids.license, requestUser: { sub: ids.admin, role: 'ADMIN' }, file: { ...pdf, size: MAX_FILE_SIZE + 1 }, input: { licenseNumber: 'LN-2027', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } }), { statusCode: 400, message: 'ไฟล์ต้องมีขนาดไม่เกิน 2 MB' });
+  assert.equal(uploadHarness.storage.calls.put.length, 0);
+  const resubmitHarness = harness();
+  resubmitHarness.state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: 'licenses/e/returned', proposedLicenseNumber: 'OLD', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31'), status: 'RETURNED_FOR_CORRECTION', isCurrent: false, version: 1, uploadedAt: new Date('2026-01-01') });
+  await resubmitHarness.storage.put('licenses/e/returned', pdf);
+  await assert.rejects(() => resubmitHarness.service.resubmit({ id: ids.document, requestUser: { sub: ids.manager, role: 'MANAGER' }, input: { licenseNumber: 'NEW', proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') }, file: { ...pdf, size: MAX_FILE_SIZE + 1 } }), { statusCode: 400, message: 'ไฟล์ต้องมีขนาดไม่เกิน 2 MB' });
+  assert.equal(resubmitHarness.storage.calls.put.length, 1);
 });
 
 test('manager license access is not limited by department', async () => {
