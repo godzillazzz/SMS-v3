@@ -95,6 +95,38 @@ describe('license document table state', () => {
     expect(componentSource).toContain('แก้ไขและส่งตรวจสอบใหม่');
   });
 
+  it('uses status-based compact view for an approved current document', () => {
+    expect(componentSource).toContain('const [showUploadForm, setShowUploadForm] = useState(false)');
+    expect(componentSource).toContain("const hasApprovedCurrentDocument = summary.current?.status === 'APPROVED'");
+    expect(componentSource).toContain("document.status === 'RETURNED_FOR_CORRECTION'");
+    expect(componentSource).toContain('hasApprovedCurrentDocument && !hasActiveCorrection && !showUploadForm');
+    expect(componentSource).toContain('แนบฉบับใหม่');
+    expect(componentSource).toContain('shouldShowUploadForm');
+  });
+
+  it('opens and cancels the upload form without changing stored documents', () => {
+    expect(componentSource).toContain('onClick={() => setShowUploadForm(true)}');
+    expect(componentSource).toContain('onClick={resetUploadForm}>ยกเลิก</button>');
+    expect(componentSource).toContain('setError(undefined)');
+    expect(componentSource).toContain('await onUpload(');
+    expect(componentSource).toContain('resetUploadForm(); await load();');
+  });
+
+  it('keeps active correction actions and history available', () => {
+    expect(componentSource).toContain('const activeReturnedDocuments = summary.returned.filter');
+    expect(componentSource).toContain('activeReturnedDocuments.map(documentLine)');
+    expect(componentSource).toContain('onClick={() => setCorrectionDocument(document)}');
+    expect(componentSource).toContain('setHistoryOpen(true)');
+  });
+
+  it('resets modal state when the employee changes or the modal closes', () => {
+    expect(componentSource).toContain('const handleClose = () => { resetUploadForm(); onClose(); }');
+    expect(componentSource).toContain('setCorrectionDocument(undefined)');
+    expect(componentSource).toContain('setHistoryOpen(false)');
+    expect(componentSource).toContain('useEffect(() => {');
+    expect(componentSource).toContain('}, [license.id]);');
+  });
+
   it('uses the existing 60-day warning rule without timezone shifting date-only values', () => {
     const now = new Date('2026-07-31T18:00:00Z');
     expect(licenseValidityLabel('2026-01-01', '2026-07-30', 'Active', now)).toBe('หมดอายุ');
