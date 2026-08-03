@@ -1,10 +1,8 @@
 'use strict';
 
 const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 const { parse } = require('dotenv');
+const { PrismaClient } = require('@prisma/client');
 
 const pooledQueryKeys = new Set(['connection_pool', 'connection_pool_mode', 'pool_mode', 'poolmode', 'pgbouncer', 'pooling', 'mode']);
 const supabaseSessionHostPattern = /^aws-\d+-[a-z0-9-]+\.pooler\.supabase\.com$/i;
@@ -137,38 +135,40 @@ function validateTargetSha(value) {
   return /^[0-9a-f]{40}$/.test(String(value || ''));
 }
 
-function npxCommand() {
-  return process.platform === 'win32' ? 'npx.cmd' : 'npx';
-}
-
-function probeDatabase(filePath, { schemaPath = path.join(process.cwd(), 'prisma', 'schema.prisma'), timeoutMs = 10000 } = {}) {
+async function probeDatabase(filePath, { timeoutMs = 10000, clientFactory = (url) => new PrismaClient({ datasources: { db: { url } } }) } = {}) {
   const values = parsePulledEnvironment(filePath);
   if (!values.DATABASE_URL) return { ...classifyConnectivityOutput('DATABASE_URL missing', 1), values };
   if (!values.DIRECT_URL) return { ...classifyConnectivityOutput('DIRECT_URL missing', 1), values };
 
-  const tempSchemaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-schema-'));
-  const tempSchema = path.join(tempSchemaDir, 'schema.prisma');
+  let client;
+  let timer;
   try {
-    const schema = fs.readFileSync(schemaPath, 'utf8');
-    const withoutDirectUrl = schema.replace(/^\s*directUrl\s*=\s*env\(["']DIRECT_URL["']\)\s*\r?\n/m, '');
-    if (withoutDirectUrl === schema) return { ...classifyConnectivityOutput('DIRECT_URL schema removal failed', 1), values };
-    fs.writeFileSync(tempSchema, withoutDirectUrl, { mode: 0o600 });
-    const result = spawnSync(npxCommand(), ['--no-install', 'prisma', 'db', 'execute', '--stdin', '--schema', tempSchema], {
-      cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: values.DATABASE_URL, DIRECT_URL: values.DIRECT_URL },
-      input: 'SELECT 1;',
-      encoding: 'utf8',
-      timeout: timeoutMs,
-      windowsHide: true
+    client = clientFactory(values.DATABASE_URL);
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new Error('database connection timeout');
+        error.code = 'ETIMEDOUT';
+        reject(error);
+      }, timeoutMs);
     });
-    const output = [result.stdout, result.stderr, result.error?.message].filter(Boolean).join('\n');
-    return { ...classifyConnectivityOutput(output, typeof result.status === 'number' ? result.status : 1, result.error?.code === 'ETIMEDOUT'), values };
+    await Promise.race([client.$queryRawUnsafe('SELECT 1'), timeout]);
+    return { ...classifyConnectivityOutput('', 0), values };
+  } catch (error) {
+    const output = redactDiagnosticText([error?.code, error?.message].filter(Boolean).join(' '));
+    return { ...classifyConnectivityOutput(output, 1, error?.code === 'ETIMEDOUT'), values };
   } finally {
-    fs.rmSync(tempSchemaDir, { recursive: true, force: true });
+    if (timer) clearTimeout(timer);
+    if (client) {
+      try {
+        await client.$disconnect();
+      } catch {
+        // Preserve the one-shot query result if disconnect itself fails.
+      }
+    }
   }
 }
 
-function main() {
+async function main() {
   const [command, filePath] = process.argv.slice(2);
   if (command === 'validate-sha') {
     if (!validateTargetSha(filePath)) {
@@ -186,7 +186,7 @@ function main() {
     console.log(formatTargetDiagnostics(parsePulledEnvironment(filePath)));
     return 0;
   }
-  const result = probeDatabase(filePath);
+  const result = await probeDatabase(filePath);
   console.log(`CONNECTIVITY=${result.classification === 'PASS' ? 'PASS' : 'FAIL'}`);
   console.log(`PRISMA_ERROR_CODE=${result.errorCode}`);
   console.log(`CONNECTION_CLASSIFICATION=${result.classification}`);
@@ -194,7 +194,13 @@ function main() {
   return result.classification === 'PASS' ? 0 : 1;
 }
 
-if (require.main === module) process.exitCode = main();
+if (require.main === module) {
+  main().then((code) => {
+    process.exitCode = code;
+  }).catch(() => {
+    process.exitCode = 1;
+  });
+}
 
 module.exports = {
   classifyConnectivityOutput,
