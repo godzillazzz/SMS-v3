@@ -13,6 +13,11 @@ on:
         required: true
         type: string
         default: sms-v3-staging
+      diagnostic_only:
+        description: Run build diagnostics without deployment or alias changes
+        required: true
+        type: boolean
+        default: true
 
 concurrency:
   group: sms-v3-staging-prebuilt-operational-email
@@ -101,14 +106,115 @@ jobs:
           test "$(pwd)" = "$GITHUB_WORKSPACE"
           npx --yes vercel@56.4.1 pull --yes --environment=production --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" > /tmp/prebuilt-pull.log 2>&1
 
-      - name: Build fresh prebuilt output
+      - name: Report build context
         shell: bash
         run: |
           set -euo pipefail
+          {
+            echo '### Build context'
+            echo "pwd=$(pwd)"
+            echo "git_head=$(git rev-parse HEAD)"
+            echo "node=$(node --version)"
+            echo "npm=$(npm --version)"
+            echo "vercel=$(npx --yes vercel@56.4.1 --version)"
+            node <<'NODE'
+          const fs = require('fs');
+          const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
+          const config = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
+          console.log(`projectId=${project.projectId}`);
+          console.log(`orgId=${project.orgId}`);
+          console.log('root=.');
+          console.log(`buildCommand=${config.buildCommand || 'default'}`);
+          console.log(`outputDirectory=${config.outputDirectory || 'default'}`);
+          NODE
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run direct production build diagnostic
+        id: direct_build
+        shell: bash
+        run: |
+          set +e
+          npm run vercel-build 2>&1 | tee "$RUNNER_TEMP/npm-vercel-build.log"
+          direct_exit=${PIPESTATUS[0]}
+          set -e
+          echo "exit=$direct_exit" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Build fresh prebuilt output
+        id: vercel_build
+        shell: bash
+        run: |
+          set +e
           test "$(pwd)" = "$GITHUB_WORKSPACE"
-          npx --yes vercel@56.4.1 build --prod > /tmp/prebuilt-build.log 2>&1
+          npx --yes vercel@56.4.1 build --prod --debug 2>&1 | tee "$RUNNER_TEMP/vercel-build.raw.log"
+          build_exit=${PIPESTATUS[0]}
+          set -e
+          echo "exit=$build_exit" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Sanitize build diagnostics
+        if: always()
+        shell: bash
+        env:
+          DIRECT_EXIT: ${{ steps.direct_build.outputs.exit }}
+          BUILD_EXIT: ${{ steps.vercel_build.outputs.exit }}
+        run: |
+          set -euo pipefail
+          sanitize() {
+            sed -E \
+              -e 's#https?://[^[:space:]"'"'']+#<URL_REDACTED>#g' \
+              -e 's#(Bearer|Authorization|VERCEL_TOKEN|DATABASE_URL|DIRECT_URL|JWT_SECRET|PASSWORD|SECRET)[[:space:]]*[:=][^[:space:];,]+#\1=<REDACTED>#Ig' \
+              -e 's#(postgres|postgresql)://[^[:space:]"'"'']+#<CONNECTION_REDACTED>#Ig' \
+              -e 's#([?&][^=[:space:]]+)=([^&[:space:]]+)#\1=<REDACTED>#g'
+          }
+          mkdir -p "$RUNNER_TEMP/license-build-diagnostics"
+          sanitize < "$RUNNER_TEMP/npm-vercel-build.log" > "$RUNNER_TEMP/license-build-diagnostics/npm-vercel-build.sanitized.log"
+          sanitize < "$RUNNER_TEMP/vercel-build.raw.log" > "$RUNNER_TEMP/license-build-diagnostics/vercel-build.sanitized.log"
+          first_error=''
+          first_error=$(grep -Eim1 '(^|[[:space:]])(error|failed|fatal|cannot|unable|missing|not found|invalid)([[:space:]:]|$)' "$RUNNER_TEMP/license-build-diagnostics/vercel-build.sanitized.log" || true)
+          if [[ -z "$first_error" ]]; then
+            first_error=$(grep -Eim1 '(^|[[:space:]])(error|failed|fatal|cannot|unable|missing|not found|invalid)([[:space:]:]|$)' "$RUNNER_TEMP/license-build-diagnostics/npm-vercel-build.sanitized.log" || true)
+          fi
+          {
+            echo '### Build diagnostics'
+            echo "direct_npm_build=$([[ "${DIRECT_EXIT:-1}" == 0 ]] && echo PASS || echo FAIL)"
+            echo "vercel_build=$([[ "${BUILD_EXIT:-1}" == 0 ]] && echo PASS || echo FAIL)"
+            echo "DIRECT_EXIT=${DIRECT_EXIT:-unknown}"
+            echo "BUILD_EXIT=${BUILD_EXIT:-unknown}"
+            echo "first_error=${first_error:-not captured}"
+            echo '#### Last 200 sanitized Vercel build lines'
+            tail -n 200 "$RUNNER_TEMP/license-build-diagnostics/vercel-build.sanitized.log"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${DIRECT_EXIT:-1}" == 0 && "${BUILD_EXIT:-1}" != 0 ]]; then
+            echo 'ERROR_CATEGORY=VERCEL_CLI_OR_PROJECT_CONFIG' >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${DIRECT_EXIT:-1}" != 0 ]]; then
+            echo 'ERROR_CATEGORY=BUILD_COMMAND_FAILED' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'ERROR_CATEGORY=UNKNOWN' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload sanitized build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-complete-build-diagnostics
+          path: ${{ runner.temp }}/license-build-diagnostics/*.sanitized.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Finish diagnostic-only run
+        if: always()
+        shell: bash
+        env:
+          DIRECT_EXIT: ${{ steps.direct_build.outputs.exit }}
+          BUILD_EXIT: ${{ steps.vercel_build.outputs.exit }}
+        run: |
+          if [[ "${{ inputs.diagnostic_only }}" == 'true' ]]; then
+            exit "${BUILD_EXIT:-1}"
+          fi
 
       - name: Validate .vercel/output before deployment
+        if: inputs.diagnostic_only != true
         shell: bash
         run: |
           set -euo pipefail
@@ -122,6 +228,7 @@ jobs:
           echo "PREBUILT_MARKERS=PASS"
 
       - name: Deploy prebuilt without changing canonical
+        if: inputs.diagnostic_only != true
         id: deploy
         shell: bash
         run: |
@@ -141,6 +248,7 @@ jobs:
           NODE
 
       - name: Verify deployment URL artifact and health
+        if: inputs.diagnostic_only != true
         shell: bash
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
@@ -159,6 +267,7 @@ jobs:
           done
 
       - name: Alias verified deployment to canonical
+        if: inputs.diagnostic_only != true
         shell: bash
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
@@ -168,6 +277,7 @@ jobs:
           echo "CANONICAL_ALIAS_UPDATED=true"
 
       - name: Verify canonical and upload route
+        if: inputs.diagnostic_only != true
         shell: bash
         run: |
           set -euo pipefail
