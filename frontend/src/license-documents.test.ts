@@ -134,11 +134,20 @@ describe('license document viewer and review', () => {
 
   it('allows an admin uploader to approve and confirms old/new dates', () => {
     expect(componentSource).toContain("isAdmin && document.status === 'PENDING'");
+    expect(componentSource).toContain('aria-label="ส่งกลับเอกสารใบอนุญาตให้แก้ไข"');
     expect(componentSource).not.toMatch(/uploadedBy[^\n]+disabled/);
     expect(componentSource).toContain('วันหลักจะเปลี่ยนจาก');
     expect(componentSource).toContain("setMode('approve')");
     expect(componentSource).toContain('ยืนยันส่งกลับแก้ไข');
     expect(componentSource).toContain('เมื่อไม่อนุมัติ ระบบจะลบไฟล์ต้นฉบับ');
+  });
+
+  it('renders review from the license table only for admins with a pending document', () => {
+    expect(componentSource).toContain('const pendingDocument = documents.find((document) => document.status === \'PENDING\')');
+    expect(componentSource).toContain('isAdmin && !loading && !error && pendingDocument');
+    expect(componentSource).toContain('isAdmin: boolean; onChanged: (message: string) => void');
+    expect(mainSource).toContain('isAdmin={role === \'ADMIN\'}');
+    expect(mainSource).toContain('onChanged={onLicenseDocumentChanged}');
   });
 
   it('requires a non-whitespace rejection reason and prevents double submission', () => {
