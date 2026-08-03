@@ -1,0 +1,199 @@
+name: Diagnose sms-v3-staging Vercel Runtime Logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact commit to validate before reading logs
+        required: true
+        type: string
+      request_id:
+        description: Request ID to filter first
+        required: true
+        type: string
+      path:
+        description: Expected request path
+        required: true
+        default: /api/v1/ready
+        type: string
+      status_code:
+        description: Expected HTTP status code
+        required: true
+        default: '503'
+        type: string
+      confirm_project_name:
+        description: Type sms-v3-staging to confirm the target project
+        required: true
+        type: string
+      confirm_environment:
+        description: Type production to confirm the Vercel environment
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production-sms-v3-staging
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/serverless-database-reliability
+          fetch-depth: 0
+
+      - name: Validate diagnostic target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirm_project_name }}" = "$EXPECTED_PROJECT_NAME"
+          test "${{ inputs.confirm_environment }}" = "production"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test -n "$VERCEL_TOKEN"
+          git cat-file -e "${{ inputs.commit_sha }}^{commit}"
+          git merge-base --is-ancestor "${{ inputs.commit_sha }}" HEAD
+          echo "DIAGNOSTIC_TARGET=project_verified"
+          echo "VERCEL_CLI_VERSION=$VERCEL_CLI_VERSION"
+
+      - name: Collect sanitized Vercel runtime diagnostics
+        shell: bash
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          REQUEST_PATH: ${{ inputs.path }}
+          EXPECTED_STATUS_CODE: ${{ inputs.status_code }}
+        run: |
+          set -euo pipefail
+          diagnostics_dir=$(mktemp -d)
+          trap 'rm -rf "$diagnostics_dir"' EXIT
+          first_stdout="$diagnostics_dir/first.stdout"
+          first_stderr="$diagnostics_dir/first.stderr"
+          second_stdout="$diagnostics_dir/second.stdout"
+          second_stderr="$diagnostics_dir/second.stderr"
+          headers_file="$diagnostics_dir/headers"
+          body_file="$diagnostics_dir/body"
+          help_file="$diagnostics_dir/help"
+          request_id_used="$REQUEST_ID"
+          http_status=unknown
+
+          npx --yes vercel@"$VERCEL_CLI_VERSION" logs --help >"$help_file" 2>&1
+
+          run_logs() {
+            local request_id="$1"
+            local stdout_file="$2"
+            local stderr_file="$3"
+            set +e
+            npx --yes vercel@"$VERCEL_CLI_VERSION" logs \
+              --project "$VERCEL_PROJECT_ID" \
+              --scope "$VERCEL_ORG_ID" \
+              --environment production \
+              --status-code "$EXPECTED_STATUS_CODE" \
+              --request-id "$request_id" \
+              --json \
+              --no-branch \
+              --token "$VERCEL_TOKEN" \
+              >"$stdout_file" 2>"$stderr_file"
+            local exit_code=$?
+            set -e
+            return "$exit_code"
+          }
+
+          has_log_event() {
+            node - "$1" <<'NODE'
+          const fs = require('node:fs');
+          const file = process.argv[2];
+          const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean);
+          const found = lines.some((line) => {
+            try {
+              const value = JSON.parse(line);
+              if (Array.isArray(value)) return value.length > 0;
+              if (value && /no logs|not found/i.test(JSON.stringify(value))) return false;
+              return value && typeof value === 'object' && !value.error && (value.id || value.requestId || value.request_id || value.statusCode || value.status_code || value.message);
+            } catch {
+              return false;
+            }
+          });
+          process.stdout.write(found ? 'true' : 'false');
+          NODE
+          }
+
+          run_logs "$request_id_used" "$first_stdout" "$first_stderr" || true
+          found=$(has_log_event "$first_stdout")
+
+          if [[ "$found" != "true" ]]; then
+            set +e
+            http_status=$(curl --silent --show-error --max-time 20 --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' "$EXPECTED_CANONICAL_URL$REQUEST_PATH")
+            curl_exit=$?
+            set -e
+            if [[ "$curl_exit" -eq 0 ]]; then
+              request_id_used=$(node - "$headers_file" "$body_file" <<'NODE'
+          const fs = require('node:fs');
+          const [headersFile, bodyFile] = process.argv.slice(2);
+          const text = `${fs.readFileSync(headersFile, 'utf8')}\n${fs.readFileSync(bodyFile, 'utf8')}`;
+          const match = text.match(/(?:x-request-id\s*[:=]|"requestId"\s*:)\s*["']?([A-Za-z0-9:_-]{8,})/i);
+          process.stdout.write(match ? match[1] : '');
+          NODE
+              )
+            fi
+            if [[ -n "$request_id_used" ]]; then
+              run_logs "$request_id_used" "$second_stdout" "$second_stderr" || true
+              found=$(has_log_event "$second_stdout")
+            fi
+          fi
+
+          node - "$first_stdout" "$first_stderr" "$second_stdout" "$second_stderr" "$found" "$request_id_used" "$http_status" "$REQUEST_PATH" <<'NODE'
+          const fs = require('node:fs');
+          const [firstOut, firstErr, secondOut, secondErr, found, requestId, httpStatus, requestPath] = process.argv.slice(2);
+          const raw = [firstOut, firstErr, secondOut, secondErr].map((file) => fs.readFileSync(file, 'utf8')).join('\n');
+          const secrets = [process.env.VERCEL_TOKEN, process.env.VERCEL_ORG_ID, process.env.VERCEL_PROJECT_ID].filter(Boolean);
+          const redact = (value) => {
+            let text = String(value || '');
+            for (const secret of secrets) text = text.split(secret).join('[redacted-secret]');
+            return text
+              .replace(/Bearer\s+\S+/gi, 'Bearer [redacted-token]')
+              .replace(/postgres(?:ql)?:\/\/[^\s"'<>]+/gi, '[redacted-connection-string]')
+              .replace(/https?:\/\/[^\s"'<>]+/gi, '[redacted-url]')
+              .replace(/(?:host|hostname|server|address|user(name)?|password|token|secret)\s*[:=]\s*[^\s,;]+/gi, '$1=[redacted]')
+              .replace(/\b[A-Za-z0-9.-]+\.(?:supabase\.co|supabase\.com|vercel\.app|vercel\.com)\b/gi, '[redacted-host]')
+              .replace(/\?.*?(?=\s|$)/g, '[redacted-query]')
+              .replace(/\s+/g, ' ')
+              .trim();
+          };
+          const codes = [...raw.matchAll(/\bP\d{4}\b/g)].map((match) => match[0]);
+          const uniqueCodes = [...new Set(codes)];
+          const deployment = raw.match(/\bdpl_[A-Za-z0-9]+\b/);
+          const category = uniqueCodes.includes('P1001') ? 'database_unreachable'
+            : uniqueCodes.includes('P1002') ? 'database_connection_timeout'
+            : uniqueCodes.includes('P2024') ? 'database_connection_pool_timeout'
+            : uniqueCodes.includes('P2028') ? 'database_transaction_timeout'
+            : /pool/i.test(raw) ? 'connection_pool'
+            : /timeout|timed out/i.test(raw) ? 'connection_timeout'
+            : /connection|database|refused|unavailable/i.test(raw) ? 'database_connection'
+            : 'unknown';
+          const candidate = raw.split(/\r?\n/).find((line) => /P\d{4}|error|timeout|timed out|pool|connection|database|unavailable|refused/i.test(line));
+          const safeMessage = redact(candidate || 'Runtime log did not contain a safe database error message.').slice(0, 240);
+          const status = found === 'true' && category !== 'unknown' ? 'ROOT CAUSE IDENTIFIED' : 'BLOCKED — RUNTIME LOG NOT FOUND';
+          console.log(`STATUS=${status}`);
+          console.log(`PRISMA_ERROR_CODE=${uniqueCodes[0] || 'unknown'}`);
+          console.log(`ERROR_CATEGORY=${category}`);
+          console.log(`CONNECTION_CLASSIFICATION=${category}`);
+          console.log(`SAFE_ERROR_MESSAGE=${safeMessage}`);
+          console.log(`DEPLOYMENT_ID=${deployment ? deployment[0] : 'unknown'}`);
+          console.log(`REQUEST_ID=${redact(requestId)}`);
+          console.log(`PATH=${redact(requestPath)}`);
+          console.log(`HTTP_STATUS=${httpStatus}`);
+          NODE
