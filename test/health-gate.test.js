@@ -33,6 +33,22 @@ test('health gate passes with mocked healthy responses and assets', async () => 
   }
 });
 
+test('health gate uses the canonical URL without a generated deployment URL', async () => {
+  const originalFetch = global.fetch;
+  const canonicalOrigin = 'https://sms-v3-staging-ten.vercel.app';
+  global.fetch = async (url) => {
+    assert.equal(new URL(url).origin, canonicalOrigin);
+    const path = new URL(url).pathname;
+    if (path === '/' || path === '/login') return new Response('<html></html>', { status: 200 });
+    if (path === '/api/v1/ready') return new Response(JSON.stringify({ status: 'ready', database: 'ok' }), { status: 200 });
+    if (path === '/api/v1/dashboard' || path === '/api/v1/licenses') return new Response('', { status: 401 });
+    return new Response('', { status: 200 });
+  };
+  try {
+    assert.equal(await main({ env: { CANONICAL_URL: canonicalOrigin }, log: () => {}, error: () => {} }), 0);
+  } finally { global.fetch = originalFetch; }
+});
+
 test('health gate accepts an internal root redirect to the login route', async () => {
   const originalFetch = global.fetch;
   global.fetch = async (url) => {

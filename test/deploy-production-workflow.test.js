@@ -68,6 +68,12 @@ test('deployment identity comes from deploy JSON and rejects rollback reuse', ()
   assert.doesNotMatch(deploy, /grep -Eo .*vercel\.app/);
 });
 
+test('health job uses canonical URL as its only health source', () => {
+  const health = jobBlock('health');
+  assert.match(health, /CANONICAL_URL: https:\/\/sms-v3-staging-ten\.vercel\.app/);
+  assert.doesNotMatch(health, /DEPLOYMENT_URL/);
+});
+
 test('production workflow is manual-only and has no automatic deployment triggers', () => {
   assert.match(workflow, /^on:\r?\n\s+workflow_dispatch:/m);
   assert.doesNotMatch(workflow, /^\s+(?:push|schedule|repository_dispatch):/m);

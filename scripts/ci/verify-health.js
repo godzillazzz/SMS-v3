@@ -102,11 +102,10 @@ async function verifyBase(name, base, log) {
 
 async function main({ env = process.env, log = console.log, error = console.error } = {}) {
   try {
-    const deployment = normalizeBase(env.DEPLOYMENT_URL, 'DEPLOYMENT_URL');
     const canonical = normalizeBase(env.CANONICAL_URL || expectedCanonical, 'CANONICAL_URL');
     if (canonical !== expectedCanonical) throw new Error('CANONICAL_URL does not match the approved staging domain');
-    await verifyBase('deployment', deployment, log);
     await verifyBase('canonical', canonical, log);
+    log('HEALTH_SOURCE=canonical');
     log('AUTHENTICATED_SMOKE=pending dedicated non-human test account');
     return 0;
   } catch (reason) {

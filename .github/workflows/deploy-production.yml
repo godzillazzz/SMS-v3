@@ -280,7 +280,6 @@ jobs:
           node-version: 22
       - name: Verify deployment and canonical health
         env:
-          DEPLOYMENT_URL: ${{ needs.deploy.outputs.deployment_url }}
           CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
         run: node scripts/ci/verify-health.js
       - name: Report manual acceptance status

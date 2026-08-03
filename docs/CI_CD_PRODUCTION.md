@@ -110,7 +110,9 @@ The deployment target guard runs before Prisma migration status. A generic/trans
 
 ## Health Gate
 
-The post-deploy gate checks both the deployment URL and the canonical domain:
+The post-deploy gate uses the canonical domain as its health source. It does not probe
+the generated deployment URL because Vercel Deployment Protection may redirect that
+hostname to an external authentication page.
 
 - `/`
 - `/login`
