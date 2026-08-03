@@ -78,24 +78,24 @@ jobs:
       - name: Install read-only diagnostic dependencies
         run: npm ci
 
-      - name: Pull Vercel Production environment to restricted temporary storage
+      - name: Verify Vercel project identity
         shell: bash
         run: |
           set -euo pipefail
           umask 077
-          pull_log="$DIAGNOSTIC_DIR/vercel-pull.log"
-          if ! npx --yes "vercel@$VERCEL_CLI_VERSION" env pull "$DIAGNOSTIC_DIR/vercel.env" --yes --non-interactive --environment=production --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$pull_log" 2>&1; then
-            echo 'VERCEL_ENV_PULL=FAILED'
+          inspect_log="$DIAGNOSTIC_DIR/vercel-project-inspect.log"
+          if ! npx --yes "vercel@$VERCEL_CLI_VERSION" project inspect "$VERCEL_PROJECT_ID" --yes --non-interactive --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$inspect_log" 2>&1; then
+            echo 'PROJECT_VALIDATION=FAIL'
             exit 1
           fi
-          test -s "$DIAGNOSTIC_DIR/vercel.env"
-          echo 'VERCEL_ENV_PULL=SUCCESS'
+          grep -Fq "$EXPECTED_PROJECT_NAME" "$inspect_log"
+          echo 'PROJECT_VALIDATION=PASS'
 
-      - name: Classify only sanitized connection metadata
-        run: node scripts/ci/production-database-diagnostic.js format "$DIAGNOSTIC_DIR/vercel.env"
-
-      - name: Run one-shot SELECT 1 against Vercel DATABASE_URL only
-        run: node scripts/ci/production-database-diagnostic.js probe "$DIAGNOSTIC_DIR/vercel.env"
+      - name: Run sanitized production environment diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes "vercel@$VERCEL_CLI_VERSION" env run -e production --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --non-interactive -- node scripts/ci/production-database-diagnostic.js diagnose
 
       - name: Remove temporary environment files
         if: ${{ always() }}
