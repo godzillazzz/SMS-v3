@@ -63,6 +63,8 @@ test('deployment identity comes from deploy JSON and rejects rollback reuse', ()
   assert.match(deploy, /--format=json/);
   assert.match(deploy, /scripts\/ci\/vercel-deployment\.js/);
   assert.match(deploy, /rollback_deployment_id/);
+  assert.match(deploy, /inspect_stdout/);
+  assert.match(deploy, /inspect_stderr/);
   assert.doesNotMatch(deploy, /grep -Eo .*vercel\.app/);
 });
 
