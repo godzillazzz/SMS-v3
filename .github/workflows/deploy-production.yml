@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       commit_sha:
-        description: Exact commit SHA already present on fix/serverless-database-reliability
+        description: Exact current main commit SHA
         required: true
         type: string
       confirm_project_name:
@@ -42,6 +42,7 @@ env:
 
 jobs:
   validate:
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -49,21 +50,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit_sha }}
-          fetch-depth: 0
-      - name: Validate exact branch commit and confirmations
+          ref: main
+          fetch-depth: 1
+      - name: Validate exact main commit and confirmations
         id: commit
         shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.commit_sha }}
         run: |
           set -euo pipefail
           test "${{ inputs.confirm_project_name }}" = "$EXPECTED_PROJECT_NAME"
           test "${{ inputs.confirm_environment }}" = "production"
-          git fetch --no-tags origin fix/serverless-database-reliability
-          git cat-file -e "${{ inputs.commit_sha }}^{commit}"
-          git merge-base --is-ancestor "${{ inputs.commit_sha }}" origin/fix/serverless-database-reliability
-          test "$(git rev-parse HEAD)" = "${{ inputs.commit_sha }}"
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags --depth=1 origin main
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          current_main_sha="$(git rev-parse refs/remotes/origin/main)"
+          test "$TARGET_SHA" = "$current_main_sha"
           test -z "$(git status --porcelain)"
-          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
 
   migrate:
     if: ${{ inputs.diagnostic_only != true }}

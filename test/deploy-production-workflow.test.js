@@ -8,7 +8,7 @@ const workflow = fs.readFileSync(workflowPath, 'utf8');
 
 function jobBlock(jobName) {
   const heading = `  ${jobName}:`;
-  const start = workflow.indexOf(`${heading}\n`);
+  const start = workflow.indexOf(`${heading}\r\n`) >= 0 ? workflow.indexOf(`${heading}\r\n`) : workflow.indexOf(`${heading}\n`);
   assert.notEqual(start, -1, `workflow job ${jobName} must exist`);
   const bodyStart = workflow.indexOf('\n', start) + 1;
   const nextJobOffset = workflow.slice(bodyStart).search(/\r?\n  [a-zA-Z0-9_-]+:/);
@@ -60,4 +60,19 @@ test('deploy job remains migration-gated and bound to the approved Vercel projec
 test('production workflow is manual-only and has no automatic deployment triggers', () => {
   assert.match(workflow, /^on:\r?\n\s+workflow_dispatch:/m);
   assert.doesNotMatch(workflow, /^\s+(?:push|schedule|repository_dispatch):/m);
+});
+
+test('validate job accepts only the current main HEAD', () => {
+  const validate = jobBlock('validate');
+  assert.match(validate, /if: \$\{\{ github\.ref == 'refs\/heads\/main' \}\}/);
+  assert.match(validate, /ref: main/);
+  assert.match(validate, /fetch-depth: 1/);
+  assert.match(validate, /TARGET_SHA: \$\{\{ inputs\.commit_sha \}\}/);
+  assert.match(validate, /\[\[ \"\$TARGET_SHA\" =~ \^\[0-9a-f\]\{40\}\$ \]\]/);
+  assert.match(validate, /git fetch --no-tags --depth=1 origin main/);
+  assert.match(validate, /git cat-file -e \"\$\{TARGET_SHA\}\^\{commit\}\"/);
+  assert.match(validate, /current_main_sha=.*git rev-parse refs\/remotes\/origin\/main/);
+  assert.match(validate, /test \"\$TARGET_SHA\" = \"\$current_main_sha\"/);
+  assert.doesNotMatch(validate, /fix\/serverless-database-reliability|merge-base/);
+  assert.doesNotMatch(validate, /fetch-depth:\s*0/);
 });
