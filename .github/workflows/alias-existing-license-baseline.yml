@@ -7,6 +7,8 @@ env:
   EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
   TARGET_DEPLOYMENT_ID: dpl_CttK4VepNiFXeULDXGBWzNYAvmi6
+  TARGET_SOURCE_SHA: f0739bb4e00427ebf9c5fdf6781acf0fa1afff5c
+  KNOWN_DEPLOYMENT_URL: https://sms-v3-staging-keqtnfchf-godzillazz.vercel.app
   ROLLBACK_DEPLOYMENT_ID: dpl_BJR3sPwckPjx1kJ25ocA1AwLWKN7
   CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
 
@@ -36,27 +38,47 @@ jobs:
           echo 'ORG_ID_MATCH=true'
           echo 'VERCEL_TOKEN=PRESENT'
 
-      - name: Inspect existing deployment
+      - name: List and verify existing deployment metadata
+        id: discover
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes vercel@56.4.1 inspect "$TARGET_DEPLOYMENT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json > "$RUNNER_TEMP/deployment.json"
+          npx --yes vercel@56.4.1 list sms-v3-staging --limit 100 --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" > "$RUNNER_TEMP/deployments.json"
           node <<'NODE'
           const fs = require('fs');
-          const value = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/deployment.json', 'utf8'));
-          const projectId = value.projectId || value.project?.id;
-          const state = value.readyState || value.state;
-          if (projectId !== process.env.EXPECTED_PROJECT_ID || state !== 'READY') process.exit(1);
-          console.log(`DEPLOYMENT_ID=${process.env.TARGET_DEPLOYMENT_ID}`);
+          const value = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/deployments.json', 'utf8'));
+          const deployments = Array.isArray(value) ? value : (value.deployments || []);
+          const normalizeUrl = (url) => String(url || '').replace(/^https?:\/\//i, '').replace(/\/$/, '');
+          const match = deployments.find((deployment) => {
+            const id = deployment.uid || deployment.id;
+            const url = normalizeUrl(deployment.url);
+            const sourceSha = deployment.meta?.githubCommitSha || deployment.gitSource?.sha || deployment.source?.sha;
+            return id === process.env.TARGET_DEPLOYMENT_ID || url === normalizeUrl(process.env.KNOWN_DEPLOYMENT_URL) || sourceSha === process.env.TARGET_SOURCE_SHA;
+          });
+          if (!match) {
+            console.log('TARGET_DEPLOYMENT=NOT_FOUND');
+            process.exit(2);
+          }
+          const id = match.uid || match.id;
+          const projectId = match.projectId || match.project?.id;
+          const state = match.readyState || match.state;
+          const target = match.target || match.meta?.target || 'unknown';
+          const sourceSha = match.meta?.githubCommitSha || match.gitSource?.sha || match.source?.sha || 'unknown';
+          if (projectId !== process.env.EXPECTED_PROJECT_ID || state !== 'READY' || target !== 'production') process.exit(1);
+          console.log('TARGET_DEPLOYMENT=FOUND');
+          console.log(`DEPLOYMENT_ID=${id}`);
           console.log('PROJECT=sms-v3-staging');
-          console.log('STATE=READY');
+          console.log(`STATE=${state}`);
+          console.log(`TARGET=${target}`);
+          console.log(`SOURCE_SHA=${sourceSha}`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `deployment_id=${id}\n`);
           NODE
 
       - name: Alias existing deployment
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes vercel@56.4.1 alias set "$TARGET_DEPLOYMENT_ID" "sms-v3-staging-ten.vercel.app" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
+          npx --yes vercel@56.4.1 alias set "${{ steps.discover.outputs.deployment_id }}" "sms-v3-staging-ten.vercel.app" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
           echo 'ALIAS_UPDATED=true'
 
       - name: Verify canonical and rollback alias on failure
@@ -80,4 +102,4 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: rm -f "$RUNNER_TEMP/deployment.json"
+        run: rm -f "$RUNNER_TEMP/deployments.json"
