@@ -16,6 +16,7 @@ const { updateScheduleApprovalState, approveMonthlySchedule } = require('../serv
 const { linkLeaveQuota } = require('../services/leave-quota-link.service');
 const { createSupabaseLicenseDocumentStorage, MAX_FILE_SIZE } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
+const operationalNotifications = require('../services/operational-notification.service');
 const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
 const { normalizeLicenseNumber } = require('../services/license-document.service');
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
@@ -74,7 +75,7 @@ const positionText = (employee) => String(employee?.jobTitle || '').toLowerCase(
 const isSupervisorPosition = (employee) => /supervisor|หัวหน้า|ซุปเปอร์ไวเซอร์/.test(positionText(employee));
 const isManagerPosition = (employee) => /manager|ผู้จัดการ/.test(positionText(employee));
 const licenseStorage = createSupabaseLicenseDocumentStorage();
-const licenseDocuments = createLicenseDocumentService({ prisma, storage: licenseStorage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
+const licenseDocuments = createLicenseDocumentService({ prisma, storage: licenseStorage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules, notifications: operationalNotifications });
 const hasSupervisorApprovalLevel = (user) => user.role === 'ADMIN' || isSupervisorPosition(user.employee) || isManagerPosition(user.employee);
 const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser) => {
   if (requestUser.role === 'ADMIN') return;
@@ -190,6 +191,13 @@ router.post('/internal/license-reconciliation', async (req, res, next) => {
     const expired = await expireDueLicenseDocuments({ prisma, storage: licenseStorage, audit });
     const cleanup = await cleanupDueLicenseDocuments({ prisma, storage: licenseStorage });
     res.json({ data: { schedule, expired, cleanup } });
+  } catch (error) { next(error); }
+});
+router.post('/internal/notifications/daily-digest', async (req, res, next) => {
+  try {
+    if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
+    const result = await operationalNotifications.runDailyOperationalNotifications();
+    res.json({ data: result });
   } catch (error) { next(error); }
 });
 
@@ -743,6 +751,8 @@ router.post('/leave-requests/:id/cancel', authorize('ADMIN'), async (req, res, n
       }, tx);
       return { ...after, removedLeaveShifts: removedLeaveShifts.count };
     });
+    const { notifyLeaveProcessed } = require('../services/notification-email.service');
+    notifyLeaveProcessed({ leave: result, status: 'CANCELLED', approverName: req.user.displayName || 'Admin', reason: input.reason || undefined }).catch(() => undefined);
     res.json({ data: result });
   } catch (error) { next(error); }
 });

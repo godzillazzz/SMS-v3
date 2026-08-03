@@ -43,3 +43,22 @@ test('provider errors are logged without being thrown to the caller', async () =
   assert.equal(errors[0].recipientCount, 1);
   assert.equal(errors[0].errorCategory, 'internal_error');
 });
+
+test('staging subjects are prefixed and event keys suppress duplicate delivery', async () => {
+  const messages = [];
+  let recorded = false;
+  const fakePrisma = { auditLog: {
+    findFirst: async () => (recorded ? { id: 'delivery-1' } : null),
+    create: async () => { recorded = true; }
+  } };
+  const options = {
+    configuration: { emailNotificationsEnabled: true, otpFromEmail: 'sender@example.invalid', smtpUsername: 'sender@example.invalid' },
+    createTransporter: () => ({ sendMail: async (message) => { messages.push(message); } }),
+    logger: logger(), prismaClient: fakePrisma, eventKey: 'fixture:event:1'
+  };
+  const { sendNotification } = require('../src/services/notification-email.service');
+  await sendNotification({ to: 'fixture@example.invalid', subject: 'Fixture', html: '<p>Fixture</p>' }, options);
+  await sendNotification({ to: 'fixture@example.invalid', subject: 'Fixture', html: '<p>Fixture</p>' }, options);
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].subject, '[STAGING] Fixture');
+});

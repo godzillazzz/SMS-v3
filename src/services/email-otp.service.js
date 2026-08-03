@@ -144,8 +144,8 @@ function createOtpService({ prismaClient = prisma, auditService = audit, mailer 
       await auditService.log({ actorUserId: null, action: 'UPDATE', entityType: 'RegistrationRequest', entityId: challenge.userId, metadata: { emailVerified: true, accountStatus: 'PENDING' } }, tx);
     });
     if (user) {
-      const { notifyNewRegistration } = require('./notification-email.service');
-      notifyNewRegistration({ displayName: user.displayName, email: user.email, department: user.department }).catch(() => undefined);
+      const { notifyNewRegistrationForManagers } = require('./operational-notification.service');
+      notifyNewRegistrationForManagers({ displayName: user.displayName, department: user.department, userId: challenge.userId }).catch(() => undefined);
     }
     return { message: 'Email verified. Your account is awaiting administrator approval.' };
   }

@@ -35,6 +35,7 @@ async function submitRequest(data) {
   });
 
   notifyLeaveSubmitted({
+    leaveId: created.id,
     employeeName: `${emp.firstName} ${emp.lastName}`,
     leaveType,
     startDate: start,

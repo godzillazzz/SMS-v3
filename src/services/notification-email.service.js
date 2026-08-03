@@ -37,12 +37,22 @@ async function sendNotification({ to, subject, html, text }, options = {}) {
   const configuration = options.configuration || env;
   const log = options.logger || logger;
   const createConfiguredTransporter = options.createTransporter || createTransporter;
+  const eventKey = options.eventKey ? String(options.eventKey) : null;
+  const eventPrisma = options.prismaClient || prisma;
   if (configuration.emailNotificationsEnabled !== true) {
     log.info('Email notification skipped (system disabled)', { subject });
     return;
   }
   const recipients = Array.isArray(to) ? [...new Set(to.map((e) => String(e).trim().toLowerCase()).filter(Boolean))] : [String(to).trim().toLowerCase()];
   if (!recipients.length) return;
+
+  if (eventKey && eventPrisma?.auditLog?.findFirst) {
+    const delivered = await eventPrisma.auditLog.findFirst({ where: { entityType: 'NotificationEmail', entityId: eventKey }, select: { id: true } }).catch(() => null);
+    if (delivered) {
+      log.info('Email notification skipped (duplicate event)', { eventKey });
+      return;
+    }
+  }
 
   const transporter = createConfiguredTransporter(configuration);
   if (!transporter) {
@@ -51,14 +61,20 @@ async function sendNotification({ to, subject, html, text }, options = {}) {
   }
 
   try {
+    const outboundSubject = subject.startsWith('[STAGING]') ? subject : `[STAGING] ${subject}`;
     await transporter.sendMail({
       from: configuration.otpFromEmail || configuration.smtpUsername,
       to: recipients.join(', '),
-      subject,
+      subject: outboundSubject,
       text: text || html.replace(/<[^>]+>/g, ''),
       html
     });
-    log.info('Notification email sent successfully', { subject, recipientCount: recipients.length });
+    if (eventKey && eventPrisma?.auditLog?.create) {
+      await eventPrisma.auditLog.create({ data: { action: 'CREATE', entityType: 'NotificationEmail', entityId: eventKey, metadata: { recipientCount: recipients.length, subject: outboundSubject } } }).catch((error) => {
+        log.error('Notification idempotency record failed', { errorCategory: errorCategory(error) });
+      });
+    }
+    log.info('Notification email sent successfully', { subject: outboundSubject, recipientCount: recipients.length });
   } catch (error) {
     log.error('Failed to send notification email', { errorCategory: errorCategory(error), subject, recipientCount: recipients.length });
   }
@@ -128,25 +144,28 @@ async function notifyScheduleApproved({ month, approvedBy, revision }) {
  */
 async function notifyNewRegistration({ displayName, email, department }) {
   try {
-    const adminManagerEmails = await getAdminAndManagerEmails();
-    if (!adminManagerEmails.length) return;
+    const managers = await prisma.user.findMany({ where: { role: 'MANAGER', department: department || '__NO_DEPARTMENT__', isActive: true, accountStatus: 'ACTIVE', email: { not: '' } }, select: { email: true } });
+    const managerEmails = [...new Set(managers.map((user) => user.email.trim().toLowerCase()).filter(Boolean))];
+    if (!managerEmails.length) {
+      logger.warn('notification_missing_manager', { event: 'REGISTRATION_PENDING', department: department || null });
+      return;
+    }
 
     const subject = `SMS v3: มีคำขอลงทะเบียนเข้าใช้งานระบบใหม่ (${displayName})`;
     const html = `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">
         <h2 style="color: #2563eb; margin-top: 0;">👤 มีคำขอลงทะเบียนผู้ใช้งานใหม่</h2>
-        <p>เรียน ผู้ดูแลระบบ (Admins & Managers),</p>
+        <p>เรียน ผู้จัดการที่รับผิดชอบ,</p>
         <p>มีผู้ใช้งานใหม่ยืนยันตัวตนทางอีเมลเรียบร้อยแล้ว และรอการพิจารณากำหนดสิทธิ์เข้าใช้งาน:</p>
         <table style="border-collapse: collapse; margin: 15px 0; width: 100%; background: #f8fafc; border-radius: 8px;">
           <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 140px;">ชื่อ-นามสกุล:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${displayName}</td></tr>
-          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">อีเมล:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${email}</td></tr>
           <tr><td style="padding: 10px; font-weight: bold;">แผนก:</td><td style="padding: 10px;">${department || '-'}</td></tr>
         </table>
         <p>กรุณาเข้าสู่ระบบเพื่ออนุมัติบัญชีผู้ใช้ในหน้า <strong>จัดการผู้ใช้งาน (User Management)</strong></p>
         <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">ระบบ Security Management System v3</p>
       </div>
     `;
-    await sendNotification({ to: adminManagerEmails, subject, html });
+    await sendNotification({ to: managerEmails, subject, html }, { eventKey: `registration:${displayName}:${department || 'none'}:pending` });
   } catch (err) {
     logger.error('notifyNewRegistration failed', { error: err.message });
   }
@@ -155,7 +174,7 @@ async function notifyNewRegistration({ displayName, email, department }) {
 /**
  * 3. Leave request submitted -> Notify Admin & Manager group
  */
-async function notifyLeaveSubmitted({ employeeName, leaveType, startDate, endDate, dayCount, reason, substitute, department }) {
+async function notifyLeaveSubmitted({ leaveId, employeeName, leaveType, startDate, endDate, dayCount, reason, substitute, department }) {
   try {
     const adminManagerEmails = await getAdminAndManagerEmails();
     if (!adminManagerEmails.length) return;
@@ -180,7 +199,7 @@ async function notifyLeaveSubmitted({ employeeName, leaveType, startDate, endDat
         <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">ระบบ Security Management System v3</p>
       </div>
     `;
-    await sendNotification({ to: adminManagerEmails, subject, html });
+    await sendNotification({ to: adminManagerEmails, subject, html }, { eventKey: leaveId ? `leave:${leaveId}:SUBMITTED` : undefined });
   } catch (err) {
     logger.error('notifyLeaveSubmitted failed', { error: err.message });
   }
@@ -189,7 +208,7 @@ async function notifyLeaveSubmitted({ employeeName, leaveType, startDate, endDat
 /**
  * 4. Leave request approved/rejected -> Notify Requesting Employee AND Admin & Manager group
  */
-async function notifyLeaveProcessed({ leave, status, approverName }) {
+async function notifyLeaveProcessed({ leave, status, approverName, reason }) {
   try {
     const adminManagerEmails = await getAdminAndManagerEmails();
 
@@ -206,8 +225,10 @@ async function notifyLeaveProcessed({ leave, status, approverName }) {
     if (!recipients.length) return;
 
     const isApproved = status === 'APPROVED';
-    const statusText = isApproved ? 'อนุมัติแล้ว ✅' : 'ไม่อนุมัติ ❌';
-    const statusColor = isApproved ? '#059669' : '#dc2626';
+    const isCancelled = status === 'CANCELLED';
+    const isReturned = status === 'RETURNED_FOR_CORRECTION';
+    const statusText = isApproved ? 'อนุมัติแล้ว ✅' : isCancelled ? 'ยกเลิกแล้ว' : isReturned ? 'ส่งกลับแก้ไข' : 'ไม่อนุมัติ ❌';
+    const statusColor = isApproved ? '#059669' : isCancelled ? '#d97706' : isReturned ? '#2563eb' : '#dc2626';
 
     const startText = leave.startDate ? new Date(leave.startDate).toISOString().slice(0, 10) : '';
     const endText = leave.endDate ? new Date(leave.endDate).toISOString().slice(0, 10) : '';
@@ -226,13 +247,18 @@ async function notifyLeaveProcessed({ leave, status, approverName }) {
           <tr><td style="padding: 10px; font-weight: bold;">ผู้ดำเนินการ:</td><td style="padding: 10px;">${approverName || 'Admin/Manager'}</td></tr>
         </table>
         ${isApproved ? '<p style="color: #059669; font-weight: bold;">✓ ระบบได้ทำการอัปเดตกะ AL ลงในปฏิทินตารางกะเรียบร้อยแล้ว</p>' : ''}
+        ${reason ? `<p>เหตุผล: ${reason}</p>` : ''}
         <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">ระบบ Security Management System v3</p>
       </div>
     `;
-    await sendNotification({ to: recipients, subject, html });
+    await sendNotification({ to: recipients, subject, html }, { eventKey: leave?.id ? `leave:${leave.id}:${status}` : undefined });
   } catch (err) {
     logger.error('notifyLeaveProcessed failed', { error: err.message });
   }
+}
+
+async function notifyLeaveReturned({ leave, reason, approverName }) {
+  return notifyLeaveProcessed({ leave, status: 'RETURNED_FOR_CORRECTION', reason, approverName });
 }
 
 module.exports = {
@@ -240,6 +266,7 @@ module.exports = {
   notifyNewRegistration,
   notifyLeaveSubmitted,
   notifyLeaveProcessed,
+  notifyLeaveReturned,
   sendNotification,
   createTransporter
 };
