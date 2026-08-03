@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes vercel@56.4.1 list sms-v3-staging --limit 100 --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" > "$RUNNER_TEMP/deployments.json"
+          npx --yes vercel@56.4.1 list --all --limit 100 --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" > "$RUNNER_TEMP/deployments.json"
           node <<'NODE'
           const fs = require('fs');
           const value = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/deployments.json', 'utf8'));
