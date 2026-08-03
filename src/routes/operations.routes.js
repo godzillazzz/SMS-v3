@@ -295,6 +295,12 @@ router.post('/license-documents/:id/reject', authorize('ADMIN'), async (req, res
     res.json({ data: await licenseDocuments.reject({ id, requestUser: req.user, rejectionReason }) });
   } catch (error) { next(error); }
 });
+router.delete('/license-documents/:id/permanent', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    res.json({ data: await licenseDocuments.permanentlyDelete({ id, requestUser: req.user }) });
+  } catch (error) { next(error); }
+});
 router.delete('/licenses/:id', authorize('ADMIN'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);

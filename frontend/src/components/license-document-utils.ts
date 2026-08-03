@@ -69,6 +69,13 @@ export function selectLicenseDocumentSummary(documents: LicenseDocument[]) {
   };
 }
 
+export function canPermanentlyDeleteDocument(document: LicenseDocument, documents: LicenseDocument[]) {
+  if (!['RETURNED_FOR_CORRECTION', 'REJECTED', 'SUPERSEDED'].includes(document.status)) return false;
+  if (document.status === 'RETURNED_FOR_CORRECTION' && selectLicenseDocumentSummary(documents).returned.some((item) => item.id === document.id)) return false;
+  if (document.status === 'SUPERSEDED' && !documents.some((item) => item.status === 'APPROVED' && item.isCurrent)) return false;
+  return true;
+}
+
 export function selectLicenseDocumentForTable(documents: LicenseDocument[]) {
   const summary = selectLicenseDocumentSummary(documents);
   if (summary.current) return summary.current;

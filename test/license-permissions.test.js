@@ -16,6 +16,7 @@ test('license routes expose the intended role policy', () => {
   assert.match(routeSource, /router\.post\('\/license-documents\/:id\/return-for-correction', authorize\('ADMIN'\)/);
   assert.match(routeSource, /router\.post\('\/license-documents\/:id\/resubmit', authorize\('ADMIN', 'MANAGER'\)/);
   assert.match(routeSource, /router\.post\('\/license-documents\/:id\/reject', authorize\('ADMIN'\)/);
+  assert.match(routeSource, /router\.delete\('\/license-documents\/:id\/permanent', authorize\('ADMIN'\)/);
 });
 
 test('license document service grants manager access without department scope', () => {

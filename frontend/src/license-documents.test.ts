@@ -124,6 +124,14 @@ describe('license document table state', () => {
     expect(componentSource).toContain('MAX_LICENSE_DOCUMENT_BYTES');
     expect(componentSource).toContain('แก้ไขและส่งตรวจสอบใหม่');
   });
+
+  it('keeps permanent deletion inside the admin history flow', () => {
+    expect(componentSource).toContain('canPermanentlyDeleteDocument(document, documents)');
+    expect(componentSource).toContain('พิมพ์ DELETE เพื่อยืนยัน');
+    expect(componentSource).toContain('services.permanentlyDelete(document.id)');
+    expect(componentSource).toContain('ลบรายการและไฟล์ถาวรแล้ว');
+    expect(componentSource).toContain('isAdmin && canPermanentlyDeleteDocument');
+  });
 });
 
 describe('license document viewer and review', () => {
