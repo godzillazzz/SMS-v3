@@ -70,7 +70,7 @@ jobs:
           TARGET_SHA: ${{ inputs.commit_sha }}
         run: |
           set -euo pipefail
-          node scripts/ci/production-database-diagnostic.js validate-sha "$TARGET_SHA"
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'TARGET_SHA_INVALID'; exit 1; }
           git fetch --no-tags --depth=1 origin "$TARGET_SHA"
           git cat-file -e "${TARGET_SHA}^{commit}"
           echo 'TARGET_COMMIT_VALIDATED=true'

@@ -62,8 +62,13 @@ test('validates only full SHA-1 target commits', () => {
 });
 
 test('workflow fetches the validated target and keeps commit existence guard', () => {
-  assert.match(workflowSource, /validate-sha \"\$TARGET_SHA\"/);
+  assert.match(workflowSource, /\[\[ \"\$TARGET_SHA\" =~ \^\[0-9a-f\]\{40\}\$ \]\]/);
+  assert.match(workflowSource, /set -euo pipefail/);
   assert.match(workflowSource, /git fetch --no-tags --depth=1 origin \"\$TARGET_SHA\"/);
   assert.match(workflowSource, /git cat-file -e \"\$\{TARGET_SHA\}\^\{commit\}\"/);
+  assert.doesNotMatch(workflowSource, /node scripts\/ci\/production-database-diagnostic\.js validate-sha/);
+  const validationStart = workflowSource.indexOf('Fetch and validate exact diagnostic target commit');
+  const dependencyInstall = workflowSource.indexOf('run: npm ci');
+  assert.ok(validationStart >= 0 && dependencyInstall > validationStart);
   assert.doesNotMatch(workflowSource, /fetch-depth:\s*0/);
 });
