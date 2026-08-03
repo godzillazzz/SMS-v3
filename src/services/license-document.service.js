@@ -280,6 +280,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
     try {
       if (!document.storageDeletedAt) await storage.remove(document.storageObjectKey);
     } catch (_error) {
+      notifications?.reportOperationalAnomaly?.({ type: 'storage_failure', safeMessage: 'license_delete_storage_failure' }).catch(() => undefined);
       await prisma.employeeLicenseDocument.update({ where: { id }, data: { immediateDeletionRequestedAt: null, storageDeleteAfter: null, storageDeleteLastErrorAt: new Date(), storageDeleteLastErrorCode: 'HARD_DELETE_STORAGE_FAILED' } }).catch(() => undefined);
       throw new HttpError(503, 'The license document could not be permanently deleted.');
     }

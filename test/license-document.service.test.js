@@ -8,7 +8,7 @@ const { createFakeLicenseDocumentStorage } = require('./support/fake-license-doc
 const ids = { admin: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', manager: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', employee: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', license: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', document: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
 const pdf = { buffer: Buffer.from('%PDF-1.7\nfixture'), mimetype: 'application/pdf', originalname: '../guard license.pdf', size: 16 };
 
-function harness({ createFailure = false, deleteFailure = false, requireApprovalTransactionOptions = false } = {}) {
+function harness({ createFailure = false, deleteFailure = false, requireApprovalTransactionOptions = false, notifications = null } = {}) {
   const state = {
     license: { id: ids.license, employeeId: ids.employee, issueDate: new Date('2026-01-01'), expiryDate: new Date('2026-12-31') },
     employee: { id: ids.employee, department: 'Operations' },
@@ -42,10 +42,11 @@ function harness({ createFailure = false, deleteFailure = false, requireApproval
   } };
   prisma.employeeLicenseDocument = tx.employeeLicenseDocument;
   prisma.employeeLicenseDocument.update = tx.employeeLicenseDocument.update;
+  prisma.employeeLicenseDocument.findUnique = tx.employeeLicenseDocument.findUniqueOrThrow;
   const storage = createFakeLicenseDocumentStorage();
   const audit = { log: async (entry) => { state.audits.push(entry); return entry; } };
   const reconcileSchedules = async (...args) => state.reconciles.push(args);
-  return { state, storage, service: createLicenseDocumentService({ prisma, storage, audit, reconcileSchedules }) };
+  return { state, storage, service: createLicenseDocumentService({ prisma, storage, audit, reconcileSchedules, notifications }) };
 }
 
 test('upload creates PENDING metadata without changing master dates and uses a random object key', async () => {
@@ -238,4 +239,20 @@ test('permanent delete keeps the record and reports partial failure when databas
   await assert.rejects(() => service.permanentlyDelete({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } }), { statusCode: 503 });
   assert.equal(state.documents[0].storageDeletedAt instanceof Date, true);
   assert.equal(storage.objectExists('licenses/e/partial'), false);
+});
+
+test('permanent delete reports storage failure without claiming success', async () => {
+  const anomalies = [];
+  const { state, storage, service } = harness({ notifications: { reportOperationalAnomaly: async (event) => anomalies.push(event) } });
+  const id = ids.document;
+  state.documents.push({ id, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: 'licenses/e/anomaly', status: 'REJECTED', isCurrent: false, version: 1, uploadedAt: new Date('2026-01-01') });
+  await storage.put('licenses/e/anomaly', pdf);
+  storage.failNextRemove();
+
+  await assert.rejects(
+    () => service.permanentlyDelete({ id, requestUser: { sub: ids.admin, role: 'ADMIN' } }),
+    { statusCode: 503, message: 'The license document could not be permanently deleted.' }
+  );
+  assert.deepEqual(anomalies, [{ type: 'storage_failure', safeMessage: 'license_delete_storage_failure' }]);
+  assert.equal(state.documents[0].status, 'REJECTED');
 });
