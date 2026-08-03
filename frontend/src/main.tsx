@@ -21,6 +21,8 @@ import { AccessManagementPage } from './pages/access-management/AccessManagement
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
 import { LicenseEditModal, LicenseTableDocumentColumns } from './components/LicenseDocuments';
 import { MAX_LICENSE_DOCUMENT_BYTES, sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
+
+const MAX_LEAVE_ATTACHMENT_BYTES = 2 * 1024 * 1024;
 import './styles/license-table.css';
 import './styles/responsive-shell.css';
 import './styles/action-system.css';
@@ -985,6 +987,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, employee
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!formReady) return;
+    if (file && file.size > MAX_LEAVE_ATTACHMENT_BYTES) { setNotice('ไฟล์ต้องมีขนาดไม่เกิน 2 MB'); return; }
     setSubmitting(true); setNotice(undefined);
     try {
       const payload: Record<string, string> = { ...form };
@@ -1449,9 +1452,12 @@ function Dashboard() {
     if (activePage === 'schedule') openShiftEditor();
     if (activePage === 'leave') runEditor({
       title: 'สร้างคำขอลา', submitLabel: 'ส่งคำขอลา',
-      fields: [{ name: 'employeeId', label: 'พนักงาน', type: 'select', required: auth.user?.role !== 'VIEWER', options: employeeOptions }, { name: 'leaveType', label: 'ประเภทการลา', type: 'select', required: true, options: ['ลาป่วย', 'ลากิจ', 'ลาพักร้อน'].map((value) => ({ value, label: value })) }, { name: 'startDate', label: 'วันที่เริ่ม', type: 'date', required: true }, { name: 'endDate', label: 'วันที่สิ้นสุด', type: 'date', required: true }, { name: 'substitute', label: 'ผู้เข้าเวร / ปฏิบัติงานแทน', required: true }, { name: 'reason', label: 'เหตุผล', type: 'textarea' }, { name: 'attachment', label: 'ไฟล์แนบ (ถ้ามี)', type: 'file', accept: '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png', hint: 'PDF, JPG หรือ PNG ขนาดไม่เกิน 4 MB' }],
+      fields: [{ name: 'employeeId', label: 'พนักงาน', type: 'select', required: auth.user?.role !== 'VIEWER', options: employeeOptions }, { name: 'leaveType', label: 'ประเภทการลา', type: 'select', required: true, options: ['ลาป่วย', 'ลากิจ', 'ลาพักร้อน'].map((value) => ({ value, label: value })) }, { name: 'startDate', label: 'วันที่เริ่ม', type: 'date', required: true }, { name: 'endDate', label: 'วันที่สิ้นสุด', type: 'date', required: true }, { name: 'substitute', label: 'ผู้เข้าเวร / ปฏิบัติงานแทน', required: true }, { name: 'reason', label: 'เหตุผล', type: 'textarea' }, { name: 'attachment', label: 'ไฟล์แนบ (ถ้ามี)', type: 'file', accept: '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png', hint: 'PDF, JPG หรือ PNG ขนาดไม่เกิน 2 MB' }],
       values: {}
-    }, (form, files) => files.attachment ? api.createLeaveRequestWithAttachment(auth.token!, form, files.attachment) : api.createLeaveRequest(auth.token!, formPayload(form)));
+    }, (form, files) => {
+      if (files.attachment && files.attachment.size > MAX_LEAVE_ATTACHMENT_BYTES) return Promise.reject(new Error('ไฟล์ต้องมีขนาดไม่เกิน 2 MB'));
+      return files.attachment ? api.createLeaveRequestWithAttachment(auth.token!, form, files.attachment) : api.createLeaveRequest(auth.token!, formPayload(form));
+    });
   };
 
   const openShiftTypeCreator = () => runEditor({

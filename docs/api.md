@@ -25,6 +25,6 @@ Mobile clients use the same versioned REST API and bearer-token authentication. 
 - `POST /schedule/auto-preview` (Admin) calculates the legacy Supervisor/rotating schedule without writing. Locked assignments and approved leave (`AL`) are preserved.
 - `POST /schedule/auto-commit` (Admin) recalculates and writes the preview atomically, creates a pending schedule revision, and writes an audit event.
 - `POST /schedule/export.xlsx` exports only the latest approved revision. The workbook contains one formatted worksheet per selected department, shift colors, totals, legend, Buddhist-year heading, and signature sections.
-- `POST /leave-requests/with-attachment` accepts multipart form data with one optional `attachment` (PDF, JPEG, or PNG; maximum 4 MB). Binary content is stored transactionally in PostgreSQL and never returned in JSON.
+- `POST /leave-requests/with-attachment` accepts multipart form data with one optional `attachment` (PDF, JPEG, or PNG; maximum 2 MB). Binary content is stored transactionally in PostgreSQL and never returned in JSON.
 - `GET /leave-requests/:id/attachment` streams an authorized attachment with private, no-store headers. A Viewer can access only their own leave attachment.
 - `POST /users/:id/view-as` (Admin) issues a ten-minute, memory-only, read-only access token for the selected active account. It creates no refresh session and all mutation attempts are rejected server-side.
