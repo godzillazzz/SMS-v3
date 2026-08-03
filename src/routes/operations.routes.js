@@ -47,8 +47,8 @@ const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string()
 const leaveListQuery = paging.extend({ status: z.string().trim().min(1).max(100).optional(), employeeId: uuid.optional(), department: z.string().trim().max(100).optional(), search: z.string().trim().max(255).optional(), year: z.coerce.number().int().optional(), month: z.coerce.number().int().optional() });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('attachment');
 const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'Attachment must not exceed 4 MB.' : 'Attachment upload is invalid.')) : next());
-const licenseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('document');
-const licenseDocumentUpload = (req, res, next) => licenseUpload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'License document must not exceed 4 MB.' : 'License document upload is invalid.')) : next());
+const licenseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 12 } }).single('document');
+const licenseDocumentUpload = (req, res, next) => licenseUpload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ต้องมีขนาดไม่เกิน 2 MB' : 'License document upload is invalid.')) : next());
 const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const authorizedLicenseReconciliationCron = (req) => {
   const secret = process.env.CRON_SECRET;

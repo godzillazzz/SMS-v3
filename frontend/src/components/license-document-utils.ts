@@ -1,5 +1,7 @@
 export type LicenseDocumentStatus = 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED' | 'EXPIRED';
 
+export const MAX_LICENSE_DOCUMENT_BYTES = 2 * 1024 * 1024;
+
 export type LicenseDocument = {
   id: string;
   employeeId: string;
@@ -49,10 +51,19 @@ export function sortLicenseDocuments(documents: LicenseDocument[]) {
 
 export function selectLicenseDocumentSummary(documents: LicenseDocument[]) {
   const sorted = sortLicenseDocuments(documents);
+  const returned = sorted.filter((item) => {
+    if (item.status !== 'RETURNED_FOR_CORRECTION' || item.resubmittedAt) return false;
+    return !sorted.some((newer) => {
+      if (newer.id === item.id || !['PENDING', 'APPROVED', 'REJECTED', 'SUPERSEDED'].includes(newer.status)) return false;
+      if (Number(newer.version) > Number(item.version)) return true;
+      if (Number(newer.version) < Number(item.version)) return false;
+      return new Date(newer.uploadedAt).getTime() > new Date(item.uploadedAt).getTime();
+    });
+  }).slice(0, 1);
   return {
     current: sorted.find((item) => item.status === 'APPROVED' && item.isCurrent),
     pending: sorted.filter((item) => item.status === 'PENDING'),
-    returned: sorted.filter((item) => item.status === 'RETURNED_FOR_CORRECTION'),
+    returned,
     latestRejected: sorted.find((item) => item.status === 'REJECTED'),
     latestExpired: sorted.find((item) => item.status === 'EXPIRED')
   };
