@@ -7,7 +7,9 @@ const {
   classifyTargetValues,
   redactDiagnosticText,
   validateTargetSha,
-  probeDatabase
+  probeDatabase,
+  connectionDiagnostics,
+  normalizeConnectionValue
 } = require('../scripts/ci/production-database-diagnostic');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -55,6 +57,7 @@ test('classifies Prisma connectivity failures', () => {
   assert.equal(classifyConnectivityOutput('P1002 timed out', 1).classification, 'TIMEOUT');
   assert.equal(classifyConnectivityOutput('P2024 connection pool timeout', 1).classification, 'POOL_EXHAUSTED');
   assert.equal(classifyConnectivityOutput('P1012 invalid datasource', 1).classification, 'CONFIG_ERROR');
+  assert.equal(classifyConnectivityOutput('DATABASE_URL MALFORMED_URL', 1).classification, 'CONFIG_ERROR');
   assert.equal(classifyConnectivityOutput('', 1).classification, 'UNKNOWN');
 });
 
@@ -79,17 +82,18 @@ test('workflow fetches the validated target and keeps commit existence guard', (
 
 test('runs one SELECT 1 with the existing client and disconnects without a Prisma schema', async () => {
   const envFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-diagnostic-test-')), 'vercel.env');
-  fs.writeFileSync(envFile, 'DATABASE_URL=postgresql://redacted\nDIRECT_URL=postgresql://redacted\n');
+  fs.writeFileSync(envFile, 'DATABASE_URL=postgresql://user:pass@db.example.test:5432/app\nDIRECT_URL=postgresql://user:pass@db.example.test:5432/app\n');
   let queryCount = 0;
   let disconnectCount = 0;
   const result = await probeDatabase(envFile, {
     clientFactory: () => ({
-      $queryRawUnsafe: async (query) => {
+      connect: async () => {},
+      query: async (query) => {
         queryCount += 1;
         assert.equal(query, 'SELECT 1');
         return [{ '?column?': 1 }];
       },
-      $disconnect: async () => {
+      end: async () => {
         disconnectCount += 1;
       }
     })
@@ -98,4 +102,24 @@ test('runs one SELECT 1 with the existing client and disconnects without a Prism
   assert.equal(result.classification, 'PASS');
   assert.equal(queryCount, 1);
   assert.equal(disconnectCount, 1);
+});
+
+test('parses PostgreSQL protocols and normalizes harmless quoting without exposing URL data', () => {
+  const quoted = connectionDiagnostics('"postgresql://user:pass@db.example.test:5432/app"');
+  assert.equal(quoted.raw.ok, false);
+  assert.equal(quoted.raw.reason, 'QUOTED_VALUE');
+  assert.equal(quoted.normalized.ok, true);
+  assert.equal(quoted.normalized.protocol, 'postgresql:');
+  assert.equal(quoted.normalized.port, '5432');
+  assert.deepEqual({
+    hasHost: quoted.normalized.hasHost,
+    hasUser: quoted.normalized.hasUser,
+    hasPassword: quoted.normalized.hasPassword,
+    hasDatabase: quoted.normalized.hasDatabase
+  }, { hasHost: true, hasUser: true, hasPassword: true, hasDatabase: true });
+  const postgres = connectionDiagnostics('postgres://user:pass@db.example.test:6543/app');
+  assert.equal(postgres.normalized.ok, true);
+  assert.equal(postgres.normalized.protocol, 'postgres:');
+  assert.equal(normalizeConnectionValue('  value  ').normalizedValue, 'value');
+  assert.equal(connectionDiagnostics('postgresql:///app').normalized.reason, 'MISSING_HOST');
 });
