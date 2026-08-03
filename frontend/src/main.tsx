@@ -589,7 +589,8 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     approve: async (documentId: string) => { await api.approveLicenseDocument(token!, documentId); },
     returnForCorrection: async (documentId: string, reason: string) => { await api.returnLicenseDocumentForCorrection(token!, documentId, reason); },
     resubmit: async (documentId: string, data: { licenseNumber: string; proposedStartDate: string; proposedExpiryDate: string; note?: string }, file?: File) => { await api.resubmitLicenseDocument(token!, documentId, data, file); },
-    reject: async (documentId: string, reason: string) => { await api.rejectLicenseDocument(token!, documentId, reason); }
+    reject: async (documentId: string, reason: string) => { await api.rejectLicenseDocument(token!, documentId, reason); },
+    permanentlyDelete: async (documentId: string) => { await api.permanentlyDeleteLicenseDocument(token!, documentId); }
   };
   const tableValue = (row: DataRow, column: { label: string; value: (row: DataRow) => React.ReactNode }) => column.value(row);
   const licenseIdentity = (row: DataRow) => { const employee = nested(row.employee); return { id: String(row.id), licenseNumber: row.licenseNumber ? String(row.licenseNumber) : null, licenseType: row.licenseType ? String(row.licenseType) : null, issueDate: row.issueDate ? String(row.issueDate) : null, expiryDate: row.expiryDate ? String(row.expiryDate) : null, status: row.status ? String(row.status) : null, employee: { employeeCode: String(employee.employeeCode || ''), firstName: String(employee.firstName || ''), lastName: String(employee.lastName || ''), department: employee.department ? String(employee.department) : undefined } }; };
@@ -1353,7 +1354,8 @@ function Dashboard() {
     approve: async (documentId: string) => { await api.approveLicenseDocument(auth.token!, documentId); },
     returnForCorrection: async (documentId: string, reason: string) => { await api.returnLicenseDocumentForCorrection(auth.token!, documentId, reason); },
     resubmit: async (documentId: string, data: { licenseNumber: string; proposedStartDate: string; proposedExpiryDate: string; note?: string }, file?: File) => { await api.resubmitLicenseDocument(auth.token!, documentId, data, file); },
-    reject: async (documentId: string, reason: string) => { await api.rejectLicenseDocument(auth.token!, documentId, reason); }
+    reject: async (documentId: string, reason: string) => { await api.rejectLicenseDocument(auth.token!, documentId, reason); },
+    permanentlyDelete: async (documentId: string) => { await api.permanentlyDeleteLicenseDocument(auth.token!, documentId); }
   };
   const openLicenseEdit = (row: DataRow) => { if (auth.token) setLicenseEditTarget(row); };
 
@@ -1470,12 +1472,12 @@ function Dashboard() {
       runEditor({
         title: `แนบใบอนุญาต · ${text(employee.employeeCode)} ${text(employee.firstName)} ${text(employee.lastName)}`,
         submitLabel: 'ส่งตรวจสอบ',
-        fields: [{ name: 'licenseNumber', label: 'เลขใบอนุญาต', required: true }, { name: 'document', label: 'ไฟล์ใบอนุญาต', type: 'file', required: true, accept: '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png', hint: 'PDF, JPG หรือ PNG ขนาดไม่เกิน 4 MB' }, { name: 'proposedStartDate', label: 'วันที่เริ่มต้น', type: 'date', required: true }, { name: 'proposedExpiryDate', label: 'วันหมดอายุ', type: 'date', required: true }, { name: 'note', label: 'หมายเหตุ', type: 'textarea' }],
+      fields: [{ name: 'licenseNumber', label: 'เลขใบอนุญาต', required: true }, { name: 'document', label: 'ไฟล์ใบอนุญาต', type: 'file', required: true, accept: '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png', hint: 'PDF, JPG หรือ PNG ขนาดไม่เกิน 2 MB' }, { name: 'proposedStartDate', label: 'วันที่เริ่มต้น', type: 'date', required: true }, { name: 'proposedExpiryDate', label: 'วันหมดอายุ', type: 'date', required: true }, { name: 'note', label: 'หมายเหตุ', type: 'textarea' }],
         values: { licenseNumber: String(row.licenseNumber || ''), proposedStartDate: inputDate(row.issueDate), proposedExpiryDate: inputDate(row.expiryDate) }
       }, (form, files) => {
         const document = files.document;
         if (!document) return Promise.reject(new Error('กรุณาเลือกไฟล์ใบอนุญาต'));
-        if (document.size > 4 * 1024 * 1024) return Promise.reject(new Error('ไฟล์ต้องมีขนาดไม่เกิน 4 MB'));
+        if (document.size > 2 * 1024 * 1024) return Promise.reject(new Error('ไฟล์ต้องมีขนาดไม่เกิน 2 MB'));
         if (!['application/pdf', 'image/jpeg', 'image/png'].includes(document.type)) return Promise.reject(new Error('รองรับเฉพาะ PDF, JPG และ PNG'));
         if (!form.proposedStartDate || !form.proposedExpiryDate || form.proposedStartDate > form.proposedExpiryDate) return Promise.reject(new Error('วันที่เริ่มต้นต้องไม่เกินวันหมดอายุ'));
         return api.uploadLicenseDocument(auth.token!, id, { licenseNumber: form.licenseNumber, proposedStartDate: form.proposedStartDate, proposedExpiryDate: form.proposedExpiryDate, note: form.note }, document).catch((reason: unknown) => Promise.reject(new Error(sanitizeLicenseDocumentError(reason))));

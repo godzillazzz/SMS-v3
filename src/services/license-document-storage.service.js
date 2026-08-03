@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const HttpError = require('../utils/http-error');
 
-const MAX_FILE_SIZE = 4 * 1024 * 1024;
+const MAX_FILE_SIZE = 2 * 1024 * 1024;
 const MIME_BY_SIGNATURE = new Map([
   ['pdf', 'application/pdf'], ['jpeg', 'image/jpeg'], ['png', 'image/png']
 ]);
@@ -15,7 +15,7 @@ function detectedType(buffer) {
 
 function validateUpload(file) {
   if (!file || !Buffer.isBuffer(file.buffer)) throw new HttpError(400, 'License document is required.');
-  if (file.size > MAX_FILE_SIZE) throw new HttpError(400, 'License document must not exceed 4 MB.');
+  if (file.size > MAX_FILE_SIZE) throw new HttpError(400, 'ไฟล์ต้องมีขนาดไม่เกิน 2 MB');
   const type = detectedType(file.buffer);
   if (!type || file.mimetype !== MIME_BY_SIGNATURE.get(type)) throw new HttpError(415, 'License document must be a valid PDF, JPEG, or PNG.');
   return { mimeType: MIME_BY_SIGNATURE.get(type), checksum: crypto.createHash('sha256').update(file.buffer).digest('hex') };

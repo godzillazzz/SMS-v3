@@ -85,6 +85,22 @@ describe('license document table state', () => {
     expect(componentSource).toContain('ฉบับต่ออายุรอตรวจสอบ');
   });
 
+  it('hides a returned record when a newer pending document exists', () => {
+    const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 2, correctionReason: 'แก้วันที่' });
+    const pending = documentRow({ id: 'pending-new', status: 'PENDING', version: 3 });
+    const summary = selectLicenseDocumentSummary([returned, pending]);
+    expect(summary.returned).toEqual([]);
+    expect(licenseTableStatus([returned, pending]).label).toBe('รอตรวจสอบ');
+  });
+
+  it('keeps an older returned record in history while an approved replacement is current', () => {
+    const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 2 });
+    const approved = documentRow({ id: 'approved-new', status: 'APPROVED', isCurrent: true, version: 3 });
+    const summary = selectLicenseDocumentSummary([returned, approved]);
+    expect(summary.returned).toEqual([]);
+    expect(sortLicenseDocuments([returned, approved]).map((item) => item.id)).toEqual(['approved-new', 'returned']);
+  });
+
   it('keeps approved current data while exposing a returned correction request', () => {
     const current = documentRow({ id: 'approved', status: 'APPROVED', isCurrent: true, version: 2 });
     const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 3, correctionReason: 'แก้วันที่' });
@@ -100,6 +116,21 @@ describe('license document table state', () => {
     expect(licenseValidityLabel('2026-01-01', '2026-07-30', 'Active', now)).toBe('หมดอายุ');
     expect(licenseValidityLabel('2026-01-01', '2026-08-15', 'Active', now)).toBe('ใกล้หมดอายุ');
     expect(licenseValidityLabel('2026-01-01', '2027-01-01', 'Active', now)).toBe('ปกติ');
+  });
+
+  it('keeps the upload form and 2 MB license contract visible in the modal', () => {
+    expect(componentSource).toContain('แนบใบอนุญาตใหม่');
+    expect(componentSource).toContain('ขนาดไม่เกิน 2 MB');
+    expect(componentSource).toContain('MAX_LICENSE_DOCUMENT_BYTES');
+    expect(componentSource).toContain('แก้ไขและส่งตรวจสอบใหม่');
+  });
+
+  it('keeps permanent deletion inside the admin history flow', () => {
+    expect(componentSource).toContain('canPermanentlyDeleteDocument(document, documents)');
+    expect(componentSource).toContain('พิมพ์ DELETE เพื่อยืนยัน');
+    expect(componentSource).toContain('services.permanentlyDelete(document.id)');
+    expect(componentSource).toContain('ลบรายการและไฟล์ถาวรแล้ว');
+    expect(componentSource).toContain('isAdmin && canPermanentlyDeleteDocument');
   });
 });
 
