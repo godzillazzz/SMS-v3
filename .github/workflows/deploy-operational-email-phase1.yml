@@ -1,0 +1,174 @@
+name: Deploy operational email Phase 1
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Full commit SHA to deploy
+        required: true
+        type: string
+        default: e15d76ad1907a6fae0c28f1859f64e506ca2841a
+      target_project:
+        description: Type sms-v3-staging to confirm the target
+        required: true
+        type: string
+        default: sms-v3-staging
+
+concurrency:
+  group: sms-v3-staging-operational-email-phase1
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  MIGRATION_NAME: 202608030001_email_delivery_reservations
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    permissions:
+      contents: read
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      DISABLE_EMAIL_NOTIFICATIONS: ${{ secrets.DISABLE_EMAIL_NOTIFICATIONS }}
+      OTP_DELIVERY_PROVIDER: ${{ secrets.OTP_DELIVERY_PROVIDER }}
+      OTP_HASH_SECRET: ${{ secrets.OTP_HASH_SECRET }}
+      OTP_FROM_EMAIL: ${{ secrets.OTP_FROM_EMAIL }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha }}
+          fetch-depth: 1
+
+      - name: Validate branch, SHA, and target
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+          TARGET_PROJECT: ${{ inputs.target_project }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TARGET_PROJECT" == "$EXPECTED_PROJECT_NAME" ]]
+          [[ "$VERCEL_PROJECT_ID" == "$EXPECTED_PROJECT_ID" ]]
+          [[ "$VERCEL_ORG_ID" == "$EXPECTED_ORG_ID" ]]
+          [[ "$(git rev-parse HEAD)" == "$TARGET_SHA" ]]
+          [[ -f prisma/migrations/$MIGRATION_NAME/migration.sql ]]
+          echo "TARGET_PROJECT=$EXPECTED_PROJECT_NAME"
+          echo "TARGET_PROJECT_ID_MATCH=true"
+          echo "TARGET_ORG_ID_MATCH=true"
+          echo "TARGET_SHA_VALID=true"
+
+      - name: Check required environment presence
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL DIRECT_URL DISABLE_EMAIL_NOTIFICATIONS OTP_DELIVERY_PROVIDER OTP_HASH_SECRET OTP_FROM_EMAIL SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USERNAME SMTP_PASSWORD; do
+            if [[ -n "${!name:-}" ]]; then
+              echo "$name=PRESENT"
+            else
+              echo "$name=MISSING"
+            fi
+          done
+          [[ -n "${VERCEL_TOKEN:-}" && -n "${VERCEL_ORG_ID:-}" && -n "${VERCEL_PROJECT_ID:-}" ]]
+          [[ -n "${DATABASE_URL:-}" && -n "${DIRECT_URL:-}" ]]
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify Vercel project linkage
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .vercel
+          chmod 700 .vercel
+          printf '%s\n' '{"projectId":"'"$EXPECTED_PROJECT_ID"'","orgId":"'"$EXPECTED_ORG_ID"'"}' > .vercel/project.json
+          test "$(node -e "const p=require('./.vercel/project.json'); process.stdout.write(p.projectId)" )" = "$EXPECTED_PROJECT_ID"
+          test "$(node -e "const p=require('./.vercel/project.json'); process.stdout.write(p.orgId)" )" = "$EXPECTED_ORG_ID"
+          npx --yes vercel@56.4.1 pull --yes --environment=production --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/phase1-vercel-pull.log 2>&1
+
+      - name: Apply additive migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx prisma migrate deploy
+          npx prisma migrate status
+
+      - name: Verify migration result
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_output="$(npx prisma migrate status 2>&1)"
+          if grep -Eiq 'pending|not in sync|drift|failed migration|diverg' <<<"$status_output"; then
+            echo "MIGRATION_STATUS_REQUIRES_REVIEW=true"
+            exit 1
+          fi
+          echo "MIGRATION=$MIGRATION_NAME"
+          echo "PENDING_MIGRATIONS=0"
+
+      - name: Deploy source to Production
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@56.4.1 deploy --prod --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json > /tmp/phase1-deploy.json 2>/tmp/phase1-deploy.err
+          node <<'NODE'
+          const fs = require('fs');
+          const value = JSON.parse(fs.readFileSync('/tmp/phase1-deploy.json', 'utf8'));
+          const url = value.url || value.deployment?.url;
+          const id = value.id || value.deployment?.id;
+          if (!url || !id) process.exit(1);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `deployment_id=${id}\ndeployment_url=https://${url}\n`);
+          NODE
+
+      - name: Wait for READY
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            state="$(npx --yes vercel@56.4.1 inspect "$DEPLOYMENT_URL" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json 2>/dev/null | node -e "let s=''; process.stdin.on('data',d=>s+=d).on('end',()=>{try{const v=JSON.parse(s); process.stdout.write(String(v.readyState||v.state||v.status||''))}catch{process.stdout.write('')}})")"
+            if [[ "$state" == "READY" ]]; then echo "DEPLOYMENT_READY=true"; exit 0; fi
+            if [[ "$state" == "ERROR" || "$state" == "CANCELED" ]]; then echo "DEPLOYMENT_READY=false"; exit 1; fi
+            sleep 10
+          done
+          echo "DEPLOYMENT_READY=false"
+          exit 1
+
+      - name: Verify canonical health and readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$CANONICAL_URL/")" = 200
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$CANONICAL_URL/login")" = 200
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$CANONICAL_URL/api/v1/health")" = 200
+          for attempt in 1 2 3; do
+            body="$(curl --silent --show-error --fail "$CANONICAL_URL/api/v1/ready")"
+            node -e 'const v=JSON.parse(process.argv[1]); if(v.status!=="ready" || v.database!=="ok") process.exit(1)' "$body"
+            echo "READINESS_$attempt=200,status=ready,database=ok"
+          done
+
+      - name: No email smoke test
+        run: echo "EMAIL_SMOKE_TEST=OWNER_CONTROLLED"
+
+      - name: Cleanup temporary deployment files
+        if: always()
+        shell: bash
+        run: rm -rf .vercel .env.production.local .env*.local /tmp/phase1-vercel-pull.log /tmp/phase1-deploy.json /tmp/phase1-deploy.err
