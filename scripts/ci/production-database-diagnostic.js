@@ -133,6 +133,10 @@ function parsePulledEnvironment(filePath) {
   return parse(fs.readFileSync(filePath, 'utf8'));
 }
 
+function validateTargetSha(value) {
+  return /^[0-9a-f]{40}$/.test(String(value || ''));
+}
+
 function npxCommand() {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx';
 }
@@ -166,6 +170,14 @@ function probeDatabase(filePath, { schemaPath = path.join(process.cwd(), 'prisma
 
 function main() {
   const [command, filePath] = process.argv.slice(2);
+  if (command === 'validate-sha') {
+    if (!validateTargetSha(filePath)) {
+      console.error('TARGET_SHA_INVALID');
+      return 1;
+    }
+    console.log('TARGET_SHA_FORMAT=VALID');
+    return 0;
+  }
   if (!filePath || !['format', 'probe'].includes(command)) {
     console.error('Usage: production-database-diagnostic.js <format|probe> <env-file>');
     return 2;
@@ -192,5 +204,6 @@ module.exports = {
   parsePulledEnvironment,
   probeDatabase,
   redactDiagnosticText,
-  summarizeTarget
+  summarizeTarget,
+  validateTargetSha
 };

@@ -50,6 +50,8 @@ jobs:
 
       - name: Check target and secret presence
         shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.commit_sha }}
         run: |
           set -euo pipefail
           test "${{ inputs.confirm_project_name }}" = "$EXPECTED_PROJECT_NAME"
@@ -59,9 +61,19 @@ jobs:
           test -n "$VERCEL_PROJECT_ID" && echo 'VERCEL_PROJECT_ID=PRESENT' || { echo 'VERCEL_PROJECT_ID=MISSING'; exit 1; }
           test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
           test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
-          git cat-file -e "${{ inputs.commit_sha }}^{commit}"
           mkdir -p "$DIAGNOSTIC_DIR"
           chmod 700 "$DIAGNOSTIC_DIR"
+
+      - name: Fetch and validate exact diagnostic target commit
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          node scripts/ci/production-database-diagnostic.js validate-sha "$TARGET_SHA"
+          git fetch --no-tags --depth=1 origin "$TARGET_SHA"
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          echo 'TARGET_COMMIT_VALIDATED=true'
 
       - name: Install read-only diagnostic dependencies
         run: npm ci
