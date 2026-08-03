@@ -85,6 +85,15 @@ describe('API client', () => {
     expect(options.body.get('document')).toBeNull();
     expect(JSON.stringify(fetchMock.mock.calls)).not.toContain('storageObjectKey');
   });
+  it('uses the admin-only permanent delete endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: { deleted: true } }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    await api.permanentlyDeleteLicenseDocument('test-access-token', 'document-id');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/license-documents/document-id/permanent');
+    expect(fetchMock.mock.calls[0][1].method).toBe('DELETE');
+    expect(fetchMock.mock.calls[0][1].headers.get('Authorization')).toBe('Bearer test-access-token');
+  });
   it('adds a safe reference ID only to sanitized server errors', () => {
     expect(sanitizeLicenseDocumentError(new ApiRequestError('Database unavailable.', 503, 'req-db-503'))).toBe('ระบบไม่สามารถดำเนินการเอกสารได้ชั่วคราว กรุณาลองใหม่อีกครั้ง (รหัสอ้างอิง: req-db-503)');
     expect(sanitizeLicenseDocumentError(new ApiRequestError('คุณไม่มีสิทธิ์อนุมัติเอกสารนี้', 403, 'req-auth-403'))).toBe('คุณไม่มีสิทธิ์อนุมัติเอกสารนี้');

@@ -10,6 +10,8 @@ import {
   licenseTableStatus,
   selectLicenseDocumentForTable,
   selectLicenseDocumentSummary,
+  selectActiveReturnedDocument,
+  canPermanentlyDeleteDocument,
   sortLicenseDocuments
 } from './components/license-document-utils';
 
@@ -85,14 +87,34 @@ describe('license document table state', () => {
     expect(componentSource).toContain('ฉบับต่ออายุรอตรวจสอบ');
   });
 
-  it('keeps approved current data while exposing a returned correction request', () => {
+  it('keeps approved current data while exposing an active returned correction request', () => {
     const current = documentRow({ id: 'approved', status: 'APPROVED', isCurrent: true, version: 2 });
     const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 3, correctionReason: 'แก้วันที่' });
     const summary = selectLicenseDocumentSummary([current, returned]);
     expect(summary.current?.id).toBe('approved');
     expect(summary.returned.map((item) => item.id)).toEqual(['returned']);
+    expect(summary.activeReturned?.id).toBe('returned');
     expect(licenseTableStatus([current, returned]).label).toBe('มีรายการส่งกลับแก้ไข');
     expect(componentSource).toContain('แก้ไขและส่งตรวจสอบใหม่');
+  });
+
+  it('hides an old returned correction after a newer approved replacement', () => {
+    const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 2, correctionReason: 'แก้วันที่' });
+    const approved = documentRow({ id: 'approved', status: 'APPROVED', isCurrent: true, version: 3 });
+    const documents = [returned, approved];
+    expect(selectActiveReturnedDocument(documents)).toBeUndefined();
+    expect(selectLicenseDocumentSummary(documents).activeReturned).toBeUndefined();
+    expect(licenseTableStatus(documents).label).toBe('อนุมัติแล้ว');
+  });
+
+  it('hides a returned correction after resubmission and permits only historical deletion', () => {
+    const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 1, resubmittedAt: '2026-08-01T00:00:00Z' });
+    const pending = documentRow({ id: 'pending', status: 'PENDING', version: 2 });
+    const approved = documentRow({ id: 'approved', status: 'APPROVED', isCurrent: true, version: 3 });
+    expect(selectActiveReturnedDocument([returned, pending, approved])).toBeUndefined();
+    expect(canPermanentlyDeleteDocument(returned, [returned, pending, approved])).toBe(true);
+    expect(canPermanentlyDeleteDocument(approved, [returned, pending, approved])).toBe(false);
+    expect(canPermanentlyDeleteDocument(pending, [returned, pending, approved])).toBe(false);
   });
 
   it('uses status-based compact view for an approved current document', () => {
@@ -113,7 +135,7 @@ describe('license document table state', () => {
   });
 
   it('keeps active correction actions and history available', () => {
-    expect(componentSource).toContain('const activeReturnedDocuments = summary.returned.filter');
+    expect(componentSource).toContain('const activeReturnedDocuments = summary.activeReturned ? [summary.activeReturned] : []');
     expect(componentSource).toContain('activeReturnedDocuments.map(documentLine)');
     expect(componentSource).toContain('onClick={() => setCorrectionDocument(document)}');
     expect(componentSource).toContain('setHistoryOpen(true)');
@@ -202,6 +224,14 @@ describe('license document viewer and review', () => {
     expect(componentSource).toContain('className="btn-ghost license-view-button"');
     expect(componentSource).toContain("setMode('reject')");
     expect(componentSource).toContain('onClick={() => setMode(\'approve\')}');
+  });
+
+  it('exposes admin-only permanent deletion with explicit confirmation and refresh', () => {
+    expect(componentSource).toContain('canPermanentlyDeleteDocument(document, documents)');
+    expect(componentSource).toContain('พิมพ์ DELETE เพื่อยืนยัน');
+    expect(componentSource).toContain('ลบรายการและไฟล์ถาวรแล้ว');
+    expect(componentSource).toContain('services.permanentlyDelete(document.id)');
+    expect(componentSource).toContain('isAdmin && canPermanentlyDeleteDocument');
   });
 });
 
