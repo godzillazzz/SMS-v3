@@ -160,38 +160,54 @@ jobs:
           BUILD_EXIT: ${{ steps.vercel_build.outputs.exit }}
         run: |
           set -euo pipefail
-          sanitize() {
-            sed -E \
-              -e 's#https?://[^[:space:]"'"'']+#<URL_REDACTED>#g' \
-              -e 's#(Bearer|Authorization|VERCEL_TOKEN|DATABASE_URL|DIRECT_URL|JWT_SECRET|PASSWORD|SECRET)[[:space:]]*[:=][^[:space:];,]+#\1=<REDACTED>#Ig' \
-              -e 's#(postgres|postgresql)://[^[:space:]"'"'']+#<CONNECTION_REDACTED>#Ig' \
-              -e 's#([?&][^=[:space:]]+)=([^&[:space:]]+)#\1=<REDACTED>#g'
-          }
           mkdir -p "$RUNNER_TEMP/license-build-diagnostics"
-          sanitize < "$RUNNER_TEMP/npm-vercel-build.log" > "$RUNNER_TEMP/license-build-diagnostics/npm-vercel-build.sanitized.log"
-          sanitize < "$RUNNER_TEMP/vercel-build.raw.log" > "$RUNNER_TEMP/license-build-diagnostics/vercel-build.sanitized.log"
-          first_error=''
-          first_error=$(grep -Eim1 '(^|[[:space:]])(error|failed|fatal|cannot|unable|missing|not found|invalid)([[:space:]:]|$)' "$RUNNER_TEMP/license-build-diagnostics/vercel-build.sanitized.log" || true)
-          if [[ -z "$first_error" ]]; then
-            first_error=$(grep -Eim1 '(^|[[:space:]])(error|failed|fatal|cannot|unable|missing|not found|invalid)([[:space:]:]|$)' "$RUNNER_TEMP/license-build-diagnostics/npm-vercel-build.sanitized.log" || true)
-          fi
-          {
-            echo '### Build diagnostics'
-            echo "direct_npm_build=$([[ "${DIRECT_EXIT:-1}" == 0 ]] && echo PASS || echo FAIL)"
-            echo "vercel_build=$([[ "${BUILD_EXIT:-1}" == 0 ]] && echo PASS || echo FAIL)"
-            echo "DIRECT_EXIT=${DIRECT_EXIT:-unknown}"
-            echo "BUILD_EXIT=${BUILD_EXIT:-unknown}"
-            echo "first_error=${first_error:-not captured}"
-            echo '#### Last 200 sanitized Vercel build lines'
-            tail -n 200 "$RUNNER_TEMP/license-build-diagnostics/vercel-build.sanitized.log"
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [[ "${DIRECT_EXIT:-1}" == 0 && "${BUILD_EXIT:-1}" != 0 ]]; then
-            echo 'ERROR_CATEGORY=VERCEL_CLI_OR_PROJECT_CONFIG' >> "$GITHUB_STEP_SUMMARY"
-          elif [[ "${DIRECT_EXIT:-1}" != 0 ]]; then
-            echo 'ERROR_CATEGORY=BUILD_COMMAND_FAILED' >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo 'ERROR_CATEGORY=UNKNOWN' >> "$GITHUB_STEP_SUMMARY"
-          fi
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const temp = process.env.RUNNER_TEMP;
+          const outDir = path.join(temp, 'license-build-diagnostics');
+          fs.mkdirSync(outDir, { recursive: true });
+          const read = (file) => {
+            try { return fs.readFileSync(file, 'utf8'); } catch { return ''; }
+          };
+          const redact = (input) => input
+            .replace(/(?:authorization\s*:\s*|bearer\s+)[^\s,;]+/gi, '<AUTH_REDACTED>')
+            .replace(/\b[A-Z][A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD)\s*[:=]\s*[^\s,;]+/gi, '<SECRET_REDACTED>')
+            .replace(/\b(?:DATABASE_URL|DIRECT_URL)\s*[:=]\s*[^\s,;]+/gi, '<DATABASE_VALUE_REDACTED>')
+            .replace(/(?:postgres|postgresql|smtp):\/\/[^\s"'`]+/gi, '<CONNECTION_REDACTED>')
+            .replace(/https?:\/\/[^\s"'`]+/gi, '<URL_REDACTED>')
+            .replace(/([?&][^=\s]+)=([^&\s]+)/g, '$1=<QUERY_REDACTED>');
+          const sanitizeFile = (input, output) => {
+            const safe = redact(read(input));
+            fs.writeFileSync(output, safe, 'utf8');
+            return safe;
+          };
+          const npmLog = sanitizeFile(
+            path.join(temp, 'npm-vercel-build.log'),
+            path.join(outDir, 'npm-vercel-build.sanitized.log'),
+          );
+          const vercelLog = sanitizeFile(
+            path.join(temp, 'vercel-build.raw.log'),
+            path.join(outDir, 'vercel-build.sanitized.log'),
+          );
+          const source = vercelLog || npmLog;
+          const lines = source.split(/\r?\n/).filter(Boolean);
+          const firstError = lines.find((line) => /\b(error|failed|fatal|cannot|unable|missing|not found|invalid)\b/i.test(line)) || 'not captured';
+          const summary = [
+            '### Build diagnostics',
+            `direct_npm_build=${process.env.DIRECT_EXIT === '0' ? 'PASS' : 'FAIL'}`,
+            `vercel_build=${process.env.BUILD_EXIT === '0' ? 'PASS' : 'FAIL'}`,
+            `DIRECT_EXIT=${process.env.DIRECT_EXIT || 'unknown'}`,
+            `BUILD_EXIT=${process.env.BUILD_EXIT || 'unknown'}`,
+            `first_error=${firstError}`,
+            '#### Last 100 sanitized build lines',
+            ...lines.slice(-100),
+            process.env.DIRECT_EXIT === '0' && process.env.BUILD_EXIT !== '0'
+              ? 'ERROR_CATEGORY=VERCEL_CLI_OR_PROJECT_CONFIG'
+              : process.env.DIRECT_EXIT !== '0' ? 'ERROR_CATEGORY=BUILD_COMMAND_FAILED' : 'ERROR_CATEGORY=UNKNOWN',
+          ].join('\n') + '\n';
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+          NODE
 
       - name: Upload sanitized build diagnostics
         if: always()
