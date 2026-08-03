@@ -19,6 +19,7 @@ const { createLicenseDocumentService } = require('../services/license-document.s
 const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
 const { normalizeLicenseNumber } = require('../services/license-document.service');
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
+const { getDashboardSummary } = require('../services/dashboard.service');
 const HttpError = require('../utils/http-error');
 
 const router = express.Router();
@@ -162,24 +163,10 @@ const sortByEmployeeCode = (left, right) => {
 
 router.use(authenticate);
 
-router.get('/dashboard', async (_req, res, next) => {
+router.get('/dashboard', async (req, res, next) => {
   try {
-    const now = new Date();
-    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-    const warningDate = new Date(now); warningDate.setUTCDate(warningDate.getUTCDate() + 60);
-    const [totalEmployees, activeEmployees, totalShifts, monthShifts, pendingLeaves, pendingUsers, expiringLicenses, pendingApprovals, hourAggregate] = await prisma.$transaction([
-      prisma.employee.count({ where: { deletedAt: null } }),
-      prisma.employee.count({ where: { deletedAt: null, isActive: true } }),
-      prisma.shiftAssignment.count(),
-      prisma.shiftAssignment.count({ where: { workDate: { gte: monthStart, lt: nextMonth } } }),
-      prisma.leaveRequest.count({ where: { status: 'PENDING' } }),
-      prisma.user.count({ where: { accountStatus: 'PENDING' } }),
-      prisma.employeeLicense.count({ where: { expiryDate: { gte: now, lte: warningDate } } }),
-      prisma.scheduleApproval.count({ where: { status: { in: ['DRAFT', 'PENDING'] } } }),
-      prisma.shiftAssignment.aggregate({ _sum: { hours: true } })
-    ]);
-    res.json({ data: { totalEmployees, activeEmployees, totalShifts, monthShifts, totalHours: Number(hourAggregate._sum.hours || 0), pendingLeaves, pendingUsers, expiringLicenses, pendingApprovals } });
+    const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true, department: true } });
+    res.json({ data: await getDashboardSummary({ requestUser: currentUser }) });
   } catch (error) { next(error); }
 });
 router.post('/internal/license-reconciliation', async (req, res, next) => {
