@@ -12,6 +12,7 @@ import {
   type AccessRole
 } from '../../components/access-management/access-management-utils';
 import '../../styles/access-management.css';
+import { formatThaiDateTime } from '../../utils/date-format';
 
 type AccountUpdate = { role?: string; department?: string | null; accountStatus?: string; isActive?: boolean };
 type Props = {
@@ -33,9 +34,7 @@ const roleLabel: Record<string, string> = { ADMIN: 'ผู้ดูแลระ�
 const statusLabel: Record<string, string> = { ACTIVE: 'ใช้งานอยู่', PENDING: 'รออนุมัติ', SUSPENDED: 'ระงับใช้งาน', REJECTED: 'ไม่อนุมัติ' };
 
 function formatDate(value?: string) {
-  if (!value) return 'ไม่ระบุ';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'ไม่ระบุ' : new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(date);
+  return value ? formatThaiDateTime(value) : 'ไม่ระบุ';
 }
 
 function AccountStatusBadge({ account }: { account: AccountRecord }) {

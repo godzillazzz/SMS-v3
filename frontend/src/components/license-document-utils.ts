@@ -1,3 +1,4 @@
+import { formatThaiDate, formatThaiDateTime } from '../utils/date-format';
 export type LicenseDocumentStatus = 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED' | 'EXPIRED';
 
 export const MAX_LICENSE_DOCUMENT_BYTES = 2 * 1024 * 1024;
@@ -102,19 +103,11 @@ export function licenseTableStatus(documents: LicenseDocument[], issueDate?: str
 }
 
 export function formatLicenseDate(value?: string | null) {
-  if (!value) return '-';
-  const dateOnly = String(value).slice(0, 10);
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOnly);
-  if (!match) return '-';
-  const parsed = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(parsed);
+  return formatThaiDate(value, { month: 'short' });
 }
 
 export function formatLicenseDateTime(value?: string | null) {
-  if (!value) return '-';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '-';
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(parsed);
+  return formatThaiDateTime(value);
 }
 
 export function formatFileSize(bytes: number) {

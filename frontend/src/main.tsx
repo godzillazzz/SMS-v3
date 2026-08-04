@@ -19,6 +19,7 @@ import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
+import { formatBuddhistYear, formatThaiDate, formatThaiDateTime, formatThaiMonthYear, toIsoDate } from './utils/date-format';
 import { LicenseEditModal, LicenseTableDocumentColumns } from './components/LicenseDocuments';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/license-table.css';
@@ -244,23 +245,9 @@ function ErrorAlert({ message, className = '' }: { message?: string; className?:
   const readableMessage = userFacingError(message);
   return readableMessage ? <div className={`alert alert-error ${className}`.trim()} role="alert" aria-live="assertive"><strong>ดำเนินการไม่สำเร็จ</strong><span>{readableMessage}</span></div> : null;
 }
-const date = (value: unknown) => {
-  if (!value) return '-';
-  const d = new Date(String(value));
-  if (isNaN(d.getTime())) return String(value);
-  const thaiYear = d.getUTCFullYear() + 543;
-  const thaiDayMonth = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(d);
-  return `${thaiDayMonth} ${thaiYear}`;
-};
-const formatApprovalDateTime = (value: unknown) => {
-  if (!value) return '-';
-  const d = new Date(String(value));
-  if (isNaN(d.getTime())) return String(value);
-  const datePart = new Intl.DateTimeFormat('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Bangkok' }).format(d);
-  const timePart = new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' }).format(d);
-  return `${datePart} ${timePart}`;
-};
-const inputDate = (value: unknown) => value ? new Date(String(value)).toISOString().slice(0, 10) : '';
+const date = (value: unknown) => formatThaiDate(value, { month: 'short' });
+const formatApprovalDateTime = (value: unknown) => formatThaiDateTime(value);
+const inputDate = (value: unknown) => toIsoDate(value);
 const nested = (value: unknown): DataRow => value && typeof value === 'object' ? value as DataRow : {};
 const formPayload = (values: Record<string, string>, nullable: string[] = []) => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, nullable.includes(key) && value === '' ? null : value]));
 const csvValue = (value: unknown) => `"${(value && typeof value === 'object' ? JSON.stringify(value) : text(value)).replace(/"/g, '""')}"`;
@@ -377,9 +364,7 @@ function EmployeeMagicWandModal({
 
   const [yearStr, monthStr] = (scheduleMonth || '2026-08').split('-');
   const dateObj = new Date(Date.UTC(Number(yearStr || 2026), Number(monthStr || 8) - 1, 1));
-  const thaiMonthName = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(dateObj);
-  const thaiYearStr = Number(yearStr || 2026) + 543;
-  const thaiFullDateStr = `1 ${thaiMonthName} ${thaiYearStr}`;
+  const thaiFullDateStr = formatThaiDate(dateObj, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
   const empName = text(target.displayName || `${text(target.firstName)} ${text(target.lastName)}`);
   const empCode = text(target.employeeCode);
@@ -755,12 +740,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
 
   const formatThaiYearDate = (dStr?: unknown) => {
     if (!dStr) return '';
-    const d = new Date(String(dStr));
-    if (isNaN(d.getTime())) return String(dStr);
-    const day = d.getUTCDate();
-    const monthName = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d);
-    const thaiYear = d.getUTCFullYear() + 543;
-    return `${day} ${monthName} ${thaiYear}`;
+    return formatThaiDate(dStr, { month: 'long' });
   };
 
   let warningDetailText = 'ไม่พบข้อมูลใบอนุญาต รปภ. ในระบบที่ครอบคลุมวันที่จัดกะนี้';
@@ -1538,7 +1518,7 @@ function Dashboard() {
     // is the only runtime dashboard presentation.
     if (false) {
       const pendingTotal = Number(dashboardSummary.pendingLeaves || 0) + Number(dashboardSummary.pendingUsers || 0) + Number(dashboardSummary.expiringLicenses || 0);
-      const todayThaiStr = new Intl.DateTimeFormat('th-TH', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
+      const todayThaiStr = formatThaiDate(new Date(), { weekday: 'long' });
 
       return (
         <section className="view-pane dashboard-page">
