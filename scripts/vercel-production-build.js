@@ -95,29 +95,8 @@ function runBuild({ env = process.env, run = runCommand, log = console.log, erro
     return 1;
   }
 
-  if (env.CI_MIGRATION_COMPLETED === 'true') {
-    log('CI migration gate accepted; production migration skipped');
-    return runApplicationBuild({ env, run, log, error });
-  }
-
   log('Production environment guard passed');
-  log(`DATABASE_URL present = ${Boolean(env.DATABASE_URL)}`);
-  if (!env.DATABASE_URL) {
-    error('Vercel build guard failed: DATABASE_URL is missing');
-    return 1;
-  }
-  if (!env.DIRECT_URL) {
-    error('Vercel build guard failed: DIRECT_URL is missing');
-    return 1;
-  }
-
-  log('Prisma migrate deploy started');
-  const migration = run(npxCommand(), ['--no-install', 'prisma', 'migrate', 'deploy'], { env });
-  if (migration.status !== 0) {
-    error(`Prisma migrate deploy failed (exit=${migration.status})`);
-    return 1;
-  }
-  log('Prisma migrate deploy passed');
+  log('Vercel build is build-only; database migration runs in the protected deployment workflow');
 
   return runApplicationBuild({ env, run, log, error });
 }
