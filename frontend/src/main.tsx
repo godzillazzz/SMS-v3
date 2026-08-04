@@ -740,12 +740,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
 
   const formatThaiYearDate = (dStr?: unknown) => {
     if (!dStr) return '';
-    const d = new Date(String(dStr));
-    if (isNaN(d.getTime())) return String(dStr);
-    const day = d.getUTCDate();
-    const monthName = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d);
-const thaiYear = formatBuddhistYear(d.getUTCFullYear());
-    return `${day} ${monthName} ${thaiYear}`;
+    return formatThaiDate(dStr, { month: 'long' });
   };
 
   let warningDetailText = 'ไม่พบข้อมูลใบอนุญาต รปภ. ในระบบที่ครอบคลุมวันที่จัดกะนี้';
