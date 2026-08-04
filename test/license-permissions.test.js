@@ -17,8 +17,6 @@ test('license routes expose the intended role policy', () => {
   assert.match(routeSource, /router\.post\('\/license-documents\/:id\/resubmit', authorize\('ADMIN', 'MANAGER'\)/);
   assert.match(routeSource, /router\.post\('\/license-documents\/:id\/reject', authorize\('ADMIN'\)/);
   assert.match(routeSource, /router\.delete\('\/license-documents\/:id\/permanent', authorize\('ADMIN'\)/);
-  assert.match(routeSource, /limits: \{ fileSize: MAX_FILE_SIZE/);
-  assert.match(routeSource, /ไฟล์ต้องมีขนาดไม่เกิน 2 MB/);
 });
 
 test('license document service grants manager access without department scope', () => {

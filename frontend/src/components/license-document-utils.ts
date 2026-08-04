@@ -1,4 +1,5 @@
 export type LicenseDocumentStatus = 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED' | 'EXPIRED';
+
 export const MAX_LICENSE_DOCUMENT_BYTES = 2 * 1024 * 1024;
 
 export type LicenseDocument = {
@@ -50,33 +51,27 @@ export function sortLicenseDocuments(documents: LicenseDocument[]) {
 
 export function selectLicenseDocumentSummary(documents: LicenseDocument[]) {
   const sorted = sortLicenseDocuments(documents);
-  const activeReturned = selectActiveReturnedDocument(sorted);
+  const returned = sorted.filter((item) => {
+    if (item.status !== 'RETURNED_FOR_CORRECTION' || item.resubmittedAt) return false;
+    return !sorted.some((newer) => {
+      if (newer.id === item.id || !['PENDING', 'APPROVED', 'REJECTED', 'SUPERSEDED'].includes(newer.status)) return false;
+      if (Number(newer.version) > Number(item.version)) return true;
+      if (Number(newer.version) < Number(item.version)) return false;
+      return new Date(newer.uploadedAt).getTime() > new Date(item.uploadedAt).getTime();
+    });
+  }).slice(0, 1);
   return {
     current: sorted.find((item) => item.status === 'APPROVED' && item.isCurrent),
     pending: sorted.filter((item) => item.status === 'PENDING'),
-    returned: sorted.filter((item) => item.status === 'RETURNED_FOR_CORRECTION'),
-    activeReturned,
+    returned,
     latestRejected: sorted.find((item) => item.status === 'REJECTED'),
     latestExpired: sorted.find((item) => item.status === 'EXPIRED')
   };
 }
 
-function isNewerLicenseDocument(candidate: LicenseDocument, reference: LicenseDocument) {
-  if (Number(candidate.version) !== Number(reference.version)) return Number(candidate.version) > Number(reference.version);
-  return new Date(candidate.uploadedAt).getTime() > new Date(reference.uploadedAt).getTime();
-}
-
-export function selectActiveReturnedDocument(documents: LicenseDocument[]) {
-  const sorted = sortLicenseDocuments(documents);
-  return sorted.find((document) => {
-    if (document.status !== 'RETURNED_FOR_CORRECTION' || document.resubmittedAt || document.isCurrent) return false;
-    return !sorted.some((newer) => isNewerLicenseDocument(newer, document) && ['PENDING', 'APPROVED', 'REJECTED', 'SUPERSEDED', 'EXPIRED'].includes(newer.status));
-  });
-}
-
 export function canPermanentlyDeleteDocument(document: LicenseDocument, documents: LicenseDocument[]) {
   if (!['RETURNED_FOR_CORRECTION', 'REJECTED', 'SUPERSEDED'].includes(document.status)) return false;
-  if (document.status === 'RETURNED_FOR_CORRECTION' && selectActiveReturnedDocument(documents)?.id === document.id) return false;
+  if (document.status === 'RETURNED_FOR_CORRECTION' && selectLicenseDocumentSummary(documents).returned.some((item) => item.id === document.id)) return false;
   if (document.status === 'SUPERSEDED' && !documents.some((item) => item.status === 'APPROVED' && item.isCurrent)) return false;
   return true;
 }
@@ -85,14 +80,14 @@ export function selectLicenseDocumentForTable(documents: LicenseDocument[]) {
   const summary = selectLicenseDocumentSummary(documents);
   if (summary.current) return summary.current;
   return summary.pending.find((item) => item.fileAvailable !== false)
-    || (summary.activeReturned?.fileAvailable !== false ? summary.activeReturned : undefined)
+    || summary.returned.find((item) => item.fileAvailable !== false)
     || (summary.latestRejected?.fileAvailable !== false ? summary.latestRejected : undefined);
 }
 
 export function licenseTableStatus(documents: LicenseDocument[], issueDate?: string | null, expiryDate?: string | null, status?: string | null, now = new Date()) {
   const summary = selectLicenseDocumentSummary(documents);
   if (summary.pending.length && summary.current) return { label: 'มีรายการรอตรวจสอบ', tone: 'pending' as const };
-  if (summary.activeReturned && summary.current) return { label: 'มีรายการส่งกลับแก้ไข', tone: 'returned' as const };
+  if (summary.returned.length && summary.current) return { label: 'มีรายการส่งกลับแก้ไข', tone: 'returned' as const };
   if (summary.current) {
     const validity = licenseValidityLabel(issueDate, expiryDate, status, now);
     if (validity === 'หมดอายุ') return { label: 'หมดอายุ', tone: 'expired' as const };
@@ -100,7 +95,7 @@ export function licenseTableStatus(documents: LicenseDocument[], issueDate?: str
     return { label: 'อนุมัติแล้ว', tone: 'approved' as const };
   }
   if (summary.pending.length) return { label: 'รอตรวจสอบ', tone: 'pending' as const };
-  if (summary.activeReturned) return { label: 'ส่งกลับแก้ไข', tone: 'returned' as const };
+  if (summary.returned.length) return { label: 'ส่งกลับแก้ไข', tone: 'returned' as const };
   if (summary.latestRejected) return { label: 'ไม่อนุมัติ', tone: 'rejected' as const };
   if (summary.latestExpired) return { label: 'หมดอายุ', tone: 'expired' as const };
   return { label: 'ยังไม่มีเอกสาร', tone: 'empty' as const };

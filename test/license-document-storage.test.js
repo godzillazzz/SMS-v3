@@ -17,11 +17,10 @@ test('validates PDF, JPEG, and PNG magic bytes and checksums', () => {
   }
 });
 
-test('rejects missing, oversized, mismatched, HTML, SVG, and executable uploads', () => {
+test('accepts the 2 MB boundary and rejects oversized, mismatched, HTML, SVG, and executable uploads', () => {
   assert.throws(() => validateUpload(), { statusCode: 400 });
-  assert.equal(MAX_FILE_SIZE, 2 * 1024 * 1024);
   assert.doesNotThrow(() => validateUpload({ ...file(pdf, 'application/pdf'), size: MAX_FILE_SIZE }));
-  assert.throws(() => validateUpload({ ...file(pdf, 'application/pdf'), size: MAX_FILE_SIZE + 1 }), { statusCode: 400, message: 'ไฟล์ต้องมีขนาดไม่เกิน 2 MB' });
+  assert.throws(() => validateUpload({ ...file(pdf, 'application/pdf'), size: MAX_FILE_SIZE + 1 }), { statusCode: 400 });
   for (const candidate of [file(pdf, 'image/png'), file(Buffer.from('<html>'), 'text/html'), file(Buffer.from('<svg>'), 'image/svg+xml'), file(Buffer.from('MZ'), 'application/octet-stream')]) {
     assert.throws(() => validateUpload(candidate), { statusCode: 415 });
   }

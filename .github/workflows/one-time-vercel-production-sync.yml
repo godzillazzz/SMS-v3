@@ -1,0 +1,186 @@
+name: One-time Vercel production DIRECT_URL sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_commit:
+        description: Exact application commit to deploy
+        required: true
+        type: string
+      confirm_project_name:
+        description: Must be sms-v3-staging
+        required: true
+        type: string
+      confirm_environment:
+        description: Must be production
+        required: true
+        type: string
+
+jobs:
+  sync-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production-sms-v3-staging
+    permissions:
+      contents: read
+    env:
+      EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+      EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+      EXPECTED_PROJECT_NAME: sms-v3-staging
+      TARGET_COMMIT: ${{ inputs.target_commit }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || vars.VERCEL_PROJECT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+      VERCEL_CLI_VERSION: 56.4.1
+    steps:
+      - name: Checkout exact application commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_commit }}
+          fetch-depth: 1
+
+      - name: Validate target and secret presence
+        shell: bash
+        env:
+          CONFIRM_PROJECT_NAME: ${{ inputs.confirm_project_name }}
+          CONFIRM_ENVIRONMENT: ${{ inputs.confirm_environment }}
+        run: |
+          set -euo pipefail
+          test "$TARGET_COMMIT" = "7c4a9148ed69c857c99eb33dc0692248b5f60fc4"
+          test "$CONFIRM_PROJECT_NAME" = "$EXPECTED_PROJECT_NAME"
+          test "$CONFIRM_ENVIRONMENT" = production
+          test -n "${DATABASE_URL:-}" && echo 'DATABASE_URL=PRESENT' || { echo 'DATABASE_URL=MISSING'; exit 1; }
+          test -n "${DIRECT_URL:-}" && echo 'DIRECT_URL=PRESENT' || { echo 'DIRECT_URL=MISSING'; exit 1; }
+          test -n "${VERCEL_TOKEN:-}" && echo 'VERCEL_TOKEN=PRESENT' || { echo 'VERCEL_TOKEN=MISSING'; exit 1; }
+          test -n "${VERCEL_ORG_ID:-}" && echo 'VERCEL_ORG_ID=PRESENT' || { echo 'VERCEL_ORG_ID=MISSING'; exit 1; }
+          test -n "${VERCEL_PROJECT_ID:-}" && echo 'VERCEL_PROJECT_ID=PRESENT' || { echo 'VERCEL_PROJECT_ID=MISSING'; exit 1; }
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+
+      - name: Verify DIRECT_URL target mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/verify-deployment-target.js
+
+      - name: Link temporary workspace to approved project
+        shell: bash
+        run: |
+          set -euo pipefail
+          link_dir="$(mktemp -d)"
+          trap 'rm -rf "$link_dir"' EXIT
+          mkdir -p "$link_dir/.vercel"
+          printf '%s\n' '{"projectId":"prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s","orgId":"team_nemCExHbZ8EAhSgsvefHPAEz"}' > "$link_dir/.vercel/project.json"
+          node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); if(p.projectId!=='prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s'||p.orgId!=='team_nemCExHbZ8EAhSgsvefHPAEz') process.exit(1); console.log('TEMP_LINK_PROJECT=sms-v3-staging');" "$link_dir/.vercel/project.json"
+
+      - name: Sync Vercel production DIRECT_URL from stdin
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata_log="$(mktemp)"
+          add_log="$(mktemp)"
+          trap 'rm -f "$metadata_log" "$add_log"' EXIT
+          npx --yes "vercel@$VERCEL_CLI_VERSION" env list production --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" > "$metadata_log" 2>&1
+          if grep -Fq 'DIRECT_URL' "$metadata_log"; then
+            echo 'DIRECT_URL_ALREADY_PRESENT=true'
+          else
+            printf '%s' "$DIRECT_URL" | npx --yes "vercel@$VERCEL_CLI_VERSION" env add DIRECT_URL production --sensitive --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" > /dev/null 2> "$add_log" || { echo 'DIRECT_URL_ADD=FAILED'; exit 1; }
+            echo 'DIRECT_URL_ADDED=true'
+          fi
+          rm -f "$metadata_log" "$add_log"
+
+      - name: Verify production variable metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata_log="$(mktemp)"
+          trap 'rm -f "$metadata_log"' EXIT
+          npx --yes "vercel@$VERCEL_CLI_VERSION" env list production --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" > "$metadata_log" 2>&1
+          grep -Fq 'DATABASE_URL' "$metadata_log" && echo 'DATABASE_URL=PRESENT' || { echo 'DATABASE_URL=MISSING'; exit 1; }
+          grep -Fq 'DIRECT_URL' "$metadata_log" && echo 'DIRECT_URL=PRESENT' || { echo 'DIRECT_URL=MISSING'; exit 1; }
+          grep -Fq 'JWT_SECRET' "$metadata_log" && echo 'JWT_SECRET=PRESENT' || { echo 'JWT_SECRET=MISSING'; exit 1; }
+          rm -f "$metadata_log"
+
+      - name: Deploy exact commit to Vercel Production
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_log="$(mktemp)"
+          trap 'rm -f "$deploy_log"' EXIT
+          npx --yes "vercel@$VERCEL_CLI_VERSION" deploy . --prod --force --yes --non-interactive --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --meta "githubCommitSha=$TARGET_COMMIT" > "$deploy_log" 2>&1 || { echo 'VERCEL_DEPLOY=FAILED'; exit 1; }
+          deployment_id="$(grep -Eo 'dpl_[A-Za-z0-9]+' "$deploy_log" | tail -1)"
+          deployment_url="$(grep -Eo 'https://[A-Za-z0-9.-]+\.vercel\.app' "$deploy_log" | tail -1)"
+          test -n "$deployment_id" && test -n "$deployment_url"
+          test "$deployment_id" != 'dpl_2fFBpA923SKdf72unemSkvcyCstw'
+          echo "DEPLOYMENT_ID=$deployment_id"
+          echo "DEPLOYMENT_URL=$deployment_url"
+          echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
+          echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
+          rm -f "$deploy_log"
+
+      - name: Verify deployment metadata and canonical target
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+          DEPLOYMENT_ID: ${{ steps.deploy.outputs.deployment_id }}
+        run: |
+          set -euo pipefail
+          inspect_log="$(mktemp)"
+          canonical_log="$(mktemp)"
+          trap 'rm -f "$inspect_log" "$canonical_log"' EXIT
+          npx --yes "vercel@$VERCEL_CLI_VERSION" inspect "$DEPLOYMENT_URL" --format=json --wait --timeout=5m --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" > "$inspect_log" 2>&1
+          grep -Fq '"target":"production"' "$inspect_log"
+          grep -Fq "$TARGET_COMMIT" "$inspect_log"
+          npx --yes "vercel@$VERCEL_CLI_VERSION" inspect sms-v3-staging-ten.vercel.app --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" > "$canonical_log" 2>&1
+          grep -Fq "$DEPLOYMENT_ID" "$canonical_log"
+          echo 'DEPLOYMENT_READY=true'
+          echo 'COMMIT_METADATA_MATCH=true'
+          echo 'CANONICAL_TARGET_MATCH=true'
+          rm -f "$inspect_log" "$canonical_log"
+
+      - name: Verify canonical health
+        shell: bash
+        run: |
+          set -euo pipefail
+          check_status() {
+            local path="$1"
+            local body
+            body="$(mktemp)"
+            local status
+            status="$(curl -sS -o "$body" -w '%{http_code}' --max-time 30 "https://sms-v3-staging-ten.vercel.app$path")"
+            rm -f "$body"
+            echo "$path=$status"
+            test "$status" = 200
+          }
+          check_status /
+          check_status /login
+          check_status /api/v1/health
+          ready_body="$(mktemp)"
+          ready_status="$(curl -sS -o "$ready_body" -w '%{http_code}' --max-time 30 https://sms-v3-staging-ten.vercel.app/api/v1/ready)"
+          echo "/api/v1/ready=$ready_status"
+          test "$ready_status" = 200
+          grep -Eiq '"database"[[:space:]]*:[[:space:]]*"ok"|database[[:space:]]*[:=][[:space:]]*ok' "$ready_body"
+          rm -f "$ready_body"
+          refresh_status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 https://sms-v3-staging-ten.vercel.app/api/v1/auth/refresh)"
+          echo "/api/v1/auth/refresh=$refresh_status"
+          test "$refresh_status" != 500
+          echo 'DATABASE=ok'
+
+      - name: Verify license UI action markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          html="$(mktemp)"
+          bundle="$(mktemp)"
+          trap 'rm -f "$html" "$bundle"' EXIT
+          curl -fsS --max-time 30 https://sms-v3-staging-ten.vercel.app/ > "$html"
+          asset="$(grep -Eo 'src="[^"]+\.js"' "$html" | head -1 | sed -E 's/^src="|"$//')"
+          test -n "$asset"
+          curl -fsS --max-time 30 "https://sms-v3-staging-ten.vercel.app$asset" > "$bundle"
+          grep -Fq 'ตรวจสอบเอกสารใบอนุญาต' "$bundle" && echo 'ADMIN_REVIEW_ACTION=PRESENT' || { echo 'ADMIN_REVIEW_ACTION=MISSING'; exit 1; }
+          grep -Fq 'ส่งกลับเอกสารใบอนุญาตให้แก้ไข' "$bundle" && echo 'ADMIN_RETURN_ACTION=PRESENT' || { echo 'ADMIN_RETURN_ACTION=MISSING'; exit 1; }
+          grep -Fq 'isAdmin' "$bundle" && grep -Fq 'PENDING' "$bundle" && echo 'MANAGER_FORBIDDEN_ACTION_GUARD=PRESENT' || { echo 'MANAGER_FORBIDDEN_ACTION_GUARD=MISSING'; exit 1; }

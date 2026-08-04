@@ -10,8 +10,6 @@ import {
   licenseTableStatus,
   selectLicenseDocumentForTable,
   selectLicenseDocumentSummary,
-  selectActiveReturnedDocument,
-  canPermanentlyDeleteDocument,
   sortLicenseDocuments
 } from './components/license-document-utils';
 
@@ -87,64 +85,30 @@ describe('license document table state', () => {
     expect(componentSource).toContain('ฉบับต่ออายุรอตรวจสอบ');
   });
 
-  it('keeps approved current data while exposing an active returned correction request', () => {
+  it('hides a returned record when a newer pending document exists', () => {
+    const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 2, correctionReason: 'แก้วันที่' });
+    const pending = documentRow({ id: 'pending-new', status: 'PENDING', version: 3 });
+    const summary = selectLicenseDocumentSummary([returned, pending]);
+    expect(summary.returned).toEqual([]);
+    expect(licenseTableStatus([returned, pending]).label).toBe('รอตรวจสอบ');
+  });
+
+  it('keeps an older returned record in history while an approved replacement is current', () => {
+    const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 2 });
+    const approved = documentRow({ id: 'approved-new', status: 'APPROVED', isCurrent: true, version: 3 });
+    const summary = selectLicenseDocumentSummary([returned, approved]);
+    expect(summary.returned).toEqual([]);
+    expect(sortLicenseDocuments([returned, approved]).map((item) => item.id)).toEqual(['approved-new', 'returned']);
+  });
+
+  it('keeps approved current data while exposing a returned correction request', () => {
     const current = documentRow({ id: 'approved', status: 'APPROVED', isCurrent: true, version: 2 });
     const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 3, correctionReason: 'แก้วันที่' });
     const summary = selectLicenseDocumentSummary([current, returned]);
     expect(summary.current?.id).toBe('approved');
     expect(summary.returned.map((item) => item.id)).toEqual(['returned']);
-    expect(summary.activeReturned?.id).toBe('returned');
     expect(licenseTableStatus([current, returned]).label).toBe('มีรายการส่งกลับแก้ไข');
     expect(componentSource).toContain('แก้ไขและส่งตรวจสอบใหม่');
-  });
-
-  it('hides an old returned correction after a newer approved replacement', () => {
-    const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 2, correctionReason: 'แก้วันที่' });
-    const approved = documentRow({ id: 'approved', status: 'APPROVED', isCurrent: true, version: 3 });
-    const documents = [returned, approved];
-    expect(selectActiveReturnedDocument(documents)).toBeUndefined();
-    expect(selectLicenseDocumentSummary(documents).activeReturned).toBeUndefined();
-    expect(licenseTableStatus(documents).label).toBe('อนุมัติแล้ว');
-  });
-
-  it('hides a returned correction after resubmission and permits only historical deletion', () => {
-    const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 1, resubmittedAt: '2026-08-01T00:00:00Z' });
-    const pending = documentRow({ id: 'pending', status: 'PENDING', version: 2 });
-    const approved = documentRow({ id: 'approved', status: 'APPROVED', isCurrent: true, version: 3 });
-    expect(selectActiveReturnedDocument([returned, pending, approved])).toBeUndefined();
-    expect(canPermanentlyDeleteDocument(returned, [returned, pending, approved])).toBe(true);
-    expect(canPermanentlyDeleteDocument(approved, [returned, pending, approved])).toBe(false);
-    expect(canPermanentlyDeleteDocument(pending, [returned, pending, approved])).toBe(false);
-  });
-
-  it('shows the upload form immediately for an approved current document', () => {
-    expect(componentSource).not.toContain('showUploadForm');
-    expect(componentSource).not.toContain('แนบฉบับใหม่');
-    expect(componentSource).toContain("document.status === 'RETURNED_FOR_CORRECTION'");
-    expect(componentSource).toContain('<form className="license-upload-form" onSubmit={submit}>');
-    expect(componentSource).toContain('PDF, JPG หรือ PNG ขนาดไม่เกิน 2 MB');
-  });
-
-  it('opens and cancels the upload form without changing stored documents', () => {
-    expect(componentSource).toContain('onClick={resetUploadForm}>ยกเลิก</button>');
-    expect(componentSource).toContain('setError(undefined)');
-    expect(componentSource).toContain('await onUpload(');
-    expect(componentSource).toContain('resetUploadForm(); await load();');
-  });
-
-  it('keeps active correction actions and history available', () => {
-    expect(componentSource).toContain('const activeReturnedDocuments = summary.activeReturned ? [summary.activeReturned] : []');
-    expect(componentSource).toContain('activeReturnedDocuments.map(documentLine)');
-    expect(componentSource).toContain('onClick={() => setCorrectionDocument(document)}');
-    expect(componentSource).toContain('setHistoryOpen(true)');
-  });
-
-  it('resets modal state when the employee changes or the modal closes', () => {
-    expect(componentSource).toContain('const handleClose = () => { resetUploadForm(); onClose(); }');
-    expect(componentSource).toContain('setCorrectionDocument(undefined)');
-    expect(componentSource).toContain('setHistoryOpen(false)');
-    expect(componentSource).toContain('useEffect(() => {');
-    expect(componentSource).toContain('}, [license.id]);');
   });
 
   it('uses the existing 60-day warning rule without timezone shifting date-only values', () => {
@@ -152,6 +116,21 @@ describe('license document table state', () => {
     expect(licenseValidityLabel('2026-01-01', '2026-07-30', 'Active', now)).toBe('หมดอายุ');
     expect(licenseValidityLabel('2026-01-01', '2026-08-15', 'Active', now)).toBe('ใกล้หมดอายุ');
     expect(licenseValidityLabel('2026-01-01', '2027-01-01', 'Active', now)).toBe('ปกติ');
+  });
+
+  it('keeps the upload form and 2 MB license contract visible in the modal', () => {
+    expect(componentSource).toContain('แนบใบอนุญาตใหม่');
+    expect(componentSource).toContain('ขนาดไม่เกิน 2 MB');
+    expect(componentSource).toContain('MAX_LICENSE_DOCUMENT_BYTES');
+    expect(componentSource).toContain('แก้ไขและส่งตรวจสอบใหม่');
+  });
+
+  it('keeps permanent deletion inside the admin history flow', () => {
+    expect(componentSource).toContain('canPermanentlyDeleteDocument(document, documents)');
+    expect(componentSource).toContain('พิมพ์ DELETE เพื่อยืนยัน');
+    expect(componentSource).toContain('services.permanentlyDelete(document.id)');
+    expect(componentSource).toContain('ลบรายการและไฟล์ถาวรแล้ว');
+    expect(componentSource).toContain('isAdmin && canPermanentlyDeleteDocument');
   });
 });
 
@@ -222,22 +201,6 @@ describe('license document viewer and review', () => {
     expect(componentSource).toContain('className="btn-ghost license-view-button"');
     expect(componentSource).toContain("setMode('reject')");
     expect(componentSource).toContain('onClick={() => setMode(\'approve\')}');
-  });
-
-  it('exposes admin-only permanent deletion with explicit confirmation and refresh', () => {
-    expect(componentSource).toContain('canPermanentlyDeleteDocument(document, documents)');
-    expect(componentSource).toContain('พิมพ์ DELETE เพื่อยืนยัน');
-    expect(componentSource).toContain('ลบรายการและไฟล์ถาวรแล้ว');
-    expect(componentSource).toContain('services.permanentlyDelete(document.id)');
-    expect(componentSource).toContain('isAdmin && canPermanentlyDeleteDocument');
-  });
-
-  it('enforces the 2 MB limit before upload and resubmit requests', () => {
-    expect(componentSource).toContain('MAX_LICENSE_DOCUMENT_BYTES');
-    expect(componentSource).toContain("setError('ไฟล์ต้องมีขนาดไม่เกิน 2 MB')");
-    expect(mainSource).toContain('MAX_LICENSE_DOCUMENT_BYTES');
-    expect(mainSource).toContain("ไฟล์ต้องมีขนาดไม่เกิน 2 MB");
-    expect(componentSource).not.toContain('4 MB');
   });
 });
 

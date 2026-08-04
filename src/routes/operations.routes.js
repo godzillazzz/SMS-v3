@@ -14,11 +14,12 @@ const { reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules 
 const { licenseStateForWorkDate } = require('../services/license-state.service');
 const { updateScheduleApprovalState, approveMonthlySchedule } = require('../services/schedule.service');
 const { linkLeaveQuota } = require('../services/leave-quota-link.service');
-const { createSupabaseLicenseDocumentStorage, MAX_FILE_SIZE } = require('../services/license-document-storage.service');
+const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
 const { normalizeLicenseNumber } = require('../services/license-document.service');
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
+const { getDashboardSummary } = require('../services/dashboard.service');
 const HttpError = require('../utils/http-error');
 
 const router = express.Router();
@@ -45,10 +46,9 @@ const booleanCoerce = z.union([z.boolean(), z.string().transform((val) => val ==
 const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.coerce.date(), startTime: nullableText(20), endTime: nullableText(20), hours: z.coerce.number().min(0).max(24).optional(), remark: nullableText(2000), locked: booleanCoerce, licenseOverride: booleanCoerce, overrideReason: nullableText(2000) });
 const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), substitute: z.string().trim().min(1).max(255), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
 const leaveListQuery = paging.extend({ status: z.string().trim().min(1).max(100).optional(), employeeId: uuid.optional(), department: z.string().trim().max(100).optional(), search: z.string().trim().max(255).optional(), year: z.coerce.number().int().optional(), month: z.coerce.number().int().optional() });
-const MAX_LEAVE_ATTACHMENT_BYTES = 2 * 1024 * 1024;
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_LEAVE_ATTACHMENT_BYTES, files: 1, fields: 12 } }).single('attachment');
-const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ต้องมีขนาดไม่เกิน 2 MB' : 'Attachment upload is invalid.')) : next());
-const licenseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE_SIZE, files: 1, fields: 12 } }).single('document');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('attachment');
+const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'Attachment must not exceed 4 MB.' : 'Attachment upload is invalid.')) : next());
+const licenseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 12 } }).single('document');
 const licenseDocumentUpload = (req, res, next) => licenseUpload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ต้องมีขนาดไม่เกิน 2 MB' : 'License document upload is invalid.')) : next());
 const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const authorizedLicenseReconciliationCron = (req) => {
@@ -163,24 +163,10 @@ const sortByEmployeeCode = (left, right) => {
 
 router.use(authenticate);
 
-router.get('/dashboard', async (_req, res, next) => {
+router.get('/dashboard', async (req, res, next) => {
   try {
-    const now = new Date();
-    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-    const warningDate = new Date(now); warningDate.setUTCDate(warningDate.getUTCDate() + 60);
-    const [totalEmployees, activeEmployees, totalShifts, monthShifts, pendingLeaves, pendingUsers, expiringLicenses, pendingApprovals, hourAggregate] = await prisma.$transaction([
-      prisma.employee.count({ where: { deletedAt: null } }),
-      prisma.employee.count({ where: { deletedAt: null, isActive: true } }),
-      prisma.shiftAssignment.count(),
-      prisma.shiftAssignment.count({ where: { workDate: { gte: monthStart, lt: nextMonth } } }),
-      prisma.leaveRequest.count({ where: { status: 'PENDING' } }),
-      prisma.user.count({ where: { accountStatus: 'PENDING' } }),
-      prisma.employeeLicense.count({ where: { expiryDate: { gte: now, lte: warningDate } } }),
-      prisma.scheduleApproval.count({ where: { status: { in: ['DRAFT', 'PENDING'] } } }),
-      prisma.shiftAssignment.aggregate({ _sum: { hours: true } })
-    ]);
-    res.json({ data: { totalEmployees, activeEmployees, totalShifts, monthShifts, totalHours: Number(hourAggregate._sum.hours || 0), pendingLeaves, pendingUsers, expiringLicenses, pendingApprovals } });
+    const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true, department: true } });
+    res.json({ data: await getDashboardSummary({ requestUser: currentUser }) });
   } catch (error) { next(error); }
 });
 router.post('/internal/license-reconciliation', async (req, res, next) => {

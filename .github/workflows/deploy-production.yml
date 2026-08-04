@@ -25,6 +25,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_migrations:
+        description: Run protected Prisma migrations before deployment
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -38,6 +43,7 @@ env:
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
   EXPECTED_PROJECT_NAME: sms-v3-staging
   EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_CANONICAL_SOURCE_SHA: 23a42fc5a0758d8a87a4e553deab626adbbeeb25
   VERCEL_CLI_VERSION: 56.4.1
 
 jobs:
@@ -58,15 +64,20 @@ jobs:
           set -euo pipefail
           test "${{ inputs.confirm_project_name }}" = "$EXPECTED_PROJECT_NAME"
           test "${{ inputs.confirm_environment }}" = "production"
+          TARGET_SHA="${{ inputs.commit_sha }}"
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
           git fetch --no-tags origin fix/serverless-database-reliability
-          git cat-file -e "${{ inputs.commit_sha }}^{commit}"
-          git merge-base --is-ancestor "${{ inputs.commit_sha }}" origin/fix/serverless-database-reliability
-          test "$(git rev-parse HEAD)" = "${{ inputs.commit_sha }}"
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          git merge-base --is-ancestor "$TARGET_SHA" origin/fix/serverless-database-reliability
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          if [[ "${{ inputs.run_migrations }}" == "false" ]]; then
+            git diff --quiet "$EXPECTED_CANONICAL_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+          fi
           test -z "$(git status --porcelain)"
           echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   migrate:
-    if: ${{ inputs.diagnostic_only != true }}
+    if: ${{ inputs.diagnostic_only != true && inputs.run_migrations == true }}
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -161,7 +172,7 @@ jobs:
         run: node scripts/ci/vercel-linkage.js --diagnostic
 
   deploy:
-    if: ${{ inputs.diagnostic_only != true }}
+    if: ${{ always() && inputs.diagnostic_only != true && (inputs.run_migrations == false || needs.migrate.result == 'success') && needs.validate.result == 'success' }}
     needs: [validate, migrate]
     runs-on: ubuntu-latest
     timeout-minutes: 20

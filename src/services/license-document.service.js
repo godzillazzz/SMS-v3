@@ -160,10 +160,10 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
     ensureAdmin(requestUser);
     try {
       return await prisma.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT id FROM employee_license_documents WHERE id = ${id}::uuid FOR UPDATE`;
-        const document = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
-        ensureDocumentNotPendingDeletion(document);
-        if (document.status !== 'PENDING') throw new HttpError(409, 'Only pending license documents can be approved.');
+      await tx.$queryRaw`SELECT id FROM employee_license_documents WHERE id = ${id}::uuid FOR UPDATE`;
+      const document = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
+      ensureDocumentNotPendingDeletion(document);
+      if (document.status !== 'PENDING') throw new HttpError(409, 'Only pending license documents can be approved.');
         ensureProposedDates(document.proposedStartDate, document.proposedExpiryDate);
         const license = await tx.employeeLicense.findUniqueOrThrow({ where: { id: document.licenseId }, select: { id: true, employeeId: true, licenseNumber: true } });
         await tx.employee.findUniqueOrThrow({ where: { id: document.employeeId }, select: { id: true } });
@@ -260,19 +260,12 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
     const document = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM employee_license_documents WHERE id = ${id}::uuid FOR UPDATE`;
       const found = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
-      ensureDocumentNotPendingDeletion(found);
       const documents = await tx.employeeLicenseDocument.findMany({ where: { licenseId: found.licenseId }, select: { id: true, status: true, isCurrent: true, version: true, uploadedAt: true, resubmittedAt: true } });
       ensurePermanentDeleteEligible(found, documents);
       return tx.employeeLicenseDocument.update({ where: { id }, data: { immediateDeletionRequestedAt: deletionRequestedAt, storageDeleteAfter: deletionRequestedAt } });
     }, APPROVAL_TRANSACTION_OPTIONS);
-
-    try {
-      if (!document.storageDeletedAt) await storage.remove(document.storageObjectKey);
-    } catch (_error) {
-      await prisma.employeeLicenseDocument.update({ where: { id }, data: { immediateDeletionRequestedAt: null, storageDeleteAfter: null, storageDeleteLastErrorAt: new Date(), storageDeleteLastErrorCode: 'HARD_DELETE_STORAGE_FAILED' } }).catch(() => undefined);
-      throw new HttpError(503, 'The license document could not be permanently deleted.');
-    }
-
+    try { if (!document.storageDeletedAt) await storage.remove(document.storageObjectKey); }
+    catch (_error) { await prisma.employeeLicenseDocument.update({ where: { id }, data: { immediateDeletionRequestedAt: null, storageDeleteAfter: null, storageDeleteLastErrorAt: new Date(), storageDeleteLastErrorCode: 'HARD_DELETE_STORAGE_FAILED' } }).catch(() => undefined); throw new HttpError(503, 'The license document could not be permanently deleted.'); }
     try {
       await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM employee_license_documents WHERE id = ${id}::uuid FOR UPDATE`;
@@ -283,14 +276,11 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
         await tx.auditLog.deleteMany({ where: { entityType: 'EmployeeLicenseDocument', entityId: id } });
         await tx.employeeLicenseDocument.delete({ where: { id } });
       }, APPROVAL_TRANSACTION_OPTIONS);
-    } catch (_error) {
-      await prisma.employeeLicenseDocument.update({ where: { id }, data: { storageDeletedAt: new Date(), immediateDeletionRequestedAt: null, storageDeleteAfter: null, storageDeleteLastErrorCode: 'HARD_DELETE_DATABASE_FAILED' } }).catch(() => undefined);
-      throw new HttpError(503, 'The file was removed but the document record could not be deleted.');
-    }
+    } catch (_error) { await prisma.employeeLicenseDocument.update({ where: { id }, data: { storageDeletedAt: new Date(), immediateDeletionRequestedAt: null, storageDeleteAfter: null, storageDeleteLastErrorCode: 'HARD_DELETE_DATABASE_FAILED' } }).catch(() => undefined); throw new HttpError(503, 'The file was removed but the document record could not be deleted.'); }
     return { id, deleted: true };
   }
 
   return { list, upload, view, approve, returnForCorrection, resubmit, reject, permanentlyDelete, canAccess };
 }
 
-module.exports = { createLicenseDocumentService, historySelect, normalizeLicenseNumber, normalizeReason, retentionDays, isDocumentFileAvailable, isActiveReturnedDocument, ensurePermanentDeleteEligible, APPROVAL_TRANSACTION_OPTIONS };
+module.exports = { createLicenseDocumentService, historySelect, normalizeLicenseNumber, normalizeReason, retentionDays, isDocumentFileAvailable, APPROVAL_TRANSACTION_OPTIONS };
