@@ -257,6 +257,8 @@ jobs:
           done <"$deployment_output"
           test -n "${deployment_id:-}"
           test -n "${deployment_url:-}"
+          [[ "$deployment_id" =~ ^dpl_[A-Za-z0-9]+$ ]]
+          [[ "$deployment_url" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ ]]
           npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$deployment_id" --format=json --token "$VERCEL_TOKEN" >"$inspect_stdout" 2>"$inspect_stderr"
           node - "$inspect_stdout" "$deployment_id" "$EXPECTED_PROJECT_ID" "${{ needs.validate.outputs.commit_sha }}" <<'NODE' >"$inspection_output"
           const fs = require('node:fs');
@@ -289,7 +291,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   health:
-    if: ${{ inputs.diagnostic_only != true }}
+    if: ${{ always() && inputs.diagnostic_only != true && needs.validate.result == 'success' && needs.deploy.result == 'success' }}
     needs: [validate, deploy]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -300,6 +302,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Validate deployment outputs
+        env:
+          DEPLOYMENT_URL: ${{ needs.deploy.outputs.deployment_url }}
+          DEPLOYMENT_ID: ${{ needs.deploy.outputs.deployment_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOYMENT_URL"
+          test -n "$DEPLOYMENT_ID"
+          [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
+          [[ "$DEPLOYMENT_URL" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ ]]
+          echo 'DEPLOYMENT_OUTPUTS=VALID'
       - name: Verify deployment and canonical health
         env:
           CANONICAL_URL: https://sms-v3-staging-ten.vercel.app

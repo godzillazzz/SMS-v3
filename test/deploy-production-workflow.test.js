@@ -39,7 +39,7 @@ test('diagnostic-only mode skips migration, build, deploy, and health', () => {
   assert.doesNotMatch(diagnose, /DATABASE_URL|DIRECT_URL|prisma|vercel (?:build|deploy)/i);
   assert.match(migrate, /if: \$\{\{ inputs\.diagnostic_only != true && inputs\.run_migrations == true \}\}/);
   assert.match(deploy, /if: \$\{\{ always\(\) && inputs\.diagnostic_only != true && \(inputs\.run_migrations == false \|\| needs\.migrate\.result == 'success'\) && needs\.validate\.result == 'success' \}\}/);
-  assert.match(health, /if: \$\{\{ inputs\.diagnostic_only != true \}\}/);
+  assert.match(health, /if: \$\{\{ always\(\) && inputs\.diagnostic_only != true && needs\.validate\.result == 'success' && needs\.deploy\.result == 'success' \}\}/);
 });
 
 test('deploy job remains migration-gated and bound to the approved Vercel project', () => {
@@ -59,6 +59,7 @@ test('deploy job remains migration-gated and bound to the approved Vercel projec
 
 test('deployment identity comes from deploy JSON and rejects rollback reuse', () => {
   const deploy = jobBlock('deploy');
+  const health = jobBlock('health');
   assert.match(deploy, /deploy --prebuilt --prod .*--project "\$EXPECTED_PROJECT_ID"/);
   assert.match(deploy, /--format=json/);
   assert.match(deploy, /scripts\/ci\/vercel-deployment\.js/);
@@ -66,6 +67,14 @@ test('deployment identity comes from deploy JSON and rejects rollback reuse', ()
   assert.match(deploy, /inspect_stdout/);
   assert.match(deploy, /inspect_stderr/);
   assert.doesNotMatch(deploy, /grep -Eo .*vercel\.app/);
+  assert.match(deploy, /deployment_url: \$\{\{ steps\.deploy\.outputs\.deployment_url \}\}/);
+  assert.match(deploy, /deployment_id: \$\{\{ steps\.deploy\.outputs\.deployment_id \}\}/);
+  assert.match(deploy, /\[\[ "\$deployment_id" =~ \^dpl_/);
+  assert.match(deploy, /\[\[ "\$deployment_url" =~ \^https:\/\/sms-v3-staging-/);
+  assert.match(health, /if: \$\{\{ always\(\) && inputs\.diagnostic_only != true && needs\.validate\.result == 'success' && needs\.deploy\.result == 'success' \}\}/);
+  assert.match(health, /DEPLOYMENT_URL: \$\{\{ needs\.deploy\.outputs\.deployment_url \}\}/);
+  assert.match(health, /DEPLOYMENT_ID: \$\{\{ needs\.deploy\.outputs\.deployment_id \}\}/);
+  assert.match(health, /Validate deployment outputs/);
 });
 
 test('build gate validates build-only behavior and the Vite artifact', () => {
@@ -88,7 +97,8 @@ test('build gate validates build-only behavior and the Vite artifact', () => {
 test('health job uses canonical URL as its only health source', () => {
   const health = jobBlock('health');
   assert.match(health, /CANONICAL_URL: https:\/\/sms-v3-staging-ten\.vercel\.app/);
-  assert.doesNotMatch(health, /DEPLOYMENT_URL/);
+  assert.match(health, /DEPLOYMENT_URL: \$\{\{ needs\.deploy\.outputs\.deployment_url \}\}/);
+  assert.match(health, /DEPLOYMENT_ID: \$\{\{ needs\.deploy\.outputs\.deployment_id \}\}/);
 });
 
 test('production workflow is manual-only and has no automatic deployment triggers', () => {
