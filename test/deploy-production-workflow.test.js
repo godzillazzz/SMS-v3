@@ -37,8 +37,8 @@ test('diagnostic-only mode skips migration, build, deploy, and health', () => {
   assert.match(workflow, /diagnostic_only:/);
   assert.match(diagnose, /node scripts\/ci\/vercel-linkage\.js --diagnostic/);
   assert.doesNotMatch(diagnose, /DATABASE_URL|DIRECT_URL|prisma|vercel (?:build|deploy)/i);
-  assert.match(migrate, /if: \$\{\{ inputs\.diagnostic_only != true \}\}/);
-  assert.match(deploy, /if: \$\{\{ inputs\.diagnostic_only != true \}\}/);
+  assert.match(migrate, /if: \$\{\{ inputs\.diagnostic_only != true && inputs\.run_migrations == true \}\}/);
+  assert.match(deploy, /if: \$\{\{ always\(\) && inputs\.diagnostic_only != true && \(inputs\.run_migrations == false \|\| needs\.migrate\.result == 'success'\) && needs\.validate\.result == 'success' \}\}/);
   assert.match(health, /if: \$\{\{ inputs\.diagnostic_only != true \}\}/);
 });
 
