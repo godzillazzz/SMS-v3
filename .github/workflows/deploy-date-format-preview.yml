@@ -1,0 +1,126 @@
+name: Date-format Owner Preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact source commit SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-staging-date-format-preview
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production-sms-v3-staging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 1
+
+      - name: Validate exact source and repository root
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${{ inputs.commit_sha }}" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "${{ inputs.commit_sha }}"
+          test "$(basename "$PWD")" != "frontend"
+          test -f package.json
+          test -f vercel.json
+          test -d frontend
+          test -f frontend/package.json
+          test -d src
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies and build from repository root
+        run: |
+          npm ci
+          npm --prefix frontend ci
+          npm run vercel-build
+
+      - name: Validate Vite artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f frontend/dist/index.html
+          grep -Eq '/assets/index-[^" ]+\.js' frontend/dist/index.html
+          ! grep -q '/_next/' frontend/dist/index.html
+          grep -R -q 'แนบใบอนุญาตใหม่' frontend/dist
+          grep -R -q 'ขนาดไม่เกิน 2 MB' frontend/dist
+
+      - name: Verify target metadata
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+
+      - name: Create Preview deployment only
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_json=$(mktemp)
+          trap 'rm -f "$deploy_json"' EXIT
+          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy \
+            --yes \
+            --project "$VERCEL_PROJECT_ID" \
+            --scope "$VERCEL_ORG_ID" \
+            --token "$VERCEL_TOKEN" \
+            --format=json >"$deploy_json"
+          node - "$deploy_json" <<'NODE'
+          const fs = require('fs');
+          const output = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const url = String(output.url || output.deploymentUrl || '').trim();
+          if (!url || url.includes('://')) throw new Error('Preview deployment URL missing or invalid');
+          const previewUrl = `https://${url}`;
+          const deploymentId = String(output.id || output.uid || 'unknown');
+          console.log(`PREVIEW_URL=${previewUrl}`);
+          console.log(`DEPLOYMENT_ID=${deploymentId}`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `preview_url=${previewUrl}\ndeployment_id=${deploymentId}\n`);
+          NODE
+
+      - name: Verify Preview health and readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          preview_url='${{ steps.deploy.outputs.preview_url }}'
+          test -n "$preview_url"
+          echo "Preview URL: $preview_url" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployment ID: ${{ steps.deploy.outputs.deployment_id }}" >> "$GITHUB_STEP_SUMMARY"
+          for path in / /login /api/v1/health; do
+            test "$(curl -L -sS -o /dev/null -w '%{http_code}' "$preview_url$path")" = 200
+          done
+          for attempt in 1 2 3; do
+            body=$(curl -L -sS -f "$preview_url/api/v1/ready")
+            echo "$body" | grep -q '"status":"ready"'
+            echo "$body" | grep -q '"database":"ok"'
+          done
