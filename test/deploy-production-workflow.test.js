@@ -68,6 +68,23 @@ test('deployment identity comes from deploy JSON and rejects rollback reuse', ()
   assert.doesNotMatch(deploy, /grep -Eo .*vercel\.app/);
 });
 
+test('build gate validates build-only behavior and the Vite artifact', () => {
+  const migrate = jobBlock('migrate');
+  const deploy = jobBlock('deploy');
+
+  assert.doesNotMatch(deploy, /CI migration gate accepted; production migration skipped/);
+  assert.doesNotMatch(workflow, /CI migration gate accepted; production migration skipped/);
+  assert.match(deploy, /Vercel build is build-only/);
+  assert.match(deploy, /Prisma generate passed/);
+  assert.match(deploy, /Application build passed/);
+  assert.match(deploy, /prisma migrate deploy/);
+  assert.doesNotMatch(deploy, /node\s+scripts\/ci\/prisma-migration\.js\s+deploy/);
+  assert.match(migrate, /node\s+scripts\/ci\/prisma-migration\.js\s+deploy/);
+  assert.match(deploy, /test -f frontend\/dist\/index\.html/);
+  assert.match(deploy, /frontend\/dist\/assets\/index-\*\.js/);
+  assert.match(deploy, /frontend\/dist -type f -path '\*\/_next\/\*'/);
+});
+
 test('health job uses canonical URL as its only health source', () => {
   const health = jobBlock('health');
   assert.match(health, /CANONICAL_URL: https:\/\/sms-v3-staging-ten\.vercel\.app/);
