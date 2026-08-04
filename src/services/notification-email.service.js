@@ -1,3 +1,4 @@
+const { formatThaiDate, formatThaiDateTime, formatThaiMonthYear } = require('../utils/date-format');
 const nodemailer = require('nodemailer');
 const prisma = require('../config/prisma');
 const env = require('../config/env');
@@ -98,9 +99,7 @@ async function notifyScheduleApproved({ month, approvedBy, revision }) {
     if (!allRecipientEmails.length) return;
 
     const [yearStr, monthStr] = month.split('-');
-    const thaiMonth = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(yearStr), Number(monthStr) - 1, 1)));
-    const thaiYear = Number(yearStr) + 543;
-    const monthText = `${thaiMonth} ${thaiYear}`;
+    const monthText = formatThaiMonthYear(`${yearStr}-${monthStr}-01`);
 
     const subject = `SMS v3: แจ้งเตือนอนุมัติตารางกะประจำเดือน ${monthText}`;
     const html = `
@@ -160,8 +159,8 @@ async function notifyLeaveSubmitted({ employeeName, leaveType, startDate, endDat
     const adminManagerEmails = await getAdminAndManagerEmails();
     if (!adminManagerEmails.length) return;
 
-    const startText = startDate ? new Date(startDate).toISOString().slice(0, 10) : '';
-    const endText = endDate ? new Date(endDate).toISOString().slice(0, 10) : '';
+    const startText = startDate ? formatThaiDate(startDate) : '';
+    const endText = endDate ? formatThaiDate(endDate) : '';
 
     const subject = `SMS v3: มีคำขอลาใหม่ (${employeeName} - ${leaveType})`;
     const html = `
@@ -209,8 +208,8 @@ async function notifyLeaveProcessed({ leave, status, approverName }) {
     const statusText = isApproved ? 'อนุมัติแล้ว ✅' : 'ไม่อนุมัติ ❌';
     const statusColor = isApproved ? '#059669' : '#dc2626';
 
-    const startText = leave.startDate ? new Date(leave.startDate).toISOString().slice(0, 10) : '';
-    const endText = leave.endDate ? new Date(leave.endDate).toISOString().slice(0, 10) : '';
+    const startText = leave.startDate ? formatThaiDate(leave.startDate) : '';
+    const endText = leave.endDate ? formatThaiDate(leave.endDate) : '';
 
     const subject = `SMS v3: ผลการอนุมัติคำขอลา (${leave.employeeNameSnapshot} - ${leave.leaveType}: ${isApproved ? 'อนุมัติ' : 'ไม่อนุมัติ'})`;
     const html = `

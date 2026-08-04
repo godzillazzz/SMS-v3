@@ -1,4 +1,5 @@
 const { zipSync, strToU8 } = require('fflate');
+const { formatThaiDateTime, formatThaiMonthYear } = require('../utils/date-format');
 
 const xmlEscape = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 const columnName = (number) => { let result = ''; for (let value = number; value > 0; value = Math.floor((value - 1) / 26)) result = String.fromCharCode(65 + ((value - 1) % 26)) + result; return result; };
@@ -8,10 +9,7 @@ const safeSheetName = (value, used) => {
   while (used.has(name)) { const suffix = `-${counter++}`; name = `${base.slice(0, 31 - suffix.length)}${suffix}`; }
   used.add(name); return name;
 };
-const thaiMonth = (month) => {
-  const [year, number] = month.split('-').map(Number);
-  return `${['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'][number - 1]} ${year + 543}`;
-};
+const thaiMonth = (month) => formatThaiMonthYear(`${month}-01`);
 const styleForShift = (code) => ({ D: 9, N: 10, OFF: 11, AL: 12 })[String(code).toUpperCase()] || 8;
 const inlineCell = (reference, value, style = 0) => `<c r="${reference}" t="inlineStr" s="${style}"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
 const numberCell = (reference, value, style = 0) => `<c r="${reference}" s="${style}"><v>${Number(value) || 0}</v></c>`;
@@ -22,8 +20,8 @@ function sheetXml({ department, month, dates, people, shiftTypes, approval, expo
   const lastColumn = columnName(totalColumns);
   const rows = [];
   rows.push(rowXml(1, [inlineCell('A1', `Security Management System - ตารางกะที่อนุมัติแล้ว · ${thaiMonth(month)}`, 1)], 34));
-  rows.push(rowXml(2, [inlineCell('A2', `แผนก: ${department}  |  Revision: ${approval.revision}  |  วันที่อนุมัติ: ${approval.approvedAt ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(approval.approvedAt)) : '-'}`, 2)], 25));
-  rows.push(rowXml(3, [inlineCell('A3', `Export โดย: ${exportedBy}  |  วันที่ Export: ${new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'medium', timeZone: 'Asia/Bangkok' }).format(exportedAt)}`, 3)], 22));
+  rows.push(rowXml(2, [inlineCell('A2', `แผนก: ${department}  |  Revision: ${approval.revision}  |  วันที่อนุมัติ: ${approval.approvedAt ? formatThaiDateTime(approval.approvedAt) : '-'}`, 2)], 25));
+  rows.push(rowXml(3, [inlineCell('A3', `Export โดย: ${exportedBy}  |  วันที่ Export: ${formatThaiDateTime(exportedAt)}`, 3)], 22));
   const headerValues = ['ลำดับ', 'ชื่อ-นามสกุล', 'ตำแหน่ง', ...dates.map((date) => { const value = new Date(`${date}T00:00:00Z`); return `${value.getUTCDate()}\n${['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'][value.getUTCDay()]}`; }), 'ชม.รวม'];
   rows.push(rowXml(4, headerValues.map((value, index) => { const day = index >= 3 && index < dates.length + 3 ? new Date(`${dates[index - 3]}T00:00:00Z`).getUTCDay() : undefined; return inlineCell(`${columnName(index + 1)}4`, value, day === 0 ? 5 : day === 6 ? 6 : 4); }), 32));
   people.forEach((person, index) => {

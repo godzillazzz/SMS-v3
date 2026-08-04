@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { formatBuddhistYear, formatThaiMonthYear } from '../utils/date-format';
 
 export type MonthParts = { year: number; month: number };
 
@@ -34,9 +35,7 @@ export function shiftMonthValue(value: string, delta: number): string {
 
 export function formatThaiMonth(value: string): string {
   const { year, month } = parseMonthValue(value);
-  const date = new Date(Date.UTC(year, month - 1, 1));
-  const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(date);
-  return `${name} พ.ศ. ${year + 543}`;
+  return formatThaiMonthYear(new Date(Date.UTC(year, month - 1, 1))).replace(' ', ' พ.ศ. ');
 }
 
 function getModalRoot(): { element: HTMLElement; owned: boolean } {
@@ -135,7 +134,7 @@ export function MonthGridPicker({ value, onChange }: { value: string; onChange(v
   const panel = portalRoot && open ? createPortal(
     <div ref={panelRef} id={pickerId} className="month-grid-panel month-grid-panel-portal" style={{ top: position.top, left: position.left, width: position.width }} onMouseDown={(event) => event.stopPropagation()} onKeyDown={handleGridKeyDown}>
       <div className="month-grid-year">
-        <strong>{year}</strong>
+      <strong>{formatBuddhistYear(year)}</strong>
         <span><button type="button" className="btn-icon-only" aria-label="ปีก่อนหน้า" onClick={() => setYear((current) => current - 1)}>▲</button><button type="button" className="btn-icon-only" aria-label="ปีถัดไป" onClick={() => setYear((current) => current + 1)}>▼</button></span>
       </div>
       <div className="month-grid" role="grid" aria-label="เลือกเดือน">
@@ -152,7 +151,7 @@ export function MonthGridPicker({ value, onChange }: { value: string; onChange(v
   return <>
     <div className="month-grid-picker">
       <button ref={triggerRef} type="button" className="month-grid-trigger" onClick={() => { previousFocusRef.current = document.activeElement as HTMLElement; setOpen((visible) => !visible); }} aria-expanded={open} aria-controls={open ? pickerId : undefined} aria-haspopup="grid">
-        <span>{monthLabel}, {selected.year}</span><b>⌄</b>
+        <span>{monthLabel}, {formatBuddhistYear(selected.year)}</span><b>⌄</b>
       </button>
     </div>
     {panel}

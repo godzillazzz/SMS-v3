@@ -1,0 +1,11 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { formatThaiDate, formatThaiDateTime, formatThaiMonthYear } = require('../src/utils/date-format');
+
+test('backend user-facing date formats use Buddhist years without changing input data', () => {
+  assert.equal(formatThaiDate('2026-08-04'), '4 สิงหาคม 2569');
+  assert.equal(formatThaiDate('2024-02-29'), '29 กุมภาพันธ์ 2567');
+  assert.equal(formatThaiMonthYear('2026-08-01'), 'สิงหาคม 2569');
+  assert.match(formatThaiDateTime('2026-08-04T07:30:00Z'), /4 สิงหาคม 2569 เวลา 14:30 น\./);
+  assert.equal(formatThaiDate(null), '-');
+});

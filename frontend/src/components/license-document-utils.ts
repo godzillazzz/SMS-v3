@@ -102,19 +102,11 @@ export function licenseTableStatus(documents: LicenseDocument[], issueDate?: str
 }
 
 export function formatLicenseDate(value?: string | null) {
-  if (!value) return '-';
-  const dateOnly = String(value).slice(0, 10);
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOnly);
-  if (!match) return '-';
-  const parsed = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(parsed);
+  return formatThaiDate(value, { month: 'short' });
 }
 
 export function formatLicenseDateTime(value?: string | null) {
-  if (!value) return '-';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '-';
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(parsed);
+  return formatThaiDateTime(value);
 }
 
 export function formatFileSize(bytes: number) {
@@ -146,3 +138,4 @@ export function sanitizeLicenseDocumentError(reason: unknown) {
   }
   return message.replace(/[\r\n\t]+/g, ' ').trim().slice(0, 300);
 }
+import { formatThaiDate, formatThaiDateTime } from '../utils/date-format';
