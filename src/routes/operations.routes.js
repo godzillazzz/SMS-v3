@@ -86,14 +86,27 @@ const RETROACTIVE_APPROVER_POSITION_LEVELS = {
 };
 
 const getTodayBangkokUTC = () => {
-  const bangkokStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
-  const bkkDate = new Date(bangkokStr);
-  return new Date(Date.UTC(bkkDate.getFullYear(), bkkDate.getMonth(), bkkDate.getDate()));
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(new Date());
+  const partMap = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  const year = parseInt(partMap.year, 10);
+  const month = parseInt(partMap.month, 10);
+  const day = parseInt(partMap.day, 10);
+  return new Date(Date.UTC(year, month - 1, day));
 };
 
 const checkIsRetroactive = (dateInput) => {
-  const targetDate = new Date(dateInput);
-  return targetDate < getTodayBangkokUTC();
+  if (!dateInput) return false;
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return false;
+  const targetUTC = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  return targetUTC < getTodayBangkokUTC();
 };
 
 const normalizePosition = (val) => String(val || '').trim().toLowerCase();
@@ -177,6 +190,9 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   const employee = await tx.employee.findUniqueOrThrow({ where: { id: employeeId } });
   if (!employee.isActive || employee.deletedAt !== null) {
     throw new HttpError(400, 'Employee is inactive.');
+  }
+  if (isNaN(new Date(input.startDate).getTime()) || isNaN(new Date(input.endDate).getTime())) {
+    throw new HttpError(400, 'Invalid date format.');
   }
   const leaveType = normalizeLeaveType(input.leaveType);
   const dayCount = inclusiveDays(input.startDate, input.endDate);
@@ -708,18 +724,35 @@ router.get('/leave-requests', async (req, res, next) => {
     if (currentUser.role === 'MANAGER') {
       const dept = currentUser.employee?.department;
       const isSuper = isSupervisorOrHigher(currentUser.employee);
-      managerDeptWhere = {
-        OR: [
-          {
-            startDate: { gte: todayBangkokUTC },
-            departmentSnapshot: dept || undefined
-          },
-          {
-            startDate: { lt: todayBangkokUTC },
-            ...(isSuper ? {} : { departmentSnapshot: dept || undefined })
-          }
-        ]
-      };
+      if (isSuper) {
+        managerDeptWhere = {
+          OR: [
+            {
+              startDate: { gte: todayBangkokUTC },
+              departmentSnapshot: dept || undefined
+            },
+            {
+              startDate: { lt: todayBangkokUTC }
+            }
+          ]
+        };
+      } else {
+        managerDeptWhere = {
+          OR: [
+            {
+              startDate: { gte: todayBangkokUTC },
+              departmentSnapshot: dept || undefined
+            },
+            {
+              startDate: { lt: todayBangkokUTC },
+              OR: [
+                { departmentSnapshot: dept || undefined },
+                { createdByUserId: currentUser.id }
+              ]
+            }
+          ]
+        };
+      }
     }
 
     const where = {
@@ -812,6 +845,35 @@ router.get('/leave-summary', async (req, res, next) => {
     const used = { sickLeave: 0, personalLeave: 0, vacationLeave: 0 };
     approved.forEach((item) => { used[leaveQuotaField(item.leaveType)] += Number(item._sum.dayCount || 0); });
     res.json({ data: { linked: true, employeeId: currentUser.employeeId, entitlement, used, remaining: { sickLeave: Math.max(0, entitlement.sickLeave - used.sickLeave), personalLeave: Math.max(0, entitlement.personalLeave - used.personalLeave), vacationLeave: Math.max(0, entitlement.vacationLeave - used.vacationLeave) } } });
+  } catch (error) { next(error); }
+});
+router.get('/leave-eligible-employees', async (req, res, next) => {
+  try {
+    const currentUser = await prisma.user.findUniqueOrThrow({
+      where: { id: req.user.sub },
+      select: { role: true }
+    });
+    if (currentUser.role === 'VIEWER') {
+      throw new HttpError(403, 'พนักงานทั่วไปไม่มีสิทธิ์เข้าถึงข้อมูลผู้ร่วมงาน');
+    }
+    const employees = await prisma.employee.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null
+      },
+      select: {
+        id: true,
+        employeeCode: true,
+        firstName: true,
+        lastName: true,
+        displayName: true,
+        department: true
+      },
+      orderBy: {
+        employeeCode: 'asc'
+      }
+    });
+    res.json({ data: employees });
   } catch (error) { next(error); }
 });
 router.post('/leave-requests', async (req, res, next) => {

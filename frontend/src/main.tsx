@@ -1192,6 +1192,7 @@ function Dashboard() {
   const [operationRefresh, setOperationRefresh] = useState(0);
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
   const [employeeRefresh, setEmployeeRefresh] = useState(0);
+  const [eligibleEmployees, setEligibleEmployees] = useState<Employee[]>([]);
   const [shiftTypes, setShiftTypes] = useState<DataRow[]>([]);
   const [editor, setEditor] = useState<Editor>();
   const [editorBusy, setEditorBusy] = useState(false);
@@ -1303,6 +1304,13 @@ function Dashboard() {
       })
       .finally(() => setEmpLoading(false));
   }, [auth.token, employeeRefresh]);
+
+  useEffect(() => {
+    if (!auth.token || auth.user?.role === 'VIEWER') return;
+    api.leaveEligibleEmployees(auth.token)
+      .then((result) => setEligibleEmployees(result?.data || []))
+      .catch(() => setEligibleEmployees([]));
+  }, [auth.token, employeeRefresh, auth.user?.role]);
 
   useEffect(() => {
     if (!auth.token) return;
@@ -1417,7 +1425,7 @@ function Dashboard() {
   const visibleNavigation = navigation
     .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)) }))
     .filter((section) => section.items.length > 0);
-  const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName} (${employee.department || '-'})` }));
+  const employeeOptions = (auth.user?.role === 'MANAGER' || auth.user?.role === 'ADMIN' ? eligibleEmployees : employees).map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName} (${employee.department || '-'})` }));
   const shiftTypeOptions = shiftTypes.map((shiftType) => ({ value: String(shiftType.id), label: `${text(shiftType.code)} · ${text(shiftType.name)}` }));
 
   const runEditor = (definition: Omit<Editor, 'submit'>, action: (values: Record<string, string>, files: Record<string, File>) => Promise<unknown>, refresh: 'employees' | 'operations' = 'operations') => {
