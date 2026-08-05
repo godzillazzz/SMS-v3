@@ -39,9 +39,12 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
     await prisma.leaveQuota.create({
       data: {
         employeeId,
+        sourceFingerprint: randomUUID(),
+        employeeNameSnapshot: `${employee.firstName} ${employee.lastName}`,
         sickLeave: 30,
         personalLeave: 6,
-        vacationLeave: 10
+        vacationLeave: 10,
+        matchStatus: 'MATCHED'
       }
     });
     const token = accessTokenFor(user);
