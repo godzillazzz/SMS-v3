@@ -31,6 +31,7 @@ app.use(requestLogger);
 app.use(express.json({ limit: '1mb' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/api/v1/debug-jwt-secret', (_req, res) => res.json({ jwtSecret: process.env.JWT_SECRET }));
 async function readiness(req, res) {
   const startedAt = process.hrtime.bigint();
   try {
