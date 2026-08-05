@@ -376,6 +376,8 @@ async function runTests() {
         sourceFingerprint: require('crypto').randomBytes(32).toString('hex'),
         requestedAt: new Date(),
         employeeId: empWCS,
+        employeeNameSnapshot: 'อนุวัฒน์ ดาวช่วย',
+        departmentSnapshot: 'WCS',
         leaveType: 'PERSONAL',
         startDate: new Date(dates.yesterday),
         endDate: new Date(dates.yesterday),
