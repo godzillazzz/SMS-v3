@@ -971,11 +971,17 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   );
 }
 
-function LeaveManagementPage({ rows, loading, error, linked, remaining, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, onSubmit, onApprove, onReject, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: string; linked: boolean; remaining: DataRow; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
+function LeaveManagementPage({ rows, loading, error, linked, remaining, employeeId, currentUserId, currentUserRole, currentUserEmployee, canManage, canSubmit, canCancelApprovedLeave, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, onSubmit, onApprove, onReject, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: string; linked: boolean; remaining: DataRow; employeeId?: string; currentUserId?: string; currentUserRole?: string; currentUserEmployee?: Employee; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
   const [form, setForm] = useState({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' });
   const [file, setFile] = useState<File>();
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string>();
+  const [empSearch, setEmpSearch] = useState('');
+  const filteredEmployeeOptions = employeeOptions.filter((opt) => {
+    if (!empSearch) return true;
+    const searchVal = empSearch.toLowerCase();
+    return opt.label.toLowerCase().includes(searchVal);
+  });
   const pendingRows = rows.filter((row) => row.status === 'PENDING');
   const historyRows = historyScope === 'all' ? rows : rows.filter((row) => String(row.employeeId || '') === String(employeeId || ''));
   const days = form.startDate && form.endDate ? Math.max(0, Math.floor((Date.parse(`${form.endDate}T00:00:00Z`) - Date.parse(`${form.startDate}T00:00:00Z`)) / 86400000) + 1) : 0;
@@ -985,7 +991,8 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, employee
   const todayString = `${todayBkk.getFullYear()}-${String(todayBkk.getMonth() + 1).padStart(2, '0')}-${String(todayBkk.getDate()).padStart(2, '0')}`;
   const isRetroactive = form.startDate ? form.startDate < todayString : false;
 
-  const formReady = Boolean((canManage ? form.employeeId : linked) && form.leaveType && form.startDate && form.endDate && form.substitute.trim() && (!isRetroactive || form.reason.trim()) && (!requiresAttachment || file));
+  const isSelectingSelfForRetroactive = isRetroactive && canManage && String(form.employeeId) === String(employeeId);
+  const formReady = Boolean((canManage ? form.employeeId : linked) && form.leaveType && form.startDate && form.endDate && form.substitute.trim() && (!isRetroactive || form.reason.trim()) && (!requiresAttachment || file) && !isSelectingSelfForRetroactive);
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1001,7 +1008,61 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, employee
     finally { setSubmitting(false); }
   };
   const status = (row: DataRow) => { const actorName = row.approvedByDisplayName ? String(row.approvedByDisplayName) : ''; const actorRole = String(row.approvedByRole || 'ผู้อนุมัติ'); const actionDate = row.approvedAt ? String(date(row.approvedAt)) : ''; return <div className="leave-status-cell"><span className={`status-badge ${row.status === 'APPROVED' ? 'active' : row.status === 'REJECTED' ? 'inactive' : 'pending'}`}>{String(text(row.status))}</span>{actorName ? <small className="leave-action-log">ดำเนินการโดย {actorName} ({actorRole})<br />วันที่ {actionDate}</small> : null}</div>; };
-  const leaveTable = (items: DataRow[], actions = false, emptyMessage = 'ไม่มีรายการ') => <div className="table-scroll"><table className="data-table leave-data-table"><thead><tr><th>พนักงาน</th><th>ประเภท</th><th>วันที่ลา</th><th>วัน</th><th>แทน / เหตุผล</th><th>เอกสาร</th>{!actions && <th>สถานะ</th>}<th>พิมพ์</th>{(actions || canCancelApprovedLeave) && <th>จัดการ</th>}</tr></thead><tbody>{items.length ? items.map((row) => <tr key={text(row.id)}><td className="employee-name">{text(row.employeeNameSnapshot)}<small className="cell-note">{text(row.departmentSnapshot)}</small></td><td>{text(row.leaveType)}{row.isRetroactive ? <span className="status-badge" style={{ marginLeft: 8, background: '#fef08a', color: '#854d0e', fontSize: '0.7em', padding: '2px 6px' }}>ย้อนหลัง</span> : null}</td><td>{date(row.startDate)} – {date(row.endDate)}</td><td>{text(row.dayCount)}</td><td>{text(row.reason)}</td><td>{row.attachmentUrl ? <button className="attachment-link" onClick={() => onAttachment(row)}>📎 เอกสาร</button> : <span className="muted-text">–</span>}</td>{!actions && <td>{status(row)}</td>}<td>{row.status === 'APPROVED' ? <button className="btn-info leave-print-button" onClick={() => onPrint(row)}>🖨 พิมพ์ A4</button> : <span className="muted-text">–</span>}</td>{actions && <td className="row-actions">{row.createdByUserId === currentUserId ? <span className="muted-text" style={{ fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>ห้ามอนุมัติรายการที่สร้างเอง</span> : row.createdByUserId === null && currentUserRole === 'MANAGER' ? <span className="muted-text" style={{ fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>ต้องให้ Admin ดำเนินการ</span> : <><button className="btn-primary compact" onClick={() => onApprove(row)}>อนุมัติ</button><button className="danger-action" onClick={() => onReject(row)}>ไม่อนุมัติ</button></>}</td>}{!actions && canCancelApprovedLeave && <td className="row-actions">{row.status === 'APPROVED' ? <button className="danger-action" onClick={() => onCancel(row)}>ยกเลิกใบลาที่อนุมัติแล้ว</button> : <span className="muted-text">–</span>}</td>}</tr>) : <tr><td colSpan={(actions || canCancelApprovedLeave) ? 9 : 8} className="no-rows"><div className="empty-state"><strong>{emptyMessage}</strong></div></td></tr>}</tbody></table></div>;
+  const leaveTable = (items: DataRow[], actions = false, emptyMessage = 'ไม่มีรายการ') => <div className="table-scroll"><table className="data-table leave-data-table"><thead><tr><th>พนักงาน</th><th>ประเภท</th><th>วันที่ลา</th><th>วัน</th><th>แทน / เหตุผล</th><th>เอกสาร</th>{!actions && <th>สถานะ</th>}<th>พิมพ์</th>{(actions || canCancelApprovedLeave) && <th>จัดการ</th>}</tr></thead><tbody>{items.length ? items.map((row) => <tr key={text(row.id)}><td className="employee-name">{text(row.employeeNameSnapshot)}<small className="cell-note">{text(row.departmentSnapshot)}</small></td><td>{text(row.leaveType)}{row.isRetroactive ? <span className="status-badge" style={{ marginLeft: 8, background: '#fef08a', color: '#854d0e', fontSize: '0.7em', padding: '2px 6px' }}>ย้อนหลัง</span> : null}</td><td>{date(row.startDate)} – {date(row.endDate)}</td><td>{text(row.dayCount)}</td><td>{text(row.reason)}</td><td>{row.attachmentUrl ? <button className="attachment-link" onClick={() => onAttachment(row)}>📎 เอกสาร</button> : <span className="muted-text">–</span>}</td>{!actions && <td>{status(row)}</td>}<td>{row.status === 'APPROVED' ? <button className="btn-info leave-print-button" onClick={() => onPrint(row)}>🖨 พิมพ์ A4</button> : <span className="muted-text">–</span>}</td>{actions && <td className="row-actions">{(() => {
+  const isRetro = Boolean(row.isRetroactive);
+  const userJobTitle = String(currentUserEmployee?.jobTitle || '').trim().toLowerCase();
+  const RETROACTIVE_APPROVER_POSITION_LEVELS: Record<string, number> = {
+    'supervisor': 100,
+    'ซุปเปอร์ไวเซอร์': 100,
+    'manager': 200,
+    'ผู้จัดการ': 200
+  };
+  const isUserSupervisorOrHigher = Object.prototype.hasOwnProperty.call(RETROACTIVE_APPROVER_POSITION_LEVELS, userJobTitle);
+  const isOwnLeave = String(row.employeeId || '') === String(currentUserEmployee?.id || '');
+
+  if (isRetro) {
+    if (currentUserRole === 'ADMIN') {
+      return (
+        <>
+          <button className="btn-primary compact" onClick={() => onApprove(row)}>อนุมัติ</button>
+          <button className="danger-action" onClick={() => onReject(row)}>ไม่อนุมัติ</button>
+        </>
+      );
+    }
+    if (currentUserRole === 'MANAGER') {
+      if (!isUserSupervisorOrHigher) {
+        return <span className="muted-text" style={{ fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>ต้องให้ผู้มีตำแหน่ง Supervisor ขึ้นไปอนุมัติ</span>;
+      }
+      if (isOwnLeave) {
+        return <span className="muted-text" style={{ fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>ไม่สามารถอนุมัติใบลาของตนเองได้</span>;
+      }
+      if (row.createdByUserId === null) {
+        return <span className="muted-text" style={{ fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>ต้องให้ Admin ดำเนินการ</span>;
+      }
+      return (
+        <>
+          <button className="btn-primary compact" onClick={() => onApprove(row)}>อนุมัติ</button>
+          <button className="danger-action" onClick={() => onReject(row)}>ไม่อนุมัติ</button>
+        </>
+      );
+    }
+    return <span className="muted-text">–</span>;
+  }
+
+  // Normal/future leave: keep original contract
+  if (row.createdByUserId === currentUserId) {
+    return <span className="muted-text" style={{ fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>ห้ามอนุมัติรายการที่สร้างเอง</span>;
+  }
+  if (row.createdByUserId === null && currentUserRole === 'MANAGER') {
+    return <span className="muted-text" style={{ fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>ต้องให้ Admin ดำเนินการ</span>;
+  }
+  return (
+    <>
+      <button className="btn-primary compact" onClick={() => onApprove(row)}>อนุมัติ</button>
+      <button className="danger-action" onClick={() => onReject(row)}>ไม่อนุมัติ</button>
+    </>
+  );
+})()}</td>}{!actions && canCancelApprovedLeave && <td className="row-actions">{row.status === 'APPROVED' ? <button className="danger-action" onClick={() => onCancel(row)}>ยกเลิกใบลาที่อนุมัติแล้ว</button> : <span className="muted-text">–</span>}</td>}</tr>) : <tr><td colSpan={(actions || canCancelApprovedLeave) ? 9 : 8} className="no-rows"><div className="empty-state"><strong>{emptyMessage}</strong></div></td></tr>}</tbody></table></div>;
   const quotaCards: Array<[string, string, unknown, string]> = [['🩺', 'ลาป่วยคงเหลือ', remaining.sickLeave, 'green'], ['🏢', 'ลากิจคงเหลือ', remaining.personalLeave, 'blue'], ['🌴', 'ลาพักร้อนคงเหลือ', remaining.vacationLeave, 'amber']];
   return <section className={`view-pane leave-page leave-mode-${mode}`}>
     <div className="leave-hero"><div><span>🗓️</span><div><h1>ระบบจัดการการลา (Leave Management)</h1><p>ยื่นคำขอลา ตรวจสอบโควตา และอนุมัติรายการเข้าสู่ตารางกะ</p></div></div><button onClick={onRefresh}>↻ รีเฟรชข้อมูล</button></div>
@@ -1034,7 +1095,31 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, employee
       </div>
     )}
     {linked ? <div className="leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <article className={`leave-quota-card ${tone}`} key={label}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ประจำปี (วัน)</small></div><span>{icon}</span></article>)}</div> : !canManage && <div className="alert alert-error">บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อ Admin ก่อนส่งคำขอลา</div>}
-    <div className="leave-main-grid"><section className="leave-submit-card"><header><span>✍️</span><div><h2>ยื่นคำขอลาพัก (Submit Leave Request)</h2><p>กรอกข้อมูลให้ครบก่อนส่งเข้าคิวอนุมัติ</p></div></header><form onSubmit={submit}>{canManage && <label className="field-group"><span>👤 พนักงาน <b>*</b></span><select required value={form.employeeId} onChange={(event) => update('employeeId', event.target.value)}><option value="">-- เลือกพนักงาน --</option>{employeeOptions.map((employee) => <option key={employee.value} value={employee.value}>{employee.label}</option>)}</select></label>}<label className="field-group"><span>📌 ประเภทการลา <b>*</b></span><select required value={form.leaveType} onChange={(event) => update('leaveType', event.target.value)}><option value="">-- กรุณาเลือกประเภทการลา --</option><option value="ลาป่วย">🩺 ลาป่วย (Sick Leave)</option><option value="ลากิจ">🏢 ลากิจ (Personal Leave)</option><option value="ลาพักร้อน">🌴 ลาพักร้อน (Vacation Leave)</option></select></label><div className="leave-date-grid"><label className="field-group"><span>📅 วันที่เริ่มต้น <b>*</b></span><input required type="date" min={!canManage ? todayString : undefined} value={form.startDate} onChange={(event) => update('startDate', event.target.value)} /></label><label className="field-group"><span>🏁 วันที่สิ้นสุด <b>*</b></span><input required type="date" min={form.startDate || (!canManage ? todayString : undefined)} value={form.endDate} onChange={(event) => update('endDate', event.target.value)} /></label></div>{days > 0 && <div className="leave-days-note">ระยะเวลาการลา: <strong>{days}</strong> วัน</div>}<label className="field-group"><span>👥 ผู้ปฏิบัติงานแทน <b>*</b></span><input required value={form.substitute} placeholder="ระบุชื่อ-นามสกุล ผู้เข้าเวร/ปฏิบัติงานแทน" onChange={(event) => update('substitute', event.target.value)} /></label><label className="field-group"><span>📝 เหตุผลการลา {isRetroactive && <b>*</b>}</span><textarea required={isRetroactive} rows={3} value={form.reason} placeholder={isRetroactive ? "ต้องระบุเหตุผลเมื่อเลือกวันลาย้อนหลัง" : "ระบุเหตุผลหรือความจำเป็นในการลา... (ไม่บังคับ)"} onChange={(event) => update('reason', event.target.value)} /></label><label className="leave-file-field"><span>📎 แนบไฟล์เอกสาร (ใบรับรองแพทย์/รูปภาพ/PDF)</span><small>จำเป็นเมื่อลาป่วยเกิน 3 วัน · PDF, JPG หรือ PNG ไม่เกิน 4 MB</small><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} />{file && <em>เลือกไฟล์แล้ว: {file.name}</em>}</label>{notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}<button className="leave-submit-button" disabled={!canSubmit || !formReady || submitting} type="submit">🚀 {submitting ? 'กำลังส่งคำขอลา…' : 'ยืนยันและส่งคำขอลา'}</button></form></section>
+    <div className="leave-main-grid"><section className="leave-submit-card"><header><span>✍️</span><div><h2>ยื่นคำขอลาพัก (Submit Leave Request)</h2><p>กรอกข้อมูลให้ครบก่อนส่งเข้าคิวอนุมัติ</p></div></header><form onSubmit={submit}>{canManage && (
+  <label className="field-group">
+    <span>👤 พนักงาน <b>*</b></span>
+    <input
+      type="text"
+      placeholder="พิมพ์เพื่อค้นหาด้วยชื่อ, รหัสพนักงาน, หรือแผนก..."
+      value={empSearch}
+      onChange={(e) => setEmpSearch(e.target.value)}
+      style={{ marginBottom: '8px', padding: '6px 10px', fontSize: '0.9rem', borderRadius: '4px', border: '1px solid #ccc' }}
+    />
+    <select required value={form.employeeId} onChange={(event) => update('employeeId', event.target.value)}>
+      <option value="">-- เลือกพนักงาน --</option>
+      {filteredEmployeeOptions.map((employee) => (
+        <option key={employee.value} value={employee.value}>
+          {employee.label}
+        </option>
+      ))}
+    </select>
+    {isSelectingSelfForRetroactive && (
+      <span style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: 4, display: 'block' }}>
+        ผู้จัดการไม่สามารถบันทึกการลาย้อนหลังให้ตนเองได้
+      </span>
+    )}
+  </label>
+)}<label className="field-group"><span>📌 ประเภทการลา <b>*</b></span><select required value={form.leaveType} onChange={(event) => update('leaveType', event.target.value)}><option value="">-- กรุณาเลือกประเภทการลา --</option><option value="ลาป่วย">🩺 ลาป่วย (Sick Leave)</option><option value="ลากิจ">🏢 ลากิจ (Personal Leave)</option><option value="ลาพักร้อน">🌴 ลาพักร้อน (Vacation Leave)</option></select></label><div className="leave-date-grid"><label className="field-group"><span>📅 วันที่เริ่มต้น <b>*</b></span><input required type="date" min={!canManage ? todayString : undefined} value={form.startDate} onChange={(event) => update('startDate', event.target.value)} /></label><label className="field-group"><span>🏁 วันที่สิ้นสุด <b>*</b></span><input required type="date" min={form.startDate || (!canManage ? todayString : undefined)} value={form.endDate} onChange={(event) => update('endDate', event.target.value)} /></label></div>{days > 0 && <div className="leave-days-note">ระยะเวลาการลา: <strong>{days}</strong> วัน</div>}<label className="field-group"><span>👥 ผู้ปฏิบัติงานแทน <b>*</b></span><input required value={form.substitute} placeholder="ระบุชื่อ-นามสกุล ผู้เข้าเวร/ปฏิบัติงานแทน" onChange={(event) => update('substitute', event.target.value)} /></label><label className="field-group"><span>📝 เหตุผลการลา {isRetroactive && <b>*</b>}</span><textarea required={isRetroactive} rows={3} value={form.reason} placeholder={isRetroactive ? "ต้องระบุเหตุผลเมื่อเลือกวันลาย้อนหลัง" : "ระบุเหตุผลหรือความจำเป็นในการลา... (ไม่บังคับ)"} onChange={(event) => update('reason', event.target.value)} /></label><label className="leave-file-field"><span>📎 แนบไฟล์เอกสาร (ใบรับรองแพทย์/รูปภาพ/PDF)</span><small>จำเป็นเมื่อลาป่วยเกิน 3 วัน · PDF, JPG หรือ PNG ไม่เกิน 4 MB</small><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} />{file && <em>เลือกไฟล์แล้ว: {file.name}</em>}</label>{notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}<button className="leave-submit-button" disabled={!canSubmit || !formReady || submitting} type="submit">🚀 {submitting ? 'กำลังส่งคำขอลา…' : 'ยืนยันและส่งคำขอลา'}</button></form></section>
       <section className="leave-history-card"><header><span>📋</span><div><h2>{mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด (All Employee Leaves & Print A4)' : 'ประวัติคำขอลาของฉัน (My Leave History)'}</h2><p>{mode === 'history' ? 'สำหรับหัวหน้างานและ Admin ตรวจสอบรายการลาทั้งหมด และพิมพ์ใบลาอนุมัติ' : 'วันที่ลา ประเภทการลา และสถานะคำขอลา'}</p></div>{mode === 'history' && <button className="btn-neutral small-action" onClick={onRefresh}>↻ รีเฟรชข้อมูล</button>}</header>{mode === 'history' && historyMonth && onHistoryMonthChange && onHistoryMonthStep && <div className="leave-history-filter"><div><strong>แสดงข้อมูล: {formatThaiMonth(historyMonth)}</strong><small>รายการลาที่มีช่วงวันทับซ้อนกับเดือนที่เลือก</small></div><div className="leave-history-month-controls"><MonthGridPicker value={historyMonth} onChange={onHistoryMonthChange} /><button className="btn-neutral small-action" onClick={() => onHistoryMonthStep(-1)}>‹ เดือนก่อน</button><button className="btn-neutral small-action" onClick={() => onHistoryMonthStep(1)}>เดือนถัดไป ›</button></div></div>}{mode !== 'history' && <><div className="my-leave-quota-heading">โควต้าคงเหลือ</div><div className="my-leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <article className={`leave-quota-card ${tone}`} key={`my-${label}`}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ประจำปี (วัน)</small></div><span>{icon}</span></article>)}</div></>}{loading ? <div className="loading-row" role="status">กำลังดึงประวัติการลา…</div> : leaveTable(historyRows, false, mode === 'history' && historyMonth ? `ไม่พบประวัติการลาในเดือน${formatThaiMonth(historyMonth)}` : 'ไม่มีรายการ')}{mode === 'history' && historyTotalPages && historyTotalPages > 1 && onHistoryPageChange && <div className="pagination-bar"><button disabled={(historyPage || 1) <= 1 || loading} onClick={() => onHistoryPageChange((historyPage || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {historyPage || 1} จาก {historyTotalPages}</span><button disabled={(historyPage || 1) >= historyTotalPages || loading} onClick={() => onHistoryPageChange((historyPage || 1) + 1)}>หน้าถัดไป ›</button></div>}{mode === 'history' && <div className="leave-history-total">ทั้งหมด {historyTotal ?? historyRows.length} รายการในเดือนที่เลือก</div>}</section>
     </div>
     <ErrorAlert message={error} className="leave-error" />
@@ -1332,7 +1417,7 @@ function Dashboard() {
   const visibleNavigation = navigation
     .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)) }))
     .filter((section) => section.items.length > 0);
-  const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName}` }));
+  const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName} (${employee.department || '-'})` }));
   const shiftTypeOptions = shiftTypes.map((shiftType) => ({ value: String(shiftType.id), label: `${text(shiftType.code)} · ${text(shiftType.name)}` }));
 
   const runEditor = (definition: Omit<Editor, 'submit'>, action: (values: Record<string, string>, files: Record<string, File>) => Promise<unknown>, refresh: 'employees' | 'operations' = 'operations') => {
@@ -2016,7 +2101,7 @@ function Dashboard() {
       const rows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       const remaining = nested(leaveSummary.remaining);
         const canCancelApprovedLeave = auth.user?.role === 'ADMIN';
-        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} canManage={canManage} canSubmit={auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked)} canCancelApprovedLeave={canCancelApprovedLeave} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onCancel={(row) => handleOperationAction(row, 'cancel')} onPrint={setLeavePrintTarget} onAttachment={async (row) => { if (!auth.token) return; try { const result = await api.downloadLeaveAttachment(auth.token, String(row.id)); const url = URL.createObjectURL(result.blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'เปิดไฟล์แนบไม่สำเร็จ'); } }} onSubmit={async (form, file) => { if (!auth.token) return; if (file) await api.createLeaveRequestWithAttachment(auth.token, form, file); else await api.createLeaveRequest(auth.token, form); setOperationRefresh((value) => value + 1); }} />;
+        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} currentUserId={auth.user?.id} currentUserRole={auth.user?.role} currentUserEmployee={employees.find(e => e.id === leaveSummary.employeeId)} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} canManage={canManage} canSubmit={auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked)} canCancelApprovedLeave={canCancelApprovedLeave} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onCancel={(row) => handleOperationAction(row, 'cancel')} onPrint={setLeavePrintTarget} onAttachment={async (row) => { if (!auth.token) return; try { const result = await api.downloadLeaveAttachment(auth.token, String(row.id)); const url = URL.createObjectURL(result.blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); } catch (reason) { setOperationError(reason instanceof Error ? reason.message : 'เปิดไฟล์แนบไม่สำเร็จ'); } }} onSubmit={async (form, file) => { if (!auth.token) return; if (file) await api.createLeaveRequestWithAttachment(auth.token, form, file); else await api.createLeaveRequest(auth.token, form); setOperationRefresh((value) => value + 1); }} />;
     }
     if (activePage === 'rules') {
       const rules = Array.isArray(operationResponse.data) ? operationResponse.data : [];
