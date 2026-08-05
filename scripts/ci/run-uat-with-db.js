@@ -374,6 +374,7 @@ async function runTests() {
     const legacyLeave = await prisma.leaveRequest.create({
       data: {
         sourceFingerprint: require('crypto').randomBytes(32).toString('hex'),
+        requestedAt: new Date(),
         employeeId: empWCS,
         leaveType: 'PERSONAL',
         startDate: new Date(dates.yesterday),
