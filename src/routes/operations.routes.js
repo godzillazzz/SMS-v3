@@ -76,12 +76,21 @@ const isManagerPosition = (employee) => /manager|ผู้จัดการ/.te
 const licenseStorage = createSupabaseLicenseDocumentStorage();
 const licenseDocuments = createLicenseDocumentService({ prisma, storage: licenseStorage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
 const hasSupervisorApprovalLevel = (user) => user.role === 'ADMIN' || isSupervisorPosition(user.employee) || isManagerPosition(user.employee);
+const normalizeDepartment = (val) => val?.trim().toLowerCase() || null;
 const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser) => {
   if (requestUser.role === 'ADMIN') return;
   const [leaveEmployee, approver] = await Promise.all([
-    tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true } }),
-    tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employee: { select: { jobTitle: true } } } })
+    tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true, department: true } }),
+    tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employee: { select: { jobTitle: true, department: true } } } })
   ]);
+  if (requestUser.role === 'MANAGER') {
+    if (!approver.employee) throw new HttpError(403, 'Employee is outside of your management scope.');
+    const leaveDept = normalizeDepartment(leaveEmployee.department);
+    const approverDept = normalizeDepartment(approver.employee.department);
+    if (!leaveDept || !approverDept || leaveDept !== approverDept) {
+      throw new HttpError(403, 'EMPLOYEE_OUT_OF_MANAGER_SCOPE');
+    }
+  }
   if (isSupervisorPosition(leaveEmployee)) throw new HttpError(403, 'Supervisor leave requests require Admin approval.');
   if (isManagerPosition(leaveEmployee) && !hasSupervisorApprovalLevel(approver)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.');
 };
@@ -114,9 +123,10 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   const leaveType = normalizeLeaveType(input.leaveType);
   const dayCount = inclusiveDays(input.startDate, input.endDate);
 
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  const isRetroactive = new Date(input.startDate) < today;
+  const bangkokStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
+  const bkkDate = new Date(bangkokStr);
+  const todayBangkokUTC = new Date(Date.UTC(bkkDate.getFullYear(), bkkDate.getMonth(), bkkDate.getDate()));
+  const isRetroactive = new Date(input.startDate) < todayBangkokUTC;
 
   if (isRetroactive) {
     if (currentUser.role === 'VIEWER') {
@@ -127,6 +137,11 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
     }
   }
 
+  const onBehalfOf = employeeId !== currentUser.employeeId;
+  if (currentUser.role === 'MANAGER' && onBehalfOf) {
+    await ensureLeaveApprovalAllowed(tx, employeeId, requestUser);
+  }
+
   const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } });
   if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.');
   await ensureLeaveAvailable(tx, employeeId, leaveType, dayCount);
@@ -135,14 +150,19 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   const safeFileName = file?.originalname.replace(/[\\/\0]/g, '_').slice(0, 255);
   const substituteText = String(substitute ?? input.substitute ?? '').trim();
   if (!substituteText) throw new HttpError(400, 'Substitute is required.');
-  const reasonText = String(input.reason || '-').trim() || '-';
-  const reason = `[แทน: ${substituteText.slice(0, 255)}] ${reasonText}`;
-  const leave = await tx.leaveRequest.create({ data: { employeeId, leaveType, startDate: input.startDate, endDate: input.endDate, reason, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: file ? 'STORED' : 'NONE', status: 'PENDING' } });
+
+  const reasonText = String(input.reason || '').trim();
+  if (isRetroactive && !reasonText) {
+    throw new HttpError(400, 'ต้องระบุเหตุผลในการบันทึกการลาย้อนหลัง');
+  }
+  const prefix = onBehalfOf ? `[บันทึกแทนโดย: ${currentUser.role}] ` : '';
+  const reason = `${prefix}[แทน: ${substituteText.slice(0, 255)}] ${reasonText || '-'}`;
+
+  const leave = await tx.leaveRequest.create({ data: { employeeId, createdByUserId: requestUser.sub, leaveType, startDate: input.startDate, endDate: input.endDate, reason, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: file ? 'STORED' : 'NONE', status: 'PENDING' } });
   if (file) {
     await tx.leaveAttachment.create({ data: { leaveRequestId: leave.id, fileName: safeFileName || 'attachment', mimeType: file.mimetype, sizeBytes: file.size, sha256: crypto.createHash('sha256').update(file.buffer).digest('hex'), content: file.buffer, uploadedByLegacyRef: requestUser.sub } });
     await tx.leaveRequest.update({ where: { id: leave.id }, data: { attachmentUrl: `/api/v1/leave-requests/${leave.id}/attachment` } });
   }
-  const onBehalfOf = employeeId !== currentUser.employeeId;
   await audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']), attachment: file ? { present: true, mimeType: file.mimetype, sizeBytes: file.size } : { present: false }, isRetroactive, onBehalfOf } }, tx);
   return {
     id: leave.id, employeeId: leave.employeeId, requestedAt: leave.requestedAt,
@@ -622,6 +642,7 @@ router.get('/leave-requests', async (req, res, next) => {
         id: true, employeeId: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true,
         leaveType: true, startDate: true, endDate: true, dayCount: true, reason: true,
         attachmentUrl: true, attachmentMigrationStatus: true, status: true, approvedAt: true, approvedByLegacyRef: true,
+        createdByUserId: true,
         attachment: { select: { fileName: true, mimeType: true, sizeBytes: true } }
       },
       orderBy: { requestedAt: 'desc' }
@@ -631,7 +652,27 @@ router.get('/leave-requests', async (req, res, next) => {
     const approverIds = [...new Set(response.data.map((row) => row.approvedByLegacyRef).filter((value) => uuid.safeParse(value).success))];
     const approvers = approverIds.length ? await prisma.user.findMany({ where: { id: { in: approverIds } }, select: { id: true, displayName: true, role: true } }) : [];
     const approverById = new Map(approvers.map((user) => [user.id, user]));
-    res.json({ ...response, data: response.data.map((row) => { const approver = approverById.get(row.approvedByLegacyRef); return { ...row, attachmentUrl: row.attachment ? `/api/v1/leave-requests/${row.id}/attachment` : null, approvedByDisplayName: approver?.displayName || null, approvedByRole: approver?.role || null }; }) });
+
+    const leaveIds = response.data.map((row) => row.id);
+    const auditLogs = leaveIds.length ? await prisma.auditLog.findMany({
+      where: { entityType: 'LeaveRequest', entityId: { in: leaveIds }, action: 'CREATE' },
+      select: { entityId: true, actorUserId: true, metadata: true }
+    }) : [];
+    const auditMap = new Map(auditLogs.map((log) => [log.entityId, log]));
+
+    res.json({ ...response, data: response.data.map((row) => {
+      const approver = approverById.get(row.approvedByLegacyRef);
+      const audit = auditMap.get(row.id);
+      const isRetroactive = Boolean(audit?.metadata?.isRetroactive);
+      return {
+        ...row,
+        attachmentUrl: row.attachment ? `/api/v1/leave-requests/${row.id}/attachment` : null,
+        approvedByDisplayName: approver?.displayName || null,
+        approvedByRole: approver?.role || null,
+        isRetroactive,
+        createdByUserId: audit?.actorUserId || null
+      };
+    }) });
   } catch (error) { next(error); }
 });
 router.get('/leave-summary', async (req, res, next) => {
@@ -684,12 +725,20 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
       if (before.status !== 'PENDING') throw new HttpError(409, 'This leave request has already been reviewed.');
       await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user);
       if (req.user.role === 'MANAGER') {
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
-        if (before.startDate < today) {
+        const bangkokStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
+        const bkkDate = new Date(bangkokStr);
+        const todayBangkokUTC = new Date(Date.UTC(bkkDate.getFullYear(), bkkDate.getMonth(), bkkDate.getDate()));
+
+        if (before.startDate < todayBangkokUTC) {
           const approverUser = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
           if (before.employeeId === approverUser.employeeId) {
             throw new HttpError(400, 'Managers cannot approve retroactive leave for themselves.');
+          }
+          if (before.createdByUserId === null) {
+            throw new HttpError(403, 'LEGACY_CREATOR_UNKNOWN_ADMIN_REQUIRED');
+          }
+          if (before.createdByUserId === req.user.sub) {
+            throw new HttpError(400, 'Managers cannot approve leave requests they created on behalf of others.');
           }
         }
       }
