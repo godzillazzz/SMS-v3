@@ -373,6 +373,7 @@ async function runTests() {
     console.log('Creating synthetic legacy pending leave request...');
     const legacyLeave = await prisma.leaveRequest.create({
       data: {
+        sourceFingerprint: require('crypto').randomBytes(32).toString('hex'),
         employeeId: empWCS,
         leaveType: 'PERSONAL',
         startDate: new Date(dates.yesterday),
