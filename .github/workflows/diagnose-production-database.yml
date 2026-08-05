@@ -33,6 +33,9 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           npx --yes vercel@56.4.1 pull --yes --environment=production --token "$VERCEL_TOKEN"
+      - name: Run Local Authentication Debug
+        run: |
+          node scripts/ci/debug-auth.js
       - name: Run UAT Verification
         run: |
           node scripts/ci/run-uat-with-db.js
