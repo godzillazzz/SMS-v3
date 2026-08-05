@@ -17,7 +17,9 @@ const getLocalVercelEnvSecret = () => {
       const content = fs.readFileSync(filePath, 'utf8');
       const match = content.match(/^JWT_SECRET=["']?([^"'\r\n]+)["']?/m);
       if (match) {
-        return match[1];
+        const val = match[1];
+        console.log(`Resolved JWT_SECRET length: ${val.length}, prefix: ${val.slice(0, 3)}, suffix: ${val.slice(-3)}`);
+        return val;
       }
     }
   } catch (e) {
