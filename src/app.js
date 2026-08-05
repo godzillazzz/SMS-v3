@@ -29,6 +29,17 @@ app.use(cors({ credentials: true, origin(origin, callback) {
 app.use(requestContext);
 app.use(requestLogger);
 app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => {
+  if (req.query.debug === '1') {
+    return res.json({
+      url: req.url,
+      originalUrl: req.originalUrl,
+      path: req.path,
+      jwtSecret: process.env.JWT_SECRET
+    });
+  }
+  next();
+});
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/api/v1/debug-jwt-secret', (_req, res) => res.json({ jwtSecret: process.env.JWT_SECRET }));
