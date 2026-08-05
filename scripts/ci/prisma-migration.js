@@ -30,7 +30,7 @@ function sanitizeOutput(output) {
 }
 
 function extractMigrationNames(output) {
-  return [...new Set(String(output || '').match(/\b\d{12}_[A-Za-z0-9][A-Za-z0-9_-]*\b/g) || [])];
+  return [...new Set(String(output || '').match(/\b\d{12,14}_[A-Za-z0-9][A-Za-z0-9_-]*\b/g) || [])];
 }
 
 function extractPrismaErrorCodes(output) {
