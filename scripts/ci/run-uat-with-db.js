@@ -51,6 +51,20 @@ const loadLocalVercelEnv = () => {
   }
 };
 
+// Fill dummy defaults for non-critical required env variables to satisfy Zod schema
+const fillDummyEnvDefaults = () => {
+  process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30m';
+  process.env.RATE_LIMIT_HASH_SECRET = process.env.RATE_LIMIT_HASH_SECRET || 'test-rate-limit-secret-with-at-least-thirty-two-chars';
+  process.env.COOKIE_SECURE = process.env.COOKIE_SECURE || 'false';
+  process.env.COOKIE_SAME_SITE = process.env.COOKIE_SAME_SITE || 'lax';
+  process.env.REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
+  process.env.OTP_DELIVERY_PROVIDER = process.env.OTP_DELIVERY_PROVIDER || 'memory';
+  process.env.OTP_HASH_SECRET = process.env.OTP_HASH_SECRET || 'test-otp-secret-with-at-least-thirty-two-chars';
+  process.env.ALERT_DEDUP_STORE = process.env.ALERT_DEDUP_STORE || 'memory';
+  process.env.ALERT_DEDUP_HASH_SECRET = process.env.ALERT_DEDUP_HASH_SECRET || 'test-alert-secret-with-at-least-thirty-two-chars';
+  console.log('Filled dummy env defaults for Zod validation.');
+};
+
 let env, prisma, accessTokenFor;
 
 const BASE    = 'https://sms-v3-staging-ten.vercel.app';
@@ -115,6 +129,7 @@ const sign = (user) => accessTokenFor(user, { expiresIn: '4h' });
 
 (async () => {
   loadLocalVercelEnv();
+  fillDummyEnvDefaults();
 
   // Load modules dynamically after JWT_SECRET is set
   env = require('../../src/config/env');
