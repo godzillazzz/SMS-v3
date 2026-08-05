@@ -32,14 +32,6 @@ jobs:
           echo "RATE_LIMIT_HASH_SECRET=$(openssl rand -hex 16)" >> $GITHUB_ENV
           echo "OTP_HASH_SECRET=$(openssl rand -hex 16)" >> $GITHUB_ENV
           echo "ALERT_DEDUP_HASH_SECRET=$(openssl rand -hex 16)" >> $GITHUB_ENV
-      - name: Pull Vercel environment variables
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          npx --yes vercel@56.4.1 pull --yes --environment=production --token "$VERCEL_TOKEN"
-          grep -E "JWT_ISSUER|JWT_AUDIENCE|JWT_ALGORITHM" .vercel/.env.production.local || true
       - name: Run UAT Verification
         env:
           JWT_SECRET: "MAoYCLYqkebnUrmsFk6SrSZOZ/QJ1bzyrqvU3vpNlurnpV+Es2THNyp15PMEn1BdbUxB+HzuM2Af7FMy2Z1ZkQ=="

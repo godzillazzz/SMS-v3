@@ -83,7 +83,7 @@ const sign = (user) => accessTokenFor(user, { expiresIn: '4h' });
   const allUsers = await prisma.user.findMany({
     where: { isActive: true, accountStatus: 'ACTIVE' },
     select: {
-      id: true, email: true, role: true, employeeId: true,
+      id: true, email: true, role: true, employeeId: true, tokenVersion: true,
       employee: { select: { id: true, firstName: true, lastName: true, jobTitle: true, department: true, isActive: true } }
     }
   });
