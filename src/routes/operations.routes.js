@@ -75,24 +75,44 @@ const isSupervisorPosition = (employee) => /supervisor|หัวหน้า|ซ
 const isManagerPosition = (employee) => /manager|ผู้จัดการ/.test(positionText(employee));
 const licenseStorage = createSupabaseLicenseDocumentStorage();
 const licenseDocuments = createLicenseDocumentService({ prisma, storage: licenseStorage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
+const getTodayBangkokUTC = () => {
+  const now = new Date();
+  const bangkokTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+  const year = bangkokTime.getUTCFullYear();
+  const month = bangkokTime.getUTCMonth();
+  const day = bangkokTime.getUTCDate();
+  return new Date(Date.UTC(year, month, day));
+};
+const checkIsRetroactive = (dateInput) => {
+  if (!dateInput) return false;
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return false;
+  const bkkDate = new Date(d.getTime() + (7 * 60 * 60 * 1000));
+  const targetUTC = new Date(Date.UTC(bkkDate.getUTCFullYear(), bkkDate.getUTCMonth(), bkkDate.getUTCDate()));
+  return targetUTC < getTodayBangkokUTC();
+};
 const hasSupervisorApprovalLevel = (user) => user.role === 'ADMIN' || isSupervisorPosition(user.employee) || isManagerPosition(user.employee);
 const normalizeDepartment = (val) => val?.trim().toLowerCase() || null;
-const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser) => {
+const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser, options = {}) => {
   if (requestUser.role === 'ADMIN') return;
   const [leaveEmployee, approver] = await Promise.all([
     tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true, department: true } }),
     tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employee: { select: { jobTitle: true, department: true } } } })
   ]);
   if (requestUser.role === 'MANAGER') {
-    if (!approver.employee) throw new HttpError(403, 'Employee is outside of your management scope.');
-    const leaveDept = normalizeDepartment(leaveEmployee.department);
-    const approverDept = normalizeDepartment(approver.employee.department);
-    if (!leaveDept || !approverDept || leaveDept !== approverDept) {
-      throw new HttpError(403, 'EMPLOYEE_OUT_OF_MANAGER_SCOPE');
+    if (!options.skipDepartmentCheck) {
+      if (!approver.employee) throw new HttpError(403, 'Employee is outside of your management scope.');
+      const leaveDept = normalizeDepartment(leaveEmployee.department);
+      const approverDept = normalizeDepartment(approver.employee.department);
+      if (!leaveDept || !approverDept || leaveDept !== approverDept) {
+        throw new HttpError(403, 'EMPLOYEE_OUT_OF_MANAGER_SCOPE');
+      }
     }
   }
-  if (isSupervisorPosition(leaveEmployee)) throw new HttpError(403, 'Supervisor leave requests require Admin approval.');
-  if (isManagerPosition(leaveEmployee) && !hasSupervisorApprovalLevel(approver)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.');
+  if (!options.isRetroactive) {
+    if (isSupervisorPosition(leaveEmployee)) throw new HttpError(403, 'Supervisor leave requests require Admin approval.');
+    if (isManagerPosition(leaveEmployee) && !hasSupervisorApprovalLevel(approver)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.');
+  }
 };
 const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedDays, excludeId) => {
   const field = leaveQuotaField(leaveType);
@@ -123,10 +143,7 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   const leaveType = normalizeLeaveType(input.leaveType);
   const dayCount = inclusiveDays(input.startDate, input.endDate);
 
-  const bangkokStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
-  const bkkDate = new Date(bangkokStr);
-  const todayBangkokUTC = new Date(Date.UTC(bkkDate.getFullYear(), bkkDate.getMonth(), bkkDate.getDate()));
-  const isRetroactive = new Date(input.startDate) < todayBangkokUTC;
+  const isRetroactive = checkIsRetroactive(input.startDate);
 
   if (isRetroactive) {
     if (currentUser.role === 'VIEWER') {
@@ -139,7 +156,11 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
 
   const onBehalfOf = employeeId !== currentUser.employeeId;
   if (currentUser.role === 'MANAGER' && onBehalfOf) {
-    await ensureLeaveApprovalAllowed(tx, employeeId, requestUser);
+    if (isRetroactive) {
+      await ensureLeaveApprovalAllowed(tx, employeeId, requestUser, { skipDepartmentCheck: true, isRetroactive: true });
+    } else {
+      await ensureLeaveApprovalAllowed(tx, employeeId, requestUser);
+    }
   }
 
   const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } });
@@ -627,7 +648,14 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
 
 router.get('/leave-requests', async (req, res, next) => {
   try {
-    const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true } });
+    const currentUser = await prisma.user.findUniqueOrThrow({
+      where: { id: req.user.sub },
+      select: {
+        role: true,
+        employeeId: true,
+        employee: { select: { department: true } }
+      }
+    });
     if (currentUser.role === 'VIEWER' && !currentUser.employeeId) throw new HttpError(403, 'This account is not linked to an employee.');
     const filters = leaveListQuery.parse(req.query);
     let monthFilter;
@@ -635,7 +663,42 @@ router.get('/leave-requests', async (req, res, next) => {
     const viewerWhere = currentUser.role === 'VIEWER' ? { employeeId: currentUser.employeeId } : {};
     const requestedEmployeeWhere = currentUser.role === 'VIEWER' ? {} : (filters.employeeId ? { employeeId: filters.employeeId } : {});
     const searchWhere = filters.search ? { OR: [{ employeeNameSnapshot: { contains: filters.search, mode: 'insensitive' } }, { departmentSnapshot: { contains: filters.search, mode: 'insensitive' } }, { reason: { contains: filters.search, mode: 'insensitive' } }] } : {};
-    const where = { ...viewerWhere, ...requestedEmployeeWhere, ...(filters.status ? { status: filters.status } : {}), ...(filters.department ? { departmentSnapshot: { contains: filters.department, mode: 'insensitive' } } : {}), ...searchWhere, ...leaveMonthWhere(monthFilter) };
+    
+    let roleBasedWhere = {};
+    if (currentUser.role === 'MANAGER') {
+      const todayBangkokUTC = getTodayBangkokUTC();
+      const managerDept = currentUser.employee?.department;
+      roleBasedWhere = {
+        OR: [
+          {
+            status: 'PENDING',
+            startDate: { lt: todayBangkokUTC }
+          },
+          managerDept ? {
+            departmentSnapshot: { equals: managerDept, mode: 'insensitive' }
+          } : null,
+          currentUser.employeeId ? {
+            employeeId: currentUser.employeeId
+          } : null
+        ].filter(Boolean)
+      };
+    }
+
+    const baseWhere = {
+      ...viewerWhere,
+      ...requestedEmployeeWhere,
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.department ? { departmentSnapshot: { contains: filters.department, mode: 'insensitive' } } : {}),
+      ...searchWhere,
+      ...leaveMonthWhere(monthFilter)
+    };
+
+    const where = {
+      AND: [
+        baseWhere,
+        roleBasedWhere
+      ]
+    };
     const response = await paged(prisma.leaveRequest, req.query, {
       where,
       select: {
@@ -723,24 +786,17 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
       if (before.status !== 'PENDING') throw new HttpError(409, 'This leave request has already been reviewed.');
-      await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user);
-      if (req.user.role === 'MANAGER') {
-        const bangkokStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
-        const bkkDate = new Date(bangkokStr);
-        const todayBangkokUTC = new Date(Date.UTC(bkkDate.getFullYear(), bkkDate.getMonth(), bkkDate.getDate()));
-
-        if (before.startDate < todayBangkokUTC) {
+      const isRetroactive = checkIsRetroactive(before.startDate);
+      if (isRetroactive) {
+        await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { skipDepartmentCheck: true, isRetroactive: true });
+        if (req.user.role === 'MANAGER') {
           const approverUser = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
           if (before.employeeId === approverUser.employeeId) {
-            throw new HttpError(400, 'Managers cannot approve retroactive leave for themselves.');
-          }
-          if (before.createdByUserId === null) {
-            throw new HttpError(403, 'LEGACY_CREATOR_UNKNOWN_ADMIN_REQUIRED');
-          }
-          if (before.createdByUserId === req.user.sub) {
-            throw new HttpError(400, 'Managers cannot approve leave requests they created on behalf of others.');
+            throw new HttpError(400, 'ไม่สามารถอนุมัติใบลาของตนเองได้', 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED');
           }
         }
+      } else {
+        await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user);
       }
       if (input.status === 'APPROVED') {
         await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, Number(before.dayCount), before.id);
