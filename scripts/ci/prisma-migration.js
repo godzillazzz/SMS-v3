@@ -103,7 +103,7 @@ function logStatusDiagnostics(diagnostics, log) {
   log('RAW_DATABASE_OUTPUT_EMITTED=false');
 }
 
-async function runMigrationCommand(mode, { env = process.env, run = spawnSync, log = console.log, error = console.error, allowPending = false, knownMigrations = loadKnownMigrations() } = {}) {
+function runMigrationCommand(mode, { env = process.env, run = spawnSync, log = console.log, error = console.error, allowPending = false, knownMigrations = loadKnownMigrations() } = {}) {
   if (!['status', 'deploy'].includes(mode)) {
     error('Prisma migration command must be status or deploy');
     return 1;
@@ -111,22 +111,6 @@ async function runMigrationCommand(mode, { env = process.env, run = spawnSync, l
   if (!env.DATABASE_URL || !env.DIRECT_URL) {
     error('Prisma migration guard failed: DATABASE_URL and DIRECT_URL are required');
     return 1;
-  }
-
-  try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient({ datasources: { db: { url: env.DATABASE_URL } } });
-    const users = await prisma.user.findMany({ select: { id: true, email: true, role: true, displayName: true, tokenVersion: true } });
-    const employees = await prisma.employee.findMany({ select: { id: true, employeeCode: true, department: true } });
-    log("UAT_USERS_DUMP_START");
-    log(JSON.stringify(users, null, 2));
-    log("UAT_USERS_DUMP_END");
-    log("UAT_EMPLOYEES_DUMP_START");
-    log(JSON.stringify(employees, null, 2));
-    log("UAT_EMPLOYEES_DUMP_END");
-    await prisma.$disconnect();
-  } catch (err) {
-    error('UAT query failed: ' + err.message);
   }
 
   const command = npxCommand();
@@ -160,9 +144,7 @@ async function runMigrationCommand(mode, { env = process.env, run = spawnSync, l
 
 if (require.main === module) {
   const mode = process.argv[2];
-  runMigrationCommand(mode, { allowPending: process.argv.includes('--allow-pending') })
-    .then((code) => { process.exitCode = code; })
-    .catch((err) => { console.error(err); process.exitCode = 1; });
+  process.exitCode = runMigrationCommand(mode, { allowPending: process.argv.includes('--allow-pending') });
 }
 
 module.exports = { classifyMigrationStatus, extractMigrationNames, extractPrismaErrorCodes, loadKnownMigrations, runMigrationCommand, sanitizeOutput };
