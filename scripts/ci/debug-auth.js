@@ -12,6 +12,7 @@ try {
   if (fs.existsSync(filePath)) {
     const content = fs.readFileSync(filePath, 'utf8');
     const lines = content.split(/\r?\n/);
+    let loadedCount = 0;
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#')) continue;
@@ -22,10 +23,18 @@ try {
         if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
           val = val.slice(1, -1);
         }
-        process.env[key] = val;
+        if (val) {
+          // Prevent overwriting existing critical variables
+          if (['DATABASE_URL', 'DIRECT_URL'].includes(key) && process.env[key]) {
+            console.log(`Skipped overwriting existing ${key} with Vercel env.`);
+            continue;
+          }
+          process.env[key] = val;
+          loadedCount++;
+        }
       }
     }
-    console.log('Loaded env variables from local Vercel env file.');
+    console.log(`Loaded ${loadedCount} env variables from local Vercel env file.`);
   }
 } catch (e) {
   console.log('Failed to read local Vercel env file:', e.message);

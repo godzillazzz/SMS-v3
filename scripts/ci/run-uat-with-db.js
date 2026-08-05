@@ -27,8 +27,15 @@ const loadLocalVercelEnv = () => {
           if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
             val = val.slice(1, -1);
           }
-          process.env[key] = val;
-          loadedCount++;
+          if (val) {
+            // Prevent overwriting existing critical variables
+            if (['DATABASE_URL', 'DIRECT_URL'].includes(key) && process.env[key]) {
+              console.log(`Skipped overwriting existing ${key} with Vercel env.`);
+              continue;
+            }
+            process.env[key] = val;
+            loadedCount++;
+          }
         }
       }
       console.log(`Successfully loaded ${loadedCount} env variables from local Vercel env file.`);
