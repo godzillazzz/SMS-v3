@@ -113,6 +113,20 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   const employee = await tx.employee.findUniqueOrThrow({ where: { id: employeeId } });
   const leaveType = normalizeLeaveType(input.leaveType);
   const dayCount = inclusiveDays(input.startDate, input.endDate);
+
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const isRetroactive = new Date(input.startDate) < today;
+
+  if (isRetroactive) {
+    if (currentUser.role === 'VIEWER') {
+      throw new HttpError(400, 'พนักงานทั่วไปไม่สามารถบันทึกการลาย้อนหลังได้');
+    }
+    if (currentUser.role === 'MANAGER' && employeeId === currentUser.employeeId) {
+      throw new HttpError(400, 'ผู้จัดการไม่สามารถบันทึกการลาย้อนหลังให้ตนเองได้');
+    }
+  }
+
   const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } });
   if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.');
   await ensureLeaveAvailable(tx, employeeId, leaveType, dayCount);
@@ -128,7 +142,8 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
     await tx.leaveAttachment.create({ data: { leaveRequestId: leave.id, fileName: safeFileName || 'attachment', mimeType: file.mimetype, sizeBytes: file.size, sha256: crypto.createHash('sha256').update(file.buffer).digest('hex'), content: file.buffer, uploadedByLegacyRef: requestUser.sub } });
     await tx.leaveRequest.update({ where: { id: leave.id }, data: { attachmentUrl: `/api/v1/leave-requests/${leave.id}/attachment` } });
   }
-  await audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']), attachment: file ? { present: true, mimeType: file.mimetype, sizeBytes: file.size } : { present: false } } }, tx);
+  const onBehalfOf = employeeId !== currentUser.employeeId;
+  await audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']), attachment: file ? { present: true, mimeType: file.mimetype, sizeBytes: file.size } : { present: false }, isRetroactive, onBehalfOf } }, tx);
   return {
     id: leave.id, employeeId: leave.employeeId, requestedAt: leave.requestedAt,
     employeeNameSnapshot: leave.employeeNameSnapshot, departmentSnapshot: leave.departmentSnapshot,
@@ -671,7 +686,12 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
       if (req.user.role === 'MANAGER') {
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
-        if (before.startDate < today) throw new HttpError(400, 'Managers cannot approve retroactive leave.');
+        if (before.startDate < today) {
+          const approverUser = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
+          if (before.employeeId === approverUser.employeeId) {
+            throw new HttpError(400, 'Managers cannot approve retroactive leave for themselves.');
+          }
+        }
       }
       if (input.status === 'APPROVED') {
         await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, Number(before.dayCount), before.id);
