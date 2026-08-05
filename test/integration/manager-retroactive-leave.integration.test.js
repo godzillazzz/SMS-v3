@@ -83,7 +83,8 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
           reason: 'legacy',
           dayCount: 1,
           status: 'PENDING',
-          createdByUserId: null
+          createdByUserId: null,
+          sourceFingerprint: randomUUID()
         }
       });
       assert.equal(leave.createdByUserId, null);
@@ -99,7 +100,8 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
           reason: 'new',
           dayCount: 1,
           status: 'PENDING',
-          createdByUserId: user.id
+          createdByUserId: user.id,
+          sourceFingerprint: randomUUID()
         }
       });
       assert.equal(leave.createdByUserId, user.id);
@@ -196,7 +198,8 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
           reason: 'Reason',
           dayCount: 1,
           status: 'PENDING',
-          createdByUserId: manager.user.id
+          createdByUserId: manager.user.id,
+          sourceFingerprint: randomUUID()
         }
       });
 
@@ -220,7 +223,8 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
           reason: 'Reason',
           dayCount: 1,
           status: 'PENDING',
-          createdByUserId: supervisor.user.id
+          createdByUserId: supervisor.user.id,
+          sourceFingerprint: randomUUID()
         }
       });
 
@@ -251,7 +255,8 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
           reason: 'Reason',
           dayCount: 1,
           status: 'PENDING',
-          createdByUserId: mgr1.user.id
+          createdByUserId: mgr1.user.id,
+          sourceFingerprint: randomUUID()
         }
       });
 
@@ -279,7 +284,8 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
           reason: 'Reason',
           dayCount: 1,
           status: 'PENDING',
-          createdByUserId: emp.user.id
+          createdByUserId: emp.user.id,
+          sourceFingerprint: randomUUID()
         }
       });
 
@@ -307,7 +313,8 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
           reason: 'Reason',
           dayCount: 1,
           status: 'PENDING',
-          createdByUserId: emp.user.id
+          createdByUserId: emp.user.id,
+          sourceFingerprint: randomUUID()
         }
       });
 
@@ -332,7 +339,8 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
           reason: 'Reason',
           dayCount: 1,
           status: 'PENDING',
-          createdByUserId: null
+          createdByUserId: null,
+          sourceFingerprint: randomUUID()
         }
       });
 
@@ -358,7 +366,8 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
           reason: 'Reason',
           dayCount: 1,
           status: 'PENDING',
-          createdByUserId: null
+          createdByUserId: null,
+          sourceFingerprint: randomUUID()
         }
       });
 
