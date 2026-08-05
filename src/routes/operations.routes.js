@@ -209,7 +209,7 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   }
 
   const onBehalfOf = employeeId !== currentUser.employeeId;
-  if (currentUser.role === 'MANAGER' && onBehalfOf) {
+  if (currentUser.role === 'MANAGER' && onBehalfOf && !isRetroactive) {
     await ensureLeaveApprovalAllowed(tx, employeeId, requestUser, { skipDepartmentCheck: true });
   }
 
@@ -723,36 +723,19 @@ router.get('/leave-requests', async (req, res, next) => {
     let managerDeptWhere = {};
     if (currentUser.role === 'MANAGER') {
       const dept = currentUser.employee?.department;
-      const isSuper = isSupervisorOrHigher(currentUser.employee);
-      if (isSuper) {
-        managerDeptWhere = {
-          OR: [
-            {
-              startDate: { gte: todayBangkokUTC },
-              departmentSnapshot: dept || undefined
-            },
-            {
-              startDate: { lt: todayBangkokUTC }
-            }
-          ]
-        };
-      } else {
-        managerDeptWhere = {
-          OR: [
-            {
-              startDate: { gte: todayBangkokUTC },
-              departmentSnapshot: dept || undefined
-            },
-            {
-              startDate: { lt: todayBangkokUTC },
-              OR: [
-                { departmentSnapshot: dept || undefined },
-                { createdByUserId: currentUser.id }
-              ]
-            }
-          ]
-        };
-      }
+      // MANAGER role sees all retroactive leave requests across all departments,
+      // but only sees normal leave requests for their own department.
+      managerDeptWhere = {
+        OR: [
+          {
+            startDate: { gte: todayBangkokUTC },
+            departmentSnapshot: dept || undefined
+          },
+          {
+            startDate: { lt: todayBangkokUTC }
+          }
+        ]
+      };
     }
 
     const where = {
@@ -798,12 +781,8 @@ router.get('/leave-requests', async (req, res, next) => {
         } else if (currentUser.role === 'MANAGER') {
           const approverEmp = currentUser.employee;
           if (isRetro) {
-            if (!isSupervisorOrHigher(approverEmp)) {
-              approvalBlockedReason = 'SUPERVISOR_POSITION_REQUIRED';
-            } else if (row.employeeId === approverEmp?.id) {
+            if (row.employeeId === approverEmp?.id) {
               approvalBlockedReason = 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED';
-            } else if (row.createdByUserId === null) {
-              approvalBlockedReason = 'LEGACY_CREATOR_UNKNOWN_ADMIN_REQUIRED';
             } else {
               canCurrentUserApprove = true;
             }
@@ -916,19 +895,11 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
         if (req.user.role === 'MANAGER') {
           const approverUser = await tx.user.findUniqueOrThrow({
             where: { id: req.user.sub },
-            select: { employeeId: true, employee: { select: { id: true, jobTitle: true, department: true } } }
+            select: { employeeId: true }
           });
-
-          if (!isSupervisorOrHigher(approverUser.employee)) {
-            throw new HttpError(400, 'การอนุมัติการลาย้อนหลังต้องดำเนินการโดยผู้มีตำแหน่ง Supervisor ขึ้นไป', 'SUPERVISOR_POSITION_REQUIRED');
-          }
 
           if (before.employeeId === approverUser.employeeId) {
             throw new HttpError(400, 'ไม่สามารถอนุมัติใบลาของตนเองได้', 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED');
-          }
-
-          if (before.createdByUserId === null) {
-            throw new HttpError(403, 'LEGACY_CREATOR_UNKNOWN_ADMIN_REQUIRED');
           }
         }
       } else {

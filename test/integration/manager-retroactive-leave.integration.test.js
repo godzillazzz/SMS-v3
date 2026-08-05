@@ -326,8 +326,8 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
       assert.equal(res.status, 403);
     });
 
-    await t2.test('13. legacy creator null ให้ Manager ถูก block', async () => {
-      const supervisor = await setupUser({ role: 'MANAGER', jobTitle: 'supervisor', department: 'Operations' });
+    await t2.test('13. legacy creator null ให้ Manager อนุมัติได้', async () => {
+      const supervisor = await setupUser({ role: 'MANAGER', jobTitle: 'security guard', department: 'Operations' }); // Lower jobTitle
       const emp = await setupUser({ role: 'VIEWER', jobTitle: 'driver', department: 'Operations' });
 
       const leave = await prisma.leaveRequest.create({
@@ -349,8 +349,7 @@ test('Manager retroactive leave policy - Durable Creator & Scope (25 Cases)', { 
         .set('Authorization', `Bearer ${supervisor.token}`)
         .send({ status: 'APPROVED' });
 
-      assert.equal(res.status, 403);
-      assert.equal(res.body.error, 'LEGACY_CREATOR_UNKNOWN_ADMIN_REQUIRED');
+      assert.equal(res.status, 200);
     });
 
     await t2.test('14. Admin อนุมัติ legacy creator null ได้', async () => {
