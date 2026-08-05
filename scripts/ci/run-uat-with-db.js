@@ -7,25 +7,41 @@
 
 const https = require('https');
 
-// Helper to load JWT_SECRET from local Vercel env file
-const getLocalVercelEnvSecret = () => {
+// Helper to load all environment variables from local Vercel env file
+const loadLocalVercelEnv = () => {
   try {
     const fs = require('node:fs');
     const path = require('node:path');
     const filePath = path.join(__dirname, '../../.vercel/.env.production.local');
     if (fs.existsSync(filePath)) {
       const content = fs.readFileSync(filePath, 'utf8');
-      const match = content.match(/^JWT_SECRET=["']?([^"'\r\n]+)["']?/m);
-      if (match) {
-        const val = match[1];
-        console.log(`Resolved JWT_SECRET length: ${val.length}, prefix: ${val.slice(0, 3)}, suffix: ${val.slice(-3)}`);
-        return val;
+      const lines = content.split(/\r?\n/);
+      let loadedCount = 0;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const match = trimmed.match(/^([^=]+)=(.*)$/);
+        if (match) {
+          const key = match[1].trim();
+          let val = match[2].trim();
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+          }
+          process.env[key] = val;
+          loadedCount++;
+        }
       }
+      console.log(`Successfully loaded ${loadedCount} env variables from local Vercel env file.`);
+      if (process.env.JWT_SECRET) {
+        const val = process.env.JWT_SECRET;
+        console.log(`Resolved JWT_SECRET length: ${val.length}, prefix: ${val.slice(0, 3)}, suffix: ${val.slice(-3)}`);
+      }
+    } else {
+      console.log('Local Vercel env file not found.');
     }
   } catch (e) {
     console.log('Failed to read local Vercel env file:', e.message);
   }
-  return null;
 };
 
 let env, prisma, accessTokenFor;
@@ -91,13 +107,7 @@ const daysAhead = (n) => {
 const sign = (user) => accessTokenFor(user, { expiresIn: '4h' });
 
 (async () => {
-  const vercelSecret = getLocalVercelEnvSecret();
-  if (vercelSecret) {
-    console.log('Successfully resolved JWT_SECRET from local Vercel env file.');
-    process.env.JWT_SECRET = vercelSecret;
-  } else {
-    console.log('Local Vercel env file not found or empty. Fallback to current process.env.JWT_SECRET.');
-  }
+  loadLocalVercelEnv();
 
   // Load modules dynamically after JWT_SECRET is set
   env = require('../../src/config/env');
