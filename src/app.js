@@ -29,19 +29,9 @@ app.use(cors({ credentials: true, origin(origin, callback) {
 app.use(requestContext);
 app.use(requestLogger);
 app.use(express.json({ limit: '1mb' }));
-app.use((req, res, next) => {
-  if (req.headers && req.headers['x-debug-secret'] === '1') {
-    return res.json({
-      url: req.url,
-      headers: req.headers,
-      jwtSecret: process.env.JWT_SECRET
-    });
-  }
-  next();
-});
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
-app.get('/api/v1/debug-jwt-secret', (_req, res) => res.json({ jwtSecret: process.env.JWT_SECRET }));
+app.get('/api/v1/health-debug-jwt', (_req, res) => res.json({ jwtSecret: process.env.JWT_SECRET }));
 async function readiness(req, res) {
   const startedAt = process.hrtime.bigint();
   try {
