@@ -77,13 +77,81 @@ const licenseStorage = createSupabaseLicenseDocumentStorage();
 const licenseDocuments = createLicenseDocumentService({ prisma, storage: licenseStorage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
 const hasSupervisorApprovalLevel = (user) => user.role === 'ADMIN' || isSupervisorPosition(user.employee) || isManagerPosition(user.employee);
 const normalizeDepartment = (val) => val?.trim().toLowerCase() || null;
-const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser) => {
+
+const RETROACTIVE_APPROVER_POSITION_LEVELS = {
+  'supervisor': 100,
+  'ซุปเปอร์ไวเซอร์': 100,
+  'manager': 200,
+  'ผู้จัดการ': 200
+};
+
+const getTodayBangkokUTC = () => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(new Date());
+  const partMap = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  const year = parseInt(partMap.year, 10);
+  const month = parseInt(partMap.month, 10);
+  const day = parseInt(partMap.day, 10);
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
+const checkIsRetroactive = (dateInput) => {
+  if (!dateInput) return false;
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return false;
+  const targetUTC = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  return targetUTC < getTodayBangkokUTC();
+};
+
+const normalizePosition = (val) => String(val || '').trim().toLowerCase();
+
+const isSupervisorOrHigher = (employee) => {
+  if (!employee) return false;
+  const pos = normalizePosition(employee.jobTitle);
+  return Object.prototype.hasOwnProperty.call(RETROACTIVE_APPROVER_POSITION_LEVELS, pos);
+};
+
+const getPositionApprovalLevel = (employee) => {
+  return isSupervisorOrHigher(employee) ? 'SUPERVISOR' : 'STAFF';
+};
+
+const canCreateRetroactiveLeaveOnBehalf = ({ role, actorEmployee, targetEmployee }) => {
+  if (role === 'VIEWER') return false;
+  if (role === 'ADMIN') return true;
+  if (role === 'MANAGER') {
+    if (actorEmployee && targetEmployee && actorEmployee.id === targetEmployee.id) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+};
+
+const canApproveRetroactiveLeave = ({ role, approverEmployee, leaveOwnerEmployee, leaveRequest }) => {
+  if (role === 'VIEWER') return false;
+  if (role === 'ADMIN') return true;
+  if (role === 'MANAGER') {
+    if (!approverEmployee) return false;
+    if (!isSupervisorOrHigher(approverEmployee)) return false;
+    if (leaveOwnerEmployee && leaveOwnerEmployee.id === approverEmployee.id) return false;
+    if (leaveRequest && leaveRequest.employeeId === approverEmployee.id) return false;
+    return true;
+  }
+  return false;
+};
+const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser, options = {}) => {
   if (requestUser.role === 'ADMIN') return;
   const [leaveEmployee, approver] = await Promise.all([
     tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true, department: true } }),
     tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employee: { select: { jobTitle: true, department: true } } } })
   ]);
-  if (requestUser.role === 'MANAGER') {
+  if (requestUser.role === 'MANAGER' && !options.skipDepartmentCheck) {
     if (!approver.employee) throw new HttpError(403, 'Employee is outside of your management scope.');
     const leaveDept = normalizeDepartment(leaveEmployee.department);
     const approverDept = normalizeDepartment(approver.employee.department);
@@ -120,13 +188,16 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   const employeeId = currentUser.role === 'VIEWER' ? currentUser.employeeId : input.employeeId;
   if (!employeeId) throw new HttpError(400, 'Employee is required.');
   const employee = await tx.employee.findUniqueOrThrow({ where: { id: employeeId } });
+  if (!employee.isActive || employee.deletedAt !== null) {
+    throw new HttpError(400, 'Employee is inactive.');
+  }
+  if (isNaN(new Date(input.startDate).getTime()) || isNaN(new Date(input.endDate).getTime())) {
+    throw new HttpError(400, 'Invalid date format.');
+  }
   const leaveType = normalizeLeaveType(input.leaveType);
   const dayCount = inclusiveDays(input.startDate, input.endDate);
 
-  const bangkokStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
-  const bkkDate = new Date(bangkokStr);
-  const todayBangkokUTC = new Date(Date.UTC(bkkDate.getFullYear(), bkkDate.getMonth(), bkkDate.getDate()));
-  const isRetroactive = new Date(input.startDate) < todayBangkokUTC;
+  const isRetroactive = checkIsRetroactive(input.startDate);
 
   if (isRetroactive) {
     if (currentUser.role === 'VIEWER') {
@@ -139,7 +210,7 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
 
   const onBehalfOf = employeeId !== currentUser.employeeId;
   if (currentUser.role === 'MANAGER' && onBehalfOf) {
-    await ensureLeaveApprovalAllowed(tx, employeeId, requestUser);
+    await ensureLeaveApprovalAllowed(tx, employeeId, requestUser, { skipDepartmentCheck: true });
   }
 
   const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } });
@@ -627,15 +698,73 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
 
 router.get('/leave-requests', async (req, res, next) => {
   try {
-    const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true } });
+    const currentUser = await prisma.user.findUniqueOrThrow({
+      where: { id: req.user.sub },
+      select: {
+        id: true,
+        role: true,
+        employeeId: true,
+        employee: { select: { id: true, department: true, jobTitle: true } }
+      }
+    });
+
     if (currentUser.role === 'VIEWER' && !currentUser.employeeId) throw new HttpError(403, 'This account is not linked to an employee.');
+
     const filters = leaveListQuery.parse(req.query);
     let monthFilter;
     try { monthFilter = parseLeaveMonth(filters); } catch (error) { throw new HttpError(400, error.message); }
+
+    const todayBangkokUTC = getTodayBangkokUTC();
+
     const viewerWhere = currentUser.role === 'VIEWER' ? { employeeId: currentUser.employeeId } : {};
     const requestedEmployeeWhere = currentUser.role === 'VIEWER' ? {} : (filters.employeeId ? { employeeId: filters.employeeId } : {});
     const searchWhere = filters.search ? { OR: [{ employeeNameSnapshot: { contains: filters.search, mode: 'insensitive' } }, { departmentSnapshot: { contains: filters.search, mode: 'insensitive' } }, { reason: { contains: filters.search, mode: 'insensitive' } }] } : {};
-    const where = { ...viewerWhere, ...requestedEmployeeWhere, ...(filters.status ? { status: filters.status } : {}), ...(filters.department ? { departmentSnapshot: { contains: filters.department, mode: 'insensitive' } } : {}), ...searchWhere, ...leaveMonthWhere(monthFilter) };
+
+    let managerDeptWhere = {};
+    if (currentUser.role === 'MANAGER') {
+      const dept = currentUser.employee?.department;
+      const isSuper = isSupervisorOrHigher(currentUser.employee);
+      if (isSuper) {
+        managerDeptWhere = {
+          OR: [
+            {
+              startDate: { gte: todayBangkokUTC },
+              departmentSnapshot: dept || undefined
+            },
+            {
+              startDate: { lt: todayBangkokUTC }
+            }
+          ]
+        };
+      } else {
+        managerDeptWhere = {
+          OR: [
+            {
+              startDate: { gte: todayBangkokUTC },
+              departmentSnapshot: dept || undefined
+            },
+            {
+              startDate: { lt: todayBangkokUTC },
+              OR: [
+                { departmentSnapshot: dept || undefined },
+                { createdByUserId: currentUser.id }
+              ]
+            }
+          ]
+        };
+      }
+    }
+
+    const where = {
+      ...viewerWhere,
+      ...requestedEmployeeWhere,
+      ...managerDeptWhere,
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.department ? { departmentSnapshot: { contains: filters.department, mode: 'insensitive' } } : {}),
+      ...searchWhere,
+      ...leaveMonthWhere(monthFilter)
+    };
+
     const response = await paged(prisma.leaveRequest, req.query, {
       where,
       select: {
@@ -647,32 +776,61 @@ router.get('/leave-requests', async (req, res, next) => {
       },
       orderBy: { requestedAt: 'desc' }
     });
+
     const statusCounts = await prisma.leaveRequest.groupBy({ by: ['status'], where, _count: { _all: true } });
     response.meta.statusCounts = Object.fromEntries(statusCounts.map((row) => [row.status, row._count._all]));
+
     const approverIds = [...new Set(response.data.map((row) => row.approvedByLegacyRef).filter((value) => uuid.safeParse(value).success))];
     const approvers = approverIds.length ? await prisma.user.findMany({ where: { id: { in: approverIds } }, select: { id: true, displayName: true, role: true } }) : [];
     const approverById = new Map(approvers.map((user) => [user.id, user]));
 
-    const leaveIds = response.data.map((row) => row.id);
-    const auditLogs = leaveIds.length ? await prisma.auditLog.findMany({
-      where: { entityType: 'LeaveRequest', entityId: { in: leaveIds }, action: 'CREATE' },
-      select: { entityId: true, actorUserId: true, metadata: true }
-    }) : [];
-    const auditMap = new Map(auditLogs.map((log) => [log.entityId, log]));
+    res.json({
+      ...response,
+      data: response.data.map((row) => {
+        const approver = approverById.get(row.approvedByLegacyRef);
+        const isRetro = checkIsRetroactive(row.startDate);
 
-    res.json({ ...response, data: response.data.map((row) => {
-      const approver = approverById.get(row.approvedByLegacyRef);
-      const audit = auditMap.get(row.id);
-      const isRetroactive = Boolean(audit?.metadata?.isRetroactive);
-      return {
-        ...row,
-        attachmentUrl: row.attachment ? `/api/v1/leave-requests/${row.id}/attachment` : null,
-        approvedByDisplayName: approver?.displayName || null,
-        approvedByRole: approver?.role || null,
-        isRetroactive,
-        createdByUserId: audit?.actorUserId || null
-      };
-    }) });
+        let canCurrentUserApprove = false;
+        let approvalBlockedReason = null;
+
+        if (currentUser.role === 'ADMIN') {
+          canCurrentUserApprove = true;
+        } else if (currentUser.role === 'MANAGER') {
+          const approverEmp = currentUser.employee;
+          if (isRetro) {
+            if (!isSupervisorOrHigher(approverEmp)) {
+              approvalBlockedReason = 'SUPERVISOR_POSITION_REQUIRED';
+            } else if (row.employeeId === approverEmp?.id) {
+              approvalBlockedReason = 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED';
+            } else if (row.createdByUserId === null) {
+              approvalBlockedReason = 'LEGACY_CREATOR_UNKNOWN_ADMIN_REQUIRED';
+            } else {
+              canCurrentUserApprove = true;
+            }
+          } else {
+            if (row.createdByUserId === currentUser.id) {
+              approvalBlockedReason = 'ห้ามอนุมัติรายการที่สร้างเอง';
+            } else if (row.createdByUserId === null) {
+              approvalBlockedReason = 'LEGACY_CREATOR_UNKNOWN_ADMIN_REQUIRED';
+            } else if (normalizeDepartment(row.departmentSnapshot) !== normalizeDepartment(approverEmp?.department)) {
+              approvalBlockedReason = 'EMPLOYEE_OUT_OF_MANAGER_SCOPE';
+            } else {
+              canCurrentUserApprove = true;
+            }
+          }
+        }
+
+        return {
+          ...row,
+          attachmentUrl: row.attachment ? `/api/v1/leave-requests/${row.id}/attachment` : null,
+          approvedByDisplayName: approver?.displayName || null,
+          approvedByRole: approver?.role || null,
+          isRetroactive: isRetro,
+          canCurrentUserApprove,
+          approvalBlockedReason
+        };
+      })
+    });
   } catch (error) { next(error); }
 });
 router.get('/leave-summary', async (req, res, next) => {
@@ -687,6 +845,35 @@ router.get('/leave-summary', async (req, res, next) => {
     const used = { sickLeave: 0, personalLeave: 0, vacationLeave: 0 };
     approved.forEach((item) => { used[leaveQuotaField(item.leaveType)] += Number(item._sum.dayCount || 0); });
     res.json({ data: { linked: true, employeeId: currentUser.employeeId, entitlement, used, remaining: { sickLeave: Math.max(0, entitlement.sickLeave - used.sickLeave), personalLeave: Math.max(0, entitlement.personalLeave - used.personalLeave), vacationLeave: Math.max(0, entitlement.vacationLeave - used.vacationLeave) } } });
+  } catch (error) { next(error); }
+});
+router.get('/leave-eligible-employees', async (req, res, next) => {
+  try {
+    const currentUser = await prisma.user.findUniqueOrThrow({
+      where: { id: req.user.sub },
+      select: { role: true }
+    });
+    if (currentUser.role === 'VIEWER') {
+      throw new HttpError(403, 'พนักงานทั่วไปไม่มีสิทธิ์เข้าถึงข้อมูลผู้ร่วมงาน');
+    }
+    const employees = await prisma.employee.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null
+      },
+      select: {
+        id: true,
+        employeeCode: true,
+        firstName: true,
+        lastName: true,
+        displayName: true,
+        department: true
+      },
+      orderBy: {
+        employeeCode: 'asc'
+      }
+    });
+    res.json({ data: employees });
   } catch (error) { next(error); }
 });
 router.post('/leave-requests', async (req, res, next) => {
@@ -723,24 +910,29 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
       if (before.status !== 'PENDING') throw new HttpError(409, 'This leave request has already been reviewed.');
-      await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user);
-      if (req.user.role === 'MANAGER') {
-        const bangkokStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
-        const bkkDate = new Date(bangkokStr);
-        const todayBangkokUTC = new Date(Date.UTC(bkkDate.getFullYear(), bkkDate.getMonth(), bkkDate.getDate()));
+      const isRetroactive = checkIsRetroactive(before.startDate);
 
-        if (before.startDate < todayBangkokUTC) {
-          const approverUser = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
-          if (before.employeeId === approverUser.employeeId) {
-            throw new HttpError(400, 'Managers cannot approve retroactive leave for themselves.');
+      if (isRetroactive) {
+        if (req.user.role === 'MANAGER') {
+          const approverUser = await tx.user.findUniqueOrThrow({
+            where: { id: req.user.sub },
+            select: { employeeId: true, employee: { select: { id: true, jobTitle: true, department: true } } }
+          });
+
+          if (!isSupervisorOrHigher(approverUser.employee)) {
+            throw new HttpError(400, 'การอนุมัติการลาย้อนหลังต้องดำเนินการโดยผู้มีตำแหน่ง Supervisor ขึ้นไป', 'SUPERVISOR_POSITION_REQUIRED');
           }
+
+          if (before.employeeId === approverUser.employeeId) {
+            throw new HttpError(400, 'ไม่สามารถอนุมัติใบลาของตนเองได้', 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED');
+          }
+
           if (before.createdByUserId === null) {
             throw new HttpError(403, 'LEGACY_CREATOR_UNKNOWN_ADMIN_REQUIRED');
           }
-          if (before.createdByUserId === req.user.sub) {
-            throw new HttpError(400, 'Managers cannot approve leave requests they created on behalf of others.');
-          }
         }
+      } else {
+        await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user);
       }
       if (input.status === 'APPROVED') {
         await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, Number(before.dayCount), before.id);
@@ -755,7 +947,8 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
         }
       }
       const after = await tx.leaveRequest.update({ where: { id }, data: { status: input.status, approvedAt: new Date(), approvedByLegacyRef: req.user.sub } });
-      await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx);
+      const creatorIsApprover = before.createdByUserId === req.user.sub;
+      await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']), creatorIsApprover } }, tx);
       return after;
     });
     res.json({ data: result });

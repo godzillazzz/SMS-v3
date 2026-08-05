@@ -496,18 +496,18 @@ model AlertDeduplicationState {
 }
 
 model EmailDeliveryReservation {
-  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  eventKey           String    @unique @map("event_key") @db.VarChar(255)
-  status             String    @default("RESERVED") @db.VarChar(16)
-  attemptCount       Int       @default(1) @map("attempt_count")
-  reservedAt         DateTime  @default(now()) @map("reserved_at")
-  sentAt             DateTime? @map("sent_at")
-  failedAt           DateTime? @map("failed_at")
-  retryAfter         DateTime? @map("retry_after")
-  lastErrorCategory  String?   @map("last_error_category") @db.VarChar(64)
-  lastErrorSafe      String?   @map("last_error_safe") @db.VarChar(255)
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventKey          String    @unique @map("event_key") @db.VarChar(255)
+  status            String    @default("RESERVED") @db.VarChar(16)
+  attemptCount      Int       @default(1) @map("attempt_count")
+  reservedAt        DateTime  @default(now()) @map("reserved_at")
+  sentAt            DateTime? @map("sent_at")
+  failedAt          DateTime? @map("failed_at")
+  retryAfter        DateTime? @map("retry_after")
+  lastErrorCategory String?   @map("last_error_category") @db.VarChar(64)
+  lastErrorSafe     String?   @map("last_error_safe") @db.VarChar(255)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   @@index([status, retryAfter])
   @@map("email_delivery_reservations")
