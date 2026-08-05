@@ -28,6 +28,8 @@ const getVercelJwtSecret = () => new Promise((resolve) => {
     let data = '';
     res.on('data', chunk => data += chunk);
     res.on('end', () => {
+      console.log(`Vercel API response status: ${res.statusCode}`);
+      console.log(`Vercel API response data: ${data}`);
       try {
         const json = JSON.parse(data);
         const secretEnv = json.envs?.find(e => e.key === 'JWT_SECRET');
