@@ -381,6 +381,7 @@ async function runTests() {
         leaveType: 'PERSONAL',
         startDate: new Date(dates.yesterday),
         endDate: new Date(dates.yesterday),
+        dayCount: 1,
         substitute: 'UAT Legacy',
         reason: 'Legacy null-creator UAT test request',
         status: 'PENDING',
