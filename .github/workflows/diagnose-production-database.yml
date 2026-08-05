@@ -14,7 +14,7 @@ jobs:
       name: production-sms-v3-staging
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      JWT_SECRET: "MAoYCLYqkebnUrmsFk6SrSZOZ/QJ1bzyrqvU3vpNlurnpV+Es2THNyp15PMEn1BdbUxB+HzuM2Af7FMy2Z1ZkQ=="
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
