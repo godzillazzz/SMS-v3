@@ -6,9 +6,46 @@
 'use strict';
 
 const https = require('https');
-const env = require('../../src/config/env');
-const prisma = require('../../src/config/prisma');
-const { accessTokenFor } = require('../../src/services/auth.service');
+
+// Helper to fetch JWT_SECRET from Vercel API dynamically
+const getVercelJwtSecret = () => new Promise((resolve) => {
+  const token = process.env.VERCEL_TOKEN;
+  const projectId = process.env.VERCEL_PROJECT_ID;
+  const teamId = process.env.VERCEL_ORG_ID;
+  if (!token || !projectId) {
+    console.log('No Vercel credentials found. Skipping auto Vercel API resolve.');
+    return resolve(null);
+  }
+  const options = {
+    hostname: 'api.vercel.com',
+    path: `/v9/projects/${projectId}/env${teamId ? `?teamId=${teamId}` : ''}`,
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  };
+  const req = https.request(options, (res) => {
+    let data = '';
+    res.on('data', chunk => data += chunk);
+    res.on('end', () => {
+      try {
+        const json = JSON.parse(data);
+        const secretEnv = json.envs?.find(e => e.key === 'JWT_SECRET');
+        resolve(secretEnv?.value || null);
+      } catch (e) {
+        console.log('Failed to parse Vercel API response:', e.message);
+        resolve(null);
+      }
+    });
+  });
+  req.on('error', (e) => {
+    console.log('Vercel API request error:', e.message);
+    resolve(null);
+  });
+  req.end();
+});
+
+let env, prisma, accessTokenFor;
 
 const BASE    = 'https://sms-v3-staging-ten.vercel.app';
 const BYPASS  = 'mySVh2ZVW8EL3cspmySVh2ZVW8EL3csp';
@@ -71,6 +108,19 @@ const daysAhead = (n) => {
 const sign = (user) => accessTokenFor(user, { expiresIn: '4h' });
 
 (async () => {
+  const vercelSecret = await getVercelJwtSecret();
+  if (vercelSecret) {
+    console.log('Successfully resolved JWT_SECRET from Vercel API.');
+    process.env.JWT_SECRET = vercelSecret;
+  } else {
+    console.log('Vercel API resolve returned empty or failed. Fallback to current process.env.JWT_SECRET.');
+  }
+
+  // Load modules dynamically after JWT_SECRET is set
+  env = require('../../src/config/env');
+  prisma = require('../../src/config/prisma');
+  accessTokenFor = require('../../src/services/auth.service').accessTokenFor;
+
   console.log(B('\n╔══════════════════════════════════════════════════════════════╗'));
   console.log(B('║  MANAGER GLOBAL RETROACTIVE LEAVE POLICY UAT                 ║'));
   console.log(B('╚══════════════════════════════════════════════════════════════╝'));

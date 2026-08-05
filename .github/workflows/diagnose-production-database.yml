@@ -14,7 +14,9 @@ jobs:
       name: production-sms-v3-staging
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      JWT_SECRET: "MAoYCLYqkebnUrmsFk6SrSZOZ/QJ1bzyrqvU3vpNlurnpV+Es2THNyp15PMEn1BdbUxB+HzuM2Af7FMy2Z1ZkQ=="
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
