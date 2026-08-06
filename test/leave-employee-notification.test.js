@@ -2,13 +2,16 @@
 // Focused tests for the Employee Leave Status Email feature.
 
 process.env.NODE_ENV = 'test';
-const test = require('node:test');
+const { test, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 
 let createTransportCallCount = 0;
 let reservationCreateCallCount = 0;
 let lastSmtpConfig = null;
 let loggedErrors = [];
+
+const nodemailer = require('nodemailer');
+const originalCreateTransport = nodemailer.createTransport;
 
 const fakeLogger = {
   info: () => {},
@@ -28,6 +31,8 @@ function clearCacheBySuffix(suffix) {
     }
   }
 }
+
+afterEach(cleanCache);
 
 function setupServiceMock(mocks = {}) {
   createTransportCallCount = 0;
@@ -136,7 +141,10 @@ function setupServiceMock(mocks = {}) {
 function cleanCache() {
   clearCacheBySuffix('config/prisma');
   clearCacheBySuffix('config/env');
+  clearCacheBySuffix('utils/logger');
   clearCacheBySuffix('services/notification-email.service');
+  nodemailer.createTransport = originalCreateTransport;
+  delete require.cache[require.resolve('nodemailer')];
 }
 
 test('1. Active owner receives PENDING email after self-created leave', async () => {
@@ -402,7 +410,7 @@ test('31. Notifications-disabled performs no query, reservation or send', async 
     emailNotificationsEnabled: false
   });
 
-  const leave = { id: 'leave-1', employeeId: 'emp-1' };
+  const leave = { id: 'leave-1', employeeId: '10000000-0000-4000-8000-000000000100' };
   await service.notifyEmployeeLeaveStatusChange(leave, 'LEAVE_CREATED', { sub: 'creator-1' });
 
   assert.equal(reservationCreateCallCount, 0);
@@ -416,7 +424,7 @@ test('32. POST /leave-requests/with-attachment invokes Employee LEAVE_CREATED no
   const prismaMock = {
     $transaction: async () => ({
       id: 'leave-100',
-      employeeId: 'emp-100',
+      employeeId: '10000000-0000-4000-8000-000000000100',
       leaveType: 'SICK',
       startDate: new Date('2026-08-10'),
       endDate: new Date('2026-08-11'),
@@ -443,7 +451,7 @@ test('32. POST /leave-requests/with-attachment invokes Employee LEAVE_CREATED no
 
   const req = {
     body: {
-      employeeId: 'emp-100',
+      employeeId: '10000000-0000-4000-8000-000000000100',
       leaveType: 'SICK',
       startDate: '2026-08-10',
       endDate: '2026-08-11',
@@ -475,7 +483,9 @@ test('33. Employee Status Email is sent only to the linked leave owner', async (
   let lookupId = null;
   const { service, sentEmails } = setupServiceMock({
     userFindUnique: async (args) => {
-      lookupId = args.where.employeeId;
+      if (args.where.employeeId) {
+        lookupId = args.where.employeeId;
+      }
       return { id: 'user-owner-id', email: 'owner@example.com', isActive: true, accountStatus: 'ACTIVE' };
     }
   });
@@ -536,7 +546,7 @@ test('36. Manager Broadcast failure does not block Employee Status Email', async
 
   require.cache[require.resolve('../src/config/prisma')] = {
     exports: {
-      $transaction: async () => ({ id: 'leave-1', employeeId: 'emp-1', status: 'PENDING' })
+      $transaction: async () => ({ id: 'leave-1', employeeId: '10000000-0000-4000-8000-000000000100', status: 'PENDING' })
     }
   };
 
@@ -556,7 +566,7 @@ test('36. Manager Broadcast failure does not block Employee Status Email', async
   const handler = layer.route.stack[layer.route.stack.length - 1].handle;
 
   const req = {
-    body: { employeeId: 'emp-1', leaveType: 'SICK', startDate: '2026-08-10', endDate: '2026-08-11', substitute: 'Sub', reason: 'Flu' },
+    body: { employeeId: '10000000-0000-4000-8000-000000000100', leaveType: 'SICK', startDate: '2026-08-10', endDate: '2026-08-11', substitute: 'Sub', reason: 'Flu' },
     user: { sub: 'creator-1', role: 'ADMIN' }
   };
 
@@ -580,7 +590,7 @@ test('37. Employee Status Email failure does not block Manager Broadcast', async
 
   require.cache[require.resolve('../src/config/prisma')] = {
     exports: {
-      $transaction: async () => ({ id: 'leave-1', employeeId: 'emp-1', status: 'PENDING' })
+      $transaction: async () => ({ id: 'leave-1', employeeId: '10000000-0000-4000-8000-000000000100', status: 'PENDING' })
     }
   };
 
@@ -600,7 +610,7 @@ test('37. Employee Status Email failure does not block Manager Broadcast', async
   const handler = layer.route.stack[layer.route.stack.length - 1].handle;
 
   const req = {
-    body: { employeeId: 'emp-1', leaveType: 'SICK', startDate: '2026-08-10', endDate: '2026-08-11', substitute: 'Sub', reason: 'Flu' },
+    body: { employeeId: '10000000-0000-4000-8000-000000000100', leaveType: 'SICK', startDate: '2026-08-10', endDate: '2026-08-11', substitute: 'Sub', reason: 'Flu' },
     user: { sub: 'creator-1', role: 'ADMIN' }
   };
 
@@ -622,7 +632,7 @@ test('37. Employee Status Email failure does not block Manager Broadcast', async
 test('38. Email failure after creation leaves status PENDING', async () => {
   require.cache[require.resolve('../src/config/prisma')] = {
     exports: {
-      $transaction: async () => ({ id: 'leave-1', employeeId: 'emp-1', status: 'PENDING' })
+      $transaction: async () => ({ id: 'leave-1', employeeId: '10000000-0000-4000-8000-000000000100', status: 'PENDING' })
     }
   };
 
@@ -642,7 +652,7 @@ test('38. Email failure after creation leaves status PENDING', async () => {
   const handler = layer.route.stack[layer.route.stack.length - 1].handle;
 
   const req = {
-    body: { employeeId: 'emp-1', leaveType: 'SICK', startDate: '2026-08-10', endDate: '2026-08-11', substitute: 'Sub', reason: 'Flu' },
+    body: { employeeId: '10000000-0000-4000-8000-000000000100', leaveType: 'SICK', startDate: '2026-08-10', endDate: '2026-08-11', substitute: 'Sub', reason: 'Flu' },
     user: { sub: 'creator-1', role: 'ADMIN' }
   };
 
@@ -810,7 +820,7 @@ test('43. Existing quota, overlap and retroactive validation tests remain passin
   const handler = layer.route.stack[layer.route.stack.length - 1].handle;
 
   const req = {
-    body: { employeeId: 'emp-1', leaveType: 'SICK', startDate: '2026-08-10', endDate: '2026-08-11', substitute: 'Sub', reason: 'Flu' },
+    body: { employeeId: '10000000-0000-4000-8000-000000000100', leaveType: 'SICK', startDate: '2026-08-10', endDate: '2026-08-11', substitute: 'Sub', reason: 'Flu' },
     user: { sub: 'creator-1', role: 'ADMIN' }
   };
 
@@ -830,7 +840,7 @@ test('43. Existing quota, overlap and retroactive validation tests remain passin
 test('44. Unsupported event type creates no reservation and sends nothing', async () => {
   const { service, sentEmails } = setupServiceMock();
 
-  const leave = { id: 'leave-1', employeeId: 'emp-1' };
+  const leave = { id: 'leave-1', employeeId: '10000000-0000-4000-8000-000000000100' };
   await service.notifyEmployeeLeaveStatusChange(leave, 'UNSUPPORTED_EVENT_TYPE', { sub: 'creator-1' });
 
   assert.equal(reservationCreateCallCount, 0);
