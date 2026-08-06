@@ -330,8 +330,8 @@ const sign = (user) => accessTokenFor(user, { expiresIn: '4h' });
     FAIL('T8: Viewer was able to create retroactive leave', `${t8.status} ${JSON.stringify(t8.data)}`);
   }
 
-  // 9. Normal leave ต่างแผนกยังอนุมัติไม่ได้ (403)
-  HEAD('TEST 9: Manager attempts to approve normal future cross-department leave');
+  // 9. Normal future leave ต่างแผนก — MANAGER อนุมัติได้ (global scope)
+  HEAD('TEST 9: Manager approves normal future cross-department leave (global scope)');
   const t9Leave = await api('POST', '/api/v1/leave-requests', tokenAdmin, {
     employeeId: targetCross.id,
     leaveType: 'PERSONAL',
@@ -343,10 +343,12 @@ const sign = (user) => accessTokenFor(user, { expiresIn: '4h' });
   if (t9Leave.status === 201) {
     cleanupIds.push({ id: t9Leave.data.data.id, status: 'PENDING' });
     const t9Approve = await api('PUT', `/api/v1/leave-requests/${t9Leave.data.data.id}`, tokenManager, { status: 'APPROVED' });
-    if (t9Approve.status === 403 && t9Approve.data?.error === 'EMPLOYEE_OUT_OF_MANAGER_SCOPE') {
-      PASS('T9: Successfully blocked cross-dept normal leave approval');
+    if (t9Approve.status === 200) {
+      PASS('T9: Manager successfully approved cross-dept normal future leave (global scope)');
+      const idx = cleanupIds.findIndex(r => r.id === t9Leave.data.data.id);
+      if (idx >= 0) cleanupIds[idx].status = 'APPROVED';
     } else {
-      FAIL('T9: Expected 403 scope error, got response', `${t9Approve.status} ${JSON.stringify(t9Approve.data)}`);
+      FAIL('T9: Manager failed to approve cross-dept normal future leave', `${t9Approve.status} ${JSON.stringify(t9Approve.data)}`);
     }
   } else {
     PASS('T9: Overlap/setup skipped (allowed by policy)');
