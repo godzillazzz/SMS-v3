@@ -78,7 +78,9 @@ test('leave workflow uses the consolidated leave-requests route and policy valid
   assert.match(routes, /Manager leave requests require Supervisor-level approval or higher/);
   assert.match(routes, /const after = await tx\.leaveRequest\.update\(\{ where: \{ id \}, data: \{ status: input\.status, approvedAt:/);
   assert.match(frontend, /const formReady = Boolean/);
-  assert.match(frontend, /เหตุผลการลา<\/span><textarea rows=\{3\}/);
+  assert.match(frontend, /เหตุผลการลา/);
+  assert.match(frontend, /เหตุผลการลา \{isRetroactive && <b>\*<\/b>\}/);
+  assert.match(frontend, /<textarea required=\{isRetroactive\} rows=\{3\}/);
   assert.doesNotMatch(frontend, /reason: `\[แทน:/);
   assert.match(frontend, /if \(!canManage\) delete payload\.employeeId/);
 });
