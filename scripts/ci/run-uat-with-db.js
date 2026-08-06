@@ -67,14 +67,15 @@ const fillDummyEnvDefaults = () => {
 
 let env, prisma, accessTokenFor;
 
-const BASE    = 'https://sms-v3-staging-ten.vercel.app';
+const BASE    = process.env.UAT_BASE_URL || 'https://sms-v3-staging-ten.vercel.app';
 const BYPASS  = 'mySVh2ZVW8EL3cspmySVh2ZVW8EL3csp';
 
 // ── HTTP helper ────────────────────────────────────────────────
 const api = (method, path, token, body) => new Promise((resolve) => {
   const payload = body ? JSON.stringify(body) : null;
+  const baseUrl = new URL(BASE);
   const options = {
-    hostname: 'sms-v3-staging-ten.vercel.app',
+    hostname: baseUrl.hostname,
     path, method,
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -353,6 +354,7 @@ const sign = (user) => accessTokenFor(user, { expiresIn: '4h' });
 
   // 10. Quota/overlap/reason/PENDING/double approval ไม่ regression
   HEAD('TEST 10: Regression safety checks (overlap, reason, double-review)');
+  // T10.1 uses daysAgo(14); T10.2 uses daysAgo(21) — distinct dates, no overlap
   const t10a = await createLeave(tokenManager, targetSame.id, 14, 'T10-First');
   if (t10a.status === 201) {
     const t10b = await createLeave(tokenManager, targetSame.id, 14, 'T10-Second-Overlap');
@@ -362,18 +364,24 @@ const sign = (user) => accessTokenFor(user, { expiresIn: '4h' });
       FAIL('T10.1: Overlapping leave was not blocked', `${t10b.status}`);
     }
 
+    // T10.2: Use a unique date (daysAgo(21)) that does NOT overlap with T10.1 (daysAgo(14))
+    // Omit reason to test reason validation — expected 400
     const t10c = await api('POST', '/api/v1/leave-requests', tokenManager, {
       employeeId: targetSame.id,
       leaveType: 'PERSONAL',
-      startDate: daysAgo(14),
-      endDate: daysAgo(14),
+      startDate: daysAgo(21),
+      endDate: daysAgo(21),
       substitute: 'UAT-NoReason',
       reason: ''
     });
     if (t10c.status === 400) {
       PASS('T10.2: Retroactive leave without reason correctly blocked with 400');
+    } else if (t10c.status === 201) {
+      // If accepted (reason somehow optional), cleanup and fail
+      cleanupIds.push({ id: t10c.data?.data?.id, status: 'PENDING' });
+      FAIL('T10.2: Retroactive leave without reason was accepted unexpectedly', `${t10c.status}`);
     } else {
-      FAIL('T10.2: Retroactive leave without reason was not blocked', `${t10c.status}`);
+      FAIL('T10.2: Retroactive leave without reason was not blocked with 400', `${t10c.status} ${JSON.stringify(t10c.data)}`);
     }
 
     const t10Approve1 = await api('PUT', `/api/v1/leave-requests/${t10a.data.data.id}`, tokenManager, { status: 'APPROVED' });
