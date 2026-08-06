@@ -43,3 +43,11 @@ jobs:
           ALERT_DEDUP_STORE: "memory"
         run: |
           node scripts/ci/run-uat-with-db.js
+      - name: Fetch Vercel staging logs
+        if: always()
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          npx --yes vercel@56.4.1 logs --project sms-v3-staging --environment production --token "$VERCEL_TOKEN" --limit 50
