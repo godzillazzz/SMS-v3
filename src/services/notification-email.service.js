@@ -235,11 +235,281 @@ async function notifyLeaveProcessed({ leave, status, approverName }) {
   }
 }
 
+function getPublicAppUrl(configuration = env) {
+  if (!configuration.corsOrigins || !Array.isArray(configuration.corsOrigins)) {
+    return null;
+  }
+  for (const origin of configuration.corsOrigins) {
+    if (typeof origin !== 'string') continue;
+    const trimmed = origin.trim();
+    if (trimmed.startsWith('https://') && !trimmed.includes('localhost') && !trimmed.includes('127.0.0.1')) {
+      return trimmed.replace(/\/+$/, '');
+    }
+  }
+  return null;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function mapSmtpError(err) {
+  const msg = (err.message || '').toLowerCase();
+  let category = 'SMTP_SEND_FAILURE';
+  let safeMessage = 'An error occurred during email transmission';
+
+  if (msg.includes('timeout') || msg.includes('time out') || err.code === 'ETIMEDOUT') {
+    category = 'SMTP_TIMEOUT';
+    safeMessage = 'SMTP connection or socket timed out';
+  } else if (msg.includes('auth') || msg.includes('credentials') || msg.includes('354') || msg.includes('535') || msg.includes('login') || msg.includes('password')) {
+    category = 'SMTP_AUTH_FAILURE';
+    safeMessage = 'SMTP authentication failed';
+  } else if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED' || msg.includes('connection') || msg.includes('connect')) {
+    category = 'SMTP_CONNECTION_FAILURE';
+    safeMessage = 'Failed to establish connection to SMTP host';
+  } else if (msg.includes('rejected') || msg.includes('recipient') || msg.includes('550') || msg.includes('553') || msg.includes('554') || msg.includes('mailbox')) {
+    category = 'SMTP_REJECTED';
+    safeMessage = 'Recipient or sender address was rejected by host';
+  }
+
+  return { category, safeMessage };
+}
+
+async function broadcastLeaveRequestEmail(leaveRequest, requestUser) {
+  if (env.emailNotificationsEnabled !== true) {
+    logger.info('Email notification broadcast skipped (system disabled)', { leaveRequestId: leaveRequest.id });
+    return;
+  }
+
+  // 1. Create/reuse SMTP transporter once with explicit delivery timeouts
+  if (env.otpDeliveryProvider !== 'gmail_smtp' || !env.smtpHost) {
+    logger.warn('Email notification broadcast skipped (SMTP transporter unavailable or not configured)', { leaveRequestId: leaveRequest.id });
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: env.smtpHost,
+    port: env.smtpPort,
+    secure: env.smtpSecure,
+    auth: { user: env.smtpUsername, pass: env.smtpPassword },
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000
+  });
+
+  // 2. Resolve actorUser
+  let actorName = 'ระบบ';
+  if (requestUser && requestUser.sub) {
+    try {
+      const actor = await prisma.user.findUnique({
+        where: { id: requestUser.sub },
+        select: { displayName: true }
+      });
+      if (actor) {
+        actorName = actor.displayName;
+      }
+    } catch (err) {
+      logger.error('Failed to query actor user details for leave request broadcast', { error: err.message, userId: requestUser.sub });
+    }
+  }
+
+  // 3. Resolve employee details
+  let employeeName = leaveRequest.employeeNameSnapshot || 'พนักงาน';
+  let employeeDept = leaveRequest.departmentSnapshot || '-';
+  let employeeUserId = null;
+  try {
+    const emp = await prisma.employee.findUnique({
+      where: { id: leaveRequest.employeeId },
+      select: { firstName: true, lastName: true, displayName: true, department: true, user: { select: { id: true } } }
+    });
+    if (emp) {
+      employeeName = emp.displayName || `${emp.firstName} ${emp.lastName}`;
+      employeeDept = emp.department || '-';
+      employeeUserId = emp.user?.id || null;
+    }
+  } catch (err) {
+    logger.error('Failed to query employee details for leave request broadcast', { error: err.message, employeeId: leaveRequest.employeeId });
+  }
+
+  // 4. Resolve active MANAGER recipients
+  let managers = [];
+  try {
+    managers = await prisma.user.findMany({
+      where: {
+        role: 'MANAGER',
+        isActive: true,
+        accountStatus: 'ACTIVE',
+        email: { not: '' }
+      },
+      select: {
+        id: true,
+        email: true,
+        displayName: true
+      }
+    });
+  } catch (err) {
+    logger.error('Failed to query manager recipients for leave request broadcast', { error: err.message });
+    return;
+  }
+
+  // 5. Normalize, validate and deduplicate email addresses
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const eligibleManagers = [];
+  const seenUserIds = new Set();
+
+  for (const mgr of managers) {
+    if (!mgr.email || seenUserIds.has(mgr.id)) continue;
+    const trimmed = mgr.email.trim();
+    if (!trimmed) continue;
+    const normalized = trimmed.toLowerCase();
+    if (!emailRegex.test(normalized)) {
+      logger.warn('Skipping invalid manager email address', { managerUserId: mgr.id });
+      continue;
+    }
+    seenUserIds.add(mgr.id);
+    eligibleManagers.push({
+      id: mgr.id,
+      email: normalized,
+      displayName: mgr.displayName
+    });
+  }
+
+  if (!eligibleManagers.length) {
+    logger.info('No eligible managers found for leave request notification', { leaveRequestId: leaveRequest.id });
+    return;
+  }
+
+  // 6. Create reservations outside of leave transaction (using individual inserts to capture duplicates per user safely)
+  const reservationsToSend = [];
+  for (const mgr of eligibleManagers) {
+    const eventKey = `leave:${leaveRequest.id}:LEAVE_CREATED:manager:${mgr.id}`;
+    try {
+      const reservation = await prisma.emailDeliveryReservation.create({
+        data: {
+          eventKey,
+          status: 'RESERVED'
+        }
+      });
+      reservationsToSend.push({ manager: mgr, reservation });
+    } catch (err) {
+      if (err.code === 'P2002') {
+        logger.info('Email delivery reservation already exists (ignoring duplicate)', { eventKey, managerUserId: mgr.id });
+      } else {
+        logger.error('Failed to create email delivery reservation', { error: err.message, eventKey, managerUserId: mgr.id });
+      }
+    }
+  }
+
+  // 7. Send emails sequentially (concurrency limit = 1, ensuring all settle before returning)
+  for (const item of reservationsToSend) {
+    const { manager, reservation } = item;
+    try {
+      // Increment attempt count on database first
+      await prisma.emailDeliveryReservation.update({
+        where: { id: reservation.id },
+        data: { attemptCount: { increment: 1 } }
+      });
+
+      const escapedEmployeeName = escapeHtml(employeeName);
+      const subject = `SMS v3: มีคำขอลาใหม่รออนุมัติ (${escapedEmployeeName})`;
+
+      const appUrl = getPublicAppUrl(env);
+      let isValidHttpsUrl = false;
+      if (appUrl) {
+        try {
+          const parsedUrl = new URL(appUrl);
+          if (parsedUrl.protocol === 'https:') {
+            isValidHttpsUrl = true;
+          }
+        } catch (err) {
+          // ignore
+        }
+      }
+      if (appUrl && !isValidHttpsUrl) {
+        logger.warn('Public app URL is not a valid HTTPS URL; link omitted', { leaveRequestId: leaveRequest.id });
+      }
+      const linkHtml = (appUrl && isValidHttpsUrl) ? `<p>ท่านสามารถเข้าสู่ระบบเพื่อตรวจสอบและอนุมัติใบลาได้ที่: <a href="${appUrl}/operations/leaves">${appUrl}/operations/leaves</a></p>` : '';
+
+      const escapedLeaveType = escapeHtml(leaveRequest.leaveType);
+      const escapedReason = escapeHtml(leaveRequest.reason || '-');
+      const escapedManagerName = escapeHtml(manager.displayName || 'ผู้จัดการ');
+      const escapedEmployeeDept = escapeHtml(employeeDept);
+
+      const startText = leaveRequest.startDate ? new Date(leaveRequest.startDate).toISOString().slice(0, 10) : '';
+      const endText = leaveRequest.endDate ? new Date(leaveRequest.endDate).toISOString().slice(0, 10) : '';
+      const escapedStartText = escapeHtml(startText);
+      const escapedEndText = escapeHtml(endText);
+      const escapedDayCount = escapeHtml(String(leaveRequest.dayCount || ''));
+
+      const escapedActorName = escapeHtml(actorName);
+      const onBehalfText = leaveRequest.createdByUserId !== employeeUserId ? `<p>บันทึกแทนโดย: ${escapedActorName}</p>` : '';
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <h2 style="color: #d97706; margin-top: 0;">📝 มีคำขอลาใหม่รออนุมัติ</h2>
+          <p>เรียน คุณ ${escapedManagerName},</p>
+          <p>มีคำขอลาพักงานใหม่ยื่นเข้าสู่ระบบรออนุมัติ:</p>
+          <table style="border-collapse: collapse; margin: 15px 0; width: 100%; background: #f8fafc; border-radius: 8px;">
+            <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 140px;">พนักงาน:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${escapedEmployeeName} (${escapedEmployeeDept})</td></tr>
+            <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">ประเภทการลา:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${escapedLeaveType}</td></tr>
+            <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">ช่วงวันที่:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${escapedStartText} ถึง ${escapedEndText} (${escapedDayCount} วัน)</td></tr>
+            <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">สถานะ:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #d97706;">PENDING</td></tr>
+            <tr><td style="padding: 10px; font-weight: bold;">เหตุผล:</td><td style="padding: 10px;">${escapedReason}</td></tr>
+          </table>
+          ${onBehalfText}
+          ${linkHtml}
+          <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">ระบบ Security Management System v3</p>
+        </div>
+      `;
+
+      await transporter.sendMail({
+        from: env.otpFromEmail || env.smtpUsername,
+        to: manager.email,
+        subject,
+        text: html.replace(/<[^>]+>/g, ''),
+        html
+      });
+
+      await prisma.emailDeliveryReservation.update({
+        where: { id: reservation.id },
+        data: {
+          status: 'SENT',
+          sentAt: new Date()
+        }
+      });
+      logger.info('Broadcast email sent to manager successfully', { eventKey: reservation.eventKey, managerUserId: manager.id });
+    } catch (sendErr) {
+      const { category, safeMessage } = mapSmtpError(sendErr);
+      logger.error('Failed to send broadcast email to manager', { errorCategory: category, eventKey: reservation.eventKey, managerUserId: manager.id });
+      try {
+        await prisma.emailDeliveryReservation.update({
+          where: { id: reservation.id },
+          data: {
+            status: 'FAILED',
+            failedAt: new Date(),
+            lastErrorCategory: category,
+            lastErrorSafe: safeMessage
+          }
+        });
+      } catch (dbErr) {
+        logger.error('Failed to update email reservation to FAILED status', { error: dbErr.message, eventKey: reservation.eventKey, managerUserId: manager.id });
+      }
+    }
+  }
+}
+
 module.exports = {
   notifyScheduleApproved,
   notifyNewRegistration,
   notifyLeaveSubmitted,
   notifyLeaveProcessed,
+  broadcastLeaveRequestEmail,
   sendNotification,
   createTransporter
 };

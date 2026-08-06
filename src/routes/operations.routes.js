@@ -725,6 +725,15 @@ router.post('/leave-requests', async (req, res, next) => {
     // value as absent so the authenticated Viewer employee link is used.
     const input = leaveInput.parse({ ...req.body, employeeId: req.body.employeeId || undefined });
     const result = await prisma.$transaction((tx) => createLeaveRequest(tx, input, req.user));
+
+    try {
+      const { broadcastLeaveRequestEmail } = require('../services/notification-email.service');
+      await broadcastLeaveRequestEmail(result, req.user);
+    } catch (emailErr) {
+      const { logger } = require('../utils/logger');
+      logger.error('Failed to broadcast leave request email notifications', { error: emailErr.message, leaveRequestId: result?.id });
+    }
+
     res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
@@ -732,6 +741,15 @@ router.post('/leave-requests/with-attachment', leaveUpload, async (req, res, nex
   try {
     const input = leaveInput.parse({ ...req.body, employeeId: req.body.employeeId || undefined });
     const result = await prisma.$transaction((tx) => createLeaveRequest(tx, input, req.user, req.file));
+
+    try {
+      const { broadcastLeaveRequestEmail } = require('../services/notification-email.service');
+      await broadcastLeaveRequestEmail(result, req.user);
+    } catch (emailErr) {
+      const { logger } = require('../utils/logger');
+      logger.error('Failed to broadcast leave request email notifications', { error: emailErr.message, leaveRequestId: result?.id });
+    }
+
     res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
