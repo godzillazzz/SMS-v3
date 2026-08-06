@@ -92,23 +92,15 @@ const checkIsRetroactive = (dateInput) => {
   return targetUTC < getTodayBangkokUTC();
 };
 const hasSupervisorApprovalLevel = (user) => user.role === 'ADMIN' || isSupervisorPosition(user.employee) || isManagerPosition(user.employee);
-const normalizeDepartment = (val) => val?.trim().toLowerCase() || null;
 const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser, options = {}) => {
   if (requestUser.role === 'ADMIN') return;
+  // MANAGER has global scope — no department comparison is performed.
+  // Position-level escalation rules (supervisor/manager leaves require higher approval)
+  // are retained for non-retroactive leaves.
   const [leaveEmployee, approver] = await Promise.all([
     tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true, department: true } }),
     tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employee: { select: { jobTitle: true, department: true } } } })
   ]);
-  if (requestUser.role === 'MANAGER') {
-    if (!options.skipDepartmentCheck) {
-      if (!approver.employee) throw new HttpError(403, 'Employee is outside of your management scope.');
-      const leaveDept = normalizeDepartment(leaveEmployee.department);
-      const approverDept = normalizeDepartment(approver.employee.department);
-      if (!leaveDept || !approverDept || leaveDept !== approverDept) {
-        throw new HttpError(403, 'EMPLOYEE_OUT_OF_MANAGER_SCOPE');
-      }
-    }
-  }
   if (!options.isRetroactive) {
     if (isSupervisorPosition(leaveEmployee)) throw new HttpError(403, 'Supervisor leave requests require Admin approval.');
     if (isManagerPosition(leaveEmployee) && !hasSupervisorApprovalLevel(approver)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.');
@@ -155,12 +147,10 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   }
 
   const onBehalfOf = employeeId !== currentUser.employeeId;
+  // MANAGER global scope: department check is removed for on-behalf creation.
+  // Retroactive guard (manager cannot key retro for themselves) is enforced above (line 152).
   if (currentUser.role === 'MANAGER' && onBehalfOf) {
-    if (isRetroactive) {
-      await ensureLeaveApprovalAllowed(tx, employeeId, requestUser, { skipDepartmentCheck: true, isRetroactive: true });
-    } else {
-      await ensureLeaveApprovalAllowed(tx, employeeId, requestUser);
-    }
+    await ensureLeaveApprovalAllowed(tx, employeeId, requestUser, { isRetroactive });
   }
 
   const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } });
@@ -664,26 +654,8 @@ router.get('/leave-requests', async (req, res, next) => {
     const requestedEmployeeWhere = currentUser.role === 'VIEWER' ? {} : (filters.employeeId ? { employeeId: filters.employeeId } : {});
     const searchWhere = filters.search ? { OR: [{ employeeNameSnapshot: { contains: filters.search, mode: 'insensitive' } }, { departmentSnapshot: { contains: filters.search, mode: 'insensitive' } }, { reason: { contains: filters.search, mode: 'insensitive' } }] } : {};
     
-    let roleBasedWhere = {};
-    if (currentUser.role === 'MANAGER') {
-      const todayBangkokUTC = getTodayBangkokUTC();
-      const managerDept = currentUser.employee?.department;
-      roleBasedWhere = {
-        OR: [
-          {
-            status: 'PENDING',
-            startDate: { lt: todayBangkokUTC }
-          },
-          managerDept ? {
-            departmentSnapshot: { equals: managerDept, mode: 'insensitive' }
-          } : null,
-          currentUser.employeeId ? {
-            employeeId: currentUser.employeeId
-          } : null
-        ].filter(Boolean)
-      };
-    }
-
+    // MANAGER global scope: no department filter — MANAGER sees all leave requests.
+    // VIEWER is scoped to their own employee record (viewerWhere above).
     const baseWhere = {
       ...viewerWhere,
       ...requestedEmployeeWhere,
@@ -693,12 +665,7 @@ router.get('/leave-requests', async (req, res, next) => {
       ...leaveMonthWhere(monthFilter)
     };
 
-    const where = {
-      AND: [
-        baseWhere,
-        roleBasedWhere
-      ]
-    };
+    const where = baseWhere;
     const response = await paged(prisma.leaveRequest, req.query, {
       where,
       select: {
@@ -787,16 +754,14 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
       const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
       if (before.status !== 'PENDING') throw new HttpError(409, 'This leave request has already been reviewed.');
       const isRetroactive = checkIsRetroactive(before.startDate);
-      if (isRetroactive) {
-        await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { skipDepartmentCheck: true, isRetroactive: true });
-        if (req.user.role === 'MANAGER') {
-          const approverUser = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
-          if (before.employeeId === approverUser.employeeId) {
-            throw new HttpError(400, 'ไม่สามารถอนุมัติใบลาของตนเองได้', 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED');
-          }
+      // MANAGER global scope: no department check in any path.
+      // Self-approval guard remains enforced regardless of retroactive status.
+      await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive });
+      if (req.user.role === 'MANAGER') {
+        const approverUser = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
+        if (before.employeeId === approverUser.employeeId) {
+          throw new HttpError(400, 'ไม่สามารถอนุมัติใบลาของตนเองได้', 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED');
         }
-      } else {
-        await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user);
       }
       if (input.status === 'APPROVED') {
         await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, Number(before.dayCount), before.id);
@@ -825,7 +790,8 @@ router.post('/leave-requests/:id/cancel', authorize('ADMIN'), async (req, res, n
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
       if (before.status !== 'APPROVED') throw new HttpError(409, 'Only approved leave requests can be cancelled for quota restoration.');
-      await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user);
+      // MANAGER global scope: no department check for cancel.
+      await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive: true });
       const alShift = await tx.shiftType.findUnique({ where: { code: 'AL' }, select: { id: true } });
       const removedLeaveShifts = alShift ? await tx.shiftAssignment.deleteMany({
         where: {
