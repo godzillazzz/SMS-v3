@@ -734,6 +734,14 @@ router.post('/leave-requests', async (req, res, next) => {
       logger.error('Failed to broadcast leave request email notifications', { error: emailErr.message, leaveRequestId: result?.id });
     }
 
+    try {
+      const { notifyEmployeeLeaveStatusChange } = require('../services/notification-email.service');
+      await notifyEmployeeLeaveStatusChange(result, 'LEAVE_CREATED', req.user);
+    } catch (emailErr) {
+      const { logger } = require('../utils/logger');
+      logger.error('Failed to send employee leave status email notification', { error: emailErr.message, leaveRequestId: result?.id });
+    }
+
     res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
@@ -748,6 +756,14 @@ router.post('/leave-requests/with-attachment', leaveUpload, async (req, res, nex
     } catch (emailErr) {
       const { logger } = require('../utils/logger');
       logger.error('Failed to broadcast leave request email notifications', { error: emailErr.message, leaveRequestId: result?.id });
+    }
+
+    try {
+      const { notifyEmployeeLeaveStatusChange } = require('../services/notification-email.service');
+      await notifyEmployeeLeaveStatusChange(result, 'LEAVE_CREATED', req.user);
+    } catch (emailErr) {
+      const { logger } = require('../utils/logger');
+      logger.error('Failed to send employee leave status email notification', { error: emailErr.message, leaveRequestId: result?.id });
     }
 
     res.status(201).json({ data: result });
@@ -797,6 +813,15 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
       await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx);
       return after;
     });
+    try {
+      const { notifyEmployeeLeaveStatusChange } = require('../services/notification-email.service');
+      const eventType = result.status === 'APPROVED' ? 'LEAVE_APPROVED' : 'LEAVE_REJECTED';
+      await notifyEmployeeLeaveStatusChange(result, eventType, req.user, { reason: input.reason });
+    } catch (emailErr) {
+      const { logger } = require('../utils/logger');
+      logger.error('Failed to send employee leave status change email notification', { error: emailErr.message, leaveRequestId: result?.id, status: result?.status });
+    }
+
     res.json({ data: result });
   } catch (error) { next(error); }
 });
@@ -838,6 +863,14 @@ router.post('/leave-requests/:id/cancel', authorize('ADMIN'), async (req, res, n
       }, tx);
       return { ...after, removedLeaveShifts: removedLeaveShifts.count };
     });
+    try {
+      const { notifyEmployeeLeaveStatusChange } = require('../services/notification-email.service');
+      await notifyEmployeeLeaveStatusChange(result, 'LEAVE_CANCELLED', req.user, { reason: input.reason });
+    } catch (emailErr) {
+      const { logger } = require('../utils/logger');
+      logger.error('Failed to send employee leave status change email notification', { error: emailErr.message, leaveRequestId: result?.id, status: result?.status });
+    }
+
     res.json({ data: result });
   } catch (error) { next(error); }
 });
