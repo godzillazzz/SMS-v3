@@ -7,10 +7,65 @@
 
 const https = require('https');
 
-// Require configurations standardly
-const env = require('../../src/config/env');
-const prisma = require('../../src/config/prisma');
-const { accessTokenFor } = require('../../src/services/auth.service');
+// Helper to load all environment variables from local Vercel env file
+const loadLocalVercelEnv = () => {
+  try {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const filePath = path.join(__dirname, '../../.vercel/.env.production.local');
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      const lines = content.split(/\r?\n/);
+      let loadedCount = 0;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const match = trimmed.match(/^([^=]+)=(.*)$/);
+        if (match) {
+          const key = match[1].trim();
+          let val = match[2].trim();
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+          }
+          if (val) {
+            // Prevent overwriting existing critical variables
+            if (['DATABASE_URL', 'DIRECT_URL'].includes(key) && process.env[key]) {
+              console.log(`Skipped overwriting existing ${key} with Vercel env.`);
+              continue;
+            }
+            process.env[key] = val;
+            loadedCount++;
+          }
+        }
+      }
+      console.log(`Successfully loaded ${loadedCount} env variables from local Vercel env file.`);
+      if (process.env.JWT_SECRET) {
+        const val = process.env.JWT_SECRET;
+        console.log(`Resolved JWT_SECRET length: ${val.length}, prefix: ${val.slice(0, 3)}, suffix: ${val.slice(-3)}`);
+      }
+    } else {
+      console.log('Local Vercel env file not found.');
+    }
+  } catch (e) {
+    console.log('Failed to read local Vercel env file:', e.message);
+  }
+};
+
+// Fill dummy defaults for non-critical required env variables to satisfy Zod schema
+const fillDummyEnvDefaults = () => {
+  process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30m';
+  process.env.RATE_LIMIT_HASH_SECRET = process.env.RATE_LIMIT_HASH_SECRET || 'test-rate-limit-secret-with-at-least-thirty-two-chars';
+  process.env.COOKIE_SECURE = process.env.COOKIE_SECURE || 'false';
+  process.env.COOKIE_SAME_SITE = process.env.COOKIE_SAME_SITE || 'lax';
+  process.env.REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
+  process.env.OTP_DELIVERY_PROVIDER = process.env.OTP_DELIVERY_PROVIDER || 'memory';
+  process.env.OTP_HASH_SECRET = process.env.OTP_HASH_SECRET || 'test-otp-secret-with-at-least-thirty-two-chars';
+  process.env.ALERT_DEDUP_STORE = process.env.ALERT_DEDUP_STORE || 'memory';
+  process.env.ALERT_DEDUP_HASH_SECRET = process.env.ALERT_DEDUP_HASH_SECRET || 'test-alert-secret-with-at-least-thirty-two-chars';
+  console.log('Filled dummy env defaults for Zod validation.');
+};
+
+let env, prisma, accessTokenFor;
 
 const BASE    = 'https://sms-v3-staging-ten.vercel.app';
 const BYPASS  = 'mySVh2ZVW8EL3cspmySVh2ZVW8EL3csp';
@@ -73,6 +128,13 @@ const daysAhead = (n) => {
 const sign = (user) => accessTokenFor(user, { expiresIn: '4h' });
 
 (async () => {
+  loadLocalVercelEnv();
+  fillDummyEnvDefaults();
+
+  // Load modules dynamically after JWT_SECRET is set
+  env = require('../../src/config/env');
+  prisma = require('../../src/config/prisma');
+  accessTokenFor = require('../../src/services/auth.service').accessTokenFor;
 
   console.log(B('\n╔══════════════════════════════════════════════════════════════╗'));
   console.log(B('║  MANAGER GLOBAL RETROACTIVE LEAVE POLICY UAT                 ║'));
@@ -83,7 +145,7 @@ const sign = (user) => accessTokenFor(user, { expiresIn: '4h' });
   const allUsers = await prisma.user.findMany({
     where: { isActive: true, accountStatus: 'ACTIVE' },
     select: {
-      id: true, email: true, role: true, employeeId: true, tokenVersion: true,
+      id: true, email: true, role: true, employeeId: true,
       employee: { select: { id: true, firstName: true, lastName: true, jobTitle: true, department: true, isActive: true } }
     }
   });

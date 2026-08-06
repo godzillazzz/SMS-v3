@@ -26,21 +26,17 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci --include=dev
-      - name: Generate Ephemeral Secrets
-        shell: bash
-        run: |
-          echo "RATE_LIMIT_HASH_SECRET=$(openssl rand -hex 16)" >> $GITHUB_ENV
-          echo "OTP_HASH_SECRET=$(openssl rand -hex 16)" >> $GITHUB_ENV
-          echo "ALERT_DEDUP_HASH_SECRET=$(openssl rand -hex 16)" >> $GITHUB_ENV
-      - name: Run UAT Verification
+      - name: Pull Vercel environment variables
         env:
-          JWT_SECRET: "MAoYCLYqkebnUrmsFk6SrSZOZ/QJ1bzyrqvU3vpNlurnpV+Es2THNyp15PMEn1BdbUxB+HzuM2Af7FMy2Z1ZkQ=="
-          JWT_EXPIRES_IN: "30m"
-          COOKIE_SAME_SITE: "lax"
-          COOKIE_SECURE: "false"
-          REFRESH_TOKEN_EXPIRES_IN: "7d"
-          OTP_DELIVERY_PROVIDER: "disabled"
-          ALERT_DEDUP_STORE: "memory"
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          npx --yes vercel@56.4.1 pull --yes --environment=production --token "$VERCEL_TOKEN"
+      - name: Run Local Authentication Debug
+        run: |
+          node scripts/ci/debug-auth.js
+      - name: Run UAT Verification
         run: |
           node scripts/ci/run-uat-with-db.js
       - name: Fetch Vercel staging logs
@@ -50,5 +46,4 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          npx --yes vercel@56.4.1 list --project sms-v3-staging --token "$VERCEL_TOKEN" --limit 10
           npx --yes vercel@56.4.1 logs --project sms-v3-staging --environment production --token "$VERCEL_TOKEN" --limit 50

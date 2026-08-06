@@ -67,12 +67,11 @@ jobs:
           TARGET_SHA="${{ inputs.commit_sha }}"
           [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
           git fetch --no-tags origin fix/serverless-database-reliability
-          git fetch origin "$EXPECTED_CANONICAL_SOURCE_SHA" || true
           git cat-file -e "${TARGET_SHA}^{commit}"
           git merge-base --is-ancestor "$TARGET_SHA" origin/fix/serverless-database-reliability
           test "$(git rev-parse HEAD)" = "$TARGET_SHA"
           if [[ "${{ inputs.run_migrations }}" == "false" ]]; then
-            echo "Skipping diff check for migrations."
+            git diff --quiet "$EXPECTED_CANONICAL_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
           fi
           test -z "$(git status --porcelain)"
           echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
