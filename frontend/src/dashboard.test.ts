@@ -9,11 +9,13 @@ const app = read('main.tsx');
 const metrics = read('components/dashboard/MetricsGrid.tsx');
 const actions = read('components/dashboard/AttentionNeededCard.tsx');
 const licenses = read('components/dashboard/LicenseSummaryCard.tsx');
+const filters = read('components/dashboard/DashboardFilterBar.tsx');
+const today = read('components/dashboard/TodayOperationsCard.tsx');
 const styles = read('styles/dashboard.css');
 
 describe('executive dashboard contract', () => {
   it('renders real summary fields for KPI, action, license, leave, and activity widgets', () => {
-    for (const field of ['workingToday', 'leaveToday', 'pendingLicenseDocuments', 'notScheduledToday', 'licenseSummary', 'leaveSummary', 'actionRequired', 'recentActivity', 'expiringLicenseDetails']) expect(page).toContain(field);
+    for (const field of ['workingToday', 'leaveToday', 'pendingLicenseDocuments', 'notScheduledToday', 'licenseSummary', 'leaveSummary', 'leaveOverview', 'licenseOverview', 'todayOperations', 'actionRequired', 'recentActivity', 'expiringLicenseDetails']) expect(page).toContain(field);
     expect(page).toContain('canAdmin');
     expect(metrics).toContain('onNavigate');
     expect(actions).toContain('rows');
@@ -21,6 +23,9 @@ describe('executive dashboard contract', () => {
     expect(actions).toContain('หมดอายุแล้ว');
     expect(actions).toContain('dashboard-expiring-row');
     expect(licenses).toContain('RETURNED_FOR_CORRECTION');
+    expect(filters).toContain('type="date"');
+    expect(filters).toContain('type="month"');
+    expect(today).toContain('byShift');
   });
 
   it('routes the authenticated Dashboard page to the executive component', () => {
@@ -32,10 +37,13 @@ describe('executive dashboard contract', () => {
 
   it('includes loading, empty, accessible navigation, and mobile layout contracts', () => {
     expect(page).toContain('dashboard-data-error');
+    expect(page).toContain('dashboard-data-warning');
     expect(actions).toContain('ไม่มีรายการที่ต้องติดตาม');
     expect(metrics).toContain('ariaLabel');
     expect(styles).toContain('@media(max-width:600px)');
     expect(styles).toContain('dashboard-tertiary-grid');
+    expect(styles).toContain('dashboard-filter-bar');
+    expect(styles).toContain('dashboard-today-stats');
   });
 
   it('formats dashboard counts with Thai number formatting', () => {
