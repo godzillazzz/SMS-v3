@@ -20,6 +20,7 @@ const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../se
 const { normalizeLicenseNumber } = require('../services/license-document.service');
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
 const { getDashboardSummary } = require('../services/dashboard.service');
+const { getAuditLogPage } = require('../services/audit-log-viewer.service');
 const HttpError = require('../utils/http-error');
 
 const router = express.Router();
@@ -942,21 +943,7 @@ router.post('/users/:id/reset-password', authorize('ADMIN'), async (req, res, ne
 
 router.get('/audit-events', authorize('ADMIN'), async (req, res, next) => {
   try {
-    const { page, pageSize } = paging.parse(req.query);
-    const take = page * pageSize;
-    const [appCount, userCount, licenseCount, appEvents, userEvents, licenseEvents] = await Promise.all([
-      prisma.auditLog.count(), prisma.legacyUserAuditEvent.count(), prisma.legacyLicenseAuditEvent.count(),
-      prisma.auditLog.findMany({ take, orderBy: { createdAt: 'desc' }, select: { id: true, action: true, entityType: true, createdAt: true, actor: { select: { displayName: true, role: true } } } }),
-      prisma.legacyUserAuditEvent.findMany({ take, orderBy: { occurredAt: 'desc' }, select: { id: true, action: true, occurredAt: true, roleSnapshot: true } }),
-      prisma.legacyLicenseAuditEvent.findMany({ take, orderBy: { occurredAt: 'desc' }, select: { id: true, action: true, occurredAt: true, licenseStatus: true } })
-    ]);
-    const normalized = [
-      ...appEvents.map((event) => ({ ...event, createdAt: event.createdAt })),
-      ...userEvents.map((event) => ({ id: event.id, action: event.action, entityType: 'LegacyUser', createdAt: event.occurredAt, actor: event.roleSnapshot ? { displayName: event.roleSnapshot, role: 'LEGACY' } : null })),
-      ...licenseEvents.map((event) => ({ id: event.id, action: event.action, entityType: 'LegacyLicense', createdAt: event.occurredAt, actor: event.licenseStatus ? { displayName: event.licenseStatus, role: 'LEGACY' } : null }))
-    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    const total = appCount + userCount + licenseCount;
-    res.json({ data: normalized.slice((page - 1) * pageSize, page * pageSize), meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
+    res.json(await getAuditLogPage({ prismaClient: prisma, query: req.query }));
   } catch (error) { next(error); }
 });
 
