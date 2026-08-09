@@ -11,6 +11,7 @@ const actions = read('components/dashboard/AttentionNeededCard.tsx');
 const licenses = read('components/dashboard/LicenseSummaryCard.tsx');
 const filters = read('components/dashboard/DashboardFilterBar.tsx');
 const today = read('components/dashboard/TodayOperationsCard.tsx');
+const recent = read('components/dashboard/RecentActivityCard.tsx');
 const styles = read('styles/dashboard.css');
 
 describe('executive dashboard contract', () => {
@@ -18,6 +19,10 @@ describe('executive dashboard contract', () => {
     for (const field of ['workingToday', 'leaveToday', 'pendingLicenseDocuments', 'notScheduledToday', 'licenseSummary', 'leaveSummary', 'leaveOverview', 'licenseOverview', 'todayOperations', 'actionRequired', 'recentActivity', 'expiringLicenseDetails']) expect(page).toContain(field);
     expect(page).toContain('canAdmin');
     expect(metrics).toContain('onNavigate');
+    for (const label of ['กำลังปฏิบัติงาน', 'ลาวันนี้', 'รออนุมัติ', 'ต้องติดตาม']) expect(metrics).toContain(label);
+    expect(metrics).toContain('dashboard-secondary-metrics');
+    expect(page).toContain('pendingLeaves');
+    expect(page).toContain('dashboard-command-grid');
     expect(actions).toContain('rows');
     expect(actions).toContain('ดูทั้งหมด');
     expect(actions).toContain('หมดอายุแล้ว');
@@ -26,6 +31,7 @@ describe('executive dashboard contract', () => {
     expect(filters).toContain('type="date"');
     expect(filters).toContain('type="month"');
     expect(today).toContain('byShift');
+    expect(today).toContain('dashboard-today-highlight');
   });
 
   it('routes the authenticated Dashboard page to the executive component', () => {
@@ -44,6 +50,8 @@ describe('executive dashboard contract', () => {
     expect(styles).toContain('dashboard-tertiary-grid');
     expect(styles).toContain('dashboard-filter-bar');
     expect(styles).toContain('dashboard-today-stats');
+    expect(styles).toContain('dashboard-kpi-section');
+    expect(styles).toContain('dashboard-secondary-metrics');
   });
 
   it('formats dashboard counts with Thai number formatting', () => {
@@ -57,5 +65,13 @@ describe('executive dashboard contract', () => {
     expect(actions).toContain('urgency');
     expect(actions).toContain("onNavigate('licenses')");
     expect(actions).not.toContain('signedUrl');
+  });
+
+  it('filters routine session activity while keeping business events visible', () => {
+    expect(recent).toContain('TOKEN_REUSE');
+    expect(recent).toContain('REFRESHSESSION');
+    expect(recent).toContain('isTechnicalActivity');
+    expect(recent).toContain('meaningfulActivities');
+    expect(recent).toContain('LICENSE_APPROVED');
   });
 });

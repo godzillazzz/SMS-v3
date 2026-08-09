@@ -5,7 +5,7 @@ type MetricCardProps = {
   label: string;
   value?: number;
   context: string;
-  tone: 'indigo' | 'green' | 'teal' | 'warning';
+  tone: 'indigo' | 'green' | 'teal' | 'warning' | 'urgent';
   loading?: boolean;
   unavailable?: boolean;
   onClick?: () => void;
