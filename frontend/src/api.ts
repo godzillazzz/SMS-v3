@@ -100,7 +100,14 @@ export const api = {
   refresh: () => call('/auth/refresh', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }) }),
   logout: () => call('/auth/logout', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }) }),
   logoutAll: (accessToken: string) => call('/auth/logout-all', { method: 'POST', body: JSON.stringify({ clientType: 'browser' }), headers: { Authorization: `Bearer ${accessToken}` } }),
-  dashboard: (token: string) => call('/dashboard', { headers: { Authorization: `Bearer ${token}` } }),
+  dashboard: (token: string, filters: { date?: string; month?: string; department?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (filters.date) params.set('date', filters.date);
+    if (filters.month) params.set('month', filters.month);
+    if (filters.department) params.set('department', filters.department);
+    const query = params.toString();
+    return call(`/dashboard${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
+  },
   employees: (token: string) => call('/employees?page=1&pageSize=100', { headers: { Authorization: `Bearer ${token}` } }),
   licenses: (token: string, page = 1) => call(`/licenses?page=${page}&pageSize=500`, { headers: { Authorization: `Bearer ${token}` } }),
   shiftTypes: (token: string) => call('/shift-types', { headers: { Authorization: `Bearer ${token}` } }),

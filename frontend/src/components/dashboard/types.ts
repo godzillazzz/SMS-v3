@@ -1,5 +1,7 @@
 export type DashboardPage = 'employees' | 'licenses' | 'schedule' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'rules';
 
+export type DashboardFilters = { date: string; month: string; department: string };
+
 export type DashboardSummary = Record<string, unknown>;
 
 export type DashboardAction = { key: string; title: string; count: number; severity: 'urgent' | 'warning' | 'follow-up'; page: DashboardPage };
@@ -9,6 +11,7 @@ export type DashboardExpiringLicense = { employeeId: string; employeeCode?: stri
 export type DashboardUser = {
   displayName?: string;
   role?: string;
+  department?: string;
 };
 
 export type DashboardNavigate = (page: DashboardPage) => void;

@@ -54,6 +54,14 @@ describe('API client', () => {
       expect(typeof api[operation]).toBe('function');
     }
   });
+  it('sends Dashboard filters as Gregorian ISO query values', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: {} }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    await api.dashboard('test-access-token', { date: '2026-08-04', month: '2026-08', department: 'Security' });
+    const [path] = fetchMock.mock.calls[0];
+    expect(path).toBe('/api/v1/dashboard?date=2026-08-04&month=2026-08&department=Security');
+  });
   it('sends the selected leave history month with the paginated request', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: [], meta: { total: 0 } }) });
     vi.stubGlobal('document', { cookie: '' });

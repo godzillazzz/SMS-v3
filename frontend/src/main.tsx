@@ -19,6 +19,7 @@ import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
+import type { DashboardFilters } from './components/dashboard/types';
 import { LicenseEditModal, LicenseTableDocumentColumns } from './components/LicenseDocuments';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/license-table.css';
@@ -34,6 +35,12 @@ type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; meta?: { total?: number; page?: number; totalPages?: number; statusCounts?: Record<string, number> } };
 type FormField = { name: string; label: string; type?: 'text' | 'email' | 'password' | 'date' | 'number' | 'select' | 'textarea' | 'file'; required?: boolean; accept?: string; hint?: string; options?: Array<{ value: string; label: string }> };
 type Editor = { title: string; submitLabel: string; fields: FormField[]; values: Record<string, string>; submit(values: Record<string, string>, files: Record<string, File>): Promise<void> };
+
+const bangkokDateInput = (value = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(value);
+  const values = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
 
 const AuthContext = createContext<Auth | undefined>(undefined);
 
@@ -1115,6 +1122,7 @@ function Dashboard() {
   const [dashboardSummary, setDashboardSummary] = useState<DataRow>({});
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string>();
+  const [dashboardFilters, setDashboardFilters] = useState<DashboardFilters>(() => { const date = bangkokDateInput(); return { date, month: date.slice(0, 7), department: '' }; });
   const [scheduleMonth, setScheduleMonth] = useState(currentBangkokMonth);
   const [leaveMonth, setLeaveMonth] = useState(readLeaveMonthFromUrl);
   const [scheduleDepartment, setScheduleDepartment] = useState('');
@@ -1228,11 +1236,11 @@ function Dashboard() {
     if (!auth.token || activePage !== 'dashboard') return;
     setDashboardLoading(true);
     setDashboardError(undefined);
-    api.dashboard(auth.token)
+    api.dashboard(auth.token, dashboardFilters)
       .then((result) => setDashboardSummary(result?.data || {}))
       .catch((reason) => setDashboardError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่าน Dashboard ได้'))
       .finally(() => setDashboardLoading(false));
-  }, [activePage, auth.token, operationRefresh]);
+  }, [activePage, auth.token, operationRefresh, dashboardFilters.date, dashboardFilters.month, dashboardFilters.department]);
 
   useEffect(() => {
     if (!auth.token || !['leave', 'leavePending', 'leaveHistory'].includes(activePage)) return;
@@ -1538,7 +1546,7 @@ function Dashboard() {
   };
 
   const content = () => {
-    if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} onNavigate={setActivePage} />;
+    if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} filters={dashboardFilters} onFiltersChange={(next) => setDashboardFilters((current) => ({ ...current, ...next }))} onNavigate={setActivePage} />;
     // The former inline dashboard is intentionally disabled. DashboardPage above
     // is the only runtime dashboard presentation.
     if (false) {
