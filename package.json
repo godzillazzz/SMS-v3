@@ -17,6 +17,8 @@
     "migration:legacy:apply": "node scripts/migrate-legacy-data.js --apply",
     "test": "node --test test/*.test.js",
     "test:integration": "node --test --test-concurrency=1 test/integration/*.test.js",
+    "test:uat": "playwright test",
+    "test:uat:check": "node --test test/uat-config.test.js && playwright test --list",
     "db:test:migrate": "prisma migrate deploy",
     "vercel-build": "node scripts/vercel-production-build.js",
     "prisma:format:check": "prisma format --check",
@@ -44,6 +46,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "nodemon": "^3.1.10",
     "prisma": "^6.11.1",
     "supertest": "^7.1.1"
