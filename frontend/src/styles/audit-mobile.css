@@ -1,3 +1,32 @@
+.audit-desktop-table .audit-table {
+  display: table;
+}
+
+.audit-desktop-table .audit-table thead {
+  display: table-header-group;
+}
+
+.audit-desktop-table .audit-table tbody {
+  display: table-row-group;
+  padding: 0;
+}
+
+.audit-desktop-table .audit-table tbody tr {
+  display: table-row;
+  padding: 0;
+  border: 0;
+}
+
+.audit-desktop-table .audit-table tbody td {
+  display: table-cell !important;
+  padding: 13px 14px !important;
+}
+
+.audit-desktop-table .audit-table tbody td::before {
+  display: none;
+  content: none !important;
+}
+
 .audit-desktop-table {
   display: block;
 }
