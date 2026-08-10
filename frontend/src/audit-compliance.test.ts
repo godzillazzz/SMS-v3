@@ -30,6 +30,7 @@ describe('admin audit log viewer contract', () => {
     expect(table).toContain('Unknown / Deleted User');
     expect(table).toContain('ดูรายละเอียด');
     expect(table).toContain('audit-mobile-cards');
+    expect(table).toContain('audit-desktop-table');
     expect(table).toContain('mobileMetadataSummary');
     expect(table).toContain('safeMetadataEntries');
     expect(preview).toContain('ซ่อนข้อมูลที่อ่อนไหว');
@@ -44,8 +45,12 @@ describe('admin audit log viewer contract', () => {
   it('uses a separate vertical card structure for small screens without changing desktop tables', () => {
     const mobileStyles = read('styles/audit-mobile.css');
     expect(mobileStyles).toContain('@media (max-width: 640px)');
-    expect(mobileStyles).toContain('.audit-table-scroll');
+    expect(mobileStyles).toContain('.audit-desktop-table');
+    expect(mobileStyles).toContain('display: block;');
     expect(mobileStyles).toContain('display: none;');
+    expect(mobileStyles).toContain('  .audit-desktop-table {\n    display: none;\n  }');
+    expect(mobileStyles).toContain('.audit-mobile-cards {');
+    expect(mobileStyles).toContain('display: grid;');
     expect(mobileStyles).toContain('overflow-wrap: anywhere;');
     expect(mobileStyles).toContain('text-overflow: ellipsis;');
     expect(mobileStyles).toContain('min-height: 40px;');
