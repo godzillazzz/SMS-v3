@@ -17,6 +17,7 @@ import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage';
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
+import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
 import type { DashboardFilters } from './components/dashboard/types';
@@ -64,7 +65,7 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: string; 
   ] },
   { label: 'ตรวจสอบ', items: [
     { id: 'rules', icon: '!', label: 'กฎการทำงาน' },
-    { id: 'audit', icon: '◌', label: 'Audit Log' }
+    { id: 'audit', icon: '◌', label: 'บันทึกการใช้งานระบบ' }
   ] },
   { label: 'ผู้ใช้และสิทธิ์', items: [
     { id: 'users', icon: '♧', label: 'ผู้ใช้และสิทธิ์' }
@@ -1093,7 +1094,8 @@ function Dashboard() {
   const [operationError, setOperationError] = useState<string>();
   const [leavePrintTarget, setLeavePrintTarget] = useState<DataRow>();
   const [operationPage, setOperationPage] = useState(1);
-  const [auditPageSize, setAuditPageSize] = useState(100);
+  const [auditPageSize, setAuditPageSize] = useState(25);
+  const [auditFilters, setAuditFilters] = useState<AuditFilters>(defaultAuditFilters);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -1260,11 +1262,11 @@ function Dashboard() {
   useEffect(() => {
     if (!auth.token || activePage !== 'audit') return;
     setOperationLoading(true); setOperationError(undefined);
-    api.auditEvents(auth.token, operationPage, auditPageSize)
+    api.auditEvents(auth.token, operationPage, auditPageSize, auditFilters)
       .then((response) => setOperationResponse(response))
       .catch((reason) => setOperationError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านบันทึกการตรวจสอบได้'))
       .finally(() => setOperationLoading(false));
-  }, [activePage, auth.token, operationPage, auditPageSize, operationRefresh]);
+  }, [activePage, auth.token, operationPage, auditPageSize, auditFilters, operationRefresh]);
 
   useEffect(() => {
     if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit') return;
@@ -1729,7 +1731,7 @@ function Dashboard() {
     if (activePage === 'employees') return <PersonnelDirectoryPage employees={employees} totalCount={totalCount} loading={empLoading} error={fetchError} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onEdit={openEmployeeEditor} onDeactivate={async (employee) => { if (!auth.token || !window.confirm('ยืนยันการปิดใช้งานพนักงานรายการนี้?')) return; try { await api.deleteEmployee(auth.token, employee.id); setEmployeeRefresh((value) => value + 1); } catch (reason) { setFetchError(reason instanceof Error ? reason.message : 'ปิดใช้งานพนักงานไม่สำเร็จ'); } }} onRefresh={() => setEmployeeRefresh((value) => value + 1)} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      return <AuditCompliancePage rows={auditRows} total={operationResponse.meta?.total ?? auditRows.length} page={operationResponse.meta?.page || operationPage} totalPages={operationResponse.meta?.totalPages || 1} pageSize={auditPageSize} loading={operationLoading} error={operationError} permissionDenied={auth.user?.role !== 'ADMIN'} onRefresh={() => setOperationRefresh((value) => value + 1)} onPageChange={setOperationPage} onPageSize={(value) => { setAuditPageSize(value); setOperationPage(1); }} onExport={(rows) => downloadCsv(rows as DataRow[], 'audit-events')} onPrint={() => window.print()} />;
+      return <AuditCompliancePage rows={auditRows} total={operationResponse.meta?.total ?? auditRows.length} page={operationResponse.meta?.page || operationPage} totalPages={operationResponse.meta?.totalPages || 1} pageSize={auditPageSize} loading={operationLoading} error={operationError} permissionDenied={auth.user?.role !== 'ADMIN'} filters={auditFilters} onFiltersChange={(filters) => { setAuditFilters(filters); setOperationPage(1); }} onRefresh={() => setOperationRefresh((value) => value + 1)} onPageChange={setOperationPage} onPageSize={(value) => { setAuditPageSize(value); setOperationPage(1); }} onExport={(rows) => downloadCsv(rows as DataRow[], 'audit-events')} onPrint={() => window.print()} />;
     }
     if (activePage === 'shiftSetup') return (
       <section className="view-pane">
