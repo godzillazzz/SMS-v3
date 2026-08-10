@@ -126,9 +126,86 @@ jobs:
           NODE
       - name: Verify canonical application health
         env:
-          DEPLOYMENT_URL: https://sms-v3-staging-ten.vercel.app
           CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
-        run: node scripts/ci/verify-health.js
+        shell: bash
+        run: |
+          node <<'NODE'
+          const canonical = 'https://sms-v3-staging-ten.vercel.app';
+          const timeoutMs = 20_000;
+          const readinessAttempts = 3;
+
+          const fail = (category) => {
+            console.error(category);
+            process.exit(1);
+          };
+
+          const request = async (path) => {
+            try {
+              return await fetch(`${canonical}${path}`, {
+                redirect: 'manual',
+                signal: AbortSignal.timeout(timeoutMs),
+              });
+            } catch {
+              fail(path === '/' ? 'HEALTH_ROOT_FAILED' : 'HEALTH_REQUEST_FAILED');
+            }
+          };
+
+          const verifyAssets = async (html) => {
+            const assets = [...html.matchAll(/(?:src|href)=["'](\/assets\/[^"']+\.(?:css|js))["']/g)]
+              .map((match) => match[1])
+              .slice(0, 20);
+            for (const asset of assets) {
+              const response = await request(asset);
+              console.log(`canonical asset status=${response.status}`);
+              if (response.status !== 200) fail('HEALTH_ASSET_FAILED');
+            }
+          };
+
+          const verifyPage = async (path, category) => {
+            const response = await request(path);
+            console.log(`canonical ${path} status=${response.status}`);
+            if (response.status !== 200) fail(category);
+            await verifyAssets(await response.text());
+          };
+
+          const main = async () => {
+            if (process.env.CANONICAL_URL !== canonical) fail('HEALTH_CANONICAL_URL_INVALID');
+            await verifyPage('/', 'HEALTH_ROOT_FAILED');
+            await verifyPage('/login', 'HEALTH_LOGIN_FAILED');
+
+            const health = await request('/api/v1/health');
+            console.log(`canonical /api/v1/health status=${health.status}`);
+            if (health.status !== 200) fail('HEALTH_API_FAILED');
+
+            for (let attempt = 1; attempt <= readinessAttempts; attempt += 1) {
+              const ready = await request('/api/v1/ready');
+              if (ready.status !== 200) fail('READINESS_HTTP_FAILED');
+              let body;
+              try {
+                body = await ready.json();
+              } catch {
+                fail('READINESS_STATUS_FAILED');
+              }
+              console.log(`canonical /api/v1/ready attempt=${attempt} status=${ready.status} database=${body.database ?? 'unknown'}`);
+              if (body.status !== 'ready') fail('READINESS_STATUS_FAILED');
+              if (!['ok', 'ready'].includes(body.database)) fail('DATABASE_NOT_READY');
+              if (attempt < readinessAttempts) await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+
+            for (const path of ['/api/v1/dashboard', '/api/v1/licenses']) {
+              const response = await request(path);
+              console.log(`canonical ${path} status=${response.status}`);
+              if (![200, 201, 202, 204, 401, 403].includes(response.status)) fail('HEALTH_API_FAILED');
+            }
+
+            const protectedRoute = await request('/api/v1/audit-events');
+            console.log(`canonical /api/v1/audit-events status=${protectedRoute.status}`);
+            if (protectedRoute.status !== 401) fail('PROTECTED_ROUTE_CONTRACT_FAILED');
+            console.log('HEALTH_SOURCE=canonical');
+          };
+
+          main().catch(() => fail('HEALTH_REQUEST_FAILED'));
+          NODE
       - name: Publish promotion summary
         run: |
           {
