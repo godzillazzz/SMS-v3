@@ -1,10 +1,14 @@
+.audit-desktop-table {
+  display: block;
+}
+
 .audit-mobile-cards,
 .audit-mobile-empty {
   display: none;
 }
 
 @media (max-width: 640px) {
-  .audit-table-scroll {
+  .audit-desktop-table {
     display: none;
   }
 
