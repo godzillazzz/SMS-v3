@@ -1,0 +1,179 @@
+.audit-mobile-cards,
+.audit-mobile-empty {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .audit-table-scroll {
+    display: none;
+  }
+
+  .audit-mobile-cards {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .audit-mobile-card {
+    display: grid;
+    min-width: 0;
+    gap: 10px;
+    padding: 15px;
+    border: 1px solid #e4e8f0;
+    border-radius: 11px;
+    background: #fff;
+  }
+
+  .audit-mobile-card.is-selected {
+    border-color: #bcb3f5;
+    box-shadow: inset 3px 0 #5746d9;
+  }
+
+  .audit-mobile-card header,
+  .audit-mobile-card footer {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .audit-mobile-card time {
+    min-width: 0;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  .audit-mobile-card .audit-role-badge {
+    flex: 0 1 auto;
+    max-width: 44%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .audit-mobile-actor,
+  .audit-mobile-target,
+  .audit-mobile-summary {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+  }
+
+  .audit-mobile-actor strong,
+  .audit-mobile-target strong {
+    color: #14213d;
+    font-size: 15px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .audit-mobile-label {
+    color: #667085;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+  }
+
+  .audit-mobile-facts {
+    display: grid;
+    gap: 8px;
+    padding: 10px 0;
+    border-block: 1px solid #edf0f5;
+  }
+
+  .audit-mobile-facts > div {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .audit-mobile-facts .audit-module-badge,
+  .audit-mobile-facts .audit-action-badge {
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .audit-mobile-target .audit-entity-id {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .audit-mobile-summary p {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    color: #475467;
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .audit-mobile-card footer {
+    align-items: center;
+    border-top: 1px solid #edf0f5;
+    padding-top: 10px;
+  }
+
+  .audit-mobile-card footer small {
+    min-width: 0;
+    color: #667085;
+    font-size: 11px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .audit-mobile-card .audit-preview-link {
+    flex: 0 0 auto;
+    min-height: 40px;
+    margin: 0;
+    padding: 6px 10px;
+    white-space: nowrap;
+  }
+
+  .audit-mobile-skeleton span {
+    display: block;
+    height: 14px;
+    border-radius: 6px;
+    background: #edf1f7;
+  }
+
+  .audit-mobile-skeleton span:nth-child(2) {
+    width: 72%;
+  }
+
+  .audit-mobile-empty {
+    display: grid;
+    justify-items: center;
+    gap: 7px;
+    min-height: 250px;
+    padding: 28px 18px;
+    color: #667085;
+    text-align: center;
+  }
+
+  .audit-mobile-empty span {
+    color: #5746d9;
+    font-size: 32px;
+  }
+
+  .audit-mobile-empty strong {
+    color: #14213d;
+    font-size: 16px;
+  }
+
+  .audit-mobile-empty p {
+    margin: 0;
+    font-size: 13px;
+  }
+}
