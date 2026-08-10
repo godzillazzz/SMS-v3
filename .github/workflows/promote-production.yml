@@ -1,0 +1,140 @@
+name: Promote sms-v3-staging Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_id:
+        description: Existing READY production deployment ID belonging to sms-v3-staging
+        required: true
+        type: string
+      confirmation:
+        description: Type PROMOTE_SMS_V3_STAGING to confirm application promotion
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-staging-production
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate promotion target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirmation }}" = "PROMOTE_SMS_V3_STAGING"
+          test -n "$VERCEL_TOKEN"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          [[ "${{ inputs.deployment_id }}" =~ ^dpl_[A-Za-z0-9]+$ ]]
+          inspect_log=$(mktemp)
+          trap 'rm -f "$inspect_log"' EXIT
+          if ! npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "${{ inputs.deployment_id }}" --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$inspect_log" 2>&1; then
+            echo 'PROMOTION_GUARD=INSPECT_COMMAND_FAILED' >&2
+            exit 1
+          fi
+          node - "$inspect_log" "${{ inputs.deployment_id }}" <<'NODE'
+          const fs = require('node:fs');
+
+          const [file, expectedId] = process.argv.slice(2);
+          const fail = (category) => {
+            console.error(`PROMOTION_GUARD=${category}`);
+            process.exit(1);
+          };
+
+          const raw = fs.readFileSync(file, 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (!match) fail('INSPECT_JSON_MISSING');
+
+          let data;
+          try {
+            data = JSON.parse(match[0]);
+          } catch {
+            fail('INSPECT_JSON_INVALID');
+          }
+
+          if (data.id !== expectedId) fail('DEPLOYMENT_ID_MISMATCH');
+          if (data.name !== process.env.EXPECTED_PROJECT_NAME) fail('PROJECT_NAME_MISMATCH');
+          if (data.target !== 'production') fail('TARGET_NOT_PRODUCTION');
+          if (data.readyState !== 'READY') fail('DEPLOYMENT_NOT_READY');
+          if (typeof data.url !== 'string' || !/^sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app$/.test(data.url)) {
+            fail('DEPLOYMENT_URL_MISMATCH');
+          }
+          NODE
+      - name: Promote existing application deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@"$VERCEL_CLI_VERSION" promote "${{ inputs.deployment_id }}" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --yes >/tmp/vercel-promote.log 2>&1
+      - name: Verify canonical deployment identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_log=$(mktemp)
+          trap 'rm -f "$canonical_log"' EXIT
+          if ! npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical_log" 2>&1; then
+            echo 'PROMOTION_GUARD=CANONICAL_INSPECT_COMMAND_FAILED' >&2
+            exit 1
+          fi
+          node - "$canonical_log" "${{ inputs.deployment_id }}" <<'NODE'
+          const fs = require('node:fs');
+
+          const [file, expectedId] = process.argv.slice(2);
+          const raw = fs.readFileSync(file, 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (!match) {
+            console.error('PROMOTION_GUARD=CANONICAL_INSPECT_JSON_MISSING');
+            process.exit(1);
+          }
+
+          let data;
+          try {
+            data = JSON.parse(match[0]);
+          } catch {
+            console.error('PROMOTION_GUARD=CANONICAL_INSPECT_JSON_INVALID');
+            process.exit(1);
+          }
+
+          if (data.id !== expectedId) {
+            console.error('PROMOTION_GUARD=CANONICAL_DEPLOYMENT_ID_MISMATCH');
+            process.exit(1);
+          }
+          NODE
+      - name: Verify canonical application health
+        env:
+          DEPLOYMENT_URL: https://sms-v3-staging-ten.vercel.app
+          CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+        run: node scripts/ci/verify-health.js
+      - name: Publish promotion summary
+        run: |
+          {
+            echo '### Application promotion'
+            echo '- Project: sms-v3-staging'
+            echo '- Deployment promoted: ${{ inputs.deployment_id }}'
+            echo '- Canonical health: verified'
+            echo '- Database migration: not performed'
+          } >> "$GITHUB_STEP_SUMMARY"
