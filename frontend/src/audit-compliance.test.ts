@@ -38,13 +38,20 @@ describe('admin audit log viewer contract', () => {
     expect(page).toContain('ไม่สามารถโหลดบันทึกการใช้งานระบบ');
     expect(table).toContain('ไม่พบรายการ Audit Log ตามเงื่อนไขที่เลือก');
     expect(table).toContain('audit-skeleton-row');
-    expect(styles).toContain('audit-table tbody td::before');
-    expect(styles).toContain('@media(max-width:760px)');
+    expect(table).not.toContain('data-label=');
   });
 
   it('uses a separate vertical card structure for small screens without changing desktop tables', () => {
     const mobileStyles = read('styles/audit-mobile.css');
+    expect(table).toContain('<table className="audit-table"><thead><tr><th');
+    expect(table).toContain('</thead><tbody>');
+    expect(table).toContain('<td>{formatAuditTime(row.createdAt)}</td>');
+    expect(table).toContain('<article key={safe(row.id, `mobile-event-${index}`)}');
+    expect(table).not.toContain('data-label=');
     expect(mobileStyles).toContain('@media (max-width: 640px)');
+    expect(mobileStyles).toContain('.audit-desktop-table .audit-table tbody td');
+    expect(mobileStyles).toContain('display: table-cell !important;');
+    expect(mobileStyles).toContain('content: none !important;');
     expect(mobileStyles).toContain('.audit-desktop-table');
     expect(mobileStyles).toContain('display: block;');
     expect(mobileStyles).toContain('display: none;');
