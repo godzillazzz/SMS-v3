@@ -29,6 +29,9 @@ describe('admin audit log viewer contract', () => {
   it('keeps details read-only, redacted, and usable on mobile', () => {
     expect(table).toContain('Unknown / Deleted User');
     expect(table).toContain('ดูรายละเอียด');
+    expect(table).toContain('audit-mobile-cards');
+    expect(table).toContain('mobileMetadataSummary');
+    expect(table).toContain('safeMetadataEntries');
     expect(preview).toContain('ซ่อนข้อมูลที่อ่อนไหว');
     expect(preview).toContain('safeMetadataEntries');
     expect(page).toContain('ไม่สามารถโหลดบันทึกการใช้งานระบบ');
@@ -36,5 +39,16 @@ describe('admin audit log viewer contract', () => {
     expect(table).toContain('audit-skeleton-row');
     expect(styles).toContain('audit-table tbody td::before');
     expect(styles).toContain('@media(max-width:760px)');
+  });
+
+  it('uses a separate vertical card structure for small screens without changing desktop tables', () => {
+    const mobileStyles = read('styles/audit-mobile.css');
+    expect(mobileStyles).toContain('@media (max-width: 640px)');
+    expect(mobileStyles).toContain('.audit-table-scroll');
+    expect(mobileStyles).toContain('display: none;');
+    expect(mobileStyles).toContain('overflow-wrap: anywhere;');
+    expect(mobileStyles).toContain('text-overflow: ellipsis;');
+    expect(mobileStyles).toContain('min-height: 40px;');
+    expect(mobileStyles).not.toContain('@media (min-width: 641px)');
   });
 });

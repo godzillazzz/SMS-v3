@@ -7,6 +7,7 @@ import { AuditToolbar } from '../../components/audit/AuditToolbar';
 import type { AuditEvent, AuditFilters } from '../../components/audit/audit-types';
 import { summarizeAuditEvents } from '../../components/audit/audit-utils';
 import '../../styles/audit-compliance.css';
+import '../../styles/audit-mobile.css';
 
 type Props = { rows: AuditEvent[]; total: number; page?: number; totalPages?: number; pageSize?: number; loading: boolean; error?: string; permissionDenied?: boolean; filters: AuditFilters; onFiltersChange(filters: AuditFilters): void; onRefresh(): void; onPageChange(page: number): void; onPageSize(value: number): void; onExport(rows: AuditEvent[]): void; onPrint(): void };
 
