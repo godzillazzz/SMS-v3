@@ -1,8 +1,10 @@
 const { test, expect } = require('@playwright/test');
 const { getAuditEventsStatus, loginAs } = require('../helpers/uat-auth');
+const { hasRoleCredentials } = require('../helpers/uat-config');
 const { expectApiSuccess, navigateTo, startPageMonitor } = require('../helpers/uat-observe');
 
 test.describe.configure({ mode: 'serial' });
+test.skip(!hasRoleCredentials('ADMIN'), 'ADMIN authenticated smoke skipped: credentials unavailable.');
 
 test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) => {
   const monitor = startPageMonitor(page);

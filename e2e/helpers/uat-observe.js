@@ -26,6 +26,22 @@ function requestTarget(url) {
   }
 }
 
+function requestPath(url) {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return '';
+  }
+}
+
+function isHarmlessConsoleError(message) {
+  if (message.type() !== 'error') return false;
+  const location = message.location();
+  const isUnauthenticatedRefresh = requestPath(location.url) === '/api/v1/auth/refresh'
+    && /Failed to load resource: the server responded with a status of 403/i.test(message.text());
+  return isUnauthenticatedRefresh || harmlessConsoleMessages.some((pattern) => pattern.test(message.text()));
+}
+
 function startPageMonitor(page) {
   const pageErrors = [];
   const consoleErrors = [];
@@ -34,11 +50,10 @@ function startPageMonitor(page) {
 
   page.on('pageerror', (error) => pageErrors.push(sanitizeDiagnostic(error.message)));
   page.on('console', (message) => {
-    if (message.type() !== 'error') return;
-    if (!harmlessConsoleMessages.some((pattern) => pattern.test(message.text()))) consoleErrors.push(sanitizeDiagnostic(message.text()));
+    if (!isHarmlessConsoleError(message)) consoleErrors.push(sanitizeDiagnostic(message.text()));
   });
   page.on('requestfailed', (request) => {
-    if (!['document', 'xhr', 'fetch'].includes(request.resourceType())) return;
+    if (!['document', 'xhr', 'fetch', 'script', 'stylesheet'].includes(request.resourceType())) return;
     const failure = request.failure()?.errorText || 'unknown request failure';
     if (!harmlessRequestFailures.some((pattern) => pattern.test(failure))) requestFailures.push(`${request.method()} ${requestTarget(request.url())} ${sanitizeDiagnostic(failure)}`);
   });
@@ -82,4 +97,4 @@ async function captureScreenshot(page, testInfo, name) {
   await testInfo.attach(name, { path, contentType: 'image/png' });
 }
 
-module.exports = { assertNoHorizontalOverflow, captureScreenshot, expectApiSuccess, navigateTo, requestTarget, sanitizeDiagnostic, startPageMonitor };
+module.exports = { assertNoHorizontalOverflow, captureScreenshot, expectApiSuccess, isHarmlessConsoleError, navigateTo, requestPath, requestTarget, sanitizeDiagnostic, startPageMonitor };

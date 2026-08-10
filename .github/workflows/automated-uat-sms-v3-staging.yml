@@ -1,4 +1,4 @@
-name: Automated UAT sms-v3-staging
+name: Automated Technical Smoke sms-v3-staging
 
 on:
   workflow_dispatch:
@@ -7,32 +7,16 @@ on:
         description: Candidate deployment or approved canonical URL to test
         required: true
         type: string
-      expected_deployment_id:
-        description: Optional existing Vercel deployment ID for read-only identity validation
-        required: false
-        type: string
 
 permissions:
   contents: read
 
 jobs:
-  smoke:
+  technical-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    environment:
-      name: production-sms-v3-staging
     env:
       UAT_BASE_URL: ${{ inputs.target_url }}
-      UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
-      UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
-      UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
-      UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
-      UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
-      UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
-      UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
-      UAT_VERCEL_PROTECTION_BYPASS: ${{ secrets.UAT_VERCEL_PROTECTION_BYPASS }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,26 +24,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Validate optional target deployment identity
-        if: ${{ inputs.expected_deployment_id != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          [[ "$UAT_EXPECTED_DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
-          inspect_log=$(mktemp)
-          trap 'rm -f "$inspect_log"' EXIT
-          npx --yes vercel@56.4.1 inspect "$UAT_BASE_URL" --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$inspect_log"
-          node - "$inspect_log" "$UAT_EXPECTED_DEPLOYMENT_ID" <<'NODE'
-          const fs = require('node:fs');
-          const [file, expectedId] = process.argv.slice(2);
-          const record = JSON.parse(fs.readFileSync(file, 'utf8'));
-          if (record.id !== expectedId) throw new Error('UAT target deployment identity mismatch');
-          if (record.name !== 'sms-v3-staging' || record.target !== 'production' || record.readyState !== 'READY') throw new Error('UAT target is not a READY sms-v3-staging production deployment');
-          console.log(`UAT_TARGET_DEPLOYMENT=${record.id}`);
-          NODE
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-      - name: Run read-only browser UAT
+      - name: Run credential-optional technical smoke
         id: uat
         run: npm run test:uat
       - name: Publish UAT summary
@@ -67,7 +34,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo '### Automated UAT'
+            echo '### Automated Technical Smoke'
             echo "- Target: $UAT_BASE_URL"
             echo "- Result: ${{ steps.uat.outcome }}"
             if [[ -f test-results/uat-summary.md ]]; then

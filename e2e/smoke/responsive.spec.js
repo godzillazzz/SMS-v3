@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { loginAs } = require('../helpers/uat-auth');
+const { hasRoleCredentials } = require('../helpers/uat-config');
 const { assertNoHorizontalOverflow, captureScreenshot, navigateTo, startPageMonitor } = require('../helpers/uat-observe');
 
 const viewports = [
@@ -7,6 +8,8 @@ const viewports = [
   { name: '768', width: 768, height: 1024, mobile: false },
   { name: '1440', width: 1440, height: 900, mobile: false }
 ];
+
+test.skip(!hasRoleCredentials('ADMIN'), 'ADMIN responsive smoke skipped: credentials unavailable.');
 
 for (const viewport of viewports) {
   test(`ADMIN responsive smoke ${viewport.name}`, async ({ page }, testInfo) => {

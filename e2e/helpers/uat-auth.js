@@ -4,7 +4,7 @@ const { getUatConfig } = require('./uat-config');
 async function loginAs(page, role) {
   const config = getUatConfig();
   const account = config.accounts[role];
-  if (!account) throw new Error(`Unsupported UAT role: ${role}`);
+  if (!account?.configured) throw new Error(`UAT credentials unavailable for role: ${role}`);
 
   await page.goto('/');
   const loginResponse = page.waitForResponse((response) => {

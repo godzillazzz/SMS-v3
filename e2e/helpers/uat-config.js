@@ -1,8 +1,8 @@
 const roles = ['ADMIN', 'MANAGER', 'VIEWER'];
 
-function configurationError(missing) {
-  const error = new Error(`UAT configuration missing: ${missing.join(', ')}`);
-  error.code = 'UAT_CONFIGURATION_MISSING';
+function configurationError(code, message) {
+  const error = new Error(message);
+  error.code = code;
   return error;
 }
 
@@ -24,19 +24,24 @@ function normalizeBaseUrl(value, allowHttp) {
 }
 
 function getUatConfig(environment = process.env) {
-  const missing = [];
-  if (!String(environment.UAT_BASE_URL || '').trim()) missing.push('UAT_BASE_URL');
+  if (!String(environment.UAT_BASE_URL || '').trim()) {
+    throw configurationError('UAT_CONFIGURATION_MISSING', 'UAT configuration missing: UAT_BASE_URL');
+  }
 
   const accounts = {};
   for (const role of roles) {
     const emailKey = `UAT_${role}_EMAIL`;
     const passwordKey = `UAT_${role}_PASSWORD`;
-    if (!String(environment[emailKey] || '').trim()) missing.push(emailKey);
-    if (!String(environment[passwordKey] || '').trim()) missing.push(passwordKey);
-    accounts[role] = { email: environment[emailKey], password: environment[passwordKey] };
+    const email = String(environment[emailKey] || '').trim();
+    const password = String(environment[passwordKey] || '');
+    if (Boolean(email) !== Boolean(password)) {
+      throw configurationError(
+        'UAT_OPTIONAL_CREDENTIAL_CONFIGURATION_INVALID',
+        `UAT optional credential configuration invalid: ${role}`
+      );
+    }
+    accounts[role] = { configured: Boolean(email), email: email || undefined, password: password || undefined };
   }
-
-  if (missing.length) throw configurationError(missing);
 
   return {
     baseURL: normalizeBaseUrl(String(environment.UAT_BASE_URL), environment.UAT_ALLOW_HTTP === 'true'),
@@ -46,4 +51,9 @@ function getUatConfig(environment = process.env) {
   };
 }
 
-module.exports = { configurationError, getUatConfig, normalizeBaseUrl, roles };
+function hasRoleCredentials(role, environment = process.env) {
+  if (!roles.includes(role)) throw new Error(`Unsupported UAT role: ${role}`);
+  return getUatConfig(environment).accounts[role].configured;
+}
+
+module.exports = { configurationError, getUatConfig, hasRoleCredentials, normalizeBaseUrl, roles };
