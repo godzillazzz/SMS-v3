@@ -175,3 +175,55 @@ test('dashboard keeps available sections when one aggregate query fails', async 
   assert.equal(summary.activeEmployees, 4);
   assert.deepEqual(summary.partialErrors, ['workforce']);
 });
+
+test('dashboard serializes aggregate queries to respect the serverless connection limit', async () => {
+  let active = 0;
+  let peak = 0;
+  const tracked = async (value) => {
+    active += 1;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    active -= 1;
+    return value;
+  };
+  const client = {
+    employee: { count: async () => tracked(0), findMany: async () => tracked([]) },
+    shiftAssignment: { findMany: async () => tracked([]), count: async () => tracked(0) },
+    leaveRequest: { count: async () => tracked(0), findMany: async () => tracked([]), groupBy: async () => tracked([]) },
+    user: { count: async () => tracked(0) },
+    scheduleApproval: { count: async () => tracked(0) },
+    employeeLicenseDocument: { count: async () => tracked(0), groupBy: async () => tracked([]), findMany: async () => tracked([]) },
+    leaveQuota: { count: async () => tracked(0) },
+    auditLog: { findMany: async () => tracked([]) }
+  };
+  const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null } });
+  assert.equal(peak, 1);
+  assert.deepEqual(summary.partialErrors, []);
+});
+
+test('dashboard keeps the partial warning signal when license overview aggregation fails', async () => {
+  let licenseCountCalls = 0;
+  const empty = async () => [];
+  const zero = async () => 0;
+  const client = {
+    employee: { count: zero, findMany: empty },
+    shiftAssignment: { findMany: empty, count: zero },
+    leaveRequest: { count: zero, findMany: empty, groupBy: empty },
+    user: { count: zero },
+    scheduleApproval: { count: zero },
+    employeeLicenseDocument: {
+      groupBy: empty,
+      findMany: empty,
+      count: async () => {
+        licenseCountCalls += 1;
+        if (licenseCountCalls === 3) throw new Error('license category query failed');
+        return 0;
+      }
+    },
+    leaveQuota: { count: zero },
+    auditLog: { findMany: empty }
+  };
+  const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null } });
+  assert.equal(summary.activeEmployees, 0);
+  assert.deepEqual(summary.partialErrors, ['licenseOverview']);
+});
