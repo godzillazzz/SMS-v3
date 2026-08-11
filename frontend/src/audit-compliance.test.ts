@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const read = (file: string) => fs.readFileSync(path.join(__dirname, file), 'utf8');
+const read = (file: string) => fs.readFileSync(path.join(__dirname, file), 'utf8').replace(/\r\n/g, '\n');
 const app = read('main.tsx');
 const page = read('pages/audit/AuditCompliancePage.tsx');
 const toolbar = read('components/audit/AuditToolbar.tsx');
