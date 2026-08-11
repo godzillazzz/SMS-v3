@@ -6,6 +6,9 @@ node_modules/
 !.env.test.example
 !.env.supabase.example
 coverage/
+playwright-report/
+test-results/
+.auth/
 backups/
 *.dump
 *.dump.enc

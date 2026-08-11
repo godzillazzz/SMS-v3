@@ -1,0 +1,55 @@
+name: Automated Technical Smoke sms-v3-staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: Candidate deployment or approved canonical URL to test
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  technical-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      UAT_BASE_URL: ${{ inputs.target_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run credential-optional technical smoke
+        id: uat
+        run: npm run test:uat
+      - name: Publish UAT summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Automated Technical Smoke'
+            echo "- Target: $UAT_BASE_URL"
+            echo "- Result: ${{ steps.uat.outcome }}"
+            if [[ -f test-results/uat-summary.md ]]; then
+              cat test-results/uat-summary.md
+            else
+              echo '- Summary: unavailable before test execution'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload UAT artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automated-uat-${{ github.run_id }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: warn
+          retention-days: 7
