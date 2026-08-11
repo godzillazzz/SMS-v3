@@ -67,6 +67,21 @@ function isProtectedCandidateUrl(targetUrl = process.env.UAT_BASE_URL) {
   }
 }
 
+function classifyOriginBehavior({ targetUrl, status, body = '', errorText = '' } = {}) {
+  let hostname = '';
+  try {
+    hostname = new URL(targetUrl).hostname.toLowerCase();
+  } catch {
+    return 'UNKNOWN';
+  }
+
+  if (hostname === 'sms-v3-staging-ten.vercel.app') return 'CANONICAL_COMPATIBLE';
+  if (status === 403 && /origin\s+not\s+allowed|cors|cross[- ]origin/i.test(`${body} ${errorText}`)) {
+    return 'CORS_ORIGIN_RESTRICTED';
+  }
+  return 'UNKNOWN';
+}
+
 function isSameOrigin(targetUrl, requestUrl) {
   try {
     return new URL(requestUrl, targetUrl).origin === new URL(targetUrl).origin;
@@ -142,6 +157,7 @@ module.exports = {
   artifactContainsSecret,
   automationBypassHeaders,
   automationRequestOptions,
+  classifyOriginBehavior,
   extractViteAssets,
   getTraceMode,
   isVercelProtectionPage,

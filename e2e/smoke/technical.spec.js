@@ -3,6 +3,7 @@ const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = requ
 const {
   assertExpectedStatus,
   assertReadiness,
+  classifyOriginBehavior,
   extractViteAssets,
   readJsonResponse,
   readResponseBody,
@@ -15,8 +16,19 @@ const viewports = [
   { name: '1440', width: 1440, height: 900 }
 ];
 
-test('TECHNICAL: HTTP health, readiness, Vite assets, and audit authorization boundary', async ({ page }) => {
+test('TECHNICAL: HTTP health, readiness, Vite assets, and audit authorization boundary', async ({ page }, testInfo) => {
   const monitor = startPageMonitor(page);
+  const technicalSummary = {
+    sourceSha: process.env.UAT_SOURCE_SHA || 'not supplied',
+    root: 'PASS',
+    login: 'PASS',
+    health: 'PASS',
+    ready: [],
+    viteAssets: 'PASS',
+    unexpectedNext: 'NONE',
+    auditAuthorization: 'PASS',
+    origin: 'UNKNOWN'
+  };
   const root = await page.goto('/');
   expect(root, 'Root response must exist.').not.toBeNull();
   assertExpectedStatus(root.status(), 200, 'ROOT_HTTP_FAILED');
@@ -38,11 +50,21 @@ test('TECHNICAL: HTTP health, readiness, Vite assets, and audit authorization bo
     const ready = await page.request.get('/api/v1/ready', automationRequestOptions({ timeout: 20_000 }, process.env, process.env.UAT_BASE_URL, '/api/v1/ready'));
     assertExpectedStatus(ready.status(), 200, 'READINESS_HTTP_FAILED');
     assertReadiness(await readJsonResponse(ready, 'READINESS_PAYLOAD_INVALID'));
+    technicalSummary.ready.push('PASS');
   }
 
   const auditEvents = await page.request.get('/api/v1/audit-events?page=1&pageSize=1', automationRequestOptions({ timeout: 20_000 }, process.env, process.env.UAT_BASE_URL, '/api/v1/audit-events?page=1&pageSize=1'));
-  await readResponseBody(auditEvents);
+  const auditBody = await readResponseBody(auditEvents);
   assertExpectedStatus(auditEvents.status(), 401, 'AUDIT_AUTHORIZATION_BOUNDARY_FAILED');
+  technicalSummary.origin = classifyOriginBehavior({
+    targetUrl: process.env.UAT_BASE_URL,
+    status: auditEvents.status(),
+    body: auditBody
+  });
+  await testInfo.attach('technical-summary.json', {
+    body: Buffer.from(JSON.stringify(technicalSummary)),
+    contentType: 'application/json'
+  });
   monitor.assertClean();
 });
 
