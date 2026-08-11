@@ -1,4 +1,5 @@
 import '../../styles/data-quality.css';
+import '../../styles/data-quality-responsive.css';
 
 export type DataQualityFilters = {
   severity: string;
