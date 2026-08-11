@@ -1,6 +1,13 @@
 const { test, expect } = require('@playwright/test');
 const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = require('../helpers/uat-observe');
-const { assertExpectedStatus, assertReadiness, extractViteAssets } = require('../helpers/technical-smoke');
+const {
+  assertExpectedStatus,
+  assertReadiness,
+  extractViteAssets,
+  readJsonResponse,
+  readResponseBody,
+  trustedRequestOptions
+} = require('../helpers/technical-smoke');
 
 const viewports = [
   { name: '390', width: 390, height: 844 },
@@ -16,21 +23,25 @@ test('TECHNICAL: HTTP health, readiness, Vite assets, and audit authorization bo
   const rootHtml = await page.content();
   const assets = extractViteAssets(rootHtml);
   for (const asset of assets) {
-    const response = await page.request.get(asset, { timeout: 20_000 });
+    const response = await page.request.get(asset, trustedRequestOptions({ timeout: 20_000 }));
+    await readResponseBody(response);
     assertExpectedStatus(response.status(), 200, 'VITE_ASSET_HTTP_FAILED');
   }
 
-  const login = await page.request.get('/login', { timeout: 20_000 });
+  const login = await page.request.get('/login', trustedRequestOptions({ timeout: 20_000 }));
+  await readResponseBody(login);
   assertExpectedStatus(login.status(), 200, 'LOGIN_HTTP_FAILED');
-  const health = await page.request.get('/api/v1/health', { timeout: 20_000 });
+  const health = await page.request.get('/api/v1/health', trustedRequestOptions({ timeout: 20_000 }));
+  await readJsonResponse(health, 'HEALTH_PAYLOAD_INVALID');
   assertExpectedStatus(health.status(), 200, 'HEALTH_HTTP_FAILED');
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const ready = await page.request.get('/api/v1/ready', { timeout: 20_000 });
+    const ready = await page.request.get('/api/v1/ready', trustedRequestOptions({ timeout: 20_000 }));
     assertExpectedStatus(ready.status(), 200, 'READINESS_HTTP_FAILED');
-    assertReadiness(await ready.json());
+    assertReadiness(await readJsonResponse(ready, 'READINESS_PAYLOAD_INVALID'));
   }
 
-  const auditEvents = await page.request.get('/api/v1/audit-events?page=1&pageSize=1', { timeout: 20_000 });
+  const auditEvents = await page.request.get('/api/v1/audit-events?page=1&pageSize=1', trustedRequestOptions({ timeout: 20_000 }));
+  await readResponseBody(auditEvents);
   assertExpectedStatus(auditEvents.status(), 401, 'AUDIT_AUTHORIZATION_BOUNDARY_FAILED');
   monitor.assertClean();
 });
@@ -42,6 +53,7 @@ for (const viewport of viewports) {
     const response = await page.goto('/login');
     expect(response, 'Login response must exist.').not.toBeNull();
     assertExpectedStatus(response.status(), 200, 'LOGIN_HTTP_FAILED');
+    extractViteAssets(await page.content());
 
     const email = page.getByLabel('อีเมล');
     const password = page.getByLabel('รหัสผ่าน');
