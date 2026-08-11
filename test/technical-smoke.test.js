@@ -3,9 +3,14 @@ const assert = require('node:assert/strict');
 const {
   assertExpectedStatus,
   assertReadiness,
+  artifactContainsSecret,
+  automationBypassHeaders,
+  automationRequestOptions,
   extractViteAssets,
   getTraceMode,
   isVercelProtectionPage,
+  isProtectedCandidateUrl,
+  isSameOrigin,
   shouldUseTrustedSource,
   trustedRequestOptions,
   trustedSourceHeaders
@@ -66,10 +71,64 @@ test('public canonical smoke never sends the trusted OIDC header', () => {
   assert.equal(getTraceMode({ VERCEL_TRUSTED_OIDC_TOKEN: 'synthetic-oidc-token' }, canonical), 'retain-on-failure');
 });
 
+test('automation bypass is absent without a secret and supports the browser cookie flow', () => {
+  const candidate = 'https://sms-v3-staging-candidate.vercel.app';
+  const secret = 'synthetic-bypass-secret';
+  assert.equal(isProtectedCandidateUrl(candidate), true);
+  assert.deepEqual(automationBypassHeaders({}, candidate, `${candidate}/login`), {});
+  assert.deepEqual(
+    automationBypassHeaders({ VERCEL_AUTOMATION_BYPASS_SECRET: secret }, candidate, `${candidate}/login`, { setBypassCookie: true }),
+    {
+      'x-vercel-protection-bypass': secret,
+      'x-vercel-set-bypass-cookie': 'true'
+    }
+  );
+  assert.deepEqual(
+    automationRequestOptions({ headers: { 'x-test-header': 'preserved' } }, { VERCEL_AUTOMATION_BYPASS_SECRET: secret }, candidate, '/api/v1/health'),
+    {
+      headers: {
+        'x-test-header': 'preserved',
+        'x-vercel-protection-bypass': secret
+      }
+    }
+  );
+});
+
+test('automation bypass is restricted to the exact candidate origin', () => {
+  const candidate = 'https://sms-v3-staging-candidate.vercel.app';
+  const secret = 'synthetic-bypass-secret';
+  const external = 'https://external.example.test/assets/app.js';
+  assert.equal(isSameOrigin(candidate, external), false);
+  assert.deepEqual(
+    automationBypassHeaders({ VERCEL_AUTOMATION_BYPASS_SECRET: secret }, candidate, external),
+    {}
+  );
+});
+
+test('public canonical never receives the automation bypass', () => {
+  const canonical = 'https://sms-v3-staging-ten.vercel.app';
+  const secret = 'synthetic-bypass-secret';
+  assert.equal(isProtectedCandidateUrl(canonical), false);
+  assert.deepEqual(
+    automationBypassHeaders({ VERCEL_AUTOMATION_BYPASS_SECRET: secret }, canonical, `${canonical}/login`, { setBypassCookie: true }),
+    {}
+  );
+  assert.equal(getTraceMode({ VERCEL_AUTOMATION_BYPASS_SECRET: secret }, canonical), 'retain-on-failure');
+});
+
 test('OIDC token is redacted from diagnostics and protected traces are disabled', () => {
   const token = 'synthetic-oidc-token';
   const candidate = 'https://sms-v3-staging-candidate.vercel.app';
   assert.doesNotMatch(sanitizeDiagnostic(`request header ${token}`, [token]), new RegExp(token));
   assert.equal(getTraceMode({ VERCEL_TRUSTED_OIDC_TOKEN: token }, candidate), 'off');
   assert.equal(getTraceMode({}), 'retain-on-failure');
+});
+
+test('bypass secret is redacted and artifact scanning is empty-secret safe', () => {
+  const secret = 'synthetic-bypass-secret';
+  const candidate = 'https://sms-v3-staging-candidate.vercel.app';
+  assert.doesNotMatch(sanitizeDiagnostic(`report ${secret}`, [secret]), new RegExp(secret));
+  assert.equal(artifactContainsSecret(Buffer.from(`report ${secret}`), secret), true);
+  assert.equal(artifactContainsSecret(Buffer.from('report without secret'), ''), false);
+  assert.equal(getTraceMode({ VERCEL_AUTOMATION_BYPASS_SECRET: secret }, candidate), 'off');
 });

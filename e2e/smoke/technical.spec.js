@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('../helpers/uat-test');
 const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = require('../helpers/uat-observe');
 const {
   assertExpectedStatus,
@@ -6,7 +6,7 @@ const {
   extractViteAssets,
   readJsonResponse,
   readResponseBody,
-  trustedRequestOptions
+  automationRequestOptions
 } = require('../helpers/technical-smoke');
 
 const viewports = [
@@ -23,24 +23,24 @@ test('TECHNICAL: HTTP health, readiness, Vite assets, and audit authorization bo
   const rootHtml = await page.content();
   const assets = extractViteAssets(rootHtml);
   for (const asset of assets) {
-    const response = await page.request.get(asset, trustedRequestOptions({ timeout: 20_000 }));
+    const response = await page.request.get(asset, automationRequestOptions({ timeout: 20_000 }, process.env, process.env.UAT_BASE_URL, asset));
     await readResponseBody(response);
     assertExpectedStatus(response.status(), 200, 'VITE_ASSET_HTTP_FAILED');
   }
 
-  const login = await page.request.get('/login', trustedRequestOptions({ timeout: 20_000 }));
+  const login = await page.request.get('/login', automationRequestOptions({ timeout: 20_000 }, process.env, process.env.UAT_BASE_URL, '/login'));
   await readResponseBody(login);
   assertExpectedStatus(login.status(), 200, 'LOGIN_HTTP_FAILED');
-  const health = await page.request.get('/api/v1/health', trustedRequestOptions({ timeout: 20_000 }));
+  const health = await page.request.get('/api/v1/health', automationRequestOptions({ timeout: 20_000 }, process.env, process.env.UAT_BASE_URL, '/api/v1/health'));
   await readJsonResponse(health, 'HEALTH_PAYLOAD_INVALID');
   assertExpectedStatus(health.status(), 200, 'HEALTH_HTTP_FAILED');
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const ready = await page.request.get('/api/v1/ready', trustedRequestOptions({ timeout: 20_000 }));
+    const ready = await page.request.get('/api/v1/ready', automationRequestOptions({ timeout: 20_000 }, process.env, process.env.UAT_BASE_URL, '/api/v1/ready'));
     assertExpectedStatus(ready.status(), 200, 'READINESS_HTTP_FAILED');
     assertReadiness(await readJsonResponse(ready, 'READINESS_PAYLOAD_INVALID'));
   }
 
-  const auditEvents = await page.request.get('/api/v1/audit-events?page=1&pageSize=1', trustedRequestOptions({ timeout: 20_000 }));
+  const auditEvents = await page.request.get('/api/v1/audit-events?page=1&pageSize=1', automationRequestOptions({ timeout: 20_000 }, process.env, process.env.UAT_BASE_URL, '/api/v1/audit-events?page=1&pageSize=1'));
   await readResponseBody(auditEvents);
   assertExpectedStatus(auditEvents.status(), 401, 'AUDIT_AUTHORIZATION_BOUNDARY_FAILED');
   monitor.assertClean();

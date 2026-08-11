@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('../helpers/uat-test');
 const { getAuditEventsStatus, loginAs } = require('../helpers/uat-auth');
 const { hasRoleCredentials } = require('../helpers/uat-config');
 const { expectApiSuccess, navigateTo, startPageMonitor } = require('../helpers/uat-observe');

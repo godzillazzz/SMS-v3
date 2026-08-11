@@ -11,7 +11,13 @@ function apiPath(response) {
   }
 }
 
-function sanitizeDiagnostic(value, sensitiveValues = [process.env.VERCEL_TRUSTED_OIDC_TOKEN].filter(Boolean)) {
+function sanitizeDiagnostic(
+  value,
+  sensitiveValues = [
+    process.env.VERCEL_TRUSTED_OIDC_TOKEN,
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+  ].filter(Boolean)
+) {
   let sanitized = String(value || '');
   for (const secret of sensitiveValues) sanitized = sanitized.split(secret).join('[REDACTED_TOKEN]');
   return sanitized
