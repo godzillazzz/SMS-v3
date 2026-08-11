@@ -1,0 +1,31 @@
+.data-quality-desktop-table {
+  min-width: 0;
+}
+
+.data-quality-table-scroll {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.data-quality-desktop-table table {
+  min-width: 1120px;
+  table-layout: auto;
+}
+
+.data-quality-desktop-table th:nth-child(7),
+.data-quality-desktop-table td:nth-child(7) {
+  width: 170px;
+  min-width: 170px;
+}
+
+.data-quality-desktop-table td:last-child {
+  white-space: nowrap;
+}
+
+.data-quality-target {
+  display: inline-flex;
+  min-width: 148px;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
