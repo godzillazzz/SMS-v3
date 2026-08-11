@@ -1,5 +1,5 @@
 const { defineConfig } = require('@playwright/test');
-const { getTraceMode, trustedSourceHeaders } = require('./e2e/helpers/technical-smoke');
+const { getTraceMode } = require('./e2e/helpers/technical-smoke');
 
 const baseURL = process.env.UAT_BASE_URL || 'https://uat.invalid';
 
@@ -22,7 +22,6 @@ module.exports = defineConfig({
   use: {
     baseURL,
     viewport: { width: 1440, height: 900 },
-    extraHTTPHeaders: trustedSourceHeaders(),
     trace: getTraceMode(),
     screenshot: 'only-on-failure',
     video: 'off'

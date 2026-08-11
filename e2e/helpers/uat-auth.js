@@ -1,6 +1,6 @@
 const { expect } = require('@playwright/test');
 const { getUatConfig } = require('./uat-config');
-const { trustedRequestOptions } = require('./technical-smoke');
+const { automationRequestOptions } = require('./technical-smoke');
 
 async function loginAs(page, role) {
   const config = getUatConfig();
@@ -28,9 +28,15 @@ async function loginAs(page, role) {
 }
 
 async function getAuditEventsStatus(page, accessToken) {
-  const response = await page.request.get('/api/v1/audit-events?page=1&pageSize=1', trustedRequestOptions({
-    headers: { Authorization: `Bearer ${accessToken}` }
-  }));
+  const response = await page.request.get(
+    '/api/v1/audit-events?page=1&pageSize=1',
+    automationRequestOptions(
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      process.env,
+      process.env.UAT_BASE_URL,
+      '/api/v1/audit-events?page=1&pageSize=1'
+    )
+  );
   return response.status();
 }
 
