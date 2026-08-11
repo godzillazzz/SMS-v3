@@ -25,6 +25,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_migrations:
+        description: Run protected Prisma migrations before deployment
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -70,7 +75,8 @@ jobs:
           echo "commit_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
 
   migrate:
-    if: ${{ inputs.diagnostic_only != true }}
+    name: 'Migration gate (if: ${{ inputs.diagnostic_only != true }} and run_migrations=true)'
+    if: ${{ inputs.diagnostic_only != true && inputs.run_migrations == true }}
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -165,7 +171,8 @@ jobs:
         run: node scripts/ci/vercel-linkage.js --diagnostic
 
   deploy:
-    if: ${{ inputs.diagnostic_only != true }}
+    name: 'Deployment gate (if: ${{ inputs.diagnostic_only != true }} with validation and migration guards)'
+    if: ${{ always() && inputs.diagnostic_only != true && needs.validate.result == 'success' && (inputs.run_migrations == false || needs.migrate.result == 'success') }}
     needs: [validate, migrate]
     runs-on: ubuntu-latest
     timeout-minutes: 20
