@@ -16,7 +16,8 @@ test('UAT V2 source contracts cover the documented responsive and warning incide
   assert.deepEqual(sourceRegressionContracts(), {
     dataQuality: true,
     audit: true,
-    dashboardWarning: true
+    dashboardWarning: true,
+    executiveReport: true
   });
 });
 

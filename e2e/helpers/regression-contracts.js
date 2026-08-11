@@ -25,6 +25,8 @@ function sourceRegressionContracts() {
   const auditComplianceStyles = readProjectFile('frontend/src/styles/audit-compliance.css');
   const auditMobileStyles = readProjectFile('frontend/src/styles/audit-mobile.css');
   const dashboardPage = readProjectFile('frontend/src/pages/dashboard/DashboardPage.tsx');
+  const executiveReportPage = readProjectFile('frontend/src/pages/executive-report/ExecutiveReportCenterPage.tsx');
+  const executiveReportStyles = readProjectFile('frontend/src/styles/executive-report.css');
 
   requireIncludes(dataQualityPage, [
     'data-quality-desktop-table',
@@ -86,10 +88,28 @@ function sourceRegressionContracts() {
     'ข้อมูลบางส่วนยังไม่พร้อม'
   ], 'DASHBOARD_PARTIAL_WARNING_CONTRACT_FAILED');
 
+  requireIncludes(executiveReportPage, [
+    'executive-report-kpis',
+    'executive-report-grid',
+    'executive-report-attention',
+    'ExecutiveReportPrint',
+    "printDocument('.executive-report-print', filename)"
+  ], 'EXECUTIVE_REPORT_RENDERER_CONTRACT_FAILED');
+  requireIncludes(executiveReportStyles, [
+    '.executive-report-kpis { display:grid;',
+    'grid-template-columns:repeat(5,minmax(0,1fr))',
+    '@media (max-width:760px)',
+    '@media (max-width:430px)',
+    'white-space:nowrap',
+    '@media print',
+    'break-before:auto'
+  ], 'EXECUTIVE_REPORT_RESPONSIVE_CONTRACT_FAILED');
+
   return {
     dataQuality: true,
     audit: true,
-    dashboardWarning: true
+    dashboardWarning: true,
+    executiveReport: true
   };
 }
 
@@ -158,12 +178,20 @@ function auditFixture() {
   return `<main class="audit-compliance-page"><div class="audit-table-card"><div class="audit-desktop-table"><div class="audit-table-scroll"><table class="audit-table"><thead><tr><th scope="col">วันและเวลา</th><th scope="col">ผู้ดำเนินการ</th><th scope="col">Module</th><th scope="col">การดำเนินการ</th><th scope="col">ข้อมูลเป้าหมาย</th><th scope="col">รายละเอียด</th></tr></thead><tbody><tr><td>11 ส.ค. 2569 09:00</td><td><strong>UAT Admin</strong><small>ADMIN</small></td><td><span class="audit-module-badge">Leave</span></td><td><span class="audit-action-badge">APPROVED</span><small>อนุมัติใบลา</small></td><td><strong>LeaveRequest</strong><small class="audit-entity-id">request-1234567890</small></td><td><span class="audit-row-summary">รายการธุรกิจสำหรับ regression guard</span><button type="button" class="audit-preview-link">ดูรายละเอียด</button></td></tr></tbody></table></div></div><div class="audit-mobile-cards" aria-label="รายการ Audit Log"><article class="audit-mobile-card"><header><time>11 ส.ค. 2569 09:00</time><span class="audit-role-badge">ADMIN</span></header><div class="audit-mobile-actor"><span class="audit-mobile-label">ผู้ดำเนินการ</span><strong>UAT Admin</strong></div><div class="audit-mobile-facts"><div><span class="audit-mobile-label">Module</span><span class="audit-module-badge">Leave</span></div><div><span class="audit-mobile-label">Action</span><span class="audit-action-badge">APPROVED</span></div></div><div class="audit-mobile-target"><span class="audit-mobile-label">ข้อมูลเป้าหมาย</span><strong>LeaveRequest</strong><small class="audit-entity-id">request-1234567890</small></div><div class="audit-mobile-summary"><span class="audit-mobile-label">รายละเอียดสั้น</span><p>รายการธุรกิจสำหรับ regression guard</p></div><footer><small>อนุมัติใบลา</small><button type="button" class="audit-preview-link">ดูรายละเอียด</button></footer></article></div></div></main>`;
 }
 
+function executiveReportFixture() {
+  const cards = ['พนักงานที่ปฏิบัติงาน', 'รายการจัดเวร', 'คำขอลาในช่วงเวลา', 'ใบอนุญาตหมดอายุ', 'ประเด็นคุณภาพข้อมูล']
+    .map((label, index) => `<article class="executive-report-kpi ${index === 3 ? 'critical' : 'neutral'}"><span>${label}</span><strong>${index + 1}</strong><small>รายการ</small></article>`).join('');
+  const bars = ['ฝ่ายปฏิบัติการ', 'ลาป่วย', 'ใบอนุญาตหมดอายุ'].map((label, index) => `<div class="executive-report-bar"><span>${label}</span><div><i style="width:${60 + index * 10}%"></i></div><b>${index + 1}</b></div>`).join('');
+  return `<main class="executive-report-page"><header class="executive-report-heading"><div><p class="eyebrow">EXECUTIVE REPORT CENTER</p><h1>รายงานผู้บริหาร</h1></div><div class="executive-report-actions"><button>รีเฟรช</button><button>ส่งออก PDF</button></div></header><div class="executive-report-filters"><label><span>เดือน</span><select><option>สิงหาคม</option></select></label><label><span>ปี</span><select><option>พ.ศ. 2569</option></select></label></div><div class="executive-report-kpis">${cards}</div><div class="executive-report-grid"><section class="executive-report-panel"><header><h2>กำลังพลและการจัดเวร</h2><button class="executive-report-link">ดูรายละเอียด</button></header><div class="executive-report-stat-grid"><div><span>พนักงานทั้งหมด</span><b>12 คน</b></div><div><span>พนักงานที่ปฏิบัติงาน</span><b>10 คน</b></div><div><span>รายการจัดเวร</span><b>80 รายการ</b></div></div><section class="executive-report-chart"><h3>พนักงานตามหน่วยงาน</h3>${bars}</section></section><section class="executive-report-panel"><header><h2>คุณภาพข้อมูล</h2><button class="executive-report-link">ดูรายละเอียด</button></header><section class="executive-report-chart"><h3>ประเด็นตามกฎตรวจสอบ</h3>${bars}</section></section></div><section class="executive-report-panel executive-report-attention"><header><h2>ประเด็นที่ผู้บริหารควรติดตาม</h2></header><div class="executive-report-attention-list"><article class="warning"><div><span>warning</span><h3>ใบอนุญาตใกล้หมดอายุ</h3><p>รายละเอียดเพื่อการติดตาม</p></div><b>2</b><button class="executive-report-link">ดูรายละเอียด</button></article></div></section></main>`;
+}
+
 module.exports = {
   assertResponsiveLayoutMetrics,
   auditFixture,
   buildDocument,
   dashboardWarningVisible,
   dataQualityFixture,
+  executiveReportFixture,
   readProjectFile,
   sourceRegressionContracts
 };

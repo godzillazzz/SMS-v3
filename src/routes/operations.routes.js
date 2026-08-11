@@ -21,6 +21,7 @@ const { normalizeLicenseNumber } = require('../services/license-document.service
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
 const { getDashboardSummary } = require('../services/dashboard.service');
 const { getAuditLogPage } = require('../services/audit-log-viewer.service');
+const { getExecutiveReport } = require('../services/executive-report.service');
 const HttpError = require('../utils/http-error');
 
 const router = express.Router();
@@ -53,6 +54,11 @@ const dashboardQuery = z.object({
   date: dashboardDate.optional(),
   month: dashboardMonth.optional(),
   department: z.string().trim().max(100).optional()
+});
+const executiveReportQuery = z.object({
+  year: z.coerce.number().int().min(2020).max(2100).optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
+  department: z.string().trim().min(1).max(100).optional()
 });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('attachment');
 const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'Attachment must not exceed 4 MB.' : 'Attachment upload is invalid.')) : next());
@@ -223,6 +229,14 @@ router.get('/dashboard', async (req, res, next) => {
     const parsedQuery = dashboardQuery.safeParse(req.query);
     if (!parsedQuery.success) throw new HttpError(400, 'Dashboard filter is invalid.');
     res.json({ data: await getDashboardSummary({ requestUser: currentUser, filters: parsedQuery.data }) });
+  } catch (error) { next(error); }
+});
+router.get('/executive-report', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const parsedQuery = executiveReportQuery.safeParse(req.query);
+    if (!parsedQuery.success) throw new HttpError(400, 'Executive report filter is invalid.');
+    const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true, department: true } });
+    res.json({ data: await getExecutiveReport({ prismaClient: prisma, requestUser: currentUser, filters: parsedQuery.data }) });
   } catch (error) { next(error); }
 });
 router.post('/internal/license-reconciliation', async (req, res, next) => {
