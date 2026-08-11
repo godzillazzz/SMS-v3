@@ -46,7 +46,6 @@ function getUatConfig(environment = process.env) {
   return {
     baseURL: normalizeBaseUrl(String(environment.UAT_BASE_URL), environment.UAT_ALLOW_HTTP === 'true'),
     expectedDeploymentId: String(environment.UAT_EXPECTED_DEPLOYMENT_ID || '').trim(),
-    protectionBypass: String(environment.UAT_VERCEL_PROTECTION_BYPASS || ''),
     accounts
   };
 }

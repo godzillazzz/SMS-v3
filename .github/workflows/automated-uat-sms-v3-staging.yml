@@ -7,9 +7,14 @@ on:
         description: Candidate deployment or approved canonical URL to test
         required: true
         type: string
+      source_sha:
+        description: Exact commit containing the reviewed smoke implementation
+        required: true
+        type: string
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   technical-smoke:
@@ -19,6 +24,29 @@ jobs:
       UAT_BASE_URL: ${{ inputs.target_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+      - name: Validate target and exact smoke source
+        shell: bash
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          if [[ ! "$TARGET_URL" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ && "$TARGET_URL" != "https://sms-v3-staging-ten.vercel.app" ]]; then
+            echo 'TECHNICAL_SMOKE_TARGET_INVALID'
+            exit 1
+          fi
+          git fetch --no-tags origin test/automated-uat-smoke fix/serverless-database-reliability
+          git cat-file -e "${SOURCE_SHA}^{commit}"
+          if ! git merge-base --is-ancestor "$SOURCE_SHA" origin/test/automated-uat-smoke \
+            && ! git merge-base --is-ancestor "$SOURCE_SHA" origin/fix/serverless-database-reliability; then
+            echo 'TECHNICAL_SMOKE_SOURCE_UNTRUSTED'
+            exit 1
+          fi
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -26,9 +54,51 @@ jobs:
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-      - name: Run credential-optional technical smoke
+      - name: Run credential-optional technical smoke with trusted OIDC
         id: uat
-        run: npm run test:uat
+        uses: actions/github-script@v7
+        env:
+          UAT_BASE_URL: ${{ inputs.target_url }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+            const { spawnSync } = require('node:child_process');
+
+            const targetUrl = process.env.UAT_BASE_URL;
+            const targetHost = new URL(targetUrl).hostname;
+            const token = targetHost === 'sms-v3-staging-ten.vercel.app' ? '' : await core.getIDToken();
+            if (token) core.setSecret(token);
+            const result = spawnSync('npm', ['run', 'test:uat'], {
+              env: {
+                ...process.env,
+                ...(token ? { VERCEL_TRUSTED_OIDC_TOKEN: token } : {})
+              },
+              stdio: 'inherit'
+            });
+
+            let leakCount = 0;
+            for (const root of ['playwright-report', 'test-results']) {
+              if (!fs.existsSync(root)) continue;
+              const stack = [root];
+              while (stack.length) {
+                const current = stack.pop();
+                const stat = fs.statSync(current);
+                if (stat.isDirectory()) {
+                  stack.push(...fs.readdirSync(current).map((entry) => path.join(current, entry)));
+                } else if (fs.readFileSync(current).includes(Buffer.from(token))) {
+                  leakCount += 1;
+                }
+              }
+            }
+
+            if (leakCount > 0) {
+              core.setFailed('OIDC_TOKEN_ARTIFACT_LEAK');
+            } else {
+              core.info('OIDC_TOKEN_ARTIFACT_LEAK=0');
+              if (result.error) throw result.error;
+              if (result.status !== 0) core.setFailed('Technical smoke failed');
+            }
       - name: Publish UAT summary
         if: always()
         shell: bash

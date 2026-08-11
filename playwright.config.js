@@ -1,7 +1,7 @@
 const { defineConfig } = require('@playwright/test');
+const { getTraceMode, trustedSourceHeaders } = require('./e2e/helpers/technical-smoke');
 
 const baseURL = process.env.UAT_BASE_URL || 'https://uat.invalid';
-const protectionBypass = process.env.UAT_VERCEL_PROTECTION_BYPASS;
 
 module.exports = defineConfig({
   testDir: './e2e/smoke',
@@ -22,8 +22,8 @@ module.exports = defineConfig({
   use: {
     baseURL,
     viewport: { width: 1440, height: 900 },
-    extraHTTPHeaders: protectionBypass ? { 'x-vercel-protection-bypass': protectionBypass } : undefined,
-    trace: 'retain-on-failure',
+    extraHTTPHeaders: trustedSourceHeaders(),
+    trace: getTraceMode(),
     screenshot: 'only-on-failure',
     video: 'off'
   }

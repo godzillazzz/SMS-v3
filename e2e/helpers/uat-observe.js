@@ -11,8 +11,10 @@ function apiPath(response) {
   }
 }
 
-function sanitizeDiagnostic(value) {
-  return String(value || '')
+function sanitizeDiagnostic(value, sensitiveValues = [process.env.VERCEL_TRUSTED_OIDC_TOKEN].filter(Boolean)) {
+  let sanitized = String(value || '');
+  for (const secret of sensitiveValues) sanitized = sanitized.split(secret).join('[REDACTED_TOKEN]');
+  return sanitized
     .replace(/(authorization|cookie|password|secret|token|otp|api[-_]?key)\s*[:=]\s*[^\s,;]+/gi, '$1=[REDACTED]')
     .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[REDACTED_EMAIL]');
 }
