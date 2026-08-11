@@ -108,6 +108,14 @@ export const api = {
     const query = params.toString();
     return call(`/dashboard${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
   },
+  executiveReport: (token: string, filters: { year?: number; month?: number; department?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (filters.year) params.set('year', String(filters.year));
+    if (filters.month) params.set('month', String(filters.month));
+    if (filters.department) params.set('department', filters.department);
+    const query = params.toString();
+    return call(`/executive-report${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
+  },
   employees: (token: string) => call('/employees?page=1&pageSize=100', { headers: { Authorization: `Bearer ${token}` } }),
   licenses: (token: string, page = 1) => call(`/licenses?page=${page}&pageSize=500`, { headers: { Authorization: `Bearer ${token}` } }),
   shiftTypes: (token: string) => call('/shift-types', { headers: { Authorization: `Bearer ${token}` } }),

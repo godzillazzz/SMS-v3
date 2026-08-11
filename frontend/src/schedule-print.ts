@@ -37,15 +37,15 @@ function preparePrintLayout(frameDocument: Document): void {
   frameDocument.head.append(isolationStyle);
 }
 
-export async function printScheduleDocument(testPrint?: () => void): Promise<void> {
+export async function printDocument(selector: string, title: string, testPrint?: () => void): Promise<void> {
   if (typeof document === 'undefined' || typeof window === 'undefined') {
     await Promise.resolve();
     testPrint?.();
     return;
   }
 
-  const printRoot = document.querySelector<HTMLElement>(PRINT_ROOT_SELECTOR);
-  if (!printRoot) throw new Error('Schedule print content is unavailable.');
+  const printRoot = document.querySelector<HTMLElement>(selector);
+  if (!printRoot) throw new Error('Print content is unavailable.');
 
   const frame = document.createElement('iframe');
   frame.className = 'schedule-print-frame';
@@ -62,7 +62,7 @@ export async function printScheduleDocument(testPrint?: () => void): Promise<voi
   }
 
   frameDocument.open();
-  frameDocument.write('<!doctype html><html><head><title>Schedule PDF</title></head><body></body></html>');
+  frameDocument.write(`<!doctype html><html><head><title>${title}</title></head><body></body></html>`);
   frameDocument.close();
   copyPrintStyles(document, frameDocument);
   preparePrintLayout(frameDocument);
@@ -88,4 +88,8 @@ export async function printScheduleDocument(testPrint?: () => void): Promise<voi
     cleanup();
     throw error;
   }
+}
+
+export async function printScheduleDocument(testPrint?: () => void): Promise<void> {
+  return printDocument(PRINT_ROOT_SELECTOR, 'Schedule PDF', testPrint);
 }

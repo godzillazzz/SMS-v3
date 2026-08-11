@@ -50,6 +50,7 @@ function employeeTextWhere(search) {
 function employeeRelationWhere(filters) {
   const where = { deletedAt: null };
   if (filters.department) where.department = filters.department;
+  if (filters.employeeId) where.id = filters.employeeId;
   const textWhere = employeeTextWhere(filters.search);
   if (textWhere) where.OR = textWhere;
   return { is: where };
@@ -62,7 +63,7 @@ function appendAnd(where, clauses) {
 
 function quotaWhere(filters) {
   let where = { matchStatus: { in: UNMATCHED_QUOTA_STATUSES } };
-  if (filters.department || filters.search) where = appendAnd(where, [{ employee: employeeRelationWhere(filters) }]);
+  if (filters.department || filters.employeeId || filters.search) where = appendAnd(where, [{ employee: employeeRelationWhere(filters) }]);
   if (filters.search) {
     where = appendAnd(where, [{
       OR: [
@@ -243,11 +244,27 @@ async function getDataQualityIssues({ prismaClient = prisma, query = {}, now = n
   };
 }
 
+async function getDataQualitySummary({ prismaClient = prisma, filters = {}, now = new Date() } = {}) {
+  const rules = buildRuleDefinitions(filters, now);
+  const summary = { total: 0, critical: 0, warning: 0, info: 0 };
+  const categories = [];
+
+  for (const rule of rules) {
+    const count = await prismaClient[rule.model].count({ where: rule.where() });
+    summary.total += count;
+    summary[rule.severity.toLowerCase()] += count;
+    categories.push({ rule: rule.name, severity: rule.severity, module: rule.module, title: rule.title, count });
+  }
+
+  return { summary, categories };
+}
+
 module.exports = {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
   RULE_NAMES,
   dataQualityQuery,
   buildRuleDefinitions,
-  getDataQualityIssues
+  getDataQualityIssues,
+  getDataQualitySummary
 };

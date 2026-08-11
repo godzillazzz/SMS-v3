@@ -6,6 +6,7 @@ const {
   buildDocument,
   dashboardWarningVisible,
   dataQualityFixture,
+  executiveReportFixture,
   readProjectFile,
   sourceRegressionContracts
 } = require('../helpers/regression-contracts');
@@ -19,6 +20,7 @@ const auditStyles = [
   readProjectFile('frontend/src/styles/audit-compliance.css'),
   readProjectFile('frontend/src/styles/audit-mobile.css')
 ].join('\n');
+const executiveReportStyles = readProjectFile('frontend/src/styles/executive-report.css');
 
 const dataQualityViewports = [
   { name: '390', width: 390, height: 844, mobile: true },
@@ -30,6 +32,13 @@ const auditViewports = [
   { name: '390', width: 390, height: 844, mobile: true },
   { name: '768', width: 768, height: 1024, mobile: false },
   { name: '1440', width: 1440, height: 900, mobile: false }
+];
+const executiveReportViewports = [
+  { name: '390', width: 390, height: 844, columns: 1 },
+  { name: '430', width: 430, height: 932, columns: 1 },
+  { name: '768', width: 768, height: 1024, columns: 2 },
+  { name: '1024', width: 1024, height: 768, columns: 3 },
+  { name: '1440', width: 1440, height: 900, columns: 5 }
 ];
 
 async function measureLayout(element) {
@@ -56,8 +65,8 @@ async function measureLayout(element) {
   });
 }
 
-test('REGRESSION: source contracts cover Data Quality, Audit Log, and Dashboard warning behavior', async ({}, testInfo) => {
-  expect(sourceRegressionContracts()).toEqual({ dataQuality: true, audit: true, dashboardWarning: true });
+test('REGRESSION: source contracts cover Data Quality, Audit Log, Dashboard warning, and Executive Report behavior', async ({}, testInfo) => {
+  expect(sourceRegressionContracts()).toEqual({ dataQuality: true, audit: true, dashboardWarning: true, executiveReport: true });
   expect(dashboardWarningVisible({ error: undefined, partialErrors: [] })).toBe(false);
   expect(dashboardWarningVisible({ error: undefined, partialErrors: ['licenseOverview'] })).toBe(true);
   expect(dashboardWarningVisible({ error: 'request failed', partialErrors: ['licenseOverview'] })).toBe(false);
@@ -65,6 +74,34 @@ test('REGRESSION: source contracts cover Data Quality, Audit Log, and Dashboard 
     body: Buffer.from(JSON.stringify({ healthyWarning: 'PASS', partialWarning: 'PASS' })),
     contentType: 'application/json'
   });
+});
+
+test('REGRESSION: Executive Report stays readable across management report viewport widths', async ({ page }, testInfo) => {
+  const monitor = startPageMonitor(page);
+  const summary = {};
+  for (const viewport of executiveReportViewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.setContent(buildDocument(executiveReportStyles, executiveReportFixture()));
+    const cards = page.locator('.executive-report-kpis');
+    const action = page.getByRole('button', { name: 'ส่งออก PDF', exact: true });
+    await expect(cards).toBeVisible();
+    await expect(action).toBeVisible();
+    const metrics = await action.evaluate((node) => {
+      const pageRoot = document.documentElement;
+      const card = document.querySelector('.executive-report-kpi');
+      return { buttonWidth: node.getBoundingClientRect().width, buttonHeight: node.getBoundingClientRect().height, whiteSpace: getComputedStyle(node).whiteSpace, cardWidth: card?.getBoundingClientRect().width || 0, pageOverflow: pageRoot.scrollWidth > pageRoot.clientWidth + 1 };
+    });
+    expect(metrics.buttonWidth).toBeGreaterThan(70);
+    expect(metrics.buttonHeight).toBeGreaterThan(25);
+    expect(metrics.whiteSpace).toBe('nowrap');
+    expect(metrics.cardWidth).toBeGreaterThan(0);
+    expect(metrics.pageOverflow).toBe(false);
+    await assertNoHorizontalOverflow(page);
+    summary[viewport.name] = 'PASS';
+    await captureScreenshot(page, testInfo, `executive-report-${viewport.name}`);
+  }
+  await testInfo.attach('executive-report-layout-summary.json', { body: Buffer.from(JSON.stringify(summary)), contentType: 'application/json' });
+  monitor.assertClean();
 });
 
 test('REGRESSION: Data Quality responsive layout remains bounded across incident widths', async ({ page }, testInfo) => {
