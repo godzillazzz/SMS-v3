@@ -8,13 +8,12 @@ on:
         required: true
         type: string
       source_sha:
-        description: Exact commit containing the reviewed smoke implementation
+        description: Exact current HEAD of the reviewed application branch containing the smoke implementation
         required: true
         type: string
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   technical-smoke:
@@ -39,11 +38,10 @@ jobs:
             echo 'TECHNICAL_SMOKE_TARGET_INVALID'
             exit 1
           fi
-          git fetch --no-tags origin test/automated-uat-smoke fix/serverless-database-reliability
+          git fetch --no-tags origin fix/serverless-database-reliability
           git cat-file -e "${SOURCE_SHA}^{commit}"
-          if ! git merge-base --is-ancestor "$SOURCE_SHA" origin/test/automated-uat-smoke \
-            && ! git merge-base --is-ancestor "$SOURCE_SHA" origin/fix/serverless-database-reliability; then
-            echo 'TECHNICAL_SMOKE_SOURCE_UNTRUSTED'
+          if [[ "$(git rev-parse origin/fix/serverless-database-reliability)" != "$SOURCE_SHA" ]]; then
+            echo 'TECHNICAL_SMOKE_SOURCE_NOT_CURRENT_APPLICATION_HEAD'
             exit 1
           fi
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
@@ -54,48 +52,53 @@ jobs:
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-      - name: Run credential-optional technical smoke with trusted OIDC
+      - name: Run credential-optional technical smoke with Vercel automation bypass
         id: uat
         uses: actions/github-script@v7
         env:
           UAT_BASE_URL: ${{ inputs.target_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         with:
           script: |
             const fs = require('node:fs');
             const path = require('node:path');
             const { spawnSync } = require('node:child_process');
+            const { artifactContainsSecret, isProtectedCandidateUrl } = require('./e2e/helpers/technical-smoke');
 
-            const targetUrl = process.env.UAT_BASE_URL;
-            const targetHost = new URL(targetUrl).hostname;
-            const token = targetHost === 'sms-v3-staging-ten.vercel.app' ? '' : await core.getIDToken();
-            if (token) core.setSecret(token);
+            const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
+            if (isProtectedCandidateUrl(process.env.UAT_BASE_URL) && !secret) {
+              core.setFailed('VERCEL_AUTOMATION_BYPASS_SECRET_MISSING');
+              core.setOutput('artifact_leak', 'not-scanned');
+              return;
+            }
+            if (secret) core.setSecret(secret);
             const result = spawnSync('npm', ['run', 'test:uat'], {
-              env: {
-                ...process.env,
-                ...(token ? { VERCEL_TRUSTED_OIDC_TOKEN: token } : {})
-              },
+              env: { ...process.env },
               stdio: 'inherit'
             });
 
             let leakCount = 0;
-            for (const root of ['playwright-report', 'test-results']) {
-              if (!fs.existsSync(root)) continue;
-              const stack = [root];
-              while (stack.length) {
-                const current = stack.pop();
-                const stat = fs.statSync(current);
-                if (stat.isDirectory()) {
-                  stack.push(...fs.readdirSync(current).map((entry) => path.join(current, entry)));
-                } else if (fs.readFileSync(current).includes(Buffer.from(token))) {
-                  leakCount += 1;
+            if (secret && secret.length > 0) {
+              for (const root of ['playwright-report', 'test-results']) {
+                if (!fs.existsSync(root)) continue;
+                const stack = [root];
+                while (stack.length) {
+                  const current = stack.pop();
+                  const stat = fs.statSync(current);
+                  if (stat.isDirectory()) {
+                    stack.push(...fs.readdirSync(current).map((entry) => path.join(current, entry)));
+                  } else if (artifactContainsSecret(fs.readFileSync(current), secret)) {
+                    leakCount += 1;
+                  }
                 }
               }
             }
 
+            core.setOutput('artifact_leak', String(leakCount));
             if (leakCount > 0) {
-              core.setFailed('OIDC_TOKEN_ARTIFACT_LEAK');
+              core.setFailed('VERCEL_BYPASS_ARTIFACT_LEAK');
             } else {
-              core.info('OIDC_TOKEN_ARTIFACT_LEAK=0');
+              core.info('VERCEL_BYPASS_ARTIFACT_LEAK=0');
               if (result.error) throw result.error;
               if (result.status !== 0) core.setFailed('Technical smoke failed');
             }
@@ -107,14 +110,17 @@ jobs:
             echo '### Automated Technical Smoke'
             echo "- Target: $UAT_BASE_URL"
             echo "- Result: ${{ steps.uat.outcome }}"
-            if [[ -f test-results/uat-summary.md ]]; then
+            echo "- VERCEL_BYPASS_ARTIFACT_LEAK: ${{ steps.uat.outputs.artifact_leak || 'not-scanned' }}"
+            if [[ "${{ steps.uat.outputs.artifact_leak }}" == "0" && -f test-results/uat-summary.md ]]; then
               cat test-results/uat-summary.md
+            elif [[ "${{ steps.uat.outputs.artifact_leak }}" != "0" ]]; then
+              echo '- Summary omitted because artifact scanning did not pass'
             else
               echo '- Summary: unavailable before test execution'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload UAT artifacts
-        if: always()
+        if: always() && steps.uat.outputs.artifact_leak == '0'
         uses: actions/upload-artifact@v4
         with:
           name: automated-uat-${{ github.run_id }}
