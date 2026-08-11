@@ -63,4 +63,14 @@ describe('admin audit log viewer contract', () => {
     expect(mobileStyles).toContain('min-height: 40px;');
     expect(mobileStyles).not.toContain('@media (min-width: 641px)');
   });
+
+  it('guards the legacy <=760px table transform with an explicit desktop reset', () => {
+    const mobileStyles = read('styles/audit-mobile.css');
+    expect(styles).toContain('@media(max-width:760px)');
+    expect(mobileStyles).toContain('.audit-desktop-table .audit-table tbody tr {\n  display: table-row;');
+    expect(mobileStyles).toContain('.audit-desktop-table .audit-table tbody td {\n  display: table-cell !important;');
+    expect(mobileStyles).toContain('.audit-desktop-table .audit-table tbody td::before {\n  display: none;');
+    expect(mobileStyles).toContain('content: none !important;');
+    expect(table).not.toContain('data-label=');
+  });
 });

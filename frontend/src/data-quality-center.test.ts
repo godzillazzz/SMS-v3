@@ -66,6 +66,19 @@ describe('Data Quality Center V1 contract', () => {
     expect(responsiveStyles).toContain('white-space: nowrap;');
   });
 
+  it('contains horizontal overflow and protects the action column without fixed giant rows', () => {
+    const styles = read('./styles/data-quality.css');
+    const responsiveStyles = read('./styles/data-quality-responsive.css');
+    expect(styles).toContain('overflow-x:auto');
+    expect(styles).not.toMatch(/\.data-quality-desktop-table[^}]*\bheight\s*:/);
+    expect(responsiveStyles).toContain('table-layout: auto;');
+    expect(responsiveStyles).toContain('width: 170px;');
+    expect(responsiveStyles).toContain('min-width: 170px;');
+    expect(responsiveStyles).toContain('display: inline-flex;');
+    expect(responsiveStyles).toContain('min-width: 148px;');
+    expect(responsiveStyles).toContain('white-space: nowrap;');
+  });
+
   it('renders all four severity summary cards and only existing target pages', () => {
     const page = read('./pages/data-quality/DataQualityCenterPage.tsx');
     expect(page).toContain("['critical', 'วิกฤต'");

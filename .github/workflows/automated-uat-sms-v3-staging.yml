@@ -8,8 +8,12 @@ on:
         required: true
         type: string
       source_sha:
-        description: Exact current HEAD of the reviewed application branch containing the smoke implementation
+        description: Exact approved source HEAD containing the smoke implementation and regression guards
         required: true
+        type: string
+      expected_deployment_id:
+        description: Optional expected Vercel deployment ID for report context
+        required: false
         type: string
 
 permissions:
@@ -21,6 +25,8 @@ jobs:
     timeout-minutes: 25
     env:
       UAT_BASE_URL: ${{ inputs.target_url }}
+      UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+      UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,10 +44,19 @@ jobs:
             echo 'TECHNICAL_SMOKE_TARGET_INVALID'
             exit 1
           fi
-          git fetch --no-tags origin fix/serverless-database-reliability
+          git fetch --no-tags origin fix/serverless-database-reliability test/automated-uat-v2-regression-guards
           git cat-file -e "${SOURCE_SHA}^{commit}"
-          if [[ "$(git rev-parse origin/fix/serverless-database-reliability)" != "$SOURCE_SHA" ]]; then
-            echo 'TECHNICAL_SMOKE_SOURCE_NOT_CURRENT_APPLICATION_HEAD'
+          approved_source=false
+          for approved_ref in \
+            origin/fix/serverless-database-reliability \
+            origin/test/automated-uat-v2-regression-guards; do
+            if [[ "$(git rev-parse "$approved_ref")" == "$SOURCE_SHA" ]]; then
+              approved_source=true
+              break
+            fi
+          done
+          if [[ "$approved_source" != true ]]; then
+            echo 'TECHNICAL_SMOKE_SOURCE_NOT_APPROVED_HEAD'
             exit 1
           fi
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
