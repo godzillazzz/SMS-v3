@@ -96,7 +96,7 @@ function automationBypassHeaders(
   requestUrl = targetUrl,
   options = {}
 ) {
-  const secret = String(environment.VERCEL_AUTOMATION_BYPASS_SECRET || '');
+  const secret = String(environment.VERCEL_AUTOMATION_BYPASS_SECRET || environment.UAT_VERCEL_PROTECTION_BYPASS || '');
   if (!secret || !isProtectedCandidateUrl(targetUrl) || !isSameOrigin(targetUrl, requestUrl)) return {};
   return {
     'x-vercel-protection-bypass': secret,
@@ -145,7 +145,7 @@ function trustedRequestOptions(options = {}, environment = process.env, targetUr
 
 function getTraceMode(environment = process.env, targetUrl = process.env.UAT_BASE_URL) {
   const protectedCandidate = isProtectedCandidateUrl(targetUrl);
-  return protectedCandidate && (environment.VERCEL_TRUSTED_OIDC_TOKEN || environment.VERCEL_AUTOMATION_BYPASS_SECRET)
+  return protectedCandidate && (environment.VERCEL_TRUSTED_OIDC_TOKEN || environment.VERCEL_AUTOMATION_BYPASS_SECRET || environment.UAT_VERCEL_PROTECTION_BYPASS)
     ? 'off'
     : 'retain-on-failure';
 }

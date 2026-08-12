@@ -1,6 +1,42 @@
-const { expect } = require('@playwright/test');
+const { expect, request } = require('@playwright/test');
 const { getUatConfig } = require('./uat-config');
-const { automationRequestOptions } = require('./technical-smoke');
+const { automationBypassHeaders, automationRequestOptions } = require('./technical-smoke');
+
+async function preflightRoleAccounts(environment = process.env) {
+  const config = getUatConfig(environment);
+  const results = [];
+  if (config.mode !== 'authenticated') {
+    return { allReady: true, results: ['ADMIN', 'MANAGER', 'VIEWER'].map((role) => ({ role, ready: false, status: 'SKIPPED' })) };
+  }
+
+  const context = await request.newContext({
+    baseURL: config.baseURL,
+    extraHTTPHeaders: automationBypassHeaders(environment, config.baseURL, `${config.baseURL}/api/v1/auth/login`, { setBypassCookie: true })
+  });
+  try {
+    for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
+      const account = config.accounts[role];
+      try {
+        const response = await context.post('/api/v1/auth/login', {
+          data: { email: account.email, password: account.password, clientType: 'browser' },
+          timeout: 15000
+        });
+        const payload = await response.json().catch(() => ({}));
+        const ready = response.status() >= 200
+          && response.status() < 300
+          && payload?.user?.role === role
+          && typeof payload?.accessToken === 'string'
+          && payload.accessToken.length > 0;
+        results.push({ role, ready, status: ready ? 'READY' : `HTTP_${response.status()}` });
+      } catch (error) {
+        results.push({ role, ready: false, status: error?.name === 'TimeoutError' ? 'TIMEOUT' : 'REQUEST_FAILED' });
+      }
+    }
+  } finally {
+    await context.dispose();
+  }
+  return { allReady: results.every((result) => result.ready), results };
+}
 
 async function loginAs(page, role) {
   const config = getUatConfig();
@@ -40,4 +76,4 @@ async function getAuditEventsStatus(page, accessToken) {
   return response.status();
 }
 
-module.exports = { getAuditEventsStatus, loginAs };
+module.exports = { getAuditEventsStatus, loginAs, preflightRoleAccounts };

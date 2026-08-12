@@ -15,6 +15,14 @@ on:
         description: Optional expected Vercel deployment ID for report context
         required: false
         type: string
+      uat_mode:
+        description: Technical/public smoke or authenticated ADMIN/MANAGER/VIEWER smoke
+        required: false
+        default: technical
+        type: choice
+        options:
+          - technical
+          - authenticated
 
 permissions:
   contents: read
@@ -27,6 +35,14 @@ jobs:
       UAT_BASE_URL: ${{ inputs.target_url }}
       UAT_SOURCE_SHA: ${{ inputs.source_sha }}
       UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+      UAT_MODE: ${{ inputs.uat_mode || 'technical' }}
+      UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+      UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+      UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
+      UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+      UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
+      UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
+      UAT_VERCEL_PROTECTION_BYPASS: ${{ secrets.UAT_VERCEL_PROTECTION_BYPASS }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,12 +60,13 @@ jobs:
             echo 'TECHNICAL_SMOKE_TARGET_INVALID'
             exit 1
           fi
-          git fetch --no-tags origin fix/serverless-database-reliability test/automated-uat-v2-regression-guards
+          git fetch --no-tags origin fix/serverless-database-reliability test/automated-uat-v2-regression-guards test/automated-uat-v3-authenticated
           git cat-file -e "${SOURCE_SHA}^{commit}"
           approved_source=false
           for approved_ref in \
             origin/fix/serverless-database-reliability \
-            origin/test/automated-uat-v2-regression-guards; do
+            origin/test/automated-uat-v2-regression-guards \
+            origin/test/automated-uat-v3-authenticated; do
             if [[ "$(git rev-parse "$approved_ref")" == "$SOURCE_SHA" ]]; then
               approved_source=true
               break
@@ -60,6 +77,38 @@ jobs:
             exit 1
           fi
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - name: Validate UAT mode and credential contract
+        shell: bash
+        env:
+          UAT_MODE: ${{ inputs.uat_mode || 'technical' }}
+          UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+          UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+          UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
+          UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+          UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
+          UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ "$UAT_MODE" != "technical" && "$UAT_MODE" != "authenticated" ]]; then
+            echo 'UAT_MODE_INVALID'
+            exit 1
+          fi
+          for role in ADMIN MANAGER VIEWER; do
+            email_key="UAT_${role}_EMAIL"
+            password_key="UAT_${role}_PASSWORD"
+            email_value="${!email_key-}"
+            password_value="${!password_key-}"
+            if [[ -n "$email_value" && -z "$password_value" ]] || [[ -z "$email_value" && -n "$password_value" ]]; then
+              echo 'UAT_OPTIONAL_CREDENTIAL_CONFIGURATION_INVALID'
+              exit 1
+            fi
+            if [[ "$UAT_MODE" == "authenticated" && ( -z "$email_value" || -z "$password_value" ) ]]; then
+              echo 'UAT_CREDENTIALS_REQUIRED'
+              exit 1
+            fi
+          done
+          echo "UAT_MODE=$UAT_MODE"
+          echo 'UAT_CREDENTIAL_CONTRACT=VALID'
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -67,20 +116,29 @@ jobs:
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-      - name: Run credential-optional technical smoke with Vercel automation bypass
+      - name: Run Automated UAT V3 with Vercel automation bypass
         id: uat
         uses: actions/github-script@v7
         env:
           UAT_BASE_URL: ${{ inputs.target_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          UAT_MODE: ${{ inputs.uat_mode || 'technical' }}
+          UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+          UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+          UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
+          UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+          UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
+          UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
+          UAT_VERCEL_PROTECTION_BYPASS: ${{ secrets.UAT_VERCEL_PROTECTION_BYPASS }}
         with:
           script: |
             const fs = require('node:fs');
             const path = require('node:path');
             const { spawnSync } = require('node:child_process');
             const { artifactContainsSecret, isProtectedCandidateUrl } = require('./e2e/helpers/technical-smoke');
+            const { artifactContainsAnySecret, artifactContainsAuthMaterial, isForbiddenArtifactPath } = require('./e2e/helpers/uat-v3-security');
 
-            const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
+            const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || process.env.UAT_VERCEL_PROTECTION_BYPASS || '';
             if (isProtectedCandidateUrl(process.env.UAT_BASE_URL) && !secret) {
               core.setFailed('VERCEL_AUTOMATION_BYPASS_SECRET_MISSING');
               core.setOutput('artifact_leak', 'not-scanned');
@@ -93,16 +151,24 @@ jobs:
             });
 
             let leakCount = 0;
-            if (secret && secret.length > 0) {
-              for (const root of ['playwright-report', 'test-results']) {
-                if (!fs.existsSync(root)) continue;
-                const stack = [root];
-                while (stack.length) {
-                  const current = stack.pop();
-                  const stat = fs.statSync(current);
-                  if (stat.isDirectory()) {
-                    stack.push(...fs.readdirSync(current).map((entry) => path.join(current, entry)));
-                  } else if (artifactContainsSecret(fs.readFileSync(current), secret)) {
+            const artifactSecrets = [
+              process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+              process.env.UAT_VERCEL_PROTECTION_BYPASS,
+              process.env.UAT_ADMIN_PASSWORD,
+              process.env.UAT_MANAGER_PASSWORD,
+              process.env.UAT_VIEWER_PASSWORD
+            ].filter(Boolean);
+            for (const root of ['playwright-report', 'test-results']) {
+              if (!fs.existsSync(root)) continue;
+              const stack = [root];
+              while (stack.length) {
+                const current = stack.pop();
+                const stat = fs.statSync(current);
+                if (stat.isDirectory()) {
+                  stack.push(...fs.readdirSync(current).map((entry) => path.join(current, entry)));
+                } else {
+                  const content = fs.readFileSync(current);
+                  if (isForbiddenArtifactPath(current) || artifactContainsSecret(content, secret) || artifactContainsAnySecret(content, artifactSecrets) || artifactContainsAuthMaterial(content)) {
                     leakCount += 1;
                   }
                 }
@@ -114,8 +180,8 @@ jobs:
               core.setFailed('VERCEL_BYPASS_ARTIFACT_LEAK');
             } else {
               core.info('VERCEL_BYPASS_ARTIFACT_LEAK=0');
-              if (result.error) throw result.error;
-              if (result.status !== 0) core.setFailed('Technical smoke failed');
+              if (result.error) core.setFailed('UAT_EXECUTION_FAILED');
+              if (result.status !== 0) core.setFailed('UAT_EXECUTION_FAILED');
             }
       - name: Publish UAT summary
         if: always()
@@ -142,5 +208,12 @@ jobs:
           path: |
             playwright-report
             test-results
+            !playwright-report/**/.auth/**
+            !playwright-report/**/auth-state/**
+            !playwright-report/**/storageState*
+            !test-results/**/.auth/**
+            !test-results/**/auth-state/**
+            !test-results/**/storageState*
+            !test-results/**/storage-state*
           if-no-files-found: warn
           retention-days: 7

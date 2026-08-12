@@ -15,7 +15,8 @@ function sanitizeDiagnostic(
   value,
   sensitiveValues = [
     process.env.VERCEL_TRUSTED_OIDC_TOKEN,
-    process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+    process.env.UAT_VERCEL_PROTECTION_BYPASS
   ].filter(Boolean)
 ) {
   let sanitized = String(value || '');

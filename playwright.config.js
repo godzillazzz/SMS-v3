@@ -22,7 +22,7 @@ module.exports = defineConfig({
   use: {
     baseURL,
     viewport: { width: 1440, height: 900 },
-    trace: getTraceMode(),
+    trace: process.env.UAT_MODE === 'authenticated' ? 'off' : getTraceMode(),
     screenshot: 'only-on-failure',
     video: 'off'
   }

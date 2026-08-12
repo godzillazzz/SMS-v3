@@ -44,8 +44,17 @@ class UatSummaryReporter {
     };
     const responsiveStatus = (section, viewport) => this.regressionSummary[section]?.[viewport] || statusForTitle(`REGRESSION: ${section === 'dataQuality' ? 'Data Quality' : 'Audit Log'} responsive`);
     const ready = this.technicalSummary?.ready || [];
+    const mode = String(process.env.UAT_MODE || 'technical').toUpperCase();
+    let accountPreflight = {};
+    try {
+      accountPreflight = JSON.parse(fs.readFileSync('test-results/uat-v3-account-preflight.json', 'utf8')).roles || {};
+    } catch {
+      accountPreflight = {};
+    }
     const lines = [
       '### Automated Technical Smoke V2',
+      '### Automated UAT V3',
+      `- Mode: ${mode}`,
       `- Target: ${process.env.UAT_BASE_URL || 'not configured'}`,
       `- Source SHA: ${this.technicalSummary?.sourceSha || process.env.UAT_SOURCE_SHA || 'not supplied'}`,
       '',
@@ -81,6 +90,9 @@ class UatSummaryReporter {
       `- ${this.technicalSummary?.origin || 'UNKNOWN'}`,
       '',
       '#### AUTHENTICATED',
+      `- ADMIN login readiness: ${accountPreflight.ADMIN || 'NOT RUN'}`,
+      `- MANAGER login readiness: ${accountPreflight.MANAGER || 'NOT RUN'}`,
+      `- VIEWER login readiness: ${accountPreflight.VIEWER || 'NOT RUN'}`,
       `- Authenticated ADMIN: ${roleStatus('ADMIN')}`,
       `- Authenticated MANAGER: ${roleStatus('MANAGER')}`,
       `- Authenticated VIEWER: ${roleStatus('VIEWER')}`,
