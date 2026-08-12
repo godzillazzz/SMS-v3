@@ -18,8 +18,17 @@ function isForbiddenArtifactPath(filePath) {
     || /^(?:auth[-_.]?state|storage[-_.]?state|cookies|session[-_.]?state)(?:[-_.]|$)/i.test(fileName);
 }
 
+function textContent(content) {
+  if (!Buffer.isBuffer(content)) return String(content || '');
+  const sample = content.subarray(0, Math.min(content.length, 8192));
+  if (sample.includes(0)) return '';
+  const controlBytes = [...sample].filter((byte) => (byte < 9) || (byte > 13 && byte < 32)).length;
+  if (sample.length > 0 && controlBytes / sample.length > 0.02) return '';
+  return content.toString('utf8');
+}
+
 function artifactContainsAuthMaterial(content) {
-  const value = Buffer.isBuffer(content) ? content.toString('utf8') : String(content || '');
+  const value = textContent(content);
   return [
     /["']accessToken["']\s*:\s*["'][A-Za-z0-9._~-]{20,}["']/i,
     /["']refreshToken["']\s*:\s*["'][A-Za-z0-9._~-]{20,}["']/i,

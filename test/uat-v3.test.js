@@ -107,6 +107,8 @@ test('V3 artifact safety rejects auth state paths and token-bearing content', ()
   assert.equal(isForbiddenArtifactPath('test-results/storageState.json'), true);
   assert.equal(isForbiddenArtifactPath('test-results/uat-summary.md'), false);
   assert.equal(artifactContainsAuthMaterial('{"accessToken":"eyJhbGciOiJIUzI1NiJ9.payload.signature-value"}'), true);
+  assert.equal(artifactContainsAuthMaterial(Buffer.from('{"accessToken":"eyJhbGciOiJIUzI1NiJ9.payload.signature-value"}')), true);
+  assert.equal(artifactContainsAuthMaterial(Buffer.from([0, 1, 2, 3, 4, 5])), false);
   assert.equal(artifactContainsAuthMaterial('{"mode":"technical","roles":{"ADMIN":"SKIPPED"}}'), false);
   assert.equal(artifactContainsAuthMaterial('Report source mentions accessToken without a value.'), false);
   assert.equal(artifactContainsAnySecret('safe report', ['secret-value']), false);
