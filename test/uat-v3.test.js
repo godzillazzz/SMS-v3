@@ -76,8 +76,27 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(workflow, /type:\s*choice/);
   assert.match(workflow, /- technical/);
   assert.match(workflow, /- authenticated/);
-  for (const name of ['UAT_ADMIN_EMAIL', 'UAT_ADMIN_PASSWORD', 'UAT_MANAGER_EMAIL', 'UAT_MANAGER_PASSWORD', 'UAT_VIEWER_EMAIL', 'UAT_VIEWER_PASSWORD']) assert.match(workflow, new RegExp(name));
+  assert.match(workflow, /technical-smoke:\n\s+if:\s+\$\{\{ inputs\.uat_mode == 'technical' \}\}/);
+  assert.match(workflow, /authenticated-uat:\n\s+if:\s+\$\{\{ inputs\.uat_mode == 'authenticated' \}\}/);
+  const technicalJob = workflow.match(/\n  technical-smoke:\n([\s\S]*?)(?=\n  authenticated-uat:)/)?.[1];
+  const authenticatedJob = workflow.match(/\n  authenticated-uat:\n([\s\S]*)$/)?.[1];
+  assert.ok(technicalJob);
+  assert.ok(authenticatedJob);
+  assert.doesNotMatch(technicalJob, /environment:\s*production-sms-v3-staging/);
+  assert.match(authenticatedJob, /environment:\s*production-sms-v3-staging/);
+  for (const name of ['UAT_ADMIN_EMAIL', 'UAT_ADMIN_PASSWORD', 'UAT_MANAGER_EMAIL', 'UAT_MANAGER_PASSWORD', 'UAT_VIEWER_EMAIL', 'UAT_VIEWER_PASSWORD']) {
+    assert.doesNotMatch(technicalJob, new RegExp(`\\b${name}\\b`));
+    assert.match(authenticatedJob, new RegExp(`\\b${name}\\b`));
+  }
+  assert.match(authenticatedJob, /VERCEL_AUTOMATION_BYPASS_SECRET/);
   assert.match(workflow, /test\/automated-uat-v3-authenticated/);
-  assert.doesNotMatch(workflow, /environment:\s*production-sms-v3-staging/);
-  for (const name of ['DATABASE_URL', 'DIRECT_URL', 'JWT_SECRET']) assert.doesNotMatch(workflow, new RegExp(`\\b${name}\\b`));
+  const forbiddenWorkflowSecrets = [
+    ['DATABASE', 'URL'],
+    ['DIRECT', 'URL'],
+    ['JWT', 'SECRET'],
+    ['VERCEL', 'TOKEN'],
+    ['VERCEL', 'ORG', 'ID'],
+    ['VERCEL', 'PROJECT', 'ID']
+  ].map((parts) => parts.join('_'));
+  for (const name of forbiddenWorkflowSecrets) assert.doesNotMatch(workflow, new RegExp(`\\b${name}\\b`));
 });
