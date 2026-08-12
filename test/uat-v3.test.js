@@ -3,7 +3,11 @@ const assert = require('node:assert/strict');
 const { getUatConfig, normalizeUatMode } = require('../e2e/helpers/uat-config');
 const { artifactContainsAnySecret, artifactContainsAuthMaterial, artifactLeakReasons, isForbiddenArtifactPath, roleSuiteStatus } = require('../e2e/helpers/uat-v3-security');
 const { getRoleApiMatrix, getRoleNavigation } = require('../e2e/helpers/uat-v3-role-matrix');
-const workflow = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../.github/workflows/automated-uat-sms-v3-staging.yml'), 'utf8');
+const fs = require('node:fs');
+const path = require('node:path');
+const workflow = fs.readFileSync(path.resolve(__dirname, '../.github/workflows/automated-uat-sms-v3-staging.yml'), 'utf8');
+const observe = fs.readFileSync(path.resolve(__dirname, '../e2e/helpers/uat-observe.js'), 'utf8');
+const authenticatedSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/authenticated-v3.spec.js'), 'utf8');
 const testPassword = ['uat', 'test', 'only', 'secret'].join('-');
 
 const baseEnvironment = { UAT_BASE_URL: 'https://candidate.example.test' };
@@ -78,6 +82,10 @@ test('V3 role matrix covers read-only current backend contracts', () => {
     assert.equal(getRoleNavigation(role).required.includes('Schedule Calendar'), false);
   }
   assert.equal(getRoleApiMatrix('VIEWER').find((route) => route.label === 'Leave').expectedStatus, 403);
+  assert.match(observe, /nav\.nav-menu button\.nav-item:visible/);
+  assert.match(authenticatedSmoke, /const primaryNavigation = page\.locator\('nav\.nav-menu button\.nav-item:visible'\)/);
+  assert.match(authenticatedSmoke, /test\.slow\(\)/);
+  assert.match(authenticatedSmoke, /timeout: 60000/);
 });
 
 test('V3 distinguishes skipped technical mode from blocked authenticated mode', () => {

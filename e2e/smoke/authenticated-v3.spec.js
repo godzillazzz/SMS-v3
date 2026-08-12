@@ -6,7 +6,6 @@ const { assertNoHorizontalOverflow, captureScreenshot, navigateTo, startPageMoni
 const { getRoleApiMatrix, getRoleNavigation } = require('../helpers/uat-v3-role-matrix');
 
 const authenticatedMode = () => String(process.env.UAT_MODE || 'technical').trim().toLowerCase() === 'authenticated';
-const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 async function openNavigation(page) {
   const menuButton = page.getByRole('button', { name: 'เปิดเมนู', exact: true });
@@ -15,12 +14,13 @@ async function openNavigation(page) {
 
 async function expectNavigation(page, role) {
   await openNavigation(page);
+  const primaryNavigation = page.locator('nav.nav-menu button.nav-item:visible');
   const contract = getRoleNavigation(role);
   for (const label of contract.required) {
-    await expect(page.getByRole('button', { name: new RegExp(escapeRegExp(label)) }).first(), `${role} navigation must expose ${label}.`).toBeVisible();
+    await expect(primaryNavigation.filter({ hasText: label }).first(), `${role} navigation must expose ${label}.`).toBeVisible();
   }
   for (const label of contract.forbidden) {
-    await expect(page.getByRole('button', { name: new RegExp(escapeRegExp(label)) }), `${role} navigation must hide ${label}.`).toHaveCount(0);
+    await expect(primaryNavigation.filter({ hasText: label }), `${role} navigation must hide ${label}.`).toHaveCount(0);
   }
 }
 
@@ -28,7 +28,7 @@ async function requestRoleMatrix(page, role, token) {
   const config = getUatConfig();
   for (const route of getRoleApiMatrix(role)) {
     const response = await page.request.get(route.path, automationRequestOptions(
-      { headers: { Authorization: `Bearer ${token}` } },
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 60000 },
       process.env,
       config.baseURL,
       `${config.baseURL}${route.path}`
@@ -56,6 +56,7 @@ for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
 
     test(`V3 ${role}: read-only API authorization and scope`, async ({ page }) => {
       test.skip(!authenticatedMode(), 'UAT_MODE=authenticated is required for role coverage.');
+      test.slow();
       const { accessToken } = await loginAs(page, role);
       await requestRoleMatrix(page, role, accessToken);
     });

@@ -84,7 +84,9 @@ function startPageMonitor(page) {
 async function navigateTo(page, label) {
   const menuButton = page.getByRole('button', { name: 'เปิดเมนู', exact: true });
   if (await menuButton.isVisible()) await menuButton.click();
-  await page.getByRole('button', { name: new RegExp(label) }).click();
+  const navigationItem = page.locator('nav.nav-menu button.nav-item:visible').filter({ hasText: label }).first();
+  await expect(navigationItem, `Primary navigation must expose ${label}.`).toBeVisible();
+  await navigationItem.click();
 }
 
 async function expectApiSuccess(page, path, trigger) {

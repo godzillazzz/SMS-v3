@@ -11,10 +11,13 @@ test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) =
   await loginAs(page, 'ADMIN');
   await expect(page.getByRole('region', { name: 'Executive snapshot' })).toBeVisible();
   await expect(page.getByText('ข้อมูลบางส่วนยังไม่พร้อม', { exact: false })).toHaveCount(0);
+  const dashboardResponse = page.waitForResponse((response) => response.url().includes('/api/v1/dashboard') && response.request().method() === 'GET');
   await page.reload();
+  const response = await dashboardResponse;
+  expect(response.status(), 'Dashboard response must succeed after refresh.').toBeGreaterThanOrEqual(200);
+  expect(response.status(), 'Dashboard response must succeed after refresh.').toBeLessThan(300);
   await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
   await expect(page.getByText('ข้อมูลบางส่วนยังไม่พร้อม', { exact: false })).toHaveCount(0);
-  expect(monitor.responses.some((response) => response.path === '/api/v1/dashboard' && response.status >= 200 && response.status < 300)).toBe(true);
   monitor.assertClean();
 });
 
