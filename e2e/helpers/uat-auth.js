@@ -1,8 +1,7 @@
 const { expect, request } = require('@playwright/test');
 const { getUatConfig } = require('./uat-config');
 const { automationBypassHeaders, automationRequestOptions } = require('./technical-smoke');
-
-const roleSessionCache = new Map();
+const { readRoleSession } = require('./uat-session');
 
 async function preflightRoleAccounts(environment = process.env) {
   const config = getUatConfig(environment);
@@ -15,6 +14,7 @@ async function preflightRoleAccounts(environment = process.env) {
     baseURL: config.baseURL,
     extraHTTPHeaders: automationBypassHeaders(environment, config.baseURL, `${config.baseURL}/api/v1/auth/login`, { setBypassCookie: true })
   });
+  const sessions = {};
   try {
     for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
       const account = config.accounts[role];
@@ -30,6 +30,7 @@ async function preflightRoleAccounts(environment = process.env) {
           && typeof payload?.accessToken === 'string'
           && payload.accessToken.length > 0;
         results.push({ role, ready, status: ready ? 'READY' : `HTTP_${response.status()}` });
+        if (ready) sessions[role] = { accessToken: payload.accessToken, user: payload.user };
       } catch (error) {
         results.push({ role, ready: false, status: error?.name === 'TimeoutError' ? 'TIMEOUT' : 'REQUEST_FAILED' });
       }
@@ -37,7 +38,7 @@ async function preflightRoleAccounts(environment = process.env) {
   } finally {
     await context.dispose();
   }
-  return { allReady: results.every((result) => result.ready), results };
+  return { allReady: results.every((result) => result.ready), results, sessions };
 }
 
 async function loginAs(page, role) {
@@ -45,9 +46,9 @@ async function loginAs(page, role) {
   const account = config.accounts[role];
   if (!account?.configured) throw new Error(`UAT credentials unavailable for role: ${role}`);
 
-  const cachedSession = roleSessionCache.get(role);
+  const cachedSession = readRoleSession(role);
   if (cachedSession) {
-    await page.route('**/api/v1/auth/refresh', async (route) => {
+    await page.route('**/api/v1/auth/refresh**', async (route) => {
       if (route.request().method() !== 'POST') return route.continue();
       await route.fulfill({
         status: 200,
@@ -77,7 +78,6 @@ async function loginAs(page, role) {
   expect(typeof payload?.accessToken, 'Login must establish an access token.').toBe('string');
   await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
 
-  roleSessionCache.set(role, { accessToken: payload.accessToken, user: payload.user });
   return { accessToken: payload.accessToken };
 }
 

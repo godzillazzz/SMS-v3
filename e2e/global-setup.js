@@ -3,10 +3,12 @@ const path = require('node:path');
 const { getUatConfig } = require('./helpers/uat-config');
 const { preflightRoleAccounts } = require('./helpers/uat-auth');
 const { rolePreflightSummary } = require('./helpers/uat-v3-security');
+const { clearRoleSessions, writeRoleSessions } = require('./helpers/uat-session');
 
 module.exports = async () => {
   const config = getUatConfig();
   fs.mkdirSync(path.resolve('test-results'), { recursive: true });
+  clearRoleSessions();
   if (config.mode !== 'authenticated') {
     fs.writeFileSync(path.resolve('test-results/uat-v3-account-preflight.json'), JSON.stringify({ mode: config.mode, roles: { ADMIN: 'SKIPPED', MANAGER: 'SKIPPED', VIEWER: 'SKIPPED' } }));
     return;
@@ -19,4 +21,5 @@ module.exports = async () => {
     error.code = 'AUTH_ACCOUNT_UNAVAILABLE';
     throw error;
   }
+  writeRoleSessions(preflight.sessions);
 };
