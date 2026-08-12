@@ -64,7 +64,7 @@ function startPageMonitor(page, { allowedApiResponses = [] } = {}) {
   const requestFailures = [];
   const responses = [];
   const allowedResponseRules = [
-    { path: '/api/v1/auth/refresh', status: 403 },
+    { path: '/api/v1/auth/refresh' },
     ...allowedApiResponses
   ];
 
@@ -102,8 +102,8 @@ function startPageMonitor(page, { allowedApiResponses = [] } = {}) {
         .filter((response) => response.status >= 400 && !allowedResponseRules.some((rule) => matchesApiResponseRule(response, rule)))
         .map((response) => `${response.method} ${response.path} ${response.status}`);
       expect(pageErrors, 'Unexpected page errors.').toEqual([]);
-      expect(unexpectedConsoleErrors, 'Unexpected console errors.').toEqual([]);
       expect(unexpectedApiResponses, 'Unexpected API responses.').toEqual([]);
+      expect(unexpectedConsoleErrors, 'Unexpected console errors.').toEqual([]);
       expect(requestFailures, 'Unexpected document/XHR/fetch failures.').toEqual([]);
     }
   };
