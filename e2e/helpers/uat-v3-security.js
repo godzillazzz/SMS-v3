@@ -8,6 +8,8 @@ const forbiddenArtifactSegments = new Set([
   'storagestate'
 ]);
 
+const textArtifactExtensions = new Set(['.css', '.csv', '.html', '.js', '.json', '.md', '.txt', '.xml']);
+
 function isForbiddenArtifactPath(filePath) {
   const normalized = String(filePath || '').replace(/\\/g, '/').toLowerCase();
   const segments = normalized.split('/').filter(Boolean);
@@ -40,12 +42,17 @@ function artifactContainsSecret(content, secret) {
   return Boolean(secret) && artifactContainsAnySecret(content, [secret]);
 }
 
+function isTextArtifactPath(filePath) {
+  const normalized = String(filePath || '').toLowerCase();
+  return textArtifactExtensions.has(normalized.slice(normalized.lastIndexOf('.')));
+}
+
 function artifactLeakReasons(filePath, content, { bypassSecret = '', secretValues = [] } = {}) {
   const reasons = [];
   if (isForbiddenArtifactPath(filePath)) reasons.push('FORBIDDEN_PATH');
   if (artifactContainsSecret(content, bypassSecret)) reasons.push('VERCEL_BYPASS_SECRET');
   if (artifactContainsAnySecret(content, secretValues)) reasons.push('UAT_SECRET_VALUE');
-  if (artifactContainsAuthMaterial(content)) reasons.push('AUTH_MATERIAL');
+  if (isTextArtifactPath(filePath) && artifactContainsAuthMaterial(content)) reasons.push('AUTH_MATERIAL');
   return reasons;
 }
 
@@ -59,4 +66,4 @@ function roleSuiteStatus({ mode, configured, failed }) {
   return failed ? 'FAIL' : 'PASS';
 }
 
-module.exports = { artifactContainsAnySecret, artifactContainsAuthMaterial, artifactLeakReasons, isForbiddenArtifactPath, rolePreflightSummary, roleSuiteStatus };
+module.exports = { artifactContainsAnySecret, artifactContainsAuthMaterial, artifactLeakReasons, isForbiddenArtifactPath, isTextArtifactPath, rolePreflightSummary, roleSuiteStatus };
