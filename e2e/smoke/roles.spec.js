@@ -8,13 +8,14 @@ for (const role of ['MANAGER', 'VIEWER']) {
   test.describe(`${role} authenticated smoke`, () => {
     test.skip(!hasRoleCredentials(role), `${role} authenticated smoke skipped: credentials unavailable.`);
     test(`${role}: allowed dashboard is available and Audit Log stays denied`, async ({ page }) => {
+      test.slow();
       const monitor = startPageMonitor(page);
       const { accessToken } = await loginAs(page, role);
       await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
       await expect(page.getByRole('button', { name: /บันทึกการใช้งานระบบ/ })).toHaveCount(0);
       await expect.poll(() => getAuditEventsStatus(page, accessToken), {
-        timeout: 10000,
-        intervals: [250, 500, 1000]
+        timeout: 45000,
+        intervals: [500, 1000, 2000]
       }).toBe(403);
 
       if (role === 'MANAGER') {

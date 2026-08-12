@@ -98,8 +98,12 @@ function startPageMonitor(page, { allowedApiResponses = [] } = {}) {
         remainingRules.splice(ruleIndex, 1);
         return false;
       }).map((error) => error.text);
+      const unexpectedApiResponses = responses
+        .filter((response) => response.status >= 400 && !allowedResponseRules.some((rule) => matchesApiResponseRule(response, rule)))
+        .map((response) => `${response.method} ${response.path} ${response.status}`);
       expect(pageErrors, 'Unexpected page errors.').toEqual([]);
       expect(unexpectedConsoleErrors, 'Unexpected console errors.').toEqual([]);
+      expect(unexpectedApiResponses, 'Unexpected API responses.').toEqual([]);
       expect(requestFailures, 'Unexpected document/XHR/fetch failures.').toEqual([]);
     }
   };

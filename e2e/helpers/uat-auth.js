@@ -85,7 +85,7 @@ async function getAuditEventsStatus(page, accessToken) {
   const response = await page.request.get(
     '/api/v1/audit-events?page=1&pageSize=1',
     automationRequestOptions(
-      { headers: { Authorization: `Bearer ${accessToken}` } },
+      { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 15000 },
       process.env,
       process.env.UAT_BASE_URL,
       '/api/v1/audit-events?page=1&pageSize=1'

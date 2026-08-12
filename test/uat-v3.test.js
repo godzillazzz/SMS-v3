@@ -89,7 +89,9 @@ test('V3 role matrix covers read-only current backend contracts', () => {
   assert.match(authenticatedSmoke, /ETIMEDOUT\|timeout/);
   assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/admin.spec.js'), 'utf8'), /nav\.nav-menu button\.nav-item:visible/);
   assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/roles.spec.js'), 'utf8'), /expect\.poll\(\(\) => getAuditEventsStatus/);
+  assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/roles.spec.js'), 'utf8'), /timeout: 45000/);
   assert.match(observe, /allowedApiResponses/);
+  assert.match(observe, /Unexpected API responses/);
 });
 
 test('V3 distinguishes skipped technical mode from blocked authenticated mode', () => {
