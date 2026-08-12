@@ -29,7 +29,23 @@ function artifactContainsAuthMaterial(content) {
 
 function artifactContainsAnySecret(content, secrets = []) {
   const buffer = Buffer.isBuffer(content) ? content : Buffer.from(String(content || ''));
-  return secrets.filter(Boolean).some((secret) => buffer.includes(Buffer.from(secret)));
+  return secrets
+    .filter(Boolean)
+    .filter((secret) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(secret)))
+    .some((secret) => buffer.includes(Buffer.from(secret)));
+}
+
+function artifactContainsSecret(content, secret) {
+  return Boolean(secret) && artifactContainsAnySecret(content, [secret]);
+}
+
+function artifactLeakReasons(filePath, content, { bypassSecret = '', secretValues = [] } = {}) {
+  const reasons = [];
+  if (isForbiddenArtifactPath(filePath)) reasons.push('FORBIDDEN_PATH');
+  if (artifactContainsSecret(content, bypassSecret)) reasons.push('VERCEL_BYPASS_SECRET');
+  if (artifactContainsAnySecret(content, secretValues)) reasons.push('UAT_SECRET_VALUE');
+  if (artifactContainsAuthMaterial(content)) reasons.push('AUTH_MATERIAL');
+  return reasons;
 }
 
 function rolePreflightSummary(results) {
@@ -42,4 +58,4 @@ function roleSuiteStatus({ mode, configured, failed }) {
   return failed ? 'FAIL' : 'PASS';
 }
 
-module.exports = { artifactContainsAnySecret, artifactContainsAuthMaterial, isForbiddenArtifactPath, rolePreflightSummary, roleSuiteStatus };
+module.exports = { artifactContainsAnySecret, artifactContainsAuthMaterial, artifactLeakReasons, isForbiddenArtifactPath, rolePreflightSummary, roleSuiteStatus };

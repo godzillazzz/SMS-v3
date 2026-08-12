@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { getUatConfig, normalizeUatMode } = require('../e2e/helpers/uat-config');
-const { artifactContainsAnySecret, artifactContainsAuthMaterial, isForbiddenArtifactPath, roleSuiteStatus } = require('../e2e/helpers/uat-v3-security');
+const { artifactContainsAnySecret, artifactContainsAuthMaterial, artifactLeakReasons, isForbiddenArtifactPath, roleSuiteStatus } = require('../e2e/helpers/uat-v3-security');
 const { getRoleApiMatrix, getRoleNavigation } = require('../e2e/helpers/uat-v3-role-matrix');
 const workflow = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../.github/workflows/automated-uat-sms-v3-staging.yml'), 'utf8');
 const testPassword = ['uat', 'test', 'only', 'secret'].join('-');
@@ -39,6 +39,23 @@ test('authenticated mode requires all three complete role credential pairs', () 
 });
 
 test('V3 role matrix covers read-only current backend contracts', () => {
+  const expectedStatuses = {
+    ADMIN: {
+      Dashboard: 200, Employees: 200, Schedule: 200, Leave: 200, 'Leave quota': 200,
+      License: 200, Users: 200, 'Data Quality': 200, Audit: 200, 'Executive Report': 200,
+      'Report summary': 200, 'System settings': 200
+    },
+    MANAGER: {
+      Dashboard: 200, Employees: 200, Schedule: 200, Leave: 200, 'Leave quota': 200,
+      License: 200, Users: 200, 'Data Quality': 403, Audit: 403, 'Executive Report': 200,
+      'Report summary': 200, 'System settings': 403
+    },
+    VIEWER: {
+      Dashboard: 200, Employees: 200, Schedule: 200, Leave: 403, 'Leave quota': 403,
+      License: 403, Users: 403, 'Data Quality': 403, Audit: 403, 'Executive Report': 403,
+      'Report summary': 403, 'System settings': 403
+    }
+  };
   for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
     const routes = getRoleApiMatrix(role, '2026-08');
     assert.ok(routes.length >= 10);
@@ -47,10 +64,20 @@ test('V3 role matrix covers read-only current backend contracts', () => {
     assert.ok(routes.some((route) => route.label === 'Executive Report'));
     assert.ok(routes.some((route) => route.label === 'Audit'));
     assert.ok(getRoleNavigation(role).required.length > 0);
+    assert.deepEqual(
+      Object.fromEntries(routes.map((route) => [route.label, route.expectedStatus])),
+      expectedStatuses[role]
+    );
   }
   assert.equal(getRoleApiMatrix('ADMIN').find((route) => route.label === 'Data Quality').expectedStatus, 200);
   assert.equal(getRoleApiMatrix('MANAGER').find((route) => route.label === 'Data Quality').expectedStatus, 403);
   assert.equal(getRoleApiMatrix('VIEWER').find((route) => route.label === 'Executive Report').expectedStatus, 403);
+  for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
+    assert.equal(getRoleApiMatrix(role).find((route) => route.label === 'Schedule').expectedStatus, 200);
+    assert.ok(getRoleNavigation(role).required.includes('ตารางกะรายเดือน'));
+    assert.equal(getRoleNavigation(role).required.includes('Schedule Calendar'), false);
+  }
+  assert.equal(getRoleApiMatrix('VIEWER').find((route) => route.label === 'Leave').expectedStatus, 403);
 });
 
 test('V3 distinguishes skipped technical mode from blocked authenticated mode', () => {
@@ -69,6 +96,10 @@ test('V3 artifact safety rejects auth state paths and token-bearing content', ()
   assert.equal(artifactContainsAuthMaterial('Report source mentions accessToken without a value.'), false);
   assert.equal(artifactContainsAnySecret('safe report', ['secret-value']), false);
   assert.equal(artifactContainsAnySecret('safe report secret-value', ['secret-value']), true);
+  assert.equal(artifactContainsAnySecret('role identity uat-admin@example.test', ['uat-admin@example.test']), false);
+  assert.deepEqual(artifactLeakReasons('test-results/.auth/admin.json', '{}'), ['FORBIDDEN_PATH']);
+  assert.deepEqual(artifactLeakReasons('test-results/uat-summary.md', 'role=ADMIN status=PASS'), []);
+  assert.deepEqual(artifactLeakReasons('test-results/failure.json', '{"accessToken":"eyJhbGciOiJIUzI1NiJ9.payload.signature-value"}'), ['AUTH_MATERIAL']);
 });
 
 test('V3 workflow exposes explicit mode and least-privilege credential contract', () => {

@@ -38,9 +38,9 @@ async function requestRoleMatrix(page, role, token) {
 }
 
 const rolePageSets = {
-  ADMIN: ['Dashboard', 'ข้อมูลพนักงาน', 'Schedule Calendar', 'คำขอลา', 'รออนุมัติ', 'ใบอนุญาต รปภ.', 'คุณภาพข้อมูล', 'บันทึกการใช้งานระบบ', 'รายงานผู้บริหาร'],
-  MANAGER: ['Dashboard', 'ข้อมูลพนักงาน', 'Schedule Calendar', 'คำขอลา', 'รออนุมัติ', 'ใบอนุญาต รปภ.', 'รายงานผู้บริหาร'],
-  VIEWER: ['Dashboard', 'ข้อมูลพนักงาน', 'Schedule Calendar', 'คำขอลา']
+  ADMIN: ['Dashboard', 'ข้อมูลพนักงาน', 'ตารางกะรายเดือน', 'คำขอลา', 'รออนุมัติ', 'ใบอนุญาต รปภ.', 'คุณภาพข้อมูล', 'บันทึกการใช้งานระบบ', 'รายงานผู้บริหาร'],
+  MANAGER: ['Dashboard', 'ข้อมูลพนักงาน', 'ตารางกะรายเดือน', 'คำขอลา', 'รออนุมัติ', 'ใบอนุญาต รปภ.', 'รายงานผู้บริหาร'],
+  VIEWER: ['Dashboard', 'ข้อมูลพนักงาน', 'ตารางกะรายเดือน', 'คำขอลา']
 };
 
 for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
@@ -78,7 +78,7 @@ for (const role of ['ADMIN', 'MANAGER']) {
   test(`V3 ${role}: authenticated responsive smoke`, async ({ page }, testInfo) => {
     test.skip(!authenticatedMode(), 'UAT_MODE=authenticated is required for role coverage.');
     const monitor = startPageMonitor(page);
-    const pages = role === 'ADMIN' ? ['Dashboard', 'Schedule Calendar', 'คุณภาพข้อมูล', 'บันทึกการใช้งานระบบ', 'รายงานผู้บริหาร'] : ['Dashboard', 'Schedule Calendar', 'รายงานผู้บริหาร'];
+    const pages = role === 'ADMIN' ? ['Dashboard', 'ตารางกะรายเดือน', 'คุณภาพข้อมูล', 'บันทึกการใช้งานระบบ', 'รายงานผู้บริหาร'] : ['Dashboard', 'ตารางกะรายเดือน', 'รายงานผู้บริหาร'];
     for (const viewport of [{ name: '390', width: 390, height: 844 }, { name: '768', width: 768, height: 1024 }, { name: '1440', width: 1440, height: 900 }]) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await loginAs(page, role);

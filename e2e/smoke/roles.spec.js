@@ -1,6 +1,7 @@
 const { test, expect } = require('../helpers/uat-test');
 const { getAuditEventsStatus, loginAs } = require('../helpers/uat-auth');
-const { hasRoleCredentials } = require('../helpers/uat-config');
+const { getUatConfig, hasRoleCredentials } = require('../helpers/uat-config');
+const { automationRequestOptions } = require('../helpers/technical-smoke');
 const { expectApiSuccess, navigateTo, startPageMonitor } = require('../helpers/uat-observe');
 
 for (const role of ['MANAGER', 'VIEWER']) {
@@ -14,10 +15,17 @@ for (const role of ['MANAGER', 'VIEWER']) {
       await expect(getAuditEventsStatus(page, accessToken)).resolves.toBe(403);
 
       if (role === 'MANAGER') {
-        await expectApiSuccess(page, '/api/v1/schedules', () => navigateTo(page, 'ตารางกะรายเดือน'));
+        await expectApiSuccess(page, '/api/v1/schedule-calendar', () => navigateTo(page, 'ตารางกะรายเดือน'));
       } else {
-        await expectApiSuccess(page, '/api/v1/licenses', () => navigateTo(page, 'ใบอนุญาต รปภ.'));
-        await expect(page.getByRole('button', { name: /แก้ไขใบอนุญาต|ลบใบอนุญาต/ })).toHaveCount(0);
+        const config = getUatConfig();
+        const response = await page.request.get('/api/v1/licenses?page=1&pageSize=20', automationRequestOptions(
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+          process.env,
+          config.baseURL,
+          `${config.baseURL}/api/v1/licenses?page=1&pageSize=20`
+        ));
+        expect(response.status()).toBe(403);
+        await expect(page.getByRole('button', { name: /ใบอนุญาต รปภ\./ })).toHaveCount(0);
       }
 
       monitor.assertClean();

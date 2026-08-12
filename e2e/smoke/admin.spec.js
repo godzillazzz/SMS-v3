@@ -21,7 +21,7 @@ test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) =
 test('ADMIN: Schedule, Leave, and License pages load through read endpoints', async ({ page }) => {
   const monitor = startPageMonitor(page);
   await loginAs(page, 'ADMIN');
-  await expectApiSuccess(page, '/api/v1/schedules', () => navigateTo(page, 'ตารางกะรายเดือน'));
+  await expectApiSuccess(page, '/api/v1/schedule-calendar', () => navigateTo(page, 'ตารางกะรายเดือน'));
   await expect(page.getByRole('button', { name: /ตารางกะรายเดือน/ })).toBeVisible();
   await expectApiSuccess(page, '/api/v1/leave-requests', () => navigateTo(page, 'คำขอลา'));
   await expect(page.getByRole('button', { name: /คำขอลา/ })).toBeVisible();

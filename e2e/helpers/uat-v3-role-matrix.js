@@ -33,7 +33,7 @@ const roleApiMatrix = {
     ['Dashboard', '/api/v1/dashboard', 200],
     ['Employees', '/api/v1/employees?page=1&pageSize=20', 200],
     ['Schedule', '/api/v1/schedule-calendar?month={month}', 200],
-    ['Leave', '/api/v1/leave-requests?page=1&pageSize=20', 200],
+    ['Leave', '/api/v1/leave-requests?page=1&pageSize=20', 403],
     ['Leave quota', '/api/v1/leave-quotas?page=1&pageSize=20', 403],
     ['License', '/api/v1/licenses?page=1&pageSize=20', 403],
     ['Users', '/api/v1/users', 403],
@@ -47,15 +47,15 @@ const roleApiMatrix = {
 
 const roleNavigation = {
   ADMIN: {
-    required: ['Dashboard', 'ข้อมูลพนักงาน', 'Schedule Calendar', 'คำขอลา', 'รออนุมัติ', 'ใบอนุญาต รปภ.', 'คุณภาพข้อมูล', 'บันทึกการใช้งานระบบ', 'รายงานผู้บริหาร'],
+    required: ['Dashboard', 'ข้อมูลพนักงาน', 'ตารางกะรายเดือน', 'คำขอลา', 'รออนุมัติ', 'ใบอนุญาต รปภ.', 'คุณภาพข้อมูล', 'บันทึกการใช้งานระบบ', 'รายงานผู้บริหาร'],
     forbidden: []
   },
   MANAGER: {
-    required: ['Dashboard', 'ข้อมูลพนักงาน', 'Schedule Calendar', 'คำขอลา', 'รออนุมัติ', 'ใบอนุญาต รปภ.', 'รายงานผู้บริหาร'],
+    required: ['Dashboard', 'ข้อมูลพนักงาน', 'ตารางกะรายเดือน', 'คำขอลา', 'รออนุมัติ', 'ใบอนุญาต รปภ.', 'รายงานผู้บริหาร'],
     forbidden: ['คุณภาพข้อมูล', 'บันทึกการใช้งานระบบ', 'โควต้าวันลา', 'ตั้งค่าระบบ']
   },
   VIEWER: {
-    required: ['Dashboard', 'ข้อมูลพนักงาน', 'Schedule Calendar', 'คำขอลา'],
+    required: ['Dashboard', 'ข้อมูลพนักงาน', 'ตารางกะรายเดือน', 'คำขอลา'],
     forbidden: ['ใบอนุญาต รปภ.', 'ผู้ใช้และสิทธิ์', 'คุณภาพข้อมูล', 'บันทึกการใช้งานระบบ', 'รายงานผู้บริหาร', 'รายงานและ Export', 'โควต้าวันลา', 'ตั้งค่าระบบ', 'รออนุมัติ']
   }
 };
