@@ -24,12 +24,13 @@ test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) =
 test('ADMIN: Schedule, Leave, and License pages load through read endpoints', async ({ page }) => {
   const monitor = startPageMonitor(page);
   await loginAs(page, 'ADMIN');
+  const primaryNavigation = page.locator('nav.nav-menu button.nav-item:visible');
   await expectApiSuccess(page, '/api/v1/schedule-calendar', () => navigateTo(page, 'ตารางกะรายเดือน'));
-  await expect(page.getByRole('button', { name: /ตารางกะรายเดือน/ })).toBeVisible();
+  await expect(primaryNavigation.filter({ hasText: 'ตารางกะรายเดือน' }).first()).toBeVisible();
   await expectApiSuccess(page, '/api/v1/leave-requests', () => navigateTo(page, 'คำขอลา'));
-  await expect(page.getByRole('button', { name: /คำขอลา/ })).toBeVisible();
+  await expect(primaryNavigation.filter({ hasText: 'คำขอลา' }).first()).toBeVisible();
   await expectApiSuccess(page, '/api/v1/licenses', () => navigateTo(page, 'ใบอนุญาต รปภ.'));
-  await expect(page.getByRole('button', { name: /ใบอนุญาต รปภ./ })).toBeVisible();
+  await expect(primaryNavigation.filter({ hasText: 'ใบอนุญาต รปภ.' }).first()).toBeVisible();
   monitor.assertClean();
 });
 

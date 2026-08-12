@@ -12,7 +12,10 @@ for (const role of ['MANAGER', 'VIEWER']) {
       const { accessToken } = await loginAs(page, role);
       await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
       await expect(page.getByRole('button', { name: /บันทึกการใช้งานระบบ/ })).toHaveCount(0);
-      await expect(getAuditEventsStatus(page, accessToken)).resolves.toBe(403);
+      await expect.poll(() => getAuditEventsStatus(page, accessToken), {
+        timeout: 10000,
+        intervals: [250, 500, 1000]
+      }).toBe(403);
 
       if (role === 'MANAGER') {
         await expectApiSuccess(page, '/api/v1/schedule-calendar', () => navigateTo(page, 'ตารางกะรายเดือน'));

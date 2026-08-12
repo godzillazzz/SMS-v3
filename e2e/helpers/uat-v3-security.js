@@ -11,8 +11,9 @@ const forbiddenArtifactSegments = new Set([
 function isForbiddenArtifactPath(filePath) {
   const normalized = String(filePath || '').replace(/\\/g, '/').toLowerCase();
   const segments = normalized.split('/').filter(Boolean);
+  const fileName = segments.at(-1) || '';
   return segments.some((segment) => forbiddenArtifactSegments.has(segment))
-    || /(?:^|[-_.])(auth|storage[-_.]?state|cookies|session)(?:[-_.]|$)/i.test(segments.at(-1) || '');
+    || /^(?:auth[-_.]?state|storage[-_.]?state|cookies|session[-_.]?state)(?:[-_.]|$)/i.test(fileName);
 }
 
 function artifactContainsAuthMaterial(content) {

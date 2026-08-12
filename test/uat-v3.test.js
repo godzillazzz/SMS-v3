@@ -86,6 +86,10 @@ test('V3 role matrix covers read-only current backend contracts', () => {
   assert.match(authenticatedSmoke, /const primaryNavigation = page\.locator\('nav\.nav-menu button\.nav-item:visible'\)/);
   assert.match(authenticatedSmoke, /test\.slow\(\)/);
   assert.match(authenticatedSmoke, /timeout: 60000/);
+  assert.match(authenticatedSmoke, /ETIMEDOUT\|timeout/);
+  assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/admin.spec.js'), 'utf8'), /nav\.nav-menu button\.nav-item:visible/);
+  assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/roles.spec.js'), 'utf8'), /expect\.poll\(\(\) => getAuditEventsStatus/);
+  assert.match(observe, /allowedApiResponses/);
 });
 
 test('V3 distinguishes skipped technical mode from blocked authenticated mode', () => {
@@ -106,6 +110,8 @@ test('V3 artifact safety rejects auth state paths and token-bearing content', ()
   assert.equal(artifactContainsAnySecret('safe report secret-value', ['secret-value']), true);
   assert.equal(artifactContainsAnySecret('role identity uat-admin@example.test', ['uat-admin@example.test']), false);
   assert.deepEqual(artifactLeakReasons('test-results/.auth/admin.json', '{}'), ['FORBIDDEN_PATH']);
+  assert.equal(isForbiddenArtifactPath('test-results/playwright/auth-boundary-v3-report.json'), false);
+  assert.equal(isForbiddenArtifactPath('test-results/playwright/auth-state.json'), true);
   assert.deepEqual(artifactLeakReasons('test-results/uat-summary.md', 'role=ADMIN status=PASS'), []);
   assert.deepEqual(artifactLeakReasons('test-results/failure.json', '{"accessToken":"eyJhbGciOiJIUzI1NiJ9.payload.signature-value"}'), ['AUTH_MATERIAL']);
 });

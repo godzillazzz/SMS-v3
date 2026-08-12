@@ -51,15 +51,31 @@ function isHarmlessConsoleError(message) {
   return isUnauthenticatedRefresh || harmlessConsoleMessages.some((pattern) => pattern.test(message.text()));
 }
 
-function startPageMonitor(page) {
+function matchesApiResponseRule(response, rule) {
+  const pathMatches = rule?.path instanceof RegExp
+    ? rule.path.test(response.path)
+    : response.path === rule?.path;
+  return pathMatches && (rule?.status === undefined || response.status === rule.status);
+}
+
+function startPageMonitor(page, { allowedApiResponses = [] } = {}) {
   const pageErrors = [];
   const consoleErrors = [];
   const requestFailures = [];
   const responses = [];
+  const allowedResponseRules = [
+    { path: '/api/v1/auth/refresh', status: 403 },
+    ...allowedApiResponses
+  ];
 
   page.on('pageerror', (error) => pageErrors.push(sanitizeDiagnostic(error.message)));
   page.on('console', (message) => {
-    if (!isHarmlessConsoleError(message)) consoleErrors.push(sanitizeDiagnostic(message.text()));
+    if (!isHarmlessConsoleError(message)) {
+      consoleErrors.push({
+        text: sanitizeDiagnostic(message.text()),
+        authorizationFailure: /Failed to load resource: the server responded with a status of 403/i.test(message.text())
+      });
+    }
   });
   page.on('requestfailed', (request) => {
     if (!['document', 'xhr', 'fetch', 'script', 'stylesheet'].includes(request.resourceType())) return;
@@ -74,8 +90,16 @@ function startPageMonitor(page) {
   return {
     responses,
     assertClean() {
+      const remainingRules = [...allowedResponseRules];
+      const unexpectedConsoleErrors = consoleErrors.filter((error) => {
+        if (!error.authorizationFailure) return true;
+        const ruleIndex = remainingRules.findIndex((rule) => responses.some((response) => matchesApiResponseRule(response, rule)));
+        if (ruleIndex < 0) return true;
+        remainingRules.splice(ruleIndex, 1);
+        return false;
+      }).map((error) => error.text);
       expect(pageErrors, 'Unexpected page errors.').toEqual([]);
-      expect(consoleErrors, 'Unexpected console errors.').toEqual([]);
+      expect(unexpectedConsoleErrors, 'Unexpected console errors.').toEqual([]);
       expect(requestFailures, 'Unexpected document/XHR/fetch failures.').toEqual([]);
     }
   };

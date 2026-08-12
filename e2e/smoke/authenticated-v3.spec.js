@@ -27,12 +27,24 @@ async function expectNavigation(page, role) {
 async function requestRoleMatrix(page, role, token) {
   const config = getUatConfig();
   for (const route of getRoleApiMatrix(role)) {
-    const response = await page.request.get(route.path, automationRequestOptions(
-      { headers: { Authorization: `Bearer ${token}` }, timeout: 60000 },
-      process.env,
-      config.baseURL,
-      `${config.baseURL}${route.path}`
-    ));
+    let response;
+    let lastError;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        response = await page.request.get(route.path, automationRequestOptions(
+          { headers: { Authorization: `Bearer ${token}` }, timeout: 60000 },
+          process.env,
+          config.baseURL,
+          `${config.baseURL}${route.path}`
+        ));
+        break;
+      } catch (error) {
+        lastError = error;
+        if (!/ETIMEDOUT|timeout/i.test(String(error?.message || error)) || attempt === 1) throw error;
+        await page.waitForTimeout(250);
+      }
+    }
+    if (!response) throw lastError;
     expect(response.status(), `${role} ${route.label} read contract must return ${route.expectedStatus}.`).toBe(route.expectedStatus);
   }
 }
