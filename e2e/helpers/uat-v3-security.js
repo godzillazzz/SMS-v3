@@ -17,7 +17,14 @@ function isForbiddenArtifactPath(filePath) {
 
 function artifactContainsAuthMaterial(content) {
   const value = Buffer.isBuffer(content) ? content.toString('utf8') : String(content || '');
-  return /(?:accessToken|refreshToken|Authorization\s*:\s*Bearer\s+[A-Za-z0-9._-]+|smsv3_csrf\s*[:=]|storageState\s*[:=]|sessionStorage\s*[:=]|localStorage\s*[:=]|cookie(?:s)?\s*[:=])/i.test(value);
+  return [
+    /["']accessToken["']\s*:\s*["'][A-Za-z0-9._~-]{20,}["']/i,
+    /["']refreshToken["']\s*:\s*["'][A-Za-z0-9._~-]{20,}["']/i,
+    /Authorization\s*:\s*Bearer\s+[A-Za-z0-9._~-]{20,}/i,
+    /(?:smsv3_csrf|smsv3_refresh)\s*[:=]\s*["']?[A-Za-z0-9._~-]{20,}/i,
+    /(?:storageState|sessionStorage|localStorage)\s*[:=]\s*["'][^"']{20,}["']/i,
+    /cookie(?:s)?\s*[:=]\s*["'][^"']{20,}["']/i
+  ].some((pattern) => pattern.test(value));
 }
 
 function artifactContainsAnySecret(content, secrets = []) {

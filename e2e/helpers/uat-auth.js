@@ -2,6 +2,8 @@ const { expect, request } = require('@playwright/test');
 const { getUatConfig } = require('./uat-config');
 const { automationBypassHeaders, automationRequestOptions } = require('./technical-smoke');
 
+const roleSessionCache = new Map();
+
 async function preflightRoleAccounts(environment = process.env) {
   const config = getUatConfig(environment);
   const results = [];
@@ -43,6 +45,21 @@ async function loginAs(page, role) {
   const account = config.accounts[role];
   if (!account?.configured) throw new Error(`UAT credentials unavailable for role: ${role}`);
 
+  const cachedSession = roleSessionCache.get(role);
+  if (cachedSession) {
+    await page.route('**/api/v1/auth/refresh', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ accessToken: cachedSession.accessToken, tokenType: 'Bearer', user: cachedSession.user })
+      });
+    });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+    return { accessToken: cachedSession.accessToken };
+  }
+
   await page.goto('/');
   const loginResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
@@ -60,6 +77,7 @@ async function loginAs(page, role) {
   expect(typeof payload?.accessToken, 'Login must establish an access token.').toBe('string');
   await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
 
+  roleSessionCache.set(role, { accessToken: payload.accessToken, user: payload.user });
   return { accessToken: payload.accessToken };
 }
 

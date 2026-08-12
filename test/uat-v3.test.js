@@ -64,8 +64,9 @@ test('V3 artifact safety rejects auth state paths and token-bearing content', ()
   assert.equal(isForbiddenArtifactPath('test-results/.auth/admin.json'), true);
   assert.equal(isForbiddenArtifactPath('test-results/storageState.json'), true);
   assert.equal(isForbiddenArtifactPath('test-results/uat-summary.md'), false);
-  assert.equal(artifactContainsAuthMaterial('{"accessToken":"not-an-artifact"}'), true);
+  assert.equal(artifactContainsAuthMaterial('{"accessToken":"eyJhbGciOiJIUzI1NiJ9.payload.signature-value"}'), true);
   assert.equal(artifactContainsAuthMaterial('{"mode":"technical","roles":{"ADMIN":"SKIPPED"}}'), false);
+  assert.equal(artifactContainsAuthMaterial('Report source mentions accessToken without a value.'), false);
   assert.equal(artifactContainsAnySecret('safe report', ['secret-value']), false);
   assert.equal(artifactContainsAnySecret('safe report secret-value', ['secret-value']), true);
 });
@@ -76,10 +77,10 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(workflow, /type:\s*choice/);
   assert.match(workflow, /- technical/);
   assert.match(workflow, /- authenticated/);
-  assert.match(workflow, /technical-smoke:\n\s+if:\s+\$\{\{ inputs\.uat_mode == 'technical' \}\}/);
-  assert.match(workflow, /authenticated-uat:\n\s+if:\s+\$\{\{ inputs\.uat_mode == 'authenticated' \}\}/);
-  const technicalJob = workflow.match(/\n  technical-smoke:\n([\s\S]*?)(?=\n  authenticated-uat:)/)?.[1];
-  const authenticatedJob = workflow.match(/\n  authenticated-uat:\n([\s\S]*)$/)?.[1];
+  assert.match(workflow, /technical-smoke:\r?\n\s+if:\s+\$\{\{ inputs\.uat_mode == 'technical' \}\}/);
+  assert.match(workflow, /authenticated-uat:\r?\n\s+if:\s+\$\{\{ inputs\.uat_mode == 'authenticated' \}\}/);
+  const technicalJob = workflow.match(/\r?\n  technical-smoke:\r?\n([\s\S]*?)(?=\r?\n  authenticated-uat:)/)?.[1];
+  const authenticatedJob = workflow.match(/\r?\n  authenticated-uat:\r?\n([\s\S]*)$/)?.[1];
   assert.ok(technicalJob);
   assert.ok(authenticatedJob);
   assert.doesNotMatch(technicalJob, /environment:\s*production-sms-v3-staging/);
