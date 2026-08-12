@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { getUatConfig, normalizeUatMode } = require('../e2e/helpers/uat-config');
-const { artifactContainsAnySecret, artifactContainsAuthMaterial, artifactLeakReasons, isForbiddenArtifactPath, isTextArtifactPath, roleSuiteStatus } = require('../e2e/helpers/uat-v3-security');
+const { artifactContainsAnySecret, artifactContainsAuthMaterial, artifactLeakReasons, isForbiddenArtifactPath, isTextArtifactPath, roleSuiteStatus, scanArtifact } = require('../e2e/helpers/uat-v3-security');
 const { getRoleApiMatrix, getRoleNavigation } = require('../e2e/helpers/uat-v3-role-matrix');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -82,12 +82,13 @@ test('V3 role matrix covers read-only current backend contracts', () => {
     assert.equal(getRoleNavigation(role).required.includes('Schedule Calendar'), false);
   }
   assert.equal(getRoleApiMatrix('VIEWER').find((route) => route.label === 'Leave').expectedStatus, 403);
-  assert.match(observe, /nav\.nav-menu button\.nav-item:visible/);
-  assert.match(authenticatedSmoke, /const primaryNavigation = page\.locator\('nav\.nav-menu button\.nav-item:visible'\)/);
-  assert.match(authenticatedSmoke, /test\.slow\(\)/);
+  assert.match(observe, /nav\.nav-menu/);
+  assert.match(observe, /button\.nav-item:visible/);
+  assert.match(authenticatedSmoke, /getRoleNavigationContract/);
+  assert.match(authenticatedSmoke, /test\.setTimeout\(180_000\)/);
   assert.match(authenticatedSmoke, /timeout: 60000/);
-  assert.match(authenticatedSmoke, /ETIMEDOUT\|timeout/);
-  assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/admin.spec.js'), 'utf8'), /nav\.nav-menu button\.nav-item:visible/);
+  assert.doesNotMatch(authenticatedSmoke, /waitForTimeout\(250\)/);
+  assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/admin.spec.js'), 'utf8'), /navigateTo\(page, 'schedule'\)/);
   assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/roles.spec.js'), 'utf8'), /allowedApiResponses/);
   assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/roles.spec.js'), 'utf8'), /allowed dashboard and privileged navigation stay bounded/);
   assert.match(observe, /allowedApiResponses/);
@@ -113,15 +114,22 @@ test('V3 artifact safety rejects auth state paths and token-bearing content', ()
   assert.equal(artifactContainsAuthMaterial('Report source mentions accessToken without a value.'), false);
   assert.equal(artifactContainsAnySecret('safe report', ['secret-value']), false);
   assert.equal(artifactContainsAnySecret('safe report secret-value', ['secret-value']), true);
-  assert.equal(artifactContainsAnySecret('role identity uat-admin@example.test', ['uat-admin@example.test']), false);
+  assert.equal(artifactContainsAnySecret('role identity uat-admin@example.test', ['uat-admin@example.test']), true);
   assert.equal(isTextArtifactPath('test-results/uat-results.json'), true);
   assert.equal(isTextArtifactPath('test-results/failure.png'), false);
-  assert.deepEqual(artifactLeakReasons('test-results/.auth/admin.json', '{}'), ['FORBIDDEN_PATH']);
+  assert.deepEqual(artifactLeakReasons('test-results/.auth/admin.json', '{}'), ['AUTH_STATE_FILE']);
   assert.equal(isForbiddenArtifactPath('test-results/playwright/auth-boundary-v3-report.json'), false);
   assert.equal(isForbiddenArtifactPath('test-results/playwright/auth-state.json'), true);
   assert.deepEqual(artifactLeakReasons('test-results/uat-summary.md', 'role=ADMIN status=PASS'), []);
-  assert.deepEqual(artifactLeakReasons('test-results/failure.json', '{"accessToken":"eyJhbGciOiJIUzI1NiJ9.payload.signature-value"}'), ['AUTH_MATERIAL']);
+  assert.deepEqual(artifactLeakReasons('test-results/failure.json', '{"accessToken":"eyJhbGciOiJIUzI1NiJ9.payload.signature-value"}'), ['ACCESS_TOKEN_PATTERN']);
   assert.deepEqual(artifactLeakReasons('test-results/failure.png', Buffer.from('{"accessToken":"eyJhbGciOiJIUzI1NiJ9.payload.signature-value"}')), []);
+  assert.deepEqual(artifactLeakReasons('test-results/uat-summary.md', 'DATABASE_URL=<redacted>'), []);
+  assert.deepEqual(artifactLeakReasons('test-results/uat-summary.md', 'DATABASE_URL=postgresql://user:password@host/db'), ['OTHER_AUTH_MATERIAL']);
+  assert.deepEqual(artifactLeakReasons('test-results/uat-summary.md', 'password=<redacted>'), []);
+  assert.deepEqual(artifactLeakReasons('test-results/uat-summary.md', 'password=actual-non-redacted-value'), ['PASSWORD_VALUE']);
+  assert.deepEqual(artifactLeakReasons('test-results/uat-summary.md', 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature-value'), ['AUTHORIZATION_HEADER']);
+  assert.deepEqual(artifactLeakReasons('test-results/uat-summary.md', 'identity=uat-admin@example.test', { emailValues: ['uat-admin@example.test'] }), ['UAT_EMAIL_VALUE']);
+  assert.deepEqual(scanArtifact('test-results/uat-summary.md', 'mode=AUTHENTICATED role=ADMIN status=PASS'), { path: 'test-results/uat-summary.md', categories: [], safe: true });
 });
 
 test('V3 workflow exposes explicit mode and least-privilege credential contract', () => {

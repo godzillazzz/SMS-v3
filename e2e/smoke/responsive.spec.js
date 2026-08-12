@@ -20,7 +20,7 @@ for (const viewport of viewports) {
     await assertNoHorizontalOverflow(page);
     await captureScreenshot(page, testInfo, `uat-admin-dashboard-${viewport.name}`);
 
-    await navigateTo(page, 'บันทึกการใช้งานระบบ');
+    await navigateTo(page, 'audit');
     await expect(page.locator('.audit-compliance-page')).toBeVisible();
     const desktopTable = page.locator('.audit-desktop-table');
     const mobileCards = page.locator('.audit-mobile-cards');

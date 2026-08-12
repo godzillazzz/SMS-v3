@@ -1,4 +1,5 @@
 const { expect } = require('@playwright/test');
+const { getNavigationItem } = require('./uat-v3-role-matrix');
 
 const harmlessConsoleMessages = [/ResizeObserver loop limit exceeded/i];
 const harmlessRequestFailures = [/net::ERR_ABORTED/i];
@@ -109,11 +110,38 @@ function startPageMonitor(page, { allowedApiResponses = [] } = {}) {
   };
 }
 
-async function navigateTo(page, label) {
+function primaryNavigation(page) {
+  return page.locator('nav.nav-menu').first().locator('button.nav-item:visible');
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function primaryNavigationItem(page, navigationId) {
+  const item = getNavigationItem(navigationId);
+  const label = escapeRegExp(item.label);
+  return primaryNavigation(page).filter({ hasText: new RegExp(`${label}\\s*\\d*$`) });
+}
+
+async function openPrimaryNavigation(page) {
   const menuButton = page.getByRole('button', { name: 'เปิดเมนู', exact: true });
   if (await menuButton.isVisible()) await menuButton.click();
-  const navigationItem = page.locator('nav.nav-menu button.nav-item:visible').filter({ hasText: label }).first();
-  await expect(navigationItem, `Primary navigation must expose ${label}.`).toBeVisible();
+  await expect(page.locator('nav.nav-menu').first(), 'Primary navigation must be visible.').toBeVisible();
+}
+
+async function expectPrimaryNavigationItem(page, navigationId) {
+  const item = getNavigationItem(navigationId);
+  const navigationItem = primaryNavigationItem(page, navigationId);
+  await expect(navigationItem, `Primary navigation must expose exactly one ${item.label}.`).toHaveCount(1);
+  await expect(navigationItem, `Primary navigation must expose ${item.label}.`).toBeVisible();
+}
+
+async function navigateTo(page, navigationId) {
+  const item = getNavigationItem(navigationId);
+  await openPrimaryNavigation(page);
+  const navigationItem = primaryNavigationItem(page, navigationId);
+  await expect(navigationItem, `Primary navigation must expose exactly one ${item.label}.`).toHaveCount(1);
   await navigationItem.click();
 }
 
@@ -130,10 +158,25 @@ async function assertNoHorizontalOverflow(page) {
   expect(hasOverflow, 'Page-level horizontal overflow is not allowed.').toBe(false);
 }
 
-async function captureScreenshot(page, testInfo, name) {
+async function captureScreenshot(page, testInfo, name, { allowLoginForm = false } = {}) {
+  if (!allowLoginForm) await expect(page.locator('form.login-form')).toHaveCount(0);
   const path = testInfo.outputPath(`${name}.png`);
   await page.screenshot({ path, fullPage: true });
   await testInfo.attach(name, { path, contentType: 'image/png' });
 }
 
-module.exports = { assertNoHorizontalOverflow, captureScreenshot, expectApiSuccess, isHarmlessConsoleError, navigateTo, requestPath, requestTarget, sanitizeDiagnostic, startPageMonitor };
+module.exports = {
+  assertNoHorizontalOverflow,
+  captureScreenshot,
+  expectApiSuccess,
+  expectPrimaryNavigationItem,
+  isHarmlessConsoleError,
+  navigateTo,
+  openPrimaryNavigation,
+  primaryNavigation,
+  primaryNavigationItem,
+  requestPath,
+  requestTarget,
+  sanitizeDiagnostic,
+  startPageMonitor
+};

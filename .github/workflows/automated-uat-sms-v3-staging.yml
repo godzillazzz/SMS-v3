@@ -92,7 +92,7 @@ jobs:
             const path = require('node:path');
             const { spawnSync } = require('node:child_process');
             const { isProtectedCandidateUrl } = require('./e2e/helpers/technical-smoke');
-            const { artifactLeakReasons } = require('./e2e/helpers/uat-v3-security');
+            const { scanArtifact, sanitizeArtifactPath } = require('./e2e/helpers/uat-v3-security');
 
             const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
             if (isProtectedCandidateUrl(process.env.UAT_BASE_URL) && !bypassSecret) {
@@ -101,7 +101,7 @@ jobs:
               return;
             }
             if (bypassSecret) core.setSecret(bypassSecret);
-            const result = spawnSync('npm', ['run', 'test:uat'], { env: { ...process.env }, stdio: 'inherit' });
+            const result = spawnSync('npm', ['run', 'test:uat'], { env: { ...process.env }, stdio: 'ignore' });
 
             const flaggedArtifacts = [];
             for (const root of ['playwright-report', 'test-results']) {
@@ -114,17 +114,21 @@ jobs:
                   stack.push(...fs.readdirSync(current).map((entry) => path.join(current, entry)));
                 } else {
                   const content = fs.readFileSync(current);
-                  const reasons = artifactLeakReasons(current, content, { bypassSecret });
-                  if (reasons.length) flaggedArtifacts.push({ path: path.relative(process.cwd(), current).replace(/\\/g, '/'), reasons });
+                  const relativePath = path.relative(process.cwd(), current).replace(/\\/g, '/');
+                  const finding = scanArtifact(relativePath, content, { bypassSecret });
+                  if (!finding.safe) flaggedArtifacts.push(finding);
                 }
               }
             }
 
-            core.setOutput('artifact_leak', String(flaggedArtifacts.length));
-            for (const artifact of flaggedArtifacts) core.warning(`ARTIFACT_SCAN path=${artifact.path} category=${artifact.reasons.join(',')}`);
-            if (flaggedArtifacts.length > 0) core.setFailed('VERCEL_BYPASS_ARTIFACT_LEAK');
+            const leakCount = flaggedArtifacts.reduce((count, artifact) => count + artifact.categories.length, 0);
+            fs.writeFileSync('test-results/uat-v3-artifact-summary.json', JSON.stringify({ leakCount, findings: flaggedArtifacts.map(({ path: filePath, categories }) => ({ path: sanitizeArtifactPath(filePath), categories })) }));
+            core.setOutput('artifact_leak', String(leakCount));
+            core.setOutput('artifact_leak_count', String(leakCount));
+            for (const artifact of flaggedArtifacts) for (const category of artifact.categories) core.warning(`ARTIFACT_SCAN path=${artifact.path} category=${category}`);
+            if (leakCount > 0) core.setFailed('UAT_ARTIFACT_LEAK');
             else if (result.error || result.status !== 0) core.setFailed('UAT_EXECUTION_FAILED');
-            else core.info('VERCEL_BYPASS_ARTIFACT_LEAK=0');
+            else core.info('ARTIFACT_LEAK_COUNT=0');
       - name: Publish technical UAT summary
         if: always()
         shell: bash
@@ -134,7 +138,7 @@ jobs:
             echo "- Mode: $UAT_MODE"
             echo "- Target: $UAT_BASE_URL"
             echo "- Result: ${{ steps.uat.outcome }}"
-            echo "- VERCEL_BYPASS_ARTIFACT_LEAK: ${{ steps.uat.outputs.artifact_leak || 'not-scanned' }}"
+            echo "- Artifact leak count: ${{ steps.uat.outputs.artifact_leak_count || 'not-scanned' }}"
             if [[ -f test-results/uat-summary.md ]]; then cat test-results/uat-summary.md; fi
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload technical UAT artifacts
@@ -254,7 +258,7 @@ jobs:
             const path = require('node:path');
             const { spawnSync } = require('node:child_process');
             const { isProtectedCandidateUrl } = require('./e2e/helpers/technical-smoke');
-            const { artifactLeakReasons } = require('./e2e/helpers/uat-v3-security');
+            const { scanArtifact, sanitizeArtifactPath } = require('./e2e/helpers/uat-v3-security');
 
             const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
             if (isProtectedCandidateUrl(process.env.UAT_BASE_URL) && !bypassSecret) {
@@ -262,14 +266,18 @@ jobs:
               core.setOutput('artifact_leak', 'not-scanned');
               return;
             }
-            const artifactSecrets = [
-              bypassSecret,
+            const passwordValues = [
               process.env.UAT_ADMIN_PASSWORD,
               process.env.UAT_MANAGER_PASSWORD,
               process.env.UAT_VIEWER_PASSWORD
             ].filter(Boolean);
-            for (const secret of artifactSecrets) core.setSecret(secret);
-            const result = spawnSync('npm', ['run', 'test:uat'], { env: { ...process.env }, stdio: 'inherit' });
+            const emailValues = [
+              process.env.UAT_ADMIN_EMAIL,
+              process.env.UAT_MANAGER_EMAIL,
+              process.env.UAT_VIEWER_EMAIL
+            ].filter(Boolean);
+            for (const secret of [bypassSecret, ...passwordValues, ...emailValues].filter(Boolean)) core.setSecret(secret);
+            const result = spawnSync('npm', ['run', 'test:uat'], { env: { ...process.env }, stdio: 'ignore' });
 
             const flaggedArtifacts = [];
             for (const root of ['playwright-report', 'test-results']) {
@@ -282,17 +290,21 @@ jobs:
                   stack.push(...fs.readdirSync(current).map((entry) => path.join(current, entry)));
                 } else {
                   const content = fs.readFileSync(current);
-                  const reasons = artifactLeakReasons(current, content, { bypassSecret, secretValues: artifactSecrets });
-                  if (reasons.length) flaggedArtifacts.push({ path: path.relative(process.cwd(), current).replace(/\\/g, '/'), reasons });
+                  const relativePath = path.relative(process.cwd(), current).replace(/\\/g, '/');
+                  const finding = scanArtifact(relativePath, content, { bypassSecret, passwordValues, emailValues });
+                  if (!finding.safe) flaggedArtifacts.push(finding);
                 }
               }
             }
 
-            core.setOutput('artifact_leak', String(flaggedArtifacts.length));
-            for (const artifact of flaggedArtifacts) core.warning(`ARTIFACT_SCAN path=${artifact.path} category=${artifact.reasons.join(',')}`);
-            if (flaggedArtifacts.length > 0) core.setFailed('VERCEL_BYPASS_ARTIFACT_LEAK');
+            const leakCount = flaggedArtifacts.reduce((count, artifact) => count + artifact.categories.length, 0);
+            fs.writeFileSync('test-results/uat-v3-artifact-summary.json', JSON.stringify({ leakCount, findings: flaggedArtifacts.map(({ path: filePath, categories }) => ({ path: sanitizeArtifactPath(filePath), categories })) }));
+            core.setOutput('artifact_leak', String(leakCount));
+            core.setOutput('artifact_leak_count', String(leakCount));
+            for (const artifact of flaggedArtifacts) for (const category of artifact.categories) core.warning(`ARTIFACT_SCAN path=${artifact.path} category=${category}`);
+            if (leakCount > 0) core.setFailed('UAT_ARTIFACT_LEAK');
             else if (result.error || result.status !== 0) core.setFailed('UAT_EXECUTION_FAILED');
-            else core.info('VERCEL_BYPASS_ARTIFACT_LEAK=0');
+            else core.info('ARTIFACT_LEAK_COUNT=0');
       - name: Publish authenticated UAT summary
         if: always()
         shell: bash
@@ -302,7 +314,7 @@ jobs:
             echo "- Mode: $UAT_MODE"
             echo "- Target: $UAT_BASE_URL"
             echo "- Result: ${{ steps.uat.outcome }}"
-            echo "- VERCEL_BYPASS_ARTIFACT_LEAK: ${{ steps.uat.outputs.artifact_leak || 'not-scanned' }}"
+            echo "- Artifact leak count: ${{ steps.uat.outputs.artifact_leak_count || 'not-scanned' }}"
             if [[ -f test-results/uat-summary.md ]]; then cat test-results/uat-summary.md; fi
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload authenticated UAT artifacts

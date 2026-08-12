@@ -90,7 +90,7 @@ for (const viewport of viewports) {
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
     }
     await assertNoHorizontalOverflow(page);
-    await captureScreenshot(page, testInfo, `technical-login-${viewport.name}`);
+    await captureScreenshot(page, testInfo, `technical-login-${viewport.name}`, { allowLoginForm: true });
     monitor.assertClean();
   });
 }

@@ -16,7 +16,7 @@ for (const role of ['MANAGER', 'VIEWER']) {
       await expect(page.getByRole('button', { name: /บันทึกการใช้งานระบบ/ })).toHaveCount(0);
 
       if (role === 'MANAGER') {
-        await expectApiSuccess(page, '/api/v1/schedule-calendar', () => navigateTo(page, 'ตารางกะรายเดือน'));
+        await expectApiSuccess(page, '/api/v1/schedule-calendar', () => navigateTo(page, 'schedule'));
       } else {
         await expect(page.getByRole('button', { name: /ใบอนุญาต รปภ\./ })).toHaveCount(0);
       }

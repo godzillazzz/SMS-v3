@@ -31,13 +31,9 @@ test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) =
 test('ADMIN: Schedule, Leave, and License pages load through read endpoints', async ({ page }) => {
   const monitor = startPageMonitor(page);
   await loginAs(page, 'ADMIN');
-  const primaryNavigation = page.locator('nav.nav-menu button.nav-item:visible');
-  await expectApiSuccess(page, '/api/v1/schedule-calendar', () => navigateTo(page, 'ตารางกะรายเดือน'));
-  await expect(primaryNavigation.filter({ hasText: 'ตารางกะรายเดือน' }).first()).toBeVisible();
-  await expectApiSuccess(page, '/api/v1/leave-requests', () => navigateTo(page, 'คำขอลา'));
-  await expect(primaryNavigation.filter({ hasText: 'คำขอลา' }).first()).toBeVisible();
-  await expectApiSuccess(page, '/api/v1/licenses', () => navigateTo(page, 'ใบอนุญาต รปภ.'));
-  await expect(primaryNavigation.filter({ hasText: 'ใบอนุญาต รปภ.' }).first()).toBeVisible();
+  await expectApiSuccess(page, '/api/v1/schedule-calendar', () => navigateTo(page, 'schedule'));
+  await expectApiSuccess(page, '/api/v1/leave-requests', () => navigateTo(page, 'leave'));
+  await expectApiSuccess(page, '/api/v1/licenses', () => navigateTo(page, 'licenses'));
   monitor.assertClean();
 });
 
@@ -45,7 +41,7 @@ test('ADMIN: Audit Log remains read-only and can open an existing detail safely'
   const monitor = startPageMonitor(page);
   const { accessToken } = await loginAs(page, 'ADMIN');
   await expect(getAuditEventsStatus(page, accessToken)).resolves.toBe(200);
-  await expectApiSuccess(page, '/api/v1/audit-events', () => navigateTo(page, 'บันทึกการใช้งานระบบ'));
+  await expectApiSuccess(page, '/api/v1/audit-events', () => navigateTo(page, 'audit'));
   const auditPage = page.locator('.audit-compliance-page');
   await expect(auditPage).toBeVisible();
   await expect(auditPage.getByRole('button', { name: /อนุมัติ|ปฏิเสธ|ลบถาวร|แก้ไข/ })).toHaveCount(0);
