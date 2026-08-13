@@ -152,9 +152,10 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(workflow, /UAT_APPLICATION_ROOT:/);
   assert.match(workflow, /path: application-under-test/);
   assert.match(workflow, /git -C application-under-test rev-parse HEAD/);
-  assert.match(workflow, /UAT_HARNESS_SOURCE_NOT_APPROVED_HEAD/);
+  assert.match(workflow, /APPROVED_HARNESS_SHA=/);
+  assert.match(workflow, /uat-target-contract\.js harness/);
   assert.match(workflow, /origin\/fix\/serverless-database-reliability\)" != "\$SOURCE_SHA"/);
-  assert.match(workflow, /origin\/test\/automated-uat-v3-authenticated\)" != "\$HARNESS_SHA"/);
+  assert.match(workflow, /APPROVED_HARNESS_SHA="\$\(git rev-parse origin\/test\/automated-uat-v3-authenticated\)"/);
   assert.match(workflow, /\[\[ "\$DEPLOYMENT_ID" =~ \^dpl_/);
   assert.match(workflow, /uat_mode:/);
   assert.match(workflow, /default:\s*technical/);
@@ -181,10 +182,19 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   const forbiddenWorkflowSecrets = [
     ['DATABASE', 'URL'],
     ['DIRECT', 'URL'],
-    ['JWT', 'SECRET'],
-    ['VERCEL', 'TOKEN'],
-    ['VERCEL', 'ORG', 'ID'],
-    ['VERCEL', 'PROJECT', 'ID']
+    ['JWT', 'SECRET']
   ].map((parts) => parts.join('_'));
   for (const name of forbiddenWorkflowSecrets) assert.doesNotMatch(workflow, new RegExp(`\\b${name}\\b`));
-});
+
+  assert.match(workflow, /target_mode:/);
+  assert.match(workflow, /- candidate/);
+  assert.match(workflow, /- canonical/);
+  assert.match(workflow, /uat-target-contract\.js scope/);
+  assert.match(workflow, /uat-target-contract\.js verify/);
+  assert.match(workflow, /vercel@"\$VERCEL_CLI_VERSION" inspect "\$TARGET_URL"/);
+  assert.match(workflow, /vercel@"\$VERCEL_CLI_VERSION" inspect "\$DEPLOYMENT_ID"/);
+  assert.equal((workflow.match(/VERCEL_TOKEN: \$\{\{ secrets\.VERCEL_TOKEN \}\}/g) || []).length, 2);
+  const authenticatedRunStep = workflow.match(/- name: Run authenticated UAT V3[\s\S]*?(?=\r?\n      - name: Publish authenticated UAT summary)/)?.[0] || '';
+  const technicalRunStep = workflow.match(/- name: Run technical UAT V3 without credentials[\s\S]*?(?=\r?\n      - name: Publish technical UAT summary)/)?.[0] || '';
+  assert.doesNotMatch(authenticatedRunStep, /VERCEL_TOKEN/);
+  assert.doesNotMatch(technicalRunStep, /VERCEL_TOKEN/);});

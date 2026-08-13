@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validateCandidateIdentity } = require('../e2e/helpers/uat-candidate-contract');
+const { validateHarnessIdentity, validateTargetIdentity } = require('../e2e/helpers/uat-target-contract');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
@@ -179,29 +179,55 @@ test('UAT_V3_HARNESS_PREFLIGHT: workflow diagnostics are safe and do not expose 
 test('UAT_V3_HARNESS_PREFLIGHT: application and harness identities are independent and exact', () => {
   const workflow = read('.github/workflows/automated-uat-sms-v3-staging.yml');
   const regressionContracts = read('e2e/helpers/regression-contracts.js');
-  const candidateValidator = read('e2e/helpers/uat-candidate-contract.js');
-  const candidateContract = JSON.parse(read('e2e/fixtures/candidate-contract.json'));
+  const APPLICATION_SHA = 'e672c704c76c9fd53049b89736d56283029da1ea';
+  const DEPLOYMENT_ID = 'dpl_BXdWNdwFr2MzzPAgtWgyXz7faAuS';
+  const PROJECT_ID = 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s';
+  const PROJECT_NAME = 'sms-v3-staging';
+  const HARNESS_SHA = '1234567890abcdef1234567890abcdef12345678';
+  const deployment = {
+    id: DEPLOYMENT_ID,
+    name: PROJECT_NAME,
+    projectId: PROJECT_ID,
+    target: 'production',
+    readyState: 'READY',
+    meta: { githubCommitSha: APPLICATION_SHA }
+  };
+
+  assert.match(workflow, /target_mode:/);
   assert.match(workflow, /uat_harness_sha:/);
   assert.match(workflow, /ref: \$\{\{ inputs\.uat_harness_sha \}\}/);
   assert.match(workflow, /ref: \$\{\{ inputs\.source_sha \}\}[\s\S]*?path: application-under-test/);
   assert.match(workflow, /test "\$\(git rev-parse HEAD\)" = "\$HARNESS_SHA"/);
   assert.match(workflow, /test "\$\(git -C application-under-test rev-parse HEAD\)" = "\$SOURCE_SHA"/);
-  assert.match(workflow, /node e2e\/helpers\/uat-candidate-contract\.js/);
-  assert.match(candidateValidator, /UAT_CANDIDATE_IDENTITY_MISMATCH/);
-  assert.deepEqual(candidateContract, {
-    applicationSha: 'e672c704c76c9fd53049b89736d56283029da1ea',
-    deploymentId: 'dpl_BXdWNdwFr2MzzPAgtWgyXz7faAuS',
-    targetUrl: 'https://sms-v3-staging-cezup20q5-godzillazz.vercel.app'
+  assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js scope/);
+  assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js harness/);
+  assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js verify/);
+  assert.match(workflow, /inspect "\$TARGET_URL"/);
+  assert.match(workflow, /inspect "\$DEPLOYMENT_ID"/);
+
+  assert.deepEqual(validateHarnessIdentity({
+    harnessSha: HARNESS_SHA,
+    checkoutSha: HARNESS_SHA,
+    approvedHarnessSha: HARNESS_SHA
+  }), { valid: true, harnessSha: HARNESS_SHA });
+
+  assert.deepEqual(validateTargetIdentity({
+    targetMode: 'canonical',
+    targetUrl: 'https://sms-v3-staging-ten.vercel.app',
+    expectedDeploymentId: DEPLOYMENT_ID,
+    applicationSha: APPLICATION_SHA,
+    targetDeployment: deployment,
+    expectedDeployment: deployment,
+    expectedProjectId: PROJECT_ID,
+    expectedProjectName: PROJECT_NAME
+  }), {
+    valid: true,
+    targetMode: 'canonical',
+    targetHost: 'sms-v3-staging-ten.vercel.app',
+    deploymentId: DEPLOYMENT_ID,
+    applicationSha: APPLICATION_SHA
   });
-  assert.deepEqual(validateCandidateIdentity(
-    candidateContract.applicationSha,
-    candidateContract.deploymentId,
-    candidateContract.targetUrl
-  ), { valid: true });
-  assert.throws(
-    () => validateCandidateIdentity(candidateContract.applicationSha, 'dpl_wrong', candidateContract.targetUrl),
-    { code: 'UAT_CANDIDATE_IDENTITY_MISMATCH' }
-  );
+
   assert.match(regressionContracts, /process\.env\.UAT_APPLICATION_ROOT/);
   assert.match(regressionContracts, /EMPLOYEE_LIFECYCLE_ROUTE_CONTRACT_FAILED/);
   assert.match(regressionContracts, /EMPLOYEE_LIFECYCLE_SERVICE_CONTRACT_FAILED/);
