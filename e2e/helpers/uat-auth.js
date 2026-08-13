@@ -13,7 +13,7 @@ async function preflightRoleAccounts(environment = process.env) {
 
   const context = await request.newContext({
     baseURL: config.baseURL,
-    extraHTTPHeaders: automationBypassHeaders(environment, config.baseURL, `${config.baseURL}/api/v1/auth/login`, { setBypassCookie: true })
+    extraHTTPHeaders: automationBypassHeaders(environment, config.baseURL, `${config.baseURL}/api/v1/auth/login`)
   });
   const sessions = {};
   try {

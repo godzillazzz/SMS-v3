@@ -23,8 +23,7 @@ const test = base.extend({
       const headers = automationBypassHeaders(
         process.env,
         targetUrl,
-        request.url(),
-        { setBypassCookie: true }
+        request.url()
       );
       const requestHeaders = { ...request.headers() };
       delete requestHeaders['x-vercel-protection-bypass'];

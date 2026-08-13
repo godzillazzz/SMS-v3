@@ -123,12 +123,11 @@ jobs:
           status=$(curl --silent --show-error --location --max-time 20 \
             --dump-header "$headers" --output "$body" --write-out '%{http_code}' \
             -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
-            -H 'x-vercel-set-bypass-cookie: true' \
             "$TARGET_URL/")
           protected=$(node - "$body" <<'NODE'
           const fs = require('node:fs');
           const body = fs.readFileSync(process.argv[2], 'utf8');
-          process.stdout.write(/<title[^>]*>\s*Login\s*[–—-]\s*Vercel\s*<\/title>/i.test(body) ? 'true' : 'false');
+          process.stdout.write(/<title[^>]*>\s*Login\s*[ï¿½ï¿½-]\s*Vercel\s*<\/title>/i.test(body) ? 'true' : 'false');
           NODE
           )
           echo "VERCEL_AUTOMATION_BYPASS_HTTP_STATUS=$status"
@@ -328,12 +327,11 @@ jobs:
           status=$(curl --silent --show-error --location --max-time 20 \
             --dump-header "$headers" --output "$body" --write-out '%{http_code}' \
             -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
-            -H 'x-vercel-set-bypass-cookie: true' \
             "$TARGET_URL/")
           protected=$(node - "$body" <<'NODE'
           const fs = require('node:fs');
           const body = fs.readFileSync(process.argv[2], 'utf8');
-          process.stdout.write(/<title[^>]*>\s*Login\s*[–—-]\s*Vercel\s*<\/title>/i.test(body) ? 'true' : 'false');
+          process.stdout.write(/<title[^>]*>\s*Login\s*[ï¿½ï¿½-]\s*Vercel\s*<\/title>/i.test(body) ? 'true' : 'false');
           NODE
           )
           echo "VERCEL_AUTOMATION_BYPASS_HTTP_STATUS=$status"
