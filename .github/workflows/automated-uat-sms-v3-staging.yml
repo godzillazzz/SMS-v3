@@ -94,6 +94,13 @@ jobs:
           trap cleanup EXIT
           node e2e/helpers/uat-target-contract.js fetch "$TARGET_URL" "$target_inspect" "$EXPECTED_ORG_ID"
           node e2e/helpers/uat-target-contract.js fetch "$DEPLOYMENT_ID" "$expected_inspect" "$EXPECTED_ORG_ID"
+          node - "$target_inspect" "$expected_inspect" <<'NODE'
+          const fs = require('node:fs');
+          const [targetFile, expectedFile] = process.argv.slice(2);
+          const safe = (value) => value === null ? 'null' : value === undefined ? 'missing' : String(value);
+          console.log(`UAT_TARGET_RECORD_TARGET=${safe(JSON.parse(fs.readFileSync(targetFile, 'utf8')).target)}`);
+          console.log(`UAT_EXPECTED_RECORD_TARGET=${safe(JSON.parse(fs.readFileSync(expectedFile, 'utf8')).target)}`);
+          NODE
           node e2e/helpers/uat-target-contract.js verify \
             "$TARGET_MODE" "$TARGET_URL" "$DEPLOYMENT_ID" "$SOURCE_SHA" \
             "$target_inspect" "$expected_inspect" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME"
@@ -262,6 +269,13 @@ jobs:
           trap cleanup EXIT
           node e2e/helpers/uat-target-contract.js fetch "$TARGET_URL" "$target_inspect" "$EXPECTED_ORG_ID"
           node e2e/helpers/uat-target-contract.js fetch "$DEPLOYMENT_ID" "$expected_inspect" "$EXPECTED_ORG_ID"
+          node - "$target_inspect" "$expected_inspect" <<'NODE'
+          const fs = require('node:fs');
+          const [targetFile, expectedFile] = process.argv.slice(2);
+          const safe = (value) => value === null ? 'null' : value === undefined ? 'missing' : String(value);
+          console.log(`UAT_TARGET_RECORD_TARGET=${safe(JSON.parse(fs.readFileSync(targetFile, 'utf8')).target)}`);
+          console.log(`UAT_EXPECTED_RECORD_TARGET=${safe(JSON.parse(fs.readFileSync(expectedFile, 'utf8')).target)}`);
+          NODE
           node e2e/helpers/uat-target-contract.js verify \
             "$TARGET_MODE" "$TARGET_URL" "$DEPLOYMENT_ID" "$SOURCE_SHA" \
             "$target_inspect" "$expected_inspect" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME"
