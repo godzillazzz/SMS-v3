@@ -42,6 +42,7 @@ jobs:
   technical-smoke:
     if: ${{ inputs.uat_mode == 'technical' }}
     runs-on: ubuntu-latest
+    environment: production-sms-v3-staging
     timeout-minutes: 25
     env:
       UAT_BASE_URL: ${{ inputs.target_url }}
@@ -78,10 +79,10 @@ jobs:
           [[ "$HARNESS_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
           node e2e/helpers/uat-target-contract.js scope "$TARGET_MODE" "$TARGET_URL"
-          git fetch --no-tags origin fix/serverless-database-reliability
+          git fetch --no-tags origin fix/employee-lifecycle-transaction-reliability
           git cat-file -e "${SOURCE_SHA}^{commit}"
           git cat-file -e "${HARNESS_SHA}^{commit}"
-          if [[ "$(git rev-parse origin/fix/serverless-database-reliability)" != "$SOURCE_SHA" ]]; then
+          if [[ "$(git rev-parse origin/fix/employee-lifecycle-transaction-reliability)" != "$SOURCE_SHA" ]]; then
             echo 'TECHNICAL_SMOKE_SOURCE_NOT_APPROVED_HEAD'
             exit 1
           fi
@@ -246,10 +247,10 @@ jobs:
           [[ "$HARNESS_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
           node e2e/helpers/uat-target-contract.js scope "$TARGET_MODE" "$TARGET_URL"
-          git fetch --no-tags origin fix/serverless-database-reliability
+          git fetch --no-tags origin fix/employee-lifecycle-transaction-reliability
           git cat-file -e "${SOURCE_SHA}^{commit}"
           git cat-file -e "${HARNESS_SHA}^{commit}"
-          if [[ "$(git rev-parse origin/fix/serverless-database-reliability)" != "$SOURCE_SHA" ]]; then
+          if [[ "$(git rev-parse origin/fix/employee-lifecycle-transaction-reliability)" != "$SOURCE_SHA" ]]; then
             echo 'TECHNICAL_SMOKE_SOURCE_NOT_APPROVED_HEAD'
             exit 1
           fi

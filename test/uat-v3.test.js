@@ -154,7 +154,7 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(workflow, /git -C application-under-test rev-parse HEAD/);
   assert.match(workflow, /GITHUB_REF_TYPE: \$\{\{ github\.ref_type \}\}/);
   assert.match(workflow, /uat-target-contract\.js harness/);
-  assert.match(workflow, /origin\/fix\/serverless-database-reliability\)" != "\$SOURCE_SHA"/);
+  assert.match(workflow, /origin\/fix\/employee-lifecycle-transaction-reliability\)" != "\$SOURCE_SHA"/);
   assert.match(workflow, /GITHUB_REF_NAME: \$\{\{ github\.ref_name \}\}/);
   assert.match(workflow, /\[\[ "\$DEPLOYMENT_ID" =~ \^dpl_/);
   assert.match(workflow, /uat_mode:/);
@@ -168,7 +168,7 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   const authenticatedJob = workflow.match(/\r?\n  authenticated-uat:\r?\n([\s\S]*)$/)?.[1];
   assert.ok(technicalJob);
   assert.ok(authenticatedJob);
-  assert.doesNotMatch(technicalJob, /environment:\s*production-sms-v3-staging/);
+  assert.match(technicalJob, /environment:\s*production-sms-v3-staging/);
   assert.match(authenticatedJob, /environment:\s*production-sms-v3-staging/);
   for (const name of ['UAT_ADMIN_EMAIL', 'UAT_ADMIN_PASSWORD', 'UAT_MANAGER_EMAIL', 'UAT_MANAGER_PASSWORD', 'UAT_VIEWER_EMAIL', 'UAT_VIEWER_PASSWORD']) {
     assert.doesNotMatch(technicalJob, new RegExp(`\\b${name}\\b`));
