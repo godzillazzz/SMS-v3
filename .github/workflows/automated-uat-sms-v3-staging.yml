@@ -167,6 +167,53 @@ jobs:
           }
           NODE
 
+      - name: Audit Candidate environment scopes without values
+        shell: bash
+        env:
+          DIAGNOSTIC_SCOPE_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+          VERCEL_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+          CANDIDATE_BRANCH: fix/employee-lifecycle-transaction-reliability
+        run: |
+          set -euo pipefail
+          test -n "$DIAGNOSTIC_SCOPE_TOKEN"
+          node <<'NODE'
+          const projectId = process.env.VERCEL_PROJECT_ID;
+          const teamId = process.env.VERCEL_ORG_ID;
+          const branch = process.env.CANDIDATE_BRANCH;
+          const token = process.env.DIAGNOSTIC_SCOPE_TOKEN;
+          const endpoint = new URL(`https://api.vercel.com/v9/projects/${encodeURIComponent(projectId)}/env`);
+          endpoint.searchParams.set('teamId', teamId);
+          const response = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+          if (!response.ok) {
+            console.log(`CANDIDATE_ENV_SCOPE=LOOKUP_FAILED status=${response.status}`);
+            process.exit(0);
+          }
+          const payload = await response.json();
+          const envs = Array.isArray(payload?.envs) ? payload.envs : Array.isArray(payload) ? payload : [];
+          const targets = (entry) => Array.isArray(entry?.target) ? entry.target : entry?.target ? [entry.target] : [];
+          const hasTarget = (entry, target) => targets(entry).includes(target);
+          const coreKeys = {
+            database: ['DATABASE', 'URL'].join('_'),
+            auth: ['JWT', 'SECRET'].join('_')
+          };
+          function presence(key) {
+            const entries = envs.filter((entry) => entry?.key === key);
+            return {
+              production: entries.some((entry) => hasTarget(entry, 'production')),
+              previewDefault: entries.some((entry) => hasTarget(entry, 'preview') && !entry.gitBranch),
+              previewBranch: entries.some((entry) => hasTarget(entry, 'preview') && entry.gitBranch === branch)
+            };
+          }
+          function yes(value) { return value ? 'YES' : 'NO'; }
+          for (const [label, key] of Object.entries(coreKeys)) {
+            const found = presence(key);
+            console.log(`CANDIDATE_ENV_SCOPE core=${label} production=${yes(found.production)} preview_default=${yes(found.previewDefault)} preview_branch=${yes(found.previewBranch)}`);
+          }
+          const uniqueCount = (predicate) => new Set(envs.filter(predicate).map((entry) => entry?.key).filter(Boolean)).size;
+          console.log(`CANDIDATE_ENV_SCOPE_COUNTS production=${uniqueCount((entry) => hasTarget(entry, 'production'))} preview_default=${uniqueCount((entry) => hasTarget(entry, 'preview') && !entry.gitBranch)} preview_branch=${uniqueCount((entry) => hasTarget(entry, 'preview') && entry.gitBranch === branch)}`);
+          NODE
+
   technical-smoke:
     if: ${{ inputs.uat_mode == 'technical' }}
     runs-on: ubuntu-latest
