@@ -71,6 +71,17 @@ test('4. Canonical resolving to unexpected deployment fails closed', () => {
   );
 });
 
+test('Candidate mode accepts Vercel REST null target as Preview when all immutable identity checks match', () => {
+  assert.equal(verify({ targetDeployment: deployment({ target: null }), expectedDeployment: deployment({ target: null }) }).valid, true);
+});
+
+test('Canonical mode fails closed if Vercel REST target is null', () => {
+  assert.throws(
+    () => verify({ targetMode: 'canonical', targetUrl: CANONICAL_URL, targetDeployment: deployment({ target: null }), expectedDeployment: deployment({ target: null }) }),
+    { code: 'UAT_DEPLOYMENT_TARGET_MISMATCH' }
+  );
+});
+
 test('Candidate mode fails closed if the deployment target is production', () => {
   assert.throws(
     () => verify({ targetDeployment: deployment({ target: 'production' }) }),

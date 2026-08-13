@@ -139,6 +139,12 @@ async function fetchDeploymentRecord({ idOrUrl, token, teamId, fetchImpl = globa
   return selectDeploymentIdentityRecord(deployment);
 }
 
+function normalizeDeploymentTarget(value) {
+  if (value === 'production') return 'production';
+  if (value === 'preview' || value === null || value === undefined) return 'preview';
+  throw contractError('UAT_DEPLOYMENT_TARGET_INVALID');
+}
+
 function validateDeploymentRecord(deployment, {
   expectedDeploymentId,
   applicationSha,
@@ -154,7 +160,7 @@ function validateDeploymentRecord(deployment, {
   if (deployment.name !== expectedProjectName) throw contractError('UAT_DEPLOYMENT_PROJECT_NAME_MISMATCH');
   if (deployment.projectId && deployment.projectId !== expectedProjectId) throw contractError('UAT_DEPLOYMENT_PROJECT_ID_MISMATCH');
   if (!['preview', 'production'].includes(expectedTarget)) throw contractError('UAT_EXPECTED_DEPLOYMENT_TARGET_INVALID');
-  if (deployment.target !== expectedTarget) throw contractError('UAT_DEPLOYMENT_TARGET_MISMATCH');
+  if (normalizeDeploymentTarget(deployment.target) !== expectedTarget) throw contractError('UAT_DEPLOYMENT_TARGET_MISMATCH');
   if (deployment.readyState !== 'READY') throw contractError('UAT_DEPLOYMENT_NOT_READY');
   if (extractApplicationSha(deployment) !== expectedSha) throw contractError('UAT_APPLICATION_SHA_MISMATCH');
 
@@ -257,6 +263,7 @@ module.exports = {
   extractApplicationSha,
   fetchDeploymentRecord,
   normalizeTargetMode,
+  normalizeDeploymentTarget,
   parseTargetUrl,
   selectDeploymentIdentityRecord,
   validateDeploymentRecord,
