@@ -11,10 +11,25 @@ const forbiddenArtifactSegments = new Set([
 const textArtifactExtensions = new Set(['.css', '.csv', '.html', '.js', '.json', '.md', '.txt', '.xml']);
 const redactedPlaceholder = /^(?:<\s*(?:redacted|masked|secret)\s*>|\[\s*(?:redacted|masked|secret)\s*\]|\*{3,}|redacted|masked|not[-_ ]?set)$/i;
 
+function sensitiveUatValues(environment = process.env) {
+  const configuredValues = Array.isArray(environment) ? environment : [
+    environment.VERCEL_TRUSTED_OIDC_TOKEN,
+    environment.VERCEL_AUTOMATION_BYPASS_SECRET,
+    environment.UAT_VERCEL_PROTECTION_BYPASS,
+    environment.UAT_ADMIN_EMAIL,
+    environment.UAT_ADMIN_PASSWORD,
+    environment.UAT_MANAGER_EMAIL,
+    environment.UAT_MANAGER_PASSWORD,
+    environment.UAT_VIEWER_EMAIL,
+    environment.UAT_VIEWER_PASSWORD
+  ];
+  return configuredValues.filter(Boolean).sort((left, right) => String(right).length - String(left).length);
+}
+
 const authMaterialPatterns = [
   ['ACCESS_TOKEN_PATTERN', /["']accessToken["']\s*:\s*["'](?!<|\[|\*{3,})[A-Za-z0-9._~-]{20,}["']/i],
   ['REFRESH_TOKEN_PATTERN', /["']refreshToken["']\s*:\s*["'](?!<|\[|\*{3,})[A-Za-z0-9._~-]{20,}["']/i],
-  ['AUTHORIZATION_HEADER', /\bAuthorization\s*:\s*Bearer\s+[A-Za-z0-9._~-]{20,}/i],
+  ['AUTHORIZATION_HEADER', /["']?Authorization["']?\s*:\s*["']?Bearer\s+[A-Za-z0-9._~-]{20,}/i],
   ['COOKIE_PATTERN', /(?:set-cookie|document\.cookie|["']?cookies?["']?)\s*[:=]\s*["'][^"']{20,}["']/i],
   ['AUTH_STATE_FILE', /["']?(?:storageState|sessionStorage|localStorage)["']?\s*[:=]\s*["']?\s*[{[]/i],
   ['PASSWORD_VALUE', /["']?\b(?:password|passwd)\b["']?\s*[:=]\s*["']?(?!<\s*(?:redacted|masked|secret)\s*>|\[\s*(?:redacted|masked|secret)\s*\]|\*{3,}|redacted\b|masked\b)[^"',\s]{8,}/i],
@@ -46,6 +61,19 @@ function hasExactSecret(content, secret) {
   if (!secret || redactedPlaceholder.test(String(secret))) return false;
   const buffer = Buffer.isBuffer(content) ? content : Buffer.from(String(content || ''));
   return buffer.includes(Buffer.from(String(secret)));
+}
+
+function sanitizeUatDiagnostic(value, environment = process.env) {
+  let sanitized = String(value ?? '');
+  for (const secret of sensitiveUatValues(environment)) sanitized = sanitized.split(String(secret)).join('[REDACTED]');
+  return sanitized
+    .replace(/(["']?authorization["']?\s*[:=]\s*["']?)Bearer(?:\s+|-)[^\s,;}"']+/gi, '$1Bearer [REDACTED]')
+    .replace(/(["']?authorization["']?\s*[:=]\s*)(["']?)(?!Bearer(?:\b|-))[^"'\s,;}]+\2/gi, '$1$2[REDACTED]$2')
+    .replace(/\bBearer(?:\s+|-)[^\s,;]+/gi, 'Bearer [REDACTED]')
+    .replace(/(["']?(?:cookie|set-cookie|accessToken|refreshToken|password|passwd|secret|token|otp|api[-_]?key)["']?\s*[:=]\s*)(["']?)([^"'\s,;}]+)\2/gi, '$1$2[REDACTED]$2')
+    .replace(/(["']?(?:storageState|sessionStorage|localStorage)["']?\s*[:=]\s*)([\[{])/gi, '$1[REDACTED_STATE]')
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[REDACTED_EMAIL]')
+    .replace(/\b(?:eyJ[A-Za-z0-9._~-]{10,}|[A-Za-z0-9_-]{32,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})\b/g, '[REDACTED_TOKEN]');
 }
 
 function artifactContainsAuthMaterial(content) {
@@ -137,6 +165,8 @@ module.exports = {
   rolePreflightSummary,
   roleSuiteStatus,
   sanitizeArtifactPath,
+  sanitizeUatDiagnostic,
+  sensitiveUatValues,
   scanArtifact,
   textContent
 };

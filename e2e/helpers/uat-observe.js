@@ -1,5 +1,6 @@
 const { expect } = require('@playwright/test');
 const { getNavigationItem } = require('./uat-v3-role-matrix');
+const { sanitizeUatDiagnostic } = require('./uat-v3-security');
 
 const harmlessConsoleMessages = [/ResizeObserver loop limit exceeded/i];
 const harmlessRequestFailures = [/net::ERR_ABORTED/i];
@@ -12,20 +13,7 @@ function apiPath(response) {
   }
 }
 
-function sanitizeDiagnostic(
-  value,
-  sensitiveValues = [
-    process.env.VERCEL_TRUSTED_OIDC_TOKEN,
-    process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
-    process.env.UAT_VERCEL_PROTECTION_BYPASS
-  ].filter(Boolean)
-) {
-  let sanitized = String(value || '');
-  for (const secret of sensitiveValues) sanitized = sanitized.split(secret).join('[REDACTED_TOKEN]');
-  return sanitized
-    .replace(/(authorization|cookie|password|secret|token|otp|api[-_]?key)\s*[:=]\s*[^\s,;]+/gi, '$1=[REDACTED]')
-    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[REDACTED_EMAIL]');
-}
+const sanitizeDiagnostic = sanitizeUatDiagnostic;
 
 function requestTarget(url) {
   try {
@@ -159,7 +147,10 @@ async function assertNoHorizontalOverflow(page) {
 }
 
 async function captureScreenshot(page, testInfo, name, { allowLoginForm = false } = {}) {
-  if (!allowLoginForm) await expect(page.locator('form.login-form')).toHaveCount(0);
+  if (!allowLoginForm) {
+    await expect(page.locator('form.login-form')).toHaveCount(0);
+    await expect(page.locator('input[type="password"]:visible')).toHaveCount(0);
+  }
   const path = testInfo.outputPath(`${name}.png`);
   await page.screenshot({ path, fullPage: true });
   await testInfo.attach(name, { path, contentType: 'image/png' });

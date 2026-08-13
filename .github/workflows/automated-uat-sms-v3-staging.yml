@@ -121,6 +121,7 @@ jobs:
               }
             }
 
+            fs.mkdirSync('test-results', { recursive: true });
             const leakCount = flaggedArtifacts.reduce((count, artifact) => count + artifact.categories.length, 0);
             fs.writeFileSync('test-results/uat-v3-artifact-summary.json', JSON.stringify({ leakCount, findings: flaggedArtifacts.map(({ path: filePath, categories }) => ({ path: sanitizeArtifactPath(filePath), categories })) }));
             core.setOutput('artifact_leak', String(leakCount));
@@ -147,15 +148,10 @@ jobs:
         with:
           name: automated-uat-technical-${{ github.run_id }}
           path: |
-            playwright-report
-            test-results
-            !playwright-report/**/.auth/**
-            !playwright-report/**/auth-state/**
-            !playwright-report/**/storageState*
-            !test-results/**/.auth/**
-            !test-results/**/auth-state/**
-            !test-results/**/storageState*
-            !test-results/**/storage-state*
+            test-results/uat-summary.md
+            test-results/uat-results.json
+            test-results/uat-v3-account-preflight.json
+            test-results/uat-v3-artifact-summary.json
           if-no-files-found: warn
           retention-days: 7
 
@@ -297,6 +293,7 @@ jobs:
               }
             }
 
+            fs.mkdirSync('test-results', { recursive: true });
             const leakCount = flaggedArtifacts.reduce((count, artifact) => count + artifact.categories.length, 0);
             fs.writeFileSync('test-results/uat-v3-artifact-summary.json', JSON.stringify({ leakCount, findings: flaggedArtifacts.map(({ path: filePath, categories }) => ({ path: sanitizeArtifactPath(filePath), categories })) }));
             core.setOutput('artifact_leak', String(leakCount));
@@ -323,14 +320,9 @@ jobs:
         with:
           name: automated-uat-authenticated-${{ github.run_id }}
           path: |
-            playwright-report
-            test-results
-            !playwright-report/**/.auth/**
-            !playwright-report/**/auth-state/**
-            !playwright-report/**/storageState*
-            !test-results/**/.auth/**
-            !test-results/**/auth-state/**
-            !test-results/**/storageState*
-            !test-results/**/storage-state*
+            test-results/uat-summary.md
+            test-results/uat-results.json
+            test-results/uat-v3-account-preflight.json
+            test-results/uat-v3-artifact-summary.json
           if-no-files-found: warn
           retention-days: 7
