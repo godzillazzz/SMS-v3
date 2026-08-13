@@ -192,6 +192,7 @@ jobs:
       UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
       UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
       UAT_MODE: authenticated
+      PLAYWRIGHT_NO_COPY_PROMPT: 1
       UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
       UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
       UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
