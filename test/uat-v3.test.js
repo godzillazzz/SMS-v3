@@ -148,14 +148,14 @@ test('V3 artifact safety rejects auth state paths and token-bearing content', ()
 
 test('V3 workflow exposes explicit mode and least-privilege credential contract', () => {
   assert.match(workflow, /uat_harness_sha:/);
-  assert.match(workflow, /Exact trusted UAT harness HEAD/);
+  assert.match(workflow, /Exact trusted UAT harness SHA pinned by immutable/);
   assert.match(workflow, /UAT_APPLICATION_ROOT:/);
   assert.match(workflow, /path: application-under-test/);
   assert.match(workflow, /git -C application-under-test rev-parse HEAD/);
-  assert.match(workflow, /APPROVED_HARNESS_SHA=/);
+  assert.match(workflow, /GITHUB_REF_TYPE: \$\{\{ github\.ref_type \}\}/);
   assert.match(workflow, /uat-target-contract\.js harness/);
   assert.match(workflow, /origin\/fix\/serverless-database-reliability\)" != "\$SOURCE_SHA"/);
-  assert.match(workflow, /APPROVED_HARNESS_SHA="\$\(git rev-parse origin\/test\/automated-uat-v3-authenticated\)"/);
+  assert.match(workflow, /GITHUB_REF_NAME: \$\{\{ github\.ref_name \}\}/);
   assert.match(workflow, /\[\[ "\$DEPLOYMENT_ID" =~ \^dpl_/);
   assert.match(workflow, /uat_mode:/);
   assert.match(workflow, /default:\s*technical/);
@@ -175,7 +175,7 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
     assert.match(authenticatedJob, new RegExp(`\\b${name}\\b`));
   }
   assert.match(authenticatedJob, /VERCEL_AUTOMATION_BYPASS_SECRET/);
-  assert.match(workflow, /test\/automated-uat-v3-authenticated/);
+  assert.match(workflow, /uat-harness-v3-<sha>/);
   assert.match(authenticatedSmoke, /Employee Lifecycle management, history, state, and preflight/);
   assert.match(authenticatedSmoke, /Employee Lifecycle history is read-only and mutations are forbidden/);
   assert.match(authenticatedSmoke, /Employee Lifecycle history and mutations are forbidden/);
@@ -191,8 +191,8 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(workflow, /- canonical/);
   assert.match(workflow, /uat-target-contract\.js scope/);
   assert.match(workflow, /uat-target-contract\.js verify/);
-  assert.match(workflow, /vercel@"\$VERCEL_CLI_VERSION" inspect "\$TARGET_URL"/);
-  assert.match(workflow, /vercel@"\$VERCEL_CLI_VERSION" inspect "\$DEPLOYMENT_ID"/);
+  assert.match(workflow, /uat-target-contract\.js fetch "\$TARGET_URL"/);
+  assert.match(workflow, /uat-target-contract\.js fetch "\$DEPLOYMENT_ID"/);
   assert.equal((workflow.match(/VERCEL_TOKEN: \$\{\{ secrets\.VERCEL_TOKEN \}\}/g) || []).length, 2);
   const authenticatedRunStep = workflow.match(/- name: Run authenticated UAT V3[\s\S]*?(?=\r?\n      - name: Publish authenticated UAT summary)/)?.[0] || '';
   const technicalRunStep = workflow.match(/- name: Run technical UAT V3 without credentials[\s\S]*?(?=\r?\n      - name: Publish technical UAT summary)/)?.[0] || '';

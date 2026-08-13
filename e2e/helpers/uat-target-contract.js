@@ -58,11 +58,12 @@ function validateTargetScope(targetMode, targetUrl) {
   return { mode, host, url: `https://${host}` };
 }
 
-function validateHarnessIdentity({ harnessSha, checkoutSha, approvedHarnessSha }) {
+function validateHarnessIdentity({ harnessSha, checkoutSha, githubRefType, githubRefName }) {
   const expected = assertGitSha(harnessSha, 'UAT_HARNESS_SHA_INVALID');
   const checkout = assertGitSha(checkoutSha, 'UAT_CHECKOUT_SHA_INVALID');
-  const approved = assertGitSha(approvedHarnessSha, 'UAT_APPROVED_HARNESS_SHA_INVALID');
-  if (checkout !== expected || approved !== expected) throw contractError('UAT_HARNESS_SHA_MISMATCH');
+  if (checkout !== expected) throw contractError('UAT_HARNESS_SHA_MISMATCH');
+  if (githubRefType !== 'tag') throw contractError('UAT_HARNESS_REF_NOT_TRUSTED_TAG');
+  if (githubRefName !== `uat-harness-v3-${expected}`) throw contractError('UAT_HARNESS_REF_MISMATCH');
   return { valid: true, harnessSha: expected };
 }
 
@@ -76,6 +77,66 @@ function extractApplicationSha(deployment) {
   if (values.length === 0) throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_MISSING');
   if (values.length !== 1) throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_CONFLICT');
   return values[0];
+}
+
+function selectDeploymentIdentityRecord(deployment) {
+  if (!deployment || typeof deployment !== 'object') throw contractError('UAT_DEPLOYMENT_RECORD_INVALID');
+  const selected = {
+    id: deployment.id,
+    name: deployment.name,
+    projectId: deployment.projectId,
+    target: deployment.target,
+    readyState: deployment.readyState,
+    url: deployment.url
+  };
+  if (typeof deployment?.meta?.githubCommitSha === 'string') {
+    selected.meta = { githubCommitSha: deployment.meta.githubCommitSha };
+  }
+  if (typeof deployment?.gitSource?.sha === 'string') {
+    selected.gitSource = { sha: deployment.gitSource.sha };
+  }
+  if (typeof deployment?.source?.sha === 'string') {
+    selected.source = { sha: deployment.source.sha };
+  }
+  return selected;
+}
+
+async function fetchDeploymentRecord({ idOrUrl, token, teamId, fetchImpl = globalThis.fetch }) {
+  if (typeof fetchImpl !== 'function') throw contractError('UAT_VERCEL_FETCH_UNAVAILABLE');
+  if (!String(token || '').trim()) throw contractError('UAT_VERCEL_TOKEN_MISSING');
+  if (!String(teamId || '').trim()) throw contractError('UAT_VERCEL_TEAM_ID_MISSING');
+
+  let lookup;
+  const raw = String(idOrUrl || '').trim();
+  if (DEPLOYMENT_ID.test(raw)) {
+    lookup = raw;
+  } else {
+    lookup = parseTargetUrl(raw).hostname.toLowerCase();
+  }
+
+  const endpoint = new URL(`https://api.vercel.com/v13/deployments/${encodeURIComponent(lookup)}`);
+  endpoint.searchParams.set('teamId', teamId);
+  let response;
+  try {
+    response = await fetchImpl(endpoint, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'User-Agent': 'sms-v3-uat-target-contract'
+      }
+    });
+  } catch {
+    throw contractError('UAT_VERCEL_DEPLOYMENT_LOOKUP_FAILED');
+  }
+  if (!response?.ok) throw contractError('UAT_VERCEL_DEPLOYMENT_LOOKUP_FAILED');
+
+  let deployment;
+  try {
+    deployment = await response.json();
+  } catch {
+    throw contractError('UAT_VERCEL_DEPLOYMENT_JSON_INVALID');
+  }
+  return selectDeploymentIdentityRecord(deployment);
 }
 
 function validateDeploymentRecord(deployment, {
@@ -139,7 +200,7 @@ function readJson(path) {
   }
 }
 
-if (require.main === module) {
+async function main() {
   try {
     const [command, ...args] = process.argv.slice(2);
     if (command === 'scope') {
@@ -147,9 +208,19 @@ if (require.main === module) {
       const result = validateTargetScope(targetMode, targetUrl);
       process.stdout.write(`UAT_TARGET_SCOPE=PASS mode=${result.mode} host=${result.host}\n`);
     } else if (command === 'harness') {
-      const [harnessSha, checkoutSha, approvedHarnessSha] = args;
-      const result = validateHarnessIdentity({ harnessSha, checkoutSha, approvedHarnessSha });
+      const [harnessSha, checkoutSha, githubRefType, githubRefName] = args;
+      const result = validateHarnessIdentity({ harnessSha, checkoutSha, githubRefType, githubRefName });
       process.stdout.write(`UAT_HARNESS_IDENTITY=PASS sha=${result.harnessSha}\n`);
+    } else if (command === 'fetch') {
+      const [idOrUrl, outputFile, teamId] = args;
+      if (!outputFile) throw contractError('UAT_VERCEL_OUTPUT_FILE_MISSING');
+      const record = await fetchDeploymentRecord({
+        idOrUrl,
+        token: process.env.VERCEL_TOKEN,
+        teamId
+      });
+      fs.writeFileSync(outputFile, JSON.stringify(record));
+      process.stdout.write('UAT_VERCEL_DEPLOYMENT_LOOKUP=PASS\n');
     } else if (command === 'verify') {
       const [targetMode, targetUrl, expectedDeploymentId, applicationSha, targetFile, expectedFile, expectedProjectId, expectedProjectName] = args;
       const result = validateTargetIdentity({
@@ -172,13 +243,17 @@ if (require.main === module) {
   }
 }
 
+if (require.main === module) main();
+
 module.exports = {
   CANONICAL_HOST,
   CANDIDATE_HOST,
   contractError,
   extractApplicationSha,
+  fetchDeploymentRecord,
   normalizeTargetMode,
   parseTargetUrl,
+  selectDeploymentIdentityRecord,
   validateDeploymentRecord,
   validateHarnessIdentity,
   validateTargetIdentity,

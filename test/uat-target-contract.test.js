@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  fetchDeploymentRecord,
+  selectDeploymentIdentityRecord,
   validateHarnessIdentity,
   validateTargetIdentity,
   validateTargetScope
@@ -13,6 +15,7 @@ const PROJECT_NAME = 'sms-v3-staging';
 const CANDIDATE_URL = 'https://sms-v3-staging-cezup20q5-godzillazz.vercel.app';
 const CANONICAL_URL = 'https://sms-v3-staging-ten.vercel.app';
 const HARNESS_SHA = '1234567890abcdef1234567890abcdef12345678';
+const HARNESS_TAG = `uat-harness-v3-${HARNESS_SHA}`;
 
 function deployment(overrides = {}) {
   return {
@@ -75,12 +78,13 @@ test('5. correct deployment with wrong Application SHA fails closed', () => {
   );
 });
 
-test('6. wrong harness SHA fails closed', () => {
+test('6. wrong harness SHA or untrusted harness ref fails closed', () => {
   assert.throws(
     () => validateHarnessIdentity({
       harnessSha: HARNESS_SHA,
       checkoutSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      approvedHarnessSha: HARNESS_SHA
+      githubRefType: 'tag',
+      githubRefName: HARNESS_TAG
     }),
     { code: 'UAT_HARNESS_SHA_MISMATCH' }
   );
@@ -88,9 +92,19 @@ test('6. wrong harness SHA fails closed', () => {
     () => validateHarnessIdentity({
       harnessSha: HARNESS_SHA,
       checkoutSha: HARNESS_SHA,
-      approvedHarnessSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+      githubRefType: 'branch',
+      githubRefName: 'test/automated-uat-v3-authenticated'
     }),
-    { code: 'UAT_HARNESS_SHA_MISMATCH' }
+    { code: 'UAT_HARNESS_REF_NOT_TRUSTED_TAG' }
+  );
+  assert.throws(
+    () => validateHarnessIdentity({
+      harnessSha: HARNESS_SHA,
+      checkoutSha: HARNESS_SHA,
+      githubRefType: 'tag',
+      githubRefName: 'uat-harness-v3-wrong'
+    }),
+    { code: 'UAT_HARNESS_REF_MISMATCH' }
   );
 });
 
@@ -105,11 +119,12 @@ test('7. unapproved hostname fails closed', () => {
   );
 });
 
-test('trusted harness is bound to checkout and approved branch head SHA', () => {
+test('trusted harness is bound to immutable tag name and checkout SHA', () => {
   assert.equal(validateHarnessIdentity({
     harnessSha: HARNESS_SHA,
     checkoutSha: HARNESS_SHA,
-    approvedHarnessSha: HARNESS_SHA
+    githubRefType: 'tag',
+    githubRefName: HARNESS_TAG
   }).valid, true);
 });
 
@@ -117,4 +132,41 @@ test('candidate and canonical modes are distinct rather than hostname aliases', 
   assert.equal(validateTargetScope('candidate', CANDIDATE_URL).mode, 'candidate');
   assert.equal(validateTargetScope('canonical', CANONICAL_URL).mode, 'canonical');
   assert.throws(() => validateTargetScope('candidate', CANONICAL_URL), { code: 'UAT_CANDIDATE_HOST_NOT_APPROVED' });
+});
+
+test('Vercel API identity selection retains only fields needed for fail-closed validation', () => {
+  const selected = selectDeploymentIdentityRecord({
+    ...deployment(),
+    aliases: ['do-not-copy.example'],
+    meta: { githubCommitSha: APPLICATION_SHA, githubCommitMessage: 'not needed' },
+    creator: { uid: 'not-needed' }
+  });
+  assert.deepEqual(selected, {
+    id: DEPLOYMENT_ID,
+    name: PROJECT_NAME,
+    projectId: PROJECT_ID,
+    target: 'production',
+    readyState: 'READY',
+    url: undefined,
+    meta: { githubCommitSha: APPLICATION_SHA }
+  });
+  assert.equal(JSON.stringify(selected).includes('githubCommitMessage'), false);
+});
+
+test('Vercel API lookup uses hostname/ID and never returns the bearer token', async () => {
+  const calls = [];
+  const fakeFetch = async (url, options) => {
+    calls.push({ url: String(url), authorization: options.headers.Authorization });
+    return { ok: true, json: async () => deployment() };
+  };
+  const record = await fetchDeploymentRecord({
+    idOrUrl: CANONICAL_URL,
+    token: 'secret-vercel-token',
+    teamId: 'team_example',
+    fetchImpl: fakeFetch
+  });
+  assert.equal(record.id, DEPLOYMENT_ID);
+  assert.match(calls[0].url, /\/v13\/deployments\/sms-v3-staging-ten\.vercel\.app\?teamId=team_example$/);
+  assert.equal(calls[0].authorization, 'Bearer secret-vercel-token');
+  assert.equal(JSON.stringify(record).includes('secret-vercel-token'), false);
 });

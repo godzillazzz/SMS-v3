@@ -202,13 +202,14 @@ test('UAT_V3_HARNESS_PREFLIGHT: application and harness identities are independe
   assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js scope/);
   assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js harness/);
   assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js verify/);
-  assert.match(workflow, /inspect "\$TARGET_URL"/);
-  assert.match(workflow, /inspect "\$DEPLOYMENT_ID"/);
+  assert.match(workflow, /uat-target-contract\.js fetch "\$TARGET_URL"/);
+  assert.match(workflow, /uat-target-contract\.js fetch "\$DEPLOYMENT_ID"/);
 
   assert.deepEqual(validateHarnessIdentity({
     harnessSha: HARNESS_SHA,
     checkoutSha: HARNESS_SHA,
-    approvedHarnessSha: HARNESS_SHA
+    githubRefType: 'tag',
+    githubRefName: 'uat-harness-v3-' + HARNESS_SHA
   }), { valid: true, harnessSha: HARNESS_SHA });
 
   assert.deepEqual(validateTargetIdentity({
