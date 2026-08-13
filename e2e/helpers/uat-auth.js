@@ -83,7 +83,7 @@ async function loginAs(page, role) {
 }
 
 async function getAuditEventsStatus(accessToken) {
-  const response = await authenticatedRequest('/api/v1/audit-events?page=1&pageSize=1', { accessToken, timeout: 15_000 });
+  const response = await authenticatedRequest('/api/v1/audit-events?page=1&pageSize=1', { accessToken });
   return response.status;
 }
 

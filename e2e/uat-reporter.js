@@ -10,6 +10,8 @@ function roleFromTitle(title) {
 function safeErrorCode(result) {
   if (!result.errors?.length) return undefined;
   const message = sanitizeUatDiagnostic(result.errors.map((error) => error.message || '').join(' ')).toLowerCase();
+  const uatCode = message.toUpperCase().match(/\bUAT_[A-Z0-9_]+\b/)?.[0];
+  if (uatCode) return uatCode.slice(0, 120);
   if (/timeout|timed out/.test(message)) return 'TIMEOUT';
   if (/401|403|authorization|forbidden|unauthorized/.test(message)) return 'AUTHORIZATION';
   if (/network|econn|connection|failed to load/.test(message)) return 'NETWORK';

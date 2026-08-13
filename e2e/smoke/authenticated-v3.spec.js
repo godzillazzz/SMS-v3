@@ -28,7 +28,15 @@ async function expectNavigation(page, role) {
 
 async function requestRoleMatrix(role, token) {
   for (const route of getRoleApiMatrix(role)) {
-    const response = await authenticatedRequest(route.path, { accessToken: token });
+    let response;
+    try {
+      response = await authenticatedRequest(route.path, { accessToken: token });
+    } catch (error) {
+      const routeCode = route.label.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+      const safeError = new Error(`${error?.code || 'UAT_API_REQUEST_FAILED'}_${role}_${routeCode}`);
+      safeError.code = safeError.message;
+      throw safeError;
+    }
     expect(response.status, `${role} ${route.label} expected ${route.expectedStatus}, received ${response.status}.`).toBe(route.expectedStatus);
   }
 }
@@ -120,7 +128,9 @@ test('V3 ADMIN: Employee Lifecycle management, history, state, and preflight are
     linkedUser: expect.any(Object)
   }));
   await navigateTo(page, 'employees');
-  const lifecycleButton = page.getByRole('button', { name: /จัดการวงจรพนักงาน/ }).first();
+  const employeeRow = page.locator(`[data-personnel-id="${employee.id}"]`);
+  await expect(employeeRow, 'The lifecycle acceptance employee must render in the personnel table.').toBeVisible();
+  const lifecycleButton = employeeRow.locator('button.lifecycle-action:visible');
   await expect(lifecycleButton).toBeVisible();
   await lifecycleButton.click();
   await expect(page.getByRole('dialog', { name: 'จัดการวงจรพนักงาน' })).toBeVisible();
