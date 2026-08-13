@@ -30,13 +30,15 @@ function deployment(overrides = {}) {
 }
 
 function verify(overrides = {}) {
+  const targetMode = overrides.targetMode || 'candidate';
+  const expectedTarget = targetMode === 'candidate' ? 'preview' : 'production';
   return validateTargetIdentity({
-    targetMode: 'candidate',
-    targetUrl: CANDIDATE_URL,
+    targetMode,
+    targetUrl: targetMode === 'candidate' ? CANDIDATE_URL : CANONICAL_URL,
     expectedDeploymentId: DEPLOYMENT_ID,
     applicationSha: APPLICATION_SHA,
-    targetDeployment: deployment(),
-    expectedDeployment: deployment(),
+    targetDeployment: deployment({ target: expectedTarget }),
+    expectedDeployment: deployment({ target: expectedTarget }),
     expectedProjectId: PROJECT_ID,
     expectedProjectName: PROJECT_NAME,
     ...overrides
@@ -49,7 +51,7 @@ test('1. correct Candidate URL plus expected deployment passes', () => {
 
 test('2. wrong Candidate deployment fails closed', () => {
   assert.throws(
-    () => verify({ targetDeployment: deployment({ id: 'dpl_WrongCandidate123' }) }),
+    () => verify({ targetDeployment: deployment({ id: 'dpl_WrongCandidate123', target: 'preview' }) }),
     { code: 'UAT_DEPLOYMENT_ID_MISMATCH' }
   );
 });
@@ -69,10 +71,24 @@ test('4. Canonical resolving to unexpected deployment fails closed', () => {
   );
 });
 
+test('Candidate mode fails closed if the deployment target is production', () => {
+  assert.throws(
+    () => verify({ targetDeployment: deployment({ target: 'production' }) }),
+    { code: 'UAT_DEPLOYMENT_TARGET_MISMATCH' }
+  );
+});
+
+test('Canonical mode fails closed if the deployment target is preview', () => {
+  assert.throws(
+    () => verify({ targetMode: 'canonical', targetUrl: CANONICAL_URL, targetDeployment: deployment({ target: 'preview' }) }),
+    { code: 'UAT_DEPLOYMENT_TARGET_MISMATCH' }
+  );
+});
+
 test('5. correct deployment with wrong Application SHA fails closed', () => {
   assert.throws(
     () => verify({
-      targetDeployment: deployment({ meta: { githubCommitSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } })
+      targetDeployment: deployment({ target: 'preview', meta: { githubCommitSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } })
     }),
     { code: 'UAT_APPLICATION_SHA_MISMATCH' }
   );

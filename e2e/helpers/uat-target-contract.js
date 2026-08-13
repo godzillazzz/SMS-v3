@@ -143,7 +143,8 @@ function validateDeploymentRecord(deployment, {
   expectedDeploymentId,
   applicationSha,
   expectedProjectId,
-  expectedProjectName
+  expectedProjectName,
+  expectedTarget
 }) {
   if (!deployment || typeof deployment !== 'object') throw contractError('UAT_DEPLOYMENT_RECORD_INVALID');
   if (!DEPLOYMENT_ID.test(String(expectedDeploymentId || ''))) throw contractError('UAT_EXPECTED_DEPLOYMENT_ID_INVALID');
@@ -152,7 +153,8 @@ function validateDeploymentRecord(deployment, {
   if (deployment.id !== expectedDeploymentId) throw contractError('UAT_DEPLOYMENT_ID_MISMATCH');
   if (deployment.name !== expectedProjectName) throw contractError('UAT_DEPLOYMENT_PROJECT_NAME_MISMATCH');
   if (deployment.projectId && deployment.projectId !== expectedProjectId) throw contractError('UAT_DEPLOYMENT_PROJECT_ID_MISMATCH');
-  if (deployment.target !== 'production') throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PRODUCTION');
+  if (!['preview', 'production'].includes(expectedTarget)) throw contractError('UAT_EXPECTED_DEPLOYMENT_TARGET_INVALID');
+  if (deployment.target !== expectedTarget) throw contractError('UAT_DEPLOYMENT_TARGET_MISMATCH');
   if (deployment.readyState !== 'READY') throw contractError('UAT_DEPLOYMENT_NOT_READY');
   if (extractApplicationSha(deployment) !== expectedSha) throw contractError('UAT_APPLICATION_SHA_MISMATCH');
 
@@ -170,17 +172,20 @@ function validateTargetIdentity({
   expectedProjectName
 }) {
   const scope = validateTargetScope(targetMode, targetUrl);
+  const expectedTarget = scope.mode === 'candidate' ? 'preview' : 'production';
   validateDeploymentRecord(targetDeployment, {
     expectedDeploymentId,
     applicationSha,
     expectedProjectId,
-    expectedProjectName
+    expectedProjectName,
+    expectedTarget
   });
   validateDeploymentRecord(expectedDeployment, {
     expectedDeploymentId,
     applicationSha,
     expectedProjectId,
-    expectedProjectName
+    expectedProjectName,
+    expectedTarget
   });
   if (targetDeployment.id !== expectedDeployment.id) throw contractError('UAT_TARGET_DEPLOYMENT_IDENTITY_MISMATCH');
   return {
