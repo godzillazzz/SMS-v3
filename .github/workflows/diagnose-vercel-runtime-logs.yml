@@ -1,0 +1,277 @@
+name: Diagnose sms-v3-staging Vercel Runtime Logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact commit to validate before reading logs
+        required: true
+        type: string
+      request_id:
+        description: Request ID, or TIME_WINDOW_SEARCH for the fixed incident window
+        required: true
+        type: string
+      path:
+        description: Expected request path prefix
+        required: true
+        default: /api/v1/employees/
+        type: string
+      status_code:
+        description: Expected HTTP status code
+        required: true
+        default: '503'
+        type: string
+      confirm_project_name:
+        description: Type sms-v3-staging to confirm the target project
+        required: true
+        type: string
+      confirm_environment:
+        description: Type production to confirm the Vercel environment
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_DEPLOYMENT_ID: dpl_BXdWNdwFr2MzzPAgtWgyXz7faAuS
+  EXPECTED_APPLICATION_SHA: e672c704c76c9fd53049b89736d56283029da1ea
+  INCIDENT_SINCE: 2026-08-13T10:05:00Z
+  INCIDENT_UNTIL: 2026-08-13T10:20:00Z
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production-sms-v3-staging
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Validate diagnostic target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirm_project_name }}" = "$EXPECTED_PROJECT_NAME"
+          test "${{ inputs.confirm_environment }}" = "production"
+          test "${{ inputs.commit_sha }}" = "$EXPECTED_APPLICATION_SHA"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test -n "$VERCEL_TOKEN"
+          [[ "$EXPECTED_DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
+          echo "DIAGNOSTIC_TARGET=project_verified"
+          echo "INCIDENT_WINDOW=$INCIDENT_SINCE..$INCIDENT_UNTIL"
+
+      - name: Collect sanitized incident runtime diagnostics
+        shell: bash
+        env:
+          REQUEST_ID_INPUT: ${{ inputs.request_id }}
+          REQUEST_PATH_PREFIX: ${{ inputs.path }}
+          EXPECTED_STATUS_CODE: ${{ inputs.status_code }}
+        run: |
+          set -euo pipefail
+          diagnostics_dir=$(mktemp -d)
+          trap 'rm -rf "$diagnostics_dir"' EXIT
+          raw_file="$diagnostics_dir/runtime.jsonl"
+          err_file="$diagnostics_dir/runtime.err"
+
+          args=(
+            logs
+            --project "$VERCEL_PROJECT_ID"
+            --deployment "$EXPECTED_DEPLOYMENT_ID"
+            --environment production
+            --query "lifecycle"
+            --since "$INCIDENT_SINCE"
+            --until "$INCIDENT_UNTIL"
+            --limit 1000
+            --json
+            --no-branch
+            --token "$VERCEL_TOKEN"
+          )
+          if [[ "$REQUEST_ID_INPUT" != "TIME_WINDOW_SEARCH" ]]; then
+            args+=(--request-id "$REQUEST_ID_INPUT")
+          fi
+
+          set +e
+          npx --yes vercel@"$VERCEL_CLI_VERSION" "${args[@]}" >"$raw_file" 2>"$err_file"
+          cli_exit=$?
+          set -e
+
+          node - "$raw_file" "$err_file" "$cli_exit" <<'NODE'
+          const fs = require('node:fs');
+          const [rawFile, errFile, cliExitRaw] = process.argv.slice(2);
+          const cliExit = Number(cliExitRaw);
+          const raw = fs.existsSync(rawFile) ? fs.readFileSync(rawFile, 'utf8') : '';
+          const stderr = fs.existsSync(errFile) ? fs.readFileSync(errFile, 'utf8') : '';
+          const pathPrefix = process.env.REQUEST_PATH_PREFIX || '/api/v1/employees/';
+          const expectedStatusRaw = String(process.env.EXPECTED_STATUS_CODE || 'ANY');
+          const enforceStatus = /^\d{3}$/.test(expectedStatusRaw);
+          const expectedStatus = enforceStatus ? Number(expectedStatusRaw) : null;
+          const expectedDeploymentId = process.env.EXPECTED_DEPLOYMENT_ID;
+
+          const secrets = [
+            process.env.VERCEL_TOKEN,
+            process.env.VERCEL_ORG_ID,
+            process.env.VERCEL_PROJECT_ID
+          ].filter(Boolean);
+
+          function redact(value) {
+            let text = String(value || '');
+            for (const secret of secrets) text = text.split(secret).join('[redacted-secret]');
+            return text
+              .replace(/Bearer\s+\S+/gi, 'Bearer [redacted-token]')
+              .replace(/postgres(?:ql)?:\/\/[^\s"'<>]+/gi, '[redacted-connection-string]')
+              .replace(/(?:DATABASE_URL|DIRECT_URL)\s*[:=]\s*[^\s,;]+/gi, '$1=[redacted]')
+              .replace(/(?:password|token|secret|authorization|cookie)\s*[:=]\s*[^\s,;]+/gi, '$1=[redacted]')
+              .replace(/\b[A-Za-z0-9.-]+\.(?:supabase\.co|supabase\.com|vercel\.app|vercel\.com)\b/gi, '[redacted-host]')
+              .replace(/https?:\/\/[^\s"'<>]+/gi, '[redacted-url]')
+              .replace(/\s+/g, ' ')
+              .trim();
+          }
+
+          function first(...values) {
+            return values.find((value) => value !== undefined && value !== null && value !== '');
+          }
+
+          function normalizedEvent(value) {
+            const payload = value?.payload || {};
+            const proxy = first(value?.proxy, payload?.proxy) || {};
+            const nestedLogs = Array.isArray(value?.logs) ? value.logs : [];
+            const message = [
+              first(value?.message, value?.text, payload?.text, payload?.message, ''),
+              ...nestedLogs.map((row) => row?.message)
+            ].filter(Boolean).join('\n');
+            return {
+              requestId: first(value?.requestId, value?.request_id, payload?.requestId, payload?.request_id, proxy?.requestId, value?.id),
+              requestMethod: first(value?.requestMethod, proxy?.method, payload?.requestMethod),
+              requestPath: first(value?.requestPath, proxy?.path, payload?.requestPath, value?.path, payload?.path),
+              statusCode: Number(first(value?.responseStatusCode, proxy?.statusCode, value?.statusCode, value?.status_code, payload?.statusCode, payload?.status_code) || 0),
+              deploymentId: first(value?.deploymentId, payload?.deploymentId, expectedDeploymentId),
+              timestamp: first(value?.timestamp, value?.createdAt, value?.created, payload?.date, payload?.created),
+              duration: first(value?.durationMs, value?.duration, payload?.durationMs, payload?.duration, proxy?.durationMs, proxy?.duration),
+              level: first(value?.level, payload?.level),
+              message: String(message || '')
+            };
+          }
+
+          const values = [];
+          for (const line of raw.split(/\r?\n/).filter(Boolean)) {
+            try {
+              const parsed = JSON.parse(line);
+              if (Array.isArray(parsed)) values.push(...parsed);
+              else values.push(parsed);
+            } catch {}
+          }
+
+          function schemaPaths(value, prefix = '', depth = 0, out = []) {
+            if (!value || typeof value !== 'object' || depth > 3) return out;
+            if (Array.isArray(value)) {
+              if (value.length && depth < 3) schemaPaths(value[0], prefix ? `${prefix}[]` : '[]', depth + 1, out);
+              return out;
+            }
+            for (const key of Object.keys(value).sort()) {
+              const path = prefix ? `${prefix}.${key}` : key;
+              out.push(path);
+              const nested = value[key];
+              if (nested && typeof nested === 'object' && depth < 3) schemaPaths(nested, path, depth + 1, out);
+            }
+            return out;
+          }
+
+          const events = values.map(normalizedEvent);
+          const candidates = events.filter((event) => {
+            const path = String(event.requestPath || '');
+            return (path.startsWith(pathPrefix) && /\/lifecycle(?:\/|$|\?)/i.test(path))
+              || /lifecycle/i.test(event.message || '');
+          });
+
+          const requestIds = [...new Set(candidates.map((event) => event.requestId).filter(Boolean))];
+          const groups = requestIds.map((requestId) => {
+            const related = events.filter((event) => event.requestId === requestId);
+            const requestEvent = candidates.find((event) => event.requestId === requestId) || related[0] || {};
+            const combined = related.map((event) => event.message).filter(Boolean).join('\n');
+            const codes = [...combined.matchAll(/\bP\d{4}\b/g)].map((match) => match[0]);
+            const prismaCode = [...new Set(codes)][0] || 'unknown';
+            const prismaName = (combined.match(/\bPrismaClient(?:KnownRequest|UnknownRequest|Initialization|RustPanic|Validation)Error\b/) || [])[0] || 'unknown';
+            const category = prismaCode === 'P2028' ? 'database_transaction_timeout'
+              : prismaCode === 'P2024' ? 'database_connection_pool_timeout'
+              : prismaCode === 'P1000' ? 'database_authentication'
+              : prismaCode === 'P1001' ? 'database_unreachable'
+              : prismaCode === 'P1002' ? 'database_connection_timeout'
+              : prismaCode === 'P1008' ? 'database_operation_timeout'
+              : prismaCode === 'P1011' ? 'database_tls_error'
+              : prismaCode === 'P1017' ? 'database_connection_closed'
+              : prismaName === 'PrismaClientInitializationError' ? 'database_initialization'
+              : /transaction.*(?:closed|expired|timeout|timed out)/i.test(combined) ? 'database_transaction_timeout'
+              : /pool.*(?:timeout|timed out)|connection pool/i.test(combined) ? 'database_connection_pool_timeout'
+              : /timeout|timed out/i.test(combined) ? 'database_timeout'
+              : /database|connection|prisma/i.test(combined) ? 'database_runtime'
+              : 'unknown';
+            const safeCandidate = related.map((event) => event.message).find((message) => /P\d{4}|PrismaClient|transaction|timeout|timed out|pool|database|connection/i.test(message)) || '';
+            const path = String(requestEvent.requestPath || '');
+            const employeeMatch = path.match(/^\/api\/v1\/employees\/([^/?]+)\/lifecycle/i);
+            return {
+              requestId,
+              requestMethod: requestEvent.requestMethod || 'unknown',
+              employeeId: employeeMatch ? employeeMatch[1] : 'unknown',
+              path: redact(path),
+              httpStatus: requestEvent.statusCode || expectedStatus || 'unknown',
+              prismaCode,
+              prismaName,
+              category,
+              safeMessage: prismaCode === 'P2028' ? 'Prisma interactive transaction timeout/closed (P2028).'
+                : prismaCode === 'P2024' ? 'Prisma connection pool acquisition timeout (P2024).'
+                : prismaCode !== 'unknown' ? `Prisma database runtime error (${prismaCode}).`
+                : prismaName !== 'unknown' ? `Prisma runtime error (${prismaName}).`
+                : 'Database/runtime failure found without a Prisma code.',
+              deploymentId: requestEvent.deploymentId || expectedDeploymentId || 'unknown',
+              duration: requestEvent.duration ?? 'unknown',
+              timestamp: requestEvent.timestamp ?? 'unknown'
+            };
+          });
+
+          console.log(`CLI_EXIT=${cliExit}`);
+          console.log(`RAW_EVENT_COUNT=${events.length}`);
+          values.slice(0, 7).forEach((value, index) => {
+            const paths = [...new Set(schemaPaths(value))].sort().slice(0, 160);
+            console.log(`EVENT_SCHEMA_${index + 1}=${paths.join(',')}`);
+          });
+          console.log(`MATCHED_REQUESTS=${groups.length}`);
+          for (const group of groups) {
+            console.log('INCIDENT_REQUEST_BEGIN');
+            console.log(`REQUEST_ID=${redact(group.requestId)}`);
+            console.log(`REQUEST_METHOD=${group.requestMethod}`);
+            console.log(`EMPLOYEE_ID=${redact(group.employeeId)}`);
+            console.log(`PATH=${group.path}`);
+            console.log(`HTTP_STATUS=${group.httpStatus}`);
+            console.log(`PRISMA_ERROR_CODE=${group.prismaCode}`);
+            console.log(`PRISMA_ERROR_NAME=${group.prismaName}`);
+            console.log(`ERROR_CATEGORY=${group.category}`);
+            console.log(`SAFE_ERROR_MESSAGE=${group.safeMessage}`);
+            console.log(`DEPLOYMENT_ID=${group.deploymentId}`);
+            console.log(`DURATION=${group.duration}`);
+            console.log(`TIMESTAMP=${group.timestamp}`);
+            console.log('INCIDENT_REQUEST_END');
+          }
+
+          if (groups.length === 0) {
+            const safeErr = redact(stderr).slice(0, 240);
+            console.log('STATUS=BLOCKED — INCIDENT RUNTIME LOG NOT FOUND');
+            if (safeErr) console.log(`SAFE_CLI_DIAGNOSTIC=${safeErr}`);
+            process.exitCode = 2;
+          } else {
+            console.log('STATUS=INCIDENT_RUNTIME_LOG_FOUND');
+          }
+          NODE
