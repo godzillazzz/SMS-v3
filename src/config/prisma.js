@@ -10,7 +10,11 @@ function configuredDatabaseUrl(rawUrl) {
       // Serverless invocations must not open a large Prisma pool. Keep the
       // approved Pooler endpoint (5432 Session or 6543 Transaction) and add conservative client limits.
       if (!url.searchParams.has('pgbouncer')) url.searchParams.set('pgbouncer', 'true');
-      if (!url.searchParams.has('connection_limit')) url.searchParams.set('connection_limit', '1');
+      // Candidate runtime evidence showed P2024 pool acquisition timeouts under a normal
+      // authenticated browser request burst with connection_limit=1. Keep the floor
+      // bounded at 2 for Supabase Pooler while preserving any explicitly larger limit.
+      const configuredLimit = Number(url.searchParams.get('connection_limit'));
+      if (!Number.isFinite(configuredLimit) || configuredLimit < 2) url.searchParams.set('connection_limit', '2');
       if (!url.searchParams.has('pool_timeout')) url.searchParams.set('pool_timeout', '15');
       if (!url.searchParams.has('connect_timeout')) url.searchParams.set('connect_timeout', '15');
     }
