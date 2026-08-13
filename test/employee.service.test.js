@@ -15,15 +15,14 @@ const fakePrisma = {
 };
 require.cache[require.resolve('../src/config/prisma')] = { exports: fakePrisma };
 const service = require('../src/services/employee.service');
-test('employee create, list, update, and soft delete create safe audit entries', async () => {
+test('employee create and profile update keep lifecycle-controlled fields protected', async () => {
   const actor = '11111111-1111-4111-8111-111111111111';
   const created = await service.create({ employeeCode: 'E-1', firstName: 'A', lastName: 'B', email: 'private@example.com', phone: '123' }, actor);
   const listed = await service.list({ page: 1, pageSize: 20 }, 'VIEWER');
   assert.equal(listed.data[0].email, undefined); assert.equal(listed.meta.total, 1);
-  await service.update(created.id, { department: 'Ops' }, actor);
-  await service.remove(created.id, actor);
-  assert.ok(employees[0].deletedAt); assert.equal(employees[0].isActive, false);
-  const listedAfterDelete = await service.list({ page: 1, pageSize: 20 }, 'ADMIN');
-  assert.equal(listedAfterDelete.data.length, 0); assert.equal(listedAfterDelete.meta.total, 0);
-  assert.equal(audits.length, 3); assert.equal(audits[0].metadata.after.email, undefined);
+  await service.update(created.id, { phone: '456' }, actor);
+  await assert.rejects(() => service.update(created.id, { department: 'Ops' }, actor), (error) => error.statusCode === 409 && error.details.code === 'LIFECYCLE_ACTION_REQUIRED');
+  await assert.rejects(() => service.remove(created.id, actor), (error) => error.statusCode === 409 && error.details.code === 'LIFECYCLE_TERMINATION_REQUIRED');
+  assert.equal(employees[0].deletedAt, null); assert.equal(employees[0].isActive, undefined);
+  assert.equal(audits.length, 2); assert.equal(audits[0].metadata.after.email, undefined);
 });

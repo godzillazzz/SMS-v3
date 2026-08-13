@@ -17,7 +17,8 @@ test('UAT V2 source contracts cover the documented responsive and warning incide
     dataQuality: true,
     audit: true,
     dashboardWarning: true,
-    executiveReport: true
+    executiveReport: true,
+    employeeLifecycle: true
   });
 });
 

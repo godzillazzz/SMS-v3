@@ -22,6 +22,19 @@ enum AccountStatus {
   REJECTED
 }
 
+enum EmployeeLifecycleEventType {
+  DEPARTMENT_TRANSFER
+  NAME_CHANGE
+  POSITION_CHANGE
+  EMPLOYMENT_TERMINATION
+  REHIRE
+}
+
+enum EmployeeLifecycleEventStatus {
+  PENDING
+  APPLIED
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -54,6 +67,7 @@ model User {
   legacyRole               String?                   @map("legacy_role") @db.VarChar(50)
   accountStatus            AccountStatus             @default(ACTIVE) @map("account_status")
   passwordResetRequired    Boolean                   @default(false) @map("password_reset_required")
+  employmentSuspendedAt    DateTime?                 @map("employment_suspended_at")
   department               String?                   @db.VarChar(100)
   requestedAt              DateTime?                 @map("requested_at")
   approvedByLegacyRef      String?                   @map("approved_by_legacy_ref") @db.VarChar(255)
@@ -70,6 +84,7 @@ model User {
   returnedLicenseDocuments EmployeeLicenseDocument[] @relation("ReturnedLicenseDocuments")
   employee                 Employee?                 @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   createdLeaveRequests     LeaveRequest[]            @relation("LeaveRequestCreatedBy")
+  lifecycleEventsChanged   EmployeeLifecycleEvent[]  @relation("LifecycleChangedBy")
 
   @@map("users")
 }
@@ -135,10 +150,37 @@ model Employee {
   shiftAssignments ShiftAssignment[]
   leaveRequests    LeaveRequest[]
   leaveQuotas      LeaveQuota[]
+  lifecycleEvents  EmployeeLifecycleEvent[]
 
   @@index([isActive, deletedAt])
   @@index([department])
   @@map("employees")
+}
+
+model EmployeeLifecycleEvent {
+  id                        String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId                String                       @map("employee_id") @db.Uuid
+  sequence                  Int
+  type                      EmployeeLifecycleEventType
+  status                    EmployeeLifecycleEventStatus @default(PENDING)
+  effectiveDate             DateTime                     @map("effective_date") @db.Date
+  oldValue                  Json                         @map("old_value")
+  newValue                  Json                         @map("new_value")
+  reason                    String                       @db.VarChar(1000)
+  changedByUserId           String                       @map("changed_by_user_id") @db.Uuid
+  idempotencyKey            String                       @unique @map("idempotency_key") @db.Uuid
+  expectedEmployeeUpdatedAt DateTime                     @map("expected_employee_updated_at")
+  appliedAt                 DateTime?                    @map("applied_at")
+  createdAt                 DateTime                     @default(now()) @map("created_at")
+  updatedAt                 DateTime                     @updatedAt @map("updated_at")
+  employee                  Employee                     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  changedBy                 User                         @relation("LifecycleChangedBy", fields: [changedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([employeeId, sequence])
+  @@index([employeeId, effectiveDate, sequence])
+  @@index([status, effectiveDate])
+  @@index([changedByUserId, createdAt])
+  @@map("employee_lifecycle_events")
 }
 
 model ShiftType {

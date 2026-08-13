@@ -1,12 +1,13 @@
 'use strict';
 
+const { Prisma } = require('@prisma/client');
 const { leaveMonthWhere } = require('../utils/leave-month-filter');
 const { getDataQualitySummary } = require('./data-quality.service');
 const HttpError = require('../utils/http-error');
 
 const EMPTY_ID = '00000000-0000-0000-0000-000000000000';
 const LICENSE_APPROVED = { status: 'APPROVED', isCurrent: true };
-const QUERY_OPERATION_COUNT = 12;
+const QUERY_OPERATION_COUNT = 10;
 
 function bangkokDateStart(now = new Date()) {
   const bangkok = new Date(now.getTime() + (7 * 60 * 60 * 1000));
@@ -53,6 +54,14 @@ function leaveScopeWhere(scope, period) {
   };
 }
 
+function historicalLeaveScopeWhere(scope, period) {
+  return {
+    ...leaveMonthWhere({ monthStart: period.startDate, nextMonthStart: period.nextMonthStart }),
+    ...(scope.department && { departmentSnapshot: scope.department }),
+    ...(scope.employeeId && { employeeId: scope.employeeId })
+  };
+}
+
 function numberFromGroup(rows, key, values) {
   const result = Object.fromEntries(values.map((value) => [value, 0]));
   rows.forEach((row) => { if (Object.hasOwn(result, row[key])) result[row[key]] = row._count?._all || 0; });
@@ -75,22 +84,69 @@ function thaiMonthLabel(year, month) {
   return new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, 1)));
 }
 
+async function workforceSnapshot(prismaClient, asOfDate, scope) {
+  const employeeFilter = scope.employeeId ? Prisma.sql`AND e.id = ${scope.employeeId}::uuid` : Prisma.empty;
+  const departmentFilter = scope.department ? Prisma.sql`WHERE department = ${scope.department}` : Prisma.empty;
+  const rows = await prismaClient.$queryRaw(Prisma.sql`
+    WITH latest_before AS (
+      SELECT DISTINCT ON (employee_id)
+        employee_id,
+        new_value -> 'employee' AS state
+      FROM employee_lifecycle_events
+      WHERE status = 'APPLIED' AND effective_date <= ${asOfDate}::date
+      ORDER BY employee_id, effective_date DESC, sequence DESC
+    ),
+    earliest_after AS (
+      SELECT DISTINCT ON (employee_id)
+        employee_id,
+        old_value -> 'employee' AS state
+      FROM employee_lifecycle_events
+      WHERE status = 'APPLIED' AND effective_date > ${asOfDate}::date
+      ORDER BY employee_id, effective_date ASC, sequence ASC
+    ),
+    workforce_state AS (
+      SELECT
+        COALESCE(latest_before.state ->> 'department', earliest_after.state ->> 'department', e.department) AS department,
+        COALESCE(
+          (latest_before.state ->> 'isActive')::boolean,
+          (earliest_after.state ->> 'isActive')::boolean,
+          e.is_active
+        ) AS is_active
+      FROM employees e
+      LEFT JOIN latest_before ON latest_before.employee_id = e.id
+      LEFT JOIN earliest_after ON earliest_after.employee_id = e.id
+      WHERE e.deleted_at IS NULL
+        AND (e.hired_at IS NULL OR e.hired_at <= ${asOfDate}::date)
+        ${employeeFilter}
+    )
+    SELECT
+      department,
+      COUNT(*)::integer AS total,
+      COUNT(*) FILTER (WHERE is_active)::integer AS active
+    FROM workforce_state
+    ${departmentFilter}
+    GROUP BY department
+    ORDER BY department ASC NULLS LAST
+  `);
+  return rows.map((row) => ({ department: row.department || null, total: Number(row.total || 0), active: Number(row.active || 0) }));
+}
+
 async function getExecutiveReport({ prismaClient, requestUser, filters, now = new Date() }) {
   const fallback = currentBangkokPeriod(now);
   const year = filters.year || fallback.year;
   const month = filters.month || fallback.month;
   const period = monthBounds(year, month);
   const scope = resolveReportScope(requestUser, filters.department);
-  const activeEmployeeWhere = employeeWhere(scope, { isActive: true });
   const documentScope = { employee: employeeRelation(scope) };
   const asOfDate = bangkokDateStart(now);
+  const workforceAsOfDate = period.endDate < asOfDate ? period.endDate : asOfDate;
   const expiry30 = new Date(asOfDate.getTime() + (30 * 86400000));
-  const leaveWhere = leaveScopeWhere(scope, period);
+  const leaveWhere = historicalLeaveScopeWhere(scope, period);
 
-  const totalEmployees = await prismaClient.employee.count({ where: employeeWhere(scope) });
-  const activeEmployees = await prismaClient.employee.count({ where: activeEmployeeWhere });
-  const departments = await prismaClient.employee.groupBy({ by: ['department'], where: activeEmployeeWhere, _count: { _all: true }, orderBy: { department: 'asc' } });
-  const assignmentCount = await prismaClient.shiftAssignment.count({ where: { workDate: { gte: period.startDate, lt: period.nextMonthStart }, employee: employeeRelation(scope) } });
+  const workforceRows = await workforceSnapshot(prismaClient, workforceAsOfDate, scope);
+  const totalEmployees = workforceRows.reduce((sum, row) => sum + row.total, 0);
+  const activeEmployees = workforceRows.reduce((sum, row) => sum + row.active, 0);
+  const assignmentCount = await prismaClient.shiftAssignment.count({ where: { workDate: { gte: period.startDate, lt: period.nextMonthStart }, ...(scope.department && { departmentSnapshot: scope.department }), ...(scope.employeeId && { employeeId: scope.employeeId }) } });
   const leaveByStatusRows = await prismaClient.leaveRequest.groupBy({ by: ['status'], where: leaveWhere, _count: { _all: true } });
   const leaveByTypeRows = await prismaClient.leaveRequest.groupBy({ by: ['leaveType'], where: leaveWhere, _count: { _all: true }, orderBy: { leaveType: 'asc' } });
   const quality = await getDataQualitySummary({ prismaClient, filters: { department: scope.department || undefined, employeeId: scope.employeeId || undefined }, now: asOfDate });
@@ -99,7 +155,7 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
 
   const statusCounts = numberFromGroup(leaveByStatusRows, 'status', ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']);
   const byType = leaveByTypeRows.map((row) => ({ label: row.leaveType, count: row._count?._all || 0 }));
-  const workforceByDepartment = departments.map((row) => ({ label: row.department || 'ไม่ระบุหน่วยงาน', count: row._count?._all || 0 }));
+  const workforceByDepartment = workforceRows.filter((row) => row.active > 0).map((row) => ({ label: row.department || 'ไม่ระบุหน่วยงาน', count: row.active }));
   const qualityCategory = (rule) => quality.categories.find((item) => item.rule === rule)?.count || 0;
   const license = {
     expired: qualityCategory('LICENSE_EXPIRED'),
@@ -121,15 +177,15 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
       { key: 'expiredLicenses', label: 'ใบอนุญาตหมดอายุ', value: license.expired, unit: 'รายการ', status: license.expired > 0 ? 'critical' : 'success' },
       { key: 'dataQualityIssues', label: 'ประเด็นคุณภาพข้อมูล', value: quality.summary.total, unit: 'รายการ', status: quality.summary.critical > 0 ? 'critical' : 'success' }
     ],
-    workforce: { totalEmployees, activeEmployees, byDepartment: workforceByDepartment },
-    schedule: { assignmentCount, periodNote: 'จำนวนรายการจัดเวรในเดือนที่เลือก ไม่ใช่ตัวชี้วัด Coverage หรือกำลังคนขาด' },
+    workforce: { totalEmployees, activeEmployees, byDepartment: workforceByDepartment, asOfDate: workforceAsOfDate.toISOString().slice(0, 10) },
+    schedule: { assignmentCount, periodNote: 'จำนวนรายการจัดเวรตามหน่วยงานที่บันทึกไว้ในเวลาจัดเวร ไม่ใช่ตัวชี้วัด Coverage หรือกำลังคนขาด' },
     leave,
     license,
     dataQuality: { ...quality.summary, categories: quality.categories, asOfDate: asOfDate.toISOString().slice(0, 10) },
     managementAttention,
     generatedAt: now.toISOString(),
-    meta: { queryOperationCount: QUERY_OPERATION_COUNT, queryStrategy: 'sequential' }
+    meta: { queryOperationCount: QUERY_OPERATION_COUNT, queryStrategy: 'sequential', historicalSemantics: { workforce: 'AS_OF_PERIOD_END_OR_TODAY', schedule: 'DEPARTMENT_SNAPSHOT', leave: 'DEPARTMENT_SNAPSHOT', license: 'CURRENT_STATE', dataQuality: 'CURRENT_STATE' } }
   };
 }
 
-module.exports = { QUERY_OPERATION_COUNT, bangkokDateStart, currentBangkokPeriod, monthBounds, resolveReportScope, leaveScopeWhere, buildAttention, getExecutiveReport };
+module.exports = { QUERY_OPERATION_COUNT, bangkokDateStart, currentBangkokPeriod, monthBounds, resolveReportScope, leaveScopeWhere, historicalLeaveScopeWhere, buildAttention, workforceSnapshot, getExecutiveReport };

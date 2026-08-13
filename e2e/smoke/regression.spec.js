@@ -7,6 +7,7 @@ const {
   dashboardWarningVisible,
   dataQualityFixture,
   employeeLifecycleSourceContract,
+  employeeLifecycleFixture,
   executiveReportFixture,
   readProjectFile,
   sourceRegressionContracts
@@ -22,6 +23,7 @@ const auditStyles = [
   readProjectFile('frontend/src/styles/audit-mobile.css')
 ].join('\n');
 const executiveReportStyles = readProjectFile('frontend/src/styles/executive-report.css');
+const employeeLifecycleStyles = readProjectFile('frontend/src/styles/employee-lifecycle.css');
 
 const dataQualityViewports = [
   { name: '390', width: 390, height: 844, mobile: true },
@@ -40,6 +42,11 @@ const executiveReportViewports = [
   { name: '768', width: 768, height: 1024, columns: 2 },
   { name: '1024', width: 1024, height: 768, columns: 3 },
   { name: '1440', width: 1440, height: 900, columns: 5 }
+];
+const lifecycleViewports = [
+  { name: '390', width: 390, height: 844 },
+  { name: '768', width: 768, height: 1024 },
+  { name: '1440', width: 1440, height: 900 }
 ];
 
 async function measureLayout(element) {
@@ -67,7 +74,7 @@ async function measureLayout(element) {
 }
 
 test('REGRESSION: source contracts cover Data Quality, Audit Log, Dashboard warning, Executive Report, and Employee Lifecycle behavior', async ({}, testInfo) => {
-  expect(sourceRegressionContracts()).toEqual({ dataQuality: true, audit: true, dashboardWarning: true, executiveReport: true });
+  expect(sourceRegressionContracts()).toEqual({ dataQuality: true, audit: true, dashboardWarning: true, executiveReport: true, employeeLifecycle: true });
   expect(employeeLifecycleSourceContract()).toEqual({ employeeLifecycle: true });
   expect(dashboardWarningVisible({ error: undefined, partialErrors: [] })).toBe(false);
   expect(dashboardWarningVisible({ error: undefined, partialErrors: ['licenseOverview'] })).toBe(true);
@@ -76,6 +83,35 @@ test('REGRESSION: source contracts cover Data Quality, Audit Log, Dashboard warn
     body: Buffer.from(JSON.stringify({ healthyWarning: 'PASS', partialWarning: 'PASS' })),
     contentType: 'application/json'
   });
+});
+
+test('REGRESSION: Employee Lifecycle modal stays usable at mobile, tablet, and desktop widths', async ({ page }, testInfo) => {
+  const monitor = startPageMonitor(page);
+  const summary = {};
+  for (const viewport of lifecycleViewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.setContent(buildDocument(employeeLifecycleStyles, employeeLifecycleFixture()));
+    const modal = page.locator('.lifecycle-modal');
+    const action = page.getByRole('button', { name: 'ยืนยันย้ายแผนก', exact: true });
+    await expect(modal).toBeVisible();
+    await expect(action).toBeVisible();
+    const metrics = await modal.evaluate((node) => ({
+      width: node.getBoundingClientRect().width,
+      height: node.getBoundingClientRect().height,
+      viewportWidth: document.documentElement.clientWidth,
+      viewportHeight: document.documentElement.clientHeight,
+      pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+    }));
+    expect(metrics.width).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.height).toBeLessThanOrEqual(metrics.viewportHeight);
+    expect(metrics.pageOverflow).toBe(false);
+    expect(await action.evaluate((node) => getComputedStyle(node).whiteSpace)).toBe('nowrap');
+    await assertNoHorizontalOverflow(page);
+    summary[viewport.name] = 'PASS';
+    await captureScreenshot(page, testInfo, `employee-lifecycle-${viewport.name}`);
+  }
+  await testInfo.attach('employee-lifecycle-layout-summary.json', { body: Buffer.from(JSON.stringify(summary)), contentType: 'application/json' });
+  monitor.assertClean();
 });
 
 test('REGRESSION: Executive Report stays readable across management report viewport widths', async ({ page }, testInfo) => {
