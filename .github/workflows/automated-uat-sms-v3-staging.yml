@@ -559,8 +559,26 @@ jobs:
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+      - name: Verify exact ADMIN Lifecycle test discovery
+        shell: bash
+        env:
+          UAT_MODE: technical
+          UAT_ADMIN_EMAIL: ''
+          UAT_ADMIN_PASSWORD: ''
+          UAT_MANAGER_EMAIL: ''
+          UAT_MANAGER_PASSWORD: ''
+          UAT_VIEWER_EMAIL: ''
+          UAT_VIEWER_PASSWORD: ''
+        run: |
+          set -euo pipefail
+          title='V3 ADMIN: Employee Lifecycle management, history, state, and preflight are available without mutation'
+          output=$(npx playwright test 'authenticated-v3.spec.js' --grep "$title" --list --reporter=list)
+          count=$(printf '%s\n' "$output" | grep -F "› $title" | wc -l | tr -d ' ')
+          echo "DISCOVERED_TEST_COUNT=$count"
+          test "$count" = '1'
+          echo "DISCOVERED_TEST=$title"
       - name: Reproduce exact ADMIN Lifecycle assertion read-only
         shell: bash
         run: |
           set -euo pipefail
-          npx playwright test e2e/smoke/authenticated-v3.spec.js --grep '^V3 ADMIN: Employee Lifecycle management, history, state, and preflight are available without mutation$' --reporter=line
+          npx playwright test 'authenticated-v3.spec.js' --grep 'V3 ADMIN: Employee Lifecycle management, history, state, and preflight are available without mutation' --reporter=line
