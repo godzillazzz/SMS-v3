@@ -33,12 +33,63 @@ on:
         type: choice
         options:
           - technical
+          - diagnostic
           - authenticated
 
 permissions:
   contents: read
 
 jobs:
+  candidate-access-diagnostic:
+    if: ${{ inputs.uat_mode == 'diagnostic' }}
+    runs-on: ubuntu-latest
+    environment: production-sms-v3-staging
+    timeout-minutes: 10
+    env:
+      UAT_BASE_URL: ${{ inputs.target_url }}
+      UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+      UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.uat_harness_sha }}
+          fetch-depth: 0
+      - name: Validate diagnostic source and harness
+        shell: bash
+        env:
+          TARGET_MODE: ${{ inputs.target_mode }}
+          TARGET_URL: ${{ inputs.target_url }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$TARGET_MODE" = 'candidate'
+          node e2e/helpers/uat-target-contract.js scope "$TARGET_MODE" "$TARGET_URL"
+          git fetch --no-tags origin fix/employee-lifecycle-transaction-reliability
+          test "$(git rev-parse origin/fix/employee-lifecycle-transaction-reliability)" = "$SOURCE_SHA"
+          node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$GITHUB_REF_TYPE" "$GITHUB_REF_NAME"
+      - name: Probe Candidate HTTP access safely
+        shell: bash
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+          while IFS='|' read -r label path; do
+            status=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" "$TARGET_URL$path")
+            echo "CANDIDATE_ACCESS label=$label status=$status bypass_attached=YES"
+          done <<'PROBES'
+          root|/
+          login|/login
+          health|/api/v1/health
+          ready|/api/v1/ready
+          audit|/api/v1/audit-events?page=1&pageSize=1
+          PROBES
+
   technical-smoke:
     if: ${{ inputs.uat_mode == 'technical' }}
     runs-on: ubuntu-latest
