@@ -214,7 +214,11 @@ jobs:
             const codes = [...combined.matchAll(/\bP\d{4}\b/g)].map((match) => match[0]);
             const prismaCode = [...new Set(codes)][0] || 'unknown';
             const prismaName = (combined.match(/\bPrismaClient(?:KnownRequest|UnknownRequest|Initialization|RustPanic|Validation)Error\b/) || [])[0] || 'unknown';
-            const category = prismaCode === 'P2028' ? 'database_transaction_timeout'
+            const timeoutSignal = /expired transaction|timeout for this transaction|timed out|transaction.*closed/i.test(combined);
+            const timeoutMs = (combined.match(/timeout for this transaction was\s+(\d+)\s*ms/i) || [])[1] || 'unknown';
+            const elapsedMs = (combined.match(/(\d+)\s*ms passed since the start of the transaction/i) || [])[1] || 'unknown';
+            const category = prismaCode === 'P2028' && timeoutSignal ? 'database_transaction_timeout'
+              : prismaCode === 'P2028' ? 'database_transaction_api'
               : prismaCode === 'P2024' ? 'database_connection_pool_timeout'
               : prismaCode === 'P1000' ? 'database_authentication'
               : prismaCode === 'P1001' ? 'database_unreachable'
@@ -239,8 +243,12 @@ jobs:
               httpStatus: requestEvent.statusCode || expectedStatus || 'unknown',
               prismaCode,
               prismaName,
+              timeoutSignal,
+              timeoutMs,
+              elapsedMs,
               category,
-              safeMessage: prismaCode === 'P2028' ? 'Prisma interactive transaction timeout/closed (P2028).'
+              safeMessage: prismaCode === 'P2028' && timeoutSignal ? 'Prisma interactive transaction expired/timeout (P2028).'
+                : prismaCode === 'P2028' ? 'Prisma transaction API error (P2028) without timeout signal.'
                 : prismaCode === 'P2024' ? 'Prisma connection pool acquisition timeout (P2024).'
                 : prismaCode !== 'unknown' ? `Prisma database runtime error (${prismaCode}).`
                 : prismaName !== 'unknown' ? `Prisma runtime error (${prismaName}).`
@@ -267,6 +275,9 @@ jobs:
             console.log(`HTTP_STATUS=${group.httpStatus}`);
             console.log(`PRISMA_ERROR_CODE=${group.prismaCode}`);
             console.log(`PRISMA_ERROR_NAME=${group.prismaName}`);
+            console.log(`P2028_TIMEOUT_SIGNAL=${group.timeoutSignal ? 'YES' : 'NO'}`);
+            console.log(`TRANSACTION_TIMEOUT_MS=${group.timeoutMs}`);
+            console.log(`TRANSACTION_ELAPSED_MS=${group.elapsedMs}`);
             console.log(`ERROR_CATEGORY=${group.category}`);
             console.log(`SAFE_ERROR_MESSAGE=${group.safeMessage}`);
             console.log(`DEPLOYMENT_ID=${group.deploymentId}`);
