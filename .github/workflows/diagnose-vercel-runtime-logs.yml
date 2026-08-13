@@ -1,0 +1,125 @@
+name: Diagnose sms-v3-staging Vercel Runtime Logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      application_sha:
+        description: Exact candidate application SHA to validate in isolated PostgreSQL CI
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_APPLICATION_SHA: 285b901912d740b01c04266925f16df8db1ec1f1
+
+jobs:
+  isolated-postgres-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: sms_v3_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d sms_v3_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: test
+      RUN_INTEGRATION_TESTS: "true"
+      DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
+      DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
+      TEST_DATABASE_RUNNER: github-actions-postgres
+      JWT_SECRET: ci-test-secret-at-least-thirty-two-characters
+      DISABLE_EMAIL_NOTIFICATIONS: "true"
+      OTP_DELIVERY_PROVIDER: disabled
+      ALERTING_ENABLED: "false"
+      RATE_LIMIT_STORE: memory
+      SEED_ADMIN_EMAIL: ci-admin@example.test
+      SEED_ADMIN_PASSWORD: ci-seed-password-only-for-ephemeral-db
+    steps:
+      - name: Checkout isolated CI harness
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate exact application identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.application_sha }}" = "$EXPECTED_APPLICATION_SHA"
+          git cat-file -e "${EXPECTED_APPLICATION_SHA}^{commit}"
+          echo "APPLICATION_SHA=$EXPECTED_APPLICATION_SHA"
+          echo "DATABASE_SCOPE=isolated_sms_v3_test"
+
+      - name: Checkout exact application under test
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.application_sha }}
+          fetch-depth: 1
+          path: application-under-test
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            application-under-test/package-lock.json
+            application-under-test/frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: application-under-test
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: application-under-test
+        run: npm --prefix frontend ci
+
+      - name: Validate Prisma schema without Production access
+        working-directory: application-under-test
+        run: |
+          npm run prisma:format:check
+          npx prisma validate
+          npx prisma generate
+
+      - name: Prepare isolated PostgreSQL test database
+        working-directory: application-under-test
+        run: |
+          npm run db:test:migrate
+          npm run db:seed
+          node scripts/ci/prisma-migration.js status
+
+      - name: Run full backend regression
+        working-directory: application-under-test
+        run: npm test
+
+      - name: Run real PostgreSQL integration suite
+        working-directory: application-under-test
+        run: npm run test:integration
+
+      - name: Run frontend regression
+        working-directory: application-under-test
+        run: npm --prefix frontend test
+
+      - name: Typecheck frontend
+        working-directory: application-under-test/frontend
+        run: npx tsc --noEmit
+
+      - name: Build frontend
+        working-directory: application-under-test
+        run: npm --prefix frontend run build
+
+      - name: Verify tested application tree hygiene
+        working-directory: application-under-test
+        shell: bash
+        run: |
+          git restore -- frontend/tsconfig.tsbuildinfo || true
+          git diff --check
+          test -z "$(git status --porcelain)"
+          echo 'ISOLATED_POSTGRES_CI=PASS'
