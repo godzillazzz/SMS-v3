@@ -90,6 +90,83 @@ jobs:
           audit|/api/v1/audit-events?page=1&pageSize=1
           PROBES
 
+      - name: Collect sanitized Candidate runtime 500 diagnostics
+        shell: bash
+        env:
+          DIAGNOSTIC_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+          VERCEL_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+        run: |
+          set -euo pipefail
+          test -n "$DIAGNOSTIC_TOKEN"
+          raw=$(mktemp)
+          trap 'rm -f "$raw"' EXIT
+          set +e
+          npx --yes vercel@56.4.1 logs \
+            --project "$VERCEL_PROJECT_ID" \
+            --scope "$VERCEL_ORG_ID" \
+            --environment preview \
+            --branch fix/employee-lifecycle-transaction-reliability \
+            --status-code 500 \
+            --since 2026-08-13T12:31:50Z \
+            --until 2026-08-13T12:33:00Z \
+            --json \
+            --token "$DIAGNOSTIC_TOKEN" >"$raw" 2>/dev/null
+          cli_exit=$?
+          set -e
+          node - "$raw" "$cli_exit" <<'NODE'
+          const fs = require('node:fs');
+          const [file, cliExit] = process.argv.slice(2);
+          const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean);
+          const events = [];
+          for (const line of lines) {
+            try {
+              const value = JSON.parse(line);
+              if (Array.isArray(value)) events.push(...value);
+              else if (value && typeof value === 'object') events.push(value);
+            } catch {}
+          }
+          const targetPath = (value) => {
+            const path = String(value || '').split('?')[0];
+            return ['/api/v1/health', '/api/v1/ready', '/api/v1/audit-events'].some((prefix) => path.startsWith(prefix));
+          };
+          const rows = [];
+          for (const event of events) {
+            const path = event.requestPath || event.path || event.proxy?.path || '';
+            if (!targetPath(path)) continue;
+            const messages = [];
+            if (typeof event.message === 'string') messages.push(event.message);
+            if (Array.isArray(event.logs)) for (const log of event.logs) if (typeof log?.message === 'string') messages.push(log.message);
+            const text = messages.join(' ');
+            const code = text.match(/\bP\d{4}\b/)?.[0] || 'unknown';
+            const category = /PrismaClientInitializationError/i.test(text) ? 'prisma_initialization'
+              : code === 'P1000' ? 'database_authentication'
+              : code === 'P1001' ? 'database_unreachable'
+              : code === 'P1002' ? 'database_connection_timeout'
+              : code === 'P2024' ? 'database_pool_timeout'
+              : code === 'P2028' ? 'database_transaction_error'
+              : /environment variable|missing.{0,30}environment|env validation|invalid environment/i.test(text) ? 'environment_configuration'
+              : /database|connection|pool|timeout/i.test(text) ? 'database_runtime'
+              : 'application_runtime';
+            const requestId = event.requestId || event.traceId || event.id || 'unknown';
+            const status = event.responseStatusCode ?? event.statusCode ?? event.status_code ?? 500;
+            const duration = event.durationMs ?? event.duration ?? event.proxy?.duration ?? 'unknown';
+            const deployment = event.deploymentId || JSON.stringify(event).match(/\bdpl_[A-Za-z0-9]+\b/)?.[0] || 'unknown';
+            rows.push({ path: String(path).split('?')[0], status, requestId, code, category, deployment, duration });
+          }
+          if (!rows.length) {
+            console.log(`CANDIDATE_RUNTIME_EVIDENCE=NOT_FOUND cli_exit=${cliExit}`);
+            process.exit(0);
+          }
+          const seen = new Set();
+          for (const row of rows) {
+            const key = `${row.path}|${row.requestId}|${row.code}|${row.category}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            console.log(`CANDIDATE_RUNTIME_EVIDENCE path=${row.path} status=${row.status} request_id=${row.requestId} prisma_code=${row.code} category=${row.category} deployment=${row.deployment} duration_ms=${row.duration}`);
+          }
+          NODE
+
   technical-smoke:
     if: ${{ inputs.uat_mode == 'technical' }}
     runs-on: ubuntu-latest
