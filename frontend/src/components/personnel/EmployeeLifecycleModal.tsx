@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api } from '../../api';
+import { ApiRequestError, api } from '../../api';
 import type { PersonnelRecord } from './types';
 import '../../styles/employee-lifecycle.css';
 
@@ -7,6 +7,7 @@ type LifecycleType = 'NAME_CHANGE' | 'DEPARTMENT_TRANSFER' | 'POSITION_CHANGE' |
 type LifecycleIssue = { code: string; message: string; count?: number };
 type Preflight = {
   expectedEmployeeUpdatedAt: string;
+  latestLifecycleSequence: number;
   effectiveDate: string;
   currentState: Record<string, unknown>;
   proposedState: Record<string, unknown>;
@@ -42,6 +43,13 @@ const todayInput = () => {
 };
 const thaiDate = (value: string) => new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value.slice(0, 10)}T00:00:00Z`));
 const text = (value: unknown) => value === null || value === undefined || value === '' ? 'ไม่ระบุ' : String(value);
+const lifecycleErrorText = (reasonValue: unknown, fallback: string) => {
+  if (reasonValue instanceof ApiRequestError) {
+    const requestId = typeof reasonValue.requestId === 'string' && /^[A-Za-z0-9:_-]{1,120}$/.test(reasonValue.requestId) ? reasonValue.requestId : '';
+    return reasonValue.message + (reasonValue.status >= 500 && requestId ? '\nรหัสอ้างอิง: ' + requestId : '');
+  }
+  return reasonValue instanceof Error ? reasonValue.message : fallback;
+};
 
 function eventChange(event: LifecycleEvent) {
   const before = event.oldValue?.employee || {};
@@ -105,7 +113,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
       const result = await api.preflightEmployeeLifecycle(token, employee.id, { type, effectiveDate, changes: payloadChanges() });
       setPreflight(result.data);
     } catch (reasonValue) {
-      setError(reasonValue instanceof Error ? reasonValue.message : 'ไม่สามารถตรวจสอบผลกระทบได้');
+      setError(lifecycleErrorText(reasonValue, 'ไม่สามารถตรวจสอบผลกระทบได้'));
     } finally { setBusy(false); }
   };
 
@@ -123,6 +131,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
         changes: payloadChanges(),
         reason,
         expectedEmployeeUpdatedAt: preflight.expectedEmployeeUpdatedAt,
+        expectedLifecycleSequence: preflight.latestLifecycleSequence,
         idempotencyKey,
         acknowledgeWarnings: true
       });
@@ -131,7 +140,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
       await loadHistory();
       onApplied();
     } catch (reasonValue) {
-      setError(reasonValue instanceof Error ? reasonValue.message : 'บันทึกการเปลี่ยนแปลงไม่สำเร็จ');
+      setError(lifecycleErrorText(reasonValue, 'บันทึกการเปลี่ยนแปลงไม่สำเร็จ'));
     } finally { setBusy(false); }
   };
 

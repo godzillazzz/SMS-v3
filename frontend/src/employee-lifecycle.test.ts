@@ -24,6 +24,9 @@ describe('Employee Lifecycle Management V1', () => {
     expect(modal).toContain('api.createEmployeeLifecycleEvent');
     expect(modal).toContain('crypto.randomUUID()');
     expect(modal).toContain('acknowledgeWarnings: true');
+    expect(modal).toContain('expectedLifecycleSequence: preflight.latestLifecycleSequence');
+    expect(modal).toContain('ApiRequestError');
+    expect(modal).toContain('รหัสอ้างอิง:');
     expect(modal).toContain("confirmation !== employee.employeeCode");
     expect(modal).toContain('disabled={busy');
   });

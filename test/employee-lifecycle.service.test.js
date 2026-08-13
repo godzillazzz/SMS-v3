@@ -24,6 +24,9 @@ function createHarness() {
     audits: []
   };
   let failAudit = false;
+  let inTransaction = false;
+  let transactionImpactQueries = 0;
+  let lastTransactionOptions;
   const employeeWithUser = (employee) => employee ? { ...employee, user: store.users.find((user) => user.employeeId === employee.id) || null } : null;
   const sortEvents = (rows, orderBy = []) => rows.sort((left, right) => {
     for (const order of orderBy) {
@@ -66,30 +69,34 @@ function createHarness() {
       count: async ({ where }) => eventFilter(where).length,
       findMany: async ({ where, orderBy, distinct, select, skip = 0, take }) => { let rows = sortEvents(eventFilter(where), orderBy).map((row) => ({ ...row })); if (distinct?.includes('employeeId')) rows = rows.filter((row, index) => rows.findIndex((candidate) => candidate.employeeId === row.employeeId) === index); rows = rows.slice(skip, take ? skip + take : undefined); if (select?.id) return rows.map(({ id, type }) => ({ id, ...(select.type && { type }) })); return rows; }
     },
-    shiftAssignment: { count: async ({ where }) => store.shifts.filter((row) => row.employeeId === where.employeeId && row.workDate >= where.workDate.gte).length },
-    leaveRequest: { count: async ({ where }) => store.leaves.filter((row) => row.employeeId === where.employeeId && row.status === where.status && row.endDate >= where.endDate.gte).length },
-    leaveQuota: { count: async ({ where }) => store.quotas.filter((row) => row.employeeId === where.employeeId).length },
-    employeeLicense: { count: async ({ where }) => store.licenses.filter((row) => row.employeeId === where.employeeId && row.status === where.status && (!row.expiryDate || row.expiryDate >= where.OR[1].expiryDate.gte)).length },
-    employeeLicenseDocument: { count: async ({ where }) => store.documents.filter((row) => row.employeeId === where.employeeId).length },
+    shiftAssignment: { count: async ({ where }) => { if (inTransaction) transactionImpactQueries += 1; return store.shifts.filter((row) => row.employeeId === where.employeeId && row.workDate >= where.workDate.gte).length; } },
+    leaveRequest: { count: async ({ where }) => { if (inTransaction) transactionImpactQueries += 1; return store.leaves.filter((row) => row.employeeId === where.employeeId && row.status === where.status && row.endDate >= where.endDate.gte).length; } },
+    leaveQuota: { count: async ({ where }) => { if (inTransaction) transactionImpactQueries += 1; return store.quotas.filter((row) => row.employeeId === where.employeeId).length; } },
+    employeeLicense: { count: async ({ where }) => { if (inTransaction) transactionImpactQueries += 1; return store.licenses.filter((row) => row.employeeId === where.employeeId && row.status === where.status && (!row.expiryDate || row.expiryDate >= where.OR[1].expiryDate.gte)).length; } },
+    employeeLicenseDocument: { count: async ({ where }) => { if (inTransaction) transactionImpactQueries += 1; return store.documents.filter((row) => row.employeeId === where.employeeId).length; } },
     refreshSession: { updateMany: async ({ where, data }) => { let count = 0; store.sessions.forEach((row) => { if (row.userId === where.userId && row.revokedAt === null) { Object.assign(row, data); count += 1; } }); return { count }; } },
     $executeRaw: async () => 1,
-    $transaction: async (work) => {
+    $transaction: async (work, options) => {
       if (Array.isArray(work)) return Promise.all(work);
       const snapshot = structuredClone(store);
+      lastTransactionOptions = options;
+      inTransaction = true;
       try { return await work(client); }
       catch (error) { Object.keys(store).forEach((key) => { store[key].splice(0, store[key].length, ...snapshot[key]); }); throw error; }
+      finally { inTransaction = false; }
     }
   };
   const auditService = { log: async ({ actorUserId, action, entityType, entityId, metadata }) => { if (failAudit) throw new Error('forced audit failure'); store.audits.push({ actorUserId, action, entityType, entityId, metadata }); } };
   const service = createEmployeeLifecycleService({ prismaClient: client, auditService, clock: () => new Date(now) });
   const setNow = (value) => { now = new Date(value); };
   const setFailAudit = (value) => { failAudit = value; };
-  return { service, store, setNow, setFailAudit };
+  const metrics = () => ({ transactionImpactQueries, lastTransactionOptions });
+  return { service, store, setNow, setFailAudit, metrics };
 }
 
 async function execute(harness, type, changes, idempotencyKey, effectiveDate = '2026-08-13') {
   const preflight = await harness.service.preflight({ employeeId: EMPLOYEE_ID, type, effectiveDate, changes });
-  return harness.service.createEvent({ employeeId: EMPLOYEE_ID, actorUserId: ACTOR_ID, type, effectiveDate, reason: `เหตุผลสำหรับ ${type}`, changes, expectedEmployeeUpdatedAt: preflight.expectedEmployeeUpdatedAt, idempotencyKey, acknowledgeWarnings: true });
+  return harness.service.createEvent({ employeeId: EMPLOYEE_ID, actorUserId: ACTOR_ID, type, effectiveDate, reason: `เหตุผลสำหรับ ${type}`, changes, expectedEmployeeUpdatedAt: preflight.expectedEmployeeUpdatedAt, expectedLifecycleSequence: preflight.latestLifecycleSequence, idempotencyKey, acknowledgeWarnings: true });
 }
 
 test('lifecycle preflight reports bounded dependency impacts without changing data', async () => {
@@ -192,21 +199,64 @@ test('idempotency and optimistic concurrency reject duplicate or stale submissio
   const harness = createHarness();
   const key = '50000000-0000-4000-8000-000000000031';
   const first = await execute(harness, 'POSITION_CHANGE', { jobTitle: 'Senior Officer' }, key);
-  const duplicate = await harness.service.createEvent({ employeeId: EMPLOYEE_ID, actorUserId: ACTOR_ID, type: 'POSITION_CHANGE', effectiveDate: '2026-08-13', reason: 'เหตุผลเดิม', changes: { jobTitle: 'Senior Officer' }, expectedEmployeeUpdatedAt: '2026-08-13T00:00:00.000Z', idempotencyKey: key, acknowledgeWarnings: true });
+  const duplicate = await harness.service.createEvent({ employeeId: EMPLOYEE_ID, actorUserId: ACTOR_ID, type: 'POSITION_CHANGE', effectiveDate: '2026-08-13', reason: 'เหตุผลเดิม', changes: { jobTitle: 'Senior Officer' }, expectedEmployeeUpdatedAt: '2026-08-13T00:00:00.000Z', expectedLifecycleSequence: 0, idempotencyKey: key, acknowledgeWarnings: true });
   assert.equal(first.idempotent, false);
   assert.equal(duplicate.idempotent, true);
   assert.equal(harness.store.events.length, 1);
-  await assert.rejects(() => harness.service.createEvent({ employeeId: EMPLOYEE_ID, actorUserId: ACTOR_ID, type: 'NAME_CHANGE', effectiveDate: '2026-08-13', reason: 'เหตุผลที่ถูกต้อง', changes: { firstName: 'ใหม่', lastName: 'ชื่อ' }, expectedEmployeeUpdatedAt: '2025-01-01T00:00:00.000Z', idempotencyKey: '50000000-0000-4000-8000-000000000032', acknowledgeWarnings: true }), (error) => error.statusCode === 409 && error.details.code === 'EMPLOYEE_STATE_CONFLICT');
+  await assert.rejects(() => harness.service.createEvent({ employeeId: EMPLOYEE_ID, actorUserId: ACTOR_ID, type: 'NAME_CHANGE', effectiveDate: '2026-08-13', reason: 'เหตุผลที่ถูกต้อง', changes: { firstName: 'ใหม่', lastName: 'ชื่อ' }, expectedEmployeeUpdatedAt: '2025-01-01T00:00:00.000Z', expectedLifecycleSequence: 0, idempotencyKey: '50000000-0000-4000-8000-000000000032', acknowledgeWarnings: true }), (error) => error.statusCode === 409 && error.details.code === 'EMPLOYEE_STATE_CONFLICT');
 });
 
 test('transaction rollback prevents partial Employee and lifecycle writes', async () => {
   const harness = createHarness();
   const preflight = await harness.service.preflight({ employeeId: EMPLOYEE_ID, type: 'NAME_CHANGE', effectiveDate: '2026-08-13', changes: { firstName: 'ใหม่', lastName: 'ชื่อ' } });
   harness.setFailAudit(true);
-  await assert.rejects(() => harness.service.createEvent({ employeeId: EMPLOYEE_ID, actorUserId: ACTOR_ID, type: 'NAME_CHANGE', effectiveDate: '2026-08-13', reason: 'ทดสอบ rollback', changes: { firstName: 'ใหม่', lastName: 'ชื่อ' }, expectedEmployeeUpdatedAt: preflight.expectedEmployeeUpdatedAt, idempotencyKey: '50000000-0000-4000-8000-000000000041', acknowledgeWarnings: true }));
+  await assert.rejects(() => harness.service.createEvent({ employeeId: EMPLOYEE_ID, actorUserId: ACTOR_ID, type: 'NAME_CHANGE', effectiveDate: '2026-08-13', reason: 'ทดสอบ rollback', changes: { firstName: 'ใหม่', lastName: 'ชื่อ' }, expectedEmployeeUpdatedAt: preflight.expectedEmployeeUpdatedAt, expectedLifecycleSequence: preflight.latestLifecycleSequence, idempotencyKey: '50000000-0000-4000-8000-000000000041', acknowledgeWarnings: true }));
   assert.equal(harness.store.employees[0].displayName, 'สมชาย ใจดี');
   assert.equal(harness.store.events.length, 0);
   assert.equal(harness.store.audits.length, 0);
+});
+
+test('NAME_CHANGE keeps impact analysis outside the interactive transaction and commits Employee, User, event, and audit atomically', async () => {
+  const harness = createHarness();
+  const result = await execute(harness, 'NAME_CHANGE', { firstName: 'สมชาย', lastName: 'ใจงาม' }, '50000000-0000-4000-8000-000000000051');
+  assert.equal(result.event.type, 'NAME_CHANGE');
+  assert.equal(harness.store.employees[0].displayName, 'สมชาย ใจงาม');
+  assert.equal(harness.store.users[0].displayName, 'สมชาย ใจงาม');
+  assert.equal(harness.store.events.length, 1);
+  assert.equal(harness.store.audits.length, 2);
+  assert.equal(harness.metrics().transactionImpactQueries, 0);
+  assert.deepEqual(harness.metrics().lastTransactionOptions, { isolationLevel: 'Serializable', maxWait: 5000, timeout: 10000 });
+});
+
+test('audit failure rolls back Employee, linked User, lifecycle event, and audit writes together', async () => {
+  const harness = createHarness();
+  const preflight = await harness.service.preflight({ employeeId: EMPLOYEE_ID, type: 'NAME_CHANGE', effectiveDate: '2026-08-13', changes: { firstName: 'ใหม่', lastName: 'ชื่อ' } });
+  harness.setFailAudit(true);
+  await assert.rejects(() => harness.service.createEvent({ employeeId: EMPLOYEE_ID, actorUserId: ACTOR_ID, type: 'NAME_CHANGE', effectiveDate: '2026-08-13', reason: 'ทดสอบ atomic rollback', changes: { firstName: 'ใหม่', lastName: 'ชื่อ' }, expectedEmployeeUpdatedAt: preflight.expectedEmployeeUpdatedAt, expectedLifecycleSequence: preflight.latestLifecycleSequence, idempotencyKey: '50000000-0000-4000-8000-000000000052', acknowledgeWarnings: true }));
+  assert.equal(harness.store.employees[0].displayName, 'สมชาย ใจดี');
+  assert.equal(harness.store.users[0].displayName, 'สมชาย ใจดี');
+  assert.equal(harness.store.events.length, 0);
+  assert.equal(harness.store.audits.length, 0);
+});
+
+test('stale lifecycle sequence is rejected even when Employee updatedAt has not changed', async () => {
+  const harness = createHarness();
+  const stale = await harness.service.preflight({ employeeId: EMPLOYEE_ID, type: 'NAME_CHANGE', effectiveDate: '2026-10-01', changes: { firstName: 'สมชาย', lastName: 'ใจงาม' } });
+  await execute(harness, 'POSITION_CHANGE', { jobTitle: 'Senior Officer' }, '50000000-0000-4000-8000-000000000053', '2026-09-01');
+  await assert.rejects(() => harness.service.createEvent({ employeeId: EMPLOYEE_ID, actorUserId: ACTOR_ID, type: 'NAME_CHANGE', effectiveDate: '2026-10-01', reason: 'ทดสอบ stale lifecycle', changes: { firstName: 'สมชาย', lastName: 'ใจงาม' }, expectedEmployeeUpdatedAt: stale.expectedEmployeeUpdatedAt, expectedLifecycleSequence: stale.latestLifecycleSequence, idempotencyKey: '50000000-0000-4000-8000-000000000054', acknowledgeWarnings: true }), (error) => error.statusCode === 409 && error.details.code === 'LIFECYCLE_STATE_CONFLICT');
+  assert.equal(harness.store.events.length, 1);
+  assert.equal(harness.store.events[0].type, 'POSITION_CHANGE');
+});
+
+test('NAME_CHANGE without a linked User follows existing warning policy and still updates Employee safely', async () => {
+  const harness = createHarness();
+  harness.store.users.splice(0);
+  const preflight = await harness.service.preflight({ employeeId: EMPLOYEE_ID, type: 'NAME_CHANGE', effectiveDate: '2026-08-13', changes: { firstName: 'สมชาย', lastName: 'ใจงาม' } });
+  assert.equal(preflight.warnings.some((issue) => issue.code === 'LINKED_USER_MISSING'), true);
+  await harness.service.createEvent({ employeeId: EMPLOYEE_ID, actorUserId: ACTOR_ID, type: 'NAME_CHANGE', effectiveDate: '2026-08-13', reason: 'ไม่มีบัญชีเชื่อมโยง', changes: { firstName: 'สมชาย', lastName: 'ใจงาม' }, expectedEmployeeUpdatedAt: preflight.expectedEmployeeUpdatedAt, expectedLifecycleSequence: preflight.latestLifecycleSequence, idempotencyKey: '50000000-0000-4000-8000-000000000055', acknowledgeWarnings: true });
+  assert.equal(harness.store.employees[0].displayName, 'สมชาย ใจงาม');
+  assert.equal(harness.store.users.length, 0);
+  assert.equal(harness.store.events.length, 1);
 });
 
 test('route contract keeps mutations ADMIN-only and lifecycle history read-only', () => {
@@ -214,6 +264,7 @@ test('route contract keeps mutations ADMIN-only and lifecycle history read-only'
   assert.match(source, /post\('\/:id\/lifecycle\/preflight', authorize\('ADMIN'\)/);
   assert.match(source, /post\('\/:id\/lifecycle', authorize\('ADMIN'\)/);
   assert.match(source, /get\('\/:id\/lifecycle', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(source, /expectedLifecycleSequence: z\.number\(\)\.int\(\)\.min\(0\)/);
   assert.match(source, /LIFECYCLE_ACTION_REQUIRED/);
   assert.match(source, /LIFECYCLE_TERMINATION_REQUIRED/);
   assert.doesNotMatch(source, /router\.(?:put|delete)\('\/:id\/lifecycle/);

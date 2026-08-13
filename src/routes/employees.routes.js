@@ -32,6 +32,7 @@ const lifecyclePreflightSchema = z.object({
 const lifecycleActionSchema = lifecyclePreflightSchema.extend({
   reason: z.string().trim().min(3).max(1000),
   expectedEmployeeUpdatedAt: z.string().datetime(),
+  expectedLifecycleSequence: z.number().int().min(0),
   idempotencyKey: z.string().uuid(),
   acknowledgeWarnings: z.boolean().default(false)
 });

@@ -6,6 +6,7 @@ const audit = require('./audit.service');
 const { logger, errorCategory } = require('../utils/logger');
 
 const LIFECYCLE_LOCK = 615042917;
+const LIFECYCLE_TRANSACTION_OPTIONS = { isolationLevel: 'Serializable', maxWait: 5000, timeout: 10000 };
 const EVENT_TYPES = [
   'DEPARTMENT_TRANSFER',
   'NAME_CHANGE',
@@ -131,7 +132,7 @@ function hasLifecycleModel(client) {
 }
 
 function createEmployeeLifecycleService({ prismaClient = prisma, auditService = audit, clock = () => new Date() } = {}) {
-  async function preflight({ employeeId, type, effectiveDate, changes = {} }, client = prismaClient) {
+  async function authoritativeMutationState({ employeeId, type, effectiveDate, changes = {} }, client = prismaClient) {
     const effective = dateOnly(effectiveDate);
     const employee = await client.employee.findFirst({ where: { id: employeeId, deletedAt: null }, include: { user: true } });
     if (!employee) throw new HttpError(404, 'ไม่พบข้อมูลพนักงาน');
@@ -145,6 +146,12 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
     if (latestEvent && new Date(latestEvent.effectiveDate) > effective) {
       blockingIssues.push({ code: 'LIFECYCLE_EVENT_ORDER_CONFLICT', message: 'วันที่มีผลต้องไม่ก่อนเหตุการณ์ล่าสุดในประวัติพนักงาน' });
     }
+    return { effective, employee, latestEvent, prior, next, blockingIssues, latestLifecycleSequence: latestEvent?.sequence || 0 };
+  }
+
+  async function preflight({ employeeId, type, effectiveDate, changes = {} }, client = prismaClient) {
+    const state = await authoritativeMutationState({ employeeId, type, effectiveDate, changes }, client);
+    const { effective, employee, latestEvent, prior, next, blockingIssues } = state;
 
     const impacts = {
       futureShiftAssignments: await client.shiftAssignment.count({ where: { employeeId, workDate: { gte: effective } } }),
@@ -209,9 +216,26 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
     return { employee: after, user: synchronizedUser };
   }
 
-  async function createEvent({ employeeId, actorUserId, type, effectiveDate, reason, changes = {}, expectedEmployeeUpdatedAt, idempotencyKey, acknowledgeWarnings = false }) {
+  async function createEvent({ employeeId, actorUserId, type, effectiveDate, reason, changes = {}, expectedEmployeeUpdatedAt, expectedLifecycleSequence, idempotencyKey, acknowledgeWarnings = false }) {
     const effective = dateOnly(effectiveDate);
     const safeReason = cleanText(reason, 'เหตุผล', 1000);
+
+    // Preserve idempotent retries without opening an interactive transaction.
+    // The duplicate is checked again after the advisory lock to close races.
+    const existing = await prismaClient.employeeLifecycleEvent.findUnique({ where: { idempotencyKey }, include: { changedBy: { select: { displayName: true, role: true } } } });
+    if (existing) {
+      if (existing.employeeId !== employeeId || existing.type !== type) throw new HttpError(409, 'รหัสคำขอถูกใช้กับรายการอื่นแล้ว');
+      return { event: existing, idempotent: true };
+    }
+
+    // Impact analysis is intentionally outside the interactive transaction.
+    // Authoritative state is revalidated under the lock before any write.
+    const analysis = await preflight({ employeeId, type, effectiveDate: effective, changes }, prismaClient);
+    if (analysis.blockingIssues.length) throw new HttpError(409, 'ไม่สามารถดำเนินการเปลี่ยนแปลงนี้ได้', { code: 'LIFECYCLE_PREFLIGHT_BLOCKED', preflight: analysis });
+    if (analysis.warnings.length && !acknowledgeWarnings) throw new HttpError(409, 'กรุณาตรวจสอบและยืนยันคำเตือนก่อนดำเนินการ', { code: 'LIFECYCLE_WARNINGS_REQUIRE_CONFIRMATION', preflight: analysis });
+    if (new Date(expectedEmployeeUpdatedAt).getTime() !== new Date(analysis.expectedEmployeeUpdatedAt).getTime()) throw new HttpError(409, 'ข้อมูลพนักงานมีการเปลี่ยนแปลง กรุณารีเฟรชและลองใหม่', { code: 'EMPLOYEE_STATE_CONFLICT' });
+    if (Number(expectedLifecycleSequence) !== analysis.latestLifecycleSequence) throw new HttpError(409, 'ประวัติวงจรพนักงานมีการเปลี่ยนแปลง กรุณาตรวจสอบใหม่', { code: 'LIFECYCLE_STATE_CONFLICT' });
+
     return prismaClient.$transaction(async (tx) => {
       if (typeof tx.$executeRaw === 'function') await tx.$executeRaw`SELECT pg_advisory_xact_lock(${LIFECYCLE_LOCK})`;
       const duplicate = await tx.employeeLifecycleEvent.findUnique({ where: { idempotencyKey }, include: { changedBy: { select: { displayName: true, role: true } } } });
@@ -220,19 +244,19 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
         return { event: duplicate, idempotent: true };
       }
 
-      const analysis = await preflight({ employeeId, type, effectiveDate: effective, changes }, tx);
-      if (analysis.blockingIssues.length) throw new HttpError(409, 'ไม่สามารถดำเนินการเปลี่ยนแปลงนี้ได้', { code: 'LIFECYCLE_PREFLIGHT_BLOCKED', preflight: analysis });
-      if (analysis.warnings.length && !acknowledgeWarnings) throw new HttpError(409, 'กรุณาตรวจสอบและยืนยันคำเตือนก่อนดำเนินการ', { code: 'LIFECYCLE_WARNINGS_REQUIRE_CONFIRMATION', preflight: analysis });
-      if (new Date(expectedEmployeeUpdatedAt).getTime() !== new Date(analysis.expectedEmployeeUpdatedAt).getTime()) throw new HttpError(409, 'ข้อมูลพนักงานมีการเปลี่ยนแปลง กรุณารีเฟรชและลองใหม่', { code: 'EMPLOYEE_STATE_CONFLICT' });
+      const authoritative = await authoritativeMutationState({ employeeId, type, effectiveDate: effective, changes }, tx);
+      if (authoritative.blockingIssues.length) throw new HttpError(409, 'ไม่สามารถดำเนินการเปลี่ยนแปลงนี้ได้', { code: 'LIFECYCLE_PREFLIGHT_BLOCKED' });
+      if (new Date(expectedEmployeeUpdatedAt).getTime() !== new Date(authoritative.employee.updatedAt).getTime()) throw new HttpError(409, 'ข้อมูลพนักงานมีการเปลี่ยนแปลง กรุณารีเฟรชและลองใหม่', { code: 'EMPLOYEE_STATE_CONFLICT' });
+      if (Number(expectedLifecycleSequence) !== authoritative.latestLifecycleSequence) throw new HttpError(409, 'ประวัติวงจรพนักงานมีการเปลี่ยนแปลง กรุณาตรวจสอบใหม่', { code: 'LIFECYCLE_STATE_CONFLICT' });
 
-      const employee = await tx.employee.findUniqueOrThrow({ where: { id: employeeId }, include: { user: true } });
-      const oldValue = { employee: analysis.currentState, user: analysis.linkedUserState.current };
-      const newValue = nextSnapshot(type, oldValue, changes, effective);
+      const employee = authoritative.employee;
+      const oldValue = { employee: authoritative.prior.employee, user: authoritative.prior.user };
+      const newValue = authoritative.next;
       const appliesNow = effective <= bangkokToday(clock());
       const event = await tx.employeeLifecycleEvent.create({
         data: {
           employeeId,
-          sequence: analysis.latestLifecycleSequence + 1,
+          sequence: authoritative.latestLifecycleSequence + 1,
           type,
           status: appliesNow ? 'APPLIED' : 'PENDING',
           effectiveDate: effective,
@@ -254,7 +278,7 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
       }
       await auditService.log({ actorUserId, action: 'CREATE', entityType: 'EmployeeLifecycleEvent', entityId: event.id, metadata: { employeeId, type, status: event.status, effectiveDate: effective, reason: safeReason, impacts: analysis.impacts } }, tx);
       return { event: { ...event, changedBy: { id: actorUserId } }, employee: currentEmployee, preflight: analysis, idempotent: false };
-    }, { isolationLevel: 'Serializable' });
+    }, LIFECYCLE_TRANSACTION_OPTIONS);
   }
 
   async function applyPendingEvent(eventId) {

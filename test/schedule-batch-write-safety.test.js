@@ -188,10 +188,11 @@ test('P2024 and P2028 are logged with sanitized diagnostics while clients receiv
       assert.equal(Object.prototype.hasOwnProperty.call(body, 'stack'), false);
     }
     assert.deepEqual(records.map((record) => record.fields.errorCode), ['P2024', 'P2028']);
-    assert.equal(records.every((record) => record.fields.errorMessage), true);
-    assert.equal(records.every((record) => record.fields.errorDetails === 'safe detail'), true);
-    assert.equal(records.every((record) => record.fields.errorHint === 'safe hint'), true);
-    assert.equal(records.every((record) => record.fields.stack === '[REDACTED]'), true);
+    assert.equal(records.every((record) => record.fields.operation === 'request_database_operation'), true);
+    assert.equal(records.every((record) => !Object.prototype.hasOwnProperty.call(record.fields, 'errorMessage')), true);
+    assert.equal(records.every((record) => !Object.prototype.hasOwnProperty.call(record.fields, 'errorDetails')), true);
+    assert.equal(records.every((record) => !Object.prototype.hasOwnProperty.call(record.fields, 'errorHint')), true);
+    assert.equal(records.every((record) => !Object.prototype.hasOwnProperty.call(record.fields, 'stack')), true);
   } finally {
     logger.error = originalError;
   }

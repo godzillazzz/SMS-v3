@@ -16,7 +16,7 @@
 .lifecycle-form textarea{min-height:82px;resize:vertical}
 .lifecycle-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .lifecycle-alert{padding:11px 13px;border-radius:9px;font-size:13px}
-.lifecycle-alert--error{background:#fff0f1;color:#a6212e}
+.lifecycle-alert--error{background:#fff0f1;color:#a6212e;white-space:pre-line}
 .lifecycle-alert--success{background:#eaf8f1;color:#126746}
 .lifecycle-preflight{display:grid;gap:8px;padding:14px;border:1px solid #ead9a7;border-radius:11px;background:#fffbef}
 .lifecycle-preflight h3{margin:0 0 3px;color:#14213d;font-size:15px}
