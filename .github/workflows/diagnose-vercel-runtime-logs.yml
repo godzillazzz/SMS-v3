@@ -14,6 +14,9 @@ permissions:
 env:
   EXPECTED_APPLICATION_SHA: 285b901912d740b01c04266925f16df8db1ec1f1
   EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_CANONICAL_DEPLOYMENT: dpl_BXdWNdwFr2MzzPAgtWgyXz7faAuS
+  EXPECTED_CANONICAL_SHA: e672c704c76c9fd53049b89736d56283029da1ea
   VERCEL_CLI_VERSION: 56.4.1
 
 jobs:
@@ -30,45 +33,67 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - name: Resolve exact Candidate identity by immutable Git SHA
+      - name: Resolve Candidate and Canonical identities
         shell: bash
         run: |
           set -euo pipefail
           test "${{ inputs.application_sha }}" = "$EXPECTED_APPLICATION_SHA"
           test -n "$VERCEL_TOKEN"
-          tmp=$(mktemp)
-          trap 'rm -f "$tmp"' EXIT
+          list_json=$(mktemp)
+          candidate_json=$(mktemp)
+          canonical_json=$(mktemp)
+          trap 'rm -f "$list_json" "$candidate_json" "$canonical_json"' EXIT
+
           npx --yes vercel@"$VERCEL_CLI_VERSION" list "$EXPECTED_PROJECT_NAME" \
-            --scope "$VERCEL_ORG_ID" \
-            --status READY \
+            --scope "$VERCEL_ORG_ID" --status READY \
             --meta "githubCommitSha=$EXPECTED_APPLICATION_SHA" \
-            --format json \
-            --limit 20 \
-            --token "$VERCEL_TOKEN" > "$tmp"
-          node - "$tmp" <<'NODE'
+            --format json --limit 20 --token "$VERCEL_TOKEN" > "$list_json"
+
+          candidate_url=$(node - "$list_json" <<'NODE'
           const fs = require('node:fs');
           const value = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           const rows = Array.isArray(value) ? value : (value.deployments || value.items || []);
           const matches = rows.filter((row) => {
             const meta = row.meta || row.metadata || {};
-            const sha = meta.githubCommitSha || meta.githubCommitRef || row.source?.git?.sha || row.gitSource?.sha;
+            const sha = meta.githubCommitSha || row.source?.git?.sha || row.gitSource?.sha;
             return sha === process.env.EXPECTED_APPLICATION_SHA;
           });
-          console.log(`CANDIDATE_MATCH_COUNT=${matches.length}`);
-          for (const row of matches) {
-            const id = row.uid || row.id || row.deploymentId || 'unknown';
-            const url = row.url ? (String(row.url).startsWith('http') ? row.url : `https://${row.url}`) : 'unknown';
-            const target = row.target ?? row.environment ?? 'unknown';
-            const state = row.state || row.readyState || row.status || 'unknown';
-            const meta = row.meta || row.metadata || {};
-            const sha = meta.githubCommitSha || row.source?.git?.sha || row.gitSource?.sha || 'unknown';
-            console.log('CANDIDATE_BEGIN');
-            console.log(`CANDIDATE_DEPLOYMENT_ID=${id}`);
-            console.log(`CANDIDATE_URL=${url}`);
-            console.log(`CANDIDATE_TARGET=${target}`);
-            console.log(`CANDIDATE_STATE=${state}`);
-            console.log(`CANDIDATE_APPLICATION_SHA=${sha}`);
-            console.log('CANDIDATE_END');
-          }
-          if (matches.length !== 1) process.exitCode = 2;
+          if (matches.length !== 1) process.exit(2);
+          const url = matches[0].url;
+          process.stdout.write(String(url).startsWith('http') ? String(url) : `https://${url}`);
+          NODE
+          )
+
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$candidate_url" \
+            --scope "$VERCEL_ORG_ID" --format json --token "$VERCEL_TOKEN" > "$candidate_json"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" \
+            --scope "$VERCEL_ORG_ID" --format json --token "$VERCEL_TOKEN" > "$canonical_json"
+
+          node - "$candidate_json" "$canonical_json" "$candidate_url" <<'NODE'
+          const fs = require('node:fs');
+          const [candidateFile, canonicalFile, candidateUrl] = process.argv.slice(2);
+          const c = JSON.parse(fs.readFileSync(candidateFile, 'utf8'));
+          const p = JSON.parse(fs.readFileSync(canonicalFile, 'utf8'));
+          const pick = (x) => ({
+            id: x.id || x.uid || x.deploymentId || 'unknown',
+            target: x.target ?? x.environment ?? 'unknown',
+            state: x.readyState || x.state || x.status || 'unknown',
+            sha: x.meta?.githubCommitSha || x.metadata?.githubCommitSha || x.source?.git?.sha || x.gitSource?.sha || 'unknown'
+          });
+          const candidate = pick(c);
+          const canonical = pick(p);
+          console.log(`CANDIDATE_DEPLOYMENT_ID=${candidate.id}`);
+          console.log(`CANDIDATE_URL=${candidateUrl}`);
+          console.log(`CANDIDATE_TARGET=${candidate.target}`);
+          console.log(`CANDIDATE_STATE=${candidate.state}`);
+          console.log(`CANDIDATE_APPLICATION_SHA=${candidate.sha}`);
+          console.log(`CANONICAL_DEPLOYMENT_ID=${canonical.id}`);
+          console.log(`CANONICAL_TARGET=${canonical.target}`);
+          console.log(`CANONICAL_STATE=${canonical.state}`);
+          console.log(`CANONICAL_APPLICATION_SHA=${canonical.sha}`);
+          const candidateOk = candidate.id.startsWith('dpl_') && candidate.state === 'READY' && candidate.sha === process.env.EXPECTED_APPLICATION_SHA && candidate.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT;
+          const canonicalOk = canonical.id === process.env.EXPECTED_CANONICAL_DEPLOYMENT && canonical.state === 'READY' && canonical.sha === process.env.EXPECTED_CANONICAL_SHA;
+          console.log(`CANDIDATE_IDENTITY=${candidateOk ? 'PASS' : 'FAIL'}`);
+          console.log(`CANONICAL_UNCHANGED=${canonicalOk ? 'PASS' : 'FAIL'}`);
+          if (!candidateOk || !canonicalOk) process.exitCode = 2;
           NODE
