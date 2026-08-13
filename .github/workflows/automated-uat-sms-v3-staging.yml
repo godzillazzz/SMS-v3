@@ -26,6 +26,11 @@ on:
         description: Exact expected Vercel deployment ID for report identity
         required: true
         type: string
+      confirm_preview_fix:
+        description: Type CREATE_BRANCH_PREVIEW_JWT_SECRET only for proven Preview auth config recovery
+        required: false
+        default: ''
+        type: string
       uat_mode:
         description: Technical/public smoke or authenticated ADMIN/MANAGER/VIEWER smoke
         required: false
@@ -34,6 +39,7 @@ on:
         options:
           - technical
           - diagnostic
+          - preview-fix
           - authenticated
 
 permissions:
@@ -214,6 +220,74 @@ jobs:
           console.log(`CANDIDATE_ENV_SCOPE_COUNTS production=${uniqueCount((entry) => hasTarget(entry, 'production'))} preview_default=${uniqueCount((entry) => hasTarget(entry, 'preview') && !entry.gitBranch)} preview_branch=${uniqueCount((entry) => hasTarget(entry, 'preview') && entry.gitBranch === branch)}`);
           NODE
 
+  preview-config-fix:
+    if: ${{ inputs.uat_mode == 'preview-fix' }}
+    runs-on: ubuntu-latest
+    environment: production-sms-v3-staging
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.uat_harness_sha }}
+          fetch-depth: 0
+      - name: Validate Preview config fix contract
+        shell: bash
+        env:
+          TARGET_MODE: ${{ inputs.target_mode }}
+          TARGET_URL: ${{ inputs.target_url }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          CONFIRM_PREVIEW_FIX: ${{ inputs.confirm_preview_fix }}
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$TARGET_MODE" = 'candidate'
+          test "$CONFIRM_PREVIEW_FIX" = 'CREATE_BRANCH_PREVIEW_JWT_SECRET'
+          node e2e/helpers/uat-target-contract.js scope "$TARGET_MODE" "$TARGET_URL"
+          git fetch --no-tags origin fix/employee-lifecycle-transaction-reliability
+          test "$(git rev-parse origin/fix/employee-lifecycle-transaction-reliability)" = "$SOURCE_SHA"
+          node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$GITHUB_REF_TYPE" "$GITHUB_REF_NAME"
+      - name: Create branch-specific sensitive Preview auth secret
+        shell: bash
+        env:
+          PREVIEW_CONFIG_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+          VERCEL_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+          CANDIDATE_BRANCH: fix/employee-lifecycle-transaction-reliability
+        run: |
+          set -euo pipefail
+          test -n "$PREVIEW_CONFIG_TOKEN"
+          node <<'NODE'
+          const crypto = require('node:crypto');
+          const projectId = process.env.VERCEL_PROJECT_ID;
+          const teamId = process.env.VERCEL_ORG_ID;
+          const branch = process.env.CANDIDATE_BRANCH;
+          const token = process.env.PREVIEW_CONFIG_TOKEN;
+          const key = ['JWT','SECRET'].join('_');
+          const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' };
+          const listUrl = new URL(`https://api.vercel.com/v9/projects/${encodeURIComponent(projectId)}/env`);
+          listUrl.searchParams.set('teamId', teamId);
+          async function list() { const r=await fetch(listUrl,{headers}); if(!r.ok) throw new Error(`ENV_LIST_FAILED_${r.status}`); const p=await r.json(); return Array.isArray(p?.envs)?p.envs:Array.isArray(p)?p:[]; }
+          function targets(e){return Array.isArray(e?.target)?e.target:e?.target?[e.target]:[];}
+          (async()=>{
+            const before=await list();
+            const existing=before.some((e)=>e?.key===key && targets(e).includes('preview') && e.gitBranch===branch);
+            if(existing){ console.log('PREVIEW_AUTH_SECRET_BEFORE=PRESENT'); console.log('PREVIEW_AUTH_SECRET_CHANGE=NONE'); return; }
+            console.log('PREVIEW_AUTH_SECRET_BEFORE=ABSENT');
+            const value=crypto.randomBytes(48).toString('base64url');
+            const createUrl=new URL(`https://api.vercel.com/v10/projects/${encodeURIComponent(projectId)}/env`);
+            createUrl.searchParams.set('teamId',teamId);
+            const body=[{key,value,type:'sensitive',target:['preview'],gitBranch:branch,comment:'Candidate-only auth signing secret for lifecycle transaction reliability validation'}];
+            const created=await fetch(createUrl,{method:'POST',headers,body:JSON.stringify(body)});
+            if(!created.ok) throw new Error(`PREVIEW_AUTH_SECRET_CREATE_FAILED_${created.status}`);
+            const after=await list();
+            const present=after.some((e)=>e?.key===key && targets(e).includes('preview') && e.gitBranch===branch);
+            console.log(`PREVIEW_AUTH_SECRET_AFTER=${present?'PRESENT':'ABSENT'}`);
+            if(!present) throw new Error('PREVIEW_AUTH_SECRET_VERIFY_FAILED');
+            console.log('PREVIEW_AUTH_SECRET_CHANGE=CREATED_BRANCH_PREVIEW_SENSITIVE');
+          })().catch((error)=>{ console.error(String(error.message||error).replace(/[^A-Z0-9_:-]/gi,'_').slice(0,120)); process.exit(1); });
+          NODE
   technical-smoke:
     if: ${{ inputs.uat_mode == 'technical' }}
     runs-on: ubuntu-latest
