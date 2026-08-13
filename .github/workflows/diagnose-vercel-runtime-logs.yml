@@ -29,6 +29,14 @@ on:
         description: Type production to confirm the Vercel environment
         required: true
         type: string
+      employee_id:
+        description: Affected employee UUID from sanitized runtime evidence
+        required: true
+        type: string
+      confirm_db_read_only:
+        description: Type READ_ONLY to allow invariant reads only
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -43,6 +51,7 @@ env:
   INCIDENT_SINCE: 2026-08-13T10:05:00Z
   INCIDENT_UNTIL: 2026-08-13T10:20:00Z
   VERCEL_CLI_VERSION: 56.4.1
+  EXPECTED_EMPLOYEE_ID: d9d83eeb-b3a3-4e1a-b4d4-49aa0432e079
 
 jobs:
   diagnose:
@@ -274,4 +283,153 @@ jobs:
           } else {
             console.log('STATUS=INCIDENT_RUNTIME_LOG_FOUND');
           }
+          NODE
+      - name: Checkout exact Production source for read-only Prisma invariant check
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 1
+          path: application-under-test
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: application-under-test/package-lock.json
+
+      - name: Install read-only diagnostic dependencies
+        working-directory: application-under-test
+        run: npm ci --ignore-scripts
+
+      - name: Generate Prisma client without database access
+        working-directory: application-under-test
+        env:
+          DATABASE_URL: postgresql://unused:unused@127.0.0.1:5432/unused
+          DIRECT_URL: postgresql://unused:unused@127.0.0.1:5432/unused
+        run: npx prisma generate --schema prisma/schema.prisma
+
+      - name: Verify failed lifecycle transaction invariant read-only
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          EMPLOYEE_ID: ${{ inputs.employee_id }}
+          CONFIRM_DB_READ_ONLY: ${{ inputs.confirm_db_read_only }}
+        run: |
+          set -euo pipefail
+          test "$EMPLOYEE_ID" = "$EXPECTED_EMPLOYEE_ID"
+          test "$CONFIRM_DB_READ_ONLY" = "READ_ONLY"
+          test -n "$DATABASE_URL"
+          node <<'NODE'
+          const path = require('node:path');
+          const crypto = require('node:crypto');
+          const appRoot = path.join(process.cwd(), 'application-under-test');
+          const { PrismaClient } = require(path.join(appRoot, 'node_modules', '@prisma', 'client'));
+          const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
+          const employeeId = process.env.EMPLOYEE_ID;
+          const since = new Date(process.env.INCIDENT_SINCE);
+          const until = new Date(process.env.INCIDENT_UNTIL);
+          const hash = (value) => crypto.createHash('sha256').update(String(value ?? '')).digest('hex').slice(0, 16);
+          const iso = (value) => value ? new Date(value).toISOString() : 'NONE';
+          const snapshotDisplay = (snapshot) => snapshot?.employee?.displayName ?? snapshot?.displayName ?? null;
+
+          async function main() {
+            const employee = await prisma.employee.findUnique({
+              where: { id: employeeId },
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                displayName: true,
+                updatedAt: true,
+                user: { select: { id: true, displayName: true, updatedAt: true } }
+              }
+            });
+            if (!employee) {
+              console.log('EMPLOYEE_PRESENT=NO');
+              process.exitCode = 2;
+              return;
+            }
+
+            const events = await prisma.employeeLifecycleEvent.findMany({
+              where: { employeeId, createdAt: { gte: since, lte: until } },
+              select: {
+                id: true,
+                sequence: true,
+                type: true,
+                status: true,
+                effectiveDate: true,
+                oldValue: true,
+                newValue: true,
+                appliedAt: true,
+                createdAt: true,
+                updatedAt: true
+              },
+              orderBy: [{ createdAt: 'asc' }, { sequence: 'asc' }]
+            });
+
+            const eventIds = events.map((event) => event.id);
+            const audits = await prisma.auditLog.findMany({
+              where: {
+                createdAt: { gte: since, lte: until },
+                OR: [
+                  { entityType: 'Employee', entityId: employeeId },
+                  ...(eventIds.length ? [{ entityType: 'EmployeeLifecycleEvent', entityId: { in: eventIds } }] : [])
+                ]
+              },
+              select: { id: true, action: true, entityType: true, entityId: true, createdAt: true },
+              orderBy: { createdAt: 'asc' }
+            });
+
+            const currentDisplay = employee.displayName || `${employee.firstName} ${employee.lastName}`.trim();
+            const userPresent = Boolean(employee.user);
+            const userDisplayMatches = !employee.user || employee.user.displayName === currentDisplay;
+            const nameEvents = events.filter((event) => event.type === 'NAME_CHANGE');
+
+            console.log('EMPLOYEE_PRESENT=YES');
+            console.log(`EMPLOYEE_NAME_HASH=${hash(currentDisplay)}`);
+            console.log(`EMPLOYEE_UPDATED_AT=${iso(employee.updatedAt)}`);
+            console.log(`LINKED_USER_PRESENT=${userPresent ? 'YES' : 'NO'}`);
+            console.log(`LINKED_USER_NAME_MATCHES_EMPLOYEE=${userDisplayMatches ? 'YES' : 'NO'}`);
+            if (employee.user) console.log(`LINKED_USER_UPDATED_AT=${iso(employee.user.updatedAt)}`);
+            console.log(`LIFECYCLE_EVENT_COUNT_IN_WINDOW=${events.length}`);
+            console.log(`NAME_CHANGE_EVENT_COUNT_IN_WINDOW=${nameEvents.length}`);
+            console.log(`AUDIT_COUNT_IN_WINDOW=${audits.length}`);
+
+            for (const event of events) {
+              const newDisplay = snapshotDisplay(event.newValue);
+              const oldDisplay = snapshotDisplay(event.oldValue);
+              const eventAuditCount = audits.filter((row) => row.entityType === 'EmployeeLifecycleEvent' && row.entityId === event.id).length;
+              const employeeAuditCount = audits.filter((row) => row.entityType === 'Employee' && row.entityId === employeeId && row.createdAt >= event.createdAt).length;
+              console.log('EVENT_BEGIN');
+              console.log(`EVENT_ID=${event.id}`);
+              console.log(`EVENT_SEQUENCE=${event.sequence}`);
+              console.log(`EVENT_TYPE=${event.type}`);
+              console.log(`EVENT_STATUS=${event.status}`);
+              console.log(`EVENT_EFFECTIVE_DATE=${iso(event.effectiveDate)}`);
+              console.log(`EVENT_CREATED_AT=${iso(event.createdAt)}`);
+              console.log(`EVENT_APPLIED_AT=${iso(event.appliedAt)}`);
+              console.log(`EVENT_OLD_NAME_HASH=${hash(oldDisplay)}`);
+              console.log(`EVENT_NEW_NAME_HASH=${hash(newDisplay)}`);
+              console.log(`EVENT_NEW_NAME_MATCHES_CURRENT=${newDisplay === currentDisplay ? 'YES' : 'NO'}`);
+              console.log(`EVENT_AUDIT_COUNT=${eventAuditCount}`);
+              console.log(`EMPLOYEE_AUDIT_COUNT_AFTER_EVENT=${employeeAuditCount}`);
+              console.log('EVENT_END');
+            }
+
+            const suspicious = nameEvents.some((event) => {
+              if (event.status !== 'APPLIED') return false;
+              const eventAudit = audits.some((row) => row.entityType === 'EmployeeLifecycleEvent' && row.entityId === event.id);
+              const newMatches = snapshotDisplay(event.newValue) === currentDisplay;
+              return !(eventAudit && newMatches && userDisplayMatches);
+            });
+            console.log(`PARTIAL_COMMIT_SIGNAL=${suspicious ? 'YES' : 'NO'}`);
+          }
+
+          main()
+            .catch((error) => {
+              console.log(`READ_ONLY_CHECK_ERROR_CODE=${error?.code || 'unknown'}`);
+              console.log(`READ_ONLY_CHECK_ERROR_NAME=${error?.name || 'unknown'}`);
+              process.exitCode = 3;
+            })
+            .finally(async () => { await prisma.$disconnect().catch(() => {}); });
           NODE
