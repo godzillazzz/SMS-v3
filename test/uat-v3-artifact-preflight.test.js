@@ -7,6 +7,7 @@ const {
   authenticatedArtifactAllowlist,
   collectFiles,
   createAuthenticatedArtifactFixture,
+  runAuthenticatedFailureArtifactPreflight,
   scanGeneratedArtifacts
 } = require('../e2e/helpers/uat-v3-artifact-preflight');
 const { artifactLeakFindings, sanitizeUatDiagnostic } = require('../e2e/helpers/uat-v3-security');
@@ -46,7 +47,24 @@ test('UAT_V3_ARTIFACT_PREFLIGHT: authenticated diagnostic sanitizer removes auth
   assert.equal(value.includes('FAKE_UAT_TOKEN_123'), false);
   assert.equal(value.includes('FAKE_UAT_PASSWORD_123'), false);
   assert.equal(value.includes('uat-admin@example.test'), false);
-  assert.match(value, /Bearer \[REDACTED\]/);
+  assert.match(value, /\[REDACTED_AUTHORIZATION\]/);
+});
+
+test('UAT_V3_ARTIFACT_PREFLIGHT: actual Playwright failure context is sanitized', () => {
+  withFixture((root) => {
+    const result = runAuthenticatedFailureArtifactPreflight(root, path.resolve(__dirname, '..'), {
+      scanOptions: { passwordValues: ['FAKE_UAT_PASSWORD_123'] }
+    });
+    assert.equal(result.exitCode, 1);
+    const errorContexts = collectFiles(result.resultsDirectory).filter((filePath) => filePath.endsWith('error-context.md'));
+    assert.equal(errorContexts.length, 1);
+    assert.deepEqual(result.findings, []);
+    const content = fs.readFileSync(errorContexts[0], 'utf8');
+    assert.equal(/Authorization:\s*Bearer\s+[A-Za-z0-9._~-]{20,}/i.test(content), false);
+    assert.equal(/\bAuthorization\s*[:=]/i.test(content), false);
+    assert.equal(/\bBearer\s+[A-Za-z0-9._~-]{20,}/i.test(content), false);
+    assert.equal(content.includes('FAKE_AUTH_TOKEN_123456789'), false);
+  });
 });
 
 test('UAT_V3_ARTIFACT_PREFLIGHT: authenticated reporter generates an allowlisted zero-leak set', () => {

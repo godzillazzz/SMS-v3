@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const UatSummaryReporter = require('../uat-reporter');
 const { scanArtifact } = require('./uat-v3-security');
 
@@ -80,9 +81,63 @@ function scanGeneratedArtifacts(root, options = {}) {
   return findings;
 }
 
+function createAuthenticatedFailureFixture(root, repositoryRoot) {
+  const packagePath = path.join(repositoryRoot, 'node_modules', '@playwright', 'test');
+  const helperPath = path.join(repositoryRoot, 'e2e', 'helpers', 'uat-test.js');
+  const configPath = path.join(root, 'playwright.config.js');
+  const testPath = path.join(root, 'failure.spec.js');
+  fs.writeFileSync(testPath, `const { test, expect } = require(${JSON.stringify(helperPath)});
+
+test('synthetic authenticated API authorization failure', async ({ page }) => {
+  await page.setContent('<main>authenticated fixture</main>');
+  const fakeToken = ['FAKE_AUTH_TOKEN', '123456789'].join('_');
+  await expect(403, 'API authorization header: Authorization: Bearer ' + fakeToken).toBe(200);
+});
+`);
+  fs.writeFileSync(configPath, `const { defineConfig } = require(${JSON.stringify(packagePath)});
+const path = require('node:path');
+
+module.exports = defineConfig({
+  testDir: __dirname,
+  outputDir: path.join(__dirname, 'test-results'),
+  reporter: [['line']],
+  use: { trace: 'off', screenshot: 'off', video: 'off' },
+  workers: 1,
+  retries: 0
+});
+`);
+  return { configPath, testPath };
+}
+
+function runAuthenticatedFailureArtifactPreflight(root, repositoryRoot, options = {}) {
+  const { configPath } = createAuthenticatedFailureFixture(root, repositoryRoot);
+  const cliPath = path.join(repositoryRoot, 'node_modules', '@playwright', 'test', 'cli.js');
+  const result = spawnSync(process.execPath, [cliPath, 'test', '--config', configPath], {
+    cwd: repositoryRoot,
+    env: {
+      ...process.env,
+      UAT_MODE: 'authenticated',
+      UAT_BASE_URL: options.baseUrl || 'http://uat.invalid'
+    },
+    stdio: 'ignore'
+  });
+  const resultsDirectory = path.join(root, 'test-results');
+  const findings = fs.existsSync(resultsDirectory)
+    ? scanGeneratedArtifacts(resultsDirectory, options.scanOptions || {})
+    : [];
+  return {
+    exitCode: result.status ?? 1,
+    resultsDirectory,
+    findings,
+    errorContextPath: path.join(resultsDirectory, 'failure-synthetic-authenticated-API-authorization-failure', 'error-context.md')
+  };
+}
+
 module.exports = {
   authenticatedArtifactAllowlist,
   collectFiles,
   createAuthenticatedArtifactFixture,
+  createAuthenticatedFailureFixture,
+  runAuthenticatedFailureArtifactPreflight,
   scanGeneratedArtifacts
 };

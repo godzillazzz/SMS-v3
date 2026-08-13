@@ -67,8 +67,8 @@ function sanitizeUatDiagnostic(value, environment = process.env) {
   let sanitized = String(value ?? '');
   for (const secret of sensitiveUatValues(environment)) sanitized = sanitized.split(String(secret)).join('[REDACTED]');
   return sanitized
-    .replace(/(["']?authorization["']?\s*[:=]\s*["']?)Bearer(?:\s+|-)[^\s,;}"']+/gi, '$1Bearer [REDACTED]')
-    .replace(/(["']?authorization["']?\s*[:=]\s*)(["']?)(?!Bearer(?:\b|-))[^"'\s,;}]+\2/gi, '$1$2[REDACTED]$2')
+    .replace(/["']?authorization["']?\s*[:=]\s*["']?Bearer(?:\s+|-)[^\s,;}"']+/gi, '[REDACTED_AUTHORIZATION]')
+    .replace(/["']?authorization["']?\s*[:=]\s*["']?[^"'\s,;}]+["']?/gi, '[REDACTED_AUTHORIZATION]')
     .replace(/\bBearer(?:\s+|-)[^\s,;]+/gi, 'Bearer [REDACTED]')
     .replace(/(["']?(?:cookie|set-cookie|accessToken|refreshToken|password|passwd|secret|token|otp|api[-_]?key)["']?\s*[:=]\s*)(["']?)([^"'\s,;}]+)\2/gi, '$1$2[REDACTED]$2')
     .replace(/(["']?(?:storageState|sessionStorage|localStorage)["']?\s*[:=]\s*)([\[{])/gi, '$1[REDACTED_STATE]')
