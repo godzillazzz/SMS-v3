@@ -108,6 +108,36 @@ jobs:
           echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
           echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
           echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
+      - name: Verify Candidate automation bypass before browser UAT
+        if: ${{ inputs.target_mode == 'candidate' }}
+        shell: bash
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+          body=$(mktemp)
+          headers=$(mktemp)
+          trap 'rm -f "$body" "$headers"' EXIT
+          status=$(curl --silent --show-error --location --max-time 20 \
+            --dump-header "$headers" --output "$body" --write-out '%{http_code}' \
+            -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            -H 'x-vercel-set-bypass-cookie: true' \
+            "$TARGET_URL/")
+          protected=$(node - "$body" <<'NODE'
+          const fs = require('node:fs');
+          const body = fs.readFileSync(process.argv[2], 'utf8');
+          process.stdout.write(/<title[^>]*>\s*Login\s*[–—-]\s*Vercel\s*<\/title>/i.test(body) ? 'true' : 'false');
+          NODE
+          )
+          echo "VERCEL_AUTOMATION_BYPASS_HTTP_STATUS=$status"
+          echo "VERCEL_PROTECTION_PAGE=$protected"
+          if [[ "$status" != '200' || "$protected" != 'false' ]]; then
+            echo 'VERCEL_AUTOMATION_BYPASS_REJECTED'
+            exit 1
+          fi
+          echo 'VERCEL_AUTOMATION_BYPASS=PASS'
       - name: Checkout exact application under test
         uses: actions/checkout@v4
         with:
@@ -283,6 +313,36 @@ jobs:
           echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
           echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
           echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
+      - name: Verify Candidate automation bypass before browser UAT
+        if: ${{ inputs.target_mode == 'candidate' }}
+        shell: bash
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+          body=$(mktemp)
+          headers=$(mktemp)
+          trap 'rm -f "$body" "$headers"' EXIT
+          status=$(curl --silent --show-error --location --max-time 20 \
+            --dump-header "$headers" --output "$body" --write-out '%{http_code}' \
+            -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            -H 'x-vercel-set-bypass-cookie: true' \
+            "$TARGET_URL/")
+          protected=$(node - "$body" <<'NODE'
+          const fs = require('node:fs');
+          const body = fs.readFileSync(process.argv[2], 'utf8');
+          process.stdout.write(/<title[^>]*>\s*Login\s*[–—-]\s*Vercel\s*<\/title>/i.test(body) ? 'true' : 'false');
+          NODE
+          )
+          echo "VERCEL_AUTOMATION_BYPASS_HTTP_STATUS=$status"
+          echo "VERCEL_PROTECTION_PAGE=$protected"
+          if [[ "$status" != '200' || "$protected" != 'false' ]]; then
+            echo 'VERCEL_AUTOMATION_BYPASS_REJECTED'
+            exit 1
+          fi
+          echo 'VERCEL_AUTOMATION_BYPASS=PASS'
       - name: Checkout exact application under test
         uses: actions/checkout@v4
         with:
