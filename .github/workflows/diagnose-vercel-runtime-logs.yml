@@ -1,0 +1,74 @@
+name: Diagnose sms-v3-staging Vercel Runtime Logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      application_sha:
+        description: Exact candidate application SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_APPLICATION_SHA: 285b901912d740b01c04266925f16df8db1ec1f1
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  candidate-identity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production-sms-v3-staging
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Resolve exact Candidate identity by immutable Git SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.application_sha }}" = "$EXPECTED_APPLICATION_SHA"
+          test -n "$VERCEL_TOKEN"
+          tmp=$(mktemp)
+          trap 'rm -f "$tmp"' EXIT
+          npx --yes vercel@"$VERCEL_CLI_VERSION" list "$EXPECTED_PROJECT_NAME" \
+            --scope "$VERCEL_ORG_ID" \
+            --status READY \
+            --meta "githubCommitSha=$EXPECTED_APPLICATION_SHA" \
+            --format json \
+            --limit 20 \
+            --token "$VERCEL_TOKEN" > "$tmp"
+          node - "$tmp" <<'NODE'
+          const fs = require('node:fs');
+          const value = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = Array.isArray(value) ? value : (value.deployments || value.items || []);
+          const matches = rows.filter((row) => {
+            const meta = row.meta || row.metadata || {};
+            const sha = meta.githubCommitSha || meta.githubCommitRef || row.source?.git?.sha || row.gitSource?.sha;
+            return sha === process.env.EXPECTED_APPLICATION_SHA;
+          });
+          console.log(`CANDIDATE_MATCH_COUNT=${matches.length}`);
+          for (const row of matches) {
+            const id = row.uid || row.id || row.deploymentId || 'unknown';
+            const url = row.url ? (String(row.url).startsWith('http') ? row.url : `https://${row.url}`) : 'unknown';
+            const target = row.target ?? row.environment ?? 'unknown';
+            const state = row.state || row.readyState || row.status || 'unknown';
+            const meta = row.meta || row.metadata || {};
+            const sha = meta.githubCommitSha || row.source?.git?.sha || row.gitSource?.sha || 'unknown';
+            console.log('CANDIDATE_BEGIN');
+            console.log(`CANDIDATE_DEPLOYMENT_ID=${id}`);
+            console.log(`CANDIDATE_URL=${url}`);
+            console.log(`CANDIDATE_TARGET=${target}`);
+            console.log(`CANDIDATE_STATE=${state}`);
+            console.log(`CANDIDATE_APPLICATION_SHA=${sha}`);
+            console.log('CANDIDATE_END');
+          }
+          if (matches.length !== 1) process.exitCode = 2;
+          NODE
