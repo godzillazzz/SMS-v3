@@ -35,6 +35,10 @@ test('UAT_V3_ARTIFACT_PREFLIGHT: synthetic password and Authorization leaks are 
     artifactLeakFindings('test-results/uat-results.json', '{"headers":{"Authorization":"Bearer FAKE_UAT_TOKEN_123456789"}}'),
     ['AUTHORIZATION_HEADER']
   );
+  assert.deepEqual(
+    artifactLeakFindings('test-results/playwright/authenticated-v3-ADMIN-schedule/error-context.md', 'Authorization: Bearer FAKE_UAT_TOKEN_123456789'),
+    ['AUTHORIZATION_HEADER']
+  );
 });
 
 test('UAT_V3_ARTIFACT_PREFLIGHT: authenticated diagnostic sanitizer removes auth material', () => {
