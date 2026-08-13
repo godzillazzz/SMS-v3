@@ -27,6 +27,8 @@ function sourceRegressionContracts() {
   const dashboardPage = readProjectFile('frontend/src/pages/dashboard/DashboardPage.tsx');
   const executiveReportPage = readProjectFile('frontend/src/pages/executive-report/ExecutiveReportCenterPage.tsx');
   const executiveReportStyles = readProjectFile('frontend/src/styles/executive-report.css');
+  const lifecycleModal = readProjectFile('frontend/src/components/personnel/EmployeeLifecycleModal.tsx');
+  const lifecycleStyles = readProjectFile('frontend/src/styles/employee-lifecycle.css');
 
   requireIncludes(dataQualityPage, [
     'data-quality-desktop-table',
@@ -105,11 +107,27 @@ function sourceRegressionContracts() {
     'break-before:auto'
   ], 'EXECUTIVE_REPORT_RESPONSIVE_CONTRACT_FAILED');
 
+  requireIncludes(lifecycleModal, [
+    'จัดการวงจรพนักงาน',
+    'ผลกระทบและคำเตือน',
+    'ประวัติวงจรพนักงาน',
+    'อ่านอย่างเดียว',
+    'confirmation !== employee.employeeCode'
+  ], 'EMPLOYEE_LIFECYCLE_RENDERER_CONTRACT_FAILED');
+  requireIncludes(lifecycleStyles, [
+    'max-height:calc(100dvh - 40px)',
+    '@media(max-width:850px)',
+    '@media(max-width:520px)',
+    'grid-template-columns:1fr',
+    'white-space:nowrap'
+  ], 'EMPLOYEE_LIFECYCLE_RESPONSIVE_CONTRACT_FAILED');
+
   return {
     dataQuality: true,
     audit: true,
     dashboardWarning: true,
-    executiveReport: true
+    executiveReport: true,
+    employeeLifecycle: true
   };
 }
 
@@ -185,6 +203,10 @@ function executiveReportFixture() {
   return `<main class="executive-report-page"><header class="executive-report-heading"><div><p class="eyebrow">EXECUTIVE REPORT CENTER</p><h1>รายงานผู้บริหาร</h1></div><div class="executive-report-actions"><button>รีเฟรช</button><button>ส่งออก PDF</button></div></header><div class="executive-report-filters"><label><span>เดือน</span><select><option>สิงหาคม</option></select></label><label><span>ปี</span><select><option>พ.ศ. 2569</option></select></label></div><div class="executive-report-kpis">${cards}</div><div class="executive-report-grid"><section class="executive-report-panel"><header><h2>กำลังพลและการจัดเวร</h2><button class="executive-report-link">ดูรายละเอียด</button></header><div class="executive-report-stat-grid"><div><span>พนักงานทั้งหมด</span><b>12 คน</b></div><div><span>พนักงานที่ปฏิบัติงาน</span><b>10 คน</b></div><div><span>รายการจัดเวร</span><b>80 รายการ</b></div></div><section class="executive-report-chart"><h3>พนักงานตามหน่วยงาน</h3>${bars}</section></section><section class="executive-report-panel"><header><h2>คุณภาพข้อมูล</h2><button class="executive-report-link">ดูรายละเอียด</button></header><section class="executive-report-chart"><h3>ประเด็นตามกฎตรวจสอบ</h3>${bars}</section></section></div><section class="executive-report-panel executive-report-attention"><header><h2>ประเด็นที่ผู้บริหารควรติดตาม</h2></header><div class="executive-report-attention-list"><article class="warning"><div><span>warning</span><h3>ใบอนุญาตใกล้หมดอายุ</h3><p>รายละเอียดเพื่อการติดตาม</p></div><b>2</b><button class="executive-report-link">ดูรายละเอียด</button></article></div></section></main>`;
 }
 
+function employeeLifecycleFixture() {
+  return `<div class="lifecycle-backdrop"><section class="lifecycle-modal"><header class="lifecycle-header"><div><p>EMPLOYEE LIFECYCLE</p><h2>จัดการวงจรพนักงาน</h2><span>EMP001 · พนักงานทดสอบ ชื่อภาษาไทยยาวเพื่อทดสอบการแสดงผล</span></div><button type="button">×</button></header><div class="lifecycle-layout"><form class="lifecycle-form"><div class="lifecycle-current"><strong>ข้อมูลปัจจุบัน</strong><span>หน่วยงานรักษาความปลอดภัยสำนักงานใหญ่ · เจ้าหน้าที่รักษาความปลอดภัยอาวุโส · ปฏิบัติงาน</span></div><label><span>รายการ</span><select><option>ย้ายแผนก</option></select></label><div class="lifecycle-field-grid"><label><span>วันที่มีผล</span><input type="date" value="2026-09-01"></label><label><span>เหตุผล</span><textarea>ปรับโครงสร้างหน่วยงาน</textarea></label></div><section class="lifecycle-preflight"><h3>ผลกระทบและคำเตือน</h3><div class="lifecycle-issue"><b>ควรตรวจสอบ</b><span>พบรายการจัดเวรตั้งแต่วันที่มีผล</span></div><dl class="lifecycle-impact-grid"><div><dt>เวรในอนาคต</dt><dd>12</dd></div><div><dt>ลารอพิจารณา</dt><dd>2</dd></div><div><dt>โควต้าวันลา</dt><dd>1</dd></div><div><dt>ใบอนุญาตใช้งาน</dt><dd>1</dd></div></dl></section><footer><button>ยกเลิก</button><button class="btn-primary">ยืนยันย้ายแผนก</button></footer></form><aside class="lifecycle-history"><header><h3>ประวัติวงจรพนักงาน</h3><span>อ่านอย่างเดียว</span></header><ol><li><div><b>เปลี่ยนชื่อ</b><span class="lifecycle-status lifecycle-status--applied">มีผลแล้ว</span></div><time>13 ส.ค. 2569</time><strong>ชื่อเดิม → ชื่อใหม่</strong><p>เหตุผล: แก้ไขชื่อตามเอกสารทางราชการ</p><small>โดย UAT Admin (ADMIN) · บันทึก 13 ส.ค. 2569 10:00</small></li></ol></aside></div></section></div>`;
+}
+
 module.exports = {
   assertResponsiveLayoutMetrics,
   auditFixture,
@@ -192,6 +214,7 @@ module.exports = {
   dashboardWarningVisible,
   dataQualityFixture,
   executiveReportFixture,
+  employeeLifecycleFixture,
   readProjectFile,
   sourceRegressionContracts
 };

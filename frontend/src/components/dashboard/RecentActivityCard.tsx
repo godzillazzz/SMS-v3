@@ -1,6 +1,6 @@
 import { type DashboardActivity } from './types';
 
-const entityLabels: Record<string, string> = { EmployeeLicenseDocument: 'ใบอนุญาต', EmployeeLicense: 'ใบอนุญาต', LeaveRequest: 'คำขอลา', ShiftAssignment: 'ตารางเวร', ScheduleApproval: 'การอนุมัติตารางเวร', User: 'บัญชีผู้ใช้', Employee: 'ข้อมูลพนักงาน' };
+const entityLabels: Record<string, string> = { EmployeeLicenseDocument: 'ใบอนุญาต', EmployeeLicense: 'ใบอนุญาต', LeaveRequest: 'คำขอลา', ShiftAssignment: 'ตารางเวร', ScheduleApproval: 'การอนุมัติตารางเวร', User: 'บัญชีผู้ใช้', Employee: 'ข้อมูลพนักงาน', EmployeeLifecycleEvent: 'วงจรพนักงาน' };
 const actionLabels: Record<string, string> = { CREATE: 'สร้างรายการ', UPDATE: 'ปรับปรุงรายการ', DELETE: 'ลบรายการ', LEAVE_CREATED: 'ยื่นคำขอลา', LEAVE_APPROVED: 'อนุมัติคำขอลา', LEAVE_REJECTED: 'ไม่อนุมัติคำขอลา', LEAVE_CANCELLED: 'ยกเลิกคำขอลา', LICENSE_UPLOADED: 'อัปโหลดใบอนุญาต', LICENSE_APPROVED: 'อนุมัติใบอนุญาต', LICENSE_REJECTED: 'ไม่อนุมัติใบอนุญาต', SCHEDULE_UPDATED: 'ปรับปรุงตารางเวร' };
 const technicalActions = new Set(['TOKEN_REUSE', 'REFRESH', 'REFRESHSESSION', 'REFRESH_SESSION', 'TOKEN_REFRESH', 'REFRESH_TOKEN']);
 
