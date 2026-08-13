@@ -35,7 +35,7 @@ jobs:
       RUN_INTEGRATION_TESTS: "true"
       DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
       DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
-      TEST_DATABASE_RUNNER: github-actions-postgres
+      TEST_DATABASE_RUNNER: docker-container-network
       JWT_SECRET: ci-test-secret-at-least-thirty-two-characters
       DISABLE_EMAIL_NOTIFICATIONS: "true"
       OTP_DELIVERY_PROVIDER: disabled
