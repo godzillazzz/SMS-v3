@@ -45,7 +45,7 @@ test('ADMIN: Audit Log remains read-only and can open an existing detail safely'
   const auditPage = page.locator('.audit-compliance-page');
   await expect(auditPage).toBeVisible();
   await expect(auditPage.getByRole('button', { name: /อนุมัติ|ปฏิเสธ|ลบถาวร|แก้ไข/ })).toHaveCount(0);
-  const detailButtons = auditPage.getByRole('button', { name: 'ดูรายละเอียด', exact: true });
+  const detailButtons = auditPage.locator('button.audit-preview-link:visible');
   if (await detailButtons.count()) {
     await detailButtons.first().click();
     await expect(page.locator('.audit-preview-panel')).toBeVisible();

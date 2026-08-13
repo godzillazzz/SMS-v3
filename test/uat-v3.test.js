@@ -93,6 +93,7 @@ test('V3 role matrix covers read-only current backend contracts', () => {
   assert.doesNotMatch(adminSmoke, /page\.request/);
   assert.doesNotMatch(adminSmoke, /expectApiSuccess/);
   assert.match(adminSmoke, /getRoleApiMatrix\('ADMIN'\)/);
+  assert.match(adminSmoke, /button\.audit-preview-link:visible/);
   assert.doesNotMatch(authenticatedSmoke, /waitForTimeout\(250\)/);
   assert.match(adminSmoke, /\['Schedule', 'schedule'\]/);
   assert.match(adminSmoke, /\['Leave', 'leave'\]/);
