@@ -1,6 +1,7 @@
 const { expect, request } = require('@playwright/test');
 const { getUatConfig } = require('./uat-config');
-const { automationBypassHeaders, automationRequestOptions } = require('./technical-smoke');
+const { automationBypassHeaders } = require('./technical-smoke');
+const { authenticatedRequest } = require('./uat-authenticated-request');
 const { readRoleSession } = require('./uat-session');
 
 async function preflightRoleAccounts(environment = process.env) {
@@ -81,17 +82,9 @@ async function loginAs(page, role) {
   return { accessToken: payload.accessToken };
 }
 
-async function getAuditEventsStatus(page, accessToken) {
-  const response = await page.request.get(
-    '/api/v1/audit-events?page=1&pageSize=1',
-    automationRequestOptions(
-      { headers: { Authorization: `Bearer ${accessToken}` }, timeout: 15000 },
-      process.env,
-      process.env.UAT_BASE_URL,
-      '/api/v1/audit-events?page=1&pageSize=1'
-    )
-  );
-  return response.status();
+async function getAuditEventsStatus(accessToken) {
+  const response = await authenticatedRequest('/api/v1/audit-events?page=1&pageSize=1', { accessToken, timeout: 15_000 });
+  return response.status;
 }
 
 module.exports = { getAuditEventsStatus, loginAs, preflightRoleAccounts };

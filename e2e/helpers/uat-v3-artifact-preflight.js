@@ -117,7 +117,8 @@ function runAuthenticatedFailureArtifactPreflight(root, repositoryRoot, options 
     env: {
       ...process.env,
       UAT_MODE: 'authenticated',
-      UAT_BASE_URL: options.baseUrl || 'http://uat.invalid'
+      UAT_BASE_URL: options.baseUrl || 'http://uat.invalid',
+      PLAYWRIGHT_NO_COPY_PROMPT: '1'
     },
     stdio: 'ignore'
   });

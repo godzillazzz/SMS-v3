@@ -8,6 +8,8 @@ const path = require('node:path');
 const workflow = fs.readFileSync(path.resolve(__dirname, '../.github/workflows/automated-uat-sms-v3-staging.yml'), 'utf8');
 const observe = fs.readFileSync(path.resolve(__dirname, '../e2e/helpers/uat-observe.js'), 'utf8');
 const authenticatedSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/authenticated-v3.spec.js'), 'utf8');
+const adminSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/admin.spec.js'), 'utf8');
+const authenticatedRequest = fs.readFileSync(path.resolve(__dirname, '../e2e/helpers/uat-authenticated-request.js'), 'utf8');
 const testPassword = ['uat', 'test', 'only', 'secret'].join('-');
 
 const baseEnvironment = { UAT_BASE_URL: 'https://candidate.example.test' };
@@ -86,7 +88,9 @@ test('V3 role matrix covers read-only current backend contracts', () => {
   assert.match(observe, /button\.nav-item:visible/);
   assert.match(authenticatedSmoke, /getRoleNavigationContract/);
   assert.match(authenticatedSmoke, /test\.setTimeout\(180_000\)/);
-  assert.match(authenticatedSmoke, /timeout: 60000/);
+  assert.match(authenticatedRequest, /timeout = 60_000/);
+  assert.doesNotMatch(authenticatedSmoke, /page\.request/);
+  assert.doesNotMatch(adminSmoke, /page\.request/);
   assert.doesNotMatch(authenticatedSmoke, /waitForTimeout\(250\)/);
   assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/admin.spec.js'), 'utf8'), /navigateTo\(page, 'schedule'\)/);
   assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/roles.spec.js'), 'utf8'), /allowedApiResponses/);

@@ -111,4 +111,5 @@ test('UAT_V3_ARTIFACT_PREFLIGHT: authenticated reporter and upload policy are mi
   assert.doesNotMatch(authenticatedUpload, /playwright-report/);
   for (const fileName of authenticatedArtifactAllowlist) assert.match(authenticatedUpload, new RegExp(fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.doesNotMatch(authenticatedUpload, /test-results\/playwright/);
+  assert.match(workflow, /authenticated-uat:[\s\S]*?PLAYWRIGHT_NO_COPY_PROMPT:\s*1/);
 });
