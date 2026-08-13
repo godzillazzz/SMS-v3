@@ -91,8 +91,13 @@ test('V3 role matrix covers read-only current backend contracts', () => {
   assert.match(authenticatedRequest, /timeout = 60_000/);
   assert.doesNotMatch(authenticatedSmoke, /page\.request/);
   assert.doesNotMatch(adminSmoke, /page\.request/);
+  assert.doesNotMatch(adminSmoke, /expectApiSuccess/);
+  assert.match(adminSmoke, /getRoleApiMatrix\('ADMIN'\)/);
   assert.doesNotMatch(authenticatedSmoke, /waitForTimeout\(250\)/);
-  assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/admin.spec.js'), 'utf8'), /navigateTo\(page, 'schedule'\)/);
+  assert.match(adminSmoke, /\['Schedule', 'schedule'\]/);
+  assert.match(adminSmoke, /\['Leave', 'leave'\]/);
+  assert.match(adminSmoke, /\['License', 'licenses'\]/);
+  assert.match(adminSmoke, /navigateTo\(page, navigationId\)/);
   assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/roles.spec.js'), 'utf8'), /allowedApiResponses/);
   assert.match(fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/roles.spec.js'), 'utf8'), /allowed dashboard and privileged navigation stay bounded/);
   assert.match(observe, /allowedApiResponses/);

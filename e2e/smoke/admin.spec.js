@@ -2,7 +2,8 @@ const { test, expect } = require('../helpers/uat-test');
 const { getAuditEventsStatus, loginAs } = require('../helpers/uat-auth');
 const { authenticatedRequest } = require('../helpers/uat-authenticated-request');
 const { hasRoleCredentials } = require('../helpers/uat-config');
-const { expectApiSuccess, navigateTo, startPageMonitor } = require('../helpers/uat-observe');
+const { navigateTo, startPageMonitor } = require('../helpers/uat-observe');
+const { getRoleApiMatrix } = require('../helpers/uat-v3-role-matrix');
 
 test.describe.configure({ mode: 'serial' });
 test.skip(!hasRoleCredentials('ADMIN'), 'ADMIN authenticated smoke skipped: credentials unavailable.');
@@ -24,10 +25,15 @@ test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) =
 
 test('ADMIN: Schedule, Leave, and License pages load through read endpoints', async ({ page }) => {
   const monitor = startPageMonitor(page);
-  await loginAs(page, 'ADMIN');
-  await expectApiSuccess(page, '/api/v1/schedule-calendar', () => navigateTo(page, 'schedule'));
-  await expectApiSuccess(page, '/api/v1/leave-requests', () => navigateTo(page, 'leave'));
-  await expectApiSuccess(page, '/api/v1/licenses', () => navigateTo(page, 'licenses'));
+  const { accessToken } = await loginAs(page, 'ADMIN');
+  const contracts = getRoleApiMatrix('ADMIN');
+  for (const [label, navigationId] of [['Schedule', 'schedule'], ['Leave', 'leave'], ['License', 'licenses']]) {
+    const contract = contracts.find((route) => route.label === label);
+    const response = await authenticatedRequest(contract.path, { accessToken });
+    expect(response.status, `${label} read contract must return ${contract.expectedStatus}.`).toBe(contract.expectedStatus);
+    await navigateTo(page, navigationId);
+    await expect(page.getByRole('heading').first(), `${label} page must render.`).toBeVisible();
+  }
   monitor.assertClean();
 });
 
@@ -35,7 +41,7 @@ test('ADMIN: Audit Log remains read-only and can open an existing detail safely'
   const monitor = startPageMonitor(page);
   const { accessToken } = await loginAs(page, 'ADMIN');
   await expect(getAuditEventsStatus(accessToken)).resolves.toBe(200);
-  await expectApiSuccess(page, '/api/v1/audit-events', () => navigateTo(page, 'audit'));
+  await navigateTo(page, 'audit');
   const auditPage = page.locator('.audit-compliance-page');
   await expect(auditPage).toBeVisible();
   await expect(auditPage.getByRole('button', { name: /อนุมัติ|ปฏิเสธ|ลบถาวร|แก้ไข/ })).toHaveCount(0);
