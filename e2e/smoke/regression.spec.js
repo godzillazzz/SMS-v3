@@ -6,6 +6,7 @@ const {
   buildDocument,
   dashboardWarningVisible,
   dataQualityFixture,
+  employeeLifecycleSourceContract,
   executiveReportFixture,
   readProjectFile,
   sourceRegressionContracts
@@ -65,8 +66,9 @@ async function measureLayout(element) {
   });
 }
 
-test('REGRESSION: source contracts cover Data Quality, Audit Log, Dashboard warning, and Executive Report behavior', async ({}, testInfo) => {
+test('REGRESSION: source contracts cover Data Quality, Audit Log, Dashboard warning, Executive Report, and Employee Lifecycle behavior', async ({}, testInfo) => {
   expect(sourceRegressionContracts()).toEqual({ dataQuality: true, audit: true, dashboardWarning: true, executiveReport: true });
+  expect(employeeLifecycleSourceContract()).toEqual({ employeeLifecycle: true });
   expect(dashboardWarningVisible({ error: undefined, partialErrors: [] })).toBe(false);
   expect(dashboardWarningVisible({ error: undefined, partialErrors: ['licenseOverview'] })).toBe(true);
   expect(dashboardWarningVisible({ error: 'request failed', partialErrors: ['licenseOverview'] })).toBe(false);

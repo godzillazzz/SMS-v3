@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { validateCandidateIdentity } = require('../e2e/helpers/uat-candidate-contract');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
@@ -173,4 +174,36 @@ test('UAT_V3_HARNESS_PREFLIGHT: workflow diagnostics are safe and do not expose 
   assert.doesNotMatch(workflow, /VERCEL_BYPASS_ARTIFACT_LEAK/);
   assert.doesNotMatch(workflow, /stdio:\s*'inherit'/);
   assert.doesNotMatch(workflow, /cat .*\.log/);
+});
+
+test('UAT_V3_HARNESS_PREFLIGHT: application and harness identities are independent and exact', () => {
+  const workflow = read('.github/workflows/automated-uat-sms-v3-staging.yml');
+  const regressionContracts = read('e2e/helpers/regression-contracts.js');
+  const candidateValidator = read('e2e/helpers/uat-candidate-contract.js');
+  const candidateContract = JSON.parse(read('e2e/fixtures/candidate-contract.json'));
+  assert.match(workflow, /uat_harness_sha:/);
+  assert.match(workflow, /ref: \$\{\{ inputs\.uat_harness_sha \}\}/);
+  assert.match(workflow, /ref: \$\{\{ inputs\.source_sha \}\}[\s\S]*?path: application-under-test/);
+  assert.match(workflow, /test "\$\(git rev-parse HEAD\)" = "\$HARNESS_SHA"/);
+  assert.match(workflow, /test "\$\(git -C application-under-test rev-parse HEAD\)" = "\$SOURCE_SHA"/);
+  assert.match(workflow, /node e2e\/helpers\/uat-candidate-contract\.js/);
+  assert.match(candidateValidator, /UAT_CANDIDATE_IDENTITY_MISMATCH/);
+  assert.deepEqual(candidateContract, {
+    applicationSha: 'e672c704c76c9fd53049b89736d56283029da1ea',
+    deploymentId: 'dpl_BXdWNdwFr2MzzPAgtWgyXz7faAuS',
+    targetUrl: 'https://sms-v3-staging-cezup20q5-godzillazz.vercel.app'
+  });
+  assert.deepEqual(validateCandidateIdentity(
+    candidateContract.applicationSha,
+    candidateContract.deploymentId,
+    candidateContract.targetUrl
+  ), { valid: true });
+  assert.throws(
+    () => validateCandidateIdentity(candidateContract.applicationSha, 'dpl_wrong', candidateContract.targetUrl),
+    { code: 'UAT_CANDIDATE_IDENTITY_MISMATCH' }
+  );
+  assert.match(regressionContracts, /process\.env\.UAT_APPLICATION_ROOT/);
+  assert.match(regressionContracts, /EMPLOYEE_LIFECYCLE_ROUTE_CONTRACT_FAILED/);
+  assert.match(regressionContracts, /EMPLOYEE_LIFECYCLE_SERVICE_CONTRACT_FAILED/);
+  assert.match(regressionContracts, /EMPLOYEE_LIFECYCLE_UI_CONTRACT_FAILED/);
 });

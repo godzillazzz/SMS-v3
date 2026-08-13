@@ -85,6 +85,8 @@ class UatSummaryReporter {
       `- Mode: ${mode}`,
       `- Target: ${safeReportValue(process.env.UAT_BASE_URL, 'not configured')}`,
       `- Source SHA: ${safeReportValue(this.technicalSummary?.sourceSha || process.env.UAT_SOURCE_SHA, 'not supplied')}`,
+      `- Harness SHA: ${safeReportValue(this.technicalSummary?.harnessSha || process.env.UAT_HARNESS_SHA, 'not supplied')}`,
+      `- Expected deployment ID: ${safeReportValue(this.technicalSummary?.expectedDeploymentId || process.env.UAT_EXPECTED_DEPLOYMENT_ID, 'not supplied')}`,
       '',
       '#### HTTP',
       `- Root: ${safeReportValue(this.technicalSummary?.root)}`,

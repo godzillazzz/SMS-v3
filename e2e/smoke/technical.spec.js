@@ -20,6 +20,8 @@ test('TECHNICAL: HTTP health, readiness, Vite assets, and audit authorization bo
   const monitor = startPageMonitor(page);
   const technicalSummary = {
     sourceSha: process.env.UAT_SOURCE_SHA || 'not supplied',
+    harnessSha: process.env.UAT_HARNESS_SHA || 'not supplied',
+    expectedDeploymentId: process.env.UAT_EXPECTED_DEPLOYMENT_ID || 'not supplied',
     root: 'PASS',
     login: 'PASS',
     health: 'PASS',

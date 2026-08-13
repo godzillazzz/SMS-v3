@@ -133,6 +133,15 @@ test('V3 artifact safety rejects auth state paths and token-bearing content', ()
 });
 
 test('V3 workflow exposes explicit mode and least-privilege credential contract', () => {
+  assert.match(workflow, /uat_harness_sha:/);
+  assert.match(workflow, /Exact trusted UAT harness HEAD/);
+  assert.match(workflow, /UAT_APPLICATION_ROOT:/);
+  assert.match(workflow, /path: application-under-test/);
+  assert.match(workflow, /git -C application-under-test rev-parse HEAD/);
+  assert.match(workflow, /UAT_HARNESS_SOURCE_NOT_APPROVED_HEAD/);
+  assert.match(workflow, /origin\/fix\/serverless-database-reliability\)" != "\$SOURCE_SHA"/);
+  assert.match(workflow, /origin\/test\/automated-uat-v3-authenticated\)" != "\$HARNESS_SHA"/);
+  assert.match(workflow, /\[\[ "\$DEPLOYMENT_ID" =~ \^dpl_/);
   assert.match(workflow, /uat_mode:/);
   assert.match(workflow, /default:\s*technical/);
   assert.match(workflow, /type:\s*choice/);
@@ -152,6 +161,9 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   }
   assert.match(authenticatedJob, /VERCEL_AUTOMATION_BYPASS_SECRET/);
   assert.match(workflow, /test\/automated-uat-v3-authenticated/);
+  assert.match(authenticatedSmoke, /Employee Lifecycle management, history, state, and preflight/);
+  assert.match(authenticatedSmoke, /Employee Lifecycle history is read-only and mutations are forbidden/);
+  assert.match(authenticatedSmoke, /Employee Lifecycle history and mutations are forbidden/);
   const forbiddenWorkflowSecrets = [
     ['DATABASE', 'URL'],
     ['DIRECT', 'URL'],
