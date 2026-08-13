@@ -8,12 +8,16 @@ on:
         required: true
         type: string
       source_sha:
-        description: Exact approved source HEAD containing the smoke implementation and regression guards
+        description: Exact application-under-test SHA deployed at the target URL
+        required: true
+        type: string
+      uat_harness_sha:
+        description: Exact trusted UAT harness HEAD from test/automated-uat-v3-authenticated
         required: true
         type: string
       expected_deployment_id:
-        description: Optional expected Vercel deployment ID for report context
-        required: false
+        description: Exact expected Vercel deployment ID for report identity
+        required: true
         type: string
       uat_mode:
         description: Technical/public smoke or authenticated ADMIN/MANAGER/VIEWER smoke
@@ -35,43 +39,64 @@ jobs:
     env:
       UAT_BASE_URL: ${{ inputs.target_url }}
       UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+      UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+      UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
       UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
       UAT_MODE: technical
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_sha }}
+          ref: ${{ inputs.uat_harness_sha }}
           fetch-depth: 0
-      - name: Validate target and exact smoke source
+      - name: Validate target, application identity, and trusted harness
         shell: bash
         env:
           TARGET_URL: ${{ inputs.target_url }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
         run: |
           set -euo pipefail
           [[ "$SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          [[ "$HARNESS_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
           if [[ ! "$TARGET_URL" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ && "$TARGET_URL" != "https://sms-v3-staging-ten.vercel.app" ]]; then
             echo 'TECHNICAL_SMOKE_TARGET_INVALID'
             exit 1
           fi
           git fetch --no-tags origin fix/serverless-database-reliability test/automated-uat-v2-regression-guards test/automated-uat-v3-authenticated
           git cat-file -e "${SOURCE_SHA}^{commit}"
-          approved_source=false
-          for approved_ref in \
-            origin/fix/serverless-database-reliability \
-            origin/test/automated-uat-v2-regression-guards \
-            origin/test/automated-uat-v3-authenticated; do
-            if [[ "$(git rev-parse "$approved_ref")" == "$SOURCE_SHA" ]]; then
-              approved_source=true
-              break
-            fi
-          done
-          if [[ "$approved_source" != true ]]; then
+          git cat-file -e "${HARNESS_SHA}^{commit}"
+          if [[ "$(git rev-parse origin/fix/serverless-database-reliability)" != "$SOURCE_SHA" ]]; then
             echo 'TECHNICAL_SMOKE_SOURCE_NOT_APPROVED_HEAD'
             exit 1
           fi
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          if [[ "$(git rev-parse origin/test/automated-uat-v3-authenticated)" != "$HARNESS_SHA" ]]; then
+            echo 'UAT_HARNESS_SOURCE_NOT_APPROVED_HEAD'
+            exit 1
+          fi
+          test "$(git rev-parse HEAD)" = "$HARNESS_SHA"
+          node e2e/helpers/uat-candidate-contract.js "$SOURCE_SHA" "$DEPLOYMENT_ID" "$TARGET_URL"
+          echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
+          echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
+          echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
+      - name: Checkout exact application under test
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+          path: application-under-test
+      - name: Verify separate application checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HARNESS_SHA"
+          test "$(git -C application-under-test rev-parse HEAD)" = "$SOURCE_SHA"
+          test -f application-under-test/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -163,6 +188,8 @@ jobs:
     env:
       UAT_BASE_URL: ${{ inputs.target_url }}
       UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+      UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+      UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
       UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
       UAT_MODE: authenticated
       UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
@@ -175,37 +202,56 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_sha }}
+          ref: ${{ inputs.uat_harness_sha }}
           fetch-depth: 0
-      - name: Validate target and exact smoke source
+      - name: Validate target, application identity, and trusted harness
         shell: bash
         env:
           TARGET_URL: ${{ inputs.target_url }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
         run: |
           set -euo pipefail
           [[ "$SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          [[ "$HARNESS_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
           if [[ ! "$TARGET_URL" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ && "$TARGET_URL" != "https://sms-v3-staging-ten.vercel.app" ]]; then
             echo 'TECHNICAL_SMOKE_TARGET_INVALID'
             exit 1
           fi
           git fetch --no-tags origin fix/serverless-database-reliability test/automated-uat-v2-regression-guards test/automated-uat-v3-authenticated
           git cat-file -e "${SOURCE_SHA}^{commit}"
-          approved_source=false
-          for approved_ref in \
-            origin/fix/serverless-database-reliability \
-            origin/test/automated-uat-v2-regression-guards \
-            origin/test/automated-uat-v3-authenticated; do
-            if [[ "$(git rev-parse "$approved_ref")" == "$SOURCE_SHA" ]]; then
-              approved_source=true
-              break
-            fi
-          done
-          if [[ "$approved_source" != true ]]; then
+          git cat-file -e "${HARNESS_SHA}^{commit}"
+          if [[ "$(git rev-parse origin/fix/serverless-database-reliability)" != "$SOURCE_SHA" ]]; then
             echo 'TECHNICAL_SMOKE_SOURCE_NOT_APPROVED_HEAD'
             exit 1
           fi
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          if [[ "$(git rev-parse origin/test/automated-uat-v3-authenticated)" != "$HARNESS_SHA" ]]; then
+            echo 'UAT_HARNESS_SOURCE_NOT_APPROVED_HEAD'
+            exit 1
+          fi
+          test "$(git rev-parse HEAD)" = "$HARNESS_SHA"
+          node e2e/helpers/uat-candidate-contract.js "$SOURCE_SHA" "$DEPLOYMENT_ID" "$TARGET_URL"
+          echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
+          echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
+          echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
+      - name: Checkout exact application under test
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+          path: application-under-test
+      - name: Verify separate application checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HARNESS_SHA"
+          test "$(git -C application-under-test rev-parse HEAD)" = "$SOURCE_SHA"
+          test -f application-under-test/package.json
       - name: Require all authenticated UAT credentials
         shell: bash
         env:
