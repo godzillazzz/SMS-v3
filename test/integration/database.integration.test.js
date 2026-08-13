@@ -1,6 +1,7 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { randomUUID } = require('node:crypto');
 const bcrypt = require('bcryptjs');
 const request = require('supertest');
 
@@ -10,6 +11,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   if (!process.env.DATABASE_URL?.includes('sms_v3_test')) throw new Error('Integration tests require an isolated sms_v3_test database.');
   const prisma = require('../../src/config/prisma');
   const employees = require('../../src/services/employee.service');
+  const lifecycle = require('../../src/services/employee-lifecycle.service');
   const auth = require('../../src/services/auth.service');
   const app = require('../../src/app');
   const actorId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -19,6 +21,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   async function cleanupFixtures() {
     await prisma.auditLog.deleteMany({ where: { actorUserId: actorId } });
     await prisma.refreshSession.deleteMany({ where: { userId: actorId } });
+    await prisma.employeeLifecycleEvent.deleteMany({ where: { OR: [{ changedByUserId: actorId }, { employee: { employeeCode: { startsWith: 'TEST-' } } }] } });
     await prisma.employee.deleteMany({ where: { employeeCode: { startsWith: 'TEST-' } } });
     await prisma.user.deleteMany({ where: { id: actorId } });
   }
@@ -26,7 +29,8 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   test.after(async () => { await cleanupFixtures(); await prisma.$disconnect(); });
 
   test('Prisma migrations are applied to the isolated test database', async () => { const rows = await prisma.$queryRawUnsafe('SELECT migration_name FROM "_prisma_migrations"'); assert.ok(rows.length >= 3); });
-  test('real database creates, updates, and soft deletes an employee with transactional audit', async () => { const created = await employees.create(employee(), actorId); const updated = await employees.update(created.id, { department: 'HR' }, actorId); await employees.remove(created.id, actorId); const stored = await prisma.employee.findUnique({ where: { id: created.id } }); const logs = await prisma.auditLog.findMany({ where: { entityId: created.id }, orderBy: { createdAt: 'asc' } }); assert.equal(updated.department, 'HR'); assert.ok(stored.deletedAt); assert.equal(stored.isActive, false); assert.equal(logs.length, 3); });
+  test('real database allows profile updates while lifecycle fields and deletion remain guarded', async () => { const created = await employees.create(employee(), actorId); const updated = await employees.update(created.id, { phone: '0800000000' }, actorId); await assert.rejects(() => employees.update(created.id, { department: 'HR' }, actorId), { statusCode: 409, details: { code: 'LIFECYCLE_ACTION_REQUIRED', fields: ['department'] } }); await assert.rejects(() => employees.remove(created.id, actorId), { statusCode: 409, details: { code: 'LIFECYCLE_TERMINATION_REQUIRED' } }); const stored = await prisma.employee.findUnique({ where: { id: created.id } }); const logs = await prisma.auditLog.findMany({ where: { entityId: created.id }, orderBy: { createdAt: 'asc' } }); assert.equal(updated.phone, '0800000000'); assert.equal(stored.deletedAt, null); assert.equal(stored.isActive, true); assert.equal(logs.length, 2); });
+  test('real database applies a lifecycle name change without replacing employee identity', async () => { const created = await employees.create(employee('lifecycle'), actorId); const analysis = await lifecycle.preflightEmployeeLifecycleAction({ employeeId: created.id, type: 'NAME_CHANGE', effectiveDate: new Date().toISOString().slice(0, 10), changes: { firstName: 'Updated', lastName: 'Identity' } }); const result = await lifecycle.createEmployeeLifecycleEvent({ employeeId: created.id, actorUserId: actorId, type: 'NAME_CHANGE', effectiveDate: analysis.effectiveDate, reason: 'Integration lifecycle contract', changes: { firstName: 'Updated', lastName: 'Identity' }, expectedEmployeeUpdatedAt: analysis.expectedEmployeeUpdatedAt, idempotencyKey: randomUUID(), acknowledgeWarnings: true }); const stored = await prisma.employee.findUnique({ where: { id: created.id } }); const history = await prisma.employeeLifecycleEvent.findMany({ where: { employeeId: created.id } }); assert.equal(result.employee.id, created.id); assert.equal(stored.id, created.id); assert.equal(stored.displayName, 'Updated Identity'); assert.equal(history.length, 1); assert.equal(history[0].type, 'NAME_CHANGE'); assert.equal(history[0].status, 'APPLIED'); });
   test('unique employeeCode constraint and foreign keys are enforced', async () => { await employees.create(employee(), actorId); await assert.rejects(() => employees.create(employee(), actorId), { code: 'P2002' }); await assert.rejects(() => prisma.auditLog.create({ data: { actorUserId: badActorId, action: 'CREATE', entityType: 'Test', entityId: 'x' } }), { code: 'P2003' }); });
   test('employee transaction rolls back when its audit insert fails', async () => { await assert.rejects(() => employees.create(employee('rollback'), badActorId)); assert.equal(await prisma.employee.count({ where: { employeeCode: 'TEST-rollback' } }), 0); });
   test('pagination, search, and filters operate against PostgreSQL', async () => { await employees.create(employee('1'), actorId); await employees.create(employee('2'), actorId); const result = await employees.list({ page: 1, pageSize: 1, search: 'User', department: 'Operations' }, 'ADMIN'); assert.equal(result.data.length, 1); assert.equal(result.meta.total, 1); });

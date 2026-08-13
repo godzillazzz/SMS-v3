@@ -25,6 +25,9 @@ test('protected employee endpoints reject unauthenticated requests', async () =>
   const response = await request(app).get('/api/v1/employees');
   assert.equal(response.status, 401);
   assert.equal(response.body.error, 'Authentication required.');
+  const lifecycleResponse = await request(app).get('/api/v1/employees/11111111-1111-4111-8111-111111111111/lifecycle');
+  assert.equal(lifecycleResponse.status, 401);
+  assert.equal(lifecycleResponse.body.error, 'Authentication required.');
 });
 test('all operational data endpoints reject unauthenticated requests', async () => {
   for (const path of ['/api/v1/dashboard', '/api/v1/licenses', '/api/v1/shift-types', '/api/v1/shifts', '/api/v1/schedule-calendar?month=2026-07', '/api/v1/schedule-approvals', '/api/v1/scheduling-rules', '/api/v1/rule-checks?month=2026-07', '/api/v1/system-settings', '/api/v1/leave-requests', '/api/v1/leave-summary', '/api/v1/leave-quotas', '/api/v1/audit-events', '/api/v1/reports/summary']) {
@@ -64,7 +67,9 @@ test('all operational mutation endpoints reject unauthenticated requests', async
     request(app).put(`/api/v1/leave-quotas/${id}`).send({}),
     request(app).put(`/api/v1/users/${id}`).send({}),
     request(app).post(`/api/v1/users/${id}/reset-password`).send({}),
-    request(app).post(`/api/v1/users/${id}/view-as`).send({})
+    request(app).post(`/api/v1/users/${id}/view-as`).send({}),
+    request(app).post(`/api/v1/employees/${id}/lifecycle/preflight`).send({}),
+    request(app).post(`/api/v1/employees/${id}/lifecycle`).send({})
   ];
   for (const pendingRequest of requests) {
     const response = await pendingRequest;

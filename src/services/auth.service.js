@@ -6,6 +6,10 @@ const env = require('../config/env');
 const HttpError = require('../utils/http-error');
 const audit = require('./audit.service');
 const { logger } = require('../utils/logger');
+const {
+  synchronizeDueLifecycleEventsForRequest,
+  synchronizeDueLifecycleEventsForEmployee
+} = require('./employee-lifecycle.service');
 
 const genericFailure = 'Invalid email or password.';
 const refreshFailure = 'Invalid or expired refresh token.';
@@ -22,8 +26,14 @@ async function createSessionTokens(user, request, client) {
 }
 
 async function login(email, password, requestId, request) {
-  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-  if (!user || !user.isActive || user.accountStatus !== 'ACTIVE' || user.passwordResetRequired || !(await bcrypt.compare(password, user.passwordHash))) {
+  await synchronizeDueLifecycleEventsForRequest();
+  let user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  const credentialsValid = Boolean(user && await bcrypt.compare(password, user.passwordHash));
+  if (credentialsValid && user.employeeId) {
+    await synchronizeDueLifecycleEventsForEmployee(user.employeeId);
+    user = await prisma.user.findUnique({ where: { id: user.id } });
+  }
+  if (!user || !credentialsValid || !user.isActive || user.accountStatus !== 'ACTIVE' || user.passwordResetRequired) {
     if (user) await prisma.user.update({ where: { id: user.id }, data: { failedLoginCount: { increment: 1 } } });
     await audit.log({ actorUserId: user?.id, action: 'LOGIN_FAILED', entityType: 'User', entityId: user?.id || 'unknown', metadata: { requestId } });
     logger.warn('authentication_failure', { requestId, errorCategory: 'invalid_credentials_or_inactive', status: 401 });
@@ -46,16 +56,22 @@ async function revokeAllForUser(userId, action, requestId, client) {
 }
 
 async function refresh(refreshToken, requestId, request) {
+  await synchronizeDueLifecycleEventsForRequest();
   if (!refreshToken) {
     logger.warn('refresh_failure', { requestId, errorCategory: 'session_missing', status: 401 });
     throw new HttpError(401, refreshFailure);
   }
   const tokenHash = hashRefreshToken(refreshToken);
-  const session = await prisma.refreshSession.findUnique({ where: { refreshTokenHash: tokenHash }, include: { user: true } });
+  let session = await prisma.refreshSession.findUnique({ where: { refreshTokenHash: tokenHash }, include: { user: true } });
   if (!session) {
     logger.warn('refresh_failure', { requestId, errorCategory: 'session_not_found', status: 401 });
     throw new HttpError(401, refreshFailure);
   }
+  if (session.user.employeeId) {
+    await synchronizeDueLifecycleEventsForEmployee(session.user.employeeId);
+    session = await prisma.refreshSession.findUnique({ where: { id: session.id }, include: { user: true } });
+  }
+  if (!session) throw new HttpError(401, refreshFailure);
   const invalid = session.revokedAt || session.expiresAt <= new Date() || !session.user.isActive || session.user.accountStatus !== 'ACTIVE' || session.user.passwordResetRequired || session.tokenVersion !== session.user.tokenVersion;
   if (invalid) {
     if (session.revokedAt) await prisma.$transaction((tx) => revokeAllForUser(session.userId, 'TOKEN_REUSE', requestId, tx));

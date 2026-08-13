@@ -6,7 +6,10 @@ const { QUERY_OPERATION_COUNT, bangkokDateStart, currentBangkokPeriod, leaveScop
 function reportClient(calls = []) {
   const record = (name, value) => async (query) => { calls.push({ name, query }); return value; };
   return {
-    employee: { count: record('employee.count', 4), groupBy: record('employee.groupBy', [{ department: 'Operations', _count: { _all: 3 } }]) },
+    $queryRaw: record('workforce.snapshot', [
+      { department: 'Operations', total: 3, active: 3 },
+      { department: 'Other', total: 1, active: 0 }
+    ]),
     shiftAssignment: { count: record('shiftAssignment.count', 8) },
     leaveRequest: { groupBy: async (query) => { calls.push({ name: 'leaveRequest.groupBy', query }); return query.by[0] === 'status' ? [{ status: 'PENDING', _count: { _all: 1 } }, { status: 'APPROVED', _count: { _all: 2 } }] : [{ leaveType: 'ลาป่วย', _count: { _all: 3 } }]; } },
     leaveQuota: { count: record('leaveQuota.count', 1) },
@@ -21,6 +24,9 @@ test('Executive Report uses Bangkok current period and exact leave overlap month
   assert.deepEqual(where.startDate, { lt: new Date('2026-09-01T00:00:00Z') });
   assert.deepEqual(where.endDate, { gte: new Date('2026-08-01T00:00:00Z') });
   assert.deepEqual(where.employee, { is: { deletedAt: null, department: 'Operations' } });
+  const historical = require('../src/services/executive-report.service').historicalLeaveScopeWhere({ department: 'Operations' }, { startDate: new Date('2026-08-01T00:00:00Z'), nextMonthStart: new Date('2026-09-01T00:00:00Z') });
+  assert.equal(historical.departmentSnapshot, 'Operations');
+  assert.equal(historical.employee, undefined);
 });
 
 test('Executive Report scopes ADMIN globally or by requested department and keeps MANAGER restricted', () => {
@@ -41,14 +47,18 @@ test('Executive Report returns factual aggregates with deterministic attention a
   assert.equal(report.meta.queryStrategy, 'sequential');
   assert.ok(report.managementAttention.length <= 5);
   assert.equal(calls.length, QUERY_OPERATION_COUNT);
-  assert.equal(calls[0].name, 'employee.count');
+  assert.equal(calls[0].name, 'workforce.snapshot');
+  const workforceSql = calls[0].query.strings.join(' ');
+  assert.match(workforceSql, /employee_lifecycle_events/);
+  assert.match(workforceSql, /DISTINCT ON \(employee_id\)/);
+  assert.match(workforceSql, /e\.hired_at/);
+  assert.doesNotMatch(workforceSql, /SELECT e\.\*/);
   assert.equal(calls.at(-1).name, 'employeeLicenseDocument.count');
 });
 
 test('Executive Report accepts empty data as zero rather than an unavailable value', async () => {
   const client = reportClient();
-  client.employee.count = async () => 0;
-  client.employee.groupBy = async () => [];
+  client.$queryRaw = async () => [];
   client.shiftAssignment.count = async () => 0;
   client.leaveRequest.groupBy = async () => [];
   client.leaveQuota.count = async () => 0;
