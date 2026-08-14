@@ -7,6 +7,11 @@ on:
         description: Candidate deployment or approved canonical URL to test
         required: true
         type: string
+      source_branch:
+        description: Exact remote application-under-test branch whose HEAD must equal source_sha
+        required: false
+        default: fix/serverless-database-reliability
+        type: string
       source_sha:
         description: Exact application-under-test SHA deployed at the target URL
         required: true
@@ -53,6 +58,7 @@ jobs:
         shell: bash
         env:
           TARGET_URL: ${{ inputs.target_url }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_SHA: ${{ inputs.source_sha }}
           HARNESS_SHA: ${{ inputs.uat_harness_sha }}
           DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
@@ -65,13 +71,24 @@ jobs:
             echo 'TECHNICAL_SMOKE_TARGET_INVALID'
             exit 1
           fi
-          git fetch --no-tags origin fix/serverless-database-reliability test/automated-uat-v2-regression-guards test/automated-uat-v3-authenticated
+          git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null
+          case "$SOURCE_BRANCH" in
+            fix/serverless-database-reliability|test/automated-uat-v2-regression-guards|perf/performance-reliability-hardening-v1) ;;
+            *)
+              echo 'UAT_APPLICATION_SOURCE_BRANCH_NOT_APPROVED'
+              exit 1
+              ;;
+          esac
+          git fetch --no-tags origin \
+            "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" \
+            "+refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated"
           git cat-file -e "${SOURCE_SHA}^{commit}"
           git cat-file -e "${HARNESS_SHA}^{commit}"
-          if [[ "$(git rev-parse origin/fix/serverless-database-reliability)" != "$SOURCE_SHA" ]]; then
-            echo 'TECHNICAL_SMOKE_SOURCE_NOT_APPROVED_HEAD'
+          if [[ "$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}^{commit}")" != "$SOURCE_SHA" ]]; then
+            echo 'UAT_APPLICATION_SOURCE_NOT_APPROVED_HEAD'
             exit 1
           fi
+          echo 'SOURCE_BRANCH_HEAD_CHECK=PASS'
           if [[ "$(git rev-parse origin/test/automated-uat-v3-authenticated)" != "$HARNESS_SHA" ]]; then
             echo 'UAT_HARNESS_SOURCE_NOT_APPROVED_HEAD'
             exit 1
@@ -209,6 +226,7 @@ jobs:
         shell: bash
         env:
           TARGET_URL: ${{ inputs.target_url }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_SHA: ${{ inputs.source_sha }}
           HARNESS_SHA: ${{ inputs.uat_harness_sha }}
           DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
@@ -221,13 +239,24 @@ jobs:
             echo 'TECHNICAL_SMOKE_TARGET_INVALID'
             exit 1
           fi
-          git fetch --no-tags origin fix/serverless-database-reliability test/automated-uat-v2-regression-guards test/automated-uat-v3-authenticated
+          git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null
+          case "$SOURCE_BRANCH" in
+            fix/serverless-database-reliability|test/automated-uat-v2-regression-guards|perf/performance-reliability-hardening-v1) ;;
+            *)
+              echo 'UAT_APPLICATION_SOURCE_BRANCH_NOT_APPROVED'
+              exit 1
+              ;;
+          esac
+          git fetch --no-tags origin \
+            "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" \
+            "+refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated"
           git cat-file -e "${SOURCE_SHA}^{commit}"
           git cat-file -e "${HARNESS_SHA}^{commit}"
-          if [[ "$(git rev-parse origin/fix/serverless-database-reliability)" != "$SOURCE_SHA" ]]; then
-            echo 'TECHNICAL_SMOKE_SOURCE_NOT_APPROVED_HEAD'
+          if [[ "$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}^{commit}")" != "$SOURCE_SHA" ]]; then
+            echo 'UAT_APPLICATION_SOURCE_NOT_APPROVED_HEAD'
             exit 1
           fi
+          echo 'SOURCE_BRANCH_HEAD_CHECK=PASS'
           if [[ "$(git rev-parse origin/test/automated-uat-v3-authenticated)" != "$HARNESS_SHA" ]]; then
             echo 'UAT_HARNESS_SOURCE_NOT_APPROVED_HEAD'
             exit 1
