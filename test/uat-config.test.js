@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getUatConfig, hasRoleCredentials, normalizeBaseUrl } = require('../e2e/helpers/uat-config');
+const { getUatConfig, hasRoleCredentials, normalizeBaseUrl, normalizeUatScope } = require('../e2e/helpers/uat-config');
 const { isHarmlessConsoleError, requestTarget, sanitizeDiagnostic } = require('../e2e/helpers/uat-observe');
 
 const configuredEnvironment = {
@@ -32,9 +32,17 @@ test('UAT configuration requires only a base URL without exposing credentials', 
 test('UAT configuration accepts role-specific environment values and HTTPS base URL', () => {
   const config = getUatConfig(configuredEnvironment);
   assert.equal(config.baseURL, 'https://candidate.example.test');
+  assert.equal(config.scope, 'full');
   assert.equal(config.accounts.ADMIN.email, configuredEnvironment.UAT_ADMIN_EMAIL);
   assert.equal(config.accounts.MANAGER.email, configuredEnvironment.UAT_MANAGER_EMAIL);
   assert.equal(config.accounts.VIEWER.email, configuredEnvironment.UAT_VIEWER_EMAIL);
+});
+
+test('UAT scope supports full and targeted Report Center diagnostics only', () => {
+  assert.equal(normalizeUatScope(undefined), 'full');
+  assert.equal(normalizeUatScope('report-center-diagnostic'), 'report-center-diagnostic');
+  assert.throws(() => normalizeUatScope('all-the-things'), { code: 'UAT_SCOPE_INVALID' });
+  assert.equal(getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'report-center-diagnostic' }).scope, 'report-center-diagnostic');
 });
 
 test('partial optional role credentials are invalid while each complete role remains independently available', () => {

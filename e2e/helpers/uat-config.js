@@ -1,5 +1,6 @@
 const roles = ['ADMIN', 'MANAGER', 'VIEWER'];
 const modes = ['technical', 'authenticated'];
+const scopes = ['full', 'report-center-diagnostic'];
 
 function configurationError(code, message) {
   const error = new Error(message);
@@ -32,12 +33,21 @@ function normalizeUatMode(value = 'technical') {
   return mode;
 }
 
+function normalizeUatScope(value = 'full') {
+  const scope = String(value || 'full').trim().toLowerCase();
+  if (!scopes.includes(scope)) {
+    throw configurationError('UAT_SCOPE_INVALID', 'UAT scope invalid: use full or report-center-diagnostic.');
+  }
+  return scope;
+}
+
 function getUatConfig(environment = process.env) {
   if (!String(environment.UAT_BASE_URL || '').trim()) {
     throw configurationError('UAT_CONFIGURATION_MISSING', 'UAT configuration missing: UAT_BASE_URL');
   }
 
   const mode = normalizeUatMode(environment.UAT_MODE);
+  const scope = normalizeUatScope(environment.UAT_SCOPE);
   const accounts = {};
   for (const role of roles) {
     const emailKey = `UAT_${role}_EMAIL`;
@@ -59,6 +69,7 @@ function getUatConfig(environment = process.env) {
 
   return {
     mode,
+    scope,
     baseURL: normalizeBaseUrl(String(environment.UAT_BASE_URL), environment.UAT_ALLOW_HTTP === 'true'),
     expectedDeploymentId: String(environment.UAT_EXPECTED_DEPLOYMENT_ID || '').trim(),
     accounts
@@ -70,4 +81,4 @@ function hasRoleCredentials(role, environment = process.env) {
   return getUatConfig(environment).accounts[role].configured;
 }
 
-module.exports = { configurationError, getUatConfig, hasRoleCredentials, normalizeBaseUrl, normalizeUatMode, roles, modes };
+module.exports = { configurationError, getUatConfig, hasRoleCredentials, normalizeBaseUrl, normalizeUatMode, normalizeUatScope, roles, modes, scopes };

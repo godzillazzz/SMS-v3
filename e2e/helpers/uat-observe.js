@@ -90,6 +90,10 @@ function startPageMonitor(page, { allowedApiResponses = [] } = {}) {
       const unexpectedApiResponses = responses
         .filter((response) => response.status >= 400 && !allowedResponseRules.some((rule) => matchesApiResponseRule(response, rule)))
         .map((response) => `${response.method} ${response.path} ${response.status}`);
+      const runtimeFailure = responses.find((response) => response.status >= 500 && !allowedResponseRules.some((rule) => matchesApiResponseRule(response, rule)));
+      if (runtimeFailure) {
+        throw safeApiError(apiFailureCode(runtimeFailure.path, runtimeFailure.status), runtimeFailure.status);
+      }
       expect(pageErrors, 'Unexpected page errors.').toEqual([]);
       expect(unexpectedApiResponses, 'Unexpected API responses.').toEqual([]);
       expect(unexpectedConsoleErrors, 'Unexpected console errors.').toEqual([]);
@@ -160,12 +164,55 @@ async function navigateToReportCenter(page, tab = 'executive') {
   return center;
 }
 
+function apiRouteCode(path) {
+  if (path === '/api/v1/dashboard') return 'DASHBOARD';
+  if (path === '/api/v1/executive-report') return 'EXECUTIVE_REPORT';
+  if (path === '/api/v1/reports/summary') return 'REPORT_SUMMARY';
+  return 'API';
+}
+
+function apiFailureCode(path, status) {
+  const suffix = status === 504 ? '504' : `HTTP_${status}`;
+  return `UAT_RUNTIME_${apiRouteCode(path)}_${suffix}`;
+}
+
+function apiResponseTimeoutCode(path) {
+  return `UAT_RUNTIME_${apiRouteCode(path)}_RESPONSE_TIMEOUT`;
+}
+
+function safeApiError(code, status) {
+  const error = new Error(code);
+  error.code = code;
+  if (status !== undefined) error.status = status;
+  return error;
+}
+
+async function observeApiResponse(page, path, trigger, { timeout = 60_000 } = {}) {
+  const responsePromise = page.waitForResponse(
+    (response) => apiPath(response) === path && response.request().method() === 'GET',
+    { timeout }
+  );
+  let response;
+  try {
+    await trigger();
+    response = await responsePromise;
+  } catch (error) {
+    if (error?.code?.startsWith('UAT_')) throw error;
+    const code = error?.name === 'TimeoutError'
+      ? apiResponseTimeoutCode(path)
+      : `UAT_UI_${apiRouteCode(path)}_TRIGGER_FAILED`;
+    throw safeApiError(code);
+  }
+
+  const status = response.status();
+  if (status === 504) throw safeApiError(apiFailureCode(path, status), status);
+  if (status >= 500) throw safeApiError(apiFailureCode(path, status), status);
+  if (status < 200 || status >= 300) throw safeApiError(apiFailureCode(path, status), status);
+  return response;
+}
+
 async function expectApiSuccess(page, path, trigger) {
-  const responsePromise = page.waitForResponse((response) => apiPath(response) === path && response.request().method() === 'GET');
-  await trigger();
-  const response = await responsePromise;
-  expect(response.status(), `${path} must respond successfully.`).toBeGreaterThanOrEqual(200);
-  expect(response.status(), `${path} must respond successfully.`).toBeLessThan(300);
+  return observeApiResponse(page, path, trigger);
 }
 
 async function assertNoHorizontalOverflow(page) {
@@ -185,8 +232,11 @@ async function captureScreenshot(page, testInfo, name, { allowLoginForm = false 
 
 module.exports = {
   assertNoHorizontalOverflow,
+  apiFailureCode,
+  apiResponseTimeoutCode,
   captureScreenshot,
   expectApiSuccess,
+  observeApiResponse,
   expectPrimaryNavigationItem,
   isHarmlessConsoleError,
   navigateTo,

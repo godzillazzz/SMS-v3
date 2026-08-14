@@ -23,6 +23,21 @@ function safeReportValue(value, fallback = 'NOT RUN') {
   return sanitizeUatDiagnostic(value ?? fallback).slice(0, 200);
 }
 
+function safeStageAttachment(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  const safe = {};
+  for (const key of ['role', 'testCode', 'lastCompletedStage', 'currentStage', 'state', 'safeApiPath', 'safeStatus', 'durationBucket', 'safeErrorCode']) {
+    if (value[key] === undefined || value[key] === null) continue;
+    if (key === 'safeStatus') {
+      const status = Number(value[key]);
+      if (Number.isInteger(status) && status >= 100 && status <= 599) safe[key] = status;
+      continue;
+    }
+    safe[key] = safeReportValue(value[key], '');
+  }
+  return safe;
+}
+
 class UatSummaryReporter {
   constructor(options = {}) {
     this.outputFile = options.outputFile || 'test-results/uat-summary.md';
@@ -35,12 +50,22 @@ class UatSummaryReporter {
 
   onTestEnd(test, result) {
     const title = test.titlePath().slice(1).join(' › ');
+    let stage;
+    for (const attachment of result.attachments || []) {
+      if (attachment.name !== 'uat-stage.json' || !attachment.body) continue;
+      try {
+        stage = safeStageAttachment(JSON.parse(attachment.body.toString('utf8')));
+      } catch {
+        stage = undefined;
+      }
+    }
     this.results.push({
       testName: sanitizeUatDiagnostic(title),
       role: roleFromTitle(title),
       status: result.status,
       duration: Number.isFinite(result.duration) ? result.duration : 0,
-      safeErrorCode: safeErrorCode(result)
+      safeErrorCode: safeErrorCode(result),
+      ...(stage ? { stage } : {})
     });
     for (const attachment of result.attachments || []) {
       if (!attachment.body) continue;
@@ -137,12 +162,13 @@ class UatSummaryReporter {
     for (const entry of this.results) lines.push(`- ${entry.status.toUpperCase()}: ${entry.testName}`);
     fs.mkdirSync(path.dirname(this.outputFile), { recursive: true });
     fs.writeFileSync(this.outputFile, `${lines.join('\n')}\n`);
-    const safeResults = this.results.map(({ testName, role, status, duration, safeErrorCode }) => ({
+    const safeResults = this.results.map(({ testName, role, status, duration, safeErrorCode, stage }) => ({
       testName,
       ...(role ? { role } : {}),
       status,
       duration,
-      ...(safeErrorCode ? { safeErrorCode } : {})
+      ...(safeErrorCode ? { safeErrorCode } : {}),
+      ...(stage ? { stage } : {})
     }));
     fs.mkdirSync(path.dirname(this.jsonOutputFile), { recursive: true });
     fs.writeFileSync(this.jsonOutputFile, JSON.stringify({

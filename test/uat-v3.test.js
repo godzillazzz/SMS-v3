@@ -8,6 +8,7 @@ const path = require('node:path');
 const workflow = fs.readFileSync(path.resolve(__dirname, '../.github/workflows/automated-uat-sms-v3-staging.yml'), 'utf8');
 const observe = fs.readFileSync(path.resolve(__dirname, '../e2e/helpers/uat-observe.js'), 'utf8');
 const authenticatedSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/authenticated-v3.spec.js'), 'utf8');
+const playwrightConfig = fs.readFileSync(path.resolve(__dirname, '../playwright.config.js'), 'utf8');
 const adminSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/admin.spec.js'), 'utf8');
 const authenticatedRequest = fs.readFileSync(path.resolve(__dirname, '../e2e/helpers/uat-authenticated-request.js'), 'utf8');
 const testPassword = ['uat', 'test', 'only', 'secret'].join('-');
@@ -163,6 +164,9 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(workflow, /APPROVED_HARNESS_SHA="\$\(git rev-parse origin\/test\/automated-uat-v3-authenticated\)"/);
   assert.match(workflow, /\[\[ "\$DEPLOYMENT_ID" =~ \^dpl_/);
   assert.match(workflow, /uat_mode:/);
+  assert.match(workflow, /uat_scope:/);
+  assert.match(workflow, /default:\s*full/);
+  assert.match(workflow, /- report-center-diagnostic/);
   assert.match(workflow, /default:\s*technical/);
   assert.match(workflow, /type:\s*choice/);
   assert.match(workflow, /- technical/);
@@ -177,6 +181,7 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(authenticatedJob, /environment:\s*production-sms-v3-staging/);
   for (const job of [technicalJob, authenticatedJob]) {
     assert.match(job, /SOURCE_BRANCH: \$\{\{ inputs\.source_branch \}\}/);
+    assert.match(job, /UAT_SCOPE: \$\{\{ inputs\.uat_scope \}\}/);
     assert.match(job, /git check-ref-format --branch "\$SOURCE_BRANCH"/);
     assert.match(job, /refs\/heads\/\$SOURCE_BRANCH:refs\/remotes\/origin\/\$SOURCE_BRANCH/);
     assert.match(job, /uat-target-contract\.js source-head "\$SOURCE_BRANCH" "\$REMOTE_SOURCE_SHA" "\$SOURCE_SHA"/);
@@ -213,3 +218,16 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   const technicalRunStep = workflow.match(/- name: Run technical UAT V3 without credentials[\s\S]*?(?=\r?\n      - name: Publish technical UAT summary)/)?.[0] || '';
   assert.doesNotMatch(authenticatedRunStep, /VERCEL_TOKEN/);
   assert.doesNotMatch(technicalRunStep, /VERCEL_TOKEN/);});
+
+test('V3 isolates Report Center diagnostics without changing the global timeout', () => {
+  assert.match(authenticatedSmoke, /navigation shell/);
+  assert.match(authenticatedSmoke, /protected page/);
+  assert.match(authenticatedSmoke, /Unified Report Center acceptance/);
+  assert.match(authenticatedSmoke, /UAT diagnostic \$\{role\}: dashboard observation/);
+  assert.match(authenticatedSmoke, /observeApiResponse/);
+  assert.match(observe, /apiFailureCode/);
+  assert.match(observe, /DASHBOARD/);
+  assert.match(authenticatedSmoke, /test\.setTimeout\(180_000\)/);
+  assert.match(playwrightConfig, /timeout: 45_000/);
+  assert.doesNotMatch(playwrightConfig, /timeout:\s*180_000/);
+});

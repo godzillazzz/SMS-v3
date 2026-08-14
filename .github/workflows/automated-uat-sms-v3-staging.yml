@@ -38,6 +38,14 @@ on:
         options:
           - technical
           - authenticated
+      uat_scope:
+        description: Full regression or targeted Unified Report Center diagnostics
+        required: false
+        default: full
+        type: choice
+        options:
+          - full
+          - report-center-diagnostic
 
 permissions:
   contents: read
@@ -56,6 +64,7 @@ jobs:
       UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
       UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
       UAT_MODE: technical
+      UAT_SCOPE: ${{ inputs.uat_scope }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
     steps:
       - uses: actions/checkout@v4
@@ -190,6 +199,7 @@ jobs:
         env:
           UAT_BASE_URL: ${{ inputs.target_url }}
           UAT_MODE: technical
+          UAT_SCOPE: ${{ inputs.uat_scope }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         with:
           script: |
@@ -274,6 +284,7 @@ jobs:
       UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
       UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
       UAT_MODE: authenticated
+      UAT_SCOPE: ${{ inputs.uat_scope }}
       PLAYWRIGHT_NO_COPY_PROMPT: 1
       UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
       UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
@@ -437,6 +448,7 @@ jobs:
         env:
           UAT_BASE_URL: ${{ inputs.target_url }}
           UAT_MODE: authenticated
+          UAT_SCOPE: ${{ inputs.uat_scope }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
           UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}

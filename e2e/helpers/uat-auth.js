@@ -16,8 +16,9 @@ async function preflightRoleAccounts(environment = process.env) {
     extraHTTPHeaders: automationBypassHeaders(environment, config.baseURL, `${config.baseURL}/api/v1/auth/login`, { setBypassCookie: true })
   });
   const sessions = {};
+  const rolesToCheck = config.scope === 'report-center-diagnostic' ? ['ADMIN', 'MANAGER'] : ['ADMIN', 'MANAGER', 'VIEWER'];
   try {
-    for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
+    for (const role of rolesToCheck) {
       const account = config.accounts[role];
       try {
         const response = await context.post('/api/v1/auth/login', {
@@ -39,7 +40,10 @@ async function preflightRoleAccounts(environment = process.env) {
   } finally {
     await context.dispose();
   }
-  return { allReady: results.every((result) => result.ready), results, sessions };
+  for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
+    if (!results.some((result) => result.role === role)) results.push({ role, ready: false, status: 'SKIPPED' });
+  }
+  return { allReady: results.filter((result) => rolesToCheck.includes(result.role)).every((result) => result.ready), results, sessions };
 }
 
 async function loginAs(page, role) {
