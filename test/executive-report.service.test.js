@@ -1,6 +1,7 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { logger } = require('../src/utils/logger');
 const { QUERY_OPERATION_COUNT, bangkokDateStart, currentBangkokPeriod, leaveScopeWhere, resolveReportScope, getExecutiveReport } = require('../src/services/executive-report.service');
 
 function reportClient(calls = []) {
@@ -66,4 +67,67 @@ test('Executive Report accepts empty data as zero rather than an unavailable val
   const report = await getExecutiveReport({ prismaClient: client, requestUser: { role: 'MANAGER', department: 'Operations', employeeId: null }, filters: { year: 2026, month: 8 }, now: new Date('2026-08-10T00:00:00.000Z') });
   assert.equal(report.executiveSummary.every((item) => item.value === 0), true);
   assert.deepEqual(report.managementAttention, []);
+});
+
+test('Executive Report performance instrumentation executes safely with a truthy requestId', async () => {
+  const events = [];
+  const originalInfo = logger.info;
+  logger.info = (event, fields) => { events.push({ event, fields }); };
+  try {
+    const report = await getExecutiveReport({
+      prismaClient: reportClient(),
+      requestUser: { role: 'ADMIN', department: null, employeeId: null },
+      filters: { year: 2026, month: 8 },
+      now: new Date('2026-08-10T00:00:00.000Z'),
+      requestId: 'uat-regression-request'
+    });
+    assert.equal(report.meta.queryStrategy, 'sequential');
+  } finally {
+    logger.info = originalInfo;
+  }
+
+  assert.ok(events.length > 0);
+  assert.deepEqual(new Set(events.map(({ fields }) => fields.stage)), new Set([
+    'EXEC_WORKFORCE_ASOF',
+    'EXEC_SCHEDULE',
+    'EXEC_LEAVE',
+    'EXEC_DATA_QUALITY',
+    'EXEC_LICENSE'
+  ]));
+  for (const { event, fields } of events) {
+    assert.equal(event, 'performance_stage');
+    assert.deepEqual(Object.keys(fields).sort(), ['durationMs', 'operation', 'queryCount', 'requestId', 'stage', 'status']);
+    assert.equal(fields.requestId, 'uat-regression-request');
+    assert.equal(fields.operation, 'executive-report');
+    assert.equal(fields.status, 'ok');
+    assert.equal(Number.isFinite(fields.durationMs), true);
+    assert.equal(Number.isInteger(fields.queryCount), true);
+  }
+});
+
+test('Executive Report timing instrumentation preserves the original stage error', async () => {
+  const expected = new Error('synthetic executive stage failure');
+  const client = reportClient();
+  client.shiftAssignment.count = async () => { throw expected; };
+  const events = [];
+  const originalInfo = logger.info;
+  logger.info = (event, fields) => { events.push({ event, fields }); };
+  try {
+    await assert.rejects(
+      getExecutiveReport({
+        prismaClient: client,
+        requestUser: { role: 'ADMIN', department: null, employeeId: null },
+        filters: { year: 2026, month: 8 },
+        now: new Date('2026-08-10T00:00:00.000Z'),
+        requestId: 'uat-regression-request-error'
+      }),
+      (error) => error === expected
+    );
+  } finally {
+    logger.info = originalInfo;
+  }
+  const failedStage = events.find(({ fields }) => fields.stage === 'EXEC_SCHEDULE');
+  assert.ok(failedStage);
+  assert.equal(failedStage.event, 'performance_stage');
+  assert.equal(failedStage.fields.status, 'error');
 });
