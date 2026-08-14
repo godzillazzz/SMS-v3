@@ -41,6 +41,10 @@ function normalizeUatScope(value = 'full') {
   return scope;
 }
 
+function isReportCenterDiagnostic(environment = process.env) {
+  return normalizeUatScope(environment.UAT_SCOPE) === 'report-center-diagnostic';
+}
+
 function getUatConfig(environment = process.env) {
   if (!String(environment.UAT_BASE_URL || '').trim()) {
     throw configurationError('UAT_CONFIGURATION_MISSING', 'UAT configuration missing: UAT_BASE_URL');
@@ -81,4 +85,4 @@ function hasRoleCredentials(role, environment = process.env) {
   return getUatConfig(environment).accounts[role].configured;
 }
 
-module.exports = { configurationError, getUatConfig, hasRoleCredentials, normalizeBaseUrl, normalizeUatMode, normalizeUatScope, roles, modes, scopes };
+module.exports = { configurationError, getUatConfig, hasRoleCredentials, isReportCenterDiagnostic, normalizeBaseUrl, normalizeUatMode, normalizeUatScope, roles, modes, scopes };

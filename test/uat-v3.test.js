@@ -10,6 +10,11 @@ const observe = fs.readFileSync(path.resolve(__dirname, '../e2e/helpers/uat-obse
 const authenticatedSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/authenticated-v3.spec.js'), 'utf8');
 const playwrightConfig = fs.readFileSync(path.resolve(__dirname, '../playwright.config.js'), 'utf8');
 const adminSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/admin.spec.js'), 'utf8');
+const rolesSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/roles.spec.js'), 'utf8');
+const responsiveSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/responsive.spec.js'), 'utf8');
+const technicalSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/technical.spec.js'), 'utf8');
+const regressionSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/regression.spec.js'), 'utf8');
+const authBoundarySmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/auth-boundary-v3.spec.js'), 'utf8');
 const authenticatedRequest = fs.readFileSync(path.resolve(__dirname, '../e2e/helpers/uat-authenticated-request.js'), 'utf8');
 const testPassword = ['uat', 'test', 'only', 'secret'].join('-');
 
@@ -230,4 +235,8 @@ test('V3 isolates Report Center diagnostics without changing the global timeout'
   assert.match(authenticatedSmoke, /test\.setTimeout\(180_000\)/);
   assert.match(playwrightConfig, /timeout: 45_000/);
   assert.doesNotMatch(playwrightConfig, /timeout:\s*180_000/);
+  for (const source of [adminSmoke, rolesSmoke, responsiveSmoke, technicalSmoke, regressionSmoke, authBoundarySmoke]) {
+    assert.match(source, /isReportCenterDiagnostic\(\)/);
+  }
+  assert.match(authenticatedSmoke, /Lifecycle coverage is outside the selected UAT scope/);
 });

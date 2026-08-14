@@ -1,12 +1,12 @@
 const { test, expect } = require('../helpers/uat-test');
 const { getAuditEventsStatus, loginAs } = require('../helpers/uat-auth');
 const { authenticatedRequest } = require('../helpers/uat-authenticated-request');
-const { hasRoleCredentials } = require('../helpers/uat-config');
+const { hasRoleCredentials, isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { navigateTo, startPageMonitor } = require('../helpers/uat-observe');
 const { getRoleApiMatrix } = require('../helpers/uat-v3-role-matrix');
 
 test.describe.configure({ mode: 'serial' });
-test.skip(!hasRoleCredentials('ADMIN'), 'ADMIN authenticated smoke skipped: credentials unavailable.');
+test.skip(isReportCenterDiagnostic() || !hasRoleCredentials('ADMIN'), 'ADMIN smoke is outside the selected UAT scope or credentials are unavailable.');
 
 test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) => {
   test.slow();

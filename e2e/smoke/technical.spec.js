@@ -1,4 +1,5 @@
 const { test, expect } = require('../helpers/uat-test');
+const { isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = require('../helpers/uat-observe');
 const {
   assertExpectedStatus,
@@ -15,6 +16,8 @@ const viewports = [
   { name: '768', width: 768, height: 1024 },
   { name: '1440', width: 1440, height: 900 }
 ];
+
+test.skip(isReportCenterDiagnostic(), 'Technical browser smoke is outside the selected UAT scope.');
 
 test('TECHNICAL: HTTP health, readiness, Vite assets, and audit authorization boundary', async ({ page }, testInfo) => {
   const monitor = startPageMonitor(page);

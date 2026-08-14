@@ -1,4 +1,5 @@
 const { test, expect } = require('../helpers/uat-test');
+const { isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = require('../helpers/uat-observe');
 const {
   assertResponsiveLayoutMetrics,
@@ -31,6 +32,8 @@ const dataQualityViewports = [
   { name: '1024', width: 1024, height: 768, mobile: false },
   { name: '1440', width: 1440, height: 900, mobile: false }
 ];
+
+test.skip(isReportCenterDiagnostic(), 'Full regression smoke is outside the selected UAT scope.');
 const auditViewports = [
   { name: '390', width: 390, height: 844, mobile: true },
   { name: '768', width: 768, height: 1024, mobile: false },

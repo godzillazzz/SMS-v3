@@ -1,11 +1,11 @@
 const { test, expect } = require('../helpers/uat-test');
 const { loginAs } = require('../helpers/uat-auth');
-const { hasRoleCredentials } = require('../helpers/uat-config');
+const { hasRoleCredentials, isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { expectApiSuccess, navigateTo, startPageMonitor } = require('../helpers/uat-observe');
 
 for (const role of ['MANAGER', 'VIEWER']) {
   test.describe(`${role} authenticated smoke`, () => {
-    test.skip(!hasRoleCredentials(role), `${role} authenticated smoke skipped: credentials unavailable.`);
+    test.skip(isReportCenterDiagnostic() || !hasRoleCredentials(role), `${role} smoke is outside the selected UAT scope or credentials are unavailable.`);
     test(`${role}: allowed dashboard and privileged navigation stay bounded`, async ({ page }) => {
       test.slow();
       const monitor = startPageMonitor(page, {
