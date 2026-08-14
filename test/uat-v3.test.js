@@ -246,3 +246,14 @@ test('V3 isolates Report Center diagnostics without changing the global timeout'
   }
   assert.match(authenticatedSmoke, /Lifecycle coverage is outside the selected UAT scope/);
 });
+
+test('V3 scopes intentional duplicate Report Center export controls semantically', () => {
+  const exportStage = authenticatedSmoke.match(/'RC10_EXPORT_CONTROL'[\s\S]*?(?=const executiveCenter)/)?.[0] || '';
+  assert.match(exportStage, /\.report-center-export-card/);
+  assert.match(exportStage, /\.report-center-quick-export/);
+  assert.match(exportStage, /รายงานผู้บริหาร PDF/);
+  assert.match(exportStage, /toHaveCount\(2\)/);
+  assert.doesNotMatch(exportStage, /center\.getByRole\('button', \{ name: 'ส่งออก PDF', exact: true \}\)\.toBeVisible/);
+  assert.match(authenticatedSmoke, /executiveCenter\.locator\('\.report-center-quick-export'\)/);
+  assert.doesNotMatch(exportStage, /\.(first|last|nth)\(/);
+});

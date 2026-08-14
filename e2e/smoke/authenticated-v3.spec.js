@@ -99,7 +99,21 @@ async function expectUnifiedReportCenter(page, role, testInfo, monitor) {
       'RC10_EXPORT_CONTROL',
       async () => {
         await expect(center.getByRole('heading', { name: 'Export', exact: true })).toBeVisible();
-        await expect(center.getByRole('button', { name: 'ส่งออก PDF', exact: true })).toBeVisible();
+        const exportCard = center.locator('.report-center-export-card');
+        await expect(exportCard).toHaveCount(1);
+        await expect(exportCard).toBeVisible();
+        await expect(exportCard.getByRole('heading', { name: 'รายงานผู้บริหาร PDF', exact: true })).toBeVisible();
+        await expect(exportCard).toContainText('PDF');
+        const exportCardButton = exportCard.getByRole('button', { name: 'ส่งออก PDF', exact: true });
+        await expect(exportCardButton).toHaveCount(1);
+        await expect(exportCardButton).toBeVisible();
+        const quickExport = center.locator('.report-center-quick-export');
+        await expect(quickExport).toHaveCount(1);
+        await expect(quickExport).toBeVisible();
+        const quickExportButton = quickExport.getByRole('button', { name: 'ส่งออก PDF', exact: true });
+        await expect(quickExportButton).toHaveCount(1);
+        await expect(quickExportButton).toBeVisible();
+        await expect(center.getByRole('button', { name: 'ส่งออก PDF', exact: true })).toHaveCount(2);
       },
       { safeApiPath: '/api/v1/reports/summary', safeStatus: detailsResponse.status(), safeErrorCode: 'UAT_UI_EXPORT_RENDER_FAILED' }
     );
@@ -112,7 +126,8 @@ async function expectUnifiedReportCenter(page, role, testInfo, monitor) {
       'RC13_PDF_READY',
       async () => {
         await expect(executiveCenter.locator('.executive-report-print-page')).toContainText('รายงานผู้บริหาร');
-        const button = executiveCenter.getByRole('button', { name: 'ส่งออก PDF', exact: true });
+        const button = executiveCenter.locator('.report-center-quick-export').getByRole('button', { name: 'ส่งออก PDF', exact: true });
+        await expect(button).toHaveCount(1);
         await expect(button).toBeEnabled({ timeout: 60_000 });
         return button;
       },
