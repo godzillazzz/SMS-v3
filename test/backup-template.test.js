@@ -16,23 +16,27 @@ async function setupMocks(tempDir) {
 
   // pg_dump mock: writes dummy content to the file specified in --file
   const pgDumpContent = `@echo off
-shift
+setlocal EnableExtensions
 :loop
-if "%~1"=="" goto end
-echo %~1 | findstr /r "^--file=" >nul
-if not errorlevel 1 (
-    set arg=%~1
-    call :writefile
-)
+if "%~1"=="" exit /b 0
+if /i "%~1"=="--file" goto write_next
+set "arg=%~1"
+call :check_equals "%arg%"
+if not errorlevel 1 exit /b 0
 shift
 goto loop
-:end
+
+:write_next
+shift
+if "%~1"=="" exit /b 1
+>"%~1" echo MOCK DUMP CONTENT
 exit /b 0
 
-:writefile
-set filepath=%arg:--file=%
-set filepath=%filepath:~1%
-echo MOCK DUMP CONTENT > "%filepath%"
+:check_equals
+set "candidate=%~1"
+if /i not "%candidate:~0,7%"=="--file=" exit /b 1
+set "filepath=%candidate:~7%"
+>"%filepath%" echo MOCK DUMP CONTENT
 exit /b 0
 `;
   await fsp.writeFile(path.join(mockBinDir, 'pg_dump.cmd'), pgDumpContent);

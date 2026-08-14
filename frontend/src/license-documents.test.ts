@@ -174,10 +174,10 @@ describe('license document viewer and review', () => {
   });
 
   it('renders review from the license table only for admins with a pending document', () => {
-    expect(componentSource).toContain('const pendingDocument = documents.find((document) => document.status === \'PENDING\')');
-    expect(componentSource).toContain('isAdmin && !loading && !error && pendingDocument');
+    expect(componentSource).toContain('summary?.pendingDocumentId');
+    expect(componentSource).toContain('isAdmin && summary?.reviewAvailable && summary.pendingDocumentId');
     expect(componentSource).toContain('isAdmin: boolean; onChanged: (message: string) => void');
-    expect(mainSource).toContain('isAdmin={role === \'ADMIN\'}');
+    expect(mainSource).toContain("isAdmin={role === 'ADMIN'}");
     expect(mainSource).toContain('onChanged={onLicenseDocumentChanged}');
   });
 
@@ -226,5 +226,13 @@ describe('license document history and safety', () => {
     expect(mainSource).toContain("if (action === 'document' && activePage === 'licenses')");
     expect(mainSource).toContain('returnLicenseDocumentForCorrection');
     expect(mainSource).toContain('resubmitLicenseDocument');
+  });
+});
+
+
+describe('performance hardening license table contract', () => {
+  it('does not fetch document history on LicenseTableDocumentColumns mount', () => {
+    const start = componentSource.indexOf('export function LicenseTableDocumentColumns'); const end = componentSource.indexOf('function DocumentFacts', start); const tableBlock = componentSource.slice(start, end);
+    expect(tableBlock).not.toContain('useEffect('); expect(tableBlock).toContain('summary?: LicenseTableDocumentSummary'); expect(tableBlock).toContain('const openReview = async () =>'); expect(tableBlock).toContain('services.list(license.id)'); expect(mainSource).toContain('summary={row.documentSummary as never}');
   });
 });

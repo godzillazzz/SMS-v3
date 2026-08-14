@@ -21,6 +21,15 @@ import '../styles/license-correction.css';
 type EmployeeIdentity = { employeeCode: string; firstName: string; lastName: string; department?: string };
 type LicenseIdentity = { id: string; licenseNumber?: string | null; licenseType?: string | null; issueDate?: string | null; expiryDate?: string | null; status?: string | null; employee: EmployeeIdentity };
 type ViewResult = { url: string; mimeType: string; fileName: string };
+export type LicenseTableDocumentSummary = {
+  state: 'CURRENT_WITH_PENDING' | 'CURRENT_WITH_RETURNED' | 'CURRENT' | 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'REJECTED' | 'EXPIRED' | 'EMPTY';
+  selectedDocumentId?: string | null;
+  selectedFileAvailable?: boolean;
+  selectedFileDeleted?: boolean;
+  currentDocumentId?: string | null;
+  pendingDocumentId?: string | null;
+  reviewAvailable?: boolean;
+};
 
 type Services = {
   list: (licenseId: string) => Promise<LicenseDocument[]>;
@@ -88,28 +97,46 @@ export function LicenseDocumentViewerModal({ documentId, onRequestView, onClose 
   </ModalFrame>;
 }
 
-export function LicenseTableDocumentColumns({ license, refreshSignal, services, isAdmin, onChanged }: { license: LicenseIdentity; refreshSignal: number; services: Services; isAdmin: boolean; onChanged: (message: string) => void }) {
-  const [documents, setDocuments] = useState<LicenseDocument[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>();
+export function LicenseTableDocumentColumns({ license, summary, services, isAdmin, onChanged }: { license: LicenseIdentity; summary?: LicenseTableDocumentSummary; services: Services; isAdmin: boolean; onChanged: (message: string) => void }) {
   const [viewerId, setViewerId] = useState<string>();
   const [reviewDocument, setReviewDocument] = useState<LicenseDocument>();
-  const load = async () => {
-    setLoading(true); setError(undefined);
-    try { setDocuments(sortLicenseDocuments(await services.list(license.id))); }
-    catch (reason) { setError(sanitizeLicenseDocumentError(reason)); }
-    finally { setLoading(false); }
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewError, setReviewError] = useState<string>();
+  const state = summary?.state || 'EMPTY';
+  const currentLabel = () => {
+    if (state === 'CURRENT_WITH_PENDING') return { label: 'มีรายการรอตรวจสอบ', tone: 'pending' };
+    if (state === 'CURRENT_WITH_RETURNED') return { label: 'มีรายการส่งกลับแก้ไข', tone: 'returned' };
+    if (state === 'CURRENT') {
+      const validity = licenseValidityLabel(license.issueDate, license.expiryDate, license.status);
+      if (validity === 'หมดอายุ') return { label: 'หมดอายุ', tone: 'expired' };
+      if (validity === 'ใกล้หมดอายุ') return { label: 'ใกล้หมดอายุ', tone: 'expiring' };
+      return { label: 'อนุมัติแล้ว', tone: 'approved' };
+    }
+    if (state === 'PENDING') return { label: 'รอตรวจสอบ', tone: 'pending' };
+    if (state === 'RETURNED_FOR_CORRECTION') return { label: 'ส่งกลับแก้ไข', tone: 'returned' };
+    if (state === 'REJECTED') return { label: 'ไม่อนุมัติ', tone: 'rejected' };
+    if (state === 'EXPIRED') return { label: 'หมดอายุ', tone: 'expired' };
+    return { label: 'ยังไม่มีเอกสาร', tone: 'empty' };
   };
-  useEffect(() => { void load(); }, [license.id, refreshSignal]);
-  const selected = selectLicenseDocumentForTable(documents);
-  const pendingDocument = documents.find((document) => document.status === 'PENDING');
-  const tableStatus = licenseTableStatus(documents, license.issueDate, license.expiryDate, license.status);
-  const fileDeleted = Boolean(selected?.storageDeletedAt);
+  const tableStatus = currentLabel();
+  const openReview = async () => {
+    if (!summary?.pendingDocumentId || reviewBusy) return;
+    setReviewBusy(true); setReviewError(undefined);
+    try {
+      const documents = sortLicenseDocuments(await services.list(license.id));
+      const pending = documents.find((document) => document.id === summary.pendingDocumentId && document.status === 'PENDING');
+      if (!pending) { onChanged('ข้อมูลเอกสารมีการเปลี่ยนแปลง กรุณารีเฟรช'); return; }
+      setReviewDocument(pending);
+    } catch (reason) { setReviewError(sanitizeLicenseDocumentError(reason)); }
+    finally { setReviewBusy(false); }
+  };
+  const canView = Boolean(summary?.selectedDocumentId && summary.selectedFileAvailable && !summary.selectedFileDeleted);
+  const unavailable = Boolean(summary?.selectedDocumentId && (!summary.selectedFileAvailable || summary.selectedFileDeleted));
   return <>
-    <td className="license-table-status"><span className={`status-badge license-status-${tableStatus.tone}`}>{loading ? 'กำลังอ่าน…' : error ? 'ไม่พร้อมใช้งาน' : tableStatus.label}</span></td>
-    <td className="license-table-view">{!loading && !error && selected && !fileDeleted && <button type="button" className="btn-icon-only" aria-label="ดูไฟล์ใบอนุญาต" title="ดูไฟล์ใบอนุญาต" onClick={() => setViewerId(selected.id)}>◉</button>}{isAdmin && !loading && !error && pendingDocument && <button type="button" className="btn-warning compact" aria-label="ตรวจสอบเอกสารใบอนุญาต" onClick={() => setReviewDocument(pendingDocument)}>ตรวจสอบ</button>}{!loading && !error && (!selected || fileDeleted) && <span className="license-file-unavailable" title={fileDeleted ? 'ไฟล์ต้นฉบับถูกลบตามนโยบายจัดเก็บข้อมูล' : undefined}>{fileDeleted ? 'ไฟล์ถูกลบตามนโยบาย' : 'ไม่มีไฟล์'}</span>}</td>
+    <td className="license-table-status"><span className={`status-badge license-status-${tableStatus.tone}`}>{tableStatus.label}</span></td>
+    <td className="license-table-view">{canView && <button type="button" className="btn-icon-only" aria-label="ดูไฟล์ใบอนุญาต" title="ดูไฟล์ใบอนุญาต" onClick={() => setViewerId(String(summary?.selectedDocumentId))}>👁</button>}{isAdmin && summary?.reviewAvailable && summary.pendingDocumentId && <button type="button" className="btn-warning compact" aria-label="ตรวจสอบเอกสารใบอนุญาต" disabled={reviewBusy} onClick={() => void openReview()}>{reviewBusy ? 'กำลังโหลด…' : 'ตรวจสอบ'}</button>}{!canView && <span className="license-file-unavailable" title={unavailable ? 'ไฟล์ต้นฉบับถูกลบตามนโยบายจัดเก็บข้อมูล' : undefined}>{unavailable ? 'ไฟล์ถูกลบตามนโยบาย' : 'ไม่มีไฟล์'}</span>}{reviewError && <span className="license-doc-inline-error" role="alert">{reviewError}</span>}</td>
     {viewerId && <LicenseDocumentViewerModal documentId={viewerId} onRequestView={services.view} onClose={() => setViewerId(undefined)} />}
-    {reviewDocument && <ReviewModal document={reviewDocument} license={license} services={services} isAdmin={isAdmin} onClose={() => setReviewDocument(undefined)} onChanged={async (message) => { await load(); onChanged(message); }} />}
+    {reviewDocument && <ReviewModal document={reviewDocument} license={license} services={services} isAdmin={isAdmin} onClose={() => setReviewDocument(undefined)} onChanged={async (message) => { setReviewDocument(undefined); onChanged(message); }} />}
   </>;
 }
 

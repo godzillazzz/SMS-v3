@@ -1,7 +1,7 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createLicenseDocumentService } = require('../src/services/license-document.service');
+const { createLicenseDocumentService, tableDocumentSummary } = require('../src/services/license-document.service');
 const { createFakeLicenseDocumentStorage } = require('./support/fake-license-document-storage');
 
 const ids = { admin: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', manager: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', employee: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', license: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', document: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
@@ -11,7 +11,7 @@ function harness({ createFailure = false, deleteFailure = false, requireApproval
   const state = {
     license: { id: ids.license, employeeId: ids.employee, issueDate: new Date('2026-01-01'), expiryDate: new Date('2026-12-31') },
     employee: { id: ids.employee, department: 'Operations' },
-    manager: { department: 'Operations', employee: null }, documents: [], audits: [], reconciles: []
+    manager: { department: 'Operations', employee: null }, documents: [], audits: [], reconciles: [], transactionCalls: 0
   };
   const tx = {
     $queryRaw: async () => [],
@@ -34,11 +34,13 @@ function harness({ createFailure = false, deleteFailure = false, requireApproval
     auditLog: { deleteMany: async ({ where }) => { state.audits = state.audits.filter((entry) => entry.entityType !== where.entityType || entry.entityId !== where.entityId); } }
   };
   const prisma = { $transaction: async (callback, options) => {
+    state.transactionCalls += 1;
     if (requireApprovalTransactionOptions && (!options || options.timeout < 30000 || options.maxWait < 10000)) {
       const error = new Error('Transaction expired before approval completed.'); error.code = 'P2028'; throw error;
     }
     return callback(tx);
   } };
+  prisma.employeeLicense = tx.employeeLicense;
   prisma.employeeLicenseDocument = tx.employeeLicenseDocument;
   prisma.employeeLicenseDocument.update = tx.employeeLicenseDocument.update;
   const storage = createFakeLicenseDocumentStorage();
@@ -65,11 +67,12 @@ test('storage failure creates no record and database failure removes the orphan 
   assert.equal(second.storage.calls.remove.length, 1); assert.equal(second.storage.objects.size, 0);
 });
 
-test('manager license access is not limited by department', async () => {
-  const { state, service } = harness();
+test('manager license access is not limited by department and read list uses no interactive transaction', async () => {
+  const { state, service } = harness(); const before = state.transactionCalls;
   await service.list({ licenseId: ids.license, requestUser: { sub: ids.manager, role: 'MANAGER' } });
   state.manager.department = 'HR';
   await service.list({ licenseId: ids.license, requestUser: { sub: ids.manager, role: 'MANAGER' } });
+  assert.equal(state.transactionCalls, before);
 });
 
 test('viewer access and non-admin review operations are rejected', async () => {
@@ -224,4 +227,19 @@ test('storage failure returns sanitized 503 and does not report deletion success
   await storage.put('licenses/e/failing-hard-delete', pdf); storage.failNextRemove();
   await assert.rejects(() => service.permanentlyDelete({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } }), { statusCode: 503 });
   assert.equal(state.documents[0].status, 'REJECTED');
+});
+
+
+test('license table summaries batch safe metadata without storage internals and preserve selection parity', async () => {
+  const { state, service } = harness();
+  state.documents.push({ id: 'approved', licenseId: ids.license, status: 'APPROVED', isCurrent: true, version: 2, uploadedAt: new Date('2026-08-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAfter: null }, { id: 'pending', licenseId: ids.license, status: 'PENDING', isCurrent: false, version: 3, uploadedAt: new Date('2026-08-02T00:00:00Z'), storageDeletedAt: null, storageDeleteAfter: null, storageObjectKey: 'must-not-leak' });
+  const result = await service.tableSummaries({ licenses: [state.license], requestUser: { sub: ids.admin, role: 'ADMIN' } });
+  assert.deepEqual(result[ids.license], { state: 'CURRENT_WITH_PENDING', selectedDocumentId: 'approved', selectedFileAvailable: true, selectedFileDeleted: false, currentDocumentId: 'approved', pendingDocumentId: 'pending', reviewAvailable: true });
+  assert.equal(JSON.stringify(result).includes('storageObjectKey'), false);
+  await assert.rejects(() => service.tableSummaries({ licenses: [state.license], requestUser: { role: 'VIEWER' } }), { statusCode: 403 });
+});
+
+test('table document summary marks retention-deleted selected files unavailable', () => {
+  const result = tableDocumentSummary([{ id: 'approved', licenseId: ids.license, status: 'APPROVED', isCurrent: true, version: 1, uploadedAt: new Date(), storageDeletedAt: new Date(), storageDeleteAfter: null }]);
+  assert.equal(result.state, 'CURRENT'); assert.equal(result.selectedDocumentId, 'approved'); assert.equal(result.selectedFileAvailable, false); assert.equal(result.selectedFileDeleted, true);
 });

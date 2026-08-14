@@ -66,3 +66,12 @@ describe('Unified Report Center V1 source contract', () => {
     expect(styles).toContain('overflow-x:auto');
   });
 });
+
+describe('Performance Hardening V1 report request contract', () => {
+  it('suppresses hidden Executive fetches and protects stale export', () => {
+    expect(executive).toContain('fetchEnabled?: boolean'); expect(executive).toContain('if (!fetchEnabled || loadedKey === requestKey)'); expect(page).toContain("fetchEnabled={activeTab === 'executive' || activeTab === 'export'}"); expect(page).toContain('setExecutiveReport(undefined)'); expect(page).toContain('disabled={!executiveReport}');
+  });
+  it('loads Details once per token until explicit refresh', () => {
+    expect(page).toContain("if (activeTab !== 'details' || summaryLoaded) return;"); expect(page).toContain('setSummaryLoaded(true)'); expect(page).toContain('setSummaryLoaded(false); setSummaryRefresh'); expect(page).toContain('}, [token]);');
+  });
+});

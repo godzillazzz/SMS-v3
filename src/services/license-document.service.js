@@ -94,6 +94,35 @@ function ensurePermanentDeleteEligible(document, documents) {
   if (document.status === 'SUPERSEDED' && !documents.some((item) => item.status === 'APPROVED' && item.isCurrent)) throw new HttpError(409, 'This document has no approved replacement.');
 }
 
+function tableDocumentSummary(documents, now = new Date()) {
+  const sorted = [...documents].sort((left, right) => Number(right.version) - Number(left.version) || new Date(right.uploadedAt).getTime() - new Date(left.uploadedAt).getTime());
+  const current = sorted.find((item) => item.status === 'APPROVED' && item.isCurrent);
+  const pending = sorted.find((item) => item.status === 'PENDING');
+  const returned = sorted.find((item) => isActiveReturnedDocument(item, sorted));
+  const latestRejected = sorted.find((item) => item.status === 'REJECTED');
+  const latestExpired = sorted.find((item) => item.status === 'EXPIRED');
+  const selected = current
+    || sorted.find((item) => item.status === 'PENDING' && isDocumentFileAvailable(item, now))
+    || (returned && isDocumentFileAvailable(returned, now) ? returned : undefined)
+    || (latestRejected && isDocumentFileAvailable(latestRejected, now) ? latestRejected : undefined);
+  const state = pending && current ? 'CURRENT_WITH_PENDING'
+    : returned && current ? 'CURRENT_WITH_RETURNED'
+      : current ? 'CURRENT'
+        : pending ? 'PENDING'
+          : returned ? 'RETURNED_FOR_CORRECTION'
+            : latestRejected ? 'REJECTED'
+              : latestExpired ? 'EXPIRED' : 'EMPTY';
+  return {
+    state,
+    selectedDocumentId: selected?.id || null,
+    selectedFileAvailable: selected ? isDocumentFileAvailable(selected, now) : false,
+    selectedFileDeleted: Boolean(selected?.storageDeletedAt),
+    currentDocumentId: current?.id || null,
+    pendingDocumentId: pending?.id || null,
+    reviewAvailable: Boolean(pending)
+  };
+}
+
 function ensureDocumentNotPendingDeletion(document) {
   if (document.immediateDeletionRequestedAt) throw new HttpError(409, 'This license document is being permanently deleted.');
 }
@@ -107,12 +136,27 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
   }
 
   async function list({ licenseId, requestUser }) {
-    return prisma.$transaction(async (tx) => {
-      const license = await tx.employeeLicense.findUniqueOrThrow({ where: { id: licenseId }, select: { employeeId: true } });
-      if (!(await canAccess(tx, requestUser, license.employeeId))) throw new HttpError(403, 'You cannot access this employee license.');
-      const rows = await tx.employeeLicenseDocument.findMany({ where: { licenseId }, orderBy: [{ version: 'desc' }], select: historySelect });
-      return rows.map((row) => ({ ...row, fileAvailable: isDocumentFileAvailable(row) }));
+    const license = await prisma.employeeLicense.findUniqueOrThrow({ where: { id: licenseId }, select: { employeeId: true } });
+    if (!(await canAccess(prisma, requestUser, license.employeeId))) throw new HttpError(403, 'You cannot access this employee license.');
+    const rows = await prisma.employeeLicenseDocument.findMany({ where: { licenseId }, orderBy: [{ version: 'desc' }], select: historySelect });
+    return rows.map((row) => ({ ...row, fileAvailable: isDocumentFileAvailable(row) }));
+  }
+
+  async function tableSummaries({ licenses, requestUser }) {
+    ensureEditor(requestUser);
+    const visibleLicenses = Array.isArray(licenses) ? licenses : [];
+    for (const license of visibleLicenses) {
+      if (!(await canAccess(prisma, requestUser, license.employeeId))) throw new HttpError(403, 'You cannot access this employee license.');
+    }
+    const licenseIds = [...new Set(visibleLicenses.map((license) => license.id).filter(Boolean))];
+    if (!licenseIds.length) return {};
+    const rows = await prisma.employeeLicenseDocument.findMany({
+      where: { licenseId: { in: licenseIds } },
+      select: { id: true, licenseId: true, status: true, isCurrent: true, version: true, uploadedAt: true, resubmittedAt: true, storageDeletedAt: true, storageDeleteAfter: true }
     });
+    const byLicense = new Map(licenseIds.map((id) => [id, []]));
+    rows.forEach((row) => byLicense.get(row.licenseId)?.push(row));
+    return Object.fromEntries(licenseIds.map((id) => [id, tableDocumentSummary(byLicense.get(id) || [])]));
   }
 
   async function upload({ licenseId, requestUser, file, input }) {
@@ -280,7 +324,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
     return { id, deleted: true };
   }
 
-  return { list, upload, view, approve, returnForCorrection, resubmit, reject, permanentlyDelete, canAccess };
+  return { list, tableSummaries, upload, view, approve, returnForCorrection, resubmit, reject, permanentlyDelete, canAccess };
 }
 
-module.exports = { createLicenseDocumentService, historySelect, normalizeLicenseNumber, normalizeReason, retentionDays, isDocumentFileAvailable, APPROVAL_TRANSACTION_OPTIONS };
+module.exports = { createLicenseDocumentService, historySelect, normalizeLicenseNumber, normalizeReason, retentionDays, isDocumentFileAvailable, tableDocumentSummary, APPROVAL_TRANSACTION_OPTIONS };

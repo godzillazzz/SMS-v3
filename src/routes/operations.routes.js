@@ -228,7 +228,7 @@ router.get('/dashboard', async (req, res, next) => {
     const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true, department: true } });
     const parsedQuery = dashboardQuery.safeParse(req.query);
     if (!parsedQuery.success) throw new HttpError(400, 'Dashboard filter is invalid.');
-    res.json({ data: await getDashboardSummary({ requestUser: currentUser, filters: parsedQuery.data }) });
+    res.json({ data: await getDashboardSummary({ requestUser: currentUser, filters: parsedQuery.data, requestId: req.requestId }) });
   } catch (error) { next(error); }
 });
 router.get('/executive-report', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
@@ -236,7 +236,7 @@ router.get('/executive-report', authorize('ADMIN', 'MANAGER'), async (req, res, 
     const parsedQuery = executiveReportQuery.safeParse(req.query);
     if (!parsedQuery.success) throw new HttpError(400, 'Executive report filter is invalid.');
     const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true, department: true } });
-    res.json({ data: await getExecutiveReport({ prismaClient: prisma, requestUser: currentUser, filters: parsedQuery.data }) });
+    res.json({ data: await getExecutiveReport({ prismaClient: prisma, requestUser: currentUser, filters: parsedQuery.data, requestId: req.requestId }) });
   } catch (error) { next(error); }
 });
 router.post('/internal/license-reconciliation', async (req, res, next) => {
@@ -262,7 +262,9 @@ router.get('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) =>
         }
       })
     ]);
-    const data = licenses.sort(sortByEmployeeCode).slice((page - 1) * pageSize, page * pageSize);
+    const pageRows = licenses.sort(sortByEmployeeCode).slice((page - 1) * pageSize, page * pageSize);
+    const documentSummaries = await licenseDocuments.tableSummaries({ licenses: pageRows, requestUser: req.user });
+    const data = pageRows.map((license) => ({ ...license, documentSummary: documentSummaries[license.id] }));
     res.json({ data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
   } catch (error) { next(error); }
 });

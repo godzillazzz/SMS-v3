@@ -9,6 +9,16 @@ const EMPTY_ID = '00000000-0000-0000-0000-000000000000';
 const LICENSE_APPROVED = { status: 'APPROVED', isCurrent: true };
 const QUERY_OPERATION_COUNT = 10;
 
+async function timedExecutiveStage(requestId, stage, queryCount, task) {
+  const startedAt = performance.now();
+  let status = 'ok';
+  try { return await task(); }
+  catch (error) { status = 'error'; throw error; }
+  finally {
+    if (requestId) logger.info('performance_stage', { requestId, operation: 'executive-report', stage, durationMs: Number((performance.now() - startedAt).toFixed(2)), status, queryCount });
+  }
+}
+
 function bangkokDateStart(now = new Date()) {
   const bangkok = new Date(now.getTime() + (7 * 60 * 60 * 1000));
   return new Date(Date.UTC(bangkok.getUTCFullYear(), bangkok.getUTCMonth(), bangkok.getUTCDate()));
@@ -131,7 +141,7 @@ async function workforceSnapshot(prismaClient, asOfDate, scope) {
   return rows.map((row) => ({ department: row.department || null, total: Number(row.total || 0), active: Number(row.active || 0) }));
 }
 
-async function getExecutiveReport({ prismaClient, requestUser, filters, now = new Date() }) {
+async function getExecutiveReport({ prismaClient, requestUser, filters, now = new Date(), requestId }) {
   const fallback = currentBangkokPeriod(now);
   const year = filters.year || fallback.year;
   const month = filters.month || fallback.month;
@@ -143,15 +153,15 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
   const expiry30 = new Date(asOfDate.getTime() + (30 * 86400000));
   const leaveWhere = historicalLeaveScopeWhere(scope, period);
 
-  const workforceRows = await workforceSnapshot(prismaClient, workforceAsOfDate, scope);
+  const workforceRows = await timedExecutiveStage(requestId, 'EXEC_WORKFORCE_ASOF', 1, () => workforceSnapshot(prismaClient, workforceAsOfDate, scope));
   const totalEmployees = workforceRows.reduce((sum, row) => sum + row.total, 0);
   const activeEmployees = workforceRows.reduce((sum, row) => sum + row.active, 0);
-  const assignmentCount = await prismaClient.shiftAssignment.count({ where: { workDate: { gte: period.startDate, lt: period.nextMonthStart }, ...(scope.department && { departmentSnapshot: scope.department }), ...(scope.employeeId && { employeeId: scope.employeeId }) } });
-  const leaveByStatusRows = await prismaClient.leaveRequest.groupBy({ by: ['status'], where: leaveWhere, _count: { _all: true } });
-  const leaveByTypeRows = await prismaClient.leaveRequest.groupBy({ by: ['leaveType'], where: leaveWhere, _count: { _all: true }, orderBy: { leaveType: 'asc' } });
-  const quality = await getDataQualitySummary({ prismaClient, filters: { department: scope.department || undefined, employeeId: scope.employeeId || undefined }, now: asOfDate });
-  const validBeyond30Days = await prismaClient.employeeLicenseDocument.count({ where: { ...LICENSE_APPROVED, ...documentScope, proposedExpiryDate: { gt: expiry30 } } });
-  const pendingReview = await prismaClient.employeeLicenseDocument.count({ where: { status: 'PENDING', isCurrent: true, ...documentScope } });
+  const assignmentCount = await timedExecutiveStage(requestId, 'EXEC_SCHEDULE', 1, () => prismaClient.shiftAssignment.count({ where: { workDate: { gte: period.startDate, lt: period.nextMonthStart }, ...(scope.department && { departmentSnapshot: scope.department }), ...(scope.employeeId && { employeeId: scope.employeeId }) } }));
+  const leaveByStatusRows = await timedExecutiveStage(requestId, 'EXEC_LEAVE', 1, () => prismaClient.leaveRequest.groupBy({ by: ['status'], where: leaveWhere, _count: { _all: true } }));
+  const leaveByTypeRows = await timedExecutiveStage(requestId, 'EXEC_LEAVE', 1, () => prismaClient.leaveRequest.groupBy({ by: ['leaveType'], where: leaveWhere, _count: { _all: true }, orderBy: { leaveType: 'asc' } }));
+  const quality = await timedExecutiveStage(requestId, 'EXEC_DATA_QUALITY', 4, () => getDataQualitySummary({ prismaClient, filters: { department: scope.department || undefined, employeeId: scope.employeeId || undefined }, now: asOfDate }));
+  const validBeyond30Days = await timedExecutiveStage(requestId, 'EXEC_LICENSE', 1, () => prismaClient.employeeLicenseDocument.count({ where: { ...LICENSE_APPROVED, ...documentScope, proposedExpiryDate: { gt: expiry30 } } }));
+  const pendingReview = await timedExecutiveStage(requestId, 'EXEC_LICENSE', 1, () => prismaClient.employeeLicenseDocument.count({ where: { status: 'PENDING', isCurrent: true, ...documentScope } }));
 
   const statusCounts = numberFromGroup(leaveByStatusRows, 'status', ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']);
   const byType = leaveByTypeRows.map((row) => ({ label: row.leaveType, count: row._count?._all || 0 }));

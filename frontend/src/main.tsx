@@ -609,7 +609,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   const tableValue = (row: DataRow, column: { label: string; value: (row: DataRow) => React.ReactNode }) => column.value(row);
   const licenseIdentity = (row: DataRow) => { const employee = nested(row.employee); return { id: String(row.id), licenseNumber: row.licenseNumber ? String(row.licenseNumber) : null, licenseType: row.licenseType ? String(row.licenseType) : null, issueDate: row.issueDate ? String(row.issueDate) : null, expiryDate: row.expiryDate ? String(row.expiryDate) : null, status: row.status ? String(row.status) : null, employee: { employeeCode: String(employee.employeeCode || ''), firstName: String(employee.firstName || ''), lastName: String(employee.lastName || ''), department: employee.department ? String(employee.department) : undefined } }; };
   const renderLicenseCell = (row: DataRow, column: { label: string; value: (row: DataRow) => React.ReactNode }) => {
-    if (column.label === 'สถานะ' && token) return <LicenseTableDocumentColumns key={column.label} license={licenseIdentity(row)} refreshSignal={refreshSignal} services={documentServices} isAdmin={role === 'ADMIN'} onChanged={onLicenseDocumentChanged} />;
+    if (column.label === 'สถานะ' && token) return <LicenseTableDocumentColumns key={column.label} license={licenseIdentity(row)} summary={row.documentSummary as never} services={documentServices} isAdmin={role === 'ADMIN'} onChanged={onLicenseDocumentChanged} />;
     if (column.label === 'ดูไฟล์') return null;
     return <td key={column.label}>{tableValue(row, column)}</td>;
   };

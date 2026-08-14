@@ -1,5 +1,8 @@
 'use strict';
 
+const { performance } = require('node:perf_hooks');
+const { logger } = require('../utils/logger');
+
 const EMPTY_ID = '00000000-0000-0000-0000-000000000000';
 const LICENSE_STATUSES = ['PENDING', 'APPROVED', 'RETURNED_FOR_CORRECTION', 'REJECTED', 'EXPIRED', 'SUPERSEDED'];
 const ACTIVE_LEAVE_STATUSES = ['PENDING', 'APPROVED'];
@@ -109,16 +112,103 @@ function settledValue(results, index, fallback, label, errors) {
   return result?.value ?? fallback;
 }
 
-async function settleDashboardQueries(tasks) {
+async function settleDashboardQueries(tasks, context = {}) {
   const results = [];
+  const stageTimings = new Map();
   for (const task of tasks) {
-    try {
-      results.push({ status: 'fulfilled', value: await task() });
-    } catch (reason) {
-      results.push({ status: 'rejected', reason });
+    const descriptor = typeof task === 'function' ? { run: task, stage: null } : task;
+    const startedAt = performance.now();
+    let status = 'ok';
+    try { results.push({ status: 'fulfilled', value: await descriptor.run() }); }
+    catch (reason) { status = 'error'; results.push({ status: 'rejected', reason }); }
+    finally {
+      if (descriptor.stage) {
+        const current = stageTimings.get(descriptor.stage) || { durationMs: 0, status: 'ok' };
+        current.durationMs += performance.now() - startedAt;
+        if (status === 'error') current.status = 'error';
+        stageTimings.set(descriptor.stage, current);
+      }
     }
   }
+  if (context.requestId) stageTimings.forEach((timing, stage) => logger.info('performance_stage', {
+    requestId: context.requestId, operation: 'dashboard', stage, durationMs: Number(timing.durationMs.toFixed(2)), status: timing.status
+  }));
   return results;
+}
+
+function countGroupedRows(rows, predicate = () => true) {
+  return rows.reduce((sum, row) => predicate(row) ? sum + Number(row._count?._all || 0) : sum, 0);
+}
+
+async function workforceAggregate(client, employeeWhere) {
+  if (typeof client.employee?.groupBy === 'function') {
+    try {
+      const rows = await client.employee.groupBy({ by: ['isActive'], where: employeeWhere, _count: { _all: true } });
+      return { total: countGroupedRows(rows), active: countGroupedRows(rows, (row) => row.isActive === true), partialError: false };
+    } catch (_) { /* legacy fallback below */ }
+  }
+  const results = await settleDashboardQueries([
+    () => client.employee.count({ where: employeeWhere }),
+    () => client.employee.count({ where: { ...employeeWhere, isActive: true } })
+  ]);
+  return { total: results[0]?.status === 'fulfilled' ? results[0].value : 0, active: results[1]?.status === 'fulfilled' ? results[1].value : 0, partialError: results.some((result) => result.status === 'rejected') };
+}
+
+async function monthlyLeaveAggregate(client, leaveWhere, monthStart, nextMonth) {
+  const where = { ...leaveWhere, startDate: { lt: nextMonth }, endDate: { gte: monthStart } };
+  if (typeof client.leaveRequest?.groupBy !== 'function') {
+    try { return { total: await client.leaveRequest.count({ where }), rows: [], partialError: false }; }
+    catch (_) { return { total: 0, rows: [], partialError: true }; }
+  }
+  try {
+    const rows = await client.leaveRequest.groupBy({ by: ['status'], where, _count: { _all: true } });
+    return { total: countGroupedRows(rows), rows, partialError: false };
+  } catch (_) {
+    try { return { total: await client.leaveRequest.count({ where }), rows: [], partialError: true }; }
+    catch (_) { return { total: 0, rows: [], partialError: true }; }
+  }
+}
+function summarizeLicenseGroups(rows, { todayStart, expiry30, expiry90 }) {
+  const statusRows = LICENSE_STATUSES.map((status) => ({ status, _count: { _all: countGroupedRows(rows, (row) => row.status === status) } })).filter((row) => row._count._all > 0);
+  const approvedCurrent = (row) => row.status === 'APPROVED' && row.isCurrent === true;
+  const dateOf = (row) => new Date(row.proposedExpiryDate);
+  const expiredByDate = countGroupedRows(rows, (row) => approvedCurrent(row) && dateOf(row) < todayStart);
+  const expiringWithin30 = countGroupedRows(rows, (row) => approvedCurrent(row) && dateOf(row) >= todayStart && dateOf(row) <= expiry30);
+  const expiringWithin90 = countGroupedRows(rows, (row) => approvedCurrent(row) && dateOf(row) > expiry30 && dateOf(row) <= expiry90);
+  const valid = countGroupedRows(rows, (row) => approvedCurrent(row) && dateOf(row) > expiry90);
+  const expiredStatus = countGroupedRows(rows, (row) => row.status === 'EXPIRED' && row.isCurrent === true);
+  const pendingReview = countGroupedRows(rows, (row) => row.status === 'PENDING');
+  const expiringTotal = countGroupedRows(rows, (row) => approvedCurrent(row) && dateOf(row) <= expiry30);
+  return { statusRows, categoryCounts: [expiredByDate, expiringWithin30, expiringWithin90, valid, expiredStatus, pendingReview], expiringTotal, partialError: false };
+}
+
+async function legacyLicenseAggregate(client, licenseWhere, approvedCurrentWhere, todayStart, expiry30, expiry90) {
+  const results = await settleDashboardQueries([
+    () => groupByIfAvailable(client.employeeLicenseDocument, { by: ['status'], where: licenseWhere, _count: { _all: true } }),
+    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...approvedCurrentWhere, proposedExpiryDate: { lt: todayStart } } }),
+    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...approvedCurrentWhere, proposedExpiryDate: { gte: todayStart, lte: expiry30 } } }),
+    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...approvedCurrentWhere, proposedExpiryDate: { gt: expiry30, lte: expiry90 } } }),
+    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...approvedCurrentWhere, proposedExpiryDate: { gt: expiry90 } } }),
+    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...licenseWhere, status: 'EXPIRED', isCurrent: true } }),
+    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...licenseWhere, status: 'PENDING' } }),
+    () => countIfAvailable(client.employeeLicenseDocument, { where: expiringLicenseWhere(licenseWhere, expiry30) })
+  ]);
+  return {
+    statusRows: results[0]?.status === 'fulfilled' ? results[0].value : [],
+    categoryCounts: results.slice(1, 7).map((result) => result?.status === 'fulfilled' ? result.value : null),
+    expiringTotal: results[7]?.status === 'fulfilled' ? results[7].value : null,
+    partialError: results.some((result) => result.status === 'rejected')
+  };
+}
+
+async function licenseAggregate(client, licenseWhere, approvedCurrentWhere, todayStart, expiry30, expiry90) {
+  if (typeof client.employeeLicenseDocument?.groupBy === 'function') {
+    try {
+      const rows = await client.employeeLicenseDocument.groupBy({ by: ['status', 'isCurrent', 'proposedExpiryDate'], where: licenseWhere, _count: { _all: true } });
+      return summarizeLicenseGroups(rows, { todayStart, expiry30, expiry90 });
+    } catch (_) { /* legacy fallback below */ }
+  }
+  return legacyLicenseAggregate(client, licenseWhere, approvedCurrentWhere, todayStart, expiry30, expiry90);
 }
 
 function actionRequired(summary, canManage, canAdmin) {
@@ -136,7 +226,7 @@ function actionRequired(summary, canManage, canAdmin) {
   return rows.filter((row) => row.count > 0).sort((left, right) => priority[left.severity] - priority[right.severity]);
 }
 
-async function getDashboardSummary({ prismaClient, requestUser, now = new Date(), filters = {} }) {
+async function getDashboardSummary({ prismaClient, requestUser, now = new Date(), filters = {}, requestId }) {
   const client = prismaClient || require('../config/prisma');
   const defaultDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const todayStart = parseDashboardDate(filters.date, defaultDate);
@@ -155,63 +245,51 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   const shiftWhere = { ...relationScope };
   const quotaWhere = canAdmin ? {} : relationScope;
   const approvedCurrentWhere = { ...licenseWhere, status: 'APPROVED', isCurrent: true };
-  const licenseCategoryTasks = [
-    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...approvedCurrentWhere, proposedExpiryDate: { lt: todayStart } } }),
-    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...approvedCurrentWhere, proposedExpiryDate: { gte: todayStart, lte: expiry30 } } }),
-    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...approvedCurrentWhere, proposedExpiryDate: { gt: expiry30, lte: expiry90 } } }),
-    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...approvedCurrentWhere, proposedExpiryDate: { gt: expiry90 } } }),
-    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...licenseWhere, status: 'EXPIRED', isCurrent: true } }),
-    () => countIfAvailable(client.employeeLicenseDocument, { where: { ...licenseWhere, status: 'PENDING' } })
-  ];
-
   const queryResults = await settleDashboardQueries([
-    () => client.employee.count({ where: employeeWhere }),
-    () => client.employee.count({ where: { ...employeeWhere, isActive: true } }),
-    () => client.employee.findMany({ where: departmentWhere, select: { department: true }, distinct: ['department'] }),
-    () => client.shiftAssignment.findMany({ where: { ...shiftWhere, workDate: { gte: todayStart, lt: tomorrowStart } }, select: { employeeId: true, shiftType: { select: { code: true, name: true, color: true } } }, distinct: ['employeeId'] }),
-    () => client.shiftAssignment.count({ where: { ...shiftWhere, workDate: { gte: monthStart, lt: nextMonth } } }),
-    () => client.leaveRequest.count({ where: { ...leaveWhere, status: { in: ACTIVE_LEAVE_STATUSES }, startDate: { lte: todayStart }, endDate: { gte: todayStart } } }),
-    () => findManyIfAvailable(client.leaveRequest, { where: { ...leaveWhere, status: { in: ACTIVE_LEAVE_STATUSES }, startDate: { lte: todayStart }, endDate: { gte: todayStart } }, select: { employeeId: true }, distinct: ['employeeId'] }),
-    () => client.leaveRequest.count({ where: { ...leaveWhere, startDate: { lt: nextMonth }, endDate: { gte: monthStart } } }),
-    () => groupByIfAvailable(client.leaveRequest, { by: ['status'], where: { ...leaveWhere, startDate: { lt: nextMonth }, endDate: { gte: monthStart } }, _count: { _all: true } }),
-    () => client.leaveRequest.count({ where: { ...leaveWhere, status: 'PENDING' } }),
-    () => canAdmin || (requestUser.role === 'MANAGER' && requestUser.department) ? client.user.count({ where: { accountStatus: 'PENDING', ...(requestUser.role === 'MANAGER' ? { department: requestUser.department } : {}) } }) : 0,
-    () => canManage ? client.scheduleApproval.count({ where: { status: { in: ['DRAFT', 'PENDING'] } } }) : 0,
-    () => groupByIfAvailable(client.employeeLicenseDocument, { by: ['status'], where: licenseWhere, _count: { _all: true } }),
-    () => client.employeeLicenseDocument.findMany({
+    { stage: 'DASH_WORKFORCE', run: () => workforceAggregate(client, employeeWhere) },
+    { stage: 'DASH_WORKFORCE', run: () => client.employee.findMany({ where: departmentWhere, select: { department: true }, distinct: ['department'] }) },
+    { stage: 'DASH_TODAY_OPERATIONS', run: () => client.shiftAssignment.findMany({ where: { ...shiftWhere, workDate: { gte: todayStart, lt: tomorrowStart } }, select: { employeeId: true, shiftType: { select: { code: true, name: true, color: true } } }, distinct: ['employeeId'] }) },
+    { stage: 'DASH_TODAY_OPERATIONS', run: () => client.shiftAssignment.count({ where: { ...shiftWhere, workDate: { gte: monthStart, lt: nextMonth } } }) },
+    { stage: 'DASH_LEAVE', run: () => client.leaveRequest.count({ where: { ...leaveWhere, status: { in: ACTIVE_LEAVE_STATUSES }, startDate: { lte: todayStart }, endDate: { gte: todayStart } } }) },
+    { stage: 'DASH_TODAY_OPERATIONS', run: () => findManyIfAvailable(client.leaveRequest, { where: { ...leaveWhere, status: { in: ACTIVE_LEAVE_STATUSES }, startDate: { lte: todayStart }, endDate: { gte: todayStart } }, select: { employeeId: true }, distinct: ['employeeId'] }) },
+    { stage: 'DASH_LEAVE', run: () => monthlyLeaveAggregate(client, leaveWhere, monthStart, nextMonth) },
+    { stage: 'DASH_LEAVE', run: () => client.leaveRequest.count({ where: { ...leaveWhere, status: 'PENDING' } }) },
+    { stage: 'DASH_ATTENTION', run: () => canAdmin || (requestUser.role === 'MANAGER' && requestUser.department) ? client.user.count({ where: { accountStatus: 'PENDING', ...(requestUser.role === 'MANAGER' ? { department: requestUser.department } : {}) } }) : 0 },
+    { stage: 'DASH_ATTENTION', run: () => canManage ? client.scheduleApproval.count({ where: { status: { in: ['DRAFT', 'PENDING'] } } }) : 0 },
+    { stage: 'DASH_LICENSE', run: () => licenseAggregate(client, licenseWhere, approvedCurrentWhere, todayStart, expiry30, expiry90) },
+    { stage: 'DASH_LICENSE', run: () => client.employeeLicenseDocument.findMany({
       where: expiringLicenseWhere(licenseWhere, expiry30),
       select: { employeeId: true, licenseId: true, proposedExpiryDate: true, employee: { select: { employeeCode: true, firstName: true, lastName: true, displayName: true } } },
-      orderBy: { proposedExpiryDate: 'asc' },
-      take: 100
-    }),
-    () => countIfAvailable(client.employeeLicenseDocument, { where: expiringLicenseWhere(licenseWhere, expiry30) }),
-    async () => {
-      const values = [];
-      for (const task of licenseCategoryTasks) values.push(await task());
-      return values;
-    },
-    () => canAdmin ? client.leaveQuota.count({ where: { matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] } } }) : client.leaveQuota.count({ where: { ...quotaWhere, matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] } } }),
-    () => canAdmin ? client.auditLog.findMany({ where: { action: { notIn: TECHNICAL_AUDIT_ACTIONS } }, take: 12, orderBy: { createdAt: 'desc' }, select: { id: true, action: true, entityType: true, createdAt: true, actor: { select: { displayName: true, role: true } } } }) : []
-  ]);
+      orderBy: { proposedExpiryDate: 'asc' }, take: 100
+    }) },
+    { stage: 'DASH_ATTENTION', run: () => canAdmin ? client.leaveQuota.count({ where: { matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] } } }) : client.leaveQuota.count({ where: { ...quotaWhere, matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] } } }) },
+    { stage: 'DASH_AUDIT', run: () => canAdmin ? client.auditLog.findMany({ where: { action: { notIn: TECHNICAL_AUDIT_ACTIONS } }, take: 12, orderBy: { createdAt: 'desc' }, select: { id: true, action: true, entityType: true, createdAt: true, actor: { select: { displayName: true, role: true } } } }) : [] }
+  ], { requestId });
   const queryErrors = [];
-  const totalEmployees = settledValue(queryResults, 0, 0, 'workforce', queryErrors);
-  const activeEmployees = settledValue(queryResults, 1, 0, 'workforce', queryErrors);
-  const organizationalUnits = settledValue(queryResults, 2, [], 'workforce', queryErrors);
-  const todayAssignments = settledValue(queryResults, 3, [], 'todayOperations', queryErrors);
-  const monthShifts = settledValue(queryResults, 4, 0, 'todayOperations', queryErrors);
-  const leaveToday = settledValue(queryResults, 5, 0, 'leaveOverview', queryErrors);
-  const leaveTodayEmployeeRows = settledValue(queryResults, 6, null, 'todayOperations', queryErrors);
-  const leaveMonth = settledValue(queryResults, 7, 0, 'leaveOverview', queryErrors);
-  const leaveStatusRows = settledValue(queryResults, 8, [], 'leaveOverview', queryErrors);
-  const pendingLeaves = settledValue(queryResults, 9, 0, 'leaveOverview', queryErrors);
-  const pendingUsers = settledValue(queryResults, 10, 0, 'attention', queryErrors);
-  const pendingApprovals = settledValue(queryResults, 11, 0, 'attention', queryErrors);
-  const licenseStatusRows = settledValue(queryResults, 12, [], 'licenseOverview', queryErrors);
-  const expiringLicenseRows = settledValue(queryResults, 13, [], 'licenseExpiry', queryErrors);
-  const expiringLicenseCount = settledValue(queryResults, 14, null, 'licenseExpiry', queryErrors);
-  const licenseCategoryCounts = settledValue(queryResults, 15, [null, null, null, null, null, null], 'licenseOverview', queryErrors);
-  const unmatchedQuotas = settledValue(queryResults, 16, 0, 'leaveQuota', queryErrors);
-  const recentActivity = settledValue(queryResults, 17, [], 'recentActivity', queryErrors);
+  const workforce = settledValue(queryResults, 0, { total: 0, active: 0, partialError: true }, 'workforce', queryErrors);
+  if (workforce.partialError) queryErrors.push('workforce');
+  const totalEmployees = Number(workforce.total || 0);
+  const activeEmployees = Number(workforce.active || 0);
+  const organizationalUnits = settledValue(queryResults, 1, [], 'workforce', queryErrors);
+  const todayAssignments = settledValue(queryResults, 2, [], 'todayOperations', queryErrors);
+  const monthShifts = settledValue(queryResults, 3, 0, 'todayOperations', queryErrors);
+  const leaveToday = settledValue(queryResults, 4, 0, 'leaveOverview', queryErrors);
+  const leaveTodayEmployeeRows = settledValue(queryResults, 5, null, 'todayOperations', queryErrors);
+  const monthlyLeave = settledValue(queryResults, 6, { total: 0, rows: [], partialError: true }, 'leaveOverview', queryErrors);
+  if (monthlyLeave.partialError) queryErrors.push('leaveOverview');
+  const leaveMonth = Number(monthlyLeave.total || 0);
+  const leaveStatusRows = monthlyLeave.rows || [];
+  const pendingLeaves = settledValue(queryResults, 7, 0, 'leaveOverview', queryErrors);
+  const pendingUsers = settledValue(queryResults, 8, 0, 'attention', queryErrors);
+  const pendingApprovals = settledValue(queryResults, 9, 0, 'attention', queryErrors);
+  const licenseAggregateResult = settledValue(queryResults, 10, { statusRows: [], categoryCounts: [null, null, null, null, null, null], expiringTotal: null, partialError: true }, 'licenseOverview', queryErrors);
+  if (licenseAggregateResult.partialError) queryErrors.push('licenseOverview');
+  const licenseStatusRows = licenseAggregateResult.statusRows || [];
+  const licenseCategoryCounts = licenseAggregateResult.categoryCounts || [null, null, null, null, null, null];
+  const expiringLicenseCount = licenseAggregateResult.expiringTotal;
+  const expiringLicenseRows = settledValue(queryResults, 11, [], 'licenseExpiry', queryErrors);
+  const unmatchedQuotas = settledValue(queryResults, 12, 0, 'leaveQuota', queryErrors);
+  const recentActivity = settledValue(queryResults, 13, [], 'recentActivity', queryErrors);
 
   const workingToday = todayAssignments.length;
   const expiringLicenses = buildExpiringLicenseDetails(expiringLicenseRows, todayStart);

@@ -35,21 +35,14 @@ test('dashboard summary keeps expiring count and detail rows consistent', async 
     { employeeId: 'employee-2', licenseId: 'license-2', proposedExpiryDate: new Date(Date.UTC(2026, 7, 12)), employee: { employeeCode: 'EMP-2', firstName: 'Two', lastName: 'Person' } },
     { employeeId: 'employee-3', licenseId: 'license-3', proposedExpiryDate: new Date(Date.UTC(2026, 7, 25)), employee: { employeeCode: 'EMP-3', firstName: 'Three', lastName: 'Person' } }
   ];
-  const empty = async () => [];
-  const zero = async () => 0;
+  const empty = async () => []; const zero = async () => 0;
   const client = {
-    employee: { count: zero, findMany: empty },
-    shiftAssignment: { findMany: empty, count: zero },
-    leaveRequest: { count: zero },
-    user: { count: zero },
-    scheduleApproval: { count: zero },
-    employeeLicenseDocument: { groupBy: empty, findMany: async ({ where }) => { assert.equal(where.status, 'APPROVED'); assert.equal(where.isCurrent, true); return rows; } },
-    leaveQuota: { count: zero },
-    auditLog: { findMany: empty }
+    employee: { count: zero, findMany: empty }, shiftAssignment: { findMany: empty, count: zero }, leaveRequest: { count: zero }, user: { count: zero }, scheduleApproval: { count: zero },
+    employeeLicenseDocument: { groupBy: async ({ by }) => by.includes('proposedExpiryDate') ? rows.map((row) => ({ status: 'APPROVED', isCurrent: true, proposedExpiryDate: row.proposedExpiryDate, _count: { _all: 1 } })) : [], findMany: async ({ where }) => { assert.equal(where.status, 'APPROVED'); assert.equal(where.isCurrent, true); return rows; } },
+    leaveQuota: { count: zero }, auditLog: { findMany: empty }
   };
   const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null }, now: today });
-  assert.equal(summary.expiringLicenses, 3);
-  assert.equal(summary.expiringLicenseDetails.length, 3);
+  assert.equal(summary.expiringLicenses, 3); assert.equal(summary.expiringLicenseDetails.length, 3);
   assert.deepEqual(summary.expiringLicenseDetails.map((row) => row.employeeCode), ['EMP-1', 'EMP-2', 'EMP-3']);
 });
 
@@ -119,21 +112,21 @@ test('dashboard summary returns today operations and month leave aggregation wit
 });
 
 test('dashboard license overview uses non-overlapping database-side date buckets', async () => {
-  const empty = async () => [];
-  const zero = async () => 0;
+  const empty = async () => []; const zero = async () => 0;
   const client = {
-    employee: { count: zero, findMany: empty },
-    shiftAssignment: { findMany: empty, count: zero },
-    leaveRequest: { count: zero },
-    user: { count: zero },
-    scheduleApproval: { count: zero },
+    employee: { count: zero, findMany: empty }, shiftAssignment: { findMany: empty, count: zero }, leaveRequest: { count: zero }, user: { count: zero }, scheduleApproval: { count: zero },
     employeeLicenseDocument: {
-      groupBy: empty,
-      findMany: empty,
-      count: async ({ where }) => { const expiry = where.proposedExpiryDate || {}; if (expiry.lt) return 2; if (expiry.gte && expiry.lte) return 3; if (expiry.gt && expiry.lte) return 5; if (expiry.gt) return 7; return where.status === 'EXPIRED' ? 1 : where.status === 'PENDING' ? 4 : 7; }
+      groupBy: async ({ by }) => by.includes('proposedExpiryDate') ? [
+        { status: 'APPROVED', isCurrent: true, proposedExpiryDate: new Date(Date.UTC(2026, 7, 1)), _count: { _all: 2 } },
+        { status: 'APPROVED', isCurrent: true, proposedExpiryDate: new Date(Date.UTC(2026, 7, 10)), _count: { _all: 3 } },
+        { status: 'APPROVED', isCurrent: true, proposedExpiryDate: new Date(Date.UTC(2026, 8, 15)), _count: { _all: 5 } },
+        { status: 'APPROVED', isCurrent: true, proposedExpiryDate: new Date(Date.UTC(2026, 11, 1)), _count: { _all: 7 } },
+        { status: 'EXPIRED', isCurrent: true, proposedExpiryDate: new Date(Date.UTC(2026, 7, 1)), _count: { _all: 1 } },
+        { status: 'PENDING', isCurrent: false, proposedExpiryDate: new Date(Date.UTC(2026, 11, 1)), _count: { _all: 4 } }
+      ] : [],
+      findMany: empty, count: async () => { throw new Error('consolidated path should not call count'); }
     },
-    leaveQuota: { count: zero },
-    auditLog: { findMany: empty }
+    leaveQuota: { count: zero }, auditLog: { findMany: empty }
   };
   const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null }, now: new Date(Date.UTC(2026, 7, 3)) });
   assert.deepEqual(summary.licenseOverview, { valid: 7, expiringWithin30: 3, expiringWithin90: 5, expired: 3, pendingReview: 4 });
@@ -176,6 +169,82 @@ test('dashboard keeps available sections when one aggregate query fails', async 
   assert.deepEqual(summary.partialErrors, ['workforce']);
 });
 
+test('dashboard monthly leave optimized group derives total without an extra monthly count or partial error', async () => {
+  let monthlyCountCalls = 0;
+  const empty = async () => [];
+  const zero = async () => 0;
+  const client = {
+    employee: { count: zero, findMany: empty },
+    shiftAssignment: { findMany: empty, count: zero },
+    leaveRequest: {
+      count: async ({ where }) => { if (!where.status && where.startDate?.lt && where.endDate?.gte) { monthlyCountCalls += 1; throw new Error('monthly count must not run on optimized path'); } return 0; },
+      findMany: empty,
+      groupBy: async () => [{ status: 'APPROVED', _count: { _all: 2 } }, { status: 'REJECTED', _count: { _all: 1 } }]
+    },
+    user: { count: zero }, scheduleApproval: { count: zero }, employeeLicenseDocument: { groupBy: empty, findMany: empty },
+    leaveQuota: { count: zero }, auditLog: { findMany: empty }
+  };
+  const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null } });
+  assert.equal(summary.leaveMonth, 3);
+  assert.equal(summary.leaveOverview.APPROVED, 2);
+  assert.equal(summary.leaveOverview.REJECTED, 1);
+  assert.equal(monthlyCountCalls, 0);
+  assert.deepEqual(summary.partialErrors, []);
+});
+
+test('dashboard monthly leave capability fallback uses legacy count without artificial partial error', async () => {
+  let monthlyCountCalls = 0;
+  const empty = async () => [];
+  const zero = async () => 0;
+  const client = {
+    employee: { count: zero, findMany: empty },
+    shiftAssignment: { findMany: empty, count: zero },
+    leaveRequest: { count: async ({ where }) => { if (!where.status && where.startDate?.lt && where.endDate?.gte) { monthlyCountCalls += 1; return 7; } return 0; }, findMany: empty },
+    user: { count: zero }, scheduleApproval: { count: zero }, employeeLicenseDocument: { groupBy: empty, findMany: empty },
+    leaveQuota: { count: zero }, auditLog: { findMany: empty }
+  };
+  const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null } });
+  assert.equal(summary.leaveMonth, 7);
+  assert.equal(monthlyCountCalls, 1);
+  assert.deepEqual(summary.partialErrors, []);
+});
+
+test('dashboard monthly leave real optimized query failure preserves partial error while legacy count supplies total', async () => {
+  let monthlyCountCalls = 0;
+  const empty = async () => [];
+  const zero = async () => 0;
+  const client = {
+    employee: { count: zero, findMany: empty },
+    shiftAssignment: { findMany: empty, count: zero },
+    leaveRequest: {
+      count: async ({ where }) => { if (!where.status && where.startDate?.lt && where.endDate?.gte) { monthlyCountCalls += 1; return 5; } return 0; },
+      findMany: empty,
+      groupBy: async () => { throw new Error('monthly groupBy failed'); }
+    },
+    user: { count: zero }, scheduleApproval: { count: zero }, employeeLicenseDocument: { groupBy: empty, findMany: empty },
+    leaveQuota: { count: zero }, auditLog: { findMany: empty }
+  };
+  const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null } });
+  assert.equal(summary.leaveMonth, 5);
+  assert.equal(monthlyCountCalls, 1);
+  assert.deepEqual(summary.partialErrors, ['leaveOverview']);
+});
+
+test('dashboard monthly leave fallback count failure reports leaveOverview partial error', async () => {
+  const empty = async () => [];
+  const zero = async () => 0;
+  const client = {
+    employee: { count: zero, findMany: empty },
+    shiftAssignment: { findMany: empty, count: zero },
+    leaveRequest: { count: async ({ where }) => { if (!where.status && where.startDate?.lt && where.endDate?.gte) throw new Error('monthly fallback count failed'); return 0; }, findMany: empty },
+    user: { count: zero }, scheduleApproval: { count: zero }, employeeLicenseDocument: { groupBy: empty, findMany: empty },
+    leaveQuota: { count: zero }, auditLog: { findMany: empty }
+  };
+  const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null } });
+  assert.equal(summary.leaveMonth, 0);
+  assert.deepEqual(summary.partialErrors, ['leaveOverview']);
+});
+
 test('dashboard serializes aggregate queries to respect the serverless connection limit', async () => {
   let active = 0;
   let peak = 0;
@@ -202,28 +271,26 @@ test('dashboard serializes aggregate queries to respect the serverless connectio
 });
 
 test('dashboard keeps the partial warning signal when license overview aggregation fails', async () => {
-  let licenseCountCalls = 0;
-  const empty = async () => [];
-  const zero = async () => 0;
+  let licenseCountCalls = 0; const empty = async () => []; const zero = async () => 0;
   const client = {
-    employee: { count: zero, findMany: empty },
-    shiftAssignment: { findMany: empty, count: zero },
-    leaveRequest: { count: zero, findMany: empty, groupBy: empty },
-    user: { count: zero },
-    scheduleApproval: { count: zero },
-    employeeLicenseDocument: {
-      groupBy: empty,
-      findMany: empty,
-      count: async () => {
-        licenseCountCalls += 1;
-        if (licenseCountCalls === 3) throw new Error('license category query failed');
-        return 0;
-      }
-    },
-    leaveQuota: { count: zero },
-    auditLog: { findMany: empty }
+    employee: { count: zero, findMany: empty }, shiftAssignment: { findMany: empty, count: zero }, leaveRequest: { count: zero, findMany: empty, groupBy: empty }, user: { count: zero }, scheduleApproval: { count: zero },
+    employeeLicenseDocument: { groupBy: async () => { throw new Error('license aggregate query failed'); }, findMany: empty, count: async () => { licenseCountCalls += 1; if (licenseCountCalls === 3) throw new Error('license category query failed'); return 0; } },
+    leaveQuota: { count: zero }, auditLog: { findMany: empty }
   };
   const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null } });
-  assert.equal(summary.activeEmployees, 0);
-  assert.deepEqual(summary.partialErrors, ['licenseOverview']);
+  assert.equal(summary.activeEmployees, 0); assert.deepEqual(summary.partialErrors, ['licenseOverview']);
+});
+
+test('dashboard consolidated normal path uses 14 sequential database operations', async () => {
+  let calls = 0; let active = 0; let peak = 0;
+  const tracked = async (value) => { calls += 1; active += 1; peak = Math.max(peak, active); await Promise.resolve(); active -= 1; return value; };
+  const client = {
+    employee: { groupBy: async () => tracked([{ isActive: true, _count: { _all: 4 } }, { isActive: false, _count: { _all: 1 } }]), findMany: async () => tracked([{ department: 'Security' }]), count: async () => { throw new Error('workforce fallback not expected'); } },
+    shiftAssignment: { findMany: async () => tracked([]), count: async () => tracked(0) },
+    leaveRequest: { count: async () => tracked(0), findMany: async () => tracked([]), groupBy: async () => tracked([]) },
+    user: { count: async () => tracked(0) }, scheduleApproval: { count: async () => tracked(0) }, employeeLicenseDocument: { groupBy: async () => tracked([]), findMany: async () => tracked([]), count: async () => { throw new Error('license fallback not expected'); } },
+    leaveQuota: { count: async () => tracked(0) }, auditLog: { findMany: async () => tracked([]) }
+  };
+  const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null } });
+  assert.equal(calls, 14); assert.equal(peak, 1); assert.equal(summary.totalEmployees, 5); assert.equal(summary.activeEmployees, 4); assert.deepEqual(summary.partialErrors, []);
 });

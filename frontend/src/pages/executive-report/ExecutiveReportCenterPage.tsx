@@ -55,9 +55,10 @@ type ExecutiveReportCenterPageProps = {
   embedded?: boolean;
   includePrint?: boolean;
   onReportChange?(report?: ExecutiveReport): void;
+  fetchEnabled?: boolean;
 };
 
-export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, onFiltersChange, embedded = false, includePrint = true, onReportChange }: ExecutiveReportCenterPageProps) {
+export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, onFiltersChange, embedded = false, includePrint = true, onReportChange, fetchEnabled = true }: ExecutiveReportCenterPageProps) {
   const bangkokParts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: 'numeric' }).formatToParts(new Date());
   const bangkokYear = Number(bangkokParts.find((part) => part.type === 'year')?.value);
   const bangkokMonth = Number(bangkokParts.find((part) => part.type === 'month')?.value);
@@ -71,6 +72,9 @@ export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, on
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [refresh, setRefresh] = useState(0);
+  const [loadedKey, setLoadedKey] = useState('');
+  const reportKey = `${year}:${month}:${department}`;
+  const requestKey = `${reportKey}:${refresh}`;
   const setFilter = (next: Partial<ExecutiveReportFilters>) => {
     if (filters && onFiltersChange) onFiltersChange({ ...filters, ...next });
     else {
@@ -81,21 +85,28 @@ export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, on
   };
 
   useEffect(() => {
+    setLoadedKey('');
+    setReport(undefined);
+    onReportChange?.(undefined);
+  }, [token, onReportChange]);
+
+  useEffect(() => {
+    if (!fetchEnabled || loadedKey === requestKey) { setLoading(false); return; }
     let active = true;
     setLoading(true); setError(undefined);
     api.executiveReport(token, { year, month, department: department || undefined })
-      .then((response) => { if (active) { const next = response.data as ExecutiveReport; setReport(next); onReportChange?.(next); } })
+      .then((response) => { if (active) { const next = response.data as ExecutiveReport; setReport(next); setLoadedKey(requestKey); onReportChange?.(next); } })
       .catch(() => { if (active) setError('ไม่สามารถโหลดรายงานผู้บริหารได้ กรุณาลองใหม่อีกครั้ง'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [token, year, month, department, refresh, onReportChange]);
+  }, [token, year, month, department, refresh, onReportChange, fetchEnabled, loadedKey, requestKey]);
 
   const years = useMemo(() => Array.from({ length: 4 }, (_, index) => bangkokYear - index), [bangkokYear]);
   const departmentOptions = report?.scope.availableDepartments || [];
   const filename = report ? `SMS-V3-Executive-Report-${report.period.year}-${String(report.period.month).padStart(2, '0')}${department ? `-${department.replace(/[^a-zA-Z0-9_-]+/g, '-')}` : ''}.pdf` : 'SMS-V3-Executive-Report.pdf';
 
   return <section className="executive-report-page view-pane" aria-label="รายงานผู้บริหาร">
-    {!embedded && <header className="executive-report-heading"><div><p className="eyebrow">EXECUTIVE REPORT CENTER</p><h1>รายงานผู้บริหาร</h1><p>สรุปข้อมูลสำคัญเพื่อการติดตามและบริหารงานรักษาความปลอดภัย</p></div><div className="executive-report-actions"><button type="button" className="btn-neutral" onClick={() => setRefresh((value) => value + 1)} disabled={loading}>↻ รีเฟรช</button><button type="button" className="btn-primary" onClick={() => printDocument('.executive-report-print', filename)} disabled={!report || loading}>ส่งออก PDF</button></div></header>}
+    {!embedded && <header className="executive-report-heading"><div><p className="eyebrow">EXECUTIVE REPORT CENTER</p><h1>รายงานผู้บริหาร</h1><p>สรุปข้อมูลสำคัญเพื่อการติดตามและบริหารงานรักษาความปลอดภัย</p></div><div className="executive-report-actions"><button type="button" className="btn-neutral" onClick={() => { setLoadedKey(''); setRefresh((value) => value + 1); }} disabled={loading}>↻ รีเฟรช</button><button type="button" className="btn-primary" onClick={() => printDocument('.executive-report-print', filename)} disabled={!report || loading}>ส่งออก PDF</button></div></header>}
     {!embedded && <div className="executive-report-filters"><label><span>เดือน</span><select value={month} onChange={(event) => setFilter({ month: Number(event.target.value) })}>{monthNames.map((name, index) => <option value={index + 1} key={name}>{name}</option>)}</select></label><label><span>ปี</span><select value={year} onChange={(event) => setFilter({ year: Number(event.target.value) })}>{years.map((item) => <option key={item} value={item}>พ.ศ. {item + 543}</option>)}</select></label>{role === 'ADMIN' && <label><span>หน่วยงาน</span><select value={department} onChange={(event) => setFilter({ department: event.target.value })}><option value="">ทุกหน่วยงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}</div>}
     {loading && <div className="executive-report-loading" role="status">กำลังจัดทำรายงานผู้บริหาร…</div>}
     {error && <div className="alert alert-error" role="alert">{error}</div>}
