@@ -22,6 +22,7 @@ function writeRoleSessions(sessions, environment = process.env) {
   fs.rmSync(directory, { recursive: true, force: true });
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   for (const role of roles) {
+    if (!(role in sessions)) continue;
     const session = sessions[role];
     if (!session?.accessToken || session.user?.role !== role) throw new Error('AUTH_SESSION_INVALID');
     fs.writeFileSync(sessionFile(role, environment), JSON.stringify(session), { encoding: 'utf8', mode: 0o600 });

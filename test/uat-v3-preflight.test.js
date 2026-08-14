@@ -16,6 +16,7 @@ const {
   scanArtifact
 } = require('../e2e/helpers/uat-v3-security');
 const { getLegacyPageTarget, getNavigationItem, getRoleApiMatrix, getRoleNavigationContract, legacyPageTargets, roles } = require('../e2e/helpers/uat-v3-role-matrix');
+const { clearRoleSessions, readRoleSession, writeRoleSessions } = require('../e2e/helpers/uat-session');
 
 const read = (filePath) => fs.readFileSync(path.resolve(__dirname, '..', filePath), 'utf8');
 
@@ -177,6 +178,25 @@ test('UAT_V3_HARNESS_PREFLIGHT: authenticated state is temporary and cleaned', (
   assert.match(teardown, /clearRoleSessions\(\)/);
   assert.match(config, /trace: process\.env\.UAT_MODE === 'authenticated' \? 'off'/);
   assert.match(config, /video: 'off'/);
+});
+
+test('UAT_V3_HARNESS_PREFLIGHT: targeted scope persists only checked role sessions', () => {
+  const environment = {
+    GITHUB_RUN_ID: `preflight-${process.pid}`,
+    UAT_BASE_URL: 'https://candidate.example.test'
+  };
+  clearRoleSessions(environment);
+  try {
+    writeRoleSessions({
+      ADMIN: { accessToken: 'admin-session-value', user: { role: 'ADMIN' } },
+      MANAGER: { accessToken: 'manager-session-value', user: { role: 'MANAGER' } }
+    }, environment);
+    assert.equal(readRoleSession('ADMIN', environment).user.role, 'ADMIN');
+    assert.equal(readRoleSession('MANAGER', environment).user.role, 'MANAGER');
+    assert.equal(readRoleSession('VIEWER', environment), undefined);
+  } finally {
+    clearRoleSessions(environment);
+  }
 });
 
 test('UAT_V3_HARNESS_PREFLIGHT: workflow diagnostics are safe and do not expose raw output', () => {
