@@ -154,7 +154,7 @@ async function requestRoleMatrix(role, token) {
         const { accessToken } = await tracker.run('NAV01_LOGIN', () => loginAs(page, role));
         expect(accessToken).toEqual(expect.any(String));
         await testInfo.attach('v3-role-status.json', { body: JSON.stringify({ role, login: 'PASS' }), contentType: 'application/json' });
-        monitor.assertClean();
+        await tracker.run('RC15_MONITOR', () => monitor.assertClean());
       } finally {
         await tracker.attach();
       }
@@ -174,7 +174,7 @@ async function requestRoleMatrix(role, token) {
       try {
         await loginAs(page, role);
         await tracker.run('NAV02_PRIMARY_NAV', () => expectNavigation(page, role), {});
-        monitor.assertClean();
+        await tracker.run('RC15_MONITOR', () => monitor.assertClean());
       } finally {
         await tracker.attach();
       }
