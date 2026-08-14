@@ -94,7 +94,12 @@ jobs:
             exit 1
           fi
           test "$(git rev-parse HEAD)" = "$HARNESS_SHA"
-          node e2e/helpers/uat-candidate-contract.js "$SOURCE_SHA" "$DEPLOYMENT_ID" "$TARGET_URL"
+          target_mode=candidate
+          if [[ "$TARGET_URL" == "https://sms-v3-staging-ten.vercel.app" ]]; then target_mode=canonical; fi
+          node e2e/helpers/uat-target-contract.js source-branch "$SOURCE_BRANCH"
+          node e2e/helpers/uat-target-contract.js source-head "$SOURCE_BRANCH" "$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}^{commit}")" "$SOURCE_SHA"
+          node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$(git rev-parse origin/test/automated-uat-v3-authenticated)"
+          node e2e/helpers/uat-target-contract.js scope "$target_mode" "$TARGET_URL"
           echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
           echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
           echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
@@ -262,7 +267,12 @@ jobs:
             exit 1
           fi
           test "$(git rev-parse HEAD)" = "$HARNESS_SHA"
-          node e2e/helpers/uat-candidate-contract.js "$SOURCE_SHA" "$DEPLOYMENT_ID" "$TARGET_URL"
+          target_mode=candidate
+          if [[ "$TARGET_URL" == "https://sms-v3-staging-ten.vercel.app" ]]; then target_mode=canonical; fi
+          node e2e/helpers/uat-target-contract.js source-branch "$SOURCE_BRANCH"
+          node e2e/helpers/uat-target-contract.js source-head "$SOURCE_BRANCH" "$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}^{commit}")" "$SOURCE_SHA"
+          node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$(git rev-parse origin/test/automated-uat-v3-authenticated)"
+          node e2e/helpers/uat-target-contract.js scope "$target_mode" "$TARGET_URL"
           echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
           echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
           echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
