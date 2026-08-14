@@ -17,6 +17,34 @@ function assertGitSha(value, code) {
   return String(value).toLowerCase();
 }
 
+function validateSourceBranch(value) {
+  const branch = String(value || '');
+  if (
+    !branch
+    || branch.startsWith('-')
+    || branch.startsWith('refs/')
+    || branch.startsWith('/')
+    || branch.endsWith('/')
+    || branch.endsWith('.')
+    || branch.includes('..')
+    || branch.includes('//')
+    || branch.includes('@{')
+    || /[\u0000-\u0020~^:?*\[\]\\]/.test(branch)
+    || !/^[A-Za-z0-9._/-]+$/.test(branch)
+  ) {
+    throw contractError('UAT_SOURCE_BRANCH_INVALID');
+  }
+  return branch;
+}
+
+function validateSourceBranchHead({ sourceBranch, remoteSourceSha, sourceSha }) {
+  const branch = validateSourceBranch(sourceBranch);
+  const remote = assertGitSha(remoteSourceSha, 'UAT_REMOTE_SOURCE_SHA_INVALID');
+  const expected = assertGitSha(sourceSha, 'UAT_SOURCE_SHA_INVALID');
+  if (remote !== expected) throw contractError('UAT_SOURCE_BRANCH_SHA_MISMATCH');
+  return { valid: true, sourceBranch: branch, sourceSha: expected };
+}
+
 function normalizeTargetMode(value) {
   const mode = String(value || '').trim().toLowerCase();
   if (!TARGET_MODES.has(mode)) throw contractError('UAT_TARGET_MODE_INVALID');
@@ -150,6 +178,14 @@ if (require.main === module) {
       const [harnessSha, checkoutSha, approvedHarnessSha] = args;
       const result = validateHarnessIdentity({ harnessSha, checkoutSha, approvedHarnessSha });
       process.stdout.write(`UAT_HARNESS_IDENTITY=PASS sha=${result.harnessSha}\n`);
+    } else if (command === 'source-branch') {
+      const [sourceBranch] = args;
+      const result = validateSourceBranch(sourceBranch);
+      process.stdout.write(`UAT_SOURCE_BRANCH=PASS branch=${result}\n`);
+    } else if (command === 'source-head') {
+      const [sourceBranch, remoteSourceSha, sourceSha] = args;
+      const result = validateSourceBranchHead({ sourceBranch, remoteSourceSha, sourceSha });
+      process.stdout.write(`UAT_SOURCE_BRANCH_HEAD=PASS branch=${result.sourceBranch} sha=${result.sourceSha}\n`);
     } else if (command === 'verify') {
       const [targetMode, targetUrl, expectedDeploymentId, applicationSha, targetFile, expectedFile, expectedProjectId, expectedProjectName] = args;
       const result = validateTargetIdentity({
@@ -181,6 +217,8 @@ module.exports = {
   parseTargetUrl,
   validateDeploymentRecord,
   validateHarnessIdentity,
+  validateSourceBranch,
+  validateSourceBranchHead,
   validateTargetIdentity,
   validateTargetScope
 };

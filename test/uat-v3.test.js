@@ -154,7 +154,12 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(workflow, /git -C application-under-test rev-parse HEAD/);
   assert.match(workflow, /APPROVED_HARNESS_SHA=/);
   assert.match(workflow, /uat-target-contract\.js harness/);
-  assert.match(workflow, /origin\/fix\/serverless-database-reliability\)" != "\$SOURCE_SHA"/);
+  assert.match(workflow, /source_branch:/);
+  assert.match(workflow, /Exact remote application source branch whose HEAD must equal source_sha/);
+  assert.match(workflow, /git check-ref-format --branch "\$SOURCE_BRANCH"/);
+  assert.match(workflow, /refs\/heads\/\$SOURCE_BRANCH:refs\/remotes\/origin\/\$SOURCE_BRANCH/);
+  assert.match(workflow, /uat-target-contract\.js source-head "\$SOURCE_BRANCH" "\$REMOTE_SOURCE_SHA" "\$SOURCE_SHA"/);
+  assert.doesNotMatch(workflow, /fix\/serverless-database-reliability/);
   assert.match(workflow, /APPROVED_HARNESS_SHA="\$\(git rev-parse origin\/test\/automated-uat-v3-authenticated\)"/);
   assert.match(workflow, /\[\[ "\$DEPLOYMENT_ID" =~ \^dpl_/);
   assert.match(workflow, /uat_mode:/);
@@ -170,6 +175,13 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.ok(authenticatedJob);
   assert.doesNotMatch(technicalJob, /environment:\s*production-sms-v3-staging/);
   assert.match(authenticatedJob, /environment:\s*production-sms-v3-staging/);
+  for (const job of [technicalJob, authenticatedJob]) {
+    assert.match(job, /SOURCE_BRANCH: \$\{\{ inputs\.source_branch \}\}/);
+    assert.match(job, /git check-ref-format --branch "\$SOURCE_BRANCH"/);
+    assert.match(job, /refs\/heads\/\$SOURCE_BRANCH:refs\/remotes\/origin\/\$SOURCE_BRANCH/);
+    assert.match(job, /uat-target-contract\.js source-head "\$SOURCE_BRANCH" "\$REMOTE_SOURCE_SHA" "\$SOURCE_SHA"/);
+    assert.doesNotMatch(job, /fix\/serverless-database-reliability/);
+  }
   for (const name of ['UAT_ADMIN_EMAIL', 'UAT_ADMIN_PASSWORD', 'UAT_MANAGER_EMAIL', 'UAT_MANAGER_PASSWORD', 'UAT_VIEWER_EMAIL', 'UAT_VIEWER_PASSWORD']) {
     assert.doesNotMatch(technicalJob, new RegExp(`\\b${name}\\b`));
     assert.match(authenticatedJob, new RegExp(`\\b${name}\\b`));

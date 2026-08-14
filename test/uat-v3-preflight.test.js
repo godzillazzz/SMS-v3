@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validateHarnessIdentity, validateTargetIdentity } = require('../e2e/helpers/uat-target-contract');
+const { validateHarnessIdentity, validateSourceBranchHead, validateTargetIdentity } = require('../e2e/helpers/uat-target-contract');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
@@ -195,12 +195,16 @@ test('UAT_V3_HARNESS_PREFLIGHT: application and harness identities are independe
 
   assert.match(workflow, /target_mode:/);
   assert.match(workflow, /uat_harness_sha:/);
+  assert.match(workflow, /source_branch:/);
+  assert.match(workflow, /UAT_SOURCE_BRANCH:/);
   assert.match(workflow, /ref: \$\{\{ inputs\.uat_harness_sha \}\}/);
   assert.match(workflow, /ref: \$\{\{ inputs\.source_sha \}\}[\s\S]*?path: application-under-test/);
   assert.match(workflow, /test "\$\(git rev-parse HEAD\)" = "\$HARNESS_SHA"/);
   assert.match(workflow, /test "\$\(git -C application-under-test rev-parse HEAD\)" = "\$SOURCE_SHA"/);
   assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js scope/);
   assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js harness/);
+  assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js source-branch/);
+  assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js source-head/);
   assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js verify/);
   assert.match(workflow, /inspect "\$TARGET_URL"/);
   assert.match(workflow, /inspect "\$DEPLOYMENT_ID"/);
@@ -210,6 +214,16 @@ test('UAT_V3_HARNESS_PREFLIGHT: application and harness identities are independe
     checkoutSha: HARNESS_SHA,
     approvedHarnessSha: HARNESS_SHA
   }), { valid: true, harnessSha: HARNESS_SHA });
+
+  assert.deepEqual(validateSourceBranchHead({
+    sourceBranch: 'feat/unified-report-center-v1',
+    remoteSourceSha: '725eebc2764168fc5c5d312d53e9b641eef7b803',
+    sourceSha: '725eebc2764168fc5c5d312d53e9b641eef7b803'
+  }), {
+    valid: true,
+    sourceBranch: 'feat/unified-report-center-v1',
+    sourceSha: '725eebc2764168fc5c5d312d53e9b641eef7b803'
+  });
 
   assert.deepEqual(validateTargetIdentity({
     targetMode: 'canonical',

@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   validateHarnessIdentity,
+  validateSourceBranch,
+  validateSourceBranchHead,
   validateTargetIdentity,
   validateTargetScope
 } = require('../e2e/helpers/uat-target-contract');
@@ -13,6 +15,8 @@ const PROJECT_NAME = 'sms-v3-staging';
 const CANDIDATE_URL = 'https://sms-v3-staging-cezup20q5-godzillazz.vercel.app';
 const CANONICAL_URL = 'https://sms-v3-staging-ten.vercel.app';
 const HARNESS_SHA = '1234567890abcdef1234567890abcdef12345678';
+const SOURCE_BRANCH = 'feat/unified-report-center-v1';
+const SOURCE_SHA = '725eebc2764168fc5c5d312d53e9b641eef7b803';
 
 function deployment(overrides = {}) {
   return {
@@ -117,4 +121,51 @@ test('candidate and canonical modes are distinct rather than hostname aliases', 
   assert.equal(validateTargetScope('candidate', CANDIDATE_URL).mode, 'candidate');
   assert.equal(validateTargetScope('canonical', CANONICAL_URL).mode, 'canonical');
   assert.throws(() => validateTargetScope('candidate', CANONICAL_URL), { code: 'UAT_CANDIDATE_HOST_NOT_APPROVED' });
+});
+
+test('declared application branch HEAD and source SHA pass together', () => {
+  assert.deepEqual(validateSourceBranchHead({
+    sourceBranch: SOURCE_BRANCH,
+    remoteSourceSha: SOURCE_SHA,
+    sourceSha: SOURCE_SHA
+  }), { valid: true, sourceBranch: SOURCE_BRANCH, sourceSha: SOURCE_SHA });
+});
+
+test('source branch SHA mismatch fails closed', () => {
+  assert.throws(
+    () => validateSourceBranchHead({
+      sourceBranch: SOURCE_BRANCH,
+      remoteSourceSha: SOURCE_SHA,
+      sourceSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    }),
+    { code: 'UAT_SOURCE_BRANCH_SHA_MISMATCH' }
+  );
+});
+
+test('different valid branch identity fails closed', () => {
+  assert.throws(
+    () => validateSourceBranchHead({
+      sourceBranch: 'fix/serverless-database-reliability',
+      remoteSourceSha: 'e672c704c76c9fd53049b89736d56283029da1ea',
+      sourceSha: SOURCE_SHA
+    }),
+    { code: 'UAT_SOURCE_BRANCH_SHA_MISMATCH' }
+  );
+});
+
+test('missing remote branch identity fails closed', () => {
+  assert.throws(
+    () => validateSourceBranchHead({
+      sourceBranch: 'does-not-exist',
+      remoteSourceSha: '',
+      sourceSha: SOURCE_SHA
+    }),
+    { code: 'UAT_REMOTE_SOURCE_SHA_INVALID' }
+  );
+});
+
+test('malformed source branch ref fails closed', () => {
+  for (const sourceBranch of ['', '-bad', 'refs/heads/main', 'bad branch', 'bad..branch', 'bad@{ref}']) {
+    assert.throws(() => validateSourceBranch(sourceBranch), { code: 'UAT_SOURCE_BRANCH_INVALID' });
+  }
 });

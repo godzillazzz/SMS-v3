@@ -18,6 +18,10 @@ on:
         description: Exact application-under-test SHA deployed at the target URL
         required: true
         type: string
+      source_branch:
+        description: Exact remote application source branch whose HEAD must equal source_sha
+        required: true
+        type: string
       uat_harness_sha:
         description: Exact trusted UAT harness HEAD from test/automated-uat-v3-authenticated
         required: true
@@ -47,6 +51,7 @@ jobs:
       UAT_BASE_URL: ${{ inputs.target_url }}
       UAT_TARGET_MODE: ${{ inputs.target_mode }}
       UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+      UAT_SOURCE_BRANCH: ${{ inputs.source_branch }}
       UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
       UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
       UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
@@ -63,6 +68,7 @@ jobs:
           TARGET_MODE: ${{ inputs.target_mode }}
           TARGET_URL: ${{ inputs.target_url }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
           HARNESS_SHA: ${{ inputs.uat_harness_sha }}
           DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -77,13 +83,22 @@ jobs:
           [[ "$HARNESS_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
           node e2e/helpers/uat-target-contract.js scope "$TARGET_MODE" "$TARGET_URL"
-          git fetch --no-tags origin fix/serverless-database-reliability test/automated-uat-v2-regression-guards test/automated-uat-v3-authenticated
-          git cat-file -e "${SOURCE_SHA}^{commit}"
-          git cat-file -e "${HARNESS_SHA}^{commit}"
-          if [[ "$(git rev-parse origin/fix/serverless-database-reliability)" != "$SOURCE_SHA" ]]; then
-            echo 'TECHNICAL_SMOKE_SOURCE_NOT_APPROVED_HEAD'
+          node e2e/helpers/uat-target-contract.js source-branch "$SOURCE_BRANCH"
+          if [[ "$SOURCE_BRANCH" == refs/* || "$SOURCE_BRANCH" == -* ]] || ! git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null; then
+            echo 'UAT_SOURCE_BRANCH_INVALID'
             exit 1
           fi
+          if ! git fetch --no-tags origin \
+            "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
+            refs/heads/test/automated-uat-v2-regression-guards:refs/remotes/origin/test/automated-uat-v2-regression-guards \
+            refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated; then
+            echo 'UAT_SOURCE_BRANCH_FETCH_FAILED'
+            exit 1
+          fi
+          REMOTE_SOURCE_SHA="$(git rev-parse "refs/remotes/origin/$SOURCE_BRANCH")"
+          node e2e/helpers/uat-target-contract.js source-head "$SOURCE_BRANCH" "$REMOTE_SOURCE_SHA" "$SOURCE_SHA"
+          git cat-file -e "${SOURCE_SHA}^{commit}"
+          git cat-file -e "${HARNESS_SHA}^{commit}"
           APPROVED_HARNESS_SHA="$(git rev-parse origin/test/automated-uat-v3-authenticated)"
           node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$APPROVED_HARNESS_SHA"
 
@@ -103,6 +118,8 @@ jobs:
             "$TARGET_MODE" "$TARGET_URL" "$DEPLOYMENT_ID" "$SOURCE_SHA" \
             "$target_inspect" "$expected_inspect" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME"
           echo "TARGET_MODE=$TARGET_MODE"
+          echo "APPLICATION_SOURCE_BRANCH=$SOURCE_BRANCH"
+          echo "APPLICATION_SOURCE_HEAD=$REMOTE_SOURCE_SHA"
           echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
           echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
           echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
@@ -214,6 +231,7 @@ jobs:
       UAT_BASE_URL: ${{ inputs.target_url }}
       UAT_TARGET_MODE: ${{ inputs.target_mode }}
       UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+      UAT_SOURCE_BRANCH: ${{ inputs.source_branch }}
       UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
       UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
       UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
@@ -237,6 +255,7 @@ jobs:
           TARGET_MODE: ${{ inputs.target_mode }}
           TARGET_URL: ${{ inputs.target_url }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
           HARNESS_SHA: ${{ inputs.uat_harness_sha }}
           DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -251,13 +270,22 @@ jobs:
           [[ "$HARNESS_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
           node e2e/helpers/uat-target-contract.js scope "$TARGET_MODE" "$TARGET_URL"
-          git fetch --no-tags origin fix/serverless-database-reliability test/automated-uat-v2-regression-guards test/automated-uat-v3-authenticated
-          git cat-file -e "${SOURCE_SHA}^{commit}"
-          git cat-file -e "${HARNESS_SHA}^{commit}"
-          if [[ "$(git rev-parse origin/fix/serverless-database-reliability)" != "$SOURCE_SHA" ]]; then
-            echo 'TECHNICAL_SMOKE_SOURCE_NOT_APPROVED_HEAD'
+          node e2e/helpers/uat-target-contract.js source-branch "$SOURCE_BRANCH"
+          if [[ "$SOURCE_BRANCH" == refs/* || "$SOURCE_BRANCH" == -* ]] || ! git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null; then
+            echo 'UAT_SOURCE_BRANCH_INVALID'
             exit 1
           fi
+          if ! git fetch --no-tags origin \
+            "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
+            refs/heads/test/automated-uat-v2-regression-guards:refs/remotes/origin/test/automated-uat-v2-regression-guards \
+            refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated; then
+            echo 'UAT_SOURCE_BRANCH_FETCH_FAILED'
+            exit 1
+          fi
+          REMOTE_SOURCE_SHA="$(git rev-parse "refs/remotes/origin/$SOURCE_BRANCH")"
+          node e2e/helpers/uat-target-contract.js source-head "$SOURCE_BRANCH" "$REMOTE_SOURCE_SHA" "$SOURCE_SHA"
+          git cat-file -e "${SOURCE_SHA}^{commit}"
+          git cat-file -e "${HARNESS_SHA}^{commit}"
           APPROVED_HARNESS_SHA="$(git rev-parse origin/test/automated-uat-v3-authenticated)"
           node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$APPROVED_HARNESS_SHA"
 
@@ -277,6 +305,8 @@ jobs:
             "$TARGET_MODE" "$TARGET_URL" "$DEPLOYMENT_ID" "$SOURCE_SHA" \
             "$target_inspect" "$expected_inspect" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME"
           echo "TARGET_MODE=$TARGET_MODE"
+          echo "APPLICATION_SOURCE_BRANCH=$SOURCE_BRANCH"
+          echo "APPLICATION_SOURCE_HEAD=$REMOTE_SOURCE_SHA"
           echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
           echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
           echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
