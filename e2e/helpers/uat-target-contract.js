@@ -72,6 +72,31 @@ function parseTargetUrl(value) {
   return parsed;
 }
 
+function extractDeploymentHostname(deployment) {
+  const rawUrl = String(deployment?.url || '');
+  if (!rawUrl) throw contractError('UAT_DEPLOYMENT_URL_MISSING');
+  let parsed;
+  try {
+    parsed = new URL(rawUrl.includes('://') ? rawUrl : `https://${rawUrl}`);
+  } catch {
+    throw contractError('UAT_DEPLOYMENT_URL_INVALID');
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port || parsed.pathname !== '/') {
+    throw contractError('UAT_DEPLOYMENT_URL_INVALID');
+  }
+  return parsed.hostname.toLowerCase();
+}
+
+function validateDeploymentGitRef(deployment, expectedGitRef) {
+  const expectedRef = String(expectedGitRef || '').trim();
+  if (!expectedRef) return;
+  const refs = [deployment?.meta?.githubCommitRef, deployment?.gitSource?.ref]
+    .filter((value) => typeof value === 'string' && value.length > 0);
+  if (refs.length === 0) throw contractError('UAT_DEPLOYMENT_GIT_REF_MISSING');
+  if (new Set(refs).size !== 1) throw contractError('UAT_DEPLOYMENT_GIT_REF_CONFLICT');
+  if (refs[0] !== expectedRef) throw contractError('UAT_DEPLOYMENT_GIT_REF_MISMATCH');
+}
+
 function validateTargetScope(targetMode, targetUrl) {
   const mode = normalizeTargetMode(targetMode);
   const parsed = parseTargetUrl(targetUrl);
@@ -110,20 +135,29 @@ function validateDeploymentRecord(deployment, {
   expectedDeploymentId,
   applicationSha,
   expectedProjectId,
-  expectedProjectName
+  expectedProjectName,
+  expectedGitRef
 }) {
   if (!deployment || typeof deployment !== 'object') throw contractError('UAT_DEPLOYMENT_RECORD_INVALID');
   if (!DEPLOYMENT_ID.test(String(expectedDeploymentId || ''))) throw contractError('UAT_EXPECTED_DEPLOYMENT_ID_INVALID');
   const expectedSha = assertGitSha(applicationSha, 'UAT_APPLICATION_SHA_INVALID');
 
   if (deployment.id !== expectedDeploymentId) throw contractError('UAT_DEPLOYMENT_ID_MISMATCH');
+  extractDeploymentHostname(deployment);
   if (deployment.name !== expectedProjectName) throw contractError('UAT_DEPLOYMENT_PROJECT_NAME_MISMATCH');
-  if (deployment.projectId && deployment.projectId !== expectedProjectId) throw contractError('UAT_DEPLOYMENT_PROJECT_ID_MISMATCH');
+  if (!deployment.projectId) throw contractError('UAT_DEPLOYMENT_PROJECT_ID_MISSING');
+  if (deployment.projectId !== expectedProjectId) throw contractError('UAT_DEPLOYMENT_PROJECT_ID_MISMATCH');
   if (deployment.target !== 'production') throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PRODUCTION');
   if (deployment.readyState !== 'READY') throw contractError('UAT_DEPLOYMENT_NOT_READY');
   if (extractApplicationSha(deployment) !== expectedSha) throw contractError('UAT_APPLICATION_SHA_MISMATCH');
+  validateDeploymentGitRef(deployment, expectedGitRef);
 
-  return { valid: true, deploymentId: deployment.id, applicationSha: expectedSha };
+  return {
+    valid: true,
+    deploymentId: deployment.id,
+    applicationSha: expectedSha,
+    hostname: extractDeploymentHostname(deployment)
+  };
 }
 
 function validateTargetIdentity({
@@ -134,21 +168,30 @@ function validateTargetIdentity({
   targetDeployment,
   expectedDeployment,
   expectedProjectId,
-  expectedProjectName
+  expectedProjectName,
+  expectedGitRef
 }) {
   const scope = validateTargetScope(targetMode, targetUrl);
   validateDeploymentRecord(targetDeployment, {
     expectedDeploymentId,
     applicationSha,
     expectedProjectId,
-    expectedProjectName
+    expectedProjectName,
+    expectedGitRef
   });
   validateDeploymentRecord(expectedDeployment, {
     expectedDeploymentId,
     applicationSha,
     expectedProjectId,
-    expectedProjectName
+    expectedProjectName,
+    expectedGitRef
   });
+  if (extractDeploymentHostname(targetDeployment) !== scope.host) {
+    throw contractError('UAT_TARGET_DEPLOYMENT_HOST_MISMATCH');
+  }
+  if (extractDeploymentHostname(expectedDeployment) !== scope.host) {
+    throw contractError('UAT_EXPECTED_DEPLOYMENT_HOST_MISMATCH');
+  }
   if (targetDeployment.id !== expectedDeployment.id) throw contractError('UAT_TARGET_DEPLOYMENT_IDENTITY_MISMATCH');
   return {
     valid: true,
@@ -187,7 +230,7 @@ if (require.main === module) {
       const result = validateSourceBranchHead({ sourceBranch, remoteSourceSha, sourceSha });
       process.stdout.write(`UAT_SOURCE_BRANCH_HEAD=PASS branch=${result.sourceBranch} sha=${result.sourceSha}\n`);
     } else if (command === 'verify') {
-      const [targetMode, targetUrl, expectedDeploymentId, applicationSha, targetFile, expectedFile, expectedProjectId, expectedProjectName] = args;
+      const [targetMode, targetUrl, expectedDeploymentId, applicationSha, targetFile, expectedFile, expectedProjectId, expectedProjectName, expectedGitRef] = args;
       const result = validateTargetIdentity({
         targetMode,
         targetUrl,
@@ -196,7 +239,8 @@ if (require.main === module) {
         targetDeployment: readJson(targetFile),
         expectedDeployment: readJson(expectedFile),
         expectedProjectId,
-        expectedProjectName
+        expectedProjectName,
+        expectedGitRef
       });
       process.stdout.write(`UAT_TARGET_IDENTITY=PASS mode=${result.targetMode} deployment=${result.deploymentId} application_sha=${result.applicationSha}\n`);
     } else {
@@ -213,9 +257,11 @@ module.exports = {
   CANDIDATE_HOST,
   contractError,
   extractApplicationSha,
+  extractDeploymentHostname,
   normalizeTargetMode,
   parseTargetUrl,
   validateDeploymentRecord,
+  validateDeploymentGitRef,
   validateHarnessIdentity,
   validateSourceBranch,
   validateSourceBranchHead,

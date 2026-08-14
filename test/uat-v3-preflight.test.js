@@ -186,6 +186,7 @@ test('UAT_V3_HARNESS_PREFLIGHT: application and harness identities are independe
   const HARNESS_SHA = '1234567890abcdef1234567890abcdef12345678';
   const deployment = {
     id: DEPLOYMENT_ID,
+    url: 'sms-v3-staging-ten.vercel.app',
     name: PROJECT_NAME,
     projectId: PROJECT_ID,
     target: 'production',
@@ -206,8 +207,11 @@ test('UAT_V3_HARNESS_PREFLIGHT: application and harness identities are independe
   assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js source-branch/);
   assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js source-head/);
   assert.match(workflow, /node e2e\/helpers\/uat-target-contract\.js verify/);
-  assert.match(workflow, /inspect "\$TARGET_URL"/);
-  assert.match(workflow, /inspect "\$DEPLOYMENT_ID"/);
+  assert.match(workflow, /api\.vercel\.com\/v13\/deployments/);
+  assert.match(workflow, /withGitRepoInfo=true/);
+  assert.match(workflow, /uat-vercel-identity\.js sanitize/);
+  assert.match(workflow, /--fail/);
+  assert.doesNotMatch(workflow, /vercel@"\$VERCEL_CLI_VERSION" inspect/);
 
   assert.deepEqual(validateHarnessIdentity({
     harnessSha: HARNESS_SHA,

@@ -21,6 +21,7 @@ const SOURCE_SHA = '725eebc2764168fc5c5d312d53e9b641eef7b803';
 function deployment(overrides = {}) {
   return {
     id: DEPLOYMENT_ID,
+    url: CANDIDATE_URL.replace(/^https:\/\//, ''),
     name: PROJECT_NAME,
     projectId: PROJECT_ID,
     target: 'production',
@@ -56,7 +57,13 @@ test('2. wrong Candidate deployment fails closed', () => {
 });
 
 test('3. correct Canonical URL plus expected promoted deployment passes', () => {
-  assert.equal(verify({ targetMode: 'canonical', targetUrl: CANONICAL_URL }).valid, true);
+  const canonicalDeployment = deployment({ url: CANONICAL_URL.replace(/^https:\/\//, '') });
+  assert.equal(verify({
+    targetMode: 'canonical',
+    targetUrl: CANONICAL_URL,
+    targetDeployment: canonicalDeployment,
+    expectedDeployment: canonicalDeployment
+  }).valid, true);
 });
 
 test('4. Canonical resolving to unexpected deployment fails closed', () => {
@@ -64,7 +71,8 @@ test('4. Canonical resolving to unexpected deployment fails closed', () => {
     () => verify({
       targetMode: 'canonical',
       targetUrl: CANONICAL_URL,
-      targetDeployment: deployment({ id: 'dpl_UnexpectedCanonical123' })
+      targetDeployment: deployment({ id: 'dpl_UnexpectedCanonical123', url: CANONICAL_URL.replace(/^https:\/\//, '') }),
+      expectedDeployment: deployment({ url: CANONICAL_URL.replace(/^https:\/\//, '') })
     }),
     { code: 'UAT_DEPLOYMENT_ID_MISMATCH' }
   );

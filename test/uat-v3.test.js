@@ -203,8 +203,11 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(workflow, /- canonical/);
   assert.match(workflow, /uat-target-contract\.js scope/);
   assert.match(workflow, /uat-target-contract\.js verify/);
-  assert.match(workflow, /vercel@"\$VERCEL_CLI_VERSION" inspect "\$TARGET_URL"/);
-  assert.match(workflow, /vercel@"\$VERCEL_CLI_VERSION" inspect "\$DEPLOYMENT_ID"/);
+  assert.match(workflow, /api\.vercel\.com\/v13\/deployments/);
+  assert.match(workflow, /withGitRepoInfo=true/);
+  assert.match(workflow, /uat-vercel-identity\.js sanitize/);
+  assert.match(workflow, /DEPLOYMENT_IDENTITY_SOURCE=VERCEL_REST_V13/);
+  assert.doesNotMatch(workflow, /vercel@"\$VERCEL_CLI_VERSION" inspect/);
   assert.equal((workflow.match(/VERCEL_TOKEN: \$\{\{ secrets\.VERCEL_TOKEN \}\}/g) || []).length, 2);
   const authenticatedRunStep = workflow.match(/- name: Run authenticated UAT V3[\s\S]*?(?=\r?\n      - name: Publish authenticated UAT summary)/)?.[0] || '';
   const technicalRunStep = workflow.match(/- name: Run technical UAT V3 without credentials[\s\S]*?(?=\r?\n      - name: Publish technical UAT summary)/)?.[0] || '';

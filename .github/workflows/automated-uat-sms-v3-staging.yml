@@ -72,10 +72,9 @@ jobs:
           HARNESS_SHA: ${{ inputs.uat_harness_sha }}
           DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+          EXPECTED_TEAM_ID: team_nemCExHbZ8EAhSgsvefHPAEz
           EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
           EXPECTED_PROJECT_NAME: sms-v3-staging
-          VERCEL_CLI_VERSION: 56.4.1
         run: |
           set -euo pipefail
           test -n "$VERCEL_TOKEN"
@@ -102,27 +101,48 @@ jobs:
           APPROVED_HARNESS_SHA="$(git rev-parse origin/test/automated-uat-v3-authenticated)"
           node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$APPROVED_HARNESS_SHA"
 
-          target_inspect="$(mktemp)"
-          expected_inspect="$(mktemp)"
-          cleanup() { rm -f "$target_inspect" "$expected_inspect"; }
+          target_response="$(mktemp)"
+          expected_response="$(mktemp)"
+          target_identity="$(mktemp)"
+          expected_identity="$(mktemp)"
+          cleanup() { rm -f "$target_response" "$expected_response" "$target_identity" "$expected_identity"; }
           trap cleanup EXIT
-          if ! npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$TARGET_URL" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$target_inspect" 2>/dev/null; then
-            echo 'UAT_TARGET_INSPECT_FAILED' >&2
+          TARGET_HOST="${TARGET_URL#https://}"
+          EXPECTED_GIT_REF=''
+          if [[ "$TARGET_MODE" == candidate ]]; then EXPECTED_GIT_REF="$SOURCE_BRANCH"; fi
+          fetch_deployment() {
+            local lookup="$1"
+            local output="$2"
+            if ! curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --get \
+              --data-urlencode "teamId=$EXPECTED_TEAM_ID" \
+              --data-urlencode 'withGitRepoInfo=true' \
+              "https://api.vercel.com/v13/deployments/$lookup" >"$output" 2>/dev/null; then
+              echo 'UAT_VERCEL_REST_FETCH_FAILED'
+              exit 1
+            fi
+          }
+          fetch_deployment "$TARGET_HOST" "$target_response"
+          fetch_deployment "$DEPLOYMENT_ID" "$expected_response"
+          if ! node e2e/helpers/uat-vercel-identity.js sanitize "$target_response" "$target_identity"; then
+            echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
-          if ! npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$DEPLOYMENT_ID" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$expected_inspect" 2>/dev/null; then
-            echo 'UAT_EXPECTED_DEPLOYMENT_INSPECT_FAILED' >&2
+          if ! node e2e/helpers/uat-vercel-identity.js sanitize "$expected_response" "$expected_identity"; then
+            echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
           node e2e/helpers/uat-target-contract.js verify \
             "$TARGET_MODE" "$TARGET_URL" "$DEPLOYMENT_ID" "$SOURCE_SHA" \
-            "$target_inspect" "$expected_inspect" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME"
+            "$target_identity" "$expected_identity" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME" "$EXPECTED_GIT_REF"
           echo "TARGET_MODE=$TARGET_MODE"
           echo "APPLICATION_SOURCE_BRANCH=$SOURCE_BRANCH"
           echo "APPLICATION_SOURCE_HEAD=$REMOTE_SOURCE_SHA"
           echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
           echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
           echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
+          echo "DEPLOYMENT_IDENTITY_SOURCE=VERCEL_REST_V13"
       - name: Checkout exact application under test
         uses: actions/checkout@v4
         with:
@@ -259,10 +279,9 @@ jobs:
           HARNESS_SHA: ${{ inputs.uat_harness_sha }}
           DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+          EXPECTED_TEAM_ID: team_nemCExHbZ8EAhSgsvefHPAEz
           EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
           EXPECTED_PROJECT_NAME: sms-v3-staging
-          VERCEL_CLI_VERSION: 56.4.1
         run: |
           set -euo pipefail
           test -n "$VERCEL_TOKEN"
@@ -289,27 +308,48 @@ jobs:
           APPROVED_HARNESS_SHA="$(git rev-parse origin/test/automated-uat-v3-authenticated)"
           node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$APPROVED_HARNESS_SHA"
 
-          target_inspect="$(mktemp)"
-          expected_inspect="$(mktemp)"
-          cleanup() { rm -f "$target_inspect" "$expected_inspect"; }
+          target_response="$(mktemp)"
+          expected_response="$(mktemp)"
+          target_identity="$(mktemp)"
+          expected_identity="$(mktemp)"
+          cleanup() { rm -f "$target_response" "$expected_response" "$target_identity" "$expected_identity"; }
           trap cleanup EXIT
-          if ! npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$TARGET_URL" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$target_inspect" 2>/dev/null; then
-            echo 'UAT_TARGET_INSPECT_FAILED' >&2
+          TARGET_HOST="${TARGET_URL#https://}"
+          EXPECTED_GIT_REF=''
+          if [[ "$TARGET_MODE" == candidate ]]; then EXPECTED_GIT_REF="$SOURCE_BRANCH"; fi
+          fetch_deployment() {
+            local lookup="$1"
+            local output="$2"
+            if ! curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --get \
+              --data-urlencode "teamId=$EXPECTED_TEAM_ID" \
+              --data-urlencode 'withGitRepoInfo=true' \
+              "https://api.vercel.com/v13/deployments/$lookup" >"$output" 2>/dev/null; then
+              echo 'UAT_VERCEL_REST_FETCH_FAILED'
+              exit 1
+            fi
+          }
+          fetch_deployment "$TARGET_HOST" "$target_response"
+          fetch_deployment "$DEPLOYMENT_ID" "$expected_response"
+          if ! node e2e/helpers/uat-vercel-identity.js sanitize "$target_response" "$target_identity"; then
+            echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
-          if ! npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$DEPLOYMENT_ID" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$expected_inspect" 2>/dev/null; then
-            echo 'UAT_EXPECTED_DEPLOYMENT_INSPECT_FAILED' >&2
+          if ! node e2e/helpers/uat-vercel-identity.js sanitize "$expected_response" "$expected_identity"; then
+            echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
           node e2e/helpers/uat-target-contract.js verify \
             "$TARGET_MODE" "$TARGET_URL" "$DEPLOYMENT_ID" "$SOURCE_SHA" \
-            "$target_inspect" "$expected_inspect" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME"
+            "$target_identity" "$expected_identity" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME" "$EXPECTED_GIT_REF"
           echo "TARGET_MODE=$TARGET_MODE"
           echo "APPLICATION_SOURCE_BRANCH=$SOURCE_BRANCH"
           echo "APPLICATION_SOURCE_HEAD=$REMOTE_SOURCE_SHA"
           echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
           echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
           echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
+          echo "DEPLOYMENT_IDENTITY_SOURCE=VERCEL_REST_V13"
       - name: Checkout exact application under test
         uses: actions/checkout@v4
         with:
