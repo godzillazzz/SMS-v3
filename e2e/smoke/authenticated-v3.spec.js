@@ -1,7 +1,7 @@
 const { test, expect } = require('../helpers/uat-test');
 const { loginAs } = require('../helpers/uat-auth');
 const { authenticatedRequest } = require('../helpers/uat-authenticated-request');
-const { assertNoHorizontalOverflow, captureScreenshot, expectPrimaryNavigationItem, navigateTo, openPrimaryNavigation, primaryNavigationItem, startPageMonitor } = require('../helpers/uat-observe');
+const { assertNoHorizontalOverflow, captureScreenshot, expectPrimaryNavigationItem, navigateTo, navigateToReportCenter, openPrimaryNavigation, primaryNavigationItem, primaryNavigationItemByLabel, startPageMonitor } = require('../helpers/uat-observe');
 const { getRoleApiMatrix, getRoleNavigationContract, getRolePageChecks } = require('../helpers/uat-v3-role-matrix');
 
 const authenticatedMode = () => String(process.env.UAT_MODE || 'technical').trim().toLowerCase() === 'authenticated';
@@ -23,6 +23,47 @@ async function expectNavigation(page, role) {
   }
   for (const item of contract.forbidden) {
     await expect(primaryNavigationItem(page, item.id), `${role} navigation must hide ${item.label}.`).toHaveCount(0);
+  }
+  await expect(primaryNavigationItemByLabel(page, 'รายงานและวิเคราะห์')).toHaveCount(role === 'VIEWER' ? 0 : 1);
+  await expect(primaryNavigationItemByLabel(page, 'รายงานผู้บริหาร')).toHaveCount(0);
+  await expect(primaryNavigationItemByLabel(page, 'รายงานและ Export')).toHaveCount(0);
+}
+
+async function expectUnifiedReportCenter(page, role) {
+  const center = await navigateToReportCenter(page, 'executive');
+  await expect(center.getByRole('heading', { name: 'รายงานและวิเคราะห์', exact: true })).toBeVisible();
+  await expect(center.locator('section.executive-report-page[aria-label="รายงานผู้บริหาร"]')).toBeVisible({ timeout: 60_000 });
+  await expect(center.locator('.executive-report-kpis')).toBeVisible({ timeout: 60_000 });
+  await expect(center.locator('.executive-report-print')).toHaveCount(1, { timeout: 60_000 });
+  await expect(center.locator('.report-center-filters select')).toHaveCount(role === 'ADMIN' ? 3 : 2);
+
+  const filterValues = await center.locator('.report-center-filters select').evaluateAll((selects) => selects.map((select) => select.value));
+  await center.getByRole('tab', { name: 'รายงานรายละเอียด', exact: true }).click();
+  await expect(center.getByRole('heading', { name: 'รายงานรายละเอียด', exact: true })).toBeVisible();
+  const detailFilterValues = await center.locator('.report-center-filters select').evaluateAll((selects) => selects.map((select) => select.value));
+  expect(detailFilterValues).toEqual(filterValues);
+  await expect(center.locator('.metrics-grid.report-grid')).toBeVisible({ timeout: 60_000 });
+
+  await center.getByRole('tab', { name: 'Export', exact: true }).click();
+  await expect(center.getByRole('heading', { name: 'Export', exact: true })).toBeVisible();
+  await expect(center.getByRole('button', { name: 'ส่งออก PDF', exact: true })).toBeVisible();
+
+  const executiveCenter = await navigateToReportCenter(page, 'executive');
+  await expect(executiveCenter.locator('.executive-report-print')).toContainText('รายงานผู้บริหาร');
+  const pdfButton = executiveCenter.getByRole('button', { name: 'ส่งออก PDF', exact: true });
+  await expect(pdfButton).toBeEnabled({ timeout: 60_000 });
+  let printFrame;
+  const onFrameAttached = (frame) => {
+    if (frame.parentFrame() === page.mainFrame()) printFrame = frame;
+  };
+  page.on('frameattached', onFrameAttached);
+  try {
+    await pdfButton.click();
+    await expect.poll(() => Boolean(printFrame), { timeout: 10_000 }).toBe(true);
+    await expect.poll(async () => printFrame ? printFrame.locator('.executive-report-print-page').count() : 0, { timeout: 10_000 }).toBe(1);
+    await expect(printFrame.locator('.executive-report-print-page')).toContainText('รายงานผู้บริหาร');
+  } finally {
+    page.off('frameattached', onFrameAttached);
   }
 }
 
@@ -65,8 +106,11 @@ for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
       await loginAs(page, role);
       await expectNavigation(page, role);
       for (const item of getRolePageChecks(role)) {
-        await navigateTo(page, item.id);
-        await expect(page.getByRole('heading').first(), `${role} ${item.label} must render a page heading.`).toBeVisible();
+        if (item.id === 'reportCenter') await expectUnifiedReportCenter(page, role);
+        else {
+          await navigateTo(page, item.id);
+          await expect(page.getByRole('heading').first(), `${role} ${item.label} must render a page heading.`).toBeVisible();
+        }
       }
       monitor.assertClean();
     });
@@ -77,14 +121,20 @@ for (const role of ['ADMIN', 'MANAGER']) {
   test(`V3 ${role}: authenticated responsive smoke`, async ({ page }, testInfo) => {
     test.skip(!authenticatedMode(), 'UAT_MODE=authenticated is required for role coverage.');
     const monitor = startPageMonitor(page);
-    const pages = role === 'ADMIN' ? ['dashboard', 'schedule', 'dataQuality', 'audit', 'executiveReport'] : ['dashboard', 'schedule', 'executiveReport'];
+    const pages = role === 'ADMIN' ? ['dashboard', 'schedule', 'dataQuality', 'audit', 'reportCenter'] : ['dashboard', 'schedule', 'reportCenter'];
     await loginAs(page, role);
     for (const viewport of [{ name: '390', width: 390, height: 844 }, { name: '768', width: 768, height: 1024 }, { name: '1440', width: 1440, height: 900 }]) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       if (viewport.name !== '390') await page.goto('/');
       for (const pageId of pages) {
-        await navigateTo(page, pageId);
-        await expect(page.getByRole('heading').first()).toBeVisible();
+        if (pageId === 'reportCenter') {
+          const center = await navigateToReportCenter(page, 'executive');
+          await expect(center.getByRole('heading', { name: 'รายงานและวิเคราะห์', exact: true })).toBeVisible();
+          await expect(center.getByRole('tab', { name: 'ภาพรวมผู้บริหาร', exact: true })).toBeVisible();
+        } else {
+          await navigateTo(page, pageId);
+          await expect(page.getByRole('heading').first()).toBeVisible();
+        }
         await assertNoHorizontalOverflow(page);
       }
       await captureScreenshot(page, testInfo, `v3-${role.toLowerCase()}-${viewport.name}`);

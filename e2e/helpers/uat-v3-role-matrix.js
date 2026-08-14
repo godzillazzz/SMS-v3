@@ -59,9 +59,13 @@ const navigationCatalog = {
   audit: { id: 'audit', label: 'บันทึกการใช้งานระบบ' },
   dataQuality: { id: 'dataQuality', label: 'คุณภาพข้อมูล' },
   users: { id: 'users', label: 'ผู้ใช้และสิทธิ์' },
-  executiveReport: { id: 'executiveReport', label: 'รายงานผู้บริหาร' },
-  reports: { id: 'reports', label: 'รายงานและ Export' },
+  reportCenter: { id: 'reportCenter', label: 'รายงานและวิเคราะห์' },
   settings: { id: 'settings', label: 'ตั้งค่าระบบ' }
+};
+
+const legacyPageTargets = {
+  executiveReport: { id: 'executiveReport', label: 'รายงานผู้บริหาร', navigationId: 'reportCenter', tab: 'executive' },
+  reports: { id: 'reports', label: 'รายงานและ Export', navigationId: 'reportCenter', tab: 'details' }
 };
 
 const roleNavigation = {
@@ -70,18 +74,18 @@ const roleNavigation = {
     forbidden: []
   },
   MANAGER: {
-    required: ['dashboard', 'employees', 'licenses', 'schedule', 'shiftSetup', 'leave', 'leavePending', 'leaveHistory', 'rules', 'users', 'executiveReport', 'reports'],
+    required: ['dashboard', 'employees', 'licenses', 'schedule', 'shiftSetup', 'leave', 'leavePending', 'leaveHistory', 'rules', 'users', 'reportCenter'],
     forbidden: ['quota', 'audit', 'dataQuality', 'settings']
   },
   VIEWER: {
     required: ['dashboard', 'employees', 'schedule', 'shiftSetup', 'leave', 'leaveHistory', 'rules'],
-    forbidden: ['licenses', 'leavePending', 'quota', 'audit', 'dataQuality', 'users', 'executiveReport', 'reports', 'settings']
+    forbidden: ['licenses', 'leavePending', 'quota', 'audit', 'dataQuality', 'users', 'reportCenter', 'settings']
   }
 };
 
 const rolePageChecks = {
-  ADMIN: ['dashboard', 'schedule', 'leave', 'licenses', 'dataQuality', 'audit', 'executiveReport'],
-  MANAGER: ['dashboard', 'schedule', 'leave', 'licenses', 'executiveReport'],
+  ADMIN: ['dashboard', 'schedule', 'leave', 'licenses', 'dataQuality', 'audit', 'reportCenter'],
+  MANAGER: ['dashboard', 'schedule', 'leave', 'licenses', 'reportCenter'],
   VIEWER: ['dashboard', 'schedule', 'leave']
 };
 
@@ -111,6 +115,12 @@ function getNavigationItem(id) {
   return item;
 }
 
+function getLegacyPageTarget(id) {
+  const target = legacyPageTargets[id];
+  if (!target) throw new Error(`Unsupported UAT legacy page target: ${id}`);
+  return target;
+}
+
 function getRoleNavigationContract(role) {
   assertRole(role);
   return {
@@ -134,11 +144,13 @@ function getRolePageChecks(role) {
 
 module.exports = {
   currentUatMonth,
+  getLegacyPageTarget,
   getNavigationItem,
   getRoleApiMatrix,
   getRoleNavigation,
   getRoleNavigationContract,
   getRolePageChecks,
+  legacyPageTargets,
   navigationCatalog,
   roleApiMatrix,
   roleNavigation,

@@ -15,7 +15,7 @@ const {
   artifactLeakReasons,
   scanArtifact
 } = require('../e2e/helpers/uat-v3-security');
-const { getNavigationItem, getRoleApiMatrix, getRoleNavigationContract, roles } = require('../e2e/helpers/uat-v3-role-matrix');
+const { getLegacyPageTarget, getNavigationItem, getRoleApiMatrix, getRoleNavigationContract, legacyPageTargets, roles } = require('../e2e/helpers/uat-v3-role-matrix');
 
 const read = (filePath) => fs.readFileSync(path.resolve(__dirname, '..', filePath), 'utf8');
 
@@ -55,10 +55,23 @@ test('UAT_V3_HARNESS_PREFLIGHT: navigation uses canonical IDs and primary-nav sc
   }
   assert.equal(getNavigationItem('schedule').label, 'ตารางกะรายเดือน');
   assert.throws(() => getNavigationItem('Schedule Calendar'), /Unsupported UAT navigation id/);
+  assert.throws(() => getNavigationItem('executiveReport'), /Unsupported UAT navigation id/);
+  assert.deepEqual(getRoleNavigationContract('ADMIN').required.find((item) => item.id === 'reportCenter'), { id: 'reportCenter', label: 'รายงานและวิเคราะห์' });
+  assert.deepEqual(getRoleNavigationContract('MANAGER').required.find((item) => item.id === 'reportCenter'), { id: 'reportCenter', label: 'รายงานและวิเคราะห์' });
+  assert.equal(getRoleNavigationContract('VIEWER').forbidden.find((item) => item.id === 'reportCenter').label, 'รายงานและวิเคราะห์');
+  assert.deepEqual(getLegacyPageTarget('executiveReport'), legacyPageTargets.executiveReport);
+  assert.deepEqual(getLegacyPageTarget('reports'), legacyPageTargets.reports);
+  assert.equal(getLegacyPageTarget('executiveReport').navigationId, 'reportCenter');
+  assert.equal(getLegacyPageTarget('executiveReport').tab, 'executive');
+  assert.equal(getLegacyPageTarget('reports').navigationId, 'reportCenter');
+  assert.equal(getLegacyPageTarget('reports').tab, 'details');
+  assert.throws(() => getLegacyPageTarget('unknown'), /Unsupported UAT legacy page target/);
   const observe = read('e2e/helpers/uat-observe.js');
   assert.match(observe, /nav\.nav-menu/);
   assert.match(observe, /button\.nav-item:visible/);
   assert.match(observe, /toHaveCount\(1\)/);
+  assert.match(observe, /reportCenterTabLabels/);
+  assert.match(observe, /section\.report-center-page/);
 });
 
 test('UAT_V3_HARNESS_PREFLIGHT: dashboard warning is conditional and sync-independent', () => {
@@ -133,10 +146,11 @@ test('UAT_V3_HARNESS_PREFLIGHT: safe summary is independent from artifact gate',
 });
 
 test('UAT_V3_HARNESS_PREFLIGHT: previous failures have deterministic regression contracts', () => {
-  assert.equal(previousFailureContracts.length, 9);
+  assert.equal(previousFailureContracts.length, 10);
   assert.deepEqual(previousFailureContracts.map((entry) => entry.id), [
     'schedule-legacy-label',
     'duplicate-primary-navigation',
+    'unified-report-center-navigation',
     'dashboard-response-race',
     'role-api-old-path',
     'viewer-schedule-contract',

@@ -108,8 +108,12 @@ function escapeRegExp(value) {
 
 function primaryNavigationItem(page, navigationId) {
   const item = getNavigationItem(navigationId);
-  const label = escapeRegExp(item.label);
-  return primaryNavigation(page).filter({ hasText: new RegExp(`${label}\\s*\\d*$`) });
+  return primaryNavigationItemByLabel(page, item.label);
+}
+
+function primaryNavigationItemByLabel(page, label) {
+  const escapedLabel = escapeRegExp(label);
+  return primaryNavigation(page).filter({ hasText: new RegExp(`${escapedLabel}\\s*\\d*$`) });
 }
 
 async function openPrimaryNavigation(page) {
@@ -131,6 +135,29 @@ async function navigateTo(page, navigationId) {
   const navigationItem = primaryNavigationItem(page, navigationId);
   await expect(navigationItem, `Primary navigation must expose exactly one ${item.label}.`).toHaveCount(1);
   await navigationItem.click();
+}
+
+const reportCenterTabLabels = Object.freeze({
+  executive: 'ภาพรวมผู้บริหาร',
+  details: 'รายงานรายละเอียด',
+  export: 'Export'
+});
+
+function reportCenterPage(page) {
+  return page.locator('section.report-center-page[aria-label="ศูนย์รายงานและวิเคราะห์"]').first();
+}
+
+async function navigateToReportCenter(page, tab = 'executive') {
+  const tabLabel = reportCenterTabLabels[tab];
+  if (!tabLabel) throw new Error(`Unsupported UAT report center tab: ${tab}`);
+  await navigateTo(page, 'reportCenter');
+  const center = reportCenterPage(page);
+  await expect(center, 'Unified Report Center must be visible.').toBeVisible();
+  const tabButton = center.getByRole('tab', { name: tabLabel, exact: true });
+  await expect(tabButton, `Report Center must expose ${tabLabel}.`).toHaveCount(1);
+  if (await tabButton.getAttribute('aria-selected') !== 'true') await tabButton.click();
+  await expect(tabButton).toHaveAttribute('aria-selected', 'true');
+  return center;
 }
 
 async function expectApiSuccess(page, path, trigger) {
@@ -163,9 +190,13 @@ module.exports = {
   expectPrimaryNavigationItem,
   isHarmlessConsoleError,
   navigateTo,
+  navigateToReportCenter,
   openPrimaryNavigation,
   primaryNavigation,
   primaryNavigationItem,
+  primaryNavigationItemByLabel,
+  reportCenterPage,
+  reportCenterTabLabels,
   requestPath,
   requestTarget,
   sanitizeDiagnostic,

@@ -3,6 +3,7 @@ const { getNavigationItem, getRoleApiMatrix, getRoleNavigationContract, roles } 
 const previousFailureContracts = Object.freeze([
   { id: 'schedule-legacy-label', class: 'STALE_SELECTOR', expected: 'schedule' },
   { id: 'duplicate-primary-navigation', class: 'NAVIGATION_AMBIGUITY', expected: 'primary-nav-only' },
+  { id: 'unified-report-center-navigation', class: 'STALE_SELECTOR', expected: 'reportCenter' },
   { id: 'dashboard-response-race', class: 'DASHBOARD_SYNC', expected: 'payload-before-warning-assertion' },
   { id: 'role-api-old-path', class: 'WRONG_ROUTE', expected: 'role-matrix-source' },
   { id: 'viewer-schedule-contract', class: 'WRONG_RBAC_EXPECTATION', expected: 200 },
