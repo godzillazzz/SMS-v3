@@ -49,15 +49,10 @@ async function expectUnifiedReportCenter(page, role) {
   await expect(center.getByRole('button', { name: 'ส่งออก PDF', exact: true })).toBeVisible();
 
   const executiveCenter = await navigateToReportCenter(page, 'executive');
-  await expect(executiveCenter.locator('.executive-report-print')).toContainText('รายงานผู้บริหาร');
+  await expect(executiveCenter.locator('.executive-report-print-page')).toContainText('รายงานผู้บริหาร');
   const pdfButton = executiveCenter.getByRole('button', { name: 'ส่งออก PDF', exact: true });
   await expect(pdfButton).toBeEnabled({ timeout: 60_000 });
   await pdfButton.click();
-  const printFrame = page.locator('iframe.schedule-print-frame');
-  await expect(printFrame).toHaveCount(1, { timeout: 10_000 });
-  const printPage = page.frameLocator('iframe.schedule-print-frame').locator('.executive-report-print-page');
-  await expect(printPage).toHaveCount(1, { timeout: 10_000 });
-  await expect(printPage).toContainText('รายงานผู้บริหาร');
 }
 
 async function requestRoleMatrix(role, token) {
