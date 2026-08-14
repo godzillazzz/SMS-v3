@@ -195,6 +195,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run technical UAT V3 without credentials
         id: uat
+        continue-on-error: true
         uses: actions/github-script@v7
         env:
           UAT_BASE_URL: ${{ inputs.target_url }}
@@ -269,6 +270,26 @@ jobs:
             test-results/uat-v3-artifact-summary.json
           if-no-files-found: warn
           retention-days: 7
+      - name: Upload technical UAT safe diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automated-uat-technical-diagnostics-${{ github.run_id }}
+          path: test-results/uat-v3-artifact-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Enforce technical UAT result
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${{ steps.uat.outputs.artifact_leak }}" != "0" ]]; then
+            echo 'UAT_ARTIFACT_LEAK'
+            exit 1
+          fi
+          if [[ "${{ steps.uat.outcome }}" != success ]]; then
+            echo 'UAT_EXECUTION_FAILED'
+            exit 1
+          fi
 
   authenticated-uat:
     if: ${{ inputs.uat_mode == 'authenticated' }}
@@ -444,6 +465,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run authenticated UAT V3
         id: uat
+        continue-on-error: true
         uses: actions/github-script@v7
         env:
           UAT_BASE_URL: ${{ inputs.target_url }}
@@ -534,3 +556,23 @@ jobs:
             test-results/uat-v3-artifact-summary.json
           if-no-files-found: warn
           retention-days: 7
+      - name: Upload authenticated UAT safe diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automated-uat-authenticated-diagnostics-${{ github.run_id }}
+          path: test-results/uat-v3-artifact-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Enforce authenticated UAT result
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${{ steps.uat.outputs.artifact_leak }}" != "0" ]]; then
+            echo 'UAT_ARTIFACT_LEAK'
+            exit 1
+          fi
+          if [[ "${{ steps.uat.outcome }}" != success ]]; then
+            echo 'UAT_EXECUTION_FAILED'
+            exit 1
+          fi

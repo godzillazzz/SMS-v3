@@ -184,6 +184,12 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.ok(authenticatedJob);
   assert.doesNotMatch(technicalJob, /environment:\s*production-sms-v3-staging/);
   assert.match(authenticatedJob, /environment:\s*production-sms-v3-staging/);
+  assert.match(technicalJob, /continue-on-error: true/);
+  assert.match(authenticatedJob, /continue-on-error: true/);
+  assert.match(technicalJob, /Upload technical UAT safe diagnostics/);
+  assert.match(authenticatedJob, /Upload authenticated UAT safe diagnostics/);
+  assert.match(technicalJob, /Enforce technical UAT result/);
+  assert.match(authenticatedJob, /Enforce authenticated UAT result/);
   for (const job of [technicalJob, authenticatedJob]) {
     assert.match(job, /SOURCE_BRANCH: \$\{\{ inputs\.source_branch \}\}/);
     assert.match(job, /UAT_SCOPE: \$\{\{ inputs\.uat_scope \}\}/);
