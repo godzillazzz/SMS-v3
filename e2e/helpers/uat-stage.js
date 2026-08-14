@@ -1,3 +1,6 @@
+const fs = require('node:fs');
+const path = require('node:path');
+
 const stageCodes = Object.freeze([
   'NAV01_LOGIN',
   'NAV02_PRIMARY_NAV',
@@ -71,16 +74,27 @@ function assertStageCode(stageCode) {
   }
 }
 
-function createStageTracker({ role, testCode, testInfo }) {
+function createStageTracker({ role, testCode, testInfo, diagnosticPath = process.env.UAT_STAGE_DIAGNOSTIC_FILE }) {
   let currentStage;
   let lastCompletedStage;
   let currentStartedAt;
   let lastEvent;
 
+  function persistSnapshot() {
+    if (!diagnosticPath) return;
+    try {
+      fs.mkdirSync(path.dirname(diagnosticPath), { recursive: true });
+      fs.appendFileSync(diagnosticPath, `${JSON.stringify(snapshot())}\n`, 'utf8');
+    } catch {
+      return;
+    }
+  }
+
   function begin(stageCode) {
     assertStageCode(stageCode);
     currentStage = stageCode;
     currentStartedAt = Date.now();
+    persistSnapshot();
   }
 
   function finish(stageCode, state, metadata = {}, error) {
@@ -102,6 +116,7 @@ function createStageTracker({ role, testCode, testInfo }) {
     currentStage = state === 'FAIL' ? stageCode : undefined;
     if (state === 'PASS') lastCompletedStage = stageCode;
     currentStartedAt = undefined;
+    persistSnapshot();
     return event;
   }
 
@@ -128,16 +143,17 @@ function createStageTracker({ role, testCode, testInfo }) {
       durationBucket: '<1s',
       safeErrorCode: null
     };
+    const isRunning = currentStartedAt !== undefined;
     return {
       role: event.role,
       testCode: event.testCode,
       lastCompletedStage: lastCompletedStage || null,
       currentStage: currentStage || null,
-      state: event.state,
+      state: isRunning ? 'RUNNING' : event.state,
       ...(event.safeApiPath ? { safeApiPath: event.safeApiPath } : {}),
       ...(event.safeStatus !== undefined ? { safeStatus: event.safeStatus } : {}),
-      durationBucket: event.durationBucket,
-      safeErrorCode: event.safeErrorCode || null
+      durationBucket: isRunning ? durationBucket(Date.now() - currentStartedAt) : event.durationBucket,
+      safeErrorCode: isRunning ? null : event.safeErrorCode || null
     };
   }
 
@@ -146,6 +162,7 @@ function createStageTracker({ role, testCode, testInfo }) {
     snapshot,
     async attach() {
       if (!testInfo?.attach) return;
+      persistSnapshot();
       await testInfo.attach('uat-stage.json', {
         body: JSON.stringify(snapshot()),
         contentType: 'application/json'

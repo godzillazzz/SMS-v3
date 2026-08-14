@@ -8,6 +8,9 @@ const { clearRoleSessions, writeRoleSessions } = require('./helpers/uat-session'
 module.exports = async () => {
   const config = getUatConfig();
   fs.mkdirSync(path.resolve('test-results'), { recursive: true });
+  if (process.env.UAT_STAGE_DIAGNOSTIC_FILE) {
+    fs.writeFileSync(process.env.UAT_STAGE_DIAGNOSTIC_FILE, '', 'utf8');
+  }
   clearRoleSessions();
   if (config.mode !== 'authenticated') {
     fs.writeFileSync(path.resolve('test-results/uat-v3-account-preflight.json'), JSON.stringify({ mode: config.mode, roles: { ADMIN: 'SKIPPED', MANAGER: 'SKIPPED', VIEWER: 'SKIPPED' } }));

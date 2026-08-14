@@ -8,7 +8,8 @@ const authenticatedArtifactAllowlist = [
   'uat-summary.md',
   'uat-results.json',
   'uat-v3-account-preflight.json',
-  'uat-v3-artifact-summary.json'
+  'uat-v3-artifact-summary.json',
+  'uat-v3-stage-diagnostics.jsonl'
 ];
 
 function relativeArtifactPath(root, filePath) {
@@ -67,6 +68,7 @@ function createAuthenticatedArtifactFixture(root) {
     roles: { ADMIN: 'YES', MANAGER: 'YES', VIEWER: 'YES' }
   }));
   fs.writeFileSync(path.join(resultsDirectory, 'uat-v3-artifact-summary.json'), JSON.stringify({ leakCount: 0, findings: [] }));
+  fs.writeFileSync(path.join(resultsDirectory, 'uat-v3-stage-diagnostics.jsonl'), `${JSON.stringify({ role: 'ADMIN', testCode: 'REPORT_CENTER', currentStage: 'RC03_EXEC_REQUEST', state: 'RUNNING', safeApiPath: '/api/v1/executive-report', durationBucket: '1-5s', safeErrorCode: null })}\n`);
   fs.writeFileSync(path.join(screenshotsDirectory, 'v3-admin-390.png'), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]));
   return root;
 }

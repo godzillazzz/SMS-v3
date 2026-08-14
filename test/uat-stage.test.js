@@ -3,6 +3,9 @@ const assert = require('node:assert/strict');
 const { apiFailureCode, apiResponseTimeoutCode } = require('../e2e/helpers/uat-observe');
 const { createStageTracker, durationBucket, safeApiPath, stageCodes } = require('../e2e/helpers/uat-stage');
 const { artifactLeakReasons } = require('../e2e/helpers/uat-v3-security');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 function testInfoFor(attachments) {
   return {
@@ -37,6 +40,29 @@ test('UAT stage artifact is allowlisted and strips sensitive values', async () =
   ].sort());
   assert.equal(stage.safeApiPath, '/api/v1/executive-report');
   assert.equal(JSON.stringify(stage).includes('token'), false);
+});
+
+test('UAT stage diagnostics persist safe running and failure states', async () => {
+  const diagnosticPath = path.join(os.tmpdir(), `sms-v3-uat-stage-${process.pid}.jsonl`);
+  fs.rmSync(diagnosticPath, { force: true });
+  const tracker = createStageTracker({
+    role: 'ADMIN',
+    testCode: 'REPORT_CENTER',
+    diagnosticPath
+  });
+  try {
+    await assert.rejects(tracker.run('RC03_EXEC_REQUEST', async () => {
+      const error = new Error('safe diagnostic failure');
+      error.code = 'UAT_RUNTIME_EXECUTIVE_REPORT_RESPONSE_TIMEOUT';
+      throw error;
+    }));
+    const records = fs.readFileSync(diagnosticPath, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+    assert.ok(records.some((record) => record.state === 'RUNNING' && record.currentStage === 'RC03_EXEC_REQUEST'));
+    assert.ok(records.some((record) => record.state === 'FAIL' && record.safeErrorCode === 'UAT_RUNTIME_EXECUTIVE_REPORT_RESPONSE_TIMEOUT'));
+    assert.equal(records.some((record) => JSON.stringify(record).includes('safe diagnostic failure')), false);
+  } finally {
+    fs.rmSync(diagnosticPath, { force: true });
+  }
 });
 
 test('UAT stage failure preserves explicit runtime code without raw error text', async () => {
