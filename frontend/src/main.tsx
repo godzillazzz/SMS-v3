@@ -10,7 +10,7 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
 import { printScheduleDocument } from './schedule-print';
-import { ExecutiveReportCenterPage } from './pages/executive-report/ExecutiveReportCenterPage';
+import { ReportCenterPage } from './pages/reports/ReportCenterPage';
 import { currentBangkokMonth, formatThaiMonth, MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
 import './styles.css';
 import './design-system.css';
@@ -33,7 +33,7 @@ import './styles/action-system.css';
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; department?: string; jobTitle?: string; isActive: boolean; updatedAt?: string };
 type RegistrationEmployee = { id: string; employeeCode: string; displayName: string; department?: string; jobTitle?: string };
-type Page = 'dashboard' | 'employees' | 'licenses' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reports' | 'executiveReport' | 'settings';
+type Page = 'dashboard' | 'employees' | 'licenses' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number> } };
@@ -75,8 +75,7 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: string; 
     { id: 'users', icon: '♧', label: 'ผู้ใช้และสิทธิ์' }
   ] },
   { label: 'รายงาน', items: [
-    { id: 'executiveReport', icon: '▤', label: 'รายงานผู้บริหาร' },
-    { id: 'reports', icon: '↗', label: 'รายงานและ Export' }
+    { id: 'reportCenter', icon: '▤', label: 'รายงานและวิเคราะห์' }
   ] },
   { label: 'ตั้งค่า', items: [
     { id: 'settings', icon: '⚙', label: 'ตั้งค่าระบบ' }
@@ -509,7 +508,7 @@ function EmployeeMagicWandModal({
   );
 }
 
-type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
+type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
 
 const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
@@ -1288,17 +1287,17 @@ function Dashboard() {
   }, [activePage, auth.token, operationPage, dataQualityPageSize, dataQualityFilters, operationRefresh]);
 
   useEffect(() => {
-    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'executiveReport') return;
+    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
     if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
       setOperationLoading(false);
       setOperationError(undefined);
       setOperationResponse({ data: [] });
       return;
     }
-    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
+    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
-      users: api.users, audit: api.auditEvents, reports: api.reportSummary, settings: api.systemSettings
+      users: api.users, audit: api.auditEvents, settings: api.systemSettings
     };
     let active = true;
     setOperationLoading(true);
@@ -1327,7 +1326,7 @@ function Dashboard() {
   useEffect(() => { setOperationPage(1); }, [scheduleDepartment, scheduleMonth]);
   useEffect(() => { setAutoSchedulePreview(undefined); }, [scheduleMonth]);
 
-  const parentPage: Partial<Record<Page, Page>> = {};
+  const parentPage: Partial<Record<Page, Page>> = { executiveReport: 'reportCenter', reports: 'reportCenter' };
   const navigationPage = parentPage[activePage] || activePage;
   const pageTitle = navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || 'Dashboard';
   const pageSubtitle: Record<Page, string> = {
@@ -1343,6 +1342,7 @@ function Dashboard() {
     quota: 'สิทธิ์และโควต้าวันลา',
     rules: 'ตรวจสอบกฎการทำงานและความพร้อมของกำลังพล',
     dataQuality: 'ตรวจสอบความผิดปกติของข้อมูลแบบอ่านอย่างเดียว',
+    reportCenter: 'ศูนย์รายงานและวิเคราะห์สำหรับผู้บริหารและงานปฏิบัติการ',
     reports: 'รายงานสรุปข้อมูลการปฏิบัติงาน',
     executiveReport: 'สรุปข้อมูลสำคัญสำหรับการติดตามและบริหารงาน',
     users: 'กำหนด Role และแผนกก่อนอนุมัติบัญชี',
@@ -1358,7 +1358,7 @@ function Dashboard() {
     if (page === 'settings') return auth.user?.role === 'ADMIN';
     if (page === 'users') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
     if (page === 'quota') return auth.user?.role === 'ADMIN';
-    if (['licenses', 'reports', 'executiveReport'].includes(page)) return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
+    if (['licenses', 'reportCenter', 'reports', 'executiveReport'].includes(page)) return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
     return true;
   };
   const visibleNavigation = navigation
@@ -2094,11 +2094,9 @@ function Dashboard() {
       const settings = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       return <SettingsPage settings={settings} loading={operationLoading} error={operationError} onRefresh={() => setOperationRefresh((value) => value + 1)} onAudit={() => setActivePage('audit')} onSaveTemplates={async (newLeave, leaveStatus) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_NEW_LEAVE', { value: newLeave, description: 'เทมเพลตข้อความคำขอลาใหม่ (รูปแบบเดิม)' }), api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_LEAVE_STATUS', { value: leaveStatus, description: 'เทมเพลตข้อความอัปเดตสถานะการลา (รูปแบบเดิม)' })]); setOperationRefresh((value) => value + 1); }} />;
     }
-    if (activePage === 'executiveReport' && auth.token) return <ExecutiveReportCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} onNavigate={(page) => setActivePage(page as Page)} />;
-    if (activePage === 'reports') {
-      const summary = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
-      const cards: Array<[string, unknown]> = [['พนักงานทั้งหมด', summary.employees], ['พนักงานที่ใช้งาน', summary.activeEmployees], ['ใบอนุญาต', summary.licenses], ['รายการกะ', summary.shifts], ['คำขอลา', summary.leaveRequests], ['โควตาวันลา', summary.leaveQuotas], ['บัญชีผู้ใช้', summary.users]];
-      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">รายงาน</p><h1>รายงานและส่งออก</h1><p>ยอดรวมจากฐานข้อมูลกลาง ณ เวลาที่เปิดหน้านี้</p></div></div>{operationError && <div className="alert alert-error">{operationError}</div>}<div className="metrics-grid report-grid">{operationLoading ? <div className="loading-row">กำลังสรุปข้อมูล…</div> : cards.map(([label, value]) => <article className="metric-card" key={String(label)}><span className="metric-icon blue">▦</span><div><p>{label}</p><strong>{text(value)}</strong><small>รายการใน staging</small></div></article>)}</div></section>;
+    if ((activePage === 'reportCenter' || activePage === 'executiveReport' || activePage === 'reports') && auth.token) {
+      const initialTab = activePage === 'reports' ? 'details' : 'executive';
+      return <ReportCenterPage key={activePage} token={auth.token} role={auth.user?.role || 'VIEWER'} initialTab={initialTab} onNavigate={(page) => setActivePage(page as Page)} />;
     }
     return <><OperationalTable page={activePage as OperationalPage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} token={auth.token} refreshSignal={operationRefresh} onLicenseDocumentChanged={() => setOperationRefresh((value) => value + 1)} onEditLicense={activePage === 'licenses' ? openLicenseEdit : undefined} />{licenseEditTarget && auth.token && <LicenseEditModal license={{ id: String(licenseEditTarget.id), licenseNumber: licenseEditTarget.licenseNumber ? String(licenseEditTarget.licenseNumber) : null, licenseType: licenseEditTarget.licenseType ? String(licenseEditTarget.licenseType) : null, issueDate: licenseEditTarget.issueDate ? String(licenseEditTarget.issueDate) : null, expiryDate: licenseEditTarget.expiryDate ? String(licenseEditTarget.expiryDate) : null, status: licenseEditTarget.status ? String(licenseEditTarget.status) : null, employee: { employeeCode: String(nested(licenseEditTarget.employee).employeeCode || ''), firstName: String(nested(licenseEditTarget.employee).firstName || ''), lastName: String(nested(licenseEditTarget.employee).lastName || ''), department: nested(licenseEditTarget.employee).department ? String(nested(licenseEditTarget.employee).department) : undefined } }} isAdmin={auth.user?.role === 'ADMIN'} services={licenseDocumentServices} onUpload={async (data, file) => { await api.uploadLicenseDocument(auth.token!, String(licenseEditTarget.id), data, file); }} onChanged={() => setOperationRefresh((value) => value + 1)} onClose={() => setLicenseEditTarget(undefined)} />}</>;
   };

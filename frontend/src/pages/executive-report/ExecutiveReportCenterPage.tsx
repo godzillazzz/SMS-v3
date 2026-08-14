@@ -18,7 +18,8 @@ export type ExecutiveReport = {
   generatedAt: string;
 };
 
-const monthNames = Array.from({ length: 12 }, (_, index) => new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, index, 1))));
+export type ExecutiveReportFilters = { year: number; month: number; department: string };
+export const monthNames = Array.from({ length: 12 }, (_, index) => new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, index, 1))));
 const thaiNumber = (value: number) => new Intl.NumberFormat('th-TH').format(value);
 const formatDateTime = (value: string) => new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value));
 
@@ -27,7 +28,7 @@ function Chart({ title, items }: { title: string; items: ReportItem[] }) {
   return <section className="executive-report-chart" aria-label={title}><h3>{title}</h3>{items.length ? items.slice(0, 6).map((item) => <div className="executive-report-bar" key={item.label}><span>{item.label}</span><div><i style={{ width: `${Math.max(4, (item.count / max) * 100)}%` }} /></div><b>{thaiNumber(item.count)}</b></div>) : <p className="executive-report-empty">ไม่มีข้อมูลในช่วงที่เลือก</p>}</section>;
 }
 
-function ExecutiveReportPrint({ report }: { report: ExecutiveReport }) {
+export function ExecutiveReportPrint({ report }: { report: ExecutiveReport }) {
   return <article className="print-only executive-report-print" aria-hidden="true">
     <section className="executive-report-print-page">
       <header><p>SECURITY MANAGEMENT SYSTEM V3</p><h1>รายงานผู้บริหาร</h1><span>{report.period.label} · {report.scope.departmentName}</span><small>สร้างรายงาน {formatDateTime(report.generatedAt)}</small></header>
@@ -45,35 +46,57 @@ function ExecutiveReportPrint({ report }: { report: ExecutiveReport }) {
 function PrintSection({ title, children }: { title: string; children: ReactNode }) { return <section className="executive-report-print-section"><h2>{title}</h2>{children}</section>; }
 function PrintList({ items }: { items: ReportItem[] }) { return items.length ? <ul>{items.slice(0, 6).map((item) => <li key={item.label}><span>{item.label}</span><b>{thaiNumber(item.count)}</b></li>)}</ul> : null; }
 
-export function ExecutiveReportCenterPage({ token, role, onNavigate }: { token: string; role: string; onNavigate(page: string): void }) {
+type ExecutiveReportCenterPageProps = {
+  token: string;
+  role: string;
+  onNavigate(page: string): void;
+  filters?: ExecutiveReportFilters;
+  onFiltersChange?(filters: ExecutiveReportFilters): void;
+  embedded?: boolean;
+  includePrint?: boolean;
+  onReportChange?(report?: ExecutiveReport): void;
+};
+
+export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, onFiltersChange, embedded = false, includePrint = true, onReportChange }: ExecutiveReportCenterPageProps) {
   const bangkokParts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: 'numeric' }).formatToParts(new Date());
   const bangkokYear = Number(bangkokParts.find((part) => part.type === 'year')?.value);
   const bangkokMonth = Number(bangkokParts.find((part) => part.type === 'month')?.value);
-  const [year, setYear] = useState(bangkokYear);
-  const [month, setMonth] = useState(bangkokMonth);
-  const [department, setDepartment] = useState('');
+  const [localYear, setLocalYear] = useState(bangkokYear);
+  const [localMonth, setLocalMonth] = useState(bangkokMonth);
+  const [localDepartment, setLocalDepartment] = useState('');
+  const year = filters?.year ?? localYear;
+  const month = filters?.month ?? localMonth;
+  const department = filters?.department ?? localDepartment;
   const [report, setReport] = useState<ExecutiveReport>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [refresh, setRefresh] = useState(0);
+  const setFilter = (next: Partial<ExecutiveReportFilters>) => {
+    if (filters && onFiltersChange) onFiltersChange({ ...filters, ...next });
+    else {
+      if (next.year !== undefined) setLocalYear(next.year);
+      if (next.month !== undefined) setLocalMonth(next.month);
+      if (next.department !== undefined) setLocalDepartment(next.department);
+    }
+  };
 
   useEffect(() => {
     let active = true;
     setLoading(true); setError(undefined);
     api.executiveReport(token, { year, month, department: department || undefined })
-      .then((response) => { if (active) setReport(response.data as ExecutiveReport); })
+      .then((response) => { if (active) { const next = response.data as ExecutiveReport; setReport(next); onReportChange?.(next); } })
       .catch(() => { if (active) setError('ไม่สามารถโหลดรายงานผู้บริหารได้ กรุณาลองใหม่อีกครั้ง'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [token, year, month, department, refresh]);
+  }, [token, year, month, department, refresh, onReportChange]);
 
   const years = useMemo(() => Array.from({ length: 4 }, (_, index) => bangkokYear - index), [bangkokYear]);
   const departmentOptions = report?.scope.availableDepartments || [];
   const filename = report ? `SMS-V3-Executive-Report-${report.period.year}-${String(report.period.month).padStart(2, '0')}${department ? `-${department.replace(/[^a-zA-Z0-9_-]+/g, '-')}` : ''}.pdf` : 'SMS-V3-Executive-Report.pdf';
 
   return <section className="executive-report-page view-pane" aria-label="รายงานผู้บริหาร">
-    <header className="executive-report-heading"><div><p className="eyebrow">EXECUTIVE REPORT CENTER</p><h1>รายงานผู้บริหาร</h1><p>สรุปข้อมูลสำคัญเพื่อการติดตามและบริหารงานรักษาความปลอดภัย</p></div><div className="executive-report-actions"><button type="button" className="btn-neutral" onClick={() => setRefresh((value) => value + 1)} disabled={loading}>↻ รีเฟรช</button><button type="button" className="btn-primary" onClick={() => printDocument('.executive-report-print', filename)} disabled={!report || loading}>ส่งออก PDF</button></div></header>
-    <div className="executive-report-filters"><label><span>เดือน</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{monthNames.map((name, index) => <option value={index + 1} key={name}>{name}</option>)}</select></label><label><span>ปี</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>พ.ศ. {item + 543}</option>)}</select></label>{role === 'ADMIN' && <label><span>หน่วยงาน</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="">ทุกหน่วยงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}</div>
+    {!embedded && <header className="executive-report-heading"><div><p className="eyebrow">EXECUTIVE REPORT CENTER</p><h1>รายงานผู้บริหาร</h1><p>สรุปข้อมูลสำคัญเพื่อการติดตามและบริหารงานรักษาความปลอดภัย</p></div><div className="executive-report-actions"><button type="button" className="btn-neutral" onClick={() => setRefresh((value) => value + 1)} disabled={loading}>↻ รีเฟรช</button><button type="button" className="btn-primary" onClick={() => printDocument('.executive-report-print', filename)} disabled={!report || loading}>ส่งออก PDF</button></div></header>}
+    {!embedded && <div className="executive-report-filters"><label><span>เดือน</span><select value={month} onChange={(event) => setFilter({ month: Number(event.target.value) })}>{monthNames.map((name, index) => <option value={index + 1} key={name}>{name}</option>)}</select></label><label><span>ปี</span><select value={year} onChange={(event) => setFilter({ year: Number(event.target.value) })}>{years.map((item) => <option key={item} value={item}>พ.ศ. {item + 543}</option>)}</select></label>{role === 'ADMIN' && <label><span>หน่วยงาน</span><select value={department} onChange={(event) => setFilter({ department: event.target.value })}><option value="">ทุกหน่วยงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}</div>}
     {loading && <div className="executive-report-loading" role="status">กำลังจัดทำรายงานผู้บริหาร…</div>}
     {error && <div className="alert alert-error" role="alert">{error}</div>}
     {report && !loading && <>
@@ -82,7 +105,7 @@ export function ExecutiveReportCenterPage({ token, role, onNavigate }: { token: 
       <div className="executive-report-grid executive-report-grid-top"><section className="executive-report-panel"><header><h2>กำลังพลและการจัดเวร</h2><button type="button" className="executive-report-link" onClick={() => onNavigate('schedule')}>ดูรายละเอียด</button></header><div className="executive-report-stat-grid"><div><span>พนักงานทั้งหมด</span><b>{thaiNumber(report.workforce.totalEmployees)} คน</b></div><div><span>พนักงานที่ปฏิบัติงาน</span><b>{thaiNumber(report.workforce.activeEmployees)} คน</b></div><div><span>รายการจัดเวร</span><b>{thaiNumber(report.schedule.assignmentCount)} รายการ</b></div></div><Chart title="พนักงานที่ปฏิบัติงานตามหน่วยงาน" items={report.workforce.byDepartment} /><small className="executive-report-note">{report.schedule.periodNote}</small></section><section className="executive-report-panel"><header><h2>การลา</h2><button type="button" className="executive-report-link" onClick={() => onNavigate('leaveHistory')}>ดูรายละเอียด</button></header><div className="executive-report-statuses">{Object.entries(report.leave.statusCounts).map(([status, count]) => <div key={status}><span>{status}</span><b>{thaiNumber(count)}</b></div>)}</div><Chart title="คำขอลาตามประเภท" items={report.leave.byType} /><small className="executive-report-note">{report.leave.overlapRule}</small></section></div>
       <div className="executive-report-grid"><section className="executive-report-panel"><header><h2>สถานะใบอนุญาต</h2><button type="button" className="executive-report-link" onClick={() => onNavigate('licenses')}>ดูรายละเอียด</button></header><Chart title="การปฏิบัติตามใบอนุญาต" items={[{ label: 'หมดอายุ', count: report.license.expired }, { label: 'ใกล้หมดอายุ 30 วัน', count: report.license.expiringWithin30Days }, { label: 'ใช้งานได้เกิน 30 วัน', count: report.license.validBeyond30Days }, { label: 'รอตรวจสอบ', count: report.license.pendingReview }]} /></section><section className="executive-report-panel"><header><h2>คุณภาพข้อมูล</h2>{role === 'ADMIN' && <button type="button" className="executive-report-link" onClick={() => onNavigate('dataQuality')}>ดูรายละเอียด</button>}</header><div className="executive-report-statuses"><div><span>รวม</span><b>{thaiNumber(report.dataQuality.total)}</b></div><div><span>วิกฤต</span><b>{thaiNumber(report.dataQuality.critical)}</b></div><div><span>เตือน</span><b>{thaiNumber(report.dataQuality.warning)}</b></div></div><Chart title="ประเด็นตามกฎตรวจสอบ" items={report.dataQuality.categories.map((item) => ({ label: item.title, count: item.count }))} /></section></div>
       <section className="executive-report-panel executive-report-attention"><header><h2>ประเด็นที่ผู้บริหารควรติดตาม</h2></header>{report.managementAttention.length ? <div className="executive-report-attention-list">{report.managementAttention.map((item) => <article className={item.severity} key={item.title}><div><span>{item.severity}</span><h3>{item.title}</h3><p>{item.description}</p></div><b>{thaiNumber(item.count)}</b>{item.targetPath && <button type="button" className="executive-report-link" onClick={() => onNavigate(item.targetPath!)}>ดูรายละเอียด</button>}</article>)}</div> : <p className="executive-report-empty">ไม่พบประเด็นสำคัญที่ต้องติดตามในช่วงเวลานี้</p>}</section>
-      <ExecutiveReportPrint report={report} />
+      {includePrint && <ExecutiveReportPrint report={report} />}
     </>}
   </section>;
 }

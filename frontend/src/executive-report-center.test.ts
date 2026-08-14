@@ -8,21 +8,27 @@ const page = read('pages/executive-report/ExecutiveReportCenterPage.tsx');
 const styles = read('styles/executive-report.css');
 const print = read('schedule-print.ts');
 
-describe('Executive Report Center presentation and export contract', () => {
-  it('keeps the navigation and server call available only to ADMIN and MANAGER', () => {
-    expect(app).toContain("id: 'executiveReport'");
-    expect(app).toContain("['licenses', 'reports', 'executiveReport']");
-    expect(app).toContain('<ExecutiveReportCenterPage token={auth.token}');
+describe('Executive Report presentation and export contract', () => {
+  it('preserves the existing executive API contract and ADMIN-only department scope control', () => {
     expect(page).toContain('api.executiveReport(token, { year, month, department: department || undefined })');
+    expect(page).toContain("role === 'ADMIN'");
+    expect(page).toContain('filters?: ExecutiveReportFilters');
+    expect(page).toContain('embedded?: boolean');
+    expect(page).toContain('onReportChange?(report?: ExecutiveReport): void');
   });
 
-  it('renders all management sections, period filters, deep links, and safe states', () => {
-    for (const label of ['รายงานผู้บริหาร', 'เดือน', 'ปี', 'หน่วยงาน', 'กำลังพลและการจัดเวร', 'การลา', 'สถานะใบอนุญาต', 'คุณภาพข้อมูล', 'ประเด็นที่ผู้บริหารควรติดตาม', 'ส่งออก PDF']) expect(page).toContain(label);
+  it('keeps all existing management sections, deep links, and safe states reusable inside the unified center', () => {
+    for (const label of ['รายงานผู้บริหาร', 'กำลังพลและการจัดเวร', 'การลา', 'สถานะใบอนุญาต', 'คุณภาพข้อมูล', 'ประเด็นที่ผู้บริหารควรติดตาม', 'ส่งออก PDF']) expect(page).toContain(label);
     expect(page).toContain('ไม่สามารถโหลดรายงานผู้บริหารได้ กรุณาลองใหม่อีกครั้ง');
     expect(page).toContain('ไม่พบประเด็นสำคัญที่ต้องติดตามในช่วงเวลานี้');
     expect(page).toContain("onNavigate('leaveHistory')");
     expect(page).toContain("onNavigate('licenses')");
-    expect(page).toContain("role === 'ADMIN'");
+  });
+
+  it('keeps legacy report page IDs internally compatible while the new center owns rendering', () => {
+    expect(app).toContain("executiveReport: 'reportCenter'");
+    expect(app).toContain("reports: 'reportCenter'");
+    expect(app).toContain("activePage === 'reportCenter' || activePage === 'executiveReport' || activePage === 'reports'");
   });
 
   it('uses responsive grids without page-level horizontal layout and protects Thai action controls', () => {
@@ -35,7 +41,7 @@ describe('Executive Report Center presentation and export contract', () => {
   });
 
   it('prints an isolated report document with no interactive controls and no blank-first-page break', () => {
-    const printSegment = page.slice(page.indexOf('function ExecutiveReportPrint'), page.indexOf('function PrintSection'));
+    const printSegment = page.slice(page.indexOf('export function ExecutiveReportPrint'), page.indexOf('function PrintSection'));
     expect(page).toContain('className="print-only executive-report-print"');
     expect(page).toContain('className="executive-report-print-page"');
     expect(styles).toContain('break-before:auto');
