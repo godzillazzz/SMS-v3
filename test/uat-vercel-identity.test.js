@@ -1,7 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const os = require('node:os');
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const {
   assertSuccessfulHttpStatus,
   normalizeDeploymentIdentity,
@@ -20,6 +22,7 @@ const PROJECT_ID = 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s';
 const PROJECT_NAME = 'sms-v3-staging';
 const HOST = 'sms-v3-staging-5pef2ffup-godzillazz.vercel.app';
 const SOURCE_BRANCH = 'feat/unified-report-center-v1';
+const SANITIZER_PATH = path.resolve(__dirname, '../e2e/helpers/uat-vercel-identity.js');
 
 function rawRecord(overrides = {}) {
   return {
@@ -53,6 +56,21 @@ function validate(record, overrides = {}) {
     expectedGitRef: SOURCE_BRANCH,
     ...overrides
   });
+}
+
+function runSanitize(inputPath, outputPath) {
+  return spawnSync(process.execPath, [SANITIZER_PATH, 'sanitize', inputPath, outputPath], {
+    encoding: 'utf8'
+  });
+}
+
+function withTempDirectory(callback) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-uat-identity-'));
+  try {
+    return callback(directory);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 test('REST meta.githubCommitSha is normalized and validated', () => {
@@ -162,6 +180,71 @@ test('normalizer allowlists identity fields and excludes unrelated response data
   assert.deepEqual(Object.keys(normalized).sort(), ['gitSource', 'id', 'meta', 'name', 'projectId', 'readyState', 'target', 'url'].sort());
 });
 
+test('sanitizer creates an absent destination with exclusive write', () => {
+  withTempDirectory((directory) => {
+    const inputPath = path.join(directory, 'response.json');
+    const outputPath = path.join(directory, 'identity.json');
+    fs.writeFileSync(inputPath, JSON.stringify(rawRecord()));
+    assert.equal(fs.existsSync(outputPath), false);
+    const result = runSanitize(inputPath, outputPath);
+    assert.equal(result.status, 0);
+    assert.equal(JSON.parse(fs.readFileSync(outputPath, 'utf8')).id, DEPLOYMENT_ID);
+  });
+});
+
+test('sanitizer fails closed and does not overwrite an existing destination', () => {
+  withTempDirectory((directory) => {
+    const inputPath = path.join(directory, 'response.json');
+    const outputPath = path.join(directory, 'identity.json');
+    const sentinel = 'existing-identity-content\n';
+    fs.writeFileSync(inputPath, JSON.stringify(rawRecord()));
+    fs.writeFileSync(outputPath, sentinel);
+    const result = runSanitize(inputPath, outputPath);
+    assert.notEqual(result.status, 0);
+    assert.equal(result.stderr.trim(), 'EEXIST');
+    assert.equal(fs.readFileSync(outputPath, 'utf8'), sentinel);
+  });
+});
+
+test('temporary directory supports two independent sanitized outputs and cleanup', () => {
+  let directory;
+  directory = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-uat-identity-'));
+  try {
+    const targetResponse = path.join(directory, 'target-response.json');
+    const expectedResponse = path.join(directory, 'expected-response.json');
+    const targetIdentity = path.join(directory, 'target-identity.json');
+    const expectedIdentity = path.join(directory, 'expected-identity.json');
+    fs.writeFileSync(targetResponse, JSON.stringify(rawRecord()));
+    fs.writeFileSync(expectedResponse, JSON.stringify(rawRecord()));
+    assert.equal(fs.existsSync(targetIdentity), false);
+    assert.equal(fs.existsSync(expectedIdentity), false);
+    assert.equal(runSanitize(targetResponse, targetIdentity).status, 0);
+    assert.equal(runSanitize(expectedResponse, expectedIdentity).status, 0);
+    const sanitized = JSON.parse(fs.readFileSync(targetIdentity, 'utf8'));
+    assert.equal(sanitized.id, DEPLOYMENT_ID);
+    assert.equal('token' in sanitized, false);
+    assert.equal('deployment' in sanitized, false);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+  assert.equal(fs.existsSync(directory), false);
+});
+
+test('temporary directory cleanup also runs after sanitizer failure', () => {
+  let directory;
+  directory = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-v3-uat-identity-'));
+  try {
+    const inputPath = path.join(directory, 'response.json');
+    const outputPath = path.join(directory, 'identity.json');
+    fs.writeFileSync(inputPath, JSON.stringify(rawRecord()));
+    fs.writeFileSync(outputPath, 'existing');
+    assert.notEqual(runSanitize(inputPath, outputPath).status, 0);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+  assert.equal(fs.existsSync(directory), false);
+});
+
 test('workflow uses REST v13 retrieval and sanitized identity files in both jobs', () => {
   const workflow = fs.readFileSync(path.resolve(__dirname, '../.github/workflows/automated-uat-sms-v3-staging.yml'), 'utf8');
   const jobs = [
@@ -176,5 +259,15 @@ test('workflow uses REST v13 retrieval and sanitized identity files in both jobs
     assert.match(job, /uat-vercel-identity\.js sanitize/);
     assert.match(job, /DEPLOYMENT_IDENTITY_SOURCE=VERCEL_REST_V13/);
     assert.doesNotMatch(job, /vercel@"\$VERCEL_CLI_VERSION" inspect/);
+    assert.match(job, /identity_tmp_dir="\$\(mktemp -d\)"/);
+    assert.match(job, /test ! -e "\$target_response"/);
+    assert.match(job, /test ! -e "\$target_identity"/);
+    assert.match(job, /test -s "\$target_response"/);
+    assert.match(job, /test -s "\$target_identity"/);
+    assert.match(job, /rm -rf -- "\$identity_tmp_dir"/);
+    assert.match(job, /trap cleanup EXIT/);
+    assert.doesNotMatch(job, /target_identity="\$\(mktemp\)"/);
+    assert.doesNotMatch(job, /expected_identity="\$\(mktemp\)"/);
+    assert.doesNotMatch(job, /rm -f "\$target_response"/);
   }
 });

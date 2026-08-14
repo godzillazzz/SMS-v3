@@ -101,12 +101,23 @@ jobs:
           APPROVED_HARNESS_SHA="$(git rev-parse origin/test/automated-uat-v3-authenticated)"
           node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$APPROVED_HARNESS_SHA"
 
-          target_response="$(mktemp)"
-          expected_response="$(mktemp)"
-          target_identity="$(mktemp)"
-          expected_identity="$(mktemp)"
-          cleanup() { rm -f "$target_response" "$expected_response" "$target_identity" "$expected_identity"; }
+          identity_tmp_dir="$(mktemp -d)"
+          test -n "$identity_tmp_dir"
+          test -d "$identity_tmp_dir"
+          target_response="$identity_tmp_dir/target-response.json"
+          expected_response="$identity_tmp_dir/expected-response.json"
+          target_identity="$identity_tmp_dir/target-identity.json"
+          expected_identity="$identity_tmp_dir/expected-identity.json"
+          cleanup() {
+            if [[ -n "${identity_tmp_dir:-}" && "$identity_tmp_dir" != / && -d "$identity_tmp_dir" ]]; then
+              rm -rf -- "$identity_tmp_dir"
+            fi
+          }
           trap cleanup EXIT
+          test ! -e "$target_response"
+          test ! -e "$expected_response"
+          test ! -e "$target_identity"
+          test ! -e "$expected_identity"
           TARGET_HOST="${TARGET_URL#https://}"
           EXPECTED_GIT_REF=''
           if [[ "$TARGET_MODE" == candidate ]]; then EXPECTED_GIT_REF="$SOURCE_BRANCH"; fi
@@ -122,17 +133,24 @@ jobs:
               echo 'UAT_VERCEL_REST_FETCH_FAILED'
               exit 1
             fi
+            test -s "$output"
           }
           fetch_deployment "$TARGET_HOST" "$target_response"
+          test -s "$target_response"
           fetch_deployment "$DEPLOYMENT_ID" "$expected_response"
+          test -s "$expected_response"
+          test ! -e "$target_identity"
           if ! node e2e/helpers/uat-vercel-identity.js sanitize "$target_response" "$target_identity"; then
             echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
+          test -s "$target_identity"
+          test ! -e "$expected_identity"
           if ! node e2e/helpers/uat-vercel-identity.js sanitize "$expected_response" "$expected_identity"; then
             echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
+          test -s "$expected_identity"
           node e2e/helpers/uat-target-contract.js verify \
             "$TARGET_MODE" "$TARGET_URL" "$DEPLOYMENT_ID" "$SOURCE_SHA" \
             "$target_identity" "$expected_identity" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME" "$EXPECTED_GIT_REF"
@@ -308,12 +326,23 @@ jobs:
           APPROVED_HARNESS_SHA="$(git rev-parse origin/test/automated-uat-v3-authenticated)"
           node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$APPROVED_HARNESS_SHA"
 
-          target_response="$(mktemp)"
-          expected_response="$(mktemp)"
-          target_identity="$(mktemp)"
-          expected_identity="$(mktemp)"
-          cleanup() { rm -f "$target_response" "$expected_response" "$target_identity" "$expected_identity"; }
+          identity_tmp_dir="$(mktemp -d)"
+          test -n "$identity_tmp_dir"
+          test -d "$identity_tmp_dir"
+          target_response="$identity_tmp_dir/target-response.json"
+          expected_response="$identity_tmp_dir/expected-response.json"
+          target_identity="$identity_tmp_dir/target-identity.json"
+          expected_identity="$identity_tmp_dir/expected-identity.json"
+          cleanup() {
+            if [[ -n "${identity_tmp_dir:-}" && "$identity_tmp_dir" != / && -d "$identity_tmp_dir" ]]; then
+              rm -rf -- "$identity_tmp_dir"
+            fi
+          }
           trap cleanup EXIT
+          test ! -e "$target_response"
+          test ! -e "$expected_response"
+          test ! -e "$target_identity"
+          test ! -e "$expected_identity"
           TARGET_HOST="${TARGET_URL#https://}"
           EXPECTED_GIT_REF=''
           if [[ "$TARGET_MODE" == candidate ]]; then EXPECTED_GIT_REF="$SOURCE_BRANCH"; fi
@@ -329,17 +358,24 @@ jobs:
               echo 'UAT_VERCEL_REST_FETCH_FAILED'
               exit 1
             fi
+            test -s "$output"
           }
           fetch_deployment "$TARGET_HOST" "$target_response"
+          test -s "$target_response"
           fetch_deployment "$DEPLOYMENT_ID" "$expected_response"
+          test -s "$expected_response"
+          test ! -e "$target_identity"
           if ! node e2e/helpers/uat-vercel-identity.js sanitize "$target_response" "$target_identity"; then
             echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
+          test -s "$target_identity"
+          test ! -e "$expected_identity"
           if ! node e2e/helpers/uat-vercel-identity.js sanitize "$expected_response" "$expected_identity"; then
             echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
+          test -s "$expected_identity"
           node e2e/helpers/uat-target-contract.js verify \
             "$TARGET_MODE" "$TARGET_URL" "$DEPLOYMENT_ID" "$SOURCE_SHA" \
             "$target_identity" "$expected_identity" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME" "$EXPECTED_GIT_REF"
