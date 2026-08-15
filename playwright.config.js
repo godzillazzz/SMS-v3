@@ -9,7 +9,7 @@ const diagnosticGrep = !authenticatedMode
   ? undefined
   : targetClass === 'CANONICAL'
     ? /V3 (?:ADMIN|MANAGER|VIEWER): login and role identity/
-    : /V3 VIEWER: protected page dashboard/;
+    : /V3 (?:ADMIN|MANAGER|VIEWER): login and role identity|V3 VIEWER: protected page dashboard/;
 const reporters = [
   ['line'],
   [require.resolve('./e2e/uat-reporter.js'), {

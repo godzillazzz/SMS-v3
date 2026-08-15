@@ -9,6 +9,9 @@ const { performAndWaitForHeavyRequest } = require('../helpers/uat-heavy-read-v3'
 const authenticatedMode = () => String(process.env.UAT_MODE || 'technical').trim().toLowerCase() === 'authenticated';
 const uatScope = () => String(process.env.UAT_SCOPE || 'full').trim().toLowerCase();
 const diagnosticScope = () => uatScope() === 'report-center-diagnostic';
+const VIEWER_LICENSE_BACKGROUND_DENIAL = Object.freeze({ path: '/api/v1/licenses', method: 'GET', status: 403 });
+const viewerBackgroundAllowances = (role) => role === 'VIEWER' ? [VIEWER_LICENSE_BACKGROUND_DENIAL] : [];
+
 const scopeAllows = (role, area) => {
   if (!diagnosticScope()) return true;
   return ['ADMIN', 'MANAGER'].includes(role) && ['login', 'navigation', 'dashboard', 'reportCenter'].includes(area);
@@ -164,7 +167,7 @@ async function requestRoleMatrix(role, token) {
   test.describe(`${role} authenticated V3`, () => {
     test(`V3 ${role}: login and role identity`, async ({ page }, testInfo) => {
       test.skip(!authenticatedMode() || !scopeAllows(role, 'login'), 'This role is outside the selected UAT scope.');
-      const monitor = startPageMonitor(page);
+      const monitor = startPageMonitor(page, { allowedApiResponses: viewerBackgroundAllowances(role) });
       const tracker = createStageTracker({ role, testCode: 'LOGIN', testInfo });
       try {
         const { accessToken, authContract } = await tracker.run('NAV01_LOGIN', () => authenticateRoleIdentity(page, role));
@@ -208,20 +211,14 @@ async function requestRoleMatrix(role, token) {
     for (const item of getRolePageChecks(role).filter(({ id }) => id !== 'reportCenter')) {
       test(`V3 ${role}: protected page ${item.id}`, async ({ page }, testInfo) => {
         test.skip(!authenticatedMode() || diagnosticScope(), 'The diagnostic scope excludes the complete protected-page smoke.');
-        const monitor = startPageMonitor(page);
+        const monitor = startPageMonitor(page, { allowedApiResponses: item.id === 'dashboard' ? viewerBackgroundAllowances(role) : [] });
         if (item.id === 'dashboard') {
           const { authContract } = await loginAs(page, role);
           await testInfo.attach('v31-auth-contract.json', { body: JSON.stringify(authContract), contentType: 'application/json' });
           await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' }), `${role} Dashboard must remain visible after cached-session login.`).toBeVisible();
           const evidence = monitor.safeEvidence();
           await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(evidence), contentType: 'application/json' });
-          if (role === 'VIEWER' && authContract?.targetClass === 'IMMUTABLE') {
-            expect(evidence.pageErrorCount).toBe(0);
-            expect(evidence.consoleErrorCount).toBe(0);
-            expect(evidence.requestFailureCount).toBe(0);
-          } else {
-            monitor.assertClean();
-          }
+          monitor.assertClean();
         } else {
           await bootstrapAs(page, role);
           await navigateTo(page, item.id);

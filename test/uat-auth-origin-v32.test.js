@@ -140,6 +140,19 @@ test('V3.2 exact allowed response suppresses only that precise response', () => 
   ]);
 });
 
+test('V3.2 Viewer license denial is a narrow known Production background denial', () => {
+  const source = read('e2e/smoke/authenticated-v3.spec.js');
+  const matrix = read('e2e/helpers/uat-v3-role-matrix.js');
+  const routes = read('src/routes/operations.routes.js');
+  assert.match(source, /VIEWER_LICENSE_BACKGROUND_DENIAL = Object\.freeze\(\{ path: '\/api\/v1\/licenses', method: 'GET', status: 403 \}\)/);
+  assert.match(source, /viewerBackgroundAllowances = \(role\) => role === 'VIEWER'/);
+  assert.match(source, /item\.id === 'dashboard' \? viewerBackgroundAllowances\(role\) : \[\]/);
+  assert.doesNotMatch(source, /status:\s*403[^\n]*path:\s*['"]\/api\/v1\/\*|allow.*403.*global/i);
+  const viewer = matrix.slice(matrix.indexOf('VIEWER: ['), matrix.indexOf('const navigationCatalog'));
+  assert.match(viewer, /\['License', '\/api\/v1\/licenses\?page=1&pageSize=20', 403/);
+  assert.match(routes, /router\.get\('\/licenses', authorize\('ADMIN', 'MANAGER'\)/);
+});
+
 test('V3.2 reporter persists only sanitized auth and secondary-response observability', () => {
   const reporter = read('e2e/uat-reporter.js');
   assert.match(reporter, /identityMode/);
@@ -150,7 +163,7 @@ test('V3.2 reporter persists only sanitized auth and secondary-response observab
   assert.doesNotMatch(reporter, /responseBody|requestHeaders|Authorization.*pageMonitor|requestId.*pageMonitor/);
 });
 
-test('V3.2 diagnostic selection separates canonical login probe from immutable Viewer observation', () => {
+test('V3.2 diagnostic selection separates canonical 3-login probe from immutable 4-contract probe', () => {
   const config = read('playwright.config.js');
   assert.match(config, /targetClass === 'CANONICAL'/);
   assert.match(config, /classifyUatTarget\(baseURL\)/);
