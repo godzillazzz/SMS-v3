@@ -235,7 +235,8 @@ test('V3 isolates Report Center diagnostics without changing the global timeout'
   assert.match(authenticatedSmoke, /protected page/);
   assert.match(authenticatedSmoke, /Unified Report Center acceptance/);
   assert.match(authenticatedSmoke, /UAT diagnostic \$\{role\}: dashboard observation/);
-  assert.match(authenticatedSmoke, /observeApiResponse/);
+  assert.match(authenticatedSmoke, /performAndWaitForHeavyRequest/);
+  assert.match(authenticatedSmoke, /requestfinished|performAndWaitForHeavyRequest/);
   assert.match(observe, /apiFailureCode/);
   assert.match(observe, /DASHBOARD/);
   assert.match(authenticatedSmoke, /test\.setTimeout\(180_000\)/);

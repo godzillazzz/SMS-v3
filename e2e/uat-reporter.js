@@ -39,6 +39,63 @@ function safeStageAttachment(value) {
   return safe;
 }
 
+function safeNonNegativeInteger(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : 0;
+}
+
+function safeHeavyReadSafetyAttachment(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  return {
+    testsFinishingWithOutstandingHeavyReads: safeNonNegativeInteger(value.testsFinishingWithOutstandingHeavyReads),
+    exceptionalHeavyDrainCount: safeNonNegativeInteger(value.exceptionalHeavyDrainCount),
+    exceptionalHeavyDrainWaitMs: safeNonNegativeInteger(value.exceptionalHeavyDrainWaitMs),
+    realHeavyStarts: safeNonNegativeInteger(value.realHeavyStarts),
+    preventedHeavyStarts: safeNonNegativeInteger(value.preventedHeavyStarts)
+  };
+}
+
+function safeAuthContractAttachment(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  const safe = {};
+  for (const key of ['loginStatus', 'dashboardStatus']) {
+    const status = Number(value[key]);
+    if (Number.isInteger(status) && status >= 100 && status <= 599) safe[key] = status;
+  }
+  for (const key of ['roleMatched', 'accessTokenPresent', 'cachedSessionPresent', 'cachedRefreshUsed', 'dashboardRequestTerminal', 'authenticatedShellVisible']) {
+    if (typeof value[key] === 'boolean') safe[key] = value[key];
+  }
+  if (['REAL_BROWSER_LOGIN', 'CACHED_PREFLIGHT_SESSION'].includes(value.identityMode)) safe.identityMode = value.identityMode;
+  if (['CANONICAL', 'IMMUTABLE'].includes(value.targetClass)) safe.targetClass = value.targetClass;
+  if (value.dashboardSuppressorActiveAtHelperReturn !== undefined) safe.dashboardSuppressorActiveAtHelperReturn = safeNonNegativeInteger(value.dashboardSuppressorActiveAtHelperReturn);
+  return Object.keys(safe).length ? safe : undefined;
+}
+
+function safePageMonitorAttachment(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  const safe = {
+    pageErrorCount: safeNonNegativeInteger(value.pageErrorCount),
+    consoleErrorCount: safeNonNegativeInteger(value.consoleErrorCount),
+    requestFailureCount: safeNonNegativeInteger(value.requestFailureCount),
+    secondaryApiFailures: []
+  };
+  const entries = Array.isArray(value.secondaryApiFailures) ? value.secondaryApiFailures.slice(0, 20) : [];
+  for (const entry of entries) {
+    const entryPath = typeof entry?.path === 'string' && /^\/api\/v1\/[A-Za-z0-9._~!$&'()+,;=:@%\/-]+$/.test(entry.path) ? entry.path : undefined;
+    const method = String(entry?.method || '').toUpperCase();
+    const status = Number(entry?.status);
+    if (!entryPath || !['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'].includes(method)) continue;
+    if (!Number.isInteger(status) || status < 400 || status > 599) continue;
+    safe.secondaryApiFailures.push({
+      path: entryPath,
+      method,
+      status,
+      classification: entry.classification === 'UNEXPECTED_API_RESPONSE' ? 'UNEXPECTED_API_RESPONSE' : 'UNKNOWN'
+    });
+  }
+  return safe;
+}
+
 class UatSummaryReporter {
   constructor(options = {}) {
     this.outputFile = options.outputFile || 'test-results/uat-summary.md';
@@ -47,17 +104,31 @@ class UatSummaryReporter {
     this.results = [];
     this.technicalSummary = undefined;
     this.regressionSummary = {};
+    this.heavyReadSafety = {
+      testsFinishingWithOutstandingHeavyReads: 0,
+      exceptionalHeavyDrainCount: 0,
+      exceptionalHeavyDrainWaitMs: 0,
+      realHeavyStarts: 0,
+      preventedHeavyStarts: 0
+    };
   }
 
   onTestEnd(test, result) {
     const title = test.titlePath().slice(1).join(' › ');
     let stage;
+    let authContract;
+    let pageMonitor;
     for (const attachment of result.attachments || []) {
-      if (attachment.name !== 'uat-stage.json' || !attachment.body) continue;
+      if (!attachment.body) continue;
       try {
-        stage = safeStageAttachment(JSON.parse(attachment.body.toString('utf8')));
+        const parsed = JSON.parse(attachment.body.toString('utf8'));
+        if (attachment.name === 'uat-stage.json') stage = safeStageAttachment(parsed);
+        if (attachment.name === 'v31-auth-contract.json') authContract = safeAuthContractAttachment(parsed);
+        if (attachment.name === 'v32-page-monitor.json') pageMonitor = safePageMonitorAttachment(parsed);
       } catch {
-        stage = undefined;
+        if (attachment.name === 'uat-stage.json') stage = undefined;
+        if (attachment.name === 'v31-auth-contract.json') authContract = undefined;
+        if (attachment.name === 'v32-page-monitor.json') pageMonitor = undefined;
       }
     }
     this.results.push({
@@ -66,7 +137,9 @@ class UatSummaryReporter {
       status: result.status,
       duration: Number.isFinite(result.duration) ? result.duration : 0,
       safeErrorCode: safeErrorCode(result),
-      ...(stage ? { stage } : {})
+      ...(stage ? { stage } : {}),
+      ...(authContract ? { authContract } : {}),
+      ...(pageMonitor ? { pageMonitor } : {})
     });
     for (const attachment of result.attachments || []) {
       if (!attachment.body) continue;
@@ -81,6 +154,10 @@ class UatSummaryReporter {
       if (attachment.name === 'v2-audit-summary.json') this.regressionSummary.audit = parsed;
       if (attachment.name === 'v2-dashboard-summary.json') this.regressionSummary.dashboard = parsed;
       if (attachment.name === 'performance-validation.json') this.performanceValidation = mergePerformanceValidation(this.performanceValidation, parsed);
+      if (attachment.name === 'heavy-read-safety.json') {
+        const metric = safeHeavyReadSafetyAttachment(parsed);
+        if (metric) for (const key of Object.keys(this.heavyReadSafety)) this.heavyReadSafety[key] += metric[key];
+      }
     }
   }
 
@@ -156,6 +233,13 @@ class UatSummaryReporter {
       `- Authenticated MANAGER: ${roleStatus('MANAGER')}`,
       `- Authenticated VIEWER: ${roleStatus('VIEWER')}`,
       '',
+      '#### HEAVY READ SAFETY',
+      `- testsFinishingWithOutstandingHeavyReads: ${this.heavyReadSafety.testsFinishingWithOutstandingHeavyReads}`,
+      `- exceptionalHeavyDrainCount: ${this.heavyReadSafety.exceptionalHeavyDrainCount}`,
+      `- exceptionalHeavyDrainWaitMs: ${this.heavyReadSafety.exceptionalHeavyDrainWaitMs}`,
+      `- realHeavyStarts: ${this.heavyReadSafety.realHeavyStarts}`,
+      `- preventedHeavyStarts: ${this.heavyReadSafety.preventedHeavyStarts}`,
+      '',
       `- Passed tests: ${passed}`,
       `- Skipped tests: ${skipped}`,
       `- Failed tests: ${failed}`,
@@ -179,13 +263,15 @@ class UatSummaryReporter {
     for (const entry of this.results) lines.push(`- ${entry.status.toUpperCase()}: ${entry.testName}`);
     fs.mkdirSync(path.dirname(this.outputFile), { recursive: true });
     fs.writeFileSync(this.outputFile, `${lines.join('\n')}\n`);
-    const safeResults = this.results.map(({ testName, role, status, duration, safeErrorCode, stage }) => ({
+    const safeResults = this.results.map(({ testName, role, status, duration, safeErrorCode, stage, authContract, pageMonitor }) => ({
       testName,
       ...(role ? { role } : {}),
       status,
       duration,
       ...(safeErrorCode ? { safeErrorCode } : {}),
-      ...(stage ? { stage } : {})
+      ...(stage ? { stage } : {}),
+      ...(authContract ? { authContract } : {}),
+      ...(pageMonitor ? { pageMonitor } : {})
     }));
     fs.mkdirSync(path.dirname(this.jsonOutputFile), { recursive: true });
     fs.writeFileSync(this.jsonOutputFile, JSON.stringify({
@@ -193,6 +279,7 @@ class UatSummaryReporter {
       tests: safeResults,
       totals: { passed, skipped, failed },
       overall: String(result.status || '').toUpperCase(),
+      heavyReadSafety: this.heavyReadSafety,
       ...(performanceValidation.networkContracts || performanceValidation.benchmark ? { performanceValidation } : {})
     }, null, 2) + '\n');
   }
