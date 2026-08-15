@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiRequestError, api } from './api';
+import { ApiRequestError, api, normalizeRequestId } from './api';
 import { sanitizeLicenseDocumentError } from './components/license-document-utils';
 
 const success = () => ({ status: 200, ok: true, json: async () => ({ accessToken: 'test-access-token', user: {} }) });
@@ -94,9 +94,52 @@ describe('API client', () => {
     expect(JSON.stringify(fetchMock.mock.calls)).not.toContain('storageObjectKey');
   });
   it('adds a safe reference ID only to sanitized server errors', () => {
-    expect(sanitizeLicenseDocumentError(new ApiRequestError('Database unavailable.', 503, 'req-db-503'))).toBe('ระบบไม่สามารถดำเนินการเอกสารได้ชั่วคราว กรุณาลองใหม่อีกครั้ง (รหัสอ้างอิง: req-db-503)');
+    expect(sanitizeLicenseDocumentError(new ApiRequestError('Database unavailable.', 503, 'req-db-503'))).toBe('ระบบไม่สามารถดำเนินการเอกสารได้ชั่วคราว กรุณาลองใหม่อีกครั้ง');
     expect(sanitizeLicenseDocumentError(new ApiRequestError('คุณไม่มีสิทธิ์อนุมัติเอกสารนี้', 403, 'req-auth-403'))).toBe('คุณไม่มีสิทธิ์อนุมัติเอกสารนี้');
   });
+  it('captures request IDs from the response header before the JSON body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 503, ok: false, headers: new Headers({ 'x-request-id': 'syd1:iad1::header-503' }), json: async () => ({ error: 'Safe server message.', requestId: 'body-503', stack: 'private-stack', token: 'private-token' }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    const error = await api.dashboard('test-access-token').catch((reason) => reason);
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(error).toMatchObject({ status: 503, requestId: 'syd1:iad1::header-503', message: 'Safe server message.' });
+    expect(Object.keys(error)).toEqual(expect.arrayContaining(['name', 'status', 'requestId']));
+    for (const key of ['payload', 'headers', 'body', 'databaseUrl', 'sql', 'params', 'token', 'storageObjectKey']) expect(key in error).toBe(false);
+  });
+
+  it('falls back to a safe body requestId when the header is absent', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 503, ok: false, headers: new Headers(), json: async () => ({ error: 'Safe fallback message.', requestId: 'body-request-503' }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(api.dashboard('test-access-token')).rejects.toMatchObject({ requestId: 'body-request-503', message: 'Safe fallback message.' });
+  });
+
+  it('omits malformed request IDs without fabricating a replacement', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 503, ok: false, headers: { get: () => 'bad\nheader' }, json: async () => ({ error: 'Safe message.', requestId: 'bad\tbody' }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    const error = await api.dashboard('test-access-token').catch((reason) => reason);
+    expect(error).toMatchObject({ message: 'Safe message.' });
+    expect(error.requestId).toBeUndefined();
+  });
+
+  it('normalizes opaque request IDs safely without assuming UUID format', () => {
+    expect(normalizeRequestId('  syd1:iad1::opaque_123-ABC  ')).toBe('syd1:iad1::opaque_123-ABC');
+    expect(normalizeRequestId('')).toBeUndefined();
+    expect(normalizeRequestId('bad\nvalue')).toBeUndefined();
+    expect(normalizeRequestId('x'.repeat(201))).toBeUndefined();
+    expect(normalizeRequestId(undefined)).toBeUndefined();
+  });
+
+  it('preserves request IDs for multipart server errors', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 503, ok: false, headers: new Headers({ 'x-request-id': 'iad1::multipart-503' }), json: async () => ({ error: 'Upload temporarily unavailable.', requestId: 'body-multipart' }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    const file = new File(['fixture'], 'license.pdf', { type: 'application/pdf' });
+    await expect(api.uploadLicenseDocument('test-access-token', 'license-id', { licenseNumber: 'LN-1', proposedStartDate: '2026-01-01', proposedExpiryDate: '2026-12-31' }, file)).rejects.toMatchObject({ name: 'ApiRequestError', status: 503, requestId: 'iad1::multipart-503', message: 'Upload temporarily unavailable.' });
+  });
+
   it('exposes the protected operational mutation methods', () => {
     for (const operation of [
       'createEmployee', 'updateEmployee', 'deleteEmployee',

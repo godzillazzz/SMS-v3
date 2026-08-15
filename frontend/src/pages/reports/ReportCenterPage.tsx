@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
+import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { printDocument } from '../../schedule-print';
 import {
   ExecutiveReportCenterPage,
@@ -44,7 +45,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
   const [executiveReport, setExecutiveReport] = useState<ExecutiveReport>();
   const [summary, setSummary] = useState<ReportSummary>();
   const [summaryLoading, setSummaryLoading] = useState(false);
-  const [summaryError, setSummaryError] = useState<string>();
+  const [summaryError, setSummaryError] = useState<RequestErrorInput>();
   const [summaryRefresh, setSummaryRefresh] = useState(0);
   const [summaryLoaded, setSummaryLoaded] = useState(false);
   const years = useMemo(() => Array.from({ length: 4 }, (_, index) => current.year - index), [current.year]);
@@ -69,7 +70,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
     setSummaryError(undefined);
     api.reportSummary(token)
       .then((response) => { if (active) { setSummary((!Array.isArray(response.data) ? response.data : {}) as ReportSummary); setSummaryLoaded(true); } })
-      .catch(() => { if (active) { setSummaryLoaded(true); setSummaryError('ไม่สามารถโหลดรายงานรายละเอียดได้ กรุณาลองใหม่อีกครั้ง'); } })
+      .catch((reason) => { if (active) { setSummaryLoaded(true); setSummaryError(toRequestErrorState(reason, 'ไม่สามารถโหลดรายงานรายละเอียดได้ กรุณาลองใหม่อีกครั้ง')); } })
       .finally(() => { if (active) setSummaryLoading(false); });
     return () => { active = false; };
   }, [activeTab, token, summaryRefresh, summaryLoaded]);
@@ -108,7 +109,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
     <div role="tabpanel" hidden={activeTab !== 'details'} className="report-center-tab-panel">
       <section className="report-center-section-heading"><div><p className="eyebrow">DETAILED REPORTS</p><h2>รายงานรายละเอียด</h2><p>สรุปข้อมูลปฏิบัติงานจากชุดข้อมูลและ API เดิม โดยไม่เปลี่ยนสูตรคำนวณ</p></div><button type="button" className="btn-neutral small-action" disabled={summaryLoading} onClick={() => { setSummaryLoaded(false); setSummaryRefresh((value) => value + 1); }}>↻ รีเฟรช</button></section>
       {summaryLoading && <div className="report-center-state" role="status">กำลังสรุปข้อมูล…</div>}
-      {summaryError && <div className="report-center-state report-center-state--error" role="alert"><strong>ไม่สามารถโหลดรายงานรายละเอียด</strong><span>{summaryError}</span></div>}
+      {summaryError && <div className="report-center-state report-center-state--error" role="alert"><strong>ไม่สามารถโหลดรายงานรายละเอียด</strong><RequestErrorContent error={summaryError} /></div>}
       {!summaryLoading && !summaryError && summary && <div className="metrics-grid report-grid">{summaryCards.map(([label, key]) => <article className="metric-card" key={String(key)}><span className="metric-icon blue">▦</span><div><p>{label}</p><strong>{String(summary[key] ?? 0)}</strong><small>รายการปัจจุบัน</small></div></article>)}</div>}
       {!summaryLoading && !summaryError && summary && summaryCards.every(([, key]) => Number(summary[key] || 0) === 0) && <div className="report-center-state"><strong>ยังไม่มีข้อมูลสรุป</strong><span>ไม่พบรายการในชุดข้อมูลรายงานปัจจุบัน</span></div>}
     </div>

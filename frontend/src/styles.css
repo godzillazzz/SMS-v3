@@ -2384,3 +2384,33 @@ button.btn-icon-only:hover:not(:disabled) { background:var(--action-neutral-hove
 button.btn-primary:focus-visible, button.btn-secondary:focus-visible, button.btn-info:focus-visible, button.btn-success:focus-visible, button.btn-warning:focus-visible, button.btn-danger:focus-visible, button.btn-neutral:focus-visible, button.btn-ghost:focus-visible, button.btn-icon-only:focus-visible, button.danger-action:focus-visible { outline:3px solid rgba(87,70,217,.35); outline-offset:2px; box-shadow:0 0 0 1px #fff; }
 button.btn-primary:disabled, button.btn-secondary:disabled, button.btn-info:disabled, button.btn-success:disabled, button.btn-warning:disabled, button.btn-danger:disabled, button.btn-neutral:disabled, button.btn-ghost:disabled, button.btn-icon-only:disabled, button.danger-action:disabled { color:#7d8795; background:#edf0f4; border-color:#d7dce4; opacity:1; cursor:not-allowed; box-shadow:none; }
 
+
+
+/* Safe request reference displayed only for normalized API error IDs. */
+.request-error-reference {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.request-error-reference-label { font-weight: 700; }
+.request-error-reference-id {
+  max-width: min(100%, 520px);
+  overflow-wrap: anywhere;
+  user-select: text;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.request-error-copy {
+  min-height: 30px;
+  padding: 4px 9px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.request-error-copy:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

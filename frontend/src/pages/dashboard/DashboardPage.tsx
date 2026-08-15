@@ -10,9 +10,10 @@ import { DataSyncStatusCard } from '../../components/dashboard/DataSyncStatusCar
 import { LeaveSummaryCard } from '../../components/dashboard/LeaveSummaryCard';
 import { LicenseSummaryCard } from '../../components/dashboard/LicenseSummaryCard';
 import { asNumber, type DashboardAction, type DashboardActivity, type DashboardExpiringLicense, type DashboardFilters, type DashboardNavigate, type DashboardSummary, type DashboardUser } from '../../components/dashboard/types';
+import { RequestErrorReference, type RequestErrorInput } from '../../request-error';
 import '../../styles/dashboard.css';
 
-type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: string; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
+type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: RequestErrorInput; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
 
 export function DashboardPage({ summary, loading, error, user, canManage, filters, onFiltersChange, onNavigate }: DashboardPageProps) {
   const totalEmployees = asNumber(summary.totalEmployees);
@@ -42,7 +43,7 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
   return <section className="dashboard-page-v2" aria-label="Executive Operations Dashboard">
     <DashboardHeroHeader user={user} />
     <DashboardFilterBar filters={filters} departments={departments} role={user?.role} loading={loading} onChange={onFiltersChange} />
-    {error && <div className="dashboard-data-error" role="alert"><b>ไม่สามารถโหลดข้อมูล Dashboard ได้</b><span>แสดงสถานะที่มีอยู่ล่าสุด โดยไม่มีการสร้างข้อมูลแทน</span></div>}
+    {error && <div className="dashboard-data-error" role="alert"><b>ไม่สามารถโหลดข้อมูล Dashboard ได้</b><span>แสดงสถานะที่มีอยู่ล่าสุด โดยไม่มีการสร้างข้อมูลแทน</span><RequestErrorReference requestId={typeof error === 'string' ? undefined : error?.requestId} /></div>}
     {!error && partialErrors.length > 0 && <div className="dashboard-data-warning" role="status"><b>ข้อมูลบางส่วนยังไม่พร้อม</b><span>ส่วนที่พร้อมใช้งานยังแสดงตามสิทธิ์ของคุณ และระบบจะลองโหลดใหม่เมื่อมีการรีเฟรช</span></div>}
     <MetricsGrid totalEmployees={totalEmployees} activeEmployees={activeEmployees} workingToday={onDutyToday} leaveToday={leaveToday} pendingLeaves={pendingLeaves} attentionCount={attentionCount} expiringLicenses={expiringLicenses} pendingLicenseDocuments={pendingLicenseDocuments} notScheduledToday={notScheduledToday} loading={loading} onNavigate={onNavigate} />
     <div className="dashboard-command-grid dashboard-primary-grid"><TodayOperationsCard operations={todayOperations} totalEmployees={totalEmployees} activeEmployees={activeEmployees} loading={loading} onNavigate={onNavigate} /><AttentionNeededCard rows={actionRows} expiringLicenses={expiringLicenseDetails} loading={loading} onNavigate={onNavigate} /></div>

@@ -136,9 +136,12 @@ test('approved schedule PDF keeps the shift legend directly below the roster and
 test('interface keeps operational feedback, mobile tables, and schedule draft actions usable', () => {
   const frontend = read('frontend/src/main.tsx');
   const styles = read('frontend/src/styles.css');
+  const requestErrors = read('frontend/src/request-error.tsx');
 
   assert.match(frontend, /function ErrorAlert/);
-  assert.match(frontend, /ระบบไม่สามารถดำเนินการได้ชั่วคราว/);
+  assert.match(frontend, /RequestErrorContent/);
+  assert.match(requestErrors, /ระบบไม่สามารถดำเนินการได้ชั่วคราว/);
+  assert.match(requestErrors, /รหัสอ้างอิง/);
   assert.match(frontend, /className="empty-state"/);
   assert.match(frontend, /className="calendar-toolbar-box schedule-workbench"/);
   assert.match(frontend, /className="schedule-draft-actions"/);

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ApiRequestError, api } from '../../api';
+import { api } from '../../api';
+import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import type { PersonnelRecord } from './types';
 import '../../styles/employee-lifecycle.css';
 
@@ -43,14 +44,6 @@ const todayInput = () => {
 };
 const thaiDate = (value: string) => new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value.slice(0, 10)}T00:00:00Z`));
 const text = (value: unknown) => value === null || value === undefined || value === '' ? 'ไม่ระบุ' : String(value);
-const lifecycleErrorText = (reasonValue: unknown, fallback: string) => {
-  if (reasonValue instanceof ApiRequestError) {
-    const requestId = typeof reasonValue.requestId === 'string' && /^[A-Za-z0-9:_-]{1,120}$/.test(reasonValue.requestId) ? reasonValue.requestId : '';
-    return reasonValue.message + (reasonValue.status >= 500 && requestId ? '\nรหัสอ้างอิง: ' + requestId : '');
-  }
-  return reasonValue instanceof Error ? reasonValue.message : fallback;
-};
-
 function eventChange(event: LifecycleEvent) {
   const before = event.oldValue?.employee || {};
   const after = event.newValue?.employee || {};
@@ -70,7 +63,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
   const [history, setHistory] = useState<LifecycleEvent[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<RequestErrorInput>();
   const [success, setSuccess] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
@@ -84,8 +77,8 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
     try {
       const result = await api.employeeLifecycleHistory(token, employee.id);
       setHistory(Array.isArray(result?.data) ? result.data : []);
-    } catch {
-      setError('ไม่สามารถโหลดประวัติวงจรพนักงานได้');
+    } catch (reasonValue) {
+      setError(toRequestErrorState(reasonValue, 'ไม่สามารถโหลดประวัติวงจรพนักงานได้'));
     } finally {
       setLoadingHistory(false);
     }
@@ -98,7 +91,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
     return () => { document.body.style.overflow = previous; };
   }, []);
 
-  const invalidate = () => { setPreflight(undefined); setError(''); setSuccess(''); setIdempotencyKey(crypto.randomUUID()); };
+  const invalidate = () => { setPreflight(undefined); setError(undefined); setSuccess(''); setIdempotencyKey(crypto.randomUUID()); };
   const payloadChanges = () => {
     if (type === 'NAME_CHANGE') return { firstName: changes.firstName, lastName: changes.lastName };
     if (type === 'DEPARTMENT_TRANSFER') return { department: changes.department };
@@ -108,22 +101,22 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
   };
 
   const runPreflight = async () => {
-    setBusy(true); setError(''); setSuccess('');
+    setBusy(true); setError(undefined); setSuccess('');
     try {
       const result = await api.preflightEmployeeLifecycle(token, employee.id, { type, effectiveDate, changes: payloadChanges() });
       setPreflight(result.data);
     } catch (reasonValue) {
-      setError(lifecycleErrorText(reasonValue, 'ไม่สามารถตรวจสอบผลกระทบได้'));
+      setError(toRequestErrorState(reasonValue, 'ไม่สามารถตรวจสอบผลกระทบได้'));
     } finally { setBusy(false); }
   };
 
   const submit = async () => {
     if (!preflight || preflight.blockingIssues.length) return;
     if (type === 'EMPLOYMENT_TERMINATION' && confirmation !== employee.employeeCode) {
-      setError('กรุณาพิมพ์รหัสพนักงานให้ถูกต้องเพื่อยืนยันการลาออก');
+      setError({ message: 'กรุณาพิมพ์รหัสพนักงานให้ถูกต้องเพื่อยืนยันการลาออก' });
       return;
     }
-    setBusy(true); setError('');
+    setBusy(true); setError(undefined);
     try {
       await api.createEmployeeLifecycleEvent(token, employee.id, {
         type,
@@ -140,7 +133,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
       await loadHistory();
       onApplied();
     } catch (reasonValue) {
-      setError(lifecycleErrorText(reasonValue, 'บันทึกการเปลี่ยนแปลงไม่สำเร็จ'));
+      setError(toRequestErrorState(reasonValue, 'บันทึกการเปลี่ยนแปลงไม่สำเร็จ'));
     } finally { setBusy(false); }
   };
 
@@ -150,7 +143,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
       <div className="lifecycle-layout">
         <form className="lifecycle-form" onSubmit={(event) => { event.preventDefault(); void (preflight ? submit() : runPreflight()); }}>
           <div className="lifecycle-current"><strong>ข้อมูลปัจจุบัน</strong><span>{employee.department || 'ไม่ระบุหน่วยงาน'} · {employee.jobTitle || 'ไม่ระบุตำแหน่ง'} · {employee.isActive ? 'ปฏิบัติงาน' : 'ไม่ปฏิบัติงาน'}</span></div>
-          {error && <div className="lifecycle-alert lifecycle-alert--error" role="alert">{error}</div>}
+          {error && <div className="lifecycle-alert lifecycle-alert--error" role="alert"><RequestErrorContent error={error} /></div>}
           {success && <div className="lifecycle-alert lifecycle-alert--success" role="status">{success}</div>}
           <label><span>รายการ</span><select value={type} disabled={busy} onChange={(event) => { setType(event.target.value as LifecycleType); invalidate(); }}>{availableTypes.map((value) => <option key={value} value={value}>{typeLabels[value]}</option>)}</select></label>
           {type === 'NAME_CHANGE' && <div className="lifecycle-field-grid"><label><span>ชื่อใหม่</span><input required value={changes.firstName} onChange={(event) => { setChanges({ ...changes, firstName: event.target.value }); invalidate(); }} /></label><label><span>นามสกุลใหม่</span><input required value={changes.lastName} onChange={(event) => { setChanges({ ...changes, lastName: event.target.value }); invalidate(); }} /></label></div>}

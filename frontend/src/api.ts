@@ -1,6 +1,20 @@
 const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('smsv3_csrf='))?.split('=')[1];
 
+export function normalizeRequestId(value: unknown) {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim();
+  if (!normalized || normalized.length > 200 || /[\u0000-\u001f\u007f]/.test(normalized)) return undefined;
+  return normalized;
+}
+
+function responseRequestId(response: Response, payload?: unknown) {
+  const headerRequestId = normalizeRequestId(response.headers?.get?.('x-request-id'));
+  if (headerRequestId) return headerRequestId;
+  if (payload && typeof payload === 'object' && 'requestId' in payload) return normalizeRequestId((payload as { requestId?: unknown }).requestId);
+  return undefined;
+}
+
 export class ApiRequestError extends Error {
   status: number;
   requestId?: string;
@@ -9,7 +23,7 @@ export class ApiRequestError extends Error {
     super(message);
     this.name = 'ApiRequestError';
     this.status = status;
-    this.requestId = typeof requestId === 'string' ? requestId : undefined;
+    this.requestId = normalizeRequestId(requestId);
   }
 }
 
@@ -52,7 +66,7 @@ async function call(path: string, init: RequestInit = {}, isRetry = false): Prom
       }
     }
     const errMessage = payload.error || (response.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
-    throw new ApiRequestError(errMessage, response.status, payload.requestId);
+    throw new ApiRequestError(errMessage, response.status, responseRequestId(response, payload));
   }
   return payload;
 }
@@ -84,7 +98,7 @@ async function binaryCall(path: string, init: RequestInit = {}, isRetry = false)
       }
     }
     const payload = await response.json().catch(() => ({}));
-    throw new ApiRequestError(payload.error || 'เกิดข้อผิดพลาดในการดาวน์โหลดเอกสาร', response.status, payload.requestId);
+    throw new ApiRequestError(payload.error || 'เกิดข้อผิดพลาดในการดาวน์โหลดเอกสาร', response.status, responseRequestId(response, payload));
   }
   const disposition = response.headers.get('content-disposition') || '';
   const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
@@ -214,7 +228,7 @@ export const api = {
 
 async function callMultipart(path: string, token: string, body: FormData) {
   const response = await fetch(`${baseUrl}${path}`, { method: 'POST', body, credentials: 'include', headers: { Authorization: `Bearer ${token}` } });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || 'Request failed.');
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiRequestError(payload.error || 'Request failed.', response.status, responseRequestId(response, payload));
   return payload;
 }

@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
+import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { printDocument } from '../../schedule-print';
 import '../../styles/executive-report.css';
 
@@ -70,7 +71,7 @@ export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, on
   const department = filters?.department ?? localDepartment;
   const [report, setReport] = useState<ExecutiveReport>();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<RequestErrorInput>();
   const [refresh, setRefresh] = useState(0);
   const [loadedKey, setLoadedKey] = useState('');
   const reportKey = `${year}:${month}:${department}`;
@@ -96,7 +97,7 @@ export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, on
     setLoading(true); setError(undefined);
     api.executiveReport(token, { year, month, department: department || undefined })
       .then((response) => { if (active) { const next = response.data as ExecutiveReport; setReport(next); setLoadedKey(requestKey); onReportChange?.(next); } })
-      .catch(() => { if (active) setError('ไม่สามารถโหลดรายงานผู้บริหารได้ กรุณาลองใหม่อีกครั้ง'); })
+      .catch((reason) => { if (active) setError(toRequestErrorState(reason, 'ไม่สามารถโหลดรายงานผู้บริหารได้ กรุณาลองใหม่อีกครั้ง')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [token, year, month, department, refresh, onReportChange, fetchEnabled, loadedKey, requestKey]);
@@ -109,7 +110,7 @@ export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, on
     {!embedded && <header className="executive-report-heading"><div><p className="eyebrow">EXECUTIVE REPORT CENTER</p><h1>รายงานผู้บริหาร</h1><p>สรุปข้อมูลสำคัญเพื่อการติดตามและบริหารงานรักษาความปลอดภัย</p></div><div className="executive-report-actions"><button type="button" className="btn-neutral" onClick={() => { setLoadedKey(''); setRefresh((value) => value + 1); }} disabled={loading}>↻ รีเฟรช</button><button type="button" className="btn-primary" onClick={() => printDocument('.executive-report-print', filename)} disabled={!report || loading}>ส่งออก PDF</button></div></header>}
     {!embedded && <div className="executive-report-filters"><label><span>เดือน</span><select value={month} onChange={(event) => setFilter({ month: Number(event.target.value) })}>{monthNames.map((name, index) => <option value={index + 1} key={name}>{name}</option>)}</select></label><label><span>ปี</span><select value={year} onChange={(event) => setFilter({ year: Number(event.target.value) })}>{years.map((item) => <option key={item} value={item}>พ.ศ. {item + 543}</option>)}</select></label>{role === 'ADMIN' && <label><span>หน่วยงาน</span><select value={department} onChange={(event) => setFilter({ department: event.target.value })}><option value="">ทุกหน่วยงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}</div>}
     {loading && <div className="executive-report-loading" role="status">กำลังจัดทำรายงานผู้บริหาร…</div>}
-    {error && <div className="alert alert-error" role="alert">{error}</div>}
+    {error && <div className="alert alert-error" role="alert"><RequestErrorContent error={error} /></div>}
     {report && !loading && <>
       <p className="executive-report-context">รอบรายงาน: <strong>{report.period.label}</strong> · ขอบเขต: <strong>{report.scope.departmentName}</strong> · สร้างเมื่อ {formatDateTime(report.generatedAt)}</p>
       <div className="executive-report-kpis">{report.executiveSummary.map((item) => <article className={`executive-report-kpi ${item.status}`} key={item.key}><span>{item.label}</span><strong>{thaiNumber(item.value)}</strong><small>{item.unit}</small></article>)}</div>

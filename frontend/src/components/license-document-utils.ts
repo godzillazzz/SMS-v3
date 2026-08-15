@@ -139,10 +139,8 @@ export function licenseValidityLabel(issueDate?: string | null, expiryDate?: str
 
 export function sanitizeLicenseDocumentError(reason: unknown) {
   const message = reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : '';
-  const status = typeof reason === 'object' && reason !== null && 'status' in reason && typeof reason.status === 'number' ? reason.status : 0;
-  const requestId = typeof reason === 'object' && reason !== null && 'requestId' in reason && typeof reason.requestId === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(reason.requestId) ? reason.requestId : '';
   if (!message || /https?:\/\/|signed.?url|storage|object.?key|stack|prisma|database|internal|credential|token/i.test(message)) {
-    return `ระบบไม่สามารถดำเนินการเอกสารได้ชั่วคราว กรุณาลองใหม่อีกครั้ง${status >= 500 && requestId ? ` (รหัสอ้างอิง: ${requestId})` : ''}`;
+    return 'ระบบไม่สามารถดำเนินการเอกสารได้ชั่วคราว กรุณาลองใหม่อีกครั้ง';
   }
   return message.replace(/[\r\n\t]+/g, ' ').trim().slice(0, 300);
 }
