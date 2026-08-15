@@ -46,6 +46,9 @@ test('one-shot lane is bound to exact target, deployment, application, source br
   for (const value of Object.values(EXACT)) assert.match(authenticated, new RegExp(escapeRegExp(value)));
   assert.match(authenticated, /UAT_DISPOSABLE_RELEASE_IDENTITY_MISMATCH/);
   assert.match(authenticated, /uat-target-contract\.js verify canonical/);
+  assert.match(authenticated, /withGitRepoInfo=true/);
+  assert.match(authenticated, /uat-vercel-identity\.js sanitize/);
+  assert.doesNotMatch(authenticated, /npx --yes vercel@latest api/);
   assert.match(authenticated, /prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s/);
   assert.match(authenticated, /sms-v3-staging/);
 });
