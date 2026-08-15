@@ -22,6 +22,7 @@ const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filte
 const { getDashboardSummary } = require('../services/dashboard.service');
 const { getAuditLogPage } = require('../services/audit-log-viewer.service');
 const { getExecutiveReport } = require('../services/executive-report.service');
+const shiftService = require('../services/shift.service');
 const HttpError = require('../utils/http-error');
 
 const router = express.Router();
@@ -384,23 +385,14 @@ router.get('/shift-types', async (_req, res, next) => {
 router.post('/shift-types', authorize('ADMIN'), async (req, res, next) => {
   try {
     const input = shiftTypeInput.parse(req.body);
-    const result = await prisma.$transaction(async (tx) => {
-      const created = await tx.shiftType.create({ data: input });
-      await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'ShiftType', entityId: created.id, metadata: { after: safeRecord(created, ['code', 'name', 'startTime', 'endTime', 'hours', 'color']) } }, tx);
-      return created;
-    });
+    const result = await shiftService.create(input, req.user.sub);
     res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
 router.delete('/shift-types/:id', authorize('ADMIN'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
-    await prisma.$transaction(async (tx) => {
-      const before = await tx.shiftType.findUniqueOrThrow({ where: { id } });
-      if (['D', 'N', 'OFF', 'AL'].includes(before.code.toUpperCase())) throw new HttpError(400, `Core shift ${before.code} cannot be deleted.`);
-      await tx.shiftType.delete({ where: { id } });
-      await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'ShiftType', entityId: id, metadata: { before: safeRecord(before, ['code', 'name']) } }, tx);
-    });
+    await shiftService.remove(id, req.user.sub);
     res.status(204).send();
   } catch (error) { next(error); }
 });
@@ -522,7 +514,7 @@ router.post('/schedule/approve-month', authorize('ADMIN'), async (req, res, next
     const [year, monthIndex] = month.split('-').map(Number);
     const monthStart = new Date(Date.UTC(year, monthIndex - 1, 1));
     const result = await prisma.$transaction(async (tx) => {
-      return approveMonthlySchedule(tx, { month: monthStart, approvalNote, actorUser: { sub: req.user.sub, role: req.user.role } });
+      return approveMonthlySchedule(tx, { month: monthStart, approvalNote, actorUser: req.user });
     });
     res.json({ data: result });
   } catch (error) { next(error); }
@@ -591,7 +583,7 @@ router.put('/schedule-approvals/:id', authorize('ADMIN'), async (req, res, next)
       const before = await tx.scheduleApproval.findUniqueOrThrow({ where: { id } });
       let after;
       if (input.status === 'APPROVED') {
-        after = await approveMonthlySchedule(tx, { month: before.month, approvalNote: input.approvalNote, actorUser: { sub: req.user.sub, role: req.user.role } });
+        after = await approveMonthlySchedule(tx, { month: before.month, approvalNote: input.approvalNote, actorUser: req.user });
       } else {
         after = await tx.scheduleApproval.update({ where: { id }, data: { status: input.status, approvedAt: null, approvedByLegacyRef: null, ...(input.approvalNote !== undefined && { approvalNote: input.approvalNote }) } });
       }

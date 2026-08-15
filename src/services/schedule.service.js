@@ -460,9 +460,9 @@ async function autoPlanMonth(yearMonth) {
   return saveBatchAssignments(assignmentsToSave);
 }
 
-async function approveMonth(yearMonth, note, actorUserId) {
+async function approveMonth(yearMonth, note, actorUser) {
   const { startDate } = parseMonthDates(yearMonth);
-  return approveMonthlySchedule(prisma, { month: startDate, approvalNote: note, actorUser: { sub: actorUserId, role: 'ADMIN' } });
+  return approveMonthlySchedule(prisma, { month: startDate, approvalNote: note, actorUser });
 }
 
 module.exports = {

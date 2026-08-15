@@ -87,10 +87,10 @@ router.post('/auto-plan', authorize('ADMIN', 'MANAGER'), async (req, res, next) 
   }
 });
 
-router.post('/approve', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/approve', authorize('ADMIN'), async (req, res, next) => {
   try {
     const { month, note } = approveSchema.parse(req.body);
-    res.json({ data: await scheduleService.approveMonth(month, note, req.user.sub) });
+    res.json({ data: await scheduleService.approveMonth(month, note, req.user) });
   } catch (error) {
     next(error);
   }

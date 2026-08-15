@@ -31,17 +31,17 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/', authorize('ADMIN'), async (req, res, next) => {
   try {
-    res.status(201).json({ data: await shiftService.create(shiftSchema.parse(req.body)) });
+    res.status(201).json({ data: await shiftService.create(shiftSchema.parse(req.body), req.user.sub) });
   } catch (error) {
     next(error);
   }
 });
 
-router.put('/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.put('/:id', authorize('ADMIN'), async (req, res, next) => {
   try {
-    res.json({ data: await shiftService.update(req.params.id, shiftSchema.partial().parse(req.body)) });
+    res.json({ data: await shiftService.update(req.params.id, shiftSchema.partial().parse(req.body), req.user.sub) });
   } catch (error) {
     next(error);
   }
@@ -49,7 +49,7 @@ router.put('/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
 
 router.delete('/:id', authorize('ADMIN'), async (req, res, next) => {
   try {
-    await shiftService.remove(req.params.id);
+    await shiftService.remove(req.params.id, req.user.sub);
     res.status(204).send();
   } catch (error) {
     next(error);

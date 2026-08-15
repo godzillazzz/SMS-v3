@@ -9,10 +9,11 @@ const frontend = fs.readFileSync(path.join(process.cwd(), 'frontend/src/main.tsx
 const monthPicker = fs.readFileSync(path.join(process.cwd(), 'frontend/src/components/MonthGridPicker.tsx'), 'utf8');
 const batchSchedules = fs.readFileSync(path.join(process.cwd(), 'src/routes/schedules.routes.js'), 'utf8');
 const scheduleService = fs.readFileSync(path.join(process.cwd(), 'src/services/schedule.service.js'), 'utf8');
+const shiftService = fs.readFileSync(path.join(process.cwd(), 'src/services/shift.service.js'), 'utf8');
 const userAccessService = fs.readFileSync(path.join(process.cwd(), 'src/services/user-access.service.js'), 'utf8');
 
 test('legacy protected shift codes and Admin-only schedule approval remain enforced', () => {
-  assert.match(operations, /\['D', 'N', 'OFF', 'AL'\]\.includes\(before\.code\.toUpperCase\(\)\)/);
+  assert.match(shiftService, /\['D', 'N', 'OFF', 'AL'\]\.includes\(existing\.code\.toUpperCase\(\)\)/);
   assert.match(operations, /router\.put\('\/schedule-approvals\/:id', authorize\('ADMIN'\)/);
 });
 
