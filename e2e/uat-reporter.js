@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { sanitizeUatDiagnostic } = require('./helpers/uat-v3-security');
+const { mergePerformanceValidation, sanitizePerformanceValidation } = require('./helpers/uat-performance');
 
 function roleFromTitle(title) {
   const match = String(title).match(/\b(ADMIN|MANAGER|VIEWER)\b/i);
@@ -79,6 +80,7 @@ class UatSummaryReporter {
       if (attachment.name === 'v2-data-quality-summary.json') this.regressionSummary.dataQuality = parsed;
       if (attachment.name === 'v2-audit-summary.json') this.regressionSummary.audit = parsed;
       if (attachment.name === 'v2-dashboard-summary.json') this.regressionSummary.dashboard = parsed;
+      if (attachment.name === 'performance-validation.json') this.performanceValidation = mergePerformanceValidation(this.performanceValidation, parsed);
     }
   }
 
@@ -159,6 +161,21 @@ class UatSummaryReporter {
       `- Failed tests: ${failed}`,
       `- Overall: ${safeReportValue(String(result.status || '').toUpperCase())}`
     ];
+    const performanceValidation = sanitizePerformanceValidation(this.performanceValidation);
+    if (performanceValidation.networkContracts || performanceValidation.benchmark) {
+      lines.push('', '#### PERFORMANCE VALIDATION');
+      for (const section of ['license', 'reportCenter']) {
+        for (const metric of performanceValidation.networkContracts?.[section] || []) {
+          lines.push(`- NETWORK ${section} ${metric.endpoint} ${metric.filterCategory}: count=${metric.count ?? 'n/a'} status=${metric.status ?? 'n/a'} ${metric.classification || ''}`.trim());
+        }
+      }
+      for (const group of performanceValidation.benchmark?.groups || []) {
+        const canonical = group.stats.find((stat) => stat.targetLabel === 'canonical') || {};
+        const candidate = group.stats.find((stat) => stat.targetLabel === 'candidate') || {};
+        lines.push(`- BENCHMARK ${group.endpoint} ${group.role}: canonical n=${canonical.count || 0} min=${canonical.minMs ?? 'n/a'} median=${canonical.medianMs ?? 'n/a'} max=${canonical.maxMs ?? 'n/a'}; candidate n=${candidate.count || 0} min=${candidate.minMs ?? 'n/a'} median=${candidate.medianMs ?? 'n/a'} max=${candidate.maxMs ?? 'n/a'}; delta=${group.medianDeltaPercent ?? 'n/a'}%; ${group.classification}`);
+      }
+      if (performanceValidation.benchmark) lines.push(`- PERFORMANCE CLASSIFICATION: ${performanceValidation.benchmark.classification}`);
+    }
     for (const entry of this.results) lines.push(`- ${entry.status.toUpperCase()}: ${entry.testName}`);
     fs.mkdirSync(path.dirname(this.outputFile), { recursive: true });
     fs.writeFileSync(this.outputFile, `${lines.join('\n')}\n`);
@@ -175,7 +192,8 @@ class UatSummaryReporter {
       mode: this.mode,
       tests: safeResults,
       totals: { passed, skipped, failed },
-      overall: String(result.status || '').toUpperCase()
+      overall: String(result.status || '').toUpperCase(),
+      ...(performanceValidation.networkContracts || performanceValidation.benchmark ? { performanceValidation } : {})
     }, null, 2) + '\n');
   }
 }
