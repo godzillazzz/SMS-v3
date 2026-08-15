@@ -1,5 +1,6 @@
 const { test: base, expect } = require('@playwright/test');
 const { automationBypassHeaders } = require('./technical-smoke');
+const { continueWithAuthenticatedHeavyReadGate } = require('./uat-heavy-read-gate');
 const { sanitizeUatDiagnostic } = require('./uat-v3-security');
 
 function authenticatedMode() {
@@ -29,7 +30,12 @@ const test = base.extend({
       const requestHeaders = { ...request.headers() };
       delete requestHeaders['x-vercel-protection-bypass'];
       delete requestHeaders['x-vercel-set-bypass-cookie'];
-      await route.continue({ headers: { ...requestHeaders, ...headers } });
+      await continueWithAuthenticatedHeavyReadGate({
+        page,
+        request,
+        environment: process.env,
+        continueRequest: () => route.continue({ headers: { ...requestHeaders, ...headers } })
+      });
     });
     await use(page);
   }
