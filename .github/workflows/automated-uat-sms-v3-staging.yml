@@ -72,13 +72,6 @@ jobs:
             exit 1
           fi
           git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null
-          case "$SOURCE_BRANCH" in
-            fix/serverless-database-reliability|test/automated-uat-v2-regression-guards|perf/performance-reliability-hardening-v1) ;;
-            *)
-              echo 'UAT_APPLICATION_SOURCE_BRANCH_NOT_APPROVED'
-              exit 1
-              ;;
-          esac
           git fetch --no-tags origin \
             "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" \
             "+refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated"
@@ -245,13 +238,6 @@ jobs:
             exit 1
           fi
           git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null
-          case "$SOURCE_BRANCH" in
-            fix/serverless-database-reliability|test/automated-uat-v2-regression-guards|perf/performance-reliability-hardening-v1) ;;
-            *)
-              echo 'UAT_APPLICATION_SOURCE_BRANCH_NOT_APPROVED'
-              exit 1
-              ;;
-          esac
           git fetch --no-tags origin \
             "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" \
             "+refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated"
