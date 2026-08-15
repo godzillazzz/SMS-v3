@@ -1,13 +1,17 @@
 const { test, expect } = require('../helpers/uat-test');
-const { loginAs } = require('../helpers/uat-auth');
+const { authenticateRoleIdentity, bootstrapAs, bootstrapAsNonDashboard, loginAs, roleAccessToken } = require('../helpers/uat-auth');
 const { authenticatedRequest } = require('../helpers/uat-authenticated-request');
-const { assertNoHorizontalOverflow, captureScreenshot, expectPrimaryNavigationItem, navigateTo, navigateToReportCenter, observeApiResponse, openPrimaryNavigation, primaryNavigationItem, primaryNavigationItemByLabel, reportCenterPage, startPageMonitor } = require('../helpers/uat-observe');
+const { assertNoHorizontalOverflow, captureScreenshot, expectPrimaryNavigationItem, navigateTo, navigateToReportCenter, openPrimaryNavigation, primaryNavigationItem, primaryNavigationItemByLabel, reportCenterPage, startPageMonitor } = require('../helpers/uat-observe');
 const { getRoleApiMatrix, getRoleNavigationContract, getRolePageChecks } = require('../helpers/uat-v3-role-matrix');
 const { createStageTracker } = require('../helpers/uat-stage');
+const { performAndWaitForHeavyRequest } = require('../helpers/uat-heavy-read-v3');
 
 const authenticatedMode = () => String(process.env.UAT_MODE || 'technical').trim().toLowerCase() === 'authenticated';
 const uatScope = () => String(process.env.UAT_SCOPE || 'full').trim().toLowerCase();
 const diagnosticScope = () => uatScope() === 'report-center-diagnostic';
+const VIEWER_LICENSE_BACKGROUND_DENIAL = Object.freeze({ path: '/api/v1/licenses', method: 'GET', status: 403 });
+const viewerBackgroundAllowances = (role) => role === 'VIEWER' ? [VIEWER_LICENSE_BACKGROUND_DENIAL] : [];
+
 const scopeAllows = (role, area) => {
   if (!diagnosticScope()) return true;
   return ['ADMIN', 'MANAGER'].includes(role) && ['login', 'navigation', 'dashboard', 'reportCenter'].includes(area);
@@ -41,7 +45,7 @@ async function expectUnifiedReportCenter(page, role, testInfo, monitor) {
   try {
     const executiveResponse = await tracker.run(
       'RC03_EXEC_REQUEST',
-      () => observeApiResponse(page, '/api/v1/executive-report', () => navigateTo(page, 'reportCenter')),
+      () => performAndWaitForHeavyRequest(page, '/api/v1/executive-report', () => navigateTo(page, 'reportCenter')),
       { safeApiPath: '/api/v1/executive-report' }
     );
     const center = reportCenterPage(page);
@@ -73,7 +77,7 @@ async function expectUnifiedReportCenter(page, role, testInfo, monitor) {
     const filterValues = await center.locator('.report-center-filters select').evaluateAll((selects) => selects.map((select) => select.value));
     const detailsResponse = await tracker.run(
       'RC07_DETAILS_RESPONSE',
-      () => observeApiResponse(
+      () => performAndWaitForHeavyRequest(
         page,
         '/api/v1/reports/summary',
         () => center.getByRole('tab', { name: 'รายงานรายละเอียด', exact: true }).click()
@@ -163,22 +167,31 @@ async function requestRoleMatrix(role, token) {
   test.describe(`${role} authenticated V3`, () => {
     test(`V3 ${role}: login and role identity`, async ({ page }, testInfo) => {
       test.skip(!authenticatedMode() || !scopeAllows(role, 'login'), 'This role is outside the selected UAT scope.');
-      const monitor = startPageMonitor(page);
+      const monitor = startPageMonitor(page, { allowedApiResponses: viewerBackgroundAllowances(role) });
       const tracker = createStageTracker({ role, testCode: 'LOGIN', testInfo });
       try {
-        const { accessToken } = await tracker.run('NAV01_LOGIN', () => loginAs(page, role));
+        const { accessToken, authContract } = await tracker.run('NAV01_LOGIN', () => authenticateRoleIdentity(page, role));
         expect(accessToken).toEqual(expect.any(String));
+        await testInfo.attach('v31-auth-contract.json', { body: JSON.stringify(authContract), contentType: 'application/json' });
         await testInfo.attach('v3-role-status.json', { body: JSON.stringify({ role, login: 'PASS' }), contentType: 'application/json' });
-        await tracker.run('RC15_MONITOR', () => monitor.assertClean());
+        const evidence = monitor.safeEvidence();
+        await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(evidence), contentType: 'application/json' });
+        if (authContract?.identityMode === 'REAL_BROWSER_LOGIN') {
+          expect(evidence.pageErrorCount).toBe(0);
+          expect(evidence.consoleErrorCount).toBe(0);
+          expect(evidence.requestFailureCount).toBe(0);
+        } else {
+          await tracker.run('RC15_MONITOR', () => monitor.assertClean());
+        }
       } finally {
         await tracker.attach();
       }
     });
 
-    test(`V3 ${role}: read-only API authorization and scope`, async ({ page }) => {
+    test(`V3 ${role}: read-only API authorization and scope`, async ({}) => {
       test.skip(!authenticatedMode() || diagnosticScope(), 'The diagnostic scope excludes the complete API matrix.');
       test.setTimeout(180_000);
-      const { accessToken } = await loginAs(page, role);
+      const accessToken = roleAccessToken(role);
       await requestRoleMatrix(role, accessToken);
     });
 
@@ -187,7 +200,7 @@ async function requestRoleMatrix(role, token) {
       const monitor = startPageMonitor(page);
       const tracker = createStageTracker({ role, testCode: 'NAVIGATION', testInfo });
       try {
-        await loginAs(page, role);
+        await bootstrapAsNonDashboard(page, role);
         await tracker.run('NAV02_PRIMARY_NAV', () => expectNavigation(page, role), {});
         await tracker.run('RC15_MONITOR', () => monitor.assertClean());
       } finally {
@@ -196,13 +209,22 @@ async function requestRoleMatrix(role, token) {
     });
 
     for (const item of getRolePageChecks(role).filter(({ id }) => id !== 'reportCenter')) {
-      test(`V3 ${role}: protected page ${item.id}`, async ({ page }) => {
+      test(`V3 ${role}: protected page ${item.id}`, async ({ page }, testInfo) => {
         test.skip(!authenticatedMode() || diagnosticScope(), 'The diagnostic scope excludes the complete protected-page smoke.');
-        const monitor = startPageMonitor(page);
-        await loginAs(page, role);
-        await navigateTo(page, item.id);
-        await expect(page.getByRole('heading').first(), `${role} ${item.label} must render a page heading.`).toBeVisible();
-        monitor.assertClean();
+        const monitor = startPageMonitor(page, { allowedApiResponses: item.id === 'dashboard' ? viewerBackgroundAllowances(role) : [] });
+        if (item.id === 'dashboard') {
+          const { authContract } = await loginAs(page, role);
+          await testInfo.attach('v31-auth-contract.json', { body: JSON.stringify(authContract), contentType: 'application/json' });
+          await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' }), `${role} Dashboard must remain visible after cached-session login.`).toBeVisible();
+          const evidence = monitor.safeEvidence();
+          await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(evidence), contentType: 'application/json' });
+          monitor.assertClean();
+        } else {
+          await bootstrapAsNonDashboard(page, role);
+          await navigateTo(page, item.id);
+          await expect(page.getByRole('heading').first(), `${role} ${item.label} must render a page heading.`).toBeVisible();
+        }
+        if (item.id !== 'dashboard') monitor.assertClean();
       });
     }
 
@@ -211,7 +233,7 @@ async function requestRoleMatrix(role, token) {
         test.skip(!authenticatedMode() || !scopeAllows(role, 'reportCenter'), 'Unified Report Center is outside the selected UAT scope.');
         test.setTimeout(180_000);
         const monitor = startPageMonitor(page);
-        await loginAs(page, role);
+        await bootstrapAsNonDashboard(page, role);
         await expectUnifiedReportCenter(page, role, testInfo, monitor);
       });
     }
@@ -225,11 +247,11 @@ for (const role of ['ADMIN', 'MANAGER']) {
     const monitor = startPageMonitor(page);
     const tracker = createStageTracker({ role, testCode: 'DASHBOARD_DIAGNOSTIC', testInfo });
     try {
-      await loginAs(page, role);
+      await bootstrapAs(page, role);
       await tracker.run(
         'NAV03_DASHBOARD',
         async () => {
-          const response = await observeApiResponse(page, '/api/v1/dashboard', () => page.reload({ waitUntil: 'domcontentloaded' }));
+          const response = await performAndWaitForHeavyRequest(page, '/api/v1/dashboard', () => page.reload({ waitUntil: 'domcontentloaded' }));
           await expect(page.getByRole('heading').first(), `${role} Dashboard must render after the observed response.`).toBeVisible();
           return response;
         },
@@ -247,22 +269,29 @@ for (const role of ['ADMIN', 'MANAGER']) {
     test.skip(!authenticatedMode() || diagnosticScope(), 'The diagnostic scope excludes responsive regression coverage.');
     const monitor = startPageMonitor(page);
     const pages = role === 'ADMIN' ? ['dashboard', 'schedule', 'dataQuality', 'audit', 'reportCenter'] : ['dashboard', 'schedule', 'reportCenter'];
+    const viewports = [{ name: '390', width: 390, height: 844 }, { name: '768', width: 768, height: 1024 }, { name: '1440', width: 1440, height: 900 }];
+    await page.setViewportSize({ width: viewports[0].width, height: viewports[0].height });
     await loginAs(page, role);
-    for (const viewport of [{ name: '390', width: 390, height: 844 }, { name: '768', width: 768, height: 1024 }, { name: '1440', width: 1440, height: 900 }]) {
-      await page.setViewportSize({ width: viewport.width, height: viewport.height });
-      if (viewport.name !== '390') await page.goto('/');
-      for (const pageId of pages) {
+    for (const pageId of pages) {
+      let center;
+      if (pageId === 'reportCenter') {
+        await performAndWaitForHeavyRequest(page, '/api/v1/executive-report', () => navigateToReportCenter(page, 'executive'));
+        center = reportCenterPage(page);
+      } else if (pageId !== 'dashboard') {
+        await navigateTo(page, pageId);
+      }
+
+      for (const viewport of viewports) {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
         if (pageId === 'reportCenter') {
-          const center = await navigateToReportCenter(page, 'executive');
           await expect(center.getByRole('heading', { name: 'รายงานและวิเคราะห์', exact: true })).toBeVisible();
           await expect(center.getByRole('tab', { name: 'ภาพรวมผู้บริหาร', exact: true })).toBeVisible();
         } else {
-          await navigateTo(page, pageId);
           await expect(page.getByRole('heading').first()).toBeVisible();
         }
         await assertNoHorizontalOverflow(page);
+        if (pageId === 'reportCenter') await captureScreenshot(page, testInfo, `v3-${role.toLowerCase()}-${viewport.name}`);
       }
-      await captureScreenshot(page, testInfo, `v3-${role.toLowerCase()}-${viewport.name}`);
     }
     monitor.assertClean();
   });
@@ -271,7 +300,7 @@ for (const role of ['ADMIN', 'MANAGER']) {
 test('V3 ADMIN: Employee Lifecycle management, history, state, and preflight are available without mutation', async ({ page }) => {
   test.skip(!authenticatedMode() || diagnosticScope(), 'Lifecycle coverage is outside the selected UAT scope.');
   test.setTimeout(180_000);
-  const { accessToken } = await loginAs(page, 'ADMIN');
+  const { accessToken } = await bootstrapAsNonDashboard(page, 'ADMIN');
   const employee = await firstEmployee(accessToken);
   const historyPath = `/api/v1/employees/${employee.id}/lifecycle?page=1&pageSize=25`;
   const history = await authenticatedRequest(historyPath, { accessToken });
@@ -315,7 +344,7 @@ test('V3 ADMIN: Employee Lifecycle management, history, state, and preflight are
 
 test('V3 MANAGER: Employee Lifecycle history is read-only and mutations are forbidden', async ({ page }) => {
   test.skip(!authenticatedMode() || diagnosticScope(), 'Lifecycle coverage is outside the selected UAT scope.');
-  const { accessToken } = await loginAs(page, 'MANAGER');
+  const { accessToken } = await bootstrapAsNonDashboard(page, 'MANAGER');
   const employee = await firstEmployee(accessToken);
   const historyPath = `/api/v1/employees/${employee.id}/lifecycle?page=1&pageSize=25`;
   expect((await authenticatedRequest(historyPath, { accessToken })).status).toBe(200);
@@ -337,7 +366,7 @@ test('V3 MANAGER: Employee Lifecycle history is read-only and mutations are forb
 
 test('V3 VIEWER: Employee Lifecycle history and mutations are forbidden', async ({ page }) => {
   test.skip(!authenticatedMode() || diagnosticScope(), 'Lifecycle coverage is outside the selected UAT scope.');
-  const { accessToken } = await loginAs(page, 'VIEWER');
+  const { accessToken } = await bootstrapAsNonDashboard(page, 'VIEWER');
   const employee = await firstEmployee(accessToken);
   const historyPath = `/api/v1/employees/${employee.id}/lifecycle?page=1&pageSize=25`;
   expect((await authenticatedRequest(historyPath, { accessToken })).status).toBe(403);

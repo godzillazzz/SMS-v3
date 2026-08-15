@@ -1,7 +1,7 @@
 'use strict';
 
 const { test, expect } = require('../helpers/uat-test');
-const { loginAs } = require('../helpers/uat-auth');
+const { bootstrapAsNonDashboard } = require('../helpers/uat-auth');
 const {
   createBoundedNetworkObserver,
   containsForbiddenLicenseField
@@ -21,6 +21,7 @@ const {
   observeApiResponse,
   reportCenterPage
 } = require('../helpers/uat-observe');
+const { performAndWaitForHeavyRequest } = require('../helpers/uat-heavy-read-v3');
 
 async function attachPerformance(testInfo, value) {
   const safe = sanitizePerformanceValidation(value);
@@ -45,7 +46,7 @@ function metric(endpoint, filterCategory, count, classification, status) {
 test('V3 ADMIN: License initial-load network contract', async ({ page }, testInfo) => {
   test.skip(!shouldRunPerformanceValidation(), 'Authenticated-only performance validation.');
   test.setTimeout(120_000);
-  await loginAs(page, 'ADMIN');
+  await bootstrapAsNonDashboard(page, 'ADMIN');
 
   const observer = createBoundedNetworkObserver(page, {
     trackedPaths: ['/api/v1/licenses/{licenseId}/documents']
@@ -86,7 +87,7 @@ test('V3 ADMIN: License initial-load network contract', async ({ page }, testInf
 test('V3 ADMIN: Report Center exact network contract', async ({ page }, testInfo) => {
   test.skip(!shouldRunPerformanceValidation(), 'Authenticated-only performance validation.');
   test.setTimeout(180_000);
-  await loginAs(page, 'ADMIN');
+  await bootstrapAsNonDashboard(page, 'ADMIN');
 
   const observer = createBoundedNetworkObserver(page, {
     trackedPaths: ['/api/v1/executive-report', '/api/v1/reports/summary']
@@ -95,7 +96,7 @@ test('V3 ADMIN: Report Center exact network contract', async ({ page }, testInfo
   try {
     observer.reset();
 
-    const executiveInitial = await observeApiResponse(page, '/api/v1/executive-report', () => navigateTo(page, 'reportCenter'));
+    const executiveInitial = await performAndWaitForHeavyRequest(page, '/api/v1/executive-report', () => navigateTo(page, 'reportCenter'));
     const center = reportCenterPage(page);
     await expect(center).toBeVisible();
     await expect(center.locator('.executive-report-kpis')).toBeVisible({ timeout: 60_000 });
@@ -105,7 +106,7 @@ test('V3 ADMIN: Report Center exact network contract', async ({ page }, testInfo
 
     const detailsTab = center.getByRole('tab', { name: 'รายงานรายละเอียด', exact: true });
     const executiveTab = center.getByRole('tab', { name: 'ภาพรวมผู้บริหาร', exact: true });
-    const detailsFirst = await observeApiResponse(page, '/api/v1/reports/summary', () => detailsTab.click());
+    const detailsFirst = await performAndWaitForHeavyRequest(page, '/api/v1/reports/summary', () => detailsTab.click());
     await expect(center.locator('.metrics-grid.report-grid')).toBeVisible({ timeout: 60_000 });
     const firstSummaryCount = observer.count('/api/v1/reports/summary');
     expect(firstSummaryCount).toBe(1);
@@ -136,7 +137,7 @@ test('V3 ADMIN: Report Center exact network contract', async ({ page }, testInfo
     metrics.push(metric('report-center-export', 'stale-filter', 0, 'PREVENTED'));
 
     const executiveBeforeReturn = observer.count('/api/v1/executive-report');
-    const currentFilterResponse = await observeApiResponse(page, '/api/v1/executive-report', () => executiveTab.click());
+    const currentFilterResponse = await performAndWaitForHeavyRequest(page, '/api/v1/executive-report', () => executiveTab.click());
     await expect(center.locator('.executive-report-kpis')).toBeVisible({ timeout: 60_000 });
     await expect(monthSelect).toHaveValue(nextMonth);
     const executiveReturnAdditional = observer.count('/api/v1/executive-report') - executiveBeforeReturn;
@@ -147,7 +148,7 @@ test('V3 ADMIN: Report Center exact network contract', async ({ page }, testInfo
     await expect(detailsTab).toHaveAttribute('aria-selected', 'true');
     const summaryBeforeRefresh = observer.count('/api/v1/reports/summary');
     const refreshButton = center.locator('.report-center-section-heading').getByRole('button', { name: /รีเฟรช/ });
-    const refreshedSummary = await observeApiResponse(page, '/api/v1/reports/summary', () => refreshButton.click());
+    const refreshedSummary = await performAndWaitForHeavyRequest(page, '/api/v1/reports/summary', () => refreshButton.click());
     const summaryRefreshAdditional = observer.count('/api/v1/reports/summary') - summaryBeforeRefresh;
     expect(summaryRefreshAdditional, 'Explicit Details refresh must add exactly one summary request.').toBe(1);
     metrics.push(metric('/api/v1/reports/summary', 'explicit-refresh-additional', summaryRefreshAdditional, 'PASS', refreshedSummary.status()));

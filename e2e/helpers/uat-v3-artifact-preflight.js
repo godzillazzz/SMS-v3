@@ -46,10 +46,11 @@ function createAuthenticatedArtifactFixture(root) {
     {
       status: 'passed',
       duration: 42,
-      attachments: [{
-        name: 'v3-role-status.json',
-        body: Buffer.from(JSON.stringify({ role: 'ADMIN', login: 'PASS' }))
-      }]
+      attachments: [
+        { name: 'v3-role-status.json', body: Buffer.from(JSON.stringify({ role: 'ADMIN', login: 'PASS' })) },
+        { name: 'v31-auth-contract.json', body: Buffer.from(JSON.stringify({ loginStatus: 200, dashboardStatus: 200, roleMatched: true, accessTokenPresent: true, cachedSessionPresent: false, cachedRefreshUsed: false, dashboardRequestTerminal: true, authenticatedShellVisible: true, dashboardSuppressorActiveAtHelperReturn: 0 })) },
+        { name: 'heavy-read-safety.json', body: Buffer.from(JSON.stringify({ testsFinishingWithOutstandingHeavyReads: 0, exceptionalHeavyDrainCount: 0, exceptionalHeavyDrainWaitMs: 0, realHeavyStarts: 1, preventedHeavyStarts: 0 })) }
+      ]
     }
   );
   reporter.onTestEnd(
@@ -136,11 +137,72 @@ function runAuthenticatedFailureArtifactPreflight(root, repositoryRoot, options 
   };
 }
 
+function createAuthenticatedLoginFailureFixture(root, repositoryRoot, { scrub = true } = {}) {
+  const packagePath = path.join(repositoryRoot, 'node_modules', '@playwright', 'test');
+  const helperPath = path.join(repositoryRoot, 'e2e', 'helpers', 'uat-test.js');
+  const authHelperPath = path.join(repositoryRoot, 'e2e', 'helpers', 'uat-auth.js');
+  const configPath = path.join(root, 'playwright.config.js');
+  const testPath = path.join(root, 'login-failure.spec.js');
+  fs.writeFileSync(testPath, `const { test, expect } = require(${JSON.stringify(helperPath)});
+const { scrubLoginCredentialDom } = require(${JSON.stringify(authHelperPath)});
+
+test('synthetic authenticated login post-submit failure', async ({ page }) => {
+  await page.setContent('<form><label>รหัสผ่าน<input type="password" aria-label="รหัสผ่าน"></label><button type="submit">เข้าสู่ระบบ</button></form>');
+  await page.locator('form').evaluate((form) => form.addEventListener('submit', (event) => event.preventDefault(), { once: true }));
+  await page.getByLabel('รหัสผ่าน').fill(process.env.UAT_SYNTHETIC_PASSWORD);
+  await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click();
+  ${scrub ? 'await scrubLoginCredentialDom(page);' : ''}
+  await expect(403, 'synthetic post-submit failure').toBe(200);
+});
+`);
+  fs.writeFileSync(configPath, `const { defineConfig } = require(${JSON.stringify(packagePath)});
+const path = require('node:path');
+
+module.exports = defineConfig({
+  testDir: __dirname,
+  outputDir: path.join(__dirname, 'test-results'),
+  reporter: [['line']],
+  use: { trace: 'off', screenshot: 'off', video: 'off' },
+  workers: 1,
+  retries: 0
+});
+`);
+  return { configPath, testPath };
+}
+
+function runAuthenticatedLoginFailureArtifactPreflight(root, repositoryRoot, { scrub = true } = {}) {
+  const syntheticPassword = ['FAKE_UAT_LOGIN_PASSWORD', '123456789'].join('_');
+  const { configPath } = createAuthenticatedLoginFailureFixture(root, repositoryRoot, { scrub });
+  const cliPath = path.join(repositoryRoot, 'node_modules', '@playwright', 'test', 'cli.js');
+  const result = spawnSync(process.execPath, [cliPath, 'test', '--config', configPath], {
+    cwd: repositoryRoot,
+    env: {
+      ...process.env,
+      UAT_MODE: 'authenticated',
+      UAT_BASE_URL: 'http://uat.invalid',
+      UAT_SYNTHETIC_PASSWORD: syntheticPassword,
+      PLAYWRIGHT_NO_COPY_PROMPT: '1'
+    },
+    stdio: 'ignore'
+  });
+  const resultsDirectory = path.join(root, 'test-results');
+  const findings = fs.existsSync(resultsDirectory)
+    ? scanGeneratedArtifacts(resultsDirectory, { passwordValues: [syntheticPassword] })
+    : [];
+  return {
+    exitCode: result.status ?? 1,
+    findings,
+    resultsDirectory,
+    syntheticPassword
+  };
+}
 module.exports = {
   authenticatedArtifactAllowlist,
   collectFiles,
   createAuthenticatedArtifactFixture,
+  createAuthenticatedLoginFailureFixture,
   createAuthenticatedFailureFixture,
   runAuthenticatedFailureArtifactPreflight,
+  runAuthenticatedLoginFailureArtifactPreflight,
   scanGeneratedArtifacts
 };
