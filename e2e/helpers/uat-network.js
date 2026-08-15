@@ -37,6 +37,12 @@ function containsForbiddenLicenseField(value) {
 function createBoundedNetworkObserver(page, { trackedPaths = [] } = {}) {
   const tracked = new Set(trackedPaths);
   const records = [];
+  const requests = [];
+  const requestListener = (request) => {
+    const path = normalizeNetworkPath(request.url());
+    if (!path || (tracked.size && !tracked.has(path))) return;
+    requests.push({ method: request.method(), path });
+  };
   const listener = (response) => {
     const path = normalizeNetworkPath(response.url());
     if (!path || (tracked.size && !tracked.has(path))) return;
@@ -46,9 +52,13 @@ function createBoundedNetworkObserver(page, { trackedPaths = [] } = {}) {
       status: response.status()
     });
   };
+  page.on('request', requestListener);
   page.on('response', listener);
 
   return {
+    requestCount(path, { method = 'GET' } = {}) {
+      return requests.filter((record) => record.path === path && record.method === method).length;
+    },
     count(path, { method = 'GET' } = {}) {
       return records.filter((record) => record.path === path && record.method === method).length;
     },
@@ -56,9 +66,11 @@ function createBoundedNetworkObserver(page, { trackedPaths = [] } = {}) {
       return records.filter((record) => record.path === path && record.method === method).map((record) => record.status);
     },
     reset() {
+      requests.length = 0;
       records.length = 0;
     },
     stop() {
+      page.off('request', requestListener);
       page.off('response', listener);
     }
   };

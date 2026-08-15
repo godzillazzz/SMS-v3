@@ -3,6 +3,7 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
 const {
   CANDIDATE_BASE_URL,
   alternatingSequence,
@@ -14,7 +15,7 @@ const {
   shouldRunPerformanceValidation,
   summarizeSamples
 } = require('../e2e/helpers/uat-performance');
-const { normalizeNetworkPath } = require('../e2e/helpers/uat-network');
+const { createBoundedNetworkObserver, normalizeNetworkPath } = require('../e2e/helpers/uat-network');
 const { scanArtifact } = require('../e2e/helpers/uat-v3-security');
 
 function sample(targetLabel, sampleIndex, status = 200, durationMs = 100) {
@@ -101,6 +102,22 @@ test('performance serializer excludes bodies headers credentials emails password
   }
   assert.equal(serialized.includes('/api/v1/dashboard'), true);
   assert.equal(serialized.includes('/api/v1/licenses'), true);
+});
+
+test('license fan-out observer ignores legitimate collection preloads and detects document-history requests', () => {
+  const page = new EventEmitter();
+  const observer = createBoundedNetworkObserver(page, { trackedPaths: ['/api/v1/licenses/{licenseId}/documents'] });
+  const request = (url) => ({ url: () => url, method: () => 'GET' });
+  try {
+    page.emit('request', request('https://sms-v3-staging.example/api/v1/licenses?page=1'));
+    page.emit('request', request('https://sms-v3-staging.example/api/v1/licenses?page=1'));
+    assert.equal(observer.requestCount('/api/v1/licenses/{licenseId}/documents'), 0);
+
+    page.emit('request', request('https://sms-v3-staging.example/api/v1/licenses/123e4567-e89b-12d3-a456-426614174000/documents?source=SECRET'));
+    assert.equal(observer.requestCount('/api/v1/licenses/{licenseId}/documents'), 1);
+  } finally {
+    observer.stop();
+  }
 });
 
 test('network normalizer never persists a dynamic license ID or query values', () => {

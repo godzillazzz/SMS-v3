@@ -48,24 +48,22 @@ test('V3 ADMIN: License initial-load network contract', async ({ page }, testInf
   await loginAs(page, 'ADMIN');
 
   const observer = createBoundedNetworkObserver(page, {
-    trackedPaths: ['/api/v1/licenses', '/api/v1/licenses/{licenseId}/documents']
+    trackedPaths: ['/api/v1/licenses/{licenseId}/documents']
   });
   try {
     observer.reset();
     const collectionResponse = await observeApiResponse(page, '/api/v1/licenses', () => navigateTo(page, 'licenses'));
     await expect(page.locator('table.data-table')).toBeVisible({ timeout: 60_000 });
-    await page.waitForTimeout(750);
+    await expect(page.locator('.loading-row')).toHaveCount(0, { timeout: 60_000 });
 
     const payload = await collectionResponse.json().catch(() => undefined);
     const rows = Array.isArray(payload?.data) ? payload.data : [];
     const internalFieldLeak = containsForbiddenLicenseField(payload);
     const embeddedSummaryContract = rows.length === 0 || rows.every((row) => Object.prototype.hasOwnProperty.call(row, 'documentSummary'));
-    const historyRequests = observer.count('/api/v1/licenses/{licenseId}/documents');
-    const collectionRequests = observer.count('/api/v1/licenses');
+    const historyRequests = observer.requestCount('/api/v1/licenses/{licenseId}/documents');
 
     expect(collectionResponse.status()).toBeGreaterThanOrEqual(200);
     expect(collectionResponse.status()).toBeLessThan(300);
-    expect(collectionRequests).toBe(1);
     expect(historyRequests, 'Initial License table load must not fan out per-row document history requests.').toBe(0);
     expect(embeddedSummaryContract, 'License collection rows must carry the document summary contract when rows exist.').toBe(true);
     expect(internalFieldLeak, 'License collection response must not expose internal storage/checksum/signed-url fields.').toBe(false);
@@ -73,7 +71,7 @@ test('V3 ADMIN: License initial-load network contract', async ({ page }, testInf
     await attachPerformance(testInfo, {
       networkContracts: {
         license: [
-          metric('/api/v1/licenses', 'initial-collection', collectionRequests, 'PASS', collectionResponse.status()),
+          metric('/api/v1/licenses', 'initial-collection', undefined, 'PASS', collectionResponse.status()),
           metric('/api/v1/licenses/{licenseId}/documents', 'initial-load', historyRequests, historyRequests === 0 ? 'PASS' : 'FAIL'),
           metric('/api/v1/licenses', 'additional-document-summary', 0, embeddedSummaryContract ? 'PASS' : 'FAIL'),
           metric('license-response-fields', 'initial-collection', internalFieldLeak ? 1 : 0, internalFieldLeak ? 'FAIL' : 'PASS')
