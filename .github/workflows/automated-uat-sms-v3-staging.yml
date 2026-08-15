@@ -199,6 +199,9 @@ jobs:
     if: ${{ inputs.uat_mode == 'authenticated' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency:
+      group: sms-v3-staging-authenticated-uat
+      cancel-in-progress: false
     environment: production-sms-v3-staging
     env:
       UAT_BASE_URL: ${{ inputs.target_url }}
