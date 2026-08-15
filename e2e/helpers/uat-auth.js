@@ -7,6 +7,7 @@ const {
   performAndWaitForHeavyRequest
 } = require('./uat-heavy-read-v3');
 const { readRoleSession } = require('./uat-session');
+const { classifyUatTarget } = require('./uat-target-contract');
 
 const authHarnessStateByPage = new WeakMap();
 
@@ -141,16 +142,22 @@ async function scrubLoginCredentialDom(page) {
 function cachedSessionDiagnostic(page, stateBefore, dashboardStatus) {
   const state = authHarnessState(page);
   return {
+    identityMode: 'CACHED_PREFLIGHT_SESSION',
+    targetClass: classifyUatTarget(getUatConfig().baseURL).targetClass,
+    roleMatched: true,
     cachedSessionPresent: true,
     cachedRefreshUsed: state.cachedRefreshHits > stateBefore.cachedRefreshHits,
     dashboardStatus,
     dashboardRequestTerminal: true,
+    authenticatedShellVisible: true,
     dashboardSuppressorActiveAtHelperReturn: state.dashboardSuppressorActive
   };
 }
 
 async function bootstrapAs(page, role) {
   const session = roleSession(role);
+  const state = authHarnessState(page);
+  const stateBefore = { cachedRefreshHits: state.cachedRefreshHits };
   await installCachedRefreshRoute(page, session);
   const suppressor = dashboardSuppressor(page);
   await suppressor.install();
@@ -166,7 +173,18 @@ async function bootstrapAs(page, role) {
     error.code = 'UAT_DASHBOARD_SUPPRESSOR_LEAK';
     throw error;
   }
-  return { accessToken: session.accessToken };
+  return {
+    accessToken: session.accessToken,
+    authContract: {
+      identityMode: 'CACHED_PREFLIGHT_SESSION',
+      targetClass: classifyUatTarget(getUatConfig().baseURL).targetClass,
+      roleMatched: session.user?.role === role,
+      cachedSessionPresent: true,
+      cachedRefreshUsed: state.cachedRefreshHits > stateBefore.cachedRefreshHits,
+      authenticatedShellVisible: true,
+      dashboardSuppressorActiveAtHelperReturn: state.dashboardSuppressorActive
+    }
+  };
 }
 
 async function loginAs(page, role) {
@@ -184,6 +202,12 @@ async function loginAs(page, role) {
 
 async function loginViaUi(page, role) {
   const config = getUatConfig();
+  const targetClass = classifyUatTarget(config.baseURL).targetClass;
+  if (targetClass !== 'CANONICAL') {
+    const error = new Error('UAT_REAL_LOGIN_ORIGIN_NOT_CANONICAL');
+    error.code = error.message;
+    throw error;
+  }
   const account = config.accounts[role];
   if (!account?.configured) throw new Error(`UAT credentials unavailable for role: ${role}`);
 
@@ -248,6 +272,8 @@ async function loginViaUi(page, role) {
     return {
       accessToken: payload.accessToken,
       authContract: {
+        identityMode: 'REAL_BROWSER_LOGIN',
+        targetClass,
         loginStatus,
         dashboardStatus: dashboardResponse.status(),
         roleMatched: payload?.user?.role === role,
@@ -264,6 +290,16 @@ async function loginViaUi(page, role) {
   }
 }
 
+async function authenticateRoleIdentity(page, role) {
+  const config = getUatConfig();
+  const targetClass = classifyUatTarget(config.baseURL).targetClass;
+  if (targetClass === 'CANONICAL') return loginViaUi(page, role);
+  if (targetClass === 'IMMUTABLE') return bootstrapAs(page, role);
+  const error = new Error('UAT_TARGET_CLASS_INVALID');
+  error.code = error.message;
+  throw error;
+}
+
 async function getAuditEventsStatus(accessToken) {
   const response = await authenticatedRequest('/api/v1/audit-events?page=1&pageSize=1', { accessToken });
   return response.status;
@@ -271,6 +307,7 @@ async function getAuditEventsStatus(accessToken) {
 
 module.exports = {
   authHarnessState,
+  authenticateRoleIdentity,
   bootstrapAs,
   dashboardSuppressor,
   dashboardSuppressorActiveCount,

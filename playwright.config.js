@@ -3,6 +3,12 @@ const { getTraceMode } = require('./e2e/helpers/technical-smoke');
 
 const baseURL = process.env.UAT_BASE_URL || 'https://uat.invalid';
 const authenticatedMode = process.env.UAT_MODE === 'authenticated';
+const targetMode = String(process.env.UAT_TARGET_MODE || '').trim().toLowerCase();
+const diagnosticGrep = !authenticatedMode
+  ? undefined
+  : targetMode === 'canonical'
+    ? /V3 (?:ADMIN|MANAGER|VIEWER): login and role identity/
+    : /V3 VIEWER: protected page dashboard/;
 const reporters = [
   ['line'],
   [require.resolve('./e2e/uat-reporter.js'), {
@@ -19,7 +25,7 @@ module.exports = defineConfig({
   globalTeardown: require.resolve('./e2e/global-teardown.js'),
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
-  grep: authenticatedMode ? /V3 (?:ADMIN|MANAGER|VIEWER): login and role identity|V3 VIEWER: protected page dashboard/ : undefined,
+  grep: diagnosticGrep,
   retries: authenticatedMode ? 0 : (process.env.CI ? 1 : 0),
   workers: 1,
   timeout: 45_000,

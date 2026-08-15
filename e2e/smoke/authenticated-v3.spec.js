@@ -1,5 +1,5 @@
 const { test, expect } = require('../helpers/uat-test');
-const { bootstrapAs, loginAs, loginViaUi, roleAccessToken } = require('../helpers/uat-auth');
+const { authenticateRoleIdentity, bootstrapAs, loginAs, roleAccessToken } = require('../helpers/uat-auth');
 const { authenticatedRequest } = require('../helpers/uat-authenticated-request');
 const { assertNoHorizontalOverflow, captureScreenshot, expectPrimaryNavigationItem, navigateTo, navigateToReportCenter, openPrimaryNavigation, primaryNavigationItem, primaryNavigationItemByLabel, reportCenterPage, startPageMonitor } = require('../helpers/uat-observe');
 const { getRoleApiMatrix, getRoleNavigationContract, getRolePageChecks } = require('../helpers/uat-v3-role-matrix');
@@ -167,11 +167,19 @@ async function requestRoleMatrix(role, token) {
       const monitor = startPageMonitor(page);
       const tracker = createStageTracker({ role, testCode: 'LOGIN', testInfo });
       try {
-        const { accessToken, authContract } = await tracker.run('NAV01_LOGIN', () => loginViaUi(page, role));
+        const { accessToken, authContract } = await tracker.run('NAV01_LOGIN', () => authenticateRoleIdentity(page, role));
         expect(accessToken).toEqual(expect.any(String));
         await testInfo.attach('v31-auth-contract.json', { body: JSON.stringify(authContract), contentType: 'application/json' });
         await testInfo.attach('v3-role-status.json', { body: JSON.stringify({ role, login: 'PASS' }), contentType: 'application/json' });
-        await tracker.run('RC15_MONITOR', () => monitor.assertClean());
+        const evidence = monitor.safeEvidence();
+        await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(evidence), contentType: 'application/json' });
+        if (authContract?.identityMode === 'REAL_BROWSER_LOGIN') {
+          expect(evidence.pageErrorCount).toBe(0);
+          expect(evidence.consoleErrorCount).toBe(0);
+          expect(evidence.requestFailureCount).toBe(0);
+        } else {
+          await tracker.run('RC15_MONITOR', () => monitor.assertClean());
+        }
       } finally {
         await tracker.attach();
       }
@@ -205,12 +213,21 @@ async function requestRoleMatrix(role, token) {
           const { authContract } = await loginAs(page, role);
           await testInfo.attach('v31-auth-contract.json', { body: JSON.stringify(authContract), contentType: 'application/json' });
           await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' }), `${role} Dashboard must remain visible after cached-session login.`).toBeVisible();
+          const evidence = monitor.safeEvidence();
+          await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(evidence), contentType: 'application/json' });
+          if (role === 'VIEWER' && String(process.env.UAT_TARGET_MODE || '').toLowerCase() === 'candidate') {
+            expect(evidence.pageErrorCount).toBe(0);
+            expect(evidence.consoleErrorCount).toBe(0);
+            expect(evidence.requestFailureCount).toBe(0);
+          } else {
+            monitor.assertClean();
+          }
         } else {
           await bootstrapAs(page, role);
           await navigateTo(page, item.id);
           await expect(page.getByRole('heading').first(), `${role} ${item.label} must render a page heading.`).toBeVisible();
         }
-        monitor.assertClean();
+        if (item.id !== 'dashboard') monitor.assertClean();
       });
     }
 

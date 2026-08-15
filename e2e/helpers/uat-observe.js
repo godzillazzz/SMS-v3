@@ -44,7 +44,19 @@ function matchesApiResponseRule(response, rule) {
   const pathMatches = rule?.path instanceof RegExp
     ? rule.path.test(response.path)
     : response.path === rule?.path;
-  return pathMatches && (rule?.status === undefined || response.status === rule.status);
+  const methodMatches = rule?.method === undefined || response.method === rule.method;
+  const statusMatches = rule?.status === undefined || response.status === rule.status;
+  return pathMatches && methodMatches && statusMatches;
+}
+
+function normalizeAllowedApiResponseRule(rule) {
+  const path = typeof rule?.path === 'string' ? rule.path : '';
+  const method = String(rule?.method || '').toUpperCase();
+  const status = Number(rule?.status);
+  if (!/^\/api\/v1\/[A-Za-z0-9._~!$&'()+,;=:@%\/-]+$/.test(path)) throw new Error('UAT_ALLOWED_API_RULE_PATH_INVALID');
+  if (!['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'].includes(method)) throw new Error('UAT_ALLOWED_API_RULE_METHOD_REQUIRED');
+  if (!Number.isInteger(status) || status < 400 || status > 599) throw new Error('UAT_ALLOWED_API_RULE_STATUS_REQUIRED');
+  return { path, method, status };
 }
 
 function startPageMonitor(page, { allowedApiResponses = [] } = {}) {
@@ -54,7 +66,7 @@ function startPageMonitor(page, { allowedApiResponses = [] } = {}) {
   const responses = [];
   const allowedResponseRules = [
     { path: '/api/v1/auth/refresh' },
-    ...allowedApiResponses
+    ...allowedApiResponses.map(normalizeAllowedApiResponseRule)
   ];
 
   page.on('pageerror', (error) => pageErrors.push(sanitizeDiagnostic(error.message)));
@@ -76,8 +88,21 @@ function startPageMonitor(page, { allowedApiResponses = [] } = {}) {
     if (path.startsWith('/api/v1/')) responses.push({ path, status: response.status(), method: response.request().method() });
   });
 
+  const unexpectedApiResponses = () => responses
+    .filter((response) => response.status >= 400 && !allowedResponseRules.some((rule) => matchesApiResponseRule(response, rule)))
+    .map((response) => ({ path: response.path, method: response.method, status: response.status, classification: 'UNEXPECTED_API_RESPONSE' }));
+
+  const safeEvidence = () => ({
+    secondaryApiFailures: unexpectedApiResponses(),
+    pageErrorCount: pageErrors.length,
+    consoleErrorCount: consoleErrors.filter((error) => !error.authorizationFailure).length,
+    requestFailureCount: requestFailures.length
+  });
+
   return {
     responses,
+    safeEvidence,
+    safeUnexpectedApiResponses: unexpectedApiResponses,
     assertClean() {
       const remainingRules = [...allowedResponseRules];
       const unexpectedConsoleErrors = consoleErrors.filter((error) => {
@@ -87,15 +112,13 @@ function startPageMonitor(page, { allowedApiResponses = [] } = {}) {
         remainingRules.splice(ruleIndex, 1);
         return false;
       }).map((error) => error.text);
-      const unexpectedApiResponses = responses
-        .filter((response) => response.status >= 400 && !allowedResponseRules.some((rule) => matchesApiResponseRule(response, rule)))
-        .map((response) => `${response.method} ${response.path} ${response.status}`);
+      const unexpectedApiResponseLines = unexpectedApiResponses().map((response) => `${response.method} ${response.path} ${response.status}`);
       const runtimeFailure = responses.find((response) => response.status >= 500 && !allowedResponseRules.some((rule) => matchesApiResponseRule(response, rule)));
       if (runtimeFailure) {
         throw safeApiError(apiFailureCode(runtimeFailure.path, runtimeFailure.status), runtimeFailure.status);
       }
       expect(pageErrors, 'Unexpected page errors.').toEqual([]);
-      expect(unexpectedApiResponses, 'Unexpected API responses.').toEqual([]);
+      expect(unexpectedApiResponseLines, 'Unexpected API responses.').toEqual([]);
       expect(unexpectedConsoleErrors, 'Unexpected console errors.').toEqual([]);
       expect(requestFailures, 'Unexpected document/XHR/fetch failures.').toEqual([]);
     }
@@ -241,6 +264,7 @@ module.exports = {
   isHarmlessConsoleError,
   navigateTo,
   navigateToReportCenter,
+  normalizeAllowedApiResponseRule,
   openPrimaryNavigation,
   primaryNavigation,
   primaryNavigationItem,

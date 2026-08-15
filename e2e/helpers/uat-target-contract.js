@@ -5,6 +5,7 @@ const CANDIDATE_HOST = /^sms-v3-staging-[a-z0-9]+-[a-z0-9-]+\.vercel\.app$/i;
 const DEPLOYMENT_ID = /^dpl_[A-Za-z0-9]+$/;
 const GIT_SHA = /^[0-9a-f]{40}$/i;
 const TARGET_MODES = new Set(['candidate', 'canonical']);
+const TARGET_CLASSES = Object.freeze({ CANONICAL: 'CANONICAL', IMMUTABLE: 'IMMUTABLE' });
 
 function contractError(code) {
   const error = new Error(code);
@@ -95,6 +96,14 @@ function validateDeploymentGitRef(deployment, expectedGitRef) {
   if (refs.length === 0) throw contractError('UAT_DEPLOYMENT_GIT_REF_MISSING');
   if (new Set(refs).size !== 1) throw contractError('UAT_DEPLOYMENT_GIT_REF_CONFLICT');
   if (refs[0] !== expectedRef) throw contractError('UAT_DEPLOYMENT_GIT_REF_MISMATCH');
+}
+
+function classifyUatTarget(targetUrl) {
+  const parsed = parseTargetUrl(targetUrl);
+  const host = parsed.hostname.toLowerCase();
+  if (host === CANONICAL_HOST) return { targetClass: TARGET_CLASSES.CANONICAL, host, url: `https://${host}` };
+  if (CANDIDATE_HOST.test(host)) return { targetClass: TARGET_CLASSES.IMMUTABLE, host, url: `https://${host}` };
+  throw contractError('UAT_TARGET_HOST_NOT_APPROVED');
 }
 
 function validateTargetScope(targetMode, targetUrl) {
@@ -255,6 +264,8 @@ if (require.main === module) {
 module.exports = {
   CANONICAL_HOST,
   CANDIDATE_HOST,
+  TARGET_CLASSES,
+  classifyUatTarget,
   contractError,
   extractApplicationSha,
   extractDeploymentHostname,

@@ -58,16 +58,21 @@ test('V3.1 explicit real-login path uses real login submit, no cached fake refre
   assert.match(block, /dashboardSuppressorActiveAtHelperReturn:\s*dashboardSuppressorActiveCount\(page\)/);
 });
 
-test('V3.1 explicit login contract applies to ADMIN MANAGER and VIEWER without cached-session injection', () => {
+test('V3.1 real-login capability remains isolated while V3.2 role identity is target-aware', () => {
   const source = read('e2e/smoke/authenticated-v3.spec.js');
   assert.match(source, /for \(const role of \['ADMIN', 'MANAGER', 'VIEWER'\]\)/);
   const loginStart = source.indexOf('login and role identity');
   const loginEnd = source.indexOf('read-only API authorization and scope', loginStart);
   const loginBlock = source.slice(loginStart, loginEnd);
-  assert.match(loginBlock, /loginViaUi\(page, role\)/);
+  assert.match(loginBlock, /authenticateRoleIdentity\(page, role\)/);
   assert.match(loginBlock, /v31-auth-contract\.json/);
   assert.doesNotMatch(loginBlock, /loginAs\(page, role\)/);
   assert.doesNotMatch(loginBlock, /bootstrapAs\(page, role\)/);
+  assert.doesNotMatch(loginBlock, /loginViaUi\(page, role\)/);
+  const auth = read('e2e/helpers/uat-auth.js');
+  const identityBlock = auth.slice(auth.indexOf('async function authenticateRoleIdentity'), auth.indexOf('async function getAuditEventsStatus'));
+  assert.match(identityBlock, /targetClass === 'CANONICAL'\) return loginViaUi\(page, role\)/);
+  assert.match(identityBlock, /targetClass === 'IMMUTABLE'\) return bootstrapAs\(page, role\)/);
 });
 
 test('V3.1 VIEWER Dashboard contract is 200 and protected Dashboard avoids duplicate navigation', () => {
