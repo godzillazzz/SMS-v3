@@ -1,6 +1,17 @@
 const roles = ['ADMIN', 'MANAGER', 'VIEWER'];
 const modes = ['technical', 'authenticated'];
-const scopes = ['full', 'report-center-diagnostic'];
+const TARGETED_AUTH_RETRY_SCOPE = 'admin-rbac-targeted-retry';
+const TARGETED_AUTH_RETRY_TEST_TITLES = Object.freeze([
+  'V3 ADMIN: navigation shell',
+  'V3 ADMIN: Unified Report Center acceptance',
+  'V3 ADMIN: authenticated responsive smoke',
+  'V3 ADMIN: License initial-load network contract',
+  'V3 ADMIN: Report Center exact network contract',
+  'V3 MANAGER: navigation shell',
+  'V3 MANAGER: Unified Report Center acceptance',
+  'V3 MANAGER: authenticated responsive smoke'
+]);
+const scopes = ['full', 'report-center-diagnostic', TARGETED_AUTH_RETRY_SCOPE];
 
 function configurationError(code, message) {
   const error = new Error(message);
@@ -36,13 +47,32 @@ function normalizeUatMode(value = 'technical') {
 function normalizeUatScope(value = 'full') {
   const scope = String(value || 'full').trim().toLowerCase();
   if (!scopes.includes(scope)) {
-    throw configurationError('UAT_SCOPE_INVALID', 'UAT scope invalid: use full or report-center-diagnostic.');
+    throw configurationError('UAT_SCOPE_NOT_APPROVED', 'UAT scope not approved: use full, report-center-diagnostic, or admin-rbac-targeted-retry.');
   }
   return scope;
 }
 
 function isReportCenterDiagnostic(environment = process.env) {
   return normalizeUatScope(environment.UAT_SCOPE) === 'report-center-diagnostic';
+}
+
+function isAdminRbacTargetedRetry(environment = process.env) {
+  return normalizeUatScope(environment.UAT_SCOPE) === TARGETED_AUTH_RETRY_SCOPE;
+}
+
+function getUatScopeTestTitles(environment = process.env) {
+  return isAdminRbacTargetedRetry(environment) ? [...TARGETED_AUTH_RETRY_TEST_TITLES] : undefined;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getUatScopeGrep(environment = process.env) {
+  if (String(environment.UAT_MODE || 'technical').trim().toLowerCase() !== 'authenticated') return undefined;
+  const titles = getUatScopeTestTitles(environment);
+  if (!titles) return undefined;
+  return new RegExp(`(?:${titles.map(escapeRegExp).join('|')})$`);
 }
 
 function getUatConfig(environment = process.env) {
@@ -52,6 +82,9 @@ function getUatConfig(environment = process.env) {
 
   const mode = normalizeUatMode(environment.UAT_MODE);
   const scope = normalizeUatScope(environment.UAT_SCOPE);
+  if (mode === 'technical' && scope === TARGETED_AUTH_RETRY_SCOPE) {
+    throw configurationError('UAT_SCOPE_MODE_INVALID', 'UAT scope admin-rbac-targeted-retry requires authenticated mode.');
+  }
   const accounts = {};
   for (const role of roles) {
     const emailKey = `UAT_${role}_EMAIL`;
@@ -85,4 +118,20 @@ function hasRoleCredentials(role, environment = process.env) {
   return getUatConfig(environment).accounts[role].configured;
 }
 
-module.exports = { configurationError, getUatConfig, hasRoleCredentials, isReportCenterDiagnostic, normalizeBaseUrl, normalizeUatMode, normalizeUatScope, roles, modes, scopes };
+module.exports = {
+  TARGETED_AUTH_RETRY_SCOPE,
+  TARGETED_AUTH_RETRY_TEST_TITLES,
+  configurationError,
+  getUatConfig,
+  getUatScopeGrep,
+  getUatScopeTestTitles,
+  hasRoleCredentials,
+  isAdminRbacTargetedRetry,
+  isReportCenterDiagnostic,
+  normalizeBaseUrl,
+  normalizeUatMode,
+  normalizeUatScope,
+  roles,
+  modes,
+  scopes
+};
