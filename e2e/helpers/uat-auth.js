@@ -2,6 +2,8 @@ const { expect, request } = require('@playwright/test');
 const { getUatConfig } = require('./uat-config');
 const { automationBypassHeaders } = require('./technical-smoke');
 const { authenticatedRequest } = require('./uat-authenticated-request');
+const { preventHarnessBootstrapHeavyRead } = require('./uat-heavy-read-settlement');
+const { navigateTo } = require('./uat-observe');
 const { readRoleSession } = require('./uat-session');
 
 async function preflightRoleAccounts(environment = process.env) {
@@ -46,6 +48,31 @@ async function preflightRoleAccounts(environment = process.env) {
   return { allReady: results.filter((result) => rolesToCheck.includes(result.role)).every((result) => result.ready), results, sessions };
 }
 
+function roleSession(role) {
+  const session = readRoleSession(role);
+  if (!session?.accessToken || session.user?.role !== role) {
+    const error = new Error('AUTH_SESSION_UNAVAILABLE');
+    error.code = 'AUTH_SESSION_UNAVAILABLE';
+    throw error;
+  }
+  return session;
+}
+
+function roleAccessToken(role) {
+  return roleSession(role).accessToken;
+}
+
+async function installCachedRefreshRoute(page, session) {
+  await page.route('**/api/v1/auth/refresh**', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ accessToken: session.accessToken, tokenType: 'Bearer', user: session.user })
+    });
+  });
+}
+
 async function loginAs(page, role) {
   const config = getUatConfig();
   const account = config.accounts[role];
@@ -53,18 +80,19 @@ async function loginAs(page, role) {
 
   const cachedSession = readRoleSession(role);
   if (cachedSession) {
-    await page.route('**/api/v1/auth/refresh**', async (route) => {
-      if (route.request().method() !== 'POST') return route.continue();
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ accessToken: cachedSession.accessToken, tokenType: 'Bearer', user: cachedSession.user })
-      });
-    });
+    await installCachedRefreshRoute(page, cachedSession);
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
     return { accessToken: cachedSession.accessToken };
   }
+
+  return loginViaUi(page, role);
+}
+
+async function loginViaUi(page, role) {
+  const config = getUatConfig();
+  const account = config.accounts[role];
+  if (!account?.configured) throw new Error(`UAT credentials unavailable for role: ${role}`);
 
   await page.goto('/');
   const loginResponse = page.waitForResponse((response) => {
@@ -86,9 +114,40 @@ async function loginAs(page, role) {
   return { accessToken: payload.accessToken };
 }
 
+async function bootstrapAs(page, role, { initialNavigationId = 'employees' } = {}) {
+  const session = roleSession(role);
+  await installCachedRefreshRoute(page, session);
+
+  const dashboardPattern = '**/api/v1/dashboard**';
+  const dashboardHandler = async (route) => {
+    const request = route.request();
+    if (request.method() !== 'GET') return route.continue();
+    preventHarnessBootstrapHeavyRead(page, request);
+    await route.abort('aborted');
+  };
+
+  await page.route(dashboardPattern, dashboardHandler);
+  try {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+    if (initialNavigationId && initialNavigationId !== 'dashboard') await navigateTo(page, initialNavigationId);
+  } finally {
+    await page.unroute(dashboardPattern, dashboardHandler);
+  }
+
+  return { accessToken: session.accessToken };
+}
+
 async function getAuditEventsStatus(accessToken) {
   const response = await authenticatedRequest('/api/v1/audit-events?page=1&pageSize=1', { accessToken });
   return response.status;
 }
 
-module.exports = { getAuditEventsStatus, loginAs, preflightRoleAccounts };
+module.exports = {
+  bootstrapAs,
+  getAuditEventsStatus,
+  loginAs,
+  loginViaUi,
+  preflightRoleAccounts,
+  roleAccessToken
+};

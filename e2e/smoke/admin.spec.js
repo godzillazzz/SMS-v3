@@ -1,5 +1,5 @@
 const { test, expect } = require('../helpers/uat-test');
-const { getAuditEventsStatus, loginAs } = require('../helpers/uat-auth');
+const { bootstrapAs, getAuditEventsStatus, loginAs } = require('../helpers/uat-auth');
 const { authenticatedRequest } = require('../helpers/uat-authenticated-request');
 const { hasRoleCredentials, isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { navigateTo, startPageMonitor } = require('../helpers/uat-observe');
@@ -25,7 +25,7 @@ test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) =
 
 test('ADMIN: Schedule, Leave, and License pages load through read endpoints', async ({ page }) => {
   const monitor = startPageMonitor(page);
-  const { accessToken } = await loginAs(page, 'ADMIN');
+  const { accessToken } = await bootstrapAs(page, 'ADMIN');
   const contracts = getRoleApiMatrix('ADMIN');
   for (const [label, navigationId] of [['Schedule', 'schedule'], ['Leave', 'leave'], ['License', 'licenses']]) {
     const contract = contracts.find((route) => route.label === label);
@@ -39,7 +39,7 @@ test('ADMIN: Schedule, Leave, and License pages load through read endpoints', as
 
 test('ADMIN: Audit Log remains read-only and can open an existing detail safely', async ({ page }) => {
   const monitor = startPageMonitor(page);
-  const { accessToken } = await loginAs(page, 'ADMIN');
+  const { accessToken } = await bootstrapAs(page, 'ADMIN');
   await expect(getAuditEventsStatus(accessToken)).resolves.toBe(200);
   await navigateTo(page, 'audit');
   const auditPage = page.locator('.audit-compliance-page');

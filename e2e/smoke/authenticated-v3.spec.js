@@ -1,5 +1,5 @@
 const { test, expect } = require('../helpers/uat-test');
-const { loginAs } = require('../helpers/uat-auth');
+const { bootstrapAs, loginAs, loginViaUi, roleAccessToken } = require('../helpers/uat-auth');
 const { authenticatedRequest } = require('../helpers/uat-authenticated-request');
 const { assertNoHorizontalOverflow, captureScreenshot, expectPrimaryNavigationItem, navigateTo, navigateToReportCenter, observeApiResponse, openPrimaryNavigation, primaryNavigationItem, primaryNavigationItemByLabel, reportCenterPage, startPageMonitor } = require('../helpers/uat-observe');
 const { getRoleApiMatrix, getRoleNavigationContract, getRolePageChecks } = require('../helpers/uat-v3-role-matrix');
@@ -166,7 +166,7 @@ async function requestRoleMatrix(role, token) {
       const monitor = startPageMonitor(page);
       const tracker = createStageTracker({ role, testCode: 'LOGIN', testInfo });
       try {
-        const { accessToken } = await tracker.run('NAV01_LOGIN', () => loginAs(page, role));
+        const { accessToken } = await tracker.run('NAV01_LOGIN', () => loginViaUi(page, role));
         expect(accessToken).toEqual(expect.any(String));
         await testInfo.attach('v3-role-status.json', { body: JSON.stringify({ role, login: 'PASS' }), contentType: 'application/json' });
         await tracker.run('RC15_MONITOR', () => monitor.assertClean());
@@ -175,10 +175,10 @@ async function requestRoleMatrix(role, token) {
       }
     });
 
-    test(`V3 ${role}: read-only API authorization and scope`, async ({ page }) => {
+    test(`V3 ${role}: read-only API authorization and scope`, async ({}) => {
       test.skip(!authenticatedMode() || diagnosticScope(), 'The diagnostic scope excludes the complete API matrix.');
       test.setTimeout(180_000);
-      const { accessToken } = await loginAs(page, role);
+      const accessToken = roleAccessToken(role);
       await requestRoleMatrix(role, accessToken);
     });
 
@@ -187,7 +187,7 @@ async function requestRoleMatrix(role, token) {
       const monitor = startPageMonitor(page);
       const tracker = createStageTracker({ role, testCode: 'NAVIGATION', testInfo });
       try {
-        await loginAs(page, role);
+        await bootstrapAs(page, role);
         await tracker.run('NAV02_PRIMARY_NAV', () => expectNavigation(page, role), {});
         await tracker.run('RC15_MONITOR', () => monitor.assertClean());
       } finally {
@@ -199,7 +199,8 @@ async function requestRoleMatrix(role, token) {
       test(`V3 ${role}: protected page ${item.id}`, async ({ page }) => {
         test.skip(!authenticatedMode() || diagnosticScope(), 'The diagnostic scope excludes the complete protected-page smoke.');
         const monitor = startPageMonitor(page);
-        await loginAs(page, role);
+        if (item.id === 'dashboard') await loginAs(page, role);
+        else await bootstrapAs(page, role);
         await navigateTo(page, item.id);
         await expect(page.getByRole('heading').first(), `${role} ${item.label} must render a page heading.`).toBeVisible();
         monitor.assertClean();
@@ -211,7 +212,7 @@ async function requestRoleMatrix(role, token) {
         test.skip(!authenticatedMode() || !scopeAllows(role, 'reportCenter'), 'Unified Report Center is outside the selected UAT scope.');
         test.setTimeout(180_000);
         const monitor = startPageMonitor(page);
-        await loginAs(page, role);
+        await bootstrapAs(page, role);
         await expectUnifiedReportCenter(page, role, testInfo, monitor);
       });
     }
@@ -271,7 +272,7 @@ for (const role of ['ADMIN', 'MANAGER']) {
 test('V3 ADMIN: Employee Lifecycle management, history, state, and preflight are available without mutation', async ({ page }) => {
   test.skip(!authenticatedMode() || diagnosticScope(), 'Lifecycle coverage is outside the selected UAT scope.');
   test.setTimeout(180_000);
-  const { accessToken } = await loginAs(page, 'ADMIN');
+  const { accessToken } = await bootstrapAs(page, 'ADMIN');
   const employee = await firstEmployee(accessToken);
   const historyPath = `/api/v1/employees/${employee.id}/lifecycle?page=1&pageSize=25`;
   const history = await authenticatedRequest(historyPath, { accessToken });
@@ -315,7 +316,7 @@ test('V3 ADMIN: Employee Lifecycle management, history, state, and preflight are
 
 test('V3 MANAGER: Employee Lifecycle history is read-only and mutations are forbidden', async ({ page }) => {
   test.skip(!authenticatedMode() || diagnosticScope(), 'Lifecycle coverage is outside the selected UAT scope.');
-  const { accessToken } = await loginAs(page, 'MANAGER');
+  const { accessToken } = await bootstrapAs(page, 'MANAGER');
   const employee = await firstEmployee(accessToken);
   const historyPath = `/api/v1/employees/${employee.id}/lifecycle?page=1&pageSize=25`;
   expect((await authenticatedRequest(historyPath, { accessToken })).status).toBe(200);
@@ -337,7 +338,7 @@ test('V3 MANAGER: Employee Lifecycle history is read-only and mutations are forb
 
 test('V3 VIEWER: Employee Lifecycle history and mutations are forbidden', async ({ page }) => {
   test.skip(!authenticatedMode() || diagnosticScope(), 'Lifecycle coverage is outside the selected UAT scope.');
-  const { accessToken } = await loginAs(page, 'VIEWER');
+  const { accessToken } = await bootstrapAs(page, 'VIEWER');
   const employee = await firstEmployee(accessToken);
   const historyPath = `/api/v1/employees/${employee.id}/lifecycle?page=1&pageSize=25`;
   expect((await authenticatedRequest(historyPath, { accessToken })).status).toBe(403);

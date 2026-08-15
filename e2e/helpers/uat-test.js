@@ -1,5 +1,6 @@
 const { test: base, expect } = require('@playwright/test');
 const { automationBypassHeaders } = require('./technical-smoke');
+const { installHeavyReadSettlement } = require('./uat-heavy-read-settlement');
 const { sanitizeUatDiagnostic } = require('./uat-v3-security');
 
 function authenticatedMode() {
@@ -32,7 +33,19 @@ const test = base.extend({
       await route.continue({ headers: { ...requestHeaders, ...headers } });
     });
     await use(page);
-  }
+  },
+  heavyReadSettlement: [async ({ page }, use) => {
+    const tracker = installHeavyReadSettlement(page);
+    try {
+      await use();
+    } finally {
+      try {
+        await tracker.drain();
+      } finally {
+        tracker.stop();
+      }
+    }
+  }, { auto: true, timeout: 70_000 }]
 });
 
 test.afterEach(async ({}, testInfo) => {

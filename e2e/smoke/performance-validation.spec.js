@@ -1,7 +1,7 @@
 'use strict';
 
 const { test, expect } = require('../helpers/uat-test');
-const { loginAs } = require('../helpers/uat-auth');
+const { bootstrapAs } = require('../helpers/uat-auth');
 const {
   createBoundedNetworkObserver,
   containsForbiddenLicenseField
@@ -45,7 +45,7 @@ function metric(endpoint, filterCategory, count, classification, status) {
 test('V3 ADMIN: License initial-load network contract', async ({ page }, testInfo) => {
   test.skip(!shouldRunPerformanceValidation(), 'Authenticated-only performance validation.');
   test.setTimeout(120_000);
-  await loginAs(page, 'ADMIN');
+  await bootstrapAs(page, 'ADMIN');
 
   const observer = createBoundedNetworkObserver(page, {
     trackedPaths: ['/api/v1/licenses/{licenseId}/documents']
@@ -86,7 +86,7 @@ test('V3 ADMIN: License initial-load network contract', async ({ page }, testInf
 test('V3 ADMIN: Report Center exact network contract', async ({ page }, testInfo) => {
   test.skip(!shouldRunPerformanceValidation(), 'Authenticated-only performance validation.');
   test.setTimeout(180_000);
-  await loginAs(page, 'ADMIN');
+  await bootstrapAs(page, 'ADMIN');
 
   const observer = createBoundedNetworkObserver(page, {
     trackedPaths: ['/api/v1/executive-report', '/api/v1/reports/summary']
