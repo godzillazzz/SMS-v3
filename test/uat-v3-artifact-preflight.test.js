@@ -8,6 +8,7 @@ const {
   collectFiles,
   createAuthenticatedArtifactFixture,
   runAuthenticatedFailureArtifactPreflight,
+  runAuthenticatedLoginFailureArtifactPreflight,
   scanGeneratedArtifacts
 } = require('../e2e/helpers/uat-v3-artifact-preflight');
 const { artifactLeakFindings, sanitizeUatDiagnostic } = require('../e2e/helpers/uat-v3-security');
@@ -67,6 +68,25 @@ test('UAT_V3_ARTIFACT_PREFLIGHT: actual Playwright failure context is sanitized'
   });
 });
 
+
+test('UAT_V3_ARTIFACT_PREFLIGHT: login password DOM scrub prevents Playwright error-context leak without weakening scanner', () => {
+  withFixture((root) => {
+    const result = runAuthenticatedLoginFailureArtifactPreflight(root, path.resolve(__dirname, '..'), { scrub: true });
+    assert.equal(result.exitCode, 1);
+    const errorContexts = collectFiles(result.resultsDirectory).filter((filePath) => filePath.endsWith('error-context.md'));
+    assert.equal(errorContexts.length, 1);
+    assert.deepEqual(result.findings, []);
+    assert.equal(fs.readFileSync(errorContexts[0], 'utf8').includes(result.syntheticPassword), false);
+  });
+
+  const syntheticPassword = ['FAKE_UAT_LOGIN_PASSWORD', '123456789'].join('_');
+  const negativeCategories = artifactLeakFindings(
+    'test-results/playwright/synthetic-login/error-context.md',
+    `<input name="password" value="${syntheticPassword}">`,
+    { passwordValues: [syntheticPassword] }
+  );
+  assert.equal(negativeCategories.includes('PASSWORD_VALUE'), true);
+});
 test('UAT_V3_ARTIFACT_PREFLIGHT: authenticated reporter generates an allowlisted zero-leak set', () => {
   withFixture((root) => {
     createAuthenticatedArtifactFixture(root);
