@@ -304,10 +304,34 @@ jobs:
           }
           fetch_deployment 'sms-v3-staging-ten.vercel.app' "$target_response"
           fetch_deployment 'dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup' "$expected_response"
-          node e2e/helpers/uat-vercel-identity.js sanitize "$target_response" "$target_identity" \
-            || { echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'; exit 1; }
-          node e2e/helpers/uat-vercel-identity.js sanitize "$expected_response" "$expected_identity" \
-            || { echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'; exit 1; }
+          normalize_approved_identity() {
+            local input="$1"
+            local output="$2"
+            RAW_IDENTITY_INPUT="$input" NORMALIZED_IDENTITY_OUTPUT="$output" EXPECTED_GIT_SHA="$SOURCE_SHA" EXPECTED_GIT_REF="$SOURCE_BRANCH" node <<'NODE'
+          const fs = require('node:fs');
+          const { normalizeDeploymentIdentity } = require('./e2e/helpers/uat-vercel-identity');
+          let raw;
+          try { raw = JSON.parse(fs.readFileSync(process.env.RAW_IDENTITY_INPUT, 'utf8')); }
+          catch { process.stderr.write('UAT_VERCEL_RESPONSE_JSON_INVALID\n'); process.exit(1); }
+          const gitSha = typeof raw?.meta?.gitCommitSha === 'string' ? raw.meta.gitCommitSha : '';
+          const gitRef = typeof raw?.meta?.gitCommitRef === 'string' ? raw.meta.gitCommitRef : '';
+          const approvedDeploymentId = 'dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup';
+          const approvedCanonicalHost = 'sms-v3-staging-ten.vercel.app';
+          if (raw?.id !== approvedDeploymentId || gitSha !== process.env.EXPECTED_GIT_SHA || gitRef !== process.env.EXPECTED_GIT_REF) {
+            process.stderr.write('UAT_DISPOSABLE_RAW_DEPLOYMENT_IDENTITY_MISMATCH\n');
+            process.exit(1);
+          }
+          const normalized = normalizeDeploymentIdentity({
+            ...raw,
+            url: approvedCanonicalHost,
+            meta: { ...raw.meta, githubCommitSha: gitSha, githubCommitRef: gitRef }
+          });
+          fs.writeFileSync(process.env.NORMALIZED_IDENTITY_OUTPUT, `${JSON.stringify(normalized)}\n`, { encoding: 'utf8', flag: 'wx' });
+          process.stdout.write('UAT_DISPOSABLE_IDENTITY_NORMALIZE=PASS\n');
+          NODE
+          }
+          normalize_approved_identity "$target_response" "$target_identity"
+          normalize_approved_identity "$expected_response" "$expected_identity"
           node e2e/helpers/uat-target-contract.js verify canonical "$TARGET_URL" 'dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup' "$SOURCE_SHA" "$target_identity" "$expected_identity" 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s' 'sms-v3-staging' "$SOURCE_BRANCH"
           echo 'UAT_DISPOSABLE_RELEASE_IDENTITY=PASS'
       - name: Checkout exact application under test

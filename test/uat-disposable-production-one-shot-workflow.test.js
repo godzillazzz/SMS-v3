@@ -47,7 +47,12 @@ test('one-shot lane is bound to exact target, deployment, application, source br
   assert.match(authenticated, /UAT_DISPOSABLE_RELEASE_IDENTITY_MISMATCH/);
   assert.match(authenticated, /uat-target-contract\.js verify canonical/);
   assert.match(authenticated, /withGitRepoInfo=true/);
-  assert.match(authenticated, /uat-vercel-identity\.js sanitize/);
+  assert.match(authenticated, /normalizeDeploymentIdentity/);
+  assert.match(authenticated, /raw\?\.meta\?\.gitCommitSha/);
+  assert.match(authenticated, /raw\.meta\.gitCommitRef/);
+  assert.match(authenticated, /UAT_DISPOSABLE_RAW_DEPLOYMENT_IDENTITY_MISMATCH/);
+  assert.match(authenticated, /raw\?\.id !== approvedDeploymentId/);
+  assert.match(authenticated, /url: approvedCanonicalHost/);
   assert.doesNotMatch(authenticated, /npx --yes vercel@latest api/);
   assert.match(authenticated, /prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s/);
   assert.match(authenticated, /sms-v3-staging/);
