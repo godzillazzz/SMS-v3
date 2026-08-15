@@ -2,7 +2,26 @@ const { expect, request } = require('@playwright/test');
 const { getUatConfig } = require('./uat-config');
 const { automationBypassHeaders } = require('./technical-smoke');
 const { authenticatedRequest } = require('./uat-authenticated-request');
+const {
+  markHarnessPreventedHeavyRead,
+  performAndWaitForHeavyRequest
+} = require('./uat-heavy-read-v3');
 const { readRoleSession } = require('./uat-session');
+
+const authHarnessStateByPage = new WeakMap();
+
+function authHarnessState(page) {
+  let state = authHarnessStateByPage.get(page);
+  if (!state) {
+    state = {
+      cachedRefreshRouteInstalled: false,
+      cachedRefreshHits: 0,
+      dashboardSuppressorActive: 0
+    };
+    authHarnessStateByPage.set(page, state);
+  }
+  return state;
+}
 
 async function preflightRoleAccounts(environment = process.env) {
   const config = getUatConfig(environment);
@@ -46,44 +65,203 @@ async function preflightRoleAccounts(environment = process.env) {
   return { allReady: results.filter((result) => rolesToCheck.includes(result.role)).every((result) => result.ready), results, sessions };
 }
 
+function roleSession(role) {
+  const session = readRoleSession(role);
+  if (!session?.accessToken || session.user?.role !== role) {
+    const error = new Error('AUTH_SESSION_UNAVAILABLE');
+    error.code = 'AUTH_SESSION_UNAVAILABLE';
+    throw error;
+  }
+  return session;
+}
+
+function roleAccessToken(role) {
+  return roleSession(role).accessToken;
+}
+
+async function installCachedRefreshRoute(page, session) {
+  const state = authHarnessState(page);
+  if (state.cachedRefreshRouteInstalled) return;
+  state.cachedRefreshRouteInstalled = true;
+  await page.route('**/api/v1/auth/refresh**', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    state.cachedRefreshHits += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ accessToken: session.accessToken, tokenType: 'Bearer', user: session.user })
+    });
+  });
+}
+
+function dashboardSuppressor(page) {
+  const state = authHarnessState(page);
+  const pattern = '**/api/v1/dashboard**';
+  const handler = async (route) => {
+    const request = route.request();
+    if (request.method() !== 'GET') return route.continue();
+    markHarnessPreventedHeavyRead(page, request);
+    await route.abort('aborted');
+  };
+  let installed = false;
+  return {
+    activeCount: () => state.dashboardSuppressorActive,
+    async install() {
+      if (installed) return;
+      installed = true;
+      state.dashboardSuppressorActive += 1;
+      await page.route(pattern, handler);
+    },
+    async remove() {
+      if (!installed) return;
+      try {
+        await page.unroute(pattern, handler);
+      } finally {
+        installed = false;
+        state.dashboardSuppressorActive = Math.max(0, state.dashboardSuppressorActive - 1);
+      }
+    }
+  };
+}
+
+function dashboardSuppressorActiveCount(page) {
+  return authHarnessState(page).dashboardSuppressorActive;
+}
+
+async function scrubLoginCredentialDom(page) {
+  if (page.isClosed?.()) return;
+  await page.locator('input[type="password"], input[name="password"], input[autocomplete="current-password"], input[type="email"]').evaluateAll((inputs) => {
+    for (const input of inputs) {
+      input.value = '';
+      input.removeAttribute('value');
+    }
+  }).catch(() => undefined);
+}
+
+function cachedSessionDiagnostic(page, stateBefore, dashboardStatus) {
+  const state = authHarnessState(page);
+  return {
+    cachedSessionPresent: true,
+    cachedRefreshUsed: state.cachedRefreshHits > stateBefore.cachedRefreshHits,
+    dashboardStatus,
+    dashboardRequestTerminal: true,
+    dashboardSuppressorActiveAtHelperReturn: state.dashboardSuppressorActive
+  };
+}
+
+async function bootstrapAs(page, role) {
+  const session = roleSession(role);
+  await installCachedRefreshRoute(page, session);
+  const suppressor = dashboardSuppressor(page);
+  await suppressor.install();
+  try {
+    await page.goto('/');
+    await expect(page.locator('form.login-form')).toHaveCount(0);
+    await expect(page.locator('nav.nav-menu').first(), 'Authenticated navigation shell must render.').toBeVisible();
+  } finally {
+    await suppressor.remove();
+  }
+  if (suppressor.activeCount() !== 0) {
+    const error = new Error('UAT_DASHBOARD_SUPPRESSOR_LEAK');
+    error.code = 'UAT_DASHBOARD_SUPPRESSOR_LEAK';
+    throw error;
+  }
+  return { accessToken: session.accessToken };
+}
+
 async function loginAs(page, role) {
+  const session = roleSession(role);
+  const state = authHarnessState(page);
+  const stateBefore = { cachedRefreshHits: state.cachedRefreshHits };
+  await installCachedRefreshRoute(page, session);
+  const dashboardResponse = await performAndWaitForHeavyRequest(page, '/api/v1/dashboard', () => page.goto('/'));
+  await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+  return {
+    accessToken: session.accessToken,
+    authContract: cachedSessionDiagnostic(page, stateBefore, dashboardResponse.status())
+  };
+}
+
+async function loginViaUi(page, role) {
   const config = getUatConfig();
   const account = config.accounts[role];
   if (!account?.configured) throw new Error(`UAT credentials unavailable for role: ${role}`);
 
-  const cachedSession = readRoleSession(role);
-  if (cachedSession) {
-    await page.route('**/api/v1/auth/refresh**', async (route) => {
-      if (route.request().method() !== 'POST') return route.continue();
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ accessToken: cachedSession.accessToken, tokenType: 'Bearer', user: cachedSession.user })
-      });
-    });
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
-    return { accessToken: cachedSession.accessToken };
+  const state = authHarnessState(page);
+  if (state.cachedRefreshRouteInstalled || state.cachedRefreshHits !== 0) {
+    const error = new Error('UAT_REAL_LOGIN_CACHED_REFRESH_ROUTE_ACTIVE');
+    error.code = 'UAT_REAL_LOGIN_CACHED_REFRESH_ROUTE_ACTIVE';
+    throw error;
+  }
+  if (state.dashboardSuppressorActive !== 0) {
+    const error = new Error('UAT_DASHBOARD_SUPPRESSOR_LEAK');
+    error.code = 'UAT_DASHBOARD_SUPPRESSOR_LEAK';
+    throw error;
   }
 
   await page.goto('/');
+  const loginRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname === '/api/v1/auth/login' && request.method() === 'POST';
+  }, { timeout: 15_000 });
   const loginResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.pathname === '/api/v1/auth/login' && response.request().method() === 'POST';
-  });
-  await page.getByLabel('อีเมล').fill(account.email);
-  await page.getByLabel('รหัสผ่าน').fill(account.password);
-  await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click();
+  }, { timeout: 15_000 });
 
-  const response = await loginResponse;
-  expect(response.status(), 'Login response must be successful.').toBeGreaterThanOrEqual(200);
-  expect(response.status(), 'Login response must be successful.').toBeLessThan(300);
-  const payload = await response.json();
-  expect(payload?.user?.role, 'UAT identity must match its expected role.').toBe(role);
-  expect(typeof payload?.accessToken, 'Login must establish an access token.').toBe('string');
-  await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+  let payload;
+  let loginStatus;
+  try {
+    await page.getByLabel('อีเมล').fill(account.email);
+    await page.getByLabel('รหัสผ่าน').fill(account.password);
 
-  return { accessToken: payload.accessToken };
+    const dashboardResponse = await performAndWaitForHeavyRequest(page, '/api/v1/dashboard', async () => {
+      await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click();
+      await loginRequest;
+      await scrubLoginCredentialDom(page);
+
+      const response = await loginResponse;
+      loginStatus = response.status();
+      if (loginStatus < 200 || loginStatus >= 300) {
+        const error = new Error(`UAT_REAL_LOGIN_HTTP_${loginStatus}`);
+        error.code = error.message;
+        error.status = loginStatus;
+        throw error;
+      }
+      payload = await response.json();
+      if (payload?.user?.role !== role) {
+        const error = new Error('UAT_REAL_LOGIN_ROLE_MISMATCH');
+        error.code = error.message;
+        throw error;
+      }
+      if (typeof payload?.accessToken !== 'string' || payload.accessToken.length === 0) {
+        const error = new Error('UAT_REAL_LOGIN_TOKEN_MISSING');
+        error.code = error.message;
+        throw error;
+      }
+    });
+
+    await expect(page.locator('form.login-form')).toHaveCount(0);
+    await expect(page.locator('nav.nav-menu').first(), 'Successful real login must establish the authenticated shell.').toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+
+    return {
+      accessToken: payload.accessToken,
+      authContract: {
+        loginStatus,
+        dashboardStatus: dashboardResponse.status(),
+        roleMatched: payload?.user?.role === role,
+        accessTokenPresent: typeof payload?.accessToken === 'string' && payload.accessToken.length > 0,
+        cachedSessionPresent: false,
+        cachedRefreshUsed: false,
+        dashboardRequestTerminal: true,
+        authenticatedShellVisible: true,
+        dashboardSuppressorActiveAtHelperReturn: dashboardSuppressorActiveCount(page)
+      }
+    };
+  } finally {
+    await scrubLoginCredentialDom(page);
+  }
 }
 
 async function getAuditEventsStatus(accessToken) {
@@ -91,4 +269,16 @@ async function getAuditEventsStatus(accessToken) {
   return response.status;
 }
 
-module.exports = { getAuditEventsStatus, loginAs, preflightRoleAccounts };
+module.exports = {
+  authHarnessState,
+  bootstrapAs,
+  dashboardSuppressor,
+  dashboardSuppressorActiveCount,
+  getAuditEventsStatus,
+  installCachedRefreshRoute,
+  loginAs,
+  loginViaUi,
+  preflightRoleAccounts,
+  roleAccessToken,
+  scrubLoginCredentialDom
+};

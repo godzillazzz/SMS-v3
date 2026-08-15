@@ -39,6 +39,36 @@ function safeStageAttachment(value) {
   return safe;
 }
 
+function safeNonNegativeInteger(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : 0;
+}
+
+function safeHeavyReadSafetyAttachment(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  return {
+    testsFinishingWithOutstandingHeavyReads: safeNonNegativeInteger(value.testsFinishingWithOutstandingHeavyReads),
+    exceptionalHeavyDrainCount: safeNonNegativeInteger(value.exceptionalHeavyDrainCount),
+    exceptionalHeavyDrainWaitMs: safeNonNegativeInteger(value.exceptionalHeavyDrainWaitMs),
+    realHeavyStarts: safeNonNegativeInteger(value.realHeavyStarts),
+    preventedHeavyStarts: safeNonNegativeInteger(value.preventedHeavyStarts)
+  };
+}
+
+function safeAuthContractAttachment(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  const safe = {};
+  for (const key of ['loginStatus', 'dashboardStatus']) {
+    const status = Number(value[key]);
+    if (Number.isInteger(status) && status >= 100 && status <= 599) safe[key] = status;
+  }
+  for (const key of ['roleMatched', 'accessTokenPresent', 'cachedSessionPresent', 'cachedRefreshUsed', 'dashboardRequestTerminal', 'authenticatedShellVisible']) {
+    if (typeof value[key] === 'boolean') safe[key] = value[key];
+  }
+  if (value.dashboardSuppressorActiveAtHelperReturn !== undefined) safe.dashboardSuppressorActiveAtHelperReturn = safeNonNegativeInteger(value.dashboardSuppressorActiveAtHelperReturn);
+  return Object.keys(safe).length ? safe : undefined;
+}
+
 class UatSummaryReporter {
   constructor(options = {}) {
     this.outputFile = options.outputFile || 'test-results/uat-summary.md';
@@ -47,17 +77,28 @@ class UatSummaryReporter {
     this.results = [];
     this.technicalSummary = undefined;
     this.regressionSummary = {};
+    this.heavyReadSafety = {
+      testsFinishingWithOutstandingHeavyReads: 0,
+      exceptionalHeavyDrainCount: 0,
+      exceptionalHeavyDrainWaitMs: 0,
+      realHeavyStarts: 0,
+      preventedHeavyStarts: 0
+    };
   }
 
   onTestEnd(test, result) {
     const title = test.titlePath().slice(1).join(' › ');
     let stage;
+    let authContract;
     for (const attachment of result.attachments || []) {
-      if (attachment.name !== 'uat-stage.json' || !attachment.body) continue;
+      if (!attachment.body) continue;
       try {
-        stage = safeStageAttachment(JSON.parse(attachment.body.toString('utf8')));
+        const parsed = JSON.parse(attachment.body.toString('utf8'));
+        if (attachment.name === 'uat-stage.json') stage = safeStageAttachment(parsed);
+        if (attachment.name === 'v31-auth-contract.json') authContract = safeAuthContractAttachment(parsed);
       } catch {
-        stage = undefined;
+        if (attachment.name === 'uat-stage.json') stage = undefined;
+        if (attachment.name === 'v31-auth-contract.json') authContract = undefined;
       }
     }
     this.results.push({
@@ -66,7 +107,8 @@ class UatSummaryReporter {
       status: result.status,
       duration: Number.isFinite(result.duration) ? result.duration : 0,
       safeErrorCode: safeErrorCode(result),
-      ...(stage ? { stage } : {})
+      ...(stage ? { stage } : {}),
+      ...(authContract ? { authContract } : {})
     });
     for (const attachment of result.attachments || []) {
       if (!attachment.body) continue;
@@ -81,6 +123,10 @@ class UatSummaryReporter {
       if (attachment.name === 'v2-audit-summary.json') this.regressionSummary.audit = parsed;
       if (attachment.name === 'v2-dashboard-summary.json') this.regressionSummary.dashboard = parsed;
       if (attachment.name === 'performance-validation.json') this.performanceValidation = mergePerformanceValidation(this.performanceValidation, parsed);
+      if (attachment.name === 'heavy-read-safety.json') {
+        const metric = safeHeavyReadSafetyAttachment(parsed);
+        if (metric) for (const key of Object.keys(this.heavyReadSafety)) this.heavyReadSafety[key] += metric[key];
+      }
     }
   }
 
@@ -156,6 +202,13 @@ class UatSummaryReporter {
       `- Authenticated MANAGER: ${roleStatus('MANAGER')}`,
       `- Authenticated VIEWER: ${roleStatus('VIEWER')}`,
       '',
+      '#### HEAVY READ SAFETY',
+      `- testsFinishingWithOutstandingHeavyReads: ${this.heavyReadSafety.testsFinishingWithOutstandingHeavyReads}`,
+      `- exceptionalHeavyDrainCount: ${this.heavyReadSafety.exceptionalHeavyDrainCount}`,
+      `- exceptionalHeavyDrainWaitMs: ${this.heavyReadSafety.exceptionalHeavyDrainWaitMs}`,
+      `- realHeavyStarts: ${this.heavyReadSafety.realHeavyStarts}`,
+      `- preventedHeavyStarts: ${this.heavyReadSafety.preventedHeavyStarts}`,
+      '',
       `- Passed tests: ${passed}`,
       `- Skipped tests: ${skipped}`,
       `- Failed tests: ${failed}`,
@@ -179,13 +232,14 @@ class UatSummaryReporter {
     for (const entry of this.results) lines.push(`- ${entry.status.toUpperCase()}: ${entry.testName}`);
     fs.mkdirSync(path.dirname(this.outputFile), { recursive: true });
     fs.writeFileSync(this.outputFile, `${lines.join('\n')}\n`);
-    const safeResults = this.results.map(({ testName, role, status, duration, safeErrorCode, stage }) => ({
+    const safeResults = this.results.map(({ testName, role, status, duration, safeErrorCode, stage, authContract }) => ({
       testName,
       ...(role ? { role } : {}),
       status,
       duration,
       ...(safeErrorCode ? { safeErrorCode } : {}),
-      ...(stage ? { stage } : {})
+      ...(stage ? { stage } : {}),
+      ...(authContract ? { authContract } : {})
     }));
     fs.mkdirSync(path.dirname(this.jsonOutputFile), { recursive: true });
     fs.writeFileSync(this.jsonOutputFile, JSON.stringify({
@@ -193,6 +247,7 @@ class UatSummaryReporter {
       tests: safeResults,
       totals: { passed, skipped, failed },
       overall: String(result.status || '').toUpperCase(),
+      heavyReadSafety: this.heavyReadSafety,
       ...(performanceValidation.networkContracts || performanceValidation.benchmark ? { performanceValidation } : {})
     }, null, 2) + '\n');
   }
