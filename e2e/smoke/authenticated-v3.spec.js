@@ -215,7 +215,7 @@ async function requestRoleMatrix(role, token) {
           await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' }), `${role} Dashboard must remain visible after cached-session login.`).toBeVisible();
           const evidence = monitor.safeEvidence();
           await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(evidence), contentType: 'application/json' });
-          if (role === 'VIEWER' && String(process.env.UAT_TARGET_MODE || '').toLowerCase() === 'candidate') {
+          if (role === 'VIEWER' && authContract?.targetClass === 'IMMUTABLE') {
             expect(evidence.pageErrorCount).toBe(0);
             expect(evidence.consoleErrorCount).toBe(0);
             expect(evidence.requestFailureCount).toBe(0);

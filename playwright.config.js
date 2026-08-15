@@ -1,12 +1,13 @@
 const { defineConfig } = require('@playwright/test');
 const { getTraceMode } = require('./e2e/helpers/technical-smoke');
+const { classifyUatTarget } = require('./e2e/helpers/uat-target-contract');
 
 const baseURL = process.env.UAT_BASE_URL || 'https://uat.invalid';
 const authenticatedMode = process.env.UAT_MODE === 'authenticated';
-const targetMode = String(process.env.UAT_TARGET_MODE || '').trim().toLowerCase();
+const targetClass = authenticatedMode ? classifyUatTarget(baseURL).targetClass : undefined;
 const diagnosticGrep = !authenticatedMode
   ? undefined
-  : targetMode === 'canonical'
+  : targetClass === 'CANONICAL'
     ? /V3 (?:ADMIN|MANAGER|VIEWER): login and role identity/
     : /V3 VIEWER: protected page dashboard/;
 const reporters = [

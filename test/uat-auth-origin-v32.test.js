@@ -152,7 +152,9 @@ test('V3.2 reporter persists only sanitized auth and secondary-response observab
 
 test('V3.2 diagnostic selection separates canonical login probe from immutable Viewer observation', () => {
   const config = read('playwright.config.js');
-  assert.match(config, /targetMode === 'canonical'/);
+  assert.match(config, /targetClass === 'CANONICAL'/);
+  assert.match(config, /classifyUatTarget\(baseURL\)/);
+  assert.doesNotMatch(config, /UAT_TARGET_MODE/);
   assert.match(config, /V3 \(\?:ADMIN\|MANAGER\|VIEWER\): login and role identity/);
   assert.match(config, /V3 VIEWER: protected page dashboard/);
   assert.match(config, /grep: diagnosticGrep/);
