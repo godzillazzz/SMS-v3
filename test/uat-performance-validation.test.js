@@ -5,7 +5,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const {
-  CANDIDATE_BASE_URL,
   alternatingSequence,
   assertApprovedBenchmarkTargets,
   median,
@@ -17,6 +16,9 @@ const {
 } = require('../e2e/helpers/uat-performance');
 const { createBoundedNetworkObserver, normalizeNetworkPath } = require('../e2e/helpers/uat-network');
 const { scanArtifact } = require('../e2e/helpers/uat-v3-security');
+
+const REQUEST_ID_CANDIDATE_URL = 'https://sms-v3-staging-cjbcsf5qw-godzillazz.vercel.app';
+const FUTURE_CANDIDATE_URL = 'https://sms-v3-staging-abc123-godzillazz.vercel.app';
 
 function sample(targetLabel, sampleIndex, status = 200, durationMs = 100) {
   return {
@@ -132,13 +134,29 @@ test('technical mode skips authenticated performance validation', () => {
   assert.equal(shouldRunPerformanceValidation({ UAT_MODE: 'authenticated' }), true);
 });
 
-test('benchmark host validation rejects any unauthorized candidate host', () => {
-  assert.deepEqual(assertApprovedBenchmarkTargets(CANDIDATE_BASE_URL), {
+test('benchmark target validation accepts dynamic approved candidates and rejects unsafe variants', () => {
+  assert.deepEqual(assertApprovedBenchmarkTargets(REQUEST_ID_CANDIDATE_URL), {
     canonical: 'https://sms-v3-staging-ten.vercel.app',
-    candidate: CANDIDATE_BASE_URL
+    candidate: REQUEST_ID_CANDIDATE_URL
   });
-  assert.throws(() => assertApprovedBenchmarkTargets('https://example.com'), /UAT_BENCHMARK_TARGET_REJECTED/);
-  assert.throws(() => assertApprovedBenchmarkTargets('https://sms-v3-staging-other-godzillazz.vercel.app'), /UAT_BENCHMARK_TARGET_REJECTED/);
+  assert.deepEqual(assertApprovedBenchmarkTargets(FUTURE_CANDIDATE_URL + '/'), {
+    canonical: 'https://sms-v3-staging-ten.vercel.app',
+    candidate: FUTURE_CANDIDATE_URL
+  });
+
+  const rejected = [
+    'https://sms-v3-staging-ten.vercel.app',
+    'https://example.com',
+    'https://sms-v3-staging-godzillazz.vercel.app',
+    REQUEST_ID_CANDIDATE_URL.replace('https://', 'http://'),
+    REQUEST_ID_CANDIDATE_URL + '/path',
+    REQUEST_ID_CANDIDATE_URL + '?probe=1',
+    REQUEST_ID_CANDIDATE_URL + '#fragment',
+    'https://user:pass@sms-v3-staging-cjbcsf5qw-godzillazz.vercel.app'
+  ];
+  for (const url of rejected) {
+    assert.throws(() => assertApprovedBenchmarkTargets(url), /UAT_BENCHMARK_TARGET_REJECTED/);
+  }
 });
 
 

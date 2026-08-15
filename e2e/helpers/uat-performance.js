@@ -5,9 +5,9 @@ const { request } = require('@playwright/test');
 const { automationBypassHeaders } = require('./technical-smoke');
 const { getUatConfig } = require('./uat-config');
 const { pathnameOnly } = require('./uat-network');
+const { validateTargetScope } = require('./uat-target-contract');
 
 const CANONICAL_BASE_URL = 'https://sms-v3-staging-ten.vercel.app';
-const CANDIDATE_BASE_URL = 'https://sms-v3-staging-9ktrw39ud-godzillazz.vercel.app';
 const MAX_SAMPLES = 3;
 const TARGET_LABELS = new Set(['canonical', 'candidate']);
 const ROLES = new Set(['ADMIN', 'MANAGER']);
@@ -63,18 +63,22 @@ function alternatingSequence(sampleCount = MAX_SAMPLES) {
   return sequence;
 }
 
-function normalizeApprovedBaseUrl(value) {
-  const parsed = new URL(value);
-  parsed.hash = '';
-  parsed.search = '';
-  return parsed.toString().replace(/\/$/, '');
-}
-
 function assertApprovedBenchmarkTargets(candidateBaseURL) {
-  const candidate = normalizeApprovedBaseUrl(candidateBaseURL);
-  if (candidate !== CANDIDATE_BASE_URL) throw new Error('UAT_BENCHMARK_TARGET_REJECTED');
-  if (normalizeApprovedBaseUrl(CANONICAL_BASE_URL) !== CANONICAL_BASE_URL) throw new Error('UAT_BENCHMARK_CANONICAL_INVALID');
-  return { canonical: CANONICAL_BASE_URL, candidate: CANDIDATE_BASE_URL };
+  let canonical;
+  try {
+    canonical = validateTargetScope('canonical', CANONICAL_BASE_URL).url;
+  } catch {
+    throw new Error('UAT_BENCHMARK_CANONICAL_INVALID');
+  }
+
+  let candidate;
+  try {
+    candidate = validateTargetScope('candidate', candidateBaseURL).url;
+  } catch {
+    throw new Error('UAT_BENCHMARK_TARGET_REJECTED');
+  }
+
+  return { canonical, candidate };
 }
 
 function shouldRunPerformanceValidation(environment = process.env) {
@@ -310,7 +314,6 @@ function mergePerformanceValidation(current = {}, next = {}) {
 module.exports = {
   BENCHMARK_ENDPOINTS,
   CANONICAL_BASE_URL,
-  CANDIDATE_BASE_URL,
   MAX_SAMPLES,
   alternatingSequence,
   assertApprovedBenchmarkTargets,
