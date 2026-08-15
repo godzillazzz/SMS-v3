@@ -25,19 +25,13 @@ on:
         required: true
         type: string
       uat_mode:
-        description: Technical/public smoke, authenticated regression, or the exact owner-approved disposable fixture lane
+        description: Technical/public smoke or authenticated ADMIN/MANAGER/VIEWER smoke
         required: false
         default: technical
         type: choice
         options:
           - technical
           - authenticated
-          - disposable-approved-v1
-      fixture_confirmation:
-        description: Exact one-shot confirmation required only for disposable-approved-v1
-        required: false
-        default: ''
-        type: string
 
 permissions:
   contents: read
@@ -202,7 +196,7 @@ jobs:
           retention-days: 7
 
   authenticated-uat:
-    if: ${{ inputs.uat_mode == 'authenticated' || inputs.uat_mode == 'disposable-approved-v1' }}
+    if: ${{ inputs.uat_mode == 'authenticated' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
@@ -217,6 +211,13 @@ jobs:
       UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
       UAT_MODE: authenticated
       PLAYWRIGHT_NO_COPY_PROMPT: 1
+      UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+      UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+      UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
+      UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+      UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
+      UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -264,76 +265,6 @@ jobs:
           echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
           echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
           echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
-      - name: Validate exact owner-approved disposable release identity
-        if: ${{ inputs.uat_mode == 'disposable-approved-v1' }}
-        shell: bash
-        env:
-          TARGET_URL: ${{ inputs.target_url }}
-          SOURCE_BRANCH: ${{ inputs.source_branch }}
-          SOURCE_SHA: ${{ inputs.source_sha }}
-          HARNESS_SHA: ${{ inputs.uat_harness_sha }}
-          APPROVED_DEPLOYMENT_INPUT: ${{ inputs.expected_deployment_id }}
-          FIXTURE_CONFIRMATION: ${{ inputs.fixture_confirmation }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          set -euo pipefail
-          [[ "$TARGET_URL" == 'https://sms-v3-staging-ten.vercel.app' ]] || { echo 'UAT_DISPOSABLE_RELEASE_IDENTITY_MISMATCH'; exit 1; }
-          [[ "$SOURCE_BRANCH" == 'feat/request-id-visibility-v1' ]] || { echo 'UAT_DISPOSABLE_RELEASE_IDENTITY_MISMATCH'; exit 1; }
-          [[ "$SOURCE_SHA" == 'dd78e635146ca452b620216973069be9d1e6e3ea' ]] || { echo 'UAT_DISPOSABLE_RELEASE_IDENTITY_MISMATCH'; exit 1; }
-          [[ "$HARNESS_SHA" == '22dc92c1abf9159b272837637f6986f3b6267d9e' ]] || { echo 'UAT_DISPOSABLE_RELEASE_IDENTITY_MISMATCH'; exit 1; }
-          [[ "$APPROVED_DEPLOYMENT_INPUT" == 'dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup' ]] || { echo 'UAT_DISPOSABLE_RELEASE_IDENTITY_MISMATCH'; exit 1; }
-          [[ "$FIXTURE_CONFIRMATION" == 'MUTATE_SMS_V3_DISPOSABLE_UAT_EMPLOYEE_V1' ]] || { echo 'UAT_EMPLOYEE_CONFIRMATION_REQUIRED'; exit 1; }
-          [[ -n "$VERCEL_TOKEN" ]] || { echo 'UAT_VERCEL_IDENTITY_SECRET_REQUIRED'; exit 1; }
-          target_response="$(mktemp)"
-          expected_response="$(mktemp)"
-          target_identity="$(mktemp -u)"
-          expected_identity="$(mktemp -u)"
-          cleanup() { rm -f "$target_response" "$expected_response" "$target_identity" "$expected_identity"; }
-          trap cleanup EXIT
-          fetch_deployment() {
-            local lookup="$1"
-            local output="$2"
-            curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              --get \
-              --data-urlencode 'teamId=team_nemCExHbZ8EAhSgsvefHPAEz' \
-              --data-urlencode 'withGitRepoInfo=true' \
-              "https://api.vercel.com/v13/deployments/$lookup" >"$output" 2>/dev/null \
-              || { echo 'UAT_VERCEL_REST_FETCH_FAILED'; exit 1; }
-            test -s "$output"
-          }
-          fetch_deployment 'sms-v3-staging-ten.vercel.app' "$target_response"
-          fetch_deployment 'dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup' "$expected_response"
-          normalize_approved_identity() {
-            local input="$1"
-            local output="$2"
-            RAW_IDENTITY_INPUT="$input" NORMALIZED_IDENTITY_OUTPUT="$output" EXPECTED_GIT_SHA="$SOURCE_SHA" EXPECTED_GIT_REF="$SOURCE_BRANCH" node <<'NODE'
-          const fs = require('node:fs');
-          const { normalizeDeploymentIdentity } = require('./e2e/helpers/uat-vercel-identity');
-          let raw;
-          try { raw = JSON.parse(fs.readFileSync(process.env.RAW_IDENTITY_INPUT, 'utf8')); }
-          catch { process.stderr.write('UAT_VERCEL_RESPONSE_JSON_INVALID\n'); process.exit(1); }
-          const gitSha = typeof raw?.meta?.gitCommitSha === 'string' ? raw.meta.gitCommitSha : '';
-          const gitRef = typeof raw?.meta?.gitCommitRef === 'string' ? raw.meta.gitCommitRef : '';
-          const approvedDeploymentId = 'dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup';
-          const approvedCanonicalHost = 'sms-v3-staging-ten.vercel.app';
-          if (raw?.id !== approvedDeploymentId || gitSha !== process.env.EXPECTED_GIT_SHA || gitRef !== process.env.EXPECTED_GIT_REF) {
-            process.stderr.write('UAT_DISPOSABLE_RAW_DEPLOYMENT_IDENTITY_MISMATCH\n');
-            process.exit(1);
-          }
-          const normalized = normalizeDeploymentIdentity({
-            ...raw,
-            url: approvedCanonicalHost,
-            meta: { ...raw.meta, githubCommitSha: gitSha, githubCommitRef: gitRef }
-          });
-          fs.writeFileSync(process.env.NORMALIZED_IDENTITY_OUTPUT, `${JSON.stringify(normalized)}\n`, { encoding: 'utf8', flag: 'wx' });
-          process.stdout.write('UAT_DISPOSABLE_IDENTITY_NORMALIZE=PASS\n');
-          NODE
-          }
-          normalize_approved_identity "$target_response" "$target_identity"
-          normalize_approved_identity "$expected_response" "$expected_identity"
-          node e2e/helpers/uat-target-contract.js verify canonical "$TARGET_URL" 'dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup' "$SOURCE_SHA" "$target_identity" "$expected_identity" 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s' 'sms-v3-staging' "$SOURCE_BRANCH"
-          echo 'UAT_DISPOSABLE_RELEASE_IDENTITY=PASS'
       - name: Checkout exact application under test
         uses: actions/checkout@v4
         with:
@@ -350,15 +281,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HARNESS_SHA"
           test "$(git -C application-under-test rev-parse HEAD)" = "$SOURCE_SHA"
           test -f application-under-test/package.json
-      - name: Verify disposable fixture schema equality before direct DB access
-        if: ${{ inputs.uat_mode == 'disposable-approved-v1' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmp -s prisma/schema.prisma application-under-test/prisma/schema.prisma || { echo 'UAT_FIXTURE_SCHEMA_MISMATCH'; exit 1; }
-          echo 'UAT_FIXTURE_SCHEMA=PASS'
       - name: Require all authenticated UAT credentials
-        if: ${{ inputs.uat_mode == 'authenticated' }}
         shell: bash
         env:
           UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
@@ -385,32 +308,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Validate protected disposable fixture execution context
-        if: ${{ inputs.uat_mode == 'disposable-approved-v1' }}
-        shell: bash
-        env:
-          PROTECTED_FIXTURE_DB_URL: ${{ secrets['DATABASE_URL'] }}
-          UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
-          UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
-        run: |
-          set -euo pipefail
-          [[ -n "$PROTECTED_FIXTURE_DB_URL" ]] || { echo 'UAT_EMPLOYEE_DATABASE_TARGET_INVALID'; exit 1; }
-          [[ -n "$UAT_ADMIN_EMAIL" && -n "$UAT_ADMIN_PASSWORD" ]] || { echo 'UAT_ADMIN_CREDENTIALS_REQUIRED'; exit 1; }
-          node <<'NODE'
-          const helper = require('./scripts/admin/disposable-uat-employee');
-          const env = {
-            ...process.env,
-            DATABASE_URL: process.env.PROTECTED_FIXTURE_DB_URL,
-            ['UAT_' + 'DISPOSABLE_EMPLOYEE_MODE']: 'shared-approved',
-            ['UAT_' + 'DISPOSABLE_EMPLOYEE_CONFIRM']: 'MUTATE_SMS_V3_DISPOSABLE_UAT_EMPLOYEE_V1'
-          };
-          helper.assertExecutionContext(env);
-          process.stdout.write('UAT_EMPLOYEE_SHARED_CONTEXT=VALID\n');
-          NODE
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Run authenticated UAT V3
-        if: ${{ inputs.uat_mode == 'authenticated' }}
         id: uat
         uses: actions/github-script@v7
         env:
@@ -477,161 +377,8 @@ jobs:
             if (leakCount > 0) core.setFailed('UAT_ARTIFACT_LEAK');
             else if (result.error || result.status !== 0) core.setFailed('UAT_EXECUTION_FAILED');
             else core.info('ARTIFACT_LEAK_COUNT=0');
-      - name: Run exact disposable employee lifecycle once
-        if: ${{ inputs.uat_mode == 'disposable-approved-v1' }}
-        id: disposable
-        uses: actions/github-script@v7
-        env:
-          PROTECTED_FIXTURE_DB_URL: ${{ secrets['DATABASE_URL'] }}
-          UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
-          UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
-        with:
-          script: |
-            const fs = require('node:fs');
-            const path = require('node:path');
-            const { spawnSync } = require('node:child_process');
-            const { scanArtifact, sanitizeArtifactPath } = require('./e2e/helpers/uat-v3-security');
-
-            for (const secret of [process.env.PROTECTED_FIXTURE_DB_URL, process.env.UAT_ADMIN_EMAIL, process.env.UAT_ADMIN_PASSWORD].filter(Boolean)) core.setSecret(secret);
-            const fixtureEnv = {
-              ...process.env,
-              DATABASE_URL: process.env.PROTECTED_FIXTURE_DB_URL,
-              ['UAT_' + 'DISPOSABLE_EMPLOYEE_ENABLED']: 'true',
-              ['UAT_' + 'DISPOSABLE_EMPLOYEE_MODE']: 'shared-approved',
-              ['UAT_' + 'DISPOSABLE_EMPLOYEE_CONFIRM']: 'MUTATE_SMS_V3_DISPOSABLE_UAT_EMPLOYEE_V1',
-              UAT_MANAGER_EMAIL: 'unused-manager-disposable-v1@example.invalid',
-              UAT_MANAGER_PASSWORD: 'UNUSED_DISPOSABLE_V1_MANAGER',
-              UAT_VIEWER_EMAIL: 'unused-viewer-disposable-v1@example.invalid',
-              UAT_VIEWER_PASSWORD: 'UNUSED_DISPOSABLE_V1_VIEWER'
-            };
-            const tempConfig = '.uat-disposable-playwright.config.cjs';
-            fs.writeFileSync(tempConfig, [
-              "const base = require('./playwright.config');",
-              'module.exports = { ...base, globalSetup: undefined, globalTeardown: undefined, fullyParallel: false, workers: 1, retries: 0 };'
-            ].join('\n'));
-            let testResult;
-            try {
-              testResult = spawnSync('npx', [
-                'playwright', 'test', 'e2e/smoke/disposable-employee.spec.js',
-                `--config=${tempConfig}`, '--workers=1', '--retries=0'
-              ], { env: fixtureEnv, stdio: 'ignore' });
-            } finally {
-              fs.rmSync(tempConfig, { force: true });
-            }
-
-            const runHelper = (command) => spawnSync('node', ['scripts/admin/disposable-uat-employee.js', command], {
-              env: fixtureEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']
-            });
-            const safeCode = (result) => {
-              const code = String(result?.stderr || '').trim().split(/\r?\n/)[0] || '';
-              return /^UAT_[A-Z0-9_]+$/.test(code) ? code : '';
-            };
-            let baselineCheck = runHelper('assert');
-            let recoveryAttempted = false;
-            let recoverySucceeded = false;
-            let recoveryCode = '';
-            if (baselineCheck.status !== 0) {
-              recoveryAttempted = true;
-              const recovery = runHelper('reset');
-              recoveryCode = safeCode(recovery);
-              recoverySucceeded = recovery.status === 0;
-              baselineCheck = runHelper('assert');
-            }
-            let baseline = null;
-            if (baselineCheck.status === 0) {
-              try { baseline = JSON.parse(String(baselineCheck.stdout || '{}')); } catch {}
-            }
-            const baselineRestored = baseline?.state === 'ACTIVE_BASELINE'
-              && baseline?.employeeCode === 'ZZZ-UAT-DISPOSABLE-V1'
-              && baseline?.linkedUser === true
-              && baseline?.lifecycleEvents === 0
-              && Object.values(baseline?.dependencies || {}).every((value) => value === 0);
-
-            let counts = null;
-            if (baselineRestored) {
-              const countScript = String.raw`
-                const { PrismaClient } = require('@prisma/client');
-                const { FIXTURE_EMPLOYEE_CODE, FIXTURE_LEGACY_EMPLOYEE_ID, FIXTURE_SKILL_MARKER, FIXTURE_USER_EMAIL, FIXTURE_LEGACY_USER_ID } = require('./scripts/admin/disposable-uat-employee');
-                (async () => {
-                  const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
-                  try {
-                    const employee = await prisma.employee.findUnique({ where: { employeeCode: FIXTURE_EMPLOYEE_CODE } });
-                    if (!employee || employee.legacyEmployeeId !== FIXTURE_LEGACY_EMPLOYEE_ID || employee.skill !== FIXTURE_SKILL_MARKER) throw new Error('UAT_EMPLOYEE_IDENTITY_MISMATCH');
-                    const user = await prisma.user.findUnique({ where: { email: FIXTURE_USER_EMAIL } });
-                    if (!user || user.legacyUserId !== FIXTURE_LEGACY_USER_ID || user.employeeId !== employee.id || user.role !== 'VIEWER') throw new Error('UAT_EMPLOYEE_IDENTITY_MISMATCH');
-                    const [employeeCount, userCount, marker, lifecycle, employeeAudit, refreshSessions, otp, leave, quota, shift, license, licenseDocuments, lifecycleAuditRows] = await Promise.all([
-                      prisma.employee.count({ where: { employeeCode: FIXTURE_EMPLOYEE_CODE, legacyEmployeeId: FIXTURE_LEGACY_EMPLOYEE_ID, skill: FIXTURE_SKILL_MARKER } }),
-                      prisma.user.count({ where: { email: FIXTURE_USER_EMAIL, legacyUserId: FIXTURE_LEGACY_USER_ID, employeeId: employee.id, role: 'VIEWER' } }),
-                      prisma.auditLog.count({ where: { entityType: 'DisposableUatEmployeeFixture', entityId: employee.id } }),
-                      prisma.employeeLifecycleEvent.count({ where: { employeeId: employee.id } }),
-                      prisma.auditLog.count({ where: { entityType: 'Employee', entityId: employee.id } }),
-                      prisma.refreshSession.count({ where: { userId: user.id } }),
-                      prisma.authOtpChallenge.count({ where: { userId: user.id } }),
-                      prisma.leaveRequest.count({ where: { employeeId: employee.id } }),
-                      prisma.leaveQuota.count({ where: { employeeId: employee.id } }),
-                      prisma.shiftAssignment.count({ where: { employeeId: employee.id } }),
-                      prisma.employeeLicense.count({ where: { employeeId: employee.id } }),
-                      prisma.employeeLicenseDocument.count({ where: { employeeId: employee.id } }),
-                      prisma.auditLog.count({ where: { entityType: 'EmployeeLifecycleEvent', metadata: { path: ['employeeId'], equals: employee.id } } })
-                    ]);
-                    const lifecycleEventAudit = Number(lifecycleAuditRows || 0);
-                    process.stdout.write(JSON.stringify({ employee: employeeCount, user: userCount, marker, lifecycleEvents: lifecycle, lifecycleAudit: employeeAudit + lifecycleEventAudit, refreshSessions, otp, leave, quota, shift, license, licenseDocuments }));
-                  } finally { await prisma.$disconnect(); }
-                })().catch((error) => { process.stderr.write(String(error?.message || 'UAT_FIXTURE_COUNT_FAILED')); process.exit(1); });
-              `;
-              const countResult = spawnSync('node', ['-e', countScript], { env: fixtureEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-              if (countResult.status === 0) {
-                try { counts = JSON.parse(String(countResult.stdout || '{}')); } catch {}
-              }
-            }
-
-            const flaggedArtifacts = [];
-            for (const root of ['playwright-report', 'test-results']) {
-              if (!fs.existsSync(root)) continue;
-              const stack = [root];
-              while (stack.length) {
-                const current = stack.pop();
-                const stat = fs.statSync(current);
-                if (stat.isDirectory()) stack.push(...fs.readdirSync(current).map((entry) => path.join(current, entry)));
-                else {
-                  const content = fs.readFileSync(current);
-                  const relativePath = path.relative(process.cwd(), current).replace(/\\/g, '/');
-                  const finding = scanArtifact(relativePath, content, {
-                    passwordValues: [process.env.UAT_ADMIN_PASSWORD].filter(Boolean),
-                    emailValues: [process.env.UAT_ADMIN_EMAIL].filter(Boolean)
-                  });
-                  if (!finding.safe) flaggedArtifacts.push(finding);
-                }
-              }
-            }
-            const leakCount = flaggedArtifacts.reduce((sum, item) => sum + item.categories.length, 0);
-            fs.mkdirSync('test-results', { recursive: true });
-            const summary = {
-              scenario: 'DISPOSABLE_UAT_EMPLOYEE_V1',
-              testPassed: !testResult.error && testResult.status === 0,
-              baselineRestored,
-              recoveryAttempted,
-              recoverySucceeded,
-              safeFailureCode: recoveryCode,
-              counts,
-              artifactLeakCount: leakCount
-            };
-            fs.writeFileSync('test-results/disposable-uat-summary.json', JSON.stringify(summary));
-            fs.writeFileSync('test-results/uat-v3-artifact-summary.json', JSON.stringify({
-              leakCount,
-              findings: flaggedArtifacts.map(({ path: filePath, categories }) => ({ path: sanitizeArtifactPath(filePath), categories }))
-            }));
-            core.setOutput('baseline_restored', String(baselineRestored));
-            core.setOutput('test_passed', String(summary.testPassed));
-            core.setOutput('artifact_leak_count', String(leakCount));
-            if (!baselineRestored && recoveryCode === 'UAT_EMPLOYEE_IDENTITY_MISMATCH') core.setFailed('FIXTURE_IDENTITY_COLLISION_BLOCKED');
-            else if (!baselineRestored) core.setFailed('FIXTURE_RECOVERY_REQUIRED');
-            else if (!counts || counts.employee !== 1 || counts.user !== 1 || counts.marker !== 1 || counts.lifecycleEvents !== 0 || counts.lifecycleAudit !== 0 || counts.refreshSessions !== 0 || counts.otp !== 0 || counts.leave !== 0 || counts.quota !== 0 || counts.shift !== 0 || counts.license !== 0 || counts.licenseDocuments !== 0) core.setFailed('UAT_FIXTURE_POST_RESET_COUNT_MISMATCH');
-            else if (leakCount !== 0) core.setFailed('UAT_ARTIFACT_LEAK');
-            else if (!summary.testPassed) core.setFailed('DISPOSABLE_UAT_APPLICATION_FAILURE_BASELINE_RESTORED');
-            else core.info('DISPOSABLE_UAT_EMPLOYEE_V1=PASS');
       - name: Publish authenticated UAT summary
-        if: always() && inputs.uat_mode == 'authenticated'
+        if: always()
         shell: bash
         run: |
           {
@@ -643,7 +390,7 @@ jobs:
             if [[ -f test-results/uat-summary.md ]]; then cat test-results/uat-summary.md; fi
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload authenticated UAT artifacts
-        if: always() && inputs.uat_mode == 'authenticated' && steps.uat.outputs.artifact_leak == '0'
+        if: always() && steps.uat.outputs.artifact_leak == '0'
         uses: actions/upload-artifact@v4
         with:
           name: automated-uat-authenticated-${{ github.run_id }}
@@ -651,30 +398,6 @@ jobs:
             test-results/uat-summary.md
             test-results/uat-results.json
             test-results/uat-v3-account-preflight.json
-            test-results/uat-v3-artifact-summary.json
-          if-no-files-found: warn
-          retention-days: 7
-      - name: Publish disposable UAT summary
-        if: always() && inputs.uat_mode == 'disposable-approved-v1'
-        shell: bash
-        run: |
-          {
-            echo '### Disposable UAT Employee V1'
-            echo '- Target: exact canonical production deployment'
-            echo '- Scenario: one controlled lifecycle, workers=1, retries=0'
-            echo "- Result: ${{ steps.disposable.outcome }}"
-            echo "- Baseline restored: ${{ steps.disposable.outputs.baseline_restored || 'unknown' }}"
-            echo "- Artifact leak count: ${{ steps.disposable.outputs.artifact_leak_count || 'not-scanned' }}"
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload sanitized disposable UAT artifacts
-        if: always() && inputs.uat_mode == 'disposable-approved-v1' && steps.disposable.outputs.artifact_leak_count == '0'
-        uses: actions/upload-artifact@v4
-        with:
-          name: disposable-uat-employee-${{ github.run_id }}
-          path: |
-            test-results/disposable-uat-summary.json
-            test-results/uat-results.json
-            test-results/uat-summary.md
             test-results/uat-v3-artifact-summary.json
           if-no-files-found: warn
           retention-days: 7
