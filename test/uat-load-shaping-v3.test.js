@@ -161,10 +161,11 @@ test('V3.1 keeps bootstrap reduction while explicit real login owns three requir
   const protectedBlock = authenticated.slice(authenticated.indexOf('protected page $\{item.id}'), authenticated.indexOf("if (['ADMIN', 'MANAGER'].includes(role))"));
   assert.match(protectedBlock, /if \(item\.id === 'dashboard'\) \{/);
   assert.match(protectedBlock, /const \{ authContract \} = await loginAs\(page, role\)/);
+  assert.match(protectedBlock, /bootstrapAsNonDashboard\(page, role\)/);
   const dashboardBranch = protectedBlock.slice(protectedBlock.indexOf("if (item.id === 'dashboard')"), protectedBlock.indexOf('} else {'));
   assert.doesNotMatch(dashboardBranch, /navigateTo\(page, 'dashboard'\)/);
-  assert.equal((admin.match(/bootstrapAs\(page, 'ADMIN'\)/g) || []).length, 2);
-  assert.equal((performance.match(/bootstrapAs\(page, 'ADMIN'\)/g) || []).length, 2);
+  assert.equal((admin.match(/bootstrapAsNonDashboard\(page, 'ADMIN'\)/g) || []).length, 2);
+  assert.equal((performance.match(/bootstrapAsNonDashboard\(page, 'ADMIN'\)/g) || []).length, 2);
   assert.equal(34, 25 + 3 + 2 + 4);
 });
 

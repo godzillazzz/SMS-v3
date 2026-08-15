@@ -1,5 +1,5 @@
 const { test, expect } = require('../helpers/uat-test');
-const { authenticateRoleIdentity, bootstrapAs, loginAs, roleAccessToken } = require('../helpers/uat-auth');
+const { authenticateRoleIdentity, bootstrapAs, bootstrapAsNonDashboard, loginAs, roleAccessToken } = require('../helpers/uat-auth');
 const { authenticatedRequest } = require('../helpers/uat-authenticated-request');
 const { assertNoHorizontalOverflow, captureScreenshot, expectPrimaryNavigationItem, navigateTo, navigateToReportCenter, openPrimaryNavigation, primaryNavigationItem, primaryNavigationItemByLabel, reportCenterPage, startPageMonitor } = require('../helpers/uat-observe');
 const { getRoleApiMatrix, getRoleNavigationContract, getRolePageChecks } = require('../helpers/uat-v3-role-matrix');
@@ -200,7 +200,7 @@ async function requestRoleMatrix(role, token) {
       const monitor = startPageMonitor(page);
       const tracker = createStageTracker({ role, testCode: 'NAVIGATION', testInfo });
       try {
-        await bootstrapAs(page, role);
+        await bootstrapAsNonDashboard(page, role);
         await tracker.run('NAV02_PRIMARY_NAV', () => expectNavigation(page, role), {});
         await tracker.run('RC15_MONITOR', () => monitor.assertClean());
       } finally {
@@ -220,7 +220,7 @@ async function requestRoleMatrix(role, token) {
           await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(evidence), contentType: 'application/json' });
           monitor.assertClean();
         } else {
-          await bootstrapAs(page, role);
+          await bootstrapAsNonDashboard(page, role);
           await navigateTo(page, item.id);
           await expect(page.getByRole('heading').first(), `${role} ${item.label} must render a page heading.`).toBeVisible();
         }
@@ -233,7 +233,7 @@ async function requestRoleMatrix(role, token) {
         test.skip(!authenticatedMode() || !scopeAllows(role, 'reportCenter'), 'Unified Report Center is outside the selected UAT scope.');
         test.setTimeout(180_000);
         const monitor = startPageMonitor(page);
-        await bootstrapAs(page, role);
+        await bootstrapAsNonDashboard(page, role);
         await expectUnifiedReportCenter(page, role, testInfo, monitor);
       });
     }
@@ -300,7 +300,7 @@ for (const role of ['ADMIN', 'MANAGER']) {
 test('V3 ADMIN: Employee Lifecycle management, history, state, and preflight are available without mutation', async ({ page }) => {
   test.skip(!authenticatedMode() || diagnosticScope(), 'Lifecycle coverage is outside the selected UAT scope.');
   test.setTimeout(180_000);
-  const { accessToken } = await bootstrapAs(page, 'ADMIN');
+  const { accessToken } = await bootstrapAsNonDashboard(page, 'ADMIN');
   const employee = await firstEmployee(accessToken);
   const historyPath = `/api/v1/employees/${employee.id}/lifecycle?page=1&pageSize=25`;
   const history = await authenticatedRequest(historyPath, { accessToken });
@@ -344,7 +344,7 @@ test('V3 ADMIN: Employee Lifecycle management, history, state, and preflight are
 
 test('V3 MANAGER: Employee Lifecycle history is read-only and mutations are forbidden', async ({ page }) => {
   test.skip(!authenticatedMode() || diagnosticScope(), 'Lifecycle coverage is outside the selected UAT scope.');
-  const { accessToken } = await bootstrapAs(page, 'MANAGER');
+  const { accessToken } = await bootstrapAsNonDashboard(page, 'MANAGER');
   const employee = await firstEmployee(accessToken);
   const historyPath = `/api/v1/employees/${employee.id}/lifecycle?page=1&pageSize=25`;
   expect((await authenticatedRequest(historyPath, { accessToken })).status).toBe(200);
@@ -366,7 +366,7 @@ test('V3 MANAGER: Employee Lifecycle history is read-only and mutations are forb
 
 test('V3 VIEWER: Employee Lifecycle history and mutations are forbidden', async ({ page }) => {
   test.skip(!authenticatedMode() || diagnosticScope(), 'Lifecycle coverage is outside the selected UAT scope.');
-  const { accessToken } = await bootstrapAs(page, 'VIEWER');
+  const { accessToken } = await bootstrapAsNonDashboard(page, 'VIEWER');
   const employee = await firstEmployee(accessToken);
   const historyPath = `/api/v1/employees/${employee.id}/lifecycle?page=1&pageSize=25`;
   expect((await authenticatedRequest(historyPath, { accessToken })).status).toBe(403);

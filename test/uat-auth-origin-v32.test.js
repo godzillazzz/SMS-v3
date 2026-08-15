@@ -57,10 +57,10 @@ test('V3.2 immutable role identity uses cached preflight session while canonical
   const auth = read('e2e/helpers/uat-auth.js');
   const identityBlock = auth.slice(auth.indexOf('async function authenticateRoleIdentity'), auth.indexOf('async function getAuditEventsStatus'));
   assert.match(identityBlock, /targetClass === 'CANONICAL'\) return loginViaUi\(page, role\)/);
-  assert.match(identityBlock, /targetClass === 'IMMUTABLE'\) return bootstrapAs\(page, role\)/);
-  const bootstrapBlock = auth.slice(auth.indexOf('async function bootstrapAs'), auth.indexOf('async function loginAs'));
+  assert.match(identityBlock, /targetClass === 'IMMUTABLE'\) return bootstrapAsNonDashboard\(page, role\)/);
+  const bootstrapBlock = auth.slice(auth.indexOf('async function bootstrapAsNonDashboard'), auth.indexOf('async function loginAs'));
   assert.match(bootstrapBlock, /identityMode: 'CACHED_PREFLIGHT_SESSION'/);
-  assert.match(bootstrapBlock, /dashboardSuppressor/);
+  assert.match(bootstrapBlock, /PAGE_SCOPED_NON_DASHBOARD/);
   assert.doesNotMatch(bootstrapBlock, /performAndWaitForHeavyRequest/);
 });
 

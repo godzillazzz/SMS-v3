@@ -8,7 +8,8 @@ const { EventEmitter } = require('node:events');
 const {
   authHarnessState,
   dashboardSuppressor,
-  dashboardSuppressorActiveCount
+  dashboardSuppressorActiveCount,
+  dashboardSuppressorOwner
 } = require('../e2e/helpers/uat-auth');
 const { getRoleApiMatrix } = require('../e2e/helpers/uat-v3-role-matrix');
 
@@ -39,6 +40,7 @@ test('V3.1 Dashboard suppressor has bounded owner and active counter returns to 
   assert.equal(page.routes.length, 0);
   await suppressor.remove();
   assert.equal(dashboardSuppressorActiveCount(page), 0);
+  assert.equal(dashboardSuppressorOwner(page), 'NONE');
 });
 
 test('V3.1 explicit real-login path uses real login submit, no cached fake refresh, and owns Dashboard completion', () => {
@@ -72,7 +74,7 @@ test('V3.1 real-login capability remains isolated while V3.2 role identity is ta
   const auth = read('e2e/helpers/uat-auth.js');
   const identityBlock = auth.slice(auth.indexOf('async function authenticateRoleIdentity'), auth.indexOf('async function getAuditEventsStatus'));
   assert.match(identityBlock, /targetClass === 'CANONICAL'\) return loginViaUi\(page, role\)/);
-  assert.match(identityBlock, /targetClass === 'IMMUTABLE'\) return bootstrapAs\(page, role\)/);
+  assert.match(identityBlock, /targetClass === 'IMMUTABLE'\) return bootstrapAsNonDashboard\(page, role\)/);
 });
 
 test('V3.1 VIEWER Dashboard contract is 200 and protected Dashboard avoids duplicate navigation', () => {
@@ -95,10 +97,14 @@ test('V3.1 VIEWER Dashboard contract is 200 and protected Dashboard avoids dupli
 
 test('V3.1 cached-session and real-login modes remain separated', () => {
   const auth = read('e2e/helpers/uat-auth.js');
-  const bootstrap = auth.slice(auth.indexOf('async function bootstrapAs'), auth.indexOf('async function loginAs'));
+  const bootstrap = auth.slice(auth.indexOf('async function bootstrapAs'), auth.indexOf('async function bootstrapAsNonDashboard'));
+  const nonDashboardBootstrap = auth.slice(auth.indexOf('async function bootstrapAsNonDashboard'), auth.indexOf('async function loginAs'));
   const cachedLogin = auth.slice(auth.indexOf('async function loginAs'), auth.indexOf('async function loginViaUi'));
   const realLogin = auth.slice(auth.indexOf('async function loginViaUi'), auth.indexOf('async function getAuditEventsStatus'));
   assert.match(bootstrap, /installCachedRefreshRoute\(page, session\)/);
+  assert.match(nonDashboardBootstrap, /installCachedRefreshRoute\(page, session\)/);
+  assert.match(nonDashboardBootstrap, /PAGE_SCOPED_NON_DASHBOARD/);
+  assert.doesNotMatch(nonDashboardBootstrap, /await suppressor\.remove\(\);/);
   assert.match(cachedLogin, /installCachedRefreshRoute\(page, session\)/);
   assert.doesNotMatch(realLogin, /installCachedRefreshRoute\(/);
   assert.match(bootstrap, /await suppressor\.remove\(\)/);

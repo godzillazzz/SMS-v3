@@ -12,6 +12,7 @@ const DEFAULT_SAFETY_MARGIN_MS = 3_000;
 
 const preventedByPage = new WeakMap();
 const trackerByPage = new WeakMap();
+const pageScopedDashboardSuppressionByPage = new WeakSet();
 
 const safetyMetrics = {
   testsFinishingWithOutstandingHeavyReads: 0,
@@ -53,6 +54,15 @@ function markHarnessPreventedHeavyRead(page, request) {
   if (tracker) tracker.markPrevented(request);
 }
 
+function setPageScopedDashboardSuppression(page, active) {
+  if (active) pageScopedDashboardSuppressionByPage.add(page);
+  else pageScopedDashboardSuppressionByPage.delete(page);
+}
+
+function isPageScopedDashboardSuppressed(page) {
+  return pageScopedDashboardSuppressionByPage.has(page);
+}
+
 function delay(ms, timers = globalThis) {
   return new Promise((resolve) => timers.setTimeout(resolve, Math.max(0, ms)));
 }
@@ -88,6 +98,9 @@ async function performAndWaitForHeavyRequest(page, expectedPath, action, {
   timers = globalThis
 } = {}) {
   if (!HEAVY_PATHS.has(expectedPath)) throw safeError('UAT_HEAVY_READ_ROUTE_NOT_APPROVED');
+  if (expectedPath === '/api/v1/dashboard' && isPageScopedDashboardSuppressed(page)) {
+    throw safeError('UAT_REQUIRED_DASHBOARD_WHILE_SUPPRESSED');
+  }
 
   let matchedRequest;
   let matchedResponse;
@@ -306,9 +319,11 @@ module.exports = {
   createHeavyReadSafetyTracker,
   installSafetySummaryExitLog,
   isHeavyGetRequest,
+  isPageScopedDashboardSuppressed,
   markHarnessPreventedHeavyRead,
   pathOf,
   performAndWaitForHeavyRequest,
   resetSafetyMetrics,
-  safetyMetricsSnapshot
+  safetyMetricsSnapshot,
+  setPageScopedDashboardSuppression
 };

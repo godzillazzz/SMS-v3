@@ -77,6 +77,7 @@ function safeAuthContractAttachment(value) {
   if (['REAL_BROWSER_LOGIN', 'CACHED_PREFLIGHT_SESSION'].includes(value.identityMode)) safe.identityMode = value.identityMode;
   if (['CANONICAL', 'IMMUTABLE'].includes(value.targetClass)) safe.targetClass = value.targetClass;
   if (value.dashboardSuppressorActiveAtHelperReturn !== undefined) safe.dashboardSuppressorActiveAtHelperReturn = safeNonNegativeInteger(value.dashboardSuppressorActiveAtHelperReturn);
+  if (['NONE', 'BOUNDED_BOOTSTRAP', 'PAGE_SCOPED_NON_DASHBOARD'].includes(value.dashboardSuppressorOwnerAtHelperReturn)) safe.dashboardSuppressorOwnerAtHelperReturn = value.dashboardSuppressorOwnerAtHelperReturn;
   return Object.keys(safe).length ? safe : undefined;
 }
 

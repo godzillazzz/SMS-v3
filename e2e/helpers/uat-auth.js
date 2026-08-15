@@ -4,7 +4,9 @@ const { automationBypassHeaders } = require('./technical-smoke');
 const { authenticatedRequest } = require('./uat-authenticated-request');
 const {
   markHarnessPreventedHeavyRead,
-  performAndWaitForHeavyRequest
+  pathOf,
+  performAndWaitForHeavyRequest,
+  setPageScopedDashboardSuppression
 } = require('./uat-heavy-read-v3');
 const { readRoleSession } = require('./uat-session');
 const { classifyUatTarget } = require('./uat-target-contract');
@@ -17,7 +19,8 @@ function authHarnessState(page) {
     state = {
       cachedRefreshRouteInstalled: false,
       cachedRefreshHits: 0,
-      dashboardSuppressorActive: 0
+      dashboardSuppressorActive: 0,
+      dashboardSuppressorOwner: 'NONE'
     };
     authHarnessStateByPage.set(page, state);
   }
@@ -95,31 +98,54 @@ async function installCachedRefreshRoute(page, session) {
   });
 }
 
-function dashboardSuppressor(page) {
+function dashboardSuppressor(page, { owner = 'BOUNDED_BOOTSTRAP' } = {}) {
   const state = authHarnessState(page);
+  const owners = new Set(['BOUNDED_BOOTSTRAP', 'PAGE_SCOPED_NON_DASHBOARD']);
+  if (!owners.has(owner)) {
+    const error = new Error('UAT_DASHBOARD_SUPPRESSOR_OWNER_INVALID');
+    error.code = error.message;
+    throw error;
+  }
   const pattern = '**/api/v1/dashboard**';
   const handler = async (route) => {
     const request = route.request();
-    if (request.method() !== 'GET') return route.continue();
+    if (request.method() !== 'GET' || pathOf(request) !== '/api/v1/dashboard') return route.continue();
     markHarnessPreventedHeavyRead(page, request);
     await route.abort('aborted');
   };
   let installed = false;
+  const clearState = () => {
+    if (!installed) return;
+    installed = false;
+    state.dashboardSuppressorActive = Math.max(0, state.dashboardSuppressorActive - 1);
+    if (state.dashboardSuppressorActive === 0) state.dashboardSuppressorOwner = 'NONE';
+    if (owner === 'PAGE_SCOPED_NON_DASHBOARD') setPageScopedDashboardSuppression(page, false);
+  };
+  const onClose = () => clearState();
   return {
     activeCount: () => state.dashboardSuppressorActive,
+    owner: () => state.dashboardSuppressorOwner,
     async install() {
       if (installed) return;
-      installed = true;
-      state.dashboardSuppressorActive += 1;
+      if (state.dashboardSuppressorActive !== 0) {
+        const error = new Error('UAT_DASHBOARD_SUPPRESSOR_ALREADY_ACTIVE');
+        error.code = error.message;
+        throw error;
+      }
       await page.route(pattern, handler);
+      installed = true;
+      state.dashboardSuppressorActive = 1;
+      state.dashboardSuppressorOwner = owner;
+      if (owner === 'PAGE_SCOPED_NON_DASHBOARD') setPageScopedDashboardSuppression(page, true);
+      page.once?.('close', onClose);
     },
     async remove() {
       if (!installed) return;
+      page.off?.('close', onClose);
       try {
-        await page.unroute(pattern, handler);
+        if (!page.isClosed?.()) await page.unroute(pattern, handler);
       } finally {
-        installed = false;
-        state.dashboardSuppressorActive = Math.max(0, state.dashboardSuppressorActive - 1);
+        clearState();
       }
     }
   };
@@ -127,6 +153,10 @@ function dashboardSuppressor(page) {
 
 function dashboardSuppressorActiveCount(page) {
   return authHarnessState(page).dashboardSuppressorActive;
+}
+
+function dashboardSuppressorOwner(page) {
+  return authHarnessState(page).dashboardSuppressorOwner;
 }
 
 async function scrubLoginCredentialDom(page) {
@@ -150,7 +180,8 @@ function cachedSessionDiagnostic(page, stateBefore, dashboardStatus) {
     dashboardStatus,
     dashboardRequestTerminal: true,
     authenticatedShellVisible: true,
-    dashboardSuppressorActiveAtHelperReturn: state.dashboardSuppressorActive
+    dashboardSuppressorActiveAtHelperReturn: state.dashboardSuppressorActive,
+    dashboardSuppressorOwnerAtHelperReturn: state.dashboardSuppressorOwner
   };
 }
 
@@ -159,7 +190,7 @@ async function bootstrapAs(page, role) {
   const state = authHarnessState(page);
   const stateBefore = { cachedRefreshHits: state.cachedRefreshHits };
   await installCachedRefreshRoute(page, session);
-  const suppressor = dashboardSuppressor(page);
+  const suppressor = dashboardSuppressor(page, { owner: 'BOUNDED_BOOTSTRAP' });
   await suppressor.install();
   try {
     await page.goto('/');
@@ -168,7 +199,7 @@ async function bootstrapAs(page, role) {
   } finally {
     await suppressor.remove();
   }
-  if (suppressor.activeCount() !== 0) {
+  if (suppressor.activeCount() !== 0 || suppressor.owner() !== 'NONE') {
     const error = new Error('UAT_DASHBOARD_SUPPRESSOR_LEAK');
     error.code = 'UAT_DASHBOARD_SUPPRESSOR_LEAK';
     throw error;
@@ -182,7 +213,43 @@ async function bootstrapAs(page, role) {
       cachedSessionPresent: true,
       cachedRefreshUsed: state.cachedRefreshHits > stateBefore.cachedRefreshHits,
       authenticatedShellVisible: true,
-      dashboardSuppressorActiveAtHelperReturn: state.dashboardSuppressorActive
+      dashboardSuppressorActiveAtHelperReturn: state.dashboardSuppressorActive,
+      dashboardSuppressorOwnerAtHelperReturn: state.dashboardSuppressorOwner
+    }
+  };
+}
+
+async function bootstrapAsNonDashboard(page, role) {
+  const session = roleSession(role);
+  const state = authHarnessState(page);
+  const stateBefore = { cachedRefreshHits: state.cachedRefreshHits };
+  await installCachedRefreshRoute(page, session);
+  const suppressor = dashboardSuppressor(page, { owner: 'PAGE_SCOPED_NON_DASHBOARD' });
+  await suppressor.install();
+  try {
+    await page.goto('/');
+    await expect(page.locator('form.login-form')).toHaveCount(0);
+    await expect(page.locator('nav.nav-menu').first(), 'Authenticated navigation shell must render.').toBeVisible();
+  } catch (error) {
+    await suppressor.remove().catch(() => undefined);
+    throw error;
+  }
+  if (suppressor.activeCount() !== 1 || suppressor.owner() !== 'PAGE_SCOPED_NON_DASHBOARD') {
+    const error = new Error('UAT_NON_DASHBOARD_SUPPRESSOR_OWNERSHIP_INVALID');
+    error.code = error.message;
+    throw error;
+  }
+  return {
+    accessToken: session.accessToken,
+    authContract: {
+      identityMode: 'CACHED_PREFLIGHT_SESSION',
+      targetClass: classifyUatTarget(getUatConfig().baseURL).targetClass,
+      roleMatched: session.user?.role === role,
+      cachedSessionPresent: true,
+      cachedRefreshUsed: state.cachedRefreshHits > stateBefore.cachedRefreshHits,
+      authenticatedShellVisible: true,
+      dashboardSuppressorActiveAtHelperReturn: state.dashboardSuppressorActive,
+      dashboardSuppressorOwnerAtHelperReturn: state.dashboardSuppressorOwner
     }
   };
 }
@@ -294,7 +361,7 @@ async function authenticateRoleIdentity(page, role) {
   const config = getUatConfig();
   const targetClass = classifyUatTarget(config.baseURL).targetClass;
   if (targetClass === 'CANONICAL') return loginViaUi(page, role);
-  if (targetClass === 'IMMUTABLE') return bootstrapAs(page, role);
+  if (targetClass === 'IMMUTABLE') return bootstrapAsNonDashboard(page, role);
   const error = new Error('UAT_TARGET_CLASS_INVALID');
   error.code = error.message;
   throw error;
@@ -309,8 +376,10 @@ module.exports = {
   authHarnessState,
   authenticateRoleIdentity,
   bootstrapAs,
+  bootstrapAsNonDashboard,
   dashboardSuppressor,
   dashboardSuppressorActiveCount,
+  dashboardSuppressorOwner,
   getAuditEventsStatus,
   installCachedRefreshRoute,
   loginAs,
