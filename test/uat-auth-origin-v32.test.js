@@ -124,6 +124,8 @@ test('V3.2 Viewer denial allowance requires exact path method and status', () =>
   );
   assert.throws(() => normalizeAllowedApiResponseRule({ path: '/api/v1/leave-requests', status: 403 }), /UAT_ALLOWED_API_RULE_METHOD_REQUIRED/);
   assert.throws(() => normalizeAllowedApiResponseRule({ path: '/api/v1/leave-requests', method: 'GET' }), /UAT_ALLOWED_API_RULE_STATUS_REQUIRED/);
+  assert.throws(() => normalizeAllowedApiResponseRule({ method: 'GET', status: 403 }), /UAT_ALLOWED_API_RULE_PATH_INVALID/);
+  assert.throws(() => normalizeAllowedApiResponseRule({ status: 403 }), /UAT_ALLOWED_API_RULE_PATH_INVALID/);
   assert.throws(() => normalizeAllowedApiResponseRule({ path: '/api/v1/*', method: 'GET', status: 403 }), /UAT_ALLOWED_API_RULE_PATH_INVALID/);
   assert.throws(() => normalizeAllowedApiResponseRule({ path: /\/api\/v1\/.*/, method: 'GET', status: 403 }), /UAT_ALLOWED_API_RULE_PATH_INVALID/);
 });
@@ -138,6 +140,15 @@ test('V3.2 exact allowed response suppresses only that precise response', () => 
     { path: '/api/v1/leave-requests', method: 'GET', status: 401, classification: 'UNEXPECTED_API_RESPONSE' },
     { path: '/api/v1/leave-requests', method: 'POST', status: 403, classification: 'UNEXPECTED_API_RESPONSE' }
   ]);
+});
+
+test('V3.3 every Harness denial allowance includes exact path method and status', () => {
+  const files = ['e2e/smoke/authenticated-v3.spec.js', 'e2e/smoke/roles.spec.js'];
+  const source = files.map(read).join('\n');
+  assert.match(source, /path: '\/api\/v1\/licenses', method: 'GET', status: 403/);
+  assert.doesNotMatch(source, /\{\s*path:\s*['"]\/api\/v1\/[^'"]+['"],\s*status:\s*403\s*\}/);
+  assert.doesNotMatch(source, /path:\s*['"]\/api\/v1\/\*/);
+  assert.doesNotMatch(source, /allowedApiResponses:\s*role === 'VIEWER' \? \[\{\s*status:\s*403\s*\}\]/);
 });
 
 test('V3.2 Viewer license denial is a narrow known Production background denial', () => {

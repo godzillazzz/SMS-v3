@@ -46,12 +46,21 @@ function safeNonNegativeInteger(value) {
 
 function safeHeavyReadSafetyAttachment(value) {
   if (!value || typeof value !== 'object') return undefined;
+  const outstandingHeavyReads = [];
+  for (const entry of Array.isArray(value.outstandingHeavyReads) ? value.outstandingHeavyReads.slice(0, 20) : []) {
+    const method = entry?.method === 'GET' ? 'GET' : undefined;
+    const path = ['/api/v1/dashboard', '/api/v1/executive-report', '/api/v1/reports/summary'].includes(entry?.path) ? entry.path : undefined;
+    const ageMs = safeNonNegativeInteger(entry?.ageMs);
+    const state = ['LIVE', 'CLIENT_FAILED'].includes(entry?.state) ? entry.state : undefined;
+    if (method && path && state) outstandingHeavyReads.push({ method, path, ageMs, state });
+  }
   return {
     testsFinishingWithOutstandingHeavyReads: safeNonNegativeInteger(value.testsFinishingWithOutstandingHeavyReads),
     exceptionalHeavyDrainCount: safeNonNegativeInteger(value.exceptionalHeavyDrainCount),
     exceptionalHeavyDrainWaitMs: safeNonNegativeInteger(value.exceptionalHeavyDrainWaitMs),
     realHeavyStarts: safeNonNegativeInteger(value.realHeavyStarts),
-    preventedHeavyStarts: safeNonNegativeInteger(value.preventedHeavyStarts)
+    preventedHeavyStarts: safeNonNegativeInteger(value.preventedHeavyStarts),
+    outstandingHeavyReads
   };
 }
 
@@ -109,7 +118,8 @@ class UatSummaryReporter {
       exceptionalHeavyDrainCount: 0,
       exceptionalHeavyDrainWaitMs: 0,
       realHeavyStarts: 0,
-      preventedHeavyStarts: 0
+      preventedHeavyStarts: 0,
+      outstandingHeavyReads: []
     };
   }
 
@@ -156,7 +166,12 @@ class UatSummaryReporter {
       if (attachment.name === 'performance-validation.json') this.performanceValidation = mergePerformanceValidation(this.performanceValidation, parsed);
       if (attachment.name === 'heavy-read-safety.json') {
         const metric = safeHeavyReadSafetyAttachment(parsed);
-        if (metric) for (const key of Object.keys(this.heavyReadSafety)) this.heavyReadSafety[key] += metric[key];
+        if (metric) {
+          for (const key of ['testsFinishingWithOutstandingHeavyReads', 'exceptionalHeavyDrainCount', 'exceptionalHeavyDrainWaitMs', 'realHeavyStarts', 'preventedHeavyStarts']) {
+            this.heavyReadSafety[key] += metric[key];
+          }
+          this.heavyReadSafety.outstandingHeavyReads.push(...metric.outstandingHeavyReads);
+        }
       }
     }
   }
@@ -239,6 +254,7 @@ class UatSummaryReporter {
       `- exceptionalHeavyDrainWaitMs: ${this.heavyReadSafety.exceptionalHeavyDrainWaitMs}`,
       `- realHeavyStarts: ${this.heavyReadSafety.realHeavyStarts}`,
       `- preventedHeavyStarts: ${this.heavyReadSafety.preventedHeavyStarts}`,
+      `- outstandingHeavyReads: ${JSON.stringify(this.heavyReadSafety.outstandingHeavyReads)}`,
       '',
       `- Passed tests: ${passed}`,
       `- Skipped tests: ${skipped}`,

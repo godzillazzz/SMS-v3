@@ -216,8 +216,16 @@ function createHeavyReadSafetyTracker(page, {
       }
     },
     summary() {
+      const current = now();
+      const outstandingHeavyReads = [...outstanding.entries()].map(([request, state]) => ({
+        method: request?.method?.() === 'GET' ? 'GET' : 'UNKNOWN',
+        path: pathOf(request),
+        ageMs: Math.max(0, current - state.startedAt),
+        state: state.failedAt === undefined ? 'LIVE' : 'CLIENT_FAILED'
+      }));
       return {
         outstanding: outstanding.size,
+        outstandingHeavyReads,
         preventedStarts,
         realHeavyStarts,
         closed

@@ -57,7 +57,8 @@ const test = base.extend({
           exceptionalHeavyDrainCount: exceptionalDrainCount,
           exceptionalHeavyDrainWaitMs: exceptionalDrainWaitMs,
           realHeavyStarts: summaryAtTestEnd.realHeavyStarts,
-          preventedHeavyStarts: summaryAtTestEnd.preventedStarts
+          preventedHeavyStarts: summaryAtTestEnd.preventedStarts,
+          outstandingHeavyReads: summaryAtTestEnd.outstandingHeavyReads
         }),
         contentType: 'application/json'
       });

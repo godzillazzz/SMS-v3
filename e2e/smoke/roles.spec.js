@@ -9,7 +9,7 @@ for (const role of ['MANAGER', 'VIEWER']) {
     test(`${role}: allowed dashboard and privileged navigation stay bounded`, async ({ page }) => {
       test.slow();
       const monitor = startPageMonitor(page, {
-        allowedApiResponses: role === 'VIEWER' ? [{ path: '/api/v1/licenses', status: 403 }] : []
+        allowedApiResponses: role === 'VIEWER' ? [{ path: '/api/v1/licenses', method: 'GET', status: 403 }] : []
       });
       await loginAs(page, role);
       await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();

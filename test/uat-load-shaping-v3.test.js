@@ -105,6 +105,29 @@ test('unexpected outstanding heavy work is exceptional, keeps page alive until c
   tracker.stop();
 });
 
+test('V3.3 outstanding heavy evidence is pathname-only and records LIVE or CLIENT_FAILED state', async () => {
+  let now = 5_000;
+  const page = new FakePage();
+  const tracker = createHeavyReadSafetyTracker(page, { now: () => now });
+  const live = fakeRequest('https://candidate.test/api/v1/dashboard?token=secret&employee=123');
+  const failed = fakeRequest('https://candidate.test/api/v1/executive-report?year=2026&month=8');
+  page.emit('request', live);
+  page.emit('request', failed);
+  now += 125;
+  page.emit('requestfailed', failed);
+  const summary = tracker.summary();
+  assert.deepEqual(summary.outstandingHeavyReads, [
+    { method: 'GET', path: '/api/v1/dashboard', ageMs: 125, state: 'LIVE' },
+    { method: 'GET', path: '/api/v1/executive-report', ageMs: 125, state: 'CLIENT_FAILED' }
+  ]);
+  const serialized = JSON.stringify(summary.outstandingHeavyReads);
+  for (const forbidden of ['token=secret', 'employee=123', 'year=2026', 'month=8', 'Authorization', 'cookie', 'requestId']) assert.equal(serialized.includes(forbidden), false);
+  page.emit('requestfinished', live);
+  now += 1;
+  page.emit('requestfinished', failed);
+  tracker.stop();
+});
+
 test('Harness-prevented bootstrap Dashboard is removed from server-work accounting', async () => {
   resetSafetyMetrics();
   const page = new FakePage();
@@ -222,13 +245,13 @@ test('heavy-read safety aggregates are emitted through already-uploaded safe res
   const uatTest = read('e2e/helpers/uat-test.js');
   const reporter = read('e2e/uat-reporter.js');
   assert.match(uatTest, /heavy-read-safety\.json/);
-  for (const key of ['testsFinishingWithOutstandingHeavyReads', 'exceptionalHeavyDrainCount', 'exceptionalHeavyDrainWaitMs', 'realHeavyStarts', 'preventedHeavyStarts']) {
+  for (const key of ['testsFinishingWithOutstandingHeavyReads', 'exceptionalHeavyDrainCount', 'exceptionalHeavyDrainWaitMs', 'realHeavyStarts', 'preventedHeavyStarts', 'outstandingHeavyReads']) {
     assert.match(uatTest, new RegExp(key));
     assert.match(reporter, new RegExp(key));
   }
   assert.match(reporter, /heavyReadSafety: this\.heavyReadSafety/);
   assert.doesNotMatch(uatTest, /UAT_STAGE_DIAGNOSTIC_FILE/);
-  const record = JSON.stringify({ testsFinishingWithOutstandingHeavyReads: 0, exceptionalHeavyDrainCount: 0, exceptionalHeavyDrainWaitMs: 0, realHeavyStarts: 3, preventedHeavyStarts: 2 });
+  const record = JSON.stringify({ testsFinishingWithOutstandingHeavyReads: 0, exceptionalHeavyDrainCount: 0, exceptionalHeavyDrainWaitMs: 0, realHeavyStarts: 3, preventedHeavyStarts: 2, outstandingHeavyReads: [] });
   assert.deepEqual(scanArtifact('test-results/uat-results.json', record), { path: 'test-results/uat-results.json', categories: [], safe: true });
 });
 

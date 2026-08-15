@@ -19,6 +19,7 @@ module.exports = defineConfig({
   globalTeardown: require.resolve('./e2e/global-teardown.js'),
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
+  grep: authenticatedMode ? /V3 ADMIN: protected page licenses/ : undefined,
   retries: authenticatedMode ? 0 : (process.env.CI ? 1 : 0),
   workers: 1,
   timeout: 45_000,
