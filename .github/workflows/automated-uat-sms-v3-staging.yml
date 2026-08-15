@@ -284,12 +284,31 @@ jobs:
           [[ "$APPROVED_DEPLOYMENT_INPUT" == 'dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup' ]] || { echo 'UAT_DISPOSABLE_RELEASE_IDENTITY_MISMATCH'; exit 1; }
           [[ "$FIXTURE_CONFIRMATION" == 'MUTATE_SMS_V3_DISPOSABLE_UAT_EMPLOYEE_V1' ]] || { echo 'UAT_EMPLOYEE_CONFIRMATION_REQUIRED'; exit 1; }
           [[ -n "$VERCEL_TOKEN" ]] || { echo 'UAT_VERCEL_IDENTITY_SECRET_REQUIRED'; exit 1; }
-          target_json="$(mktemp)"
-          expected_json="$(mktemp)"
-          trap 'rm -f "$target_json" "$expected_json"' EXIT
-          npx --yes vercel@latest api '/v13/deployments/sms-v3-staging-ten.vercel.app' --raw --token "$VERCEL_TOKEN" --scope godzillazz > "$target_json"
-          npx --yes vercel@latest api '/v13/deployments/dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup' --raw --token "$VERCEL_TOKEN" --scope godzillazz > "$expected_json"
-          node e2e/helpers/uat-target-contract.js verify canonical "$TARGET_URL" 'dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup' "$SOURCE_SHA" "$target_json" "$expected_json" 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s' 'sms-v3-staging' "$SOURCE_BRANCH"
+          target_response="$(mktemp)"
+          expected_response="$(mktemp)"
+          target_identity="$(mktemp -u)"
+          expected_identity="$(mktemp -u)"
+          cleanup() { rm -f "$target_response" "$expected_response" "$target_identity" "$expected_identity"; }
+          trap cleanup EXIT
+          fetch_deployment() {
+            local lookup="$1"
+            local output="$2"
+            curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --get \
+              --data-urlencode 'teamId=team_nemCExHbZ8EAhSgsvefHPAEz' \
+              --data-urlencode 'withGitRepoInfo=true' \
+              "https://api.vercel.com/v13/deployments/$lookup" >"$output" 2>/dev/null \
+              || { echo 'UAT_VERCEL_REST_FETCH_FAILED'; exit 1; }
+            test -s "$output"
+          }
+          fetch_deployment 'sms-v3-staging-ten.vercel.app' "$target_response"
+          fetch_deployment 'dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup' "$expected_response"
+          node e2e/helpers/uat-vercel-identity.js sanitize "$target_response" "$target_identity" \
+            || { echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'; exit 1; }
+          node e2e/helpers/uat-vercel-identity.js sanitize "$expected_response" "$expected_identity" \
+            || { echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'; exit 1; }
+          node e2e/helpers/uat-target-contract.js verify canonical "$TARGET_URL" 'dpl_C9HC6M3Rp2mHb6CAmUCmuMhmCCup' "$SOURCE_SHA" "$target_identity" "$expected_identity" 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s' 'sms-v3-staging' "$SOURCE_BRANCH"
           echo 'UAT_DISPOSABLE_RELEASE_IDENTITY=PASS'
       - name: Checkout exact application under test
         uses: actions/checkout@v4
