@@ -1,0 +1,12 @@
+SMS V3 — NEW SESSION START
+
+1. Read SMS_V3_MASTER_HANDOVER.md before making plans or changes.
+2. Read Section 0 first; it is the authoritative current Production identity.
+3. Do not rely on stale chat memory for deployment, SHA, Harness, rollback, or
+   release status.
+4. The current next task is G03 — Leave Quota Provisioning V1 unless the Owner
+   explicitly changes priority.
+5. Preserve fail-closed deployment and UAT governance: require exact
+   deployment/SHA/Harness identity, fixed approved scopes, sanitized evidence,
+   and explicit authorization for deployment, promotion, rollback, or UAT.
+6. Treat unknown or unrecoverable historical facts as UNKNOWN, not as facts.
