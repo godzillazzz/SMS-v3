@@ -59,9 +59,14 @@ It remains forensic history only.
 
 | Field | Authoritative value |
 | --- | --- |
-| Current rollback checkpoint | rollback/admin-rbac-surface-alignment-v1-prod-2026-08-16 |
-| Rollback SHA | 148c7b8ab17698c011008335c23b99895bba7bf8 |
-| Previous rollback checkpoint | Preserved |
+| Current rollback checkpoint | rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 |
+| Rollback SHA | 1701bcf90a1998ea4999ee02e687172295984c9a |
+| Associated Production release | G03 — LEAVE QUOTA PROVISIONING V1 |
+| Canonical deployment | dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL |
+| Checkpoint status | VERIFIED |
+| Created / verified date | 2026-08-17 |
+| Previous rollback checkpoint | rollback/admin-rbac-surface-alignment-v1-prod-2026-08-16 |
+| Previous rollback SHA | 148c7b8ab17698c011008335c23b99895bba7bf8 |
 
 ### Current health and release validation
 
@@ -394,7 +399,7 @@ coverage remains P2 item G12.
 - Final Focused Auth run: 31952150709
 - Final Full Auth run: 31955365938 (56 PASS / 0 FAIL / 1 controlled SKIP / 0 uncontrolled SKIP)
 - Promotion CI run: 31978392375
-- Rollback checkpoint: unchanged; no G03 rollback checkpoint was created.
+- Rollback checkpoint: rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 → 1701bcf90a1998ea4999ee02e687172295984c9a (VERIFIED 2026-08-17).
 - G03: CLOSED
 
 ### Preserved historical milestones
@@ -408,7 +413,7 @@ release record. They are not claims that those deployments are current.
 - Prior Production SHA: 148c7b8ab17698c011008335c23b99895bba7bf8
 - Status before G03 Promotion: PRODUCTION VALIDATED
 - Preserved as historical prior Canonical evidence; deployment was not deleted.
-- The existing rollback checkpoint remains rollback/admin-rbac-surface-alignment-v1-prod-2026-08-16 until separately authorized to change.
+- Historical rollback checkpoint preserved: rollback/admin-rbac-surface-alignment-v1-prod-2026-08-16 → 148c7b8ab17698c011008335c23b99895bba7bf8. It was not deleted, moved, renamed, or overwritten when the G03 checkpoint was created.
 
 #### PERFORMANCE & RELIABILITY HARDENING V1
 
@@ -564,3 +569,4 @@ These are substantial future platform expansions. They do not block current SMS 
 | --- | --- |
 | 2026-08-16 | Created this reconstructed authoritative baseline after the original Master was confirmed not recoverable. |
 | 2026-08-17 | G03 Leave Quota Provisioning V1 promoted to exact Canonical Production deployment dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL; post-health/readiness/runtime verified; G03 CLOSED; prior Canonical preserved; rollback checkpoint unchanged. |
+| 2026-08-17 | Created and remotely verified rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 at exact Production SHA 1701bcf90a1998ea4999ee02e687172295984c9a; previous admin-RBAC rollback checkpoint preserved; Canonical and Production remained unchanged. |
