@@ -129,31 +129,31 @@ environment topology not stated above are UNKNOWN.
 | Capability | Classification | Evidence boundary |
 | --- | --- | --- |
 | Authentication / sessions | COMPLETE | Authenticated UAT and protected endpoint checks passed |
-| Users / roles / RBAC | COMPLETE for validated role contracts | G01 and G02 contracts passed |
+| Users / roles / RBAC | COMPLETE | G01 and G02 contracts passed |
 | Employee management | PARTIAL | Employee surfaces are present; full operational acceptance is not reconstructed |
 | Employee lifecycle | PARTIAL | Future-effective behavior and historical limits remain debt |
 | Scheduling | PARTIAL | Monthly approval authorization is validated; broader ownership remains G06 |
 | Leave | PARTIAL | Leave flows are present; quota provisioning remains G03 |
 | Leave quotas | OPEN GAP | Explicit Admin provisioning path is G03 |
-| License management | COMPLETE for validated contracts | License access and initial-load contract passed |
+| License management | COMPLETE | License access and initial-load contract passed |
 | License documents | PARTIAL | Read hardening passed; delete tombstone remains G05 |
-| Dashboard | COMPLETE for validated contracts | Technical and Full Auth coverage passed |
+| Dashboard | COMPLETE | Technical and Full Auth coverage passed |
 | Executive reporting | PARTIAL | Current tested behavior passed; historical as-of semantics remain debt |
-| Unified Report Center | COMPLETE for validated contracts | Acceptance and network contracts passed |
+| Unified Report Center | COMPLETE | Acceptance and network contracts passed |
 | Audit | PARTIAL | Mutation audit passed; deletion tombstone remains G05 |
 | Data Quality | PARTIAL | Current-state behavior is validated; historical as-of semantics remain debt |
 | Notifications/email | PARTIAL | Full production capability is not established by this reconstruction |
-| PDF/export | COMPLETE for validated contracts | PDF, export, and stale-export checks passed |
-| Request ID observability | COMPLETE for validated contracts | Request ID visibility and sanitized correlation passed |
-| Error handling | COMPLETE for validated contracts | Protected errors and critical runtime checks passed |
-| Database reliability | COMPLETE for validated release window | Current runtime certification recorded zero critical signatures |
-| Performance/load shaping | COMPLETE for validated UAT contract | V3.3 shaping and final performance semantics passed |
-| Responsive/mobile UX | COMPLETE for validated UAT contract | Responsive coverage passed in release validation |
+| PDF/export | COMPLETE | PDF, export, and stale-export checks passed |
+| Request ID observability | COMPLETE | Request ID visibility and sanitized correlation passed |
+| Error handling | COMPLETE | Protected errors and critical runtime checks passed |
+| Database reliability | COMPLETE | Current runtime certification recorded zero critical signatures |
+| Performance/load shaping | COMPLETE | V3.3 shaping and final performance semantics passed |
+| Responsive/mobile UX | COMPLETE | Responsive coverage passed in release validation |
 | Settings/admin | PARTIAL | Administrative surfaces exist; full acceptance is not reconstructed |
 | Cron/background jobs | PARTIAL | Lifecycle scheduling and operational automation evidence remain incomplete |
 | Storage/documents | PARTIAL | Document behavior is validated; G05 remains open |
-| Production recovery | COMPLETE for validated release procedure | Exact promotion and rollback checkpoint were verified |
-| Automated testing/UAT | COMPLETE for current release-validation contract | Technical, targeted, and Full Auth evidence is recorded |
+| Production recovery | COMPLETE | Exact promotion and rollback checkpoint were verified |
+| Automated testing/UAT | COMPLETE | Technical, targeted, and Full Auth evidence is recorded |
 
 ---
 
