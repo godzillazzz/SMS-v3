@@ -83,7 +83,7 @@ test('5. correct deployment with wrong Application SHA fails closed', () => {
     () => verify({
       targetDeployment: deployment({ meta: { githubCommitSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } })
     }),
-    { code: 'UAT_APPLICATION_SHA_MISMATCH' }
+    { code: 'UAT_DEPLOYMENT_APPLICATION_SHA_MISMATCH' }
   );
 });
 

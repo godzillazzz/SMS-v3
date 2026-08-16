@@ -41,6 +41,7 @@ function normalizeDeploymentIdentity(raw) {
 
   const meta = pickStrings(raw.meta, [
     'githubCommitSha',
+    'gitCommitSha',
     'githubCommitRef',
     'githubCommitOrg',
     'githubCommitRepo'

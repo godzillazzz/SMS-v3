@@ -128,16 +128,33 @@ function validateHarnessIdentity({ harnessSha, checkoutSha, approvedHarnessSha }
   return { valid: true, harnessSha: expected };
 }
 
-function extractApplicationSha(deployment) {
-  const raw = [
-    deployment?.meta?.githubCommitSha,
-    deployment?.gitSource?.sha,
-    deployment?.source?.sha
-  ].filter((value) => typeof value === 'string' && GIT_SHA.test(value));
-  const values = [...new Set(raw.map((value) => value.toLowerCase()))];
-  if (values.length === 0) throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_MISSING');
+function resolveDeploymentApplicationSha(deployment) {
+  const candidates = [
+    ['meta.githubCommitSha', deployment?.meta?.githubCommitSha],
+    ['meta.gitCommitSha', deployment?.meta?.gitCommitSha],
+    ['gitSource.sha', deployment?.gitSource?.sha],
+    ['source.sha', deployment?.source?.sha]
+  ];
+  const present = candidates.filter(([, value]) => value !== undefined && value !== null);
+  if (present.length === 0) throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_MISSING');
+
+  for (const [, value] of present) {
+    if (typeof value !== 'string' || !GIT_SHA.test(value)) {
+      throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_INVALID');
+    }
+  }
+
+  const values = [...new Set(present.map(([, value]) => value.toLowerCase()))];
   if (values.length !== 1) throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_CONFLICT');
-  return values[0];
+
+  return {
+    sha: values[0],
+    metadataSource: present.map(([source]) => source).join(',')
+  };
+}
+
+function extractApplicationSha(deployment) {
+  return resolveDeploymentApplicationSha(deployment).sha;
 }
 
 function validateDeploymentRecord(deployment, {
@@ -158,7 +175,8 @@ function validateDeploymentRecord(deployment, {
   if (deployment.projectId !== expectedProjectId) throw contractError('UAT_DEPLOYMENT_PROJECT_ID_MISMATCH');
   if (deployment.target !== 'production') throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PRODUCTION');
   if (deployment.readyState !== 'READY') throw contractError('UAT_DEPLOYMENT_NOT_READY');
-  if (extractApplicationSha(deployment) !== expectedSha) throw contractError('UAT_APPLICATION_SHA_MISMATCH');
+  const resolvedApplicationSha = resolveDeploymentApplicationSha(deployment);
+  if (resolvedApplicationSha.sha !== expectedSha) throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_MISMATCH');
   validateDeploymentGitRef(deployment, expectedGitRef);
 
   return {
@@ -271,6 +289,7 @@ module.exports = {
   extractDeploymentHostname,
   normalizeTargetMode,
   parseTargetUrl,
+  resolveDeploymentApplicationSha,
   validateDeploymentRecord,
   validateDeploymentGitRef,
   validateHarnessIdentity,

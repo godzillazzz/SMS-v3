@@ -10,6 +10,7 @@ const {
   parseDeploymentResponse
 } = require('../e2e/helpers/uat-vercel-identity');
 const {
+  resolveDeploymentApplicationSha,
   validateDeploymentRecord,
   validateTargetIdentity
 } = require('../e2e/helpers/uat-target-contract');
@@ -83,6 +84,89 @@ test('REST gitSource.sha is accepted when meta SHA is absent', () => {
   assert.equal(validate(normalizeDeploymentIdentity(raw)).valid, true);
 });
 
+test('clean CLI meta.gitCommitSha is normalized and validated', () => {
+  const raw = rawRecord({
+    meta: { gitCommitSha: APPLICATION_SHA, githubCommitRef: SOURCE_BRANCH },
+    gitSource: undefined
+  });
+  const normalized = normalizeDeploymentIdentity(raw);
+  const result = validate(normalized);
+  assert.equal(result.valid, true);
+  assert.equal(resolveDeploymentApplicationSha(normalized).metadataSource, 'meta.gitCommitSha');
+});
+
+test('githubCommitSha and gitCommitSha with the same value pass', () => {
+  const normalized = identity({
+    meta: {
+      githubCommitSha: APPLICATION_SHA,
+      gitCommitSha: APPLICATION_SHA,
+      githubCommitRef: SOURCE_BRANCH
+    },
+    gitSource: undefined
+  });
+  const result = validate(normalized);
+  assert.equal(result.valid, true);
+  assert.equal(resolveDeploymentApplicationSha(normalized).metadataSource, 'meta.githubCommitSha,meta.gitCommitSha');
+});
+
+test('githubCommitSha and gitCommitSha with different values fail closed', () => {
+  assert.throws(
+    () => validate(identity({
+      meta: {
+        githubCommitSha: APPLICATION_SHA,
+        gitCommitSha: OTHER_SHA,
+        githubCommitRef: SOURCE_BRANCH
+      },
+      gitSource: undefined
+    })),
+    { code: 'UAT_DEPLOYMENT_APPLICATION_SHA_CONFLICT' }
+  );
+});
+
+test('malformed githubCommitSha fails closed', () => {
+  assert.throws(
+    () => resolveDeploymentApplicationSha({ meta: { githubCommitSha: 'not-a-sha' } }),
+    { code: 'UAT_DEPLOYMENT_APPLICATION_SHA_INVALID' }
+  );
+});
+
+test('malformed gitCommitSha fails closed', () => {
+  assert.throws(
+    () => resolveDeploymentApplicationSha({ meta: { gitCommitSha: 'not-a-sha' } }),
+    { code: 'UAT_DEPLOYMENT_APPLICATION_SHA_INVALID' }
+  );
+});
+
+test('short and whitespace SHA values fail closed', () => {
+  assert.throws(
+    () => resolveDeploymentApplicationSha({ meta: { gitCommitSha: APPLICATION_SHA.slice(0, 7) } }),
+    { code: 'UAT_DEPLOYMENT_APPLICATION_SHA_INVALID' }
+  );
+  assert.throws(
+    () => resolveDeploymentApplicationSha({ meta: { gitCommitSha: ` ${APPLICATION_SHA} ` } }),
+    { code: 'UAT_DEPLOYMENT_APPLICATION_SHA_INVALID' }
+  );
+});
+
+test('unrelated metadata cannot override the resolved SHA', () => {
+  const result = validate(identity({
+    applicationSha: OTHER_SHA,
+    meta: { gitCommitSha: APPLICATION_SHA, githubCommitRef: SOURCE_BRANCH },
+    gitSource: undefined
+  }));
+  assert.equal(result.valid, true);
+});
+
+test('resolver reports a source SHA mismatch through the deployment contract', () => {
+  assert.throws(
+    () => validate(identity({
+      meta: { gitCommitSha: OTHER_SHA, githubCommitRef: SOURCE_BRANCH },
+      gitSource: undefined
+    })),
+    { code: 'UAT_DEPLOYMENT_APPLICATION_SHA_MISMATCH' }
+  );
+});
+
 test('matching meta and gitSource SHA values pass', () => {
   assert.equal(validate(identity()).valid, true);
 });
@@ -104,7 +188,7 @@ test('missing supported SHA values fail closed', () => {
 test('deployment SHA different from source SHA fails closed', () => {
   assert.throws(
     () => validate(identity({ meta: { githubCommitSha: OTHER_SHA, githubCommitRef: SOURCE_BRANCH }, gitSource: undefined })),
-    { code: 'UAT_APPLICATION_SHA_MISMATCH' }
+    { code: 'UAT_DEPLOYMENT_APPLICATION_SHA_MISMATCH' }
   );
 });
 
