@@ -27,9 +27,8 @@ test('concurrency repair does not wire disposable DB mutation flags or database 
 test('existing exact source, harness, target and application checkout guards remain present', () => {
   for (const needle of [
     'git check-ref-format --branch "$SOURCE_BRANCH"',
-    'refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}',
-    'UAT_APPLICATION_SOURCE_NOT_APPROVED_HEAD',
-    'UAT_HARNESS_SOURCE_NOT_APPROVED_HEAD',
+    'refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH',
+    'UAT_SOURCE_BRANCH_FETCH_FAILED',
     'uat-target-contract.js source-branch',
     'uat-target-contract.js source-head',
     'uat-target-contract.js harness',

@@ -7,13 +7,19 @@ on:
         description: Candidate deployment or approved canonical URL to test
         required: true
         type: string
-      source_branch:
-        description: Exact remote application-under-test branch whose HEAD must equal source_sha
-        required: false
-        default: fix/serverless-database-reliability
-        type: string
+      target_mode:
+        description: Explicit target identity mode
+        required: true
+        type: choice
+        options:
+          - candidate
+          - canonical
       source_sha:
         description: Exact application-under-test SHA deployed at the target URL
+        required: true
+        type: string
+      source_branch:
+        description: Exact remote application source branch whose HEAD must equal source_sha
         required: true
         type: string
       uat_harness_sha:
@@ -32,6 +38,15 @@ on:
         options:
           - technical
           - authenticated
+      uat_scope:
+        description: Approved fixed UAT scope
+        required: false
+        default: full
+        type: choice
+        options:
+          - full
+          - report-center-diagnostic
+          - admin-rbac-targeted-retry
 
 permissions:
   contents: read
@@ -41,13 +56,18 @@ jobs:
     if: ${{ inputs.uat_mode == 'technical' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    environment: production-sms-v3-staging
     env:
       UAT_BASE_URL: ${{ inputs.target_url }}
+      UAT_TARGET_MODE: ${{ inputs.target_mode }}
       UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+      UAT_SOURCE_BRANCH: ${{ inputs.source_branch }}
       UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
       UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
       UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
       UAT_MODE: technical
+      UAT_SCOPE: ${{ inputs.uat_scope }}
+      UAT_STAGE_DIAGNOSTIC_FILE: ${{ github.workspace }}/test-results/uat-v3-stage-diagnostics.jsonl
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
     steps:
       - uses: actions/checkout@v4
@@ -57,45 +77,101 @@ jobs:
       - name: Validate target, application identity, and trusted harness
         shell: bash
         env:
+          TARGET_MODE: ${{ inputs.target_mode }}
           TARGET_URL: ${{ inputs.target_url }}
-          SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
           HARNESS_SHA: ${{ inputs.uat_harness_sha }}
           DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          EXPECTED_TEAM_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+          EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+          EXPECTED_PROJECT_NAME: sms-v3-staging
         run: |
           set -euo pipefail
+          test -n "$VERCEL_TOKEN"
           [[ "$SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [[ "$HARNESS_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
-          if [[ ! "$TARGET_URL" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ && "$TARGET_URL" != "https://sms-v3-staging-ten.vercel.app" ]]; then
-            echo 'TECHNICAL_SMOKE_TARGET_INVALID'
+          node e2e/helpers/uat-target-contract.js scope "$TARGET_MODE" "$TARGET_URL"
+          node e2e/helpers/uat-target-contract.js source-branch "$SOURCE_BRANCH"
+          if [[ "$SOURCE_BRANCH" == refs/* || "$SOURCE_BRANCH" == -* ]] || ! git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null; then
+            echo 'UAT_SOURCE_BRANCH_INVALID'
             exit 1
           fi
-          git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null
-          git fetch --no-tags origin \
-            "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" \
-            "+refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated"
+          if ! git fetch --no-tags origin \
+            "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
+            refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated; then
+            echo 'UAT_SOURCE_BRANCH_FETCH_FAILED'
+            exit 1
+          fi
+          REMOTE_SOURCE_SHA="$(git rev-parse "refs/remotes/origin/$SOURCE_BRANCH")"
+          node e2e/helpers/uat-target-contract.js source-head "$SOURCE_BRANCH" "$REMOTE_SOURCE_SHA" "$SOURCE_SHA"
           git cat-file -e "${SOURCE_SHA}^{commit}"
           git cat-file -e "${HARNESS_SHA}^{commit}"
-          if [[ "$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}^{commit}")" != "$SOURCE_SHA" ]]; then
-            echo 'UAT_APPLICATION_SOURCE_NOT_APPROVED_HEAD'
+          APPROVED_HARNESS_SHA="$(git rev-parse origin/test/automated-uat-v3-authenticated)"
+          node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$APPROVED_HARNESS_SHA"
+
+          identity_tmp_dir="$(mktemp -d)"
+          test -n "$identity_tmp_dir"
+          test -d "$identity_tmp_dir"
+          target_response="$identity_tmp_dir/target-response.json"
+          expected_response="$identity_tmp_dir/expected-response.json"
+          target_identity="$identity_tmp_dir/target-identity.json"
+          expected_identity="$identity_tmp_dir/expected-identity.json"
+          cleanup() {
+            if [[ -n "${identity_tmp_dir:-}" && "$identity_tmp_dir" != / && -d "$identity_tmp_dir" ]]; then
+              rm -rf -- "$identity_tmp_dir"
+            fi
+          }
+          trap cleanup EXIT
+          test ! -e "$target_response"
+          test ! -e "$expected_response"
+          test ! -e "$target_identity"
+          test ! -e "$expected_identity"
+          TARGET_HOST="${TARGET_URL#https://}"
+          EXPECTED_GIT_REF=''
+          if [[ "$TARGET_MODE" == candidate ]]; then EXPECTED_GIT_REF="$SOURCE_BRANCH"; fi
+          fetch_deployment() {
+            local lookup="$1"
+            local output="$2"
+            if ! curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --get \
+              --data-urlencode "teamId=$EXPECTED_TEAM_ID" \
+              --data-urlencode 'withGitRepoInfo=true' \
+              "https://api.vercel.com/v13/deployments/$lookup" >"$output" 2>/dev/null; then
+              echo 'UAT_VERCEL_REST_FETCH_FAILED'
+              exit 1
+            fi
+            test -s "$output"
+          }
+          fetch_deployment "$TARGET_HOST" "$target_response"
+          test -s "$target_response"
+          fetch_deployment "$DEPLOYMENT_ID" "$expected_response"
+          test -s "$expected_response"
+          test ! -e "$target_identity"
+          if ! node e2e/helpers/uat-vercel-identity.js sanitize "$target_response" "$target_identity"; then
+            echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
-          echo 'SOURCE_BRANCH_HEAD_CHECK=PASS'
-          if [[ "$(git rev-parse origin/test/automated-uat-v3-authenticated)" != "$HARNESS_SHA" ]]; then
-            echo 'UAT_HARNESS_SOURCE_NOT_APPROVED_HEAD'
+          test -s "$target_identity"
+          test ! -e "$expected_identity"
+          if ! node e2e/helpers/uat-vercel-identity.js sanitize "$expected_response" "$expected_identity"; then
+            echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
-          test "$(git rev-parse HEAD)" = "$HARNESS_SHA"
-          target_mode=candidate
-          if [[ "$TARGET_URL" == "https://sms-v3-staging-ten.vercel.app" ]]; then target_mode=canonical; fi
-          node e2e/helpers/uat-target-contract.js source-branch "$SOURCE_BRANCH"
-          node e2e/helpers/uat-target-contract.js source-head "$SOURCE_BRANCH" "$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}^{commit}")" "$SOURCE_SHA"
-          node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$(git rev-parse origin/test/automated-uat-v3-authenticated)"
-          node e2e/helpers/uat-target-contract.js scope "$target_mode" "$TARGET_URL"
+          test -s "$expected_identity"
+          node e2e/helpers/uat-target-contract.js verify \
+            "$TARGET_MODE" "$TARGET_URL" "$DEPLOYMENT_ID" "$SOURCE_SHA" \
+            "$target_identity" "$expected_identity" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME" "$EXPECTED_GIT_REF"
+          echo "TARGET_MODE=$TARGET_MODE"
+          echo "APPLICATION_SOURCE_BRANCH=$SOURCE_BRANCH"
+          echo "APPLICATION_SOURCE_HEAD=$REMOTE_SOURCE_SHA"
           echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
           echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
           echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
+          echo "DEPLOYMENT_IDENTITY_SOURCE=VERCEL_REST_V13"
       - name: Checkout exact application under test
         uses: actions/checkout@v4
         with:
@@ -121,10 +197,12 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run technical UAT V3 without credentials
         id: uat
+        continue-on-error: true
         uses: actions/github-script@v7
         env:
           UAT_BASE_URL: ${{ inputs.target_url }}
           UAT_MODE: technical
+          UAT_SCOPE: ${{ inputs.uat_scope }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         with:
           script: |
@@ -192,8 +270,31 @@ jobs:
             test-results/uat-results.json
             test-results/uat-v3-account-preflight.json
             test-results/uat-v3-artifact-summary.json
+            test-results/uat-v3-stage-diagnostics.jsonl
           if-no-files-found: warn
           retention-days: 7
+      - name: Upload technical UAT safe diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automated-uat-technical-diagnostics-${{ github.run_id }}
+          path: |
+            test-results/uat-v3-artifact-summary.json
+            test-results/uat-v3-stage-diagnostics.jsonl
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Enforce technical UAT result
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${{ steps.uat.outputs.artifact_leak }}" != "0" ]]; then
+            echo 'UAT_ARTIFACT_LEAK'
+            exit 1
+          fi
+          if [[ "${{ steps.uat.outcome }}" != success ]]; then
+            echo 'UAT_EXECUTION_FAILED'
+            exit 1
+          fi
 
   authenticated-uat:
     if: ${{ inputs.uat_mode == 'authenticated' }}
@@ -205,11 +306,15 @@ jobs:
     environment: production-sms-v3-staging
     env:
       UAT_BASE_URL: ${{ inputs.target_url }}
+      UAT_TARGET_MODE: ${{ inputs.target_mode }}
       UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+      UAT_SOURCE_BRANCH: ${{ inputs.source_branch }}
       UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
       UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
       UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
       UAT_MODE: authenticated
+      UAT_SCOPE: ${{ inputs.uat_scope }}
+      UAT_STAGE_DIAGNOSTIC_FILE: ${{ github.workspace }}/test-results/uat-v3-stage-diagnostics.jsonl
       PLAYWRIGHT_NO_COPY_PROMPT: 1
       UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
       UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
@@ -226,45 +331,101 @@ jobs:
       - name: Validate target, application identity, and trusted harness
         shell: bash
         env:
+          TARGET_MODE: ${{ inputs.target_mode }}
           TARGET_URL: ${{ inputs.target_url }}
-          SOURCE_BRANCH: ${{ inputs.source_branch }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
           HARNESS_SHA: ${{ inputs.uat_harness_sha }}
           DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          EXPECTED_TEAM_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+          EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+          EXPECTED_PROJECT_NAME: sms-v3-staging
         run: |
           set -euo pipefail
+          test -n "$VERCEL_TOKEN"
           [[ "$SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [[ "$HARNESS_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
-          if [[ ! "$TARGET_URL" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ && "$TARGET_URL" != "https://sms-v3-staging-ten.vercel.app" ]]; then
-            echo 'TECHNICAL_SMOKE_TARGET_INVALID'
+          node e2e/helpers/uat-target-contract.js scope "$TARGET_MODE" "$TARGET_URL"
+          node e2e/helpers/uat-target-contract.js source-branch "$SOURCE_BRANCH"
+          if [[ "$SOURCE_BRANCH" == refs/* || "$SOURCE_BRANCH" == -* ]] || ! git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null; then
+            echo 'UAT_SOURCE_BRANCH_INVALID'
             exit 1
           fi
-          git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null
-          git fetch --no-tags origin \
-            "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" \
-            "+refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated"
+          if ! git fetch --no-tags origin \
+            "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
+            refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated; then
+            echo 'UAT_SOURCE_BRANCH_FETCH_FAILED'
+            exit 1
+          fi
+          REMOTE_SOURCE_SHA="$(git rev-parse "refs/remotes/origin/$SOURCE_BRANCH")"
+          node e2e/helpers/uat-target-contract.js source-head "$SOURCE_BRANCH" "$REMOTE_SOURCE_SHA" "$SOURCE_SHA"
           git cat-file -e "${SOURCE_SHA}^{commit}"
           git cat-file -e "${HARNESS_SHA}^{commit}"
-          if [[ "$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}^{commit}")" != "$SOURCE_SHA" ]]; then
-            echo 'UAT_APPLICATION_SOURCE_NOT_APPROVED_HEAD'
+          APPROVED_HARNESS_SHA="$(git rev-parse origin/test/automated-uat-v3-authenticated)"
+          node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$APPROVED_HARNESS_SHA"
+
+          identity_tmp_dir="$(mktemp -d)"
+          test -n "$identity_tmp_dir"
+          test -d "$identity_tmp_dir"
+          target_response="$identity_tmp_dir/target-response.json"
+          expected_response="$identity_tmp_dir/expected-response.json"
+          target_identity="$identity_tmp_dir/target-identity.json"
+          expected_identity="$identity_tmp_dir/expected-identity.json"
+          cleanup() {
+            if [[ -n "${identity_tmp_dir:-}" && "$identity_tmp_dir" != / && -d "$identity_tmp_dir" ]]; then
+              rm -rf -- "$identity_tmp_dir"
+            fi
+          }
+          trap cleanup EXIT
+          test ! -e "$target_response"
+          test ! -e "$expected_response"
+          test ! -e "$target_identity"
+          test ! -e "$expected_identity"
+          TARGET_HOST="${TARGET_URL#https://}"
+          EXPECTED_GIT_REF=''
+          if [[ "$TARGET_MODE" == candidate ]]; then EXPECTED_GIT_REF="$SOURCE_BRANCH"; fi
+          fetch_deployment() {
+            local lookup="$1"
+            local output="$2"
+            if ! curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --get \
+              --data-urlencode "teamId=$EXPECTED_TEAM_ID" \
+              --data-urlencode 'withGitRepoInfo=true' \
+              "https://api.vercel.com/v13/deployments/$lookup" >"$output" 2>/dev/null; then
+              echo 'UAT_VERCEL_REST_FETCH_FAILED'
+              exit 1
+            fi
+            test -s "$output"
+          }
+          fetch_deployment "$TARGET_HOST" "$target_response"
+          test -s "$target_response"
+          fetch_deployment "$DEPLOYMENT_ID" "$expected_response"
+          test -s "$expected_response"
+          test ! -e "$target_identity"
+          if ! node e2e/helpers/uat-vercel-identity.js sanitize "$target_response" "$target_identity"; then
+            echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
-          echo 'SOURCE_BRANCH_HEAD_CHECK=PASS'
-          if [[ "$(git rev-parse origin/test/automated-uat-v3-authenticated)" != "$HARNESS_SHA" ]]; then
-            echo 'UAT_HARNESS_SOURCE_NOT_APPROVED_HEAD'
+          test -s "$target_identity"
+          test ! -e "$expected_identity"
+          if ! node e2e/helpers/uat-vercel-identity.js sanitize "$expected_response" "$expected_identity"; then
+            echo 'UAT_VERCEL_RESPONSE_SANITIZE_FAILED'
             exit 1
           fi
-          test "$(git rev-parse HEAD)" = "$HARNESS_SHA"
-          target_mode=candidate
-          if [[ "$TARGET_URL" == "https://sms-v3-staging-ten.vercel.app" ]]; then target_mode=canonical; fi
-          node e2e/helpers/uat-target-contract.js source-branch "$SOURCE_BRANCH"
-          node e2e/helpers/uat-target-contract.js source-head "$SOURCE_BRANCH" "$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}^{commit}")" "$SOURCE_SHA"
-          node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$(git rev-parse origin/test/automated-uat-v3-authenticated)"
-          node e2e/helpers/uat-target-contract.js scope "$target_mode" "$TARGET_URL"
+          test -s "$expected_identity"
+          node e2e/helpers/uat-target-contract.js verify \
+            "$TARGET_MODE" "$TARGET_URL" "$DEPLOYMENT_ID" "$SOURCE_SHA" \
+            "$target_identity" "$expected_identity" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME" "$EXPECTED_GIT_REF"
+          echo "TARGET_MODE=$TARGET_MODE"
+          echo "APPLICATION_SOURCE_BRANCH=$SOURCE_BRANCH"
+          echo "APPLICATION_SOURCE_HEAD=$REMOTE_SOURCE_SHA"
           echo "APPLICATION_UNDER_TEST_SHA=$SOURCE_SHA"
           echo "TRUSTED_UAT_HARNESS_SHA=$HARNESS_SHA"
           echo "EXPECTED_DEPLOYMENT_ID=$DEPLOYMENT_ID"
+          echo "DEPLOYMENT_IDENTITY_SOURCE=VERCEL_REST_V13"
       - name: Checkout exact application under test
         uses: actions/checkout@v4
         with:
@@ -312,10 +473,12 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run authenticated UAT V3
         id: uat
+        continue-on-error: true
         uses: actions/github-script@v7
         env:
           UAT_BASE_URL: ${{ inputs.target_url }}
           UAT_MODE: authenticated
+          UAT_SCOPE: ${{ inputs.uat_scope }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
           UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
@@ -399,5 +562,28 @@ jobs:
             test-results/uat-results.json
             test-results/uat-v3-account-preflight.json
             test-results/uat-v3-artifact-summary.json
+            test-results/uat-v3-stage-diagnostics.jsonl
           if-no-files-found: warn
           retention-days: 7
+      - name: Upload authenticated UAT safe diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automated-uat-authenticated-diagnostics-${{ github.run_id }}
+          path: |
+            test-results/uat-v3-artifact-summary.json
+            test-results/uat-v3-stage-diagnostics.jsonl
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Enforce authenticated UAT result
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${{ steps.uat.outputs.artifact_leak }}" != "0" ]]; then
+            echo 'UAT_ARTIFACT_LEAK'
+            exit 1
+          fi
+          if [[ "${{ steps.uat.outcome }}" != success ]]; then
+            echo 'UAT_EXECUTION_FAILED'
+            exit 1
+          fi
