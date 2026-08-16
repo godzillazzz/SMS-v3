@@ -47,6 +47,7 @@ on:
           - full
           - report-center-diagnostic
           - admin-rbac-targeted-retry
+          - g03-readonly-targeted
 
 permissions:
   contents: read
