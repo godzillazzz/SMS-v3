@@ -14,6 +14,7 @@ const {
 const {
   classifyG03BusinessMutation,
   emptyMutationCounts,
+  legacyWarningExpectedFromQuotaPayload,
   safeApiPath,
   summarizeSelectorOptions
 } = require('../e2e/helpers/uat-g03-readonly');
@@ -87,6 +88,21 @@ test('G03 mutation classifier allows authentication mechanics and rejects busine
   });
 });
 
+test('G03 legacy-warning expectation exactly matches the application meta-or-row predicate', () => {
+  const cases = [
+    { name: 'A meta positive only', payload: { meta: { unmatchedLegacyCount: 1 }, data: [{ matchStatus: 'MATCHED' }] }, expected: true },
+    { name: 'B row UNMATCHED only', payload: { meta: { unmatchedLegacyCount: 0 }, data: [{ matchStatus: 'UNMATCHED' }] }, expected: true },
+    { name: 'C row DUPLICATE_UNMATCHED only', payload: { meta: { unmatchedLegacyCount: 0 }, data: [{ matchStatus: 'DUPLICATE_UNMATCHED' }] }, expected: true },
+    { name: 'D no legacy signal', payload: { data: [{ matchStatus: 'MATCHED' }] }, expected: false },
+    { name: 'E meta and row both signal legacy', payload: { meta: { unmatchedLegacyCount: 2 }, data: [{ matchStatus: 'UNMATCHED' }] }, expected: true }
+  ];
+  for (const fixture of cases) {
+    assert.equal(legacyWarningExpectedFromQuotaPayload(fixture.payload), fixture.expected, fixture.name);
+  }
+  assert.equal(legacyWarningExpectedFromQuotaPayload(undefined), false);
+  assert.equal(legacyWarningExpectedFromQuotaPayload({ meta: { unmatchedLegacyCount: 0 }, data: [{ matchStatus: 'DUPLICATE_MATCHED' }] }), false);
+});
+
 test('G03 mutation evidence uses pathname only and selector summary exposes aggregate structure without PII', () => {
   assert.equal(safeApiPath('https://candidate.example.test/api/v1/leave-quotas?employeeId=private-value'), '/api/v1/leave-quotas');
   const summary = summarizeSelectorOptions([
@@ -147,6 +163,8 @@ test('G03 reporter aggregates only sanitized mutation/UI evidence', () => {
           codeRenderingPresent: true,
           nameRenderingPresent: true,
           departmentRenderingPresent: true,
+          legacyWarningExpected: false,
+          legacyWarningObserved: false,
           legacyWarning: 'NOT_TRIGGERED_BY_CURRENT_DATA',
           employeeName: 'must-not-survive',
           employeeEmail: 'must-not-survive@example.test'
@@ -160,6 +178,8 @@ test('G03 reporter aggregates only sanitized mutation/UI evidence', () => {
     blockedBusinessWrites: []
   });
   assert.equal(reporter.g03Readonly.roles.ADMIN.candidateCount, 2);
+  assert.equal(reporter.g03Readonly.roles.ADMIN.legacyWarningExpected, false);
+  assert.equal(reporter.g03Readonly.roles.ADMIN.legacyWarningObserved, false);
   assert.equal(reporter.g03Readonly.roles.ADMIN.employeeName, undefined);
   assert.equal(reporter.g03Readonly.roles.ADMIN.employeeEmail, undefined);
   assert.doesNotMatch(JSON.stringify(reporter.g03Readonly), /must-not-survive/);

@@ -117,7 +117,7 @@ function safeG03UiSummaryAttachment(value) {
     'quotaPageLoaded', 'provisionControlVisible', 'modalOpened', 'yearFieldAbsent',
     'newWordingPresent', 'oldAnnualWordingAbsent', 'selectorLoaded',
     'codeRenderingPresent', 'nameRenderingPresent', 'departmentRenderingPresent',
-    'quotaNavigationVisible'
+    'quotaNavigationVisible', 'legacyWarningExpected', 'legacyWarningObserved'
   ]) {
     if (typeof value[key] === 'boolean') safe[key] = value[key];
   }

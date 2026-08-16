@@ -1,6 +1,6 @@
 const { test, expect } = require('../helpers/uat-test');
 const { bootstrapAsNonDashboard } = require('../helpers/uat-auth');
-const { runWithG03MutationGuard } = require('../helpers/uat-g03-readonly');
+const { legacyWarningExpectedFromQuotaPayload, runWithG03MutationGuard } = require('../helpers/uat-g03-readonly');
 const { navigateTo, primaryNavigationItem, startPageMonitor } = require('../helpers/uat-observe');
 
 const authenticatedMode = () => String(process.env.UAT_MODE || 'technical').trim().toLowerCase() === 'authenticated';
@@ -72,19 +72,16 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
       expect(selectorSummary.departmentRenderingPresent).toBe(true);
     }
 
-    let unmatchedLegacyCount = 0;
+    let quotaPayload;
     try {
-      const payload = await quotaResponse.json();
-      unmatchedLegacyCount = Math.max(0, Number(payload?.meta?.unmatchedLegacyCount || 0));
+      quotaPayload = await quotaResponse.json();
     } catch {
-      unmatchedLegacyCount = 0;
+      quotaPayload = undefined;
     }
+    const legacyWarningExpected = legacyWarningExpectedFromQuotaPayload(quotaPayload);
     const legacyWarning = dialog.locator('.preview-warning');
-    if (unmatchedLegacyCount > 0) {
-      await expect(legacyWarning).toBeVisible();
-    } else {
-      await expect(legacyWarning).toHaveCount(0);
-    }
+    const legacyWarningObserved = await legacyWarning.first().isVisible().catch(() => false);
+    expect(legacyWarningObserved).toBe(legacyWarningExpected);
 
     await dialog.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
     await expect(dialog).toHaveCount(0);
@@ -108,7 +105,9 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
       newWordingPresent: true,
       oldAnnualWordingAbsent: true,
       ...selectorSummary,
-      legacyWarning: unmatchedLegacyCount > 0 ? 'PRESENT' : 'NOT_TRIGGERED_BY_CURRENT_DATA'
+      legacyWarningExpected,
+      legacyWarningObserved,
+      legacyWarning: legacyWarningExpected ? 'PRESENT' : 'NOT_TRIGGERED_BY_CURRENT_DATA'
     });
   });
 });

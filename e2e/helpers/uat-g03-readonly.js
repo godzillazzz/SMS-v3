@@ -60,6 +60,15 @@ function summarizeSelectorOptions(optionRecords) {
   };
 }
 
+function legacyWarningExpectedFromQuotaPayload(payload) {
+  const unmatchedLegacyCount = Math.max(0, Number(payload?.meta?.unmatchedLegacyCount || 0));
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  const hasUnmatchedLegacyRow = rows.some((row) =>
+    ['UNMATCHED', 'DUPLICATE_UNMATCHED'].includes(String(row?.matchStatus || ''))
+  );
+  return unmatchedLegacyCount > 0 || hasUnmatchedLegacyRow;
+}
+
 async function startG03MutationGuard(page) {
   const counts = emptyMutationCounts();
   const blockedBusinessWrites = [];
@@ -127,6 +136,7 @@ async function runWithG03MutationGuard(page, testInfo, callback) {
 module.exports = {
   classifyG03BusinessMutation,
   emptyMutationCounts,
+  legacyWarningExpectedFromQuotaPayload,
   runWithG03MutationGuard,
   safeApiPath,
   startG03MutationGuard,
