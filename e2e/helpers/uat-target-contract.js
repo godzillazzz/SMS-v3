@@ -5,6 +5,10 @@ const CANDIDATE_HOST = /^sms-v3-staging-[a-z0-9]+-[a-z0-9-]+\.vercel\.app$/i;
 const DEPLOYMENT_ID = /^dpl_[A-Za-z0-9]+$/;
 const GIT_SHA = /^[0-9a-f]{40}$/i;
 const TARGET_MODES = new Set(['candidate', 'canonical']);
+const DEPLOYMENT_ORIGINS = Object.freeze({
+  GIT_INTEGRATED: 'GIT_INTEGRATED',
+  CLEAN_CLI_EXACT_SHA: 'CLEAN_CLI_EXACT_SHA'
+});
 const TARGET_CLASSES = Object.freeze({ CANONICAL: 'CANONICAL', IMMUTABLE: 'IMMUTABLE' });
 
 function contractError(code) {
@@ -88,14 +92,47 @@ function extractDeploymentHostname(deployment) {
   return parsed.hostname.toLowerCase();
 }
 
+function validateDeploymentRef(value) {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw contractError('UAT_DEPLOYMENT_GIT_REF_INVALID');
+  }
+  try {
+    return validateSourceBranch(value);
+  } catch {
+    throw contractError('UAT_DEPLOYMENT_GIT_REF_INVALID');
+  }
+}
+
+function classifyDeploymentIdentity(deployment) {
+  const integratedRefs = [
+    ['meta.githubCommitRef', deployment?.meta?.githubCommitRef],
+    ['gitSource.ref', deployment?.gitSource?.ref]
+  ].filter(([, value]) => value !== undefined && value !== null);
+  const cliRef = deployment?.meta?.gitCommitRef;
+  const hasCliRef = cliRef !== undefined && cliRef !== null;
+
+  if (integratedRefs.length > 0 && hasCliRef) {
+    throw contractError('UAT_DEPLOYMENT_GIT_REF_CONFLICT');
+  }
+
+  if (integratedRefs.length > 0) {
+    const refs = integratedRefs.map(([, value]) => validateDeploymentRef(value));
+    if (new Set(refs).size !== 1) throw contractError('UAT_DEPLOYMENT_GIT_REF_CONFLICT');
+    return { deploymentClass: DEPLOYMENT_ORIGINS.GIT_INTEGRATED, ref: refs[0] };
+  }
+
+  if (!hasCliRef) throw contractError('UAT_DEPLOYMENT_GIT_REF_MISSING');
+  if (cliRef !== 'HEAD') throw contractError('UAT_DEPLOYMENT_GIT_REF_INVALID');
+  return { deploymentClass: DEPLOYMENT_ORIGINS.CLEAN_CLI_EXACT_SHA, ref: cliRef };
+}
+
 function validateDeploymentGitRef(deployment, expectedGitRef) {
   const expectedRef = String(expectedGitRef || '').trim();
   if (!expectedRef) return;
-  const refs = [deployment?.meta?.githubCommitRef, deployment?.gitSource?.ref]
-    .filter((value) => typeof value === 'string' && value.length > 0);
-  if (refs.length === 0) throw contractError('UAT_DEPLOYMENT_GIT_REF_MISSING');
-  if (new Set(refs).size !== 1) throw contractError('UAT_DEPLOYMENT_GIT_REF_CONFLICT');
-  if (refs[0] !== expectedRef) throw contractError('UAT_DEPLOYMENT_GIT_REF_MISMATCH');
+  const identity = classifyDeploymentIdentity(deployment);
+  if (identity.deploymentClass === DEPLOYMENT_ORIGINS.CLEAN_CLI_EXACT_SHA) return identity;
+  if (identity.ref !== expectedRef) throw contractError('UAT_DEPLOYMENT_GIT_REF_MISMATCH');
+  return identity;
 }
 
 function classifyUatTarget(targetUrl) {
@@ -128,16 +165,33 @@ function validateHarnessIdentity({ harnessSha, checkoutSha, approvedHarnessSha }
   return { valid: true, harnessSha: expected };
 }
 
-function extractApplicationSha(deployment) {
-  const raw = [
-    deployment?.meta?.githubCommitSha,
-    deployment?.gitSource?.sha,
-    deployment?.source?.sha
-  ].filter((value) => typeof value === 'string' && GIT_SHA.test(value));
-  const values = [...new Set(raw.map((value) => value.toLowerCase()))];
-  if (values.length === 0) throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_MISSING');
+function resolveDeploymentApplicationSha(deployment) {
+  const candidates = [
+    ['meta.githubCommitSha', deployment?.meta?.githubCommitSha],
+    ['meta.gitCommitSha', deployment?.meta?.gitCommitSha],
+    ['gitSource.sha', deployment?.gitSource?.sha],
+    ['source.sha', deployment?.source?.sha]
+  ];
+  const present = candidates.filter(([, value]) => value !== undefined && value !== null);
+  if (present.length === 0) throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_MISSING');
+
+  for (const [, value] of present) {
+    if (typeof value !== 'string' || !GIT_SHA.test(value)) {
+      throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_INVALID');
+    }
+  }
+
+  const values = [...new Set(present.map(([, value]) => value.toLowerCase()))];
   if (values.length !== 1) throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_CONFLICT');
-  return values[0];
+
+  return {
+    sha: values[0],
+    metadataSource: present.map(([source]) => source).join(',')
+  };
+}
+
+function extractApplicationSha(deployment) {
+  return resolveDeploymentApplicationSha(deployment).sha;
 }
 
 function validateDeploymentRecord(deployment, {
@@ -158,7 +212,9 @@ function validateDeploymentRecord(deployment, {
   if (deployment.projectId !== expectedProjectId) throw contractError('UAT_DEPLOYMENT_PROJECT_ID_MISMATCH');
   if (deployment.target !== 'production') throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PRODUCTION');
   if (deployment.readyState !== 'READY') throw contractError('UAT_DEPLOYMENT_NOT_READY');
-  if (extractApplicationSha(deployment) !== expectedSha) throw contractError('UAT_APPLICATION_SHA_MISMATCH');
+  if (resolveDeploymentApplicationSha(deployment).sha !== expectedSha) {
+    throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_MISMATCH');
+  }
   validateDeploymentGitRef(deployment, expectedGitRef);
 
   return {
@@ -264,13 +320,16 @@ if (require.main === module) {
 module.exports = {
   CANONICAL_HOST,
   CANDIDATE_HOST,
+  DEPLOYMENT_ORIGINS,
   TARGET_CLASSES,
   classifyUatTarget,
+  classifyDeploymentIdentity,
   contractError,
   extractApplicationSha,
   extractDeploymentHostname,
   normalizeTargetMode,
   parseTargetUrl,
+  resolveDeploymentApplicationSha,
   validateDeploymentRecord,
   validateDeploymentGitRef,
   validateHarnessIdentity,

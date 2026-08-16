@@ -10,7 +10,10 @@ const {
   parseDeploymentResponse
 } = require('../e2e/helpers/uat-vercel-identity');
 const {
+  classifyDeploymentIdentity,
+  resolveDeploymentApplicationSha,
   validateDeploymentRecord,
+  validateSourceBranchHead,
   validateTargetIdentity
 } = require('../e2e/helpers/uat-target-contract');
 
@@ -83,6 +86,107 @@ test('REST gitSource.sha is accepted when meta SHA is absent', () => {
   assert.equal(validate(normalizeDeploymentIdentity(raw)).valid, true);
 });
 
+test('clean CLI gitCommitSha and HEAD are normalized and accepted', () => {
+  const normalized = normalizeDeploymentIdentity(rawRecord({
+    meta: { gitCommitSha: APPLICATION_SHA, gitCommitRef: 'HEAD' },
+    gitSource: undefined
+  }));
+  assert.equal(normalized.meta.gitCommitSha, APPLICATION_SHA);
+  assert.equal(normalized.meta.gitCommitRef, 'HEAD');
+  assert.deepEqual(classifyDeploymentIdentity(normalized), {
+    deploymentClass: 'CLEAN_CLI_EXACT_SHA',
+    ref: 'HEAD'
+  });
+  assert.equal(validate(normalized).valid, true);
+});
+
+test('clean CLI ref survives sanitization without retaining raw metadata', () => {
+  const normalized = normalizeDeploymentIdentity(rawRecord({
+    meta: {
+      gitCommitSha: APPLICATION_SHA,
+      gitCommitRef: 'HEAD',
+      gitRemoteUrl: 'not-retained'
+    },
+    gitSource: undefined
+  }));
+  assert.deepEqual(normalized.meta, {
+    gitCommitSha: APPLICATION_SHA,
+    gitCommitRef: 'HEAD'
+  });
+  assert.equal('gitRemoteUrl' in normalized.meta, false);
+});
+
+test('clean CLI SHA and HEAD remain bound to the independent source branch HEAD', () => {
+  const normalized = normalizeDeploymentIdentity(rawRecord({
+    meta: { gitCommitSha: APPLICATION_SHA, gitCommitRef: 'HEAD' },
+    gitSource: undefined
+  }));
+  assert.equal(validate(normalized).valid, true);
+  assert.throws(
+    () => validateSourceBranchHead({
+      sourceBranch: SOURCE_BRANCH,
+      remoteSourceSha: OTHER_SHA,
+      sourceSha: APPLICATION_SHA
+    }),
+    { code: 'UAT_SOURCE_BRANCH_SHA_MISMATCH' }
+  );
+});
+
+test('clean CLI ref missing fails closed', () => {
+  assert.throws(
+    () => validate(identity({
+      meta: { gitCommitSha: APPLICATION_SHA },
+      gitSource: undefined
+    })),
+    { code: 'UAT_DEPLOYMENT_GIT_REF_MISSING' }
+  );
+});
+
+test('clean CLI arbitrary refs fail closed', () => {
+  for (const ref of ['main', 'detached', 'refs/heads/main', 'foo', 'HEAD~1']) {
+    assert.throws(
+      () => validate(identity({
+        meta: { gitCommitSha: APPLICATION_SHA, gitCommitRef: ref },
+        gitSource: undefined
+      })),
+      { code: 'UAT_DEPLOYMENT_GIT_REF_INVALID' }
+    );
+  }
+});
+
+test('clean CLI SHA mismatch fails before ref acceptance', () => {
+  assert.throws(
+    () => validate(identity({
+      meta: { gitCommitSha: OTHER_SHA, gitCommitRef: 'HEAD' },
+      gitSource: undefined
+    })),
+    { code: 'UAT_DEPLOYMENT_APPLICATION_SHA_MISMATCH' }
+  );
+});
+
+test('clean CLI malformed SHA fails closed', () => {
+  assert.throws(
+    () => resolveDeploymentApplicationSha({ meta: { gitCommitSha: 'not-a-sha' } }),
+    { code: 'UAT_DEPLOYMENT_APPLICATION_SHA_INVALID' }
+  );
+});
+
+test('Git integration refs may agree, but CLI and Git refs cannot coexist', () => {
+  assert.equal(classifyDeploymentIdentity(identity()).deploymentClass, 'GIT_INTEGRATED');
+  assert.throws(
+    () => validate(identity({
+      meta: {
+        githubCommitSha: APPLICATION_SHA,
+        githubCommitRef: SOURCE_BRANCH,
+        gitCommitSha: APPLICATION_SHA,
+        gitCommitRef: 'HEAD'
+      },
+      gitSource: undefined
+    })),
+    { code: 'UAT_DEPLOYMENT_GIT_REF_CONFLICT' }
+  );
+});
+
 test('matching meta and gitSource SHA values pass', () => {
   assert.equal(validate(identity()).valid, true);
 });
@@ -104,7 +208,7 @@ test('missing supported SHA values fail closed', () => {
 test('deployment SHA different from source SHA fails closed', () => {
   assert.throws(
     () => validate(identity({ meta: { githubCommitSha: OTHER_SHA, githubCommitRef: SOURCE_BRANCH }, gitSource: undefined })),
-    { code: 'UAT_APPLICATION_SHA_MISMATCH' }
+    { code: 'UAT_DEPLOYMENT_APPLICATION_SHA_MISMATCH' }
   );
 });
 
