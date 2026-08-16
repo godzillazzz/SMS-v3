@@ -39,16 +39,17 @@ Master with a competing identity.
 | --- | --- |
 | Canonical URL | https://sms-v3-staging-ten.vercel.app |
 | Project | sms-v3-staging |
-| Current Production deployment | dpl_9kb9pKc14A5zMWo6AFeM6JqSWusk |
+| Current Production deployment | dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL |
 | Deployment target | production |
 | Deployment state | READY |
-| Current application SHA | 148c7b8ab17698c011008335c23b99895bba7bf8 |
-| Candidate branch | fix/admin-rbac-surface-alignment-v1 |
-| Current release | ADMINISTRATIVE RBAC SURFACE ALIGNMENT V1 |
-| Release status | PRODUCTION VALIDATED |
-| Promotion timestamp | 2026-08-16T06:03:26Z |
+| Current application SHA | 1701bcf90a1998ea4999ee02e687172295984c9a |
+| Current application tree | 3edc69ce8ed26c0e4a948e14fc9d9bb70ae2140b |
+| Candidate branch | feat/leave-quota-provisioning-v1 |
+| Current release | G03 — LEAVE QUOTA PROVISIONING V1 |
+| Release status | PROMOTED / PRODUCTION VERIFIED / CLOSED |
+| Promotion timestamp | 2026-08-16T23:11:13.665Z |
 | Current main | e4bde1265ffb6b7daa9260d8465b46dd27008ab0 |
-| Current trusted Harness | 66e81e59f813f01e999e21243e5456ddf032ba91 |
+| Current trusted Harness | 46b7a92e048d05436338d1629d848211171de03f |
 
 The former staged deployment dpl_HNJFMCPiHGonnGkpGABYLPDFFFf9 is
 INVALID_FOR_RELEASE_VALIDATION and is not the current Production deployment.
@@ -67,21 +68,17 @@ It remains forensic history only.
 - Post-promotion /api/v1/health: 200, status=ok.
 - Post-promotion /api/v1/ready: 200, status=ready, database=ok.
 - Readiness observations: 3/3 PASS.
-- Technical UAT: 11 PASS / 0 FAIL / 43 SKIP (run 31926176078).
-- Exact targeted Auth: 8 PASS / 0 FAIL / 0 SKIP (run 31927914811).
-- Final Full Auth: 53 PASS / 0 FAIL / 1 controlled disposable SKIP
-  (run 31929402483).
-- Artifact leak: 0.
-- Password, credential, and authentication-material findings: 0.
-- Heavy-read safety: 0 / 0 / 0; outstandingHeavyReads=[].
-- Performance classification: PERFORMANCE_NEUTRAL.
-- Runtime certification: all required critical signatures were 0,
-  including P2024, P2028, pool and transaction timeouts, Prisma
-  initialization errors, ReferenceError, HTTP 500/503/504, and Runtime
-  Timeout.
-- License initial history requests: 0.
-- Additional initial summary HTTP: 0.
-- Report Center contract: PASS.
+- Final Technical UAT: 11 PASS / 0 FAIL / 43 SKIP (run 31939874010).
+- Final Focused Auth: 3 PASS / 0 FAIL / 0 SKIP (run 31952150709).
+- Final Full Auth: 56 PASS / 0 FAIL / 1 controlled SKIP / 0 uncontrolled SKIP; 57 tests / 10 files (run 31955365938).
+- G03 role contract: ADMIN PASS / MANAGER PASS / VIEWER PASS.
+- G03 quota mutations: 0; unexpected business writes: 0.
+- Artifact leak: 0; credential findings: 0; PII leakage: 0.
+- Heavy-read safety: real starts 24; prevented starts 30; drain/outstanding counts 0; outstandingHeavyReads=[].
+- Promotion CI run: 31978392375; exact existing deployment promoted via Vercel project Promotion API.
+- Post-promotion runtime window 2026-08-16T23:11:13Z–2026-08-16T23:13:12Z: P2024, P2028, pool/transaction timeout, Prisma initialization error, ReferenceError, HTTP 500/503/504, and Runtime Timeout all 0.
+- Production business mutation during Promotion: 0; migration: NONE; bulk backfill: NONE.
+- New release/replacement deployment created by Promotion: 0.
 
 ### Current business gap status
 
@@ -89,19 +86,15 @@ It remains forensic history only.
 | --- | --- | --- |
 | G01 — Administrative RBAC / schedule approval | CLOSED | ADMIN allowed; MANAGER and VIEWER denied; actor identity preserved |
 | G02 — Shift Type authorization and audit | CLOSED | ADMIN-only writes; successful mutations audited; denied writes do not mutate |
-| G03 — Leave Quota Provisioning | OPEN | Admin product/API provisioning path is missing |
+| G03 — Leave Quota Provisioning | CLOSED | Explicit Admin provisioning promoted and Production verified |
 | G04 — Registration Privacy Hardening | OPEN | Anonymous registration exposes a browseable employee roster |
 | G05 — License Delete Audit Tombstone | OPEN | Permanent deletion can remove historical document audit rows |
 
 ### Next recommended task
 
-G03 — LEAVE QUOTA PROVISIONING V1
+G04 — REGISTRATION PRIVACY HARDENING
 
-G01 and G02 are closed. G03 is the remaining P1 business-operability gap. It
-is bounded, should initially avoid a schema migration unless evidence proves
-one necessary, and removes reliance on fallback/default-only entitlement
-behavior for newly created employees. Do not reopen the validated RBAC or UAT
-load-shaping work unless new evidence requires it.
+G01, G02, and G03 are closed. G04 is now the next bounded P1 gap. Preserve the validated G03 Production state and do not reopen G03, RBAC, or UAT load-shaping work unless new contradictory evidence requires it. G04 remains the anonymous-registration privacy hardening scope already defined in this Master.
 
 ---
 
@@ -133,8 +126,8 @@ environment topology not stated above are UNKNOWN.
 | Employee management | PARTIAL | Employee surfaces are present; full operational acceptance is not reconstructed |
 | Employee lifecycle | PARTIAL | Future-effective behavior and historical limits remain debt |
 | Scheduling | PARTIAL | Monthly approval authorization is validated; broader ownership remains G06 |
-| Leave | PARTIAL | Leave flows are present; quota provisioning remains G03 |
-| Leave quotas | OPEN GAP | Explicit Admin provisioning path is G03 |
+| Leave | PARTIAL | Leave flows and explicit quota provisioning are validated; broader operational acceptance remains |
+| Leave quotas | COMPLETE | G03 explicit Admin provisioning promoted and Production verified |
 | License management | COMPLETE | License access and initial-load contract passed |
 | License documents | PARTIAL | Read hardening passed; delete tombstone remains G05 |
 | Dashboard | COMPLETE | Technical and Full Auth coverage passed |
@@ -234,8 +227,7 @@ changed by the current release procedure.
   currently applied lazily through authenticated application traffic.
 - A dedicated scheduler for lifecycle application has not been established in
   this evidence boundary.
-- New employees currently rely on fallback quota defaults unless an explicit
-  quota row is provisioned through a path that is not yet available; see G03.
+- New employees can now be explicitly provisioned through the G03 Admin quota path; fallback/default behavior remains legacy compatibility rather than an open G03 blocker.
 - Some legacy unmatched/import history cannot necessarily be reconstructed
   perfectly.
 
@@ -263,18 +255,13 @@ validated RBAC approval contract is COMPLETE.
 ## Section 7 — Leave / Quota
 
 - Leave request functionality is part of the validated application surface.
-- Leave entitlement currently has fallback/default behavior for newly created
-  employees.
-- G03 is open because there is no normal Admin product/API path to create,
-  provision, and maintain an individual LeaveQuota row for a new employee
-  without SQL or a legacy import dependency.
-- The target state is explicit Admin-managed quota provisioning for any new
-  employee.
-- No schema migration is expected initially, but that is a planning
-  constraint, not proof that a migration will never be needed.
+- G03 closed the prior provisioning gap by adding and Production-verifying a normal ADMIN product/API path for explicit individual LeaveQuota provisioning.
+- The validated G03 path preserves fallback/default behavior for legacy compatibility while allowing explicit entitlement provisioning for new employees.
+- G03 Promotion performed no schema migration, no bulk backfill, and no Production quota mutation during validation or Promotion.
+- Further changes to leave quota behavior require a separately bounded release; G03 itself is CLOSED.
 
-Classification: OPEN GAP for quota provisioning and PARTIAL for the overall
-Leave capability.
+Classification: COMPLETE for explicit quota provisioning and PARTIAL for the
+overall Leave capability because broader operational acceptance remains.
 
 ---
 
@@ -396,19 +383,32 @@ coverage remains P2 item G12.
 
 ### Current release
 
-- Release: ADMINISTRATIVE RBAC SURFACE ALIGNMENT V1
-- Production SHA: 148c7b8ab17698c011008335c23b99895bba7bf8
-- Production deployment: dpl_9kb9pKc14A5zMWo6AFeM6JqSWusk
-- Rollback checkpoint:
-  rollback/admin-rbac-surface-alignment-v1-prod-2026-08-16
-- Status: PRODUCTION VALIDATED
-- G01: CLOSED
-- G02: CLOSED
+- Release: G03 — LEAVE QUOTA PROVISIONING V1
+- Production SHA: 1701bcf90a1998ea4999ee02e687172295984c9a
+- Application tree: 3edc69ce8ed26c0e4a948e14fc9d9bb70ae2140b
+- Production deployment: dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL
+- Canonical URL: https://sms-v3-staging-ten.vercel.app
+- Status: PROMOTED / PRODUCTION VERIFIED / CLOSED
+- Trusted Harness: 46b7a92e048d05436338d1629d848211171de03f
+- Final Technical run: 31939874010
+- Final Focused Auth run: 31952150709
+- Final Full Auth run: 31955365938 (56 PASS / 0 FAIL / 1 controlled SKIP / 0 uncontrolled SKIP)
+- Promotion CI run: 31978392375
+- Rollback checkpoint: unchanged; no G03 rollback checkpoint was created.
+- G03: CLOSED
 
 ### Preserved historical milestones
 
 The following entries are recovered historical evidence supplied by the prior
 release record. They are not claims that those deployments are current.
+
+#### ADMINISTRATIVE RBAC SURFACE ALIGNMENT V1
+
+- Prior Canonical deployment: dpl_9kb9pKc14A5zMWo6AFeM6JqSWusk
+- Prior Production SHA: 148c7b8ab17698c011008335c23b99895bba7bf8
+- Status before G03 Promotion: PRODUCTION VALIDATED
+- Preserved as historical prior Canonical evidence; deployment was not deleted.
+- The existing rollback checkpoint remains rollback/admin-rbac-surface-alignment-v1-prod-2026-08-16 until separately authorized to change.
 
 #### PERFORMANCE & RELIABILITY HARDENING V1
 
@@ -449,12 +449,9 @@ sources.
 
 ### P1 gaps
 
-#### G03 — Leave Quota Provisioning — OPEN
+#### G03 — Leave Quota Provisioning — CLOSED
 
-New employees can use fallback quota defaults, but there is no normal Admin
-product/API path to provision an individual LeaveQuota row. The target is
-Admin creation and maintenance of explicit leave entitlement without SQL or
-legacy import dependency.
+The prior gap was the absence of a normal Admin product/API path to provision an individual LeaveQuota row. G03 added that explicit provisioning surface and the exact immutable release was Production promoted and verified. Final Technical, Focused Auth, and Full Auth gates passed; G03 quota mutations and unexpected business writes were 0; no migration or bulk backfill occurred. G03 is CLOSED.
 
 #### G04 — Anonymous Registration Directory Exposure — OPEN
 
@@ -504,8 +501,7 @@ They remain explicit design or acceptance debt.
 
 The following items remain open or require separate operational evidence:
 
-- G03, G04, and G05 must be designed, implemented, and validated in their
-  own bounded release phases.
+- G03 is CLOSED and Production verified. G04 and G05 remain open and must be designed, implemented, and validated in their own bounded release phases.
 - G06–G12 require owner decisions or evidence according to their individual
   scope.
 - Backup and restore evidence is not replaced by the current rollback
@@ -526,12 +522,8 @@ Current Production validation does not close these items implicitly.
 - Do not treat the historical invalid staged artifact as a release target.
 - Do not bypass exact deployment identity, source SHA, Harness SHA, or
   fail-closed UAT-scope checks.
-- Do not solve G03–G05 by changing pool settings, widening timeouts, adding
-  blind retries, or mutating Production data without a separately approved
-  design.
-- Do not expand the current Feature Complete gate with future product
-  capabilities before closing G03, G04, G05, and the required P2 acceptance
-  evidence.
+- Do not solve G04–G05 by changing pool settings, widening timeouts, adding blind retries, or mutating Production data without a separately approved design.
+- Do not expand the current Feature Complete gate with future product capabilities before closing G04, G05, and the required P2 acceptance evidence.
 
 Historical or future scope not stated in this file is deferred or
 NOT RECOVERABLE, not silently approved.
@@ -540,17 +532,12 @@ NOT RECOVERABLE, not silently approved.
 
 ## Section 18 — Next Recommended Development Sequence
 
-1. G03 — LEAVE QUOTA PROVISIONING V1
-   - Close the remaining P1 employee-operability gap.
-   - Provide a normal Admin product/API path for explicit quota provisioning.
-   - Avoid schema migration initially unless evidence proves it necessary.
-   - Keep the scope bounded and do not reopen RBAC or UAT load shaping.
-2. G04 — REGISTRATION PRIVACY HARDENING
+1. G04 — REGISTRATION PRIVACY HARDENING
    - Replace broad anonymous roster enumeration with narrow identity lookup.
-3. G05 — LICENSE DOCUMENT DELETE AUDIT TOMBSTONE
+2. G05 — LICENSE DOCUMENT DELETE AUDIT TOMBSTONE
    - Preserve non-sensitive deletion history without preserving private files.
-4. Complete the P2 final acceptance items G06–G12.
-5. Apply a feature freeze to the current V3 core.
+3. Complete the P2 final acceptance items G06–G12.
+4. Apply a feature freeze to the current V3 core.
 
 ---
 
@@ -558,8 +545,7 @@ NOT RECOVERABLE, not silently approved.
 
 Classification: OWNER FUTURE VISION — NOT CURRENT FEATURE-COMPLETE BLOCKERS
 
-After G03, G04, G05, and final operational acceptance are complete, future
-platform expansion may be scoped separately:
+After G04, G05, and final operational acceptance are complete, future platform expansion may be scoped separately:
 
 1. Time Attendance.
 2. Security Guard Checkpoint Scanning.
@@ -568,9 +554,7 @@ platform expansion may be scoped separately:
    - Visitor Management and person entry/exit reporting;
    - damage and defective-asset incident reporting.
 
-These are substantial future platform expansions. They do not block current
-SMS V3 Feature Complete and must not displace the bounded G03/G04/G05
-sequence without an explicit Owner priority change.
+These are substantial future platform expansions. They do not block current SMS V3 Feature Complete and must not displace the bounded G04/G05 sequence without an explicit Owner priority change.
 
 ---
 
@@ -579,3 +563,4 @@ sequence without an explicit Owner priority change.
 | Date | Change |
 | --- | --- |
 | 2026-08-16 | Created this reconstructed authoritative baseline after the original Master was confirmed not recoverable. |
+| 2026-08-17 | G03 Leave Quota Provisioning V1 promoted to exact Canonical Production deployment dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL; post-health/readiness/runtime verified; G03 CLOSED; prior Canonical preserved; rollback checkpoint unchanged. |
