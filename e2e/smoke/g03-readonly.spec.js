@@ -1,6 +1,6 @@
 const { test, expect } = require('../helpers/uat-test');
 const { bootstrapAsNonDashboard } = require('../helpers/uat-auth');
-const { G03_EMPLOYEE_FIELD_LABEL, g03EmployeeSelector, legacyWarningExpectedFromQuotaPayload, runWithG03MutationGuard } = require('../helpers/uat-g03-readonly');
+const { G03_EMPLOYEE_FIELD_LABEL, g03EmployeeSelector, g03EntitlementWordingSnapshot, legacyWarningExpectedFromQuotaPayload, runWithG03MutationGuard } = require('../helpers/uat-g03-readonly');
 const { navigateTo, primaryNavigationItem, startPageMonitor } = require('../helpers/uat-observe');
 
 const authenticatedMode = () => String(process.env.UAT_MODE || 'technical').trim().toLowerCase() === 'authenticated';
@@ -92,8 +92,10 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
     await expect(dialog).toHaveCount(0);
 
     await navigateTo(page, 'leave');
-    await expect(page.getByText('ตามสิทธิ์ที่กำหนด (วัน)', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('ตามสิทธิ์ประจำปี (วัน)', { exact: true })).toHaveCount(0);
+    const wording = await g03EntitlementWordingSnapshot(page);
+    await expect(wording.surface).toHaveCount(1);
+    expect(wording.newWordingPresent).toBe(true);
+    expect(wording.oldWordingAbsent).toBe(true);
 
     const monitorEvidence = monitor.safeEvidence();
     await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(monitorEvidence), contentType: 'application/json' });

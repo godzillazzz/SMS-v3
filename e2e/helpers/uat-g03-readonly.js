@@ -1,5 +1,7 @@
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const G03_EMPLOYEE_FIELD_LABEL = 'พนักงาน (รหัส · ชื่อ · หน่วยงาน)';
+const G03_NEW_ENTITLEMENT_WORDING = 'ตามสิทธิ์ที่กำหนด (วัน)';
+const G03_OLD_ANNUAL_WORDING = 'ตามสิทธิ์ประจำปี (วัน)';
 
 function g03EmployeeSelector(dialog) {
   const field = dialog.locator('label.field-group').filter({ hasText: G03_EMPLOYEE_FIELD_LABEL });
@@ -7,6 +9,17 @@ function g03EmployeeSelector(dialog) {
     field,
     label: field.locator(':scope > span'),
     control: field.locator(':scope > select')
+  };
+}
+
+async function g03EntitlementWordingSnapshot(page) {
+  const surface = page.locator('.leave-page');
+  const labels = surface.locator('.leave-quota-card small');
+  const texts = (await labels.allTextContents()).map((value) => String(value || '').trim());
+  return {
+    surface,
+    newWordingPresent: texts.some((value) => value === G03_NEW_ENTITLEMENT_WORDING),
+    oldWordingAbsent: !texts.some((value) => value === G03_OLD_ANNUAL_WORDING)
   };
 }
 
@@ -145,9 +158,12 @@ async function runWithG03MutationGuard(page, testInfo, callback) {
 
 module.exports = {
   G03_EMPLOYEE_FIELD_LABEL,
+  G03_NEW_ENTITLEMENT_WORDING,
+  G03_OLD_ANNUAL_WORDING,
   classifyG03BusinessMutation,
   emptyMutationCounts,
   g03EmployeeSelector,
+  g03EntitlementWordingSnapshot,
   legacyWarningExpectedFromQuotaPayload,
   runWithG03MutationGuard,
   safeApiPath,

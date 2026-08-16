@@ -13,9 +13,12 @@ const {
 } = require('../e2e/helpers/uat-config');
 const {
   G03_EMPLOYEE_FIELD_LABEL,
+  G03_NEW_ENTITLEMENT_WORDING,
+  G03_OLD_ANNUAL_WORDING,
   classifyG03BusinessMutation,
   emptyMutationCounts,
   g03EmployeeSelector,
+  g03EntitlementWordingSnapshot,
   legacyWarningExpectedFromQuotaPayload,
   safeApiPath,
   summarizeSelectorOptions
@@ -136,6 +139,30 @@ test('G03 exact Candidate source exposes the expected employee field-group/selec
   assert.doesNotMatch(applicationSource, /field\.type === 'select' \? <select[^>]*\b(?:id|name)=/);
 });
 
+test('G03 entitlement wording locator is scoped to Leave quota-card copy and exact static text only', async () => {
+  const calls = [];
+  const labels = { async allTextContents() { return ['รายการรอผู้บริหารอนุมัติ', G03_NEW_ENTITLEMENT_WORDING, G03_NEW_ENTITLEMENT_WORDING]; } };
+  const surface = { locator(selector) { calls.push(['child', selector]); return labels; } };
+  const page = { locator(selector) { calls.push(['root', selector]); return surface; } };
+  const snapshot = await g03EntitlementWordingSnapshot(page);
+  assert.equal(snapshot.surface, surface);
+  assert.equal(snapshot.newWordingPresent, true);
+  assert.equal(snapshot.oldWordingAbsent, true);
+  assert.deepEqual(calls, [['root', '.leave-page'], ['child', '.leave-quota-card small']]);
+  assert.doesNotMatch(JSON.stringify(snapshot), /employee|department|quotaValue|EMP001/i);
+});
+
+test('G03 exact Candidate wording surface explains the functional global-first visibility mismatch', { skip: !process.env.UAT_APPLICATION_ROOT }, () => {
+  const applicationSource = fs.readFileSync(path.resolve(process.env.UAT_APPLICATION_ROOT, 'frontend/src/main.tsx'), 'utf8');
+  const applicationCss = fs.readFileSync(path.resolve(process.env.UAT_APPLICATION_ROOT, 'frontend/src/styles.css'), 'utf8');
+  assert.match(applicationSource, /view-pane leave-page leave-mode-/);
+  assert.match(applicationSource, /<small>ตามสิทธิ์ที่กำหนด \(วัน\)<\/small>/);
+  assert.doesNotMatch(applicationSource, /ตามสิทธิ์ประจำปี \(วัน\)/);
+  assert.match(applicationCss, /\.leave-mode-all \.my-leave-quota-grid \{ display: none; \}/);
+  assert.match(specSource, /g03EntitlementWordingSnapshot\(page\)/);
+  assert.doesNotMatch(specSource, /getByText\('ตามสิทธิ์ที่กำหนด \(วัน\)'[^\n]*\.first\(\)\)\.toBeVisible/);
+});
+
 test('G03 mutation evidence uses pathname only and selector summary exposes aggregate structure without PII', () => {
   assert.equal(safeApiPath('https://candidate.example.test/api/v1/leave-quotas?employeeId=private-value'), '/api/v1/leave-quotas');
   const summary = summarizeSelectorOptions([
@@ -161,8 +188,9 @@ test('G03 browser spec is cancel-only and contains the exact read-only UI contra
   assert.match(specSource, /toHaveValue\('30'\)/);
   assert.match(specSource, /toHaveValue\('6'\)/);
   assert.match(specSource, /toHaveValue\('10'\)/);
-  assert.match(specSource, /ตามสิทธิ์ที่กำหนด \(วัน\)/);
-  assert.match(specSource, /ตามสิทธิ์ประจำปี \(วัน\)/);
+  assert.match(specSource, /g03EntitlementWordingSnapshot\(page\)/);
+  assert.match(specSource, /wording\.newWordingPresent\)\.toBe\(true\)/);
+  assert.match(specSource, /wording\.oldWordingAbsent\)\.toBe\(true\)/);
   assert.match(specSource, /getByRole\('button', \{ name: 'ยกเลิก'/);
   assert.doesNotMatch(specSource, /getByRole\('button', \{ name: 'บันทึกโควตา'/);
   assert.doesNotMatch(specSource, /api\.createLeaveQuota/);
