@@ -14,6 +14,7 @@ const { reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules 
 const { licenseStateForWorkDate } = require('../services/license-state.service');
 const { updateScheduleApprovalState, approveMonthlySchedule } = require('../services/schedule.service');
 const { linkLeaveQuota } = require('../services/leave-quota-link.service');
+const { provisionLeaveQuota } = require('../services/leave-quota-provisioning.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
@@ -49,6 +50,7 @@ const booleanCoerce = z.union([z.boolean(), z.string().transform((val) => val ==
 const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.coerce.date(), startTime: nullableText(20), endTime: nullableText(20), hours: z.coerce.number().min(0).max(24).optional(), remark: nullableText(2000), locked: booleanCoerce, licenseOverride: booleanCoerce, overrideReason: nullableText(2000) });
 const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), substitute: z.string().trim().min(1).max(255), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
 const leaveListQuery = paging.extend({ status: z.string().trim().min(1).max(100).optional(), employeeId: uuid.optional(), department: z.string().trim().max(100).optional(), search: z.string().trim().max(255).optional(), year: z.coerce.number().int().optional(), month: z.coerce.number().int().optional() });
+const leaveQuotaEntitlementInput = z.union([z.number(), z.string().trim().regex(/^\d+(?:\.\d+)?$/).transform(Number)]).pipe(z.number().finite().min(0).max(999));
 const dashboardDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => { const date = new Date(`${value}T00:00:00.000Z`); return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value; });
 const dashboardMonth = z.string().regex(/^\d{4}-\d{2}$/).refine((value) => { const date = new Date(`${value}-01T00:00:00.000Z`); return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 7) === value; });
 const dashboardQuery = z.object({
@@ -893,17 +895,30 @@ router.post('/leave-requests/:id/cancel', authorize('ADMIN'), async (req, res, n
   } catch (error) { next(error); }
 });
 
+router.post('/leave-quotas', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const input = z.object({
+      employeeId: uuid,
+      sickLeave: leaveQuotaEntitlementInput,
+      personalLeave: leaveQuotaEntitlementInput,
+      vacationLeave: leaveQuotaEntitlementInput
+    }).strict().parse(req.body);
+    const result = await provisionLeaveQuota({ actor: req.user, ...input });
+    res.status(201).json({ data: { ...result, sickLeave: Number(result.sickLeave), personalLeave: Number(result.personalLeave), vacationLeave: Number(result.vacationLeave) } });
+  } catch (error) { next(error); }
+});
 router.get('/leave-quotas', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { page, pageSize } = paging.parse(req.query);
-    const [total, quotas] = await prisma.$transaction([
+    const [total, quotas, unmatchedLegacyCount] = await prisma.$transaction([
       prisma.leaveQuota.count(),
       prisma.leaveQuota.findMany({
         select: { id: true, employeeId: true, employeeNameSnapshot: true, sickLeave: true, personalLeave: true, vacationLeave: true, matchStatus: true, updatedAt: true },
         orderBy: { employeeNameSnapshot: 'asc' },
         skip: (page - 1) * pageSize,
         take: pageSize
-      })
+      }),
+      prisma.leaveQuota.count({ where: { matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] } } })
     ]);
     const employeeIds = quotas.map((quota) => quota.employeeId).filter(Boolean);
     const approved = employeeIds.length ? await prisma.leaveRequest.groupBy({
@@ -933,7 +948,7 @@ router.get('/leave-quotas', authorize('ADMIN', 'MANAGER'), async (req, res, next
         vacationLeaveRemaining: Math.max(0, entitlement.vacationLeave - used.vacationLeave)
       };
     });
-    res.json({ data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
+    res.json({ data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize), unmatchedLegacyCount } });
   } catch (error) { next(error); }
 });
 router.put('/leave-quotas/:id/link', authorize('ADMIN'), async (req, res, next) => {

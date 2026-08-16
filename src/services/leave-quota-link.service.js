@@ -2,8 +2,11 @@ const prisma = require('../config/prisma');
 const audit = require('./audit.service');
 const HttpError = require('../utils/http-error');
 
+const LEAVE_QUOTA_STATE_CONFLICT = 'LEAVE_QUOTA_STATE_CONFLICT';
+
 async function linkLeaveQuota({ quotaId, employeeId, actorUserId, prismaClient = prisma, auditService = audit }) {
-  return prismaClient.$transaction(async (tx) => {
+  try {
+    return await prismaClient.$transaction(async (tx) => {
     const quota = await tx.leaveQuota.findUnique({
       where: { id: quotaId },
       select: { id: true, employeeId: true, employeeNameSnapshot: true, matchStatus: true }
@@ -42,7 +45,13 @@ async function linkLeaveQuota({ quotaId, employeeId, actorUserId, prismaClient =
       }
     }, tx);
     return { ...after, employee };
-  });
+    }, { isolationLevel: 'Serializable' });
+  } catch (error) {
+    if (error?.code === 'P2034') {
+      throw new HttpError(409, 'Leave quota state changed. Refresh and try again.', { code: LEAVE_QUOTA_STATE_CONFLICT });
+    }
+    throw error;
+  }
 }
 
-module.exports = { linkLeaveQuota };
+module.exports = { linkLeaveQuota, LEAVE_QUOTA_STATE_CONFLICT };
