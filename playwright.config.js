@@ -1,5 +1,6 @@
 const { defineConfig } = require('@playwright/test');
 const { getTraceMode } = require('./e2e/helpers/technical-smoke');
+const { getUatScopeGrep } = require('./e2e/helpers/uat-config');
 
 const baseURL = process.env.UAT_BASE_URL || 'https://uat.invalid';
 const authenticatedMode = process.env.UAT_MODE === 'authenticated';
@@ -11,6 +12,7 @@ const reporters = [
     mode: authenticatedMode ? 'authenticated' : 'technical'
   }]
 ];
+const uatScopeGrep = getUatScopeGrep();
 
 module.exports = defineConfig({
   testDir: './e2e/smoke',
@@ -23,6 +25,7 @@ module.exports = defineConfig({
   workers: 1,
   timeout: 45_000,
   expect: { timeout: 10_000 },
+  ...(uatScopeGrep ? { grep: uatScopeGrep } : {}),
   reporter: reporters,
   use: {
     baseURL,

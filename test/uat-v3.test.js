@@ -182,7 +182,7 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   const authenticatedJob = workflow.match(/\r?\n  authenticated-uat:\r?\n([\s\S]*)$/)?.[1];
   assert.ok(technicalJob);
   assert.ok(authenticatedJob);
-  assert.doesNotMatch(technicalJob, /environment:\s*production-sms-v3-staging/);
+  assert.match(technicalJob, /environment:\s*production-sms-v3-staging/);
   assert.match(authenticatedJob, /environment:\s*production-sms-v3-staging/);
   assert.match(technicalJob, /continue-on-error: true/);
   assert.match(authenticatedJob, /continue-on-error: true/);
