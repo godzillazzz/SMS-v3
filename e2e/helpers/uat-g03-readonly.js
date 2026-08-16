@@ -1,4 +1,14 @@
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const G03_EMPLOYEE_FIELD_LABEL = 'พนักงาน (รหัส · ชื่อ · หน่วยงาน)';
+
+function g03EmployeeSelector(dialog) {
+  const field = dialog.locator('label.field-group').filter({ hasText: G03_EMPLOYEE_FIELD_LABEL });
+  return {
+    field,
+    label: field.locator(':scope > span'),
+    control: field.locator(':scope > select')
+  };
+}
 
 const emptyMutationCounts = () => ({
   leaveQuotaPost: 0,
@@ -134,8 +144,10 @@ async function runWithG03MutationGuard(page, testInfo, callback) {
 }
 
 module.exports = {
+  G03_EMPLOYEE_FIELD_LABEL,
   classifyG03BusinessMutation,
   emptyMutationCounts,
+  g03EmployeeSelector,
   legacyWarningExpectedFromQuotaPayload,
   runWithG03MutationGuard,
   safeApiPath,

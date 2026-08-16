@@ -1,6 +1,6 @@
 const { test, expect } = require('../helpers/uat-test');
 const { bootstrapAsNonDashboard } = require('../helpers/uat-auth');
-const { legacyWarningExpectedFromQuotaPayload, runWithG03MutationGuard } = require('../helpers/uat-g03-readonly');
+const { G03_EMPLOYEE_FIELD_LABEL, g03EmployeeSelector, legacyWarningExpectedFromQuotaPayload, runWithG03MutationGuard } = require('../helpers/uat-g03-readonly');
 const { navigateTo, primaryNavigationItem, startPageMonitor } = require('../helpers/uat-observe');
 
 const authenticatedMode = () => String(process.env.UAT_MODE || 'technical').trim().toLowerCase() === 'authenticated';
@@ -52,8 +52,13 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
     const fieldLabels = await dialog.locator('label.field-group > span').allTextContents();
     expect(fieldLabels.some((label) => /(?:^|\s)(?:ปี|year)(?:\s|$)/i.test(label))).toBe(false);
 
-    const employeeSelector = dialog.getByLabel('พนักงาน (รหัส · ชื่อ · หน่วยงาน)', { exact: true });
-    await expect(employeeSelector).toBeVisible();
+    const employeeSelectorContract = g03EmployeeSelector(dialog);
+    await expect(employeeSelectorContract.field).toHaveCount(1);
+    await expect(employeeSelectorContract.label).toHaveText(G03_EMPLOYEE_FIELD_LABEL);
+    await expect(employeeSelectorContract.control).toHaveCount(1);
+    expect(await employeeSelectorContract.control.evaluate((element) => element.tagName)).toBe('SELECT');
+    await expect(employeeSelectorContract.control).toBeVisible();
+    const employeeSelector = employeeSelectorContract.control;
     const selectorSummary = await employeeSelector.locator('option').evaluateAll((options) => {
       const candidates = options.filter((option) => String(option.value || '').trim());
       const parts = candidates.map((option) => String(option.textContent || '').split(' · ').map((value) => value.trim()));

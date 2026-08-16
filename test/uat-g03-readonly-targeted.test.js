@@ -12,8 +12,10 @@ const {
   normalizeUatScope
 } = require('../e2e/helpers/uat-config');
 const {
+  G03_EMPLOYEE_FIELD_LABEL,
   classifyG03BusinessMutation,
   emptyMutationCounts,
+  g03EmployeeSelector,
   legacyWarningExpectedFromQuotaPayload,
   safeApiPath,
   summarizeSelectorOptions
@@ -103,6 +105,37 @@ test('G03 legacy-warning expectation exactly matches the application meta-or-row
   assert.equal(legacyWarningExpectedFromQuotaPayload({ meta: { unmatchedLegacyCount: 0 }, data: [{ matchStatus: 'DUPLICATE_MATCHED' }] }), false);
 });
 
+test('G03 employee selector locator is structural, exact, and independent from option PII', () => {
+  const calls = [];
+  const control = { locator: () => { throw new Error('unexpected nested control lookup'); } };
+  const label = { marker: 'label' };
+  const field = {
+    filter(options) { calls.push(['filter', options]); return this; },
+    locator(selector) { calls.push(['child', selector]); if (selector === ':scope > span') return label; if (selector === ':scope > select') return control; throw new Error('unexpected child selector'); }
+  };
+  const dialog = { locator(selector) { calls.push(['root', selector]); return field; } };
+  const resolved = g03EmployeeSelector(dialog);
+  assert.equal(resolved.field, field);
+  assert.equal(resolved.label, label);
+  assert.equal(resolved.control, control);
+  assert.deepEqual(calls, [
+    ['root', 'label.field-group'],
+    ['filter', { hasText: G03_EMPLOYEE_FIELD_LABEL }],
+    ['child', ':scope > span'],
+    ['child', ':scope > select']
+  ]);
+  const serialized = JSON.stringify(calls);
+  assert.doesNotMatch(serialized, /EMP001|Example Person|Security|Operations|department|employeeCode/i);
+});
+
+test('G03 exact Candidate source exposes the expected employee field-group/select DOM contract when supplied', { skip: !process.env.UAT_APPLICATION_ROOT }, () => {
+  const applicationSource = fs.readFileSync(path.resolve(process.env.UAT_APPLICATION_ROOT, 'frontend/src/main.tsx'), 'utf8');
+  assert.match(applicationSource, /name: 'employeeId', label: 'พนักงาน \(รหัส · ชื่อ · หน่วยงาน\)', type: 'select'/);
+  assert.match(applicationSource, /<label className=\{\['textarea', 'file'\]\.includes\(field\.type \|\| ''\) \? 'field-group full' : 'field-group'\} key=\{field\.name\}><span>\{field\.label\}<\/span>/);
+  assert.match(applicationSource, /field\.type === 'select' \? <select required=\{field\.required\} value=\{values\[field\.name\] \|\| ''\}/);
+  assert.doesNotMatch(applicationSource, /field\.type === 'select' \? <select[^>]*\b(?:id|name)=/);
+});
+
 test('G03 mutation evidence uses pathname only and selector summary exposes aggregate structure without PII', () => {
   assert.equal(safeApiPath('https://candidate.example.test/api/v1/leave-quotas?employeeId=private-value'), '/api/v1/leave-quotas');
   const summary = summarizeSelectorOptions([
@@ -134,6 +167,12 @@ test('G03 browser spec is cancel-only and contains the exact read-only UI contra
   assert.doesNotMatch(specSource, /getByRole\('button', \{ name: 'บันทึกโควตา'/);
   assert.doesNotMatch(specSource, /api\.createLeaveQuota/);
   assert.match(specSource, /runWithG03MutationGuard/);
+  assert.match(specSource, /g03EmployeeSelector\(dialog\)/);
+  assert.match(specSource, /employeeSelectorContract\.field\)\.toHaveCount\(1\)/);
+  assert.match(specSource, /employeeSelectorContract\.label\)\.toHaveText\(G03_EMPLOYEE_FIELD_LABEL\)/);
+  assert.match(specSource, /employeeSelectorContract\.control\)\.toHaveCount\(1\)/);
+  assert.match(specSource, /element\.tagName/);
+  assert.doesNotMatch(specSource, /getByLabel\('พนักงาน \(รหัส · ชื่อ · หน่วยงาน\)', \{ exact: true \}\)/);
 });
 
 
