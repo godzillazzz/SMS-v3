@@ -81,6 +81,53 @@ function safeAuthContractAttachment(value) {
   return Object.keys(safe).length ? safe : undefined;
 }
 
+const G03_MUTATION_KEYS = Object.freeze([
+  'leaveQuotaPost',
+  'leaveQuotaPut',
+  'leaveQuotaLink',
+  'leaveQuotaDelete',
+  'employeeMutation',
+  'leaveMutation',
+  'scheduleMutation',
+  'licenseMutation',
+  'unexpectedBusinessWrites'
+]);
+
+function safeG03MutationGuardAttachment(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  const safe = Object.fromEntries(G03_MUTATION_KEYS.map((key) => [key, safeNonNegativeInteger(value[key])]));
+  safe.blockedBusinessWrites = [];
+  for (const entry of Array.isArray(value.blockedBusinessWrites) ? value.blockedBusinessWrites.slice(0, 20) : []) {
+    const method = String(entry?.method || '').toUpperCase();
+    const entryPath = typeof entry?.path === 'string' && /^\/api\/v1\/[A-Za-z0-9._~!$&'()+,;=:@%\/-]+$/.test(entry.path) ? entry.path : undefined;
+    const classification = G03_MUTATION_KEYS.includes(entry?.classification) ? entry.classification : undefined;
+    if (entryPath && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && classification) {
+      safe.blockedBusinessWrites.push({ method, path: entryPath, classification });
+    }
+  }
+  return safe;
+}
+
+function safeG03UiSummaryAttachment(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  const role = ['ADMIN', 'MANAGER', 'VIEWER'].includes(value.role) ? value.role : undefined;
+  if (!role) return undefined;
+  const safe = { role };
+  for (const key of [
+    'quotaPageLoaded', 'provisionControlVisible', 'modalOpened', 'yearFieldAbsent',
+    'newWordingPresent', 'oldAnnualWordingAbsent', 'selectorLoaded',
+    'codeRenderingPresent', 'nameRenderingPresent', 'departmentRenderingPresent',
+    'quotaNavigationVisible'
+  ]) {
+    if (typeof value[key] === 'boolean') safe[key] = value[key];
+  }
+  for (const key of ['defaultSick', 'defaultPersonal', 'defaultVacation', 'candidateCount']) {
+    if (value[key] !== undefined) safe[key] = safeNonNegativeInteger(value[key]);
+  }
+  if (['PRESENT', 'NOT_TRIGGERED_BY_CURRENT_DATA'].includes(value.legacyWarning)) safe.legacyWarning = value.legacyWarning;
+  return safe;
+}
+
 function safePageMonitorAttachment(value) {
   if (!value || typeof value !== 'object') return undefined;
   const safe = {
@@ -122,6 +169,11 @@ class UatSummaryReporter {
       preventedHeavyStarts: 0,
       outstandingHeavyReads: []
     };
+    this.g03Readonly = {
+      seenTests: 0,
+      mutationGuard: { ...Object.fromEntries(G03_MUTATION_KEYS.map((key) => [key, 0])), blockedBusinessWrites: [] },
+      roles: {}
+    };
   }
 
   onTestEnd(test, result) {
@@ -129,6 +181,8 @@ class UatSummaryReporter {
     let stage;
     let authContract;
     let pageMonitor;
+    let g03MutationGuard;
+    let g03UiSummary;
     for (const attachment of result.attachments || []) {
       if (!attachment.body) continue;
       try {
@@ -136,12 +190,23 @@ class UatSummaryReporter {
         if (attachment.name === 'uat-stage.json') stage = safeStageAttachment(parsed);
         if (attachment.name === 'v31-auth-contract.json') authContract = safeAuthContractAttachment(parsed);
         if (attachment.name === 'v32-page-monitor.json') pageMonitor = safePageMonitorAttachment(parsed);
+        if (attachment.name === 'g03-mutation-guard.json') g03MutationGuard = safeG03MutationGuardAttachment(parsed);
+        if (attachment.name === 'g03-ui-summary.json') g03UiSummary = safeG03UiSummaryAttachment(parsed);
       } catch {
         if (attachment.name === 'uat-stage.json') stage = undefined;
         if (attachment.name === 'v31-auth-contract.json') authContract = undefined;
         if (attachment.name === 'v32-page-monitor.json') pageMonitor = undefined;
+        if (attachment.name === 'g03-mutation-guard.json') g03MutationGuard = undefined;
+        if (attachment.name === 'g03-ui-summary.json') g03UiSummary = undefined;
       }
     }
+    if (g03MutationGuard) {
+      this.g03Readonly.seenTests += 1;
+      for (const key of G03_MUTATION_KEYS) this.g03Readonly.mutationGuard[key] += g03MutationGuard[key];
+      this.g03Readonly.mutationGuard.blockedBusinessWrites.push(...g03MutationGuard.blockedBusinessWrites);
+    }
+    if (g03UiSummary?.role) this.g03Readonly.roles[g03UiSummary.role] = g03UiSummary;
+
     this.results.push({
       testName: sanitizeUatDiagnostic(title),
       role: roleFromTitle(title),
@@ -256,6 +321,16 @@ class UatSummaryReporter {
       `- realHeavyStarts: ${this.heavyReadSafety.realHeavyStarts}`,
       `- preventedHeavyStarts: ${this.heavyReadSafety.preventedHeavyStarts}`,
       `- outstandingHeavyReads: ${JSON.stringify(this.heavyReadSafety.outstandingHeavyReads)}`,
+      ...(this.g03Readonly.seenTests > 0 ? [
+        '',
+        '#### G03 READ-ONLY',
+        `- focusedTests: ${this.g03Readonly.seenTests}`,
+        ...G03_MUTATION_KEYS.map((key) => `- ${key}: ${this.g03Readonly.mutationGuard[key]}`),
+        `- blockedBusinessWrites: ${JSON.stringify(this.g03Readonly.mutationGuard.blockedBusinessWrites)}`,
+        `- ADMIN: ${JSON.stringify(this.g03Readonly.roles.ADMIN || {})}`,
+        `- MANAGER: ${JSON.stringify(this.g03Readonly.roles.MANAGER || {})}`,
+        `- VIEWER: ${JSON.stringify(this.g03Readonly.roles.VIEWER || {})}`
+      ] : []),
       '',
       `- Passed tests: ${passed}`,
       `- Skipped tests: ${skipped}`,
@@ -297,6 +372,7 @@ class UatSummaryReporter {
       totals: { passed, skipped, failed },
       overall: String(result.status || '').toUpperCase(),
       heavyReadSafety: this.heavyReadSafety,
+      ...(this.g03Readonly.seenTests > 0 ? { g03Readonly: this.g03Readonly } : {}),
       ...(performanceValidation.networkContracts || performanceValidation.benchmark ? { performanceValidation } : {})
     }, null, 2) + '\n');
   }

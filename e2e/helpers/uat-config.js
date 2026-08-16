@@ -11,7 +11,13 @@ const TARGETED_AUTH_RETRY_TEST_TITLES = Object.freeze([
   'V3 MANAGER: Unified Report Center acceptance',
   'V3 MANAGER: authenticated responsive smoke'
 ]);
-const scopes = ['full', 'report-center-diagnostic', TARGETED_AUTH_RETRY_SCOPE];
+const G03_READONLY_SCOPE = 'g03-readonly-targeted';
+const G03_READONLY_TEST_TITLES = Object.freeze([
+  'G03 ADMIN: leave quota provisioning read-only contract',
+  'G03 MANAGER: leave quota provisioning control is absent',
+  'G03 VIEWER: leave quota provisioning control is absent'
+]);
+const scopes = ['full', 'report-center-diagnostic', TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE];
 
 function configurationError(code, message) {
   const error = new Error(message);
@@ -47,7 +53,10 @@ function normalizeUatMode(value = 'technical') {
 function normalizeUatScope(value = 'full') {
   const scope = String(value || 'full').trim().toLowerCase();
   if (!scopes.includes(scope)) {
-    throw configurationError('UAT_SCOPE_NOT_APPROVED', 'UAT scope not approved: use full, report-center-diagnostic, or admin-rbac-targeted-retry.');
+    throw configurationError(
+      'UAT_SCOPE_NOT_APPROVED',
+      'UAT scope not approved: use full, report-center-diagnostic, admin-rbac-targeted-retry, or g03-readonly-targeted.'
+    );
   }
   return scope;
 }
@@ -60,8 +69,15 @@ function isAdminRbacTargetedRetry(environment = process.env) {
   return normalizeUatScope(environment.UAT_SCOPE) === TARGETED_AUTH_RETRY_SCOPE;
 }
 
+function isG03ReadonlyTargeted(environment = process.env) {
+  return normalizeUatScope(environment.UAT_SCOPE) === G03_READONLY_SCOPE;
+}
+
 function getUatScopeTestTitles(environment = process.env) {
-  return isAdminRbacTargetedRetry(environment) ? [...TARGETED_AUTH_RETRY_TEST_TITLES] : undefined;
+  const scope = normalizeUatScope(environment.UAT_SCOPE);
+  if (scope === TARGETED_AUTH_RETRY_SCOPE) return [...TARGETED_AUTH_RETRY_TEST_TITLES];
+  if (scope === G03_READONLY_SCOPE) return [...G03_READONLY_TEST_TITLES];
+  return undefined;
 }
 
 function escapeRegExp(value) {
@@ -82,8 +98,8 @@ function getUatConfig(environment = process.env) {
 
   const mode = normalizeUatMode(environment.UAT_MODE);
   const scope = normalizeUatScope(environment.UAT_SCOPE);
-  if (mode === 'technical' && scope === TARGETED_AUTH_RETRY_SCOPE) {
-    throw configurationError('UAT_SCOPE_MODE_INVALID', 'UAT scope admin-rbac-targeted-retry requires authenticated mode.');
+  if (mode === 'technical' && [TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE].includes(scope)) {
+    throw configurationError('UAT_SCOPE_MODE_INVALID', `UAT scope ${scope} requires authenticated mode.`);
   }
   const accounts = {};
   for (const role of roles) {
@@ -119,6 +135,8 @@ function hasRoleCredentials(role, environment = process.env) {
 }
 
 module.exports = {
+  G03_READONLY_SCOPE,
+  G03_READONLY_TEST_TITLES,
   TARGETED_AUTH_RETRY_SCOPE,
   TARGETED_AUTH_RETRY_TEST_TITLES,
   configurationError,
@@ -127,6 +145,7 @@ module.exports = {
   getUatScopeTestTitles,
   hasRoleCredentials,
   isAdminRbacTargetedRetry,
+  isG03ReadonlyTargeted,
   isReportCenterDiagnostic,
   normalizeBaseUrl,
   normalizeUatMode,
