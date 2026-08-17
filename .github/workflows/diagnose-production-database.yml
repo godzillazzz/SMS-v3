@@ -1,4 +1,4 @@
-name: Diagnose sms-v3-staging Production Database
+name: g04-production-schema-cutover-v1
 
 on:
   workflow_dispatch:
@@ -6,44 +6,187 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: sms-v3-g04-production-schema-cutover
+  cancel-in-progress: false
+
 jobs:
-  diagnose:
+  cutover:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     environment:
       name: production-sms-v3-staging
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      EXPECTED_CANDIDATE_SHA: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+      EXPECTED_CANDIDATE_TREE: c58a842dd0d6cfa4f3efca352769671012c2ba9a
+      EXPECTED_CANDIDATE_PARENT: 0951d4ce08de817dda7b986924232e86e745b532
+      EXPECTED_MIGRATION: 202608170002_g04_private_registration_request
+      EXPECTED_MIGRATION_HASH: c2f9077651c6b321ba9dd93a8b66db1f5a62736aa6576e9fc83b072c0deccf0f
+      EXPECTED_DEPLOYMENT_ID: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs
+      EXPECTED_PRODUCTION_SHA: 0951d4ce08de817dda7b986924232e86e745b532
+      EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+      EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+      EXPECTED_ROLLBACK_REF: rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17
+      CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+      DATABASE_URL: ${{ secrets.DIRECT_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      CUTOVER_STATE_FILE: /tmp/g04-schema-cutover-state.json
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout fixed G04 schema cutover harness
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+
+      - name: Verify technical scope and preserve fixed cutover script
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_CANDIDATE_SHA"
+          test "$(git show -s --format=%T "$EXPECTED_CANDIDATE_SHA")" = "$EXPECTED_CANDIDATE_TREE"
+          test "$(git rev-parse "$EXPECTED_CANDIDATE_SHA^")" = "$EXPECTED_CANDIDATE_PARENT"
+          changed="$(git diff --name-only HEAD^ HEAD | sort)"
+          expected="$(printf '%s\n' '.github/workflows/diagnose-production-database.yml' 'scripts/ci/g04-production-schema-cutover-v1.js' 'vercel.json' | sort)"
+          test "$changed" = "$expected"
+          node -e "const v=require('./vercel.json'); if(v.git?.deploymentEnabled?.['ci/g04-production-schema-cutover-v1']!==false) process.exit(1)"
+          cp scripts/ci/g04-production-schema-cutover-v1.js "$RUNNER_TEMP/g04-production-schema-cutover-v1.js"
+          test -s "$RUNNER_TEMP/g04-production-schema-cutover-v1.js"
+          echo 'TECHNICAL_SCOPE=PASS'
+
+      - name: Checkout exact G04 Candidate
+        uses: actions/checkout@v4
+        with:
+          ref: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+          fetch-depth: 2
+          clean: true
+
+      - name: Set up exact Node runtime
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - name: Install dependencies
+
+      - name: Establish schema cutover window
+        shell: bash
         run: |
-          npm ci --include=dev
-      - name: Pull Vercel environment variables
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          set -euo pipefail
+          echo "CUTOVER_START_ISO=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+
+      - name: Verify exact Candidate and migration identity
+        shell: bash
         run: |
-          npx --yes vercel@56.4.1 pull --yes --environment=production --token "$VERCEL_TOKEN"
-      - name: Run Local Authentication Debug
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_CANDIDATE_SHA"
+          test "$(git show -s --format=%T HEAD)" = "$EXPECTED_CANDIDATE_TREE"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_CANDIDATE_PARENT"
+          migration="prisma/migrations/$EXPECTED_MIGRATION/migration.sql"
+          test -f "$migration"
+          test "$(sha256sum "$migration" | awk '{print $1}')" = "$EXPECTED_MIGRATION_HASH"
+          test "$(grep -Eic '^\s*DROP\b' "$migration" || true)" = "0"
+          test "$(grep -Eic '^\s*TRUNCATE\b' "$migration" || true)" = "0"
+          test "$(grep -Eic '^\s*DELETE\s+FROM\b' "$migration" || true)" = "0"
+          test "$(grep -Eic '^\s*UPDATE\s+' "$migration" || true)" = "0"
+          test "$(grep -Eic '^\s*ALTER\s+TABLE\b.*\bDROP\b' "$migration" || true)" = "0"
+          grep -Fq 'CREATE TYPE "RegistrationRequestStatus"' "$migration"
+          grep -Fq 'CREATE TABLE "registration_requests"' "$migration"
+          grep -Fq 'registration_requests_matched_employee_id_fkey' "$migration"
+          grep -Fq 'registration_requests_reviewed_by_user_id_fkey' "$migration"
+          grep -Fq 'registration_requests_email_key' "$migration"
+          echo 'MIGRATION_IDENTITY=PASS'
+
+      - name: Install exact dependencies without lifecycle scripts
+        shell: bash
         run: |
-          node scripts/ci/debug-auth.js
-      - name: Run UAT Verification
+          set -euo pipefail
+          npm ci --include=dev --ignore-scripts
+          npx --no-install prisma generate
+          cp "$RUNNER_TEMP/g04-production-schema-cutover-v1.js" .g04-production-schema-cutover-v1.js
+          node --check .g04-production-schema-cutover-v1.js
+
+      - name: Verify protected Production database target
+        shell: bash
         run: |
-          node scripts/ci/run-uat-with-db.js
-      - name: Fetch Vercel staging logs
-        if: always()
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          set -euo pipefail
+          node scripts/ci/verify-deployment-target.js --verify
+
+      - name: Verify exact Production identity and rollback immediately before migration
+        shell: bash
         run: |
-          npx --yes vercel@56.4.1 logs --project sms-v3-staging --environment production --token "$VERCEL_TOKEN" --limit 50
+          set -euo pipefail
+          node <<'NODE'
+          const id=process.env.EXPECTED_DEPLOYMENT_ID, team=process.env.EXPECTED_ORG_ID, token=process.env.VERCEL_TOKEN;
+          if(!token) throw new Error('VERCEL_TOKEN_UNAVAILABLE');
+          const r=await fetch(`https://api.vercel.com/v13/deployments/${id}?teamId=${team}`,{headers:{Authorization:`Bearer ${token}`}});
+          if(!r.ok) throw new Error(`VERCEL_INSPECT_HTTP_${r.status}`);
+          const d=await r.json();
+          const sha=d.meta?.githubCommitSha || d.meta?.gitCommitSha;
+          if(d.id!==id || d.readyState!=='READY' || d.target!=='production' || sha!==process.env.EXPECTED_PRODUCTION_SHA || d.project?.id!==process.env.EXPECTED_PROJECT_ID) throw new Error('G04_CUTOVER_IDENTITY_CHANGED');
+          console.log('CANONICAL_IDENTITY_BEFORE_MIGRATION=PASS');
+          NODE
+          rb="$(git ls-remote origin "refs/heads/$EXPECTED_ROLLBACK_REF" | awk '{print $1}')"
+          test "$rb" = "$EXPECTED_PRODUCTION_SHA"
+          echo 'ROLLBACK_CHECKPOINT_BEFORE_MIGRATION=PASS'
+
+      - name: Fresh read-only pre-migration snapshot and exact pending gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .g04-production-schema-cutover-v1.js precheck
+          node scripts/ci/prisma-migration.js status --allow-pending
+
+      - name: Apply exact authorized additive migration only
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "MIGRATION_APPLY_START=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          node scripts/ci/prisma-migration.js deploy
+          echo "MIGRATION_APPLY_END=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+      - name: Verify post-migration schema empty table and existing-data preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/prisma-migration.js status
+          node .g04-production-schema-cutover-v1.js postcheck
+
+      - name: Verify G03.1 Canonical health ready runtime and deployment preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const id=process.env.EXPECTED_DEPLOYMENT_ID, team=process.env.EXPECTED_ORG_ID, token=process.env.VERCEL_TOKEN;
+          const r=await fetch(`https://api.vercel.com/v13/deployments/${id}?teamId=${team}`,{headers:{Authorization:`Bearer ${token}`}});
+          if(!r.ok) throw new Error(`VERCEL_INSPECT_HTTP_${r.status}`);
+          const d=await r.json();
+          const sha=d.meta?.githubCommitSha || d.meta?.gitCommitSha;
+          if(d.id!==id || d.readyState!=='READY' || d.target!=='production' || sha!==process.env.EXPECTED_PRODUCTION_SHA) throw new Error('G04_CUTOVER_G03_1_COMPATIBILITY_FAILED');
+          NODE
+          test "$(curl -fsS -o /tmp/g04-health.json -w '%{http_code}' "$CANONICAL_URL/api/v1/health")" = "200"
+          node -e "const x=require('/tmp/g04-health.json'); if(x.status!=='ok') process.exit(1)"
+          for i in 1 2 3; do
+            code="$(curl -fsS -o "/tmp/g04-ready-$i.json" -w '%{http_code}' "$CANONICAL_URL/api/v1/ready")"
+            test "$code" = "200"
+            node -e "const x=require('/tmp/g04-ready-$i.json'); if(x.status!=='ready'||x.database!=='ok') process.exit(1)"
+          done
+          logs_file="$(mktemp)"
+          prod_file="$(mktemp)"
+          trap 'rm -f "$logs_file" "$prod_file"' EXIT
+          npx --yes vercel@56.4.1 logs --deployment "$EXPECTED_DEPLOYMENT_ID" --since "$CUTOVER_START_ISO" --limit 250 --json --no-branch --token "$VERCEL_TOKEN" >"$logs_file" 2>/dev/null
+          critical="$(grep -Eic 'P2021|P2022|P2024|P2028|PrismaClientInitializationError|Prisma (initialization|init)|schema mismatch|unknown (table|column)|pool timeout|connection timeout|transaction timeout|ReferenceError|Runtime Timeout|UnhandledPromiseRejection|fatal initialization|"statusCode"[[:space:]]*:[[:space:]]*(500|503|504)|HTTP (500|503|504)' "$logs_file" || true)"
+          test "$critical" = "0"
+          npx --yes vercel@56.4.1 list sms-v3-staging --environment production --format json --limit 20 --token "$VERCEL_TOKEN" >"$prod_file" 2>/dev/null
+          node - "$prod_file" <<'NODE'
+          const fs=require('node:fs'); const data=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); const items=Array.isArray(data)?data:(data.deployments||[]); items.sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0)); const latest=items[0]; if(!latest) throw new Error('NO_PRODUCTION_DEPLOYMENT_METADATA'); const sha=latest.meta?.githubCommitSha||latest.meta?.gitCommitSha; if(latest.target!=='production'||sha!==process.env.EXPECTED_PRODUCTION_SHA) throw new Error('UNAUTHORIZED_PRODUCTION_DEPLOYMENT_CREATED');
+          NODE
+          rb="$(git ls-remote origin "refs/heads/$EXPECTED_ROLLBACK_REF" | awk '{print $1}')"
+          test "$rb" = "$EXPECTED_PRODUCTION_SHA"
+          echo 'OLD_G03_1_AFTER_G04_SCHEMA_ONLY=SAFE'
+          echo 'HEALTH=PASS'
+          echo 'READY=3/3'
+          echo 'RUNTIME_CRITICAL=0'
+          echo 'PRODUCTION_DEPLOYMENT_CREATED=0'
+          echo 'PROMOTION=NO'
+          echo 'ROLLBACK_CHECKPOINT_CHANGED=NO'
