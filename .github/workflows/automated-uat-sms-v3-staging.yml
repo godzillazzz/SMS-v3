@@ -468,6 +468,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify G03.1 Auth personas have existing 2026 annual authority
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+          UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+          UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
+          UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
+        run: |
+          set -euo pipefail
+          node application-under-test/scripts/ci/verify-deployment-target.js --verify
+          node scripts/ci/g03-1-auth-persona-preflight.js
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Run authenticated UAT V3
