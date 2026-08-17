@@ -46,13 +46,13 @@ Master with a competing identity.
 | Current application tree | dfacd4261df08139f21bebd498ce709954163b8b |
 | Candidate branch | feat/annual-leave-quota-rollover-v1 |
 | Current release | G03.1 — ANNUAL LEAVE QUOTA ROLLOVER V1 |
-| Release status | PROMOTED / PRODUCTION VERIFIED |
+| Release status | ACTIVATED / PRODUCTION VERIFIED |
 | Promotion timestamp | 2026-08-17T05:01:49.815Z |
 | Current main | e4bde1265ffb6b7daa9260d8465b46dd27008ab0 |
 | Current trusted Harness | a561b3bf6884c9d464aaba57b5974dff1f37c2b6 |
 | G03.1 schema migration | 202608170001_annual_leave_quota_year — APPLIED EXACTLY ONCE |
 | 2026 classification | VERIFIED — 64 authoritative linked rows; 3 unmatched/unlinked NULL-year rows; 0 other years (fresh checkpoint snapshot 2026-08-17T05:26:13Z) |
-| Multi-year activation | G03_1_MULTI_YEAR_WRITES_ENABLED = INACTIVE (setting MISSING) |
+| Multi-year activation | G03_1_MULTI_YEAR_WRITES_ENABLED = ACTIVE (raw value true; verified run 31999063040) |
 
 The former staged deployment dpl_HNJFMCPiHGonnGkpGABYLPDFFFf9 is
 INVALID_FOR_RELEASE_VALIDATION and is not the current Production deployment.
@@ -60,7 +60,7 @@ It remains forensic history only.
 
 ### Current rollback
 
-The current rollback checkpoint is the verified G03.1 Production checkpoint created after exact Promotion verification while multi-year activation remained INACTIVE. The historical G03 checkpoint and all earlier rollback refs remain preserved.
+The current rollback checkpoint is the verified G03.1 Production checkpoint created and verified before multi-year activation. It remains the preferred Production rollback point after activation completed successfully. The historical G03 checkpoint and all earlier rollback refs remain preserved.
 
 | Field | Authoritative value |
 | --- | --- |
@@ -68,7 +68,7 @@ The current rollback checkpoint is the verified G03.1 Production checkpoint crea
 | Rollback SHA | 0951d4ce08de817dda7b986924232e86e745b532 |
 | Associated Production release | G03.1 — ANNUAL LEAVE QUOTA ROLLOVER V1 |
 | Canonical deployment | dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs |
-| Checkpoint status | VERIFIED |
+| Checkpoint status | CURRENT / VERIFIED |
 | Created / verified date | 2026-08-17 |
 | Previous rollback checkpoint | rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 |
 | Previous rollback SHA | 1701bcf90a1998ea4999ee02e687172295984c9a |
@@ -89,7 +89,8 @@ The current rollback checkpoint is the verified G03.1 Production checkpoint crea
 - Post-promotion runtime window 2026-08-17T05:01:45Z–2026-08-17T05:05:00Z: P2021, P2022, P2024, P2028, pool timeout, connection timeout, transaction timeout, Prisma initialization error, ReferenceError, HTTP 500/503/504, Runtime Timeout, UnhandledPromiseRejection, and fatal initialization all 0.
 - 2026 entitlement / used / remaining preserved exactly: SICK 1856 / 15 / 1841; PERSONAL 164 / 3 / 161; VACATION 299 / 15 / 284.
 - Fresh checkpoint snapshot after legitimate Production activity: 67 total LeaveQuota rows; 64 quotaYear=2026 authoritative linked rows; 3 quotaYear=NULL unmatched/unlinked rows; 0 other years. The checkpoint task itself created no quota row and changed no quotaYear.
-- G03_1_MULTI_YEAR_WRITES_ENABLED remains INACTIVE; setting remains MISSING; activation mutation 0.
+- G03_1_MULTI_YEAR_WRITES_ENABLED is ACTIVE with raw semantic value true; protected Production activation run 31999063040 (job 95295870510) completed successfully with mutation type CREATE and other SystemSetting mutations 0.
+- Activation itself created 0 second-year rows and changed 0 LeaveQuota/LeaveRequest/Employee/Schedule/License business rows; 2026 entitlement / used / remaining remained SICK 1886 / 15 / 1871, PERSONAL 167 / 3 / 164, VACATION 305 / 15 / 290.
 - Production business mutation during Promotion: 0; migration during Promotion: NONE; Cron invocation: 0.
 - New release/replacement deployment created by Promotion: 0.
 
@@ -100,15 +101,15 @@ The current rollback checkpoint is the verified G03.1 Production checkpoint crea
 | G01 — Administrative RBAC / schedule approval | CLOSED | ADMIN allowed; MANAGER and VIEWER denied; actor identity preserved |
 | G02 — Shift Type authorization and audit | CLOSED | ADMIN-only writes; successful mutations audited; denied writes do not mutate |
 | G03 — Leave Quota Provisioning | CLOSED | Explicit Admin provisioning promoted and Production verified |
-| G03.1 — Annual Leave Quota Rollover | PROMOTED / CHECKPOINT VERIFIED / ACTIVATION INACTIVE | Annual quotaYear schema/classification is Production verified; G03.1 rollback checkpoint is verified; non-2026 creation remains hard-gated pending separate activation approval |
-| G04 — Registration Privacy Hardening | OPEN / PAUSED | Anonymous registration privacy scope remains open but is not started while G03.1 release governance is incomplete |
+| G03.1 — Annual Leave Quota Rollover | COMPLETE / ACTIVATED / PRODUCTION VERIFIED | Annual quotaYear schema/classification, rollback checkpoint, protected activation, and 2026 preservation are verified; normal G03.1 flows may now create non-2026 annual authorities when business activity requires them |
+| G04 — Registration Privacy Hardening | OPEN / PAUSED | Anonymous registration privacy scope remains open and is separately paused; no G04 work starts without explicit owner authorization |
 | G05 — License Delete Audit Tombstone | OPEN | Permanent deletion can remove historical document audit rows |
 
 ### Next recommended task
 
-G03.1 — MULTI-YEAR ACTIVATION — SEPARATE OWNER APPROVAL REQUIRED
+G03.1 — ACTIVATED / PRODUCTION VERIFIED
 
-The G03.1 Production rollback checkpoint is now created and verified. Multi-year writes remain deliberately INACTIVE and no 2027+ annual authority exists. The next consequential action requires separate explicit owner authorization to set G03_1_MULTI_YEAR_WRITES_ENABLED=true. G04 remains PAUSED.
+The G03.1 Production rollback checkpoint is verified and G03_1_MULTI_YEAR_WRITES_ENABLED is now ACTIVE with raw value true, verified by protected Production activation run 31999063040. Activation itself created 0 non-2026 annual authorities; future-year authority creation is enabled for normal G03.1 business flows but no claim is made here that a 2027+ row has subsequently been created. G04 remains PAUSED and requires separate owner authorization before any work begins.
 
 ---
 
@@ -141,7 +142,7 @@ environment topology not stated above are UNKNOWN.
 | Employee lifecycle | PARTIAL | Future-effective behavior and historical limits remain debt |
 | Scheduling | PARTIAL | Monthly approval authorization is validated; broader ownership remains G06 |
 | Leave | PARTIAL | Leave flows and explicit quota provisioning are validated; broader operational acceptance remains |
-| Leave quotas | COMPLETE for G03 provisioning; G03.1 promoted with activation pending | Annual quotaYear schema/classification and 2026 preservation are Production verified; multi-year non-2026 creation remains deliberately inactive |
+| Leave quotas | COMPLETE — G03.1 ACTIVATED / PRODUCTION VERIFIED | Annual quotaYear schema/classification, 2026 preservation, rollback checkpoint, and protected activation are verified; multi-year authority creation is enabled for normal G03.1 flows |
 | License management | COMPLETE | License access and initial-load contract passed |
 | License documents | PARTIAL | Read hardening passed; delete tombstone remains G05 |
 | Dashboard | COMPLETE | Technical and Full Auth coverage passed |
@@ -195,11 +196,15 @@ NOT RECOVERABLE.
 - Production already contained the additive G03.1 migration
   202608170001_annual_leave_quota_year before Promotion; it is applied exactly once.
 - Promotion itself performed no migration and no Production data correction.
-- Current annual quota classification is 63 authoritative linked rows at
+- Fresh checkpoint/activation evidence records 64 authoritative linked rows at
   quotaYear=2026, 3 unmatched/unlinked rows at quotaYear=NULL, and 0 rows in
-  other years.
-- G03_1_MULTI_YEAR_WRITES_ENABLED remains INACTIVE with the setting MISSING;
-  no activation row was created and no annual Cron was invoked by Promotion.
+  other years at activation completion.
+- G03_1_MULTI_YEAR_WRITES_ENABLED is ACTIVE with raw semantic value true,
+  verified by protected Production run 31999063040. The activation task created
+  exactly one SystemSetting row and did not invoke the annual Cron.
+- Historical Promotion evidence remains unchanged: Promotion itself created no
+  activation row and invoked no annual Cron because activation was deliberately
+  deferred until the rollback checkpoint was established.
 - The current post-promotion runtime certification recorded zero P2021, P2022,
   P2024, P2028, pool timeout, connection timeout, transaction timeout, Prisma
   initialization, ReferenceError, HTTP 500, HTTP 503, HTTP 504, Runtime Timeout,
@@ -284,12 +289,14 @@ validated RBAC approval contract is COMPLETE.
 - G03 Promotion performed no schema migration, no bulk backfill, and no Production quota mutation during validation or Promotion.
 - G03.1 adds Gregorian quotaYear authority for annual quota accounting. Fresh checkpoint verification records 64 authoritative linked 2026 rows, 3 unmatched/unlinked NULL-year rows, and no second-year authority rows.
 - Existing 2026 rows were not reset. Promotion verification recorded SICK 1856 / 15 / 1841, PERSONAL 164 / 3 / 161, and VACATION 299 / 15 / 284. A later legitimate 2026 provisioning event (outside the checkpoint task) increased entitlement by exactly the normal 30 / 3 / 6 defaults; the fresh checkpoint snapshot records SICK 1886 / 15 / 1871, PERSONAL 167 / 3 / 164, and VACATION 305 / 15 / 290.
-- New annual defaults 30 / 3 / 6 apply only when creation of new annual entitlements is permitted after separate multi-year activation approval; they did not reset existing 2026 rows.
-- G03_1_MULTI_YEAR_WRITES_ENABLED remains deliberately INACTIVE. Non-2026 annual creation, cross-year missing-authority creation, and NULL→non-2026 classification remain backend-gated.
-- G03.1 Promotion created no quota rows, no second-year authority, no activation row, and no business-data mutation.
-- The G03.1 Production rollback checkpoint is verified at rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 → 0951d4ce08de817dda7b986924232e86e745b532. Activation is still not complete and must not be represented as complete.
+- New annual defaults 30 / 3 / 6 apply only to NEW annual authorities; they did not reset existing 2026 rows.
+- G03_1_MULTI_YEAR_WRITES_ENABLED is ACTIVE with raw value true, verified by protected Production activation run 31999063040 (job 95295870510). Multi-year authority creation is now enabled through normal G03.1 flows.
+- Activation itself did not create any non-2026 authority: other-year rows were 0 immediately before and immediately after activation. Do not infer that a 2027+ quota exists unless a later independent business event proves it.
+- G03.1 Promotion created no quota rows, no second-year authority, no activation row, and no business-data mutation; that statement remains historical Promotion evidence.
+- The G03.1 Production rollback checkpoint remains verified at rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 → 0951d4ce08de817dda7b986924232e86e745b532 and is the preferred rollback target.
+- As soon as the first non-2026 LeaveQuota authority exists, old G03 SHA 1701bcf90a1998ea4999ee02e687172295984c9a is DATA-INCOMPATIBLE / DO NOT ROLLBACK TO because old G03 uses employee-only quota lookup semantics.
 
-Classification: COMPLETE for explicit G03 quota provisioning; G03.1 annual rollover is PROMOTED / PRODUCTION VERIFIED with multi-year activation deliberately pending. The overall Leave capability remains PARTIAL because broader operational acceptance remains.
+Classification: COMPLETE for explicit G03 quota provisioning; G03.1 annual rollover is COMPLETE / ACTIVATED / PRODUCTION VERIFIED. The overall Leave capability remains PARTIAL because broader operational acceptance remains.
 
 ---
 
@@ -414,10 +421,10 @@ coverage remains P2 item G12.
 - Application tree: dfacd4261df08139f21bebd498ce709954163b8b
 - Production deployment: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs
 - Canonical URL: https://sms-v3-staging-ten.vercel.app
-- Status: PROMOTED / PRODUCTION VERIFIED
+- Status: ACTIVATED / PRODUCTION VERIFIED
 - Migration: 202608170001_annual_leave_quota_year — APPLIED EXACTLY ONCE before Promotion
 - 2026 classification: VERIFIED
-- Activation: INACTIVE (G03_1_MULTI_YEAR_WRITES_ENABLED setting MISSING)
+- Activation: ACTIVE (G03_1_MULTI_YEAR_WRITES_ENABLED raw value true; protected Production run 31999063040, job 95295870510; mutation CREATE)
 - Trusted Harness: a561b3bf6884c9d464aaba57b5974dff1f37c2b6
 - Final Technical run: 31989684604
 - Final Full Auth run: 31994339618 (55 PASS / 0 FAIL / 2 controlled SKIP / 0 uncontrolled SKIP)
@@ -425,8 +432,9 @@ coverage remains P2 item G12.
 - Previous Canonical: dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL / 1701bcf90a1998ea4999ee02e687172295984c9a (historical G03 Production identity)
 - Current rollback checkpoint: rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 → 0951d4ce08de817dda7b986924232e86e745b532 (VERIFIED 2026-08-17).
 - Historical G03 checkpoint preserved: rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 → 1701bcf90a1998ea4999ee02e687172295984c9a.
-- G03.1 multi-year activation is NOT complete. Multi-year writes remain deliberately INACTIVE pending separate owner activation approval.
-- Rollback safety boundary: BEFORE multi-year activation, the G03.1 checkpoint above is the preferred Production rollback point. AFTER the first non-2026 annual authority exists, old G03 SHA 1701bcf90a1998ea4999ee02e687172295984c9a is DATA-INCOMPATIBLE / DO NOT ROLLBACK TO because old G03 uses employee-only quota lookup semantics.
+- G03.1 activation is COMPLETE / ACTIVATED / PRODUCTION VERIFIED. Activation run 31999063040 created exactly the activation SystemSetting row; other SystemSetting mutations 0, business mutations 0, migration 0, deployment 0, Promotion 0.
+- Activation itself preserved existing 2026 entitlement / used / remaining exactly and created 0 second-year rows. Multi-year authority creation is now enabled, but this activation record does not claim a 2027+ row exists.
+- Rollback safety boundary: the G03.1 checkpoint above is the preferred Production rollback point. As soon as the first non-2026 annual authority exists, old G03 SHA 1701bcf90a1998ea4999ee02e687172295984c9a is DATA-INCOMPATIBLE / DO NOT ROLLBACK TO because old G03 uses employee-only quota lookup semantics.
 - G04: PAUSED
 
 ### Preserved historical milestones
@@ -439,7 +447,7 @@ release record. They are not claims that those deployments are current.
 - Historical Canonical deployment immediately before G03.1 Promotion: dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL.
 - Historical Production SHA: 1701bcf90a1998ea4999ee02e687172295984c9a.
 - Historical status: PROMOTED / PRODUCTION VERIFIED / CLOSED.
-- Historical rollback checkpoint remains current until a separately authorized G03.1 checkpoint is created: rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 → 1701bcf90a1998ea4999ee02e687172295984c9a.
+- Historical rollback checkpoint is preserved for audit history but is no longer the current preferred checkpoint: rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 → 1701bcf90a1998ea4999ee02e687172295984c9a. The verified G03.1 checkpoint superseded it as current before activation.
 
 #### ADMINISTRATIVE RBAC SURFACE ALIGNMENT V1
 
