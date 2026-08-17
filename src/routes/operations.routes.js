@@ -15,6 +15,9 @@ const { licenseStateForWorkDate } = require('../services/license-state.service')
 const { updateScheduleApprovalState, approveMonthlySchedule } = require('../services/schedule.service');
 const { linkLeaveQuota } = require('../services/leave-quota-link.service');
 const { provisionLeaveQuota } = require('../services/leave-quota-provisioning.service');
+const { bangkokQuotaYear, validateQuotaYear } = require('../services/annual-leave-quota.service');
+const { nativeUsageByQuotaYear, persistedUsageByQuotaYear, validateAnnualLeaveAvailability, annualSummary, quotaFieldForLeaveType } = require('../services/leave-annual-accounting.service');
+const { provisionAnnualLeaveQuotas } = require('../services/annual-leave-quota-cron.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
@@ -51,6 +54,7 @@ const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.c
 const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), substitute: z.string().trim().min(1).max(255), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
 const leaveListQuery = paging.extend({ status: z.string().trim().min(1).max(100).optional(), employeeId: uuid.optional(), department: z.string().trim().max(100).optional(), search: z.string().trim().max(255).optional(), year: z.coerce.number().int().optional(), month: z.coerce.number().int().optional() });
 const leaveQuotaEntitlementInput = z.union([z.number(), z.string().trim().regex(/^\d+(?:\.\d+)?$/).transform(Number)]).pipe(z.number().finite().min(0).max(999));
+const leaveQuotaYearInput = z.coerce.number().int().min(2000).max(2200);
 const dashboardDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => { const date = new Date(`${value}T00:00:00.000Z`); return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value; });
 const dashboardMonth = z.string().regex(/^\d{4}-\d{2}$/).refine((value) => { const date = new Date(`${value}-01T00:00:00.000Z`); return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 7) === value; });
 const dashboardQuery = z.object({
@@ -80,13 +84,6 @@ const normalizeLeaveType = (leaveType) => {
   if (value.includes('พักร้อน') || value.includes('vacation')) return 'VACATION';
   throw new HttpError(400, 'Unsupported leave type.');
 };
-const leaveQuotaField = (leaveType) => {
-  const value = normalizeLeaveType(leaveType);
-  if (value === 'SICK') return 'sickLeave';
-  if (value === 'PERSONAL') return 'personalLeave';
-  return 'vacationLeave';
-};
-const inclusiveDays = (startDate, endDate) => Math.floor((Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()) - Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())) / 86400000) + 1;
 const positionText = (employee) => String(employee?.jobTitle || '').toLowerCase();
 const isSupervisorPosition = (employee) => /supervisor|หัวหน้า|ซุปเปอร์ไวเซอร์/.test(positionText(employee));
 const isManagerPosition = (employee) => /manager|ผู้จัดการ/.test(positionText(employee));
@@ -123,14 +120,21 @@ const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser, options =
     if (isManagerPosition(leaveEmployee) && !hasSupervisorApprovalLevel(approver)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.');
   }
 };
-const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedDays, excludeId) => {
-  const field = leaveQuotaField(leaveType);
-  const quota = await tx.leaveQuota.findFirst({ where: { employeeId } });
-  const entitlement = Number(quota?.[field] ?? ({ sickLeave: 30, personalLeave: 6, vacationLeave: 10 })[field]);
-  const approved = await tx.leaveRequest.aggregate({ where: { employeeId, status: 'APPROVED', leaveType, ...(excludeId && { id: { not: excludeId } }) }, _sum: { dayCount: true } });
-  const remaining = entitlement - Number(approved._sum.dayCount || 0);
-  if (requestedDays > remaining) throw new HttpError(400, `Insufficient leave quota. Remaining: ${remaining} day(s).`);
-  return { entitlement, remaining };
+const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedUsageByYear, excludeId, options = {}) => validateAnnualLeaveAvailability(tx, {
+  employeeId,
+  leaveType,
+  requestedUsageByYear,
+  excludeId,
+  source: options.source || 'ON_DEMAND',
+  lock: Boolean(options.lock)
+});
+const runLeaveTransaction = async (callback) => {
+  try {
+    return await prisma.$transaction(callback, { isolationLevel: 'ReadCommitted' });
+  } catch (error) {
+    if (error?.code === 'P2034') throw new HttpError(409, 'Leave quota state changed. Refresh and try again.', { code: 'LEAVE_QUOTA_STATE_CONFLICT' });
+    throw error;
+  }
 };
 const licenseStateForShift = async (tx, { employeeId, workDate, shiftCode, override, overrideReason, actorRole }) => {
   if (['OFF', 'AL'].includes(String(shiftCode).toUpperCase())) return { licenseStatus: 'NOT_REQUIRED', licenseExpiryDate: null, licenseOverride: false, overrideReason: null, overrideAt: null };
@@ -150,7 +154,8 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   if (!employeeId) throw new HttpError(400, 'Employee is required.');
   const employee = await tx.employee.findUniqueOrThrow({ where: { id: employeeId } });
   const leaveType = normalizeLeaveType(input.leaveType);
-  const dayCount = inclusiveDays(input.startDate, input.endDate);
+  const requestedUsageByYear = nativeUsageByQuotaYear(input.startDate, input.endDate);
+  const dayCount = Object.values(requestedUsageByYear).reduce((sum, value) => sum + Number(value), 0);
 
   const isRetroactive = checkIsRetroactive(input.startDate);
 
@@ -172,7 +177,7 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
 
   const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } });
   if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.');
-  await ensureLeaveAvailable(tx, employeeId, leaveType, dayCount);
+  await ensureLeaveAvailable(tx, employeeId, leaveType, requestedUsageByYear);
   if (file && !allowedAttachmentTypes.has(file.mimetype)) throw new HttpError(415, 'Attachment must be PDF, JPEG, or PNG.');
   if (leaveType === 'SICK' && dayCount > 3 && !file) throw new HttpError(400, 'Sick leave longer than 3 days requires an attachment.');
   const safeFileName = file?.originalname.replace(/[\\/\0]/g, '_').slice(0, 255);
@@ -223,6 +228,13 @@ const sortByEmployeeCode = (left, right) => {
   if (codeCompare !== 0) return codeCompare;
   return new Date(left.expiryDate).getTime() - new Date(right.expiryDate).getTime();
 };
+
+router.get('/internal/annual-leave-quota-provisioning', async (req, res, next) => {
+  try {
+    if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
+    res.json({ data: await provisionAnnualLeaveQuotas({ prismaClient: prisma }) });
+  } catch (error) { next(error); }
+});
 
 router.use(authenticate);
 
@@ -729,14 +741,9 @@ router.get('/leave-summary', async (req, res, next) => {
   try {
     const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
     if (!currentUser.employeeId) return res.json({ data: { linked: false, employeeId: null } });
-    const [quota, approved] = await Promise.all([
-      prisma.leaveQuota.findFirst({ where: { employeeId: currentUser.employeeId }, select: { sickLeave: true, personalLeave: true, vacationLeave: true } }),
-      prisma.leaveRequest.groupBy({ by: ['leaveType'], where: { employeeId: currentUser.employeeId, status: 'APPROVED' }, _sum: { dayCount: true } })
-    ]);
-    const entitlement = { sickLeave: Number(quota?.sickLeave ?? 30), personalLeave: Number(quota?.personalLeave ?? 6), vacationLeave: Number(quota?.vacationLeave ?? 10) };
-    const used = { sickLeave: 0, personalLeave: 0, vacationLeave: 0 };
-    approved.forEach((item) => { used[leaveQuotaField(item.leaveType)] += Number(item._sum.dayCount || 0); });
-    res.json({ data: { linked: true, employeeId: currentUser.employeeId, entitlement, used, remaining: { sickLeave: Math.max(0, entitlement.sickLeave - used.sickLeave), personalLeave: Math.max(0, entitlement.personalLeave - used.personalLeave), vacationLeave: Math.max(0, entitlement.vacationLeave - used.vacationLeave) } } });
+    const quotaYear = req.query.year === undefined ? bangkokQuotaYear() : validateQuotaYear(req.query.year);
+    const summary = await runLeaveTransaction((tx) => annualSummary(tx, { employeeId: currentUser.employeeId, quotaYear }));
+    res.json({ data: { linked: true, employeeId: currentUser.employeeId, ...summary } });
   } catch (error) { next(error); }
 });
 router.post('/leave-requests', async (req, res, next) => {
@@ -744,7 +751,7 @@ router.post('/leave-requests', async (req, res, next) => {
     // Viewer forms intentionally omit employee selection. Treat an empty HTML
     // value as absent so the authenticated Viewer employee link is used.
     const input = leaveInput.parse({ ...req.body, employeeId: req.body.employeeId || undefined });
-    const result = await prisma.$transaction((tx) => createLeaveRequest(tx, input, req.user));
+    const result = await runLeaveTransaction((tx) => createLeaveRequest(tx, input, req.user));
 
     try {
       const { broadcastLeaveRequestEmail } = require('../services/notification-email.service');
@@ -768,7 +775,7 @@ router.post('/leave-requests', async (req, res, next) => {
 router.post('/leave-requests/with-attachment', leaveUpload, async (req, res, next) => {
   try {
     const input = leaveInput.parse({ ...req.body, employeeId: req.body.employeeId || undefined });
-    const result = await prisma.$transaction((tx) => createLeaveRequest(tx, input, req.user, req.file));
+    const result = await runLeaveTransaction((tx) => createLeaveRequest(tx, input, req.user, req.file));
 
     try {
       const { broadcastLeaveRequestEmail } = require('../services/notification-email.service');
@@ -804,7 +811,8 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
   try {
     const id = uuid.parse(req.params.id);
     const input = z.object({ status: z.enum(['APPROVED', 'REJECTED']), reason: nullableText(2000) }).parse(req.body);
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await runLeaveTransaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM leave_requests WHERE id = ${id}::uuid FOR UPDATE`;
       const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
       if (before.status !== 'PENDING') throw new HttpError(409, 'This leave request has already been reviewed.');
       const isRetroactive = checkIsRetroactive(before.startDate);
@@ -818,7 +826,8 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
         }
       }
       if (input.status === 'APPROVED') {
-        await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, Number(before.dayCount), before.id);
+        const requestedUsageByYear = persistedUsageByQuotaYear(before);
+        await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, requestedUsageByYear, before.id, { lock: true });
         const [employee, leaveShift] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: before.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' } })]);
         for (let date = new Date(before.startDate); date <= before.endDate; date.setUTCDate(date.getUTCDate() + 1)) {
           const workDate = new Date(date);
@@ -899,67 +908,80 @@ router.post('/leave-quotas', authorize('ADMIN'), async (req, res, next) => {
   try {
     const input = z.object({
       employeeId: uuid,
+      quotaYear: leaveQuotaYearInput.optional(),
       sickLeave: leaveQuotaEntitlementInput,
       personalLeave: leaveQuotaEntitlementInput,
       vacationLeave: leaveQuotaEntitlementInput
     }).strict().parse(req.body);
-    const result = await provisionLeaveQuota({ actor: req.user, ...input });
+    const quotaYearDefaulted = input.quotaYear === undefined;
+    const result = await provisionLeaveQuota({ actor: req.user, ...input, quotaYear: input.quotaYear ?? bangkokQuotaYear(), quotaYearDefaulted });
     res.status(201).json({ data: { ...result, sickLeave: Number(result.sickLeave), personalLeave: Number(result.personalLeave), vacationLeave: Number(result.vacationLeave) } });
   } catch (error) { next(error); }
 });
 router.get('/leave-quotas', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { page, pageSize } = paging.parse(req.query);
+    const legacy = String(req.query.legacy || '') === 'true';
+    const quotaYear = legacy ? null : (req.query.year === undefined ? bangkokQuotaYear() : validateQuotaYear(req.query.year));
+    const where = legacy ? { quotaYear: null } : { quotaYear };
     const [total, quotas, unmatchedLegacyCount] = await prisma.$transaction([
-      prisma.leaveQuota.count(),
+      prisma.leaveQuota.count({ where }),
       prisma.leaveQuota.findMany({
-        select: { id: true, employeeId: true, employeeNameSnapshot: true, sickLeave: true, personalLeave: true, vacationLeave: true, matchStatus: true, updatedAt: true },
-        orderBy: { employeeNameSnapshot: 'asc' },
+        where,
+        select: { id: true, employeeId: true, quotaYear: true, employeeNameSnapshot: true, sickLeave: true, personalLeave: true, vacationLeave: true, matchStatus: true, updatedAt: true },
+        orderBy: [{ employeeNameSnapshot: 'asc' }, { id: 'asc' }],
         skip: (page - 1) * pageSize,
         take: pageSize
       }),
-      prisma.leaveQuota.count({ where: { matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] } } })
+      prisma.leaveQuota.count({ where: { quotaYear: null } })
     ]);
-    const employeeIds = quotas.map((quota) => quota.employeeId).filter(Boolean);
-    const approved = employeeIds.length ? await prisma.leaveRequest.groupBy({
-      by: ['employeeId', 'leaveType'],
-      where: { employeeId: { in: employeeIds }, status: 'APPROVED' },
-      _sum: { dayCount: true }
+    if (legacy) {
+      return res.json({ data: quotas.map((quota) => ({ ...quota, sickLeave: Number(quota.sickLeave), personalLeave: Number(quota.personalLeave), vacationLeave: Number(quota.vacationLeave), annualAccountingUnavailable: true })), meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize), unmatchedLegacyCount, legacy: true } });
+    }
+    const employeeIds = [...new Set(quotas.map((quota) => quota.employeeId).filter(Boolean))];
+    const yearStart = new Date(Date.UTC(quotaYear, 0, 1));
+    const nextYear = new Date(Date.UTC(quotaYear + 1, 0, 1));
+    const approved = employeeIds.length ? await prisma.leaveRequest.findMany({
+      where: { employeeId: { in: employeeIds }, status: 'APPROVED', startDate: { lt: nextYear }, endDate: { gte: yearStart } },
+      select: { id: true, employeeId: true, leaveType: true, startDate: true, endDate: true, dayCount: true }
     }) : [];
     const usedByEmployee = new Map();
-    approved.forEach((row) => {
+    for (const row of approved) {
+      const allocated = persistedUsageByQuotaYear(row);
       const current = usedByEmployee.get(row.employeeId) || { sickLeave: 0, personalLeave: 0, vacationLeave: 0 };
-      current[leaveQuotaField(row.leaveType)] += Number(row._sum.dayCount || 0);
+      current[quotaFieldForLeaveType(row.leaveType)] += Number(allocated[quotaYear] || 0);
       usedByEmployee.set(row.employeeId, current);
-    });
+    }
     const data = quotas.map((quota) => {
       const used = usedByEmployee.get(quota.employeeId) || { sickLeave: 0, personalLeave: 0, vacationLeave: 0 };
       const entitlement = { sickLeave: Number(quota.sickLeave), personalLeave: Number(quota.personalLeave), vacationLeave: Number(quota.vacationLeave) };
-      return {
-        ...quota,
-        sickLeave: entitlement.sickLeave,
-        personalLeave: entitlement.personalLeave,
-        vacationLeave: entitlement.vacationLeave,
-        sickLeaveUsed: used.sickLeave,
-        personalLeaveUsed: used.personalLeave,
-        vacationLeaveUsed: used.vacationLeave,
-        sickLeaveRemaining: Math.max(0, entitlement.sickLeave - used.sickLeave),
-        personalLeaveRemaining: Math.max(0, entitlement.personalLeave - used.personalLeave),
-        vacationLeaveRemaining: Math.max(0, entitlement.vacationLeave - used.vacationLeave)
-      };
+      return { ...quota, ...entitlement, sickLeaveUsed: used.sickLeave, personalLeaveUsed: used.personalLeave, vacationLeaveUsed: used.vacationLeave, sickLeaveRemaining: Math.max(0, entitlement.sickLeave - used.sickLeave), personalLeaveRemaining: Math.max(0, entitlement.personalLeave - used.personalLeave), vacationLeaveRemaining: Math.max(0, entitlement.vacationLeave - used.vacationLeave) };
     });
-    res.json({ data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize), unmatchedLegacyCount } });
+    res.json({ data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize), unmatchedLegacyCount, quotaYear } });
   } catch (error) { next(error); }
 });
 router.put('/leave-quotas/:id/link', authorize('ADMIN'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
-    const input = z.object({ employeeId: uuid }).parse(req.body);
-    const result = await linkLeaveQuota({ quotaId: id, employeeId: input.employeeId, actorUserId: req.user.sub });
+    const input = z.object({ employeeId: uuid, quotaYear: leaveQuotaYearInput }).strict().parse(req.body);
+    const result = await linkLeaveQuota({ quotaId: id, employeeId: input.employeeId, quotaYear: input.quotaYear, actorUserId: req.user.sub });
     res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.put('/leave-quotas/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ sickLeave: z.coerce.number().min(0).max(999).optional(), personalLeave: z.coerce.number().min(0).max(999).optional(), vacationLeave: z.coerce.number().min(0).max(999).optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.leaveQuota.findUniqueOrThrow({ where: { id } }); const after = await tx.leaveQuota.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveQuota', entityId: id, metadata: { before: safeRecord(before, ['sickLeave', 'personalLeave', 'vacationLeave']), after: safeRecord(after, ['sickLeave', 'personalLeave', 'vacationLeave']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
+router.put('/leave-quotas/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const input = z.object({ sickLeave: z.coerce.number().min(0).max(999).optional(), personalLeave: z.coerce.number().min(0).max(999).optional(), vacationLeave: z.coerce.number().min(0).max(999).optional() }).strict().parse(req.body);
+    if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.');
+    const result = await prisma.$transaction(async (tx) => {
+      const before = await tx.leaveQuota.findUniqueOrThrow({ where: { id } });
+      const after = await tx.leaveQuota.update({ where: { id }, data: input });
+      await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveQuota', entityId: id, metadata: { event: 'ADMIN_ANNUAL_QUOTA_UPDATED', quotaYear: before.quotaYear, before: safeRecord(before, ['sickLeave', 'personalLeave', 'vacationLeave']), after: safeRecord(after, ['sickLeave', 'personalLeave', 'vacationLeave']) } }, tx);
+      return after;
+    });
+    res.json({ data: result });
+  } catch (error) { next(error); }
+});
 
 router.put('/users/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ role: z.enum(['ADMIN', 'MANAGER', 'VIEWER']).optional(), department: nullableText(100), accountStatus: z.enum(['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED']).optional(), isActive: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await userAccess.updateUserAccount({ id, input, actorUserId: req.user.sub, actorRole: req.user.role }); res.json({ data: result }); } catch (error) { next(error); } });
 router.post('/users/:id/reset-password', authorize('ADMIN'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const { newPassword } = z.object({ newPassword: z.string().min(8).max(128) }).parse(req.body); const passwordHash = await bcrypt.hash(newPassword, 12); const result = await prisma.$transaction(async (tx) => { const after = await tx.user.update({ where: { id }, data: { passwordHash, passwordResetRequired: false, failedLoginCount: 0, tokenVersion: { increment: 1 } }, select: { id: true, displayName: true, email: true, role: true, accountStatus: true, isActive: true, passwordResetRequired: true } }); await tx.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'UserCredential', entityId: id, metadata: { passwordResetRequired: false, sessionsRevoked: true } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
@@ -976,7 +998,7 @@ router.get('/reports/summary', authorize('ADMIN', 'MANAGER'), async (_req, res, 
       prisma.employee.count({ where: { deletedAt: null } }),
       prisma.employee.count({ where: { deletedAt: null, isActive: true } }),
       prisma.employeeLicense.count(), prisma.shiftAssignment.count(), prisma.leaveRequest.count(),
-      prisma.leaveQuota.count(), prisma.user.count()
+      prisma.leaveQuota.count({ where: { quotaYear: bangkokQuotaYear() } }), prisma.user.count()
     ]);
     res.json({ data: { employees, activeEmployees, licenses, shifts, leaveRequests, leaveQuotas, users } });
   } catch (error) { next(error); }

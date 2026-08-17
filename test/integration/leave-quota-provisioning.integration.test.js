@@ -73,32 +73,33 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     return accessTokenFor(await prisma.user.findUniqueOrThrow({ where: { id } }));
   }
 
-  test('mounted Admin provisioning closes the fallback gap while RBAC and validation fail closed', async () => {
+  test('mounted annual provisioning is year-aware while RBAC and validation fail closed', async () => {
     await seed();
     const admin = await tokenFor(ids.admin);
     const manager = await tokenFor(ids.manager);
     const viewer = await tokenFor(ids.viewer);
     try {
-      const fallback = await request(app).get('/api/v1/leave-summary').set('Authorization', `Bearer ${viewer}`);
-      assert.equal(fallback.status, 200);
-      assert.deepEqual(fallback.body.data.entitlement, { sickLeave: 30, personalLeave: 6, vacationLeave: 10 });
-      assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeA } }), 0, 'fallback must stay virtual');
+      const current = await request(app).get('/api/v1/leave-summary?year=2026').set('Authorization', `Bearer ${viewer}`);
+      assert.equal(current.status, 200);
+      assert.equal(current.body.data.quotaYear, 2026);
+      assert.deepEqual(current.body.data.entitlement, { sickLeave: 30, personalLeave: 3, vacationLeave: 6 });
+      assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeA, quotaYear: 2026 } }), 1, 'on-demand summary provisions the exact annual row');
 
-      const payload = { employeeId: ids.employeeA, sickLeave: 12, personalLeave: 4, vacationLeave: 8 };
+      const payload = { employeeId: ids.employeeA, quotaYear: 2027, sickLeave: 12, personalLeave: 4, vacationLeave: 8 };
       assert.equal((await request(app).post('/api/v1/leave-quotas').send(payload)).status, 401);
       assert.equal((await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${manager}`).send(payload)).status, 403);
       assert.equal((await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${viewer}`).send(payload)).status, 403);
 
       const protectedOverride = await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${admin}`).send({ ...payload, matchStatus: 'UNMATCHED', employeeNameSnapshot: 'Client Override', sourceFingerprint: 'x'.repeat(64) });
       assert.equal(protectedOverride.status, 400);
-      assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeA } }), 0);
+      assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeA, quotaYear: 2027 } }), 0);
 
       for (const bad of [
-        { employeeId: ids.employeeA, sickLeave: -1, personalLeave: 4, vacationLeave: 8 },
-        { employeeId: ids.employeeA, sickLeave: 1000, personalLeave: 4, vacationLeave: 8 },
-        { employeeId: ids.employeeA, sickLeave: null, personalLeave: 4, vacationLeave: 8 },
-        { employeeId: ids.employeeA, sickLeave: true, personalLeave: 4, vacationLeave: 8 },
-        { employeeId: ids.employeeA, sickLeave: 12, personalLeave: 4 }
+        { ...payload, sickLeave: -1 },
+        { ...payload, sickLeave: 1000 },
+        { ...payload, sickLeave: null },
+        { ...payload, sickLeave: true },
+        { employeeId: ids.employeeA, quotaYear: 2027, sickLeave: 12, personalLeave: 4 }
       ]) assert.equal((await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${admin}`).send(bad)).status, 400);
 
       const unknown = await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${admin}`).send({ ...payload, employeeId: '94000000-0000-4000-8000-000000000099' });
@@ -106,12 +107,12 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       assert.equal((await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${admin}`).send({ ...payload, employeeId: ids.inactive })).status, 404);
       assert.equal((await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${admin}`).send({ ...payload, employeeId: ids.deleted })).status, 404);
 
-      const zero = await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${admin}`).send({ employeeId: ids.zero, sickLeave: 0, personalLeave: 0, vacationLeave: 0 });
+      const zero = await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${admin}`).send({ employeeId: ids.zero, quotaYear: 2027, sickLeave: 0, personalLeave: 0, vacationLeave: 0 });
       assert.equal(zero.status, 201);
 
       const created = await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${admin}`).send(payload);
       assert.equal(created.status, 201);
-      assert.deepEqual({ sickLeave: created.body.data.sickLeave, personalLeave: created.body.data.personalLeave, vacationLeave: created.body.data.vacationLeave, matchStatus: created.body.data.matchStatus }, { sickLeave: 12, personalLeave: 4, vacationLeave: 8, matchStatus: 'MATCHED' });
+      assert.deepEqual({ quotaYear: created.body.data.quotaYear, sickLeave: created.body.data.sickLeave, personalLeave: created.body.data.personalLeave, vacationLeave: created.body.data.vacationLeave, matchStatus: created.body.data.matchStatus }, { quotaYear: 2027, sickLeave: 12, personalLeave: 4, vacationLeave: 8, matchStatus: 'MATCHED' });
       assert.equal(created.body.data.employeeNameSnapshot, 'G03 Alpha Guard');
       assert.equal(created.body.data.sourceFingerprint, undefined);
       const stored = await prisma.leaveQuota.findUniqueOrThrow({ where: { id: created.body.data.id } });
@@ -119,13 +120,14 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       assert.equal(stored.employeeNameSnapshot, 'G03 Alpha Guard');
       const auditRow = await prisma.auditLog.findFirst({ where: { actorUserId: ids.admin, entityType: 'LeaveQuota', entityId: stored.id, action: 'CREATE' } });
       assert.ok(auditRow);
-      assert.equal(auditRow.metadata.matchStatus, 'MATCHED');
+      assert.equal(auditRow.metadata.event, 'ADMIN_ANNUAL_QUOTA_CREATED');
+      assert.equal(auditRow.metadata.quotaYear, 2027);
 
       const duplicate = await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${admin}`).send(payload);
       assert.equal(duplicate.status, 409);
       assert.equal(duplicate.body.details.code, 'LEAVE_QUOTA_ALREADY_EXISTS');
 
-      const explicit = await request(app).get('/api/v1/leave-summary').set('Authorization', `Bearer ${viewer}`);
+      const explicit = await request(app).get('/api/v1/leave-summary?year=2027').set('Authorization', `Bearer ${viewer}`);
       assert.equal(explicit.status, 200);
       assert.deepEqual(explicit.body.data.entitlement, { sickLeave: 12, personalLeave: 4, vacationLeave: 8 });
 
@@ -147,8 +149,8 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     try {
       const actor = { sub: ids.admin, role: 'ADMIN' };
       const attempts = await Promise.allSettled([
-        provisionLeaveQuota({ actor, employeeId: ids.employeeB, sickLeave: 30, personalLeave: 6, vacationLeave: 10 }),
-        provisionLeaveQuota({ actor, employeeId: ids.employeeB, sickLeave: 20, personalLeave: 5, vacationLeave: 9 })
+        provisionLeaveQuota({ actor, employeeId: ids.employeeB, quotaYear: 2027, sickLeave: 30, personalLeave: 3, vacationLeave: 6 }),
+        provisionLeaveQuota({ actor, employeeId: ids.employeeB, quotaYear: 2027, sickLeave: 20, personalLeave: 5, vacationLeave: 9 })
       ]);
       assert.equal(attempts.filter((item) => item.status === 'fulfilled').length, 1);
       const rejected = attempts.find((item) => item.status === 'rejected');
@@ -164,8 +166,8 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       const legacy = await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('create-link-legacy'), employeeId: null, employeeNameSnapshot: 'G03 Legacy Create Link', sickLeave: 7, personalLeave: 3, vacationLeave: 5, matchStatus: 'UNMATCHED' } });
       const actor = { sub: ids.admin, role: 'ADMIN' };
       const attempts = await Promise.allSettled([
-        provisionLeaveQuota({ actor, employeeId: ids.employeeC, sickLeave: 30, personalLeave: 6, vacationLeave: 10 }),
-        linkLeaveQuota({ quotaId: legacy.id, employeeId: ids.employeeC, actorUserId: ids.admin })
+        provisionLeaveQuota({ actor, employeeId: ids.employeeC, quotaYear: 2027, sickLeave: 30, personalLeave: 3, vacationLeave: 6 }),
+        linkLeaveQuota({ quotaId: legacy.id, employeeId: ids.employeeC, quotaYear: 2027, actorUserId: ids.admin })
       ]);
       assert.equal(attempts.filter((item) => item.status === 'fulfilled').length, 1);
       const rejected = attempts.find((item) => item.status === 'rejected');
@@ -179,7 +181,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     await seed();
     try {
       const auditService = { log: async () => { throw new Error('INJECTED_AUDIT_FAILURE'); } };
-      await assert.rejects(() => provisionLeaveQuota({ actor: { sub: ids.admin, role: 'ADMIN' }, employeeId: ids.employeeD, sickLeave: 12, personalLeave: 4, vacationLeave: 8, auditService }), /INJECTED_AUDIT_FAILURE/);
+      await assert.rejects(() => provisionLeaveQuota({ actor: { sub: ids.admin, role: 'ADMIN' }, employeeId: ids.employeeD, quotaYear: 2027, sickLeave: 12, personalLeave: 4, vacationLeave: 8, auditService }), /INJECTED_AUDIT_FAILURE/);
       assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeD } }), 0);
       assert.equal(await prisma.auditLog.count({ where: { actorUserId: ids.admin, entityType: 'LeaveQuota' } }), 0);
     } finally { await cleanup(); }
@@ -190,16 +192,16 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     try {
       const unmatched = await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('unmatched'), employeeId: null, employeeNameSnapshot: 'G03 Legacy Unmatched', sickLeave: 1, personalLeave: 1, vacationLeave: 1, matchStatus: 'UNMATCHED' } });
       const duplicateUnmatched = await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('duplicate-unmatched'), employeeId: null, employeeNameSnapshot: 'G03 Legacy Duplicate', sickLeave: 2, personalLeave: 2, vacationLeave: 2, matchStatus: 'DUPLICATE_UNMATCHED' } });
-      await provisionLeaveQuota({ actor: { sub: ids.admin, role: 'ADMIN' }, employeeId: ids.employeeE, sickLeave: 12, personalLeave: 4, vacationLeave: 8 });
+      await provisionLeaveQuota({ actor: { sub: ids.admin, role: 'ADMIN' }, employeeId: ids.employeeE, quotaYear: 2027, sickLeave: 12, personalLeave: 4, vacationLeave: 8 });
       assert.equal((await prisma.leaveQuota.findUniqueOrThrow({ where: { id: unmatched.id } })).employeeId, null);
       assert.equal((await prisma.leaveQuota.findUniqueOrThrow({ where: { id: duplicateUnmatched.id } })).employeeId, null);
 
-      const linked = await linkLeaveQuota({ quotaId: unmatched.id, employeeId: ids.employeeF, actorUserId: ids.admin });
+      const linked = await linkLeaveQuota({ quotaId: unmatched.id, employeeId: ids.employeeF, quotaYear: 2027, actorUserId: ids.admin });
       assert.equal(linked.employeeId, ids.employeeF);
       assert.equal(linked.matchStatus, 'MATCHED');
 
-      const duplicateMatched = await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('duplicate-matched'), employeeId: ids.employeeG, employeeNameSnapshot: 'G03 Duplicate Matched', sickLeave: 3, personalLeave: 3, vacationLeave: 3, matchStatus: 'DUPLICATE_MATCHED' } });
-      await assert.rejects(() => provisionLeaveQuota({ actor: { sub: ids.admin, role: 'ADMIN' }, employeeId: ids.employeeG, sickLeave: 30, personalLeave: 6, vacationLeave: 10 }), (error) => error.statusCode === 409 && error.details?.code === 'LEAVE_QUOTA_ALREADY_EXISTS');
+      const duplicateMatched = await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('duplicate-matched'), employeeId: ids.employeeG, quotaYear: 2027, employeeNameSnapshot: 'G03 Duplicate Matched', sickLeave: 3, personalLeave: 3, vacationLeave: 3, matchStatus: 'DUPLICATE_MATCHED' } });
+      await assert.rejects(() => provisionLeaveQuota({ actor: { sub: ids.admin, role: 'ADMIN' }, employeeId: ids.employeeG, quotaYear: 2027, sickLeave: 30, personalLeave: 3, vacationLeave: 6 }), (error) => error.statusCode === 409 && error.details?.code === 'LEAVE_QUOTA_ALREADY_EXISTS');
       assert.deepEqual(await prisma.leaveQuota.findUnique({ where: { id: duplicateMatched.id }, select: { sickLeave: true, personalLeave: true, vacationLeave: true, matchStatus: true } }), { sickLeave: duplicateMatched.sickLeave, personalLeave: duplicateMatched.personalLeave, vacationLeave: duplicateMatched.vacationLeave, matchStatus: 'DUPLICATE_MATCHED' });
     } finally { await cleanup(); }
   });

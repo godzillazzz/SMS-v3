@@ -1,7 +1,7 @@
 export const LEAVE_QUOTA_DEFAULTS = Object.freeze({
   sickLeave: '30',
-  personalLeave: '6',
-  vacationLeave: '10'
+  personalLeave: '3',
+  vacationLeave: '6'
 });
 
 export type QuotaEmployee = {
@@ -15,11 +15,13 @@ export type QuotaEmployee = {
 
 export type QuotaRow = {
   employeeId?: unknown;
+  quotaYear?: unknown;
   matchStatus?: unknown;
 };
 
 export type LeaveQuotaProvisioningValues = {
   employeeId?: string;
+  quotaYear?: string | number;
   sickLeave?: string;
   personalLeave?: string;
   vacationLeave?: string;
@@ -31,12 +33,30 @@ export function canProvisionLeaveQuota(role?: string) {
   return role === 'ADMIN';
 }
 
-export function quotaProvisioningEmployeeOptions(employees: QuotaEmployee[], quotas: QuotaRow[]) {
-  const linkedEmployeeIds = new Set(
-    quotas.map((quota) => String(quota.employeeId || '')).filter(Boolean)
+export function currentBangkokQuotaYear(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric' }).formatToParts(date);
+  return Number(parts.find((part) => part.type === 'year')?.value || date.getUTCFullYear());
+}
+
+export function thaiQuotaYearLabel(year: number) {
+  return `พ.ศ. ${year + 543}`;
+}
+
+export function quotaProvisioningEmployeeOptions(employees: QuotaEmployee[], quotas: QuotaRow[], selectedYear: number) {
+  const annualEmployeeIds = new Set(
+    quotas
+      .filter((quota) => Number(quota.quotaYear) === selectedYear)
+      .map((quota) => String(quota.employeeId || ''))
+      .filter(Boolean)
+  );
+  const ambiguousLegacyEmployeeIds = new Set(
+    quotas
+      .filter((quota) => quota.quotaYear === null || quota.quotaYear === undefined || quota.quotaYear === '')
+      .map((quota) => String(quota.employeeId || ''))
+      .filter(Boolean)
   );
   return employees
-    .filter((employee) => employee.isActive && !linkedEmployeeIds.has(employee.id))
+    .filter((employee) => employee.isActive && !annualEmployeeIds.has(employee.id) && !ambiguousLegacyEmployeeIds.has(employee.id))
     .map((employee) => ({
       value: employee.id,
       label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName} · ${employee.department || 'ไม่ระบุหน่วยงาน'}`
@@ -44,14 +64,16 @@ export function quotaProvisioningEmployeeOptions(employees: QuotaEmployee[], quo
 }
 
 export function hasUnmatchedLegacyQuota(quotas: QuotaRow[]) {
-  return quotas.some((quota) => ['UNMATCHED', 'DUPLICATE_UNMATCHED'].includes(String(quota.matchStatus || '')));
+  return quotas.some((quota) => quota.quotaYear === null || quota.quotaYear === undefined || ['UNMATCHED', 'DUPLICATE_UNMATCHED'].includes(String(quota.matchStatus || '')));
 }
 
 export function buildLeaveQuotaProvisioningPayload(values: LeaveQuotaProvisioningValues) {
   const employeeId = String(values.employeeId || '').trim();
   if (!employeeId) throw new Error('กรุณาเลือกพนักงาน');
+  const quotaYear = Number(values.quotaYear);
+  if (!Number.isInteger(quotaYear) || quotaYear < 2000 || quotaYear > 2200) throw new Error('ปีโควตาไม่ถูกต้อง');
 
-  const payload: Record<string, string | number> = { employeeId };
+  const payload: Record<string, string | number> = { employeeId, quotaYear };
   for (const field of entitlementFields) {
     const raw = String(values[field] ?? '').trim();
     if (!raw) throw new Error('กรุณาระบุสิทธิ์วันลาให้ครบ');
@@ -61,5 +83,5 @@ export function buildLeaveQuotaProvisioningPayload(values: LeaveQuotaProvisionin
     }
     payload[field] = value;
   }
-  return payload as { employeeId: string; sickLeave: number; personalLeave: number; vacationLeave: number };
+  return payload as { employeeId: string; quotaYear: number; sickLeave: number; personalLeave: number; vacationLeave: number };
 }

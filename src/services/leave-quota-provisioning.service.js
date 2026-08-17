@@ -1,31 +1,28 @@
-const crypto = require('node:crypto');
 const prisma = require('../config/prisma');
 const audit = require('./audit.service');
 const HttpError = require('../utils/http-error');
-
-const LEAVE_QUOTA_ALREADY_EXISTS = 'LEAVE_QUOTA_ALREADY_EXISTS';
-const LEAVE_QUOTA_STATE_CONFLICT = 'LEAVE_QUOTA_STATE_CONFLICT';
-
-function conflict(code, message) {
-  return new HttpError(409, message, { code });
-}
-
-function defaultFingerprint() {
-  return crypto.createHash('sha256').update(`v3:leave-quota:${crypto.randomUUID()}`).digest('hex');
-}
+const {
+  validateQuotaYear,
+  bangkokQuotaYear,
+  annualFingerprint,
+  LEAVE_QUOTA_ALREADY_EXISTS,
+  LEAVE_QUOTA_STATE_CONFLICT
+} = require('./annual-leave-quota.service');
 
 async function provisionLeaveQuota({
   actor,
   employeeId,
+  quotaYear,
   sickLeave,
   personalLeave,
   vacationLeave,
+  quotaYearDefaulted = false,
   prismaClient = prisma,
   auditService = audit,
-  fingerprintFactory = defaultFingerprint
+  fingerprintFactory = annualFingerprint
 }) {
   if (actor?.role !== 'ADMIN') throw new HttpError(403, 'Admin access required.');
-
+  const year = validateQuotaYear(quotaYear ?? bangkokQuotaYear());
   try {
     return await prismaClient.$transaction(async (tx) => {
       const employee = await tx.employee.findFirst({
@@ -34,19 +31,23 @@ async function provisionLeaveQuota({
       });
       if (!employee) throw new HttpError(404, 'Selected employee is unavailable.');
 
-      const existingQuotas = await tx.leaveQuota.findMany({
-        where: { employeeId },
-        select: { id: true }
-      });
-      if (existingQuotas.length >= 1) {
-        throw conflict(LEAVE_QUOTA_ALREADY_EXISTS, 'Employee already has a leave quota.');
+      const [existing, legacy] = await Promise.all([
+        tx.leaveQuota.findUnique({ where: { employeeId_quotaYear: { employeeId, quotaYear: year } }, select: { id: true } }),
+        tx.leaveQuota.findMany({ where: { employeeId, quotaYear: null }, select: { id: true } })
+      ]);
+      if (existing) {
+        throw new HttpError(409, 'Employee already has a leave quota for this year.', { code: LEAVE_QUOTA_ALREADY_EXISTS, quotaYear: year });
+      }
+      if (legacy.length) {
+        throw new HttpError(409, 'Legacy leave quota must be classified before creating an annual quota.', { code: 'LEAVE_QUOTA_LEGACY_AMBIGUOUS', quotaYear: year });
       }
 
       const employeeNameSnapshot = String(employee.displayName || `${employee.firstName} ${employee.lastName}`).trim();
       const quota = await tx.leaveQuota.create({
         data: {
-          sourceFingerprint: fingerprintFactory(),
+          sourceFingerprint: fingerprintFactory(employeeId, year),
           employeeId,
+          quotaYear: year,
           employeeNameSnapshot,
           sickLeave,
           personalLeave,
@@ -56,6 +57,7 @@ async function provisionLeaveQuota({
         select: {
           id: true,
           employeeId: true,
+          quotaYear: true,
           employeeNameSnapshot: true,
           sickLeave: true,
           personalLeave: true,
@@ -72,7 +74,10 @@ async function provisionLeaveQuota({
         entityType: 'LeaveQuota',
         entityId: quota.id,
         metadata: {
+          event: 'ADMIN_ANNUAL_QUOTA_CREATED',
           employeeId: quota.employeeId,
+          quotaYear: year,
+          quotaYearDefaulted: Boolean(quotaYearDefaulted),
           matchStatus: quota.matchStatus,
           after: {
             sickLeave: quota.sickLeave,
@@ -85,16 +90,14 @@ async function provisionLeaveQuota({
       return quota;
     }, { isolationLevel: 'Serializable' });
   } catch (error) {
-    if (error?.code === 'P2034') {
-      throw conflict(LEAVE_QUOTA_STATE_CONFLICT, 'Leave quota state changed. Refresh and try again.');
-    }
+    if (error?.code === 'P2002') throw new HttpError(409, 'Employee already has a leave quota for this year.', { code: LEAVE_QUOTA_ALREADY_EXISTS, quotaYear: year });
+    if (error?.code === 'P2034') throw new HttpError(409, 'Leave quota state changed. Refresh and try again.', { code: LEAVE_QUOTA_STATE_CONFLICT });
     throw error;
   }
 }
 
 module.exports = {
   provisionLeaveQuota,
-  defaultFingerprint,
   LEAVE_QUOTA_ALREADY_EXISTS,
   LEAVE_QUOTA_STATE_CONFLICT
 };

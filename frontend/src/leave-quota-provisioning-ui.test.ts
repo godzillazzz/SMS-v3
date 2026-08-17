@@ -3,33 +3,35 @@ import { readFileSync } from 'node:fs';
 
 const main = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
 
-describe('Leave quota provisioning page wiring', () => {
-  it('keeps provisioning on the existing Admin quota page and opens the shared modal with no year field', () => {
+describe('G03.1 annual quota page wiring', () => {
+  it('keeps create control Admin-only while adding a validated selected-year selector', () => {
     expect(main).toContain("page === 'quota' && canProvisionLeaveQuota(role)");
     expect(main).toContain("activePage === 'quota' && auth.user?.role === 'ADMIN'");
-    expect(main).toContain("title: 'กำหนดโควตาวันลา'");
-    expect(main).toContain("'+ กำหนดโควตา'");
-    expect(main).toContain("values: { ...LEAVE_QUOTA_DEFAULTS }");
+    expect(main).toContain('const [quotaYear, setQuotaYear] = useState(currentBangkokQuotaYear)');
+    expect(main).toContain('aria-label="ปีสิทธิ์โควตาวันลา"');
+    expect(main).toContain('thaiQuotaYearLabel(quotaYear)');
+    expect(main).toContain('buildLeaveQuotaProvisioningPayload({ ...form, quotaYear })');
+  });
+
+  it('uses 30/3/6 defaults and does not expose a free-text year in the create modal', () => {
     const quotaCreate = main.slice(main.indexOf("if (activePage === 'quota' && auth.user?.role === 'ADMIN')"), main.indexOf("if (activePage === 'licenses')"));
-    expect(quotaCreate).toContain("employeeId");
-    expect(quotaCreate).toContain("sickLeave");
-    expect(quotaCreate).toContain("personalLeave");
-    expect(quotaCreate).toContain("vacationLeave");
-    expect(quotaCreate).not.toContain("year");
+    expect(quotaCreate).toContain('values: { ...LEAVE_QUOTA_DEFAULTS, quotaYear: String(quotaYear) }');
+    expect(quotaCreate).not.toContain("name: 'quotaYear'");
+    expect(quotaCreate).toContain('กำหนดโควตาวันลา ปี');
   });
 
-  it('shows the legacy-review warning and keeps successful-close/error-stays-open behavior in the shared editor', () => {
-    expect(main).toContain('showQuotaLegacyWarning');
-    expect(main).toContain('จับคู่พนักงาน');
-    const editor = main.slice(main.indexOf('const runEditor ='), main.indexOf('const licenseDocumentServices'));
-    expect(editor).toContain('await action(values, files)');
-    expect(editor).toContain('setEditor(undefined)');
-    expect(editor).toContain("setOperationRefresh((value) => value + 1)");
-    expect(editor).toContain("setEditorError(toRequestErrorState(reason, 'บันทึกข้อมูลไม่สำเร็จ'))");
+  it('keeps null-year legacy rows visible and requires explicit year when linking', () => {
+    expect(main).toContain("api.leaveQuotas(auth.token, operationPage, showLegacyQuotas ? { legacy: true } : { year: quotaYear })");
+    expect(main).toContain('ข้อมูลเดิม — ยังไม่ระบุปี');
+    const link = main.slice(main.indexOf("action === 'link' && activePage === 'quota'"), main.indexOf("action === 'document'"));
+    expect(link).toContain("name: 'quotaYear'");
+    expect(link).toContain('quotaYearOptions');
+    expect(link).toContain('Number(form.quotaYear)');
+    expect(link).toContain("row.employeeId ? 'จัดประเภทปีให้ข้อมูลโควตาเดิม'");
+    expect(link).toContain('employeeOptions.filter((option) => option.value === String(row.employeeId))');
   });
 
-  it('removes unsupported annual entitlement wording', () => {
-    expect(main).not.toContain('ตามสิทธิ์ประจำปี (วัน)');
-    expect(main).toContain('ตามสิทธิ์ที่กำหนด (วัน)');
+  it('keeps Manager/Viewer out of the quota administration page', () => {
+    expect(main).toContain("if (page === 'quota') return auth.user?.role === 'ADMIN'");
   });
 });

@@ -370,6 +370,7 @@ model LeaveQuota {
   id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   sourceFingerprint    String    @unique @map("source_fingerprint") @db.VarChar(64)
   employeeId           String?   @map("employee_id") @db.Uuid
+  quotaYear            Int?      @map("quota_year")
   employeeNameSnapshot String    @map("employee_name_snapshot") @db.VarChar(255)
   sickLeave            Decimal   @map("sick_leave") @db.Decimal(7, 2)
   personalLeave        Decimal   @map("personal_leave") @db.Decimal(7, 2)
@@ -379,7 +380,9 @@ model LeaveQuota {
   updatedAt            DateTime  @updatedAt @map("updated_at")
   employee             Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
+  @@unique([employeeId, quotaYear])
   @@index([employeeId])
+  @@index([quotaYear])
   @@index([matchStatus])
   @@map("leave_quotas")
 }

@@ -85,16 +85,17 @@ test('leave workflow uses the consolidated leave-requests route and policy valid
   assert.match(frontend, /if \(!canManage\) delete payload\.employeeId/);
 });
 
-test('leave quota management exposes entitlement, approved usage, and remaining balances', () => {
+test('leave quota management exposes year-aware entitlement, approved usage, and remaining balances', () => {
   const routes = read('src/routes/operations.routes.js');
   const frontend = read('frontend/src/main.tsx');
   assert.match(routes, /router\.get\('\/leave-quotas', authorize\('ADMIN', 'MANAGER'\)/);
-  assert.match(routes, /where: \{ employeeId: \{ in: employeeIds \}, status: 'APPROVED' \}/);
+  assert.match(routes, /const quotaYear = legacy \? null : \(req\.query\.year === undefined \? bangkokQuotaYear\(\) : validateQuotaYear\(req\.query\.year\)\)/);
+  assert.match(routes, /status: 'APPROVED', startDate: \{ lt: nextYear \}, endDate: \{ gte: yearStart \}/);
+  assert.match(routes, /persistedUsageByQuotaYear\(row\)/);
   assert.match(routes, /personalLeaveRemaining: Math\.max\(0, entitlement\.personalLeave - used\.personalLeave\)/);
   assert.match(frontend, /quotaBalanceText\(row\.personalLeave, row\.personalLeaveUsed\)/);
-  assert.match(frontend, /DUPLICATE_MATCHED/);
+  assert.match(frontend, /ข้อมูลเดิม — ยังไม่ระบุปี/);
 });
-
 test('approved test leave can be cancelled to restore quota and remove leave-generated AL shifts', () => {
   const routes = read('src/routes/operations.routes.js');
   const frontend = read('frontend/src/main.tsx');

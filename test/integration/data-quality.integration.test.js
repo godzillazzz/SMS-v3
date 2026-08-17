@@ -53,8 +53,9 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const token = await tokenFor(ids.admin);
     const response = await request(app).get('/api/v1/data-quality/issues?pageSize=25').set('Authorization', `Bearer ${token}`);
     assert.equal(response.status, 200);
-    assert.equal(response.body.summary.critical, 2);
+    assert.equal(response.body.summary.critical, 3);
     assert.equal(response.body.data.some((row) => row.rule === 'LEAVE_QUOTA_UNMATCHED'), true);
+    assert.equal(response.body.data.some((row) => row.rule === 'LEAVE_QUOTA_YEAR_UNCLASSIFIED'), true);
     assert.equal(response.body.data.some((row) => row.rule === 'LICENSE_EXPIRED'), true);
     const filtered = await request(app).get('/api/v1/data-quality/issues?module=LICENSE&department=North').set('Authorization', `Bearer ${token}`);
     assert.equal(filtered.status, 200);

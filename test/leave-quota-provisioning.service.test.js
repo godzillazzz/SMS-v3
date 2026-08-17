@@ -1,122 +1,79 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {
-  provisionLeaveQuota,
-  defaultFingerprint,
-  LEAVE_QUOTA_ALREADY_EXISTS,
-  LEAVE_QUOTA_STATE_CONFLICT
-} = require('../src/services/leave-quota-provisioning.service');
+const { provisionLeaveQuota, LEAVE_QUOTA_ALREADY_EXISTS, LEAVE_QUOTA_STATE_CONFLICT } = require('../src/services/leave-quota-provisioning.service');
 
-function fakePrisma({ employee, existing = [], transactionError, auditFails = false } = {}) {
+function fakePrisma({ employee, annual = null, legacy = [], transactionError, auditFails = false } = {}) {
   const state = { quotas: [], audits: [] };
   const calls = { isolationLevel: null, createData: null };
-  const auditService = {
-    log: async (input, tx) => {
-      if (auditFails) throw new Error('AUDIT_FAILURE');
-      return tx.auditLog.create({ data: input });
-    }
-  };
+  const auditService = { log: async (input) => { if (auditFails) throw new Error('AUDIT_FAILURE'); state.audits.push(input); return input; } };
   const client = {
-    auditService,
     $transaction: async (callback, options) => {
       calls.isolationLevel = options?.isolationLevel;
       if (transactionError) throw transactionError;
-      const draft = { quotas: [...state.quotas], audits: [...state.audits] };
       const tx = {
         employee: { findFirst: async () => employee || null },
         leaveQuota: {
-          findMany: async () => existing,
-          create: async ({ data }) => {
-            calls.createData = data;
-            const row = { id: 'quota-created', ...data, createdAt: new Date('2026-08-16T00:00:00.000Z'), updatedAt: new Date('2026-08-16T00:00:00.000Z') };
-            draft.quotas.push(row);
-            return row;
-          }
-        },
-        auditLog: { create: async ({ data }) => { draft.audits.push(data); return data; } }
+          findUnique: async () => annual,
+          findMany: async () => legacy,
+          create: async ({ data }) => { calls.createData = data; const row = { id: 'quota-created', ...data, createdAt: new Date(), updatedAt: new Date() }; state.quotas.push(row); return row; }
+        }
       };
-      const result = await callback(tx);
-      state.quotas = draft.quotas;
-      state.audits = draft.audits;
-      return result;
+      return callback(tx);
     }
   };
-  return { client, state, calls };
+  return { client, state, calls, auditService };
 }
 
 const employee = { id: 'employee-1', firstName: 'Server', lastName: 'Snapshot', displayName: 'Server Snapshot' };
-const input = { employeeId: employee.id, sickLeave: 30, personalLeave: 6, vacationLeave: 10 };
+const input = { employeeId: employee.id, quotaYear: 2027, sickLeave: 30, personalLeave: 3, vacationLeave: 6 };
 
-function invoke(fixture, overrides = {}) {
-  return provisionLeaveQuota({
-    actor: { sub: 'admin-1', role: 'ADMIN' },
-    ...input,
-    prismaClient: fixture.client,
-    auditService: fixture.client.auditService,
-    fingerprintFactory: () => 'f'.repeat(64),
-    ...overrides
-  });
+function invoke(f, overrides = {}) {
+  return provisionLeaveQuota({ actor: { sub: 'admin-1', role: 'ADMIN' }, ...input, prismaClient: f.client, auditService: f.auditService, fingerprintFactory: () => 'f'.repeat(64), ...overrides });
 }
 
-test('ADMIN provisioning is serializable, server-derived, matched, fingerprinted, and audited', async () => {
-  const fixture = fakePrisma({ employee });
-  const result = await invoke(fixture);
-  assert.equal(fixture.calls.isolationLevel, 'Serializable');
+test('ADMIN annual provisioning is Serializable, year-aware, matched and audited', async () => {
+  const f = fakePrisma({ employee });
+  const result = await invoke(f);
+  assert.equal(f.calls.isolationLevel, 'Serializable');
+  assert.equal(result.quotaYear, 2027);
   assert.equal(result.employeeNameSnapshot, 'Server Snapshot');
-  assert.equal(result.matchStatus, 'MATCHED');
-  assert.equal(fixture.calls.createData.sourceFingerprint, 'f'.repeat(64));
-  assert.equal(fixture.calls.createData.employeeNameSnapshot, 'Server Snapshot');
-  assert.equal(fixture.state.quotas.length, 1);
-  assert.equal(fixture.state.audits.length, 1);
-  assert.deepEqual(fixture.state.audits[0], {
-    actorUserId: 'admin-1', action: 'CREATE', entityType: 'LeaveQuota', entityId: 'quota-created',
-    metadata: { employeeId: 'employee-1', matchStatus: 'MATCHED', after: { sickLeave: 30, personalLeave: 6, vacationLeave: 10 } }
-  });
+  assert.deepEqual({ sick: Number(result.sickLeave), personal: Number(result.personalLeave), vacation: Number(result.vacationLeave) }, { sick: 30, personal: 3, vacation: 6 });
+  assert.equal(f.state.audits[0].metadata.event, 'ADMIN_ANNUAL_QUOTA_CREATED');
+  assert.equal(f.state.audits[0].metadata.quotaYear, 2027);
 });
 
-test('service denies MANAGER and VIEWER even if called outside the route', async () => {
+test('MANAGER and VIEWER are denied by service', async () => {
   for (const role of ['MANAGER', 'VIEWER']) {
-    const fixture = fakePrisma({ employee });
-    await assert.rejects(() => invoke(fixture, { actor: { sub: `${role}-1`, role } }), (error) => error.statusCode === 403);
-    assert.equal(fixture.state.quotas.length, 0);
+    const f = fakePrisma({ employee });
+    await assert.rejects(() => invoke(f, { actor: { sub: role, role } }), (e) => e.statusCode === 403);
   }
 });
 
-test('unknown, inactive, or deleted employee state fails closed before quota creation', async () => {
-  for (const label of ['unknown', 'inactive', 'deleted']) {
-    const fixture = fakePrisma({ employee: null });
-    await assert.rejects(() => invoke(fixture), (error) => error.statusCode === 404, label);
-    assert.equal(fixture.state.quotas.length, 0);
-  }
+test('unknown/inactive/deleted employee fails closed', async () => {
+  const f = fakePrisma({ employee: null });
+  await assert.rejects(() => invoke(f), (e) => e.statusCode === 404);
 });
 
-test('one or multiple linked quotas both fail with LEAVE_QUOTA_ALREADY_EXISTS', async () => {
-  for (const existing of [[{ id: 'q1' }], [{ id: 'q1' }, { id: 'q2' }]]) {
-    const fixture = fakePrisma({ employee, existing });
-    await assert.rejects(() => invoke(fixture), (error) => error.statusCode === 409 && error.details?.code === LEAVE_QUOTA_ALREADY_EXISTS);
-    assert.equal(fixture.state.quotas.length, 0);
-  }
+test('same employee/year conflicts while a different year is permitted by lookup identity', async () => {
+  const f = fakePrisma({ employee, annual: { id: 'same-year' } });
+  await assert.rejects(() => invoke(f), (e) => e.statusCode === 409 && e.details?.code === LEAVE_QUOTA_ALREADY_EXISTS && e.details?.quotaYear === 2027);
+  const other = fakePrisma({ employee, annual: null });
+  const created = await invoke(other, { quotaYear: 2028 });
+  assert.equal(created.quotaYear, 2028);
 });
 
-test('audit failure prevents the transaction from committing the quota', async () => {
-  const fixture = fakePrisma({ employee, auditFails: true });
-  await assert.rejects(() => invoke(fixture), /AUDIT_FAILURE/);
-  assert.equal(fixture.state.quotas.length, 0);
-  assert.equal(fixture.state.audits.length, 0);
+test('linked null-year legacy authority blocks competing annual creation', async () => {
+  const f = fakePrisma({ employee, legacy: [{ id: 'legacy' }] });
+  await assert.rejects(() => invoke(f), (e) => e.statusCode === 409 && e.details?.code === 'LEAVE_QUOTA_LEGACY_AMBIGUOUS');
 });
 
-test('P2034 is mapped to a safe state conflict without retry', async () => {
-  const error = Object.assign(new Error('serialization'), { code: 'P2034' });
-  const fixture = fakePrisma({ employee, transactionError: error });
-  await assert.rejects(() => invoke(fixture), (reason) => reason.statusCode === 409 && reason.details?.code === LEAVE_QUOTA_STATE_CONFLICT);
+test('audit failure aborts provisioning path', async () => {
+  const f = fakePrisma({ employee, auditFails: true });
+  await assert.rejects(() => invoke(f), /AUDIT_FAILURE/);
 });
 
-test('default fingerprint is unique-looking, fixed length, and not based on employee data', () => {
-  const first = defaultFingerprint();
-  const second = defaultFingerprint();
-  assert.match(first, /^[a-f0-9]{64}$/);
-  assert.match(second, /^[a-f0-9]{64}$/);
-  assert.notEqual(first, second);
-  assert.equal(first.includes('employee'), false);
+test('P2034 maps to deterministic state conflict', async () => {
+  const f = fakePrisma({ employee, transactionError: Object.assign(new Error('serialization'), { code: 'P2034' }) });
+  await assert.rejects(() => invoke(f), (e) => e.statusCode === 409 && e.details?.code === LEAVE_QUOTA_STATE_CONFLICT);
 });

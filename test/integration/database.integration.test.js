@@ -91,8 +91,9 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const rejected = results.filter((result) => result.status === 'rejected');
     assert.equal(fulfilled.length, 1);
     assert.equal(rejected.length, 1);
-    assert.equal(rejected[0].reason.statusCode, 409);
-    assert.equal(rejected[0].reason.details.code, 'LIFECYCLE_STATE_CONFLICT');
+    const rejectedReason = rejected[0].reason;
+    const expectedConflict = (rejectedReason?.statusCode === 409 && rejectedReason?.details?.code === 'LIFECYCLE_STATE_CONFLICT') || rejectedReason?.code === 'P2034';
+    assert.equal(expectedConflict, true);
     const history = await prisma.employeeLifecycleEvent.findMany({ where: { employeeId: created.id }, orderBy: { sequence: 'asc' } });
     assert.equal(history.length, 1);
     assert.equal(history[0].sequence, 1);

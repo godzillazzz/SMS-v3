@@ -3,58 +3,66 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { linkLeaveQuota } = require('../src/services/leave-quota-link.service');
 
-function fakeClient({ quota, employee, existingQuota = null }) {
-  const updateCalls = [];
-  const auditCalls = [];
+function fakeClient({ quota, employee, annual = null, otherLegacy = [] }) {
+  const updates = [];
+  const audits = [];
+  let uniqueCalls = 0;
   const tx = {
     leaveQuota: {
-      findUnique: async () => quota,
-      findFirst: async () => existingQuota,
-      update: async ({ data, select }) => {
-        updateCalls.push(data);
-        return { ...select, id: quota.id, employeeId: data.employeeId, employeeNameSnapshot: quota.employeeNameSnapshot, matchStatus: data.matchStatus };
-      }
+      findUnique: async ({ where }) => { uniqueCalls += 1; return where.id ? quota : annual; },
+      findMany: async () => otherLegacy,
+      update: async ({ data }) => { updates.push(data); return { ...quota, ...data }; }
     },
     employee: { findFirst: async () => employee },
-    auditLog: { create: async (input) => { auditCalls.push(input); return input; } }
+    auditLog: { create: async ({ data }) => { audits.push(data); return data; } }
   };
-  return {
-    client: { $transaction: async (callback) => callback(tx) },
-    updateCalls,
-    auditCalls,
-    auditService: { log: async (input, transaction) => transaction.auditLog.create(input) }
-  };
+  const auditService = { log: async (input, client) => client.auditLog.create({ data: input }) };
+  return { client: { $transaction: async (callback) => callback(tx) }, auditService, updates, audits, uniqueCalls: () => uniqueCalls };
 }
 
-test('admin linkage updates only the quota foreign key and match status', async () => {
-  const fixture = fakeClient({
-    quota: { id: 'quota-1', employeeId: null, employeeNameSnapshot: 'Different Spelling', matchStatus: 'UNMATCHED' },
-    employee: { id: 'employee-1', employeeCode: 'EMP001', displayName: 'Correct Employee', department: 'Security' }
-  });
-  const result = await linkLeaveQuota({ quotaId: 'quota-1', employeeId: 'employee-1', actorUserId: 'admin-1', prismaClient: fixture.client, auditService: fixture.auditService });
-  assert.equal(result.employeeId, 'employee-1');
-  assert.deepEqual(fixture.updateCalls, [{ employeeId: 'employee-1', matchStatus: 'MATCHED' }]);
-  assert.equal(fixture.auditCalls.length, 1);
+const legacy = { id: 'quota-1', employeeId: null, quotaYear: null, employeeNameSnapshot: 'Legacy', matchStatus: 'UNMATCHED' };
+const employee = { id: 'employee-1', employeeCode: 'EMP001', displayName: 'Employee', department: 'Security' };
+
+test('legacy link explicitly assigns employee + Gregorian quotaYear + MATCHED', async () => {
+  const f = fakeClient({ quota: legacy, employee });
+  const result = await linkLeaveQuota({ quotaId: legacy.id, employeeId: employee.id, quotaYear: 2027, actorUserId: 'admin', prismaClient: f.client, auditService: f.auditService });
+  assert.equal(result.quotaYear, 2027);
+  assert.deepEqual(f.updates, [{ employeeId: 'employee-1', quotaYear: 2027, matchStatus: 'MATCHED' }]);
+  assert.equal(f.audits.length, 1);
 });
 
-test('admin linkage rejects an unknown employee ID', async () => {
-  const fixture = fakeClient({ quota: { id: 'quota-1', employeeId: null, employeeNameSnapshot: 'Name', matchStatus: 'UNMATCHED' }, employee: null });
-  await assert.rejects(() => linkLeaveQuota({ quotaId: 'quota-1', employeeId: 'missing', actorUserId: 'admin-1', prismaClient: fixture.client, auditService: fixture.auditService }), (error) => error.statusCode === 404);
-  assert.equal(fixture.updateCalls.length, 0);
+test('legacy link requires a valid explicit year', async () => {
+  const f = fakeClient({ quota: legacy, employee });
+  await assert.rejects(() => linkLeaveQuota({ quotaId: legacy.id, employeeId: employee.id, actorUserId: 'admin', prismaClient: f.client, auditService: f.auditService }), (e) => e.statusCode === 400);
 });
 
-test('admin linkage rejects an employee that already has a quota', async () => {
-  const fixture = fakeClient({
-    quota: { id: 'quota-1', employeeId: null, employeeNameSnapshot: 'Name', matchStatus: 'UNMATCHED' },
-    employee: { id: 'employee-1', employeeCode: 'EMP001', displayName: 'Employee', department: 'Security' },
-    existingQuota: { id: 'quota-2' }
-  });
-  await assert.rejects(() => linkLeaveQuota({ quotaId: 'quota-1', employeeId: 'employee-1', actorUserId: 'admin-1', prismaClient: fixture.client, auditService: fixture.auditService }), (error) => error.statusCode === 409);
-  assert.equal(fixture.updateCalls.length, 0);
+test('year-classified row cannot be moved through legacy linking', async () => {
+  const f = fakeClient({ quota: { ...legacy, quotaYear: 2026 }, employee });
+  await assert.rejects(() => linkLeaveQuota({ quotaId: legacy.id, employeeId: employee.id, quotaYear: 2027, actorUserId: 'admin', prismaClient: f.client, auditService: f.auditService }), (e) => e.statusCode === 409);
 });
 
-test('admin linkage never relinks an already matched quota', async () => {
-  const fixture = fakeClient({ quota: { id: 'quota-1', employeeId: 'employee-1', employeeNameSnapshot: 'Name', matchStatus: 'MATCHED' }, employee: null });
-  await assert.rejects(() => linkLeaveQuota({ quotaId: 'quota-1', employeeId: 'employee-2', actorUserId: 'admin-1', prismaClient: fixture.client, auditService: fixture.auditService }), (error) => error.statusCode === 409);
-  assert.equal(fixture.updateCalls.length, 0);
+test('annual employee/year conflict blocks legacy link', async () => {
+  const f = fakeClient({ quota: legacy, employee, annual: { id: 'annual' } });
+  await assert.rejects(() => linkLeaveQuota({ quotaId: legacy.id, employeeId: employee.id, quotaYear: 2027, actorUserId: 'admin', prismaClient: f.client, auditService: f.auditService }), (e) => e.statusCode === 409 && e.details?.code === 'LEAVE_QUOTA_ALREADY_EXISTS');
+});
+
+test('another linked unclassified legacy row blocks link ambiguity', async () => {
+  const f = fakeClient({ quota: legacy, employee, otherLegacy: [{ id: 'other' }] });
+  await assert.rejects(() => linkLeaveQuota({ quotaId: legacy.id, employeeId: employee.id, quotaYear: 2027, actorUserId: 'admin', prismaClient: f.client, auditService: f.auditService }), (e) => e.statusCode === 409 && e.details?.code === 'LEAVE_QUOTA_LEGACY_AMBIGUOUS');
+});
+
+test('linked null-year quota can be classified to a year without changing employee', async () => {
+  const linked = { ...legacy, employeeId: employee.id, matchStatus: 'MATCHED' };
+  const f = fakeClient({ quota: linked, employee });
+  const result = await linkLeaveQuota({ quotaId: linked.id, employeeId: employee.id, quotaYear: 2026, actorUserId: 'admin', prismaClient: f.client, auditService: f.auditService });
+  assert.equal(result.employeeId, employee.id);
+  assert.equal(result.quotaYear, 2026);
+  assert.equal(f.audits[0].metadata.event, 'ADMIN_ANNUAL_QUOTA_CLASSIFIED');
+});
+
+test('linked null-year quota cannot be reassigned to another employee during classification', async () => {
+  const linked = { ...legacy, employeeId: 'employee-original', matchStatus: 'MATCHED' };
+  const f = fakeClient({ quota: linked, employee });
+  await assert.rejects(() => linkLeaveQuota({ quotaId: linked.id, employeeId: employee.id, quotaYear: 2026, actorUserId: 'admin', prismaClient: f.client, auditService: f.auditService }), (e) => e.statusCode === 409);
+  assert.equal(f.updates.length, 0);
 });

@@ -2,6 +2,7 @@
 
 const { z } = require('zod');
 const prisma = require('../config/prisma');
+const { CUSTOM_RULES } = require('./annual-leave-data-quality.service');
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -9,6 +10,9 @@ const SEVERITIES = ['CRITICAL', 'WARNING', 'INFO'];
 const MODULES = ['LEAVE_QUOTA', 'LICENSE'];
 const RULE_NAMES = [
   'LEAVE_QUOTA_UNMATCHED',
+  'LEAVE_QUOTA_YEAR_UNCLASSIFIED',
+  'LEAVE_QUOTA_ANNUAL_DUPLICATE',
+  'AMBIGUOUS_LEGACY_CROSS_YEAR_DAY_COUNT',
   'LICENSE_EXPIRED',
   'LICENSE_EXPIRING_WITHIN_30_DAYS',
   'LICENSE_EXPIRING_31_TO_90_DAYS'
@@ -206,11 +210,19 @@ function buildRuleDefinitions(filters, now = new Date()) {
 async function getDataQualityIssues({ prismaClient = prisma, query = {}, now = new Date() } = {}) {
   const filters = dataQualityQuery.parse(query);
   const rules = buildRuleDefinitions(filters, now);
+  const customRules = CUSTOM_RULES
+    .filter((rule) => !filters.severity || rule.severity === filters.severity)
+    .filter((rule) => !filters.module || rule.module === filters.module)
+    .filter((rule) => !filters.rule || rule.name === filters.rule);
   const counts = [];
 
   for (const rule of rules) {
     const count = await prismaClient[rule.model].count({ where: rule.where() });
-    counts.push({ rule, count });
+    counts.push({ rule, count, customRows: null });
+  }
+  for (const rule of customRules) {
+    const customRows = await rule.rows(prismaClient);
+    counts.push({ rule, count: customRows.length, customRows });
   }
 
   const total = counts.reduce((sum, item) => sum + item.count, 0);
@@ -220,20 +232,25 @@ async function getDataQualityIssues({ prismaClient = prisma, query = {}, now = n
   const data = [];
   let offset = (filters.page - 1) * filters.pageSize;
 
-  for (const { rule, count } of counts) {
+  for (const { rule, count, customRows } of counts) {
     if (data.length >= filters.pageSize) break;
     if (offset >= count) {
       offset -= count;
       continue;
     }
-    const rows = await prismaClient[rule.model].findMany({
-      where: rule.where(),
-      select: rule.select,
-      orderBy: rule.orderBy,
-      skip: offset,
-      take: Math.min(filters.pageSize - data.length, count - offset)
-    });
-    data.push(...rows.map((row) => rule.map(row, rule)));
+    const take = Math.min(filters.pageSize - data.length, count - offset);
+    if (customRows) {
+      data.push(...customRows.slice(offset, offset + take));
+    } else {
+      const rows = await prismaClient[rule.model].findMany({
+        where: rule.where(),
+        select: rule.select,
+        orderBy: rule.orderBy,
+        skip: offset,
+        take
+      });
+      data.push(...rows.map((row) => rule.map(row, rule)));
+    }
     offset = 0;
   }
 
@@ -246,11 +263,21 @@ async function getDataQualityIssues({ prismaClient = prisma, query = {}, now = n
 
 async function getDataQualitySummary({ prismaClient = prisma, filters = {}, now = new Date() } = {}) {
   const rules = buildRuleDefinitions(filters, now);
+  const customRules = CUSTOM_RULES
+    .filter((rule) => !filters.severity || rule.severity === filters.severity)
+    .filter((rule) => !filters.module || rule.module === filters.module)
+    .filter((rule) => !filters.rule || rule.name === filters.rule);
   const summary = { total: 0, critical: 0, warning: 0, info: 0 };
   const categories = [];
 
   for (const rule of rules) {
     const count = await prismaClient[rule.model].count({ where: rule.where() });
+    summary.total += count;
+    summary[rule.severity.toLowerCase()] += count;
+    categories.push({ rule: rule.name, severity: rule.severity, module: rule.module, title: rule.title, count });
+  }
+  for (const rule of customRules) {
+    const count = (await rule.rows(prismaClient)).length;
     summary.total += count;
     summary[rule.severity.toLowerCase()] += count;
     categories.push({ rule: rule.name, severity: rule.severity, module: rule.module, title: rule.title, count });
