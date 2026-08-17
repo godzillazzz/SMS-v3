@@ -24,7 +24,16 @@ const stageCodes = Object.freeze([
   'RC12_PRINT_CONTENT',
   'RC13_PDF_READY',
   'RC14_PDF_CLICK',
-  'RC15_MONITOR'
+  'RC15_MONITOR',
+  'GQ01_API_2026',
+  'GQ02_QUOTA_UI',
+  'GQ03_API_2027',
+  'GQ04_YEAR_UI',
+  'GQ05_LEGACY',
+  'GQ06_MODAL',
+  'GQ07_SUMMARY',
+  'GQ08_LEAVE_UI',
+  'GQ09_MONITOR'
 ]);
 
 const stageCodeSet = new Set(stageCodes);
@@ -158,6 +167,7 @@ function createStageTracker({ role, testCode, testInfo, diagnosticPath = process
   }
 
   return {
+    begin,
     run,
     snapshot,
     async attach() {

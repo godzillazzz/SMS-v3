@@ -18,6 +18,7 @@ function testInfoFor(attachments) {
 test('UAT stage registry and duration buckets are deterministic', () => {
   assert.ok(stageCodes.includes('RC03_EXEC_REQUEST'));
   assert.ok(stageCodes.includes('RC07_DETAILS_RESPONSE'));
+  assert.ok(stageCodes.includes('GQ06_MODAL'));
   assert.equal(durationBucket(0), '<1s');
   assert.equal(durationBucket(4999), '1-5s');
   assert.equal(durationBucket(60000), '>=60s');
