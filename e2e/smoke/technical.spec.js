@@ -1,4 +1,5 @@
 const { test, expect } = require('../helpers/uat-test');
+const { isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = require('../helpers/uat-observe');
 const {
   assertExpectedStatus,
@@ -16,10 +17,14 @@ const viewports = [
   { name: '1440', width: 1440, height: 900 }
 ];
 
+test.skip(isReportCenterDiagnostic(), 'Technical browser smoke is outside the selected UAT scope.');
+
 test('TECHNICAL: HTTP health, readiness, Vite assets, and audit authorization boundary', async ({ page }, testInfo) => {
   const monitor = startPageMonitor(page);
   const technicalSummary = {
     sourceSha: process.env.UAT_SOURCE_SHA || 'not supplied',
+    harnessSha: process.env.UAT_HARNESS_SHA || 'not supplied',
+    expectedDeploymentId: process.env.UAT_EXPECTED_DEPLOYMENT_ID || 'not supplied',
     root: 'PASS',
     login: 'PASS',
     health: 'PASS',
@@ -90,7 +95,7 @@ for (const viewport of viewports) {
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
     }
     await assertNoHorizontalOverflow(page);
-    await captureScreenshot(page, testInfo, `technical-login-${viewport.name}`);
+    await captureScreenshot(page, testInfo, `technical-login-${viewport.name}`, { allowLoginForm: true });
     monitor.assertClean();
   });
 }

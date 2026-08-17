@@ -1,6 +1,6 @@
 const { test, expect } = require('../helpers/uat-test');
 const { loginAs } = require('../helpers/uat-auth');
-const { hasRoleCredentials } = require('../helpers/uat-config');
+const { hasRoleCredentials, isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { assertNoHorizontalOverflow, captureScreenshot, navigateTo, startPageMonitor } = require('../helpers/uat-observe');
 
 const viewports = [
@@ -9,7 +9,7 @@ const viewports = [
   { name: '1440', width: 1440, height: 900, mobile: false }
 ];
 
-test.skip(!hasRoleCredentials('ADMIN'), 'ADMIN responsive smoke skipped: credentials unavailable.');
+test.skip(isReportCenterDiagnostic() || !hasRoleCredentials('ADMIN'), 'ADMIN responsive smoke is outside the selected UAT scope or credentials are unavailable.');
 
 for (const viewport of viewports) {
   test(`ADMIN responsive smoke ${viewport.name}`, async ({ page }, testInfo) => {
@@ -20,7 +20,7 @@ for (const viewport of viewports) {
     await assertNoHorizontalOverflow(page);
     await captureScreenshot(page, testInfo, `uat-admin-dashboard-${viewport.name}`);
 
-    await navigateTo(page, 'บันทึกการใช้งานระบบ');
+    await navigateTo(page, 'audit');
     await expect(page.locator('.audit-compliance-page')).toBeVisible();
     const desktopTable = page.locator('.audit-desktop-table');
     const mobileCards = page.locator('.audit-mobile-cards');

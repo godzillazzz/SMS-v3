@@ -2,9 +2,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const repositoryRoot = path.resolve(__dirname, '../..');
+const applicationRoot = path.resolve(process.env.UAT_APPLICATION_ROOT || repositoryRoot);
 
 function readProjectFile(relativePath) {
-  return fs.readFileSync(path.join(repositoryRoot, relativePath), 'utf8').replace(/\r\n/g, '\n');
+  return fs.readFileSync(path.join(applicationRoot, relativePath), 'utf8').replace(/\r\n/g, '\n');
 }
 
 function requireIncludes(content, expected, code) {
@@ -131,6 +132,46 @@ function sourceRegressionContracts() {
   };
 }
 
+function employeeLifecycleSourceContract() {
+  const lifecycleRoutes = readProjectFile('src/routes/employees.routes.js');
+  const lifecycleService = readProjectFile('src/services/employee-lifecycle.service.js');
+  const lifecycleModal = readProjectFile('frontend/src/components/personnel/EmployeeLifecycleModal.tsx');
+
+  requireIncludes(lifecycleRoutes, [
+    "router.get('/:id/lifecycle', authorize('ADMIN', 'MANAGER')",
+    "router.get('/:id/lifecycle/state', authorize('ADMIN', 'MANAGER')",
+    "router.post('/:id/lifecycle/preflight', authorize('ADMIN')",
+    "router.post('/:id/lifecycle', authorize('ADMIN')",
+    'LIFECYCLE_ACTION_REQUIRED',
+    'LIFECYCLE_TERMINATION_REQUIRED'
+  ], 'EMPLOYEE_LIFECYCLE_ROUTE_CONTRACT_FAILED');
+  requireIncludes(lifecycleService, [
+    "'NAME_CHANGE'",
+    "'DEPARTMENT_TRANSFER'",
+    "'POSITION_CHANGE'",
+    "'EMPLOYMENT_TERMINATION'",
+    "'REHIRE'",
+    "isolationLevel: 'Serializable'",
+    'idempotencyKey',
+    'expectedEmployeeUpdatedAt',
+    'futureShiftAssignments',
+    'pendingLeaveRequests',
+    'leaveQuotaRecords',
+    'activeLicenses',
+    'licenseDocuments',
+    'linkedUser'
+  ], 'EMPLOYEE_LIFECYCLE_SERVICE_CONTRACT_FAILED');
+  requireIncludes(lifecycleModal, [
+    'จัดการวงจรพนักงาน',
+    'ประวัติวงจรพนักงาน',
+    'อ่านอย่างเดียว',
+    'ผลกระทบและคำเตือน',
+    'วันที่มีผล'
+  ], 'EMPLOYEE_LIFECYCLE_UI_CONTRACT_FAILED');
+
+  return { employeeLifecycle: true };
+}
+
 function dashboardWarningVisible({ error, partialErrors }) {
   return !error && Array.isArray(partialErrors) && partialErrors.length > 0;
 }
@@ -213,6 +254,7 @@ module.exports = {
   buildDocument,
   dashboardWarningVisible,
   dataQualityFixture,
+  employeeLifecycleSourceContract,
   executiveReportFixture,
   employeeLifecycleFixture,
   readProjectFile,

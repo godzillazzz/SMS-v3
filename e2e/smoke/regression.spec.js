@@ -1,4 +1,5 @@
 const { test, expect } = require('../helpers/uat-test');
+const { isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = require('../helpers/uat-observe');
 const {
   assertResponsiveLayoutMetrics,
@@ -6,6 +7,7 @@ const {
   buildDocument,
   dashboardWarningVisible,
   dataQualityFixture,
+  employeeLifecycleSourceContract,
   employeeLifecycleFixture,
   executiveReportFixture,
   readProjectFile,
@@ -30,6 +32,8 @@ const dataQualityViewports = [
   { name: '1024', width: 1024, height: 768, mobile: false },
   { name: '1440', width: 1440, height: 900, mobile: false }
 ];
+
+test.skip(isReportCenterDiagnostic(), 'Full regression smoke is outside the selected UAT scope.');
 const auditViewports = [
   { name: '390', width: 390, height: 844, mobile: true },
   { name: '768', width: 768, height: 1024, mobile: false },
@@ -72,8 +76,9 @@ async function measureLayout(element) {
   });
 }
 
-test('REGRESSION: source contracts cover Data Quality, Audit Log, Dashboard warning, and Executive Report behavior', async ({}, testInfo) => {
+test('REGRESSION: source contracts cover Data Quality, Audit Log, Dashboard warning, Executive Report, and Employee Lifecycle behavior', async ({}, testInfo) => {
   expect(sourceRegressionContracts()).toEqual({ dataQuality: true, audit: true, dashboardWarning: true, executiveReport: true, employeeLifecycle: true });
+  expect(employeeLifecycleSourceContract()).toEqual({ employeeLifecycle: true });
   expect(dashboardWarningVisible({ error: undefined, partialErrors: [] })).toBe(false);
   expect(dashboardWarningVisible({ error: undefined, partialErrors: ['licenseOverview'] })).toBe(true);
   expect(dashboardWarningVisible({ error: 'request failed', partialErrors: ['licenseOverview'] })).toBe(false);

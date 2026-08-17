@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getUatConfig, hasRoleCredentials, normalizeBaseUrl } = require('../e2e/helpers/uat-config');
+const { getUatConfig, hasRoleCredentials, isAdminRbacTargetedRetry, isReportCenterDiagnostic, normalizeBaseUrl, normalizeUatScope } = require('../e2e/helpers/uat-config');
 const { isHarmlessConsoleError, requestTarget, sanitizeDiagnostic } = require('../e2e/helpers/uat-observe');
 
 const configuredEnvironment = {
@@ -32,9 +32,27 @@ test('UAT configuration requires only a base URL without exposing credentials', 
 test('UAT configuration accepts role-specific environment values and HTTPS base URL', () => {
   const config = getUatConfig(configuredEnvironment);
   assert.equal(config.baseURL, 'https://candidate.example.test');
+  assert.equal(config.scope, 'full');
   assert.equal(config.accounts.ADMIN.email, configuredEnvironment.UAT_ADMIN_EMAIL);
   assert.equal(config.accounts.MANAGER.email, configuredEnvironment.UAT_MANAGER_EMAIL);
   assert.equal(config.accounts.VIEWER.email, configuredEnvironment.UAT_VIEWER_EMAIL);
+});
+
+test('UAT scope accepts only the approved fixed values', () => {
+  assert.equal(normalizeUatScope(undefined), 'full');
+  assert.equal(normalizeUatScope('report-center-diagnostic'), 'report-center-diagnostic');
+  assert.equal(normalizeUatScope('admin-rbac-targeted-retry'), 'admin-rbac-targeted-retry');
+  assert.equal(normalizeUatScope('g03-readonly-targeted'), 'g03-readonly-targeted');
+  assert.throws(() => normalizeUatScope('all-the-things'), { code: 'UAT_SCOPE_NOT_APPROVED' });
+  assert.equal(getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'report-center-diagnostic' }).scope, 'report-center-diagnostic');
+  assert.equal(getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'admin-rbac-targeted-retry', UAT_MODE: 'authenticated' }).scope, 'admin-rbac-targeted-retry');
+  assert.equal(getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'g03-readonly-targeted', UAT_MODE: 'authenticated' }).scope, 'g03-readonly-targeted');
+  assert.throws(() => getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'admin-rbac-targeted-retry', UAT_MODE: 'technical' }), { code: 'UAT_SCOPE_MODE_INVALID' });
+  assert.throws(() => getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'g03-readonly-targeted', UAT_MODE: 'technical' }), { code: 'UAT_SCOPE_MODE_INVALID' });
+  assert.equal(isReportCenterDiagnostic({ UAT_SCOPE: 'report-center-diagnostic' }), true);
+  assert.equal(isReportCenterDiagnostic({ UAT_SCOPE: 'full' }), false);
+  assert.equal(isAdminRbacTargetedRetry({ UAT_SCOPE: 'admin-rbac-targeted-retry' }), true);
+  assert.equal(isAdminRbacTargetedRetry({ UAT_SCOPE: 'full' }), false);
 });
 
 test('partial optional role credentials are invalid while each complete role remains independently available', () => {
