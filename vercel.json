@@ -21,5 +21,10 @@
     { "src": "/api/(.*)", "dest": "/api/[...path].js" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "ci/g03-1-staged-technical-v1": false
+    }
+  }
 }
