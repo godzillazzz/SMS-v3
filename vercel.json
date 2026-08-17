@@ -3,28 +3,48 @@
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "frontend/dist",
   "functions": {
-    "api/[...path].js": { "maxDuration": 60 }
+    "api/[...path].js": {
+      "maxDuration": 60
+    }
   },
   "crons": [
-    { "path": "/api/v1/internal/license-reconciliation", "schedule": "5 17 * * *" },
-    { "path": "/api/v1/internal/annual-leave-quota-provisioning", "schedule": "0 17 31 12 *" }
+    {
+      "path": "/api/v1/internal/license-reconciliation",
+      "schedule": "5 17 * * *"
+    },
+    {
+      "path": "/api/v1/internal/annual-leave-quota-provisioning",
+      "schedule": "0 17 31 12 *"
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
       ]
     }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/[...path].js" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/[...path].js"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
   ],
   "git": {
     "deploymentEnabled": {
-      "ci/g03-1-staged-technical-v1": false
+      "ci/g03-1-staged-technical-v1": false,
+      "ci/g03-1-production-promotion-v1": false
     }
   }
 }
