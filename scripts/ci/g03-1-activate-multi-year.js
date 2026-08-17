@@ -1,6 +1,9 @@
 'use strict';
 
-const { PrismaClient } = require('@prisma/client');
+const path = require('node:path');
+const { createRequire } = require('node:module');
+const requireFromApp = createRequire(path.join(process.cwd(), 'package.json'));
+const { PrismaClient } = requireFromApp('@prisma/client');
 
 const KEY = 'G03_1_MULTI_YEAR_WRITES_ENABLED';
 const VALUE = 'true';
