@@ -39,15 +39,15 @@ Master with a competing identity.
 | --- | --- |
 | Canonical URL | https://sms-v3-staging-ten.vercel.app |
 | Project | sms-v3-staging |
-| Current Production deployment | dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 |
+| Current Production deployment | dpl_5xoKguECTunJvrUFTKrhbXenGuqu |
 | Deployment target | production |
 | Deployment state | READY |
-| Current application SHA | 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e |
-| Current application tree | c58a842dd0d6cfa4f3efca352769671012c2ba9a |
-| Candidate branch | feat/private-registration-request-v1 |
-| Current release | G04 — PRIVATE REGISTRATION REQUEST + ADMIN-ASSISTED MATCHING + CONTROLLED ROLE ACTIVATION V1 |
+| Current application SHA | e5619a67e5be807f3fba825d889e73bc49c5361a |
+| Current application tree | b38bc7d6d3f6b6ed416996bd3edd99891918fd12 |
+| Candidate branch | fix/g04-registration-otp-duplicate-guard-v1 |
+| Current release | G04.1 — REGISTRATION OTP RESEND + DUPLICATE ACCOUNT GUARD |
 | Release status | PROMOTED / PRODUCTION VERIFIED |
-| Promotion verification | run 32016084335 / job 95345730496 / HTTP 201 / dispatch count 1 |
+| Promotion verification | run 32041575770 / job 95421737298 / exact existing deployment / Promotion action count 1 |
 | Current main | e4bde1265ffb6b7daa9260d8465b46dd27008ab0 |
 | Current trusted Harness | a561b3bf6884c9d464aaba57b5974dff1f37c2b6 |
 | G03.1 schema migration | 202608170001_annual_leave_quota_year — APPLIED EXACTLY ONCE |
@@ -78,6 +78,13 @@ The current existing rollback checkpoint remains the verified G03.1 Production c
 
 ### Current health and release validation
 
+- G04.1 Canonical Promotion: exact existing deployment dpl_5xoKguECTunJvrUFTKrhbXenGuqu at SHA e5619a67e5be807f3fba825d889e73bc49c5361a promoted in place by run 32041575770 / job 95421737298; Promotion action count 1; new deployment 0; rebuild 0; migration 0; env mutation 0.
+- G04.1 post-promotion /api/v1/health: 3/3 HTTP 200, status=ok.
+- G04.1 post-promotion /api/v1/ready: 3/3 HTTP 200, status=ready, database=ok.
+- G04.1 Canonical CORS preflight for POST /api/v1/auth/register/request-otp: HTTP 204; Access-Control-Allow-Origin exact Canonical; Origin not allowed=NO.
+- G04.1 security smoke: anonymous Employee availability endpoint 401; private registration review endpoint 401; public registration has no Employee selector/autocomplete and no applicant employeeCode/employeeId/role authority.
+- G04.1 post-promotion runtime from 2026-08-17T15:18:14.911Z: critical 5xx=0; error-level logs=0; OTP_HASH_SECRET/SMTP_PASSWORD/password log matches=0.
+- G03.1 activation was not mutated by G04.1 Promotion. Last authoritative DB proof remains ACTIVE / raw true from run 31999063040; a fresh DB re-query was NOT PROVABLE in this Promotion task.
 - G04 post-promotion /api/v1/health: 200, status=ok.
 - G04 post-promotion /api/v1/ready: 200, status=ready, database=ok.
 - G04 readiness observations: 3/3 PASS.
@@ -108,13 +115,14 @@ The current existing rollback checkpoint remains the verified G03.1 Production c
 | G03 — Leave Quota Provisioning | CLOSED | Explicit Admin provisioning promoted and Production verified |
 | G03.1 — Annual Leave Quota Rollover | COMPLETE / ACTIVATED / PRODUCTION VERIFIED | Annual quotaYear schema/classification, rollback checkpoint, protected activation, and 2026 preservation are verified; normal G03.1 flows may now create non-2026 annual authorities when business activity requires them |
 | G04 — Private Registration Request + Admin-Assisted Matching + Controlled Role Activation | CLOSED / PROMOTED / PRODUCTION VERIFIED | Anonymous Employee directory removed; public Employee selector and applicant employeeId/role authority removed; ADMIN/MANAGER private review; VIEWER denied; Employee Master explicit Match; approval role VIEWER only |
+| G04.1 — Registration OTP Resend + Duplicate Account Guard | CLOSED / PROMOTED / PRODUCTION VERIFIED | Existing unverified RegistrationRequest is reused; same-email fresh retry issues a replacement REGISTRATION OTP with delivery enabled; prior active OTP is superseded; passwordHash is preserved; duplicate-account guard remains non-enumerating |
 | G05 — License Delete Audit Tombstone | OPEN | Permanent deletion can remove historical document audit rows |
 
 ### Next recommended task
 
-G04 — PROMOTED / PRODUCTION VERIFIED
+G04.1 — PROMOTED / PRODUCTION VERIFIED
 
-G04 is now the exact Canonical Production release. G03_1_MULTI_YEAR_WRITES_ENABLED remains ACTIVE with raw value true and was not changed by G04 Promotion. The existing G03.1 rollback checkpoint remains preserved but is SECURITY-REGRESSIVE for normal G04 application rollback. The next consequential recovery action is separate owner approval to create a G04 Production rollback checkpoint bound to 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e. G05 remains OPEN / NOT STARTED.
+G04.1 is now the exact Canonical Production release at dpl_5xoKguECTunJvrUFTKrhbXenGuqu / e5619a67e5be807f3fba825d889e73bc49c5361a. Promotion reused the existing immutable deployment with no rebuild, new deployment, migration, or env mutation. The existing rollback checkpoint remains unchanged. G03.1 was not mutated; its last authoritative DB proof remains ACTIVE / raw true, while a fresh DB re-query was not provable in this task. Controlled registration UAT is the next approval-scoped validation gate; G05 remains OPEN / NOT STARTED.
 
 ---
 
@@ -176,12 +184,12 @@ environment topology not stated above are UNKNOWN.
 - The current Canonical URL is
   https://sms-v3-staging-ten.vercel.app.
 - The current Canonical deployment is the exact Production-target deployment
-  dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 at application SHA
-  27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e.
-- G04 was promoted as the exact existing staged Production-target deployment; no
+  dpl_5xoKguECTunJvrUFTKrhbXenGuqu at application SHA
+  e5619a67e5be807f3fba825d889e73bc49c5361a.
+- G04.1 was promoted as the exact existing staged Production-target deployment; no
   replacement application deployment or rebuild was used for the release.
-- The immediately previous Canonical was dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs at
-  application SHA 0951d4ce08de817dda7b986924232e86e745b532 and is preserved as historical G03.1 Production evidence.
+- The immediately previous Canonical was dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 at
+  application SHA 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e and is preserved as historical G04 Production evidence.
 - Deployment Protection can return an interstitial to anonymous clients.
   Deployment identity must therefore be proven with authoritative deployment
   metadata and the approved protected-access method, not HTML markers alone.
@@ -433,7 +441,27 @@ coverage remains P2 item G12.
 
 ## Section 13 — Rollback / Release History
 
-### Current release
+### Current release — G04.1
+
+- Release: G04.1 — REGISTRATION OTP RESEND + DUPLICATE ACCOUNT GUARD
+- Production SHA: e5619a67e5be807f3fba825d889e73bc49c5361a
+- Application tree: b38bc7d6d3f6b6ed416996bd3edd99891918fd12
+- Production deployment: dpl_5xoKguECTunJvrUFTKrhbXenGuqu
+- Canonical URL: https://sms-v3-staging-ten.vercel.app
+- Status: PROMOTED / PRODUCTION VERIFIED
+- Promotion CI: run 32041575770 / job 95421737298; exactly one existing-deployment Promotion action; new deployment 0; rebuild 0
+- Post-promotion health: /api/v1/health 3/3 HTTP 200 status=ok
+- Post-promotion readiness: /api/v1/ready 3/3 HTTP 200 status=ready database=ok
+- Canonical CORS: registration OPTIONS HTTP 204; exact Canonical origin allowed; Origin not allowed=NO
+- Security: anonymous Employee availability 401; private registration review 401; applicant employeeCode/employeeId/role authority absent
+- Runtime: post-promotion critical 5xx 0; error-level logs 0; secret/password log matches 0
+- Migration during Promotion: 0; env mutation during Promotion: 0
+- Previous Canonical: dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 / 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+- Existing rollback checkpoint: UNCHANGED; no checkpoint created or changed in this task
+- G03.1: no mutation by Promotion; last authoritative DB proof ACTIVE / raw true (run 31999063040); fresh DB re-query NOT PROVABLE in this task
+- Controlled live registration UAT: NOT YET SUBMITTED after post-promotion UAT baseline
+
+### Immediate previous release — G04
 
 - Release: G04 — PRIVATE REGISTRATION REQUEST + ADMIN-ASSISTED MATCHING + CONTROLLED ROLE ACTIVATION V1
 - Production SHA: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
@@ -549,6 +577,7 @@ retaining the private document.
 - G03 — Leave Quota Provisioning — CLOSED.
 - G03.1 — Annual Leave Quota Rollover — COMPLETE / ACTIVATED / PRODUCTION VERIFIED.
 - G04 — Private Registration Request / Registration Privacy Hardening — CLOSED / PROMOTED / PRODUCTION VERIFIED.
+- G04.1 — Registration OTP Resend + Duplicate Account Guard — CLOSED / PROMOTED / PRODUCTION VERIFIED.
 
 ### P2 / SHOULD HAVE / final acceptance items
 
@@ -580,7 +609,7 @@ They remain explicit design or acceptance debt.
 
 The following items remain open or require separate operational evidence:
 
-- G03, G03.1, and G04 are Production verified. G05 remains OPEN / NOT STARTED; a G04 Production rollback checkpoint also remains a separate owner-authorized recovery hardening action.
+- G03, G03.1, G04, and G04.1 are Production verified. G05 remains OPEN / NOT STARTED; a G04.1 Production rollback checkpoint remains a separate owner-authorized recovery hardening action.
 - G06–G12 require owner decisions or evidence according to their individual
   scope.
 - Backup and restore evidence is not replaced by the current rollback
@@ -611,8 +640,8 @@ NOT RECOVERABLE, not silently approved.
 
 ## Section 18 — Next Recommended Development Sequence
 
-1. G04 — PRODUCTION ROLLBACK CHECKPOINT (SEPARATE OWNER APPROVAL)
-   - Create a checkpoint bound to 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e before treating G04 as fully checkpointed.
+1. G04.1 — PRODUCTION ROLLBACK CHECKPOINT (SEPARATE OWNER APPROVAL)
+   - Create a checkpoint bound to e5619a67e5be807f3fba825d889e73bc49c5361a only under separate Owner authorization.
 2. G05 — LICENSE DOCUMENT DELETE AUDIT TOMBSTONE
    - Preserve non-sensitive deletion history without preserving private files.
 3. Complete the P2 final acceptance items G06–G12.
@@ -645,3 +674,4 @@ These are substantial future platform expansions. They do not block current SMS 
 | 2026-08-17 | G03 Leave Quota Provisioning V1 promoted to exact Canonical Production deployment dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL; post-health/readiness/runtime verified; G03 CLOSED; prior Canonical preserved; rollback checkpoint unchanged. |
 | 2026-08-17 | Created and remotely verified rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 at exact Production SHA 1701bcf90a1998ea4999ee02e687172295984c9a; previous admin-RBAC rollback checkpoint preserved; Canonical and Production remained unchanged. |
 | 2026-08-17 | G04 Private Registration Request + Admin-Assisted Matching + Controlled Role Activation V1 promoted to exact existing Canonical deployment dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 at SHA 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e; Focused Auth run 32014142772 and Promotion run 32016084335 verified privacy/RBAC, HTTP 201 Promotion, health/readiness/runtime, zero task-attributable business writes, unchanged G03.1 activation, and unchanged rollback checkpoint. |
+| 2026-08-17 | G04.1 Registration OTP Resend + Duplicate Account Guard promoted by reusing exact existing deployment dpl_5xoKguECTunJvrUFTKrhbXenGuqu at SHA e5619a67e5be807f3fba825d889e73bc49c5361a; Promotion run 32041575770 / job 95421737298 executed one Promotion action; Canonical identity, health 3/3, readiness 3/3, CORS, anonymous security, and runtime checks passed; no new deployment, rebuild, migration, env mutation, or rollback checkpoint change. |
