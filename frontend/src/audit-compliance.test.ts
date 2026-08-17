@@ -43,7 +43,7 @@ describe('admin audit log viewer contract', () => {
 
   it('uses a separate vertical card structure for small screens without changing desktop tables', () => {
     const mobileStyles = read('styles/audit-mobile.css');
-    expect(table).toContain('<table className="audit-table"><thead><tr><th');
+    expect(table).toContain('<table className="audit-table data-surface-table"><thead><tr><th');
     expect(table).toContain('</thead><tbody>');
     expect(table).toContain('<td>{formatAuditTime(row.createdAt)}</td>');
     expect(table).toContain('<article key={safe(row.id, `mobile-event-${index}`)}');

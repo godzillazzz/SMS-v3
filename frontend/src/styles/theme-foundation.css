@@ -126,8 +126,7 @@ textarea:disabled { color: var(--color-text-muted); background: var(--color-surf
 input[type="checkbox"],
 input[type="radio"] { accent-color: var(--color-primary); }
 
-/* Cards / panels / tables */
-.table-card,
+/* Shared non-data cards. Data table/card ownership moved to styles/data-surfaces.css in UX-03. */
 .dashboard-card,
 .metric-card,
 .settings-card,
@@ -151,34 +150,6 @@ input[type="radio"] { accent-color: var(--color-primary); }
   box-shadow: var(--shadow-sm);
 }
 
-.table-scroll {
-  border-radius: inherit;
-  scrollbar-color: var(--color-border-strong) transparent;
-}
-
-.data-table {
-  color: var(--color-text);
-  font-size: var(--font-size-table);
-}
-
-.data-table th {
-  color: var(--color-text-secondary);
-  background: var(--color-surface-muted);
-  border-color: var(--color-border);
-  font-size: var(--font-size-secondary);
-}
-
-.data-table td {
-  color: var(--color-text);
-  border-color: var(--color-border);
-  background: var(--color-surface);
-}
-
-.data-table tbody tr:hover td {
-  background: color-mix(in srgb, var(--color-primary-soft) 45%, var(--color-surface));
-}
-
-.data-table code,
 .settings-table code {
   color: var(--color-primary);
   background: var(--color-primary-soft);
@@ -197,16 +168,6 @@ input[type="radio"] { accent-color: var(--color-primary); }
 .empty-state > span {
   color: var(--color-primary);
   background: var(--color-primary-soft);
-}
-
-.pagination-bar {
-  color: var(--color-text-secondary);
-}
-.pagination-bar button {
-  min-height: var(--control-height);
-  color: var(--color-text-secondary);
-  background: var(--color-surface-elevated);
-  border-color: var(--color-border);
 }
 
 /* Dashboard v2 semantic convergence */

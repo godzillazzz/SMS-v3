@@ -38,7 +38,9 @@ describe('license document table state', () => {
   it('uses the required eye label without personal data and keeps role-specific actions', () => {
     expect(componentSource).toContain('aria-label="ดูไฟล์ใบอนุญาต"');
     expect(componentSource).not.toMatch(/aria-label=\{`ดูไฟล์/);
-    expect(mainSource).toContain('className="btn-danger-outline compact" aria-label="ลบใบอนุญาต"');
+    expect(mainSource).toContain("role === 'ADMIN' && <DataRowActionMenu");
+    expect(mainSource).toContain("label: 'ลบใบอนุญาต'");
+    expect(mainSource).toContain("onSelect: () => onAction(row, 'delete')");
     expect(mainSource).toContain("page === 'licenses' ? renderLicenseCell");
   });
 

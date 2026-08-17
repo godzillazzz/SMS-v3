@@ -26,7 +26,7 @@ describe('Data Quality Center V1 contract', () => {
     const styles = read('./styles/data-quality.css');
     const responsiveStyles = read('./styles/data-quality-responsive.css');
     expect(page).toContain('data-quality-desktop-table');
-    expect(page).toContain('<table>');
+    expect(page).toContain('<table className="data-surface-table">');
     expect(page).toContain('<thead>');
     expect(page).toContain('<tbody>');
     expect(page).toContain('data-quality-mobile-cards');
