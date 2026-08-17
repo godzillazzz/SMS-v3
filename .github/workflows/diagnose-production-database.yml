@@ -1,4 +1,4 @@
-name: Diagnose sms-v3-staging Production Database
+name: G04 OTP Production Read-Only Diagnosis V1
 
 on:
   workflow_dispatch:
@@ -6,44 +6,139 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: sms-v3-staging-production
+  cancel-in-progress: false
+
+env:
+  EXPECTED_HELPER_BRANCH: ci/g04-otp-production-readonly-diagnosis-v1
+  EXPECTED_APPLICATION_SHA: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+  EXPECTED_APPLICATION_TREE: c58a842dd0d6cfa4f3efca352769671012c2ba9a
+  EXPECTED_CANONICAL_DEPLOYMENT: dpl_7KcuwssKHDKDeJanhTVYVWSQotP6
+  EXPECTED_CANONICAL_SHA: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  VERCEL_CLI_VERSION: 56.4.1
+
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment:
-      name: production-sms-v3-staging
+    timeout-minutes: 15
+    environment: production-sms-v3-staging
     env:
+      NODE_ENV: production
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout fixed diagnosis helper
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Verify helper scope and preserve read-only diagnosis script
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "$EXPECTED_HELPER_BRANCH"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_APPLICATION_SHA"
+          changed="$(git diff --name-only HEAD^ HEAD | sort)"
+          expected="$(printf '%s\n' '.github/workflows/diagnose-production-database.yml' 'scripts/ci/g04-otp-production-readonly-diagnosis.js' 'vercel.json' | sort)"
+          test "$changed" = "$expected"
+          node -e "const v=require('./vercel.json'); if(v.git?.deploymentEnabled?.[process.env.EXPECTED_HELPER_BRANCH]!==false) process.exit(1)"
+          if grep -Ev 'grep -Eiq|G04_OTP_DIAG_FORBIDDEN_MUTATION_COMMAND' .github/workflows/diagnose-production-database.yml | grep -Eiq 'vercel(@[^ ]+)?[[:space:]]+(deploy|build)|prisma[[:space:]]+migrate' || grep -Eiq 'INSERT[[:space:]]+INTO|UPDATE[[:space:]]+[^;]+[[:space:]]+SET|DELETE[[:space:]]+FROM|TRUNCATE|ALTER[[:space:]]+TABLE|DROP[[:space:]]+TABLE|CREATE[[:space:]]+TABLE' scripts/ci/g04-otp-production-readonly-diagnosis.js; then
+            echo 'G04_OTP_DIAG_FORBIDDEN_MUTATION_COMMAND'
+            exit 1
+          fi
+          cp scripts/ci/g04-otp-production-readonly-diagnosis.js /tmp/g04-otp-production-readonly-diagnosis.js
+          test -s /tmp/g04-otp-production-readonly-diagnosis.js
+          echo 'G04_OTP_DIAG_HELPER_SCOPE=PASS'
+
+      - name: Checkout exact Production application
+        uses: actions/checkout@v4
+        with:
+          ref: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+          fetch-depth: 1
+
+      - name: Verify exact Production application identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_APPLICATION_SHA"
+          test "$(git show -s --format=%T HEAD)" = "$EXPECTED_APPLICATION_TREE"
+          echo 'G04_OTP_DIAG_APPLICATION_IDENTITY=PASS'
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Install dependencies
+
+      - name: Install exact dependencies without lifecycle scripts
+        shell: bash
         run: |
-          npm ci --include=dev
-      - name: Pull Vercel environment variables
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          set -euo pipefail
+          npm ci --include=dev --ignore-scripts
+          npx --no-install prisma generate
+
+      - name: Verify protected Production database target
+        run: node scripts/ci/verify-deployment-target.js --verify
+
+      - name: Verify exact Canonical before diagnosis
+        shell: bash
         run: |
-          npx --yes vercel@56.4.1 pull --yes --environment=production --token "$VERCEL_TOKEN"
-      - name: Run Local Authentication Debug
+          set -euo pipefail
+          canonical_host="${EXPECTED_CANONICAL_URL#https://}"
+          canonical_json=$(mktemp)
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
+            "https://api.vercel.com/v13/deployments/$canonical_host" >"$canonical_json"
+          node - "$canonical_json" <<'NODE'
+          const fs=require('node:fs');
+          const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha||d?.gitSource?.sha||d?.source?.sha;
+          if(d.id!==process.env.EXPECTED_CANONICAL_DEPLOYMENT||sha!==process.env.EXPECTED_CANONICAL_SHA||d.target!=='production'||d.readyState!=='READY') throw new Error('G04_OTP_DIAG_CANONICAL_IDENTITY_FAILED');
+          console.log('G04_OTP_DIAG_CANONICAL_IDENTITY=PASS');
+          NODE
+
+      - name: Pull Production runtime configuration without printing values
+        shell: bash
         run: |
-          node scripts/ci/debug-auth.js
-      - name: Run UAT Verification
+          set -euo pipefail
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=production --project "$EXPECTED_PROJECT_ID" --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/g04-otp-vercel-pull.log 2>&1
+          test -s .vercel/.env.production.local
+          echo 'G04_OTP_DIAG_RUNTIME_CONFIG_PULL=PASS'
+
+      - name: Read-only Production OTP diagnosis
+        shell: bash
         run: |
-          node scripts/ci/run-uat-with-db.js
-      - name: Fetch Vercel staging logs
+          set -euo pipefail
+          G04_RUNTIME_ENV_FILE="$GITHUB_WORKSPACE/.vercel/.env.production.local" DATABASE_URL="$DIRECT_URL" NODE_PATH="$GITHUB_WORKSPACE/node_modules" node /tmp/g04-otp-production-readonly-diagnosis.js
+
+      - name: Verify no helper deployment and Canonical unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper_json=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" list "$EXPECTED_PROJECT_NAME" --format json --limit 100 -m githubCommitRef="$EXPECTED_HELPER_BRANCH" --token "$VERCEL_TOKEN" >"$helper_json" 2>/dev/null
+          node - "$helper_json" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));const items=Array.isArray(d)?d:(d.deployments||[]);if(items.length!==0)throw new Error('G04_OTP_DIAG_UNAUTHORIZED_DEPLOYMENT');console.log('G04_OTP_DIAG_HELPER_DEPLOYMENTS=0');
+          NODE
+          canonical_host="${EXPECTED_CANONICAL_URL#https://}"
+          canonical_json=$(mktemp)
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 --header "Authorization: Bearer $VERCEL_TOKEN" --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' "https://api.vercel.com/v13/deployments/$canonical_host" >"$canonical_json"
+          node - "$canonical_json" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha;if(d.id!==process.env.EXPECTED_CANONICAL_DEPLOYMENT||sha!==process.env.EXPECTED_CANONICAL_SHA||d.readyState!=='READY')throw new Error('G04_OTP_DIAG_CANONICAL_CHANGED');console.log('G04_OTP_DIAG_CANONICAL_POST=UNCHANGED');
+          NODE
+
+      - name: Remove temporary runtime configuration
         if: always()
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          npx --yes vercel@56.4.1 logs --project sms-v3-staging --environment production --token "$VERCEL_TOKEN" --limit 50
+        shell: bash
+        run: rm -rf .vercel /tmp/g04-otp-vercel-pull.log /tmp/g04-otp-production-readonly-diagnosis.js
