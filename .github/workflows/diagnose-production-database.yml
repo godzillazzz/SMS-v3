@@ -1,4 +1,4 @@
-name: Diagnose sms-v3-staging Production Database
+name: g04-production-readonly-preflight-v1
 
 on:
   workflow_dispatch:
@@ -7,43 +7,49 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  readonly-preflight:
     runs-on: ubuntu-latest
+    environment: production-sms-v3-staging
     timeout-minutes: 10
-    environment:
-      name: production-sms-v3-staging
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      EXPECTED_CANDIDATE_SHA: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+      EXPECTED_CANDIDATE_TREE: c58a842dd0d6cfa4f3efca352769671012c2ba9a
+      EXPECTED_CANDIDATE_PARENT: 0951d4ce08de817dda7b986924232e86e745b532
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout exact technical preflight ref
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+
+      - name: Verify technical ref and exact Candidate lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_CANDIDATE_SHA"
+          test "$(git show -s --format=%T "$EXPECTED_CANDIDATE_SHA")" = "$EXPECTED_CANDIDATE_TREE"
+          test "$(git rev-parse "$EXPECTED_CANDIDATE_SHA^")" = "$EXPECTED_CANDIDATE_PARENT"
+          changed=$(git diff --name-only HEAD^ HEAD | sort)
+          expected=$(printf '%s\n' '.github/workflows/diagnose-production-database.yml' 'scripts/ci/g04-production-readonly-preflight.js' 'vercel.json' | sort)
+          test "$changed" = "$expected"
+          echo 'TECHNICAL_SCOPE=PASS'
+          echo 'CANDIDATE_IDENTITY=PASS'
+
+      - name: Set up exact Node runtime
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - name: Install dependencies
+
+      - name: Install exact dependencies without application scripts
+        shell: bash
         run: |
-          npm ci --include=dev
-      - name: Pull Vercel environment variables
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          set -euo pipefail
+          npm ci --include=dev --ignore-scripts
+          npx --no-install prisma generate
+
+      - name: Run database-enforced G04 read-only aggregate preflight
+        shell: bash
         run: |
-          npx --yes vercel@56.4.1 pull --yes --environment=production --token "$VERCEL_TOKEN"
-      - name: Run Local Authentication Debug
-        run: |
-          node scripts/ci/debug-auth.js
-      - name: Run UAT Verification
-        run: |
-          node scripts/ci/run-uat-with-db.js
-      - name: Fetch Vercel staging logs
-        if: always()
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          npx --yes vercel@56.4.1 logs --project sms-v3-staging --environment production --token "$VERCEL_TOKEN" --limit 50
+          set -euo pipefail
+          test -n "$DATABASE_URL"
+          node scripts/ci/g04-production-readonly-preflight.js
