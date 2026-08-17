@@ -1,0 +1,243 @@
+name: G03.1 Multi-Year Writes Production Activation V1
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-staging-production
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_DEPLOYMENT_ID: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs
+  EXPECTED_APPLICATION_SHA: 0951d4ce08de817dda7b986924232e86e745b532
+  EXPECTED_APPLICATION_TREE: dfacd4261df08139f21bebd498ce709954163b8b
+  EXPECTED_ROLLBACK_REF: refs/heads/rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17
+  EXPECTED_MIGRATION: 202608170001_annual_leave_quota_year
+  ACTIVATION_KEY: G03_1_MULTI_YEAR_WRITES_ENABLED
+  ACTIVATION_VALUE: 'true'
+
+jobs:
+  activate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - name: Checkout fixed activation harness
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Preserve fixed activation helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp scripts/ci/g03-1-staged-technical-snapshot.js /tmp/g03-1-snapshot.js
+          cp scripts/ci/g03-1-activate-multi-year.js /tmp/g03-1-activate.js
+          test -s /tmp/g03-1-snapshot.js
+          test -s /tmp/g03-1-activate.js
+
+      - name: Checkout exact Production application SHA
+        uses: actions/checkout@v4
+        with:
+          ref: 0951d4ce08de817dda7b986924232e86e745b532
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install exact dependencies without lifecycle scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --include=dev --ignore-scripts
+          npx --no-install prisma generate
+
+      - name: Verify Candidate activation parser contract locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test test/g03-1-multi-year-activation.test.js test/g03-1-activation-release-contract.test.js
+
+      - name: Verify protected Production database target
+        run: node scripts/ci/verify-deployment-target.js --verify
+
+      - name: Verify exact Production identity and rollback checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_APPLICATION_SHA"
+          test "$(git show -s --format=%T HEAD)" = "$EXPECTED_APPLICATION_TREE"
+          rollback_sha="$(git ls-remote origin "$EXPECTED_ROLLBACK_REF" | awk '{print $1}')"
+          test "$rollback_sha" = "$EXPECTED_APPLICATION_SHA"
+          canonical_json=$(mktemp)
+          canonical_host="${EXPECTED_CANONICAL_URL#https://}"
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
+            "https://api.vercel.com/v13/deployments/$canonical_host" >"$canonical_json"
+          node - "$canonical_json" <<'NODE'
+          const fs=require('node:fs');
+          const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha||d?.gitSource?.sha||d?.source?.sha;
+          if(d.id!==process.env.EXPECTED_DEPLOYMENT_ID) throw new Error('CANONICAL_DEPLOYMENT_MISMATCH');
+          if(sha!==process.env.EXPECTED_APPLICATION_SHA) throw new Error('CANONICAL_SHA_MISMATCH');
+          if(d.projectId!==process.env.EXPECTED_PROJECT_ID||d.name!==process.env.EXPECTED_PROJECT_NAME) throw new Error('CANONICAL_PROJECT_MISMATCH');
+          if(d.readyState!=='READY'||d.target!=='production') throw new Error('CANONICAL_STATE_INVALID');
+          console.log('ACTIVATION_PRODUCTION_IDENTITY=PASS');
+          NODE
+          echo "ACTIVATION_ROLLBACK_CHECKPOINT=PASS sha=$rollback_sha"
+
+      - name: Capture read-only pre-activation Production snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          node /tmp/g03-1-snapshot.js | tee /tmp/g031-pre.log
+          node - /tmp/g031-pre.log /tmp/g031-pre.json <<'NODE'
+          const fs=require('node:fs');
+          const [log,out]=process.argv.slice(2);
+          const line=fs.readFileSync(log,'utf8').split(/\r?\n/).find(v=>v.startsWith('STAGED_TECH_SNAPSHOT='));
+          if(!line) throw new Error('PRE_ACTIVATION_SNAPSHOT_MISSING');
+          const d=JSON.parse(line.slice('STAGED_TECH_SNAPSHOT='.length));
+          if(d.readOnly.transactionReadOnly!=='on'||d.readOnly.transactionIdAssigned!==null) throw new Error('PRE_ACTIVATION_NOT_READ_ONLY');
+          if(d.schema.migrationCount!==17||!d.schema.authorizedMigrationApplied||d.schema.pendingMigrations.length!==0) throw new Error('PRE_ACTIVATION_MIGRATION_INVALID');
+          if(d.activation.effective!=='INACTIVE'||!['MISSING','FALSE','MALFORMED'].includes(d.activation.valueClass)) throw new Error('G03_1_ACTIVATION_PRECONDITION_FAILED');
+          if(d.counts.quotaYearOtherRows!==0) throw new Error('G03_1_ACTIVATION_UNEXPECTED_MULTI_YEAR_DATA');
+          if(d.authority.employeesWithMultipleLinkedRows!==0||d.authority.maximumLinkedRowsPerEmployee>1||d.authority.unclassifiedAuthorities!==0) throw new Error('PRE_ACTIVATION_AUTHORITY_INVALID');
+          fs.writeFileSync(out,JSON.stringify(d));
+          const e=d.totals2026.entitlement,u=d.totals2026.used,r=d.totals2026.remaining;
+          console.log(`ACTIVATION_PRE_STATE=${d.activation.valueClass}/${d.activation.effective}`);
+          console.log(`ACTIVATION_PRE_COUNTS=quota:${d.counts.leaveQuotaRows} q2026:${d.counts.quotaYear2026Rows} qnull:${d.counts.quotaYearNullRows} qother:${d.counts.quotaYearOtherRows} leave:${d.counts.leaveRequestRows} employee:${d.counts.employeeRows} settings:${d.counts.systemSettingRows} migration:${d.counts.migrationRows}`);
+          console.log(`ACTIVATION_PRE_2026=sick:${e.sickLeave}/${u.sickLeave}/${r.sickLeave} personal:${e.personalLeave}/${u.personalLeave}/${r.personalLeave} vacation:${e.vacationLeave}/${u.vacationLeave}/${r.vacationLeave}`);
+          console.log(`ACTIVATION_PRE_FINGERPRINT=${d.businessFingerprint}`);
+          NODE
+
+      - name: Atomic fixed activation mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_json=$(mktemp)
+          canonical_host="${EXPECTED_CANONICAL_URL#https://}"
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
+            "https://api.vercel.com/v13/deployments/$canonical_host" >"$canonical_json"
+          node - "$canonical_json" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha||d?.gitSource?.sha||d?.source?.sha;
+          if(d.id!==process.env.EXPECTED_DEPLOYMENT_ID||sha!==process.env.EXPECTED_APPLICATION_SHA||d.readyState!=='READY'||d.target!=='production') throw new Error('ACTIVATION_FINAL_IDENTITY_GATE_FAILED');
+          console.log('ACTIVATION_FINAL_IDENTITY_GATE=PASS');
+          NODE
+          rollback_sha="$(git ls-remote origin "$EXPECTED_ROLLBACK_REF" | awk '{print $1}')"
+          test "$rollback_sha" = "$EXPECTED_APPLICATION_SHA"
+          echo 'ACTIVATION_FINAL_ROLLBACK_GATE=PASS'
+          node /tmp/g03-1-activate.js | tee /tmp/g031-activation.log
+
+      - name: Immediate readback and post-activation preservation snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fxq 'ACTIVATION_POST_STATE=TRUE' /tmp/g031-activation.log
+          grep -Fxq 'ACTIVATION_EFFECTIVE=ACTIVE' /tmp/g031-activation.log
+          grep -Fxq 'ACTIVATION_RAW_VALUE=true' /tmp/g031-activation.log
+          mutation="$(sed -n 's/^ACTIVATION_MUTATION_TYPE=//p' /tmp/g031-activation.log)"
+          test "$mutation" = CREATE -o "$mutation" = UPDATE
+          node /tmp/g03-1-snapshot.js | tee /tmp/g031-post.log
+          node - /tmp/g031-pre.json /tmp/g031-post.log "$mutation" <<'NODE'
+          const fs=require('node:fs');
+          const [preFile,postLog,mutation]=process.argv.slice(2);
+          const pre=JSON.parse(fs.readFileSync(preFile,'utf8'));
+          const line=fs.readFileSync(postLog,'utf8').split(/\r?\n/).find(v=>v.startsWith('STAGED_TECH_SNAPSHOT='));
+          if(!line) throw new Error('POST_ACTIVATION_SNAPSHOT_MISSING');
+          const post=JSON.parse(line.slice('STAGED_TECH_SNAPSHOT='.length));
+          if(post.readOnly.transactionReadOnly!=='on'||post.readOnly.transactionIdAssigned!==null) throw new Error('POST_ACTIVATION_NOT_READ_ONLY');
+          if(!post.activation.rowExists||post.activation.valueClass!=='TRUE'||post.activation.effective!=='ACTIVE') throw new Error('G03_1_ACTIVATION_READBACK_FAILED');
+          const exactKeys=['leaveQuotaRows','quotaYear2026Rows','quotaYearNullRows','quotaYearOtherRows','leaveRequestRows','employeeRows','shiftAssignmentRows','employeeLicenseRows','employeeLicenseDocumentRows','migrationRows'];
+          for(const key of exactKeys){if(pre.counts[key]!==post.counts[key]) throw new Error(`G03_1_ACTIVATION_UNEXPECTED_BUSINESS_WRITE_${key}`);}
+          const expectedSettings=pre.counts.systemSettingRows+(mutation==='CREATE'?1:0);
+          if(post.counts.systemSettingRows!==expectedSettings) throw new Error('G03_1_ACTIVATION_OTHER_SETTING_CHANGE');
+          if(post.counts.quotaYearOtherRows!==0) throw new Error('G03_1_ACTIVATION_UNEXPECTED_MULTI_YEAR_DATA');
+          if(JSON.stringify(pre.totals2026.entitlement)!==JSON.stringify(post.totals2026.entitlement)) throw new Error('G03_1_ACTIVATION_2026_PRESERVATION_FAILED');
+          if(JSON.stringify(pre.totals2026.used)!==JSON.stringify(post.totals2026.used)) throw new Error('G03_1_ACTIVATION_UNEXPECTED_LEAVE_ACTIVITY');
+          if(JSON.stringify(pre.totals2026.remaining)!==JSON.stringify(post.totals2026.remaining)) throw new Error('G03_1_ACTIVATION_UNEXPECTED_LEAVE_ACTIVITY');
+          if(pre.businessFingerprint!==post.businessFingerprint) throw new Error('G03_1_ACTIVATION_QUOTA_FINGERPRINT_CHANGED');
+          if(post.schema.migrationCount!==pre.schema.migrationCount||post.schema.pendingMigrations.length!==0) throw new Error('G03_1_ACTIVATION_MIGRATION_CHANGED');
+          const e=post.totals2026.entitlement,u=post.totals2026.used,r=post.totals2026.remaining;
+          console.log(`ACTIVATION_POST_STATE=${post.activation.valueClass}/${post.activation.effective}`);
+          console.log(`ACTIVATION_POST_COUNTS=quota:${post.counts.leaveQuotaRows} q2026:${post.counts.quotaYear2026Rows} qnull:${post.counts.quotaYearNullRows} qother:${post.counts.quotaYearOtherRows} leave:${post.counts.leaveRequestRows} employee:${post.counts.employeeRows} settings:${post.counts.systemSettingRows} migration:${post.counts.migrationRows}`);
+          console.log(`ACTIVATION_POST_2026=sick:${e.sickLeave}/${u.sickLeave}/${r.sickLeave} personal:${e.personalLeave}/${u.personalLeave}/${r.personalLeave} vacation:${e.vacationLeave}/${u.vacationLeave}/${r.vacationLeave}`);
+          console.log(`ACTIVATION_POST_FINGERPRINT=${post.businessFingerprint}`);
+          console.log('ACTIVATION_BUSINESS_PRESERVATION=PASS');
+          console.log('ACTIVATION_SECOND_YEAR_ROWS_CREATED=0');
+          console.log('ACTIVATION_OTHER_SYSTEM_SETTING_MUTATIONS=0');
+          NODE
+
+      - name: Verify post-activation Canonical health and ready 3 of 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_json=$(mktemp)
+          canonical_host="${EXPECTED_CANONICAL_URL#https://}"
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
+            "https://api.vercel.com/v13/deployments/$canonical_host" >"$canonical_json"
+          node - "$canonical_json" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha||d?.gitSource?.sha||d?.source?.sha;
+          if(d.id!==process.env.EXPECTED_DEPLOYMENT_ID||sha!==process.env.EXPECTED_APPLICATION_SHA||d.readyState!=='READY'||d.target!=='production') throw new Error('ACTIVATION_POST_CANONICAL_INVALID');
+          console.log('ACTIVATION_POST_CANONICAL=UNCHANGED');
+          NODE
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+          health_json=$(mktemp)
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            "$EXPECTED_CANONICAL_URL/api/v1/health" >"$health_json"
+          node - "$health_json" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));if(d.status!=='ok')process.exit(1);
+          NODE
+          echo 'ACTIVATION_POST_HEALTH=200/ok'
+          for n in 1 2 3; do
+            ready_json=$(mktemp)
+            curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+              --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+              "$EXPECTED_CANONICAL_URL/api/v1/ready" >"$ready_json"
+            node - "$ready_json" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));if(d.status!=='ready'||d.database!=='ok')process.exit(1);
+          NODE
+            echo "ACTIVATION_POST_READY_${n}=200/ready/ok"
+          done
+          echo 'ACTIVATION_POST_READY=3/3'
+
+      - name: Publish activation summary
+        shell: bash
+        run: |
+          {
+            echo '### G03.1 multi-year writes Production activation'
+            echo '- Exact Canonical identity: verified'
+            echo '- Exact G03.1 rollback checkpoint: verified'
+            echo '- Activation mutation: fixed key/value only'
+            echo '- Activation readback: true / ACTIVE'
+            echo '- Quota/Leave/Employee/Schedule/License mutation: 0'
+            echo '- Second-year quota creation: 0'
+            echo '- Cron invocation: 0'
+            echo '- Migration: none'
+            echo '- Deployment/Promotion: none'
+            echo '- Master: not updated'
+          } >> "$GITHUB_STEP_SUMMARY"

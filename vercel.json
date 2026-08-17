@@ -44,7 +44,8 @@
   "git": {
     "deploymentEnabled": {
       "ci/g03-1-staged-technical-v1": false,
-      "ci/g03-1-production-promotion-v1": false
+      "ci/g03-1-production-promotion-v1": false,
+      "ci/g03-1-multi-year-activation-v1": false
     }
   }
 }
