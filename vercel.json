@@ -23,7 +23,9 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "test/automated-uat-v3-authenticated": false
+      "test/automated-uat-v3-authenticated": false,
+      "ci/g04-focused-auth-uat-v1": false,
+      "ci/g04-focused-auth-uat-v1-freeze-1": false
     }
   }
 }
