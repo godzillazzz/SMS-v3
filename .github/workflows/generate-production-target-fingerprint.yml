@@ -90,7 +90,11 @@ jobs:
         run: |
           set -euo pipefail
           canonical_json=$(mktemp)
-          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical_json" 2>/dev/null
+          canonical_host="${EXPECTED_CANONICAL_URL#https://}"
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
+            "https://api.vercel.com/v13/deployments/$canonical_host" >"$canonical_json"
           node - "$canonical_json" <<'NODE'
           const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
           if(d.id!==process.env.EXPECTED_CANONICAL_DEPLOYMENT) throw new Error('CANONICAL_DEPLOYMENT_CHANGED');

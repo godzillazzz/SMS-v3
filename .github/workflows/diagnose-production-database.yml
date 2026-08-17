@@ -114,7 +114,11 @@ jobs:
         run: |
           set -euo pipefail
           canonical_json=$(mktemp)
-          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical_json" 2>/dev/null
+          canonical_host="${EXPECTED_CANONICAL_URL#https://}"
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
+            "https://api.vercel.com/v13/deployments/$canonical_host" >"$canonical_json"
           node - "$canonical_json" <<'NODE'
           const fs = require('node:fs');
           const d = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -195,14 +199,17 @@ jobs:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
         run: |
           set -euo pipefail
-          inspect_json=/tmp/g03-1-staged-inspect.json
-          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$DEPLOYMENT_ID" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$inspect_json" 2>/dev/null
+          inspect_json=/tmp/g03-1-staged-rest.json
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
+            "https://api.vercel.com/v13/deployments/$DEPLOYMENT_ID" >"$inspect_json"
           node - "$inspect_json" "$DEPLOYMENT_ID" "$DEPLOYMENT_URL" <<'NODE' >/tmp/g03-1-staged-identity
           const fs = require('node:fs');
           const [file, expectedId, expectedUrl] = process.argv.slice(2);
           const d = JSON.parse(fs.readFileSync(file, 'utf8'));
           if (d.id !== expectedId) throw new Error('STAGED_DEPLOYMENT_ID_MISMATCH');
-          if (d.name !== process.env.EXPECTED_PROJECT_NAME) throw new Error('STAGED_PROJECT_MISMATCH');
+          if (d.name !== process.env.EXPECTED_PROJECT_NAME || d.projectId !== process.env.EXPECTED_PROJECT_ID) throw new Error('STAGED_PROJECT_MISMATCH');
           if (d.target !== 'production' || d.readyState !== 'READY') throw new Error('STAGED_TARGET_STATE_INVALID');
           const url = `https://${d.url}`;
           if (url !== expectedUrl) throw new Error('STAGED_URL_MISMATCH');
@@ -235,7 +242,11 @@ jobs:
         run: |
           set -euo pipefail
           canonical_json=$(mktemp)
-          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical_json" 2>/dev/null
+          canonical_host="${EXPECTED_CANONICAL_URL#https://}"
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
+            "https://api.vercel.com/v13/deployments/$canonical_host" >"$canonical_json"
           node - "$canonical_json" <<'NODE'
           const fs = require('node:fs');
           const d = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
