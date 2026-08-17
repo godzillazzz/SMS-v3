@@ -169,11 +169,46 @@ function Login() {
   const [busy, setBusy] = useState(false);
   const [formMessage, setFormMessage] = useState<string>();
   const [formError, setFormError] = useState<string>();
+  const [registrationState, setRegistrationState] = useState<string>();
+  const [resendSeconds, setResendSeconds] = useState(0);
 
-  const resetView = (next: typeof mode) => { setMode(next); setFormError(undefined); setFormMessage(undefined); setCode(''); };
+  useEffect(() => {
+    if (mode !== 'registerVerify' || resendSeconds <= 0) return undefined;
+    const timer = window.setInterval(() => setResendSeconds((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [mode, resendSeconds]);
+
+  const resetView = (next: typeof mode) => { setMode(next); setFormError(undefined); setFormMessage(undefined); setCode(''); setRegistrationState(undefined); if (next !== 'registerVerify') setResendSeconds(0); };
   const title = mode === 'login' ? 'ยินดีต้อนรับ' : mode === 'register' ? 'ส่งคำขอลงทะเบียน' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'รีเซ็ตรหัสผ่านด้วย OTP' : 'ตั้งรหัสผ่านใหม่';
   const lead = mode === 'login' ? 'เข้าสู่ระบบเพื่อเปิด Dashboard' : mode === 'register' ? 'ส่งคำขอแบบส่วนตัว ผู้ดูแลจะตรวจสอบและจับคู่กับ Employee Master ภายหลัง' : mode === 'registerVerify' ? 'กรอกรหัส 6 หลักเพื่อยืนยันความเป็นเจ้าของอีเมล การยืนยันอีเมลยังไม่ใช่การอนุมัติบัญชี' : mode === 'reset' ? 'เราจะส่งรหัสยืนยันไปยังอีเมลของคุณ' : 'กรอกรหัส 6 หลักและรหัสผ่านใหม่';
   const submitDisabled = busy || (mode === 'register' && submittedName.trim().length < 2);
+  const maskedEmail = (() => {
+    const [local, domain] = email.trim().split('@');
+    if (!local || !domain) return email;
+    return `${local.slice(0, 1)}***@${domain}`;
+  })();
+  const registrationErrorMessage = (reason: unknown) => {
+    const status = typeof reason === 'object' && reason && 'status' in reason ? Number((reason as { status?: unknown }).status) : 0;
+    if (status === 429) return 'ส่งรหัสยืนยันบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่';
+    if (status === 503) return 'ไม่สามารถส่งรหัสยืนยันได้ในขณะนี้ กรุณาลองใหม่ภายหลัง';
+    return reason instanceof Error ? reason.message : 'ไม่สามารถดำเนินการได้';
+  };
+
+  const requestRegistrationCode = async (isResend = false) => {
+    const result = await api.requestRegistrationOtp({ submittedName: submittedName.trim(), email, password, departmentHint: departmentHint.trim() || undefined });
+    setMode('registerVerify');
+    setCode('');
+    setResendSeconds(60);
+    setFormMessage(isResend ? 'ส่งรหัสยืนยันใหม่แล้ว กรุณาตรวจสอบอีเมล รวมถึงโฟลเดอร์ Spam/Junk' : result.message);
+  };
+
+  const resendRegistrationCode = async () => {
+    if (busy || resendSeconds > 0) return;
+    setFormError(undefined); setFormMessage(undefined); setBusy(true);
+    try { await requestRegistrationCode(true); }
+    catch (reason) { setFormError(registrationErrorMessage(reason)); }
+    finally { setBusy(false); }
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -182,18 +217,23 @@ function Login() {
     try {
       if (mode === 'login') await auth.login(email, password);
       else if (mode === 'register') {
-        const result = await api.requestRegistrationOtp({ submittedName: submittedName.trim(), email, password, departmentHint: departmentHint.trim() || undefined });
-        setMode('registerVerify'); setCode(''); setFormMessage(result.message);
+        await requestRegistrationCode(false);
       } else if (mode === 'registerVerify') {
-        const result = await api.verifyRegistrationOtp(email, code); resetView('login'); setPassword(''); setFormMessage(result.message);
+        const result = await api.verifyRegistrationOtp(email, code);
+        setRegistrationState(result.registrationState);
+        setMode('login'); setCode(''); setPassword(''); setResendSeconds(0); setFormMessage(result.message);
       } else if (mode === 'reset') {
         await api.requestPasswordResetOtp(email); resetView('resetVerify'); setFormMessage('หากอีเมลนี้ใช้งานได้ ระบบได้ส่งรหัสยืนยันแล้ว');
       } else {
         const result = await api.completePasswordReset(email, code, password); resetView('login'); setPassword(''); setFormMessage(result.message);
       }
-    } catch (reason) { setFormError(reason instanceof Error ? reason.message : 'ไม่สามารถดำเนินการได้'); }
+    } catch (reason) {
+      setFormError((mode === 'register' || mode === 'registerVerify') ? registrationErrorMessage(reason) : (reason instanceof Error ? reason.message : 'ไม่สามารถดำเนินการได้'));
+    }
     finally { setBusy(false); }
   };
+
+  const showAccountRecovery = registrationState === 'EXISTING_ACCOUNT' || registrationState === 'EMPLOYEE_ALREADY_HAS_ACCOUNT';
 
   return (
     <main className="login-page">
@@ -211,11 +251,13 @@ function Login() {
               <label className="field-group" htmlFor="registration-name"><span>ชื่อ-นามสกุลที่ใช้ส่งคำขอ</span><input id="registration-name" value={submittedName} onChange={(event) => setSubmittedName(event.target.value)} type="text" minLength={2} maxLength={200} required autoComplete="name" /><small className="field-hint">ข้อมูลนี้เป็นข้อมูลที่ผู้สมัครแจ้ง ไม่ใช่ Employee Master และไม่ใช้เป็นหลักฐานยืนยันตัวบุคคล</small></label>
               <label className="field-group" htmlFor="registration-department"><span>หน่วยงาน / พื้นที่ (ถ้ามี)</span><input id="registration-department" value={departmentHint} onChange={(event) => setDepartmentHint(event.target.value)} type="text" maxLength={100} /><small className="field-hint">ใช้เป็น hint สำหรับผู้ตรวจสอบเท่านั้น ไม่แก้ไขข้อมูล Employee Master</small></label>
             </>}
-            <label className="field-group" htmlFor="email"><span>อีเมล</span><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete="username" /></label>
+            {mode === 'registerVerify' && <p className="field-hint">ส่งรหัสไปยัง {maskedEmail}</p>}
+            <label className="field-group" htmlFor="email"><span>อีเมล</span><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete="username" disabled={mode === 'registerVerify'} /></label>
             {(mode === 'registerVerify' || mode === 'resetVerify') && <label className="field-group" htmlFor="otp-code"><span>รหัส OTP 6 หลัก</span><input id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" /></label>}
             {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group" htmlFor="password"><span>รหัสผ่าน</span><span className="password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle" type="button" onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? 'ซ่อน' : 'แสดง'}</button></span></label>}
             <button className="btn-primary" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งคำขอและรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
-            {mode === 'login' ? <div className="login-links"><button type="button" onClick={() => resetView('register')}>ยังไม่มีบัญชี? <b>ส่งคำขอลงทะเบียน</b></button><button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน? <b>รีเซ็ตรหัสผ่านด้วย OTP</b></button></div> : <div className="login-links"><button type="button" onClick={() => resetView('login')}>← กลับไปหน้าเข้าสู่ระบบ</button></div>}
+            {mode === 'registerVerify' && <div className="login-links"><button type="button" disabled={busy || resendSeconds > 0} onClick={resendRegistrationCode}>{resendSeconds > 0 ? `ส่งรหัสอีกครั้งใน ${resendSeconds} วินาที` : 'ส่งรหัสอีกครั้ง'}</button><button type="button" onClick={() => resetView('login')}>← กลับไปหน้าเข้าสู่ระบบ</button></div>}
+            {mode === 'login' ? <div className="login-links">{!showAccountRecovery && <button type="button" onClick={() => resetView('register')}>ยังไม่มีบัญชี? <b>ส่งคำขอลงทะเบียน</b></button>}<button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน? <b>รีเซ็ตรหัสผ่านด้วย OTP</b></button></div> : mode !== 'registerVerify' && <div className="login-links"><button type="button" onClick={() => resetView('login')}>← กลับไปหน้าเข้าสู่ระบบ</button></div>}
             <p className="login-help">พบปัญหาการใช้งาน: ติดต่อผู้ดูแลระบบของหน่วยงาน</p>
           </form>
         </section>

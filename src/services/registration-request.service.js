@@ -52,7 +52,7 @@ function createRegistrationRequestService({ prismaClient = prisma, auditService 
   async function list({ page = 1, pageSize = 25, status }) {
     const where = {
       emailVerifiedAt: { not: null },
-      ...(status ? { status } : {})
+      ...(status ? { status } : { status: { in: ACTIONABLE_STATUSES } })
     };
     const [total, rows] = await prismaClient.$transaction([
       prismaClient.registrationRequest.count({ where }),
@@ -86,7 +86,6 @@ function createRegistrationRequestService({ prismaClient = prisma, auditService 
       isActive: true,
       user: { is: null },
       OR: [
-        { employeeCode: { contains: query, mode: 'insensitive' } },
         { displayName: { contains: query, mode: 'insensitive' } },
         { firstName: { contains: query, mode: 'insensitive' } },
         { lastName: { contains: query, mode: 'insensitive' } }
@@ -97,7 +96,7 @@ function createRegistrationRequestService({ prismaClient = prisma, auditService 
       prismaClient.employee.findMany({
         where,
         select: candidateSelect,
-        orderBy: [{ employeeCode: 'asc' }],
+        orderBy: [{ displayName: 'asc' }, { id: 'asc' }],
         skip: (page - 1) * pageSize,
         take: pageSize
       })
