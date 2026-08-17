@@ -61,20 +61,24 @@ It remains forensic history only.
 
 ### Current rollback
 
-The current existing rollback checkpoint remains the verified G03.1 Production checkpoint created before G04. It is data-compatible with the additive G04 schema/data model, but application rollback from G04 to the old G03.1 application is SECURITY-REGRESSIVE because it restores anonymous Employee enumeration and applicant-driven employeeId registration behavior. The checkpoint is therefore preserved and unchanged, but it is not the preferred rollback target for normal G04 operation. The preferred next recovery action is a separately owner-authorized G04 Production rollback checkpoint bound to the current G04 SHA.
+The current preferred normal application rollback checkpoint is the verified G04.1 annotated Git tag rollback/g04-1-registration-otp-duplicate-guard-v1-prod-2026-08-17, which peels to exact application SHA e5619a67e5be807f3fba825d889e73bc49c5361a and tree b38bc7d6d3f6b6ed416996bd3edd99891918fd12. It captures application rollback identity only; it is not a database, Vercel environment, secret, or Production-data snapshot. Historical rollback refs are preserved unchanged and remain emergency/historical options requiring fresh compatibility and security review before any actual rollback.
 
 | Field | Authoritative value |
 | --- | --- |
-| Current rollback checkpoint | rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 |
-| Rollback SHA | 0951d4ce08de817dda7b986924232e86e745b532 |
-| Associated Production release | G03.1 — ANNUAL LEAVE QUOTA ROLLOVER V1 |
-| Checkpoint deployment (historical prior Canonical) | dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs |
-| Checkpoint status | CURRENT EXISTING / VERIFIED / SECURITY-REGRESSIVE FOR G04 APPLICATION ROLLBACK |
+| Current rollback checkpoint | rollback/g04-1-registration-otp-duplicate-guard-v1-prod-2026-08-17 |
+| Rollback ref type | ANNOTATED TAG |
+| Rollback SHA | e5619a67e5be807f3fba825d889e73bc49c5361a |
+| Rollback tree | b38bc7d6d3f6b6ed416996bd3edd99891918fd12 |
+| Associated Production release | G04.1 — REGISTRATION OTP RESEND + DUPLICATE ACCOUNT GUARD |
+| Checkpoint deployment | dpl_5xoKguECTunJvrUFTKrhbXenGuqu |
+| Checkpoint status | CURRENT PREFERRED NORMAL / REMOTE VERIFIED / APPLICATION IDENTITY ONLY |
 | Created / verified date | 2026-08-17 |
-| Previous rollback checkpoint | rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 |
-| Previous rollback SHA | 1701bcf90a1998ea4999ee02e687172295984c9a |
-| Earlier rollback checkpoint | rollback/admin-rbac-surface-alignment-v1-prod-2026-08-16 |
-| Earlier rollback SHA | 148c7b8ab17698c011008335c23b99895bba7bf8 |
+| Previous rollback checkpoint | rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 |
+| Previous rollback SHA | 0951d4ce08de817dda7b986924232e86e745b532 |
+| Earlier rollback checkpoint | rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 |
+| Earlier rollback SHA | 1701bcf90a1998ea4999ee02e687172295984c9a |
+| Earlier preserved checkpoint | rollback/admin-rbac-surface-alignment-v1-prod-2026-08-16 |
+| Earlier preserved SHA | 148c7b8ab17698c011008335c23b99895bba7bf8 |
 
 ### Current health and release validation
 
@@ -122,7 +126,7 @@ The current existing rollback checkpoint remains the verified G03.1 Production c
 
 G04.1 — PROMOTED / PRODUCTION VERIFIED
 
-G04.1 is now the exact Canonical Production release at dpl_5xoKguECTunJvrUFTKrhbXenGuqu / e5619a67e5be807f3fba825d889e73bc49c5361a. Promotion reused the existing immutable deployment with no rebuild, new deployment, migration, or env mutation. The existing rollback checkpoint remains unchanged. G03.1 was not mutated; its last authoritative DB proof remains ACTIVE / raw true, while a fresh DB re-query was not provable in this task. Controlled registration UAT is the next approval-scoped validation gate; G05 remains OPEN / NOT STARTED.
+G04.1 is now the exact Canonical Production release at dpl_5xoKguECTunJvrUFTKrhbXenGuqu / e5619a67e5be807f3fba825d889e73bc49c5361a. Promotion reused the existing immutable deployment with no rebuild, new deployment, migration, or env mutation. The preferred normal application rollback checkpoint is now rollback/g04-1-registration-otp-duplicate-guard-v1-prod-2026-08-17, remotely verified to the same SHA/tree; no actual rollback, migration, env mutation, or Production-data mutation occurred during checkpoint creation. G03.1 was not mutated; its last authoritative DB proof remains ACTIVE / raw true, while a fresh DB re-query was not provable in the Promotion task. Controlled registration UAT is the next approval-scoped validation gate; G05 remains OPEN / NOT STARTED.
 
 ---
 
@@ -173,7 +177,7 @@ environment topology not stated above are UNKNOWN.
 | Settings/admin | PARTIAL | Administrative surfaces exist; full acceptance is not reconstructed |
 | Cron/background jobs | PARTIAL | Lifecycle scheduling and operational automation evidence remain incomplete |
 | Storage/documents | PARTIAL | Document behavior is validated; G05 remains open |
-| Production recovery | PARTIAL | G04 exact Promotion is verified; the existing G03.1 checkpoint is preserved but is security-regressive for G04 application rollback; a G04 checkpoint requires separate owner approval |
+| Production recovery | PARTIAL | G04.1 exact Promotion and preferred application rollback checkpoint are verified; actual rollback remains separately approval-gated and requires fresh compatibility/security inspection |
 | Automated testing/UAT | COMPLETE | Technical, targeted, and Full Auth evidence is recorded |
 
 ---
@@ -457,7 +461,7 @@ coverage remains P2 item G12.
 - Runtime: post-promotion critical 5xx 0; error-level logs 0; secret/password log matches 0
 - Migration during Promotion: 0; env mutation during Promotion: 0
 - Previous Canonical: dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 / 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
-- Existing rollback checkpoint: UNCHANGED; no checkpoint created or changed in this task
+- Preferred rollback checkpoint: rollback/g04-1-registration-otp-duplicate-guard-v1-prod-2026-08-17 — CREATED / REMOTE VERIFIED; annotated tag peels to e5619a67e5be807f3fba825d889e73bc49c5361a / tree b38bc7d6d3f6b6ed416996bd3edd99891918fd12; application identity only; actual rollback NO
 - G03.1: no mutation by Promotion; last authoritative DB proof ACTIVE / raw true (run 31999063040); fresh DB re-query NOT PROVABLE in this task
 - Controlled live registration UAT: NOT YET SUBMITTED after post-promotion UAT baseline
 
@@ -609,7 +613,7 @@ They remain explicit design or acceptance debt.
 
 The following items remain open or require separate operational evidence:
 
-- G03, G03.1, G04, and G04.1 are Production verified. G05 remains OPEN / NOT STARTED; a G04.1 Production rollback checkpoint remains a separate owner-authorized recovery hardening action.
+- G03, G03.1, G04, and G04.1 are Production verified. The G04.1 preferred normal application rollback checkpoint is created and remotely verified; actual rollback remains separately approval-gated. G05 remains OPEN / NOT STARTED.
 - G06–G12 require owner decisions or evidence according to their individual
   scope.
 - Backup and restore evidence is not replaced by the current rollback
@@ -640,12 +644,10 @@ NOT RECOVERABLE, not silently approved.
 
 ## Section 18 — Next Recommended Development Sequence
 
-1. G04.1 — PRODUCTION ROLLBACK CHECKPOINT (SEPARATE OWNER APPROVAL)
-   - Create a checkpoint bound to e5619a67e5be807f3fba825d889e73bc49c5361a only under separate Owner authorization.
-2. G05 — LICENSE DOCUMENT DELETE AUDIT TOMBSTONE
+1. G05 — LICENSE DOCUMENT DELETE AUDIT TOMBSTONE
    - Preserve non-sensitive deletion history without preserving private files.
-3. Complete the P2 final acceptance items G06–G12.
-4. Apply a feature freeze to the current V3 core.
+2. Complete the P2 final acceptance items G06–G12.
+3. Apply a feature freeze to the current V3 core.
 
 ---
 
@@ -674,4 +676,5 @@ These are substantial future platform expansions. They do not block current SMS 
 | 2026-08-17 | G03 Leave Quota Provisioning V1 promoted to exact Canonical Production deployment dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL; post-health/readiness/runtime verified; G03 CLOSED; prior Canonical preserved; rollback checkpoint unchanged. |
 | 2026-08-17 | Created and remotely verified rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 at exact Production SHA 1701bcf90a1998ea4999ee02e687172295984c9a; previous admin-RBAC rollback checkpoint preserved; Canonical and Production remained unchanged. |
 | 2026-08-17 | G04 Private Registration Request + Admin-Assisted Matching + Controlled Role Activation V1 promoted to exact existing Canonical deployment dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 at SHA 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e; Focused Auth run 32014142772 and Promotion run 32016084335 verified privacy/RBAC, HTTP 201 Promotion, health/readiness/runtime, zero task-attributable business writes, unchanged G03.1 activation, and unchanged rollback checkpoint. |
-| 2026-08-17 | G04.1 Registration OTP Resend + Duplicate Account Guard promoted by reusing exact existing deployment dpl_5xoKguECTunJvrUFTKrhbXenGuqu at SHA e5619a67e5be807f3fba825d889e73bc49c5361a; Promotion run 32041575770 / job 95421737298 executed one Promotion action; Canonical identity, health 3/3, readiness 3/3, CORS, anonymous security, and runtime checks passed; no new deployment, rebuild, migration, env mutation, or rollback checkpoint change. |
+| 2026-08-17 | G04.1 Registration OTP Resend + Duplicate Account Guard promoted by reusing exact existing deployment dpl_5xoKguECTunJvrUFTKrhbXenGuqu at SHA e5619a67e5be807f3fba825d889e73bc49c5361a; Promotion run 32041575770 / job 95421737298 executed one Promotion action; Canonical identity, health 3/3, readiness 3/3, CORS, anonymous security, and runtime checks passed; no new deployment, rebuild, migration, or env mutation. |
+| 2026-08-17 | Created annotated rollback tag rollback/g04-1-registration-otp-duplicate-guard-v1-prod-2026-08-17; remote tag object verified to peel to application SHA e5619a67e5be807f3fba825d889e73bc49c5361a / tree b38bc7d6d3f6b6ed416996bd3edd99891918fd12 / Production deployment dpl_5xoKguECTunJvrUFTKrhbXenGuqu. Historical rollback refs preserved; Canonical unchanged; no new application deployment, Promotion, migration, env mutation, Production-data mutation, or actual rollback. |
