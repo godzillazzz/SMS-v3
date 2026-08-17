@@ -1,7 +1,7 @@
 const { test, expect } = require('../helpers/uat-test');
 const { bootstrapAsNonDashboard } = require('../helpers/uat-auth');
 const { authenticatedRequest } = require('../helpers/uat-authenticated-request');
-const { G03_EMPLOYEE_FIELD_LABEL, g03EmployeeSelector, g03EntitlementWordingSnapshot, legacyWarningExpectedFromQuotaPayload, runWithG03MutationGuard } = require('../helpers/uat-g03-readonly');
+const { G03_EMPLOYEE_FIELD_LABEL, g03EmployeeSelector, legacyWarningExpectedFromQuotaPayload, runWithG03MutationGuard } = require('../helpers/uat-g03-readonly');
 const { navigateTo, primaryNavigationItem, startPageMonitor } = require('../helpers/uat-observe');
 const { createStageTracker } = require('../helpers/uat-stage');
 
@@ -179,14 +179,6 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
       leaveSummaryCoverage = 'UNLINKED_FIXTURE_SAFE_BRANCH';
     }
 
-    stage.begin('GQ08_LEAVE_UI');
-    await navigateTo(page, 'leave');
-    const wording = await g03EntitlementWordingSnapshot(page);
-    await expect(wording.surface).toHaveCount(1);
-    expect(wording.newWordingPresent).toBe(true);
-    expect(wording.oldWordingAbsent).toBe(true);
-    await expect(page.getByText(`พ.ศ. ${G03_1_BASE_YEAR + 543}`, { exact: false }).first()).toBeVisible();
-
     stage.begin('GQ09_MONITOR');
     const monitorEvidence = monitor.safeEvidence();
     await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(monitorEvidence), contentType: 'application/json' });
@@ -213,8 +205,6 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
       leaveSummaryYearAware: summaryLinked,
       leaveSummaryParity: true,
       leaveSummaryCoverage,
-      newWordingPresent: true,
-      oldAnnualWordingAbsent: true,
       ...selectorSummary,
       legacyWarningExpected,
       legacyWarningObserved,

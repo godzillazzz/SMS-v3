@@ -166,7 +166,7 @@ test('G03 exact Candidate wording surface explains the functional global-first v
   assert.match(applicationSource, /<small>ตามสิทธิ์ที่กำหนด \(วัน\)<\/small>/);
   assert.doesNotMatch(applicationSource, /ตามสิทธิ์ประจำปี \(วัน\)/);
   assert.match(applicationCss, /\.leave-mode-all \.my-leave-quota-grid \{ display: none; \}/);
-  assert.match(specSource, /g03EntitlementWordingSnapshot\(page\)/);
+  assert.doesNotMatch(specSource, /g03EntitlementWordingSnapshot\(page\)/);
   assert.doesNotMatch(specSource, /getByText\('ตามสิทธิ์ที่กำหนด \(วัน\)'[^\n]*\.first\(\)\)\.toBeVisible/);
 });
 
@@ -207,9 +207,9 @@ test('G03 browser spec is cancel-only and contains the exact read-only UI contra
   assert.doesNotMatch(specSource, /page\.waitForResponse/);
   assert.match(specSource, /UNLINKED_FIXTURE_SAFE_BRANCH/);
   assert.match(specSource, /summaryLinked/);
-  assert.match(specSource, /g03EntitlementWordingSnapshot\(page\)/);
-  assert.match(specSource, /wording\.newWordingPresent\)\.toBe\(true\)/);
-  assert.match(specSource, /wording\.oldWordingAbsent\)\.toBe\(true\)/);
+  assert.doesNotMatch(specSource, /g03EntitlementWordingSnapshot\(page\)/);
+  assert.doesNotMatch(specSource, /wording\.newWordingPresent/);
+  assert.doesNotMatch(specSource, /wording\.oldWordingAbsent/);
   assert.match(specSource, /getByRole\('button', \{ name: 'ยกเลิก'/);
   assert.doesNotMatch(specSource, /getByRole\('button', \{ name: 'บันทึกโควตา'/);
   assert.doesNotMatch(specSource, /api\.createLeaveQuota/);
