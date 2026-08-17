@@ -1,4 +1,4 @@
-name: Diagnose sms-v3-staging Production Database
+name: g04-focused-authenticated-uat-v1
 
 on:
   workflow_dispatch:
@@ -6,44 +6,285 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: sms-v3-g04-focused-authenticated-uat-v1
+  cancel-in-progress: false
+
+env:
+  EXPECTED_TRUSTED_HARNESS_SHA: a561b3bf6884c9d464aaba57b5974dff1f37c2b6
+  EXPECTED_CANDIDATE_SHA: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+  EXPECTED_CANDIDATE_TREE: c58a842dd0d6cfa4f3efca352769671012c2ba9a
+  EXPECTED_CANDIDATE_PARENT: 0951d4ce08de817dda7b986924232e86e745b532
+  EXPECTED_SOURCE_BRANCH: feat/private-registration-request-v1
+  EXPECTED_STAGED_DEPLOYMENT: dpl_7KcuwssKHDKDeJanhTVYVWSQotP6
+  EXPECTED_STAGED_URL: https://sms-v3-staging-2vshbm489-godzillazz.vercel.app
+  EXPECTED_CANONICAL_DEPLOYMENT: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs
+  EXPECTED_CANONICAL_SHA: 0951d4ce08de817dda7b986924232e86e745b532
+  EXPECTED_ROLLBACK_REF: rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17
+  EXPECTED_MASTER_REF: codex/docs-reconstruct-master-handover-v1
+  EXPECTED_MASTER_SHA: 1af39ca540624245bff78e82baa89dfbdb325d80
+  EXPECTED_HARNESS_REF: test/automated-uat-v3-authenticated
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_MIGRATION: 202608170002_g04_private_registration_request
+  VERCEL_CLI_VERSION: 56.4.1
+  UAT_BASE_URL: https://sms-v3-staging-2vshbm489-godzillazz.vercel.app
+  UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
+  UAT_MODE: authenticated
+  G04_AUTH_STATE_FILE: /tmp/g04-focused-auth-state.json
+  G04_RUNTIME_ENV_FILE: /tmp/g04-focused-auth-runtime.env
+
 jobs:
-  diagnose:
+  focused-authenticated-uat:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment:
-      name: production-sms-v3-staging
+    timeout-minutes: 25
+    environment: production-sms-v3-staging
     env:
+      NODE_ENV: production
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+      UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+      UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+      UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
+      UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+      UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
+      UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout bounded focused Auth Harness
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Verify trusted Harness parent scope and no-deploy contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_TRUSTED_HARNESS_SHA"
+          changed="$(git diff --name-only HEAD^ HEAD | sort)"
+          expected="$(printf '%s\n' '.github/workflows/diagnose-production-database.yml' 'scripts/ci/g04-focused-auth-runner.js' 'scripts/ci/g04-focused-auth-state.js' 'vercel.json' | sort)"
+          test "$changed" = "$expected"
+          node -e "const v=require('./vercel.json'); if(v.git?.deploymentEnabled?.['ci/g04-focused-auth-uat-v1']!==false) process.exit(1)"
+          if grep -Ev 'grep -Eiq|G04_FOCUSED_AUTH_FORBIDDEN_COMMAND_OR_LOGIN_ENDPOINT' .github/workflows/diagnose-production-database.yml | grep -Eiq 'vercel(@[^ ]+)?[[:space:]]+(deploy|build)|prisma[[:space:]]+migrate[[:space:]]+deploy'; then
+            echo 'G04_FOCUSED_AUTH_FORBIDDEN_COMMAND_OR_LOGIN_ENDPOINT'
+            exit 1
+          fi
+          if grep -Eiq '/api/v1/auth/login' scripts/ci/g04-focused-auth-*.js; then
+            echo 'G04_FOCUSED_AUTH_FORBIDDEN_COMMAND_OR_LOGIN_ENDPOINT'
+            exit 1
+          fi
+          echo 'G04_FOCUSED_AUTH_HARNESS_SCOPE=PASS'
+          echo 'G04_FOCUSED_AUTH_DEPLOY_COMMANDS=0'
+          echo 'G04_FOCUSED_AUTH_LOGIN_ENDPOINT_CALLS_STATIC=0'
+
+      - name: Checkout exact G04 Application under test
+        uses: actions/checkout@v4
+        with:
+          ref: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+          fetch-depth: 2
+          path: application-under-test
+
+      - name: Verify exact Candidate immutable identity and protected refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C application-under-test rev-parse HEAD)" = "$EXPECTED_CANDIDATE_SHA"
+          test "$(git -C application-under-test show -s --format=%T HEAD)" = "$EXPECTED_CANDIDATE_TREE"
+          test "$(git -C application-under-test rev-parse HEAD^)" = "$EXPECTED_CANDIDATE_PARENT"
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_SOURCE_BRANCH" | cut -f1)" = "$EXPECTED_CANDIDATE_SHA"
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_HARNESS_REF" | cut -f1)" = "$EXPECTED_TRUSTED_HARNESS_SHA"
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_MASTER_REF" | cut -f1)" = "$EXPECTED_MASTER_SHA"
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_ROLLBACK_REF" | cut -f1)" = "$EXPECTED_CANONICAL_SHA"
+          echo 'G04_FOCUSED_AUTH_APPLICATION_IDENTITY=PASS'
+          echo 'G04_FOCUSED_AUTH_TRUSTED_HARNESS_UNCHANGED=YES'
+          echo 'G04_FOCUSED_AUTH_MASTER_UNCHANGED=YES'
+          echo 'G04_FOCUSED_AUTH_ROLLBACK_UNCHANGED=YES'
+
+      - name: Set up Node runtime
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Install dependencies
+
+      - name: Install focused validation dependencies only
+        shell: bash
         run: |
-          npm ci --include=dev
-      - name: Pull Vercel environment variables
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          set -euo pipefail
+          npm ci --include=dev --ignore-scripts
+          npx --no-install prisma generate
+          npx playwright install --with-deps chromium
+          node --check scripts/ci/g04-focused-auth-state.js
+          node --check scripts/ci/g04-focused-auth-runner.js
+          echo 'G04_FOCUSED_AUTH_DEPENDENCIES=PASS'
+
+      - name: Verify exact staged deployment Canonical and no additional Candidate deployment
+        shell: bash
         run: |
-          npx --yes vercel@56.4.1 pull --yes --environment=production --token "$VERCEL_TOKEN"
-      - name: Run Local Authentication Debug
+          set -euo pipefail
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          staged=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" api "/v13/deployments/$EXPECTED_STAGED_DEPLOYMENT?teamId=$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$staged" 2>/dev/null
+          node - "$staged" <<'NODE'
+          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha||d?.gitSource?.sha||d?.source?.sha;
+          const url=`https://${d.url}`;
+          if(d.id!==process.env.EXPECTED_STAGED_DEPLOYMENT||url!==process.env.EXPECTED_STAGED_URL||d.name!==process.env.EXPECTED_PROJECT_NAME||d.target!=='production'||d.readyState!=='READY'||sha!==process.env.EXPECTED_CANDIDATE_SHA) throw new Error('G04_FOCUSED_AUTH_IDENTITY_FAILED');
+          console.log('G04_FOCUSED_AUTH_STAGED_DEPLOYMENT=READY_EXACT');
+          NODE
+          canonical=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" api "/v13/deployments/$EXPECTED_CANONICAL_DEPLOYMENT?teamId=$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical" 2>/dev/null
+          node - "$canonical" <<'NODE'
+          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha;
+          if(d.id!==process.env.EXPECTED_CANONICAL_DEPLOYMENT||d.target!=='production'||d.readyState!=='READY'||sha!==process.env.EXPECTED_CANONICAL_SHA) throw new Error('G04_FOCUSED_AUTH_CANONICAL_CHANGED');
+          console.log('G04_FOCUSED_AUTH_CANONICAL_PRE=UNCHANGED');
+          NODE
+          prod=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" list "$EXPECTED_PROJECT_NAME" --environment production --format json --limit 100 --token "$VERCEL_TOKEN" >"$prod" 2>/dev/null
+          node - "$prod" <<'NODE'
+          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); const items=Array.isArray(d)?d:(d.deployments||[]);
+          const matches=items.filter(x=>(x?.meta?.githubCommitSha||x?.meta?.gitCommitSha)===process.env.EXPECTED_CANDIDATE_SHA);
+          if(matches.length!==1) throw new Error('G04_FOCUSED_AUTH_CANDIDATE_DEPLOYMENT_COUNT_INVALID');
+          console.log('G04_FOCUSED_AUTH_CANDIDATE_DEPLOYMENT_COUNT_PRE=1');
+          NODE
+          helper=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" list "$EXPECTED_PROJECT_NAME" --format json --limit 100 -m githubCommitRef=ci/g04-focused-auth-uat-v1 --token "$VERCEL_TOKEN" >"$helper" 2>/dev/null
+          node - "$helper" <<'NODE'
+          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); const items=Array.isArray(d)?d:(d.deployments||[]);
+          if(items.length!==0) throw new Error('G04_FOCUSED_AUTH_HELPER_DEPLOYMENT_DETECTED');
+          console.log('G04_FOCUSED_AUTH_HELPER_DEPLOYMENTS=0');
+          NODE
+
+      - name: Verify protected Production database target
+        shell: bash
         run: |
-          node scripts/ci/debug-auth.js
-      - name: Run UAT Verification
+          set -euo pipefail
+          node application-under-test/scripts/ci/verify-deployment-target.js --verify
+
+      - name: Pull staged-compatible Production auth configuration read-only
+        shell: bash
         run: |
-          node scripts/ci/run-uat-with-db.js
-      - name: Fetch Vercel staging logs
+          set -euo pipefail
+          staged_meta=$(mktemp)
+          env_meta=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" api "/v13/deployments/$EXPECTED_STAGED_DEPLOYMENT?teamId=$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$staged_meta" 2>/dev/null
+          npx --yes vercel@"$VERCEL_CLI_VERSION" api "/v10/projects/$EXPECTED_PROJECT_ID/env?teamId=$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$env_meta" 2>/dev/null
+          node - "$staged_meta" "$env_meta" <<'NODE'
+          const fs=require('node:fs');
+          const staged=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const project=JSON.parse(fs.readFileSync(process.argv[3],'utf8'));
+          const envs=Array.isArray(project.envs)?project.envs:[];
+          const keys=['JWT_SECRET','JWT_ALGORITHM','JWT_ISSUER','JWT_AUDIENCE'];
+          const targetsProduction=(row)=>Array.isArray(row.target)?row.target.includes('production'):row.target==='production';
+          const relevant=envs.filter((row)=>keys.includes(row.key)&&targetsProduction(row));
+          const secrets=relevant.filter((row)=>row.key==='JWT_SECRET');
+          if(secrets.length!==1) throw new Error('G04_AUTH_PRODUCTION_JWT_SECRET_METADATA_INVALID');
+          for(const key of keys.filter((value)=>value!=='JWT_SECRET')) {
+            if(relevant.filter((row)=>row.key===key).length>1) throw new Error(`G04_AUTH_${key}_METADATA_AMBIGUOUS`);
+          }
+          const created=Number(staged.createdAt);
+          if(!Number.isFinite(created)||created<=0) throw new Error('G04_AUTH_STAGED_CREATED_AT_INVALID');
+          for(const row of relevant) {
+            const latest=Math.max(Number(row.createdAt||0),Number(row.updatedAt||0));
+            if(!Number.isFinite(latest)||latest<=0||latest>created) throw new Error(`G04_AUTH_${row.key}_CHANGED_AFTER_STAGED_DEPLOYMENT`);
+          }
+          console.log('G04_FOCUSED_AUTH_ENV_METADATA_BOUND_TO_STAGED=PASS');
+          console.log('G04_FOCUSED_AUTH_PRODUCTION_JWT_SECRET_METADATA=UNCHANGED_SINCE_STAGED');
+          NODE
+          rm -f "$G04_RUNTIME_ENV_FILE" /tmp/g04-auth-env-pull.log
+          npx --yes vercel@"$VERCEL_CLI_VERSION" env pull "$G04_RUNTIME_ENV_FILE" --environment production --project "$EXPECTED_PROJECT_ID" --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" --yes >/tmp/g04-auth-env-pull.log 2>&1
+          test -s "$G04_RUNTIME_ENV_FILE"
+          chmod 600 "$G04_RUNTIME_ENV_FILE"
+          node - "$G04_RUNTIME_ENV_FILE" <<'NODE'
+          const fs=require('node:fs'); const dotenv=require('dotenv'); const e=dotenv.parse(fs.readFileSync(process.argv[2],'utf8'));
+          if(!e.JWT_SECRET||e.JWT_SECRET.length<32) throw new Error('G04_AUTH_JWT_SECRET_MISSING');
+          if((e.JWT_ALGORITHM||'HS256')!=='HS256') throw new Error('G04_AUTH_JWT_ALGORITHM_UNEXPECTED');
+          if((e.JWT_ISSUER||'smsv3-api')!=='smsv3-api') throw new Error('G04_AUTH_JWT_ISSUER_UNEXPECTED');
+          if((e.JWT_AUDIENCE||'smsv3-clients')!=='smsv3-clients') throw new Error('G04_AUTH_JWT_AUDIENCE_UNEXPECTED');
+          console.log('G04_FOCUSED_AUTH_RUNTIME_AUTH_CONFIG=AVAILABLE');
+          NODE
+          rm -f "$staged_meta" "$env_meta" /tmp/g04-auth-env-pull.log
+
+      - name: Pre-UAT read-only snapshot validate fixtures and mint zero-write sessions
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "UAT_START_ISO=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+          DATABASE_URL="$DIRECT_URL" node scripts/ci/g04-focused-auth-state.js pre
+
+      - name: Run G04 focused authenticated role and privacy contract only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/g04-focused-auth-runner.js
+
+      - name: Post-UAT zero-write Production guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATABASE_URL="$DIRECT_URL" node scripts/ci/g04-focused-auth-state.js check
+          echo 'G04_FOCUSED_AUTH_REGISTRATION_REQUEST_WRITES=0'
+          echo 'G04_FOCUSED_AUTH_USER_WRITES=0'
+          echo 'G04_FOCUSED_AUTH_EMPLOYEE_WRITES=0'
+          echo 'G04_FOCUSED_AUTH_USER_EMPLOYEE_LINK_WRITES=0'
+          echo 'G04_FOCUSED_AUTH_ROLE_ACCOUNTSTATUS_WRITES=0'
+          echo 'G04_FOCUSED_AUTH_OTHER_BUSINESS_WRITES=0'
+          echo 'G04_FOCUSED_AUTH_MIGRATION_WRITES=0'
+
+      - name: Exact staged health readiness runtime and final preservation gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          H="x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET"
+          code="$(curl -sS -L -o /tmp/g04-auth-health.json -w '%{http_code}' -H "$H" "$EXPECTED_STAGED_URL/api/v1/health")"
+          test "$code" = "200"
+          node -e "const x=require('/tmp/g04-auth-health.json'); if(x.status!=='ok')process.exit(1)"
+          echo 'G04_FOCUSED_AUTH_HEALTH=200_OK'
+          for n in 1 2 3; do
+            code="$(curl -sS -L -o "/tmp/g04-auth-ready-$n.json" -w '%{http_code}' -H "$H" "$EXPECTED_STAGED_URL/api/v1/ready")"
+            test "$code" = "200"
+            node -e "const x=require('/tmp/g04-auth-ready-$n.json'); if(x.status!=='ready'||x.database!=='ok')process.exit(1)"
+          done
+          echo 'G04_FOCUSED_AUTH_READY=3/3'
+
+          logs=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" logs --deployment "$EXPECTED_STAGED_DEPLOYMENT" --since "$UAT_START_ISO" --limit 350 --json --no-branch --token "$VERCEL_TOKEN" >"$logs" 2>/dev/null
+          critical="$(grep -Eic 'P2021|P2022|P2024|P2028|PrismaClientInitializationError|Prisma (initialization|init)|schema mismatch|unknown (table|column)|pool timeout|connection timeout|transaction timeout|ReferenceError|Runtime Timeout|UnhandledPromiseRejection|fatal initialization|"statusCode"[[:space:]]*:[[:space:]]*(500|503|504)|HTTP (500|503|504)' "$logs" || true)"
+          test "$critical" = "0"
+          echo 'G04_FOCUSED_AUTH_RUNTIME_CRITICAL=0'
+
+          staged=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" api "/v13/deployments/$EXPECTED_STAGED_DEPLOYMENT?teamId=$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$staged" 2>/dev/null
+          node - "$staged" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha;if(d.id!==process.env.EXPECTED_STAGED_DEPLOYMENT||d.target!=='production'||d.readyState!=='READY'||sha!==process.env.EXPECTED_CANDIDATE_SHA)throw new Error('G04_FOCUSED_AUTH_STAGED_CHANGED');console.log('G04_FOCUSED_AUTH_STAGED_FINAL=READY_EXACT');
+          NODE
+          prod=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" list "$EXPECTED_PROJECT_NAME" --environment production --format json --limit 100 --token "$VERCEL_TOKEN" >"$prod" 2>/dev/null
+          node - "$prod" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));const items=Array.isArray(d)?d:(d.deployments||[]);const matches=items.filter(x=>(x?.meta?.githubCommitSha||x?.meta?.gitCommitSha)===process.env.EXPECTED_CANDIDATE_SHA);if(matches.length!==1)throw new Error('G04_FOCUSED_AUTH_NEW_DEPLOYMENT_DETECTED');console.log('G04_FOCUSED_AUTH_NEW_CANDIDATE_DEPLOYMENT=0');
+          NODE
+          canonical=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" api "/v13/deployments/$EXPECTED_CANONICAL_DEPLOYMENT?teamId=$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical" 2>/dev/null
+          node - "$canonical" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha;if(d.id!==process.env.EXPECTED_CANONICAL_DEPLOYMENT||d.target!=='production'||d.readyState!=='READY'||sha!==process.env.EXPECTED_CANONICAL_SHA)throw new Error('G04_FOCUSED_AUTH_CANONICAL_CHANGED');console.log('G04_FOCUSED_AUTH_CANONICAL_FINAL=UNCHANGED');
+          NODE
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_HARNESS_REF" | cut -f1)" = "$EXPECTED_TRUSTED_HARNESS_SHA"
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_MASTER_REF" | cut -f1)" = "$EXPECTED_MASTER_SHA"
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_ROLLBACK_REF" | cut -f1)" = "$EXPECTED_CANONICAL_SHA"
+          echo 'G04_FOCUSED_AUTH_PROMOTION=NO'
+          echo 'G04_FOCUSED_AUTH_MASTER_UPDATED=NO'
+          echo 'G04_FOCUSED_AUTH_ROLLBACK_CHANGED=NO'
+          echo 'G04_FOCUSED_AUTH_G05=NOT_STARTED'
+
+      - name: Remove ephemeral auth material
         if: always()
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        shell: bash
         run: |
-          npx --yes vercel@56.4.1 logs --project sms-v3-staging --environment production --token "$VERCEL_TOKEN" --limit 50
+          rm -f "$G04_RUNTIME_ENV_FILE" "$G04_AUTH_STATE_FILE" /tmp/g04-auth-env-pull.log
+          node -e "require('./e2e/helpers/uat-session').clearRoleSessions()" || true
