@@ -1,30 +1,31 @@
+/* G04.2 UX-01 — one semantic action/status vocabulary. Legacy class names are retained for compatibility. */
 :root {
-  --sms-action-primary: #2563eb;
-  --sms-action-primary-hover: #1d4ed8;
-  --sms-action-primary-active: #1e40af;
-  --sms-action-success: #15803d;
-  --sms-action-success-hover: #166534;
-  --sms-action-warning: #b45309;
-  --sms-action-warning-hover: #92400e;
-  --sms-action-attention: #c2410c;
-  --sms-action-danger: #b91c1c;
-  --sms-action-danger-hover: #991b1b;
-  --sms-action-neutral: #475569;
-  --sms-action-neutral-border: #cbd5e1;
-  --sms-action-neutral-hover: #f1f5f9;
-  --sms-focus-ring: 0 0 0 3px rgba(37, 99, 235, .28);
-  --sms-status-approved-bg: #dcfce7;
-  --sms-status-approved-text: #15803d;
-  --sms-status-pending-bg: #fef3c7;
-  --sms-status-pending-text: #b45309;
-  --sms-status-attention-bg: #ffedd5;
-  --sms-status-attention-text: #c2410c;
-  --sms-status-danger-bg: #fee2e2;
-  --sms-status-danger-text: #b91c1c;
-  --sms-status-neutral-bg: #f1f5f9;
-  --sms-status-neutral-text: #475569;
-  --sms-status-info-bg: #eff6ff;
-  --sms-status-info-text: #1d4ed8;
+  --sms-action-primary: var(--color-primary);
+  --sms-action-primary-hover: var(--color-primary-hover);
+  --sms-action-primary-active: var(--color-primary-active);
+  --sms-action-success: var(--color-success);
+  --sms-action-success-hover: var(--color-success);
+  --sms-action-warning: var(--color-warning);
+  --sms-action-warning-hover: var(--color-warning);
+  --sms-action-attention: var(--color-attention);
+  --sms-action-danger: var(--color-danger);
+  --sms-action-danger-hover: var(--color-danger);
+  --sms-action-neutral: var(--color-text-secondary);
+  --sms-action-neutral-border: var(--color-border-strong);
+  --sms-action-neutral-hover: var(--color-surface-muted);
+  --sms-focus-ring: var(--focus-ring);
+  --sms-status-approved-bg: var(--color-success-soft);
+  --sms-status-approved-text: var(--color-success);
+  --sms-status-pending-bg: var(--color-warning-soft);
+  --sms-status-pending-text: var(--color-warning);
+  --sms-status-attention-bg: var(--color-attention-soft);
+  --sms-status-attention-text: var(--color-attention);
+  --sms-status-danger-bg: var(--color-danger-soft);
+  --sms-status-danger-text: var(--color-danger);
+  --sms-status-neutral-bg: var(--color-neutral-soft);
+  --sms-status-neutral-text: var(--color-text-secondary);
+  --sms-status-info-bg: var(--color-info-soft);
+  --sms-status-info-text: var(--color-info);
 }
 
 button.btn-primary,
@@ -39,137 +40,108 @@ button.btn-neutral,
 button.btn-ghost,
 button.btn-icon-only,
 button.danger-action {
-  min-height: 40px;
-  border-radius: 8px;
+  min-height: var(--control-height);
+  border-radius: var(--radius-sm);
   font: inherit;
-  font-weight: 700;
+  font-weight: var(--font-weight-semibold);
   transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease;
 }
 
 button.btn-primary,
 button.btn-info {
-  color: #fff;
-  background: var(--sms-action-primary);
-  border: 1px solid var(--sms-action-primary);
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
 }
 
 button.btn-primary:hover:not(:disabled),
 button.btn-info:hover:not(:disabled) {
-  background: var(--sms-action-primary-hover);
-  border-color: var(--sms-action-primary-hover);
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+button.btn-primary:active:not(:disabled),
+button.btn-info:active:not(:disabled) {
+  background: var(--color-primary-active);
+  border-color: var(--color-primary-active);
 }
 
 button.btn-secondary,
 button.btn-info-outline,
-button.btn-outline {
-  color: var(--sms-action-primary);
-  background: #fff;
-  border: 1px solid var(--sms-action-primary);
+button.btn-outline,
+button.btn-neutral {
+  color: var(--color-text-secondary);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border-strong);
 }
 
 button.btn-secondary:hover:not(:disabled),
 button.btn-info-outline:hover:not(:disabled),
-button.btn-outline:hover:not(:disabled) {
-  color: var(--sms-action-primary-active);
-  background: var(--sms-status-info-bg);
-  border-color: var(--sms-action-primary-hover);
+button.btn-outline:hover:not(:disabled),
+button.btn-neutral:hover:not(:disabled) {
+  color: var(--color-primary-hover);
+  background: var(--color-primary-soft);
+  border-color: color-mix(in srgb, var(--color-primary) 44%, var(--color-border-strong));
 }
 
 button.btn-success {
-  color: #fff;
-  background: var(--sms-action-success);
-  border: 1px solid var(--sms-action-success);
-}
-
-button.btn-success:hover:not(:disabled) {
-  background: var(--sms-action-success-hover);
-  border-color: var(--sms-action-success-hover);
+  color: var(--color-text-inverse);
+  background: var(--color-success);
+  border: 1px solid var(--color-success);
 }
 
 button.btn-warning {
-  color: #fff;
-  background: var(--sms-action-warning);
-  border: 1px solid var(--sms-action-warning);
-}
-
-button.btn-warning:hover:not(:disabled) {
-  background: var(--sms-action-warning-hover);
-  border-color: var(--sms-action-warning-hover);
+  color: var(--color-text-inverse);
+  background: var(--color-warning);
+  border: 1px solid var(--color-warning);
 }
 
 button.btn-danger-outline,
 button.danger-action {
-  color: var(--sms-action-danger);
+  color: var(--color-danger);
   background: transparent;
-  border: 1px solid var(--sms-action-danger);
+  border: 1px solid var(--color-danger);
 }
 
 button.btn-danger-outline:hover:not(:disabled),
 button.danger-action:hover:not(:disabled) {
-  color: var(--sms-action-danger-hover);
-  background: var(--sms-status-danger-bg);
-  border-color: var(--sms-action-danger-hover);
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger);
 }
 
 button.btn-danger {
-  color: #fff;
-  background: var(--sms-action-danger);
-  border: 1px solid var(--sms-action-danger);
-}
-
-button.btn-danger:hover:not(:disabled) {
-  background: var(--sms-action-danger-hover);
-  border-color: var(--sms-action-danger-hover);
-}
-
-button.btn-neutral {
-  color: var(--sms-action-neutral);
-  background: #fff;
-  border: 1px solid var(--sms-action-neutral-border);
-}
-
-button.btn-neutral:hover:not(:disabled) {
-  background: var(--sms-action-neutral-hover);
-  border-color: #94a3b8;
+  color: var(--color-text-inverse);
+  background: var(--color-danger);
+  border: 1px solid var(--color-danger);
 }
 
 button.btn-ghost,
 button.btn-icon-only {
-  color: var(--sms-action-neutral);
+  color: var(--color-text-secondary);
   background: transparent;
   border: 1px solid transparent;
 }
 
-button.btn-ghost:hover:not(:disabled) {
-  color: var(--sms-action-primary);
-  background: var(--sms-status-info-bg);
-  border-color: #bfdbfe;
+button.btn-ghost:hover:not(:disabled),
+button.btn-icon-only:hover:not(:disabled) {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border-color: var(--color-border);
 }
 
 button.btn-icon-only {
   display: inline-grid;
-  min-width: 40px;
-  min-height: 40px;
+  min-width: var(--control-height);
+  min-height: var(--control-height);
   place-items: center;
   padding: 0;
-}
-
-button.btn-icon-only:hover:not(:disabled) {
-  background: var(--sms-action-neutral-hover);
-  border-color: var(--sms-action-neutral-border);
 }
 
 .license-table-view .btn-icon-only,
 .license-edit-document .btn-icon-only,
 .license-document-line .btn-icon-only {
-  color: var(--sms-action-primary);
-}
-
-.license-table-view .btn-icon-only:hover:not(:disabled),
-.license-edit-document .btn-icon-only:hover:not(:disabled),
-.license-document-line .btn-icon-only:hover:not(:disabled) {
-  background: var(--sms-status-info-bg);
-  border-color: #bfdbfe;
+  color: var(--color-primary);
 }
 
 button.btn-primary:focus-visible,
@@ -185,7 +157,7 @@ button.btn-ghost:focus-visible,
 button.btn-icon-only:focus-visible,
 button.danger-action:focus-visible {
   outline: none;
-  box-shadow: var(--sms-focus-ring);
+  box-shadow: var(--focus-ring);
 }
 
 button.btn-primary:disabled,
@@ -200,18 +172,23 @@ button.btn-neutral:disabled,
 button.btn-ghost:disabled,
 button.btn-icon-only:disabled,
 button.danger-action:disabled {
-  color: #94a3b8;
-  background: #f1f5f9;
-  border-color: #e2e8f0;
-  opacity: 1;
+  color: var(--color-text-muted);
+  background: var(--color-surface-muted);
+  border-color: var(--color-border);
+  opacity: .72;
   cursor: not-allowed;
   box-shadow: none;
 }
 
 .status-badge,
 .license-doc-badge {
-  border-radius: 999px;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
 }
 
 .license-status-empty,
@@ -220,6 +197,7 @@ button.danger-action:disabled {
 .status-badge.inactive {
   color: var(--sms-status-neutral-text);
   background: var(--sms-status-neutral-bg);
+  border-color: color-mix(in srgb, var(--color-neutral) 24%, transparent);
 }
 
 .license-status-pending,
@@ -227,6 +205,7 @@ button.danger-action:disabled {
 .status-badge.pending {
   color: var(--sms-status-pending-text);
   background: var(--sms-status-pending-bg);
+  border-color: color-mix(in srgb, var(--color-warning) 24%, transparent);
 }
 
 .license-status-approved,
@@ -235,6 +214,7 @@ button.danger-action:disabled {
 .status-badge.approved {
   color: var(--sms-status-approved-text);
   background: var(--sms-status-approved-bg);
+  border-color: color-mix(in srgb, var(--color-success) 24%, transparent);
 }
 
 .license-status-expiring,
@@ -242,6 +222,7 @@ button.danger-action:disabled {
 .status-badge.expiring {
   color: var(--sms-status-attention-text);
   background: var(--sms-status-attention-bg);
+  border-color: color-mix(in srgb, var(--color-attention) 24%, transparent);
 }
 
 .license-status-expired,
@@ -251,37 +232,48 @@ button.danger-action:disabled {
 .status-badge.expired {
   color: var(--sms-status-danger-text);
   background: var(--sms-status-danger-bg);
+  border-color: color-mix(in srgb, var(--color-danger) 24%, transparent);
+}
+
+.status-badge.info {
+  color: var(--sms-status-info-text);
+  background: var(--sms-status-info-bg);
+  border-color: color-mix(in srgb, var(--color-info) 24%, transparent);
 }
 
 .license-file-unavailable,
 .license-doc-inline-error,
-.license-rejection-reason {
-  color: var(--sms-status-danger-text);
-}
-
-.license-doc-notice {
-  color: var(--sms-status-approved-text);
-}
+.license-rejection-reason { color: var(--color-danger); }
+.license-doc-notice { color: var(--color-success); }
 
 .row-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .row-actions button {
-  min-height: 36px;
-  padding: 0 10px;
-  font-size: 11px;
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-secondary);
 }
 
 @media (max-width: 760px) {
-  .row-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
+  .row-actions { align-items: stretch; flex-direction: column; }
+  .row-actions button { width: 100%; }
+}
 
-  .row-actions button {
-    width: 100%;
-  }
+@media (prefers-reduced-motion: reduce) {
+  button.btn-primary,
+  button.btn-secondary,
+  button.btn-info,
+  button.btn-info-outline,
+  button.btn-success,
+  button.btn-warning,
+  button.btn-danger,
+  button.btn-danger-outline,
+  button.btn-neutral,
+  button.btn-ghost,
+  button.btn-icon-only,
+  button.danger-action { transition: none; }
 }

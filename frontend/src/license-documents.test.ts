@@ -190,7 +190,7 @@ describe('license document viewer and review', () => {
 
   it('uses centralized accessible action colors without changing license handlers', () => {
     expect(mainSource).toContain('import \'./styles/action-system.css\';');
-    expect(actionStyleSource).toContain('--sms-action-primary: #2563eb');
+    expect(actionStyleSource).toContain('--sms-action-primary: var(--color-primary)');
     expect(actionStyleSource).toContain('.btn-info-outline');
     expect(actionStyleSource).toContain('.btn-danger-outline');
     expect(actionStyleSource).toContain('.license-table-view .btn-icon-only');

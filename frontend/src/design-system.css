@@ -1,25 +1,5 @@
 /* Final visual layer: preserves existing data, API and role logic. */
-:root {
-  --navy-950:#071a38; --navy-900:#0b2245; --indigo-600:#5746d9; --indigo-500:#6d5ce7;
-  --page:#f5f7fb; --card:#fff; --text:#14213d; --muted:#667085; --border:#e4e8f0;
-  --font-sans:"IBM Plex Sans Thai",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
-  --action-primary:#5746D9;
-  --action-primary-hover:#4938C7;
-  --action-primary-active:#3E2FAF;
-  --action-info:#2879D9;
-  --action-info-hover:#2169BE;
-  --action-success:#16845B;
-  --action-success-hover:#126F4C;
-  --action-warning:#C47A16;
-  --action-warning-hover:#A96612;
-  --action-danger:#C83A47;
-  --action-danger-hover:#AC303C;
-  --action-neutral-text:#394150;
-  --action-neutral-border:#CBD2DC;
-  --action-neutral-hover:#F3F5F8;
-  font-family:var(--font-sans); font-size:14px; color:var(--text); background:var(--page);
-}
+/* Palette variables are provided by styles/tokens.css. */
 body{background:var(--page);color:var(--text)} button,input,select,textarea{font-size:14px} button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(109,92,231,.2)}
 html, body, button, input, select, textarea, table, dialog, [role="dialog"] { font-family: var(--font-sans); }
 /* Login */

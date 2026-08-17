@@ -12,7 +12,7 @@ const styles = read('styles/report-center.css');
 describe('Unified Report Center V1 source contract', () => {
   it('shows exactly one reporting navigation entry with the new label', () => {
     const navSegment = app.slice(app.indexOf("{ label: 'รายงาน'"), app.indexOf("{ label: 'ตั้งค่า'"));
-    expect(navSegment).toContain("{ id: 'reportCenter', icon: '▤', label: 'รายงานและวิเคราะห์' }");
+    expect(navSegment).toContain("{ id: 'reportCenter', icon: 'report', label: 'รายงานและวิเคราะห์' }");
     expect(navSegment).not.toContain("id: 'executiveReport'");
     expect(navSegment).not.toContain("id: 'reports'");
     expect(navSegment).not.toContain('รายงานผู้บริหาร');

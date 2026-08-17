@@ -6,7 +6,7 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf
 describe('Data Quality Center V1 contract', () => {
   it('exposes an ADMIN-only navigation and page branch', () => {
     const main = read('./main.tsx');
-    expect(main).toContain("{ id: 'dataQuality', icon: '◈', label: 'คุณภาพข้อมูล' }");
+    expect(main).toContain("{ id: 'dataQuality', icon: 'quality', label: 'คุณภาพข้อมูล' }");
     expect(main).toContain("if (page === 'dataQuality') return auth.user?.role === 'ADMIN';");
     expect(main).toContain("activePage === 'dataQuality'");
     expect(main).toContain("api.dataQualityIssues");

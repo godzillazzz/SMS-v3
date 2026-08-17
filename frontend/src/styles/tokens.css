@@ -1,0 +1,234 @@
+/* G04.2 UX-01 — authoritative semantic design tokens. */
+:root {
+  --font-sans: "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  --font-size-page-title: 2rem;
+  --font-size-section-title: 1.25rem;
+  --font-size-component-title: 1.0625rem;
+  --font-size-body: 0.875rem;
+  --font-size-nav: 0.875rem;
+  --font-size-table: 0.8125rem;
+  --font-size-secondary: 0.75rem;
+  --font-size-micro: 0.6875rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.25;
+  --line-height-body: 1.6;
+  --line-height-thai: 1.7;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+
+  --control-height: 40px;
+  --control-height-lg: 46px;
+
+  /* Legacy visual aliases: all older global layers resolve through semantic tokens. */
+  --sms-font: var(--font-sans);
+  --sms-page: var(--color-bg);
+  --sms-card: var(--color-surface);
+  --sms-text: var(--color-text);
+  --sms-text-secondary: var(--color-text-secondary);
+  --sms-text-muted: var(--color-text-muted);
+  --sms-muted: var(--color-text-secondary);
+  --sms-border: var(--color-border);
+  --sms-line: var(--color-border);
+  --sms-soft: var(--color-surface-muted);
+  --sms-navy-950: var(--color-sidebar-bg-strong);
+  --sms-navy-900: var(--color-sidebar-bg);
+  --sms-indigo-600: var(--color-primary);
+  --sms-indigo-500: var(--color-primary-hover);
+  --sms-purple-400: var(--color-primary-hover);
+  --sms-teal-500: var(--color-info);
+  --sms-green-600: var(--color-success);
+  --sms-warning-600: var(--color-warning);
+  --sms-critical-600: var(--color-danger);
+  --sms-blue-600: var(--color-info);
+  --sms-radius: var(--radius-md);
+  --sms-radius-sm: var(--radius-sm);
+  --sms-radius-md: var(--radius-md);
+  --sms-radius-lg: var(--radius-lg);
+  --sms-shadow: var(--shadow-sm);
+  --sms-shadow-sm: var(--shadow-sm);
+  --sms-shadow-md: var(--shadow-md);
+  --sms-card-shadow: var(--shadow-sm);
+  --sms-focus: var(--focus-ring);
+
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f7f6fa;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-muted: #f3f2f7;
+  --color-surface-subtle: #fbfaff;
+  --color-surface-translucent: rgba(255, 255, 255, 0.92);
+
+  --color-text: #1c1b2a;
+  --color-text-secondary: #5f5b70;
+  --color-text-muted: #817c91;
+  --color-text-inverse: #ffffff;
+
+  --color-border: #e6e2ed;
+  --color-border-strong: #cfc8dc;
+
+  --color-primary: #6254d9;
+  --color-primary-hover: #5546c8;
+  --color-primary-active: #493bad;
+  --color-primary-soft: #eeebff;
+
+  --color-success: #18775a;
+  --color-success-soft: #e6f5ef;
+  --color-warning: #a76512;
+  --color-warning-soft: #fff2d9;
+  --color-attention: #c15b22;
+  --color-attention-soft: #ffeadf;
+  --color-danger: #bd3b4c;
+  --color-danger-soft: #fdebed;
+  --color-info: #2d70c8;
+  --color-info-soft: #eaf3ff;
+  --color-neutral: #667085;
+  --color-neutral-soft: #eef0f4;
+
+  --focus-ring: 0 0 0 3px rgba(98, 84, 217, 0.24);
+  --shadow-sm: 0 2px 8px rgba(32, 24, 63, 0.05);
+  --shadow-md: 0 8px 24px rgba(32, 24, 63, 0.08);
+  --shadow-lg: 0 20px 50px rgba(32, 24, 63, 0.13);
+
+  --color-sidebar-bg: #11152a;
+  --color-sidebar-bg-strong: #0c1021;
+  --color-sidebar-text: #d9def1;
+  --color-sidebar-muted: #8f9ab8;
+  --color-sidebar-hover: rgba(255, 255, 255, 0.07);
+  --color-sidebar-border: rgba(222, 226, 244, 0.12);
+
+  --ambient-page:
+    radial-gradient(circle at 14% 7%, rgba(205, 194, 255, 0.24), transparent 31%),
+    radial-gradient(circle at 88% 2%, rgba(255, 217, 202, 0.19), transparent 27%),
+    radial-gradient(circle at 74% 88%, rgba(251, 216, 234, 0.16), transparent 29%);
+  --ambient-login:
+    radial-gradient(circle at 19% 18%, rgba(137, 118, 241, 0.42), transparent 28%),
+    radial-gradient(circle at 78% 72%, rgba(87, 201, 214, 0.14), transparent 30%),
+    linear-gradient(145deg, #11152a, #191834 58%, #29234c);
+
+  /* Compatibility aliases: legacy components now inherit one semantic vocabulary. */
+  --page: var(--color-bg);
+  --card: var(--color-surface);
+  --text: var(--color-text);
+  --muted: var(--color-text-secondary);
+  --border: var(--color-border);
+  --indigo-600: var(--color-primary);
+  --indigo-500: #796ce7;
+  --navy-950: var(--color-sidebar-bg-strong);
+  --navy-900: var(--color-sidebar-bg);
+  --action-primary: var(--color-primary);
+  --action-primary-hover: var(--color-primary-hover);
+  --action-primary-active: var(--color-primary-active);
+  --action-info: var(--color-info);
+  --action-info-hover: #245eaa;
+  --action-success: var(--color-success);
+  --action-success-hover: #125f48;
+  --action-warning: var(--color-warning);
+  --action-warning-hover: #8a520d;
+  --action-danger: var(--color-danger);
+  --action-danger-hover: #9f3040;
+  --action-neutral-text: var(--color-text-secondary);
+  --action-neutral-border: var(--color-border-strong);
+  --action-neutral-hover: var(--color-surface-muted);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #090d18;
+  --color-surface: #111827;
+  --color-surface-elevated: #161e30;
+  --color-surface-muted: #1b2334;
+  --color-surface-subtle: #0f1625;
+  --color-surface-translucent: rgba(17, 24, 39, 0.92);
+
+  --color-text: #f3f5fb;
+  --color-text-secondary: #b6bfd2;
+  --color-text-muted: #8893aa;
+  --color-text-inverse: #0c1020;
+
+  --color-border: #273148;
+  --color-border-strong: #3b4763;
+
+  --color-primary: #8b7cf6;
+  --color-primary-hover: #9d91ff;
+  --color-primary-active: #7464e4;
+  --color-primary-soft: #272249;
+
+  --color-success: #57c698;
+  --color-success-soft: #15372e;
+  --color-warning: #e4ad59;
+  --color-warning-soft: #3a2c16;
+  --color-attention: #ee8a55;
+  --color-attention-soft: #42251a;
+  --color-danger: #f17887;
+  --color-danger-soft: #44212a;
+  --color-info: #63b8d4;
+  --color-info-soft: #15323d;
+  --color-neutral: #a9b2c5;
+  --color-neutral-soft: #20293a;
+
+  --focus-ring: 0 0 0 3px rgba(139, 124, 246, 0.34);
+  --shadow-sm: 0 3px 12px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.46);
+
+  --color-sidebar-bg: #0b1020;
+  --color-sidebar-bg-strong: #070b14;
+  --color-sidebar-text: #e1e7f7;
+  --color-sidebar-muted: #8e9ab6;
+  --color-sidebar-hover: rgba(139, 124, 246, 0.12);
+  --color-sidebar-border: rgba(172, 186, 219, 0.13);
+
+  --ambient-page:
+    radial-gradient(circle at 12% 5%, rgba(98, 84, 217, 0.18), transparent 28%),
+    radial-gradient(circle at 92% 3%, rgba(64, 167, 195, 0.09), transparent 24%);
+  --ambient-login:
+    radial-gradient(circle at 17% 20%, rgba(139, 124, 246, 0.27), transparent 30%),
+    radial-gradient(circle at 83% 74%, rgba(68, 184, 210, 0.10), transparent 28%),
+    linear-gradient(145deg, #070b14, #0d1325 58%, #161b32);
+
+  --page: var(--color-bg);
+  --card: var(--color-surface);
+  --text: var(--color-text);
+  --muted: var(--color-text-secondary);
+  --border: var(--color-border);
+  --indigo-600: var(--color-primary);
+  --indigo-500: var(--color-primary-hover);
+  --navy-950: var(--color-sidebar-bg-strong);
+  --navy-900: var(--color-sidebar-bg);
+  --action-primary: var(--color-primary);
+  --action-primary-hover: var(--color-primary-hover);
+  --action-primary-active: var(--color-primary-active);
+  --action-info: var(--color-info);
+  --action-info-hover: #82c9df;
+  --action-success: var(--color-success);
+  --action-success-hover: #74d5ad;
+  --action-warning: var(--color-warning);
+  --action-warning-hover: #f0bd6f;
+  --action-danger: var(--color-danger);
+  --action-danger-hover: #fb95a1;
+  --action-neutral-text: var(--color-text-secondary);
+  --action-neutral-border: var(--color-border-strong);
+  --action-neutral-hover: var(--color-surface-muted);
+}

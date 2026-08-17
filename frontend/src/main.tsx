@@ -28,10 +28,14 @@ import { RegistrationReviewPanel } from './pages/access-management/RegistrationR
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
 import type { DashboardFilters } from './components/dashboard/types';
 import { LicenseEditModal, LicenseTableDocumentColumns } from './components/LicenseDocuments';
+import { SmsIcon, type SmsIconName } from './components/SmsIcon';
+import { ThemeControl } from './components/ThemeControl';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/license-table.css';
 import './styles/responsive-shell.css';
 import './styles/action-system.css';
+import './styles/tokens.css';
+import './styles/theme-foundation.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; department?: string; jobTitle?: string; isActive: boolean; updatedAt?: string };
@@ -50,38 +54,30 @@ const bangkokDateInput = (value = new Date()) => {
 
 const AuthContext = createContext<Auth | undefined>(undefined);
 
-const navigation: Array<{ label: string; items: Array<{ id: Page; icon: string; label: string }> }> = [
-  { label: 'ภาพรวม', items: [
-    { id: 'dashboard', icon: '⌂', label: 'Dashboard' }
-  ] },
+const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconName; label: string }> }> = [
+  { label: 'ภาพรวม', items: [{ id: 'dashboard', icon: 'dashboard', label: 'Dashboard' }] },
   { label: 'พนักงาน', items: [
-    { id: 'employees', icon: '♙', label: 'ข้อมูลพนักงาน' },
-    { id: 'licenses', icon: '▣', label: 'ใบอนุญาต รปภ.' }
+    { id: 'employees', icon: 'employees', label: 'ข้อมูลพนักงาน' },
+    { id: 'licenses', icon: 'license', label: 'ใบอนุญาต รปภ.' }
   ] },
   { label: 'ตารางกะ', items: [
-    { id: 'schedule', icon: '▤', label: 'ตารางกะรายเดือน' },
-    { id: 'shiftSetup', icon: '◷', label: 'รหัสกะและเวลา' }
+    { id: 'schedule', icon: 'calendar', label: 'ตารางกะรายเดือน' },
+    { id: 'shiftSetup', icon: 'clock', label: 'รหัสกะและเวลา' }
   ] },
   { label: 'การลา', items: [
-    { id: 'leave', icon: '▥', label: 'คำขอลา' },
-    { id: 'leavePending', icon: '⏳', label: 'รออนุมัติ' },
-    { id: 'leaveHistory', icon: '▤', label: 'ประวัติการลาทั้งหมด' },
-    { id: 'quota', icon: '▧', label: 'โควต้าวันลา' }
+    { id: 'leave', icon: 'leave', label: 'คำขอลา' },
+    { id: 'leavePending', icon: 'approval', label: 'รออนุมัติ' },
+    { id: 'leaveHistory', icon: 'history', label: 'ประวัติการลาทั้งหมด' },
+    { id: 'quota', icon: 'quota', label: 'โควต้าวันลา' }
   ] },
   { label: 'ตรวจสอบ', items: [
-    { id: 'rules', icon: '!', label: 'กฎการทำงาน' },
-    { id: 'audit', icon: '◌', label: 'บันทึกการใช้งานระบบ' },
-    { id: 'dataQuality', icon: '◈', label: 'คุณภาพข้อมูล' }
+    { id: 'rules', icon: 'shield', label: 'กฎการทำงาน' },
+    { id: 'audit', icon: 'audit', label: 'บันทึกการใช้งานระบบ' },
+    { id: 'dataQuality', icon: 'quality', label: 'คุณภาพข้อมูล' }
   ] },
-  { label: 'ผู้ใช้และสิทธิ์', items: [
-    { id: 'users', icon: '♧', label: 'ผู้ใช้และสิทธิ์' }
-  ] },
-  { label: 'รายงาน', items: [
-    { id: 'reportCenter', icon: '▤', label: 'รายงานและวิเคราะห์' }
-  ] },
-  { label: 'ตั้งค่า', items: [
-    { id: 'settings', icon: '⚙', label: 'ตั้งค่าระบบ' }
-  ] }
+  { label: 'ผู้ใช้และสิทธิ์', items: [{ id: 'users', icon: 'users', label: 'ผู้ใช้และสิทธิ์' }] },
+  { label: 'รายงาน', items: [{ id: 'reportCenter', icon: 'report', label: 'รายงานและวิเคราะห์' }] },
+  { label: 'ตั้งค่า', items: [{ id: 'settings', icon: 'settings', label: 'ตั้งค่าระบบ' }] }
 ];
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -139,7 +135,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 function Logo() {
-  return <span className="brand-mark" aria-label="SMS v3"><span aria-hidden="true">◈</span><b>SMS</b></span>;
+  return <span className="brand-mark" aria-label="SMS v3"><SmsIcon name="shield" size={18} /><b>SMS</b></span>;
 }
 
 function readLeaveMonthFromUrl(): string {
@@ -243,6 +239,7 @@ function Login() {
           <div className="intro-copy"><h1>ระบบบริหาร<br />งานรักษาความปลอดภัย</h1><p>บริหารพนักงาน ตารางกะ และกฎการทำงาน ในพื้นที่เดียว</p><span className="intro-check"><i aria-hidden="true">✓</i><span>ข้อมูลและสิทธิ์ผู้ใช้ถูกปกป้องตามนโยบายระบบ</span></span></div>
         </aside>
         <section className="login-form-panel">
+          <div className="login-theme-control"><ThemeControl compact /></div>
           <form className="login-form" onSubmit={submit}>
             <h2>{title}</h2><p className="form-lead">{lead}</p>
             {(formError || (mode === 'login' ? auth.error : undefined)) && <div className="alert alert-error" role="alert">{formError || auth.error}</div>}
@@ -2187,20 +2184,21 @@ function Dashboard() {
       <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="sidebar-brand"><Logo /><div><strong>SMS v3</strong><span>Security Management System</span></div></div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
-          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon">{item.icon}</span><span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}</span></button>)}</div>
+          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}</span></button>)}</div>
         ))}</nav>
-        <button className="sidebar-user" onClick={() => auth.logout()} title="ออกจากระบบ"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'} · ออกจากระบบ</small></span><i>↗</i></button>
+        <button className="sidebar-user" onClick={() => auth.logout()} title="ออกจากระบบ"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'} · ออกจากระบบ</small></span><i><SmsIcon name="logout" size={16} /></i></button>
       </aside>
       <main className="main-area">
         <header className="topbar">
           <div className="topbar-left">
-            <button ref={mobileMenuTriggerRef} className="mobile-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileMenuOpen(true)}>☰</button>
+            <button ref={mobileMenuTriggerRef} className="mobile-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileMenuOpen(true)}><SmsIcon name="menu" size={20} /></button>
             <span className="mobile-brand"><Logo /> SMS v3</span>
+            <span className="mobile-theme-control"><ThemeControl compact /></span>
             <span className="topbar-copy"><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></span>
           </div>
           <div className="topbar-actions">
-            <label className="topbar-search"><span aria-hidden="true">⌕</span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหา..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
-            <button className="topbar-icon" type="button" title="การแจ้งเตือน" aria-label="การแจ้งเตือน">♢</button>
+            <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหา..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
+            <ThemeControl compact /><button className="topbar-icon" type="button" title="การแจ้งเตือน" aria-label="การแจ้งเตือน"><SmsIcon name="bell" size={18} /></button>
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
             <span className="topbar-profile" title="บัญชีผู้ใช้งาน"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></span>
             <button className="signout-button" onClick={() => auth.logout()}>ออกจากระบบ</button>
@@ -2210,7 +2208,7 @@ function Dashboard() {
           {visibleNavigation.map((section) => (
             <div className="mobile-nav-group" key={section.label}>
               <span className="mobile-nav-section">{section.label}</span>
-              {section.items.map((item) => <button type="button" key={item.id} className={`mobile-nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span>{item.icon}</span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}</button>)}
+              {section.items.map((item) => <button type="button" key={item.id} className={`mobile-nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span><SmsIcon name={item.icon} size={17} /></span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}</button>)}
             </div>
           ))}
         </nav>
