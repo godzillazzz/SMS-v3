@@ -1,4 +1,4 @@
-name: Diagnose sms-v3-staging Production Database
+name: g04-staged-focused-validation-only-v1
 
 on:
   workflow_dispatch:
@@ -6,44 +6,162 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: sms-v3-g04-staged-focused-validation-only
+  cancel-in-progress: false
+
+env:
+  EXPECTED_HARNESS_SHA: a561b3bf6884c9d464aaba57b5974dff1f37c2b6
+  EXPECTED_CANDIDATE_SHA: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+  EXPECTED_CANDIDATE_TREE: c58a842dd0d6cfa4f3efca352769671012c2ba9a
+  EXPECTED_CANDIDATE_PARENT: 0951d4ce08de817dda7b986924232e86e745b532
+  EXPECTED_SOURCE_BRANCH: feat/private-registration-request-v1
+  EXPECTED_STAGED_DEPLOYMENT: dpl_7KcuwssKHDKDeJanhTVYVWSQotP6
+  EXPECTED_STAGED_URL: https://sms-v3-staging-2vshbm489-godzillazz.vercel.app
+  STAGED_CREATED_WINDOW: 2026-08-17T08:24:20Z
+  EXPECTED_CANONICAL_DEPLOYMENT: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs
+  EXPECTED_CANONICAL_SHA: 0951d4ce08de817dda7b986924232e86e745b532
+  EXPECTED_ROLLBACK_REF: rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  VERCEL_CLI_VERSION: 56.4.1
+
 jobs:
-  diagnose:
+  focused-validation-only:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment:
-      name: production-sms-v3-staging
+    timeout-minutes: 25
+    environment: production-sms-v3-staging
     env:
+      NODE_ENV: production
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      G04_STAGE_STATE_FILE: /tmp/g04-focused-validation-state.json
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout bounded validation-only Harness
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Verify Harness lineage scope and no-deploy guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_HARNESS_SHA"
+          changed="$(git diff --name-only HEAD^ HEAD | sort)"
+          expected="$(printf '%s\n' '.github/workflows/diagnose-production-database.yml' 'scripts/ci/g04-staged-focused-snapshot.js' 'vercel.json' | sort)"
+          test "$changed" = "$expected"
+          node -e "const v=require('./vercel.json'); if(v.git?.deploymentEnabled?.['ci/g04-staged-focused-technical-v1']!==false) process.exit(1)"
+          if grep -Eiq 'vercel(@[^ ]+)?[[:space:]]+deploy|vercel(@[^ ]+)?[[:space:]]+build|prisma[[:space:]]+migrate[[:space:]]+deploy' .github/workflows/diagnose-production-database.yml; then echo 'VALIDATION_ONLY_FORBIDDEN_COMMAND'; exit 1; fi
+          cp scripts/ci/g04-staged-focused-snapshot.js "$RUNNER_TEMP/g04-staged-focused-snapshot.js"
+          echo 'VALIDATION_ONLY_HARNESS_SCOPE=PASS'
+          echo 'DEPLOY_COMMANDS=0'
+
+      - name: Checkout exact G04 Application Candidate
+        uses: actions/checkout@v4
+        with:
+          ref: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+          fetch-depth: 2
+          clean: true
+
+      - name: Verify exact Candidate and static G04 contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_CANDIDATE_SHA"
+          test "$(git show -s --format=%T HEAD)" = "$EXPECTED_CANDIDATE_TREE"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_CANDIDATE_PARENT"
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_SOURCE_BRANCH" | cut -f1)" = "$EXPECTED_CANDIDATE_SHA"
+          node <<'NODE'
+          const fs=require('node:fs'); const auth=fs.readFileSync('src/routes/auth.routes.js','utf8'); const review=fs.readFileSync('src/routes/registration-requests.routes.js','utf8'); const service=fs.readFileSync('src/services/registration-request.service.js','utf8'); const main=fs.readFileSync('frontend/src/main.tsx','utf8'); const schema=(auth.match(/const registrationRequestSchema\s*=\s*([^;]+);/)||[])[1]||''; const login=(main.match(/function Login\(\)[\s\S]*?\n}\n\nconst text/)||[])[0]||''; const fail=x=>{throw new Error(x)};
+          if(auth.includes('available-employees')) fail('ANONYMOUS_DIRECTORY_ROUTE_SOURCE_PRESENT'); if(!schema.includes('.strict()')) fail('PUBLIC_SCHEMA_NOT_STRICT'); for(const f of ['employeeId','matchedEmployeeId','role','status','approved','reviewedBy']) if(new RegExp(`\\b${f}\\b`).test(schema)) fail(`PUBLIC_AUTHORITY_${f}`); if(!review.includes('router.use(authenticate)')||!review.includes("router.use(authorize('ADMIN', 'MANAGER'))")) fail('PRIVATE_ROUTE_AUTH_MISSING'); if(!review.includes('const approveSchema = z.object({}).strict()')) fail('APPROVE_SCHEMA_NOT_STRICT_EMPTY'); if(!/role\s*:\s*'VIEWER'/.test(service)) fail('VIEWER_HARDCODE_MISSING'); if(!login||/<select\b/i.test(login)||/\bemployeeId\b|\bmatchedEmployeeId\b/.test(login)) fail('PUBLIC_REGISTRATION_AUTHORITY_UI_SOURCE'); console.log('STATIC_G04_CONTRACT=PASS'); console.log('APPLICANT_ROLE_AUTHORITY=0'); console.log('APPLICANT_EMPLOYEE_ID_AUTHORITY=0');
+          NODE
+
+      - name: Set up Node and focused browser dependency
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Install dependencies
+
+      - name: Install validation dependencies only
+        shell: bash
         run: |
-          npm ci --include=dev
-      - name: Pull Vercel environment variables
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          set -euo pipefail
+          npm ci --include=dev --ignore-scripts
+          npx --no-install prisma generate
+          npx playwright install --with-deps chromium
+          cp "$RUNNER_TEMP/g04-staged-focused-snapshot.js" .g04-staged-focused-snapshot.js
+          node --check .g04-staged-focused-snapshot.js
+
+      - name: Verify protected Production target and fresh pre-validation write guard
+        shell: bash
         run: |
-          npx --yes vercel@56.4.1 pull --yes --environment=production --token "$VERCEL_TOKEN"
-      - name: Run Local Authentication Debug
+          set -euo pipefail
+          node scripts/ci/verify-deployment-target.js --verify
+          DATABASE_URL="$DIRECT_URL" node .g04-staged-focused-snapshot.js pre
+
+      - name: Verify preserved exact staged deployment uniqueness Canonical and rollback
+        shell: bash
         run: |
-          node scripts/ci/debug-auth.js
-      - name: Run UAT Verification
+          set -euo pipefail
+          staged=$(mktemp); npx --yes vercel@"$VERCEL_CLI_VERSION" api "/v13/deployments/$EXPECTED_STAGED_DEPLOYMENT?teamId=$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$staged" 2>/dev/null
+          node - "$staged" <<'NODE'
+          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha||d?.gitSource?.sha||d?.source?.sha; const url=`https://${d.url}`; if(d.id!==process.env.EXPECTED_STAGED_DEPLOYMENT||url!==process.env.EXPECTED_STAGED_URL||d.name!==process.env.EXPECTED_PROJECT_NAME||d.target!=='production'||d.readyState!=='READY'||sha!==process.env.EXPECTED_CANDIDATE_SHA) throw new Error('G04_STAGED_DEPLOYMENT_IDENTITY_FAILED'); console.log(`STAGED_DEPLOYMENT_ID=${d.id}`); console.log(`STAGED_DEPLOYMENT_URL=${url}`); console.log(`STAGED_TARGET=${d.target}`); console.log(`STAGED_STATE=${d.readyState}`); console.log(`STAGED_RESOLVED_SHA=${sha}`); console.log(`STAGED_CREATED_AT=${d.createdAt}`);
+          NODE
+          prod=$(mktemp); npx --yes vercel@"$VERCEL_CLI_VERSION" list "$EXPECTED_PROJECT_NAME" --environment production --format json --limit 100 --token "$VERCEL_TOKEN" >"$prod" 2>/dev/null
+          node - "$prod" <<'NODE'
+          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); const items=Array.isArray(d)?d:(d.deployments||[]); const m=items.filter(x=>(x?.meta?.githubCommitSha||x?.meta?.gitCommitSha)===process.env.EXPECTED_CANDIDATE_SHA); if(m.length!==1) throw new Error('UNAUTHORIZED_ADDITIONAL_PRODUCTION_DEPLOYMENT'); console.log('G04_CANDIDATE_PRODUCTION_TARGET_DEPLOYMENTS=1');
+          NODE
+          canonical=$(mktemp); npx --yes vercel@"$VERCEL_CLI_VERSION" api "/v13/deployments/$EXPECTED_CANONICAL_DEPLOYMENT?teamId=$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical" 2>/dev/null
+          node - "$canonical" <<'NODE'
+          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha; if(d.id!==process.env.EXPECTED_CANONICAL_DEPLOYMENT||d.target!=='production'||d.readyState!=='READY'||sha!==process.env.EXPECTED_CANONICAL_SHA) throw new Error('CANONICAL_CHANGED'); console.log('CANONICAL=UNCHANGED');
+          NODE
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_ROLLBACK_REF" | cut -f1)" = "$EXPECTED_CANONICAL_SHA"
+
+      - name: Focused staged HTTP contracts
+        shell: bash
         run: |
-          node scripts/ci/run-uat-with-db.js
-      - name: Fetch Vercel staging logs
-        if: always()
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          set -euo pipefail
+          H="x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET"
+          for path in / /login; do test "$(curl -sS -L -o /tmp/g04-root.bin -w '%{http_code}' -H "$H" "$EXPECTED_STAGED_URL$path")" = "200"; done
+          test "$(curl -sS -L -o /tmp/g04-health.json -w '%{http_code}' -H "$H" "$EXPECTED_STAGED_URL/api/v1/health")" = "200"; node -e "const x=require('/tmp/g04-health.json'); if(x.status!=='ok')process.exit(1)"; echo 'STAGED_HEALTH=200/ok'
+          for n in 1 2 3; do test "$(curl -sS -L -o "/tmp/g04-ready-$n.json" -w '%{http_code}' -H "$H" "$EXPECTED_STAGED_URL/api/v1/ready")" = "200"; node -e "const x=require('/tmp/g04-ready-$n.json');if(x.status!=='ready'||x.database!=='ok')process.exit(1)"; done; echo 'STAGED_READY=3/3'
+          old=$(curl -sS -o /tmp/g04-old.bin -w '%{http_code}' -H "$H" "$EXPECTED_STAGED_URL/api/v1/auth/register/available-employees"); case "$old" in 401|403|404) ;; *) echo 'G04_ANONYMOUS_EMPLOYEE_ENUMERATION_REMAINS'; exit 1;; esac; echo "ANONYMOUS_DIRECTORY_HTTP_STATUS=$old"; echo 'ANONYMOUS_EMPLOYEE_DIRECTORY=REMOVED'
+          private=$(curl -sS -o /tmp/g04-private.bin -w '%{http_code}' -H "$H" "$EXPECTED_STAGED_URL/api/v1/registration-requests"); test "$private" = "401"; echo 'PRIVATE_REVIEW_HTTP_STATUS=401'; echo 'PRIVATE_REVIEW_ANONYMOUS=DENIED'
+
+      - name: Focused public registration browser privacy contract
+        shell: bash
         run: |
-          npx --yes vercel@56.4.1 logs --project sms-v3-staging --environment production --token "$VERCEL_TOKEN" --limit 50
+          set -euo pipefail
+          node <<'NODE'
+          (async()=>{
+            const {chromium}=require('@playwright/test'); const browser=await chromium.launch({headless:true});
+            try { const context=await browser.newContext({extraHTTPHeaders:{'x-vercel-protection-bypass':process.env.VERCEL_AUTOMATION_BYPASS_SECRET}}); const page=await context.newPage(); const r=await page.goto(`${process.env.EXPECTED_STAGED_URL}/login`,{waitUntil:'networkidle',timeout:30000}); if(!r||r.status()!==200) throw new Error('PUBLIC_LOGIN_LOAD_FAILED'); await page.getByRole('button',{name:/ส่งคำขอลงทะเบียน/}).click(); await page.getByRole('heading',{name:'ส่งคำขอลงทะเบียน'}).waitFor({state:'visible'}); for(const id of ['#registration-name','#registration-department','#email','#password']) if(await page.locator(id).count()!==1) throw new Error(`PUBLIC_FIELD_MISSING_${id}`); const form=page.locator('.login-form'); if(await form.locator('select').count()!==0) throw new Error('PUBLIC_EMPLOYEE_OR_ROLE_SELECTOR_PRESENT'); if(await form.locator('datalist,[role="listbox"],[aria-autocomplete]').count()!==0) throw new Error('PUBLIC_EMPLOYEE_AUTOCOMPLETE_PRESENT'); if(await form.locator('[name="employeeId"],[name="matchedEmployeeId"],[name="role"]').count()!==0) throw new Error('PUBLIC_AUTHORITY_INPUT_PRESENT'); console.log('PUBLIC_REGISTRATION_UI=PASS'); console.log('PUBLIC_EMPLOYEE_SELECTOR=ABSENT'); console.log('PUBLIC_EMPLOYEE_AUTOCOMPLETE=ABSENT'); console.log('PUBLIC_ROLE_SELECTOR=ABSENT'); console.log('PUBLIC_EMPLOYEE_ID_INPUT=ABSENT'); await context.close(); } finally { await browser.close(); }
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Verify no task-attributable writes or migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATABASE_URL="$DIRECT_URL" node .g04-staged-focused-snapshot.js check technical
+          echo 'REGISTRATION_REQUEST_WRITES=0'
+          echo 'BUSINESS_WRITES=0'
+          echo 'MIGRATION_DURING_VALIDATION=0'
+
+      - name: Runtime Canonical and rollback final gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          logs=$(mktemp); npx --yes vercel@"$VERCEL_CLI_VERSION" logs --deployment "$EXPECTED_STAGED_DEPLOYMENT" --since "$STAGED_CREATED_WINDOW" --limit 350 --json --no-branch --token "$VERCEL_TOKEN" >"$logs" 2>/dev/null
+          critical="$(grep -Eic 'P2021|P2022|P2024|P2028|PrismaClientInitializationError|Prisma (initialization|init)|schema mismatch|unknown (table|column)|pool timeout|connection timeout|transaction timeout|ReferenceError|Runtime Timeout|UnhandledPromiseRejection|fatal initialization|"statusCode"[[:space:]]*:[[:space:]]*(500|503|504)|HTTP (500|503|504)' "$logs" || true)"; test "$critical" = "0"; echo 'RUNTIME_CRITICAL=0'
+          canonical=$(mktemp); npx --yes vercel@"$VERCEL_CLI_VERSION" api "/v13/deployments/$EXPECTED_CANONICAL_DEPLOYMENT?teamId=$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical" 2>/dev/null
+          node - "$canonical" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha;if(d.id!==process.env.EXPECTED_CANONICAL_DEPLOYMENT||d.target!=='production'||d.readyState!=='READY'||sha!==process.env.EXPECTED_CANONICAL_SHA)throw new Error('CANONICAL_CHANGED');console.log('CANONICAL_FINAL=UNCHANGED');
+          NODE
+          test "$(git ls-remote origin "refs/heads/$EXPECTED_ROLLBACK_REF" | cut -f1)" = "$EXPECTED_CANONICAL_SHA"; echo 'ROLLBACK_CHECKPOINT_CHANGED=NO'; echo 'PROMOTION=NO'
