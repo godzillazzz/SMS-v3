@@ -118,6 +118,9 @@ function classifyDeploymentIdentity(deployment) {
   if (integratedRefs.length > 0) {
     const refs = integratedRefs.map(([, value]) => validateDeploymentRef(value));
     if (new Set(refs).size !== 1) throw contractError('UAT_DEPLOYMENT_GIT_REF_CONFLICT');
+    if (refs[0] === 'HEAD') {
+      return { deploymentClass: DEPLOYMENT_ORIGINS.CLEAN_CLI_EXACT_SHA, ref: 'HEAD' };
+    }
     return { deploymentClass: DEPLOYMENT_ORIGINS.GIT_INTEGRATED, ref: refs[0] };
   }
 

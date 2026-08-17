@@ -100,6 +100,18 @@ test('clean CLI gitCommitSha and HEAD are normalized and accepted', () => {
   assert.equal(validate(normalized).valid, true);
 });
 
+test('Vercel production-target CLI metadata encoded as githubCommitRef HEAD is accepted as clean CLI exact SHA', () => {
+  const normalized = normalizeDeploymentIdentity(rawRecord({
+    meta: { githubCommitSha: APPLICATION_SHA, githubCommitRef: 'HEAD' },
+    gitSource: undefined
+  }));
+  assert.deepEqual(classifyDeploymentIdentity(normalized), {
+    deploymentClass: 'CLEAN_CLI_EXACT_SHA',
+    ref: 'HEAD'
+  });
+  assert.equal(validate(normalized).valid, true);
+});
+
 test('clean CLI ref survives sanitization without retaining raw metadata', () => {
   const normalized = normalizeDeploymentIdentity(rawRecord({
     meta: {
