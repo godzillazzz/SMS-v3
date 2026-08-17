@@ -12,7 +12,8 @@ test('activation persists in existing SystemSetting and creates no new migration
   assert.match(schema, /model SystemSetting\s*\{/);
   assert.match(schema, /key\s+String\s+@id/);
   const migration = fs.readFileSync(path.join(base, 'prisma/migrations/202608170001_annual_leave_quota_year/migration.sql'));
-  assert.equal(crypto.createHash('sha256').update(migration).digest('hex'), '5c912c927d2827d53b67df02679fc4fcb596f39f18623bb230adf2a11fa69cfe');
+  const normalizedMigration = Buffer.from(migration.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+  assert.equal(crypto.createHash('sha256').update(normalizedMigration).digest('hex'), '5c912c927d2827d53b67df02679fc4fcb596f39f18623bb230adf2a11fa69cfe');
   assert.equal(fs.readdirSync(path.join(base, 'prisma/migrations')).filter((name) => /activation|multi.year/i.test(name)).length, 0);
 });
 

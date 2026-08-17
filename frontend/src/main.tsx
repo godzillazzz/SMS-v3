@@ -24,6 +24,7 @@ import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import { DataQualityCenterPage, type DataQualityFilters, type DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
+import { RegistrationReviewPanel } from './pages/access-management/RegistrationReviewPanel';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
 import type { DashboardFilters } from './components/dashboard/types';
 import { LicenseEditModal, LicenseTableDocumentColumns } from './components/LicenseDocuments';
@@ -34,7 +35,6 @@ import './styles/action-system.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; department?: string; jobTitle?: string; isActive: boolean; updatedAt?: string };
-type RegistrationEmployee = { id: string; employeeCode: string; displayName: string; department?: string; jobTitle?: string };
 type Page = 'dashboard' | 'employees' | 'licenses' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
@@ -162,47 +162,35 @@ function Login() {
   const [mode, setMode] = useState<'login' | 'register' | 'registerVerify' | 'reset' | 'resetVerify'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [registrationEmployeeId, setRegistrationEmployeeId] = useState('');
-  const [registrationEmployees, setRegistrationEmployees] = useState<RegistrationEmployee[]>([]);
-  const [registrationEmployeesLoading, setRegistrationEmployeesLoading] = useState(false);
+  const [submittedName, setSubmittedName] = useState('');
+  const [departmentHint, setDepartmentHint] = useState('');
   const [code, setCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formMessage, setFormMessage] = useState<string>();
   const [formError, setFormError] = useState<string>();
 
-  const resetView = (next: typeof mode) => { setMode(next); setFormError(undefined); setFormMessage(undefined); setCode(''); if (next !== 'register') setRegistrationEmployeeId(''); };
-  const title = mode === 'login' ? 'ยินดีต้อนรับ' : mode === 'register' ? 'ลงทะเบียนเข้าใช้ระบบ' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'รีเซ็ตรหัสผ่านด้วย OTP' : 'ตั้งรหัสผ่านใหม่';
-  const lead = mode === 'login' ? 'เข้าสู่ระบบเพื่อเปิด Dashboard' : mode === 'register' ? 'เลือกชื่อพนักงานและยืนยันอีเมลก่อนให้ Admin อนุมัติ' : mode === 'registerVerify' ? 'กรอกรหัส 6 หลักที่ส่งไปยังอีเมลของคุณ' : mode === 'reset' ? 'เราจะส่งรหัสยืนยันไปยังอีเมลของคุณ' : 'กรอกรหัส 6 หลักและรหัสผ่านใหม่';
-
-  useEffect(() => {
-    if (mode !== 'register') return;
-    let active = true;
-    setRegistrationEmployeesLoading(true);
-    api.registrationEmployees()
-      .then((result) => { if (active) setRegistrationEmployees(Array.isArray(result.data) ? result.data : []); })
-      .catch((reason) => { if (active) setFormError(reason instanceof Error ? reason.message : 'โหลดรายชื่อพนักงานไม่สำเร็จ'); })
-      .finally(() => { if (active) setRegistrationEmployeesLoading(false); });
-    return () => { active = false; };
-  }, [mode]);
-
-  const registrationEmployeeOptions = registrationEmployees.map((employee) => {
-    const details = [employee.employeeCode, employee.department, employee.jobTitle].filter(Boolean).join(' · ');
-    return { value: employee.id, label: `${employee.displayName}${details ? ` (${details})` : ''}` };
-  });
-  const submitDisabled = busy || (mode === 'register' && (registrationEmployeesLoading || !registrationEmployeeId));
+  const resetView = (next: typeof mode) => { setMode(next); setFormError(undefined); setFormMessage(undefined); setCode(''); };
+  const title = mode === 'login' ? 'ยินดีต้อนรับ' : mode === 'register' ? 'ส่งคำขอลงทะเบียน' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'รีเซ็ตรหัสผ่านด้วย OTP' : 'ตั้งรหัสผ่านใหม่';
+  const lead = mode === 'login' ? 'เข้าสู่ระบบเพื่อเปิด Dashboard' : mode === 'register' ? 'ส่งคำขอแบบส่วนตัว ผู้ดูแลจะตรวจสอบและจับคู่กับ Employee Master ภายหลัง' : mode === 'registerVerify' ? 'กรอกรหัส 6 หลักเพื่อยืนยันความเป็นเจ้าของอีเมล การยืนยันอีเมลยังไม่ใช่การอนุมัติบัญชี' : mode === 'reset' ? 'เราจะส่งรหัสยืนยันไปยังอีเมลของคุณ' : 'กรอกรหัส 6 หลักและรหัสผ่านใหม่';
+  const submitDisabled = busy || (mode === 'register' && submittedName.trim().length < 2);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setFormError(undefined); setFormMessage(undefined);
-    if (mode === 'register' && !registrationEmployeeId) { setFormError('กรุณาเลือกชื่อพนักงานของคุณ'); return; }
     setBusy(true);
     try {
       if (mode === 'login') await auth.login(email, password);
-      else if (mode === 'register') { await api.requestRegistrationOtp({ employeeId: registrationEmployeeId, email, password }); resetView('registerVerify'); setFormMessage('ส่งรหัสยืนยันแล้ว โปรดตรวจกล่องจดหมายของคุณ'); }
-      else if (mode === 'registerVerify') { const result = await api.verifyRegistrationOtp(email, code); resetView('login'); setPassword(''); setFormMessage(result.message); }
-      else if (mode === 'reset') { await api.requestPasswordResetOtp(email); resetView('resetVerify'); setFormMessage('หากอีเมลนี้ใช้งานได้ ระบบได้ส่งรหัสยืนยันแล้ว'); }
-      else { const result = await api.completePasswordReset(email, code, password); resetView('login'); setPassword(''); setFormMessage(result.message); }
+      else if (mode === 'register') {
+        const result = await api.requestRegistrationOtp({ submittedName: submittedName.trim(), email, password, departmentHint: departmentHint.trim() || undefined });
+        setMode('registerVerify'); setCode(''); setFormMessage(result.message);
+      } else if (mode === 'registerVerify') {
+        const result = await api.verifyRegistrationOtp(email, code); resetView('login'); setPassword(''); setFormMessage(result.message);
+      } else if (mode === 'reset') {
+        await api.requestPasswordResetOtp(email); resetView('resetVerify'); setFormMessage('หากอีเมลนี้ใช้งานได้ ระบบได้ส่งรหัสยืนยันแล้ว');
+      } else {
+        const result = await api.completePasswordReset(email, code, password); resetView('login'); setPassword(''); setFormMessage(result.message);
+      }
     } catch (reason) { setFormError(reason instanceof Error ? reason.message : 'ไม่สามารถดำเนินการได้'); }
     finally { setBusy(false); }
   };
@@ -212,33 +200,22 @@ function Login() {
       <section className="login-shell" aria-label="เข้าสู่ระบบ Security Management System">
         <aside className="login-intro">
           <div className="intro-brand"><Logo /><strong>Security Management System</strong></div>
-          <div className="intro-copy">
-            <h1>ระบบบริหาร<br />งานรักษาความปลอดภัย</h1>
-            <p>บริหารพนักงาน ตารางกะ และกฎการทำงาน ในพื้นที่เดียว</p>
-            <span className="intro-check"><i aria-hidden="true">✓</i><span>ข้อมูลและสิทธิ์ผู้ใช้ถูกปกป้องตามนโยบายระบบ</span></span>
-          </div>
+          <div className="intro-copy"><h1>ระบบบริหาร<br />งานรักษาความปลอดภัย</h1><p>บริหารพนักงาน ตารางกะ และกฎการทำงาน ในพื้นที่เดียว</p><span className="intro-check"><i aria-hidden="true">✓</i><span>ข้อมูลและสิทธิ์ผู้ใช้ถูกปกป้องตามนโยบายระบบ</span></span></div>
         </aside>
         <section className="login-form-panel">
           <form className="login-form" onSubmit={submit}>
-            <h2>{title}</h2>
-            <p className="form-lead">{lead}</p>
+            <h2>{title}</h2><p className="form-lead">{lead}</p>
             {(formError || (mode === 'login' ? auth.error : undefined)) && <div className="alert alert-error" role="alert">{formError || auth.error}</div>}
             {formMessage && <div className="login-help-action" role="status">{formMessage}</div>}
-            {mode === 'register' && <label className="field-group" htmlFor="registration-employee"><span>ชื่อพนักงาน</span><select id="registration-employee" value={registrationEmployeeId} onChange={(event) => setRegistrationEmployeeId(event.target.value)} required disabled={registrationEmployeesLoading}><option value="">{registrationEmployeesLoading ? 'กำลังโหลดรายชื่อพนักงาน...' : '-- เลือกชื่อของคุณ --'}</option>{registrationEmployeeOptions.map((employee) => <option key={employee.value} value={employee.value}>{employee.label}</option>)}</select>{!registrationEmployeesLoading && !registrationEmployeeOptions.length && <small className="field-hint">ไม่มีรายชื่อพนักงานที่เปิดให้สมัคร หากเคยสมัครแล้วให้ติดต่อ Admin เพื่ออนุมัติ/รีเซ็ตรหัสผ่าน</small>}</label>}
-            <label className="field-group" htmlFor="email">
-              <span>อีเมล</span>
-              <input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete="username" />
-            </label>
+            {mode === 'register' && <>
+              <label className="field-group" htmlFor="registration-name"><span>ชื่อ-นามสกุลที่ใช้ส่งคำขอ</span><input id="registration-name" value={submittedName} onChange={(event) => setSubmittedName(event.target.value)} type="text" minLength={2} maxLength={200} required autoComplete="name" /><small className="field-hint">ข้อมูลนี้เป็นข้อมูลที่ผู้สมัครแจ้ง ไม่ใช่ Employee Master และไม่ใช้เป็นหลักฐานยืนยันตัวบุคคล</small></label>
+              <label className="field-group" htmlFor="registration-department"><span>หน่วยงาน / พื้นที่ (ถ้ามี)</span><input id="registration-department" value={departmentHint} onChange={(event) => setDepartmentHint(event.target.value)} type="text" maxLength={100} /><small className="field-hint">ใช้เป็น hint สำหรับผู้ตรวจสอบเท่านั้น ไม่แก้ไขข้อมูล Employee Master</small></label>
+            </>}
+            <label className="field-group" htmlFor="email"><span>อีเมล</span><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete="username" /></label>
             {(mode === 'registerVerify' || mode === 'resetVerify') && <label className="field-group" htmlFor="otp-code"><span>รหัส OTP 6 หลัก</span><input id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" /></label>}
-            {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group" htmlFor="password">
-              <span>รหัสผ่าน</span>
-              <span className="password-field">
-                <input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
-                <button className="password-toggle" type="button" onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? 'ซ่อน' : 'แสดง'}</button>
-              </span>
-            </label>}
-            <button className="btn-primary" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
-            {mode === 'login' ? <div className="login-links"><button type="button" onClick={() => resetView('register')}>ยังไม่มีบัญชี? <b>ลงทะเบียนเข้าใช้ระบบ</b></button><button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน? <b>รีเซ็ตรหัสผ่านด้วย OTP</b></button></div> : <div className="login-links"><button type="button" onClick={() => resetView('login')}>← กลับไปหน้าเข้าสู่ระบบ</button></div>}
+            {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group" htmlFor="password"><span>รหัสผ่าน</span><span className="password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle" type="button" onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? 'ซ่อน' : 'แสดง'}</button></span></label>}
+            <button className="btn-primary" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งคำขอและรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
+            {mode === 'login' ? <div className="login-links"><button type="button" onClick={() => resetView('register')}>ยังไม่มีบัญชี? <b>ส่งคำขอลงทะเบียน</b></button><button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน? <b>รีเซ็ตรหัสผ่านด้วย OTP</b></button></div> : <div className="login-links"><button type="button" onClick={() => resetView('login')}>← กลับไปหน้าเข้าสู่ระบบ</button></div>}
             <p className="login-help">พบปัญหาการใช้งาน: ติดต่อผู้ดูแลระบบของหน่วยงาน</p>
           </form>
         </section>
@@ -2105,18 +2082,21 @@ function Dashboard() {
     }
     if (activePage === 'users') {
       const users = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      return <AccessManagementPage
-        rows={users as Array<{ id: string; displayName?: string; role?: string; department?: string | null; accountStatus?: string; isActive?: boolean; passwordResetRequired?: boolean; createdAt?: string; updatedAt?: string }>}
-        loading={operationLoading}
-        error={typeof operationError === 'string' ? operationError : operationError?.message}
-        role={auth.user?.role || 'VIEWER'}
-        originalUserId={auth.originalUser?.id}
-        onRefresh={() => setOperationRefresh((value) => value + 1)}
-        onUpdate={async (id, payload) => { await api.updateUser(auth.token!, id, payload); setOperationRefresh((value) => value + 1); }}
-        onResetPassword={async (id, newPassword) => { await api.resetUserPassword(auth.token!, id, newPassword); setOperationRefresh((value) => value + 1); }}
-        onViewAs={async (id) => { await auth.beginViewAs(id); setActivePage('dashboard'); }}
-        onOpenAudit={() => setActivePage('audit')}
-      />;
+      return <>
+        <RegistrationReviewPanel token={auth.token!} role={auth.user?.role || 'VIEWER'} refreshSignal={operationRefresh} onChanged={() => setOperationRefresh((value) => value + 1)} onOpenEmployeeMaster={() => setActivePage('employees')} />
+        <AccessManagementPage
+          rows={users as Array<{ id: string; displayName?: string; role?: string; department?: string | null; accountStatus?: string; isActive?: boolean; passwordResetRequired?: boolean; createdAt?: string; updatedAt?: string }>}
+          loading={operationLoading}
+          error={typeof operationError === 'string' ? operationError : operationError?.message}
+          role={auth.user?.role || 'VIEWER'}
+          originalUserId={auth.originalUser?.id}
+          onRefresh={() => setOperationRefresh((value) => value + 1)}
+          onUpdate={async (id, payload) => { await api.updateUser(auth.token!, id, payload); setOperationRefresh((value) => value + 1); }}
+          onResetPassword={async (id, newPassword) => { await api.resetUserPassword(auth.token!, id, newPassword); setOperationRefresh((value) => value + 1); }}
+          onViewAs={async (id) => { await auth.beginViewAs(id); setActivePage('dashboard'); }}
+          onOpenAudit={() => setActivePage('audit')}
+        />
+      </>;
     }
     if (activePage === 'settings') {
       const settings = Array.isArray(operationResponse.data) ? operationResponse.data : [];

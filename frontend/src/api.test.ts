@@ -8,16 +8,27 @@ afterEach(() => vi.unstubAllGlobals());
 describe('API client', () => {
   it('exposes the browser authentication operations', () => {
     expect(typeof api.login).toBe('function'); expect(typeof api.refresh).toBe('function'); expect(typeof api.logout).toBe('function'); expect(typeof api.logoutAll).toBe('function');
-    expect(typeof api.registrationEmployees).toBe('function'); expect(typeof api.requestRegistrationOtp).toBe('function'); expect(typeof api.verifyRegistrationOtp).toBe('function'); expect(typeof api.requestPasswordResetOtp).toBe('function'); expect(typeof api.completePasswordReset).toBe('function');
+    expect('registrationEmployees' in api).toBe(false); expect(typeof api.requestRegistrationOtp).toBe('function'); expect(typeof api.verifyRegistrationOtp).toBe('function'); expect(typeof api.requestPasswordResetOtp).toBe('function'); expect(typeof api.completePasswordReset).toBe('function');
   });
-  it('loads only backend-approved employees for registration', async () => {
+  it('submits private registration data without Employee authority fields', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 202, ok: true, json: async () => ({ message: 'generic' }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    await api.requestRegistrationOtp({ submittedName: 'Applicant Name', email: 'applicant@example.test', password: 'long-password', departmentHint: 'Security' });
+    const [path, options] = fetchMock.mock.calls[0];
+    expect(path).toBe('/api/v1/auth/register/request-otp');
+    expect(JSON.parse(options.body)).toEqual({ submittedName: 'Applicant Name', email: 'applicant@example.test', password: 'long-password', departmentHint: 'Security' });
+    expect(options.body).not.toContain('employeeId');
+    expect(options.body).not.toContain('role');
+  });
+  it('uses authenticated registration-review APIs only', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: [] }) });
     vi.stubGlobal('document', { cookie: '' });
     vi.stubGlobal('fetch', fetchMock);
-    await api.registrationEmployees();
+    await api.registrationCandidates('test-access-token', 'request-id', 'สมชาย');
     const [path, options] = fetchMock.mock.calls[0];
-    expect(path).toBe('/api/v1/auth/register/available-employees');
-    expect(options.credentials).toBe('include');
+    expect(path).toContain('/api/v1/registration-requests/request-id/candidates?search=');
+    expect(options.headers.get('authorization')).toBe('Bearer test-access-token');
   });
   it('sends the readable CSRF cookie in browser refresh, logout, and logout-all requests', async () => {
     const fetchMock = vi.fn().mockResolvedValue(success());

@@ -130,19 +130,22 @@ async function notifyNewRegistration({ displayName, email, department }) {
   try {
     const adminManagerEmails = await getAdminAndManagerEmails();
     if (!adminManagerEmails.length) return;
+    const safeDisplayName = escapeHtml(displayName);
+    const safeEmail = escapeHtml(email);
+    const safeDepartment = escapeHtml(department || '-');
 
-    const subject = `SMS v3: มีคำขอลงทะเบียนเข้าใช้งานระบบใหม่ (${displayName})`;
+    const subject = 'SMS v3: มีคำขอลงทะเบียนแบบส่วนตัวรอตรวจสอบ';
     const html = `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">
         <h2 style="color: #2563eb; margin-top: 0;">👤 มีคำขอลงทะเบียนผู้ใช้งานใหม่</h2>
         <p>เรียน ผู้ดูแลระบบ (Admins & Managers),</p>
-        <p>มีผู้ใช้งานใหม่ยืนยันตัวตนทางอีเมลเรียบร้อยแล้ว และรอการพิจารณากำหนดสิทธิ์เข้าใช้งาน:</p>
+        <p>มีคำขอลงทะเบียนแบบส่วนตัวที่ยืนยันอีเมลแล้ว กรุณาตรวจสอบข้อมูลและจับคู่กับ Employee Master ที่มีอยู่ก่อนอนุมัติ:</p>
         <table style="border-collapse: collapse; margin: 15px 0; width: 100%; background: #f8fafc; border-radius: 8px;">
-          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 140px;">ชื่อ-นามสกุล:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${displayName}</td></tr>
-          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">อีเมล:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${email}</td></tr>
-          <tr><td style="padding: 10px; font-weight: bold;">แผนก:</td><td style="padding: 10px;">${department || '-'}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 140px;">ชื่อ-นามสกุล:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${safeDisplayName}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">อีเมล:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${safeEmail}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold;">แผนก:</td><td style="padding: 10px;">${safeDepartment}</td></tr>
         </table>
-        <p>กรุณาเข้าสู่ระบบเพื่ออนุมัติบัญชีผู้ใช้ในหน้า <strong>จัดการผู้ใช้งาน (User Management)</strong></p>
+        <p>กรุณาเข้าสู่ระบบที่หน้า <strong>จัดการผู้ใช้งาน (User Management)</strong> เพื่อ Match Employee Master และอนุมัติ โดยสิทธิ์เริ่มต้นหลังอนุมัติคือ <strong>VIEWER</strong></p>
         <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">ระบบ Security Management System v3</p>
       </div>
     `;

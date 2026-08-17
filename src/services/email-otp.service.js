@@ -12,14 +12,7 @@ const emailHash = (email, secret = env.otpHashSecret) => crypto.createHmac('sha2
 const codeHash = (purpose, email, code, secret = env.otpHashSecret) => crypto.createHmac('sha256', secret).update(`${purpose}:${normalizeEmail(email)}:${code}`).digest('hex');
 const sameHash = (left, right) => left.length === right.length && crypto.timingSafeEqual(Buffer.from(left), Buffer.from(right));
 const genericSuccess = { message: 'If the request can be processed, a verification code has been sent.' };
-const employeeName = (employee) => employee.displayName || `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
-const publicEmployee = (employee) => ({
-  id: employee.id,
-  employeeCode: employee.employeeCode,
-  displayName: employeeName(employee),
-  department: employee.department,
-  jobTitle: employee.jobTitle
-});
+const genericRegistrationSuccess = { message: 'คำขอลงทะเบียนถูกส่งแล้ว หากข้อมูลผ่านการตรวจสอบ ระบบจะแจ้งผลตามช่องทางที่กำหนด' };
 
 function createMailer(configuration = env) {
   if (configuration.otpDeliveryProvider !== 'gmail_smtp') {
@@ -42,12 +35,12 @@ function createMailer(configuration = env) {
   };
 }
 
-function createOtpService({ prismaClient = prisma, auditService = audit, mailer = createMailer(), configuration = env } = {}) {
+function createOtpService({ prismaClient = prisma, auditService = audit, mailer = createMailer(), configuration = env, registrationNotifier = (payload) => require('./notification-email.service').notifyNewRegistration(payload) } = {}) {
   if (!configuration.otpHashSecret && configuration.otpDeliveryProvider !== 'disabled') throw new Error('OTP_HASH_SECRET is required for OTP delivery.');
   const key = (email) => emailHash(email, configuration.otpHashSecret);
   const hashCode = (purpose, email, code) => codeHash(purpose, email, code, configuration.otpHashSecret);
 
-  async function createChallenge({ userId, email, purpose, deliver }) {
+  async function createChallenge({ userId, email, purpose, deliver, successResponse = genericSuccess }) {
     const normalizedEmail = normalizeEmail(email);
     const hashedEmail = key(normalizedEmail);
     const code = String(crypto.randomInt(100000, 1000000));
@@ -63,11 +56,11 @@ function createOtpService({ prismaClient = prisma, auditService = audit, mailer 
       await auditService.log({ actorUserId: null, action: 'CREATE', entityType: 'AuthOtpChallenge', entityId: challenge.id, metadata: { purpose, deliveryState: challenge.deliveryState } }, tx);
       return challenge;
     });
-    if (!deliver) return genericSuccess;
+    if (!deliver) return successResponse;
     try {
       await mailer.send({ to: normalizedEmail, code, purpose });
       await prismaClient.authOtpChallenge.update({ where: { id: created.id }, data: { deliveryState: 'SENT' } });
-      return genericSuccess;
+      return successResponse;
     } catch (error) {
       await prismaClient.authOtpChallenge.update({ where: { id: created.id }, data: { deliveryState: 'FAILED' } }).catch(() => undefined);
       if (error instanceof HttpError) throw error;
@@ -75,43 +68,37 @@ function createOtpService({ prismaClient = prisma, auditService = audit, mailer 
     }
   }
 
-  async function listRegistrationEmployees() {
-    const employees = await prismaClient.employee.findMany({
-      where: { deletedAt: null, isActive: true, user: { is: null } },
-      select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true, jobTitle: true },
-      orderBy: { employeeCode: 'asc' },
-      take: 500
-    });
-    return { data: employees.map(publicEmployee) };
-  }
-
-  async function requestRegistration({ employeeId, email, password }) {
+  async function requestRegistration({ submittedName, email, password, departmentHint }) {
     const normalizedEmail = normalizeEmail(email);
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await prismaClient.$transaction(async (tx) => {
-      const employee = await tx.employee.findFirst({
-        where: { id: employeeId, deletedAt: null, isActive: true },
-        select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true }
+    let requestCreated = false;
+    try {
+      requestCreated = await prismaClient.$transaction(async (tx) => {
+        const [existingUser, existingRequest] = await Promise.all([
+          tx.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } }),
+          tx.registrationRequest.findUnique({ where: { email: normalizedEmail }, select: { id: true } })
+        ]);
+        if (existingUser || existingRequest) return false;
+        const request = await tx.registrationRequest.create({ data: {
+          submittedName: submittedName.trim(),
+          email: normalizedEmail,
+          passwordHash,
+          departmentHint: departmentHint?.trim() || null,
+          status: 'PENDING'
+        } });
+        await auditService.log({
+          actorUserId: null,
+          action: 'CREATE',
+          entityType: 'RegistrationRequest',
+          entityId: request.id,
+          metadata: { event: 'REGISTRATION_REQUEST_SUBMITTED', emailVerified: false, employeeLinked: false, roleAssigned: false }
+        }, tx);
+        return true;
       });
-      if (!employee) throw new HttpError(400, 'Selected employee is unavailable for registration.');
-
-      const [existingByEmail, existingByEmployee] = await Promise.all([
-        tx.user.findUnique({ where: { email: normalizedEmail } }),
-        tx.user.findUnique({ where: { employeeId: employee.id } })
-      ]);
-      if (existingByEmail?.employeeId && existingByEmail.employeeId !== employee.id) throw new HttpError(409, 'This employee or email already has an account request.');
-      if (existingByEmployee && existingByEmployee.email !== normalizedEmail) throw new HttpError(409, 'This employee or email already has an account request.');
-      const existing = existingByEmail || existingByEmployee;
-      if (existing && existing.accountStatus !== 'PENDING') throw new HttpError(409, 'This employee already has an account.');
-
-      const displayName = employeeName(employee);
-      const department = employee.department || null;
-      if (existing) return tx.user.update({ where: { id: existing.id }, data: { employeeId: employee.id, displayName, passwordHash, department, requestedAt: new Date(), isActive: false } });
-      const pending = await tx.user.create({ data: { email: normalizedEmail, employeeId: employee.id, displayName, passwordHash, department, role: 'VIEWER', accountStatus: 'PENDING', isActive: false, requestedAt: new Date() } });
-      await auditService.log({ actorUserId: null, action: 'CREATE', entityType: 'RegistrationRequest', entityId: pending.id, metadata: { accountStatus: 'PENDING', employeeLinked: true } }, tx);
-      return pending;
-    });
-    return createChallenge({ userId: user?.id || null, email: normalizedEmail, purpose: 'REGISTRATION', deliver: Boolean(user) });
+    } catch (error) {
+      if (error?.code !== 'P2002') throw error;
+    }
+    return createChallenge({ userId: null, email: normalizedEmail, purpose: 'REGISTRATION', deliver: requestCreated, successResponse: genericRegistrationSuccess });
   }
 
   async function requestPasswordReset({ email }) {
@@ -131,23 +118,27 @@ function createOtpService({ prismaClient = prisma, auditService = audit, mailer 
       }
       return tx.authOtpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } });
     };
-    return client === prismaClient
-      ? prismaClient.$transaction(consumeInTransaction)
-      : consumeInTransaction(client);
+    return client === prismaClient ? prismaClient.$transaction(consumeInTransaction) : consumeInTransaction(client);
   }
 
   async function verifyRegistration({ email, code }) {
-    const challenge = await consume({ email, code, purpose: 'REGISTRATION' });
-    if (!challenge.userId) throw new HttpError(400, 'Invalid or expired verification code.');
-    const user = await prismaClient.user.findUnique({ where: { id: challenge.userId }, select: { displayName: true, email: true, department: true } });
-    await prismaClient.$transaction(async (tx) => {
-      await auditService.log({ actorUserId: null, action: 'UPDATE', entityType: 'RegistrationRequest', entityId: challenge.userId, metadata: { emailVerified: true, accountStatus: 'PENDING' } }, tx);
+    const normalizedEmail = normalizeEmail(email);
+    const request = await prismaClient.$transaction(async (tx) => {
+      await consume({ email: normalizedEmail, code, purpose: 'REGISTRATION', client: tx });
+      const current = await tx.registrationRequest.findUnique({ where: { email: normalizedEmail } });
+      if (!current || !['PENDING', 'MATCHED'].includes(current.status)) throw new HttpError(400, 'Invalid or expired verification code.');
+      const after = await tx.registrationRequest.update({ where: { id: current.id }, data: { emailVerifiedAt: current.emailVerifiedAt || new Date() } });
+      await auditService.log({
+        actorUserId: null,
+        action: 'UPDATE',
+        entityType: 'RegistrationRequest',
+        entityId: current.id,
+        metadata: { event: 'REGISTRATION_REQUEST_EMAIL_VERIFIED', emailVerified: true, accountApproved: false }
+      }, tx);
+      return after;
     });
-    if (user) {
-      const { notifyNewRegistration } = require('./notification-email.service');
-      notifyNewRegistration({ displayName: user.displayName, email: user.email, department: user.department }).catch(() => undefined);
-    }
-    return { message: 'Email verified. Your account is awaiting administrator approval.' };
+    Promise.resolve(registrationNotifier({ displayName: request.submittedName, email: request.email, department: request.departmentHint })).catch(() => undefined);
+    return genericRegistrationSuccess;
   }
 
   async function completePasswordReset({ email, code, newPassword }) {
@@ -162,7 +153,7 @@ function createOtpService({ prismaClient = prisma, auditService = audit, mailer 
     return { message: 'Password reset successfully. Please sign in with your new password.' };
   }
 
-  return { listRegistrationEmployees, requestRegistration, requestPasswordReset, verifyRegistration, completePasswordReset };
+  return { requestRegistration, requestPasswordReset, verifyRegistration, completePasswordReset };
 }
 
-module.exports = { createOtpService, createMailer, normalizeEmail, emailHash, codeHash };
+module.exports = { createOtpService, createMailer, normalizeEmail, emailHash, codeHash, genericRegistrationSuccess };

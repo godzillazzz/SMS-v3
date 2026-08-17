@@ -6,11 +6,13 @@ const shiftsRoutes = require('./shifts.routes');
 const schedulesRoutes = require('./schedules.routes');
 const operationsRoutes = require('./operations.routes');
 const dataQualityRoutes = require('./data-quality.routes');
+const registrationRequestRoutes = require('./registration-requests.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
 router.use('/users', usersRoutes);
 router.use('/employees', employeesRoutes);
+router.use('/registration-requests', registrationRequestRoutes);
 router.use('/shift-types', shiftsRoutes);
 router.use('/schedules', schedulesRoutes);
 router.use('/schedule-calendar', schedulesRoutes);

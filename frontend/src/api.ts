@@ -106,8 +106,7 @@ async function binaryCall(path: string, init: RequestInit = {}, isRetry = false)
 }
 export const api = {
   login: (email: string, password: string) => call('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, clientType: 'browser' }) }),
-  registrationEmployees: () => call('/auth/register/available-employees'),
-  requestRegistrationOtp: (data: { employeeId: string; email: string; password: string }) => call('/auth/register/request-otp', { method: 'POST', body: JSON.stringify(data) }),
+  requestRegistrationOtp: (data: { submittedName: string; email: string; password: string; departmentHint?: string }) => call('/auth/register/request-otp', { method: 'POST', body: JSON.stringify(data) }),
   verifyRegistrationOtp: (email: string, code: string) => call('/auth/register/verify-otp', { method: 'POST', body: JSON.stringify({ email, code }) }),
   requestPasswordResetOtp: (email: string) => call('/auth/password-reset/request-otp', { method: 'POST', body: JSON.stringify({ email }) }),
   completePasswordReset: (email: string, code: string, newPassword: string) => call('/auth/password-reset/complete', { method: 'POST', body: JSON.stringify({ email, code, newPassword }) }),
@@ -152,6 +151,11 @@ export const api = {
   leaveQuotas: (token: string, page = 1, filters: { year?: number; legacy?: boolean } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: '100' }); if (filters.year) params.set('year', String(filters.year)); if (filters.legacy) params.set('legacy', 'true'); return call(`/leave-quotas?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
   createLeaveQuota: (token: string, data: { employeeId: string; quotaYear: number; sickLeave: number; personalLeave: number; vacationLeave: number }) => call('/leave-quotas', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   users: (token: string) => call('/users', { headers: { Authorization: `Bearer ${token}` } }),
+  registrationRequests: (token: string, status?: string) => call(`/registration-requests?page=1&pageSize=50${status ? `&status=${encodeURIComponent(status)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
+  registrationCandidates: (token: string, id: string, search = '') => call(`/registration-requests/${encodeURIComponent(id)}/candidates${search ? `?search=${encodeURIComponent(search)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
+  matchRegistrationRequest: (token: string, id: string, employeeId: string) => call(`/registration-requests/${encodeURIComponent(id)}/match`, { method: 'POST', body: JSON.stringify({ employeeId }), headers: { Authorization: `Bearer ${token}` } }),
+  approveRegistrationRequest: (token: string, id: string) => call(`/registration-requests/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}', headers: { Authorization: `Bearer ${token}` } }),
+  rejectRegistrationRequest: (token: string, id: string, reason: string) => call(`/registration-requests/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify({ reason }), headers: { Authorization: `Bearer ${token}` } }),
   auditEvents: (token: string, page = 1, pageSize = 25, filters: { dateFrom?: string; dateTo?: string; actor?: string; entityType?: string; action?: string; search?: string; category?: string } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) }); Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); }); return call(`/audit-events?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
   dataQualityIssues: (token: string, page = 1, pageSize = 25, filters: { severity?: string; module?: string; rule?: string; department?: string; search?: string } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) }); Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); }); return call(`/data-quality/issues?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
   reportSummary: (token: string) => call('/reports/summary', { headers: { Authorization: `Bearer ${token}` } }),

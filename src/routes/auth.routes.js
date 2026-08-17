@@ -12,8 +12,8 @@ const loginSchema = z.object({ email: z.string().email(), password: z.string().m
 const refreshSchema = z.object({ refreshToken: z.string().min(40).max(500).optional(), clientType: clientType.optional() });
 const requestDetails = (req) => ({ userAgent: req.get('user-agent'), ipAddress: req.ip });
 const otp = createOtpService();
-const registrationRequestSchema = z.object({ employeeId: z.string().uuid(), email: z.string().email().max(255), password: z.string().min(8).max(128) });
-const registrationVerifySchema = z.object({ email: z.string().email().max(255), code: z.string().regex(/^\d{6}$/) });
+const registrationRequestSchema = z.object({ submittedName: z.string().trim().min(2).max(200), email: z.string().email().max(255), password: z.string().min(8).max(128), departmentHint: z.string().trim().max(100).optional().nullable() }).strict();
+const registrationVerifySchema = z.object({ email: z.string().email().max(255), code: z.string().regex(/^\d{6}$/) }).strict();
 const passwordResetRequestSchema = z.object({ email: z.string().email().max(255) });
 const passwordResetCompleteSchema = z.object({ email: z.string().email().max(255), code: z.string().regex(/^\d{6}$/), newPassword: z.string().min(8).max(128) });
 function browserResponse(tokens, user) { return { accessToken: tokens.accessToken, tokenType: tokens.tokenType, user: user || tokens.user }; }
@@ -29,9 +29,6 @@ router.post('/login', loginRateLimit, async (req, res, next) => {
 });
 router.post('/register/request-otp', async (req, res, next) => {
   try { res.status(202).json(await otp.requestRegistration(registrationRequestSchema.parse(req.body))); } catch (error) { next(error); }
-});
-router.get('/register/available-employees', async (_req, res, next) => {
-  try { res.json(await otp.listRegistrationEmployees()); } catch (error) { next(error); }
 });
 router.post('/register/verify-otp', async (req, res, next) => {
   try { res.json(await otp.verifyRegistration(registrationVerifySchema.parse(req.body))); } catch (error) { next(error); }
