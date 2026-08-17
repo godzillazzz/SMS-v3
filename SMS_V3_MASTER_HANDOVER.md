@@ -39,23 +39,28 @@ Master with a competing identity.
 | --- | --- |
 | Canonical URL | https://sms-v3-staging-ten.vercel.app |
 | Project | sms-v3-staging |
-| Current Production deployment | dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL |
+| Current Production deployment | dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs |
 | Deployment target | production |
 | Deployment state | READY |
-| Current application SHA | 1701bcf90a1998ea4999ee02e687172295984c9a |
-| Current application tree | 3edc69ce8ed26c0e4a948e14fc9d9bb70ae2140b |
-| Candidate branch | feat/leave-quota-provisioning-v1 |
-| Current release | G03 — LEAVE QUOTA PROVISIONING V1 |
-| Release status | PROMOTED / PRODUCTION VERIFIED / CLOSED |
-| Promotion timestamp | 2026-08-16T23:11:13.665Z |
+| Current application SHA | 0951d4ce08de817dda7b986924232e86e745b532 |
+| Current application tree | dfacd4261df08139f21bebd498ce709954163b8b |
+| Candidate branch | feat/annual-leave-quota-rollover-v1 |
+| Current release | G03.1 — ANNUAL LEAVE QUOTA ROLLOVER V1 |
+| Release status | PROMOTED / PRODUCTION VERIFIED |
+| Promotion timestamp | 2026-08-17T05:01:49.815Z |
 | Current main | e4bde1265ffb6b7daa9260d8465b46dd27008ab0 |
-| Current trusted Harness | 46b7a92e048d05436338d1629d848211171de03f |
+| Current trusted Harness | a561b3bf6884c9d464aaba57b5974dff1f37c2b6 |
+| G03.1 schema migration | 202608170001_annual_leave_quota_year — APPLIED EXACTLY ONCE |
+| 2026 classification | VERIFIED — 63 authoritative linked rows; 3 unmatched/unlinked NULL-year rows; 0 other years |
+| Multi-year activation | G03_1_MULTI_YEAR_WRITES_ENABLED = INACTIVE (setting MISSING) |
 
 The former staged deployment dpl_HNJFMCPiHGonnGkpGABYLPDFFFf9 is
 INVALID_FOR_RELEASE_VALIDATION and is not the current Production deployment.
 It remains forensic history only.
 
 ### Current rollback
+
+The current rollback checkpoint is still the historical G03 checkpoint. A G03.1-compatible Production rollback checkpoint has **not** been created yet and requires separate explicit owner authorization.
 
 | Field | Authoritative value |
 | --- | --- |
@@ -73,16 +78,17 @@ It remains forensic history only.
 - Post-promotion /api/v1/health: 200, status=ok.
 - Post-promotion /api/v1/ready: 200, status=ready, database=ok.
 - Readiness observations: 3/3 PASS.
-- Final Technical UAT: 11 PASS / 0 FAIL / 43 SKIP (run 31939874010).
-- Final Focused Auth: 3 PASS / 0 FAIL / 0 SKIP (run 31952150709).
-- Final Full Auth: 56 PASS / 0 FAIL / 1 controlled SKIP / 0 uncontrolled SKIP; 57 tests / 10 files (run 31955365938).
-- G03 role contract: ADMIN PASS / MANAGER PASS / VIEWER PASS.
-- G03 quota mutations: 0; unexpected business writes: 0.
-- Artifact leak: 0; credential findings: 0; PII leakage: 0.
-- Heavy-read safety: real starts 24; prevented starts 30; drain/outstanding counts 0; outstandingHeavyReads=[].
-- Promotion CI run: 31978392375; exact existing deployment promoted via Vercel project Promotion API.
-- Post-promotion runtime window 2026-08-16T23:11:13Z–2026-08-16T23:13:12Z: P2024, P2028, pool/transaction timeout, Prisma initialization error, ReferenceError, HTTP 500/503/504, and Runtime Timeout all 0.
-- Production business mutation during Promotion: 0; migration: NONE; bulk backfill: NONE.
+- G03.1 Technical validation: 11 PASS / 0 FAIL / 46 SKIP (run 31989684604).
+- G03.1 Full Auth: 55 PASS / 0 FAIL / 2 controlled SKIP / 0 uncontrolled SKIP (run 31994339618).
+- G03.1 role contract: ADMIN PASS / MANAGER PASS / VIEWER PASS.
+- Trusted Harness: a561b3bf6884c9d464aaba57b5974dff1f37c2b6.
+- Security artifact leak: 0; Production business writes attributable to UAT/Promotion: 0.
+- Promotion CI run: 31996411117; exact existing deployment promoted through POST /v10/projects/{projectId}/promote/{deploymentId}; HTTP 201; dispatch count 1.
+- Post-promotion runtime window 2026-08-17T05:01:45Z–2026-08-17T05:05:00Z: P2021, P2022, P2024, P2028, pool timeout, connection timeout, transaction timeout, Prisma initialization error, ReferenceError, HTTP 500/503/504, Runtime Timeout, UnhandledPromiseRejection, and fatal initialization all 0.
+- 2026 entitlement / used / remaining preserved exactly: SICK 1856 / 15 / 1841; PERSONAL 164 / 3 / 161; VACATION 299 / 15 / 284.
+- Production LeaveQuota distribution after Promotion: 66 total; 63 quotaYear=2026 authoritative linked rows; 3 quotaYear=NULL unmatched/unlinked rows; 0 other years.
+- G03_1_MULTI_YEAR_WRITES_ENABLED remains INACTIVE; setting remains MISSING; activation mutation 0.
+- Production business mutation during Promotion: 0; migration during Promotion: NONE; Cron invocation: 0.
 - New release/replacement deployment created by Promotion: 0.
 
 ### Current business gap status
@@ -92,14 +98,15 @@ It remains forensic history only.
 | G01 — Administrative RBAC / schedule approval | CLOSED | ADMIN allowed; MANAGER and VIEWER denied; actor identity preserved |
 | G02 — Shift Type authorization and audit | CLOSED | ADMIN-only writes; successful mutations audited; denied writes do not mutate |
 | G03 — Leave Quota Provisioning | CLOSED | Explicit Admin provisioning promoted and Production verified |
-| G04 — Registration Privacy Hardening | OPEN | Anonymous registration exposes a browseable employee roster |
+| G03.1 — Annual Leave Quota Rollover | PROMOTED / ACTIVATION INACTIVE | Annual quotaYear schema/classification is Production verified; existing 2026 values preserved; non-2026 creation remains hard-gated pending G03.1 rollback checkpoint and separate activation approval |
+| G04 — Registration Privacy Hardening | OPEN / PAUSED | Anonymous registration privacy scope remains open but is not started while G03.1 release governance is incomplete |
 | G05 — License Delete Audit Tombstone | OPEN | Permanent deletion can remove historical document audit rows |
 
 ### Next recommended task
 
-G04 — REGISTRATION PRIVACY HARDENING
+G03.1 — PRODUCTION ROLLBACK CHECKPOINT CREATION — OWNER APPROVAL REQUIRED
 
-G01, G02, and G03 are closed. G04 is now the next bounded P1 gap. Preserve the validated G03 Production state and do not reopen G03, RBAC, or UAT load-shaping work unless new contradictory evidence requires it. G04 remains the anonymous-registration privacy hardening scope already defined in this Master.
+G03.1 is Production-promoted and verified, but multi-year writes remain deliberately INACTIVE. The next consequential action is a separately owner-authorized G03.1-compatible Production rollback checkpoint. Only after that checkpoint exists and is verified may a separate owner authorization be requested to set G03_1_MULTI_YEAR_WRITES_ENABLED=true. G04 remains PAUSED.
 
 ---
 
@@ -132,7 +139,7 @@ environment topology not stated above are UNKNOWN.
 | Employee lifecycle | PARTIAL | Future-effective behavior and historical limits remain debt |
 | Scheduling | PARTIAL | Monthly approval authorization is validated; broader ownership remains G06 |
 | Leave | PARTIAL | Leave flows and explicit quota provisioning are validated; broader operational acceptance remains |
-| Leave quotas | COMPLETE | G03 explicit Admin provisioning promoted and Production verified |
+| Leave quotas | COMPLETE for G03 provisioning; G03.1 promoted with activation pending | Annual quotaYear schema/classification and 2026 preservation are Production verified; multi-year non-2026 creation remains deliberately inactive |
 | License management | COMPLETE | License access and initial-load contract passed |
 | License documents | PARTIAL | Read hardening passed; delete tombstone remains G05 |
 | Dashboard | COMPLETE | Technical and Full Auth coverage passed |
@@ -161,10 +168,12 @@ environment topology not stated above are UNKNOWN.
 - The current Canonical URL is
   https://sms-v3-staging-ten.vercel.app.
 - The current Canonical deployment is the exact Production-target deployment
-  dpl_9kb9pKc14A5zMWo6AFeM6JqSWusk at application SHA
-  148c7b8ab17698c011008335c23b99895bba7bf8.
-- The release was promoted as an existing exact deployment; no replacement
-  application deployment was used for the release.
+  dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs at application SHA
+  0951d4ce08de817dda7b986924232e86e745b532.
+- G03.1 was promoted as the existing exact staged Production deployment; no
+  replacement application deployment or rebuild was used for the release.
+- The immediately previous Canonical was dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL at
+  application SHA 1701bcf90a1998ea4999ee02e687172295984c9a and is preserved as historical release evidence.
 - Deployment Protection can return an interstitial to anonymous clients.
   Deployment identity must therefore be proven with authoritative deployment
   metadata and the approved protected-access method, not HTML markers alone.
@@ -181,11 +190,18 @@ NOT RECOVERABLE.
 ## Section 3 — Database / Prisma / Supabase Reliability
 
 - The application uses PostgreSQL through Prisma.
-- The current release was validated with no migration and no Production data
-  correction.
-- The current post-promotion runtime certification recorded zero P2024, P2028,
-  pool timeout, transaction timeout, Prisma initialization, HTTP 500, HTTP
-  503, HTTP 504, and Runtime Timeout signatures.
+- Production already contained the additive G03.1 migration
+  202608170001_annual_leave_quota_year before Promotion; it is applied exactly once.
+- Promotion itself performed no migration and no Production data correction.
+- Current annual quota classification is 63 authoritative linked rows at
+  quotaYear=2026, 3 unmatched/unlinked rows at quotaYear=NULL, and 0 rows in
+  other years.
+- G03_1_MULTI_YEAR_WRITES_ENABLED remains INACTIVE with the setting MISSING;
+  no activation row was created and no annual Cron was invoked by Promotion.
+- The current post-promotion runtime certification recorded zero P2021, P2022,
+  P2024, P2028, pool timeout, connection timeout, transaction timeout, Prisma
+  initialization, ReferenceError, HTTP 500, HTTP 503, HTTP 504, Runtime Timeout,
+  UnhandledPromiseRejection, and fatal initialization signatures.
 - The clean staged artifact validation established the current
   license-document read path without an initial per-row history fan-out and
   without an interactive transaction in the read list() path.
@@ -196,8 +212,9 @@ NOT RECOVERABLE.
   settings, or historical database incidents. Those details are UNKNOWN
   unless separately evidenced.
 
-No production pool, DATABASE_URL, schema, migration, or database setting was
-changed by the current release procedure.
+No production pool, DATABASE_URL, schema, migration, activation setting, or
+business data was changed by the G03.1 Promotion procedure. The G03.1 schema
+migration and 2026 classification were completed and verified before Promotion.
 
 ---
 
@@ -263,10 +280,14 @@ validated RBAC approval contract is COMPLETE.
 - G03 closed the prior provisioning gap by adding and Production-verifying a normal ADMIN product/API path for explicit individual LeaveQuota provisioning.
 - The validated G03 path preserves fallback/default behavior for legacy compatibility while allowing explicit entitlement provisioning for new employees.
 - G03 Promotion performed no schema migration, no bulk backfill, and no Production quota mutation during validation or Promotion.
-- Further changes to leave quota behavior require a separately bounded release; G03 itself is CLOSED.
+- G03.1 adds Gregorian quotaYear authority for annual quota accounting. Production contains 63 authoritative linked 2026 rows, 3 unmatched/unlinked NULL-year rows, and no second-year authority rows.
+- Existing 2026 entitlement values are frozen and preserved. Promotion verification recorded SICK 1856 / 15 / 1841, PERSONAL 164 / 3 / 161, and VACATION 299 / 15 / 284 for entitlement / used / remaining.
+- New annual defaults 30 / 3 / 6 apply only when creation of new annual entitlements is permitted after separate multi-year activation approval; they did not reset existing 2026 rows.
+- G03_1_MULTI_YEAR_WRITES_ENABLED remains deliberately INACTIVE. Non-2026 annual creation, cross-year missing-authority creation, and NULL→non-2026 classification remain backend-gated.
+- G03.1 Promotion created no quota rows, no second-year authority, no activation row, and no business-data mutation.
+- The next G03.1 action is a separately owner-authorized Production rollback checkpoint. Activation is not complete and must not be represented as complete.
 
-Classification: COMPLETE for explicit quota provisioning and PARTIAL for the
-overall Leave capability because broader operational acceptance remains.
+Classification: COMPLETE for explicit G03 quota provisioning; G03.1 annual rollover is PROMOTED / PRODUCTION VERIFIED with multi-year activation deliberately pending. The overall Leave capability remains PARTIAL because broader operational acceptance remains.
 
 ---
 
@@ -350,22 +371,20 @@ recorded here.
 
 | Gate | Result |
 | --- | --- |
-| Technical UAT 31926176078 | 11 PASS / 0 FAIL / 43 SKIP |
-| Targeted Auth 31927914811 | 8 PASS / 0 FAIL / 0 SKIP |
-| Final Full Auth 31929402483 | 53 PASS / 0 FAIL / 1 controlled disposable SKIP |
+| G03.1 Technical UAT 31989684604 | 11 PASS / 0 FAIL / 46 SKIP |
+| G03.1 Full Auth 31994339618 | 55 PASS / 0 FAIL / 2 controlled SKIP / 0 uncontrolled SKIP |
+| ADMIN / MANAGER / VIEWER | PASS / PASS / PASS |
 | Artifact leak | 0 |
-| Password/credential findings | 0 |
-| Heavy-read safety | 0 / 0 / 0, outstanding [] |
-| Performance | PERFORMANCE_NEUTRAL |
-| Critical runtime signatures | All 0 |
+| Business writes attributable to Auth UAT | 0 |
+| Heavy-read safety | outstanding 0; drain complete |
+| Promotion 31996411117 | SUCCESS; exact existing deployment; HTTP 201; dispatch count 1 |
+| Critical post-promotion runtime signatures | All 0 |
 
-The trusted Harness used for the release is
-66e81e59f813f01e999e21243e5456ddf032ba91. The current main is
+The trusted Harness for G03.1 is
+a561b3bf6884c9d464aaba57b5974dff1f37c2b6. The current main is
 e4bde1265ffb6b7daa9260d8465b46dd27008ab0.
 
-The controlled disposable test remained skipped by design. The Full Auth
-result must not be rewritten as 54 PASS; the authoritative result is
-53 PASS / 0 FAIL / 1 controlled disposable SKIP.
+The two Full Auth skips were controlled: the destructive disposable-employee lifecycle suite and the canonical-versus-candidate benchmark. No uncontrolled skip or Auth failure remained.
 
 ### Governance
 
@@ -388,24 +407,35 @@ coverage remains P2 item G12.
 
 ### Current release
 
-- Release: G03 — LEAVE QUOTA PROVISIONING V1
-- Production SHA: 1701bcf90a1998ea4999ee02e687172295984c9a
-- Application tree: 3edc69ce8ed26c0e4a948e14fc9d9bb70ae2140b
-- Production deployment: dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL
+- Release: G03.1 — ANNUAL LEAVE QUOTA ROLLOVER V1
+- Production SHA: 0951d4ce08de817dda7b986924232e86e745b532
+- Application tree: dfacd4261df08139f21bebd498ce709954163b8b
+- Production deployment: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs
 - Canonical URL: https://sms-v3-staging-ten.vercel.app
-- Status: PROMOTED / PRODUCTION VERIFIED / CLOSED
-- Trusted Harness: 46b7a92e048d05436338d1629d848211171de03f
-- Final Technical run: 31939874010
-- Final Focused Auth run: 31952150709
-- Final Full Auth run: 31955365938 (56 PASS / 0 FAIL / 1 controlled SKIP / 0 uncontrolled SKIP)
-- Promotion CI run: 31978392375
-- Rollback checkpoint: rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 → 1701bcf90a1998ea4999ee02e687172295984c9a (VERIFIED 2026-08-17).
-- G03: CLOSED
+- Status: PROMOTED / PRODUCTION VERIFIED
+- Migration: 202608170001_annual_leave_quota_year — APPLIED EXACTLY ONCE before Promotion
+- 2026 classification: VERIFIED
+- Activation: INACTIVE (G03_1_MULTI_YEAR_WRITES_ENABLED setting MISSING)
+- Trusted Harness: a561b3bf6884c9d464aaba57b5974dff1f37c2b6
+- Final Technical run: 31989684604
+- Final Full Auth run: 31994339618 (55 PASS / 0 FAIL / 2 controlled SKIP / 0 uncontrolled SKIP)
+- Promotion CI run: 31996411117 (SUCCESS; exact existing deployment; HTTP 201; one Promotion API execution)
+- Previous Canonical: dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL / 1701bcf90a1998ea4999ee02e687172295984c9a (historical G03 Production identity)
+- Current rollback checkpoint remains unchanged: rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 → 1701bcf90a1998ea4999ee02e687172295984c9a (historical G03 checkpoint; G03.1 checkpoint not yet established).
+- G03.1 multi-year activation is NOT complete. Multi-year writes remain deliberately INACTIVE pending separately owner-authorized rollback checkpoint establishment and activation approval.
+- G04: PAUSED
 
 ### Preserved historical milestones
 
 The following entries are recovered historical evidence supplied by the prior
 release record. They are not claims that those deployments are current.
+
+#### G03 — LEAVE QUOTA PROVISIONING V1
+
+- Historical Canonical deployment immediately before G03.1 Promotion: dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL.
+- Historical Production SHA: 1701bcf90a1998ea4999ee02e687172295984c9a.
+- Historical status: PROMOTED / PRODUCTION VERIFIED / CLOSED.
+- Historical rollback checkpoint remains current until a separately authorized G03.1 checkpoint is created: rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 → 1701bcf90a1998ea4999ee02e687172295984c9a.
 
 #### ADMINISTRATIVE RBAC SURFACE ALIGNMENT V1
 
