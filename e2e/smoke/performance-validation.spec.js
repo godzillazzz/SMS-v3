@@ -167,6 +167,7 @@ test('V3 ADMIN: Report Center exact network contract', async ({ page }, testInfo
 
 test('V3 PERFORMANCE: matched strictly-sequential canonical versus candidate benchmark', async ({}, testInfo) => {
   test.skip(!shouldRunPerformanceValidation(), 'Authenticated-only performance validation.');
+  test.skip(String(process.env.UAT_ENABLE_CANONICAL_BENCHMARK || '').trim().toLowerCase() !== 'true', 'Cross-target benchmark disabled for exact staged-only Auth UAT.');
   test.setTimeout(900_000);
 
   const targets = assertApprovedBenchmarkTargets(process.env.UAT_BASE_URL);

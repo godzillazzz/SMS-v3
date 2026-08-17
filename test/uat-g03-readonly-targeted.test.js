@@ -134,6 +134,9 @@ test('G03 employee selector locator is structural, exact, and independent from o
 test('G03 exact Candidate source exposes the expected employee field-group/select DOM contract when supplied', { skip: !process.env.UAT_APPLICATION_ROOT }, () => {
   const applicationSource = fs.readFileSync(path.resolve(process.env.UAT_APPLICATION_ROOT, 'frontend/src/main.tsx'), 'utf8');
   assert.match(applicationSource, /name: 'employeeId', label: 'พนักงาน \(รหัส · ชื่อ · หน่วยงาน\)', type: 'select'/);
+  assert.match(applicationSource, /aria-label="ปีสิทธิ์โควตาวันลา"/);
+  assert.match(applicationSource, /กำหนดโควตาวันลา ปี \$\{thaiQuotaYearLabel\(quotaYear\)\}/);
+  assert.match(applicationSource, /values: \{ \.\.\.LEAVE_QUOTA_DEFAULTS, quotaYear: String\(quotaYear\) \}/);
   assert.match(applicationSource, /<label className=\{\['textarea', 'file'\]\.includes\(field\.type \|\| ''\) \? 'field-group full' : 'field-group'\} key=\{field\.name\}><span>\{field\.label\}<\/span>/);
   assert.match(applicationSource, /field\.type === 'select' \? <select required=\{field\.required\} value=\{values\[field\.name\] \|\| ''\}/);
   assert.doesNotMatch(applicationSource, /field\.type === 'select' \? <select[^>]*\b(?:id|name)=/);
@@ -186,8 +189,13 @@ test('G03 browser spec is cancel-only and contains the exact read-only UI contra
   assert.match(specSource, /navigateTo\(page, 'quota'\)/);
   assert.match(specSource, /กำหนดโควตาวันลา/);
   assert.match(specSource, /toHaveValue\('30'\)/);
+  assert.match(specSource, /toHaveValue\('3'\)/);
   assert.match(specSource, /toHaveValue\('6'\)/);
-  assert.match(specSource, /toHaveValue\('10'\)/);
+  assert.doesNotMatch(specSource, /toHaveValue\('10'\)/);
+  assert.match(specSource, /ปีสิทธิ์โควตาวันลา/);
+  assert.match(specSource, /G03_1_FUTURE_READ_YEAR/);
+  assert.match(specSource, /ดูข้อมูลเดิมที่ยังไม่ระบุปี/);
+  assert.match(specSource, /leave-summary\?year=\$\{G03_1_BASE_YEAR\}/);
   assert.match(specSource, /g03EntitlementWordingSnapshot\(page\)/);
   assert.match(specSource, /wording\.newWordingPresent\)\.toBe\(true\)/);
   assert.match(specSource, /wording\.oldWordingAbsent\)\.toBe\(true\)/);
@@ -233,6 +241,16 @@ test('G03 reporter aggregates only sanitized mutation/UI evidence', () => {
           legacyWarningExpected: false,
           legacyWarningObserved: false,
           legacyWarning: 'NOT_TRIGGERED_BY_CURRENT_DATA',
+          yearSelectorVisible: true,
+          quotaYearDefault: 2026,
+          futureYearReadOnly: true,
+          futureYearRows: 0,
+          legacyViewVisible: true,
+          legacyRows: 3,
+          leaveSummaryCurrentYear: 2026,
+          leaveSummaryExplicitYear: 2026,
+          leaveSummaryYearAware: true,
+          leaveSummaryParity: true,
           employeeName: 'must-not-survive',
           employeeEmail: 'must-not-survive@example.test'
         }))
@@ -247,6 +265,11 @@ test('G03 reporter aggregates only sanitized mutation/UI evidence', () => {
   assert.equal(reporter.g03Readonly.roles.ADMIN.candidateCount, 2);
   assert.equal(reporter.g03Readonly.roles.ADMIN.legacyWarningExpected, false);
   assert.equal(reporter.g03Readonly.roles.ADMIN.legacyWarningObserved, false);
+  assert.equal(reporter.g03Readonly.roles.ADMIN.yearSelectorVisible, true);
+  assert.equal(reporter.g03Readonly.roles.ADMIN.quotaYearDefault, 2026);
+  assert.equal(reporter.g03Readonly.roles.ADMIN.futureYearRows, 0);
+  assert.equal(reporter.g03Readonly.roles.ADMIN.legacyRows, 3);
+  assert.equal(reporter.g03Readonly.roles.ADMIN.leaveSummaryYearAware, true);
   assert.equal(reporter.g03Readonly.roles.ADMIN.employeeName, undefined);
   assert.equal(reporter.g03Readonly.roles.ADMIN.employeeEmail, undefined);
   assert.doesNotMatch(JSON.stringify(reporter.g03Readonly), /must-not-survive/);

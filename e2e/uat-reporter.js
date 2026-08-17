@@ -114,14 +114,16 @@ function safeG03UiSummaryAttachment(value) {
   if (!role) return undefined;
   const safe = { role };
   for (const key of [
-    'quotaPageLoaded', 'provisionControlVisible', 'modalOpened', 'yearFieldAbsent',
+    'quotaPageLoaded', 'provisionControlVisible', 'modalOpened', 'yearFieldAbsent', 'modalYearFieldAbsent',
+    'yearSelectorVisible', 'thaiYearLabelPresent', 'futureYearReadOnly', 'legacyViewVisible',
+    'leaveSummaryYearAware', 'leaveSummaryParity', 'activationControlVisible',
     'newWordingPresent', 'oldAnnualWordingAbsent', 'selectorLoaded',
     'codeRenderingPresent', 'nameRenderingPresent', 'departmentRenderingPresent',
     'quotaNavigationVisible', 'legacyWarningExpected', 'legacyWarningObserved'
   ]) {
     if (typeof value[key] === 'boolean') safe[key] = value[key];
   }
-  for (const key of ['defaultSick', 'defaultPersonal', 'defaultVacation', 'candidateCount']) {
+  for (const key of ['defaultSick', 'defaultPersonal', 'defaultVacation', 'candidateCount', 'quotaYearDefault', 'futureYearRows', 'legacyRows', 'leaveSummaryCurrentYear', 'leaveSummaryExplicitYear']) {
     if (value[key] !== undefined) safe[key] = safeNonNegativeInteger(value[key]);
   }
   if (['PRESENT', 'NOT_TRIGGERED_BY_CURRENT_DATA'].includes(value.legacyWarning)) safe.legacyWarning = value.legacyWarning;
