@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: 0951d4ce08de817dda7b986924232e86e745b532
-          fetch-depth: 1
+          fetch-depth: 2
 
       - name: Set up exact Node runtime
         uses: actions/setup-node@v4
