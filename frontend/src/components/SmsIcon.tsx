@@ -3,7 +3,7 @@ import type { SVGProps } from 'react';
 export type SmsIconName =
   | 'dashboard' | 'employees' | 'license' | 'calendar' | 'clock' | 'leave' | 'approval'
   | 'history' | 'quota' | 'shield' | 'audit' | 'quality' | 'users' | 'report' | 'settings'
-  | 'bell' | 'search' | 'menu' | 'more' | 'close' | 'logout' | 'sun' | 'moon' | 'system';
+  | 'bell' | 'search' | 'menu' | 'more' | 'close' | 'logout' | 'sun' | 'moon' | 'system' | 'eye' | 'eyeOff';
 
 const paths: Record<SmsIconName, React.ReactNode> = {
   dashboard: <><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></>,
@@ -29,7 +29,9 @@ const paths: Record<SmsIconName, React.ReactNode> = {
   logout: <><path d="M10 17l5-5-5-5M15 12H3"/><path d="M14 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/></>,
   sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></>,
   moon: <><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></>,
-  system: <><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></>
+  system: <><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></>,
+  eye: <><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></>,
+  eyeOff: <><path d="M3 3l18 18"/><path d="M10.6 6.2A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-3 3.7M6.1 6.1C3.7 7.7 2.5 12 2.5 12S6 18 12 18c1.8 0 3.4-.5 4.7-1.2"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></>
 };
 
 export function SmsIcon({ name, size = 20, ...props }: { name: SmsIconName; size?: number } & Omit<SVGProps<SVGSVGElement>, 'name'>) {

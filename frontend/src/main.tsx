@@ -31,6 +31,7 @@ import { LicenseEditModal, LicenseTableDocumentColumns } from './components/Lice
 import { DataRowActionMenu } from './components/DataRowActionMenu';
 import { SmsIcon, type SmsIconName } from './components/SmsIcon';
 import { ThemeControl } from './components/ThemeControl';
+import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/license-table.css';
 import './styles/responsive-shell.css';
@@ -39,6 +40,7 @@ import './styles/tokens.css';
 import './styles/theme-foundation.css';
 import './styles/app-shell.css';
 import './styles/data-surfaces.css';
+import './styles/auth-experience.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; department?: string; jobTitle?: string; isActive: boolean; updatedAt?: string };
@@ -156,6 +158,21 @@ function writeLeaveMonthToUrl(value: string): void {
   window.history.pushState({ leaveMonth: `${year}-${String(month).padStart(2, '0')}` }, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
+function AuthProgress({ flow, current }: { flow: 'registration' | 'reset'; current: number }) {
+  const steps = flow === 'registration'
+    ? ['ข้อมูลผู้สมัคร', 'ยืนยันอีเมล', 'รอการตรวจสอบ']
+    : ['อีเมล', 'ยืนยัน OTP', 'ตั้งรหัสผ่านใหม่'];
+  return <ol className="auth-progress" aria-label={flow === 'registration' ? 'ขั้นตอนการลงทะเบียน' : 'ขั้นตอนการรีเซ็ตรหัสผ่าน'}>
+    {steps.map((label, index) => {
+      const step = index + 1;
+      const state = step < current ? 'complete' : step === current ? 'active' : 'upcoming';
+      return <li className={`auth-progress__step is-${state}`} key={label} aria-current={state === 'active' ? 'step' : undefined}>
+        <span className="auth-progress__number">{step}</span><span>{label}</span>
+      </li>;
+    })}
+  </ol>;
+}
+
 function Login() {
   const auth = useContext(AuthContext)!;
   const [mode, setMode] = useState<'login' | 'register' | 'registerVerify' | 'reset' | 'resetVerify'>('login');
@@ -178,8 +195,9 @@ function Login() {
   }, [mode, resendSeconds]);
 
   const resetView = (next: typeof mode) => { setMode(next); setFormError(undefined); setFormMessage(undefined); setCode(''); setRegistrationState(undefined); if (next !== 'registerVerify') setResendSeconds(0); };
-  const title = mode === 'login' ? 'ยินดีต้อนรับ' : mode === 'register' ? 'ส่งคำขอลงทะเบียน' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'รีเซ็ตรหัสผ่านด้วย OTP' : 'ตั้งรหัสผ่านใหม่';
-  const lead = mode === 'login' ? 'เข้าสู่ระบบเพื่อเปิด Dashboard' : mode === 'register' ? 'ส่งคำขอแบบส่วนตัว ผู้ดูแลจะตรวจสอบและจับคู่กับ Employee Master ภายหลัง' : mode === 'registerVerify' ? 'กรอกรหัส 6 หลักเพื่อยืนยันความเป็นเจ้าของอีเมล การยืนยันอีเมลยังไม่ใช่การอนุมัติบัญชี' : mode === 'reset' ? 'เราจะส่งรหัสยืนยันไปยังอีเมลของคุณ' : 'กรอกรหัส 6 หลักและรหัสผ่านใหม่';
+  const resultPresentation = registrationResultPresentation(registrationState);
+  const title = mode === 'login' ? 'ยินดีต้อนรับกลับ' : mode === 'register' ? 'ส่งคำขอลงทะเบียน' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ลืมรหัสผ่าน' : 'ตั้งรหัสผ่านใหม่';
+  const lead = mode === 'login' ? 'เข้าสู่ระบบเพื่อใช้งาน Security Management System' : mode === 'register' ? 'กรอกข้อมูลสำหรับส่งคำขอให้ผู้ดูแลตรวจสอบ' : mode === 'registerVerify' ? 'ยืนยันความเป็นเจ้าของอีเมลด้วยรหัส 6 หลัก' : mode === 'reset' ? 'ระบุอีเมลเพื่อขอรหัสยืนยันสำหรับตั้งรหัสผ่านใหม่' : 'กรอกรหัส OTP พร้อมกำหนดรหัสผ่านใหม่';
   const submitDisabled = busy || (mode === 'register' && submittedName.trim().length < 2);
   const maskedEmail = (() => {
     const [local, domain] = email.trim().split('@');
@@ -233,39 +251,77 @@ function Login() {
   };
 
   const showAccountRecovery = registrationState === 'EXISTING_ACCOUNT' || registrationState === 'EMPLOYEE_ALREADY_HAS_ACCOUNT';
+  const registrationStep = mode === 'registerVerify' ? 2 : 1;
+  const resetStep = mode === 'resetVerify' ? 2 : 1;
 
   return (
-    <main className="login-page">
-      <section className="login-shell" aria-label="เข้าสู่ระบบ Security Management System">
-        <aside className="login-intro">
-          <div className="intro-brand"><Logo /><strong>Security Management System</strong></div>
-          <div className="intro-copy"><h1>ระบบบริหาร<br />งานรักษาความปลอดภัย</h1><p>บริหารพนักงาน ตารางกะ และกฎการทำงาน ในพื้นที่เดียว</p><span className="intro-check"><i aria-hidden="true">✓</i><span>ข้อมูลและสิทธิ์ผู้ใช้ถูกปกป้องตามนโยบายระบบ</span></span></div>
+    <main className="login-page auth-experience-page">
+      <section className="login-shell auth-experience-shell" aria-label="เข้าสู่ระบบ Security Management System">
+        <aside className="login-intro auth-brand-panel">
+          <div className="intro-brand auth-brand"><Logo /><span><b>SMS V3</b><strong>Security Management System</strong></span></div>
+          <div className="intro-copy auth-brand-copy">
+            <p className="auth-brand-eyebrow">SECURITY MANAGEMENT SYSTEM</p>
+            <h1>บริหารงานรักษาความปลอดภัย<br />ในพื้นที่เดียว</h1>
+            <p>จัดการข้อมูลบุคลากร ตารางกะ การลา และกฎการทำงานด้วยประสบการณ์เดียวกันทั้งระบบ</p>
+            <div className="auth-brand-points" aria-label="ความสามารถหลักของระบบ">
+              <span><SmsIcon name="employees" size={18} />ข้อมูลบุคลากร</span>
+              <span><SmsIcon name="calendar" size={18} />ตารางกะและการลา</span>
+              <span><SmsIcon name="shield" size={18} />สิทธิ์และกฎการทำงาน</span>
+            </div>
+          </div>
+          <p className="auth-brand-footnote"><SmsIcon name="shield" size={16} />การเข้าถึงข้อมูลเป็นไปตามสิทธิ์ของบัญชีผู้ใช้งาน</p>
         </aside>
-        <section className="login-form-panel">
-          <div className="login-theme-control"><ThemeControl compact /></div>
-          <form className="login-form" onSubmit={submit}>
-            <h2>{title}</h2><p className="form-lead">{lead}</p>
-            {(formError || (mode === 'login' ? auth.error : undefined)) && <div className="alert alert-error" role="alert">{formError || auth.error}</div>}
-            {formMessage && <div className="login-help-action" role="status">{formMessage}</div>}
-            {mode === 'register' && <>
-              <label className="field-group" htmlFor="registration-name"><span>ชื่อ-นามสกุลที่ใช้ส่งคำขอ</span><input id="registration-name" value={submittedName} onChange={(event) => setSubmittedName(event.target.value)} type="text" minLength={2} maxLength={200} required autoComplete="name" /><small className="field-hint">ข้อมูลนี้เป็นข้อมูลที่ผู้สมัครแจ้ง ไม่ใช่ Employee Master และไม่ใช้เป็นหลักฐานยืนยันตัวบุคคล</small></label>
-              <label className="field-group" htmlFor="registration-department"><span>หน่วยงาน / พื้นที่ (ถ้ามี)</span><input id="registration-department" value={departmentHint} onChange={(event) => setDepartmentHint(event.target.value)} type="text" maxLength={100} /><small className="field-hint">ใช้เป็น hint สำหรับผู้ตรวจสอบเท่านั้น ไม่แก้ไขข้อมูล Employee Master</small></label>
+        <section className="login-form-panel auth-card-panel">
+          <div className="login-theme-control auth-theme-control"><ThemeControl compact /></div>
+          <form className="login-form auth-form" onSubmit={submit} aria-busy={busy}>
+            {resultPresentation ? <section className={`auth-result auth-result--${resultPresentation.tone}`} aria-live="polite" aria-labelledby="registration-result-title">
+              <div className="auth-result__verified"><span className="auth-result__verified-icon"><SmsIcon name="approval" size={20} /></span><span><b>ยืนยันอีเมลสำเร็จ</b><small>การยืนยันอีเมลยังไม่ใช่การอนุมัติบัญชี</small></span></div>
+              <div className="auth-result__body">
+                <h2 id="registration-result-title">{resultPresentation.heading}</h2>
+                <p>{resultPresentation.body}</p>
+                {resultPresentation.statusLabel && <div className="auth-result__status"><span>สถานะ</span><strong>{resultPresentation.statusLabel}</strong></div>}
+              </div>
+              <div className="auth-result__actions">
+                <button className="btn-primary auth-primary-action" type="button" onClick={() => resetView('login')}>กลับหน้าเข้าสู่ระบบ</button>
+                {resultPresentation.recovery && <button className="auth-secondary-action" type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน</button>}
+              </div>
+            </section> : <>
+              <header className="auth-form-heading">
+                <span className="auth-form-kicker">SMS V3</span>
+                <h2>{title}</h2><p className="form-lead">{lead}</p>
+              </header>
+              {(mode === 'register' || mode === 'registerVerify') && <AuthProgress flow="registration" current={registrationStep} />}
+              {(mode === 'reset' || mode === 'resetVerify') && <AuthProgress flow="reset" current={resetStep} />}
+              {(formError || (mode === 'login' ? auth.error : undefined)) && <div className="alert alert-error auth-alert" role="alert" aria-live="assertive"><SmsIcon name="shield" size={18} /><span>{formError || auth.error}</span></div>}
+              {formMessage && <div className="login-help-action auth-notice" role="status" aria-live="polite"><SmsIcon name="approval" size={18} /><span>{formMessage}</span></div>}
+
+              {mode === 'register' && <>
+                <label className="field-group auth-field" htmlFor="registration-name"><span>ชื่อ-นามสกุล</span><input id="registration-name" value={submittedName} onChange={(event) => setSubmittedName(event.target.value)} type="text" minLength={2} maxLength={200} required autoComplete="name" /><small className="field-hint">ใช้สำหรับส่งคำขอให้ผู้ดูแลตรวจสอบ ข้อมูลนี้ไม่ใช่ข้อมูลยืนยันตัวบุคคลจาก Employee Master</small></label>
+                <label className="field-group auth-field" htmlFor="registration-department"><span>หน่วยงาน / พื้นที่ <em>ถ้ามี</em></span><input id="registration-department" value={departmentHint} onChange={(event) => setDepartmentHint(event.target.value)} type="text" maxLength={100} /><small className="field-hint">ระบุหน่วยงานหรือพื้นที่เพื่อช่วยผู้ดูแลตรวจสอบ ข้อมูลนี้ไม่แก้ไข Employee Master</small></label>
+              </>}
+
+              {mode === 'registerVerify' && <div className="auth-otp-intro"><span><SmsIcon name="shield" size={18} /></span><div><b>เราได้ส่งรหัส 6 หลักไปยัง</b><strong>{maskedEmail}</strong></div></div>}
+              {mode === 'resetVerify' && <div className="auth-otp-intro"><span><SmsIcon name="shield" size={18} /></span><div><b>กรอกรหัสยืนยันที่ได้รับทางอีเมล</b><strong>{maskedEmail}</strong><small>OTP และรหัสผ่านใหม่จะถูกตรวจสอบพร้อมกันเมื่อกดยืนยัน</small></div></div>}
+
+              <label className="field-group auth-field" htmlFor="email"><span>อีเมล</span><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete={mode === 'login' ? 'username' : 'email'} disabled={mode === 'registerVerify'} /></label>
+
+              {(mode === 'registerVerify' || mode === 'resetVerify') && <label className="field-group auth-field auth-otp-field" htmlFor="otp-code"><span>รหัส OTP 6 หลัก</span><input id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" aria-describedby={mode === 'registerVerify' ? 'registration-otp-help' : undefined} placeholder="000000" /></label>}
+
+              {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group auth-field" htmlFor="password"><span>{mode === 'resetVerify' ? 'รหัสผ่านใหม่' : 'รหัสผ่าน'}</span><span className="password-field auth-password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'อย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle auth-password-toggle" type="button" aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} aria-pressed={showPassword} onMouseDown={(event) => event.preventDefault()} onClick={() => setShowPassword((visible) => !visible)}><SmsIcon name={showPassword ? 'eyeOff' : 'eye'} size={18} /><span>{showPassword ? 'ซ่อน' : 'แสดง'}</span></button></span></label>}
+
+              <button className="btn-primary auth-primary-action" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งคำขอและรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
+
+              {mode === 'registerVerify' && <div className="auth-resend" id="registration-otp-help"><p>หากยังไม่พบอีเมล กรุณาตรวจสอบ Spam/Junk</p><button type="button" disabled={busy || resendSeconds > 0} onClick={resendRegistrationCode}>{resendSeconds > 0 ? `ส่งรหัสอีกครั้งใน ${resendSeconds} วินาที` : 'ส่งรหัสอีกครั้ง'}</button></div>}
+
+              {mode === 'login' ? <div className="login-links auth-links">{!showAccountRecovery && <button type="button" onClick={() => resetView('register')}>ส่งคำขอลงทะเบียน</button>}<button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน</button></div> : <div className="login-links auth-links auth-links--back"><button type="button" onClick={() => resetView('login')}>กลับหน้าเข้าสู่ระบบ</button></div>}
+              <p className="login-help auth-support-note">พบปัญหาการใช้งาน กรุณาติดต่อผู้ดูแลระบบของหน่วยงาน</p>
             </>}
-            {mode === 'registerVerify' && <p className="field-hint">ส่งรหัสไปยัง {maskedEmail}</p>}
-            <label className="field-group" htmlFor="email"><span>อีเมล</span><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete="username" disabled={mode === 'registerVerify'} /></label>
-            {(mode === 'registerVerify' || mode === 'resetVerify') && <label className="field-group" htmlFor="otp-code"><span>รหัส OTP 6 หลัก</span><input id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" /></label>}
-            {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group" htmlFor="password"><span>รหัสผ่าน</span><span className="password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'รหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle" type="button" onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? 'ซ่อน' : 'แสดง'}</button></span></label>}
-            <button className="btn-primary" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งคำขอและรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
-            {mode === 'registerVerify' && <div className="login-links"><button type="button" disabled={busy || resendSeconds > 0} onClick={resendRegistrationCode}>{resendSeconds > 0 ? `ส่งรหัสอีกครั้งใน ${resendSeconds} วินาที` : 'ส่งรหัสอีกครั้ง'}</button><button type="button" onClick={() => resetView('login')}>← กลับไปหน้าเข้าสู่ระบบ</button></div>}
-            {mode === 'login' ? <div className="login-links">{!showAccountRecovery && <button type="button" onClick={() => resetView('register')}>ยังไม่มีบัญชี? <b>ส่งคำขอลงทะเบียน</b></button>}<button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน? <b>รีเซ็ตรหัสผ่านด้วย OTP</b></button></div> : mode !== 'registerVerify' && <div className="login-links"><button type="button" onClick={() => resetView('login')}>← กลับไปหน้าเข้าสู่ระบบ</button></div>}
-            <p className="login-help">พบปัญหาการใช้งาน: ติดต่อผู้ดูแลระบบของหน่วยงาน</p>
           </form>
         </section>
       </section>
     </main>
   );
 }
-
 const text = (value: unknown) => value === null || value === undefined || value === '' ? '-' : String(value);
 
 const semanticStatusTone = (value: unknown) => {
