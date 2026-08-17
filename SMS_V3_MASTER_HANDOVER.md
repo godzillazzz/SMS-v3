@@ -39,18 +39,19 @@ Master with a competing identity.
 | --- | --- |
 | Canonical URL | https://sms-v3-staging-ten.vercel.app |
 | Project | sms-v3-staging |
-| Current Production deployment | dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs |
+| Current Production deployment | dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 |
 | Deployment target | production |
 | Deployment state | READY |
-| Current application SHA | 0951d4ce08de817dda7b986924232e86e745b532 |
-| Current application tree | dfacd4261df08139f21bebd498ce709954163b8b |
-| Candidate branch | feat/annual-leave-quota-rollover-v1 |
-| Current release | G03.1 — ANNUAL LEAVE QUOTA ROLLOVER V1 |
-| Release status | ACTIVATED / PRODUCTION VERIFIED |
-| Promotion timestamp | 2026-08-17T05:01:49.815Z |
+| Current application SHA | 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e |
+| Current application tree | c58a842dd0d6cfa4f3efca352769671012c2ba9a |
+| Candidate branch | feat/private-registration-request-v1 |
+| Current release | G04 — PRIVATE REGISTRATION REQUEST + ADMIN-ASSISTED MATCHING + CONTROLLED ROLE ACTIVATION V1 |
+| Release status | PROMOTED / PRODUCTION VERIFIED |
+| Promotion verification | run 32016084335 / job 95345730496 / HTTP 201 / dispatch count 1 |
 | Current main | e4bde1265ffb6b7daa9260d8465b46dd27008ab0 |
 | Current trusted Harness | a561b3bf6884c9d464aaba57b5974dff1f37c2b6 |
 | G03.1 schema migration | 202608170001_annual_leave_quota_year — APPLIED EXACTLY ONCE |
+| G04 schema migration | 202608170002_g04_private_registration_request — APPLIED EXACTLY ONCE |
 | 2026 classification | VERIFIED — 64 authoritative linked rows; 3 unmatched/unlinked NULL-year rows; 0 other years (fresh checkpoint snapshot 2026-08-17T05:26:13Z) |
 | Multi-year activation | G03_1_MULTI_YEAR_WRITES_ENABLED = ACTIVE (raw value true; verified run 31999063040) |
 
@@ -60,15 +61,15 @@ It remains forensic history only.
 
 ### Current rollback
 
-The current rollback checkpoint is the verified G03.1 Production checkpoint created and verified before multi-year activation. It remains the preferred Production rollback point after activation completed successfully. The historical G03 checkpoint and all earlier rollback refs remain preserved.
+The current existing rollback checkpoint remains the verified G03.1 Production checkpoint created before G04. It is data-compatible with the additive G04 schema/data model, but application rollback from G04 to the old G03.1 application is SECURITY-REGRESSIVE because it restores anonymous Employee enumeration and applicant-driven employeeId registration behavior. The checkpoint is therefore preserved and unchanged, but it is not the preferred rollback target for normal G04 operation. The preferred next recovery action is a separately owner-authorized G04 Production rollback checkpoint bound to the current G04 SHA.
 
 | Field | Authoritative value |
 | --- | --- |
 | Current rollback checkpoint | rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 |
 | Rollback SHA | 0951d4ce08de817dda7b986924232e86e745b532 |
 | Associated Production release | G03.1 — ANNUAL LEAVE QUOTA ROLLOVER V1 |
-| Canonical deployment | dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs |
-| Checkpoint status | CURRENT / VERIFIED |
+| Checkpoint deployment (historical prior Canonical) | dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs |
+| Checkpoint status | CURRENT EXISTING / VERIFIED / SECURITY-REGRESSIVE FOR G04 APPLICATION ROLLBACK |
 | Created / verified date | 2026-08-17 |
 | Previous rollback checkpoint | rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 |
 | Previous rollback SHA | 1701bcf90a1998ea4999ee02e687172295984c9a |
@@ -77,16 +78,20 @@ The current rollback checkpoint is the verified G03.1 Production checkpoint crea
 
 ### Current health and release validation
 
-- Post-promotion /api/v1/health: 200, status=ok.
-- Post-promotion /api/v1/ready: 200, status=ready, database=ok.
-- Readiness observations: 3/3 PASS.
+- G04 post-promotion /api/v1/health: 200, status=ok.
+- G04 post-promotion /api/v1/ready: 200, status=ready, database=ok.
+- G04 readiness observations: 3/3 PASS.
+- G04 Focused Auth: ADMIN / MANAGER / VIEWER / ANONYMOUS PASS; private review ADMIN/MANAGER allowed, VIEWER denied; zero business writes (run 32014142772, job 95339879188).
+- G04 Promotion: exact existing deployment dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 promoted in place; HTTP 201; one Promotion API execution; new deployment 0 (run 32016084335, job 95345730496).
+- G04 security smoke: anonymous Employee directory 401/non-enumerating; private registration API anonymous 401; public Employee selector/autocomplete/role/employeeId controls absent.
+- G04 post-promotion runtime critical findings: 0.
 - G03.1 Technical validation: 11 PASS / 0 FAIL / 46 SKIP (run 31989684604).
 - G03.1 Full Auth: 55 PASS / 0 FAIL / 2 controlled SKIP / 0 uncontrolled SKIP (run 31994339618).
 - G03.1 role contract: ADMIN PASS / MANAGER PASS / VIEWER PASS.
 - Trusted Harness: a561b3bf6884c9d464aaba57b5974dff1f37c2b6.
 - Security artifact leak: 0; Production business writes attributable to UAT/Promotion: 0.
-- Promotion CI run: 31996411117; exact existing deployment promoted through POST /v10/projects/{projectId}/promote/{deploymentId}; HTTP 201; dispatch count 1.
-- Post-promotion runtime window 2026-08-17T05:01:45Z–2026-08-17T05:05:00Z: P2021, P2022, P2024, P2028, pool timeout, connection timeout, transaction timeout, Prisma initialization error, ReferenceError, HTTP 500/503/504, Runtime Timeout, UnhandledPromiseRejection, and fatal initialization all 0.
+- G03.1 Promotion CI run: 31996411117; exact existing deployment promoted through POST /v10/projects/{projectId}/promote/{deploymentId}; HTTP 201; dispatch count 1.
+- G03.1 historical post-promotion runtime window 2026-08-17T05:01:45Z–2026-08-17T05:05:00Z: P2021, P2022, P2024, P2028, pool timeout, connection timeout, transaction timeout, Prisma initialization error, ReferenceError, HTTP 500/503/504, Runtime Timeout, UnhandledPromiseRejection, and fatal initialization all 0.
 - 2026 entitlement / used / remaining preserved exactly: SICK 1856 / 15 / 1841; PERSONAL 164 / 3 / 161; VACATION 299 / 15 / 284.
 - Fresh checkpoint snapshot after legitimate Production activity: 67 total LeaveQuota rows; 64 quotaYear=2026 authoritative linked rows; 3 quotaYear=NULL unmatched/unlinked rows; 0 other years. The checkpoint task itself created no quota row and changed no quotaYear.
 - G03_1_MULTI_YEAR_WRITES_ENABLED is ACTIVE with raw semantic value true; protected Production activation run 31999063040 (job 95295870510) completed successfully with mutation type CREATE and other SystemSetting mutations 0.
@@ -102,14 +107,14 @@ The current rollback checkpoint is the verified G03.1 Production checkpoint crea
 | G02 — Shift Type authorization and audit | CLOSED | ADMIN-only writes; successful mutations audited; denied writes do not mutate |
 | G03 — Leave Quota Provisioning | CLOSED | Explicit Admin provisioning promoted and Production verified |
 | G03.1 — Annual Leave Quota Rollover | COMPLETE / ACTIVATED / PRODUCTION VERIFIED | Annual quotaYear schema/classification, rollback checkpoint, protected activation, and 2026 preservation are verified; normal G03.1 flows may now create non-2026 annual authorities when business activity requires them |
-| G04 — Registration Privacy Hardening | OPEN / PAUSED | Anonymous registration privacy scope remains open and is separately paused; no G04 work starts without explicit owner authorization |
+| G04 — Private Registration Request + Admin-Assisted Matching + Controlled Role Activation | CLOSED / PROMOTED / PRODUCTION VERIFIED | Anonymous Employee directory removed; public Employee selector and applicant employeeId/role authority removed; ADMIN/MANAGER private review; VIEWER denied; Employee Master explicit Match; approval role VIEWER only |
 | G05 — License Delete Audit Tombstone | OPEN | Permanent deletion can remove historical document audit rows |
 
 ### Next recommended task
 
-G03.1 — ACTIVATED / PRODUCTION VERIFIED
+G04 — PROMOTED / PRODUCTION VERIFIED
 
-The G03.1 Production rollback checkpoint is verified and G03_1_MULTI_YEAR_WRITES_ENABLED is now ACTIVE with raw value true, verified by protected Production activation run 31999063040. Activation itself created 0 non-2026 annual authorities; future-year authority creation is enabled for normal G03.1 business flows but no claim is made here that a 2027+ row has subsequently been created. G04 remains PAUSED and requires separate owner authorization before any work begins.
+G04 is now the exact Canonical Production release. G03_1_MULTI_YEAR_WRITES_ENABLED remains ACTIVE with raw value true and was not changed by G04 Promotion. The existing G03.1 rollback checkpoint remains preserved but is SECURITY-REGRESSIVE for normal G04 application rollback. The next consequential recovery action is separate owner approval to create a G04 Production rollback checkpoint bound to 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e. G05 remains OPEN / NOT STARTED.
 
 ---
 
@@ -160,7 +165,7 @@ environment topology not stated above are UNKNOWN.
 | Settings/admin | PARTIAL | Administrative surfaces exist; full acceptance is not reconstructed |
 | Cron/background jobs | PARTIAL | Lifecycle scheduling and operational automation evidence remain incomplete |
 | Storage/documents | PARTIAL | Document behavior is validated; G05 remains open |
-| Production recovery | COMPLETE | Exact promotion and rollback checkpoint were verified |
+| Production recovery | PARTIAL | G04 exact Promotion is verified; the existing G03.1 checkpoint is preserved but is security-regressive for G04 application rollback; a G04 checkpoint requires separate owner approval |
 | Automated testing/UAT | COMPLETE | Technical, targeted, and Full Auth evidence is recorded |
 
 ---
@@ -171,12 +176,12 @@ environment topology not stated above are UNKNOWN.
 - The current Canonical URL is
   https://sms-v3-staging-ten.vercel.app.
 - The current Canonical deployment is the exact Production-target deployment
-  dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs at application SHA
-  0951d4ce08de817dda7b986924232e86e745b532.
-- G03.1 was promoted as the existing exact staged Production deployment; no
+  dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 at application SHA
+  27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e.
+- G04 was promoted as the exact existing staged Production-target deployment; no
   replacement application deployment or rebuild was used for the release.
-- The immediately previous Canonical was dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL at
-  application SHA 1701bcf90a1998ea4999ee02e687172295984c9a and is preserved as historical release evidence.
+- The immediately previous Canonical was dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs at
+  application SHA 0951d4ce08de817dda7b986924232e86e745b532 and is preserved as historical G03.1 Production evidence.
 - Deployment Protection can return an interstitial to anonymous clients.
   Deployment identity must therefore be proven with authoritative deployment
   metadata and the approved protected-access method, not HTML markers alone.
@@ -195,7 +200,9 @@ NOT RECOVERABLE.
 - The application uses PostgreSQL through Prisma.
 - Production already contained the additive G03.1 migration
   202608170001_annual_leave_quota_year before Promotion; it is applied exactly once.
-- Promotion itself performed no migration and no Production data correction.
+- Production also contained the additive G04 migration
+  202608170002_g04_private_registration_request before G04 Promotion; it is applied exactly once and registration_requests / RegistrationRequestStatus are present.
+- G04 Promotion performed no migration, no schema correction, and no Production business-data mutation.
 - Fresh checkpoint/activation evidence records 64 authoritative linked rows at
   quotaYear=2026, 3 unmatched/unlinked rows at quotaYear=NULL, and 0 rows in
   other years at activation completion.
@@ -205,7 +212,7 @@ NOT RECOVERABLE.
 - Historical Promotion evidence remains unchanged: Promotion itself created no
   activation row and invoked no annual Cron because activation was deliberately
   deferred until the rollback checkpoint was established.
-- The current post-promotion runtime certification recorded zero P2021, P2022,
+- The current G04 post-promotion runtime certification recorded zero P2021, P2022,
   P2024, P2028, pool timeout, connection timeout, transaction timeout, Prisma
   initialization, ReferenceError, HTTP 500, HTTP 503, HTTP 504, Runtime Timeout,
   UnhandledPromiseRejection, and fatal initialization signatures.
@@ -219,9 +226,10 @@ NOT RECOVERABLE.
   settings, or historical database incidents. Those details are UNKNOWN
   unless separately evidenced.
 
-No production pool, DATABASE_URL, schema, migration, activation setting, or
-business data was changed by the G03.1 Promotion procedure. The G03.1 schema
-migration and 2026 classification were completed and verified before Promotion.
+No production pool, DATABASE_URL, schema, migration, G03.1 activation setting, or
+business data was changed by the G04 Promotion procedure. The G04 migration was
+already applied exactly once before Promotion. G03_1_MULTI_YEAR_WRITES_ENABLED
+remains ACTIVE with raw value true and was preserved unchanged.
 
 ---
 
@@ -243,6 +251,13 @@ migration and 2026 classification were completed and verified before Promotion.
   - denied mutations do not succeed and do not create a successful mutation
     audit;
   - read behavior is unchanged.
+- G04 is closed and Production verified:
+  - private registration review is allowed for ADMIN and MANAGER;
+  - VIEWER and anonymous review access are denied;
+  - public registration exposes no Employee selector/autocomplete and accepts no applicant role or employeeId authority;
+  - Employee candidate search is bounded to Employee Master and explicit reviewer Match is required;
+  - G04 approval assigns VIEWER only;
+  - G04 registration does not create or mutate Employee Master.
 - No claim is made that every historical role rule is represented in this
   reconstruction. The exact tested contracts above are authoritative.
 
@@ -293,7 +308,7 @@ validated RBAC approval contract is COMPLETE.
 - G03_1_MULTI_YEAR_WRITES_ENABLED is ACTIVE with raw value true, verified by protected Production activation run 31999063040 (job 95295870510). Multi-year authority creation is now enabled through normal G03.1 flows.
 - Activation itself did not create any non-2026 authority: other-year rows were 0 immediately before and immediately after activation. Do not infer that a 2027+ quota exists unless a later independent business event proves it.
 - G03.1 Promotion created no quota rows, no second-year authority, no activation row, and no business-data mutation; that statement remains historical Promotion evidence.
-- The G03.1 Production rollback checkpoint remains verified at rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 → 0951d4ce08de817dda7b986924232e86e745b532 and is the preferred rollback target.
+- The G03.1 Production rollback checkpoint remains verified at rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 → 0951d4ce08de817dda7b986924232e86e745b532. After G04 Promotion it remains the current existing checkpoint but is SECURITY-REGRESSIVE for application rollback and is not the preferred normal G04 rollback target.
 - As soon as the first non-2026 LeaveQuota authority exists, old G03 SHA 1701bcf90a1998ea4999ee02e687172295984c9a is DATA-INCOMPATIBLE / DO NOT ROLLBACK TO because old G03 uses employee-only quota lookup semantics.
 
 Classification: COMPLETE for explicit G03 quota provisioning; G03.1 annual rollover is COMPLETE / ACTIVATED / PRODUCTION VERIFIED. The overall Leave capability remains PARTIAL because broader operational acceptance remains.
@@ -380,17 +395,21 @@ recorded here.
 
 | Gate | Result |
 | --- | --- |
+| G04 Focused Auth 32014142772 / job 95339879188 | ADMIN / MANAGER / VIEWER / ANONYMOUS PASS; private review RBAC and UI privacy PASS; business writes 0 |
+| G04 Promotion 32016084335 / job 95345730496 | SUCCESS; exact existing deployment; HTTP 201; dispatch count 1; new deployment 0 |
+| G04 post-Promotion security smoke | Anonymous Employee directory 401/non-enumerating; private registration anonymous 401; public Employee selector/autocomplete/role/employeeId absent |
+| G04 critical post-promotion runtime signatures | All 0 |
 | G03.1 Technical UAT 31989684604 | 11 PASS / 0 FAIL / 46 SKIP |
 | G03.1 Full Auth 31994339618 | 55 PASS / 0 FAIL / 2 controlled SKIP / 0 uncontrolled SKIP |
-| ADMIN / MANAGER / VIEWER | PASS / PASS / PASS |
+| G03.1 ADMIN / MANAGER / VIEWER | PASS / PASS / PASS |
 | Artifact leak | 0 |
 | Business writes attributable to Auth UAT | 0 |
 | Heavy-read safety | outstanding 0; drain complete |
-| Promotion 31996411117 | SUCCESS; exact existing deployment; HTTP 201; dispatch count 1 |
-| Critical post-promotion runtime signatures | All 0 |
+| G03.1 Promotion 31996411117 | SUCCESS; exact existing deployment; HTTP 201; dispatch count 1 |
+| G03.1 critical post-promotion runtime signatures | All 0 |
 
-The trusted Harness for G03.1 is
-a561b3bf6884c9d464aaba57b5974dff1f37c2b6. The current main is
+The trusted Harness remains
+a561b3bf6884c9d464aaba57b5974dff1f37c2b6. G04 Focused Auth run 32014142772 used a bounded helper without changing that trusted Harness identity. The G04 Promotion helper is operational CI evidence, not a replacement trusted UAT Harness. The current main remains
 e4bde1265ffb6b7daa9260d8465b46dd27008ab0.
 
 The two Full Auth skips were controlled: the destructive disposable-employee lifecycle suite and the canonical-versus-candidate benchmark. No uncontrolled skip or Auth failure remained.
@@ -416,31 +435,42 @@ coverage remains P2 item G12.
 
 ### Current release
 
-- Release: G03.1 — ANNUAL LEAVE QUOTA ROLLOVER V1
-- Production SHA: 0951d4ce08de817dda7b986924232e86e745b532
-- Application tree: dfacd4261df08139f21bebd498ce709954163b8b
-- Production deployment: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs
+- Release: G04 — PRIVATE REGISTRATION REQUEST + ADMIN-ASSISTED MATCHING + CONTROLLED ROLE ACTIVATION V1
+- Production SHA: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+- Application tree: c58a842dd0d6cfa4f3efca352769671012c2ba9a
+- Production deployment: dpl_7KcuwssKHDKDeJanhTVYVWSQotP6
 - Canonical URL: https://sms-v3-staging-ten.vercel.app
-- Status: ACTIVATED / PRODUCTION VERIFIED
-- Migration: 202608170001_annual_leave_quota_year — APPLIED EXACTLY ONCE before Promotion
-- 2026 classification: VERIFIED
-- Activation: ACTIVE (G03_1_MULTI_YEAR_WRITES_ENABLED raw value true; protected Production run 31999063040, job 95295870510; mutation CREATE)
-- Trusted Harness: a561b3bf6884c9d464aaba57b5974dff1f37c2b6
-- Final Technical run: 31989684604
-- Final Full Auth run: 31994339618 (55 PASS / 0 FAIL / 2 controlled SKIP / 0 uncontrolled SKIP)
-- Promotion CI run: 31996411117 (SUCCESS; exact existing deployment; HTTP 201; one Promotion API execution)
-- Previous Canonical: dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL / 1701bcf90a1998ea4999ee02e687172295984c9a (historical G03 Production identity)
-- Current rollback checkpoint: rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 → 0951d4ce08de817dda7b986924232e86e745b532 (VERIFIED 2026-08-17).
-- Historical G03 checkpoint preserved: rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 → 1701bcf90a1998ea4999ee02e687172295984c9a.
-- G03.1 activation is COMPLETE / ACTIVATED / PRODUCTION VERIFIED. Activation run 31999063040 created exactly the activation SystemSetting row; other SystemSetting mutations 0, business mutations 0, migration 0, deployment 0, Promotion 0.
-- Activation itself preserved existing 2026 entitlement / used / remaining exactly and created 0 second-year rows. Multi-year authority creation is now enabled, but this activation record does not claim a 2027+ row exists.
-- Rollback safety boundary: the G03.1 checkpoint above is the preferred Production rollback point. As soon as the first non-2026 annual authority exists, old G03 SHA 1701bcf90a1998ea4999ee02e687172295984c9a is DATA-INCOMPATIBLE / DO NOT ROLLBACK TO because old G03 uses employee-only quota lookup semantics.
-- G04: PAUSED
+- Status: PROMOTED / PRODUCTION VERIFIED
+- Migration: 202608170002_g04_private_registration_request — APPLIED EXACTLY ONCE before Promotion; migration during Promotion 0
+- Production schema: registration_requests PRESENT; RegistrationRequestStatus PRESENT; migration count 18; pending migrations 0
+- Focused Auth: run 32014142772 / job 95339879188; ADMIN PASS / MANAGER PASS / VIEWER PASS / ANONYMOUS PASS; business writes 0
+- Promotion CI: run 32016084335 / job 95345730496; HTTP 201; exactly one Promotion API execution; exact existing deployment reused; new deployment 0
+- Security: anonymous Employee directory removed/non-enumerating; public Employee selector/autocomplete removed; applicant employeeId authority 0; applicant role authority 0
+- Private review: ADMIN/MANAGER allowed; VIEWER denied; Employee candidates come from Employee Master only; explicit Match required
+- Approval contract: VIEWER only; G04 does not create or mutate Employee Master
+- G03.1 activation preserved: G03_1_MULTI_YEAR_WRITES_ENABLED = true / ACTIVE; task-attributable activation mutation 0
+- Previous Canonical: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs / 0951d4ce08de817dda7b986924232e86e745b532 (historical G03.1 Production identity)
+- Current existing rollback checkpoint remains unchanged: rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 → 0951d4ce08de817dda7b986924232e86e745b532
+- Rollback safety boundary: the old G03.1 application is data-compatible with the additive G04 schema/data model, but rollback to it is SECURITY-REGRESSIVE because it restores anonymous Employee enumeration and applicant-driven employeeId registration behavior. It is not the preferred rollback target for normal G04 operation.
+- Preferred next recovery action: create a G04 Production rollback checkpoint bound to 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e under separate owner authorization.
+- G05: OPEN / NOT STARTED
 
 ### Preserved historical milestones
 
 The following entries are recovered historical evidence supplied by the prior
 release record. They are not claims that those deployments are current.
+
+#### G03.1 — ANNUAL LEAVE QUOTA ROLLOVER V1
+
+- Historical prior Canonical immediately before G04 Promotion: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs.
+- Historical Production SHA: 0951d4ce08de817dda7b986924232e86e745b532.
+- Historical status: COMPLETE / ACTIVATED / PRODUCTION VERIFIED.
+- Migration: 202608170001_annual_leave_quota_year — APPLIED EXACTLY ONCE.
+- Activation remains effective in current Production: G03_1_MULTI_YEAR_WRITES_ENABLED = true / ACTIVE.
+- Historical Promotion run: 31996411117; exact existing deployment; HTTP 201; one Promotion API execution.
+- Existing rollback checkpoint is preserved unchanged: rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 → 0951d4ce08de817dda7b986924232e86e745b532.
+- After G04 Promotion that checkpoint is data-compatible but SECURITY-REGRESSIVE for application rollback and is not the preferred normal G04 rollback target.
+
 
 #### G03 — LEAVE QUOTA PROVISIONING V1
 
@@ -500,11 +530,10 @@ sources.
 
 The prior gap was the absence of a normal Admin product/API path to provision an individual LeaveQuota row. G03 added that explicit provisioning surface and the exact immutable release was Production promoted and verified. Final Technical, Focused Auth, and Full Auth gates passed; G03 quota mutations and unexpected business writes were 0; no migration or bulk backfill occurred. G03 is CLOSED.
 
-#### G04 — Anonymous Registration Directory Exposure — OPEN
+#### G04 — Private Registration Request + Admin-Assisted Matching + Controlled Role Activation V1 — CLOSED
 
-Unauthenticated registration currently exposes a browseable
-available-employee roster. The target is narrow employee-code or equivalent
-identity lookup while retaining registration approval controls.
+G04 replaced the anonymous browseable Employee registration roster with a private request workflow. Public registration no longer exposes an Employee selector/autocomplete and accepts no authoritative employeeId or role. ADMIN/MANAGER review is private; VIEWER and anonymous access are denied. Candidate search is bounded to Employee Master, explicit Match is required, approval always assigns VIEWER, and G04 does not create or mutate Employee Master. The exact existing deployment dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 at SHA 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e was promoted and Production verified with zero task-attributable business writes. G04 is CLOSED.
+
 
 #### G05 — License Document Permanent-Delete Audit Tombstone — OPEN
 
@@ -517,6 +546,9 @@ retaining the private document.
 
 - G01 — Administrative RBAC / schedule approval — CLOSED.
 - G02 — Shift Type authorization and audit — CLOSED.
+- G03 — Leave Quota Provisioning — CLOSED.
+- G03.1 — Annual Leave Quota Rollover — COMPLETE / ACTIVATED / PRODUCTION VERIFIED.
+- G04 — Private Registration Request / Registration Privacy Hardening — CLOSED / PROMOTED / PRODUCTION VERIFIED.
 
 ### P2 / SHOULD HAVE / final acceptance items
 
@@ -548,7 +580,7 @@ They remain explicit design or acceptance debt.
 
 The following items remain open or require separate operational evidence:
 
-- G03 is CLOSED and Production verified. G04 and G05 remain open and must be designed, implemented, and validated in their own bounded release phases.
+- G03, G03.1, and G04 are Production verified. G05 remains OPEN / NOT STARTED; a G04 Production rollback checkpoint also remains a separate owner-authorized recovery hardening action.
 - G06–G12 require owner decisions or evidence according to their individual
   scope.
 - Backup and restore evidence is not replaced by the current rollback
@@ -569,8 +601,8 @@ Current Production validation does not close these items implicitly.
 - Do not treat the historical invalid staged artifact as a release target.
 - Do not bypass exact deployment identity, source SHA, Harness SHA, or
   fail-closed UAT-scope checks.
-- Do not solve G04–G05 by changing pool settings, widening timeouts, adding blind retries, or mutating Production data without a separately approved design.
-- Do not expand the current Feature Complete gate with future product capabilities before closing G04, G05, and the required P2 acceptance evidence.
+- Do not solve G05 or future recovery work by changing pool settings, widening timeouts, adding blind retries, or mutating Production data without a separately approved design.
+- Do not expand the current Feature Complete gate with future product capabilities before closing G05 and the required P2 acceptance evidence.
 
 Historical or future scope not stated in this file is deferred or
 NOT RECOVERABLE, not silently approved.
@@ -579,8 +611,8 @@ NOT RECOVERABLE, not silently approved.
 
 ## Section 18 — Next Recommended Development Sequence
 
-1. G04 — REGISTRATION PRIVACY HARDENING
-   - Replace broad anonymous roster enumeration with narrow identity lookup.
+1. G04 — PRODUCTION ROLLBACK CHECKPOINT (SEPARATE OWNER APPROVAL)
+   - Create a checkpoint bound to 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e before treating G04 as fully checkpointed.
 2. G05 — LICENSE DOCUMENT DELETE AUDIT TOMBSTONE
    - Preserve non-sensitive deletion history without preserving private files.
 3. Complete the P2 final acceptance items G06–G12.
@@ -592,7 +624,7 @@ NOT RECOVERABLE, not silently approved.
 
 Classification: OWNER FUTURE VISION — NOT CURRENT FEATURE-COMPLETE BLOCKERS
 
-After G04, G05, and final operational acceptance are complete, future platform expansion may be scoped separately:
+After G05 and final operational acceptance are complete, future platform expansion may be scoped separately:
 
 1. Time Attendance.
 2. Security Guard Checkpoint Scanning.
@@ -601,7 +633,7 @@ After G04, G05, and final operational acceptance are complete, future platform e
    - Visitor Management and person entry/exit reporting;
    - damage and defective-asset incident reporting.
 
-These are substantial future platform expansions. They do not block current SMS V3 Feature Complete and must not displace the bounded G04/G05 sequence without an explicit Owner priority change.
+These are substantial future platform expansions. They do not block current SMS V3 Feature Complete and must not displace the remaining bounded G05/final-acceptance sequence without an explicit Owner priority change.
 
 ---
 
@@ -612,3 +644,4 @@ These are substantial future platform expansions. They do not block current SMS 
 | 2026-08-16 | Created this reconstructed authoritative baseline after the original Master was confirmed not recoverable. |
 | 2026-08-17 | G03 Leave Quota Provisioning V1 promoted to exact Canonical Production deployment dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL; post-health/readiness/runtime verified; G03 CLOSED; prior Canonical preserved; rollback checkpoint unchanged. |
 | 2026-08-17 | Created and remotely verified rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 at exact Production SHA 1701bcf90a1998ea4999ee02e687172295984c9a; previous admin-RBAC rollback checkpoint preserved; Canonical and Production remained unchanged. |
+| 2026-08-17 | G04 Private Registration Request + Admin-Assisted Matching + Controlled Role Activation V1 promoted to exact existing Canonical deployment dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 at SHA 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e; Focused Auth run 32014142772 and Promotion run 32016084335 verified privacy/RBAC, HTTP 201 Promotion, health/readiness/runtime, zero task-attributable business writes, unchanged G03.1 activation, and unchanged rollback checkpoint. |
