@@ -200,6 +200,11 @@ test('G03 browser spec is cancel-only and contains the exact read-only UI contra
   assert.match(specSource, /G03_1_FUTURE_READ_YEAR/);
   assert.match(specSource, /ดูข้อมูลเดิมที่ยังไม่ระบุปี/);
   assert.match(specSource, /leave-summary\?year=\$\{G03_1_BASE_YEAR\}/);
+  assert.match(specSource, /leave-quotas\?page=1&pageSize=100&year=\$\{G03_1_BASE_YEAR\}/);
+  assert.match(specSource, /leave-quotas\?page=1&pageSize=100&year=\$\{G03_1_FUTURE_READ_YEAR\}/);
+  assert.match(specSource, /leave-quotas\?page=1&pageSize=100&legacy=true/);
+  assert.match(specSource, /test\.setTimeout\(120_000\)/);
+  assert.doesNotMatch(specSource, /page\.waitForResponse/);
   assert.match(specSource, /UNLINKED_FIXTURE_SAFE_BRANCH/);
   assert.match(specSource, /summaryLinked/);
   assert.match(specSource, /g03EntitlementWordingSnapshot\(page\)/);

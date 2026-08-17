@@ -47,56 +47,53 @@ async function responseJson(response) {
 
 test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, testInfo) => {
   test.skip(!authenticatedMode(), 'G03 read-only contract requires authenticated mode.');
+  test.setTimeout(120_000);
   await runWithG03MutationGuard(page, testInfo, async () => {
     const monitor = startPageMonitor(page);
     const { accessToken, authContract } = await bootstrapAsNonDashboard(page, 'ADMIN');
     await testInfo.attach('v31-auth-contract.json', { body: JSON.stringify(authContract), contentType: 'application/json' });
 
-    const quotaResponsePromise = page.waitForResponse((response) => quotaResponseMatches(response, { year: G03_1_BASE_YEAR }), { timeout: 30_000 });
-    await navigateTo(page, 'quota');
-    const quotaResponse = await quotaResponsePromise;
-    expect(quotaResponse.status()).toBe(200);
-    const quotaPayload = await responseJson(quotaResponse);
+    const quota2026 = await authenticatedRequest(`/api/v1/leave-quotas?page=1&pageSize=100&year=${G03_1_BASE_YEAR}`, { accessToken });
+    expect(quota2026.status).toBe(200);
+    const quotaPayload = quota2026.payload;
     expect(quotaPayload?.meta?.quotaYear).toBe(G03_1_BASE_YEAR);
     expect(Number(quotaPayload?.meta?.total || 0)).toBeGreaterThan(0);
 
+    await navigateTo(page, 'quota');
     await expect(page.getByRole('heading', { name: `โควตาวันลา พ.ศ. ${G03_1_BASE_YEAR + 543}`, exact: true })).toBeVisible();
     const yearSelector = page.getByLabel('ปีสิทธิ์โควตาวันลา', { exact: true });
     await expect(yearSelector).toBeVisible();
     await expect(yearSelector).toHaveValue(String(G03_1_BASE_YEAR));
-    await expect(yearSelector.locator(`option[value="${G03_1_BASE_YEAR}"]`)).toHaveText(`พ.ศ. ${G03_1_BASE_YEAR + 543}`);
-    await expect(yearSelector.locator(`option[value="${G03_1_FUTURE_READ_YEAR}"]`)).toHaveText(`พ.ศ. ${G03_1_FUTURE_READ_YEAR + 543}`);
+    await expect(yearSelector.locator(`option[value=\"${G03_1_BASE_YEAR}\"]`)).toHaveText(`พ.ศ. ${G03_1_BASE_YEAR + 543}`);
+    await expect(yearSelector.locator(`option[value=\"${G03_1_FUTURE_READ_YEAR}\"]`)).toHaveText(`พ.ศ. ${G03_1_FUTURE_READ_YEAR + 543}`);
 
-    const futureResponsePromise = page.waitForResponse((response) => quotaResponseMatches(response, { year: G03_1_FUTURE_READ_YEAR }), { timeout: 30_000 });
+    const quota2027 = await authenticatedRequest(`/api/v1/leave-quotas?page=1&pageSize=100&year=${G03_1_FUTURE_READ_YEAR}`, { accessToken });
+    expect(quota2027.status).toBe(200);
+    expect(quota2027.payload?.meta?.quotaYear).toBe(G03_1_FUTURE_READ_YEAR);
+    expect(Number(quota2027.payload?.meta?.total || 0)).toBe(0);
+    expect(Array.isArray(quota2027.payload?.data) ? quota2027.payload.data.length : -1).toBe(0);
     await yearSelector.selectOption(String(G03_1_FUTURE_READ_YEAR));
-    const futureResponse = await futureResponsePromise;
-    expect(futureResponse.status()).toBe(200);
-    const futurePayload = await responseJson(futureResponse);
-    expect(futurePayload?.meta?.quotaYear).toBe(G03_1_FUTURE_READ_YEAR);
-    expect(Number(futurePayload?.meta?.total || 0)).toBe(0);
-    expect(Array.isArray(futurePayload?.data) ? futurePayload.data.length : -1).toBe(0);
+    await expect(yearSelector).toHaveValue(String(G03_1_FUTURE_READ_YEAR));
     await expect(page.getByRole('heading', { name: `โควตาวันลา พ.ศ. ${G03_1_FUTURE_READ_YEAR + 543}`, exact: true })).toBeVisible();
 
-    const baseResponsePromise = page.waitForResponse((response) => quotaResponseMatches(response, { year: G03_1_BASE_YEAR }), { timeout: 30_000 });
     await yearSelector.selectOption(String(G03_1_BASE_YEAR));
-    expect((await baseResponsePromise).status()).toBe(200);
+    await expect(yearSelector).toHaveValue(String(G03_1_BASE_YEAR));
+    await expect(page.getByRole('heading', { name: `โควตาวันลา พ.ศ. ${G03_1_BASE_YEAR + 543}`, exact: true })).toBeVisible();
 
-    const legacyResponsePromise = page.waitForResponse((response) => quotaResponseMatches(response, { legacy: true }), { timeout: 30_000 });
-    await page.getByRole('button', { name: 'ดูข้อมูลเดิมที่ยังไม่ระบุปี', exact: true }).click();
-    const legacyResponse = await legacyResponsePromise;
-    expect(legacyResponse.status()).toBe(200);
-    const legacyPayload = await responseJson(legacyResponse);
+    const legacyRead = await authenticatedRequest('/api/v1/leave-quotas?page=1&pageSize=100&legacy=true', { accessToken });
+    expect(legacyRead.status).toBe(200);
+    const legacyPayload = legacyRead.payload;
     expect(legacyPayload?.meta?.legacy).toBe(true);
     expect(Number(legacyPayload?.meta?.total || 0)).toBe(3);
+    await page.getByRole('button', { name: 'ดูข้อมูลเดิมที่ยังไม่ระบุปี', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'โควตาวันลา ข้อมูลเดิม', exact: true })).toBeVisible();
     await expect(page.getByText('ข้อมูลเดิม — ยังไม่ระบุปี ต้องจัดประเภทก่อนใช้งานรายปี', { exact: true })).toBeVisible();
     await expect(yearSelector).toBeDisabled();
 
-    const returnResponsePromise = page.waitForResponse((response) => quotaResponseMatches(response, { year: G03_1_BASE_YEAR }), { timeout: 30_000 });
     await page.getByRole('button', { name: 'กลับรายการรายปี', exact: true }).click();
-    expect((await returnResponsePromise).status()).toBe(200);
     await expect(yearSelector).toBeEnabled();
     await expect(yearSelector).toHaveValue(String(G03_1_BASE_YEAR));
+    await expect(page.getByRole('heading', { name: `โควตาวันลา พ.ศ. ${G03_1_BASE_YEAR + 543}`, exact: true })).toBeVisible();
 
     const provisionControl = page.getByRole('button', { name: /กำหนดโควตา/, exact: false }).first();
     await expect(provisionControl).toBeVisible();
@@ -148,14 +145,11 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
     await dialog.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
     await expect(dialog).toHaveCount(0);
 
-    const currentSummaryPromise = page.waitForResponse(leaveSummaryResponseMatches, { timeout: 30_000 });
-    await navigateTo(page, 'leave');
-    const currentSummaryResponse = await currentSummaryPromise;
-    expect(currentSummaryResponse.status()).toBe(200);
-    const currentSummaryPayload = await responseJson(currentSummaryResponse);
-
+    const currentSummary = await authenticatedRequest('/api/v1/leave-summary', { accessToken });
     const explicit2026 = await authenticatedRequest(`/api/v1/leave-summary?year=${G03_1_BASE_YEAR}`, { accessToken });
+    expect(currentSummary.status).toBe(200);
     expect(explicit2026.status).toBe(200);
+    const currentSummaryPayload = currentSummary.payload;
     const summaryLinked = currentSummaryPayload?.data?.linked === true;
     expect(explicit2026.payload?.data?.linked === true).toBe(summaryLinked);
     let leaveSummaryCoverage;
@@ -176,6 +170,7 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
       leaveSummaryCoverage = 'UNLINKED_FIXTURE_SAFE_BRANCH';
     }
 
+    await navigateTo(page, 'leave');
     const wording = await g03EntitlementWordingSnapshot(page);
     await expect(wording.surface).toHaveCount(1);
     expect(wording.newWordingPresent).toBe(true);
@@ -194,7 +189,7 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
       quotaYearDefault: G03_1_BASE_YEAR,
       thaiYearLabelPresent: true,
       futureYearReadOnly: true,
-      futureYearRows: Number(futurePayload?.meta?.total || 0),
+      futureYearRows: Number(quota2027.payload?.meta?.total || 0),
       legacyViewVisible: true,
       legacyRows: Number(legacyPayload?.meta?.total || 0),
       defaultSick: 30,

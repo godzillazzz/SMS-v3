@@ -42,10 +42,13 @@ test('UAT scope accepts only the approved fixed values', () => {
   assert.equal(normalizeUatScope(undefined), 'full');
   assert.equal(normalizeUatScope('report-center-diagnostic'), 'report-center-diagnostic');
   assert.equal(normalizeUatScope('admin-rbac-targeted-retry'), 'admin-rbac-targeted-retry');
+  assert.equal(normalizeUatScope('g03-readonly-targeted'), 'g03-readonly-targeted');
   assert.throws(() => normalizeUatScope('all-the-things'), { code: 'UAT_SCOPE_NOT_APPROVED' });
   assert.equal(getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'report-center-diagnostic' }).scope, 'report-center-diagnostic');
   assert.equal(getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'admin-rbac-targeted-retry', UAT_MODE: 'authenticated' }).scope, 'admin-rbac-targeted-retry');
+  assert.equal(getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'g03-readonly-targeted', UAT_MODE: 'authenticated' }).scope, 'g03-readonly-targeted');
   assert.throws(() => getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'admin-rbac-targeted-retry', UAT_MODE: 'technical' }), { code: 'UAT_SCOPE_MODE_INVALID' });
+  assert.throws(() => getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'g03-readonly-targeted', UAT_MODE: 'technical' }), { code: 'UAT_SCOPE_MODE_INVALID' });
   assert.equal(isReportCenterDiagnostic({ UAT_SCOPE: 'report-center-diagnostic' }), true);
   assert.equal(isReportCenterDiagnostic({ UAT_SCOPE: 'full' }), false);
   assert.equal(isAdminRbacTargetedRetry({ UAT_SCOPE: 'admin-rbac-targeted-retry' }), true);
