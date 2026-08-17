@@ -1,4 +1,4 @@
-name: g03-1-post-technical-readonly-preservation-v1
+name: g03-1-staged-pretechnical-resume-v1
 
 on:
   workflow_dispatch:
@@ -12,15 +12,17 @@ concurrency:
 
 env:
   EXPECTED_CANDIDATE_SHA: 0951d4ce08de817dda7b986924232e86e745b532
+  EXPECTED_STAGED_DEPLOYMENT: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs
+  EXPECTED_STAGED_URL: https://sms-v3-staging-ayoq2ueh1-godzillazz.vercel.app
   EXPECTED_CANONICAL_DEPLOYMENT: dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL
   EXPECTED_CANONICAL_SHA: 1701bcf90a1998ea4999ee02e687172295984c9a
   EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
   EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
-  VERCEL_CLI_VERSION: 56.4.1
+  EXPECTED_PROJECT_NAME: sms-v3-staging
 
 jobs:
-  readonly-preservation:
+  staged-pretechnical-resume:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     environment: production-sms-v3-staging
@@ -29,10 +31,9 @@ jobs:
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
       APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
     steps:
-      - name: Checkout fixed preservation harness
+      - name: Checkout fixed resume harness
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
@@ -44,7 +45,7 @@ jobs:
           cp scripts/ci/g03-1-staged-technical-snapshot.js /tmp/g03-1-staged-technical-snapshot.js
           test -s /tmp/g03-1-staged-technical-snapshot.js
 
-      - name: Checkout exact Candidate for schema/client identity
+      - name: Checkout exact Candidate for Prisma client
         uses: actions/checkout@v4
         with:
           ref: 0951d4ce08de817dda7b986924232e86e745b532
@@ -65,27 +66,74 @@ jobs:
       - name: Verify protected Production database target
         run: node scripts/ci/verify-deployment-target.js --verify
 
-      - name: Post-Technical read-only Production snapshot
+      - name: Verify exact existing staged deployment identity without creating another deployment
         shell: bash
         run: |
           set -euo pipefail
-          node /tmp/g03-1-staged-technical-snapshot.js | tee /tmp/g03-1-post-tech-snapshot.log
-          node - /tmp/g03-1-post-tech-snapshot.log <<'NODE'
+          staged_json=$(mktemp)
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
+            "https://api.vercel.com/v13/deployments/$EXPECTED_STAGED_DEPLOYMENT" >"$staged_json"
+          node - "$staged_json" <<'NODE'
           const fs=require('node:fs');
-          const line=fs.readFileSync(process.argv[2],'utf8').split(/\r?\n/).find(v=>v.startsWith('STAGED_TECH_SNAPSHOT='));
-          if(!line) throw new Error('POST_TECH_SNAPSHOT_MISSING');
-          const d=JSON.parse(line.slice('STAGED_TECH_SNAPSHOT='.length));
-          if(d.readOnly.transactionReadOnly!=='on'||d.readOnly.transactionIdAssigned!==null) throw new Error('POST_TECH_NOT_READ_ONLY');
-          if(!d.schema.quotaYearExists||!d.schema.quotaYearNullable||!d.schema.uniqueInvariantPresent||!d.schema.quotaYearIndexPresent) throw new Error('POST_TECH_SCHEMA_INVALID');
-          if(d.schema.migrationCount!==17||d.schema.pendingMigrations.length!==0||!d.schema.authorizedMigrationApplied) throw new Error('POST_TECH_MIGRATION_INVALID');
-          if(d.activation.effective!=='INACTIVE') throw new Error('G03_1_TECHNICAL_ACTIVATION_CHANGED');
-          if(d.counts.quotaYearOtherRows!==0) throw new Error('POST_TECH_SECOND_YEAR_AUTHORITY_CREATED');
-          if(d.authority.employeesWithMultipleLinkedRows!==0||d.authority.maximumLinkedRowsPerEmployee>1) throw new Error('POST_TECH_MULTI_AUTHORITY_INVALID');
-          if(d.authority.unclassifiedAuthorities!==0) throw new Error('POST_TECH_LINKED_AUTHORITY_UNCLASSIFIED');
-          console.log('POST_TECH_SNAPSHOT_GATE=PASS');
+          const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          if(d.id!==process.env.EXPECTED_STAGED_DEPLOYMENT) throw new Error('STAGED_ID_MISMATCH');
+          if(d.projectId!==process.env.EXPECTED_PROJECT_ID||d.name!==process.env.EXPECTED_PROJECT_NAME) throw new Error('STAGED_PROJECT_MISMATCH');
+          if(d.target!=='production'||d.readyState!=='READY') throw new Error('STAGED_STATE_INVALID');
+          if(`https://${d.url}`!==process.env.EXPECTED_STAGED_URL) throw new Error('STAGED_URL_MISMATCH');
+          const shas=[d?.meta?.githubCommitSha,d?.meta?.gitCommitSha,d?.gitSource?.sha,d?.source?.sha].filter(Boolean);
+          if(shas.length===0||new Set(shas).size!==1||shas[0]!==process.env.EXPECTED_CANDIDATE_SHA) throw new Error('STAGED_SHA_MISMATCH');
+          const refs=[d?.meta?.githubCommitRef,d?.meta?.gitCommitRef,d?.gitSource?.ref].filter(Boolean);
+          if(refs.some((v)=>v!=='HEAD'&&v!=='feat/annual-leave-quota-rollover-v1')) throw new Error('STAGED_REF_UNEXPECTED');
+          console.log(`STAGED_IDENTITY=PASS sha=${shas[0]} refs=${[...new Set(refs)].join(',')||'none'}`);
           NODE
 
-      - name: Verify old G03 Canonical still unchanged
+      - name: Staged deployment health and ready 3 of 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+          health_json=$(mktemp)
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            "$EXPECTED_STAGED_URL/api/v1/health" >"$health_json"
+          node - "$health_json" <<'NODE'
+          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); if(d.status!=='ok') process.exit(1);
+          NODE
+          echo 'STAGED_PRETECH_HEALTH=200/ok'
+          for n in 1 2 3; do
+            ready_json=$(mktemp)
+            curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+              --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+              "$EXPECTED_STAGED_URL/api/v1/ready" >"$ready_json"
+            node - "$ready_json" <<'NODE'
+          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); if(d.status!=='ready'||d.database!=='ok') process.exit(1);
+          NODE
+            echo "STAGED_PRETECH_READY_${n}=200/ready/ok"
+          done
+          echo 'STAGED_PRETECH_READY=3/3'
+
+      - name: Read-only Production preservation snapshot before Technical
+        shell: bash
+        run: |
+          set -euo pipefail
+          node /tmp/g03-1-staged-technical-snapshot.js | tee /tmp/g03-1-pretech-snapshot.log
+          node - /tmp/g03-1-pretech-snapshot.log <<'NODE'
+          const fs=require('node:fs');
+          const line=fs.readFileSync(process.argv[2],'utf8').split(/\r?\n/).find(v=>v.startsWith('STAGED_TECH_SNAPSHOT='));
+          if(!line) throw new Error('PRETECH_SNAPSHOT_MISSING');
+          const d=JSON.parse(line.slice('STAGED_TECH_SNAPSHOT='.length));
+          if(d.readOnly.transactionReadOnly!=='on'||d.readOnly.transactionIdAssigned!==null) throw new Error('PRETECH_NOT_READ_ONLY');
+          if(!d.schema.quotaYearExists||!d.schema.quotaYearNullable||!d.schema.uniqueInvariantPresent||!d.schema.quotaYearIndexPresent) throw new Error('PRETECH_SCHEMA_INVALID');
+          if(d.schema.migrationCount!==17||d.schema.pendingMigrations.length!==0||!d.schema.authorizedMigrationApplied) throw new Error('PRETECH_MIGRATION_INVALID');
+          if(d.activation.effective!=='INACTIVE') throw new Error('G03_1_STAGED_ACTIVATION_UNSAFE');
+          if(d.counts.quotaYearOtherRows!==0) throw new Error('PRETECH_SECOND_YEAR_AUTHORITY');
+          if(d.authority.employeesWithMultipleLinkedRows!==0||d.authority.maximumLinkedRowsPerEmployee>1||d.authority.unclassifiedAuthorities!==0) throw new Error('PRETECH_AUTHORITY_INVALID');
+          console.log('PRETECH_PRODUCTION_SNAPSHOT=PASS');
+          NODE
+
+      - name: Verify old G03 Canonical unchanged before Technical
         shell: bash
         run: |
           set -euo pipefail
@@ -101,5 +149,5 @@ jobs:
           const sha=d?.meta?.gitCommitSha||d?.meta?.githubCommitSha||d?.gitSource?.sha||d?.source?.sha;
           if(sha!==process.env.EXPECTED_CANONICAL_SHA) throw new Error('CANONICAL_SHA_CHANGED');
           if(d.readyState!=='READY'||d.target!=='production') throw new Error('CANONICAL_STATE_CHANGED');
-          console.log('POST_TECH_CANONICAL=UNCHANGED');
+          console.log('PRETECH_CANONICAL=UNCHANGED');
           NODE
