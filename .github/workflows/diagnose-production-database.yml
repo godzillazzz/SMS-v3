@@ -1,4 +1,4 @@
-name: Diagnose sms-v3-staging Production Database
+name: g03-1-production-readonly-preflight-v2
 
 on:
   workflow_dispatch:
@@ -7,43 +7,311 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  readonly-preflight-v2:
     runs-on: ubuntu-latest
+    environment: production-sms-v3-staging
     timeout-minutes: 10
-    environment:
-      name: production-sms-v3-staging
     env:
+      EXPECTED_CANDIDATE_SHA: 0951d4ce08de817dda7b986924232e86e745b532
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout exact gated G03.1 candidate
+        uses: actions/checkout@v4
+        with:
+          ref: 0951d4ce08de817dda7b986924232e86e745b532
+          fetch-depth: 1
+
+      - name: Set up exact Node runtime
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - name: Install dependencies
+
+      - name: Verify exact candidate identity
+        shell: bash
         run: |
-          npm ci --include=dev
-      - name: Pull Vercel environment variables
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_CANDIDATE_SHA"
+          test "$(git show -s --format=%T HEAD)" = "dfacd4261df08139f21bebd498ce709954163b8b"
+          test "$(git rev-parse HEAD^)" = "e39b15df57e9c90f9997e2c1a365f66662ff75c3"
+          echo "CANDIDATE_IDENTITY=PASS"
+
+      - name: Install exact dependencies
+        shell: bash
         run: |
-          npx --yes vercel@56.4.1 pull --yes --environment=production --token "$VERCEL_TOKEN"
-      - name: Run Local Authentication Debug
+          set -euo pipefail
+          npm ci --include=dev --ignore-scripts
+          npx --no-install prisma generate
+
+      - name: Run database-enforced read-only aggregate preflight V2
+        shell: bash
         run: |
-          node scripts/ci/debug-auth.js
-      - name: Run UAT Verification
-        run: |
-          node scripts/ci/run-uat-with-db.js
-      - name: Fetch Vercel staging logs
-        if: always()
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          npx --yes vercel@56.4.1 logs --project sms-v3-staging --environment production --token "$VERCEL_TOKEN" --limit 50
+          set -euo pipefail
+          node <<'NODE'
+          'use strict';
+          const crypto = require('node:crypto');
+          const { PrismaClient } = require('@prisma/client');
+          if (!process.env.DATABASE_URL) throw new Error('Protected DATABASE_URL is unavailable.');
+
+          const prisma = new PrismaClient({ log: [] });
+          const TARGET_YEAR = 2026;
+          const ACTIVATION_KEY = 'G03_1_MULTI_YEAR_WRITES_ENABLED';
+          const EPS = 1e-9;
+          const FIELDS = ['sickLeave', 'personalLeave', 'vacationLeave'];
+          const num = (v) => typeof v === 'bigint' ? Number(v) : Number(v || 0);
+          const toDate = (v) => v instanceof Date ? v : new Date(v);
+          const year = (v) => toDate(v).getUTCFullYear();
+          const hashText = (v) => crypto.createHash('sha256').update(String(v)).digest('hex');
+          const hashJson = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
+          const blank = () => ({ sickLeave: 0, personalLeave: 0, vacationLeave: 0 });
+          const add = (target, field, amount) => { if (field !== 'UNSUPPORTED') target[field] += Number(amount); };
+          const normalizeTotals = (v) => Object.fromEntries(FIELDS.map((f) => [f, Number(Number(v[f] || 0).toFixed(2))]));
+
+          function inclusiveDays(start, end) {
+            const s = toDate(start), e = toDate(end);
+            return Math.floor((Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate()) - Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate())) / 86400000) + 1;
+          }
+
+          function fieldForLeaveType(value) {
+            const t = String(value || '').trim().toLowerCase();
+            if (t.includes('ป่วย') || t.includes('sick')) return 'sickLeave';
+            if (t.includes('กิจ') || t.includes('personal')) return 'personalLeave';
+            if (t.includes('พักร้อน') || t.includes('vacation')) return 'vacationLeave';
+            return 'UNSUPPORTED';
+          }
+
+          function settingClass(row) {
+            if (!row) return { rowExists: false, valueClass: 'MISSING', effective: 'INACTIVE' };
+            if (row.value === 'true') return { rowExists: true, valueClass: 'TRUE', effective: 'ACTIVE' };
+            if (row.value === 'false') return { rowExists: true, valueClass: 'FALSE', effective: 'INACTIVE' };
+            return { rowExists: true, valueClass: 'MALFORMED', effective: 'INACTIVE' };
+          }
+
+          function allocate2026(row) {
+            const sy = year(row.start_date), ey = year(row.end_date), persisted = Number(row.day_count);
+            if (sy === ey) return sy === TARGET_YEAR ? persisted : 0;
+            if (!Number.isInteger(persisted) || Math.abs(inclusiveDays(row.start_date, row.end_date) - persisted) > EPS) return null;
+            if (sy > TARGET_YEAR || ey < TARGET_YEAR) return 0;
+            const start = toDate(row.start_date), end = toDate(row.end_date);
+            let count = 0;
+            for (let d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+              if (d.getUTCFullYear() === TARGET_YEAR) count += 1;
+            }
+            return count;
+          }
+
+          (async () => {
+            try {
+              const result = await prisma.$transaction(async (tx) => {
+                await tx.$executeRawUnsafe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+                const ro = await tx.$queryRawUnsafe('SHOW transaction_read_only');
+                const isolation = await tx.$queryRawUnsafe('SHOW transaction_isolation');
+                const transactionReadOnly = String(ro?.[0]?.transaction_read_only || '').toLowerCase();
+                if (transactionReadOnly !== 'on') throw new Error('READ_ONLY_ENFORCEMENT_FAILED');
+
+                const quotaYearCol = await tx.$queryRawUnsafe("SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE table_schema='public' AND table_name='leave_quotas' AND column_name='quota_year'");
+                const quotaYearExists = num(quotaYearCol[0]?.count) > 0;
+                const migrationRows = await tx.$queryRawUnsafe('SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name');
+                const tableCols = await tx.$queryRawUnsafe("SELECT table_name, column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('leave_quotas','leave_requests','employees','users','system_settings') ORDER BY table_name, ordinal_position");
+                const countSql = `SELECT
+                  (SELECT COUNT(*) FROM leave_quotas)::bigint AS quota_count,
+                  (SELECT COUNT(*) FROM leave_requests)::bigint AS leave_count,
+                  (SELECT COUNT(*) FROM employees)::bigint AS employee_count,
+                  (SELECT COUNT(*) FROM users)::bigint AS user_count,
+                  (SELECT COUNT(*) FROM system_settings)::bigint AS setting_count,
+                  (SELECT COUNT(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL)::bigint AS migration_count`;
+                const start = (await tx.$queryRawUnsafe(countSql))[0];
+                const before = {
+                  leaveQuotaRows: num(start.quota_count),
+                  leaveRequestRows: num(start.leave_count),
+                  employeeRows: num(start.employee_count),
+                  userRows: num(start.user_count),
+                  systemSettingRows: num(start.setting_count),
+                  migrationRows: num(start.migration_count)
+                };
+
+                const activationRows = await tx.$queryRawUnsafe('SELECT value FROM system_settings WHERE key = $1', ACTIVATION_KEY);
+                if (activationRows.length > 1) throw new Error('ACTIVATION_KEY_NOT_UNIQUE');
+                const activation = settingClass(activationRows[0]);
+
+                const quotaAgg = (await tx.$queryRawUnsafe(`SELECT
+                  COUNT(*)::bigint AS total,
+                  COUNT(*) FILTER (WHERE employee_id IS NOT NULL)::bigint AS linked,
+                  COUNT(*) FILTER (WHERE employee_id IS NULL)::bigint AS unlinked,
+                  COUNT(*) FILTER (WHERE match_status IN ('UNMATCHED','DUPLICATE_UNMATCHED'))::bigint AS unmatched,
+                  COUNT(*) FILTER (WHERE employee_id IS NOT NULL AND match_status = 'MATCHED')::bigint AS linked_authoritative,
+                  COUNT(*) FILTER (WHERE employee_id IS NOT NULL AND match_status <> 'MATCHED')::bigint AS linked_non_authoritative
+                  FROM leave_quotas`))[0];
+                const statusRows = await tx.$queryRawUnsafe('SELECT match_status, COUNT(*)::bigint AS count FROM leave_quotas GROUP BY match_status ORDER BY match_status');
+                const linkedGroups = await tx.$queryRawUnsafe('SELECT employee_id, COUNT(*)::bigint AS count FROM leave_quotas WHERE employee_id IS NOT NULL GROUP BY employee_id');
+                const linkedAuthoritative = await tx.$queryRawUnsafe(`SELECT employee_id, source_fingerprint,
+                  sick_leave::text AS sick_leave, personal_leave::text AS personal_leave, vacation_leave::text AS vacation_leave, match_status
+                  FROM leave_quotas WHERE employee_id IS NOT NULL AND match_status = 'MATCHED'`);
+                const approved = await tx.$queryRawUnsafe("SELECT employee_id, leave_type, start_date, end_date, day_count::text AS day_count FROM leave_requests WHERE status='APPROVED'");
+
+                let sameYear = 0, crossYear = 0, fractional = 0, mismatch = 0, fractionalCross = 0, ambiguous = 0;
+                let touch2026 = 0, touch2027Plus = 0, before2026 = 0;
+                const byPair = {};
+                const ambiguousEmployees2026 = new Set();
+                for (const row of approved) {
+                  const sy = year(row.start_date), ey = year(row.end_date), persisted = Number(row.day_count);
+                  const isFractional = !Number.isInteger(persisted);
+                  if (isFractional) fractional += 1;
+                  if (sy === ey) { sameYear += 1; continue; }
+                  crossYear += 1;
+                  if (isFractional) fractionalCross += 1;
+                  const pair = `${sy}->${ey}`;
+                  if (!byPair[pair]) byPair[pair] = { approved: 0, ambiguous: 0 };
+                  byPair[pair].approved += 1;
+                  const bad = isFractional || Math.abs(inclusiveDays(row.start_date, row.end_date) - persisted) > EPS;
+                  if (bad) {
+                    mismatch += Math.abs(inclusiveDays(row.start_date, row.end_date) - persisted) > EPS ? 1 : 0;
+                    ambiguous += 1;
+                    byPair[pair].ambiguous += 1;
+                    if (sy <= TARGET_YEAR && ey >= TARGET_YEAR) { touch2026 += 1; ambiguousEmployees2026.add(String(row.employee_id)); }
+                    if (ey >= 2027) touch2027Plus += 1;
+                    if (ey < TARGET_YEAR) before2026 += 1;
+                  }
+                }
+
+                const quotasByEmployee = new Map();
+                for (const q of linkedAuthoritative) quotasByEmployee.set(String(q.employee_id), q);
+                const leavesByEmployee = new Map();
+                for (const l of approved) {
+                  const key = String(l.employee_id);
+                  if (!leavesByEmployee.has(key)) leavesByEmployee.set(key, []);
+                  leavesByEmployee.get(key).push(l);
+                }
+
+                const diffByType = Object.fromEntries(FIELDS.map((f) => [f, { entitlement: 0, used: 0, remaining: 0 }]));
+                let employeesCompared = 0, notComputable = 0, entitlementDiff = 0, usedDiff = 0, remainingDiff = 0;
+                const entitlementOldTotals = blank(), usedOldTotals = blank(), remainingOldTotals = blank();
+                const entitlement2026Totals = blank(), used2026Totals = blank(), remaining2026Totals = blank();
+
+                for (const [employeeKey, q] of quotasByEmployee) {
+                  if (ambiguousEmployees2026.has(employeeKey)) { notComputable += 1; continue; }
+                  const entOld = { sickLeave: Number(q.sick_leave), personalLeave: Number(q.personal_leave), vacationLeave: Number(q.vacation_leave) };
+                  const ent2026 = { ...entOld };
+                  const usedOld = blank(), used2026 = blank();
+                  for (const l of leavesByEmployee.get(employeeKey) || []) {
+                    const field = fieldForLeaveType(l.leave_type);
+                    add(usedOld, field, Number(l.day_count));
+                    const allocation = allocate2026(l);
+                    if (allocation === null) { notComputable += 1; continue; }
+                    add(used2026, field, allocation);
+                  }
+                  employeesCompared += 1;
+                  let eDiff = false, uDiff = false, rDiff = false;
+                  for (const field of FIELDS) {
+                    entitlementOldTotals[field] += entOld[field];
+                    entitlement2026Totals[field] += ent2026[field];
+                    usedOldTotals[field] += usedOld[field];
+                    used2026Totals[field] += used2026[field];
+                    const rOld = Math.max(0, entOld[field] - usedOld[field]);
+                    const r2026 = Math.max(0, ent2026[field] - used2026[field]);
+                    remainingOldTotals[field] += rOld;
+                    remaining2026Totals[field] += r2026;
+                    if (Math.abs(entOld[field] - ent2026[field]) > EPS) { eDiff = true; diffByType[field].entitlement += 1; }
+                    if (Math.abs(usedOld[field] - used2026[field]) > EPS) { uDiff = true; diffByType[field].used += 1; }
+                    if (Math.abs(rOld - r2026) > EPS) { rDiff = true; diffByType[field].remaining += 1; }
+                  }
+                  if (eDiff) entitlementDiff += 1;
+                  if (uDiff) usedDiff += 1;
+                  if (rDiff) remainingDiff += 1;
+                }
+
+                const fingerprintRows = linkedAuthoritative.map((q) => ({
+                  employeeAssociation: hashText(`employee:${String(q.employee_id)}`),
+                  sickLeave: String(q.sick_leave),
+                  personalLeave: String(q.personal_leave),
+                  vacationLeave: String(q.vacation_leave),
+                  sourceFingerprint: String(q.source_fingerprint),
+                  matchStatus: String(q.match_status)
+                })).sort((a, b) => a.employeeAssociation.localeCompare(b.employeeAssociation));
+
+                const finish = (await tx.$queryRawUnsafe(countSql))[0];
+                const after = {
+                  leaveQuotaRows: num(finish.quota_count),
+                  leaveRequestRows: num(finish.leave_count),
+                  employeeRows: num(finish.employee_count),
+                  userRows: num(finish.user_count),
+                  systemSettingRows: num(finish.setting_count),
+                  migrationRows: num(finish.migration_count)
+                };
+                const txid = await tx.$queryRawUnsafe('SELECT txid_current_if_assigned()::text AS txid');
+
+                return {
+                  readOnly: {
+                    method: 'PROTECTED_GITHUB_ENVIRONMENT_FIXED_AGGREGATE_QUERY',
+                    databaseEnforced: true,
+                    transactionReadOnly,
+                    isolation: String(isolation?.[0]?.transaction_isolation || ''),
+                    transactionIdAssigned: txid?.[0]?.txid || null,
+                    beforeCounts: before,
+                    afterCounts: after,
+                    countsEqual: JSON.stringify(before) === JSON.stringify(after),
+                    insert: 0, update: 0, delete: 0, ddl: 0
+                  },
+                  schema: {
+                    quotaYearExists,
+                    migrationCount: migrationRows.length,
+                    migrationIdentity: hashJson(migrationRows.map((r) => r.migration_name)),
+                    schemaIdentity: hashJson(tableCols)
+                  },
+                  activation,
+                  quota: {
+                    totalQuotaRows: num(quotaAgg.total),
+                    linkedRows: num(quotaAgg.linked),
+                    unlinkedRows: num(quotaAgg.unlinked),
+                    unmatchedRows: num(quotaAgg.unmatched),
+                    linkedAuthoritativeRows: num(quotaAgg.linked_authoritative),
+                    linkedNonAuthoritativeRows: num(quotaAgg.linked_non_authoritative),
+                    rowsByMatchStatus: Object.fromEntries(statusRows.map((r) => [String(r.match_status), num(r.count)])),
+                    employeesWithMultipleLinkedRows: linkedGroups.filter((r) => num(r.count) > 1).length,
+                    employeesWithMultipleUnclassifiedLinkedRows: linkedGroups.filter((r) => num(r.count) > 1).length,
+                    maximumLinkedRowsPerEmployee: linkedGroups.length ? Math.max(...linkedGroups.map((r) => num(r.count))) : 0,
+                    currentLinkedRowsToClassify2026: num(quotaAgg.linked_authoritative),
+                    preCutover2026QuotaFingerprint: hashJson(fingerprintRows)
+                  },
+                  leaveHistory: {
+                    approvedLeaveRequests: approved.length,
+                    approvedSameYearRequests: sameYear,
+                    approvedCrossYearRequests: crossYear,
+                    fractionalApprovedRequests: fractional,
+                    crossYearPersistedDayCountMismatch: mismatch,
+                    fractionalCrossYearRequests: fractionalCross,
+                    ambiguousLegacyCrossYearRequests: ambiguous,
+                    crossYearByYearPair: byPair,
+                    ambiguousCrossYearTouching2026: touch2026,
+                    ambiguousCrossYearTouching2027OrLater: touch2027Plus,
+                    ambiguousCrossYearEntirelyBefore2026: before2026
+                  },
+                  parity2026: {
+                    employeesCompared,
+                    parityNotComputableEmployees: notComputable,
+                    employeesWithEntitlementDifference: entitlementDiff,
+                    employeesWithUsedDifference: usedDiff,
+                    employeesWithRemainingDifference: remainingDiff,
+                    differenceByLeaveType: diffByType,
+                    oldG03Totals: {
+                      entitlement: normalizeTotals(entitlementOldTotals),
+                      used: normalizeTotals(usedOldTotals),
+                      remaining: normalizeTotals(remainingOldTotals)
+                    },
+                    annualAware2026Totals: {
+                      entitlement: normalizeTotals(entitlement2026Totals),
+                      used: normalizeTotals(used2026Totals),
+                      remaining: normalizeTotals(remaining2026Totals)
+                    }
+                  }
+                };
+              }, { maxWait: 10000, timeout: 60000 });
+
+              console.log('PRODUCTION_READ_ONLY_PREFLIGHT_V2=' + JSON.stringify(result));
+            } finally {
+              await prisma.$disconnect().catch(() => undefined);
+            }
+          })().catch((error) => {
+            console.error('READ_ONLY_PREFLIGHT_V2_FAILED=' + (error?.code || error?.name || 'ERROR'));
+            process.exitCode = 1;
+          });
+          NODE
