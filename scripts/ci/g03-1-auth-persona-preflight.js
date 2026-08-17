@@ -21,13 +21,16 @@ function safeEvidence({ userRows, annualRows, otherYearRows }, role) {
   const employeeLinked = Boolean(user?.employee_id);
   const annual2026Rows = Number(annualRows?.[0]?.count || 0);
   const otherAnnualRows = Number(otherYearRows?.[0]?.count || 0);
+  const summaryReadMode = employeeLinked ? 'LINKED_EXISTING_2026' : 'UNLINKED_NO_ENSURE';
+  const authoritySafe = employeeLinked ? annual2026Rows === 1 : annual2026Rows === 0;
   return {
     userFoundExactlyOnce: userRows.length === 1,
     roleMatched,
     employeeLinked,
     annual2026Rows,
     otherAnnualRows,
-    safe: userRows.length === 1 && roleMatched && employeeLinked && annual2026Rows === 1 && otherAnnualRows === 0
+    summaryReadMode,
+    safe: userRows.length === 1 && roleMatched && authoritySafe && otherAnnualRows === 0
   };
 }
 

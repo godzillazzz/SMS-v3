@@ -137,6 +137,10 @@ test('G03 exact Candidate source exposes the expected employee field-group/selec
   assert.match(applicationSource, /aria-label="ปีสิทธิ์โควตาวันลา"/);
   assert.match(applicationSource, /กำหนดโควตาวันลา ปี \$\{thaiQuotaYearLabel\(quotaYear\)\}/);
   assert.match(applicationSource, /values: \{ \.\.\.LEAVE_QUOTA_DEFAULTS, quotaYear: String\(quotaYear\) \}/);
+  const routeSource = fs.readFileSync(path.resolve(process.env.UAT_APPLICATION_ROOT, 'src/routes/operations.routes.js'), 'utf8');
+  const unlinkedReturn = routeSource.indexOf("if (!currentUser.employeeId) return res.json({ data: { linked: false, employeeId: null } });");
+  const annualSummaryCall = routeSource.indexOf('annualSummary(tx, { employeeId: currentUser.employeeId, quotaYear })');
+  assert.ok(unlinkedReturn >= 0 && annualSummaryCall > unlinkedReturn);
   assert.match(applicationSource, /<label className=\{\['textarea', 'file'\]\.includes\(field\.type \|\| ''\) \? 'field-group full' : 'field-group'\} key=\{field\.name\}><span>\{field\.label\}<\/span>/);
   assert.match(applicationSource, /field\.type === 'select' \? <select required=\{field\.required\} value=\{values\[field\.name\] \|\| ''\}/);
   assert.doesNotMatch(applicationSource, /field\.type === 'select' \? <select[^>]*\b(?:id|name)=/);
@@ -196,6 +200,8 @@ test('G03 browser spec is cancel-only and contains the exact read-only UI contra
   assert.match(specSource, /G03_1_FUTURE_READ_YEAR/);
   assert.match(specSource, /ดูข้อมูลเดิมที่ยังไม่ระบุปี/);
   assert.match(specSource, /leave-summary\?year=\$\{G03_1_BASE_YEAR\}/);
+  assert.match(specSource, /UNLINKED_FIXTURE_SAFE_BRANCH/);
+  assert.match(specSource, /summaryLinked/);
   assert.match(specSource, /g03EntitlementWordingSnapshot\(page\)/);
   assert.match(specSource, /wording\.newWordingPresent\)\.toBe\(true\)/);
   assert.match(specSource, /wording\.oldWordingAbsent\)\.toBe\(true\)/);
@@ -247,10 +253,10 @@ test('G03 reporter aggregates only sanitized mutation/UI evidence', () => {
           futureYearRows: 0,
           legacyViewVisible: true,
           legacyRows: 3,
-          leaveSummaryCurrentYear: 2026,
-          leaveSummaryExplicitYear: 2026,
-          leaveSummaryYearAware: true,
+          leaveSummaryLinkedFixture: false,
+          leaveSummaryYearAware: false,
           leaveSummaryParity: true,
+          leaveSummaryCoverage: 'UNLINKED_FIXTURE_SAFE_BRANCH',
           employeeName: 'must-not-survive',
           employeeEmail: 'must-not-survive@example.test'
         }))
@@ -269,7 +275,11 @@ test('G03 reporter aggregates only sanitized mutation/UI evidence', () => {
   assert.equal(reporter.g03Readonly.roles.ADMIN.quotaYearDefault, 2026);
   assert.equal(reporter.g03Readonly.roles.ADMIN.futureYearRows, 0);
   assert.equal(reporter.g03Readonly.roles.ADMIN.legacyRows, 3);
-  assert.equal(reporter.g03Readonly.roles.ADMIN.leaveSummaryYearAware, true);
+  assert.equal(reporter.g03Readonly.roles.ADMIN.leaveSummaryLinkedFixture, false);
+  assert.equal(reporter.g03Readonly.roles.ADMIN.leaveSummaryYearAware, false);
+  assert.equal(reporter.g03Readonly.roles.ADMIN.leaveSummaryCoverage, 'UNLINKED_FIXTURE_SAFE_BRANCH');
+  assert.equal(reporter.g03Readonly.roles.ADMIN.leaveSummaryCurrentYear, undefined);
+  assert.equal(reporter.g03Readonly.roles.ADMIN.leaveSummaryExplicitYear, undefined);
   assert.equal(reporter.g03Readonly.roles.ADMIN.employeeName, undefined);
   assert.equal(reporter.g03Readonly.roles.ADMIN.employeeEmail, undefined);
   assert.doesNotMatch(JSON.stringify(reporter.g03Readonly), /must-not-survive/);

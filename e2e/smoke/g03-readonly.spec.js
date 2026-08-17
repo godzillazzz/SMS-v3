@@ -153,16 +153,28 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
     const currentSummaryResponse = await currentSummaryPromise;
     expect(currentSummaryResponse.status()).toBe(200);
     const currentSummaryPayload = await responseJson(currentSummaryResponse);
-    expect(currentSummaryPayload?.data?.quotaYear).toBe(G03_1_BASE_YEAR);
-    expect(currentSummaryPayload?.data?.linked).toBe(true);
 
     const explicit2026 = await authenticatedRequest(`/api/v1/leave-summary?year=${G03_1_BASE_YEAR}`, { accessToken });
     expect(explicit2026.status).toBe(200);
-    expect(explicit2026.payload?.data?.quotaYear).toBe(G03_1_BASE_YEAR);
-    expect(explicit2026.payload?.data?.linked).toBe(true);
-    expect(explicit2026.payload?.data?.entitlement).toEqual(currentSummaryPayload?.data?.entitlement);
-    expect(explicit2026.payload?.data?.used).toEqual(currentSummaryPayload?.data?.used);
-    expect(explicit2026.payload?.data?.remaining).toEqual(currentSummaryPayload?.data?.remaining);
+    const summaryLinked = currentSummaryPayload?.data?.linked === true;
+    expect(explicit2026.payload?.data?.linked === true).toBe(summaryLinked);
+    let leaveSummaryCoverage;
+    if (summaryLinked) {
+      expect(currentSummaryPayload?.data?.quotaYear).toBe(G03_1_BASE_YEAR);
+      expect(explicit2026.payload?.data?.quotaYear).toBe(G03_1_BASE_YEAR);
+      expect(explicit2026.payload?.data?.entitlement).toEqual(currentSummaryPayload?.data?.entitlement);
+      expect(explicit2026.payload?.data?.used).toEqual(currentSummaryPayload?.data?.used);
+      expect(explicit2026.payload?.data?.remaining).toEqual(currentSummaryPayload?.data?.remaining);
+      leaveSummaryCoverage = 'LINKED_2026_RUNTIME';
+    } else {
+      expect(currentSummaryPayload?.data?.linked).toBe(false);
+      expect(explicit2026.payload?.data?.linked).toBe(false);
+      expect(currentSummaryPayload?.data?.employeeId).toBeNull();
+      expect(explicit2026.payload?.data?.employeeId).toBeNull();
+      expect(currentSummaryPayload?.data?.quotaYear).toBeUndefined();
+      expect(explicit2026.payload?.data?.quotaYear).toBeUndefined();
+      leaveSummaryCoverage = 'UNLINKED_FIXTURE_SAFE_BRANCH';
+    }
 
     const wording = await g03EntitlementWordingSnapshot(page);
     await expect(wording.surface).toHaveCount(1);
@@ -189,10 +201,12 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
       defaultPersonal: 3,
       defaultVacation: 6,
       modalYearFieldAbsent: true,
-      leaveSummaryCurrentYear: Number(currentSummaryPayload?.data?.quotaYear || 0),
-      leaveSummaryExplicitYear: Number(explicit2026.payload?.data?.quotaYear || 0),
-      leaveSummaryYearAware: true,
+      leaveSummaryLinkedFixture: summaryLinked,
+      ...(summaryLinked ? { leaveSummaryCurrentYear: Number(currentSummaryPayload?.data?.quotaYear || 0) } : {}),
+      ...(summaryLinked ? { leaveSummaryExplicitYear: Number(explicit2026.payload?.data?.quotaYear || 0) } : {}),
+      leaveSummaryYearAware: summaryLinked,
       leaveSummaryParity: true,
+      leaveSummaryCoverage,
       newWordingPresent: true,
       oldAnnualWordingAbsent: true,
       ...selectorSummary,

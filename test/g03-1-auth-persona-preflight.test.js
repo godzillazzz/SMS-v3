@@ -16,7 +16,7 @@ function environment() {
   return Object.fromEntries(Object.entries(EMAILS).map(([role, email]) => [`UAT_${role}_EMAIL`, email]));
 }
 
-function fakePrisma({ missingQuotaRole } = {}) {
+function fakePrisma({ missingQuotaRole, unlinkedRoles = [] } = {}) {
   const calls = [];
   const ids = {
     ADMIN: '11111111-1111-4111-8111-111111111111',
@@ -35,7 +35,7 @@ function fakePrisma({ missingQuotaRole } = {}) {
       if (sql === 'SHOW transaction_read_only') return [{ transaction_read_only: 'on' }];
       if (sql.startsWith('SELECT role, employee_id FROM users')) {
         const role = roleByEmail[params[0]];
-        return role ? [{ role, employee_id: ids[role] }] : [];
+        return role ? [{ role, employee_id: unlinkedRoles.includes(role) ? null : ids[role] }] : [];
       }
       if (sql.includes("quota_year = $2 AND match_status = 'MATCHED'")) {
         const role = roleById[params[0]];
@@ -64,6 +64,7 @@ test('safe persona evidence contains only aggregate booleans/counts', () => {
     employeeLinked: true,
     annual2026Rows: 1,
     otherAnnualRows: 0,
+    summaryReadMode: 'LINKED_EXISTING_2026',
     safe: true
   });
   assert.doesNotMatch(JSON.stringify(evidence), /opaque-private-id|example\.test/i);
@@ -87,6 +88,19 @@ test('persona preflight is transaction-enforced read-only and requires one 2026 
   const serialized = JSON.stringify(result);
   for (const value of Object.values(EMAILS)) assert.doesNotMatch(serialized, new RegExp(value.replace('.', '\\.')));
   assert.doesNotMatch(serialized, /11111111|22222222|33333333/);
+});
+
+test('persona preflight accepts unlinked fixture only through the no-ensure read mode', async () => {
+  const prisma = fakePrisma({ unlinkedRoles: ['ADMIN', 'MANAGER', 'VIEWER'] });
+  const result = await runPreflight({ prisma, environment: environment() });
+  assert.equal(result.allSafe, true);
+  for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
+    assert.equal(result.roles[role].employeeLinked, false);
+    assert.equal(result.roles[role].annual2026Rows, 0);
+    assert.equal(result.roles[role].otherAnnualRows, 0);
+    assert.equal(result.roles[role].summaryReadMode, 'UNLINKED_NO_ENSURE');
+    assert.equal(result.roles[role].safe, true);
+  }
 });
 
 test('persona preflight fails closed before UAT when any role lacks 2026 authority', async () => {

@@ -116,7 +116,7 @@ function safeG03UiSummaryAttachment(value) {
   for (const key of [
     'quotaPageLoaded', 'provisionControlVisible', 'modalOpened', 'yearFieldAbsent', 'modalYearFieldAbsent',
     'yearSelectorVisible', 'thaiYearLabelPresent', 'futureYearReadOnly', 'legacyViewVisible',
-    'leaveSummaryYearAware', 'leaveSummaryParity', 'activationControlVisible',
+    'leaveSummaryLinkedFixture', 'leaveSummaryYearAware', 'leaveSummaryParity', 'activationControlVisible',
     'newWordingPresent', 'oldAnnualWordingAbsent', 'selectorLoaded',
     'codeRenderingPresent', 'nameRenderingPresent', 'departmentRenderingPresent',
     'quotaNavigationVisible', 'legacyWarningExpected', 'legacyWarningObserved'
@@ -127,6 +127,7 @@ function safeG03UiSummaryAttachment(value) {
     if (value[key] !== undefined) safe[key] = safeNonNegativeInteger(value[key]);
   }
   if (['PRESENT', 'NOT_TRIGGERED_BY_CURRENT_DATA'].includes(value.legacyWarning)) safe.legacyWarning = value.legacyWarning;
+  if (['LINKED_2026_RUNTIME', 'UNLINKED_FIXTURE_SAFE_BRANCH'].includes(value.leaveSummaryCoverage)) safe.leaveSummaryCoverage = value.leaveSummaryCoverage;
   return safe;
 }
 
