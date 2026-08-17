@@ -14,6 +14,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   const { ensureAnnualQuota, bangkokQuotaYear } = require('../../src/services/annual-leave-quota.service');
   const { provisionAnnualLeaveQuotas } = require('../../src/services/annual-leave-quota-cron.service');
   const { classifyG031Data } = require('../../src/services/g03-1-preflight.service');
+  const { G03_1_MULTI_YEAR_WRITES_ENABLED, G03_1_MULTI_YEAR_WRITES_NOT_ACTIVATED, isMultiYearWriteActivated } = require('../../src/services/g03-1-multi-year-activation.service');
 
   const ids = {
     admin: 'a3100000-0000-4000-8000-000000000001',
@@ -30,6 +31,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   const fp = (label) => crypto.createHash('sha256').update(`g031:${label}:${crypto.randomUUID()}`).digest('hex');
 
   async function cleanup() {
+    await prisma.systemSetting.deleteMany({ where: { key: G03_1_MULTI_YEAR_WRITES_ENABLED } });
     await prisma.leaveAttachment.deleteMany({ where: { leaveRequest: { employeeId: { in: employeeIds } } } });
     await prisma.shiftAssignment.deleteMany({ where: { employeeId: { in: employeeIds } } });
     await prisma.leaveRequest.deleteMany({ where: { employeeId: { in: employeeIds } } });
@@ -40,8 +42,9 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     await prisma.employee.deleteMany({ where: { id: { in: employeeIds } } });
   }
 
-  async function seed() {
+  async function seed({ activation = 'true' } = {}) {
     await cleanup();
+    if (activation !== null) await prisma.systemSetting.create({ data: { key: G03_1_MULTI_YEAR_WRITES_ENABLED, value: activation, description: 'G03.1 integration fixture only' } });
     await prisma.employee.createMany({ data: [
       { id: ids.employeeA, employeeCode: 'G031-A', firstName: 'Alpha', lastName: 'Annual', displayName: 'G031 Alpha Annual', department: 'Security', isActive: true },
       { id: ids.employeeB, employeeCode: 'G031-B', firstName: 'Bravo', lastName: 'Annual', displayName: 'G031 Bravo Annual', department: 'Security', isActive: true },
@@ -64,6 +67,153 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       viewer: accessTokenFor(await prisma.user.findUniqueOrThrow({ where: { id: ids.viewer } }))
     };
   }
+
+  test('activation defaults inactive in PostgreSQL; base-year creates while missing non-base years are blocked and existing non-base rows remain readable', async () => {
+    await seed({ activation: null });
+    assert.equal(await isMultiYearWriteActivated(prisma), false);
+    const base = await ensureAnnualQuota({ employeeId: ids.employeeA, quotaYear: 2026 });
+    assert.equal(base.created, true);
+    assert.deepEqual([Number(base.quota.sickLeave), Number(base.quota.personalLeave), Number(base.quota.vacationLeave)], [30, 3, 6]);
+    for (const year of [2025, 2027]) {
+      await assert.rejects(() => ensureAnnualQuota({ employeeId: ids.employeeB, quotaYear: year }), (e) => e.statusCode === 409 && e.details?.code === G03_1_MULTI_YEAR_WRITES_NOT_ACTIVATED && e.details?.quotaYear === year);
+      assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeB, quotaYear: year } }), 0);
+    }
+    await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('existing-2027-inactive'), employeeId: ids.employeeC, quotaYear: 2027, employeeNameSnapshot: 'G031 Charlie Annual', sickLeave: 30, personalLeave: 3, vacationLeave: 10, matchStatus: 'MATCHED' } });
+    const existing = await ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2027 });
+    assert.equal(existing.created, false);
+    assert.equal(Number(existing.quota.vacationLeave), 10);
+    await cleanup();
+  });
+
+  test('reserved activation setting cannot be changed through normal Admin system-setting API', async () => {
+    await seed({ activation: null });
+    const t = await tokens();
+    const response = await request(app).put(`/api/v1/system-settings/${G03_1_MULTI_YEAR_WRITES_ENABLED}`).set('Authorization', `Bearer ${t.admin}`).send({ value: 'true', description: 'must be rejected' });
+    assert.equal(response.status, 403);
+    assert.equal(response.body.details?.code, 'OPERATIONAL_SETTING_RESERVED');
+    assert.equal(await prisma.systemSetting.count({ where: { key: G03_1_MULTI_YEAR_WRITES_ENABLED } }), 0);
+    await cleanup();
+  });
+
+  test('inactive gate blocks legacy classification to non-base year and permits exact base-year classification', async () => {
+    await seed({ activation: null });
+    const t = await tokens();
+    const legacy = await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('gate-link'), employeeId: ids.employeeA, quotaYear: null, employeeNameSnapshot: 'G031 Alpha Annual', sickLeave: 30, personalLeave: 6, vacationLeave: 10, matchStatus: 'MATCHED' } });
+    const blocked = await request(app).put(`/api/v1/leave-quotas/${legacy.id}/link`).set('Authorization', `Bearer ${t.admin}`).send({ employeeId: ids.employeeA, quotaYear: 2027 });
+    assert.equal(blocked.status, 409);
+    assert.equal(blocked.body.details?.code, G03_1_MULTI_YEAR_WRITES_NOT_ACTIVATED);
+    assert.equal((await prisma.leaveQuota.findUniqueOrThrow({ where: { id: legacy.id } })).quotaYear, null);
+    const base = await request(app).put(`/api/v1/leave-quotas/${legacy.id}/link`).set('Authorization', `Bearer ${t.admin}`).send({ employeeId: ids.employeeA, quotaYear: 2026 });
+    assert.equal(base.status, 200);
+    assert.equal(base.body.data.quotaYear, 2026);
+    const stored = await prisma.leaveQuota.findUniqueOrThrow({ where: { id: legacy.id } });
+    assert.deepEqual([Number(stored.sickLeave), Number(stored.personalLeave), Number(stored.vacationLeave)], [30, 6, 10]);
+    await cleanup();
+  });
+
+  test('inactive gate blocks Admin future-year create but permits base-year create', async () => {
+    await seed({ activation: null });
+    const t = await tokens();
+    const payload = { employeeId: ids.employeeA, sickLeave: 30, personalLeave: 3, vacationLeave: 6 };
+    const future = await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${t.admin}`).send({ ...payload, quotaYear: 2027 });
+    assert.equal(future.status, 409);
+    assert.equal(future.body.details?.code, G03_1_MULTI_YEAR_WRITES_NOT_ACTIVATED);
+    assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeA, quotaYear: 2027 } }), 0);
+    const base = await request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${t.admin}`).send({ ...payload, quotaYear: 2026 });
+    assert.equal(base.status, 201);
+    await cleanup();
+  });
+
+  test('inactive cross-year submission with missing 2027 fails closed with no request, quota, schedule, or create audit', async () => {
+    await seed({ activation: null });
+    const t = await tokens();
+    await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('gate-2026'), employeeId: ids.employeeA, quotaYear: 2026, employeeNameSnapshot: 'G031 Alpha Annual', sickLeave: 30, personalLeave: 3, vacationLeave: 10, matchStatus: 'MATCHED' } });
+    const beforeAudit = await prisma.auditLog.count({ where: { entityType: 'LeaveQuota' } });
+    const response = await request(app).post('/api/v1/leave-requests').set('Authorization', `Bearer ${t.viewer}`).send({ leaveType: 'ลาพักร้อน', startDate: '2026-12-30', endDate: '2027-01-05', substitute: 'Substitute' });
+    assert.equal(response.status, 409);
+    assert.equal(response.body.details?.code, G03_1_MULTI_YEAR_WRITES_NOT_ACTIVATED);
+    assert.equal(response.body.details?.quotaYear, 2027);
+    assert.equal(response.body.details?.baseYear, 2026);
+    assert.equal(await prisma.leaveRequest.count({ where: { employeeId: ids.employeeA } }), 0);
+    assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeA, quotaYear: 2027 } }), 0);
+    assert.equal(await prisma.shiftAssignment.count({ where: { employeeId: ids.employeeA } }), 0);
+    assert.equal(await prisma.auditLog.count({ where: { entityType: 'LeaveQuota' } }), beforeAudit);
+    await cleanup();
+  });
+
+  test('inactive gate still allows cross-year validation when the non-base annual row already exists', async () => {
+    await seed({ activation: null });
+    const t = await tokens();
+    for (const year of [2026, 2027]) await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('existing-'+year), employeeId: ids.employeeA, quotaYear: year, employeeNameSnapshot: 'G031 Alpha Annual', sickLeave: 30, personalLeave: 3, vacationLeave: 10, matchStatus: 'MATCHED' } });
+    const response = await request(app).post('/api/v1/leave-requests').set('Authorization', `Bearer ${t.viewer}`).send({ leaveType: 'ลาพักร้อน', startDate: '2026-12-30', endDate: '2027-01-05', substitute: 'Substitute' });
+    assert.equal(response.status, 201);
+    assert.equal(Number(response.body.data.dayCount), 7);
+    assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeA } }), 2);
+    const summary = await request(app).get('/api/v1/leave-summary?year=2027').set('Authorization', `Bearer ${t.viewer}`);
+    assert.equal(summary.status, 200);
+    assert.equal(summary.body.data.quotaYear, 2027);
+    const row2027 = await prisma.leaveQuota.findUniqueOrThrow({ where: { employeeId_quotaYear: { employeeId: ids.employeeA, quotaYear: 2027 } } });
+    const edit = await request(app).put(`/api/v1/leave-quotas/${row2027.id}`).set('Authorization', `Bearer ${t.admin}`).send({ vacationLeave: 11 });
+    assert.equal(edit.status, 200);
+    assert.equal(Number(edit.body.data.vacationLeave), 11);
+    await cleanup();
+  });
+
+  test('inactive approval of a pre-existing cross-year pending request cannot provision missing 2027 or partially approve', async () => {
+    await seed({ activation: null });
+    const t = await tokens();
+    await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('approve-gate-2026'), employeeId: ids.employeeB, quotaYear: 2026, employeeNameSnapshot: 'G031 Bravo Annual', sickLeave: 30, personalLeave: 3, vacationLeave: 10, matchStatus: 'MATCHED' } });
+    const pending = await prisma.leaveRequest.create({ data: { sourceFingerprint: fp('approve-gate-pending'), employeeId: ids.employeeB, requestedAt: new Date(), employeeNameSnapshot: 'G031 Bravo Annual', departmentSnapshot: 'Security', leaveType: 'VACATION', startDate: new Date('2026-12-31T00:00:00Z'), endDate: new Date('2027-01-01T00:00:00Z'), dayCount: 2, status: 'PENDING', createdByUserId: ids.manager } });
+    const response = await request(app).put(`/api/v1/leave-requests/${pending.id}`).set('Authorization', `Bearer ${t.admin}`).send({ status: 'APPROVED' });
+    assert.equal(response.status, 409);
+    assert.equal(response.body.details?.code, G03_1_MULTI_YEAR_WRITES_NOT_ACTIVATED);
+    assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeB, quotaYear: 2027 } }), 0);
+    const after = await prisma.leaveRequest.findUniqueOrThrow({ where: { id: pending.id } });
+    assert.equal(after.status, 'PENDING');
+    assert.equal(await prisma.shiftAssignment.count({ where: { employeeId: ids.employeeB } }), 0);
+    await cleanup();
+  });
+
+  test('inactive gate blocks retroactive missing 2025 authority with no request creation', async () => {
+    await seed({ activation: null });
+    const t = await tokens();
+    const response = await request(app).post('/api/v1/leave-requests').set('Authorization', `Bearer ${t.manager}`).send({ employeeId: ids.employeeB, leaveType: 'ลากิจ', startDate: '2025-12-15', endDate: '2025-12-15', substitute: 'Substitute', reason: 'gate retroactive' });
+    assert.equal(response.status, 409);
+    assert.equal(response.body.details?.code, G03_1_MULTI_YEAR_WRITES_NOT_ACTIVATED);
+    assert.equal(response.body.details?.quotaYear, 2025);
+    assert.equal(await prisma.leaveRequest.count({ where: { employeeId: ids.employeeB } }), 0);
+    assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeB, quotaYear: 2025 } }), 0);
+    await cleanup();
+  });
+
+  test('inactive Cron is an authenticated zero-write no-op; activation true restores provisioning', async () => {
+    await seed({ activation: null });
+    process.env.CRON_SECRET = 'g031-local-cron-secret';
+    const before = await prisma.leaveQuota.count();
+    const inactive = await request(app).get('/api/v1/internal/annual-leave-quota-provisioning').set('Authorization', 'Bearer g031-local-cron-secret');
+    assert.equal(inactive.status, 200);
+    assert.equal(inactive.body.data.status, 'disabled');
+    assert.equal(inactive.body.data.activation, 'inactive');
+    assert.equal(inactive.body.data.created, 0);
+    assert.equal(await prisma.leaveQuota.count(), before);
+    await prisma.systemSetting.create({ data: { key: G03_1_MULTI_YEAR_WRITES_ENABLED, value: 'true', description: 'integration activation simulation' } });
+    const active = await request(app).get('/api/v1/internal/annual-leave-quota-provisioning').set('Authorization', 'Bearer g031-local-cron-secret');
+    assert.equal(active.status, 200);
+    assert.ok(active.body.data.created > 0);
+    await cleanup();
+  });
+
+  test('inactive concurrent non-base ensure creates zero rows; activation transition then active race creates exactly one', async () => {
+    await seed({ activation: 'false' });
+    const blocked = await Promise.allSettled(Array.from({ length: 6 }, () => ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2028 })));
+    assert.equal(blocked.filter((r) => r.status === 'rejected' && r.reason?.details?.code === G03_1_MULTI_YEAR_WRITES_NOT_ACTIVATED).length, 6);
+    assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeC, quotaYear: 2028 } }), 0);
+    await prisma.systemSetting.update({ where: { key: G03_1_MULTI_YEAR_WRITES_ENABLED }, data: { value: 'true' } });
+    const active = await Promise.allSettled(Array.from({ length: 6 }, () => ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2028 })));
+    assert.ok(active.some((r) => r.status === 'fulfilled'));
+    assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeC, quotaYear: 2028 } }), 1);
+    await cleanup();
+  });
 
   test('year-aware Admin API permits different years, blocks same year, and preserves RBAC', async () => {
     await seed();
@@ -239,6 +389,23 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     ]);
     assert.deepEqual(approvals.map((r) => r.status).sort(), [200, 400]);
     assert.equal(await prisma.leaveRequest.count({ where: { id: { in: pending.map((row) => row.id) }, status: 'APPROVED' } }), 1);
+    await cleanup();
+  });
+
+  test('2026 freeze parity remains exact while activation is missing', async () => {
+    await seed({ activation: null });
+    const t = await tokens();
+    await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('parity-2026'), employeeId: ids.employeeA, quotaYear: 2026, employeeNameSnapshot: 'G031 Alpha Annual', sickLeave: 30, personalLeave: 6, vacationLeave: 10, matchStatus: 'MATCHED' } });
+    for (const [type, days, start] of [['SICK', 5, '2026-02-01'], ['PERSONAL', 2, '2026-03-01'], ['VACATION', 4, '2026-04-01']]) {
+      await prisma.leaveRequest.create({ data: { sourceFingerprint: fp('parity-'+type), employeeId: ids.employeeA, requestedAt: new Date(), employeeNameSnapshot: 'G031 Alpha Annual', departmentSnapshot: 'Security', leaveType: type, startDate: new Date(start+'T00:00:00Z'), endDate: new Date(start+'T00:00:00Z'), dayCount: days, status: 'APPROVED' } });
+    }
+    const response = await request(app).get('/api/v1/leave-summary?year=2026').set('Authorization', `Bearer ${t.viewer}`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.data.entitlement, { sickLeave: 30, personalLeave: 6, vacationLeave: 10 });
+    assert.deepEqual(response.body.data.used, { sickLeave: 5, personalLeave: 2, vacationLeave: 4 });
+    assert.deepEqual(response.body.data.remaining, { sickLeave: 25, personalLeave: 4, vacationLeave: 6 });
+    const stored = await prisma.leaveQuota.findUniqueOrThrow({ where: { employeeId_quotaYear: { employeeId: ids.employeeA, quotaYear: 2026 } } });
+    assert.deepEqual([Number(stored.sickLeave), Number(stored.personalLeave), Number(stored.vacationLeave)], [30, 6, 10]);
     await cleanup();
   });
 

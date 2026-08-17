@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { linkLeaveQuota } = require('../src/services/leave-quota-link.service');
 
-function fakeClient({ quota, employee, annual = null, otherLegacy = [] }) {
+function fakeClient({ quota, employee, annual = null, otherLegacy = [], activationValue = 'true', activationExists = true }) {
   const updates = [];
   const audits = [];
   let uniqueCalls = 0;
@@ -14,6 +14,7 @@ function fakeClient({ quota, employee, annual = null, otherLegacy = [] }) {
       update: async ({ data }) => { updates.push(data); return { ...quota, ...data }; }
     },
     employee: { findFirst: async () => employee },
+    systemSetting: { findUnique: async () => activationExists ? { value: activationValue } : null },
     auditLog: { create: async ({ data }) => { audits.push(data); return data; } }
   };
   const auditService = { log: async (input, client) => client.auditLog.create({ data: input }) };
@@ -29,6 +30,15 @@ test('legacy link explicitly assigns employee + Gregorian quotaYear + MATCHED', 
   assert.equal(result.quotaYear, 2027);
   assert.deepEqual(f.updates, [{ employeeId: 'employee-1', quotaYear: 2027, matchStatus: 'MATCHED' }]);
   assert.equal(f.audits.length, 1);
+});
+
+test('legacy classification to non-base year is blocked while inactive but base-year 2026 remains allowed', async () => {
+  const blocked = fakeClient({ quota: legacy, employee, activationValue: 'false' });
+  await assert.rejects(() => linkLeaveQuota({ quotaId: legacy.id, employeeId: employee.id, quotaYear: 2027, actorUserId: 'admin', prismaClient: blocked.client, auditService: blocked.auditService }), (e) => e.statusCode === 409 && e.details?.code === 'G03_1_MULTI_YEAR_WRITES_NOT_ACTIVATED');
+  assert.equal(blocked.updates.length, 0);
+  const base = fakeClient({ quota: legacy, employee, activationExists: false });
+  const result = await linkLeaveQuota({ quotaId: legacy.id, employeeId: employee.id, quotaYear: 2026, actorUserId: 'admin', prismaClient: base.client, auditService: base.auditService });
+  assert.equal(result.quotaYear, 2026);
 });
 
 test('legacy link requires a valid explicit year', async () => {

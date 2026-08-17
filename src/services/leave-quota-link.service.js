@@ -2,6 +2,7 @@ const prisma = require('../config/prisma');
 const audit = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { validateQuotaYear, LEAVE_QUOTA_STATE_CONFLICT } = require('./annual-leave-quota.service');
+const { assertAnnualQuotaCreationAllowed } = require('./g03-1-multi-year-activation.service');
 
 async function linkLeaveQuota({ quotaId, employeeId, quotaYear, actorUserId, prismaClient = prisma, auditService = audit }) {
   const year = validateQuotaYear(quotaYear);
@@ -34,6 +35,7 @@ async function linkLeaveQuota({ quotaId, employeeId, quotaYear, actorUserId, pri
 
       const linkedLegacy = await tx.leaveQuota.findMany({ where: { employeeId, quotaYear: null, id: { not: quotaId } }, select: { id: true } });
       if (linkedLegacy.length) throw new HttpError(409, 'Selected employee has unclassified legacy leave quota data.', { code: 'LEAVE_QUOTA_LEGACY_AMBIGUOUS', quotaYear: year });
+      await assertAnnualQuotaCreationAllowed(tx, year);
 
       const after = await tx.leaveQuota.update({
         where: { id: quotaId },

@@ -2,9 +2,14 @@
 
 const prisma = require('../config/prisma');
 const { bangkokQuotaYear, ensureAnnualQuota, LEAVE_QUOTA_LEGACY_AMBIGUOUS } = require('./annual-leave-quota.service');
+const { isMultiYearWriteActivated } = require('./g03-1-multi-year-activation.service');
 
 async function provisionAnnualLeaveQuotas({ prismaClient = prisma, now = new Date(), batchSize = 100 } = {}) {
   const quotaYear = bangkokQuotaYear(now);
+  const activated = await isMultiYearWriteActivated(prismaClient);
+  if (!activated) {
+    return { status: 'disabled', activation: 'inactive', eligible: 0, created: 0, existing: 0, ambiguous: 0, failed: 0, quotaYear };
+  }
   let cursor;
   const totals = { eligible: 0, created: 0, existing: 0, ambiguous: 0, failed: 0, quotaYear };
   while (true) {

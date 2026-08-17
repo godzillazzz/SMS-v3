@@ -6,10 +6,11 @@ const {
   LEAVE_QUOTA_LEGACY_AMBIGUOUS
 } = require('../src/services/annual-leave-quota.service');
 
-function fixture({ employee = { id: 'e1', firstName: 'A', lastName: 'B', displayName: 'A B' }, annual, legacy = [], inserted = 1 } = {}) {
+function fixture({ employee = { id: 'e1', firstName: 'A', lastName: 'B', displayName: 'A B' }, annual, legacy = [], inserted = 1, activationValue = 'true', activationExists = true } = {}) {
   const state = { audits: [], creates: [] };
   const tx = {
     employee: { findFirst: async () => employee },
+    systemSetting: { findUnique: async () => activationExists ? { value: activationValue } : null },
     leaveQuota: {
       findUnique: async () => annual || (state.creates[0] ?? null),
       findMany: async () => legacy,
@@ -31,9 +32,23 @@ test('ensure creates 30/3/6 and audit atomically for a missing annual row', asyn
   assert.equal(f.state.audits[0].metadata.source, 'ON_DEMAND');
 });
 
+test('missing non-base quota is blocked while activation is inactive without write or audit', async () => {
+  const f = fixture({ activationValue: 'false' });
+  await assert.rejects(() => ensureAnnualQuotaInTransaction(f.tx, { employeeId: 'e1', quotaYear: 2027, auditService: f.auditService }), (error) => error.statusCode === 409 && error.details?.code === 'G03_1_MULTI_YEAR_WRITES_NOT_ACTIVATED');
+  assert.equal(f.state.creates.length, 0);
+  assert.equal(f.state.audits.length, 0);
+});
+
+test('base-year 2026 create remains allowed when activation setting is missing', async () => {
+  const f = fixture({ activationExists: false });
+  const result = await ensureAnnualQuotaInTransaction(f.tx, { employeeId: 'e1', quotaYear: 2026, auditService: f.auditService });
+  assert.equal(result.created, true);
+  assert.equal(f.state.creates[0].quotaYear, 2026);
+});
+
 test('ensure preserves existing customized annual quota without a write', async () => {
   const custom = { id: 'q', employeeId: 'e1', quotaYear: 2027, sickLeave: 30, personalLeave: 3, vacationLeave: 10 };
-  const f = fixture({ annual: custom });
+  const f = fixture({ annual: custom, activationValue: 'false' });
   const result = await ensureAnnualQuotaInTransaction(f.tx, { employeeId: 'e1', quotaYear: 2027, auditService: f.auditService });
   assert.equal(result.created, false);
   assert.equal(result.quota.vacationLeave, 10);

@@ -14,6 +14,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   const { accessTokenFor } = require('../../src/services/auth.service');
   const { provisionLeaveQuota } = require('../../src/services/leave-quota-provisioning.service');
   const { linkLeaveQuota } = require('../../src/services/leave-quota-link.service');
+  const { G03_1_MULTI_YEAR_WRITES_ENABLED } = require('../../src/services/g03-1-multi-year-activation.service');
 
   const ids = {
     admin: '93000000-0000-4000-8000-000000000001',
@@ -36,6 +37,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   const fp = (label) => crypto.createHash('sha256').update(`g03-integration:${label}`).digest('hex');
 
   async function cleanup() {
+    await prisma.systemSetting.deleteMany({ where: { key: G03_1_MULTI_YEAR_WRITES_ENABLED } });
     await prisma.leaveAttachment.deleteMany({ where: { leaveRequest: { employeeId: { in: employeeIds } } } });
     await prisma.shiftAssignment.deleteMany({ where: { employeeId: { in: employeeIds } } });
     await prisma.leaveRequest.deleteMany({ where: { employeeId: { in: employeeIds } } });
@@ -48,6 +50,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
 
   async function seed() {
     await cleanup();
+    await prisma.systemSetting.create({ data: { key: G03_1_MULTI_YEAR_WRITES_ENABLED, value: 'true', description: 'G03.1 active regression fixture' } });
     const employeeData = [
       [ids.employeeA, 'G03-A', 'Alpha', 'Guard', true, null],
       [ids.employeeB, 'G03-B', 'Bravo', 'Guard', true, null],

@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { provisionLeaveQuota, LEAVE_QUOTA_ALREADY_EXISTS, LEAVE_QUOTA_STATE_CONFLICT } = require('../src/services/leave-quota-provisioning.service');
 
-function fakePrisma({ employee, annual = null, legacy = [], transactionError, auditFails = false } = {}) {
+function fakePrisma({ employee, annual = null, legacy = [], transactionError, auditFails = false, activationValue = 'true', activationExists = true } = {}) {
   const state = { quotas: [], audits: [] };
   const calls = { isolationLevel: null, createData: null };
   const auditService = { log: async (input) => { if (auditFails) throw new Error('AUDIT_FAILURE'); state.audits.push(input); return input; } };
@@ -13,6 +13,7 @@ function fakePrisma({ employee, annual = null, legacy = [], transactionError, au
       if (transactionError) throw transactionError;
       const tx = {
         employee: { findFirst: async () => employee || null },
+        systemSetting: { findUnique: async () => activationExists ? { value: activationValue } : null },
         leaveQuota: {
           findUnique: async () => annual,
           findMany: async () => legacy,
@@ -41,6 +42,15 @@ test('ADMIN annual provisioning is Serializable, year-aware, matched and audited
   assert.deepEqual({ sick: Number(result.sickLeave), personal: Number(result.personalLeave), vacation: Number(result.vacationLeave) }, { sick: 30, personal: 3, vacation: 6 });
   assert.equal(f.state.audits[0].metadata.event, 'ADMIN_ANNUAL_QUOTA_CREATED');
   assert.equal(f.state.audits[0].metadata.quotaYear, 2027);
+});
+
+test('Admin non-base creation is blocked while inactive but base-year creation remains allowed', async () => {
+  const blocked = fakePrisma({ employee, activationValue: 'false' });
+  await assert.rejects(() => invoke(blocked), (e) => e.statusCode === 409 && e.details?.code === 'G03_1_MULTI_YEAR_WRITES_NOT_ACTIVATED');
+  assert.equal(blocked.state.quotas.length, 0);
+  const base = fakePrisma({ employee, activationExists: false });
+  const created = await invoke(base, { quotaYear: 2026 });
+  assert.equal(created.quotaYear, 2026);
 });
 
 test('MANAGER and VIEWER are denied by service', async () => {

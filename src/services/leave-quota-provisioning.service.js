@@ -8,6 +8,7 @@ const {
   LEAVE_QUOTA_ALREADY_EXISTS,
   LEAVE_QUOTA_STATE_CONFLICT
 } = require('./annual-leave-quota.service');
+const { assertAnnualQuotaCreationAllowed } = require('./g03-1-multi-year-activation.service');
 
 async function provisionLeaveQuota({
   actor,
@@ -41,6 +42,7 @@ async function provisionLeaveQuota({
       if (legacy.length) {
         throw new HttpError(409, 'Legacy leave quota must be classified before creating an annual quota.', { code: 'LEAVE_QUOTA_LEGACY_AMBIGUOUS', quotaYear: year });
       }
+      await assertAnnualQuotaCreationAllowed(tx, year);
 
       const employeeNameSnapshot = String(employee.displayName || `${employee.firstName} ${employee.lastName}`).trim();
       const quota = await tx.leaveQuota.create({

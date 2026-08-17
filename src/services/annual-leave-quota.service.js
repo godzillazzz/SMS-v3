@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const prisma = require('../config/prisma');
 const audit = require('./audit.service');
 const HttpError = require('../utils/http-error');
+const { assertAnnualQuotaCreationAllowed } = require('./g03-1-multi-year-activation.service');
 
 const ANNUAL_LEAVE_ENTITLEMENT = Object.freeze({ sickLeave: 30, personalLeave: 3, vacationLeave: 6 });
 const MIN_QUOTA_YEAR = 2000;
@@ -60,6 +61,7 @@ async function ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear, sourc
       quotaYear: year
     });
   }
+  await assertAnnualQuotaCreationAllowed(tx, year);
   const employeeNameSnapshot = String(employee.displayName || `${employee.firstName} ${employee.lastName}`).trim();
   const sourceFingerprint = annualFingerprint(employeeId, year);
   const inserted = await tx.leaveQuota.createMany({
