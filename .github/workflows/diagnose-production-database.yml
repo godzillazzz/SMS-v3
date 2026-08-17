@@ -33,7 +33,7 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      CUTOVER_STATE_FILE: ${{ runner.temp }}/g03-1-cutover-state.json
+      CUTOVER_STATE_FILE: /tmp/g03-1-cutover-state.json
 
     steps:
       - name: Checkout fixed cutover harness
