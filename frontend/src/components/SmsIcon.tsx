@@ -3,7 +3,7 @@ import type { SVGProps } from 'react';
 export type SmsIconName =
   | 'dashboard' | 'employees' | 'license' | 'calendar' | 'clock' | 'leave' | 'approval'
   | 'history' | 'quota' | 'shield' | 'audit' | 'quality' | 'users' | 'report' | 'settings'
-  | 'bell' | 'search' | 'menu' | 'logout' | 'sun' | 'moon' | 'system';
+  | 'bell' | 'search' | 'menu' | 'more' | 'close' | 'logout' | 'sun' | 'moon' | 'system';
 
 const paths: Record<SmsIconName, React.ReactNode> = {
   dashboard: <><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></>,
@@ -24,6 +24,8 @@ const paths: Record<SmsIconName, React.ReactNode> = {
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,
   search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
   menu: <><path d="M4 7h16M4 12h16M4 17h16"/></>,
+  more: <><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,
+  close: <><path d="m6 6 12 12M18 6 6 18"/></>,
   logout: <><path d="M10 17l5-5-5-5M15 12H3"/><path d="M14 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/></>,
   sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></>,
   moon: <><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></>,

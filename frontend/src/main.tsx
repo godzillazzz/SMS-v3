@@ -36,6 +36,7 @@ import './styles/responsive-shell.css';
 import './styles/action-system.css';
 import './styles/tokens.css';
 import './styles/theme-foundation.css';
+import './styles/app-shell.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; department?: string; jobTitle?: string; isActive: boolean; updatedAt?: string };
@@ -1121,6 +1122,8 @@ function Dashboard() {
   const [dataQualityFilters, setDataQualityFilters] = useState<DataQualityFilters>({ severity: '', module: '', rule: '', department: '', search: '' });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const [mobileUtilityOpen, setMobileUtilityOpen] = useState(false);
+  const mobileUtilityTriggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!mobileMenuOpen) return;
     const previousBodyOverflow = document.body.style.overflow;
@@ -1136,6 +1139,15 @@ function Dashboard() {
       mobileMenuTriggerRef.current?.focus();
     };
   }, [mobileMenuOpen]);
+  useEffect(() => {
+    if (!mobileUtilityOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileUtilityOpen(false); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      mobileUtilityTriggerRef.current?.focus();
+    };
+  }, [mobileUtilityOpen]);
   const [operationRefresh, setOperationRefresh] = useState(0);
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
   const [employeeRefresh, setEmployeeRefresh] = useState(0);
@@ -2180,38 +2192,46 @@ function Dashboard() {
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {lifecycleTarget && auth.token && <EmployeeLifecycleModal token={auth.token} employee={lifecycleTarget} onClose={() => setLifecycleTarget(undefined)} onApplied={() => setEmployeeRefresh((value) => value + 1)} />}
       {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({auth.user?.role}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
-      {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)} />}
-      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
-        <div className="sidebar-brand"><Logo /><div><strong>SMS v3</strong><span>Security Management System</span></div></div>
+      {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนูหลัก" aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(false)} />}
+      <aside id="app-navigation-drawer" className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} aria-label="เมนูหลัก">
+        <div className="sidebar-brand">
+          <Logo />
+          <div><strong>SMS V3</strong><span>Security Management System</span></div>
+          <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
+        </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
           <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}</span></button>)}</div>
         ))}</nav>
-        <button className="sidebar-user" onClick={() => auth.logout()} title="ออกจากระบบ"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'} · ออกจากระบบ</small></span><i><SmsIcon name="logout" size={16} /></i></button>
+        <div className="sidebar-footer">
+          <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></div>
+          <div className="sidebar-theme-block"><span>Theme</span><ThemeControl /></div>
+          <button type="button" className="sidebar-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} /><span>ออกจากระบบ</span></button>
+        </div>
       </aside>
       <main className="main-area">
         <header className="topbar">
           <div className="topbar-left">
-            <button ref={mobileMenuTriggerRef} className="mobile-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileMenuOpen(true)}><SmsIcon name="menu" size={20} /></button>
-            <span className="mobile-brand"><Logo /> SMS v3</span>
-            <span className="mobile-theme-control"><ThemeControl compact /></span>
+            <button ref={mobileMenuTriggerRef} type="button" className="mobile-menu-button" aria-label="เปิดเมนูหลัก" aria-expanded={mobileMenuOpen} aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(true)}><SmsIcon name="menu" size={20} /></button>
+            <span className="mobile-brand"><Logo /><span><b>SMS V3</b><small>{pageTitle}</small></span></span>
             <span className="topbar-copy"><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></span>
           </div>
+          <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
           <div className="topbar-actions">
-            <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหา..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
-            <ThemeControl compact /><button className="topbar-icon" type="button" title="การแจ้งเตือน" aria-label="การแจ้งเตือน"><SmsIcon name="bell" size={18} /></button>
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
+            <ThemeControl compact />
             <span className="topbar-profile" title="บัญชีผู้ใช้งาน"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></span>
-            <button className="signout-button" onClick={() => auth.logout()}>ออกจากระบบ</button>
+            <button ref={mobileUtilityTriggerRef} type="button" className="mobile-utility-button" aria-label="เปิดเมนูบัญชีและธีม" aria-expanded={mobileUtilityOpen} aria-controls="mobile-utility-panel" onClick={() => setMobileUtilityOpen((value) => !value)}><SmsIcon name="more" size={20} /></button>
           </div>
-        </header>
-        <nav className="mobile-nav-strip" aria-label="เมนูหลักสำหรับมือถือและแท็บเล็ต">
-          {visibleNavigation.map((section) => (
-            <div className="mobile-nav-group" key={section.label}>
-              <span className="mobile-nav-section">{section.label}</span>
-              {section.items.map((item) => <button type="button" key={item.id} className={`mobile-nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span><SmsIcon name={item.icon} size={17} /></span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}</button>)}
+          {mobileUtilityOpen && <>
+            <button type="button" className="mobile-utility-backdrop" aria-label="ปิดเมนูบัญชีและธีม" onClick={() => setMobileUtilityOpen(false)} />
+            <div id="mobile-utility-panel" className="mobile-utility-panel" role="dialog" aria-label="บัญชีและการตั้งค่าหน้าจอ">
+              <div className="mobile-utility-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></div>
+              <label className="mobile-utility-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงานบนมือถือ" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
+              <div className="mobile-utility-theme"><span>Theme</span><ThemeControl /></div>
+              <button type="button" className="mobile-utility-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} />ออกจากระบบ</button>
             </div>
-          ))}
-        </nav>
+          </>}
+        </header>
         <div className="content-area">{content()}</div>
       </main>
     </div>

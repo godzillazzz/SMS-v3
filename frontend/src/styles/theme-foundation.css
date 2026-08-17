@@ -99,105 +99,7 @@ h2,
   color: var(--color-text);
 }
 
-/* Premium application shell */
-.sidebar {
-  background: linear-gradient(180deg, var(--color-sidebar-bg-strong), var(--color-sidebar-bg));
-  border-right: 1px solid var(--color-sidebar-border);
-  box-shadow: 12px 0 40px rgba(5, 8, 18, .12);
-}
-
-.sidebar-brand strong,
-.sidebar-user b { color: var(--color-sidebar-text); }
-.sidebar-brand span,
-.sidebar-user small,
-.nav-section > p { color: var(--color-sidebar-muted); }
-
-.nav-item {
-  min-height: var(--control-height);
-  border-radius: var(--radius-sm);
-  color: var(--color-sidebar-text);
-  font-size: var(--font-size-nav);
-}
-
-.nav-item:hover:not(.active) { background: var(--color-sidebar-hover); }
-.nav-item.active {
-  background: linear-gradient(105deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 76%, var(--color-info)));
-  box-shadow: 0 8px 20px rgba(53, 43, 130, .28);
-}
-
-.nav-icon {
-  display: inline-grid;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-  place-items: center;
-  color: currentColor;
-}
-.nav-icon svg { display: block; }
-
-.sidebar-user {
-  min-height: 56px;
-  border-top-color: var(--color-sidebar-border);
-}
-
-.topbar {
-  min-height: 68px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-translucent);
-  color: var(--color-text);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .02);
-  backdrop-filter: blur(16px);
-}
-
-.topbar-copy strong { color: var(--color-text) !important; }
-.topbar-copy small { color: var(--color-text-secondary) !important; }
-
-.topbar-search,
-.search-box {
-  border-color: var(--color-border);
-  background: var(--color-surface-muted);
-  color: var(--color-text-secondary);
-}
-
-.topbar-search input,
-.search-box input {
-  color: var(--color-text);
-  background: transparent;
-}
-
-.topbar-search input::placeholder,
-.search-box input::placeholder { color: var(--color-text-muted); }
-
-.topbar-icon,
-.mobile-menu-button,
-.signout-button {
-  min-width: var(--control-height);
-  min-height: var(--control-height);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
-  background: var(--color-surface-elevated);
-}
-
-.topbar-icon:hover,
-.mobile-menu-button:hover,
-.signout-button:hover {
-  color: var(--color-primary);
-  background: var(--color-primary-soft);
-  border-color: color-mix(in srgb, var(--color-primary) 32%, var(--color-border));
-}
-
-.environment-pill,
-.record-chip {
-  border-color: var(--color-border);
-  color: var(--color-text-secondary);
-  background: var(--color-surface-muted);
-}
-
-.avatar {
-  color: #fff;
-  background: linear-gradient(140deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 62%, var(--color-info)));
-}
+/* Application shell ownership moved to styles/app-shell.css in UX-02. */
 
 /* Shared form controls */
 .field-group input,
@@ -512,22 +414,17 @@ input[type="radio"] { accent-color: var(--color-primary); }
 
 /* Responsive baseline */
 @media (max-width: 1024px) {
-  .content-area { padding: var(--space-5); }
-  .topbar { padding-inline: var(--space-5); }
   .theme-control:not(.theme-control--compact) button span { display: none; }
   .theme-control:not(.theme-control--compact) button { width: 36px; min-width: 36px; padding: 0; }
 }
 
 @media (max-width: 768px) {
-  .content-area { padding: var(--space-4); }
-  .topbar { padding-inline: var(--space-4); }
   .login-form-panel { padding-top: 76px; }
   .login-theme-control { top: var(--space-4); right: var(--space-4); }
   .page-heading h1 { font-size: 1.5rem; }
 }
 
 @media (max-width: 420px) {
-  .content-area { padding: var(--space-3); }
   .theme-control button { min-width: 36px; padding-inline: 8px; }
 }
 
@@ -544,15 +441,4 @@ input[type="radio"] { accent-color: var(--color-primary); }
   .theme-control { display: none !important; }
 }
 
-/* Icon/theme placement details */
-.brand-mark svg,
-.mobile-nav-item svg,
-.sidebar-user i svg { display: block; }
-.sidebar-user i { display: inline-grid; place-items: center; color: var(--color-sidebar-muted); }
-.mobile-nav-item > span { display: inline-grid; width: 18px; height: 18px; place-items: center; }
-.mobile-theme-control { display: none; margin-left: auto; }
-
-@media (max-width: 768px) {
-  .topbar-left { width: 100%; }
-  .mobile-theme-control { display: inline-flex; }
-}
+/* Shell icon placement is owned by styles/app-shell.css. */

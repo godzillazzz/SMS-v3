@@ -111,12 +111,12 @@
   --shadow-md: 0 8px 24px rgba(32, 24, 63, 0.08);
   --shadow-lg: 0 20px 50px rgba(32, 24, 63, 0.13);
 
-  --color-sidebar-bg: #11152a;
-  --color-sidebar-bg-strong: #0c1021;
-  --color-sidebar-text: #d9def1;
-  --color-sidebar-muted: #8f9ab8;
-  --color-sidebar-hover: rgba(255, 255, 255, 0.07);
-  --color-sidebar-border: rgba(222, 226, 244, 0.12);
+  --color-sidebar-bg: #fcfbfd;
+  --color-sidebar-bg-strong: #ffffff;
+  --color-sidebar-text: #353047;
+  --color-sidebar-muted: #777085;
+  --color-sidebar-hover: rgba(98, 84, 217, 0.07);
+  --color-sidebar-border: #e9e4ee;
 
   --ambient-page:
     radial-gradient(circle at 14% 7%, rgba(205, 194, 255, 0.24), transparent 31%),
