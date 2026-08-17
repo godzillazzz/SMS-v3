@@ -11,20 +11,30 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  EXPECTED_CANDIDATE_SHA: 0951d4ce08de817dda7b986924232e86e745b532
-  EXPECTED_STAGED_DEPLOYMENT: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs
-  EXPECTED_STAGED_URL: https://sms-v3-staging-ayoq2ueh1-godzillazz.vercel.app
-  EXPECTED_OLD_CANONICAL_DEPLOYMENT: dpl_rK4D47D2HaJ2ur4cLV1YfWtnu2eL
-  EXPECTED_OLD_CANONICAL_SHA: 1701bcf90a1998ea4999ee02e687172295984c9a
+  EXPECTED_PROMOTION_HARNESS_PARENT: 0dcb0380a60df8a442d5ae81652385355ca2e5bf
+  EXPECTED_PROMOTION_BRANCH: ci/g04-production-promotion-v1
+  EXPECTED_CANDIDATE_SHA: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+  EXPECTED_CANDIDATE_TREE: c58a842dd0d6cfa4f3efca352769671012c2ba9a
+  EXPECTED_STAGED_DEPLOYMENT: dpl_7KcuwssKHDKDeJanhTVYVWSQotP6
+  EXPECTED_STAGED_URL: https://sms-v3-staging-2vshbm489-godzillazz.vercel.app
+  EXPECTED_OLD_CANONICAL_DEPLOYMENT: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs
+  EXPECTED_OLD_CANONICAL_SHA: 0951d4ce08de817dda7b986924232e86e745b532
   EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
   EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
   EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_MIGRATION: 202608170002_g04_private_registration_request
+  EXPECTED_ROLLBACK_REF: rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17
+  EXPECTED_ROLLBACK_SHA: 0951d4ce08de817dda7b986924232e86e745b532
+  EXPECTED_MASTER_REF: codex/docs-reconstruct-master-handover-v1
+  EXPECTED_MASTER_SHA: 1af39ca540624245bff78e82baa89dfbdb325d80
+  VERCEL_CLI_VERSION: 56.4.1
+  G04_PROMOTION_STATE_FILE: /tmp/g04-promotion-state.json
 
 jobs:
   promote:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     environment:
       name: production-sms-v3-staging
       url: https://sms-v3-staging-ten.vercel.app
@@ -34,25 +44,60 @@ jobs:
       APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
-      - name: Checkout fixed Promotion harness
+      - name: Checkout fixed G04 Promotion harness
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Preserve fixed read-only snapshot helper
+      - name: Verify fixed Promotion harness scope and preserve helpers
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_REF_NAME" = "ci/g03-1-production-promotion-v1"
-          cp scripts/ci/g03-1-staged-technical-snapshot.js /tmp/g03-1-promotion-snapshot.js
-          test -s /tmp/g03-1-promotion-snapshot.js
+          test "$GITHUB_REF_NAME" = "$EXPECTED_PROMOTION_BRANCH"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PROMOTION_HARNESS_PARENT"
+          changed="$(git diff --name-only HEAD^ HEAD | sort)"
+          expected="$(printf '%s\n' '.github/workflows/promote-production.yml' 'scripts/ci/g04-promotion-security-smoke.js' 'scripts/ci/g04-promotion-snapshot.js' 'vercel.json' | sort)"
+          test "$changed" = "$expected"
+          node -e "const v=require('./vercel.json'); if(v.git?.deploymentEnabled?.[process.env.EXPECTED_PROMOTION_BRANCH]!==false) process.exit(1)"
+          if grep -Ev 'grep -Eiq|G04_PROMOTION_FORBIDDEN_COMMAND' .github/workflows/promote-production.yml | grep -Eiq 'vercel(@[^ ]+)?[[:space:]]+(deploy|build)|prisma[[:space:]]+migrate[[:space:]]+deploy'; then
+            echo 'G04_PROMOTION_FORBIDDEN_COMMAND'
+            exit 1
+          fi
+          post_count="$(grep -Ec '^[[:space:]]*--request POST' .github/workflows/promote-production.yml || true)"
+          test "$post_count" = 1
+          grep -Fq 'promote/$EXPECTED_STAGED_DEPLOYMENT' .github/workflows/promote-production.yml
+          if grep -Eiq "method:[[:space:]]*'POST'|method[[:space:]]*=[[:space:]]*'POST'" scripts/ci/g04-promotion-*.js; then
+            echo 'G04_PROMOTION_FORBIDDEN_MUTATING_ENDPOINT_REFERENCE'
+            exit 1
+          fi
+          cp scripts/ci/g04-promotion-snapshot.js /tmp/g04-promotion-snapshot.js
+          cp scripts/ci/g04-promotion-security-smoke.js /tmp/g04-promotion-security-smoke.js
+          test -s /tmp/g04-promotion-snapshot.js
+          test -s /tmp/g04-promotion-security-smoke.js
+          echo 'G04_PROMOTION_HARNESS_SCOPE=PASS'
+          echo 'G04_PROMOTION_DEPLOY_BUILD_MIGRATE_COMMANDS=0'
 
-      - name: Checkout exact Candidate for Prisma client
+      - name: Checkout exact G04 Candidate
         uses: actions/checkout@v4
         with:
-          ref: 0951d4ce08de817dda7b986924232e86e745b532
-          fetch-depth: 1
+          ref: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
+          fetch-depth: 2
+
+      - name: Verify exact Candidate git identity and protected refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_CANDIDATE_SHA"
+          test "$(git show -s --format=%T HEAD)" = "$EXPECTED_CANDIDATE_TREE"
+          test "$(git ls-remote origin refs/heads/feat/private-registration-request-v1 | cut -f1)" = "$EXPECTED_CANDIDATE_SHA"
+          test "$(git ls-remote origin refs/heads/$EXPECTED_MASTER_REF | cut -f1)" = "$EXPECTED_MASTER_SHA"
+          test "$(git ls-remote origin refs/heads/$EXPECTED_ROLLBACK_REF | cut -f1)" = "$EXPECTED_ROLLBACK_SHA"
+          echo 'G04_PROMOTION_GIT_IDENTITY=PASS'
+          echo 'G04_PROMOTION_ROLLBACK_PRE=UNCHANGED'
+          echo 'G04_PROMOTION_MASTER_PRE=UNCHANGED'
 
       - uses: actions/setup-node@v4
         with:
@@ -65,15 +110,20 @@ jobs:
           set -euo pipefail
           npm ci --include=dev --ignore-scripts
           npx --no-install prisma generate
+          npx playwright install --with-deps chromium
+          NODE_PATH="$GITHUB_WORKSPACE/node_modules" node --check /tmp/g04-promotion-snapshot.js
+          NODE_PATH="$GITHUB_WORKSPACE/node_modules" node --check /tmp/g04-promotion-security-smoke.js
+          echo 'G04_PROMOTION_DEPENDENCIES=PASS'
 
       - name: Verify protected Production database target
         run: node scripts/ci/verify-deployment-target.js --verify
 
-      - name: Verify exact Promotion-time deployment identities
+      - name: Fresh Promotion identity hard gate
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$VERCEL_TOKEN"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
           staged_json=$(mktemp)
           canonical_json=$(mktemp)
           curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
@@ -86,131 +136,89 @@ jobs:
             --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
             "https://api.vercel.com/v13/deployments/$canonical_host" >"$canonical_json"
           node - "$staged_json" "$canonical_json" <<'NODE'
-          const fs = require('node:fs');
-          const [stagedFile, canonicalFile] = process.argv.slice(2);
-          const staged = JSON.parse(fs.readFileSync(stagedFile, 'utf8'));
-          const canonical = JSON.parse(fs.readFileSync(canonicalFile, 'utf8'));
-          const sha = (d) => d?.meta?.githubCommitSha || d?.meta?.gitCommitSha || d?.gitSource?.sha || d?.source?.sha || null;
-          if (staged.id !== process.env.EXPECTED_STAGED_DEPLOYMENT) throw new Error('PROMOTION_STAGED_ID_MISMATCH');
-          if (sha(staged) !== process.env.EXPECTED_CANDIDATE_SHA) throw new Error('PROMOTION_STAGED_SHA_MISMATCH');
-          if (staged.projectId !== process.env.EXPECTED_PROJECT_ID || staged.name !== process.env.EXPECTED_PROJECT_NAME) throw new Error('PROMOTION_STAGED_PROJECT_MISMATCH');
-          if (staged.target !== 'production' || staged.readyState !== 'READY') throw new Error('PROMOTION_STAGED_STATE_INVALID');
-          if (`https://${staged.url}` !== process.env.EXPECTED_STAGED_URL) throw new Error('PROMOTION_STAGED_URL_MISMATCH');
-          if (canonical.id !== process.env.EXPECTED_OLD_CANONICAL_DEPLOYMENT) throw new Error('PROMOTION_OLD_CANONICAL_ID_MISMATCH');
-          if (sha(canonical) !== process.env.EXPECTED_OLD_CANONICAL_SHA) throw new Error('PROMOTION_OLD_CANONICAL_SHA_MISMATCH');
-          if (canonical.target !== 'production' || canonical.readyState !== 'READY') throw new Error('PROMOTION_OLD_CANONICAL_STATE_INVALID');
-          console.log(`PROMOTION_IDENTITY=PASS staged=${staged.id} canonical=${canonical.id}`);
+          const fs=require('node:fs'); const [sf,cf]=process.argv.slice(2); const staged=JSON.parse(fs.readFileSync(sf,'utf8')); const canonical=JSON.parse(fs.readFileSync(cf,'utf8'));
+          const sha=(d)=>d?.meta?.githubCommitSha||d?.meta?.gitCommitSha||d?.gitSource?.sha||d?.source?.sha||null;
+          if(staged.id!==process.env.EXPECTED_STAGED_DEPLOYMENT||sha(staged)!==process.env.EXPECTED_CANDIDATE_SHA||staged.projectId!==process.env.EXPECTED_PROJECT_ID||staged.name!==process.env.EXPECTED_PROJECT_NAME||staged.target!=='production'||staged.readyState!=='READY'||`https://${staged.url}`!==process.env.EXPECTED_STAGED_URL) throw new Error('G04_PROMOTION_IDENTITY_FAILED');
+          if(canonical.id!==process.env.EXPECTED_OLD_CANONICAL_DEPLOYMENT||sha(canonical)!==process.env.EXPECTED_OLD_CANONICAL_SHA||canonical.target!=='production'||canonical.readyState!=='READY') throw new Error('G04_PROMOTION_OLD_CANONICAL_IDENTITY_FAILED');
+          console.log('G04_PROMOTION_IDENTITY=PASS');
           NODE
+          prod=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" list "$EXPECTED_PROJECT_NAME" --environment production --format json --limit 100 --token "$VERCEL_TOKEN" >"$prod" 2>/dev/null
+          node - "$prod" <<'NODE'
+          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); const items=Array.isArray(d)?d:(d.deployments||[]); const m=items.filter(x=>(x?.meta?.githubCommitSha||x?.meta?.gitCommitSha)===process.env.EXPECTED_CANDIDATE_SHA); if(m.length!==1) throw new Error('G04_PROMOTION_CANDIDATE_DEPLOYMENT_COUNT_INVALID'); console.log('G04_PROMOTION_CANDIDATE_DEPLOYMENT_COUNT_PRE=1');
+          NODE
+          helper=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" list "$EXPECTED_PROJECT_NAME" --format json --limit 100 -m githubCommitRef="$EXPECTED_PROMOTION_BRANCH" --token "$VERCEL_TOKEN" >"$helper" 2>/dev/null
+          node - "$helper" <<'NODE'
+          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); const items=Array.isArray(d)?d:(d.deployments||[]); if(items.length!==0) throw new Error('G04_PROMOTION_HELPER_DEPLOYMENT_DETECTED'); console.log('G04_PROMOTION_HELPER_DEPLOYMENTS_PRE=0');
+          NODE
+
+      - name: Schema activation and pre-Promotion read-only snapshot hard gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATABASE_URL="$DIRECT_URL" NODE_PATH="$GITHUB_WORKSPACE/node_modules" node /tmp/g04-promotion-snapshot.js pre
+          echo 'G04_PROMOTION_SCHEMA=PRESENT_COMPATIBLE'
+          echo 'G04_PROMOTION_MIGRATION=APPLIED_EXACTLY_ONCE'
+          echo 'G04_PROMOTION_PENDING_MIGRATIONS=0'
+          echo 'G04_PROMOTION_G03_1_ACTIVATION_PRE=ACTIVE_TRUE'
 
       - name: Verify pre-Promotion Candidate and Canonical health
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
           verify_url() {
-            local base="$1"
-            local label="$2"
-            local health_json ready_json
+            local base="$1" label="$2" health_json ready_json code
             health_json=$(mktemp)
-            curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
-              --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
-              "$base/api/v1/health" >"$health_json"
+            code=$(curl --silent --show-error --location --proto '=https' --tlsv1.2 --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" --output "$health_json" --write-out '%{http_code}' "$base/api/v1/health")
+            test "$code" = 200
             node - "$health_json" <<'NODE'
           const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); if(d.status!=='ok') process.exit(1);
           NODE
             echo "${label}_HEALTH=200/ok"
             for n in 1 2 3; do
               ready_json=$(mktemp)
-              curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
-                --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
-                "$base/api/v1/ready" >"$ready_json"
+              code=$(curl --silent --show-error --location --proto '=https' --tlsv1.2 --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" --output "$ready_json" --write-out '%{http_code}' "$base/api/v1/ready")
+              test "$code" = 200
               node - "$ready_json" <<'NODE'
           const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); if(d.status!=='ready'||d.database!=='ok') process.exit(1);
           NODE
-              echo "${label}_READY_${n}=200/ready/ok"
             done
             echo "${label}_READY=3/3"
           }
-          verify_url "$EXPECTED_STAGED_URL" CANDIDATE_PREPROMOTION
-          verify_url "$EXPECTED_CANONICAL_URL" CANONICAL_PREPROMOTION
+          verify_url "$EXPECTED_STAGED_URL" G04_CANDIDATE_PREPROMOTION
+          verify_url "$EXPECTED_CANONICAL_URL" G04_CANONICAL_PREPROMOTION
 
-      - name: Capture read-only Production safety snapshot before Promotion
+      - name: Final read-only hard gate and Promote exact existing deployment once
         shell: bash
         run: |
           set -euo pipefail
-          node /tmp/g03-1-promotion-snapshot.js | tee /tmp/g03-1-promotion-pre.log
-          node - /tmp/g03-1-promotion-pre.log /tmp/g03-1-promotion-pre.json <<'NODE'
-          const fs=require('node:fs');
-          const [logFile,outFile]=process.argv.slice(2);
-          const line=fs.readFileSync(logFile,'utf8').split(/\r?\n/).find(v=>v.startsWith('STAGED_TECH_SNAPSHOT='));
-          if(!line) throw new Error('PROMOTION_PRE_SNAPSHOT_MISSING');
-          const d=JSON.parse(line.slice('STAGED_TECH_SNAPSHOT='.length));
-          if(d.readOnly.transactionReadOnly!=='on'||d.readOnly.transactionIdAssigned!==null) throw new Error('PROMOTION_PRE_NOT_READ_ONLY');
-          if(d.activation.effective!=='INACTIVE') throw new Error('G03_1_PROMOTION_ACTIVATION_UNSAFE');
-          if(d.counts.quotaYearOtherRows!==0) throw new Error('G03_1_PROMOTION_SECOND_YEAR_ROW_DETECTED');
-          if(d.schema.migrationCount!==17||d.schema.pendingMigrations.length!==0||!d.schema.authorizedMigrationApplied) throw new Error('PROMOTION_MIGRATION_STATE_INVALID');
-          if(d.counts.leaveQuotaRows!==66||d.counts.quotaYear2026Rows!==63||d.counts.quotaYearNullRows!==3) throw new Error('PROMOTION_QUOTA_DISTRIBUTION_INVALID');
-          const e=d.totals2026.entitlement;
-          if(e.sickLeave!==1856||e.personalLeave!==164||e.vacationLeave!==299) throw new Error('G03_1_PROMOTION_2026_ENTITLEMENT_INVALID');
-          fs.writeFileSync(outFile, JSON.stringify(d));
-          console.log(`PROMOTION_PRE_SNAPSHOT=PASS activation=${d.activation.valueClass}/${d.activation.effective} quota=${d.counts.leaveQuotaRows}/${d.counts.quotaYear2026Rows}/${d.counts.quotaYearNullRows}/${d.counts.quotaYearOtherRows}`);
-          console.log(`PROMOTION_PRE_2026=sick:${e.sickLeave}/${d.totals2026.used.sickLeave}/${d.totals2026.remaining.sickLeave} personal:${e.personalLeave}/${d.totals2026.used.personalLeave}/${d.totals2026.remaining.personalLeave} vacation:${e.vacationLeave}/${d.totals2026.used.vacationLeave}/${d.totals2026.remaining.vacationLeave}`);
-          console.log(`PROMOTION_PRE_FINGERPRINT=${d.businessFingerprint}`);
-          NODE
-
-      - name: Hard-gate activation and Promote exact existing deployment once
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Final DB gate occurs in the same step immediately before the single Promotion API call.
-          node /tmp/g03-1-promotion-snapshot.js | tee /tmp/g03-1-promotion-hard-gate.log
-          node - /tmp/g03-1-promotion-hard-gate.log /tmp/g03-1-promotion-pre.json <<'NODE'
-          const fs=require('node:fs');
-          const [gateLog,preFile]=process.argv.slice(2);
-          const line=fs.readFileSync(gateLog,'utf8').split(/\r?\n/).find(v=>v.startsWith('STAGED_TECH_SNAPSHOT='));
-          if(!line) throw new Error('PROMOTION_HARD_GATE_SNAPSHOT_MISSING');
-          const d=JSON.parse(line.slice('STAGED_TECH_SNAPSHOT='.length));
-          const pre=JSON.parse(fs.readFileSync(preFile,'utf8'));
-          if(d.readOnly.transactionReadOnly!=='on'||d.readOnly.transactionIdAssigned!==null) throw new Error('PROMOTION_HARD_GATE_NOT_READ_ONLY');
-          if(d.activation.effective!=='INACTIVE') throw new Error('G03_1_PROMOTION_ACTIVATION_UNSAFE');
-          if(d.counts.quotaYearOtherRows!==0) throw new Error('G03_1_PROMOTION_SECOND_YEAR_ROW_DETECTED');
-          if(d.businessFingerprint!==pre.businessFingerprint) throw new Error('PROMOTION_HARD_GATE_FINGERPRINT_CHANGED');
-          const e=d.totals2026.entitlement;
-          if(e.sickLeave!==1856||e.personalLeave!==164||e.vacationLeave!==299) throw new Error('G03_1_PROMOTION_2026_ENTITLEMENT_INVALID');
-          console.log(`PROMOTION_HARD_GATE=PASS activation=${d.activation.valueClass}/${d.activation.effective}`);
-          NODE
-
+          DATABASE_URL="$DIRECT_URL" NODE_PATH="$GITHUB_WORKSPACE/node_modules" node /tmp/g04-promotion-snapshot.js post
           staged_json=$(mktemp)
           curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
+            --header "Authorization: Bearer $VERCEL_TOKEN" --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
             "https://api.vercel.com/v13/deployments/$EXPECTED_STAGED_DEPLOYMENT" >"$staged_json"
           node - "$staged_json" <<'NODE'
-          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
-          const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha||d?.gitSource?.sha||d?.source?.sha||null;
-          if(d.id!==process.env.EXPECTED_STAGED_DEPLOYMENT||sha!==process.env.EXPECTED_CANDIDATE_SHA||d.projectId!==process.env.EXPECTED_PROJECT_ID||d.target!=='production'||d.readyState!=='READY') throw new Error('PROMOTION_FINAL_IDENTITY_GATE_FAILED');
-          console.log('PROMOTION_FINAL_IDENTITY_GATE=PASS');
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha||d?.gitSource?.sha||d?.source?.sha;if(d.id!==process.env.EXPECTED_STAGED_DEPLOYMENT||sha!==process.env.EXPECTED_CANDIDATE_SHA||d.projectId!==process.env.EXPECTED_PROJECT_ID||d.target!=='production'||d.readyState!=='READY')throw new Error('G04_PROMOTION_FINAL_IDENTITY_GATE_FAILED');console.log('G04_PROMOTION_FINAL_IDENTITY_GATE=PASS');
           NODE
-
+          echo "G04_PROMOTION_START_ISO=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
           promote_body=$(mktemp)
           promote_http=$(curl --silent --show-error --location --proto '=https' --tlsv1.2 \
-            --request POST \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --output "$promote_body" \
-            --write-out '%{http_code}' \
+            --request POST --header "Authorization: Bearer $VERCEL_TOKEN" --output "$promote_body" --write-out '%{http_code}' \
             "https://api.vercel.com/v10/projects/$EXPECTED_PROJECT_ID/promote/$EXPECTED_STAGED_DEPLOYMENT?teamId=$EXPECTED_ORG_ID")
-          echo "PROMOTION_API=POST /v10/projects/{projectId}/promote/{deploymentId}"
-          echo "PROMOTION_HTTP=$promote_http"
+          echo 'G04_PROMOTION_API=POST /v10/projects/{projectId}/promote/{deploymentId}'
+          echo "G04_PROMOTION_HTTP=$promote_http"
           if [[ ! "$promote_http" =~ ^2[0-9][0-9]$ ]]; then
             node - "$promote_body" <<'NODE'
-          const fs=require('node:fs'); let code='UNKNOWN'; try{const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); code=String(d?.error?.code||d?.code||'UNKNOWN').replace(/[^A-Za-z0-9_-]/g,'').slice(0,80)}catch{} console.error(`PROMOTION_API_ERROR_CODE=${code}`);
+          const fs=require('node:fs');let code='UNKNOWN';try{const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));code=String(d?.error?.code||d?.code||'UNKNOWN').replace(/[^A-Za-z0-9_-]/g,'').slice(0,80)}catch{}console.error('G04_PROMOTION_API_ERROR_CODE='+code);
           NODE
             exit 1
           fi
-          echo 'PROMOTION_EXECUTED=YES'
-          echo 'PROMOTION_DISPATCH_COUNT=1'
+          echo 'G04_PROMOTION_EXECUTED=YES'
+          echo 'G04_PROMOTION_DISPATCH_COUNT=1'
+          echo 'G04_PROMOTION_NEW_DEPLOYMENT_CREATED=0'
 
-      - name: Poll until Canonical resolves to exact promoted deployment
+      - name: Poll Canonical until exact promoted deployment is settled
         shell: bash
         run: |
           set -euo pipefail
@@ -218,96 +226,111 @@ jobs:
           matched=0
           for attempt in $(seq 1 30); do
             canonical_json=$(mktemp)
-            curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
+            curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 --header "Authorization: Bearer $VERCEL_TOKEN" \
               --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' \
               "https://api.vercel.com/v13/deployments/$canonical_host" >"$canonical_json"
             if node - "$canonical_json" <<'NODE'
-          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
-          const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha||d?.gitSource?.sha||d?.source?.sha||null;
-          if(d.id!==process.env.EXPECTED_STAGED_DEPLOYMENT||sha!==process.env.EXPECTED_CANDIDATE_SHA||d.target!=='production'||d.readyState!=='READY') process.exit(1);
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha||d?.gitSource?.sha||d?.source?.sha;if(d.id!==process.env.EXPECTED_STAGED_DEPLOYMENT||sha!==process.env.EXPECTED_CANDIDATE_SHA||d.target!=='production'||d.readyState!=='READY')process.exit(1);
           NODE
-            then
-              matched=1
-              echo "PROMOTION_CANONICAL_MATCH_ATTEMPT=$attempt"
-              break
-            fi
+            then matched=1; echo "G04_PROMOTION_CANONICAL_MATCH_ATTEMPT=$attempt"; break; fi
             sleep 2
           done
           test "$matched" = 1
-          echo "PROMOTION_CANONICAL_DEPLOYMENT=$EXPECTED_STAGED_DEPLOYMENT"
-          echo "PROMOTION_CANONICAL_SHA=$EXPECTED_CANDIDATE_SHA"
-          echo 'PROMOTION_CANONICAL_STATE=READY'
-          echo 'PROMOTION_CANONICAL_IDENTITY=PASS'
+          echo "G04_PROMOTION_CANONICAL_DEPLOYMENT=$EXPECTED_STAGED_DEPLOYMENT"
+          echo "G04_PROMOTION_CANONICAL_SHA=$EXPECTED_CANDIDATE_SHA"
+          echo 'G04_PROMOTION_CANONICAL_STATE=READY'
+          echo 'G04_PROMOTION_CANONICAL_IDENTITY=PASS'
 
-      - name: Recheck activation and Production accounting after Promotion
+      - name: Post-Promotion anonymous and public UI security smoke
         shell: bash
         run: |
           set -euo pipefail
-          node /tmp/g03-1-promotion-snapshot.js | tee /tmp/g03-1-promotion-post.log
-          node - /tmp/g03-1-promotion-post.log /tmp/g03-1-promotion-pre.json <<'NODE'
-          const fs=require('node:fs');
-          const [postLog,preFile]=process.argv.slice(2);
-          const line=fs.readFileSync(postLog,'utf8').split(/\r?\n/).find(v=>v.startsWith('STAGED_TECH_SNAPSHOT='));
-          if(!line) throw new Error('PROMOTION_POST_SNAPSHOT_MISSING');
-          const post=JSON.parse(line.slice('STAGED_TECH_SNAPSHOT='.length));
-          const pre=JSON.parse(fs.readFileSync(preFile,'utf8'));
-          if(post.readOnly.transactionReadOnly!=='on'||post.readOnly.transactionIdAssigned!==null) throw new Error('PROMOTION_POST_NOT_READ_ONLY');
-          if(post.activation.effective!=='INACTIVE') throw new Error('G03_1_PROMOTION_POST_ACTIVATION_UNSAFE');
-          if(post.counts.quotaYearOtherRows!==0) throw new Error('G03_1_PROMOTION_SECOND_YEAR_ROW_DETECTED');
-          if(post.counts.leaveQuotaRows!==pre.counts.leaveQuotaRows||post.counts.quotaYear2026Rows!==pre.counts.quotaYear2026Rows||post.counts.quotaYearNullRows!==pre.counts.quotaYearNullRows) throw new Error('PROMOTION_QUOTA_ROWS_CHANGED');
-          if(post.counts.systemSettingRows!==pre.counts.systemSettingRows) throw new Error('PROMOTION_SYSTEM_SETTING_ROWS_CHANGED');
-          if(post.counts.migrationRows!==pre.counts.migrationRows) throw new Error('PROMOTION_MIGRATION_ROWS_CHANGED');
-          if(post.businessFingerprint!==pre.businessFingerprint) throw new Error('G03_1_PROMOTION_2026_PRESERVATION_FAILED');
-          const pe=pre.totals2026.entitlement, qe=post.totals2026.entitlement;
-          if(JSON.stringify(pe)!==JSON.stringify(qe)) throw new Error('G03_1_PROMOTION_2026_ENTITLEMENT_CHANGED');
-          const usedSame=JSON.stringify(pre.totals2026.used)===JSON.stringify(post.totals2026.used);
-          const remainingSame=JSON.stringify(pre.totals2026.remaining)===JSON.stringify(post.totals2026.remaining);
-          console.log(`PROMOTION_POST_ACTIVATION=${post.activation.valueClass}/${post.activation.effective}`);
-          console.log(`PROMOTION_POST_QUOTA=${post.counts.leaveQuotaRows}/${post.counts.quotaYear2026Rows}/${post.counts.quotaYearNullRows}/${post.counts.quotaYearOtherRows}`);
-          console.log(`PROMOTION_POST_2026=sick:${qe.sickLeave}/${post.totals2026.used.sickLeave}/${post.totals2026.remaining.sickLeave} personal:${qe.personalLeave}/${post.totals2026.used.personalLeave}/${post.totals2026.remaining.personalLeave} vacation:${qe.vacationLeave}/${post.totals2026.used.vacationLeave}/${post.totals2026.remaining.vacationLeave}`);
-          console.log(`PROMOTION_POST_FINGERPRINT=${post.businessFingerprint}`);
-          console.log(`PROMOTION_2026_ENTITLEMENT_PRESERVED=YES`);
-          console.log(`PROMOTION_2026_USED_EXACT=${usedSame?'YES':'NO_CONCURRENT_ACTIVITY_REVIEW_REQUIRED'}`);
-          console.log(`PROMOTION_2026_REMAINING_EXACT=${remainingSame?'YES':'NO_CONCURRENT_ACTIVITY_REVIEW_REQUIRED'}`);
-          console.log('PROMOTION_BUSINESS_WRITE_GUARD=PASS');
-          NODE
+          NODE_PATH="$GITHUB_WORKSPACE/node_modules" node /tmp/g04-promotion-security-smoke.js
 
       - name: Verify post-Promotion Canonical health and ready 3 of 3
         shell: bash
         run: |
           set -euo pipefail
           health_json=$(mktemp)
-          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
-            --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
-            "$EXPECTED_CANONICAL_URL/api/v1/health" >"$health_json"
+          code=$(curl --silent --show-error --location --proto '=https' --tlsv1.2 --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" --output "$health_json" --write-out '%{http_code}' "$EXPECTED_CANONICAL_URL/api/v1/health")
+          test "$code" = 200
           node - "$health_json" <<'NODE'
-          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); if(d.status!=='ok') process.exit(1);
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));if(d.status!=='ok')process.exit(1);
           NODE
-          echo 'PROMOTION_POST_HEALTH=200/ok'
+          echo 'G04_PROMOTION_POST_HEALTH=200/ok'
           for n in 1 2 3; do
             ready_json=$(mktemp)
-            curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
-              --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
-              "$EXPECTED_CANONICAL_URL/api/v1/ready" >"$ready_json"
+            code=$(curl --silent --show-error --location --proto '=https' --tlsv1.2 --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" --output "$ready_json" --write-out '%{http_code}' "$EXPECTED_CANONICAL_URL/api/v1/ready")
+            test "$code" = 200
             node - "$ready_json" <<'NODE'
-          const fs=require('node:fs'); const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8')); if(d.status!=='ready'||d.database!=='ok') process.exit(1);
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));if(d.status!=='ready'||d.database!=='ok')process.exit(1);
           NODE
-            echo "PROMOTION_POST_READY_${n}=200/ready/ok"
           done
-          echo 'PROMOTION_POST_READY=3/3'
+          echo 'G04_PROMOTION_POST_READY=3/3'
 
-      - name: Publish fixed Promotion summary
+      - name: Verify G03.1 activation and Promotion zero-write guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATABASE_URL="$DIRECT_URL" NODE_PATH="$GITHUB_WORKSPACE/node_modules" node /tmp/g04-promotion-snapshot.js post
+          echo 'G04_PROMOTION_G03_1_ACTIVATION_POST=ACTIVE_TRUE'
+          echo 'G04_PROMOTION_REGISTRATION_REQUEST_TASK_MUTATION=0'
+          echo 'G04_PROMOTION_USER_MUTATION=0'
+          echo 'G04_PROMOTION_EMPLOYEE_MUTATION=0'
+          echo 'G04_PROMOTION_USER_EMPLOYEE_MUTATION=0'
+          echo 'G04_PROMOTION_ROLE_ACCOUNTSTATUS_MUTATION=0'
+          echo 'G04_PROMOTION_LEAVE_QUOTA_MUTATION=0'
+          echo 'G04_PROMOTION_SCHEDULE_MUTATION=0'
+          echo 'G04_PROMOTION_LICENSE_MUTATION=0'
+          echo 'G04_PROMOTION_SYSTEMSETTING_MUTATION=0'
+          echo 'G04_PROMOTION_MIGRATION_DURING_PROMOTION=0'
+
+      - name: Runtime and no-new-deployment final guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          logs=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" logs --deployment "$EXPECTED_STAGED_DEPLOYMENT" --since "$G04_PROMOTION_START_ISO" --limit 350 --json --no-branch --token "$VERCEL_TOKEN" >"$logs" 2>/dev/null
+          critical=$(grep -Eic 'P2021|P2022|P2024|P2028|PrismaClientInitializationError|Prisma (initialization|init)|schema mismatch|unknown (table|column)|pool timeout|connection timeout|transaction timeout|ReferenceError|Runtime Timeout|UnhandledPromiseRejection|fatal initialization|"statusCode"[[:space:]]*:[[:space:]]*(500|503|504)|HTTP (500|503|504)' "$logs" || true)
+          test "$critical" = 0
+          echo 'G04_PROMOTION_RUNTIME_CRITICAL=0'
+          prod=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" list "$EXPECTED_PROJECT_NAME" --environment production --format json --limit 100 --token "$VERCEL_TOKEN" >"$prod" 2>/dev/null
+          node - "$prod" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));const items=Array.isArray(d)?d:(d.deployments||[]);const m=items.filter(x=>(x?.meta?.githubCommitSha||x?.meta?.gitCommitSha)===process.env.EXPECTED_CANDIDATE_SHA);if(m.length!==1)throw new Error('UNAUTHORIZED_PRODUCTION_DEPLOYMENT_CREATED');console.log('G04_PROMOTION_CANDIDATE_DEPLOYMENT_COUNT_POST=1');console.log('G04_PROMOTION_NEW_CANDIDATE_DEPLOYMENT=0');
+          NODE
+          helper=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" list "$EXPECTED_PROJECT_NAME" --format json --limit 100 -m githubCommitRef="$EXPECTED_PROMOTION_BRANCH" --token "$VERCEL_TOKEN" >"$helper" 2>/dev/null
+          node - "$helper" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));const items=Array.isArray(d)?d:(d.deployments||[]);if(items.length!==0)throw new Error('UNAUTHORIZED_PRODUCTION_DEPLOYMENT_CREATED');console.log('G04_PROMOTION_HELPER_DEPLOYMENTS_POST=0');
+          NODE
+          canonical_host="${EXPECTED_CANONICAL_URL#https://}"
+          canonical_json=$(mktemp)
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 --header "Authorization: Bearer $VERCEL_TOKEN" --get --data-urlencode "teamId=$EXPECTED_ORG_ID" --data-urlencode 'withGitRepoInfo=true' "https://api.vercel.com/v13/deployments/$canonical_host" >"$canonical_json"
+          node - "$canonical_json" <<'NODE'
+          const fs=require('node:fs');const d=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));const sha=d?.meta?.githubCommitSha||d?.meta?.gitCommitSha;if(d.id!==process.env.EXPECTED_STAGED_DEPLOYMENT||sha!==process.env.EXPECTED_CANDIDATE_SHA||d.readyState!=='READY')throw new Error('G04_PROMOTION_CANONICAL_IDENTITY_FAILED');console.log('G04_PROMOTION_CANONICAL_FINAL=EXACT_READY');
+          NODE
+          test "$(git ls-remote origin refs/heads/$EXPECTED_ROLLBACK_REF | cut -f1)" = "$EXPECTED_ROLLBACK_SHA"
+          test "$(git ls-remote origin refs/heads/$EXPECTED_MASTER_REF | cut -f1)" = "$EXPECTED_MASTER_SHA"
+          echo 'G04_PROMOTION_ROLLBACK_CHECKPOINT_CHANGED=NO'
+          echo 'G04_PROMOTION_G05=NOT_STARTED'
+
+      - name: Publish G04 Promotion summary
         shell: bash
         run: |
           {
-            echo '### G03.1 exact existing-deployment Promotion'
+            echo '### G04 exact existing-deployment Promotion'
             echo '- Project: sms-v3-staging'
-            echo '- Deployment: dpl_FmYkoc5hfCJ6g6xyGfdvufE56sYs'
-            echo '- Application SHA: 0951d4ce08de817dda7b986924232e86e745b532'
+            echo '- Deployment: dpl_7KcuwssKHDKDeJanhTVYVWSQotP6'
+            echo '- Application SHA: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e'
             echo '- Promotion execution: exactly one API call'
-            echo '- New deployment: not created'
-            echo '- Activation: remains INACTIVE'
-            echo '- Migration: not performed'
-            echo '- Business data mutation: not performed'
+            echo '- New deployment: 0'
+            echo '- G04 migration during Promotion: 0'
+            echo '- G03.1 activation: ACTIVE / unchanged'
+            echo '- Business mutation by Promotion task: 0'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove temporary Promotion state
+        if: always()
+        shell: bash
+        run: rm -f "$G04_PROMOTION_STATE_FILE" /tmp/g04-promotion-snapshot.js /tmp/g04-promotion-security-smoke.js
