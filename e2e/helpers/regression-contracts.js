@@ -32,13 +32,17 @@ function sourceRegressionContracts() {
 
   requireIncludes(dataQualityPage, [
     'data-quality-desktop-table',
-    '<table>',
     '<thead>',
     '<tbody>',
     'data-quality-mobile-cards',
     'data-quality-mobile-card',
     'data-quality-target'
   ], 'DATA_QUALITY_RENDERER_CONTRACT_FAILED');
+  if (!/<table\b[^>]*>/.test(dataQualityPage)) {
+    const error = new Error('DATA_QUALITY_RENDERER_CONTRACT_FAILED: <table element>');
+    error.code = 'DATA_QUALITY_RENDERER_CONTRACT_FAILED';
+    throw error;
+  }
   requireIncludes(dataQualityStyles, [
     '.data-quality-desktop-table{display:block',
     '.data-quality-mobile-cards{display:none}',
@@ -60,7 +64,6 @@ function sourceRegressionContracts() {
 
   requireIncludes(auditTable, [
     'audit-desktop-table',
-    '<table className="audit-table">',
     '<thead>',
     '<tbody>',
     'audit-mobile-cards',
@@ -68,6 +71,11 @@ function sourceRegressionContracts() {
     'audit-preview-link',
     'ดูรายละเอียด'
   ], 'AUDIT_RENDERER_CONTRACT_FAILED');
+  if (!/<table\b[^>]*className="[^"]*\baudit-table\b[^"]*"[^>]*>/.test(auditTable)) {
+    const error = new Error('AUDIT_RENDERER_CONTRACT_FAILED: <table class token audit-table>');
+    error.code = 'AUDIT_RENDERER_CONTRACT_FAILED';
+    throw error;
+  }
   if (auditTable.includes('data-label=')) {
     throw new Error('AUDIT_DATA_LABEL_RENDERING_CONTRACT_FAILED');
   }

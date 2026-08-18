@@ -143,7 +143,7 @@ test('interface keeps operational feedback, mobile tables, and schedule draft ac
   assert.match(frontend, /RequestErrorContent/);
   assert.match(requestErrors, /ระบบไม่สามารถดำเนินการได้ชั่วคราว/);
   assert.match(requestErrors, /รหัสอ้างอิง/);
-  assert.match(frontend, /className="empty-state"/);
+  assert.match(frontend, /className="[^"]*\bempty-state\b[^"]*"/);
   assert.match(frontend, /className="calendar-toolbar-box schedule-workbench"/);
   assert.match(frontend, /className="schedule-draft-actions"/);
   assert.match(styles, /\.data-table:not\(\.schedule-grid\) th:first-child/);

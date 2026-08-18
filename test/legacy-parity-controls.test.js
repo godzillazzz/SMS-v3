@@ -45,7 +45,9 @@ test('legacy navigation and three-role model are represented in the frontend', (
   assert.doesNotMatch(navigationBlock, /label: 'รายงานและ Export'/);
   assert.doesNotMatch(navigationBlock, /label: 'รายงานผู้บริหาร'/);
   assert.doesNotMatch(navigationBlock, /label: 'อนุมัติตารางกะ'/);
-  assert.match(frontend, /mobile-nav-strip/);
+  assert.match(frontend, /<aside id="app-navigation-drawer"[\s\S]*?<nav className="nav-menu"[\s\S]*?visibleNavigation\.map/);
+  assert.match(frontend, /className="mobile-menu-button"[\s\S]*?aria-controls="app-navigation-drawer"[\s\S]*?setMobileMenuOpen\(true\)/);
+  assert.match(frontend, /const visibleNavigation = navigation[\s\S]*?section\.items\.filter\(\(item\) => canViewPage\(item\.id\)\)/);
   for (const section of ['ภาพรวม', 'พนักงาน', 'ตารางกะ', 'การลา', 'ตรวจสอบ', 'ผู้ใช้และสิทธิ์', 'รายงาน', 'ตั้งค่า']) {
     assert.ok(navigationBlock.includes(`label: '${section}'`), section);
   }
@@ -56,6 +58,7 @@ test('legacy navigation and three-role model are represented in the frontend', (
 test('schedule month picker and license search match legacy usability expectations', () => {
   assert.match(monthPicker, /export function MonthGridPicker/);
   assert.match(frontend, /<MonthGridPicker value=\{scheduleMonth\} onChange=\{setScheduleMonth\} \/>/);
-  assert.match(frontend, /page === 'licenses' && <div className="toolbar">/);
+  assert.match(frontend, /page === 'licenses' && <div className="[^"]*\btoolbar\b[^"]*">/);
+  assert.match(frontend, /value=\{tableSearch\} onChange=\{\(event\) => setTableSearch\(event\.target\.value\)\}/);
   assert.match(frontend, /ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ/);
 });
