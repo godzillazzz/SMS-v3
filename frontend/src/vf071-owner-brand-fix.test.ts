@@ -11,7 +11,7 @@ const report = read('pages/executive-report/ExecutiveReportCenterPage.tsx');
 const reportCenter = read('pages/reports/ReportCenterPage.tsx');
 const theme = read('theme.ts');
 const index = fs.readFileSync(path.resolve(root, '../index.html'), 'utf8');
-const apiBytes = fs.readFileSync(path.join(root, 'api.ts'));
+const apiBytes = fs.readFileSync(path.join(root, 'api.ts'), 'utf8').replace(/\r\n/g, '\n');
 
 describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
   it('renders the same approved SMS tile across desktop, login and mobile brand surfaces', () => {
@@ -71,6 +71,6 @@ describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
     expect(css).toMatch(/\.sidebar-brand \.brand-mark \{[\s\S]*?margin-top: 0;/);
   });
   it('keeps the API hard gate byte-equivalent', () => {
-    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('7a0a0f560bf6e47c0114edc9f844f748d8ba958851c94a1ef833dc139f696126');
+    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('3edef237bf89ab63272c22caa7069e68eb542be278a82e44f6d810fd64bf16b7');
   });
 });

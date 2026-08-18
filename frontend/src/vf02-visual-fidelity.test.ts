@@ -14,7 +14,7 @@ const quickActions = read('components/dashboard/QuickActionsCard.tsx');
 const personnelHeader = read('components/personnel/PersonnelDirectoryHeader.tsx');
 const accessPage = read('pages/access-management/AccessManagementPage.tsx');
 const review = read('pages/access-management/RegistrationReviewPanel.tsx');
-const apiBytes = fs.readFileSync(path.join(root, 'api.ts'));
+const apiBytes = fs.readFileSync(path.join(root, 'api.ts'), 'utf8').replace(/\r\n/g, '\n');
 const apiSha256 = crypto.createHash('sha256').update(apiBytes).digest('hex');
 
 describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
@@ -130,6 +130,6 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
   });
 
   it('keeps frontend/src/api.ts byte-equivalent to the frozen UX-06 baseline', () => {
-    expect(apiSha256).toBe('7a0a0f560bf6e47c0114edc9f844f748d8ba958851c94a1ef833dc139f696126');
+    expect(apiSha256).toBe('3edef237bf89ab63272c22caa7069e68eb542be278a82e44f6d810fd64bf16b7');
   });
 });

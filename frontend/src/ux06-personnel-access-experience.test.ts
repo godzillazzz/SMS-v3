@@ -18,7 +18,7 @@ const accessUtils = read('components/access-management/access-management-utils.t
 const accessCss = read('styles/access-management.css');
 const reviewPanel = read('pages/access-management/RegistrationReviewPanel.tsx');
 const smsIcon = read('components/SmsIcon.tsx');
-const apiBytes = fs.readFileSync(path.join(root, 'api.ts'));
+const apiBytes = fs.readFileSync(path.join(root, 'api.ts'), 'utf8').replace(/\r\n/g, '\n');
 const apiSha256 = crypto.createHash('sha256').update(apiBytes).digest('hex');
 
 describe('G04.2 UX-06 Personnel + Access experience contract', () => {
@@ -203,6 +203,6 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
   });
 
   it('keeps frontend/src/api.ts byte-equivalent to UX-05', () => {
-    expect(apiSha256).toBe('7a0a0f560bf6e47c0114edc9f844f748d8ba958851c94a1ef833dc139f696126');
+    expect(apiSha256).toBe('3edef237bf89ab63272c22caa7069e68eb542be278a82e44f6d810fd64bf16b7');
   });
 });

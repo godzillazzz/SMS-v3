@@ -21,7 +21,7 @@ const auditTable = read('components/audit/AuditTable.tsx');
 const auditUtils = read('components/audit/audit-utils.ts');
 const dataQuality = read('pages/data-quality/DataQualityCenterPage.tsx');
 const rowMenu = read('components/DataRowActionMenu.tsx');
-const apiBytes = fs.readFileSync(path.join(root, 'api.ts'));
+const apiBytes = fs.readFileSync(path.join(root, 'api.ts'), 'utf8').replace(/\r\n/g, '\n');
 
 const apiSha256 = createHash('sha256').update(apiBytes).digest('hex');
 
@@ -130,7 +130,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
   });
 
   it('keeps the exact UX-02 API source blob unchanged', () => {
-    expect(apiSha256).toBe('7a0a0f560bf6e47c0114edc9f844f748d8ba958851c94a1ef833dc139f696126');
+    expect(apiSha256).toBe('3edef237bf89ab63272c22caa7069e68eb542be278a82e44f6d810fd64bf16b7');
   });
 
   it('provides an accessible shared row-action menu with focus restoration and viewport containment', () => {

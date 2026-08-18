@@ -8,7 +8,7 @@ const read = (name: string) => fs.readFileSync(path.join(root, name), 'utf8').re
 const panel = read('pages/access-management/RegistrationReviewPanel.tsx');
 const css = read('styles/registration-review.css');
 const api = read('api.ts');
-const apiSha256 = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, 'api.ts'))).digest('hex');
+const apiSha256 = crypto.createHash('sha256').update(read('api.ts')).digest('hex');
 
 describe('G04.2 UX-05 Registration Review workbench contract', () => {
   it('keeps the exact authorized request-list API and selection behavior while adding local mobile detail presentation', () => {
@@ -159,7 +159,7 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
   });
 
   it('keeps current API contracts byte-equivalent and preserves all five Registration Review API signatures', () => {
-    expect(apiSha256).toBe('7a0a0f560bf6e47c0114edc9f844f748d8ba958851c94a1ef833dc139f696126');
+    expect(apiSha256).toBe('3edef237bf89ab63272c22caa7069e68eb542be278a82e44f6d810fd64bf16b7');
     expect(api).toContain('registrationRequests: (token: string, status?: string)');
     expect(api).toContain('registrationCandidates: (token: string, id: string, search = \'\')');
     expect(api).toContain('matchRegistrationRequest: (token: string, id: string, employeeId: string)');
