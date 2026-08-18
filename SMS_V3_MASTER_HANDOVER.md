@@ -445,8 +445,31 @@ coverage remains P2 item G12.
 
 ## Section 13 — Rollback / Release History
 
-### Current release — G04.1
+### Current release — G04.2 VF-07.1
 
+- Release: G04.2 — UX/UI SYSTEM VF-07.1
+- Production SHA: 096e006580f95ff8fb2291312f3ba46be12cfe71
+- Application tree: 26792616a402aeeef1fee9d81732f2135a80949f
+- Production deployment: dpl_9bwjx9Rw4NKeZanGhDQmd4XSBm5f
+- Production immutable URL: https://sms-v3-staging-kvetakpun-godzillazz.vercel.app
+- Canonical URL: https://sms-v3-staging-ten.vercel.app
+- Promotion timestamp: 2026-08-19 00:04:11 +07:00 (Production deployment creation; Canonical cutover verified during post-promotion gate)
+- Status: PROMOTED / PRODUCTION VERIFIED
+- Remote CI: run 32158253476 / job 95780595084 — PASS; Prisma, isolated DB, backend, integration, frontend, TypeScript, build, and repository hygiene all passed.
+- Validated Preview: dpl_CNog3D6yfufhCY1A4rPmctzXLrq5 / https://sms-v3-staging-3loxrmqyf-godzillazz.vercel.app at the exact Production SHA.
+- Release method: Production-target redeploy from the validated exact-SHA Preview source; Production-scoped environment configuration was resolved for the new Production deployment. The branch-scoped Preview JWT_SECRET was not copied to Production.
+- Production environment: JWT_SECRET, DATABASE_URL, and DIRECT_URL preserved unchanged / masked; Production env mutation during release 0.
+- Post-promotion health: /api/v1/health 3/3 HTTP 200 status=ok.
+- Post-promotion readiness: /api/v1/ready 3/3 HTTP 200 status=ready database=ok.
+- Runtime: post-promotion critical 5xx 0; error-level logs 0; environment-validation/JWT_SECRET/Prisma fatal errors 0.
+- Public Production UAT: Login, Light, Dark, System, and mobile 390x844 PASS; user-visible product SMS; user-visible V3 0; desktop/mobile SMS logo centered with delta X=0 and delta Y=0; symmetrical Login shield preserved; old Security Core absent; lower Sidebar Theme absent; top Theme controls present and functional.
+- Authenticated Production UAT: AUTHENTICATED_PRODUCTION_UAT_BLOCKED_NO_CREDENTIALS; no approved UAT_ADMIN/MANAGER/VIEWER credential secrets were available, no account was created, and no business-data mutation was performed.
+- Production migration during release: 0; Production DB/data mutation: 0; application source modification during release: 0; new application commit during release: 0.
+- Formal rollback checkpoint: dpl_5xoKguECTunJvrUFTKrhbXenGuqu / https://sms-v3-staging-1z4wdg7uu-godzillazz.vercel.app / SHA e5619a67e5be807f3fba825d889e73bc49c5361a — PRESERVED / READY; actual rollback NO.
+- Draft PR #104 remains OPEN / DRAFT / NOT MERGED.
+- Candidate branch-scoped Preview JWT_SECRET cleanup: DEFERRED. Auxiliary project sms-v3-g04-2-vf01 cleanup: DEFERRED.
+- UX-07: NOT STARTED. G05: NOT STARTED.
+### Previous release — G04.1
 - Release: G04.1 — REGISTRATION OTP RESEND + DUPLICATE ACCOUNT GUARD
 - Production SHA: e5619a67e5be807f3fba825d889e73bc49c5361a
 - Application tree: b38bc7d6d3f6b6ed416996bd3edd99891918fd12
@@ -465,8 +488,7 @@ coverage remains P2 item G12.
 - G03.1: no mutation by Promotion; last authoritative DB proof ACTIVE / raw true (run 31999063040); fresh DB re-query NOT PROVABLE in this task
 - Controlled live registration UAT: NOT YET SUBMITTED after post-promotion UAT baseline
 
-### Immediate previous release — G04
-
+### Earlier release — G04
 - Release: G04 — PRIVATE REGISTRATION REQUEST + ADMIN-ASSISTED MATCHING + CONTROLLED ROLE ACTIVATION V1
 - Production SHA: 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e
 - Application tree: c58a842dd0d6cfa4f3efca352769671012c2ba9a
@@ -613,7 +635,7 @@ They remain explicit design or acceptance debt.
 
 The following items remain open or require separate operational evidence:
 
-- G03, G03.1, G04, and G04.1 are Production verified. The G04.1 preferred normal application rollback checkpoint is created and remotely verified; actual rollback remains separately approval-gated. G05 remains OPEN / NOT STARTED.
+- G03, G03.1, G04, G04.1, and G04.2 VF-07.1 are Production verified. The G04.1 preferred normal application rollback checkpoint is created and remotely verified; actual rollback remains separately approval-gated. G05 remains OPEN / NOT STARTED.
 - G06–G12 require owner decisions or evidence according to their individual
   scope.
 - Backup and restore evidence is not replaced by the current rollback
@@ -678,3 +700,4 @@ These are substantial future platform expansions. They do not block current SMS 
 | 2026-08-17 | G04 Private Registration Request + Admin-Assisted Matching + Controlled Role Activation V1 promoted to exact existing Canonical deployment dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 at SHA 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e; Focused Auth run 32014142772 and Promotion run 32016084335 verified privacy/RBAC, HTTP 201 Promotion, health/readiness/runtime, zero task-attributable business writes, unchanged G03.1 activation, and unchanged rollback checkpoint. |
 | 2026-08-17 | G04.1 Registration OTP Resend + Duplicate Account Guard promoted by reusing exact existing deployment dpl_5xoKguECTunJvrUFTKrhbXenGuqu at SHA e5619a67e5be807f3fba825d889e73bc49c5361a; Promotion run 32041575770 / job 95421737298 executed one Promotion action; Canonical identity, health 3/3, readiness 3/3, CORS, anonymous security, and runtime checks passed; no new deployment, rebuild, migration, or env mutation. |
 | 2026-08-17 | Created annotated rollback tag rollback/g04-1-registration-otp-duplicate-guard-v1-prod-2026-08-17; remote tag object verified to peel to application SHA e5619a67e5be807f3fba825d889e73bc49c5361a / tree b38bc7d6d3f6b6ed416996bd3edd99891918fd12 / Production deployment dpl_5xoKguECTunJvrUFTKrhbXenGuqu. Historical rollback refs preserved; Canonical unchanged; no new application deployment, Promotion, migration, env mutation, Production-data mutation, or actual rollback. |
+| 2026-08-19 | G04.2 VF-07.1 UX/UI System promoted from exact Candidate SHA 096e006580f95ff8fb2291312f3ba46be12cfe71 / tree 26792616a402aeeef1fee9d81732f2135a80949f to Production deployment dpl_9bwjx9Rw4NKeZanGhDQmd4XSBm5f; Canonical sms-v3-staging-ten.vercel.app moved from rollback checkpoint dpl_5xoKguECTunJvrUFTKrhbXenGuqu; health 3/3, readiness 3/3, public Login/Theme/mobile UAT and runtime gates passed; migration 0; Production DB/data mutation 0; Production env mutation 0; user-visible product SMS; user-visible V3 0; authenticated UAT blocked only by unavailable approved credentials. |
