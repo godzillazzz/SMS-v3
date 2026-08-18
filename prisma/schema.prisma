@@ -60,61 +60,61 @@ enum AuthOtpPurpose {
 }
 
 model User {
-  id                       String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                    String                    @unique @db.VarChar(255)
-  passwordHash             String                    @map("password_hash") @db.VarChar(255)
-  displayName              String                    @map("display_name") @db.VarChar(150)
-  role                     UserRole                  @default(VIEWER)
-  isActive                 Boolean                   @default(true) @map("is_active")
-  tokenVersion             Int                       @default(0) @map("token_version")
-  lastLoginAt              DateTime?                 @map("last_login_at")
-  failedLoginCount         Int                       @default(0) @map("failed_login_count")
-  legacyUserId             String?                   @unique @map("legacy_user_id") @db.VarChar(100)
-  employeeId               String?                   @unique @map("employee_id") @db.Uuid
-  legacyRole               String?                   @map("legacy_role") @db.VarChar(50)
-  accountStatus            AccountStatus             @default(ACTIVE) @map("account_status")
-  passwordResetRequired    Boolean                   @default(false) @map("password_reset_required")
-  employmentSuspendedAt    DateTime?                 @map("employment_suspended_at")
-  department               String?                   @db.VarChar(100)
-  requestedAt              DateTime?                 @map("requested_at")
-  approvedByLegacyRef      String?                   @map("approved_by_legacy_ref") @db.VarChar(255)
-  approvedAt               DateTime?                 @map("approved_at")
-  rejectionReason          String?                   @map("rejection_reason") @db.VarChar(2000)
-  legacyUpdatedAt          DateTime?                 @map("legacy_updated_at")
-  createdAt                DateTime                  @default(now()) @map("created_at")
-  updatedAt                DateTime                  @updatedAt @map("updated_at")
-  auditLogs                AuditLog[]                @relation("ActorAuditLogs")
-  sessions                 RefreshSession[]
-  otpChallenges            AuthOtpChallenge[]
-  uploadedLicenseDocuments EmployeeLicenseDocument[] @relation("UploadedLicenseDocuments")
-  reviewedLicenseDocuments EmployeeLicenseDocument[] @relation("ReviewedLicenseDocuments")
-  returnedLicenseDocuments EmployeeLicenseDocument[] @relation("ReturnedLicenseDocuments")
-  employee                 Employee?                 @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-  createdLeaveRequests     LeaveRequest[]            @relation("LeaveRequestCreatedBy")
-  lifecycleEventsChanged   EmployeeLifecycleEvent[]  @relation("LifecycleChangedBy")
-  reviewedRegistrationRequests RegistrationRequest[] @relation("RegistrationRequestReviewedBy")
+  id                           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                        String                    @unique @db.VarChar(255)
+  passwordHash                 String                    @map("password_hash") @db.VarChar(255)
+  displayName                  String                    @map("display_name") @db.VarChar(150)
+  role                         UserRole                  @default(VIEWER)
+  isActive                     Boolean                   @default(true) @map("is_active")
+  tokenVersion                 Int                       @default(0) @map("token_version")
+  lastLoginAt                  DateTime?                 @map("last_login_at")
+  failedLoginCount             Int                       @default(0) @map("failed_login_count")
+  legacyUserId                 String?                   @unique @map("legacy_user_id") @db.VarChar(100)
+  employeeId                   String?                   @unique @map("employee_id") @db.Uuid
+  legacyRole                   String?                   @map("legacy_role") @db.VarChar(50)
+  accountStatus                AccountStatus             @default(ACTIVE) @map("account_status")
+  passwordResetRequired        Boolean                   @default(false) @map("password_reset_required")
+  employmentSuspendedAt        DateTime?                 @map("employment_suspended_at")
+  department                   String?                   @db.VarChar(100)
+  requestedAt                  DateTime?                 @map("requested_at")
+  approvedByLegacyRef          String?                   @map("approved_by_legacy_ref") @db.VarChar(255)
+  approvedAt                   DateTime?                 @map("approved_at")
+  rejectionReason              String?                   @map("rejection_reason") @db.VarChar(2000)
+  legacyUpdatedAt              DateTime?                 @map("legacy_updated_at")
+  createdAt                    DateTime                  @default(now()) @map("created_at")
+  updatedAt                    DateTime                  @updatedAt @map("updated_at")
+  auditLogs                    AuditLog[]                @relation("ActorAuditLogs")
+  sessions                     RefreshSession[]
+  otpChallenges                AuthOtpChallenge[]
+  uploadedLicenseDocuments     EmployeeLicenseDocument[] @relation("UploadedLicenseDocuments")
+  reviewedLicenseDocuments     EmployeeLicenseDocument[] @relation("ReviewedLicenseDocuments")
+  returnedLicenseDocuments     EmployeeLicenseDocument[] @relation("ReturnedLicenseDocuments")
+  employee                     Employee?                 @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  createdLeaveRequests         LeaveRequest[]            @relation("LeaveRequestCreatedBy")
+  lifecycleEventsChanged       EmployeeLifecycleEvent[]  @relation("LifecycleChangedBy")
+  reviewedRegistrationRequests RegistrationRequest[]     @relation("RegistrationRequestReviewedBy")
 
   @@map("users")
 }
 
 model RegistrationRequest {
-  id                 String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  submittedName      String                    @map("submitted_name") @db.VarChar(200)
-  email              String                    @unique @db.VarChar(255)
-  passwordHash       String?                   @map("password_hash") @db.VarChar(255)
-  departmentHint     String?                   @map("department_hint") @db.VarChar(100)
-  status             RegistrationRequestStatus @default(PENDING)
-  emailVerifiedAt    DateTime?                 @map("email_verified_at")
-  matchedEmployeeId  String?                   @map("matched_employee_id") @db.Uuid
-  reviewedByUserId   String?                   @map("reviewed_by_user_id") @db.Uuid
-  reviewedAt         DateTime?                 @map("reviewed_at")
-  approvedAt         DateTime?                 @map("approved_at")
-  rejectedAt         DateTime?                 @map("rejected_at")
-  rejectionReason    String?                   @map("rejection_reason") @db.VarChar(1000)
-  createdAt          DateTime                  @default(now()) @map("created_at")
-  updatedAt          DateTime                  @updatedAt @map("updated_at")
-  matchedEmployee    Employee?                 @relation(fields: [matchedEmployeeId], references: [id], onDelete: SetNull)
-  reviewedBy         User?                     @relation("RegistrationRequestReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  id                String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submittedName     String                    @map("submitted_name") @db.VarChar(200)
+  email             String                    @unique @db.VarChar(255)
+  passwordHash      String?                   @map("password_hash") @db.VarChar(255)
+  departmentHint    String?                   @map("department_hint") @db.VarChar(100)
+  status            RegistrationRequestStatus @default(PENDING)
+  emailVerifiedAt   DateTime?                 @map("email_verified_at")
+  matchedEmployeeId String?                   @map("matched_employee_id") @db.Uuid
+  reviewedByUserId  String?                   @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt        DateTime?                 @map("reviewed_at")
+  approvedAt        DateTime?                 @map("approved_at")
+  rejectedAt        DateTime?                 @map("rejected_at")
+  rejectionReason   String?                   @map("rejection_reason") @db.VarChar(1000)
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @updatedAt @map("updated_at")
+  matchedEmployee   Employee?                 @relation(fields: [matchedEmployeeId], references: [id], onDelete: SetNull)
+  reviewedBy        User?                     @relation("RegistrationRequestReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([emailVerifiedAt, status])
@@ -160,30 +160,30 @@ model RefreshSession {
 }
 
 model Employee {
-  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeCode     String                    @unique @map("employee_code") @db.VarChar(50)
-  firstName        String                    @map("first_name") @db.VarChar(100)
-  lastName         String                    @map("last_name") @db.VarChar(100)
-  email            String?                   @unique @db.VarChar(255)
-  phone            String?                   @db.VarChar(50)
-  department       String?                   @db.VarChar(100)
-  jobTitle         String?                   @map("job_title") @db.VarChar(100)
-  hiredAt          DateTime?                 @map("hired_at") @db.Date
-  isActive         Boolean                   @default(true) @map("is_active")
-  deletedAt        DateTime?                 @map("deleted_at")
-  deletedByUserId  String?                   @map("deleted_by_user_id") @db.Uuid
-  legacyEmployeeId String?                   @unique @map("legacy_employee_id") @db.VarChar(100)
-  displayName      String?                   @map("display_name") @db.VarChar(255)
-  skill            String?                   @db.VarChar(255)
-  createdAt        DateTime                  @default(now()) @map("created_at")
-  updatedAt        DateTime                  @updatedAt @map("updated_at")
-  user             User?
-  licenses         EmployeeLicense[]
-  licenseDocuments EmployeeLicenseDocument[]
-  shiftAssignments ShiftAssignment[]
-  leaveRequests    LeaveRequest[]
-  leaveQuotas      LeaveQuota[]
-  lifecycleEvents  EmployeeLifecycleEvent[]
+  id                          String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeCode                String                    @unique @map("employee_code") @db.VarChar(50)
+  firstName                   String                    @map("first_name") @db.VarChar(100)
+  lastName                    String                    @map("last_name") @db.VarChar(100)
+  email                       String?                   @unique @db.VarChar(255)
+  phone                       String?                   @db.VarChar(50)
+  department                  String?                   @db.VarChar(100)
+  jobTitle                    String?                   @map("job_title") @db.VarChar(100)
+  hiredAt                     DateTime?                 @map("hired_at") @db.Date
+  isActive                    Boolean                   @default(true) @map("is_active")
+  deletedAt                   DateTime?                 @map("deleted_at")
+  deletedByUserId             String?                   @map("deleted_by_user_id") @db.Uuid
+  legacyEmployeeId            String?                   @unique @map("legacy_employee_id") @db.VarChar(100)
+  displayName                 String?                   @map("display_name") @db.VarChar(255)
+  skill                       String?                   @db.VarChar(255)
+  createdAt                   DateTime                  @default(now()) @map("created_at")
+  updatedAt                   DateTime                  @updatedAt @map("updated_at")
+  user                        User?
+  licenses                    EmployeeLicense[]
+  licenseDocuments            EmployeeLicenseDocument[]
+  shiftAssignments            ShiftAssignment[]
+  leaveRequests               LeaveRequest[]
+  leaveQuotas                 LeaveQuota[]
+  lifecycleEvents             EmployeeLifecycleEvent[]
   matchedRegistrationRequests RegistrationRequest[]
 
   @@index([isActive, deletedAt])
