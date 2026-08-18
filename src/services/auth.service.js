@@ -15,6 +15,9 @@ const genericFailure = 'Invalid email or password.';
 const refreshFailure = 'Invalid or expired refresh token.';
 const hashRefreshToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const requestMeta = (request = {}) => ({ userAgent: request.userAgent?.slice(0, 500), ipAddress: request.ipAddress?.slice(0, 64) });
+function logLoginPerformanceStage(requestId, stage, startedAt, status = 'ok') {
+  logger.info('performance_stage', { requestId, operation: 'auth_login', stage, durationMs: Number((performance.now() - startedAt).toFixed(2)), status });
+}
 function accessTokenFor(user, options = {}) {
   return jwt.sign({ sub: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion, ...(options.impersonatorSub && { impersonation: true, impersonatorSub: options.impersonatorSub, impersonatorTokenVersion: options.impersonatorTokenVersion }) }, env.jwtSecret, { algorithm: env.jwtAlgorithm, expiresIn: options.expiresIn || env.jwtExpiresIn, issuer: env.jwtIssuer, audience: env.jwtAudience });
 }
@@ -26,28 +29,44 @@ async function createSessionTokens(user, request, client) {
 }
 
 async function login(email, password, requestId, request) {
+  const operationStartedAt = performance.now();
+  let stageStartedAt = performance.now();
   await synchronizeDueLifecycleEventsForRequest();
+  logLoginPerformanceStage(requestId, 'AUTH_LIFECYCLE_SYNC', stageStartedAt);
+
+  stageStartedAt = performance.now();
   let user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  logLoginPerformanceStage(requestId, 'AUTH_USER_LOOKUP', stageStartedAt);
+
+  stageStartedAt = performance.now();
   const credentialsValid = Boolean(user && await bcrypt.compare(password, user.passwordHash));
+  logLoginPerformanceStage(requestId, 'AUTH_PASSWORD_VERIFY', stageStartedAt, credentialsValid ? 'ok' : 'denied');
+
   if (credentialsValid && user.employeeId) {
+    stageStartedAt = performance.now();
     await synchronizeDueLifecycleEventsForEmployee(user.employeeId);
     user = await prisma.user.findUnique({ where: { id: user.id } });
+    logLoginPerformanceStage(requestId, 'AUTH_EMPLOYEE_LIFECYCLE_SYNC', stageStartedAt);
   }
   if (!user || !credentialsValid || !user.isActive || user.accountStatus !== 'ACTIVE' || user.passwordResetRequired) {
     if (user) await prisma.user.update({ where: { id: user.id }, data: { failedLoginCount: { increment: 1 } } });
     await audit.log({ actorUserId: user?.id, action: 'LOGIN_FAILED', entityType: 'User', entityId: user?.id || 'unknown', metadata: { requestId } });
     logger.warn('authentication_failure', { requestId, errorCategory: 'invalid_credentials_or_inactive', status: 401 });
+    logger.info('performance_operation', { requestId, operation: 'auth_login', durationMs: Number((performance.now() - operationStartedAt).toFixed(2)), status: 'denied' });
     throw new HttpError(401, genericFailure);
   }
+
+  stageStartedAt = performance.now();
   const tokens = await prisma.$transaction(async (tx) => {
     const current = await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), failedLoginCount: 0 } });
     const issued = await createSessionTokens(current, request, tx);
     await audit.log({ actorUserId: user.id, action: 'LOGIN', entityType: 'User', entityId: user.id, metadata: { requestId } }, tx);
     return issued;
   });
+  logLoginPerformanceStage(requestId, 'AUTH_SESSION_CREATE', stageStartedAt);
+  logger.info('performance_operation', { requestId, operation: 'auth_login', durationMs: Number((performance.now() - operationStartedAt).toFixed(2)), status: 'ok' });
   return { ...tokens, user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role } };
 }
-
 async function revokeAllForUser(userId, action, requestId, client) {
   await client.refreshSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
   const user = await client.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });

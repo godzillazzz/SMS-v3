@@ -112,30 +112,45 @@ function settledValue(results, index, fallback, label, errors) {
   return result?.value ?? fallback;
 }
 
+const DASHBOARD_QUERY_CONCURRENCY = 4;
+
 async function settleDashboardQueries(tasks, context = {}) {
-  const results = [];
+  const results = new Array(tasks.length);
   const stageTimings = new Map();
-  for (const task of tasks) {
-    const descriptor = typeof task === 'function' ? { run: task, stage: null } : task;
-    const startedAt = performance.now();
-    let status = 'ok';
-    try { results.push({ status: 'fulfilled', value: await descriptor.run() }); }
-    catch (reason) { status = 'error'; results.push({ status: 'rejected', reason }); }
-    finally {
-      if (descriptor.stage) {
-        const current = stageTimings.get(descriptor.stage) || { durationMs: 0, status: 'ok' };
-        current.durationMs += performance.now() - startedAt;
-        if (status === 'error') current.status = 'error';
-        stageTimings.set(descriptor.stage, current);
+  let cursor = 0;
+  const requestedConcurrency = Number(context.maxConcurrency || DASHBOARD_QUERY_CONCURRENCY);
+  const concurrency = Math.max(1, Math.min(
+    DASHBOARD_QUERY_CONCURRENCY,
+    Number.isFinite(requestedConcurrency) ? Math.floor(requestedConcurrency) : DASHBOARD_QUERY_CONCURRENCY,
+    tasks.length || 1
+  ));
+  const runNext = async () => {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= tasks.length) return;
+      const task = tasks[index];
+      const descriptor = typeof task === 'function' ? { run: task, stage: null } : task;
+      const startedAt = performance.now();
+      let status = 'ok';
+      try { results[index] = { status: 'fulfilled', value: await descriptor.run() }; }
+      catch (reason) { status = 'error'; results[index] = { status: 'rejected', reason }; }
+      finally {
+        if (descriptor.stage) {
+          const current = stageTimings.get(descriptor.stage) || { durationMs: 0, status: 'ok' };
+          current.durationMs += performance.now() - startedAt;
+          if (status === 'error') current.status = 'error';
+          stageTimings.set(descriptor.stage, current);
+        }
       }
     }
-  }
+  };
+  await Promise.all(Array.from({ length: concurrency }, () => runNext()));
   if (context.requestId) stageTimings.forEach((timing, stage) => logger.info('performance_stage', {
     requestId: context.requestId, operation: 'dashboard', stage, durationMs: Number(timing.durationMs.toFixed(2)), status: timing.status
   }));
   return results;
 }
-
 function countGroupedRows(rows, predicate = () => true) {
   return rows.reduce((sum, row) => predicate(row) ? sum + Number(row._count?._all || 0) : sum, 0);
 }
@@ -150,7 +165,7 @@ async function workforceAggregate(client, employeeWhere) {
   const results = await settleDashboardQueries([
     () => client.employee.count({ where: employeeWhere }),
     () => client.employee.count({ where: { ...employeeWhere, isActive: true } })
-  ]);
+  ], { maxConcurrency: 1 });
   return { total: results[0]?.status === 'fulfilled' ? results[0].value : 0, active: results[1]?.status === 'fulfilled' ? results[1].value : 0, partialError: results.some((result) => result.status === 'rejected') };
 }
 
@@ -192,7 +207,7 @@ async function legacyLicenseAggregate(client, licenseWhere, approvedCurrentWhere
     () => countIfAvailable(client.employeeLicenseDocument, { where: { ...licenseWhere, status: 'EXPIRED', isCurrent: true } }),
     () => countIfAvailable(client.employeeLicenseDocument, { where: { ...licenseWhere, status: 'PENDING' } }),
     () => countIfAvailable(client.employeeLicenseDocument, { where: expiringLicenseWhere(licenseWhere, expiry30) })
-  ]);
+  ], { maxConcurrency: 1 });
   return {
     statusRows: results[0]?.status === 'fulfilled' ? results[0].value : [],
     categoryCounts: results.slice(1, 7).map((result) => result?.status === 'fulfilled' ? result.value : null),
@@ -359,4 +374,4 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   return summary;
 }
 
-module.exports = { LICENSE_STATUSES, actionRequired, buildExpiringLicenseDetails, employeeScope, expiringLicenseWhere, getDashboardSummary, licenseStatusSummary };
+module.exports = { DASHBOARD_QUERY_CONCURRENCY, LICENSE_STATUSES, actionRequired, buildExpiringLicenseDetails, employeeScope, expiringLicenseWhere, getDashboardSummary, licenseStatusSummary, settleDashboardQueries };
