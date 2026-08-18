@@ -30,7 +30,8 @@ describe('G04 private registration UI contract', () => {
   });
 
   it('review UI requires explicit Match and exposes a fixed VIEWER approval with no role picker', () => {
-    expect(review).toContain('Match');
+    expect(review).toContain('จับคู่พนักงาน');
+    expect(review).toContain('api.matchRegistrationRequest');
     expect(review).toContain('อนุมัติเป็น VIEWER');
     expect(review).toContain('สิทธิ์เริ่มต้นหลังอนุมัติ');
     expect(review).not.toContain('<select');

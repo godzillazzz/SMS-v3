@@ -1,1 +1,813 @@
-.registration-review{display:grid;gap:14px;margin-bottom:18px;padding:18px;border:1px solid #dbe4f0;border-radius:14px;background:#fff;box-shadow:0 6px 18px rgba(20,33,61,.05)}.registration-review__header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.registration-review__header p{margin:0;color:#5746d9;font-size:11px;font-weight:700;letter-spacing:.08em}.registration-review__header h2{margin:4px 0;color:#14213d;font-size:22px}.registration-review__header span{color:#667085;font-size:13px}.registration-review__grid{display:grid;grid-template-columns:minmax(260px,34%) minmax(0,1fr);gap:14px}.registration-review__requests,.registration-review__detail{min-height:260px;border:1px solid #e4e8f0;border-radius:12px;background:#fafcff;padding:12px}.registration-review__requests{display:grid;align-content:start;gap:8px}.registration-review__requests h3{margin:0 0 4px;color:#14213d;font-size:14px}.registration-review__requests>button{display:grid;gap:3px;text-align:left;border:1px solid #e4e8f0;border-radius:9px;padding:10px;background:#fff;color:#344054}.registration-review__requests>button.is-selected{border-color:#8a72ee;background:#f7f5ff}.registration-review__requests strong{font-size:13px}.registration-review__requests span,.registration-review__requests small{font-size:11px;color:#667085;overflow-wrap:anywhere}.registration-review__detail{display:grid;align-content:start;gap:12px}.registration-review__facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.registration-review__facts>div,.registration-review__matched,.registration-review__role-note{display:grid;gap:4px;padding:10px;border:1px solid #e4e8f0;border-radius:9px;background:#fff}.registration-review__facts span,.registration-review__matched span,.registration-review__role-note span{font-size:11px;color:#667085}.registration-review__facts strong,.registration-review__matched strong{font-size:13px;color:#14213d;overflow-wrap:anywhere}.registration-review__matched small,.registration-review__role-note small{font-size:11px;color:#667085}.registration-review__search{display:flex;gap:8px}.registration-review__search input{flex:1;min-width:0;height:40px;border:1px solid #d9e2ef;border-radius:8px;padding:0 10px;font:14px inherit}.registration-review__candidates{display:grid;gap:7px}.registration-review__candidates article{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid #e4e8f0;border-radius:9px;background:#fff}.registration-review__candidates article>div{display:grid;gap:2px}.registration-review__candidates span,.registration-review__candidates small{font-size:11px;color:#667085}.registration-review__not-found{padding:12px;border:1px solid #f4c95d;border-radius:9px;background:#fffbeb;color:#92400e}.registration-review__not-found p{margin:5px 0 9px;font-size:12px;line-height:1.5}.registration-review__role-note{border-color:#d9d4fb;background:#faf9ff}.registration-review__role-note strong{color:#5746d9;font-size:16px}.registration-review__actions{display:flex;justify-content:flex-end;gap:8px}.registration-review__empty{color:#667085;font-size:13px;text-align:center;padding:20px}.registration-review button:focus-visible,.registration-review input:focus-visible{outline:2px solid #8a72ee;outline-offset:2px}@media(max-width:900px){.registration-review__header{flex-direction:column}.registration-review__grid{grid-template-columns:1fr}.registration-review__facts{grid-template-columns:1fr}.registration-review__search{flex-direction:column}.registration-review__candidates article{align-items:flex-start;flex-direction:column}.registration-review__candidates article button{align-self:flex-end}}
+/* G04.2 UX-05 — authoritative Registration Review workbench presentation. */
+.registration-review {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface) 95%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+.registration-review__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.registration-review__header p,
+.registration-review__section-heading span,
+.registration-review__summary-heading span,
+.registration-review__employee-workspace > header span,
+.registration-review__comparison > header span,
+.registration-review__dialog header span {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.registration-review__header h2 {
+  margin: 4px 0 0;
+  color: var(--color-text);
+  font-size: 24px;
+  line-height: 1.3;
+}
+
+.registration-review__header > div > span {
+  display: block;
+  margin-top: 5px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.registration-review__refresh {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.registration-review__feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.registration-review__feedback svg { flex: 0 0 18px; margin-top: 1px; }
+.registration-review__feedback--success { border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border)); color: var(--color-success); background: var(--color-success-soft); }
+.registration-review__feedback--error { border-color: color-mix(in srgb, var(--color-danger) 28%, var(--color-border)); color: var(--color-danger); background: var(--color-danger-soft); }
+
+.registration-review__grid {
+  display: grid;
+  grid-template-columns: minmax(270px, 31%) minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.registration-review__requests,
+.registration-review__detail {
+  min-width: 0;
+  min-height: 360px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.registration-review__requests {
+  display: grid;
+  align-content: start;
+  gap: 11px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--color-surface-muted) 72%, var(--color-surface));
+}
+
+.registration-review__detail {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 14px;
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .registration-review__requests {
+  background: color-mix(in srgb, var(--color-surface-subtle) 70%, var(--color-surface));
+}
+
+[data-theme="dark"] .registration-review__detail {
+  background: color-mix(in srgb, var(--color-surface-elevated) 94%, var(--color-bg));
+}
+
+.registration-review__section-heading,
+.registration-review__summary-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.registration-review__section-heading h3,
+.registration-review__summary-heading h3,
+.registration-review__employee-workspace h3,
+.registration-review__comparison h3 {
+  margin: 2px 0 0;
+  color: var(--color-text);
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.registration-review__section-heading > strong {
+  display: grid;
+  min-width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  font-size: 12px;
+}
+
+.registration-review__request-list {
+  display: grid;
+  gap: 7px;
+}
+
+.registration-review__request {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 78px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px 11px;
+  color: var(--color-text);
+  background: var(--color-surface-elevated);
+  text-align: left;
+  cursor: pointer;
+}
+
+.registration-review__request::before {
+  content: "";
+  position: absolute;
+  inset: 9px auto 9px 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: transparent;
+}
+
+.registration-review__request:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary-soft) 28%, var(--color-surface));
+}
+
+.registration-review__request.is-selected {
+  border-color: color-mix(in srgb, var(--color-primary) 46%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary-soft) 58%, var(--color-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.registration-review__request.is-selected::before { background: var(--color-primary); }
+
+.registration-review__request-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.registration-review__request-top strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.registration-review__request-email,
+.registration-review__request small {
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.registration-review__request small { color: var(--color-text-muted); }
+
+.registration-review__status {
+  display: inline-flex;
+  min-height: 24px;
+  flex: 0 0 auto;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.registration-review__status--warning { color: var(--color-warning); background: var(--color-warning-soft); }
+.registration-review__status--info { color: var(--color-info); background: var(--color-info-soft); }
+.registration-review__status--success { color: var(--color-success); background: var(--color-success-soft); }
+.registration-review__status--danger { color: var(--color-danger); background: var(--color-danger-soft); }
+.registration-review__status--neutral { color: var(--color-neutral); background: var(--color-neutral-soft); }
+
+.registration-review__summary,
+.registration-review__employee-workspace,
+.registration-review__comparison,
+.registration-review__approval,
+.registration-review__progress-wrap {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  background: var(--color-surface);
+}
+
+.registration-review__summary-help {
+  margin: 10px 0 12px;
+  border-left: 3px solid var(--color-info);
+  padding: 7px 10px;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-info-soft) 52%, transparent);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.registration-review__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.registration-review__facts > div,
+.registration-review__compare-grid dl > div {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 9px 10px;
+  background: var(--color-surface-subtle);
+}
+
+.registration-review__facts dt,
+.registration-review__compare-grid dt {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.registration-review__facts dd,
+.registration-review__compare-grid dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.registration-review__progress-wrap {
+  display: grid;
+  gap: 11px;
+  padding-block: 12px;
+  background: color-mix(in srgb, var(--color-surface-muted) 55%, var(--color-surface));
+}
+
+.registration-review__progress-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.registration-review__progress-heading strong { color: var(--color-danger); font-size: 12px; }
+
+.registration-review__progress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.registration-review__progress li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--color-text-muted);
+}
+
+.registration-review__progress li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: 30px;
+  right: -8px;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.registration-review__progress li > span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
+  background: var(--color-surface-elevated);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.registration-review__progress li b {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  color: inherit;
+  background: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.registration-review__progress li.is-active { color: var(--color-primary); }
+.registration-review__progress li.is-active > span { border-color: var(--color-primary); color: var(--color-text-inverse); background: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft); }
+.registration-review__progress li.is-complete { color: var(--color-success); }
+.registration-review__progress li.is-complete > span { border-color: color-mix(in srgb, var(--color-success) 38%, var(--color-border)); color: var(--color-success); background: var(--color-success-soft); }
+.registration-review__progress li.is-complete:not(:last-child)::after { background: color-mix(in srgb, var(--color-success) 42%, var(--color-border)); }
+.registration-review__progress.is-rejected li:first-child { color: var(--color-danger); }
+.registration-review__progress.is-rejected li:first-child > span { border-color: color-mix(in srgb, var(--color-danger) 36%, var(--color-border)); color: var(--color-danger); background: var(--color-danger-soft); }
+
+.registration-review__matched {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 11px;
+  border: 1px solid color-mix(in srgb, var(--color-success) 28%, var(--color-border));
+  border-radius: var(--radius-md);
+  padding: 13px;
+  background: color-mix(in srgb, var(--color-success-soft) 56%, var(--color-surface));
+}
+
+.registration-review__matched-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-surface-elevated) 82%, transparent);
+}
+
+.registration-review__matched > div:last-child { display: grid; gap: 3px; min-width: 0; }
+.registration-review__matched span { color: var(--color-success); font-size: 12px; font-weight: 700; }
+.registration-review__matched strong { overflow-wrap: anywhere; color: var(--color-text); font-size: 15px; }
+.registration-review__matched p { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; color: var(--color-text-secondary); }
+.registration-review__matched p b { color: var(--color-text); font-size: 12px; }
+.registration-review__matched p small { color: var(--color-text-secondary); font-size: 12px; }
+.registration-review__matched em { color: var(--color-text-muted); font-size: 12px; font-style: normal; line-height: 1.5; }
+
+.registration-review__employee-workspace {
+  display: grid;
+  gap: 10px;
+}
+
+.registration-review__employee-workspace > header,
+.registration-review__comparison > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.registration-review__employee-workspace > header > svg { color: var(--color-primary); }
+
+.registration-review__search-label {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.registration-review__search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.registration-review__search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 11px;
+  color: var(--color-text);
+  background: var(--color-surface-elevated);
+  font: 14px var(--font-sans);
+}
+
+.registration-review__search button { min-height: 42px; }
+
+.registration-review__loading,
+.registration-review__empty {
+  margin: 0;
+  padding: 20px 12px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.registration-review__empty--detail {
+  display: grid;
+  min-height: 260px;
+  align-content: center;
+  justify-items: center;
+  gap: 7px;
+}
+
+.registration-review__empty--detail svg { color: var(--color-primary); }
+.registration-review__empty--detail strong { color: var(--color-text); font-size: 15px; }
+.registration-review__empty--detail span { max-width: 420px; color: var(--color-text-secondary); font-size: 13px; }
+
+.registration-review__not-found {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
+  border-radius: 10px;
+  padding: 12px;
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.registration-review__not-found > svg { margin-top: 1px; }
+.registration-review__not-found > div { min-width: 0; }
+.registration-review__not-found strong { color: var(--color-warning); font-size: 13px; }
+.registration-review__not-found p { margin: 4px 0 9px; color: color-mix(in srgb, var(--color-warning) 76%, var(--color-text)); font-size: 12px; line-height: 1.6; }
+.registration-review__not-found button { min-height: 40px; }
+
+.registration-review__candidates {
+  display: grid;
+  gap: 7px;
+}
+
+.registration-review__candidates article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--color-surface-elevated);
+}
+
+.registration-review__candidates article.is-selected {
+  border-color: color-mix(in srgb, var(--color-primary) 48%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary-soft) 52%, var(--color-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.registration-review__candidate-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.registration-review__candidate-avatar {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.registration-review__candidate-main > div { display: grid; gap: 1px; min-width: 0; }
+.registration-review__candidate-main strong { overflow-wrap: anywhere; color: var(--color-text); font-size: 13px; }
+.registration-review__candidate-main span { color: var(--color-primary); font-size: 12px; font-weight: 700; }
+.registration-review__candidate-main small { color: var(--color-text-secondary); font-size: 12px; line-height: 1.4; }
+.registration-review__candidates article > button { min-height: 40px; flex: 0 0 auto; }
+
+.registration-review__comparison {
+  display: grid;
+  gap: 12px;
+  border-color: color-mix(in srgb, var(--color-primary) 25%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary-soft) 24%, var(--color-surface));
+}
+
+.registration-review__comparison > header p {
+  max-width: 300px;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: right;
+}
+
+.registration-review__compare-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.registration-review__compare-grid article {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 11px;
+  background: var(--color-surface-elevated);
+}
+
+.registration-review__compare-grid article > span {
+  display: inline-flex;
+  margin-bottom: 8px;
+  border-radius: var(--radius-pill);
+  padding: 3px 8px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.registration-review__compare-grid dl { display: grid; gap: 7px; margin: 0; }
+
+.registration-review__match-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 11px;
+}
+
+.registration-review__match-action p {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.registration-review__match-action p svg { flex: 0 0 16px; color: var(--color-primary); margin-top: 1px; }
+.registration-review__match-action button { min-height: 42px; white-space: nowrap; }
+
+.registration-review__approval {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border-color: color-mix(in srgb, var(--color-success) 18%, var(--color-border));
+}
+
+.registration-review__role-note {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.registration-review__role-note span { color: var(--color-text-secondary); font-size: 12px; }
+.registration-review__role-note strong { color: var(--color-primary); font-size: 19px; line-height: 1.2; }
+.registration-review__role-note small { color: var(--color-text-muted); font-size: 12px; line-height: 1.5; }
+
+.registration-review__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.registration-review__actions button { min-height: 42px; }
+.registration-review__reject {
+  min-height: 42px;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 42%, var(--color-border));
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  color: var(--color-danger);
+  background: transparent;
+  font: 600 13px var(--font-sans);
+  cursor: pointer;
+}
+.registration-review__reject:hover:not(:disabled) { background: var(--color-danger-soft); }
+.registration-review__reject:disabled { opacity: .48; cursor: not-allowed; }
+
+.registration-review__terminal {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid;
+  border-radius: var(--radius-md);
+  padding: 13px;
+}
+
+.registration-review__terminal > svg { flex: 0 0 21px; margin-top: 1px; }
+.registration-review__terminal > div { display: grid; gap: 2px; }
+.registration-review__terminal strong { font-size: 13px; }
+.registration-review__terminal span { font-size: 12px; line-height: 1.55; }
+.registration-review__terminal--success { border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border)); color: var(--color-success); background: var(--color-success-soft); }
+.registration-review__terminal--danger { border-color: color-mix(in srgb, var(--color-danger) 28%, var(--color-border)); color: var(--color-danger); background: var(--color-danger-soft); }
+
+.registration-review__mobile-back { display: none; }
+
+.registration-review__dialog-backdrop {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: color-mix(in srgb, var(--color-bg) 54%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.registration-review__dialog {
+  width: min(520px, 100%);
+  max-height: min(720px, calc(100dvh - 36px));
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text);
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.registration-review__dialog header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border);
+  padding: 18px 20px;
+}
+
+.registration-review__dialog h2 { margin: 3px 0 0; color: var(--color-text); font-size: 21px; }
+.registration-review__dialog-close {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-muted);
+  cursor: pointer;
+}
+
+.registration-review__dialog-body {
+  display: grid;
+  gap: 11px;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+
+.registration-review__dialog-context {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 11px;
+  background: var(--color-surface-subtle);
+}
+
+.registration-review__dialog-context span,
+.registration-review__dialog-context small { color: var(--color-text-secondary); font-size: 12px; }
+.registration-review__dialog-context strong { overflow-wrap: anywhere; color: var(--color-text); font-size: 14px; }
+.registration-review__dialog-context small { overflow-wrap: anywhere; }
+.registration-review__dialog-body label { color: var(--color-text-secondary); font-size: 13px; font-weight: 600; }
+.registration-review__dialog-body textarea {
+  width: 100%;
+  min-height: 132px;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 11px;
+  color: var(--color-text);
+  background: var(--color-surface-elevated);
+  font: 14px/1.6 var(--font-sans);
+}
+.registration-review__dialog-body textarea[aria-invalid="true"] { border-color: var(--color-danger); }
+.registration-review__dialog-error { margin: 0; border-radius: var(--radius-sm); padding: 8px 9px; color: var(--color-danger); background: var(--color-danger-soft); font-size: 12px; line-height: 1.5; }
+.registration-review__dialog footer { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--color-border); padding: 14px 20px; background: var(--color-surface); }
+.registration-review__dialog footer button { min-height: 42px; }
+
+.registration-review button:focus-visible,
+.registration-review input:focus-visible,
+.registration-review textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 1024px) {
+  .registration-review__grid { grid-template-columns: minmax(240px, 34%) minmax(0, 1fr); }
+  .registration-review__facts,
+  .registration-review__compare-grid { grid-template-columns: 1fr; }
+  .registration-review__approval { grid-template-columns: 1fr; }
+  .registration-review__actions { justify-content: stretch; }
+  .registration-review__actions button { flex: 1 1 0; }
+  .registration-review__progress { grid-template-columns: 1fr; gap: 6px; }
+  .registration-review__progress li:not(:last-child)::after { display: none; }
+}
+
+@media (max-width: 760px) {
+  .registration-review {
+    gap: 12px;
+    margin-inline: -2px;
+    padding: 12px;
+    border-radius: var(--radius-md);
+  }
+
+  .registration-review__header { flex-direction: column; gap: 10px; }
+  .registration-review__header h2 { font-size: 21px; }
+  .registration-review__refresh { align-self: stretch; }
+
+  .registration-review__grid { display: block; }
+  .registration-review__requests,
+  .registration-review__detail { min-height: 0; }
+  .registration-review__detail { display: none; padding: 11px; }
+  .registration-review__grid.is-mobile-detail .registration-review__requests { display: none; }
+  .registration-review__grid.is-mobile-detail .registration-review__detail { display: grid; }
+
+  .registration-review__mobile-back {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    justify-content: flex-start;
+    justify-self: start;
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: 0 9px;
+    color: var(--color-primary);
+    background: transparent;
+    font: 600 13px var(--font-sans);
+    cursor: pointer;
+  }
+
+  .registration-review__mobile-back:hover { background: var(--color-primary-soft); }
+  .registration-review__facts { grid-template-columns: 1fr; }
+  .registration-review__summary,
+  .registration-review__employee-workspace,
+  .registration-review__comparison,
+  .registration-review__approval,
+  .registration-review__progress-wrap { padding: 12px; }
+
+  .registration-review__search { grid-template-columns: 1fr; }
+  .registration-review__search button { width: 100%; }
+  .registration-review__candidates article { align-items: stretch; flex-direction: column; }
+  .registration-review__candidates article > button { width: 100%; }
+  .registration-review__comparison > header { flex-direction: column; }
+  .registration-review__comparison > header p { max-width: none; text-align: left; }
+  .registration-review__match-action { align-items: stretch; flex-direction: column; }
+  .registration-review__match-action button { width: 100%; }
+  .registration-review__actions { position: sticky; bottom: 0; z-index: 2; margin: 0 -12px -12px; border-top: 1px solid var(--color-border); padding: 10px 12px; background: color-mix(in srgb, var(--color-surface-elevated) 94%, transparent); backdrop-filter: blur(8px); }
+  .registration-review__actions button { min-width: 0; }
+
+  .registration-review__dialog-backdrop { align-items: end; padding: 0; }
+  .registration-review__dialog { width: 100%; max-height: 92dvh; border-radius: 16px 16px 0 0; }
+  .registration-review__dialog header,
+  .registration-review__dialog-body,
+  .registration-review__dialog footer { padding-inline: 16px; }
+  .registration-review__dialog footer { display: grid; grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 420px) {
+  .registration-review__request-top { align-items: flex-start; }
+  .registration-review__matched { grid-template-columns: 36px minmax(0, 1fr); }
+  .registration-review__matched-icon { width: 36px; height: 36px; }
+  .registration-review__dialog footer { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .registration-review__request,
+  .registration-review__dialog,
+  .registration-review__actions { transition: none !important; animation: none !important; }
+}
