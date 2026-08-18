@@ -35,6 +35,29 @@
 
   --control-height: 40px;
   --control-height-lg: 46px;
+  /* G04.2 VF-03 — premium pastel visual families. Raw decorative values stay separate from business status semantics. */
+  --pastel-violet-600: #6C55E8;
+  --pastel-violet-500: #8068F2;
+  --pastel-violet-300: #A896FA;
+  --pastel-violet-100: #EEE9FF;
+  --pastel-lavender-300: #D9CCFF;
+  --pastel-lavender-200: #EAE3FF;
+  --pastel-lavender-100: #F5F1FF;
+  --pastel-blush-300: #F6B7CF;
+  --pastel-blush-200: #FAD9E5;
+  --pastel-blush-100: #FFF1F6;
+  --pastel-peach-300: #F6B48F;
+  --pastel-peach-200: #FAD1B8;
+  --pastel-peach-100: #FFF0E7;
+  --pastel-mint-300: #91DDBE;
+  --pastel-mint-200: #C8EDDE;
+  --pastel-mint-100: #ECFAF5;
+  --pastel-sky-300: #90D7EA;
+  --pastel-sky-200: #C8EDF5;
+  --pastel-sky-100: #EFFAFE;
+  --pastel-cream-300: #F1C875;
+  --pastel-cream-200: #F8E2AC;
+  --pastel-cream-100: #FFF6DC;
 
   /* Legacy visual aliases: all older global layers resolve through semantic tokens. */
   --sms-font: var(--font-sans);
@@ -73,7 +96,7 @@
 
 [data-theme="light"] {
   color-scheme: light;
-  --color-bg: #f7f6fa;
+  --color-bg: #faf8fc;
   --color-surface: #ffffff;
   --color-surface-elevated: #ffffff;
   --color-surface-muted: #f3f2f7;
@@ -88,21 +111,21 @@
   --color-border: #e6e2ed;
   --color-border-strong: #cfc8dc;
 
-  --color-primary: #6254d9;
+  --color-primary: #6c55e8;
   --color-primary-hover: #5546c8;
   --color-primary-active: #493bad;
-  --color-primary-soft: #eeebff;
+  --color-primary-soft: #eee9ff;
 
   --color-success: #18775a;
-  --color-success-soft: #e6f5ef;
+  --color-success-soft: #ecfaf5;
   --color-warning: #a76512;
-  --color-warning-soft: #fff2d9;
+  --color-warning-soft: #fff6dc;
   --color-attention: #c15b22;
-  --color-attention-soft: #ffeadf;
+  --color-attention-soft: #fff0e7;
   --color-danger: #bd3b4c;
-  --color-danger-soft: #fdebed;
+  --color-danger-soft: #fff1f6;
   --color-info: #2d70c8;
-  --color-info-soft: #eaf3ff;
+  --color-info-soft: #effafe;
   --color-neutral: #667085;
   --color-neutral-soft: #eef0f4;
 
@@ -117,6 +140,31 @@
   --color-sidebar-muted: #777085;
   --color-sidebar-hover: rgba(98, 84, 217, 0.07);
   --color-sidebar-border: #e9e4ee;
+  --decorative-lavender: var(--pastel-lavender-100);
+  --decorative-lilac: var(--pastel-lavender-200);
+  --decorative-blush: var(--pastel-blush-100);
+  --decorative-blush-ink: #a94872;
+  --decorative-peach: var(--pastel-peach-100);
+  --decorative-mint: var(--pastel-mint-100);
+  --decorative-sky: var(--pastel-sky-100);
+  --decorative-cream: var(--pastel-cream-100);
+  --surface-accent-primary: var(--pastel-lavender-100);
+  --surface-accent-success: var(--pastel-mint-100);
+  --surface-accent-warning: var(--pastel-cream-100);
+  --surface-accent-attention: var(--pastel-peach-100);
+  --surface-accent-danger: var(--pastel-blush-100);
+  --surface-accent-info: var(--pastel-sky-100);
+  --pastel-halo-primary: rgba(108, 85, 232, 0.09);
+  --pastel-halo-success: rgba(67, 175, 132, 0.07);
+  --pastel-halo-warning: rgba(210, 152, 39, 0.07);
+  --pastel-halo-attention: rgba(224, 119, 72, 0.065);
+  --pastel-halo-danger: rgba(207, 75, 114, 0.065);
+  --pastel-halo-info: rgba(45, 147, 184, 0.065);
+  --pastel-page-lavender: rgba(217, 204, 255, 0.64);
+  --pastel-page-blush: rgba(250, 217, 229, 0.53);
+  --pastel-page-peach: rgba(250, 209, 184, 0.48);
+  --pastel-page-mint: rgba(200, 237, 222, 0.39);
+  --pastel-page-sky: rgba(200, 237, 245, 0.44);
 
   --ambient-page:
     radial-gradient(circle at 14% 7%, rgba(205, 194, 255, 0.24), transparent 31%),
@@ -199,6 +247,31 @@
   --color-sidebar-muted: #8e9ab6;
   --color-sidebar-hover: rgba(139, 124, 246, 0.12);
   --color-sidebar-border: rgba(172, 186, 219, 0.13);
+  --decorative-lavender: rgba(139, 124, 246, 0.15);
+  --decorative-lilac: rgba(160, 140, 252, 0.12);
+  --decorative-blush: rgba(244, 114, 182, 0.10);
+  --decorative-blush-ink: #e5a0bc;
+  --decorative-peach: rgba(238, 138, 85, 0.10);
+  --decorative-mint: rgba(52, 211, 153, 0.09);
+  --decorative-sky: rgba(34, 211, 238, 0.085);
+  --decorative-cream: rgba(228, 173, 89, 0.10);
+  --surface-accent-primary: rgba(139, 124, 246, 0.13);
+  --surface-accent-success: rgba(52, 211, 153, 0.085);
+  --surface-accent-warning: rgba(228, 173, 89, 0.085);
+  --surface-accent-attention: rgba(238, 138, 85, 0.08);
+  --surface-accent-danger: rgba(244, 114, 182, 0.08);
+  --surface-accent-info: rgba(34, 211, 238, 0.075);
+  --pastel-halo-primary: rgba(139, 124, 246, 0.16);
+  --pastel-halo-success: rgba(52, 211, 153, 0.11);
+  --pastel-halo-warning: rgba(228, 173, 89, 0.11);
+  --pastel-halo-attention: rgba(238, 138, 85, 0.10);
+  --pastel-halo-danger: rgba(244, 114, 182, 0.11);
+  --pastel-halo-info: rgba(34, 211, 238, 0.10);
+  --pastel-page-lavender: rgba(139, 124, 246, 0.25);
+  --pastel-page-blush: rgba(244, 114, 182, 0.13);
+  --pastel-page-peach: rgba(238, 138, 85, 0.095);
+  --pastel-page-mint: rgba(52, 211, 153, 0.095);
+  --pastel-page-sky: rgba(34, 211, 238, 0.10);
 
   --ambient-page:
     radial-gradient(circle at 12% 5%, rgba(98, 84, 217, 0.18), transparent 28%),

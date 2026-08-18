@@ -32,14 +32,14 @@ function Chart({ title, items }: { title: string; items: ReportItem[] }) {
 export function ExecutiveReportPrint({ report }: { report: ExecutiveReport }) {
   return <article className="print-only executive-report-print" aria-hidden="true">
     <section className="executive-report-print-page">
-      <header><p>SECURITY MANAGEMENT SYSTEM V3</p><h1>รายงานผู้บริหาร</h1><span>{report.period.label} · {report.scope.departmentName}</span><small>สร้างรายงาน {formatDateTime(report.generatedAt)}</small></header>
+      <header><p>SECURITY MANAGEMENT SYSTEM</p><h1>รายงานผู้บริหาร</h1><span>{report.period.label} · {report.scope.departmentName}</span><small>สร้างรายงาน {formatDateTime(report.generatedAt)}</small></header>
       <div className="executive-report-print-kpis">{report.executiveSummary.map((item) => <div key={item.key}><span>{item.label}</span><strong>{thaiNumber(item.value)} <small>{item.unit}</small></strong></div>)}</div>
       <PrintSection title="กำลังพลและการจัดเวร"><p>พนักงานทั้งหมด {thaiNumber(report.workforce.totalEmployees)} คน · พนักงานที่ปฏิบัติงาน {thaiNumber(report.workforce.activeEmployees)} คน · รายการจัดเวร {thaiNumber(report.schedule.assignmentCount)} รายการ</p><PrintList items={report.workforce.byDepartment} /></PrintSection>
       <PrintSection title="การลา"><p>คำขอลาที่ทับซ้อนกับช่วงเวลา {thaiNumber(report.leave.totalRequests)} รายการ · รอพิจารณา {thaiNumber(report.leave.statusCounts.PENDING || 0)} · อนุมัติ {thaiNumber(report.leave.statusCounts.APPROVED || 0)}</p><PrintList items={report.leave.byType} /></PrintSection>
       <PrintSection title="สถานะใบอนุญาต"><p>หมดอายุ {thaiNumber(report.license.expired)} · ใกล้หมดอายุภายใน 30 วัน {thaiNumber(report.license.expiringWithin30Days)} · ใช้งานได้เกิน 30 วัน {thaiNumber(report.license.validBeyond30Days)} · รอตรวจสอบ {thaiNumber(report.license.pendingReview)}</p></PrintSection>
       <PrintSection title="คุณภาพข้อมูล"><p>รวม {thaiNumber(report.dataQuality.total)} รายการ · วิกฤต {thaiNumber(report.dataQuality.critical)} · เตือน {thaiNumber(report.dataQuality.warning)} · ข้อมูล {thaiNumber(report.dataQuality.info)}</p><PrintList items={report.dataQuality.categories.map((item) => ({ label: item.title, count: item.count }))} /></PrintSection>
       <PrintSection title="ประเด็นที่ผู้บริหารควรติดตาม">{report.managementAttention.length ? <ol>{report.managementAttention.map((item) => <li key={item.title}><strong>{item.title} ({thaiNumber(item.count)})</strong><span>{item.description}</span></li>)}</ol> : <p>ไม่พบประเด็นสำคัญที่ต้องติดตามในช่วงเวลานี้</p>}</PrintSection>
-      <footer>SMS-V3 Executive Report · หน้า 1</footer>
+      <footer>SMS Executive Report · หน้า 1</footer>
     </section>
   </article>;
 }
@@ -104,7 +104,7 @@ export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, on
 
   const years = useMemo(() => Array.from({ length: 4 }, (_, index) => bangkokYear - index), [bangkokYear]);
   const departmentOptions = report?.scope.availableDepartments || [];
-  const filename = report ? `SMS-V3-Executive-Report-${report.period.year}-${String(report.period.month).padStart(2, '0')}${department ? `-${department.replace(/[^a-zA-Z0-9_-]+/g, '-')}` : ''}.pdf` : 'SMS-V3-Executive-Report.pdf';
+  const filename = report ? `SMS-Executive-Report-${report.period.year}-${String(report.period.month).padStart(2, '0')}${department ? `-${department.replace(/[^a-zA-Z0-9_-]+/g, '-')}` : ''}.pdf` : 'SMS-Executive-Report.pdf';
 
   return <section className="executive-report-page view-pane" aria-label="รายงานผู้บริหาร">
     {!embedded && <header className="executive-report-heading"><div><p className="eyebrow">EXECUTIVE REPORT CENTER</p><h1>รายงานผู้บริหาร</h1><p>สรุปข้อมูลสำคัญเพื่อการติดตามและบริหารงานรักษาความปลอดภัย</p></div><div className="executive-report-actions"><button type="button" className="btn-neutral" onClick={() => { setLoadedKey(''); setRefresh((value) => value + 1); }} disabled={loading}>↻ รีเฟรช</button><button type="button" className="btn-primary" onClick={() => printDocument('.executive-report-print', filename)} disabled={!report || loading}>ส่งออก PDF</button></div></header>}

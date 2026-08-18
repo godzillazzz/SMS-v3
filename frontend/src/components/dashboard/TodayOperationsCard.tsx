@@ -19,7 +19,7 @@ export function TodayOperationsCard({ operations, totalEmployees, activeEmployee
     ['noShift', 'ไม่มีกะ', 'schedule']
   ] as const;
   return <section className="dashboard-panel dashboard-today-operations" aria-label="Today's Operations">
-    <header className="dashboard-panel__header"><div><p>TODAY'S OPERATIONS</p><h2>กำลังพลวันนี้</h2></div><span className="dashboard-period">ข้อมูลตามวันที่เลือก</span></header>
+    <header className="dashboard-panel__header"><div><h2>กำลังพลวันนี้</h2><span>ภาพรวมกำลังพลตามวันที่เลือก</span></div><span className="dashboard-period">ข้อมูลตามวันที่เลือก</span></header>
     {loading ? <div className="dashboard-list-skeleton"><span /><span /><span /></div> : <>
       <div className="dashboard-today-highlight">
         <div><span>พร้อมปฏิบัติงาน</span><strong>{formatMetric(onDuty)} / {formatMetric(workforceTotal)}</strong><small>{formatMetric(totalScheduled)} คนมีตารางกะ · {formatMetric(onLeave)} คนลา</small></div>

@@ -41,6 +41,7 @@ import './styles/theme-foundation.css';
 import './styles/app-shell.css';
 import './styles/data-surfaces.css';
 import './styles/auth-experience.css';
+import './styles/visual-fidelity.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; department?: string; jobTitle?: string; isActive: boolean; updatedAt?: string };
@@ -140,7 +141,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 function Logo() {
-  return <span className="brand-mark" aria-label="SMS v3"><SmsIcon name="shield" size={18} /><b>SMS</b></span>;
+  return <span className="brand-mark" aria-label="SMS"><b>SMS</b></span>;
 }
 
 function readLeaveMonthFromUrl(): string {
@@ -258,7 +259,7 @@ function Login() {
     <main className="login-page auth-experience-page">
       <section className="login-shell auth-experience-shell" aria-label="เข้าสู่ระบบ Security Management System">
         <aside className="login-intro auth-brand-panel">
-          <div className="intro-brand auth-brand"><Logo /><span><b>SMS V3</b><strong>Security Management System</strong></span></div>
+          <div className="intro-brand auth-brand"><Logo /><span><b>SMS</b><strong>Security Management System</strong></span></div>
           <div className="intro-copy auth-brand-copy">
             <p className="auth-brand-eyebrow">SECURITY MANAGEMENT SYSTEM</p>
             <h1>บริหารงานรักษาความปลอดภัย<br />ในพื้นที่เดียว</h1>
@@ -269,10 +270,62 @@ function Login() {
               <span><SmsIcon name="shield" size={18} />สิทธิ์และกฎการทำงาน</span>
             </div>
           </div>
-          <p className="auth-brand-footnote"><SmsIcon name="shield" size={16} />การเข้าถึงข้อมูลเป็นไปตามสิทธิ์ของบัญชีผู้ใช้งาน</p>
+          <div className="auth-pastel-illustration auth-security-shield-scene" aria-hidden="true">
+            <svg className="auth-security-shield" viewBox="0 0 420 290" role="presentation" focusable="false">
+              <defs>
+                <linearGradient id="security-shield-outer" x1="0" y1="0" x2="1" y2="1">
+                  <stop className="auth-security-shield__stop auth-security-shield__stop--violet" offset="0%" />
+                  <stop className="auth-security-shield__stop auth-security-shield__stop--indigo" offset="52%" />
+                  <stop className="auth-security-shield__stop auth-security-shield__stop--cyan" offset="100%" />
+                </linearGradient>
+                <linearGradient id="security-shield-middle" x1="0" y1="1" x2="1" y2="0">
+                  <stop className="auth-security-shield__stop auth-security-shield__stop--lavender" offset="0%" />
+                  <stop className="auth-security-shield__stop auth-security-shield__stop--violet" offset="50%" />
+                  <stop className="auth-security-shield__stop auth-security-shield__stop--sky" offset="100%" />
+                </linearGradient>
+                <radialGradient id="security-shield-inner" cx="50%" cy="42%" r="64%">
+                  <stop className="auth-security-shield__stop auth-security-shield__stop--light" offset="0%" />
+                  <stop className="auth-security-shield__stop auth-security-shield__stop--mint" offset="42%" />
+                  <stop className="auth-security-shield__stop auth-security-shield__stop--indigo" offset="100%" />
+                </radialGradient>
+                <linearGradient id="security-shield-lock" x1="0" y1="0" x2="0" y2="1">
+                  <stop className="auth-security-shield__stop auth-security-shield__stop--lock-top" offset="0%" />
+                  <stop className="auth-security-shield__stop auth-security-shield__stop--lock-bottom" offset="100%" />
+                </linearGradient>
+                <filter id="security-shield-bloom" x="-80%" y="-80%" width="260%" height="260%">
+                  <feGaussianBlur stdDeviation="14" />
+                </filter>
+              </defs>
+              <ellipse className="auth-security-shield__floor" cx="210" cy="254" rx="92" ry="13" />
+              <ellipse className="auth-security-shield__bloom" cx="210" cy="154" rx="104" ry="96" filter="url(#security-shield-bloom)" />
+              <g className="auth-security-shield__orbits" fill="none">
+                <ellipse cx="210" cy="157" rx="151" ry="73" />
+                <ellipse cx="210" cy="157" rx="124" ry="97" />
+              </g>
+              <g className="auth-security-shield__nodes">
+                <circle cx="69" cy="135" r="4" /><circle cx="351" cy="135" r="4" />
+                <circle cx="104" cy="211" r="3.5" /><circle cx="316" cy="211" r="3.5" />
+                <rect x="111" y="82" width="9" height="9" rx="2" transform="rotate(45 115.5 86.5)" />
+                <rect x="300" y="82" width="9" height="9" rx="2" transform="rotate(45 304.5 86.5)" />
+              </g>
+              <g className="auth-security-shield__body">
+                <path className="auth-security-shield__outer" d="M210 46 L304 82 V145 C304 207 266 246 210 266 C154 246 116 207 116 145 V82 Z" fill="url(#security-shield-outer)" />
+                <path className="auth-security-shield__middle" d="M210 66 L282 92 V145 C282 193 253 224 210 242 C167 224 138 193 138 145 V92 Z" fill="url(#security-shield-middle)" />
+                <path className="auth-security-shield__inner" d="M210 86 L260 104 V144 C260 177 241 199 210 214 C179 199 160 177 160 144 V104 Z" fill="url(#security-shield-inner)" />
+                <path className="auth-security-shield__axis" d="M210 57 V244" />
+              </g>
+              <g className="auth-security-shield__lock">
+                <path className="auth-security-shield__lock-shackle" d="M190 145 V132 C190 120.95 198.95 112 210 112 C221.05 112 230 120.95 230 132 V145" fill="none" />
+                <rect className="auth-security-shield__lock-body" x="181" y="142" width="58" height="47" rx="13" fill="url(#security-shield-lock)" />
+                <circle className="auth-security-shield__keyhole" cx="210" cy="162" r="5" />
+                <path className="auth-security-shield__keyhole-stem" d="M210 166 V174" />
+              </g>
+            </svg>
+          </div>          <p className="auth-brand-footnote"><SmsIcon name="shield" size={16} />การเข้าถึงข้อมูลเป็นไปตามสิทธิ์ของบัญชีผู้ใช้งาน</p>
         </aside>
         <section className="login-form-panel auth-card-panel">
           <div className="login-theme-control auth-theme-control"><ThemeControl compact /></div>
+          <div className="auth-mobile-brand"><Logo /><span><b>SMS</b><strong>Security Management System</strong></span></div>
           <form className="login-form auth-form" onSubmit={submit} aria-busy={busy}>
             {resultPresentation ? <section className={`auth-result auth-result--${resultPresentation.tone}`} aria-live="polite" aria-labelledby="registration-result-title">
               <div className="auth-result__verified"><span className="auth-result__verified-icon"><SmsIcon name="approval" size={20} /></span><span><b>ยืนยันอีเมลสำเร็จ</b><small>การยืนยันอีเมลยังไม่ใช่การอนุมัติบัญชี</small></span></div>
@@ -287,7 +340,7 @@ function Login() {
               </div>
             </section> : <>
               <header className="auth-form-heading">
-                <span className="auth-form-kicker">SMS V3</span>
+                <span className="auth-form-kicker">SMS</span>
                 <h2>{title}</h2><p className="form-lead">{lead}</p>
               </header>
               {(mode === 'register' || mode === 'registerVerify') && <AuthProgress flow="registration" current={registrationStep} />}
@@ -419,7 +472,7 @@ function EditDialog({ editor, busy, error, onClose }: { editor: Editor; busy: bo
   const personnelEditor = editor.experience === 'personnel';
   return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
     <section ref={dialogRef} className={`edit-dialog${personnelEditor ? ' personnel-editor' : ''}`} role="dialog" aria-modal="true" aria-labelledby="edit-dialog-title">
-      <div className="dialog-heading"><div><p className="eyebrow">{personnelEditor ? 'EMPLOYEE MASTER' : 'SMS v3 staging'}</p><h2 id="edit-dialog-title">{editor.title}</h2></div><button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}><SmsIcon name="close" size={20} /></button></div>
+      <div className="dialog-heading"><div><p className="eyebrow">{personnelEditor ? 'EMPLOYEE MASTER' : 'SMS staging'}</p><h2 id="edit-dialog-title">{editor.title}</h2></div><button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}><SmsIcon name="close" size={20} /></button></div>
       {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
       {editor.notice && <div className="preview-warning"><strong>ตรวจสอบข้อมูลเดิม</strong><p>{editor.notice}</p></div>}
       <form onSubmit={submit}>
@@ -763,7 +816,7 @@ function SettingsPage({ settings, loading, error, onRefresh, onSaveTemplates, on
     finally { setSaving(false); }
   };
   return <section className="view-pane settings-page">
-    <div className="page-heading settings-heading"><div><h1>Settings</h1><p>ตั้งค่าระบบและการแจ้งเตือน โดยไม่เก็บ token หรือความลับไว้ในฐานข้อมูล</p></div><div className="heading-actions"><button className="btn-neutral small-action" disabled={!visibleSettings.length} onClick={() => downloadCsv(visibleSettings, 'smsv3-settings')}>⇧ Export</button><button className="btn-neutral small-action" onClick={onAudit}>Audit Log</button><button className="btn-primary compact" disabled title="SMS v3 ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก">↻ Google Sheets ถูกยกเลิก</button></div></div>
+    <div className="page-heading settings-heading"><div><h1>Settings</h1><p>ตั้งค่าระบบและการแจ้งเตือน โดยไม่เก็บ token หรือความลับไว้ในฐานข้อมูล</p></div><div className="heading-actions"><button className="btn-neutral small-action" disabled={!visibleSettings.length} onClick={() => downloadCsv(visibleSettings, 'smsv3-settings')}>⇧ Export</button><button className="btn-neutral small-action" onClick={onAudit}>Audit Log</button><button className="btn-primary compact" disabled title="SMS ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก">↻ Google Sheets ถูกยกเลิก</button></div></div>
     {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
     <div className="table-card settings-table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล Settings…</div> : <div className="table-scroll"><table className="data-table settings-table"><thead><tr><th>Key</th><th>Value</th><th>Description</th></tr></thead><tbody>{visibleSettings.length ? visibleSettings.map((setting) => <tr key={text(setting.key)}><td><code>{text(setting.key)}</code></td><td>{setting.configured === undefined ? text(setting.value) : <span className={setting.configured ? 'status-badge active' : 'status-badge inactive'}>{setting.configured ? 'Configured' : 'Not configured'}</span>}</td><td>{text(setting.description)}</td></tr>) : <tr><td colSpan={3} className="no-rows">ยังไม่มีข้อมูล Settings ที่นำเข้าจากระบบเดิม</td></tr>}</tbody></table></div>}</div>
     <section className="line-settings-card">
@@ -2229,8 +2282,7 @@ function Dashboard() {
     }
     if (activePage === 'users') {
       const users = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      return <>
-        <RegistrationReviewPanel token={auth.token!} role={auth.user?.role || 'VIEWER'} refreshSignal={operationRefresh} onChanged={() => setOperationRefresh((value) => value + 1)} onOpenEmployeeMaster={() => setActivePage('employees')} />
+      return <div className="users-access-workspace">
         <AccessManagementPage
           rows={users as Array<{ id: string; displayName?: string; role?: string; department?: string | null; accountStatus?: string; isActive?: boolean; passwordResetRequired?: boolean; createdAt?: string; updatedAt?: string }>}
           loading={operationLoading}
@@ -2243,7 +2295,8 @@ function Dashboard() {
           onViewAs={async (id) => { await auth.beginViewAs(id); setActivePage('dashboard'); }}
           onOpenAudit={() => setActivePage('audit')}
         />
-      </>;
+        <RegistrationReviewPanel token={auth.token!} role={auth.user?.role || 'VIEWER'} refreshSignal={operationRefresh} onChanged={() => setOperationRefresh((value) => value + 1)} onOpenEmployeeMaster={() => setActivePage('employees')} />
+      </div>;
     }
     if (activePage === 'settings') {
       const settings = Array.isArray(operationResponse.data) ? operationResponse.data : [];
@@ -2292,7 +2345,7 @@ function Dashboard() {
       <aside id="app-navigation-drawer" className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} aria-label="เมนูหลัก">
         <div className="sidebar-brand">
           <Logo />
-          <div><strong>SMS V3</strong><span>Security Management System</span></div>
+          <div><strong>SMS</strong><span>Security Management System</span></div>
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
@@ -2300,7 +2353,6 @@ function Dashboard() {
         ))}</nav>
         <div className="sidebar-footer">
           <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></div>
-          <div className="sidebar-theme-block"><span>Theme</span><ThemeControl /></div>
           <button type="button" className="sidebar-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} /><span>ออกจากระบบ</span></button>
         </div>
       </aside>
@@ -2308,7 +2360,7 @@ function Dashboard() {
         <header className="topbar">
           <div className="topbar-left">
             <button ref={mobileMenuTriggerRef} type="button" className="mobile-menu-button" aria-label="เปิดเมนูหลัก" aria-expanded={mobileMenuOpen} aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(true)}><SmsIcon name="menu" size={20} /></button>
-            <span className="mobile-brand"><Logo /><span><b>SMS V3</b><small>{pageTitle}</small></span></span>
+            <span className="mobile-brand"><Logo /><span><b>SMS</b><small>{pageTitle}</small></span></span>
             <span className="topbar-copy"><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></span>
           </div>
           <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>

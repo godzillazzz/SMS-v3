@@ -1,0 +1,4084 @@
+/* G04.2 VF-02 — owner visual fidelity correction V2.
+   Presentation/composition only. Existing business, auth, API and permission behavior remains authoritative. */
+
+:root {
+  --vf-sidebar-width: 248px;
+  --vf-shell-radius: 20px;
+  --vf-card-radius: 18px;
+  --vf-control-radius: 12px;
+  --vf-page-gap: 24px;
+}
+
+[data-theme="light"] {
+  --vf-surface: rgba(255, 255, 255, .97);
+  --vf-glass: rgba(255, 255, 255, .88);
+  --vf-border: rgba(119, 104, 150, .15);
+  --vf-shadow: 0 14px 36px rgba(70, 54, 104, .075), 0 2px 8px rgba(70, 54, 104, .035);
+  --vf-float-shadow: 0 16px 44px rgba(65, 50, 96, .09), 0 2px 8px rgba(65, 50, 96, .035);
+  --vf-soft-lavender: #f1efff;
+  --vf-soft-lavender-2: #f7f4ff;
+  --vf-soft-peach: #fff1e9;
+  --vf-soft-pink: #fdeff7;
+  --vf-soft-cyan: #edf9fb;
+}
+
+[data-theme="dark"] {
+  --vf-surface: rgba(16, 24, 41, .98);
+  --vf-glass: rgba(15, 22, 38, .91);
+  --vf-border: rgba(164, 177, 210, .14);
+  --vf-shadow: 0 16px 40px rgba(0, 0, 0, .27), inset 0 1px 0 rgba(255, 255, 255, .022);
+  --vf-float-shadow: 0 20px 52px rgba(0, 0, 0, .34), 0 0 30px rgba(108, 82, 233, .035);
+  --vf-soft-lavender: #252047;
+  --vf-soft-lavender-2: #191a35;
+  --vf-soft-peach: #34251f;
+  --vf-soft-pink: #32202d;
+  --vf-soft-cyan: #142c37;
+}
+
+html {
+  scroll-padding-top: 104px;
+}
+
+html,
+body,
+#root {
+  max-width: 100%;
+  background-color: var(--color-bg);
+}
+
+body {
+  background-image:
+    radial-gradient(880px 620px at 7% -4%, rgba(135, 111, 242, .16), transparent 67%),
+    radial-gradient(820px 570px at 96% 3%, rgba(246, 164, 133, .12), transparent 66%),
+    radial-gradient(780px 560px at 78% 98%, rgba(221, 129, 180, .085), transparent 68%),
+    linear-gradient(180deg, #fbfaff 0%, #f8f7fb 48%, #f7f7fb 100%);
+  background-attachment: fixed;
+}
+
+[data-theme="dark"] body {
+  background-image:
+    radial-gradient(920px 650px at 8% -4%, rgba(104, 78, 225, .16), transparent 67%),
+    radial-gradient(800px 560px at 96% 4%, rgba(44, 143, 183, .07), transparent 67%),
+    radial-gradient(760px 540px at 72% 100%, rgba(128, 62, 151, .055), transparent 70%),
+    linear-gradient(180deg, #080d19 0%, #0b1120 58%, #090f1d 100%);
+}
+
+/* ---------------------------------------------------------------------
+   Application shell — floating chrome with reserved content geometry
+   --------------------------------------------------------------------- */
+.app-shell,
+.main-area {
+  min-width: 0;
+}
+
+.users-access-workspace {
+  display: grid;
+  gap: 34px;
+  min-width: 0;
+}
+
+@media (min-width: 1025px) {
+  .sidebar {
+    top: 14px;
+    width: var(--vf-sidebar-width);
+    height: calc(100dvh - 28px);
+    flex: 0 0 var(--vf-sidebar-width);
+    margin: 14px 0 14px 14px;
+    padding: 18px 14px 14px;
+    border: 1px solid var(--vf-border);
+    border-radius: var(--vf-shell-radius);
+    background:
+      radial-gradient(260px 190px at 14% -4%, rgba(133, 109, 243, .09), transparent 72%),
+      linear-gradient(180deg, rgba(255,255,255,.98), rgba(251,250,255,.97));
+    box-shadow: var(--vf-shadow);
+  }
+
+  [data-theme="dark"] .sidebar {
+    background:
+      radial-gradient(290px 200px at 18% -3%, rgba(123, 96, 244, .13), transparent 72%),
+      linear-gradient(180deg, #080d19, #0b1120 62%, #090f1c);
+    box-shadow: 0 22px 56px rgba(0,0,0,.30);
+  }
+
+  .main-area {
+    width: auto;
+    flex: 1 1 auto;
+  }
+
+  .topbar {
+    position: sticky;
+    top: 14px;
+    z-index: 30;
+    display: grid !important;
+    min-width: 0 !important;
+    min-height: 66px;
+    grid-template-columns: minmax(280px, 1fr) auto;
+    align-items: center;
+    gap: 18px !important;
+    margin: 14px 28px 0;
+    padding: 10px 13px 10px 16px;
+    border: 1px solid var(--vf-border);
+    border-radius: 18px;
+    background: var(--vf-glass);
+    box-shadow: var(--vf-float-shadow);
+    backdrop-filter: blur(22px) saturate(150%);
+    line-height: normal !important;
+  }
+
+  .topbar-left {
+    display: none;
+  }
+
+  .topbar-search {
+    width: min(100%, 560px);
+    min-width: 0 !important;
+    min-height: 44px;
+    justify-self: start;
+    border-color: color-mix(in srgb, var(--color-border) 76%, transparent);
+    border-radius: 13px;
+    background: color-mix(in srgb, var(--color-surface-muted) 70%, transparent);
+  }
+
+  .topbar-search input {
+    min-width: 0 !important;
+    height: 42px;
+    font-size: 14px;
+  }
+
+  .content-area {
+    width: 100%;
+    min-width: 0;
+    padding: 24px 32px 44px;
+  }
+}
+
+.sidebar-brand {
+  min-height: 78px;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 3px 17px;
+  padding: 7px 7px 17px;
+  border-bottom: 0;
+}
+
+.sidebar-brand .brand-mark {
+  width: 43px;
+  height: 43px;
+  flex: 0 0 43px;
+  border-radius: 13px;
+  background: linear-gradient(145deg, #a16df6 0%, var(--color-primary) 56%, #df7b97 116%);
+  box-shadow: 0 9px 22px color-mix(in srgb, var(--color-primary) 24%, transparent);
+}
+
+.sidebar-brand > div {
+  width: min(100%, 166px);
+  padding-top: 2px;
+}
+
+.sidebar-brand strong {
+  overflow: visible;
+  color: var(--color-sidebar-text);
+  font-size: 17px;
+  line-height: 1.2;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.sidebar-brand span {
+  display: block;
+  overflow: visible;
+  margin-top: 3px;
+  color: var(--color-sidebar-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.nav-menu {
+  padding-right: 2px;
+}
+
+.nav-section {
+  margin-bottom: 14px;
+}
+
+.nav-section > p {
+  margin-bottom: 5px;
+  padding-inline: 11px;
+  color: color-mix(in srgb, var(--color-sidebar-muted) 84%, transparent);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: none;
+}
+
+.nav-item {
+  min-height: 44px;
+  gap: 11px;
+  margin-bottom: 3px;
+  padding-inline: 11px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nav-item.active {
+  border-color: rgba(116, 90, 224, .08);
+  color: var(--color-primary);
+  background:
+    radial-gradient(120px 70px at 0% 50%, rgba(228, 145, 181, .12), transparent 80%),
+    linear-gradient(100deg, #efecff, #f6f1ff 64%, #fff3ed);
+  box-shadow: 0 8px 20px rgba(91, 68, 182, .08);
+}
+
+[data-theme="dark"] .nav-item.active {
+  border-color: rgba(148, 125, 255, .24);
+  color: #f5f1ff;
+  background: linear-gradient(105deg, rgba(91, 65, 198, .58), rgba(74, 53, 143, .40));
+  box-shadow: 0 10px 26px rgba(78, 57, 185, .15), inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+.nav-icon {
+  width: 21px;
+  height: 21px;
+  flex-basis: 21px;
+}
+
+.topbar-actions {
+  display: flex !important;
+  gap: 9px !important;
+}
+
+.environment-pill {
+  min-height: 34px;
+  padding-inline: 11px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.topbar-profile {
+  min-height: 44px;
+  gap: 9px;
+  padding: 4px 8px 4px 5px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+}
+
+.topbar-profile:hover {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-muted) 72%, transparent);
+}
+
+/* Neutralize a legacy Dashboard broad selector that leaked into shell controls. */
+.dashboard-page-v2,
+.dashboard-page-v2 button,
+.dashboard-page-v2 input,
+.dashboard-page-v2 select,
+.topbar,
+.topbar-copy {
+  min-width: 0 !important;
+}
+
+.dashboard-page-v2 button,
+.dashboard-page-v2 input,
+.dashboard-page-v2 select {
+  line-height: normal !important;
+}
+
+/* ---------------------------------------------------------------------
+   Shared premium surface language — fewer, stronger containers
+   --------------------------------------------------------------------- */
+.page-heading h1,
+.personnel-directory-header h1,
+.access-page-header h1,
+.dashboard-hero h1 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(30px, 2.35vw, 34px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -.026em;
+}
+
+.page-heading > p,
+.personnel-directory-header > div > p:last-child,
+.access-page-header > div > p:last-child,
+.dashboard-hero__subtitle {
+  margin: 7px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.58;
+}
+
+.dashboard-panel,
+.dashboard-metric,
+.personnel-search-panel,
+.personnel-table-card,
+.personnel-metric,
+.access-summary-card,
+.access-table-card,
+.registration-review__requests,
+.registration-review__detail,
+.settings-card,
+.audit-card,
+.data-quality-card,
+.report-center-card {
+  border: 1px solid var(--vf-border);
+  border-radius: var(--vf-card-radius);
+  background: var(--vf-surface);
+  box-shadow: var(--vf-shadow);
+}
+
+[data-theme="dark"] .dashboard-panel,
+[data-theme="dark"] .dashboard-metric,
+[data-theme="dark"] .personnel-search-panel,
+[data-theme="dark"] .personnel-table-card,
+[data-theme="dark"] .personnel-metric,
+[data-theme="dark"] .access-summary-card,
+[data-theme="dark"] .access-table-card,
+[data-theme="dark"] .registration-review__requests,
+[data-theme="dark"] .registration-review__detail {
+  background: linear-gradient(180deg, rgba(18, 27, 46, .98), rgba(14, 21, 37, .98));
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  border-color: color-mix(in srgb, var(--color-border-strong) 76%, transparent);
+  border-radius: var(--vf-control-radius);
+  background: color-mix(in srgb, var(--color-surface-elevated) 97%, transparent);
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-neutral,
+.btn-success,
+.btn-warning,
+.btn-danger,
+.btn-info,
+button.personnel-primary-action,
+.registration-review__reject {
+  min-height: 42px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.btn-primary,
+button.personnel-primary-action {
+  border-color: color-mix(in srgb, var(--color-primary) 86%, transparent);
+  background: linear-gradient(135deg, var(--color-primary-hover), var(--color-primary));
+  box-shadow: 0 9px 20px color-mix(in srgb, var(--color-primary) 19%, transparent);
+}
+
+/* ---------------------------------------------------------------------
+   Dashboard — premium mockup rhythm
+   --------------------------------------------------------------------- */
+.dashboard-page-v2 {
+  display: grid !important;
+  max-width: 1500px;
+  gap: 24px !important;
+  margin: 0 auto;
+  overflow: visible;
+  color: var(--color-text);
+}
+
+.dashboard-top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 20px;
+  min-width: 0;
+}
+
+.dashboard-hero {
+  display: block;
+  min-width: 0;
+  padding: 0 2px;
+}
+
+.dashboard-hero__eyebrow,
+.personnel-eyebrow,
+.access-eyebrow {
+  display: none !important;
+}
+
+.dashboard-hero h1 {
+  font-size: 34px;
+}
+
+.dashboard-hero__subtitle {
+  max-width: 720px;
+}
+
+.dashboard-filter-bar {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dashboard-filter-bar__context {
+  display: none;
+}
+
+.dashboard-filter-bar__icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  margin-bottom: 1px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 16%, var(--color-border));
+  border-radius: 12px;
+  color: var(--color-primary);
+  background: var(--vf-soft-lavender);
+}
+
+.dashboard-filter-bar__controls {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dashboard-filter-bar__controls label {
+  display: grid;
+  min-width: 130px;
+  gap: 4px;
+}
+
+.dashboard-filter-bar__controls label span {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dashboard-filter-bar__controls input,
+.dashboard-filter-bar__controls select {
+  width: auto;
+  min-width: 132px !important;
+  height: 40px;
+  padding-inline: 10px;
+  border-radius: 11px;
+  font-size: 12px;
+}
+
+.dashboard-kpi-section {
+  display: grid;
+  gap: 13px;
+}
+
+.dashboard-kpi-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-inline: 2px;
+}
+
+.dashboard-kpi-heading p {
+  display: none;
+}
+
+.dashboard-kpi-heading h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.dashboard-kpi-heading small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.dashboard-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dashboard-metric {
+  min-height: 146px;
+  align-items: center;
+  gap: 15px;
+  padding: 22px;
+  border: 1px solid var(--vf-border);
+  border-left: 1px solid var(--vf-border);
+  border-radius: 18px;
+  background:
+    radial-gradient(170px 120px at 0% 0%, color-mix(in srgb, var(--metric-accent, var(--color-primary)) 9%, transparent), transparent 76%),
+    var(--vf-surface);
+  box-shadow: var(--vf-shadow);
+}
+
+[data-theme="dark"] .dashboard-metric {
+  background:
+    radial-gradient(180px 130px at 0% 0%, color-mix(in srgb, var(--metric-accent, var(--color-primary)) 12%, transparent), transparent 77%),
+    linear-gradient(180deg, #121a2b, #0f1727);
+}
+
+.dashboard-metric--interactive:hover,
+.dashboard-metric--interactive:focus-visible {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--metric-accent, var(--color-primary)) 27%, var(--color-border));
+  box-shadow: 0 17px 38px color-mix(in srgb, var(--metric-accent, var(--color-primary)) 9%, transparent), var(--vf-shadow);
+}
+
+.dashboard-metric__icon {
+  display: grid;
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--metric-accent, var(--color-primary)) 17%, transparent);
+  border-radius: 15px;
+  color: var(--metric-accent, var(--color-primary));
+  background: color-mix(in srgb, var(--metric-accent, var(--color-primary)) 12%, var(--color-surface));
+}
+
+.dashboard-metric p {
+  margin: 0 0 6px !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 13px !important;
+  font-weight: 600;
+}
+
+.dashboard-metric strong {
+  color: var(--color-text) !important;
+  font-size: 34px !important;
+  line-height: 1.02;
+}
+
+.dashboard-metric small {
+  margin-top: 8px !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 12px !important;
+  line-height: 1.45;
+}
+
+/* Supporting values are one quiet rail, not four more cards. */
+.dashboard-secondary-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 2px;
+  padding: 7px 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 76%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 62%, transparent);
+}
+
+.dashboard-secondary-metric {
+  display: grid;
+  min-height: 66px;
+  gap: 2px;
+  padding: 9px 16px;
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--color-border) 66%, transparent);
+  border-radius: 0;
+  color: var(--color-text);
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+.dashboard-secondary-metric:last-child {
+  border-right: 0;
+}
+
+.dashboard-secondary-metric:hover,
+.dashboard-secondary-metric:focus-visible {
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--color-primary-soft) 40%, transparent);
+}
+
+.dashboard-secondary-metric span {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.dashboard-secondary-metric strong {
+  color: var(--color-text);
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.dashboard-secondary-metric small {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.dashboard-command-grid,
+.dashboard-primary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(360px, .82fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.dashboard-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dashboard-tertiary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
+  gap: 16px;
+}
+
+.dashboard-panel {
+  min-width: 0;
+  padding: 22px;
+  border-radius: 18px;
+  box-shadow: var(--vf-shadow);
+}
+
+.dashboard-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.dashboard-panel__header > div {
+  min-width: 0;
+}
+
+.dashboard-panel__header p {
+  display: none !important;
+}
+
+.dashboard-panel__header h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.dashboard-panel__header div > span,
+.dashboard-panel__footnote,
+.dashboard-period,
+.dashboard-panel__unavailable {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+  font-size: 12px !important;
+  line-height: 1.45;
+}
+
+/* Remove boxes-inside-boxes from the two primary operational panels. */
+.dashboard-today-highlight {
+  padding: 0 0 18px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: 0;
+  background: transparent;
+}
+
+[data-theme="dark"] .dashboard-today-highlight {
+  background: transparent;
+}
+
+.dashboard-today-highlight span,
+.dashboard-today-highlight small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.dashboard-today-highlight strong {
+  color: var(--color-text);
+  font-size: 30px;
+}
+
+.dashboard-today-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 0;
+  margin-top: 14px;
+}
+
+.dashboard-today-stat {
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--color-border) 66%, transparent);
+  border-radius: 0;
+  color: var(--color-text);
+  background: transparent;
+  box-shadow: none;
+}
+
+.dashboard-today-stat:last-child {
+  border-right: 0;
+}
+
+.dashboard-today-stat:hover,
+.dashboard-today-stat:focus-visible {
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-primary-soft) 34%, transparent);
+}
+
+.dashboard-today-stat span {
+  color: var(--color-text-secondary);
+  font-size: 12px !important;
+}
+
+.dashboard-today-stat strong {
+  color: var(--color-text);
+  font-size: 23px;
+}
+
+.dashboard-shift-groups {
+  display: grid;
+  gap: 0;
+  margin-top: 15px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+}
+
+.dashboard-subsection-heading {
+  margin-bottom: 5px;
+}
+
+.dashboard-subsection-heading b,
+.dashboard-subsection-heading small {
+  font-size: 12px !important;
+}
+
+.dashboard-shift-group,
+.dashboard-attention-row,
+.dashboard-expiring-row {
+  min-height: 48px;
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 58%, transparent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dashboard-shift-group:last-child,
+.dashboard-attention-row:last-child,
+.dashboard-expiring-row:last-child {
+  border-bottom: 0;
+}
+
+.dashboard-shift-group:hover,
+.dashboard-attention-row:hover,
+.dashboard-expiring-row:hover,
+.dashboard-shift-group:focus-visible,
+.dashboard-attention-row:focus-visible,
+.dashboard-expiring-row:focus-visible {
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-primary-soft) 30%, transparent);
+}
+
+.dashboard-shift-group b,
+.dashboard-attention-row b,
+.dashboard-expiring-row__person b,
+.dashboard-activity-row b {
+  color: var(--color-text) !important;
+  font-size: 13px !important;
+}
+
+.dashboard-shift-group small,
+.dashboard-attention-row small,
+.dashboard-expiring-row__person small,
+.dashboard-activity-row small,
+.dashboard-expiring-row__remaining,
+.dashboard-attention__count {
+  color: var(--color-text-secondary) !important;
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+
+.dashboard-link-button,
+.dashboard-status-row {
+  min-height: 40px;
+}
+
+.dashboard-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 8px;
+  border-radius: 10px;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dashboard-link-button:hover,
+.dashboard-link-button:focus-visible {
+  background: var(--color-primary-soft);
+}
+
+/* Quick Access is intentionally prominent and low-density. */
+.dashboard-quick-actions {
+  padding: 22px;
+}
+
+.dashboard-quick-actions__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 12px;
+}
+
+.dashboard-quick-actions__grid button {
+  position: relative;
+  display: grid;
+  min-height: 108px;
+  grid-template-columns: 46px minmax(0,1fr) 18px;
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 12px;
+  padding: 17px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 84%, transparent);
+  border-radius: 15px;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-surface) 94%, var(--vf-soft-lavender-2));
+  box-shadow: none;
+  text-align: left;
+}
+
+[data-theme="dark"] .dashboard-quick-actions__grid button {
+  background: rgba(20, 29, 49, .78);
+}
+
+.dashboard-quick-actions__grid button:hover,
+.dashboard-quick-actions__grid button:focus-visible {
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary-soft) 36%, var(--color-surface));
+  transform: translateY(-1px);
+}
+
+.dashboard-quick-actions__grid button > span {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  grid-row: 1 / span 2;
+  place-items: center;
+  border-radius: 13px;
+  color: var(--color-primary);
+  background: var(--vf-soft-lavender);
+}
+
+.dashboard-quick-actions__grid button b {
+  align-self: end;
+  color: var(--color-text) !important;
+  font-size: 14px !important;
+}
+
+.dashboard-quick-actions__grid button small {
+  align-self: start;
+  color: var(--color-text-secondary) !important;
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+
+.dashboard-quick-actions__grid button i {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--color-text-muted);
+  font-size: 20px;
+  font-style: normal;
+}
+
+.dashboard-workforce__body {
+  min-height: 154px;
+}
+
+.dashboard-donut {
+  width: 148px;
+  height: 148px;
+  flex-basis: 148px;
+}
+
+.dashboard-mini-stat,
+.dashboard-status-row {
+  border-color: color-mix(in srgb, var(--color-border) 72%, transparent);
+  background: transparent;
+  box-shadow: none;
+}
+
+.dashboard-mini-stat {
+  min-height: 76px;
+}
+
+.dashboard-mini-stat span,
+.dashboard-mini-stat small,
+.dashboard-status-row b,
+.dashboard-status-row small,
+.dashboard-workforce .dashboard-legend p {
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+
+/* ---------------------------------------------------------------------
+   Personnel — header → filters → metrics → table
+   --------------------------------------------------------------------- */
+.personnel-directory-page {
+  display: grid;
+  gap: 20px;
+}
+
+.personnel-directory-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-inline: 2px;
+}
+
+.personnel-header-actions {
+  align-items: center;
+  gap: 9px;
+}
+
+.personnel-result-support {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.personnel-search-panel {
+  padding: 13px 15px;
+  border-radius: 16px;
+  box-shadow: 0 8px 22px rgba(70,54,104,.045);
+}
+
+.personnel-search-input {
+  min-height: 44px;
+  border-radius: 12px;
+}
+
+.personnel-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 14px;
+}
+
+.personnel-metric {
+  min-height: 116px;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 17px;
+}
+
+.personnel-metric__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+}
+
+.personnel-metric p {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.personnel-metric strong {
+  color: var(--color-text);
+  font-size: 29px;
+}
+
+.personnel-metric small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.personnel-result-line {
+  margin: -3px 2px 0;
+}
+
+.personnel-table-card {
+  margin-top: 0;
+  overflow: hidden;
+  border-radius: 18px;
+}
+
+.personnel-table th,
+.personnel-table td {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.personnel-detail-drawer,
+.account-drawer {
+  border-left: 1px solid var(--vf-border);
+  border-radius: 20px 0 0 20px;
+  background: var(--color-surface-elevated);
+  box-shadow: -22px 0 58px rgba(17,13,36,.19);
+}
+
+[data-theme="dark"] .personnel-detail-drawer,
+[data-theme="dark"] .account-drawer {
+  background: linear-gradient(180deg, #121a2b, #0d1423);
+  box-shadow: -24px 0 62px rgba(0,0,0,.40);
+}
+
+/* ---------------------------------------------------------------------
+   Access Management — true page header first, adaptive summary density
+   --------------------------------------------------------------------- */
+.access-management-page {
+  display: grid;
+  gap: 20px;
+}
+
+.access-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-inline: 2px;
+}
+
+.access-page-actions {
+  align-items: center;
+  gap: 9px;
+}
+
+.access-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 14px;
+}
+
+.access-summary-grid--manager {
+  grid-template-columns: minmax(260px, 360px);
+}
+
+.access-summary-card {
+  min-height: 112px;
+  gap: 13px;
+  padding: 18px;
+  border-left: 1px solid var(--vf-border);
+  border-radius: 17px;
+  background:
+    radial-gradient(130px 90px at 0% 0%, color-mix(in srgb, var(--summary-accent, var(--color-primary)) 8%, transparent), transparent 78%),
+    var(--vf-surface);
+}
+
+.access-summary-icon {
+  width: 43px;
+  height: 43px;
+  flex: 0 0 43px;
+  border-radius: 13px;
+}
+
+.access-summary-card p {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.access-summary-card strong {
+  color: var(--color-text);
+  font-size: 28px;
+}
+
+.access-summary-card small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.access-table-card {
+  overflow: hidden;
+  border-radius: 18px;
+}
+
+.access-table th,
+.access-table td {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.account-drawer-identity > div > p {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------
+   Registration Review — two primary surfaces, restrained inner sections
+   --------------------------------------------------------------------- */
+.registration-review {
+  display: grid;
+  gap: 18px;
+  padding-top: 2px;
+}
+
+.registration-review__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 2px;
+}
+
+.registration-review__header > div > p,
+.registration-review__section-heading span,
+.registration-review__summary-heading span,
+.registration-review__comparison > header > div > span {
+  display: none !important;
+}
+
+.registration-review__header h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.registration-review__header > div > span {
+  display: block;
+  margin-top: 7px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+  letter-spacing: 0;
+}
+
+.registration-review__grid {
+  display: grid;
+  grid-template-columns: minmax(290px, 31%) minmax(0,1fr);
+  gap: 16px;
+}
+
+.registration-review__requests,
+.registration-review__detail {
+  padding: 20px;
+  border-radius: 18px;
+}
+
+.registration-review__request {
+  min-height: 68px;
+  border-radius: 13px;
+}
+
+.registration-review__request.is-selected {
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+  background: linear-gradient(120deg, var(--vf-soft-lavender), color-mix(in srgb, var(--vf-soft-peach) 44%, var(--color-surface)));
+}
+
+[data-theme="dark"] .registration-review__request.is-selected {
+  background: linear-gradient(120deg, rgba(89,67,188,.25), rgba(116,63,95,.11));
+}
+
+.registration-review__detail {
+  display: grid;
+  align-content: start;
+  gap: 0;
+}
+
+.registration-review__summary,
+.registration-review__progress-wrap,
+.registration-review__employee-workspace,
+.registration-review__approval {
+  margin: 0;
+  padding: 0 0 22px;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.registration-review__progress-wrap,
+.registration-review__employee-workspace,
+.registration-review__comparison,
+.registration-review__approval {
+  padding-top: 22px;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+}
+
+.registration-review__comparison {
+  margin: 0 0 0;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 16%, var(--color-border));
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--color-primary-soft) 24%, var(--color-surface));
+  box-shadow: none;
+}
+
+.registration-review__comparison + .registration-review__approval {
+  margin-top: 22px;
+}
+
+.registration-review__employee-workspace > header span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.registration-review__candidate-main,
+.registration-review__not-found,
+.registration-review__matched,
+.registration-review__role-note,
+.registration-review__match-action {
+  border-radius: 13px;
+}
+
+.registration-review__candidates article {
+  border-radius: 13px;
+}
+
+/* ---------------------------------------------------------------------
+   Auth — bright premium Light, deep layered Dark, true single-column mobile
+   --------------------------------------------------------------------- */
+.auth-experience-page {
+  min-height: 100dvh;
+  padding: clamp(20px, 3vw, 42px);
+  background:
+    radial-gradient(760px 540px at 10% 9%, rgba(145, 121, 247, .18), transparent 68%),
+    radial-gradient(700px 500px at 90% 7%, rgba(248, 171, 139, .13), transparent 67%),
+    radial-gradient(650px 480px at 76% 92%, rgba(224, 127, 176, .10), transparent 69%),
+    linear-gradient(180deg, #fbfaff, #f8f7fc);
+}
+
+[data-theme="dark"] .auth-experience-page {
+  background:
+    radial-gradient(780px 540px at 12% 8%, rgba(111, 84, 231, .17), transparent 68%),
+    radial-gradient(660px 480px at 90% 12%, rgba(46, 147, 185, .065), transparent 68%),
+    linear-gradient(180deg, #080d19, #0b1120);
+}
+
+.auth-experience-shell {
+  width: min(1120px, 100%);
+  min-height: min(740px, calc(100dvh - 84px));
+  grid-template-columns: .84fr 1.16fr;
+  overflow: hidden;
+  border: 1px solid var(--vf-border);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 30px 82px rgba(58, 43, 90, .14);
+}
+
+[data-theme="dark"] .auth-experience-shell {
+  background: #0e1525;
+  box-shadow: 0 32px 84px rgba(0,0,0,.46), 0 0 56px rgba(99,73,216,.055);
+}
+
+.auth-brand-panel {
+  padding: clamp(34px, 4.6vw, 58px);
+  color: var(--color-text);
+  background:
+    radial-gradient(430px 320px at 16% 14%, rgba(150, 123, 247, .23), transparent 70%),
+    radial-gradient(360px 290px at 88% 82%, rgba(246, 163, 141, .16), transparent 72%),
+    linear-gradient(150deg, #f5f1ff 0%, #fbf7ff 54%, #fff5ef 112%);
+}
+
+[data-theme="light"] .auth-brand > span:last-child b,
+[data-theme="light"] .auth-brand > span:last-child strong,
+[data-theme="light"] .auth-brand-copy h1,
+[data-theme="light"] .auth-brand-copy > p:not(.auth-brand-eyebrow),
+[data-theme="light"] .auth-brand-footnote {
+  color: #27213a;
+}
+
+[data-theme="light"] .auth-brand > span:last-child strong,
+[data-theme="light"] .auth-brand-copy > p:not(.auth-brand-eyebrow),
+[data-theme="light"] .auth-brand-footnote {
+  color: #675f78;
+}
+
+[data-theme="dark"] .auth-brand-panel {
+  background:
+    radial-gradient(430px 330px at 18% 16%, rgba(139,108,250,.27), transparent 72%),
+    radial-gradient(390px 310px at 88% 82%, rgba(54,173,203,.08), transparent 72%),
+    linear-gradient(145deg, #070d1a 0%, #0b1830 60%, #1b193d 115%);
+}
+
+[data-theme="dark"] .auth-brand > span:last-child b,
+[data-theme="dark"] .auth-brand-copy h1 {
+  color: #f6f7ff;
+}
+
+[data-theme="dark"] .auth-brand > span:last-child strong,
+[data-theme="dark"] .auth-brand-copy > p:not(.auth-brand-eyebrow),
+[data-theme="dark"] .auth-brand-footnote {
+  color: #c4cce0;
+}
+
+.auth-brand-copy h1 {
+  max-width: 460px;
+  font-size: clamp(33px, 3.4vw, 42px);
+  line-height: 1.2;
+}
+
+.auth-brand-copy > p:not(.auth-brand-eyebrow) {
+  max-width: 430px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.auth-brand-eyebrow {
+  color: var(--color-primary);
+  font-size: 11px;
+  letter-spacing: .06em;
+}
+
+.auth-brand-points {
+  gap: 10px;
+}
+
+.auth-brand-points span {
+  min-height: 42px;
+  border-color: rgba(118, 91, 219, .12);
+  border-radius: 12px;
+  background: rgba(255,255,255,.56);
+}
+
+[data-theme="dark"] .auth-brand-points span {
+  background: rgba(255,255,255,.05);
+}
+
+.auth-card-panel {
+  display: flex;
+  align-items: center;
+  padding: clamp(36px, 5vw, 66px);
+  background:
+    radial-gradient(430px 320px at 100% 0%, rgba(130, 103, 231, .055), transparent 78%),
+    #fff;
+}
+
+[data-theme="dark"] .auth-card-panel {
+  background:
+    radial-gradient(440px 320px at 100% 0%, rgba(122,94,235,.09), transparent 78%),
+    #111827;
+}
+
+.auth-form {
+  width: min(100%, 440px);
+  margin-inline: auto;
+}
+
+.auth-form-heading h2,
+.auth-result h2 {
+  font-size: 30px;
+  letter-spacing: -.02em;
+}
+
+.auth-primary-action {
+  min-height: 49px;
+  border-radius: 13px;
+  font-size: 14px;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-primary) 23%, transparent);
+}
+
+.auth-theme-control {
+  top: 20px;
+  right: 20px;
+}
+
+.auth-mobile-brand {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------
+   Responsive correction
+   --------------------------------------------------------------------- */
+@media (max-width: 1180px) {
+  .dashboard-metrics {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+
+  .dashboard-command-grid,
+  .dashboard-primary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-quick-actions__grid {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+
+  .dashboard-secondary-grid {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+
+  .dashboard-secondary-grid .dashboard-workforce {
+    grid-column: span 2;
+  }
+
+  .access-summary-grid {
+    grid-template-columns: repeat(3, minmax(0,1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  html {
+    scroll-padding-top: 90px;
+  }
+
+  .topbar {
+    min-width: 0 !important;
+    border-radius: 16px;
+    box-shadow: var(--vf-float-shadow);
+  }
+
+  .content-area {
+    padding: 20px 22px 36px;
+  }
+
+  .sidebar {
+    border-radius: 0 20px 20px 0;
+    border: 1px solid var(--vf-border);
+  }
+
+  .dashboard-top-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .dashboard-filter-bar {
+    justify-content: flex-start;
+  }
+
+  .dashboard-filter-bar__controls {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  html {
+    scroll-padding-top: 82px;
+  }
+
+  body {
+    background-image:
+      radial-gradient(520px 430px at 10% -2%, rgba(135,111,242,.14), transparent 71%),
+      radial-gradient(430px 360px at 100% 8%, rgba(246,164,133,.09), transparent 72%),
+      var(--ambient-page);
+  }
+
+  [data-theme="dark"] body {
+    background-image:
+      radial-gradient(520px 430px at 10% -2%, rgba(104,78,225,.15), transparent 71%),
+      linear-gradient(180deg, #080d19, #0b1120);
+  }
+
+  .topbar {
+    position: sticky;
+    top: 6px;
+    display: grid !important;
+    min-width: 0 !important;
+    min-height: 60px;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 8px !important;
+    margin: 6px 10px 0;
+    padding: 8px 9px;
+    border: 1px solid var(--vf-border);
+    border-radius: 16px;
+    background: var(--vf-glass);
+    box-shadow: var(--vf-float-shadow);
+    backdrop-filter: blur(20px) saturate(145%);
+  }
+
+  .content-area {
+    padding: 18px 14px 32px;
+  }
+
+  .page-heading h1,
+  .personnel-directory-header h1,
+  .access-page-header h1,
+  .dashboard-hero h1 {
+    font-size: 26px;
+  }
+
+  .dashboard-page-v2,
+  .personnel-directory-page,
+  .access-management-page {
+    gap: 18px !important;
+  }
+
+  .dashboard-top-row {
+    gap: 15px;
+  }
+
+  .dashboard-filter-bar {
+    width: 100%;
+    align-items: flex-end;
+  }
+
+  .dashboard-filter-bar__icon {
+    display: none;
+  }
+
+  .dashboard-filter-bar__controls {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 8px;
+  }
+
+  .dashboard-filter-bar__controls label,
+  .dashboard-filter-bar__controls input,
+  .dashboard-filter-bar__controls select {
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  .dashboard-filter-bar__controls label:last-child:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .dashboard-kpi-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .dashboard-metrics {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 10px;
+  }
+
+  .dashboard-metric {
+    min-height: 132px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+    padding: 16px;
+  }
+
+  .dashboard-metric__icon {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+    border-radius: 12px;
+  }
+
+  .dashboard-metric strong {
+    font-size: 29px !important;
+  }
+
+  .dashboard-secondary-metrics {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+
+  .dashboard-secondary-metric {
+    border-right: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 62%, transparent);
+  }
+
+  .dashboard-secondary-metric:nth-last-child(-n+2) {
+    border-bottom: 0;
+  }
+
+  .dashboard-command-grid,
+  .dashboard-primary-grid,
+  .dashboard-secondary-grid,
+  .dashboard-tertiary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-secondary-grid .dashboard-workforce {
+    grid-column: auto;
+  }
+
+  .dashboard-panel {
+    padding: 18px;
+  }
+
+  .dashboard-today-stats {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+
+  .dashboard-today-stat:nth-child(2) {
+    border-right: 0;
+  }
+
+  .dashboard-quick-actions__grid {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 9px;
+  }
+
+  .dashboard-quick-actions__grid button {
+    min-height: 118px;
+    grid-template-columns: 42px minmax(0,1fr);
+    padding: 14px;
+  }
+
+  .dashboard-quick-actions__grid button > span {
+    width: 40px;
+    height: 40px;
+  }
+
+  .dashboard-quick-actions__grid button i {
+    display: none;
+  }
+
+  .personnel-directory-header,
+  .access-page-header,
+  .registration-review__header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .personnel-header-actions,
+  .access-page-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .personnel-summary-grid,
+  .access-summary-grid,
+  .access-summary-grid--manager {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .personnel-metric,
+  .access-summary-card {
+    min-height: 104px;
+    padding: 17px;
+  }
+
+  .registration-review__grid {
+    display: block;
+  }
+
+  .registration-review__requests,
+  .registration-review__detail {
+    padding: 16px;
+  }
+
+  /* True single-column mobile Auth. Desktop hero is removed from layout. */
+  .auth-experience-page {
+    min-height: 100dvh;
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .auth-experience-shell {
+    display: block !important;
+    width: 100%;
+    min-height: calc(100dvh - 24px);
+    grid-template-columns: 1fr !important;
+    border-radius: 22px;
+  }
+
+  .auth-brand-panel {
+    display: none !important;
+  }
+
+  .auth-card-panel {
+    position: relative;
+    display: block;
+    min-height: calc(100dvh - 24px);
+    padding: 18px 0 26px;
+    background:
+      radial-gradient(360px 260px at 100% 0%, rgba(137,108,240,.075), transparent 75%),
+      var(--color-surface);
+  }
+
+  [data-theme="dark"] .auth-card-panel {
+    background:
+      radial-gradient(360px 260px at 100% 0%, rgba(122,94,235,.10), transparent 75%),
+      #111827;
+  }
+
+  .auth-mobile-brand {
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    gap: 10px;
+    padding: 0 138px 0 18px;
+    box-sizing: border-box;
+  }
+
+  .auth-mobile-brand .brand-mark {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    place-items: center;
+    border-radius: 12px;
+    color: #fff;
+    background: linear-gradient(145deg, #a06cf7, #6254d9 58%, #e17d9a 115%);
+    box-shadow: 0 8px 20px rgba(98,84,217,.22);
+  }
+
+  .auth-mobile-brand > span:last-child {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .auth-mobile-brand b {
+    color: var(--color-text);
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .auth-mobile-brand strong {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.25;
+  }
+
+  .auth-theme-control {
+    top: 18px;
+    right: 18px;
+  }
+
+  .auth-form {
+    width: 100%;
+    max-width: none;
+    margin: 28px 0 0;
+    padding-inline: 18px;
+    box-sizing: border-box;
+  }
+
+  .auth-form-heading h2,
+  .auth-result h2 {
+    font-size: 26px;
+  }
+
+  .auth-form .form-lead {
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .auth-field input,
+  .auth-password-field,
+  .auth-primary-action {
+    min-height: 48px;
+  }
+
+  .auth-links {
+    gap: 8px 14px;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-metric {
+    min-height: 126px;
+    display: grid !important;
+    grid-template-columns: 44px minmax(0,1fr);
+    grid-template-rows: auto auto;
+    align-items: center;
+  }
+
+  .dashboard-metric__icon {
+    grid-row: 1 / span 2;
+  }
+
+  .dashboard-quick-actions__grid {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .content-area {
+    padding: 18px 12px 28px;
+  }
+
+  .dashboard-secondary-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-secondary-metric,
+  .dashboard-secondary-metric:nth-last-child(-n+2) {
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 62%, transparent);
+  }
+
+  .dashboard-secondary-metric:last-child {
+    border-bottom: 0;
+  }
+
+  .dashboard-quick-actions__grid button {
+    min-height: 126px;
+    display: flex !important;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px !important;
+  }
+
+  .dashboard-quick-actions__grid button > span {
+    flex: 0 0 40px;
+  }
+
+  .dashboard-quick-actions__grid button small {
+    line-height: 1.35;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-metric,
+  .dashboard-quick-actions__grid button,
+  .nav-item,
+  .topbar-profile {
+    transition: none !important;
+  }
+}
+
+/* G04.2 VF-03 — pastel colorful visual fidelity correction.
+   Presentation only. Uses semantic/decorative tokens from tokens.css; business status meaning stays authoritative. */
+
+/* ---------------------------------------------------------------------
+   Page ambience + shell
+   --------------------------------------------------------------------- */
+[data-theme="light"] body {
+  background-image:
+    radial-gradient(980px 660px at 4% -5%, var(--pastel-page-lavender), transparent 68%),
+    radial-gradient(860px 610px at 98% 2%, var(--pastel-page-peach), transparent 68%),
+    radial-gradient(820px 590px at 2% 98%, var(--pastel-page-blush), transparent 70%),
+    radial-gradient(780px 560px at 98% 96%, var(--pastel-page-sky), transparent 70%),
+    radial-gradient(620px 470px at 58% 5%, var(--pastel-page-mint), transparent 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-bg) 91%, var(--decorative-lavender)), var(--color-bg) 48%, color-mix(in srgb, var(--color-bg) 94%, var(--decorative-blush)));
+}
+
+[data-theme="dark"] body {
+  background-image:
+    radial-gradient(980px 660px at 4% -5%, var(--pastel-page-lavender), transparent 68%),
+    radial-gradient(860px 610px at 98% 2%, var(--pastel-page-sky), transparent 70%),
+    radial-gradient(820px 590px at 2% 98%, var(--pastel-page-blush), transparent 72%),
+    radial-gradient(760px 540px at 96% 96%, var(--pastel-page-mint), transparent 72%),
+    linear-gradient(180deg, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 82%, var(--color-surface)) 54%, var(--color-bg) 100%);
+}
+
+@media (min-width: 1025px) {
+  [data-theme="light"] .sidebar {
+    background:
+      radial-gradient(320px 220px at 6% -5%, color-mix(in srgb, var(--pastel-lavender-200) 62%, transparent), transparent 72%),
+      radial-gradient(260px 190px at 110% 20%, color-mix(in srgb, var(--pastel-blush-200) 35%, transparent), transparent 76%),
+      linear-gradient(180deg, rgba(255,255,255,.98), rgba(252,250,255,.97));
+  }
+
+  [data-theme="light"] .topbar {
+    background:
+      radial-gradient(360px 120px at 7% 0%, color-mix(in srgb, var(--pastel-lavender-200) 23%, transparent), transparent 72%),
+      radial-gradient(300px 100px at 95% 0%, color-mix(in srgb, var(--pastel-peach-200) 18%, transparent), transparent 74%),
+      var(--vf-glass);
+  }
+
+  [data-theme="dark"] .topbar {
+    background:
+      radial-gradient(360px 120px at 7% 0%, var(--decorative-lavender), transparent 72%),
+      radial-gradient(300px 110px at 96% 0%, var(--decorative-sky), transparent 76%),
+      var(--vf-glass);
+  }
+}
+
+.sidebar-brand .brand-mark,
+.mobile-brand .brand-mark,
+.auth-mobile-brand .brand-mark,
+.auth-brand .brand-mark {
+  background: linear-gradient(145deg, #8d6cf2 0%, #6e55dc 56%, #5740c9 100%);
+  box-shadow: 0 10px 24px var(--pastel-halo-primary);
+}
+
+[data-theme="light"] .nav-item.active {
+  border-color: color-mix(in srgb, var(--color-primary) 13%, transparent);
+  background:
+    radial-gradient(120px 80px at 0% 50%, color-mix(in srgb, var(--pastel-lavender-300) 34%, transparent), transparent 82%),
+    linear-gradient(100deg, color-mix(in srgb, var(--pastel-lavender-100) 92%, white), color-mix(in srgb, var(--pastel-blush-100) 62%, white));
+  box-shadow: 0 8px 24px var(--pastel-halo-primary);
+}
+
+[data-theme="light"] .nav-item:hover:not(.active) {
+  background: color-mix(in srgb, var(--decorative-lavender) 58%, transparent);
+}
+
+[data-theme="dark"] .nav-item.active {
+  border-color: color-mix(in srgb, var(--color-primary) 31%, transparent);
+  background:
+    radial-gradient(130px 85px at 0% 50%, rgba(244, 114, 182, .08), transparent 80%),
+    linear-gradient(105deg, rgba(93, 67, 204, .60), rgba(74, 54, 143, .43));
+}
+
+.theme-control button.is-active,
+.theme-control button[aria-pressed="true"] {
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 23%, var(--color-border));
+  background: var(--surface-accent-primary);
+  box-shadow: 0 4px 12px var(--pastel-halo-primary);
+}
+
+.topbar-search:focus-within,
+.personnel-search-input:focus-within,
+.registration-review__search:focus-within {
+  border-color: color-mix(in srgb, var(--color-primary) 54%, var(--color-border));
+  background: color-mix(in srgb, var(--surface-accent-primary) 52%, var(--color-surface));
+  box-shadow: var(--focus-ring);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  border-color: color-mix(in srgb, var(--color-primary) 58%, var(--color-border-strong));
+  box-shadow: var(--focus-ring);
+}
+
+.btn-primary,
+button.personnel-primary-action,
+.auth-primary-action {
+  background: linear-gradient(135deg, var(--pastel-violet-600), var(--pastel-violet-500));
+  box-shadow: 0 10px 25px var(--pastel-halo-primary);
+}
+
+.btn-secondary,
+.btn-neutral {
+  border-color: color-mix(in srgb, var(--color-primary) 13%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface) 91%, var(--surface-accent-primary));
+}
+
+.status-badge--success,
+.status-badge.active,
+.account-status--active,
+.access-account-state--active {
+  background: var(--surface-accent-success);
+  color: var(--color-success);
+}
+
+.status-badge--warning,
+.account-status--pending,
+.access-account-state--pending,
+.reset-badge--required {
+  background: var(--surface-accent-warning);
+  color: var(--color-warning);
+}
+
+.status-badge--danger,
+.account-status--suspended,
+.access-account-state--suspended,
+.access-account-state--rejected {
+  background: var(--surface-accent-danger);
+  color: var(--color-danger);
+}
+
+.role-badge,
+.personnel-filter-chips button {
+  background: var(--surface-accent-primary);
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 16%, transparent);
+}
+
+/* ---------------------------------------------------------------------
+   Dashboard calibration surface
+   --------------------------------------------------------------------- */
+.dashboard-metric {
+  --vf03-accent: var(--color-primary);
+  --vf03-wash: var(--surface-accent-primary);
+  --vf03-halo: var(--pastel-halo-primary);
+  border-color: color-mix(in srgb, var(--vf03-accent) 13%, var(--vf-border));
+  background:
+    radial-gradient(220px 150px at 0% 0%, color-mix(in srgb, var(--vf03-accent) 15%, transparent), transparent 72%),
+    linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 89%, var(--vf03-wash)), var(--color-surface) 76%);
+  box-shadow: 0 14px 34px var(--vf03-halo), var(--shadow-sm);
+}
+
+.dashboard-metric--indigo {
+  --vf03-accent: var(--color-primary);
+  --vf03-wash: var(--surface-accent-primary);
+  --vf03-halo: var(--pastel-halo-primary);
+}
+
+.dashboard-metric--green {
+  --vf03-accent: var(--color-success);
+  --vf03-wash: var(--surface-accent-success);
+  --vf03-halo: var(--pastel-halo-success);
+}
+
+.dashboard-metric--teal {
+  --vf03-accent: var(--color-info);
+  --vf03-wash: var(--surface-accent-info);
+  --vf03-halo: var(--pastel-halo-info);
+}
+
+.dashboard-metric--warning {
+  --vf03-accent: var(--color-warning);
+  --vf03-wash: var(--surface-accent-warning);
+  --vf03-halo: var(--pastel-halo-warning);
+}
+
+.dashboard-metric--urgent {
+  --vf03-accent: var(--color-danger);
+  --vf03-wash: var(--surface-accent-danger);
+  --vf03-halo: var(--pastel-halo-danger);
+  border-left-color: color-mix(in srgb, var(--color-danger) 13%, var(--vf-border)) !important;
+  border-top-color: color-mix(in srgb, var(--color-danger) 13%, var(--vf-border)) !important;
+}
+
+.dashboard-metric__icon,
+.dashboard-metric--urgent .dashboard-metric__icon {
+  color: var(--vf03-accent);
+  border-color: color-mix(in srgb, var(--vf03-accent) 20%, transparent);
+  background: color-mix(in srgb, var(--vf03-accent) 20%, var(--vf03-wash));
+  box-shadow: 0 8px 18px var(--vf03-halo);
+}
+
+[data-theme="dark"] .dashboard-metric {
+  background:
+    radial-gradient(220px 155px at 0% 0%, var(--vf03-halo), transparent 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 94%, var(--vf03-wash)), var(--color-surface-subtle));
+}
+
+.dashboard-secondary-metric {
+  position: relative;
+  padding-left: 27px;
+}
+
+.dashboard-secondary-metric::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 18px;
+  width: 5px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  box-shadow: 0 4px 10px var(--pastel-halo-primary);
+}
+
+.dashboard-secondary-metric:nth-child(2)::before { background: var(--color-danger); box-shadow: 0 4px 10px var(--pastel-halo-danger); }
+.dashboard-secondary-metric:nth-child(3)::before { background: var(--color-info); box-shadow: 0 4px 10px var(--pastel-halo-info); }
+.dashboard-secondary-metric:nth-child(4)::before { background: var(--color-warning); box-shadow: 0 4px 10px var(--pastel-halo-warning); }
+
+.dashboard-today-operations {
+  background:
+    radial-gradient(330px 180px at 0% 0%, var(--pastel-halo-success), transparent 76%),
+    linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 94%, var(--surface-accent-success)), var(--color-surface));
+}
+
+.dashboard-attention {
+  background:
+    radial-gradient(320px 170px at 100% 0%, var(--pastel-halo-warning), transparent 76%),
+    radial-gradient(240px 150px at 0% 100%, var(--pastel-halo-danger), transparent 78%),
+    var(--color-surface);
+}
+
+.dashboard-readiness-badge {
+  background: var(--surface-accent-success);
+  color: var(--color-success);
+}
+
+.dashboard-readiness-badge--warning {
+  background: var(--surface-accent-warning);
+  color: var(--color-warning);
+}
+
+.dashboard-attention-row__icon {
+  border: 1px solid transparent;
+  box-shadow: 0 5px 12px transparent;
+}
+
+.dashboard-attention-row__icon--urgent {
+  color: var(--color-danger);
+  background: var(--surface-accent-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  box-shadow: 0 5px 12px var(--pastel-halo-danger);
+}
+
+.dashboard-attention-row__icon--warning {
+  color: var(--color-warning);
+  background: var(--surface-accent-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  box-shadow: 0 5px 12px var(--pastel-halo-warning);
+}
+
+.dashboard-attention-row__icon--follow-up {
+  color: var(--color-primary);
+  background: var(--surface-accent-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  box-shadow: 0 5px 12px var(--pastel-halo-primary);
+}
+
+.dashboard-quick-actions {
+  background:
+    radial-gradient(460px 190px at 8% 0%, var(--pastel-halo-primary), transparent 78%),
+    var(--color-surface);
+}
+
+.dashboard-quick-actions__grid button {
+  --quick-accent: var(--color-primary);
+  --quick-wash: var(--decorative-lavender);
+  --quick-halo: var(--pastel-halo-primary);
+  border-color: color-mix(in srgb, var(--quick-accent) 11%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface) 93%, var(--quick-wash));
+}
+
+.dashboard-quick-actions__grid button:nth-child(1) {
+  --quick-accent: var(--color-primary);
+  --quick-wash: var(--decorative-lavender);
+  --quick-halo: var(--pastel-halo-primary);
+}
+
+.dashboard-quick-actions__grid button:nth-child(2) {
+  --quick-accent: var(--color-success);
+  --quick-wash: var(--decorative-mint);
+  --quick-halo: var(--pastel-halo-success);
+}
+
+.dashboard-quick-actions__grid button:nth-child(3) {
+  --quick-accent: var(--color-warning);
+  --quick-wash: var(--decorative-cream);
+  --quick-halo: var(--pastel-halo-warning);
+}
+
+.dashboard-quick-actions__grid button:nth-child(4) {
+  --quick-accent: var(--decorative-blush-ink);
+  --quick-wash: var(--decorative-blush);
+  --quick-halo: var(--pastel-halo-danger);
+}
+
+.dashboard-quick-actions__grid button > span {
+  color: var(--quick-accent);
+  border: 1px solid color-mix(in srgb, var(--quick-accent) 16%, transparent);
+  background: color-mix(in srgb, var(--quick-accent) 18%, var(--quick-wash));
+  box-shadow: 0 7px 16px var(--quick-halo);
+}
+
+.dashboard-quick-actions__grid button:hover,
+.dashboard-quick-actions__grid button:focus-visible {
+  border-color: color-mix(in srgb, var(--quick-accent) 27%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface) 86%, var(--quick-wash));
+  box-shadow: 0 12px 24px var(--quick-halo);
+}
+
+[data-theme="dark"] .dashboard-quick-actions__grid button {
+  background:
+    radial-gradient(180px 100px at 0% 0%, var(--quick-halo), transparent 78%),
+    rgba(20, 29, 49, .82);
+}
+
+/* ---------------------------------------------------------------------
+   Personnel
+   --------------------------------------------------------------------- */
+.personnel-search-panel {
+  background:
+    radial-gradient(360px 100px at 0% 0%, var(--pastel-halo-primary), transparent 76%),
+    color-mix(in srgb, var(--color-surface) 96%, var(--surface-accent-primary));
+}
+
+.personnel-metric {
+  --vf03-accent: var(--color-primary);
+  --vf03-wash: var(--surface-accent-primary);
+  --vf03-halo: var(--pastel-halo-primary);
+  border-left-color: color-mix(in srgb, var(--vf03-accent) 12%, var(--vf-border));
+  border-color: color-mix(in srgb, var(--vf03-accent) 12%, var(--vf-border));
+  background:
+    radial-gradient(180px 110px at 0% 0%, color-mix(in srgb, var(--vf03-accent) 13%, transparent), transparent 74%),
+    linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 89%, var(--vf03-wash)), var(--color-surface));
+  box-shadow: 0 12px 28px var(--vf03-halo), var(--shadow-sm);
+}
+
+.personnel-metric--green {
+  --vf03-accent: var(--color-success);
+  --vf03-wash: var(--surface-accent-success);
+  --vf03-halo: var(--pastel-halo-success);
+}
+
+.personnel-metric--amber {
+  --vf03-accent: var(--color-attention);
+  --vf03-wash: var(--surface-accent-warning);
+  --vf03-halo: var(--pastel-halo-attention);
+}
+
+.personnel-metric__icon {
+  color: var(--vf03-accent);
+  background: color-mix(in srgb, var(--vf03-accent) 20%, var(--vf03-wash));
+  border: 1px solid color-mix(in srgb, var(--vf03-accent) 17%, transparent);
+}
+
+.personnel-table th {
+  background: color-mix(in srgb, var(--color-surface-muted) 72%, var(--decorative-lavender));
+}
+
+.personnel-table code {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: var(--surface-accent-primary);
+  color: var(--color-primary);
+}
+
+.personnel-table tbody tr.is-selected {
+  background: color-mix(in srgb, var(--color-surface) 76%, var(--decorative-lavender));
+}
+
+.personnel-row-actions .data-row-primary-action {
+  border-color: color-mix(in srgb, var(--color-primary) 20%, var(--color-border));
+  background: var(--surface-accent-primary);
+  color: var(--color-primary);
+}
+
+/* ---------------------------------------------------------------------
+   Access Management
+   --------------------------------------------------------------------- */
+.access-summary-card {
+  --vf03-accent: var(--color-primary);
+  --vf03-wash: var(--surface-accent-primary);
+  --vf03-halo: var(--pastel-halo-primary);
+  border-left-color: color-mix(in srgb, var(--vf03-accent) 12%, var(--vf-border));
+  border-color: color-mix(in srgb, var(--vf03-accent) 12%, var(--vf-border));
+  background:
+    radial-gradient(180px 110px at 0% 0%, color-mix(in srgb, var(--vf03-accent) 13%, transparent), transparent 74%),
+    linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 89%, var(--vf03-wash)), var(--color-surface));
+  box-shadow: 0 12px 28px var(--vf03-halo), var(--shadow-sm);
+}
+
+.access-summary-card--green {
+  --vf03-accent: var(--color-success);
+  --vf03-wash: var(--surface-accent-success);
+  --vf03-halo: var(--pastel-halo-success);
+}
+
+.access-summary-card--amber {
+  --vf03-accent: var(--color-warning);
+  --vf03-wash: var(--surface-accent-warning);
+  --vf03-halo: var(--pastel-halo-warning);
+}
+
+.access-summary-card--red {
+  --vf03-accent: var(--color-danger);
+  --vf03-wash: var(--surface-accent-danger);
+  --vf03-halo: var(--pastel-halo-danger);
+}
+
+.access-summary-card--purple {
+  --vf03-accent: var(--color-attention);
+  --vf03-wash: var(--surface-accent-attention);
+  --vf03-halo: var(--pastel-halo-attention);
+}
+
+.access-summary-icon {
+  color: var(--vf03-accent);
+  background: color-mix(in srgb, var(--vf03-accent) 20%, var(--vf03-wash));
+  border: 1px solid color-mix(in srgb, var(--vf03-accent) 17%, transparent);
+  box-shadow: 0 7px 16px var(--vf03-halo);
+}
+
+.access-table th {
+  background: color-mix(in srgb, var(--color-surface-muted) 74%, var(--decorative-lavender));
+}
+
+.access-table tbody tr:hover {
+  background: color-mix(in srgb, var(--color-surface) 80%, var(--decorative-lavender));
+}
+
+/* ---------------------------------------------------------------------
+   Registration Review
+   --------------------------------------------------------------------- */
+.registration-review__requests {
+  background:
+    radial-gradient(300px 150px at 0% 0%, var(--pastel-halo-primary), transparent 78%),
+    var(--color-surface);
+}
+
+.registration-review__detail {
+  background:
+    radial-gradient(410px 170px at 100% 0%, var(--pastel-halo-info), transparent 80%),
+    var(--color-surface);
+}
+
+.registration-review__request {
+  --request-wash: var(--color-surface);
+  --request-accent: var(--color-neutral);
+  border-color: color-mix(in srgb, var(--request-accent) 11%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface) 94%, var(--request-wash));
+}
+
+.registration-review__request--warning {
+  --request-wash: var(--surface-accent-warning);
+  --request-accent: var(--color-warning);
+}
+
+.registration-review__request--info {
+  --request-wash: var(--surface-accent-info);
+  --request-accent: var(--color-info);
+}
+
+.registration-review__request--success {
+  --request-wash: var(--surface-accent-success);
+  --request-accent: var(--color-success);
+}
+
+.registration-review__request--danger {
+  --request-wash: var(--surface-accent-danger);
+  --request-accent: var(--color-danger);
+}
+
+.registration-review__request.is-selected {
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+  background:
+    radial-gradient(180px 90px at 0% 0%, var(--pastel-halo-primary), transparent 76%),
+    color-mix(in srgb, var(--color-surface) 80%, var(--decorative-lavender));
+  box-shadow: 0 9px 22px var(--pastel-halo-primary);
+}
+
+.registration-review__status--warning {
+  color: var(--color-warning);
+  background: var(--surface-accent-warning);
+}
+
+.registration-review__status--info {
+  color: var(--color-info);
+  background: var(--surface-accent-info);
+}
+
+.registration-review__status--success {
+  color: var(--color-success);
+  background: var(--surface-accent-success);
+}
+
+.registration-review__status--danger {
+  color: var(--color-danger);
+  background: var(--surface-accent-danger);
+}
+
+.registration-review__summary {
+  position: relative;
+  padding: 18px 18px 22px !important;
+  border-radius: 14px !important;
+  background: color-mix(in srgb, var(--color-surface) 85%, var(--decorative-sky)) !important;
+}
+
+.registration-review__summary + .registration-review__progress-wrap {
+  margin-top: 22px;
+}
+
+.registration-review__employee-workspace {
+  padding: 22px 18px !important;
+  border-radius: 14px !important;
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--decorative-lavender)) !important;
+}
+
+.registration-review__progress li.is-active > span {
+  color: white;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  box-shadow: 0 6px 16px var(--pastel-halo-primary);
+}
+
+.registration-review__progress li.is-complete > span {
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 26%, transparent);
+  background: var(--surface-accent-success);
+}
+
+.registration-review__progress li.is-upcoming > span {
+  color: var(--color-text-muted);
+  border-color: color-mix(in srgb, var(--color-primary) 11%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--decorative-lavender));
+}
+
+.registration-review__candidates article.is-selected {
+  border-color: color-mix(in srgb, var(--color-primary) 31%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface) 82%, var(--decorative-lavender));
+  box-shadow: 0 8px 18px var(--pastel-halo-primary);
+}
+
+.registration-review__matched {
+  background: color-mix(in srgb, var(--color-surface) 82%, var(--surface-accent-success));
+  border-color: color-mix(in srgb, var(--color-success) 18%, var(--color-border));
+}
+
+.registration-review__comparison {
+  background: color-mix(in srgb, var(--color-surface) 86%, var(--decorative-sky));
+  border-color: color-mix(in srgb, var(--color-info) 15%, var(--color-border));
+}
+
+.registration-review__role-note {
+  background: color-mix(in srgb, var(--color-surface) 85%, var(--decorative-lavender));
+  border-color: color-mix(in srgb, var(--color-primary) 15%, var(--color-border));
+}
+
+/* ---------------------------------------------------------------------
+   Login — richer pastel hero without raster assets
+   --------------------------------------------------------------------- */
+[data-theme="light"] .auth-experience-page {
+  background:
+    radial-gradient(780px 560px at 5% 5%, var(--pastel-page-lavender), transparent 68%),
+    radial-gradient(720px 520px at 95% 2%, var(--pastel-page-peach), transparent 68%),
+    radial-gradient(680px 500px at 7% 96%, var(--pastel-page-blush), transparent 70%),
+    radial-gradient(650px 480px at 94% 96%, var(--pastel-page-sky), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-bg) 88%, var(--decorative-lavender)), color-mix(in srgb, var(--color-bg) 91%, var(--decorative-blush)));
+}
+
+[data-theme="light"] .auth-experience-shell {
+  border-color: color-mix(in srgb, var(--pastel-lavender-300) 42%, var(--vf-border));
+  box-shadow: 0 32px 86px rgba(82, 55, 130, .15), 0 10px 28px var(--pastel-halo-primary);
+}
+
+[data-theme="light"] .auth-brand-panel {
+  background:
+    radial-gradient(520px 390px at 18% 12%, color-mix(in srgb, var(--pastel-lavender-300) 66%, transparent), transparent 70%),
+    radial-gradient(460px 350px at 92% 18%, color-mix(in srgb, var(--pastel-blush-200) 58%, transparent), transparent 70%),
+    radial-gradient(420px 320px at 84% 85%, color-mix(in srgb, var(--pastel-peach-200) 58%, transparent), transparent 72%),
+    radial-gradient(360px 280px at 18% 84%, color-mix(in srgb, var(--pastel-sky-200) 45%, transparent), transparent 72%),
+    linear-gradient(150deg, color-mix(in srgb, var(--pastel-lavender-100) 90%, white), color-mix(in srgb, var(--pastel-blush-100) 72%, white) 56%, color-mix(in srgb, var(--pastel-peach-100) 72%, white));
+}
+
+.auth-brand-panel::before {
+  width: 420px;
+  height: 420px;
+  right: -160px;
+  top: -85px;
+  border: 0;
+  background: radial-gradient(circle, color-mix(in srgb, var(--decorative-blush) 72%, transparent), transparent 68%);
+  filter: blur(14px);
+}
+
+.auth-brand-panel::after {
+  width: 390px;
+  height: 300px;
+  left: -150px;
+  bottom: -100px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--decorative-sky) 78%, transparent), transparent 70%);
+  filter: blur(18px);
+}
+
+.auth-brand,
+.auth-brand-copy,
+.auth-brand-footnote {
+  z-index: 3;
+}
+
+.auth-brand-copy {
+  max-width: 455px;
+  padding-bottom: 180px;
+}
+
+.auth-brand-points span:nth-child(1) {
+  background: color-mix(in srgb, white 70%, var(--decorative-lavender));
+  border-color: color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+
+.auth-brand-points span:nth-child(2) {
+  background: color-mix(in srgb, white 72%, var(--decorative-mint));
+  border-color: color-mix(in srgb, var(--color-success) 13%, transparent);
+}
+
+.auth-brand-points span:nth-child(3) {
+  background: color-mix(in srgb, white 72%, var(--decorative-peach));
+  border-color: color-mix(in srgb, var(--color-attention) 13%, transparent);
+}
+
+.auth-pastel-illustration {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.auth-pastel-city {
+  position: absolute;
+  right: 12%;
+  bottom: 19%;
+  display: flex;
+  height: 190px;
+  align-items: flex-end;
+  gap: 8px;
+  opacity: .92;
+}
+
+.auth-pastel-city i {
+  display: block;
+  width: 38px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 11%, transparent);
+  border-radius: 16px 16px 5px 5px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--decorative-sky) 72%, white), color-mix(in srgb, var(--decorative-lavender) 75%, white));
+  box-shadow: inset 0 0 20px rgba(255,255,255,.46), 0 10px 28px var(--pastel-halo-primary);
+}
+
+.auth-pastel-city i:nth-child(1) { height: 105px; }
+.auth-pastel-city i:nth-child(2) { height: 165px; width: 44px; background: linear-gradient(180deg, color-mix(in srgb, var(--decorative-lavender) 80%, white), color-mix(in srgb, var(--decorative-blush) 70%, white)); }
+.auth-pastel-city i:nth-child(3) { height: 138px; width: 34px; }
+.auth-pastel-city i:nth-child(4) { height: 92px; width: 30px; background: linear-gradient(180deg, color-mix(in srgb, var(--decorative-peach) 68%, white), color-mix(in srgb, var(--decorative-blush) 66%, white)); }
+
+.auth-pastel-cloud {
+  position: absolute;
+  height: 56px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.62);
+  box-shadow: 0 12px 34px rgba(102,76,151,.08);
+  filter: blur(.2px);
+}
+
+.auth-pastel-cloud::before,
+.auth-pastel-cloud::after {
+  content: "";
+  position: absolute;
+  bottom: 8px;
+  border-radius: 50%;
+  background: inherit;
+}
+
+.auth-pastel-cloud::before { width: 70px; height: 70px; left: 18px; }
+.auth-pastel-cloud::after { width: 48px; height: 48px; right: 24px; }
+.auth-pastel-cloud--one { width: 170px; left: 9%; bottom: 12%; }
+.auth-pastel-cloud--two { width: 150px; right: 7%; bottom: 8%; background: color-mix(in srgb, rgba(255,255,255,.65) 74%, var(--decorative-blush)); }
+
+.auth-pastel-shield {
+  position: absolute;
+  right: 16%;
+  bottom: 8.5%;
+  display: grid;
+  width: 150px;
+  height: 176px;
+  place-items: center;
+  clip-path: polygon(50% 0%, 90% 16%, 86% 63%, 50% 100%, 14% 63%, 10% 16%);
+  background: linear-gradient(155deg, var(--pastel-violet-300), var(--pastel-violet-600) 58%, var(--pastel-blush-300));
+  box-shadow: 0 26px 58px var(--pastel-halo-primary);
+}
+
+.auth-pastel-shield::before {
+  content: "";
+  position: absolute;
+  inset: 13px;
+  clip-path: inherit;
+  background: linear-gradient(145deg, rgba(255,255,255,.68), rgba(255,255,255,.18));
+}
+
+.auth-pastel-shield span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 66px;
+  height: 66px;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.45);
+  border-radius: 50%;
+  color: white;
+  background: rgba(255,255,255,.20);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 10px 30px rgba(79,54,161,.16);
+}
+
+.auth-pastel-gem {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  transform: rotate(45deg);
+  border-radius: 5px;
+  background: var(--pastel-sky-300);
+  box-shadow: 0 7px 18px var(--pastel-halo-info);
+}
+
+.auth-pastel-gem--one { right: 11%; bottom: 31%; background: var(--pastel-peach-300); }
+.auth-pastel-gem--two { right: 42%; bottom: 11%; background: var(--pastel-mint-300); }
+.auth-pastel-gem--three { right: 5%; bottom: 11%; background: var(--pastel-blush-300); }
+
+[data-theme="light"] .auth-card-panel {
+  background:
+    radial-gradient(430px 280px at 100% 0%, color-mix(in srgb, var(--pastel-lavender-200) 25%, transparent), transparent 78%),
+    radial-gradient(340px 240px at 100% 100%, color-mix(in srgb, var(--pastel-peach-200) 18%, transparent), transparent 80%),
+    var(--color-surface);
+}
+
+.auth-primary-action {
+  background: linear-gradient(90deg, var(--pastel-violet-600), var(--pastel-violet-500));
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--pastel-violet-600) 22%, transparent);
+}
+
+[data-theme="dark"] .auth-brand-panel {
+  background:
+    radial-gradient(520px 390px at 16% 12%, rgba(139,124,246,.26), transparent 70%),
+    radial-gradient(460px 350px at 92% 18%, rgba(244,114,182,.10), transparent 72%),
+    radial-gradient(420px 320px at 84% 86%, rgba(34,211,238,.07), transparent 72%),
+    linear-gradient(145deg, var(--color-bg), color-mix(in srgb, var(--color-bg) 82%, var(--decorative-sky)) 60%, color-mix(in srgb, var(--color-bg) 75%, var(--decorative-lavender)) 115%);
+}
+
+[data-theme="dark"] .auth-pastel-city {
+  opacity: .48;
+}
+
+[data-theme="dark"] .auth-pastel-city i {
+  background: linear-gradient(180deg, rgba(34,211,238,.12), rgba(139,124,246,.16));
+  border-color: rgba(139,124,246,.18);
+  box-shadow: inset 0 0 18px rgba(255,255,255,.025), 0 10px 28px rgba(0,0,0,.18);
+}
+
+[data-theme="dark"] .auth-pastel-city i:nth-child(2) {
+  background: linear-gradient(180deg, rgba(139,124,246,.20), rgba(244,114,182,.08));
+}
+
+[data-theme="dark"] .auth-pastel-city i:nth-child(4) {
+  background: linear-gradient(180deg, rgba(228,173,89,.12), rgba(244,114,182,.07));
+}
+
+[data-theme="dark"] .auth-pastel-cloud {
+  background: rgba(129, 142, 176, .07);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .auth-pastel-shield {
+  background: linear-gradient(155deg, color-mix(in srgb, var(--color-primary) 78%, white), var(--color-primary) 58%, color-mix(in srgb, var(--color-primary) 68%, var(--decorative-blush-ink)));
+  box-shadow: 0 24px 56px rgba(93,70,212,.16);
+}
+
+/* ---------------------------------------------------------------------
+   Mobile preserves VF-02 single-column geometry; only compact pastel ornament changes.
+   --------------------------------------------------------------------- */
+@media (max-width: 760px) {
+  [data-theme="light"] body {
+    background-image:
+      radial-gradient(520px 410px at 7% -2%, var(--pastel-page-lavender), transparent 72%),
+      radial-gradient(440px 360px at 100% 8%, var(--pastel-page-peach), transparent 73%),
+      radial-gradient(420px 340px at 0% 100%, var(--pastel-page-blush), transparent 74%),
+      radial-gradient(390px 320px at 100% 100%, var(--pastel-page-sky), transparent 74%),
+      var(--ambient-page);
+  }
+
+  .auth-pastel-illustration {
+    display: none !important;
+  }
+
+  [data-theme="light"] .auth-card-panel {
+    background:
+      radial-gradient(300px 210px at 0% 0%, color-mix(in srgb, var(--pastel-lavender-200) 34%, transparent), transparent 74%),
+      radial-gradient(280px 190px at 100% 0%, color-mix(in srgb, var(--pastel-blush-200) 27%, transparent), transparent 75%),
+      radial-gradient(260px 180px at 100% 100%, color-mix(in srgb, var(--pastel-sky-200) 20%, transparent), transparent 78%),
+      var(--color-surface);
+  }
+
+  .auth-mobile-brand {
+    position: relative;
+  }
+
+  .auth-mobile-brand::after {
+    content: "";
+    position: absolute;
+    right: 94px;
+    top: 4px;
+    width: 50px;
+    height: 50px;
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at 30% 30%, var(--decorative-blush), transparent 64%),
+      radial-gradient(circle at 70% 70%, var(--decorative-sky), transparent 66%);
+    filter: blur(1px);
+    opacity: .76;
+  }
+
+  .dashboard-secondary-metric {
+    padding-left: 24px;
+  }
+
+  .dashboard-secondary-metric::before {
+    left: 12px;
+  }
+
+  .registration-review__summary,
+  .registration-review__employee-workspace {
+    padding-inline: 14px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-pastel-illustration *,
+  .dashboard-metric,
+  .dashboard-quick-actions__grid button {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+/* VF-03 final specificity reconciliation: preserve colored midnight glows over VF-02 generic dark surfaces. */
+[data-theme="dark"] .personnel-metric,
+[data-theme="dark"] .access-summary-card {
+  background:
+    radial-gradient(210px 132px at 0% 0%, color-mix(in srgb, var(--vf03-accent) 16%, transparent), transparent 74%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 93%, var(--vf03-wash)), var(--color-surface-subtle));
+}
+
+.personnel-table.data-surface-table thead th,
+.access-table.data-surface-table thead th {
+  background: color-mix(in srgb, var(--color-surface-muted) 76%, var(--decorative-lavender));
+}
+
+
+/* =====================================================================
+   G04.2 VF-04 — Mockup Lock
+   Pastel Airy Light + Aurora Midnight Dark.
+   Presentation-only intensity/depth correction over the accepted VF-02/VF-03
+   structure. Semantic business status meanings remain unchanged.
+   ===================================================================== */
+
+/* Environmental light: broad fields, no hard blobs. */
+[data-theme="light"] body {
+  background-image:
+    radial-gradient(1180px 760px at -7% -10%, var(--pastel-page-lavender), transparent 70%),
+    radial-gradient(980px 680px at 108% -4%, var(--pastel-page-peach), transparent 72%),
+    radial-gradient(900px 650px at -5% 92%, var(--pastel-page-blush), transparent 73%),
+    radial-gradient(880px 620px at 106% 88%, var(--pastel-page-sky), transparent 74%),
+    radial-gradient(760px 540px at 52% 45%, var(--pastel-page-mint), transparent 80%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-bg) 88%, var(--decorative-lavender)), var(--color-bg) 48%, color-mix(in srgb, var(--color-bg) 91%, var(--decorative-blush)));
+  background-attachment: fixed;
+}
+
+[data-theme="dark"] body {
+  background-image:
+    radial-gradient(1320px 900px at -10% -12%, var(--pastel-page-lavender), transparent 68%),
+    radial-gradient(1120px 780px at 110% 24%, var(--pastel-page-sky), transparent 70%),
+    radial-gradient(980px 720px at -8% 62%, var(--pastel-page-mint), transparent 74%),
+    radial-gradient(1180px 820px at 50% 112%, var(--pastel-page-blush), transparent 69%),
+    radial-gradient(760px 560px at 86% 88%, var(--pastel-page-peach), transparent 76%),
+    linear-gradient(180deg, var(--color-bg) 0%, color-mix(in srgb, var(--color-bg) 78%, var(--color-surface-subtle)) 54%, var(--color-bg) 100%);
+  background-attachment: fixed;
+}
+
+/* Shell: Violet remains the stable brand anchor; Dark gains visible Aurora reflection. */
+[data-theme="light"] .sidebar {
+  background:
+    radial-gradient(420px 280px at -5% -4%, color-mix(in srgb, var(--decorative-lavender) 70%, transparent), transparent 72%),
+    radial-gradient(320px 240px at 112% 22%, color-mix(in srgb, var(--decorative-blush) 45%, transparent), transparent 76%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-sidebar-bg-strong) 96%, var(--decorative-lavender)), var(--color-sidebar-bg));
+}
+
+[data-theme="dark"] .sidebar {
+  background:
+    radial-gradient(520px 380px at -12% -6%, color-mix(in srgb, var(--color-primary) 21%, transparent), transparent 72%),
+    radial-gradient(420px 320px at 120% 22%, color-mix(in srgb, var(--decorative-blush) 88%, transparent), transparent 76%),
+    radial-gradient(440px 340px at 30% 108%, color-mix(in srgb, var(--decorative-sky) 58%, transparent), transparent 78%),
+    linear-gradient(180deg, var(--color-sidebar-bg-strong), var(--color-sidebar-bg));
+  box-shadow: inset -1px 0 0 var(--color-sidebar-border), 14px 0 42px color-mix(in srgb, var(--color-primary) 7%, transparent);
+}
+
+[data-theme="dark"] .sidebar-brand .brand-mark {
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--color-primary) 28%, transparent), 0 0 30px color-mix(in srgb, var(--decorative-blush) 44%, transparent);
+}
+
+[data-theme="dark"] .nav-item.active {
+  border-color: color-mix(in srgb, var(--color-primary) 44%, transparent);
+  background:
+    radial-gradient(150px 90px at 5% 50%, color-mix(in srgb, var(--decorative-blush) 76%, transparent), transparent 80%),
+    linear-gradient(105deg, color-mix(in srgb, var(--color-primary) 62%, var(--color-surface-elevated)), color-mix(in srgb, var(--color-primary) 32%, var(--color-surface)));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--color-primary) 18%, transparent), inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+[data-theme="light"] .nav-item.active {
+  background:
+    radial-gradient(150px 90px at 3% 50%, color-mix(in srgb, var(--pastel-lavender-300) 43%, transparent), transparent 82%),
+    linear-gradient(100deg, color-mix(in srgb, var(--pastel-lavender-100) 88%, white), color-mix(in srgb, var(--pastel-blush-100) 72%, white));
+}
+
+[data-theme="dark"] .topbar {
+  border-color: color-mix(in srgb, var(--color-primary) 15%, var(--color-border));
+  background:
+    radial-gradient(520px 150px at 8% -12%, color-mix(in srgb, var(--color-primary) 16%, transparent), transparent 72%),
+    radial-gradient(420px 140px at 102% 2%, color-mix(in srgb, var(--decorative-sky) 82%, transparent), transparent 76%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-elevated) 92%, var(--decorative-lavender)), var(--color-surface));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .30), 0 8px 30px color-mix(in srgb, var(--color-primary) 7%, transparent);
+}
+
+[data-theme="light"] .topbar {
+  background:
+    radial-gradient(480px 140px at 8% -8%, color-mix(in srgb, var(--decorative-lavender) 52%, transparent), transparent 74%),
+    radial-gradient(380px 130px at 100% 0%, color-mix(in srgb, var(--decorative-peach) 39%, transparent), transparent 76%),
+    var(--vf-glass);
+  box-shadow: 0 14px 42px rgba(49, 36, 82, .09), 0 7px 24px var(--pastel-halo-primary);
+}
+
+[data-theme="dark"] .theme-control button.is-active,
+[data-theme="dark"] .theme-control button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--surface-accent-primary) 86%, var(--color-surface-elevated));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 22%, transparent), 0 6px 20px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+/* Dashboard mockup lock: stronger partial illumination without solid-color cards. */
+[data-theme="light"] .dashboard-metric {
+  background:
+    radial-gradient(260px 175px at -2% -4%, color-mix(in srgb, var(--vf03-accent) 20%, transparent), transparent 72%),
+    linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 84%, var(--vf03-wash)), var(--color-surface) 76%);
+  box-shadow: 0 16px 38px var(--vf03-halo), var(--shadow-sm);
+}
+
+[data-theme="dark"] .dashboard-metric {
+  border-color: color-mix(in srgb, var(--vf03-accent) 20%, var(--color-border));
+  background:
+    radial-gradient(320px 215px at -4% -6%, color-mix(in srgb, var(--vf03-accent) 29%, transparent), transparent 69%),
+    radial-gradient(220px 150px at 100% 100%, color-mix(in srgb, var(--vf03-accent) 8%, transparent), transparent 76%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-elevated) 91%, var(--vf03-wash)), var(--color-surface-subtle));
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--vf03-accent) 10%, transparent), var(--shadow-sm);
+}
+
+[data-theme="dark"] .dashboard-metric__icon,
+[data-theme="dark"] .dashboard-metric--urgent .dashboard-metric__icon {
+  background: color-mix(in srgb, var(--vf03-accent) 25%, var(--color-surface-elevated));
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--vf03-accent) 22%, transparent);
+}
+
+[data-theme="light"] .dashboard-today-operations {
+  background:
+    radial-gradient(440px 230px at -4% -8%, color-mix(in srgb, var(--decorative-mint) 68%, transparent), transparent 75%),
+    radial-gradient(320px 190px at 102% 100%, color-mix(in srgb, var(--decorative-sky) 48%, transparent), transparent 78%),
+    linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 91%, var(--surface-accent-success)), var(--color-surface));
+}
+
+[data-theme="light"] .dashboard-attention {
+  background:
+    radial-gradient(420px 220px at 105% -8%, color-mix(in srgb, var(--decorative-cream) 64%, transparent), transparent 76%),
+    radial-gradient(330px 200px at -4% 108%, color-mix(in srgb, var(--decorative-blush) 50%, transparent), transparent 78%),
+    var(--color-surface);
+}
+
+[data-theme="dark"] .dashboard-today-operations {
+  background:
+    radial-gradient(480px 260px at -7% -10%, color-mix(in srgb, var(--color-success) 17%, transparent), transparent 74%),
+    radial-gradient(360px 210px at 104% 104%, color-mix(in srgb, var(--color-info) 10%, transparent), transparent 78%),
+    linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface-subtle));
+}
+
+[data-theme="dark"] .dashboard-attention {
+  background:
+    radial-gradient(460px 250px at 106% -8%, color-mix(in srgb, var(--color-warning) 18%, transparent), transparent 74%),
+    radial-gradient(360px 220px at -5% 106%, color-mix(in srgb, var(--color-danger) 15%, transparent), transparent 77%),
+    linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface-subtle));
+}
+
+[data-theme="dark"] .dashboard-attention-row__icon--urgent,
+[data-theme="dark"] .dashboard-attention-row__icon--warning,
+[data-theme="dark"] .dashboard-attention-row__icon--follow-up {
+  box-shadow: 0 5px 18px color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.dashboard-quick-actions {
+  position: relative;
+  overflow: hidden;
+}
+
+[data-theme="light"] .dashboard-quick-actions {
+  background:
+    radial-gradient(560px 230px at -3% -8%, color-mix(in srgb, var(--decorative-lavender) 72%, transparent), transparent 76%),
+    radial-gradient(430px 200px at 104% 108%, color-mix(in srgb, var(--decorative-sky) 46%, transparent), transparent 78%),
+    var(--color-surface);
+  box-shadow: 0 16px 38px var(--pastel-halo-primary), var(--shadow-sm);
+}
+
+[data-theme="dark"] .dashboard-quick-actions {
+  border-color: color-mix(in srgb, var(--color-primary) 16%, var(--color-border));
+  background:
+    radial-gradient(620px 270px at -5% -12%, color-mix(in srgb, var(--color-primary) 15%, transparent), transparent 74%),
+    radial-gradient(500px 240px at 105% 106%, color-mix(in srgb, var(--color-info) 9%, transparent), transparent 78%),
+    linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface));
+  box-shadow: 0 18px 48px rgba(0,0,0,.27), 0 10px 34px color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+[data-theme="light"] .dashboard-quick-actions__grid button {
+  background:
+    radial-gradient(210px 120px at -5% -8%, color-mix(in srgb, var(--quick-accent) 14%, transparent), transparent 76%),
+    color-mix(in srgb, var(--color-surface) 90%, var(--quick-wash));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--quick-accent) 4%, transparent);
+}
+
+[data-theme="dark"] .dashboard-quick-actions__grid button {
+  border-color: color-mix(in srgb, var(--quick-accent) 18%, var(--color-border));
+  background:
+    radial-gradient(270px 155px at -6% -10%, color-mix(in srgb, var(--quick-accent) 20%, transparent), transparent 72%),
+    radial-gradient(180px 120px at 100% 100%, color-mix(in srgb, var(--quick-accent) 6%, transparent), transparent 78%),
+    color-mix(in srgb, var(--color-surface-elevated) 92%, var(--quick-wash));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--quick-accent) 7%, transparent);
+}
+
+[data-theme="dark"] .dashboard-quick-actions__grid button > span {
+  background: color-mix(in srgb, var(--quick-accent) 24%, var(--color-surface-elevated));
+  box-shadow: 0 7px 22px color-mix(in srgb, var(--quick-accent) 20%, transparent);
+}
+
+/* Personnel: premium context temperature while the operational table stays neutral. */
+.personnel-summary-grid {
+  position: relative;
+}
+
+[data-theme="light"] .personnel-summary-grid {
+  filter: drop-shadow(0 12px 26px color-mix(in srgb, var(--color-primary) 4%, transparent));
+}
+
+[data-theme="light"] .personnel-metric {
+  background:
+    radial-gradient(230px 145px at -3% -6%, color-mix(in srgb, var(--vf03-accent) 19%, transparent), transparent 72%),
+    linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 84%, var(--vf03-wash)), var(--color-surface));
+}
+
+[data-theme="dark"] .personnel-metric {
+  border-color: color-mix(in srgb, var(--vf03-accent) 18%, var(--color-border));
+  background:
+    radial-gradient(270px 170px at -5% -8%, color-mix(in srgb, var(--vf03-accent) 25%, transparent), transparent 71%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-elevated) 92%, var(--vf03-wash)), var(--color-surface-subtle));
+  box-shadow: 0 14px 36px color-mix(in srgb, var(--vf03-accent) 8%, transparent), var(--shadow-sm);
+}
+
+[data-theme="light"] .personnel-table.data-surface-table thead th {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-surface-muted) 62%, var(--decorative-lavender)), color-mix(in srgb, var(--color-surface-muted) 76%, var(--decorative-sky)));
+}
+
+/* Access: balanced five-card desktop row and stronger semantic identities. */
+@media (min-width: 1181px) {
+  .access-summary-grid:not(.access-summary-grid--manager) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+[data-theme="light"] .access-summary-card {
+  background:
+    radial-gradient(230px 145px at -3% -6%, color-mix(in srgb, var(--vf03-accent) 18%, transparent), transparent 72%),
+    linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 84%, var(--vf03-wash)), var(--color-surface));
+}
+
+[data-theme="dark"] .access-summary-card {
+  border-color: color-mix(in srgb, var(--vf03-accent) 19%, var(--color-border));
+  background:
+    radial-gradient(270px 170px at -5% -8%, color-mix(in srgb, var(--vf03-accent) 26%, transparent), transparent 71%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-elevated) 92%, var(--vf03-wash)), var(--color-surface-subtle));
+  box-shadow: 0 14px 36px color-mix(in srgb, var(--vf03-accent) 8%, transparent), var(--shadow-sm);
+}
+
+[data-theme="dark"] .access-summary-icon,
+[data-theme="dark"] .personnel-metric__icon {
+  background: color-mix(in srgb, var(--vf03-accent) 25%, var(--color-surface-elevated));
+  box-shadow: 0 7px 22px color-mix(in srgb, var(--vf03-accent) 20%, transparent);
+}
+
+/* Registration Review: color separates contexts; spacing/dividers still do the structural work. */
+[data-theme="light"] .registration-review__requests {
+  background:
+    radial-gradient(420px 220px at -4% -8%, color-mix(in srgb, var(--decorative-lavender) 82%, transparent), transparent 74%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 91%, var(--decorative-lavender)), var(--color-surface));
+}
+
+[data-theme="light"] .registration-review__detail {
+  background:
+    radial-gradient(520px 240px at 103% -8%, color-mix(in srgb, var(--decorative-sky) 70%, transparent), transparent 75%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 94%, var(--decorative-sky)), var(--color-surface));
+}
+
+[data-theme="light"] .registration-review__summary {
+  background: color-mix(in srgb, var(--color-surface) 72%, var(--decorative-sky)) !important;
+}
+
+[data-theme="light"] .registration-review__employee-workspace {
+  background:
+    radial-gradient(320px 160px at 100% 0%, color-mix(in srgb, var(--decorative-mint) 48%, transparent), transparent 76%),
+    color-mix(in srgb, var(--color-surface) 74%, var(--decorative-lavender)) !important;
+}
+
+[data-theme="light"] .registration-review__request.is-selected {
+  border-color: color-mix(in srgb, var(--color-primary) 38%, var(--color-border));
+  background:
+    radial-gradient(220px 110px at 0% 0%, color-mix(in srgb, var(--decorative-blush) 42%, transparent), transparent 78%),
+    color-mix(in srgb, var(--color-surface) 69%, var(--decorative-lavender));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+[data-theme="dark"] .registration-review__requests {
+  border-color: color-mix(in srgb, var(--color-primary) 16%, var(--color-border));
+  background:
+    radial-gradient(470px 240px at -5% -8%, color-mix(in srgb, var(--color-primary) 17%, transparent), transparent 73%),
+    linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface-subtle));
+}
+
+[data-theme="dark"] .registration-review__detail {
+  background:
+    radial-gradient(540px 260px at 104% -8%, color-mix(in srgb, var(--color-info) 13%, transparent), transparent 74%),
+    linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface));
+}
+
+[data-theme="dark"] .registration-review__summary {
+  background: color-mix(in srgb, var(--color-surface-elevated) 87%, var(--surface-accent-info)) !important;
+}
+
+[data-theme="dark"] .registration-review__employee-workspace {
+  background:
+    radial-gradient(360px 180px at 100% 0%, color-mix(in srgb, var(--color-success) 9%, transparent), transparent 76%),
+    color-mix(in srgb, var(--color-surface-elevated) 88%, var(--surface-accent-primary)) !important;
+}
+
+[data-theme="dark"] .registration-review__request.is-selected {
+  border-color: color-mix(in srgb, var(--color-primary) 49%, var(--color-border));
+  background:
+    radial-gradient(240px 130px at -3% -5%, color-mix(in srgb, var(--color-primary) 27%, transparent), transparent 72%),
+    color-mix(in srgb, var(--color-surface-elevated) 82%, var(--surface-accent-primary));
+  box-shadow: 0 11px 30px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+/* Login keeps accepted composition; only environmental depth is raised. */
+[data-theme="light"] .auth-experience-page {
+  background:
+    radial-gradient(980px 720px at -7% -7%, var(--pastel-page-lavender), transparent 68%),
+    radial-gradient(820px 620px at 106% -4%, var(--pastel-page-peach), transparent 70%),
+    radial-gradient(760px 580px at -4% 104%, var(--pastel-page-blush), transparent 70%),
+    radial-gradient(760px 560px at 104% 102%, var(--pastel-page-sky), transparent 72%),
+    radial-gradient(620px 470px at 48% 48%, var(--pastel-page-mint), transparent 80%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-bg) 83%, var(--decorative-lavender)), color-mix(in srgb, var(--color-bg) 87%, var(--decorative-blush)));
+}
+
+[data-theme="light"] .auth-brand-panel {
+  background:
+    radial-gradient(620px 450px at 12% 7%, color-mix(in srgb, var(--pastel-lavender-300) 76%, transparent), transparent 68%),
+    radial-gradient(540px 410px at 100% 17%, color-mix(in srgb, var(--pastel-blush-200) 69%, transparent), transparent 69%),
+    radial-gradient(500px 370px at 90% 90%, color-mix(in srgb, var(--pastel-peach-200) 67%, transparent), transparent 71%),
+    radial-gradient(460px 350px at 4% 88%, color-mix(in srgb, var(--pastel-sky-200) 58%, transparent), transparent 72%),
+    linear-gradient(150deg, color-mix(in srgb, var(--pastel-lavender-100) 86%, white), color-mix(in srgb, var(--pastel-blush-100) 74%, white) 55%, color-mix(in srgb, var(--pastel-peach-100) 76%, white));
+}
+
+[data-theme="dark"] .auth-experience-page {
+  background:
+    radial-gradient(1320px 900px at -15% -12%, color-mix(in srgb, var(--color-primary) 25%, transparent), transparent 68%),
+    radial-gradient(1080px 760px at 108% 34%, color-mix(in srgb, var(--color-info) 14%, transparent), transparent 70%),
+    radial-gradient(1080px 760px at -5% 70%, color-mix(in srgb, var(--color-success) 9%, transparent), transparent 74%),
+    radial-gradient(1180px 820px at 50% 116%, color-mix(in srgb, var(--decorative-blush) 92%, transparent), transparent 68%),
+    linear-gradient(145deg, var(--color-bg), color-mix(in srgb, var(--color-bg) 72%, var(--color-surface)) 58%, var(--color-bg));
+}
+
+[data-theme="dark"] .auth-brand-panel {
+  background:
+    radial-gradient(660px 480px at 9% 8%, color-mix(in srgb, var(--color-primary) 26%, transparent), transparent 68%),
+    radial-gradient(560px 420px at 103% 14%, color-mix(in srgb, var(--decorative-blush) 94%, transparent), transparent 70%),
+    radial-gradient(520px 400px at 94% 88%, color-mix(in srgb, var(--color-info) 13%, transparent), transparent 72%),
+    radial-gradient(440px 340px at 12% 88%, color-mix(in srgb, var(--color-success) 8%, transparent), transparent 74%),
+    linear-gradient(145deg, var(--color-sidebar-bg-strong), color-mix(in srgb, var(--color-sidebar-bg) 83%, var(--decorative-sky)) 62%, color-mix(in srgb, var(--color-sidebar-bg) 83%, var(--decorative-lavender)));
+}
+
+[data-theme="dark"] .auth-card-panel {
+  border-color: color-mix(in srgb, var(--color-primary) 15%, var(--color-border));
+  background:
+    radial-gradient(520px 300px at 100% -4%, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 76%),
+    radial-gradient(420px 260px at 100% 108%, color-mix(in srgb, var(--color-info) 6%, transparent), transparent 78%),
+    linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface));
+  box-shadow: 0 28px 72px rgba(0,0,0,.40), 0 12px 38px color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+[data-theme="dark"] .auth-pastel-shield {
+  box-shadow: 0 30px 74px color-mix(in srgb, var(--color-primary) 24%, transparent), 0 8px 42px color-mix(in srgb, var(--decorative-blush) 62%, transparent);
+}
+
+/* Mobile carries the same personality instead of collapsing to neutral surfaces. */
+@media (max-width: 760px) {
+  [data-theme="light"] body {
+    background-image:
+      radial-gradient(620px 470px at -12% -5%, var(--pastel-page-lavender), transparent 70%),
+      radial-gradient(520px 410px at 112% 8%, var(--pastel-page-peach), transparent 72%),
+      radial-gradient(520px 410px at -9% 102%, var(--pastel-page-blush), transparent 73%),
+      radial-gradient(500px 390px at 110% 102%, var(--pastel-page-sky), transparent 73%),
+      var(--ambient-page);
+  }
+
+  [data-theme="dark"] body {
+    background-image:
+      radial-gradient(680px 520px at -16% -8%, var(--pastel-page-lavender), transparent 69%),
+      radial-gradient(600px 460px at 116% 28%, var(--pastel-page-sky), transparent 72%),
+      radial-gradient(580px 450px at -10% 76%, var(--pastel-page-mint), transparent 75%),
+      radial-gradient(620px 480px at 48% 112%, var(--pastel-page-blush), transparent 70%),
+      var(--color-bg);
+  }
+
+  [data-theme="dark"] .dashboard-metric,
+  [data-theme="dark"] .personnel-metric,
+  [data-theme="dark"] .access-summary-card {
+    background-size: auto;
+  }
+
+  [data-theme="light"] .auth-card-panel {
+    background:
+      radial-gradient(360px 240px at -5% -5%, color-mix(in srgb, var(--decorative-lavender) 62%, transparent), transparent 73%),
+      radial-gradient(330px 220px at 105% 4%, color-mix(in srgb, var(--decorative-blush) 48%, transparent), transparent 75%),
+      radial-gradient(320px 220px at 100% 105%, color-mix(in srgb, var(--decorative-sky) 38%, transparent), transparent 77%),
+      var(--color-surface);
+  }
+
+  [data-theme="dark"] .auth-card-panel {
+    background:
+      radial-gradient(380px 250px at -8% -5%, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 72%),
+      radial-gradient(340px 230px at 108% 2%, color-mix(in srgb, var(--color-info) 8%, transparent), transparent 74%),
+      radial-gradient(340px 230px at 104% 108%, color-mix(in srgb, var(--decorative-blush) 58%, transparent), transparent 78%),
+      var(--color-surface-elevated);
+  }
+}
+
+
+/* VF-04 mobile palette completion: retain all supporting accents in the first viewport. */
+@media (max-width: 760px) {
+  [data-theme="light"] body {
+    background-image:
+      radial-gradient(620px 470px at -12% -5%, var(--pastel-page-lavender), transparent 70%),
+      radial-gradient(520px 410px at 112% 8%, var(--pastel-page-peach), transparent 72%),
+      radial-gradient(520px 410px at -9% 102%, var(--pastel-page-blush), transparent 73%),
+      radial-gradient(500px 390px at 110% 102%, var(--pastel-page-sky), transparent 73%),
+      radial-gradient(430px 340px at 52% 62%, var(--pastel-page-mint), transparent 80%),
+      var(--ambient-page);
+  }
+
+  [data-theme="dark"] body {
+    background-image:
+      radial-gradient(680px 520px at -16% -8%, var(--pastel-page-lavender), transparent 69%),
+      radial-gradient(600px 460px at 116% 28%, var(--pastel-page-sky), transparent 72%),
+      radial-gradient(580px 450px at -10% 76%, var(--pastel-page-mint), transparent 75%),
+      radial-gradient(620px 480px at 48% 112%, var(--pastel-page-blush), transparent 70%),
+      radial-gradient(440px 350px at 106% 76%, var(--pastel-page-peach), transparent 78%),
+      var(--color-bg);
+  }
+}
+
+
+/* VF-04 visible Aurora anchors: color remains present beyond KPI tiles. */
+[data-theme="dark"] .dashboard-page-v2 {
+  background-image:
+    radial-gradient(900px 520px at -12% 18%, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent 74%),
+    radial-gradient(760px 480px at 112% 34%, color-mix(in srgb, var(--color-info) 5%, transparent), transparent 76%),
+    radial-gradient(720px 440px at 18% 86%, color-mix(in srgb, var(--color-danger) 4.5%, transparent), transparent 78%),
+    radial-gradient(620px 400px at 96% 78%, color-mix(in srgb, var(--color-warning) 3.5%, transparent), transparent 80%);
+}
+
+[data-theme="light"] .dashboard-page-v2 {
+  background-image:
+    radial-gradient(900px 520px at -12% 18%, color-mix(in srgb, var(--decorative-lavender) 36%, transparent), transparent 76%),
+    radial-gradient(720px 440px at 110% 38%, color-mix(in srgb, var(--decorative-sky) 24%, transparent), transparent 78%),
+    radial-gradient(680px 420px at 18% 88%, color-mix(in srgb, var(--decorative-blush) 20%, transparent), transparent 80%);
+}
+
+[data-theme="dark"] .personnel-summary-grid {
+  border-radius: 20px;
+  background:
+    radial-gradient(620px 220px at 4% 50%, color-mix(in srgb, var(--color-primary) 7%, transparent), transparent 72%),
+    radial-gradient(520px 200px at 96% 50%, color-mix(in srgb, var(--color-danger) 4.5%, transparent), transparent 76%),
+    radial-gradient(420px 180px at 52% 100%, color-mix(in srgb, var(--color-info) 3.5%, transparent), transparent 78%);
+}
+
+@media (max-width: 760px) {
+  [data-theme="dark"] .auth-card-panel {
+    background:
+      radial-gradient(380px 250px at -8% -5%, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 72%),
+      radial-gradient(340px 230px at 108% 2%, color-mix(in srgb, var(--color-info) 8%, transparent), transparent 74%),
+      radial-gradient(330px 220px at -5% 105%, color-mix(in srgb, var(--color-warning) 5%, transparent), transparent 78%),
+      radial-gradient(340px 230px at 104% 108%, color-mix(in srgb, var(--decorative-blush) 58%, transparent), transparent 78%),
+      var(--color-surface-elevated);
+  }
+}
+
+
+/* =====================================================================
+   G04.2 VF-05 — Final Mockup Fidelity Closure
+   Cross-product color + atmosphere harmonization.
+   Presentation-only polish over VF-04; no business or information-architecture
+   changes. Login remains the calibration point, not a new visual direction.
+   ===================================================================== */
+
+/* Shared application atmosphere: make signed-in surfaces belong to the same
+   pastel / Aurora environment as Login before individual KPI color is read. */
+[data-theme="light"] .content-area {
+  background-image:
+    radial-gradient(1080px 650px at -12% 2%, color-mix(in srgb, var(--pastel-page-lavender) 64%, transparent), transparent 72%),
+    radial-gradient(900px 580px at 108% 16%, color-mix(in srgb, var(--pastel-page-sky) 48%, transparent), transparent 74%),
+    radial-gradient(850px 560px at 8% 82%, color-mix(in srgb, var(--pastel-page-blush) 42%, transparent), transparent 76%),
+    radial-gradient(760px 520px at 96% 84%, color-mix(in srgb, var(--pastel-page-peach) 40%, transparent), transparent 77%),
+    radial-gradient(680px 470px at 52% 46%, color-mix(in srgb, var(--pastel-page-mint) 34%, transparent), transparent 80%);
+  background-attachment: local;
+}
+
+[data-theme="dark"] .content-area {
+  background-image:
+    radial-gradient(1160px 720px at -14% -2%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 71%),
+    radial-gradient(980px 650px at 112% 20%, color-mix(in srgb, var(--color-info) 7.5%, transparent), transparent 73%),
+    radial-gradient(920px 620px at 6% 78%, color-mix(in srgb, var(--color-danger) 6%, transparent), transparent 76%),
+    radial-gradient(760px 540px at 96% 82%, color-mix(in srgb, var(--color-success) 4.5%, transparent), transparent 78%);
+  background-attachment: local;
+}
+
+/* Shell reflections: moderate lift over VF-04, still deep navy / white-first. */
+[data-theme="light"] .sidebar {
+  box-shadow:
+    inset -1px 0 0 var(--color-sidebar-border),
+    18px 0 48px color-mix(in srgb, var(--pastel-page-lavender) 15%, transparent);
+}
+
+[data-theme="dark"] .sidebar {
+  background:
+    radial-gradient(560px 400px at -12% -6%, color-mix(in srgb, var(--color-primary) 25%, transparent), transparent 72%),
+    radial-gradient(460px 340px at 118% 22%, color-mix(in srgb, var(--decorative-blush) 100%, transparent), transparent 76%),
+    radial-gradient(470px 350px at 34% 108%, color-mix(in srgb, var(--decorative-sky) 72%, transparent), transparent 78%),
+    linear-gradient(180deg, var(--color-sidebar-bg-strong), var(--color-sidebar-bg));
+  box-shadow:
+    inset -1px 0 0 var(--color-sidebar-border),
+    18px 0 52px color-mix(in srgb, var(--color-primary) 9%, transparent),
+    10px 0 42px color-mix(in srgb, var(--color-info) 3.5%, transparent);
+}
+
+[data-theme="light"] .topbar {
+  box-shadow:
+    0 16px 44px rgba(49, 36, 82, .09),
+    0 8px 28px color-mix(in srgb, var(--pastel-page-lavender) 18%, transparent),
+    0 5px 24px color-mix(in srgb, var(--pastel-page-sky) 10%, transparent);
+}
+
+[data-theme="dark"] .topbar {
+  background:
+    radial-gradient(560px 160px at 7% -14%, color-mix(in srgb, var(--color-primary) 20%, transparent), transparent 72%),
+    radial-gradient(470px 150px at 103% 0%, color-mix(in srgb, var(--color-info) 10%, transparent), transparent 76%),
+    radial-gradient(360px 130px at 58% 120%, color-mix(in srgb, var(--color-danger) 4%, transparent), transparent 78%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-elevated) 92%, var(--decorative-lavender)), var(--color-surface));
+  box-shadow:
+    0 18px 48px rgba(0,0,0,.30),
+    0 9px 34px color-mix(in srgb, var(--color-primary) 9%, transparent),
+    0 5px 26px color-mix(in srgb, var(--color-info) 4%, transparent);
+}
+
+/* Major application regions gain environmental temperature without becoming
+   colored containers. KPI saturation stays at the VF-04 level. */
+[data-theme="light"] .dashboard-page-v2,
+[data-theme="light"] .personnel-directory-page,
+[data-theme="light"] .access-management-page,
+[data-theme="light"] .users-access-workspace {
+  border-radius: 24px;
+  background-image:
+    radial-gradient(980px 540px at -10% 8%, color-mix(in srgb, var(--decorative-lavender) 34%, transparent), transparent 76%),
+    radial-gradient(780px 470px at 108% 28%, color-mix(in srgb, var(--decorative-sky) 25%, transparent), transparent 78%),
+    radial-gradient(720px 440px at 16% 94%, color-mix(in srgb, var(--decorative-blush) 19%, transparent), transparent 80%),
+    radial-gradient(620px 390px at 88% 88%, color-mix(in srgb, var(--decorative-mint) 16%, transparent), transparent 82%);
+}
+
+[data-theme="dark"] .dashboard-page-v2,
+[data-theme="dark"] .personnel-directory-page,
+[data-theme="dark"] .access-management-page,
+[data-theme="dark"] .users-access-workspace {
+  border-radius: 24px;
+  background-image:
+    radial-gradient(1040px 590px at -12% 8%, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 74%),
+    radial-gradient(860px 520px at 110% 30%, color-mix(in srgb, var(--color-info) 6.5%, transparent), transparent 76%),
+    radial-gradient(820px 500px at 12% 92%, color-mix(in srgb, var(--color-danger) 5.2%, transparent), transparent 78%),
+    radial-gradient(660px 420px at 92% 86%, color-mix(in srgb, var(--color-success) 4%, transparent), transparent 80%);
+}
+
+/* Dashboard operational surfaces: reflect page atmosphere, not extra saturation. */
+[data-theme="dark"] .dashboard-today-operations,
+[data-theme="dark"] .dashboard-attention,
+[data-theme="dark"] .dashboard-quick-actions {
+  box-shadow:
+    0 18px 46px rgba(0,0,0,.24),
+    0 10px 34px color-mix(in srgb, var(--color-primary) 4.5%, transparent),
+    var(--shadow-sm);
+}
+
+[data-theme="light"] .dashboard-today-operations,
+[data-theme="light"] .dashboard-attention,
+[data-theme="light"] .dashboard-quick-actions {
+  box-shadow:
+    0 17px 40px color-mix(in srgb, var(--pastel-page-lavender) 10%, transparent),
+    0 8px 28px color-mix(in srgb, var(--pastel-page-sky) 7%, transparent),
+    var(--shadow-sm);
+}
+
+/* Quick Access: preserve real SMS V3 modules; make identities obvious through
+   icon tile, local glow and interaction depth while card bases remain calm. */
+[data-theme="light"] .dashboard-quick-actions__grid button {
+  border-color: color-mix(in srgb, var(--quick-accent) 13%, var(--color-border));
+  background:
+    radial-gradient(245px 140px at -6% -10%, color-mix(in srgb, var(--quick-accent) 18%, transparent), transparent 74%),
+    radial-gradient(170px 110px at 102% 104%, color-mix(in srgb, var(--quick-accent) 7%, transparent), transparent 80%),
+    color-mix(in srgb, var(--color-surface) 88%, var(--quick-wash));
+  box-shadow:
+    0 10px 25px color-mix(in srgb, var(--quick-accent) 6%, transparent),
+    var(--shadow-sm);
+}
+
+[data-theme="dark"] .dashboard-quick-actions__grid button {
+  border-color: color-mix(in srgb, var(--quick-accent) 22%, var(--color-border));
+  background:
+    radial-gradient(300px 175px at -7% -12%, color-mix(in srgb, var(--quick-accent) 24%, transparent), transparent 71%),
+    radial-gradient(210px 135px at 102% 104%, color-mix(in srgb, var(--quick-accent) 9%, transparent), transparent 78%),
+    color-mix(in srgb, var(--color-surface-elevated) 93%, var(--quick-wash));
+  box-shadow:
+    0 13px 32px color-mix(in srgb, var(--quick-accent) 10%, transparent),
+    var(--shadow-sm);
+}
+
+[data-theme="light"] .dashboard-quick-actions__grid button > span {
+  background: color-mix(in srgb, var(--quick-accent) 17%, white);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--quick-accent) 13%, transparent);
+}
+
+[data-theme="dark"] .dashboard-quick-actions__grid button > span {
+  background:
+    radial-gradient(circle at 30% 25%, color-mix(in srgb, white 8%, transparent), transparent 52%),
+    color-mix(in srgb, var(--quick-accent) 32%, var(--color-surface-elevated));
+  box-shadow:
+    0 8px 25px color-mix(in srgb, var(--quick-accent) 27%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+}
+
+.dashboard-quick-actions__grid button:hover,
+.dashboard-quick-actions__grid button:focus-visible {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--quick-accent) 34%, var(--color-border));
+  box-shadow:
+    0 16px 36px color-mix(in srgb, var(--quick-accent) 13%, transparent),
+    var(--shadow-md);
+}
+
+/* Personnel + Access atmosphere continuity: neutral operational data remains
+   neutral, while filter/KPI neighborhoods carry the shared product light. */
+[data-theme="light"] .personnel-summary-grid {
+  border-radius: 22px;
+  background:
+    radial-gradient(640px 240px at 4% 50%, color-mix(in srgb, var(--decorative-lavender) 30%, transparent), transparent 74%),
+    radial-gradient(520px 210px at 96% 50%, color-mix(in srgb, var(--decorative-sky) 22%, transparent), transparent 76%);
+}
+
+[data-theme="dark"] .personnel-summary-grid {
+  background:
+    radial-gradient(680px 250px at 4% 50%, color-mix(in srgb, var(--color-primary) 9%, transparent), transparent 72%),
+    radial-gradient(570px 220px at 96% 50%, color-mix(in srgb, var(--color-danger) 6%, transparent), transparent 76%),
+    radial-gradient(470px 200px at 52% 100%, color-mix(in srgb, var(--color-info) 5%, transparent), transparent 78%);
+}
+
+[data-theme="light"] .access-summary-grid:not(.access-summary-grid--manager) {
+  border-radius: 22px;
+  background:
+    radial-gradient(780px 250px at 3% 50%, color-mix(in srgb, var(--decorative-lavender) 27%, transparent), transparent 75%),
+    radial-gradient(610px 220px at 97% 50%, color-mix(in srgb, var(--decorative-peach) 24%, transparent), transparent 77%);
+}
+
+[data-theme="dark"] .access-summary-grid:not(.access-summary-grid--manager) {
+  border-radius: 22px;
+  background:
+    radial-gradient(820px 260px at 2% 50%, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent 74%),
+    radial-gradient(640px 230px at 98% 50%, color-mix(in srgb, var(--color-info) 5%, transparent), transparent 77%),
+    radial-gradient(520px 210px at 52% 106%, color-mix(in srgb, var(--color-danger) 3.5%, transparent), transparent 79%);
+}
+
+/* Registration Review final softening: lower passive-box contrast and let
+   spacing/dividers/context colors carry grouping. Workflow/semantics unchanged. */
+[data-theme="light"] .registration-review__requests {
+  background:
+    radial-gradient(520px 260px at -6% -10%, color-mix(in srgb, var(--decorative-lavender) 92%, transparent), transparent 74%),
+    radial-gradient(360px 210px at 104% 104%, color-mix(in srgb, var(--decorative-blush) 30%, transparent), transparent 78%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 90%, var(--decorative-lavender)), var(--color-surface));
+}
+
+[data-theme="light"] .registration-review__detail {
+  background:
+    radial-gradient(620px 290px at 105% -10%, color-mix(in srgb, var(--decorative-sky) 82%, transparent), transparent 75%),
+    radial-gradient(500px 250px at -6% 106%, color-mix(in srgb, var(--decorative-mint) 34%, transparent), transparent 79%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 93%, var(--decorative-sky)), var(--color-surface));
+}
+
+[data-theme="dark"] .registration-review__requests {
+  background:
+    radial-gradient(560px 280px at -7% -10%, color-mix(in srgb, var(--color-primary) 21%, transparent), transparent 73%),
+    radial-gradient(400px 230px at 104% 104%, color-mix(in srgb, var(--color-danger) 5%, transparent), transparent 78%),
+    linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface-subtle));
+}
+
+[data-theme="dark"] .registration-review__detail {
+  background:
+    radial-gradient(650px 310px at 106% -10%, color-mix(in srgb, var(--color-info) 16%, transparent), transparent 74%),
+    radial-gradient(520px 260px at -7% 106%, color-mix(in srgb, var(--color-success) 5%, transparent), transparent 79%),
+    linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface));
+}
+
+.registration-review__facts > div,
+.registration-review__compare-grid dl > div {
+  border-color: color-mix(in srgb, var(--color-border) 72%, transparent);
+  background: color-mix(in srgb, var(--color-surface-subtle) 58%, transparent);
+  box-shadow: none;
+}
+
+[data-theme="light"] .registration-review__facts > div,
+[data-theme="light"] .registration-review__compare-grid dl > div {
+  background: color-mix(in srgb, var(--color-surface) 76%, var(--decorative-sky));
+}
+
+[data-theme="dark"] .registration-review__facts > div,
+[data-theme="dark"] .registration-review__compare-grid dl > div {
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+}
+
+.registration-review__search input {
+  border-color: color-mix(in srgb, var(--color-border-strong) 64%, transparent);
+  background: color-mix(in srgb, var(--color-surface-elevated) 78%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 3%, transparent);
+}
+
+.registration-review__candidates article,
+.registration-review__compare-grid article {
+  border-color: color-mix(in srgb, var(--color-border) 72%, transparent);
+  box-shadow: none;
+}
+
+[data-theme="light"] .registration-review__employee-workspace {
+  background:
+    radial-gradient(440px 210px at 103% -5%, color-mix(in srgb, var(--decorative-mint) 56%, transparent), transparent 76%),
+    radial-gradient(360px 190px at -5% 104%, color-mix(in srgb, var(--decorative-lavender) 42%, transparent), transparent 78%),
+    color-mix(in srgb, var(--color-surface) 80%, var(--decorative-sky)) !important;
+}
+
+[data-theme="dark"] .registration-review__employee-workspace {
+  background:
+    radial-gradient(460px 220px at 103% -5%, color-mix(in srgb, var(--color-success) 11%, transparent), transparent 76%),
+    radial-gradient(390px 200px at -5% 104%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 78%),
+    color-mix(in srgb, var(--color-surface-elevated) 90%, var(--surface-accent-info)) !important;
+}
+
+.registration-review__summary,
+.registration-review__progress-wrap,
+.registration-review__employee-workspace,
+.registration-review__comparison,
+.registration-review__approval {
+  border-color: color-mix(in srgb, var(--color-border) 76%, transparent);
+}
+
+.registration-review__match-action,
+.registration-review__approval {
+  border-top-color: color-mix(in srgb, var(--color-border) 68%, transparent);
+}
+
+/* Mobile: preserve accepted geometry, only carry the same environmental wash. */
+@media (max-width: 760px) {
+  [data-theme="light"] .content-area {
+    background-image:
+      radial-gradient(660px 500px at -18% -5%, color-mix(in srgb, var(--pastel-page-lavender) 72%, transparent), transparent 70%),
+      radial-gradient(560px 430px at 118% 22%, color-mix(in srgb, var(--pastel-page-sky) 52%, transparent), transparent 72%),
+      radial-gradient(540px 420px at -12% 92%, color-mix(in srgb, var(--pastel-page-blush) 46%, transparent), transparent 74%),
+      radial-gradient(480px 390px at 112% 90%, color-mix(in srgb, var(--pastel-page-peach) 40%, transparent), transparent 76%);
+  }
+
+  [data-theme="dark"] .content-area {
+    background-image:
+      radial-gradient(720px 540px at -20% -8%, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 69%),
+      radial-gradient(620px 480px at 120% 26%, color-mix(in srgb, var(--color-info) 8%, transparent), transparent 72%),
+      radial-gradient(600px 460px at -12% 88%, color-mix(in srgb, var(--color-danger) 6.5%, transparent), transparent 74%),
+      radial-gradient(520px 410px at 110% 88%, color-mix(in srgb, var(--color-success) 4.5%, transparent), transparent 76%);
+  }
+
+  [data-theme="light"] .dashboard-page-v2,
+  [data-theme="light"] .personnel-directory-page,
+  [data-theme="dark"] .dashboard-page-v2,
+  [data-theme="dark"] .personnel-directory-page {
+    border-radius: 18px;
+  }
+}
+
+
+/* =====================================================================
+   G04.2 VF-06 — Final Visual Fidelity Closure
+   Aurora atmosphere + cross-product softness.
+   Surgical presentation-only delta over VF-05: stronger environmental light,
+   richer real Quick Access launchers, and lower Registration Review boxiness.
+   Existing layout, KPI semantics, workflows and business behavior stay locked.
+   ===================================================================== */
+
+/* Dark signed-in environment: raise Aurora presence outside cards by roughly
+   one third while keeping deep navy as the dominant base. */
+[data-theme="dark"] .content-area {
+  background-image:
+    radial-gradient(1280px 790px at -16% -4%, color-mix(in srgb, var(--color-primary) 16%, transparent), transparent 70%),
+    radial-gradient(1080px 700px at 112% 19%, color-mix(in srgb, var(--color-info) 10%, transparent), transparent 72%),
+    radial-gradient(1020px 680px at 4% 80%, color-mix(in srgb, var(--color-danger) 8%, transparent), transparent 75%),
+    radial-gradient(860px 600px at 96% 84%, color-mix(in srgb, var(--color-success) 6%, transparent), transparent 78%);
+  background-attachment: local;
+}
+
+[data-theme="dark"] .dashboard-page-v2,
+[data-theme="dark"] .personnel-directory-page,
+[data-theme="dark"] .access-management-page,
+[data-theme="dark"] .users-access-workspace {
+  background-image:
+    radial-gradient(1140px 650px at -14% 6%, color-mix(in srgb, var(--color-primary) 13.5%, transparent), transparent 73%),
+    radial-gradient(940px 570px at 111% 28%, color-mix(in srgb, var(--color-info) 9%, transparent), transparent 75%),
+    radial-gradient(900px 550px at 10% 94%, color-mix(in srgb, var(--color-danger) 7%, transparent), transparent 78%),
+    radial-gradient(720px 470px at 92% 86%, color-mix(in srgb, var(--color-success) 5.5%, transparent), transparent 80%);
+}
+
+/* Shell vicinity reflects the same Aurora without becoming luminous chrome. */
+[data-theme="dark"] .sidebar {
+  background:
+    radial-gradient(620px 440px at -14% -8%, color-mix(in srgb, var(--color-primary) 29%, transparent), transparent 70%),
+    radial-gradient(500px 370px at 118% 20%, color-mix(in srgb, var(--decorative-blush) 100%, transparent), transparent 75%),
+    radial-gradient(520px 380px at 32% 108%, color-mix(in srgb, var(--decorative-sky) 86%, transparent), transparent 77%),
+    linear-gradient(180deg, var(--color-sidebar-bg-strong), var(--color-sidebar-bg));
+  box-shadow:
+    inset -1px 0 0 var(--color-sidebar-border),
+    20px 0 58px color-mix(in srgb, var(--color-primary) 11%, transparent),
+    12px 0 46px color-mix(in srgb, var(--color-info) 5%, transparent);
+}
+
+[data-theme="dark"] .topbar {
+  background:
+    radial-gradient(620px 180px at 6% -16%, color-mix(in srgb, var(--color-primary) 23%, transparent), transparent 71%),
+    radial-gradient(520px 165px at 103% 0%, color-mix(in srgb, var(--color-info) 12%, transparent), transparent 75%),
+    radial-gradient(390px 145px at 58% 122%, color-mix(in srgb, var(--color-danger) 5.5%, transparent), transparent 78%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-elevated) 92%, var(--decorative-lavender)), var(--color-surface));
+  box-shadow:
+    0 19px 50px rgba(0,0,0,.30),
+    0 10px 38px color-mix(in srgb, var(--color-primary) 11%, transparent),
+    0 6px 30px color-mix(in srgb, var(--color-info) 5.5%, transparent);
+}
+
+/* Dashboard section atmosphere: environmental temperature supports boundaries;
+   main KPI intensity remains inherited unchanged from VF-04/VF-05. */
+.dashboard-primary-grid,
+.dashboard-quick-actions,
+.dashboard-secondary-grid {
+  position: relative;
+}
+
+[data-theme="dark"] .dashboard-primary-grid {
+  border-radius: 24px;
+  background:
+    radial-gradient(780px 330px at 4% 48%, color-mix(in srgb, var(--color-info) 7.5%, transparent), transparent 72%),
+    radial-gradient(620px 300px at 98% 48%, color-mix(in srgb, var(--color-danger) 6.5%, transparent), transparent 74%),
+    radial-gradient(520px 250px at 60% 105%, color-mix(in srgb, var(--color-warning) 4.5%, transparent), transparent 78%);
+}
+
+[data-theme="dark"] .dashboard-today-operations {
+  background:
+    radial-gradient(520px 280px at -8% -10%, color-mix(in srgb, var(--color-success) 19%, transparent), transparent 73%),
+    radial-gradient(410px 240px at 105% 105%, color-mix(in srgb, var(--color-info) 13%, transparent), transparent 77%),
+    linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface-subtle));
+}
+
+[data-theme="dark"] .dashboard-attention {
+  background:
+    radial-gradient(500px 275px at 106% -9%, color-mix(in srgb, var(--color-warning) 20%, transparent), transparent 73%),
+    radial-gradient(410px 245px at -6% 107%, color-mix(in srgb, var(--color-danger) 18%, transparent), transparent 77%),
+    linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface-subtle));
+}
+
+/* Quick Access final richness: localized identity rises, card base stays dark. */
+[data-theme="dark"] .dashboard-quick-actions {
+  background:
+    radial-gradient(700px 300px at -6% -12%, color-mix(in srgb, var(--color-primary) 19%, transparent), transparent 72%),
+    radial-gradient(560px 270px at 106% 106%, color-mix(in srgb, var(--color-info) 12%, transparent), transparent 77%),
+    radial-gradient(460px 220px at 52% 105%, color-mix(in srgb, var(--color-danger) 5%, transparent), transparent 80%),
+    linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface));
+}
+
+[data-theme="dark"] .dashboard-quick-actions__grid button {
+  border-color: color-mix(in srgb, var(--quick-accent) 26%, var(--color-border));
+  background:
+    radial-gradient(330px 190px at -8% -13%, color-mix(in srgb, var(--quick-accent) 30%, transparent), transparent 70%),
+    radial-gradient(230px 150px at 103% 105%, color-mix(in srgb, var(--quick-accent) 12%, transparent), transparent 77%),
+    color-mix(in srgb, var(--color-surface-elevated) 92%, var(--quick-wash));
+  box-shadow:
+    0 14px 34px color-mix(in srgb, var(--quick-accent) 12%, transparent),
+    var(--shadow-sm);
+}
+
+[data-theme="dark"] .dashboard-quick-actions__grid button > span {
+  background:
+    radial-gradient(circle at 28% 23%, color-mix(in srgb, white 10%, transparent), transparent 50%),
+    color-mix(in srgb, var(--quick-accent) 38%, var(--color-surface-elevated));
+  box-shadow:
+    0 9px 28px color-mix(in srgb, var(--quick-accent) 31%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
+}
+
+[data-theme="dark"] .dashboard-quick-actions__grid button:hover,
+[data-theme="dark"] .dashboard-quick-actions__grid button:focus-visible {
+  border-color: color-mix(in srgb, var(--quick-accent) 42%, var(--color-border));
+  box-shadow:
+    0 18px 42px color-mix(in srgb, var(--quick-accent) 17%, transparent),
+    var(--shadow-md);
+}
+
+/* Dark Personnel / Access: brighten the environment around accepted metric
+   architecture only. Operational tables remain neutral navy. */
+[data-theme="dark"] .personnel-summary-grid {
+  background:
+    radial-gradient(740px 280px at 2% 48%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 71%),
+    radial-gradient(610px 240px at 98% 48%, color-mix(in srgb, var(--color-info) 7%, transparent), transparent 75%),
+    radial-gradient(520px 220px at 50% 108%, color-mix(in srgb, var(--color-danger) 5%, transparent), transparent 78%);
+}
+
+[data-theme="dark"] .access-summary-grid:not(.access-summary-grid--manager) {
+  background:
+    radial-gradient(900px 300px at 1% 48%, color-mix(in srgb, var(--color-primary) 11%, transparent), transparent 72%),
+    radial-gradient(700px 260px at 99% 48%, color-mix(in srgb, var(--color-info) 7%, transparent), transparent 76%),
+    radial-gradient(570px 230px at 52% 108%, color-mix(in srgb, var(--color-danger) 5%, transparent), transparent 79%);
+}
+
+/* Light: modest continuity lift around accepted white surfaces. */
+[data-theme="light"] .content-area {
+  background-image:
+    radial-gradient(1160px 700px at -13% 1%, color-mix(in srgb, var(--pastel-page-lavender) 74%, transparent), transparent 71%),
+    radial-gradient(970px 620px at 109% 15%, color-mix(in srgb, var(--pastel-page-sky) 55%, transparent), transparent 73%),
+    radial-gradient(920px 600px at 7% 83%, color-mix(in srgb, var(--pastel-page-blush) 48%, transparent), transparent 75%),
+    radial-gradient(820px 560px at 97% 84%, color-mix(in srgb, var(--pastel-page-peach) 45%, transparent), transparent 77%),
+    radial-gradient(740px 510px at 51% 47%, color-mix(in srgb, var(--pastel-page-mint) 40%, transparent), transparent 79%);
+}
+
+[data-theme="light"] .dashboard-page-v2,
+[data-theme="light"] .personnel-directory-page,
+[data-theme="light"] .access-management-page,
+[data-theme="light"] .users-access-workspace {
+  background-image:
+    radial-gradient(1060px 590px at -11% 7%, color-mix(in srgb, var(--decorative-lavender) 40%, transparent), transparent 75%),
+    radial-gradient(850px 510px at 109% 28%, color-mix(in srgb, var(--decorative-sky) 30%, transparent), transparent 77%),
+    radial-gradient(780px 470px at 15% 95%, color-mix(in srgb, var(--decorative-blush) 23%, transparent), transparent 79%),
+    radial-gradient(680px 430px at 89% 88%, color-mix(in srgb, var(--decorative-mint) 20%, transparent), transparent 81%);
+}
+
+[data-theme="light"] .dashboard-primary-grid {
+  border-radius: 24px;
+  background:
+    radial-gradient(760px 320px at 3% 48%, color-mix(in srgb, var(--decorative-mint) 32%, transparent), transparent 74%),
+    radial-gradient(620px 290px at 98% 48%, color-mix(in srgb, var(--decorative-blush) 25%, transparent), transparent 76%),
+    radial-gradient(520px 250px at 62% 105%, color-mix(in srgb, var(--decorative-cream) 22%, transparent), transparent 79%);
+}
+
+[data-theme="light"] .dashboard-quick-actions {
+  background:
+    radial-gradient(650px 270px at -5% -10%, color-mix(in srgb, var(--decorative-lavender) 78%, transparent), transparent 75%),
+    radial-gradient(520px 240px at 104% 106%, color-mix(in srgb, var(--decorative-sky) 54%, transparent), transparent 78%),
+    radial-gradient(430px 210px at 52% 105%, color-mix(in srgb, var(--decorative-peach) 30%, transparent), transparent 80%),
+    var(--color-surface);
+}
+
+[data-theme="light"] .personnel-summary-grid {
+  background:
+    radial-gradient(700px 260px at 3% 48%, color-mix(in srgb, var(--decorative-lavender) 36%, transparent), transparent 73%),
+    radial-gradient(560px 225px at 97% 48%, color-mix(in srgb, var(--decorative-sky) 28%, transparent), transparent 76%);
+}
+
+[data-theme="light"] .access-summary-grid:not(.access-summary-grid--manager) {
+  background:
+    radial-gradient(840px 280px at 2% 48%, color-mix(in srgb, var(--decorative-lavender) 34%, transparent), transparent 74%),
+    radial-gradient(660px 240px at 98% 48%, color-mix(in srgb, var(--decorative-peach) 29%, transparent), transparent 76%),
+    radial-gradient(540px 220px at 52% 108%, color-mix(in srgb, var(--decorative-mint) 20%, transparent), transparent 79%);
+}
+
+/* Dark Login: structure stays locked; increase only the surrounding midnight
+   Aurora and illustration illumination. Form fields/card remain restrained. */
+[data-theme="dark"] .auth-experience-page {
+  background:
+    radial-gradient(1480px 980px at -18% -14%, color-mix(in srgb, var(--color-primary) 32%, transparent), transparent 67%),
+    radial-gradient(1220px 840px at 110% 31%, color-mix(in srgb, var(--color-info) 18%, transparent), transparent 69%),
+    radial-gradient(1120px 800px at -7% 72%, color-mix(in srgb, var(--color-success) 11%, transparent), transparent 73%),
+    radial-gradient(1320px 900px at 48% 118%, color-mix(in srgb, var(--decorative-blush) 100%, transparent), transparent 67%),
+    linear-gradient(145deg, var(--color-bg), color-mix(in srgb, var(--color-bg) 70%, var(--color-surface)) 58%, var(--color-bg));
+}
+
+[data-theme="dark"] .auth-brand-panel {
+  background:
+    radial-gradient(760px 540px at 7% 7%, color-mix(in srgb, var(--color-primary) 31%, transparent), transparent 67%),
+    radial-gradient(640px 470px at 104% 13%, color-mix(in srgb, var(--decorative-blush) 100%, transparent), transparent 69%),
+    radial-gradient(600px 440px at 96% 88%, color-mix(in srgb, var(--color-info) 17%, transparent), transparent 71%),
+    radial-gradient(520px 390px at 10% 89%, color-mix(in srgb, var(--color-success) 11%, transparent), transparent 73%),
+    linear-gradient(145deg, var(--color-sidebar-bg-strong), color-mix(in srgb, var(--color-sidebar-bg) 81%, var(--decorative-sky)) 62%, color-mix(in srgb, var(--color-sidebar-bg) 81%, var(--decorative-lavender)));
+}
+
+[data-theme="dark"] .auth-pastel-shield {
+  box-shadow:
+    0 34px 82px color-mix(in srgb, var(--color-primary) 29%, transparent),
+    0 12px 48px color-mix(in srgb, var(--decorative-blush) 76%, transparent),
+    0 4px 34px color-mix(in srgb, var(--color-success) 10%, transparent);
+}
+
+/* Registration Review: contextual temperature stays, passive field rectangles
+   recede further. Necessary interactive boundaries remain intact. */
+.registration-review__facts > div,
+.registration-review__compare-grid dl > div {
+  border-color: color-mix(in srgb, var(--color-border) 46%, transparent);
+  box-shadow: none;
+}
+
+[data-theme="light"] .registration-review__facts > div,
+[data-theme="light"] .registration-review__compare-grid dl > div {
+  background: color-mix(in srgb, var(--color-surface) 84%, var(--decorative-sky));
+}
+
+[data-theme="dark"] .registration-review__facts > div,
+[data-theme="dark"] .registration-review__compare-grid dl > div {
+  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+}
+
+.registration-review__candidates article,
+.registration-review__compare-grid article {
+  border-color: color-mix(in srgb, var(--color-border) 54%, transparent);
+  box-shadow: none;
+}
+
+.registration-review__summary,
+.registration-review__progress-wrap,
+.registration-review__employee-workspace,
+.registration-review__comparison,
+.registration-review__approval {
+  border-color: color-mix(in srgb, var(--color-border) 58%, transparent);
+}
+
+[data-theme="light"] .registration-review__summary {
+  background:
+    radial-gradient(420px 190px at 104% -4%, color-mix(in srgb, var(--decorative-sky) 64%, transparent), transparent 76%),
+    color-mix(in srgb, var(--color-surface) 84%, var(--decorative-sky)) !important;
+}
+
+[data-theme="light"] .registration-review__employee-workspace {
+  background:
+    radial-gradient(520px 235px at 104% -6%, color-mix(in srgb, var(--decorative-mint) 64%, transparent), transparent 75%),
+    radial-gradient(420px 210px at -7% 106%, color-mix(in srgb, var(--decorative-lavender) 50%, transparent), transparent 78%),
+    color-mix(in srgb, var(--color-surface) 85%, var(--decorative-sky)) !important;
+}
+
+[data-theme="dark"] .registration-review__summary {
+  background:
+    radial-gradient(450px 210px at 104% -4%, color-mix(in srgb, var(--color-info) 14%, transparent), transparent 75%),
+    color-mix(in srgb, var(--color-surface-elevated) 91%, var(--surface-accent-info)) !important;
+}
+
+[data-theme="dark"] .registration-review__employee-workspace {
+  background:
+    radial-gradient(540px 250px at 104% -7%, color-mix(in srgb, var(--color-success) 14%, transparent), transparent 75%),
+    radial-gradient(440px 220px at -7% 106%, color-mix(in srgb, var(--color-primary) 16%, transparent), transparent 78%),
+    color-mix(in srgb, var(--color-surface-elevated) 92%, var(--surface-accent-info)) !important;
+}
+
+[data-theme="light"] .registration-review__comparison {
+  background: color-mix(in srgb, var(--color-surface) 91%, var(--decorative-lavender));
+}
+
+[data-theme="dark"] .registration-review__comparison {
+  background:
+    radial-gradient(480px 220px at 100% 0%, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 76%),
+    color-mix(in srgb, var(--color-surface-elevated) 94%, var(--surface-accent-primary));
+}
+
+/* Mobile: accepted architecture stays untouched; only Aurora/pastel visibility is
+   raised behind header/title/first work surfaces. */
+@media (max-width: 760px) {
+  [data-theme="light"] .content-area {
+    background-image:
+      radial-gradient(720px 540px at -20% -7%, color-mix(in srgb, var(--pastel-page-lavender) 80%, transparent), transparent 69%),
+      radial-gradient(610px 470px at 120% 22%, color-mix(in srgb, var(--pastel-page-sky) 60%, transparent), transparent 71%),
+      radial-gradient(590px 450px at -13% 93%, color-mix(in srgb, var(--pastel-page-blush) 52%, transparent), transparent 73%),
+      radial-gradient(520px 410px at 113% 90%, color-mix(in srgb, var(--pastel-page-peach) 46%, transparent), transparent 75%);
+  }
+
+  [data-theme="dark"] .content-area {
+    background-image:
+      radial-gradient(790px 590px at -22% -10%, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 68%),
+      radial-gradient(680px 520px at 122% 24%, color-mix(in srgb, var(--color-info) 11%, transparent), transparent 71%),
+      radial-gradient(650px 500px at -13% 89%, color-mix(in srgb, var(--color-danger) 9%, transparent), transparent 73%),
+      radial-gradient(560px 440px at 111% 88%, color-mix(in srgb, var(--color-success) 6%, transparent), transparent 75%);
+  }
+
+  [data-theme="dark"] .auth-experience-page {
+    background:
+      radial-gradient(820px 620px at -24% -10%, color-mix(in srgb, var(--color-primary) 22%, transparent), transparent 68%),
+      radial-gradient(700px 540px at 124% 24%, color-mix(in srgb, var(--color-info) 13%, transparent), transparent 71%),
+      radial-gradient(680px 520px at 44% 114%, color-mix(in srgb, var(--decorative-blush) 88%, transparent), transparent 70%),
+      radial-gradient(560px 440px at -14% 82%, color-mix(in srgb, var(--color-success) 7%, transparent), transparent 75%),
+      var(--color-bg);
+  }
+
+  [data-theme="light"] .auth-experience-page {
+    background:
+      radial-gradient(760px 560px at -20% -8%, color-mix(in srgb, var(--pastel-page-lavender) 78%, transparent), transparent 69%),
+      radial-gradient(650px 500px at 122% 22%, color-mix(in srgb, var(--pastel-page-peach) 58%, transparent), transparent 71%),
+      radial-gradient(620px 480px at 44% 112%, color-mix(in srgb, var(--pastel-page-blush) 52%, transparent), transparent 72%),
+      radial-gradient(520px 410px at -10% 82%, color-mix(in srgb, var(--pastel-page-sky) 48%, transparent), transparent 75%),
+      var(--ambient-page);
+  }
+}
+
+
+/* =====================================================================
+   G04.2 VF-07 — Final Visual Lock
+   Aurora Security Core + cross-product fidelity closure.
+   Presentation-only delta over VF-06. The accepted Login composition,
+   application hierarchy, semantics, workflows and authority remain locked.
+   ===================================================================== */
+
+/* Login hero: Owner-corrected symmetric holographic security shield.
+   Geometry is mirrored around x=210; Light/Dark share the exact same SVG. */
+.auth-security-shield-scene {
+  isolation: isolate;
+}
+
+.auth-security-shield {
+  position: absolute;
+  z-index: 2;
+  right: 2.5%;
+  bottom: 2.5%;
+  width: min(86%, 390px);
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(0 24px 32px color-mix(in srgb, var(--color-primary) 16%, transparent));
+  transform: translateZ(0);
+}
+
+.auth-security-shield__stop--lavender { stop-color: #d9ceff; stop-opacity: .92; }
+.auth-security-shield__stop--violet { stop-color: #8068df; stop-opacity: .94; }
+.auth-security-shield__stop--indigo { stop-color: #5140bd; stop-opacity: .96; }
+.auth-security-shield__stop--cyan { stop-color: #78d4e8; stop-opacity: .86; }
+.auth-security-shield__stop--sky { stop-color: #9fdff1; stop-opacity: .82; }
+.auth-security-shield__stop--mint { stop-color: #a8e5cf; stop-opacity: .78; }
+.auth-security-shield__stop--light { stop-color: #faf7ff; stop-opacity: .98; }
+.auth-security-shield__stop--lock-top { stop-color: #f7f4ff; stop-opacity: .98; }
+.auth-security-shield__stop--lock-bottom { stop-color: #b8dff0; stop-opacity: .94; }
+
+.auth-security-shield__bloom {
+  fill: color-mix(in srgb, var(--pastel-violet-500) 52%, var(--decorative-sky));
+  opacity: .32;
+}
+
+.auth-security-shield__floor {
+  fill: color-mix(in srgb, var(--color-primary) 22%, var(--color-info));
+  opacity: .16;
+  filter: blur(5px);
+}
+
+.auth-security-shield__orbits ellipse {
+  stroke: color-mix(in srgb, var(--color-primary) 30%, var(--color-info));
+  stroke-width: 1.15;
+  stroke-dasharray: 4 10;
+  opacity: .42;
+}
+
+.auth-security-shield__orbits ellipse:nth-child(2) {
+  stroke: color-mix(in srgb, var(--color-success) 42%, var(--color-info));
+  stroke-dasharray: 2 12;
+  opacity: .30;
+}
+
+.auth-security-shield__nodes circle,
+.auth-security-shield__nodes rect {
+  fill: var(--pastel-violet-400);
+  stroke: rgba(255,255,255,.72);
+  stroke-width: 1;
+  filter: drop-shadow(0 4px 8px color-mix(in srgb, var(--color-primary) 22%, transparent));
+}
+
+.auth-security-shield__nodes circle:nth-child(2),
+.auth-security-shield__nodes circle:nth-child(4),
+.auth-security-shield__nodes rect:nth-child(6) { fill: var(--pastel-sky-300); }
+.auth-security-shield__nodes circle:nth-child(3),
+.auth-security-shield__nodes rect:nth-child(5) { fill: var(--pastel-mint-300); }
+
+.auth-security-shield__outer,
+.auth-security-shield__middle,
+.auth-security-shield__inner {
+  stroke: rgba(255,255,255,.58);
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+}
+
+.auth-security-shield__outer { opacity: .82; }
+.auth-security-shield__middle { opacity: .88; }
+.auth-security-shield__inner {
+  opacity: .96;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--color-primary) 22%, transparent));
+}
+
+.auth-security-shield__axis {
+  stroke: rgba(255,255,255,.30);
+  stroke-width: .9;
+  stroke-linecap: round;
+  opacity: .74;
+}
+
+.auth-security-shield__lock-shackle {
+  stroke: rgba(255,255,255,.90);
+  stroke-width: 7;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-info) 26%, transparent));
+}
+
+.auth-security-shield__lock-body {
+  stroke: rgba(255,255,255,.80);
+  stroke-width: 1.15;
+  filter: drop-shadow(0 7px 12px color-mix(in srgb, var(--color-primary) 18%, transparent));
+}
+
+.auth-security-shield__keyhole {
+  fill: color-mix(in srgb, var(--color-primary) 78%, #2f237d);
+}
+
+.auth-security-shield__keyhole-stem {
+  stroke: color-mix(in srgb, var(--color-primary) 78%, #2f237d);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+[data-theme="light"] .auth-security-shield-scene {
+  background:
+    radial-gradient(470px 245px at 70% 77%, color-mix(in srgb, var(--decorative-lavender) 34%, transparent), transparent 76%),
+    radial-gradient(390px 210px at 93% 86%, color-mix(in srgb, var(--decorative-sky) 25%, transparent), transparent 78%),
+    radial-gradient(300px 180px at 48% 93%, color-mix(in srgb, var(--decorative-mint) 13%, transparent), transparent 80%);
+}
+
+[data-theme="dark"] .auth-security-shield {
+  filter:
+    drop-shadow(0 28px 38px color-mix(in srgb, var(--color-primary) 28%, transparent))
+    drop-shadow(0 10px 30px color-mix(in srgb, var(--color-info) 11%, transparent));
+}
+
+[data-theme="dark"] .auth-security-shield-scene {
+  background:
+    radial-gradient(520px 285px at 68% 76%, color-mix(in srgb, var(--color-primary) 19%, transparent), transparent 73%),
+    radial-gradient(430px 235px at 96% 82%, color-mix(in srgb, var(--color-info) 11%, transparent), transparent 76%),
+    radial-gradient(350px 200px at 38% 92%, color-mix(in srgb, var(--color-success) 5%, transparent), transparent 80%);
+}
+
+[data-theme="dark"] .auth-security-shield__stop--lavender { stop-color: #aa9cf6; stop-opacity: .72; }
+[data-theme="dark"] .auth-security-shield__stop--violet { stop-color: #7358e3; stop-opacity: .96; }
+[data-theme="dark"] .auth-security-shield__stop--indigo { stop-color: #3e2d9e; stop-opacity: .98; }
+[data-theme="dark"] .auth-security-shield__stop--cyan { stop-color: #55c9dd; stop-opacity: .84; }
+[data-theme="dark"] .auth-security-shield__stop--sky { stop-color: #67cde4; stop-opacity: .76; }
+[data-theme="dark"] .auth-security-shield__stop--mint { stop-color: #72d8b3; stop-opacity: .72; }
+[data-theme="dark"] .auth-security-shield__stop--light { stop-color: #efeaff; stop-opacity: .98; }
+[data-theme="dark"] .auth-security-shield__stop--lock-top { stop-color: #eff3ff; stop-opacity: .98; }
+[data-theme="dark"] .auth-security-shield__stop--lock-bottom { stop-color: #7ecbdd; stop-opacity: .92; }
+
+[data-theme="dark"] .auth-security-shield__bloom {
+  fill: color-mix(in srgb, var(--color-primary) 70%, var(--color-info));
+  opacity: .39;
+}
+
+[data-theme="dark"] .auth-security-shield__floor {
+  fill: color-mix(in srgb, var(--color-primary) 56%, var(--color-info));
+  opacity: .18;
+}
+
+[data-theme="dark"] .auth-security-shield__outer,
+[data-theme="dark"] .auth-security-shield__middle,
+[data-theme="dark"] .auth-security-shield__inner {
+  stroke: rgba(211,221,255,.28);
+}
+
+[data-theme="dark"] .auth-security-shield__inner {
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--color-primary) 38%, transparent));
+}
+
+[data-theme="dark"] .auth-security-shield__orbits ellipse {
+  stroke: color-mix(in srgb, var(--color-primary) 58%, var(--color-info));
+  opacity: .44;
+}
+
+[data-theme="dark"] .auth-security-shield__orbits ellipse:nth-child(2) {
+  stroke: color-mix(in srgb, var(--color-success) 56%, var(--color-info));
+  opacity: .30;
+}
+
+[data-theme="dark"] .auth-security-shield__nodes circle,
+[data-theme="dark"] .auth-security-shield__nodes rect {
+  stroke: rgba(228,234,255,.32);
+  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--color-info) 20%, transparent));
+}
+
+[data-theme="dark"] .auth-security-shield__lock-shackle {
+  stroke: rgba(221,235,255,.86);
+}
+/* Feature chips keep the same real capabilities; only contrast and local
+   identity are reconciled with the Owner-approved security shield. */
+[data-theme="light"] .auth-brand-points span {
+  color: #4e4662;
+  box-shadow: 0 8px 22px rgba(88, 64, 135, .055), inset 0 1px 0 rgba(255,255,255,.64);
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="dark"] .auth-brand-points span {
+  color: #d7dded;
+  border-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 8px 22px rgba(0,0,0,.12);
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="dark"] .auth-brand-points span:nth-child(1) {
+  background: color-mix(in srgb, var(--color-surface-elevated) 84%, var(--surface-accent-primary));
+  color: #ddd6ff;
+}
+
+[data-theme="dark"] .auth-brand-points span:nth-child(2) {
+  background: color-mix(in srgb, var(--color-surface-elevated) 86%, var(--surface-accent-success));
+  border-color: color-mix(in srgb, var(--color-success) 15%, transparent);
+  color: #c5eee0;
+}
+
+[data-theme="dark"] .auth-brand-points span:nth-child(3) {
+  background: color-mix(in srgb, var(--color-surface-elevated) 87%, var(--surface-accent-info));
+  border-color: color-mix(in srgb, var(--color-info) 14%, transparent);
+  color: #cce9ef;
+}
+
+/* Final cross-product surface lock: operational surfaces stay restrained while
+   shadows inherit a small amount of the same Lavender/Aurora environment. */
+[data-theme="light"] .personnel-table-card,
+[data-theme="light"] .access-table-card,
+[data-theme="light"] .registration-review__requests,
+[data-theme="light"] .registration-review__detail {
+  box-shadow:
+    0 15px 38px color-mix(in srgb, var(--decorative-lavender) 12%, transparent),
+    0 6px 24px color-mix(in srgb, var(--decorative-sky) 6%, transparent),
+    var(--shadow-sm);
+}
+
+[data-theme="dark"] .personnel-table-card,
+[data-theme="dark"] .access-table-card,
+[data-theme="dark"] .registration-review__requests,
+[data-theme="dark"] .registration-review__detail {
+  box-shadow:
+    0 18px 44px rgba(0,0,0,.24),
+    0 8px 30px color-mix(in srgb, var(--color-primary) 4.5%, transparent),
+    0 5px 22px color-mix(in srgb, var(--color-info) 2.5%, transparent);
+}
+
+/* The desktop Owner shield never enters the accepted single-column mobile Auth architecture. */
+@media (max-width: 760px) {
+  .auth-security-shield-scene,
+  .auth-security-shield {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-security-shield,
+  .auth-security-shield * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* =====================================================================
+   G04.2 VF-07.1 V2 — Owner exact SMS logo geometry lock
+   Logo geometry only. One shared centering rule for every SMS brand tile.
+   ===================================================================== */
+.brand-mark {
+  position: relative;
+  display: inline-grid !important;
+  place-items: center !important;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 0;
+}
+
+.brand-mark > b {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  width: max-content;
+  max-width: calc(100% - 8px);
+  margin: 0;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  color: #fff !important;
+  font: inherit;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.04em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sidebar-brand .brand-mark {
+  margin-top: 0;
+}

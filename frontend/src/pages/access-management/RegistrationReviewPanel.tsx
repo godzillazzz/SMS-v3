@@ -165,17 +165,17 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
 
   return <section className="registration-review" aria-label="คำขอลงทะเบียนแบบส่วนตัว">
     <header className="registration-review__header">
-      <div><p>REGISTRATION REVIEW</p><h2>คำขอลงทะเบียน</h2><span>ตรวจสอบข้อมูลผู้สมัครและจับคู่กับ Employee Master ก่อนตัดสินใจอนุมัติบัญชี</span></div>
+      <div><h2>คำขอลงทะเบียน</h2><span>ตรวจสอบข้อมูลผู้สมัครและจับคู่กับ Employee Master ก่อนตัดสินใจอนุมัติบัญชี</span></div>
       <button type="button" className="btn-neutral registration-review__refresh" disabled={loading} onClick={() => void load()}><SmsIcon name="history" size={17} />รีเฟรช</button>
     </header>
     {error && <div className="registration-review__feedback registration-review__feedback--error" role="alert" aria-live="assertive"><SmsIcon name="shield" size={18} /><span>{error}</span></div>}
     {message && <div className="registration-review__feedback registration-review__feedback--success" role="status" aria-live="polite"><SmsIcon name="approval" size={18} /><span>{message}</span></div>}
     <div className={`registration-review__grid ${mobileDetail ? 'is-mobile-detail' : ''}`}>
       <aside className="registration-review__requests" aria-label="รายการคำขอลงทะเบียน">
-        <div className="registration-review__section-heading"><div><span>REQUEST LIST</span><h3>รายการคำขอ</h3></div><strong>{loading ? '…' : rows.length}</strong></div>
+        <div className="registration-review__section-heading"><div><h3>รายการคำขอ</h3></div><strong>{loading ? '…' : rows.length}</strong></div>
         {loading ? <p className="registration-review__loading" role="status">กำลังโหลดคำขอ…</p> : rows.length ? <div className="registration-review__request-list">{rows.map((row) => {
           const createdAt = formatRequestDate(row.createdAt);
-          return <button type="button" key={row.id} className={`registration-review__request ${row.id === selectedId ? 'is-selected' : ''}`} aria-pressed={row.id === selectedId} onClick={() => selectRequest(row.id)}>
+          return <button type="button" key={row.id} className={`registration-review__request registration-review__request--${requestTone[row.status] || 'neutral'} ${row.id === selectedId ? 'is-selected' : ''}`} aria-pressed={row.id === selectedId} onClick={() => selectRequest(row.id)}>
             <span className="registration-review__request-top"><strong>{row.submittedName}</strong><em className={`registration-review__status registration-review__status--${requestTone[row.status] || 'neutral'}`}>{requestStatus[row.status] || row.status}</em></span>
             <span className="registration-review__request-email">{row.email}</span>
             <small>{row.departmentHint || 'ไม่ระบุหน่วยงาน'}{createdAt ? ` · ${createdAt}` : ''}</small>
@@ -187,7 +187,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
         {!selected ? <div className="registration-review__empty registration-review__empty--detail"><SmsIcon name="users" size={24} /><strong>เลือกคำขอเพื่อเริ่มตรวจสอบ</strong><span>เลือกรายการด้านซ้ายเพื่อดูข้อมูลที่ผู้สมัครแจ้งและค้นหา Employee Master</span></div> : <>
           <button type="button" className="registration-review__mobile-back" onClick={() => setMobileDetail(false)}>กลับไปรายการคำขอ</button>
           <section className="registration-review__summary" aria-labelledby="registration-review-summary-title">
-            <div className="registration-review__summary-heading"><div><span>APPLICANT SUBMISSION</span><h3 id="registration-review-summary-title">ข้อมูลที่ผู้สมัครแจ้ง</h3></div><em className={`registration-review__status registration-review__status--${requestTone[selected.status] || 'neutral'}`}>{requestStatus[selected.status] || selected.status}</em></div>
+            <div className="registration-review__summary-heading"><div><h3 id="registration-review-summary-title">ข้อมูลที่ผู้สมัครแจ้ง</h3></div><em className={`registration-review__status registration-review__status--${requestTone[selected.status] || 'neutral'}`}>{requestStatus[selected.status] || selected.status}</em></div>
             <p className="registration-review__summary-help">ข้อมูลที่ผู้สมัครแจ้ง ใช้ประกอบการตรวจสอบเท่านั้น ไม่ใช่ข้อมูลยืนยันตัวบุคคลจาก Employee Master</p>
             <dl className="registration-review__facts">
               <div><dt>ชื่อที่ผู้สมัครแจ้ง</dt><dd>{selected.submittedName}</dd></div>
@@ -209,7 +209,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
             <div><strong>{selected.status === 'APPROVED' ? 'คำขอนี้ได้รับการอนุมัติแล้ว' : 'คำขอนี้ถูกบันทึกว่าไม่อนุมัติแล้ว'}</strong><span>รายการนี้เป็นประวัติการตรวจสอบและไม่มีการดำเนินการเพิ่มเติมจากหน้านี้</span></div>
           </section> : <>
             <section className="registration-review__employee-workspace" aria-labelledby="registration-review-employee-title">
-              <header><div><span>EMPLOYEE MASTER</span><h3 id="registration-review-employee-title">ค้นหาและตรวจสอบพนักงาน</h3></div><SmsIcon name="search" size={20} /></header>
+              <header><div><span>Employee Master</span><h3 id="registration-review-employee-title">ค้นหาและตรวจสอบพนักงาน</h3></div><SmsIcon name="search" size={20} /></header>
               <label className="registration-review__search-label" htmlFor="registration-employee-search">ค้นหา Employee Master</label>
               <div className="registration-review__search"><input id="registration-employee-search" placeholder="ค้นหาชื่อหรือรหัสพนักงาน (อย่างน้อย 2 ตัวอักษร)" value={search} onChange={(event) => setSearch(event.target.value)} /><button type="button" className="btn-neutral" disabled={candidateLoading || search.trim().length < 2} onClick={() => void runSearch(true)}>{candidateLoading ? 'กำลังค้นหา…' : 'ค้นหา'}</button></div>
 
@@ -225,7 +225,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
             </section>
 
             {selectedCandidate && <section className="registration-review__comparison" aria-labelledby="registration-review-comparison-title">
-              <header><div><span>HUMAN REVIEW</span><h3 id="registration-review-comparison-title">เปรียบเทียบก่อนจับคู่</h3></div><p>ตรวจสอบข้อมูลทั้งสองฝั่งก่อนยืนยันการเชื่อมโยงกับ Employee Master</p></header>
+              <header><div><h3 id="registration-review-comparison-title">เปรียบเทียบก่อนจับคู่</h3></div><p>ตรวจสอบข้อมูลทั้งสองฝั่งก่อนยืนยันการเชื่อมโยงกับ Employee Master</p></header>
               <div className="registration-review__compare-grid">
                 <article><span>ข้อมูลผู้สมัคร</span><dl><div><dt>ชื่อที่แจ้ง</dt><dd>{selected.submittedName}</dd></div><div><dt>หน่วยงานที่แจ้ง</dt><dd>{selected.departmentHint || '-'}</dd></div></dl></article>
                 <article><span>Employee Master</span><dl><div><dt>ชื่อพนักงาน</dt><dd>{candidateName(selectedCandidate)}</dd></div><div><dt>หน่วยงาน</dt><dd>{selectedCandidate.department || '-'}</dd></div><div><dt>รหัสภายใน</dt><dd>{selectedCandidate.employeeCode}</dd></div><div><dt>ตำแหน่ง</dt><dd>{selectedCandidate.jobTitle || '-'}</dd></div></dl></article>

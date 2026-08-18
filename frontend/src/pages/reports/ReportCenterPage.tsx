@@ -33,9 +33,9 @@ function currentBangkokPeriod() {
 }
 
 function printableFilename(report?: ExecutiveReport, department = '') {
-  if (!report) return 'SMS-V3-Executive-Report.pdf';
+  if (!report) return 'SMS-Executive-Report.pdf';
   const suffix = department ? `-${department.replace(/[^a-zA-Z0-9_-]+/g, '-')}` : '';
-  return `SMS-V3-Executive-Report-${report.period.year}-${String(report.period.month).padStart(2, '0')}${suffix}.pdf`;
+  return `SMS-Executive-Report-${report.period.year}-${String(report.period.month).padStart(2, '0')}${suffix}.pdf`;
 }
 
 export function ReportCenterPage({ token, role, onNavigate, initialTab = 'executive' }: { token: string; role: string; onNavigate(page: string): void; initialTab?: ReportTab }) {

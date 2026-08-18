@@ -51,8 +51,9 @@ describe('G04.2 UX-02 application shell contract', () => {
     expect(themeControl).toContain("value: 'light'");
     expect(themeControl).toContain("value: 'dark'");
     expect(themeControl).toContain('persistThemePreference(preference, window.localStorage)');
-    expect(main).toContain('<div className="sidebar-theme-block"><span>Theme</span><ThemeControl /></div>');
+    expect(main).not.toContain('<div className="sidebar-theme-block">');
     expect(main).toContain('<ThemeControl compact />');
+    expect(main).toContain('className="mobile-utility-theme"');
   });
 
   it('keeps theme selection frontend-only and does not reload application state', () => {
