@@ -49,7 +49,7 @@ type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
 type FormField = { name: string; label: string; type?: 'text' | 'email' | 'password' | 'date' | 'number' | 'select' | 'textarea' | 'file'; required?: boolean; accept?: string; hint?: string; min?: number; max?: number; options?: Array<{ value: string; label: string }> };
-type Editor = { title: string; submitLabel: string; fields: FormField[]; values: Record<string, string>; notice?: string; submit(values: Record<string, string>, files: Record<string, File>): Promise<void> };
+type Editor = { title: string; submitLabel: string; fields: FormField[]; values: Record<string, string>; notice?: string; experience?: 'personnel'; submit(values: Record<string, string>, files: Record<string, File>): Promise<void> };
 
 const bangkokDateInput = (value = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(value);
@@ -385,13 +385,41 @@ function downloadBlob(blob: Blob, filename: string) {
 function EditDialog({ editor, busy, error, onClose }: { editor: Editor; busy: boolean; error?: RequestErrorInput; onClose(): void }) {
   const [values, setValues] = useState(editor.values);
   const [files, setFiles] = useState<Record<string, File>>({});
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const busyRef = useRef(busy);
+  const onCloseRef = useRef(onClose);
+  busyRef.current = busy;
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousDocumentOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    const timer = window.setTimeout(() => {
+      const firstField = dialogRef.current?.querySelector<HTMLElement>('input:not([type="file"]), select, textarea, button[type="submit"]');
+      firstField?.focus({ preventScroll: true });
+    }, 0);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busyRef.current) { event.preventDefault(); onCloseRef.current(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousDocumentOverflow;
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, []);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     await editor.submit(values, files);
   };
+  const personnelEditor = editor.experience === 'personnel';
   return <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-    <section className="edit-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-dialog-title">
-      <div className="dialog-heading"><div><p className="eyebrow">SMS v3 staging</p><h2 id="edit-dialog-title">{editor.title}</h2></div><button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}>×</button></div>
+    <section ref={dialogRef} className={`edit-dialog${personnelEditor ? ' personnel-editor' : ''}`} role="dialog" aria-modal="true" aria-labelledby="edit-dialog-title">
+      <div className="dialog-heading"><div><p className="eyebrow">{personnelEditor ? 'EMPLOYEE MASTER' : 'SMS v3 staging'}</p><h2 id="edit-dialog-title">{editor.title}</h2></div><button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}><SmsIcon name="close" size={20} /></button></div>
       {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
       {editor.notice && <div className="preview-warning"><strong>ตรวจสอบข้อมูลเดิม</strong><p>{editor.notice}</p></div>}
       <form onSubmit={submit}>
@@ -1510,13 +1538,13 @@ function Dashboard() {
   const openLicenseEdit = (row: DataRow) => { if (auth.token) setLicenseEditTarget(row); };
 
   const employeeFields: FormField[] = [
-    { name: 'employeeCode', label: 'รหัสพนักงาน', required: true }, { name: 'firstName', label: 'ชื่อ', required: true },
+    { name: 'employeeCode', label: 'รหัสภายใน', required: true }, { name: 'firstName', label: 'ชื่อ', required: true },
     { name: 'lastName', label: 'นามสกุล', required: true }, { name: 'email', label: 'อีเมล', type: 'email' },
     { name: 'phone', label: 'โทรศัพท์' }, { name: 'department', label: 'หน่วยงาน' },
     { name: 'jobTitle', label: 'ตำแหน่ง' }, { name: 'hiredAt', label: 'วันที่เริ่มงาน', type: 'date' }
   ];
   const employeeProfileFields: FormField[] = [
-    { name: 'employeeCode', label: 'รหัสพนักงาน', required: true },
+    { name: 'employeeCode', label: 'รหัสภายใน', required: true },
     { name: 'email', label: 'อีเมล', type: 'email' },
     { name: 'phone', label: 'โทรศัพท์' },
     { name: 'hiredAt', label: 'วันที่เริ่มงาน', type: 'date' }
@@ -1527,7 +1555,7 @@ function Dashboard() {
     const fields = employee ? employeeProfileFields : employeeFields;
     const values = employee ? Object.fromEntries(fields.map((field) => [field.name, field.name === 'hiredAt' ? inputDate((employee as unknown as DataRow)[field.name]) : String((employee as unknown as DataRow)[field.name] || '')])) : {};
     runEditor(
-      { title: employee ? 'แก้ไขข้อมูลทั่วไป' : 'เพิ่มพนักงาน', submitLabel: 'บันทึกพนักงาน', fields, values },
+      { title: employee ? 'แก้ไขข้อมูลพนักงาน' : 'เพิ่มพนักงาน', submitLabel: employee ? 'บันทึกการแก้ไข' : 'เพิ่มพนักงาน', fields, values, experience: 'personnel' },
       (form) => employee ? api.updateEmployee(auth.token!, employee.id, formPayload(form, ['email', 'phone', 'hiredAt'])) : api.createEmployee(auth.token!, formPayload(form, ['email', 'phone', 'department', 'jobTitle', 'hiredAt'])),
       'employees'
     );

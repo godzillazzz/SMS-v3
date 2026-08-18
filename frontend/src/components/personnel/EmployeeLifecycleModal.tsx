@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { SmsIcon } from '../SmsIcon';
 import { api } from '../../api';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import type { PersonnelRecord } from './types';
@@ -67,6 +68,12 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
   const [success, setSuccess] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+  const modalRef = useRef<HTMLElement | null>(null);
+  const busyRef = useRef(busy);
+  const onCloseRef = useRef(onClose);
+  busyRef.current = busy;
+  onCloseRef.current = onClose;
 
   const availableTypes = useMemo<LifecycleType[]>(() => employee.isActive
     ? ['NAME_CHANGE', 'DEPARTMENT_TRANSFER', 'POSITION_CHANGE', 'EMPLOYMENT_TERMINATION']
@@ -86,9 +93,29 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
 
   useEffect(() => { void loadHistory(); }, [employee.id, token]);
   useEffect(() => {
-    const previous = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousDocumentOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previous; };
+    document.documentElement.style.overflow = 'hidden';
+    const timer = window.setTimeout(() => closeRef.current?.focus({ preventScroll: true }), 0);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busyRef.current) { event.preventDefault(); onCloseRef.current(); return; }
+      if (event.key !== 'Tab' || !modalRef.current) return;
+      const focusable = Array.from(modalRef.current.querySelectorAll<HTMLElement>('button, input, select, textarea, [href], [tabindex]:not([tabindex="-1"])')).filter((element) => !element.hasAttribute('disabled'));
+      if (!focusable.length) return;
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousDocumentOverflow;
+      previouslyFocused?.focus({ preventScroll: true });
+    };
   }, []);
 
   const invalidate = () => { setPreflight(undefined); setError(undefined); setSuccess(''); setIdempotencyKey(crypto.randomUUID()); };
@@ -113,7 +140,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
   const submit = async () => {
     if (!preflight || preflight.blockingIssues.length) return;
     if (type === 'EMPLOYMENT_TERMINATION' && confirmation !== employee.employeeCode) {
-      setError({ message: 'กรุณาพิมพ์รหัสพนักงานให้ถูกต้องเพื่อยืนยันการลาออก' });
+      setError({ message: 'กรุณาพิมพ์รหัสภายในให้ถูกต้องเพื่อยืนยันการลาออก' });
       return;
     }
     setBusy(true); setError(undefined);
@@ -138,8 +165,8 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
   };
 
   return <div className="lifecycle-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-    <section className="lifecycle-modal" role="dialog" aria-modal="true" aria-labelledby="lifecycle-title">
-      <header className="lifecycle-header"><div><p>EMPLOYEE LIFECYCLE</p><h2 id="lifecycle-title">จัดการวงจรพนักงาน</h2><span>{employee.employeeCode} · {employee.firstName} {employee.lastName}</span></div><button type="button" aria-label="ปิด" disabled={busy} onClick={onClose}>×</button></header>
+    <section ref={modalRef} className="lifecycle-modal" role="dialog" aria-modal="true" aria-labelledby="lifecycle-title">
+      <header className="lifecycle-header"><div><p>EMPLOYEE LIFECYCLE</p><h2 id="lifecycle-title">จัดการวงจรพนักงาน</h2><span>{employee.employeeCode} · {employee.firstName} {employee.lastName}</span></div><button ref={closeRef} type="button" aria-label="ปิด" disabled={busy} onClick={onClose}><SmsIcon name="close" size={20} /></button></header>
       <div className="lifecycle-layout">
         <form className="lifecycle-form" onSubmit={(event) => { event.preventDefault(); void (preflight ? submit() : runPreflight()); }}>
           <div className="lifecycle-current"><strong>ข้อมูลปัจจุบัน</strong><span>{employee.department || 'ไม่ระบุหน่วยงาน'} · {employee.jobTitle || 'ไม่ระบุตำแหน่ง'} · {employee.isActive ? 'ปฏิบัติงาน' : 'ไม่ปฏิบัติงาน'}</span></div>
@@ -151,7 +178,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
           {(type === 'POSITION_CHANGE' || type === 'REHIRE') && <label><span>ตำแหน่งใหม่</span><input required value={changes.jobTitle} onChange={(event) => { setChanges({ ...changes, jobTitle: event.target.value }); invalidate(); }} /></label>}
           <div className="lifecycle-field-grid"><label><span>วันที่มีผล</span><input type="date" required value={effectiveDate} onChange={(event) => { setEffectiveDate(event.target.value); invalidate(); }} /></label><label><span>เหตุผล</span><textarea required minLength={3} maxLength={1000} value={reason} onChange={(event) => { setReason(event.target.value); invalidate(); }} /></label></div>
           {preflight && <section className="lifecycle-preflight" aria-label="ผลการตรวจสอบผลกระทบ"><h3>ผลกระทบและคำเตือน</h3>{preflight.blockingIssues.map((issue) => <div className="lifecycle-issue lifecycle-issue--blocking" key={issue.code}><b>ไม่สามารถดำเนินการ</b><span>{issue.message}</span></div>)}{preflight.warnings.map((issue) => <div className="lifecycle-issue" key={issue.code}><b>ควรตรวจสอบ</b><span>{issue.message}{issue.count !== undefined ? ` (${issue.count} รายการ)` : ''}</span></div>)}{!preflight.blockingIssues.length && !preflight.warnings.length && <p className="lifecycle-no-impact">ไม่พบประเด็นที่ต้องยืนยันเพิ่มเติม</p>}<dl className="lifecycle-impact-grid"><div><dt>เวรในอนาคต</dt><dd>{text(preflight.impacts.futureShiftAssignments)}</dd></div><div><dt>ลารอพิจารณา</dt><dd>{text(preflight.impacts.pendingLeaveRequests)}</dd></div><div><dt>ลาอนุมัติในอนาคต</dt><dd>{text(preflight.impacts.approvedFutureLeaveRequests)}</dd></div><div><dt>โควต้าวันลา</dt><dd>{text(preflight.impacts.leaveQuotaRecords)}</dd></div><div><dt>ใบอนุญาตใช้งาน</dt><dd>{text(preflight.impacts.activeLicenses)}</dd></div><div><dt>เอกสารใบอนุญาต</dt><dd>{text(preflight.impacts.licenseDocuments)}</dd></div><div><dt>บัญชีผู้ใช้เชื่อมโยง</dt><dd>{preflight.impacts.linkedUser && typeof preflight.impacts.linkedUser === 'object' && 'present' in preflight.impacts.linkedUser && preflight.impacts.linkedUser.present ? 'พบ' : 'ไม่พบ'}</dd></div></dl></section>}
-          {type === 'EMPLOYMENT_TERMINATION' && preflight && <label className="lifecycle-confirm"><span>พิมพ์รหัส {employee.employeeCode} เพื่อยืนยันการลาออก</span><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" /></label>}
+          {type === 'EMPLOYMENT_TERMINATION' && preflight && <label className="lifecycle-confirm"><span>พิมพ์รหัสภายใน {employee.employeeCode} เพื่อยืนยันการลาออก</span><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" /></label>}
           <footer><button type="button" className="btn-neutral" disabled={busy} onClick={onClose}>ยกเลิก</button><button type="submit" className={type === 'EMPLOYMENT_TERMINATION' && preflight ? 'lifecycle-danger' : 'btn-primary'} disabled={busy || (Boolean(preflight?.blockingIssues.length))}>{busy ? 'กำลังดำเนินการ…' : preflight ? `ยืนยัน${typeLabels[type]}` : 'ตรวจสอบผลกระทบ'}</button></footer>
         </form>
         <aside className="lifecycle-history"><header><h3>ประวัติวงจรพนักงาน</h3><span>อ่านอย่างเดียว</span></header>{loadingHistory ? <p>กำลังโหลดประวัติ…</p> : history.length ? <ol>{history.map((event) => <li key={event.id}><div><b>{typeLabels[event.type]}</b><span className={`lifecycle-status lifecycle-status--${event.status.toLowerCase()}`}>{event.status === 'APPLIED' ? 'มีผลแล้ว' : 'รอวันที่มีผล'}</span></div><time>{thaiDate(event.effectiveDate)}</time><strong>{eventChange(event)}</strong><p>เหตุผล: {event.reason}</p><small>โดย {event.changedBy?.displayName || 'ผู้ดูแลระบบ'} ({event.changedBy?.role || 'ADMIN'}) · บันทึก {new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(event.createdAt))}</small></li>)}</ol> : <div className="lifecycle-empty">ยังไม่มีประวัติการเปลี่ยนแปลงที่ยืนยันได้</div>}</aside>
