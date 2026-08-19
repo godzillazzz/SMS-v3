@@ -36,7 +36,13 @@ test('rule definitions use existing quota statuses and non-overlapping license w
     'LICENSE_EXPIRING_WITHIN_30_DAYS',
     'LICENSE_EXPIRING_31_TO_90_DAYS'
   ]);
-  assert.deepEqual(rules[0].where().matchStatus, { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] });
+  assert.deepEqual(rules[0].where(), {
+    matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] },
+    OR: [
+      { employeeId: null },
+      { employee: { is: { isActive: true, deletedAt: null } } }
+    ]
+  });
   assert.deepEqual(rules[2].where().proposedExpiryDate, { gte: new Date('2026-08-11T00:00:00.000Z'), lte: new Date('2026-09-10T00:00:00.000Z') });
   assert.deepEqual(rules[3].where().proposedExpiryDate, { gt: new Date('2026-09-10T00:00:00.000Z'), lte: new Date('2026-11-09T00:00:00.000Z') });
 });
@@ -68,7 +74,7 @@ test('server-side filters are applied to rule definitions and no write methods a
   assert.ok(calls.every((call) => call.method === 'count'));
   const rules = buildRuleDefinitions({ severity: 'WARNING', module: 'LICENSE', department: 'North', search: 'E-1' });
   assert.equal(rules.length, 1);
-  assert.deepEqual(rules[0].where().employee, { is: { deletedAt: null, department: 'North', OR: [
+  assert.deepEqual(rules[0].where().employee, { is: { isActive: true, deletedAt: null, department: 'North', OR: [
     { employeeCode: { contains: 'E-1', mode: 'insensitive' } },
     { firstName: { contains: 'E-1', mode: 'insensitive' } },
     { lastName: { contains: 'E-1', mode: 'insensitive' } },

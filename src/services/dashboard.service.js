@@ -10,11 +10,11 @@ const LEAVE_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'];
 const TECHNICAL_AUDIT_ACTIONS = ['LOGIN', 'LOGIN_FAILED', 'REFRESH', 'LOGOUT', 'LOGOUT_ALL', 'TOKEN_REUSE'];
 
 function employeeScope(user, relation = false) {
-  if (user.role === 'ADMIN') return {};
+  if (user.role === 'ADMIN') return relation ? { employee: { is: { isActive: true, deletedAt: null } } } : {};
   if (user.role === 'MANAGER' && user.department) {
-    return relation ? { employee: { is: { department: user.department, deletedAt: null } } } : { department: user.department };
+    return relation ? { employee: { is: { department: user.department, isActive: true, deletedAt: null } } } : { department: user.department };
   }
-  return relation ? { employee: { is: { id: user.employeeId || EMPTY_ID } } } : { id: user.employeeId || EMPTY_ID };
+  return relation ? { employee: { is: { id: user.employeeId || EMPTY_ID, isActive: true, deletedAt: null } } } : { id: user.employeeId || EMPTY_ID };
 }
 
 function licenseStatusSummary(rows) {
@@ -87,7 +87,27 @@ function scopeForDashboard(requestUser, requestedDepartment) {
   const relation = employeeScope(requestUser, true);
   return {
     employeeWhere: { deletedAt: null, ...employee, ...(requested ? { department: requested } : {}) },
-    relationScope: requested ? { employee: { is: { department: requested, deletedAt: null } } } : relation
+    relationScope: requested ? { employee: { is: { department: requested, isActive: true, deletedAt: null } } } : relation
+  };
+}
+
+function actionableQuotaWhere(scope) {
+  return {
+    OR: [
+      { employeeId: null },
+      scope?.employee?.is ? scope : { employee: { is: { isActive: true, deletedAt: null } } }
+    ]
+  };
+}
+
+function pendingUserWhere(requestUser) {
+  return {
+    accountStatus: 'PENDING',
+    ...(requestUser.role === 'MANAGER' ? { department: requestUser.department } : {}),
+    OR: [
+      { employeeId: null },
+      { employee: { is: { isActive: true, deletedAt: null } } }
+    ]
   };
 }
 
@@ -258,7 +278,7 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   const licenseWhere = { ...relationScope };
   const leaveWhere = { ...relationScope };
   const shiftWhere = { ...relationScope };
-  const quotaWhere = canAdmin ? {} : relationScope;
+  const quotaWhere = canAdmin ? actionableQuotaWhere(relationScope) : relationScope;
   const approvedCurrentWhere = { ...licenseWhere, status: 'APPROVED', isCurrent: true };
   const queryResults = await settleDashboardQueries([
     { stage: 'DASH_WORKFORCE', run: () => workforceAggregate(client, employeeWhere) },
@@ -269,7 +289,7 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
     { stage: 'DASH_TODAY_OPERATIONS', run: () => findManyIfAvailable(client.leaveRequest, { where: { ...leaveWhere, status: { in: ACTIVE_LEAVE_STATUSES }, startDate: { lte: todayStart }, endDate: { gte: todayStart } }, select: { employeeId: true }, distinct: ['employeeId'] }) },
     { stage: 'DASH_LEAVE', run: () => monthlyLeaveAggregate(client, leaveWhere, monthStart, nextMonth) },
     { stage: 'DASH_LEAVE', run: () => client.leaveRequest.count({ where: { ...leaveWhere, status: 'PENDING' } }) },
-    { stage: 'DASH_ATTENTION', run: () => canAdmin || (requestUser.role === 'MANAGER' && requestUser.department) ? client.user.count({ where: { accountStatus: 'PENDING', ...(requestUser.role === 'MANAGER' ? { department: requestUser.department } : {}) } }) : 0 },
+    { stage: 'DASH_ATTENTION', run: () => canAdmin || (requestUser.role === 'MANAGER' && requestUser.department) ? client.user.count({ where: pendingUserWhere(requestUser) }) : 0 },
     { stage: 'DASH_ATTENTION', run: () => canManage ? client.scheduleApproval.count({ where: { status: { in: ['DRAFT', 'PENDING'] } } }) : 0 },
     { stage: 'DASH_LICENSE', run: () => licenseAggregate(client, licenseWhere, approvedCurrentWhere, todayStart, expiry30, expiry90) },
     { stage: 'DASH_LICENSE', run: () => client.employeeLicenseDocument.findMany({
@@ -277,7 +297,7 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
       select: { employeeId: true, licenseId: true, proposedExpiryDate: true, employee: { select: { employeeCode: true, firstName: true, lastName: true, displayName: true } } },
       orderBy: { proposedExpiryDate: 'asc' }, take: 100
     }) },
-    { stage: 'DASH_ATTENTION', run: () => canAdmin ? client.leaveQuota.count({ where: { matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] } } }) : client.leaveQuota.count({ where: { ...quotaWhere, matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] } } }) },
+    { stage: 'DASH_ATTENTION', run: () => client.leaveQuota.count({ where: { ...quotaWhere, matchStatus: { in: ['UNMATCHED', 'DUPLICATE_UNMATCHED'] } } }) },
     { stage: 'DASH_AUDIT', run: () => canAdmin ? client.auditLog.findMany({ where: { action: { notIn: TECHNICAL_AUDIT_ACTIONS } }, take: 12, orderBy: { createdAt: 'desc' }, select: { id: true, action: true, entityType: true, createdAt: true, actor: { select: { displayName: true, role: true } } } }) : [] }
   ], { requestId });
   const queryErrors = [];

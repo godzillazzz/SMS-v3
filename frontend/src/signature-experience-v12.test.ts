@@ -11,6 +11,10 @@ const personnel = read('components/personnel/PersonnelTable.tsx');
 const actionColumn = read('components/TableActionColumn.tsx');
 const passkeyPanel = read('components/PasskeySecurityPanel.tsx');
 const api = read('api.ts');
+const dashboard = read('styles/dashboard.css');
+const licenseDocuments = read('styles/license-documents.css');
+const reportCenter = read('styles/report-center.css');
+const executiveReport = read('styles/executive-report.css');
 
 describe('SMS Signature Experience V1.2 visual reconciliation', () => {
   it('loads the V1.2 authority after V1.1 without regressing typography', () => {
@@ -56,6 +60,37 @@ describe('SMS Signature Experience V1.2 visual reconciliation', () => {
     expect(v11).toContain('.dashboard-secondary-metrics { display: none !important; }');
     expect(v11).toContain('.personnel-search-input.data-search-control');
     expect(v11).toContain('height: 46px !important;');
+  });
+
+  it('provides an explicit active, inactive, and all License employee filter', () => {
+    expect(main).toContain("type LicenseEmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'ALL';");
+    expect(main).toContain("useState<LicenseEmployeeStatus>('ACTIVE')");
+    expect(main).toContain('className="license-employee-status-filter"');
+    expect(main).toContain('<option value="ACTIVE">ปฏิบัติงาน</option>');
+    expect(main).toContain('<option value="INACTIVE">พ้นสภาพ</option>');
+    expect(main).toContain('<option value="ALL">ทั้งหมด</option>');
+    expect(api).toContain('employeeStatus: \'ACTIVE\' | \'INACTIVE\' | \'ALL\' = \'ACTIVE\'');
+    expect(main).toContain('api.licenses(auth.token, operationPage, licenseEmployeeStatus)');
+  });
+
+  it('uses local dark surfaces for License, Reports, Executive Report, and Leave', () => {
+    expect(css).toContain('.license-modal-dialog');
+    expect(css).toContain('--license-local-surface:var(--color-surface-elevated);');
+    expect(css).toContain('[data-theme="dark"] .report-center-filter-card');
+    expect(css).toContain('[data-theme="dark"] .executive-report-panel');
+    expect(css).toContain('[data-theme="dark"] .leave-page');
+    expect(css).toContain('.leave-page h1');
+    expect(licenseDocuments).toContain('.license-modal-dialog');
+    expect(reportCenter).toContain('.report-center-filter-card');
+    expect(executiveReport).toContain('.executive-report-panel');
+  });
+
+  it('keeps action cells in the table layout and normalizes Dashboard KPI geometry', () => {
+    expect(css).toContain('.data-action-column--cell.data-row-actions { display:table-cell;');
+    expect(css).toContain('.data-action-column--cell .data-action-group { display:flex;');
+    expect(dashboard).not.toContain('.dashboard-page-v2 button');
+    expect(css).toContain('.dashboard-page-v2 .dashboard-metric { display:flex;');
+    expect(css).toContain('.dashboard-page-v2 .dashboard-metric--interactive');
   });
 });
 

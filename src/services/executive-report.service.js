@@ -9,7 +9,7 @@ const HttpError = require('../utils/http-error');
 
 const EMPTY_ID = '00000000-0000-0000-0000-000000000000';
 const LICENSE_APPROVED = { status: 'APPROVED', isCurrent: true };
-const QUERY_OPERATION_COUNT = 10;
+const QUERY_OPERATION_COUNT = 11;
 
 async function timedExecutiveStage(requestId, stage, queryCount, task) {
   const startedAt = performance.now();
@@ -59,6 +59,10 @@ function employeeRelation(scope) {
   return { is: employeeWhere(scope) };
 }
 
+function operationalEmployeeRelation(scope) {
+  return { is: employeeWhere(scope, { isActive: true }) };
+}
+
 function leaveScopeWhere(scope, period) {
   return {
     ...leaveMonthWhere({ monthStart: period.startDate, nextMonthStart: period.nextMonthStart }),
@@ -71,6 +75,13 @@ function historicalLeaveScopeWhere(scope, period) {
     ...leaveMonthWhere({ monthStart: period.startDate, nextMonthStart: period.nextMonthStart }),
     ...(scope.department && { departmentSnapshot: scope.department }),
     ...(scope.employeeId && { employeeId: scope.employeeId })
+  };
+}
+
+function operationalLeaveScopeWhere(scope, period) {
+  return {
+    ...leaveMonthWhere({ monthStart: period.startDate, nextMonthStart: period.nextMonthStart }),
+    employee: operationalEmployeeRelation(scope)
   };
 }
 
@@ -88,7 +99,7 @@ function buildAttention({ license, dataQuality, leave, role }) {
   add('critical', 'ใบอนุญาตหมดอายุ', 'พบใบอนุญาตปัจจุบันที่หมดอายุและควรติดตาม', license.expired, 'licenses');
   if (role === 'ADMIN') add('critical', 'โควต้าวันลายังไม่จับคู่', 'พบข้อมูลโควต้าที่ต้องตรวจสอบการจับคู่กับพนักงาน', dataQuality.categories.find((item) => item.rule === 'LEAVE_QUOTA_UNMATCHED')?.count || 0, 'dataQuality');
   add('warning', 'ใบอนุญาตใกล้หมดอายุ', 'พบใบอนุญาตปัจจุบันที่ใกล้หมดอายุภายใน 30 วัน', license.expiringWithin30Days, 'licenses');
-  add('follow-up', 'คำขอลารอพิจารณา', 'พบคำขอลาที่ทับซ้อนกับช่วงเวลารายงานและยังรอการพิจารณา', leave.statusCounts.PENDING, 'leavePending');
+  add('follow-up', 'คำขอลารอพิจารณา', 'พบคำขอลาที่ทับซ้อนกับช่วงเวลารายงานและยังรอการพิจารณา', leave.actionablePendingCount ?? leave.statusCounts.PENDING, 'leavePending');
   return rows.slice(0, 5);
 }
 
@@ -149,11 +160,12 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
   const month = filters.month || fallback.month;
   const period = monthBounds(year, month);
   const scope = resolveReportScope(requestUser, filters.department);
-  const documentScope = { employee: employeeRelation(scope) };
+  const operationalDocumentScope = { employee: operationalEmployeeRelation(scope) };
   const asOfDate = bangkokDateStart(now);
   const workforceAsOfDate = period.endDate < asOfDate ? period.endDate : asOfDate;
   const expiry30 = new Date(asOfDate.getTime() + (30 * 86400000));
   const leaveWhere = historicalLeaveScopeWhere(scope, period);
+  const operationalLeaveWhere = operationalLeaveScopeWhere(scope, period);
 
   const workforceRows = await timedExecutiveStage(requestId, 'EXEC_WORKFORCE_ASOF', 1, () => workforceSnapshot(prismaClient, workforceAsOfDate, scope));
   const totalEmployees = workforceRows.reduce((sum, row) => sum + row.total, 0);
@@ -161,9 +173,10 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
   const assignmentCount = await timedExecutiveStage(requestId, 'EXEC_SCHEDULE', 1, () => prismaClient.shiftAssignment.count({ where: { workDate: { gte: period.startDate, lt: period.nextMonthStart }, ...(scope.department && { departmentSnapshot: scope.department }), ...(scope.employeeId && { employeeId: scope.employeeId }) } }));
   const leaveByStatusRows = await timedExecutiveStage(requestId, 'EXEC_LEAVE', 1, () => prismaClient.leaveRequest.groupBy({ by: ['status'], where: leaveWhere, _count: { _all: true } }));
   const leaveByTypeRows = await timedExecutiveStage(requestId, 'EXEC_LEAVE', 1, () => prismaClient.leaveRequest.groupBy({ by: ['leaveType'], where: leaveWhere, _count: { _all: true }, orderBy: { leaveType: 'asc' } }));
+  const actionablePendingCount = await timedExecutiveStage(requestId, 'EXEC_LEAVE', 1, () => prismaClient.leaveRequest.count({ where: { status: 'PENDING', ...operationalLeaveWhere } }));
   const quality = await timedExecutiveStage(requestId, 'EXEC_DATA_QUALITY', 4, () => getDataQualitySummary({ prismaClient, filters: { department: scope.department || undefined, employeeId: scope.employeeId || undefined }, now: asOfDate }));
-  const validBeyond30Days = await timedExecutiveStage(requestId, 'EXEC_LICENSE', 1, () => prismaClient.employeeLicenseDocument.count({ where: { ...LICENSE_APPROVED, ...documentScope, proposedExpiryDate: { gt: expiry30 } } }));
-  const pendingReview = await timedExecutiveStage(requestId, 'EXEC_LICENSE', 1, () => prismaClient.employeeLicenseDocument.count({ where: { status: 'PENDING', isCurrent: true, ...documentScope } }));
+  const validBeyond30Days = await timedExecutiveStage(requestId, 'EXEC_LICENSE', 1, () => prismaClient.employeeLicenseDocument.count({ where: { ...LICENSE_APPROVED, ...operationalDocumentScope, proposedExpiryDate: { gt: expiry30 } } }));
+  const pendingReview = await timedExecutiveStage(requestId, 'EXEC_LICENSE', 1, () => prismaClient.employeeLicenseDocument.count({ where: { status: 'PENDING', isCurrent: true, ...operationalDocumentScope } }));
 
   const statusCounts = numberFromGroup(leaveByStatusRows, 'status', ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']);
   const byType = leaveByTypeRows.map((row) => ({ label: row.leaveType, count: row._count?._all || 0 }));
@@ -176,7 +189,7 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
     pendingReview,
     asOfDate: asOfDate.toISOString().slice(0, 10)
   };
-  const leave = { totalRequests: Object.values(statusCounts).reduce((sum, value) => sum + value, 0), statusCounts, byType, overlapRule: 'นับคำขอลาที่มีช่วงวันลาทับซ้อนกับเดือนที่เลือก' };
+  const leave = { totalRequests: Object.values(statusCounts).reduce((sum, value) => sum + value, 0), statusCounts, actionablePendingCount, byType, overlapRule: 'นับคำขอลาที่มีช่วงวันลาทับซ้อนกับเดือนที่เลือก' };
   const managementAttention = buildAttention({ license, dataQuality: quality, leave, role: requestUser.role });
 
   return {
@@ -200,4 +213,4 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
   };
 }
 
-module.exports = { QUERY_OPERATION_COUNT, bangkokDateStart, currentBangkokPeriod, monthBounds, resolveReportScope, leaveScopeWhere, historicalLeaveScopeWhere, buildAttention, workforceSnapshot, getExecutiveReport };
+module.exports = { QUERY_OPERATION_COUNT, bangkokDateStart, currentBangkokPeriod, monthBounds, resolveReportScope, leaveScopeWhere, historicalLeaveScopeWhere, operationalLeaveScopeWhere, buildAttention, workforceSnapshot, getExecutiveReport };

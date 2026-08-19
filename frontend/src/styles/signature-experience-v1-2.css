@@ -123,6 +123,8 @@ body,
   background:
     radial-gradient(430px 320px at 100% 0%, rgba(130, 103, 231, .055), transparent 78%),
     #fff !important;
+  border:1px solid #e6e2ed;
+  box-shadow:0 20px 50px rgba(32,24,63,.10);
 }
 [data-theme="dark"] .login-intro.auth-brand-panel {
   background:
@@ -204,8 +206,8 @@ body,
   .executive-report-panel h2,
   .registration-review h1,
   .registration-review h2,
-  .leave-management-page h1,
-  .leave-management-page h2,
+  .leave-page h1,
+  .leave-page h2,
   .settings-page h1,
   .settings-page h2
 ) { color:var(--text-primary) !important; }
@@ -227,7 +229,7 @@ body,
   .executive-report-heading p,
   .executive-report-note,
   .registration-review p,
-  .leave-management-page p,
+  .leave-page p,
   .settings-page p
 ) { color:var(--text-secondary) !important; }
 
@@ -338,6 +340,166 @@ body,
 .passkey-state span { margin-top:4px; color:var(--text-muted); font-size:12px; }
 
 [data-theme="light"] .passkey-panel { --drawer-bg:#fff; --drawer-section-bg:#faf9fd; }
+
+.license-employee-status-filter { display:grid; min-width:150px; gap:5px; color:var(--text-secondary); font-size:12px; font-weight:700; }
+.license-employee-status-filter select { min-height:38px; border:1px solid var(--signature-border-strong); border-radius:8px; padding:0 9px; color:var(--text-primary); background:var(--signature-surface-soft); font:inherit; }
+
+.license-modal-dialog,
+.license-edit-dialog {
+  --license-local-surface:var(--color-surface-elevated);
+  --license-local-soft:var(--color-surface-muted);
+  --license-local-subtle:var(--color-surface-subtle);
+  --license-local-text:var(--color-text);
+  --license-local-secondary:var(--color-text-secondary);
+  --license-local-muted:var(--color-text-muted);
+  --license-local-border:var(--color-border);
+  --license-local-border-strong:var(--color-border-strong);
+  --license-local-brand:var(--color-primary);
+  color:var(--license-local-text);
+  background:var(--license-local-surface);
+  border-color:var(--license-local-border);
+}
+.license-modal-dialog .license-modal-close { border-color:var(--license-local-border-strong); color:var(--license-local-text); background:var(--license-local-soft); }
+.license-modal-dialog .license-modal-heading h2,
+.license-modal-dialog .license-document-facts dd,
+.license-modal-dialog .license-date-comparison p,
+.license-modal-dialog .license-history-file,
+.license-edit-dialog .license-edit-current h3,
+.license-edit-dialog .license-upload-form h3 { color:var(--license-local-text); }
+.license-modal-dialog .license-modal-heading p,
+.license-modal-dialog .license-date-comparison h3 { color:var(--license-local-brand); }
+.license-modal-dialog .license-modal-heading span,
+.license-modal-dialog .license-document-facts dt,
+.license-modal-dialog .license-history-card small,
+.license-modal-dialog .license-primary-status,
+.license-edit-dialog .license-edit-document small { color:var(--license-local-secondary); }
+.license-modal-dialog .license-modal-state,
+.license-edit-dialog .license-edit-document,
+.license-edit-dialog .license-upload-form,
+.license-modal-dialog .license-document-facts div,
+.license-modal-dialog .license-history-card { border-color:var(--license-local-border); background:var(--license-local-soft); }
+.license-modal-dialog .license-modal-state { color:var(--license-local-secondary); }
+.license-modal-dialog .license-modal-error { color:var(--color-danger); background:var(--color-danger-soft); }
+.license-modal-dialog .license-pdf-viewer,
+.license-modal-dialog .license-image-stage { background:var(--license-local-subtle); }
+.license-modal-dialog .license-date-comparison div,
+.license-modal-dialog .license-confirm-panel { border-color:var(--license-local-border); background:color-mix(in srgb,var(--license-local-brand) 9%,var(--license-local-soft)); }
+.license-modal-dialog .license-confirm-panel > p { color:var(--license-local-secondary); }
+.license-modal-dialog .license-modal-actions { border-color:var(--license-local-border); }
+.license-edit-dialog .license-edit-tabs { border-color:var(--license-local-border); }
+.license-edit-dialog .license-edit-tabs button { color:var(--license-local-secondary); }
+.license-edit-dialog .license-edit-tabs button.is-active { color:var(--license-local-brand); border-bottom-color:var(--license-local-brand); }
+.license-edit-dialog .license-upload-form input,
+.license-edit-dialog .license-upload-form textarea { border-color:var(--license-local-border-strong); color:var(--license-local-text); background:var(--license-local-soft); }
+.license-edit-dialog .license-upload-form input::placeholder,
+.license-edit-dialog .license-upload-form textarea::placeholder { color:var(--license-local-muted); }
+.license-modal-dialog .license-doc-badge.is-pending { color:var(--color-warning); background:var(--color-warning-soft); }
+.license-modal-dialog .license-doc-badge.is-approved { color:var(--color-success); background:var(--color-success-soft); }
+.license-modal-dialog .license-doc-badge.is-rejected { color:var(--color-danger); background:var(--color-danger-soft); }
+.license-modal-dialog .license-doc-badge.is-superseded,
+.license-modal-dialog .license-doc-badge.is-empty { color:var(--license-local-secondary); background:var(--color-neutral-soft); }
+
+[data-theme="dark"] .report-center-page,
+[data-theme="dark"] .executive-report-page,
+[data-theme="dark"] .leave-page { color:var(--text-primary); }
+[data-theme="dark"] .report-center-filter-card,
+[data-theme="dark"] .report-center-export-card,
+[data-theme="dark"] .report-center-state,
+[data-theme="dark"] .executive-report-filters,
+[data-theme="dark"] .executive-report-kpi,
+[data-theme="dark"] .executive-report-panel,
+[data-theme="dark"] .executive-report-stat-grid > div,
+[data-theme="dark"] .executive-report-statuses > div,
+[data-theme="dark"] .executive-report-attention-list article { border-color:var(--signature-border); background:var(--signature-surface-raised); }
+[data-theme="dark"] .report-center-heading h1,
+[data-theme="dark"] .report-center-section-heading h2,
+[data-theme="dark"] .report-center-filter-heading strong,
+[data-theme="dark"] .report-center-export-card h3,
+[data-theme="dark"] .executive-report-heading h1,
+[data-theme="dark"] .executive-report-panel h2,
+[data-theme="dark"] .executive-report-kpi strong,
+[data-theme="dark"] .executive-report-stat-grid b,
+[data-theme="dark"] .executive-report-statuses b,
+[data-theme="dark"] .executive-report-attention-list article h3,
+[data-theme="dark"] .executive-report-attention-list article > b { color:var(--text-primary); }
+[data-theme="dark"] .report-center-heading p,
+[data-theme="dark"] .report-center-section-heading p,
+[data-theme="dark"] .report-center-filter-heading small,
+[data-theme="dark"] .report-center-filter-note,
+[data-theme="dark"] .report-center-export-card p,
+[data-theme="dark"] .report-center-export-card small,
+[data-theme="dark"] .executive-report-heading p,
+[data-theme="dark"] .executive-report-context,
+[data-theme="dark"] .executive-report-note,
+[data-theme="dark"] .executive-report-kpi span,
+[data-theme="dark"] .executive-report-kpi small,
+[data-theme="dark"] .executive-report-stat-grid span,
+[data-theme="dark"] .executive-report-statuses span,
+[data-theme="dark"] .executive-report-bar,
+[data-theme="dark"] .executive-report-attention-list article p,
+[data-theme="dark"] .executive-report-empty { color:var(--text-secondary); }
+[data-theme="dark"] .report-center-filters select,
+[data-theme="dark"] .executive-report-filters select { border-color:var(--signature-border-strong); color:var(--text-primary); background:var(--signature-surface-soft); color-scheme:dark; }
+[data-theme="dark"] .report-center-tabs { border-color:var(--signature-border); }
+[data-theme="dark"] .report-center-tabs button { color:var(--text-secondary); }
+[data-theme="dark"] .report-center-tabs button:hover,
+[data-theme="dark"] .report-center-tabs button.active,
+[data-theme="dark"] .report-center-tabs button[aria-selected="true"] { color:var(--text-primary); background:var(--signature-brand-soft); }
+[data-theme="dark"] .report-center-state { color:var(--text-secondary); }
+[data-theme="dark"] .report-center-state strong { color:var(--text-primary); }
+[data-theme="dark"] .report-center-state--error { color:var(--color-danger); background:var(--color-danger-soft); }
+[data-theme="dark"] .report-center-export-icon { color:var(--color-primary); background:var(--color-primary-soft); }
+[data-theme="dark"] .executive-report-chart h3 { color:var(--text-secondary); }
+[data-theme="dark"] .executive-report-bar > div { background:var(--signature-surface-soft); }
+[data-theme="dark"] .executive-report-attention-list article.critical { background:var(--color-danger-soft); }
+[data-theme="dark"] .executive-report-attention-list article.warning { background:var(--color-warning-soft); }
+
+[data-theme="dark"] .leave-page .leave-hero,
+[data-theme="dark"] .leave-page .leave-submit-card,
+[data-theme="dark"] .leave-page .leave-history-card,
+[data-theme="dark"] .leave-page .leave-pending-card,
+[data-theme="dark"] .leave-page .leave-quota-card,
+[data-theme="dark"] .leave-page .leave-decision-queue,
+[data-theme="dark"] .leave-page .leave-decision-detail,
+[data-theme="dark"] .leave-page .leave-decision-actions { color:var(--text-primary); background:var(--signature-surface); border-color:var(--signature-border); }
+[data-theme="dark"] .leave-page h1,
+[data-theme="dark"] .leave-page h2,
+[data-theme="dark"] .leave-page h3,
+[data-theme="dark"] .leave-page strong,
+[data-theme="dark"] .leave-page th,
+[data-theme="dark"] .leave-page td { color:var(--text-primary); }
+[data-theme="dark"] .leave-page p,
+[data-theme="dark"] .leave-page label,
+[data-theme="dark"] .leave-page small,
+[data-theme="dark"] .leave-page .muted-text,
+[data-theme="dark"] .leave-page .cell-note,
+[data-theme="dark"] .leave-page .leave-file-field span { color:var(--text-secondary); }
+[data-theme="dark"] .leave-page input,
+[data-theme="dark"] .leave-page select,
+[data-theme="dark"] .leave-page textarea { border-color:var(--signature-border-strong); color:var(--text-primary); background:var(--signature-surface-soft); color-scheme:dark; }
+[data-theme="dark"] .leave-page input::placeholder,
+[data-theme="dark"] .leave-page textarea::placeholder { color:var(--text-muted); }
+[data-theme="dark"] .leave-page .leave-history-filter,
+[data-theme="dark"] .leave-page .leave-days-note,
+[data-theme="dark"] .leave-page .leave-file-field,
+[data-theme="dark"] .leave-page .leave-decision-summary > div,
+[data-theme="dark"] .leave-page .leave-decision-item:hover,
+[data-theme="dark"] .leave-page .leave-decision-item.is-active { color:var(--text-primary); background:var(--signature-surface-soft); border-color:var(--signature-border); }
+[data-theme="dark"] .leave-page .leave-hero button,
+[data-theme="dark"] .leave-page .btn-neutral,
+[data-theme="dark"] .leave-page .leave-print-button { color:var(--text-primary); border-color:var(--signature-border-strong); background:var(--signature-surface-soft); }
+[data-theme="dark"] .leave-page .leave-submit-button,
+[data-theme="dark"] .leave-page .btn-success,
+[data-theme="dark"] .leave-page .btn-danger-outline { color:var(--text-primary); }
+
+.data-action-column--cell.data-row-actions { display:table-cell; width:var(--data-action-column-width); min-width:var(--data-action-column-width); max-width:var(--data-action-column-width); padding-inline:14px; vertical-align:middle; text-align:center; }
+.data-action-column--cell .data-action-group { display:flex; min-height:40px; align-items:center; justify-content:center; gap:8px; width:100%; }
+.data-action-column--header { vertical-align:middle; }
+
+.dashboard-page-v2 .dashboard-metric { display:flex; box-sizing:border-box; width:100%; min-width:0; align-items:center; gap:10px; line-height:normal; }
+.dashboard-page-v2 .dashboard-metric__icon { display:grid; min-width:0; line-height:1; }
+.dashboard-page-v2 .dashboard-metric > div:last-child { min-width:0; }
+.dashboard-page-v2 .dashboard-metric--interactive { font:inherit; text-align:left; }
 [data-theme="light"] .passkey-panel-backdrop { background:rgba(54,44,80,.22); }
 
 @media (max-width:760px) {
