@@ -106,6 +106,14 @@ async function binaryCall(path: string, init: RequestInit = {}, isRetry = false)
 }
 export const api = {
   login: (email: string, password: string) => call('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, clientType: 'browser' }) }),
+  passkeyConfig: () => call('/auth/passkeys/config'),
+  passkeyLoginOptions: () => call('/auth/passkeys/login/options', { method: 'POST', body: '{}' }),
+  passkeyLoginVerify: (challengeId: string, response: unknown) => call('/auth/passkeys/login/verify', { method: 'POST', body: JSON.stringify({ challengeId, response }) }),
+  passkeys: (token: string) => call('/auth/passkeys', { headers: { Authorization: `Bearer ${token}` } }),
+  passkeyRegistrationOptions: (token: string, currentPassword: string, displayName: string) => call('/auth/passkeys/register/options', { method: 'POST', body: JSON.stringify({ currentPassword, displayName }), headers: { Authorization: `Bearer ${token}` } }),
+  passkeyRegistrationVerify: (token: string, challengeId: string, response: unknown, displayName: string) => call('/auth/passkeys/register/verify', { method: 'POST', body: JSON.stringify({ challengeId, response, displayName }), headers: { Authorization: `Bearer ${token}` } }),
+  renamePasskey: (token: string, id: string, displayName: string) => call(`/auth/passkeys/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ displayName }), headers: { Authorization: `Bearer ${token}` } }),
+  revokePasskey: (token: string, id: string, currentPassword: string) => call(`/auth/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE', body: JSON.stringify({ currentPassword }), headers: { Authorization: `Bearer ${token}` } }),
   requestRegistrationOtp: (data: { submittedName: string; email: string; password: string; departmentHint?: string }) => call('/auth/register/request-otp', { method: 'POST', body: JSON.stringify(data) }),
   verifyRegistrationOtp: (email: string, code: string) => call('/auth/register/verify-otp', { method: 'POST', body: JSON.stringify({ email, code }) }),
   requestPasswordResetOtp: (email: string) => call('/auth/password-reset/request-otp', { method: 'POST', body: JSON.stringify({ email }) }),

@@ -67,6 +67,25 @@ async function login(email, password, requestId, request) {
   logger.info('performance_operation', { requestId, operation: 'auth_login', durationMs: Number((performance.now() - operationStartedAt).toFixed(2)), status: 'ok' });
   return { ...tokens, user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role } };
 }
+async function loginVerifiedUser(userId, requestId, request, { auditAction = 'PASSKEY_LOGIN_SUCCESS', credentialId } = {}) {
+  await synchronizeDueLifecycleEventsForRequest();
+  let user = await prisma.user.findUnique({ where: { id: userId } });
+  if (user?.employeeId) {
+    await synchronizeDueLifecycleEventsForEmployee(user.employeeId);
+    user = await prisma.user.findUnique({ where: { id: user.id } });
+  }
+  if (!user || !user.isActive || user.accountStatus !== 'ACTIVE' || user.passwordResetRequired) {
+    throw new HttpError(401, genericFailure);
+  }
+  const tokens = await prisma.$transaction(async (tx) => {
+    const current = await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), failedLoginCount: 0 } });
+    const issued = await createSessionTokens(current, request, tx);
+    await audit.log({ actorUserId: user.id, action: auditAction, entityType: credentialId ? 'WebAuthnCredential' : 'User', entityId: credentialId || user.id, metadata: { requestId, authenticationMethod: credentialId ? 'passkey' : 'verified' } }, tx);
+    return issued;
+  });
+  return { ...tokens, user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role, department: user.department } };
+}
+
 async function revokeAllForUser(userId, action, requestId, client) {
   await client.refreshSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
   const user = await client.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
@@ -116,4 +135,4 @@ async function logout(refreshToken, requestId) {
 
 async function logoutAll(userId, requestId) { await prisma.$transaction((tx) => revokeAllForUser(userId, 'LOGOUT_ALL', requestId, tx)); }
 
-module.exports = { login, refresh, logout, logoutAll, genericFailure, refreshFailure, hashRefreshToken, accessTokenFor };
+module.exports = { login, loginVerifiedUser, refresh, logout, logoutAll, genericFailure, refreshFailure, hashRefreshToken, accessTokenFor };

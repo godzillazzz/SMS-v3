@@ -1,0 +1,350 @@
+/* SMS Signature Experience V1.2
+   Owner visual reconciliation: VF071 visual DNA + V1.1 UX/typography/performance. */
+
+:root {
+  --data-action-column-width: 184px;
+  --v12-light-lavender: #f5f1ff;
+  --v12-light-blush: #fff5ef;
+  --v12-light-page: #fbfaff;
+  --v12-dark-page: #090f1d;
+  --v12-dark-surface: #111a2b;
+  --v12-dark-raised: #162137;
+  --v12-dark-soft: #1a2840;
+}
+
+/* ------------------------------------------------------------------
+   VF071 visual DNA: airy Light, balanced Aurora Midnight Dark
+   ------------------------------------------------------------------ */
+[data-theme="light"] {
+  --signature-page-bg: #faf9fd;
+  --signature-page-wash:
+    radial-gradient(820px 560px at 4% -4%, rgba(150, 123, 247, .13), transparent 70%),
+    radial-gradient(760px 520px at 98% 1%, rgba(246, 163, 141, .09), transparent 72%),
+    linear-gradient(180deg, #fbfaff 0%, #f8f7fc 58%, #f7f8fb 100%);
+  --signature-surface: rgba(255, 255, 255, .93);
+  --signature-surface-raised: #ffffff;
+  --signature-surface-soft: #f7f5fc;
+  --signature-surface-muted: #f1f3f8;
+  --signature-border: #e4e3ed;
+  --signature-border-strong: #d7d4e4;
+  --signature-brand-soft: #f0ecff;
+  --table-bg: #fffefe;
+  --table-header-bg: #f7f6fb;
+  --table-row-bg: #fffefe;
+  --table-row-hover-bg: #faf8ff;
+  --table-border: #e7e6ee;
+}
+
+[data-theme="dark"] {
+  --signature-page-bg: #090f1d;
+  --signature-page-wash:
+    radial-gradient(900px 600px at 3% -8%, rgba(112, 83, 229, .15), transparent 70%),
+    radial-gradient(820px 560px at 102% 0%, rgba(57, 150, 190, .06), transparent 72%),
+    radial-gradient(760px 520px at 100% 100%, rgba(225, 105, 157, .045), transparent 74%),
+    linear-gradient(180deg, #090f1d 0%, #0c1322 52%, #0a101d 100%);
+  --signature-surface: #111a2b;
+  --signature-surface-raised: #162137;
+  --signature-surface-soft: #1a2840;
+  --signature-surface-muted: #1d2c45;
+  --signature-text: #f6f7fb;
+  --signature-text-secondary: #c4ccda;
+  --signature-text-muted: #99a7bb;
+  --signature-border: #2b3950;
+  --signature-border-strong: #40506b;
+  --signature-brand-soft: #282442;
+  --table-bg: #111a2b;
+  --table-header-bg: #18243a;
+  --table-row-bg: #121d30;
+  --table-row-hover-bg: #1b2942;
+  --table-border: #2d3c54;
+  --table-text-primary: #f4f6fa;
+  --table-text-secondary: #c0cad8;
+  --drawer-bg: #121c2e;
+  --drawer-section-bg: #17233a;
+}
+
+body,
+.app-shell,
+.content-area {
+  background-image: var(--signature-page-wash);
+}
+
+[data-theme="dark"] .dashboard-panel,
+[data-theme="dark"] .personnel-search-panel,
+[data-theme="dark"] .personnel-table-card,
+[data-theme="dark"] .access-summary-card,
+[data-theme="dark"] .registration-review__requests,
+[data-theme="dark"] .registration-review__detail,
+[data-theme="dark"] .audit-toolbar,
+[data-theme="dark"] .audit-table-card,
+[data-theme="dark"] .data-quality-filter-bar,
+[data-theme="dark"] .data-quality-desktop-table,
+[data-theme="dark"] .report-center-card,
+[data-theme="dark"] .executive-report-panel {
+  background: color-mix(in srgb, var(--signature-surface) 94%, transparent) !important;
+  border-color: color-mix(in srgb, var(--signature-border) 82%, transparent) !important;
+  box-shadow: 0 8px 24px rgba(1, 7, 18, .10) !important;
+}
+
+/* ------------------------------------------------------------------
+   Login: restore VF071 Light character, preserve V1.1 font + shield
+   ------------------------------------------------------------------ */
+.login-page.auth-experience-page {
+  background:
+    radial-gradient(760px 540px at 10% 9%, rgba(145, 121, 247, .18), transparent 68%),
+    radial-gradient(700px 500px at 90% 7%, rgba(248, 171, 139, .13), transparent 67%),
+    radial-gradient(650px 480px at 76% 92%, rgba(224, 127, 176, .10), transparent 69%),
+    linear-gradient(180deg, #fbfaff, #f8f7fc) !important;
+}
+[data-theme="dark"] .login-page.auth-experience-page {
+  background:
+    radial-gradient(780px 540px at 12% 8%, rgba(111, 84, 231, .17), transparent 68%),
+    radial-gradient(660px 480px at 90% 12%, rgba(46, 147, 185, .065), transparent 68%),
+    linear-gradient(180deg, #080d19, #0b1120) !important;
+}
+[data-theme="light"] .login-intro.auth-brand-panel {
+  color: #27213a !important;
+  background:
+    radial-gradient(430px 320px at 16% 14%, rgba(150, 123, 247, .23), transparent 70%),
+    radial-gradient(360px 290px at 88% 82%, rgba(246, 163, 141, .16), transparent 72%),
+    linear-gradient(150deg, #f5f1ff 0%, #fbf7ff 54%, #fff5ef 112%) !important;
+}
+[data-theme="light"] .auth-brand-copy h1,
+[data-theme="light"] .auth-brand > span:last-child b { color: #27213a !important; }
+[data-theme="light"] .auth-brand > span:last-child strong,
+[data-theme="light"] .auth-brand-copy > p:not(.auth-brand-eyebrow),
+[data-theme="light"] .auth-brand-footnote { color: #675f78 !important; }
+[data-theme="light"] .auth-brand-points span {
+  color: #40384f !important;
+  background: rgba(255,255,255,.62) !important;
+  border-color: rgba(118,91,219,.14) !important;
+}
+[data-theme="light"] .auth-card-panel {
+  background:
+    radial-gradient(430px 320px at 100% 0%, rgba(130, 103, 231, .055), transparent 78%),
+    #fff !important;
+}
+[data-theme="dark"] .login-intro.auth-brand-panel {
+  background:
+    radial-gradient(430px 330px at 18% 16%, rgba(139,108,250,.25), transparent 72%),
+    radial-gradient(390px 310px at 88% 82%, rgba(54,173,203,.075), transparent 72%),
+    linear-gradient(145deg, #070d1a 0%, #0b1830 60%, #1b193d 115%) !important;
+}
+[data-theme="dark"] .auth-brand-copy h1,
+[data-theme="dark"] .auth-brand > span:last-child b { color: #f7f8ff !important; }
+[data-theme="dark"] .auth-brand-copy > p:not(.auth-brand-eyebrow),
+[data-theme="dark"] .auth-brand > span:last-child strong,
+[data-theme="dark"] .auth-brand-footnote { color: #c8d0df !important; }
+[data-theme="dark"] .auth-brand-points span {
+  color: #d8dfeb !important;
+  background: rgba(255,255,255,.055) !important;
+  border-color: rgba(160,145,248,.16) !important;
+}
+
+/* Passkey is prominent but secondary to password recovery-compatible login. */
+.auth-passkey-zone { display:grid; gap:10px; }
+.auth-or-separator { display:flex; align-items:center; gap:10px; color:var(--text-muted); font-size:12px; }
+.auth-or-separator::before,.auth-or-separator::after { content:""; height:1px; flex:1; background:var(--signature-border); }
+.auth-passkey-action {
+  width:100%; min-height:52px; display:flex; align-items:center; justify-content:center; gap:10px;
+  border:1px solid var(--signature-border-strong); border-radius:10px;
+  color:var(--text-primary); background:var(--signature-surface-soft); cursor:pointer;
+  transition:border-color .18s ease, background .18s ease, transform .18s ease;
+}
+.auth-passkey-action:hover,.auth-passkey-action:focus-visible {
+  border-color:color-mix(in srgb,var(--signature-brand) 58%,var(--signature-border));
+  background:color-mix(in srgb,var(--signature-brand-soft) 66%,var(--signature-surface));
+  outline:3px solid color-mix(in srgb,var(--signature-brand) 22%,transparent); outline-offset:2px;
+}
+.auth-passkey-action > span { display:grid; text-align:left; }
+.auth-passkey-action b { font-size:14px; font-weight:650; }
+.auth-passkey-action small { margin-top:1px; color:var(--text-secondary); font-size:11px; font-weight:450; }
+
+/* ------------------------------------------------------------------
+   Shared action-column geometry — Personnel + License/operational lists
+   ------------------------------------------------------------------ */
+.data-action-column {
+  width:var(--data-action-column-width) !important;
+  min-width:var(--data-action-column-width) !important;
+  max-width:var(--data-action-column-width) !important;
+  padding-inline:14px !important;
+  text-align:center !important;
+}
+.data-action-column--header > span { display:block; width:100%; text-align:center; }
+.data-action-column--cell .data-action-group {
+  display:flex; min-height:40px; align-items:center; justify-content:center; gap:8px; width:100%;
+}
+.data-action-column--cell.data-row-actions { justify-content:center !important; }
+.data-action-column--cell .data-row-primary-action { flex:0 0 auto; }
+.data-action-column--cell .data-row-more-trigger { flex:0 0 40px; }
+
+/* ------------------------------------------------------------------
+   P0 global Dark text contract — no Light navy typography on Dark
+   ------------------------------------------------------------------ */
+[data-theme="dark"] .content-area,
+[data-theme="dark"] .dashboard-page-v2,
+[data-theme="dark"] .data-quality-page,
+[data-theme="dark"] .report-center-page,
+[data-theme="dark"] .executive-report-page,
+[data-theme="dark"] .audit-compliance-page { color:var(--text-primary) !important; }
+
+[data-theme="dark"] :is(
+  .page-heading h1,
+  .signature-page-header h1,
+  .dashboard-hero h1,
+  .dashboard-kpi-heading h2,
+  .dashboard-panel__header h2,
+  .personnel-directory-header h1,
+  .access-page-header h1,
+  .audit-page-header h1,
+  .data-quality-header h1,
+  .report-center-heading h1,
+  .report-center-section-heading h2,
+  .executive-report-heading h1,
+  .executive-report-panel h2,
+  .registration-review h1,
+  .registration-review h2,
+  .leave-management-page h1,
+  .leave-management-page h2,
+  .settings-page h1,
+  .settings-page h2
+) { color:var(--text-primary) !important; }
+
+[data-theme="dark"] :is(
+  .page-heading p,
+  .signature-page-header p,
+  .dashboard-hero__subtitle,
+  .dashboard-panel__header p,
+  .dashboard-filter-bar__context small,
+  .personnel-directory-header p,
+  .access-page-header p,
+  .audit-page-header p,
+  .data-quality-header p,
+  .data-quality-filter-bar label,
+  .report-center-heading p,
+  .report-center-filter-heading small,
+  .report-center-section-heading p,
+  .executive-report-heading p,
+  .executive-report-note,
+  .registration-review p,
+  .leave-management-page p,
+  .settings-page p
+) { color:var(--text-secondary) !important; }
+
+[data-theme="dark"] .dashboard-metric strong,
+[data-theme="dark"] .dashboard-secondary-metric strong,
+[data-theme="dark"] .dashboard-today-stat strong,
+[data-theme="dark"] .dashboard-mini-stat strong,
+[data-theme="dark"] .dashboard-legend b,
+[data-theme="dark"] .dashboard-attention-row b,
+[data-theme="dark"] .dashboard-activity-row b,
+[data-theme="dark"] .data-quality-kpi strong,
+[data-theme="dark"] .data-quality-rule,
+[data-theme="dark"] .data-quality-mobile-card h2,
+[data-theme="dark"] .audit-no-rows strong,
+[data-theme="dark"] .audit-preview-panel h2,
+[data-theme="dark"] .audit-metadata h3,
+[data-theme="dark"] .report-center-filter-heading strong,
+[data-theme="dark"] .report-center-export-card h3,
+[data-theme="dark"] .executive-report-stat-grid b,
+[data-theme="dark"] .executive-report-statuses b,
+[data-theme="dark"] .executive-report-attention-list article h3,
+[data-theme="dark"] .executive-report-attention-list article > b { color:var(--text-primary) !important; }
+
+[data-theme="dark"] .dashboard-metric p,
+[data-theme="dark"] .dashboard-metric small,
+[data-theme="dark"] .dashboard-secondary-metric span,
+[data-theme="dark"] .dashboard-mini-stat span,
+[data-theme="dark"] .dashboard-legend p,
+[data-theme="dark"] .dashboard-attention-row small,
+[data-theme="dark"] .dashboard-activity-row small,
+[data-theme="dark"] .data-quality-kpi p,
+[data-theme="dark"] .data-quality-kpi small,
+[data-theme="dark"] .data-quality-desktop-table td small,
+[data-theme="dark"] .audit-table td small,
+[data-theme="dark"] .audit-row-summary,
+[data-theme="dark"] .report-center-export-card p,
+[data-theme="dark"] .report-center-export-card small,
+[data-theme="dark"] .executive-report-stat-grid span,
+[data-theme="dark"] .executive-report-statuses span,
+[data-theme="dark"] .executive-report-bar,
+[data-theme="dark"] .executive-report-attention-list article p { color:var(--text-secondary) !important; }
+
+[data-theme="dark"] .data-quality-kpi,
+[data-theme="dark"] .data-quality-mobile-card,
+[data-theme="dark"] .data-quality-state,
+[data-theme="dark"] .audit-state,
+[data-theme="dark"] .audit-preview-panel,
+[data-theme="dark"] .audit-preview-panel footer,
+[data-theme="dark"] .report-center-filters,
+[data-theme="dark"] .report-center-tabs,
+[data-theme="dark"] .report-center-export-card,
+[data-theme="dark"] .executive-report-kpi,
+[data-theme="dark"] .executive-report-stat-grid > div,
+[data-theme="dark"] .executive-report-statuses > div,
+[data-theme="dark"] .executive-report-attention-list article {
+  color:var(--text-primary) !important;
+  background:var(--signature-surface-raised) !important;
+  border-color:var(--signature-border) !important;
+}
+
+[data-theme="dark"] .data-quality-filter-bar input,
+[data-theme="dark"] .data-quality-filter-bar select,
+[data-theme="dark"] .audit-toolbar input,
+[data-theme="dark"] .audit-toolbar select,
+[data-theme="dark"] .report-center-filters select,
+[data-theme="dark"] .executive-report-filters select {
+  color:var(--text-primary) !important;
+  background:var(--signature-surface-soft) !important;
+  border-color:var(--signature-border-strong) !important;
+  color-scheme:dark;
+}
+
+/* ------------------------------------------------------------------
+   Account security / Passkey drawer
+   ------------------------------------------------------------------ */
+.topbar-profile-button { border:0; font:inherit; cursor:pointer; text-align:left; }
+.topbar-profile-button:focus-visible { outline:3px solid color-mix(in srgb,var(--signature-brand) 26%,transparent); outline-offset:2px; }
+.mobile-utility-security { min-height:44px; display:flex; align-items:center; gap:9px; border:0; border-radius:9px; padding:0 10px; color:var(--text-primary); background:transparent; font:600 13px var(--font-ui); }
+.mobile-utility-security:hover,.mobile-utility-security:focus-visible { background:var(--signature-brand-soft); outline:none; }
+.passkey-panel-backdrop { position:fixed; inset:0; z-index:2147483200; display:flex; justify-content:flex-end; background:rgba(4,9,18,.46); backdrop-filter:blur(2px); }
+.passkey-panel { width:min(520px,100%); height:100dvh; overflow:auto; color:var(--text-primary); background:var(--drawer-bg); border-left:1px solid var(--signature-border); box-shadow:-18px 0 48px rgba(0,0,0,.24); }
+.passkey-panel__header { position:sticky; top:0; z-index:2; display:flex; justify-content:space-between; gap:14px; padding:22px; background:color-mix(in srgb,var(--drawer-bg) 96%,transparent); border-bottom:1px solid var(--signature-border); backdrop-filter:blur(14px); }
+.passkey-panel__header p { margin:0; color:var(--signature-brand); font:700 10px var(--font-heading); letter-spacing:.1em; }
+.passkey-panel__header h2 { margin:3px 0 2px; color:var(--text-primary); font-size:21px; }
+.passkey-panel__header span { color:var(--text-secondary); font-size:12px; }
+.passkey-panel__body { display:grid; gap:16px; padding:18px 22px 28px; }
+.passkey-enroll-card,.passkey-list-section,.passkey-revoke-confirm { display:grid; gap:12px; padding:16px; border:1px solid var(--signature-border); border-radius:13px; background:var(--drawer-section-bg); }
+.passkey-section-heading { display:flex; gap:10px; align-items:flex-start; }
+.passkey-section-heading > span { width:38px; height:38px; display:grid; place-items:center; flex:0 0 38px; border-radius:10px; color:var(--signature-brand); background:var(--signature-brand-soft); }
+.passkey-section-heading h3,.passkey-revoke-confirm h3 { margin:0; color:var(--text-primary); font-size:16px; }
+.passkey-section-heading p,.passkey-revoke-confirm p { margin:3px 0 0; color:var(--text-secondary); font-size:12px; line-height:1.55; }
+.passkey-enroll-card label { display:grid; gap:5px; color:var(--text-secondary); font-size:12px; font-weight:600; }
+.passkey-enroll-card input,.passkey-revoke-confirm input { width:100%; min-height:44px; border:1px solid var(--signature-border-strong); border-radius:9px; padding:0 11px; color:var(--text-primary); background:var(--signature-surface-soft); }
+.passkey-enroll-action { min-height:46px; justify-content:center; gap:8px; }
+.passkey-privacy-note { color:var(--text-muted); font-size:11px; line-height:1.55; }
+.passkey-list { display:grid; gap:9px; }
+.passkey-item { display:grid; gap:9px; padding:13px; border:1px solid var(--signature-border); border-radius:11px; background:color-mix(in srgb,var(--signature-surface) 78%,transparent); }
+.passkey-item > div strong,.passkey-item > div span { display:block; }
+.passkey-item > div strong { color:var(--text-primary); font-size:14px; }
+.passkey-item > div span { margin-top:2px; color:var(--text-secondary); font-size:11px; }
+.passkey-item dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:0; }
+.passkey-item dl div { min-width:0; }
+.passkey-item dt { color:var(--text-muted); font-size:10px; }
+.passkey-item dd { margin:2px 0 0; color:var(--text-secondary); font-size:11px; overflow-wrap:anywhere; }
+.passkey-item footer,.passkey-revoke-confirm > div:last-child { display:flex; justify-content:flex-end; gap:8px; }
+.passkey-state { padding:22px 12px; color:var(--text-secondary); text-align:center; }
+.passkey-state strong,.passkey-state span { display:block; }
+.passkey-state span { margin-top:4px; color:var(--text-muted); font-size:12px; }
+
+[data-theme="light"] .passkey-panel { --drawer-bg:#fff; --drawer-section-bg:#faf9fd; }
+[data-theme="light"] .passkey-panel-backdrop { background:rgba(54,44,80,.22); }
+
+@media (max-width:760px) {
+  :root { --data-action-column-width:168px; }
+  .passkey-panel { width:100%; border-left:0; }
+  .passkey-panel__header { padding:18px 16px; }
+  .passkey-panel__body { padding:14px 14px 24px; }
+  .passkey-item dl { grid-template-columns:1fr; }
+  .auth-passkey-action { min-height:50px; }
+}

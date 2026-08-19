@@ -42,6 +42,11 @@ const schema = z.object({
   OTP_CODE_EXPIRES_MINUTES: z.coerce.number().int().min(5).max(30).default(10),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(10).default(5),
   OTP_REQUEST_LIMIT_PER_HOUR: z.coerce.number().int().min(1).max(20).default(5),
+  WEBAUTHN_ENABLED: z.enum(['true', 'false']).default('false'),
+  WEBAUTHN_RP_NAME: z.preprocess(emptyToUndefined, z.string().min(1).max(100).optional()),
+  WEBAUTHN_RP_ID: z.preprocess(emptyToUndefined, z.string().min(1).max(253).regex(/^(localhost|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)$/i, 'WEBAUTHN_RP_ID must be a valid hostname.').optional()),
+  WEBAUTHN_ORIGIN: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  WEBAUTHN_CHALLENGE_TTL_SECONDS: z.coerce.number().int().min(60).max(600).default(300),
   ALERTING_ENABLED: z.enum(['true', 'false']).default('false'),
   ALERTING_PROVIDER: z.string().regex(/^[A-Za-z0-9_-]+$/).default('disabled'),
   ALERTING_API_TOKEN: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -78,6 +83,11 @@ const schema = z.object({
   if (value.OTP_DELIVERY_PROVIDER === 'gmail_smtp') {
     for (const field of ['OTP_HASH_SECRET', 'OTP_FROM_EMAIL', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USERNAME', 'SMTP_PASSWORD']) {
       if (!value[field]) context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required when OTP_DELIVERY_PROVIDER=gmail_smtp.` });
+    }
+  }
+  if (value.WEBAUTHN_ENABLED === 'true') {
+    for (const field of ['WEBAUTHN_RP_NAME', 'WEBAUTHN_RP_ID', 'WEBAUTHN_ORIGIN']) {
+      if (!value[field]) context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required when WEBAUTHN_ENABLED=true.` });
     }
   }
   if (value.ALERTING_ENABLED === 'true') {
@@ -146,6 +156,11 @@ module.exports = {
   otpCodeExpiresMinutes: parsed.OTP_CODE_EXPIRES_MINUTES,
   otpMaxAttempts: parsed.OTP_MAX_ATTEMPTS,
   otpRequestLimitPerHour: parsed.OTP_REQUEST_LIMIT_PER_HOUR,
+  webAuthnEnabled: parsed.WEBAUTHN_ENABLED === 'true',
+  webAuthnRpName: parsed.WEBAUTHN_RP_NAME,
+  webAuthnRpId: parsed.WEBAUTHN_RP_ID,
+  webAuthnOrigin: parsed.WEBAUTHN_ORIGIN,
+  webAuthnChallengeTtlSeconds: parsed.WEBAUTHN_CHALLENGE_TTL_SECONDS,
   alertingEnabled: parsed.ALERTING_ENABLED === 'true',
   alertingProvider: parsed.ALERTING_PROVIDER,
   alertingApiToken: parsed.ALERTING_API_TOKEN,

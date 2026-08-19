@@ -52,11 +52,20 @@ enum AuditAction {
   LOGOUT
   LOGOUT_ALL
   TOKEN_REUSE
+  PASSKEY_REGISTERED
+  PASSKEY_LOGIN_SUCCESS
+  PASSKEY_LOGIN_FAILED
+  PASSKEY_REVOKED
 }
 
 enum AuthOtpPurpose {
   REGISTRATION
   PASSWORD_RESET
+}
+
+enum WebAuthnChallengePurpose {
+  REGISTRATION
+  AUTHENTICATION
 }
 
 model User {
@@ -86,6 +95,8 @@ model User {
   auditLogs                    AuditLog[]                @relation("ActorAuditLogs")
   sessions                     RefreshSession[]
   otpChallenges                AuthOtpChallenge[]
+  webAuthnCredentials          WebAuthnCredential[]
+  webAuthnChallenges           WebAuthnChallenge[]
   uploadedLicenseDocuments     EmployeeLicenseDocument[] @relation("UploadedLicenseDocuments")
   reviewedLicenseDocuments     EmployeeLicenseDocument[] @relation("ReviewedLicenseDocuments")
   returnedLicenseDocuments     EmployeeLicenseDocument[] @relation("ReturnedLicenseDocuments")
@@ -139,6 +150,40 @@ model AuthOtpChallenge {
   @@index([emailHash, purpose, createdAt])
   @@index([expiresAt])
   @@map("auth_otp_challenges")
+}
+
+model WebAuthnCredential {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  credentialId String    @unique @map("credential_id") @db.VarChar(512)
+  publicKey    Bytes     @map("public_key")
+  counter      BigInt    @default(0)
+  transports   Json?
+  deviceType   String?   @map("device_type") @db.VarChar(32)
+  backedUp     Boolean   @default(false) @map("backed_up")
+  displayName  String    @default("Passkey") @map("display_name") @db.VarChar(120)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+  revokedAt    DateTime? @map("revoked_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("webauthn_credentials")
+}
+
+model WebAuthnChallenge {
+  id            String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purpose       WebAuthnChallengePurpose
+  userId        String?                  @map("user_id") @db.Uuid
+  challengeHash String                   @unique @map("challenge_hash") @db.Char(64)
+  expiresAt     DateTime                 @map("expires_at")
+  consumedAt    DateTime?                @map("consumed_at")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  user          User?                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([purpose, expiresAt, consumedAt])
+  @@index([userId, purpose, expiresAt])
+  @@map("webauthn_challenges")
 }
 
 model RefreshSession {

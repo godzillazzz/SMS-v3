@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import '@fontsource/noto-sans-thai/thai-400.css';
@@ -33,9 +34,11 @@ import { canLoadAccessManagement } from './components/access-management/access-m
 import type { DashboardFilters } from './components/dashboard/types';
 import { LicenseEditModal, LicenseTableDocumentColumns } from './components/LicenseDocuments';
 import { DataRowActionMenu } from './components/DataRowActionMenu';
+import { TableActionCell, TableActionHeader } from './components/TableActionColumn';
 import { OperationalRecordDrawer, type OperationalDrawerAction } from './components/OperationalRecordDrawer';
 import { SmsIcon, type SmsIconName } from './components/SmsIcon';
 import { ThemeControl } from './components/ThemeControl';
+import { PasskeySecurityPanel } from './components/PasskeySecurityPanel';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/license-table.css';
@@ -49,11 +52,12 @@ import './styles/auth-experience.css';
 import './styles/visual-fidelity.css';
 import './styles/signature-experience.css';
 import './styles/signature-experience-v1-1.css';
+import './styles/signature-experience-v1-2.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; department?: string; jobTitle?: string; isActive: boolean; updatedAt?: string };
 type Page = 'dashboard' | 'employees' | 'licenses' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
-type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
+type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
 type FormField = { name: string; label: string; type?: 'text' | 'email' | 'password' | 'date' | 'number' | 'select' | 'textarea' | 'file'; required?: boolean; accept?: string; hint?: string; min?: number; max?: number; options?: Array<{ value: string; label: string }> };
@@ -129,6 +133,22 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const passkeyLogin = async () => {
+    setError(undefined);
+    try {
+      if (!browserSupportsWebAuthn()) throw new Error('เบราว์เซอร์หรืออุปกรณ์นี้ยังไม่รองรับ Passkey');
+      const challenge = await api.passkeyLoginOptions();
+      const response = await startAuthentication({ optionsJSON: challenge.options });
+      const result = await api.passkeyLoginVerify(challenge.challengeId, response);
+      setToken(result.accessToken);
+      setUser(result.user);
+      setViewAs(undefined);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้');
+      throw reason;
+    }
+  };
+
   const logout = async () => {
     await api.logout();
     setToken(undefined);
@@ -144,7 +164,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const endViewAs = () => setViewAs(undefined);
 
-  return <AuthContext.Provider value={{ token: viewAs?.token || token, user: viewAs?.user || user, originalUser: user, loading, error, isViewingAs: Boolean(viewAs), login, logout, beginViewAs, endViewAs }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ token: viewAs?.token || token, user: viewAs?.user || user, originalUser: user, loading, error, isViewingAs: Boolean(viewAs), login, passkeyLogin, logout, beginViewAs, endViewAs }}>{children}</AuthContext.Provider>;
 }
 
 function Logo() {
@@ -195,6 +215,11 @@ function Login() {
   const [formError, setFormError] = useState<string>();
   const [registrationState, setRegistrationState] = useState<string>();
   const [resendSeconds, setResendSeconds] = useState(0);
+  const [passkeyEnabled, setPasskeyEnabled] = useState(false);
+
+  useEffect(() => {
+    api.passkeyConfig().then((result) => setPasskeyEnabled(Boolean(result?.enabled) && browserSupportsWebAuthn())).catch(() => setPasskeyEnabled(false));
+  }, []);
 
   useEffect(() => {
     if (mode !== 'registerVerify' || resendSeconds <= 0) return undefined;
@@ -203,6 +228,13 @@ function Login() {
   }, [mode, resendSeconds]);
 
   const resetView = (next: typeof mode) => { setMode(next); setFormError(undefined); setFormMessage(undefined); setCode(''); setRegistrationState(undefined); if (next !== 'registerVerify') setResendSeconds(0); };
+  const signInWithPasskey = async () => {
+    setFormError(undefined); setFormMessage(undefined); setBusy(true);
+    try { await auth.passkeyLogin(); }
+    catch (reason) { setFormError(reason instanceof Error ? reason.message : 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้'); }
+    finally { setBusy(false); }
+  };
+
   const resultPresentation = registrationResultPresentation(registrationState);
   const title = mode === 'login' ? 'ยินดีต้อนรับกลับ' : mode === 'register' ? 'ส่งคำขอลงทะเบียน' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ลืมรหัสผ่าน' : 'ตั้งรหัสผ่านใหม่';
   const lead = mode === 'login' ? 'เข้าสู่ระบบเพื่อใช้งาน Security Management System' : mode === 'register' ? 'กรอกข้อมูลสำหรับส่งคำขอให้ผู้ดูแลตรวจสอบ' : mode === 'registerVerify' ? 'ยืนยันความเป็นเจ้าของอีเมลด้วยรหัส 6 หลัก' : mode === 'reset' ? 'ระบุอีเมลเพื่อขอรหัสยืนยันสำหรับตั้งรหัสผ่านใหม่' : 'กรอกรหัส OTP พร้อมกำหนดรหัสผ่านใหม่';
@@ -370,6 +402,8 @@ function Login() {
               {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group auth-field" htmlFor="password"><span>{mode === 'resetVerify' ? 'รหัสผ่านใหม่' : 'รหัสผ่าน'}</span><span className="password-field auth-password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'อย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle auth-password-toggle" type="button" aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} aria-pressed={showPassword} onMouseDown={(event) => event.preventDefault()} onClick={() => setShowPassword((visible) => !visible)}><SmsIcon name={showPassword ? 'eyeOff' : 'eye'} size={18} /><span>{showPassword ? 'ซ่อน' : 'แสดง'}</span></button></span></label>}
 
               <button className="btn-primary auth-primary-action" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งคำขอและรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
+
+              {mode === 'login' && passkeyEnabled && <div className="auth-passkey-zone"><div className="auth-or-separator"><span>หรือ</span></div><button className="auth-passkey-action" type="button" disabled={busy} onClick={signInWithPasskey}><SmsIcon name="key" size={19} /><span><b>เข้าสู่ระบบด้วย Passkey</b><small>Face ID • ลายนิ้วมือ • Windows Hello</small></span></button></div>}
 
               {mode === 'registerVerify' && <div className="auth-resend" id="registration-otp-help"><p>หากยังไม่พบอีเมล กรุณาตรวจสอบ Spam/Junk</p><button type="button" disabled={busy || resendSeconds > 0} onClick={resendRegistrationCode}>{resendSeconds > 0 ? `ส่งรหัสอีกครั้งใน ${resendSeconds} วินาที` : 'ส่งรหัสอีกครั้ง'}</button></div>}
 
@@ -807,7 +841,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     <div className="page-heading signature-page-header"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions signature-page-actions">{showRelated && <button className="btn-neutral small-action" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</button>}{canCreate && <button className="btn-primary compact" onClick={onCreate}>{createLabel}</button>}<span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><div className="signature-page-utilities"><button className="btn-info small-action" disabled={!visibleRows.length} onClick={() => downloadCsv(visibleRows, page)}>CSV</button><button className="btn-info small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div></div>
     <ErrorAlert message={error} />
     {page === 'licenses' && <div className="toolbar data-toolbar signature-filter-bar"><label className="search-box data-search-control"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาใบอนุญาต" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ" /></label><span className="toolbar-count data-result-count">แสดง {visibleRows.length} จาก {rows.length} รายการ</span>{tableSearch && <button className="btn-neutral small-action" type="button" onClick={() => setTableSearch('')}>ล้างคำค้นหา</button>}</div>}
-    <div className="table-card data-surface-card signature-data-surface">{loading ? <div className="signature-table-skeleton" role="status" aria-label="กำลังอ่านข้อมูล">{Array.from({ length: 6 }, (_, index) => <span key={index} />)}</div> : <><div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <th>ดำเนินการ</th>}</tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index} className="signature-data-row" data-operational-row={text(row.id)} tabIndex={0} aria-label={`เปิดรายละเอียด ${config.title}`} onClick={() => selectRow(row)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectRow(row); } }}>{config.columns.map((column) => page === 'licenses' ? renderLicenseCell(row, column) : <td key={column.label}>{tableValue(row, column)}</td>)}{showActions && <td className="row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>{rowActions(row)}</td>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows data-table-empty-cell"><div className="empty-state data-state data-state--empty"><span aria-hidden="true">⌁</span><strong>{noResultsMessage}</strong><p>{page === 'licenses' && tableSearch ? 'ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองแล้วค้นหาอีกครั้ง' : 'ยังไม่มีรายการที่ต้องดำเนินการในขอบเขตนี้'}</p>{canCreate && !(page === 'licenses' && tableSearch) && <button className="btn-neutral small-action" onClick={onCreate}>{createLabel}</button>}</div></td></tr>}</tbody></table></div><div className="signature-mobile-records">{visibleRows.map((row) => <button type="button" key={`mobile-${text(row.id)}`} className="signature-mobile-record" data-operational-row={text(row.id)} onClick={() => selectRow(row)}><span className="signature-mobile-record__eyebrow">{config.eyebrow}</span><strong>{page === 'licenses' ? `${text(nested(row.employee).firstName)} ${text(nested(row.employee).lastName)}` : text(row.employeeNameSnapshot || row.name || row.displayName || row.ruleType || row.id)}</strong><div>{config.columns.slice(0, 3).map((column) => <span key={column.label}><small>{column.label}</small>{tableValue(row, column)}</span>)}</div><em>แตะเพื่อเปิดรายละเอียด</em></button>)}</div></>}</div>
+    <div className="table-card data-surface-card signature-data-surface">{loading ? <div className="signature-table-skeleton" role="status" aria-label="กำลังอ่านข้อมูล">{Array.from({ length: 6 }, (_, index) => <span key={index} />)}</div> : <><div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <TableActionHeader label="ดำเนินการ" />}</tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index} className="signature-data-row" data-operational-row={text(row.id)} tabIndex={0} aria-label={`เปิดรายละเอียด ${config.title}`} onClick={() => selectRow(row)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectRow(row); } }}>{config.columns.map((column) => page === 'licenses' ? renderLicenseCell(row, column) : <td key={column.label}>{tableValue(row, column)}</td>)}{showActions && <TableActionCell className="row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>{rowActions(row)}</TableActionCell>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows data-table-empty-cell"><div className="empty-state data-state data-state--empty"><span aria-hidden="true">⌁</span><strong>{noResultsMessage}</strong><p>{page === 'licenses' && tableSearch ? 'ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองแล้วค้นหาอีกครั้ง' : 'ยังไม่มีรายการที่ต้องดำเนินการในขอบเขตนี้'}</p>{canCreate && !(page === 'licenses' && tableSearch) && <button className="btn-neutral small-action" onClick={onCreate}>{createLabel}</button>}</div></td></tr>}</tbody></table></div><div className="signature-mobile-records">{visibleRows.map((row) => <button type="button" key={`mobile-${text(row.id)}`} className="signature-mobile-record" data-operational-row={text(row.id)} onClick={() => selectRow(row)}><span className="signature-mobile-record__eyebrow">{config.eyebrow}</span><strong>{page === 'licenses' ? `${text(nested(row.employee).firstName)} ${text(nested(row.employee).lastName)}` : text(row.employeeNameSnapshot || row.name || row.displayName || row.ruleType || row.id)}</strong><div>{config.columns.slice(0, 3).map((column) => <span key={column.label}><small>{column.label}</small>{tableValue(row, column)}</span>)}</div><em>แตะเพื่อเปิดรายละเอียด</em></button>)}</div></>}</div>
     {totalPages > 1 && <div className="pagination-bar data-pagination"><button aria-label="หน้าก่อนหน้า" disabled={currentPage <= 1 || loading} onClick={() => onPageChange(currentPage - 1)}>‹ ก่อนหน้า</button><span>หน้า {currentPage} จาก {totalPages}</span><button aria-label="หน้าถัดไป" disabled={currentPage >= totalPages || loading} onClick={() => onPageChange(currentPage + 1)}>หน้าถัดไป ›</button></div>}
     <OperationalRecordDrawer open={Boolean(selectedRow)} eyebrow={config.eyebrow} title={drawerTitle || config.title} subtitle={drawerSubtitle} status={selectedRow?.status ? <span className={`status-badge status-badge--${semanticStatusTone(selectedRow.status)}`}>{text(selectedRow.status)}</span> : undefined} fields={drawerFields} primaryAction={primaryAction} secondaryActions={secondaryActions} onClose={closeDrawer} />
   </section>;
@@ -1335,6 +1369,7 @@ function Dashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [mobileUtilityOpen, setMobileUtilityOpen] = useState(false);
+  const [passkeyPanelOpen, setPasskeyPanelOpen] = useState(false);
   const mobileUtilityTriggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -2429,7 +2464,7 @@ function Dashboard() {
           <div className="topbar-actions">
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
             <ThemeControl compact />
-            <span className="topbar-profile" title="บัญชีผู้ใช้งาน"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></span>
+            <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></button>
             <button ref={mobileUtilityTriggerRef} type="button" className="mobile-utility-button" aria-label="เปิดเมนูบัญชีและธีม" aria-expanded={mobileUtilityOpen} aria-controls="mobile-utility-panel" onClick={() => setMobileUtilityOpen((value) => !value)}><SmsIcon name="more" size={20} /></button>
           </div>
           {mobileUtilityOpen && <>
@@ -2438,6 +2473,7 @@ function Dashboard() {
               <div className="mobile-utility-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></div>
               <label className="mobile-utility-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงานบนมือถือ" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
               <div className="mobile-utility-theme"><span>Theme</span><ThemeControl /></div>
+              <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setPasskeyPanelOpen(true); }}><SmsIcon name="key" size={18} />การเข้าสู่ระบบและ Passkey</button>
               <button type="button" className="mobile-utility-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} />ออกจากระบบ</button>
             </div>
           </>}
@@ -2445,6 +2481,7 @@ function Dashboard() {
         <div className="content-area">{content()}</div>
       </main>
     </div>
+    {passkeyPanelOpen && auth.token && <PasskeySecurityPanel token={auth.token} onClose={() => setPasskeyPanelOpen(false)} />}
     {printData && (
       <div className="print-only">
         {printData.printDepartments.length === 0 && (
