@@ -70,7 +70,7 @@ describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
     expect(css).toMatch(/\.brand-mark > b \{[\s\S]*?top: 50%;[\s\S]*?left: 50%;[\s\S]*?transform: translate\(-50%, -50%\);[\s\S]*?color: #fff !important;[\s\S]*?line-height: 1;/);
     expect(css).toMatch(/\.sidebar-brand \.brand-mark \{[\s\S]*?margin-top: 0;/);
   });
-  it('keeps the API hard gate byte-equivalent', () => {
-    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('3edef237bf89ab63272c22caa7069e68eb542be278a82e44f6d810fd64bf16b7');
+  it('locks the authorized V1.2 API source after the Passkey extension', () => {
+    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('0ee0ee4f9b9acff7b82febbc64a7abafa5417d713a825c30e973e0c1196f078f');
   });
 });

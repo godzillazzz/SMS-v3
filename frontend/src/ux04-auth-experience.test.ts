@@ -131,8 +131,8 @@ describe('G04.2 UX-04 auth experience contract', () => {
     expect(login).toContain("autoComplete={mode === 'login' ? 'current-password' : 'new-password'}");
   });
 
-  it('keeps frontend/src/api.ts byte-equivalent to the certified UX-03 source', () => {
-    expect(apiSha256).toBe('3edef237bf89ab63272c22caa7069e68eb542be278a82e44f6d810fd64bf16b7');
+  it('locks the authorized V1.2 API source after the Passkey extension', () => {
+    expect(apiSha256).toBe('0ee0ee4f9b9acff7b82febbc64a7abafa5417d713a825c30e973e0c1196f078f');
   });
 
   it('keeps theme changes frontend-only and prevents theme controls from submitting or resetting auth form state', () => {

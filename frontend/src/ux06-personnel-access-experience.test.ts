@@ -202,7 +202,7 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(reviewPanel).not.toContain('window.confirm');
   });
 
-  it('keeps frontend/src/api.ts byte-equivalent to UX-05', () => {
-    expect(apiSha256).toBe('3edef237bf89ab63272c22caa7069e68eb542be278a82e44f6d810fd64bf16b7');
+  it('locks the authorized V1.2 API source after the Passkey extension', () => {
+    expect(apiSha256).toBe('0ee0ee4f9b9acff7b82febbc64a7abafa5417d713a825c30e973e0c1196f078f');
   });
 });

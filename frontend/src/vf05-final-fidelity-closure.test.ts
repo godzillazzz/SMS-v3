@@ -67,7 +67,7 @@ describe('G04.2 VF-05 final mockup fidelity closure contract', () => {
     expect(vf05).toMatch(/@media \(max-width: 760px\)[\s\S]*?\[data-theme="dark"\] \.content-area[\s\S]*?--color-primary[\s\S]*?--color-info[\s\S]*?--color-danger[\s\S]*?--color-success/);
   });
 
-  it('keeps frontend/src/api.ts byte-equivalent to the frozen baseline', () => {
-    expect(apiSha256).toBe('3edef237bf89ab63272c22caa7069e68eb542be278a82e44f6d810fd64bf16b7');
+  it('locks the authorized V1.2 API source after the Passkey extension', () => {
+    expect(apiSha256).toBe('0ee0ee4f9b9acff7b82febbc64a7abafa5417d713a825c30e973e0c1196f078f');
   });
 });

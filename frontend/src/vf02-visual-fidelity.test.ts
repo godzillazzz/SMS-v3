@@ -129,7 +129,7 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
     expect(css).toContain('.personnel-summary-grid,\n  .access-summary-grid,\n  .access-summary-grid--manager {\n    grid-template-columns: 1fr;');
   });
 
-  it('keeps frontend/src/api.ts byte-equivalent to the frozen UX-06 baseline', () => {
-    expect(apiSha256).toBe('3edef237bf89ab63272c22caa7069e68eb542be278a82e44f6d810fd64bf16b7');
+  it('locks the authorized V1.2 API source after the Passkey extension', () => {
+    expect(apiSha256).toBe('0ee0ee4f9b9acff7b82febbc64a7abafa5417d713a825c30e973e0c1196f078f');
   });
 });
