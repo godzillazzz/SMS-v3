@@ -3,19 +3,20 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { actionRequired, buildExpiringLicenseDetails, employeeScope, expiringLicenseWhere, getDashboardSummary, licenseStatusSummary } = require('../src/services/dashboard.service');
 
-test('dashboard scope keeps ADMIN global, MANAGER department-scoped, and VIEWER employee-scoped', () => {
+test('dashboard scope keeps historical workforce global while operational work is active-only', () => {
   assert.deepEqual(employeeScope({ role: 'ADMIN', employeeId: null, department: null }), {});
   assert.deepEqual(employeeScope({ role: 'MANAGER', employeeId: 'employee-1', department: 'Security' }), { department: 'Security' });
   assert.deepEqual(employeeScope({ role: 'VIEWER', employeeId: 'employee-1', department: 'Security' }), { id: 'employee-1' });
   assert.deepEqual(employeeScope({ role: 'VIEWER', employeeId: null, department: null }), { id: '00000000-0000-0000-0000-000000000000' });
-  assert.deepEqual(employeeScope({ role: 'MANAGER', employeeId: 'employee-1', department: 'Security' }, true), { employee: { is: { department: 'Security', deletedAt: null } } });
-  assert.deepEqual(employeeScope({ role: 'VIEWER', employeeId: 'employee-1', department: 'Security' }, true), { employee: { is: { id: 'employee-1' } } });
+  assert.deepEqual(employeeScope({ role: 'ADMIN', employeeId: null, department: null }, true), { employee: { is: { isActive: true, deletedAt: null } } });
+  assert.deepEqual(employeeScope({ role: 'MANAGER', employeeId: 'employee-1', department: 'Security' }, true), { employee: { is: { department: 'Security', isActive: true, deletedAt: null } } });
+  assert.deepEqual(employeeScope({ role: 'VIEWER', employeeId: 'employee-1', department: 'Security' }, true), { employee: { is: { id: 'employee-1', isActive: true, deletedAt: null } } });
 });
 
 test('dashboard expiring license details use the count scope and sort urgency safely', () => {
   const today = new Date(Date.UTC(2026, 7, 3));
   const expiry30 = new Date(Date.UTC(2026, 8, 2));
-  assert.deepEqual(expiringLicenseWhere({ employee: { is: { department: 'Security', deletedAt: null } } }, expiry30), { employee: { is: { department: 'Security', deletedAt: null } }, status: 'APPROVED', isCurrent: true, proposedExpiryDate: { lte: expiry30 } });
+  assert.deepEqual(expiringLicenseWhere({ employee: { is: { department: 'Security', isActive: true, deletedAt: null } } }, expiry30), { employee: { is: { department: 'Security', isActive: true, deletedAt: null } }, status: 'APPROVED', isCurrent: true, proposedExpiryDate: { lte: expiry30 } });
   const details = buildExpiringLicenseDetails([
     { employeeId: 'employee-warning', licenseId: 'license-warning', proposedExpiryDate: new Date(Date.UTC(2026, 7, 20)), employee: { employeeCode: 'EMP-W', firstName: 'W', lastName: 'Warning' } },
     { employeeId: 'employee-expired', licenseId: 'license-expired', proposedExpiryDate: new Date(Date.UTC(2026, 7, 1)), employee: { employeeCode: 'EMP-E', firstName: 'E', lastName: 'Expired' } },
@@ -87,6 +88,30 @@ test('dashboard filters department for ADMIN and ignores unauthorized department
   observed.length = 0;
   await getDashboardSummary({ prismaClient: client, requestUser: { role: 'MANAGER', employeeId: 'employee-1', department: 'Operations' }, filters: { department: 'Security' } });
   assert.ok(observed.some((where) => where?.department === undefined));
+});
+
+test('dashboard operational queries exclude inactive employees while retaining unlinked quota attention', async () => {
+  const licenseWhere = [];
+  const leaveWhere = [];
+  const userWhere = [];
+  const quotaWhere = [];
+  const empty = async () => [];
+  const zero = async () => 0;
+  const client = {
+    employee: { count: zero, findMany: empty },
+    shiftAssignment: { findMany: async ({ where }) => { leaveWhere.push(where); return []; }, count: async ({ where }) => { leaveWhere.push(where); return 0; } },
+    leaveRequest: { count: async ({ where }) => { leaveWhere.push(where); return 0; }, findMany: async ({ where }) => { leaveWhere.push(where); return []; }, groupBy: async ({ where }) => { leaveWhere.push(where); return []; } },
+    user: { count: async ({ where }) => { userWhere.push(where); return 0; } },
+    scheduleApproval: { count: zero },
+    employeeLicenseDocument: { groupBy: async ({ where }) => { licenseWhere.push(where); return []; }, findMany: async ({ where }) => { licenseWhere.push(where); return []; } },
+    leaveQuota: { count: async ({ where }) => { quotaWhere.push(where); return 0; } },
+    auditLog: { findMany: empty }
+  };
+  await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null } });
+  assert.ok(licenseWhere.some((where) => where.employee?.is?.isActive === true && where.employee.is.deletedAt === null));
+  assert.ok(leaveWhere.some((where) => where.employee?.is?.isActive === true && where.employee.is.deletedAt === null));
+  assert.ok(userWhere.some((where) => where.OR?.some((item) => item.employee?.is?.isActive === true)));
+  assert.ok(quotaWhere.some((where) => where.OR?.some((item) => item.employeeId === null) && where.OR.some((item) => item.employee?.is?.isActive === true)));
 });
 
 test('dashboard summary returns today operations and month leave aggregation without loading full datasets', async () => {

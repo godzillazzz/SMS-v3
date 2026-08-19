@@ -10,7 +10,7 @@ const pdf = { buffer: Buffer.from('%PDF-1.7\nfixture'), mimetype: 'application/p
 function harness({ createFailure = false, deleteFailure = false, requireApprovalTransactionOptions = false } = {}) {
   const state = {
     license: { id: ids.license, employeeId: ids.employee, issueDate: new Date('2026-01-01'), expiryDate: new Date('2026-12-31') },
-    employee: { id: ids.employee, department: 'Operations' },
+    employee: { id: ids.employee, department: 'Operations', isActive: true, deletedAt: null },
     manager: { department: 'Operations', employee: null }, documents: [], audits: [], reconciles: [], transactionCalls: 0
   };
   const tx = {
@@ -56,6 +56,24 @@ test('upload creates PENDING metadata without changing master dates and uses a r
   assert.equal(document.status, 'PENDING'); assert.equal(document.isCurrent, false); assert.equal(state.license.expiryDate, before);
   assert.equal(storage.calls.put.length, 1); assert.doesNotMatch(storage.calls.put[0].objectKey, /guard license/);
   assert.equal(document.safeDisplayFileName, '.._guard license.pdf');
+});
+
+test('inactive employees remain readable but cannot receive operational license changes', async () => {
+  const { state, service } = harness();
+  state.employee.isActive = false;
+  state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31'), status: 'PENDING', isCurrent: false, version: 1 });
+  await assert.doesNotReject(() => service.list({ licenseId: ids.license, requestUser: { sub: ids.admin, role: 'ADMIN' } }));
+  await assert.rejects(
+    () => service.upload({ licenseId: ids.license, requestUser: { sub: ids.admin, role: 'ADMIN' }, file: pdf, input: { licenseNumber: 'LN-2027', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } }),
+    (error) => error.statusCode === 409 && error.details?.code === 'INACTIVE_EMPLOYEE_OPERATION'
+  );
+  await assert.rejects(
+    () => service.approve({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } }),
+    (error) => error.statusCode === 409 && error.details?.code === 'INACTIVE_EMPLOYEE_OPERATION'
+  );
+  state.employee.isActive = true;
+  const document = await service.upload({ licenseId: ids.license, requestUser: { sub: ids.admin, role: 'ADMIN' }, file: pdf, input: { licenseNumber: 'LN-2028', proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') } });
+  assert.equal(document.status, 'PENDING');
 });
 
 test('storage failure creates no record and database failure removes the orphan object', async () => {

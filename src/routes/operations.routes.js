@@ -41,6 +41,7 @@ const licenseInputBase = z.object({ employeeId: uuid, licenseType: z.string().tr
 const validLicenseDates = (value) => !value.issueDate || !value.expiryDate || value.issueDate <= value.expiryDate;
 const licenseInput = licenseInputBase.refine(validLicenseDates, { message: 'Issue date must not be after expiry date.', path: ['expiryDate'] });
 const licenseUpdateInput = licenseInputBase.omit({ employeeId: true }).partial().refine(validLicenseDates, { message: 'Issue date must not be after expiry date.', path: ['expiryDate'] });
+const licenseListQuery = paging.extend({ employeeStatus: z.enum(['ACTIVE', 'INACTIVE', 'ALL']).default('ACTIVE') });
 const shiftTypeInput = z.object({
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,12}$/),
   name: z.string().trim().min(1).max(150),
@@ -78,6 +79,16 @@ const authorizedLicenseReconciliationCron = (req) => {
   return Boolean(secret) && req.get('authorization') === `Bearer ${secret}`;
 };
 const safeRecord = (record, fields) => Object.fromEntries(fields.map((field) => [field, record[field]]));
+const licenseEmployeeWhere = (employeeStatus) => {
+  if (employeeStatus === 'ALL') return {};
+  if (employeeStatus === 'INACTIVE') return { employee: { is: { OR: [{ isActive: false }, { deletedAt: { not: null } }] } } };
+  return { employee: { is: { isActive: true, deletedAt: null } } };
+};
+const ensureOperationalEmployee = async (client, employeeId) => {
+  const employee = await client.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { id: true, isActive: true, deletedAt: true } });
+  if (!employee.isActive || employee.deletedAt) throw new HttpError(409, 'Inactive employees cannot receive operational license changes.', { code: 'INACTIVE_EMPLOYEE_OPERATION' });
+  return employee;
+};
 const normalizeLeaveType = (leaveType) => {
   const value = String(leaveType).trim().toLowerCase();
   if (value.includes('ป่วย') || value.includes('sick')) return 'SICK';
@@ -267,10 +278,12 @@ router.post('/internal/license-reconciliation', async (req, res, next) => {
 
 router.get('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { page, pageSize } = paging.parse(req.query);
+    const { page, pageSize, employeeStatus } = licenseListQuery.parse(req.query);
+    const where = licenseEmployeeWhere(employeeStatus);
     const [total, licenses] = await prisma.$transaction([
-      prisma.employeeLicense.count(),
+      prisma.employeeLicense.count({ where }),
       prisma.employeeLicense.findMany({
+        where,
         select: {
           id: true, employeeId: true, licenseType: true, licenseNumber: true, issueDate: true, expiryDate: true,
           status: true, documentMigrationStatus: true, remark: true,
@@ -290,6 +303,7 @@ router.post('/licenses', authorize('ADMIN'), async (req, res, next) => {
     const result = await prisma.$transaction(async (tx) => {
       const duplicate = await tx.employeeLicense.findFirst({ where: { licenseNumber: { equals: input.licenseNumber, mode: 'insensitive' } } });
       if (duplicate) throw new HttpError(409, 'License number already exists.');
+      await ensureOperationalEmployee(tx, input.employeeId);
       const license = await tx.employeeLicense.create({ data: { ...input, legacyLicenseId: `v3:${crypto.randomUUID()}`, documentMigrationStatus: 'NONE' } });
       await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'EmployeeLicense', entityId: license.id, metadata: { after: safeRecord(license, ['employeeId', 'licenseType', 'issueDate', 'expiryDate', 'status']) } }, tx);
       await reconcileEmployeeLicenseSchedules(tx, license.employeeId, req.user.sub);
@@ -307,6 +321,7 @@ router.put('/licenses/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next
     }
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.employeeLicense.findUniqueOrThrow({ where: { id } });
+      await ensureOperationalEmployee(tx, before.employeeId);
       const issueDate = input.issueDate || before.issueDate;
       const expiryDate = input.expiryDate || before.expiryDate;
       if (issueDate > expiryDate) throw new HttpError(400, 'Issue date must not be after expiry date.');

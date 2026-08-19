@@ -52,7 +52,7 @@ function employeeTextWhere(search) {
 }
 
 function employeeRelationWhere(filters) {
-  const where = { deletedAt: null };
+  const where = { isActive: true, deletedAt: null };
   if (filters.department) where.department = filters.department;
   if (filters.employeeId) where.id = filters.employeeId;
   const textWhere = employeeTextWhere(filters.search);
@@ -66,7 +66,13 @@ function appendAnd(where, clauses) {
 }
 
 function quotaWhere(filters) {
-  let where = { matchStatus: { in: UNMATCHED_QUOTA_STATUSES } };
+  let where = {
+    matchStatus: { in: UNMATCHED_QUOTA_STATUSES },
+    OR: [
+      { employeeId: null },
+      { employee: { is: { isActive: true, deletedAt: null } } }
+    ]
+  };
   if (filters.department || filters.employeeId || filters.search) where = appendAnd(where, [{ employee: employeeRelationWhere(filters) }]);
   if (filters.search) {
     where = appendAnd(where, [{
