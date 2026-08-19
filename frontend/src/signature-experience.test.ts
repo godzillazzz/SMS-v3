@@ -98,3 +98,86 @@ describe('SMS Signature Experience V1 regression contract', () => {
     expect(main).toContain("!['schedule', 'shiftSetup'].includes(activePage)");
   });
 });
+
+
+describe('SMS Signature Experience V1.1 final polish contracts', () => {
+  const polishCss = read('styles/signature-experience-v1-1.css');
+  const personnelDrawer = read('components/personnel/PersonnelDetailDrawer.tsx');
+
+  it('bundles modern Thai and Latin typography and loads V1.1 last', () => {
+    for (const fontImport of [
+      "@fontsource/noto-sans-thai/thai-400.css",
+      "@fontsource/noto-sans-thai/thai-500.css",
+      "@fontsource/noto-sans-thai/thai-600.css",
+      "@fontsource/noto-sans-thai/thai-700.css",
+      "@fontsource/inter/latin-400.css",
+      "@fontsource/inter/latin-500.css",
+      "@fontsource/inter/latin-600.css",
+      "@fontsource/inter/latin-700.css",
+    ]) expect(main).toContain(fontImport);
+    expect(polishCss).toContain('--font-ui: "Noto Sans Thai", "Inter"');
+    expect(polishCss).toContain('--font-heading: "Inter", "Noto Sans Thai"');
+    expect(polishCss).toContain('--font-mono: "IBM Plex Mono"');
+    expect(main.indexOf("import './styles/signature-experience-v1-1.css';")).toBeGreaterThan(main.indexOf("import './styles/signature-experience.css';"));
+    expect(polishCss).not.toContain('Leelawadee UI');
+  });
+
+  it('locks readable dark Schedule identity and metadata semantics', () => {
+    for (const token of ['--text-primary', '--text-secondary', '--text-muted', '--text-disabled', '--text-brand', '--text-danger', '--text-success', '--text-warning']) expect(polishCss).toContain(token);
+    expect(polishCss).toContain('[data-theme="dark"] .schedule-grid .employee-sticky');
+    expect(polishCss).toContain('background: var(--table-row-bg) !important;');
+    expect(polishCss).toContain('[data-theme="dark"] .schedule-grid .employee-sticky strong');
+    expect(polishCss).toContain('[data-theme="dark"] .schedule-grid .employee-sticky small');
+    expect(polishCss).toContain('color: var(--table-text-primary) !important;');
+    expect(polishCss).toContain('color: var(--table-text-secondary) !important;');
+  });
+
+  it('prevents light Schedule controls and month picker islands in dark mode', () => {
+    expect(polishCss).toContain('[data-theme="dark"] .schedule-workbench select');
+    expect(polishCss).toContain('[data-theme="dark"] .month-grid-trigger');
+    expect(polishCss).toContain('[data-theme="dark"] .month-grid-panel');
+    expect(polishCss).toContain('background: var(--signature-surface-soft) !important;');
+    expect(polishCss).toContain('color-scheme: dark;');
+  });
+
+  it('keeps Audit KPI and overflow controls on dark semantic surfaces', () => {
+    expect(polishCss).toContain('[data-theme="dark"] .audit-metric');
+    expect(polishCss).toContain('background: var(--signature-surface-raised) !important;');
+    expect(polishCss).toContain('[data-theme="dark"] .data-row-more-trigger');
+    expect(polishCss).toContain('background: transparent !important;');
+    expect(polishCss).toContain('border: 1px solid var(--signature-border) !important;');
+  });
+
+  it('caps Mobile Personnel search layout instead of stretching the toolbar', () => {
+    expect(polishCss).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.personnel-search-panel[\s\S]*?height: auto !important;/);
+    expect(polishCss).toMatch(/\.personnel-search-input\.data-search-control[\s\S]*?height: 46px !important;[\s\S]*?min-height: 46px !important;/);
+    expect(polishCss).toMatch(/\.personnel-search-row\.data-toolbar > select[\s\S]*?height: 44px !important;/);
+  });
+
+  it('compacts Mobile Dashboard and preserves complete SMS brand geometry', () => {
+    expect(polishCss).toContain('.dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)) !important;');
+    expect(polishCss).toContain('min-height: 66px !important;');
+    expect(polishCss).toContain('.dashboard-secondary-metrics { display: none !important; }');
+    expect(polishCss).toContain('.mobile-brand .brand-mark');
+    expect(polishCss).toContain('overflow: visible !important;');
+    expect(polishCss).toContain('text-overflow: clip !important;');
+  });
+
+  it('normalizes key user-facing language without weakening the accepted interaction architecture', () => {
+    expect(main).toContain('<h1>ตารางกะรายเดือน</h1>');
+    expect(main).not.toContain('<h1>Schedule Calendar</h1>');
+    expect(main).toContain('อนุมัติแล้ว');
+    expect(main).toContain('รออนุมัติ');
+    expect(main).not.toContain('Pending Approval');
+    expect(personnelDrawer).toContain('ข้อมูลพนักงาน');
+    expect(main).toContain('className="signature-data-row"');
+    expect(main).toContain('<OperationalRecordDrawer');
+  });
+
+  it('does not reintroduce lower Sidebar Theme or visible V3 branding', () => {
+    expect(main).not.toContain('<div className="sidebar-theme-block">');
+    expect(main).toContain('<ThemeControl compact />');
+    expect(main).toContain('<span className="brand-mark" aria-label="SMS"><b>SMS</b></span>');
+    expect(main).not.toMatch(/<[^>]*>\s*SMS V3\s*</i);
+  });
+});
