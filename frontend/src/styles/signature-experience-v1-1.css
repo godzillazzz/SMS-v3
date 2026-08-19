@@ -445,3 +445,138 @@ code, .audit-entity-id, .personnel-table code { font-family: var(--font-mono) !i
   .dashboard-metric small { display: none !important; }
   .dashboard-secondary-metrics { display: none !important; }
 }
+
+
+/* Final micro-polish: Schedule department selector shares the semantic form system. */
+.schedule-department-control {
+  position: relative;
+  display: inline-block;
+}
+.schedule-department-trigger {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-height) !important;
+  padding: 7px 14px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #0f172a !important;
+  font-weight: 600;
+}
+.schedule-department-trigger:focus-visible,
+.schedule-department-clear:focus-visible {
+  outline: 2px solid var(--signature-brand);
+  outline-offset: 2px;
+}
+.schedule-department-trigger:disabled {
+  color: #98a2b3 !important;
+  background: #f3f4f6 !important;
+  border-color: #d0d5dd !important;
+  cursor: not-allowed;
+  opacity: 1;
+}
+.schedule-department-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 100;
+  min-width: 220px;
+  max-width: 300px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, .1);
+}
+.schedule-department-popover-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+.schedule-department-clear {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+.schedule-department-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #1e293b;
+  font-size: 13px;
+  cursor: pointer;
+}
+[data-theme="dark"] .schedule-department-trigger {
+  color-scheme: dark;
+  color: var(--text-primary) !important;
+  background: var(--signature-surface-soft) !important;
+  border-color: var(--signature-border-strong) !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .schedule-department-trigger:hover:not(:disabled) {
+  background: var(--signature-surface-muted) !important;
+  border-color: color-mix(in srgb, var(--signature-brand) 45%, var(--signature-border-strong)) !important;
+}
+[data-theme="dark"] .schedule-department-trigger:focus-visible {
+  border-color: var(--signature-brand) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--signature-brand) 22%, transparent) !important;
+  outline: none;
+}
+[data-theme="dark"] .schedule-department-trigger:disabled {
+  color: var(--text-disabled) !important;
+  background: color-mix(in srgb, var(--signature-surface-soft) 74%, #050810) !important;
+  border-color: var(--signature-border) !important;
+}
+[data-theme="dark"] .schedule-department-popover {
+  color-scheme: dark;
+  background: var(--signature-surface-raised);
+  border-color: var(--signature-border-strong);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, .34);
+}
+[data-theme="dark"] .schedule-department-popover-header {
+  color: var(--text-secondary);
+  border-bottom-color: var(--signature-border);
+}
+[data-theme="dark"] .schedule-department-option {
+  color: var(--text-primary);
+}
+[data-theme="dark"] .schedule-department-clear {
+  color: var(--signature-brand);
+}
+[data-theme="dark"] .schedule-department-clear:hover {
+  color: #c8c1ff;
+}
+
+/* Final micro-polish: Audit detail is a secondary action in Dark Mode. */
+[data-theme="dark"] .audit-preview-link {
+  min-height: 36px;
+  border: 1px solid var(--signature-border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  box-shadow: none;
+  cursor: pointer;
+}
+[data-theme="dark"] .audit-preview-link:hover {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--signature-brand) 52%, var(--signature-border-strong));
+  background: color-mix(in srgb, var(--signature-brand) 10%, transparent);
+}
+[data-theme="dark"] .audit-preview-link:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--signature-brand);
+  background: color-mix(in srgb, var(--signature-brand) 12%, transparent);
+  outline: 2px solid var(--signature-brand);
+  outline-offset: 2px;
+}

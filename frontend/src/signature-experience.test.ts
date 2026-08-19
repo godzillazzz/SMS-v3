@@ -136,16 +136,26 @@ describe('SMS Signature Experience V1.1 final polish contracts', () => {
     expect(polishCss).toContain('[data-theme="dark"] .schedule-workbench select');
     expect(polishCss).toContain('[data-theme="dark"] .month-grid-trigger');
     expect(polishCss).toContain('[data-theme="dark"] .month-grid-panel');
+    expect(polishCss).toContain('[data-theme="dark"] .schedule-department-trigger');
+    expect(polishCss).toContain('[data-theme="dark"] .schedule-department-popover');
+    expect(polishCss).toContain('.schedule-department-trigger:disabled');
+    expect(polishCss).toContain('.schedule-department-trigger:focus-visible');
     expect(polishCss).toContain('background: var(--signature-surface-soft) !important;');
     expect(polishCss).toContain('color-scheme: dark;');
+    expect(main).toContain('className="btn-neutral small-action schedule-department-trigger"');
+    expect(main).not.toMatch(/className="btn-neutral small-action schedule-department-trigger"\s+style=/);
   });
 
-  it('keeps Audit KPI and overflow controls on dark semantic surfaces', () => {
+  it('keeps Audit KPI and secondary actions on dark semantic surfaces', () => {
     expect(polishCss).toContain('[data-theme="dark"] .audit-metric');
     expect(polishCss).toContain('background: var(--signature-surface-raised) !important;');
     expect(polishCss).toContain('[data-theme="dark"] .data-row-more-trigger');
     expect(polishCss).toContain('background: transparent !important;');
     expect(polishCss).toContain('border: 1px solid var(--signature-border) !important;');
+    expect(polishCss).toContain('[data-theme="dark"] .audit-preview-link');
+    expect(polishCss).toContain('[data-theme="dark"] .audit-preview-link:hover');
+    expect(polishCss).toContain('[data-theme="dark"] .audit-preview-link:focus-visible');
+    expect(polishCss).toContain('border: 1px solid var(--signature-border-strong);');
   });
 
   it('caps Mobile Personnel search layout instead of stretching the toolbar', () => {

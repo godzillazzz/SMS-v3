@@ -2143,26 +2143,25 @@ function Dashboard() {
             <button className="btn-neutral small-action" onClick={() => moveMonth(-1)}>‹ เดือนก่อน</button>
             <button className="btn-neutral small-action" onClick={() => moveMonth(1)}>เดือนถัดไป ›</button>
 
-            <div style={{ position: 'relative', display: 'inline-block' }}>
+            <div className="schedule-department-control">
               <button
                 type="button"
-                className="btn-neutral small-action"
-                style={{ fontWeight: 600, padding: '7px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}
+                className="btn-neutral small-action schedule-department-trigger"
                 onClick={() => setDeptMenuOpen((prev) => !prev)}
               >
                 🏢 แผนก: {selectedDepartments.length === 0 ? 'ทุกแผนก' : `${selectedDepartments.length} แผนกที่เลือก`} ▾
               </button>
               {deptMenuOpen && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', padding: '10px 12px', zIndex: 100, minWidth: '220px', maxWidth: '300px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9', fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
+                <div className="schedule-department-popover">
+                  <div className="schedule-department-popover-header">
                     <span>เลือกแผนกที่ต้องการกรอง</span>
-                    <button type="button" style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', padding: 0 }} onClick={() => setSelectedDepartments([])}>แสดงทุกแผนก</button>
+                    <button type="button" className="schedule-department-clear" onClick={() => setSelectedDepartments([])}>แสดงทุกแผนก</button>
                   </div>
                   <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {departments.map((dept) => {
                       const checked = selectedDepartments.includes(dept);
                       return (
-                        <label key={dept} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#1e293b', cursor: 'pointer' }}>
+                        <label key={dept} className="schedule-department-option">
                           <input
                             type="checkbox"
                             checked={checked}
