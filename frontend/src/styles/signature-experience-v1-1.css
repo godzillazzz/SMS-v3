@@ -1,0 +1,447 @@
+/* SMS Signature Experience V1.1 — final polish authority.
+   Typography, dark contrast, compact mobile density and component consistency. */
+
+:root {
+  --font-ui: "Noto Sans Thai", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading: "Inter", "Noto Sans Thai", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --font-sans: var(--font-ui);
+  --text-primary: var(--signature-text);
+  --text-secondary: var(--signature-text-secondary);
+  --text-muted: var(--signature-text-muted);
+  --text-brand: var(--signature-brand);
+  --text-danger: var(--signature-danger);
+  --text-success: var(--signature-success);
+  --text-warning: var(--signature-warning);
+  --control-height: 44px;
+}
+
+[data-theme="light"] {
+  --signature-page-wash: linear-gradient(180deg, #f8f8fb 0%, #f4f6fa 50%, #f1f3f7 100%);
+  --signature-text: #172033;
+  --signature-text-secondary: #526075;
+  --signature-text-muted: #727f93;
+  --text-disabled: #98a2b3;
+}
+
+[data-theme="dark"] {
+  --signature-page-bg: #080d18;
+  --signature-page-wash: linear-gradient(180deg, #080d18 0%, #0a101b 56%, #090f19 100%);
+  --signature-surface: #0f1726;
+  --signature-surface-raised: #121c2d;
+  --signature-surface-soft: #162235;
+  --signature-surface-muted: #1a273a;
+  --signature-text: #f5f7fb;
+  --signature-text-secondary: #bdc7d6;
+  --signature-text-muted: #94a2b8;
+  --signature-brand: #9588f6;
+  --signature-brand-soft: #221f38;
+  --signature-border: #26344a;
+  --signature-border-strong: #384964;
+  --table-bg: #0c1523;
+  --table-header-bg: #111d2f;
+  --table-row-bg: #0f1929;
+  --table-row-hover-bg: #17243a;
+  --table-border: #29384f;
+  --table-text-primary: #f3f6fb;
+  --table-text-secondary: #b7c2d3;
+  --text-disabled: #6f7d91;
+}
+
+html, body, #root, button, input, select, textarea {
+  font-family: var(--font-ui);
+}
+body {
+  font-size: 15px;
+  line-height: 1.55;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+h1, h2, h3,
+.page-heading h1,
+.signature-page-header h1,
+.personnel-directory-header h1,
+.access-page-header h1,
+.audit-page-header h1,
+.dashboard-hero h1 {
+  font-family: var(--font-heading) !important;
+  letter-spacing: -.025em;
+  text-wrap: balance;
+}
+.page-heading h1,
+.signature-page-header h1,
+.personnel-directory-header h1,
+.access-page-header h1,
+.audit-page-header h1,
+.dashboard-hero h1 {
+  font-size: clamp(1.75rem, 2.25vw, 2rem);
+  line-height: 1.3;
+  font-weight: 700;
+}
+h2 { line-height: 1.35; }
+p, li, td, th, label, input, select, textarea, button { line-height: 1.5; }
+code, .audit-entity-id, .personnel-table code { font-family: var(--font-mono) !important; }
+
+/* Reduce atmospheric tint. Brand color guides attention instead of coating pages. */
+.login-page {
+  background:
+    radial-gradient(circle at 14% 16%, color-mix(in srgb, var(--signature-brand) 8%, transparent), transparent 30%),
+    var(--signature-page-wash) !important;
+}
+.login-intro {
+  background:
+    radial-gradient(circle at 50% 58%, rgba(114, 100, 228, .11), transparent 28%),
+    linear-gradient(155deg, #090f1d 0%, #0f1727 60%, #12192a 100%) !important;
+}
+
+/* Shared readable text semantics. */
+.muted-text,
+.cell-note,
+.data-result-count,
+.personnel-result-line,
+.audit-result-support,
+.dashboard-hero__subtitle,
+.dashboard-panel__header p {
+  color: var(--text-secondary) !important;
+}
+[data-theme="dark"] .nav-section > span,
+[data-theme="dark"] .nav-section-label,
+[data-theme="dark"] .eyebrow,
+[data-theme="dark"] .signature-mobile-record > em,
+[data-theme="dark"] .signature-mobile-record > div small {
+  color: var(--text-muted) !important;
+}
+
+/* Shared controls: never fall back to white native form chrome in Dark. */
+[data-theme="dark"] .content-area input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+[data-theme="dark"] .content-area select,
+[data-theme="dark"] .content-area textarea,
+[data-theme="dark"] .calendar-toolbar-box input,
+[data-theme="dark"] .calendar-toolbar-box select,
+[data-theme="dark"] .schedule-workbench input,
+[data-theme="dark"] .schedule-workbench select {
+  color-scheme: dark;
+  min-height: var(--control-height);
+  color: var(--text-primary) !important;
+  background: var(--signature-surface-soft) !important;
+  border-color: var(--signature-border-strong) !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .content-area input::placeholder,
+[data-theme="dark"] .content-area textarea::placeholder { color: var(--text-muted); }
+[data-theme="dark"] .content-area input:disabled,
+[data-theme="dark"] .content-area select:disabled,
+[data-theme="dark"] .content-area textarea:disabled {
+  color: var(--text-disabled) !important;
+  background: color-mix(in srgb, var(--signature-surface-soft) 74%, #050810) !important;
+  opacity: 1;
+}
+[data-theme="dark"] .content-area input:focus-visible,
+[data-theme="dark"] .content-area select:focus-visible,
+[data-theme="dark"] .content-area textarea:focus-visible {
+  border-color: var(--signature-brand) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--signature-brand) 22%, transparent) !important;
+}
+
+/* Schedule P0: sticky identity, metadata and dates remain readable in Dark. */
+.schedule-grid .employee-sticky strong {
+  font-family: var(--font-ui);
+  font-size: 14px !important;
+  line-height: 1.45;
+  font-weight: 650;
+}
+.schedule-grid .employee-sticky small {
+  margin-top: 3px;
+  font-size: 12px !important;
+  line-height: 1.45;
+  font-weight: 450;
+}
+.schedule-grid th b { font-size: 13px; line-height: 1.25; }
+.schedule-grid th small { margin-top: 2px; font-size: 10px; line-height: 1.3; }
+[data-theme="dark"] .schedule-grid .employee-sticky {
+  background: var(--table-row-bg) !important;
+  box-shadow: 1px 0 0 var(--table-border) !important;
+}
+[data-theme="dark"] .schedule-grid thead .employee-sticky {
+  background: var(--table-header-bg) !important;
+}
+[data-theme="dark"] .schedule-grid tbody tr:hover .employee-sticky {
+  background: var(--table-row-hover-bg) !important;
+}
+[data-theme="dark"] .schedule-grid .employee-sticky strong,
+[data-theme="dark"] .schedule-grid th b {
+  color: var(--table-text-primary) !important;
+}
+[data-theme="dark"] .schedule-grid .employee-sticky small,
+[data-theme="dark"] .schedule-grid th,
+[data-theme="dark"] .schedule-grid th small {
+  color: var(--table-text-secondary) !important;
+}
+[data-theme="dark"] .schedule-grid th.weekend,
+[data-theme="dark"] .schedule-grid td.weekend {
+  background: color-mix(in srgb, var(--table-row-bg) 90%, #3a1d2d) !important;
+}
+[data-theme="dark"] .schedule-grid th.weekend { background: color-mix(in srgb, var(--table-header-bg) 90%, #3a1d2d) !important; }
+[data-theme="dark"] .schedule-grid td.weekend.employee-sticky { background: var(--table-row-bg) !important; }
+[data-theme="dark"] .empty-shift {
+  color: #9eabc0 !important;
+  border-color: #3b4b64 !important;
+  background: transparent !important;
+}
+[data-theme="dark"] .empty-shift:hover,
+[data-theme="dark"] .empty-shift:focus-visible {
+  color: #d9e0ec !important;
+  border-color: var(--signature-brand) !important;
+  background: color-mix(in srgb, var(--signature-brand-soft) 60%, transparent) !important;
+}
+[data-theme="dark"] .employee-magic-button {
+  color: #b8acf9 !important;
+  background: transparent !important;
+}
+[data-theme="dark"] .employee-magic-button:hover:not(:disabled) { background: var(--signature-brand-soft) !important; }
+[data-theme="dark"] .schedule-workbench,
+[data-theme="dark"] .calendar-toolbar-box {
+  color: var(--text-primary) !important;
+  background: var(--signature-surface) !important;
+  border-color: var(--signature-border) !important;
+}
+[data-theme="dark"] .schedule-workbench [style*="background: white"],
+[data-theme="dark"] .schedule-workbench [style*="background: #fff"],
+[data-theme="dark"] .calendar-toolbar-box [style*="background: white"],
+[data-theme="dark"] .calendar-toolbar-box [style*="background: #fff"] {
+  background: var(--signature-surface-soft) !important;
+}
+[data-theme="dark"] .schedule-workbench [style*="color: #2563eb"],
+[data-theme="dark"] .calendar-toolbar-box [style*="color: #2563eb"] { color: #9eb7ff !important; }
+
+/* Audit KPI surfaces obey theme. */
+[data-theme="dark"] .audit-metric {
+  border-color: var(--signature-border) !important;
+  background: var(--signature-surface-raised) !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .audit-metric p,
+[data-theme="dark"] .audit-metric small { color: var(--text-secondary) !important; }
+[data-theme="dark"] .audit-metric strong { color: var(--text-primary) !important; }
+[data-theme="dark"] .audit-metric-icon {
+  background: color-mix(in srgb, var(--signature-brand) 13%, var(--signature-surface-soft)) !important;
+}
+[data-theme="dark"] .audit-toolbar,
+[data-theme="dark"] .audit-table-card,
+[data-theme="dark"] .audit-state,
+[data-theme="dark"] .audit-preview-panel,
+[data-theme="dark"] .audit-preview-panel footer {
+  background: var(--signature-surface) !important;
+  border-color: var(--signature-border) !important;
+}
+
+/* License / table overflow remains a secondary ghost action. */
+.data-row-more-trigger {
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 9px !important;
+}
+[data-theme="dark"] .data-row-more-trigger {
+  color: var(--text-secondary) !important;
+  background: transparent !important;
+  border: 1px solid var(--signature-border) !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .data-row-more-trigger:hover,
+[data-theme="dark"] .data-row-more-trigger:focus-visible {
+  color: #ddd8ff !important;
+  background: var(--signature-brand-soft) !important;
+  border-color: color-mix(in srgb, var(--signature-brand) 55%, var(--signature-border)) !important;
+}
+[data-theme="dark"] .data-row-menu-popover {
+  color: var(--text-primary);
+  background: var(--signature-surface-raised);
+  border-color: var(--signature-border);
+}
+
+/* Less card chrome where typography/spacing already supplies grouping. */
+.dashboard-panel,
+.personnel-search-panel,
+.personnel-table-card,
+.access-summary-card,
+.audit-toolbar,
+.audit-table-card {
+  box-shadow: none !important;
+}
+[data-theme="dark"] .dashboard-panel,
+[data-theme="dark"] .personnel-metric,
+[data-theme="dark"] .access-summary-card,
+[data-theme="dark"] .signature-data-surface {
+  border-color: color-mix(in srgb, var(--signature-border) 86%, transparent) !important;
+}
+
+/* Light polish: lower lavender wash, stronger text/action contrast. */
+[data-theme="light"] .content-area {
+  background-image: radial-gradient(circle at 92% 4%, rgba(102, 88, 218, .035), transparent 28%);
+}
+[data-theme="light"] .data-surface-table td,
+[data-theme="light"] .personnel-table td,
+[data-theme="light"] .audit-table td { color: #334155; }
+[data-theme="light"] .data-surface-table th,
+[data-theme="light"] .personnel-table th,
+[data-theme="light"] .audit-table th { color: #526075; }
+
+/* Mobile Personnel: compact search/filter region, records above fold sooner. */
+@media (max-width: 760px) {
+  .personnel-directory-page { gap: 10px !important; }
+  .personnel-directory-header { gap: 8px !important; }
+  .personnel-directory-header h1 { font-size: 25px !important; line-height: 1.3; }
+  .personnel-directory-header > div > p:last-child { margin-top: 3px; font-size: 13px; line-height: 1.45; }
+  .personnel-header-actions { gap: 7px; }
+  .personnel-header-actions button { min-height: 44px; }
+  .personnel-search-panel.data-toolbar-panel,
+  .personnel-search-panel {
+    padding: 8px !important;
+    min-height: 0 !important;
+    height: auto !important;
+    align-self: start;
+  }
+  .personnel-search-row.data-toolbar,
+  .personnel-search-row {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    min-height: 0 !important;
+    height: auto !important;
+    align-items: start !important;
+  }
+  .personnel-search-input.data-search-control,
+  .personnel-search-input {
+    grid-column: 1 / -1;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    flex: none !important;
+    padding-block: 0 !important;
+  }
+  .personnel-search-input.data-search-control input,
+  .personnel-search-input input {
+    height: 44px !important;
+    min-height: 44px !important;
+    padding-block: 0 !important;
+  }
+  .personnel-search-row.data-toolbar > select,
+  .personnel-search-row > select {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+  .personnel-filter-chips.data-filter-chips,
+  .personnel-filter-chips {
+    margin-top: 6px !important;
+    gap: 5px !important;
+  }
+  .personnel-filter-chips button { min-height: 36px !important; }
+  .personnel-summary-grid { gap: 7px !important; }
+  .personnel-metric { min-height: 64px !important; padding: 9px 10px !important; gap: 8px !important; }
+  .personnel-metric__icon { width: 30px; height: 30px; flex-basis: 30px; border-radius: 8px; }
+  .personnel-metric p { font-size: 10px; }
+  .personnel-metric strong { font-size: 20px; }
+  .personnel-metric small { font-size: 10px; }
+
+  /* Mobile dashboard: action band appears materially sooner. */
+  .dashboard-page-v2 { gap: 8px !important; }
+  .dashboard-kpi-section { gap: 6px !important; }
+  .dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px !important; }
+  .dashboard-metric {
+    min-height: 74px !important;
+    padding: 8px 9px !important;
+    gap: 6px !important;
+    border-radius: 10px !important;
+  }
+  .dashboard-metric__icon { width: 26px !important; height: 26px !important; flex-basis: 26px !important; border-radius: 7px !important; font-size: 13px !important; }
+  .dashboard-metric p { font-size: 10px !important; line-height: 1.25 !important; }
+  .dashboard-metric strong { font-size: 23px !important; line-height: 1 !important; }
+  .dashboard-metric small { font-size: 8px !important; line-height: 1.25 !important; }
+  .dashboard-kpi-heading { margin-bottom: 0 !important; }
+
+  /* Mobile brand is a complete SMS mark, never an apparent "S…" truncation. */
+  .mobile-brand { min-width: 0; gap: 8px !important; }
+  .mobile-brand .brand-mark {
+    width: 36px !important;
+    height: 36px !important;
+    flex: 0 0 36px !important;
+    font-size: 11px !important;
+    overflow: visible !important;
+  }
+  .mobile-brand .brand-mark b {
+    display: block !important;
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+  }
+  .mobile-brand > span:last-child { min-width: 0; }
+  .mobile-brand > span:last-child b { font-size: 13px; }
+  .mobile-brand > span:last-child small { font-size: 10px; }
+}
+
+@media (max-width: 420px) {
+  .page-heading h1,
+  .signature-page-header h1,
+  .personnel-directory-header h1,
+  .access-page-header h1,
+  .audit-page-header h1,
+  .dashboard-hero h1 { font-size: 24px !important; }
+  .personnel-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .personnel-summary-grid > :last-child:nth-child(odd) { grid-column: 1 / -1 !important; }
+}
+
+/* Month picker is part of the same form system; no native/light island in Dark. */
+[data-theme="dark"] .month-grid-trigger,
+[data-theme="dark"] .month-grid-panel,
+[data-theme="dark"] .month-grid-year button,
+[data-theme="dark"] .month-grid button {
+  color: var(--text-primary) !important;
+  background: var(--signature-surface-soft) !important;
+  border-color: var(--signature-border-strong) !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .month-grid-panel { background: var(--signature-surface-raised) !important; }
+[data-theme="dark"] .month-grid-trigger span,
+[data-theme="dark"] .month-grid-year span { color: var(--text-secondary) !important; }
+[data-theme="dark"] .month-grid button:hover,
+[data-theme="dark"] .month-grid-year button:hover { background: var(--signature-brand-soft) !important; }
+[data-theme="dark"] .month-grid button.selected {
+  color: #fff !important;
+  background: var(--signature-brand) !important;
+  border-color: var(--signature-brand) !important;
+}
+
+/* Mobile Command Center priority: filters + critical 2x2 metrics, then Action Required. */
+@media (max-width: 760px) {
+  .dashboard-top-row { gap: 7px !important; }
+  .dashboard-hero__subtitle { margin-top: 2px !important; font-size: 10px !important; line-height: 1.35 !important; }
+  .dashboard-filter-bar { padding: 6px !important; gap: 5px !important; }
+  .dashboard-filter-bar__controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+  }
+  .dashboard-filter-bar__controls label:last-child:nth-child(3) { grid-column: auto !important; }
+  .dashboard-filter-bar__controls label { min-width: 0 !important; gap: 2px !important; }
+  .dashboard-filter-bar__controls label span { font-size: 9px !important; }
+  .dashboard-filter-bar__controls input,
+  .dashboard-filter-bar__controls select {
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    padding-inline: 5px !important;
+    font-size: 10px !important;
+  }
+  .dashboard-kpi-heading small { display: none !important; }
+  .dashboard-metric { min-height: 66px !important; padding: 7px 8px !important; }
+  .dashboard-metric__icon { width: 24px !important; height: 24px !important; flex-basis: 24px !important; }
+  .dashboard-metric strong { font-size: 22px !important; }
+  .dashboard-metric small { display: none !important; }
+  .dashboard-secondary-metrics { display: none !important; }
+}

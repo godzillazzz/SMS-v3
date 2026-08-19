@@ -45,7 +45,7 @@ export function PersonnelDetailDrawer({ employee, canManage, role, onClose, onEd
       <header className="personnel-drawer-header">
         <div className="personnel-drawer-identity">
           <span className="personnel-drawer-avatar" aria-hidden="true">{initials}</span>
-          <div><p>PERSONNEL RECORD</p><h2 id="personnel-drawer-title">{fullName || 'พนักงาน'}</h2><div className="personnel-drawer-context"><span>รหัสภายใน {employee.employeeCode}</span><span className={`status-badge ${employee.isActive ? 'status-badge--success active' : 'status-badge--neutral inactive'}`}>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></div></div>
+          <div><p>ข้อมูลพนักงาน</p><h2 id="personnel-drawer-title">{fullName || 'พนักงาน'}</h2><div className="personnel-drawer-context"><span>รหัสภายใน {employee.employeeCode}</span><span className={`status-badge ${employee.isActive ? 'status-badge--success active' : 'status-badge--neutral inactive'}`}>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></div></div>
         </div>
         <button ref={closeRef} type="button" className="personnel-drawer-close overlay-close" aria-label="ปิดรายละเอียดพนักงาน" onClick={onClose}><SmsIcon name="close" size={20} /></button>
       </header>
