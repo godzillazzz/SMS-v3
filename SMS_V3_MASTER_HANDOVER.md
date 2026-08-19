@@ -39,15 +39,15 @@ Master with a competing identity.
 | --- | --- |
 | Canonical URL | https://sms-v3-staging-ten.vercel.app |
 | Project | sms-v3-staging |
-| Current Production deployment | dpl_5xoKguECTunJvrUFTKrhbXenGuqu |
+| Current Production deployment | dpl_EGeWWDy41GEMvv4ZyC8cx9kg71tF |
 | Deployment target | production |
 | Deployment state | READY |
-| Current application SHA | e5619a67e5be807f3fba825d889e73bc49c5361a |
-| Current application tree | b38bc7d6d3f6b6ed416996bd3edd99891918fd12 |
-| Candidate branch | fix/g04-registration-otp-duplicate-guard-v1 |
-| Current release | G04.1 — REGISTRATION OTP RESEND + DUPLICATE ACCOUNT GUARD |
+| Current application SHA | 629f9ae36b7b7e7bc3ef2b113c039a66d0118a8a |
+| Current application tree | 364c895e6d496419f7dac7cadefc86b18b64e8b4 |
+| Candidate branch | feat/sms-signature-experience-v1-1-final-polish |
+| Current release | SMS Signature Experience V1.1 |
 | Release status | PROMOTED / PRODUCTION VERIFIED |
-| Promotion verification | run 32041575770 / job 95421737298 / exact existing deployment / Promotion action count 1 |
+| Promotion verification | CI run 32206274332 / job 95930065829 PASS; validated Preview dpl_5kTDvNnu9G5mCvM9VGyRWB2j1ppF; Production dpl_EGeWWDy41GEMvv4ZyC8cx9kg71tF; Health/Ready 3/3; runtime/public Signature smoke PASS |
 | Current main | e4bde1265ffb6b7daa9260d8465b46dd27008ab0 |
 | Current trusted Harness | a561b3bf6884c9d464aaba57b5974dff1f37c2b6 |
 | G03.1 schema migration | 202608170001_annual_leave_quota_year — APPLIED EXACTLY ONCE |
@@ -61,20 +61,20 @@ It remains forensic history only.
 
 ### Current rollback
 
-The current preferred normal application rollback checkpoint is the verified G04.1 annotated Git tag rollback/g04-1-registration-otp-duplicate-guard-v1-prod-2026-08-17, which peels to exact application SHA e5619a67e5be807f3fba825d889e73bc49c5361a and tree b38bc7d6d3f6b6ed416996bd3edd99891918fd12. It captures application rollback identity only; it is not a database, Vercel environment, secret, or Production-data snapshot. Historical rollback refs are preserved unchanged and remain emergency/historical options requiring fresh compatibility and security review before any actual rollback.
+The current primary release rollback checkpoint is the immediately previous verified Production deployment dpl_9bwjx9Rw4NKeZanGhDQmd4XSBm5f at application SHA 096e006580f95ff8fb2291312f3ba46be12cfe71 and tree 26792616a402aeeef1fee9d81732f2135a80949f. It remains READY and was preserved before SMS Signature Experience V1.1 Canonical cutover. The older Production deployment dpl_5xoKguECTunJvrUFTKrhbXenGuqu remains a historical fallback. Existing annotated Git rollback tags are preserved unchanged. None of these are database, environment, secret, or Production-data snapshots; any actual rollback requires fresh compatibility and security verification.
 
 | Field | Authoritative value |
 | --- | --- |
-| Current rollback checkpoint | rollback/g04-1-registration-otp-duplicate-guard-v1-prod-2026-08-17 |
-| Rollback ref type | ANNOTATED TAG |
-| Rollback SHA | e5619a67e5be807f3fba825d889e73bc49c5361a |
-| Rollback tree | b38bc7d6d3f6b6ed416996bd3edd99891918fd12 |
-| Associated Production release | G04.1 — REGISTRATION OTP RESEND + DUPLICATE ACCOUNT GUARD |
-| Checkpoint deployment | dpl_5xoKguECTunJvrUFTKrhbXenGuqu |
-| Checkpoint status | CURRENT PREFERRED NORMAL / REMOTE VERIFIED / APPLICATION IDENTITY ONLY |
-| Created / verified date | 2026-08-17 |
-| Previous rollback checkpoint | rollback/g03-1-annual-leave-quota-rollover-v1-prod-2026-08-17 |
-| Previous rollback SHA | 0951d4ce08de817dda7b986924232e86e745b532 |
+| Current rollback checkpoint | dpl_9bwjx9Rw4NKeZanGhDQmd4XSBm5f |
+| Rollback ref type | VERCEL PRODUCTION DEPLOYMENT |
+| Rollback SHA | 096e006580f95ff8fb2291312f3ba46be12cfe71 |
+| Rollback tree | 26792616a402aeeef1fee9d81732f2135a80949f |
+| Associated Production release | G04.2 VF-07.1 — previous live Production before Signature V1.1 |
+| Checkpoint deployment | dpl_9bwjx9Rw4NKeZanGhDQmd4XSBm5f |
+| Checkpoint status | PRIMARY ROLLBACK / READY / PRESERVED |
+| Created / verified date | 2026-08-19 |
+| Previous rollback checkpoint | dpl_5xoKguECTunJvrUFTKrhbXenGuqu |
+| Previous rollback SHA | e5619a67e5be807f3fba825d889e73bc49c5361a |
 | Earlier rollback checkpoint | rollback/g03-leave-quota-provisioning-v1-prod-2026-08-17 |
 | Earlier rollback SHA | 1701bcf90a1998ea4999ee02e687172295984c9a |
 | Earlier preserved checkpoint | rollback/admin-rbac-surface-alignment-v1-prod-2026-08-16 |
@@ -188,12 +188,10 @@ environment topology not stated above are UNKNOWN.
 - The current Canonical URL is
   https://sms-v3-staging-ten.vercel.app.
 - The current Canonical deployment is the exact Production-target deployment
-  dpl_5xoKguECTunJvrUFTKrhbXenGuqu at application SHA
-  e5619a67e5be807f3fba825d889e73bc49c5361a.
-- G04.1 was promoted as the exact existing staged Production-target deployment; no
-  replacement application deployment or rebuild was used for the release.
-- The immediately previous Canonical was dpl_7KcuwssKHDKDeJanhTVYVWSQotP6 at
-  application SHA 27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e and is preserved as historical G04 Production evidence.
+  dpl_EGeWWDy41GEMvv4ZyC8cx9kg71tF at application SHA
+  629f9ae36b7b7e7bc3ef2b113c039a66d0118a8a.
+- SMS Signature Experience V1.1 was deployed from the exact clean authorized Candidate checkout to the existing sms-v3-staging Production target using the existing Production environment; no Production migration or business-data mutation was performed.
+- The immediately previous Canonical was dpl_9bwjx9Rw4NKeZanGhDQmd4XSBm5f at application SHA 096e006580f95ff8fb2291312f3ba46be12cfe71 and is preserved as the primary rollback checkpoint. dpl_5xoKguECTunJvrUFTKrhbXenGuqu remains an older historical fallback.
 - Deployment Protection can return an interstitial to anonymous clients.
   Deployment identity must therefore be proven with authoritative deployment
   metadata and the approved protected-access method, not HTML markers alone.
@@ -445,6 +443,32 @@ coverage remains P2 item G12.
 
 ## Section 13 — Rollback / Release History
 
+### Current release — SMS Signature Experience V1.1
+
+- Product: SMS — Security Management System; user-visible standalone V3 = 0.
+- Production SHA: 629f9ae36b7b7e7bc3ef2b113c039a66d0118a8a
+- Application tree: 364c895e6d496419f7dac7cadefc86b18b64e8b4
+- Production deployment: dpl_EGeWWDy41GEMvv4ZyC8cx9kg71tF
+- Production immutable URL: https://sms-v3-staging-bhoubsgjq-godzillazz.vercel.app
+- Canonical URL: https://sms-v3-staging-ten.vercel.app
+- Production deployment creation: 2026-08-19 10:24:25 +07:00; Canonical cutover verified after immutable runtime gate.
+- Status: PROMOTED / PRODUCTION VERIFIED.
+- Remote CI: run 32206274332 / job 95930065829 — PASS.
+- Validated Preview: dpl_5kTDvNnu9G5mCvM9VGyRWB2j1ppF at exact SHA 629f9ae36b7b7e7bc3ef2b113c039a66d0118a8a.
+- Release method: exact clean Candidate checkout deployed to existing Vercel project sms-v3-staging with Production target/environment; Preview branch JWT_SECRET was not used as Production signing identity.
+- Production environment: JWT_SECRET / DATABASE_URL / DIRECT_URL preserved unchanged / masked; metadata unchanged after release.
+- Pre-promotion health/readiness: 3/3 + 3/3 PASS. New immutable Production pre-cutover health/readiness: 3/3 + 3/3 PASS. Canonical post-cutover health/readiness: 3/3 + 3/3 PASS.
+- Runtime: unresolved error-level logs 0; 5xx logs 0; JWT/environment-validation/Prisma startup fatal 0.
+- Signature public smoke: Noto Sans Thai loaded; Inter loaded; Dark / Light / System PASS; SMS branding visible; V3 0; top Theme functional; lower Sidebar Theme absent; symmetrical Login shield and centered lock preserved; Security Core absent.
+- Final micro-polish artifact contract: Schedule department selector uses Dark semantic surface; Schedule identity/metadata retain high-contrast text tokens; Audit 'ดูรายละเอียด' uses Dark ghost/outline treatment; License overflow remains Dark secondary; Audit KPI remains Dark raised surface.
+- Mobile public smoke: 390x844 and 375-class no horizontal overflow; complete SMS 40x40 mark; desktop auth hero hidden; Noto/Inter stack preserved. Exact artifact retains compact mobile Dashboard and Personnel search contracts.
+- Authenticated Production UAT: AUTHENTICATED_PRODUCTION_UAT_BLOCKED_NO_APPROVED_CREDENTIALS; no UAT credential names were available locally or in GitHub secrets; no account/password/OTP/business mutation was created for smoke testing.
+- Performance architecture: DASHBOARD_QUERY_CONCURRENCY = 4 preserved; bounded workers retained; no unlimited DB Promise.all.
+- Production migration: 0; Production DB/data mutation: 0; Production env mutation: 0; application source mutation during release: 0; secret rotation: 0.
+- Primary rollback checkpoint: dpl_9bwjx9Rw4NKeZanGhDQmd4XSBm5f / SHA 096e006580f95ff8fb2291312f3ba46be12cfe71 — PRESERVED / READY; actual rollback NO.
+- Historical fallback: dpl_5xoKguECTunJvrUFTKrhbXenGuqu — PRESERVED / READY.
+- Draft PR #106 remains OPEN / DRAFT / NOT MERGED. Preview branch JWT cleanup and auxiliary project sms-v3-g04-2-vf01 cleanup remain DEFERRED.
+
 ### Current release — G04.2 VF-07.1
 
 - Release: G04.2 — UX/UI SYSTEM VF-07.1
@@ -635,7 +659,7 @@ They remain explicit design or acceptance debt.
 
 The following items remain open or require separate operational evidence:
 
-- G03, G03.1, G04, G04.1, and G04.2 VF-07.1 are Production verified. The G04.1 preferred normal application rollback checkpoint is created and remotely verified; actual rollback remains separately approval-gated. G05 remains OPEN / NOT STARTED.
+- G03, G03.1, G04, G04.1, G04.2 VF-07.1, and SMS Signature Experience V1.1 are Production verified. The current primary rollback deployment is dpl_9bwjx9Rw4NKeZanGhDQmd4XSBm5f and remains READY; actual rollback remains separately approval-gated. G05 remains OPEN / NOT STARTED.
 - G06–G12 require owner decisions or evidence according to their individual
   scope.
 - Backup and restore evidence is not replaced by the current rollback
@@ -701,3 +725,4 @@ These are substantial future platform expansions. They do not block current SMS 
 | 2026-08-17 | G04.1 Registration OTP Resend + Duplicate Account Guard promoted by reusing exact existing deployment dpl_5xoKguECTunJvrUFTKrhbXenGuqu at SHA e5619a67e5be807f3fba825d889e73bc49c5361a; Promotion run 32041575770 / job 95421737298 executed one Promotion action; Canonical identity, health 3/3, readiness 3/3, CORS, anonymous security, and runtime checks passed; no new deployment, rebuild, migration, or env mutation. |
 | 2026-08-17 | Created annotated rollback tag rollback/g04-1-registration-otp-duplicate-guard-v1-prod-2026-08-17; remote tag object verified to peel to application SHA e5619a67e5be807f3fba825d889e73bc49c5361a / tree b38bc7d6d3f6b6ed416996bd3edd99891918fd12 / Production deployment dpl_5xoKguECTunJvrUFTKrhbXenGuqu. Historical rollback refs preserved; Canonical unchanged; no new application deployment, Promotion, migration, env mutation, Production-data mutation, or actual rollback. |
 | 2026-08-19 | G04.2 VF-07.1 UX/UI System promoted from exact Candidate SHA 096e006580f95ff8fb2291312f3ba46be12cfe71 / tree 26792616a402aeeef1fee9d81732f2135a80949f to Production deployment dpl_9bwjx9Rw4NKeZanGhDQmd4XSBm5f; Canonical sms-v3-staging-ten.vercel.app moved from rollback checkpoint dpl_5xoKguECTunJvrUFTKrhbXenGuqu; health 3/3, readiness 3/3, public Login/Theme/mobile UAT and runtime gates passed; migration 0; Production DB/data mutation 0; Production env mutation 0; user-visible product SMS; user-visible V3 0; authenticated UAT blocked only by unavailable approved credentials. |
+| 2026-08-19 | SMS Signature Experience V1.1 promoted at exact SHA 629f9ae36b7b7e7bc3ef2b113c039a66d0118a8a / tree 364c895e6d496419f7dac7cadefc86b18b64e8b4 to Production dpl_EGeWWDy41GEMvv4ZyC8cx9kg71tF; Canonical moved from dpl_9bwjx9Rw4NKeZanGhDQmd4XSBm5f after immutable Health/Ready/runtime PASS; post-cutover Health 3/3 and Ready 3/3 PASS; Signature visual smoke PASS; primary rollback dpl_9bwjx9Rw4NKeZanGhDQmd4XSBm5f and historical fallback dpl_5xoKguECTunJvrUFTKrhbXenGuqu preserved; migration/data/env/source mutation 0; authenticated Production UAT blocked only by unavailable approved credentials. |
