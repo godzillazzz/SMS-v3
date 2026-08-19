@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [fix/serverless-database-reliability]
+    branches:
+      - fix/serverless-database-reliability
+      - fix/sms-v1-2-1-visual-consistency-inactive-darkmode
   pull_request:
     branches: [main, fix/serverless-database-reliability]
 
