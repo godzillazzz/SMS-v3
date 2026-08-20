@@ -306,10 +306,11 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
 
   test('simultaneous ensure creates exactly one annual authority and preserves winner', async () => {
     await seed();
-    const results = await Promise.allSettled(Array.from({ length: 8 }, () => ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2028 })));
+    const results = await Promise.allSettled(Array.from({ length: 16 }, () => ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2028 })));
     assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeC, quotaYear: 2028 } }), 1);
-    assert.ok(results.some((r) => r.status === 'fulfilled'));
+    assert.ok(results.every((result) => result.status === 'fulfilled'));
     const q = await prisma.leaveQuota.findUnique({ where: { employeeId_quotaYear: { employeeId: ids.employeeC, quotaYear: 2028 } } });
+    assert.ok(results.every((result) => result.value.quota.id === q.id));
     assert.deepEqual([Number(q.sickLeave), Number(q.personalLeave), Number(q.vacationLeave)], [30, 3, 6]);
     await cleanup();
   });
@@ -352,26 +353,37 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   test('Admin create vs ensure, Cron vs ensure, and different-year races keep one authority per employee/year', async () => {
     await seed();
     const t = await tokens();
-    const [adminRace, ensureRace] = await Promise.allSettled([
+    const [adminRace, ensureRace] = await Promise.all([
       request(app).post('/api/v1/leave-quotas').set('Authorization', `Bearer ${t.admin}`).send({ employeeId: ids.employeeC, quotaYear: 2029, sickLeave: 30, personalLeave: 3, vacationLeave: 8 }),
       ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2029 })
     ]);
     assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeC, quotaYear: 2029 } }), 1);
-    assert.ok(adminRace.status === 'fulfilled' && ensureRace.status === 'fulfilled');
+    assert.ok([201, 409].includes(adminRace.status));
+    if (adminRace.status === 409) assert.equal(adminRace.body?.details?.code, 'LEAVE_QUOTA_ALREADY_EXISTS');
     const authority = await prisma.leaveQuota.findUnique({ where: { employeeId_quotaYear: { employeeId: ids.employeeC, quotaYear: 2029 } } });
+    assert.equal(ensureRace.quota.id, authority.id);
     assert.ok([6, 8].includes(Number(authority.vacationLeave)));
 
-    await Promise.all([
+    const [cronRace, cronEnsure] = await Promise.all([
       provisionAnnualLeaveQuotas({ prismaClient: prisma, now: new Date('2030-01-01T00:00:00+07:00'), batchSize: 2 }),
       ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2030 })
     ]);
     assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeC, quotaYear: 2030 } }), 1);
+    assert.equal(cronRace.failed, 0);
+    assert.equal(cronEnsure.quota.id, (await prisma.leaveQuota.findUnique({ where: { employeeId_quotaYear: { employeeId: ids.employeeC, quotaYear: 2030 } } })).id);
 
     await Promise.all([
       ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2031 }),
       ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2032 })
     ]);
     assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeC, quotaYear: { in: [2031, 2032] } } }), 2);
+
+    const independent = await Promise.all([
+      ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2033 }),
+      ensureAnnualQuota({ employeeId: ids.employeeB, quotaYear: 2033 })
+    ]);
+    assert.equal(await prisma.leaveQuota.count({ where: { employeeId: { in: [ids.employeeC, ids.employeeB] }, quotaYear: 2033 } }), 2);
+    assert.notEqual(independent[0].quota.id, independent[1].quota.id);
     await cleanup();
   });
 

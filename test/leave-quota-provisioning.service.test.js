@@ -12,6 +12,7 @@ function fakePrisma({ employee, annual = null, legacy = [], transactionError, au
       calls.isolationLevel = options?.isolationLevel;
       if (transactionError) throw transactionError;
       const tx = {
+        $executeRaw: async () => 1,
         employee: { findFirst: async () => employee || null },
         systemSetting: { findUnique: async () => activationExists ? { value: activationValue } : null },
         leaveQuota: {
@@ -33,10 +34,10 @@ function invoke(f, overrides = {}) {
   return provisionLeaveQuota({ actor: { sub: 'admin-1', role: 'ADMIN' }, ...input, prismaClient: f.client, auditService: f.auditService, fingerprintFactory: () => 'f'.repeat(64), ...overrides });
 }
 
-test('ADMIN annual provisioning is Serializable, year-aware, matched and audited', async () => {
+test('ADMIN annual provisioning is key-serialized, year-aware, matched and audited', async () => {
   const f = fakePrisma({ employee });
   const result = await invoke(f);
-  assert.equal(f.calls.isolationLevel, 'Serializable');
+  assert.equal(f.calls.isolationLevel, 'ReadCommitted');
   assert.equal(result.quotaYear, 2027);
   assert.equal(result.employeeNameSnapshot, 'Server Snapshot');
   assert.deepEqual({ sick: Number(result.sickLeave), personal: Number(result.personalLeave), vacation: Number(result.vacationLeave) }, { sick: 30, personal: 3, vacation: 6 });

@@ -8,6 +8,7 @@ function fakeClient({ quota, employee, annual = null, otherLegacy = [], activati
   const audits = [];
   let uniqueCalls = 0;
   const tx = {
+    $executeRaw: async () => 1,
     leaveQuota: {
       findUnique: async ({ where }) => { uniqueCalls += 1; return where.id ? quota : annual; },
       findMany: async () => otherLegacy,
