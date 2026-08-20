@@ -7,11 +7,11 @@ const { createFakeLicenseDocumentStorage } = require('./support/fake-license-doc
 const ids = { admin: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', manager: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', employee: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', license: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', document: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
 const pdf = { buffer: Buffer.from('%PDF-1.7\nfixture'), mimetype: 'application/pdf', originalname: '../guard license.pdf', size: 16 };
 
-function harness({ createFailure = false, deleteFailure = false, requireApprovalTransactionOptions = false } = {}) {
+function harness({ createFailure = false, deleteFailure = false, auditDeleteFailure = false, simulateTransactionRollback = false, requireApprovalTransactionOptions = false } = {}) {
   const state = {
     license: { id: ids.license, employeeId: ids.employee, issueDate: new Date('2026-01-01'), expiryDate: new Date('2026-12-31') },
     employee: { id: ids.employee, department: 'Operations', isActive: true, deletedAt: null },
-    manager: { department: 'Operations', employee: null }, documents: [], audits: [], reconciles: [], transactionCalls: 0
+    manager: { department: 'Operations', employee: null }, documents: [], audits: [], reconciles: [], transactionCalls: 0, deleteCalls: 0, deleteAuditUsedTransaction: false
   };
   const tx = {
     $queryRaw: async () => [],
@@ -28,7 +28,7 @@ function harness({ createFailure = false, deleteFailure = false, requireApproval
       findUniqueOrThrow: async ({ where }) => { const document = state.documents.find((item) => item.id === where.id); if (!document) { const error = new Error('missing'); error.code = 'P2025'; throw error; } return document; },
       findMany: async () => [...state.documents].sort((a, b) => b.version - a.version),
       updateMany: async ({ where, data }) => { for (const document of state.documents.filter((item) => item.licenseId === where.licenseId && item.isCurrent === where.isCurrent)) Object.assign(document, data); },
-      delete: async ({ where }) => { if (deleteFailure) throw new Error('database delete failure'); const index = state.documents.findIndex((item) => item.id === where.id); return state.documents.splice(index, 1)[0]; },
+      delete: async ({ where }) => { state.deleteCalls += 1; if (deleteFailure) throw new Error('database delete failure'); const index = state.documents.findIndex((item) => item.id === where.id); return state.documents.splice(index, 1)[0]; },
       update: async ({ where, data }) => { const document = state.documents.find((item) => item.id === where.id); const next = { ...data }; if (data.storageDeleteAttempts?.increment) { document.storageDeleteAttempts = Number(document.storageDeleteAttempts || 0) + data.storageDeleteAttempts.increment; delete next.storageDeleteAttempts; } return Object.assign(document, next); }
     },
     auditLog: { deleteMany: async ({ where }) => { state.audits = state.audits.filter((entry) => entry.entityType !== where.entityType || entry.entityId !== where.entityId); } }
@@ -38,13 +38,31 @@ function harness({ createFailure = false, deleteFailure = false, requireApproval
     if (requireApprovalTransactionOptions && (!options || options.timeout < 30000 || options.maxWait < 10000)) {
       const error = new Error('Transaction expired before approval completed.'); error.code = 'P2028'; throw error;
     }
-    return callback(tx);
+    const snapshot = simulateTransactionRollback ? {
+      documents: state.documents.map((document) => ({ ...document })),
+      audits: state.audits.map((entry) => ({ ...entry, metadata: entry.metadata && { ...entry.metadata } }))
+    } : null;
+    try { return await callback(tx); }
+    catch (error) {
+      if (snapshot) {
+        state.documents.splice(0, state.documents.length, ...snapshot.documents);
+        state.audits.splice(0, state.audits.length, ...snapshot.audits);
+      }
+      throw error;
+    }
   } };
   prisma.employeeLicense = tx.employeeLicense;
   prisma.employeeLicenseDocument = tx.employeeLicenseDocument;
   prisma.employeeLicenseDocument.update = tx.employeeLicenseDocument.update;
   const storage = createFakeLicenseDocumentStorage();
-  const audit = { log: async (entry) => { state.audits.push(entry); return entry; } };
+  const audit = { log: async (entry, client) => {
+    if (entry.action === 'DELETE') {
+      state.deleteAuditUsedTransaction = client === tx;
+      if (auditDeleteFailure) throw new Error('database tombstone failure');
+    }
+    state.audits.push({ ...entry, metadata: entry.metadata && { ...entry.metadata } });
+    return entry;
+  } };
   const reconcileSchedules = async (...args) => state.reconciles.push(args);
   return { state, storage, service: createLicenseDocumentService({ prisma, storage, audit, reconcileSchedules }) };
 }
@@ -215,23 +233,52 @@ test('rejected document remains rejected when immediate storage deletion fails a
   await assert.rejects(() => service.view({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } }), { statusCode: 410 });
 });
 
-test('admin permanently deletes a historical returned document and its audit rows', async () => {
+test('admin permanently deletes a historical document, preserves prior audits, and appends one minimal tombstone', async () => {
   const { state, storage, service } = harness();
   const id = ids.document;
   state.documents.push({ id, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: 'licenses/e/historical', status: 'RETURNED_FOR_CORRECTION', isCurrent: false, version: 1, uploadedAt: new Date('2026-01-01'), resubmittedAt: new Date('2026-02-01') });
   state.documents.push({ id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', employeeId: ids.employee, licenseId: ids.license, status: 'APPROVED', isCurrent: true, version: 2, uploadedAt: new Date('2026-03-01') });
   await storage.put('licenses/e/historical', pdf);
-  state.audits.push({ entityType: 'EmployeeLicenseDocument', entityId: id });
+  const priorAudit = { actorUserId: ids.admin, action: 'CREATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'UPLOAD' } };
+  state.audits.push(priorAudit);
   await assert.deepEqual(await service.permanentlyDelete({ id, requestUser: { sub: ids.admin, role: 'ADMIN' } }), { id, deleted: true });
   assert.equal(state.documents.some((document) => document.id === id), false);
   assert.equal(storage.objectExists('licenses/e/historical'), false);
-  assert.equal(state.audits.some((entry) => entry.entityId === id), false);
+  assert.equal(storage.calls.remove.length, 1);
+  assert.equal(state.audits.includes(priorAudit), true);
+  const tombstones = state.audits.filter((entry) => entry.entityType === 'EmployeeLicenseDocument' && entry.entityId === id && entry.action === 'DELETE');
+  assert.equal(tombstones.length, 1);
+  assert.equal(tombstones[0].actorUserId, ids.admin);
+  assert.deepEqual(tombstones[0].metadata, { event: 'PERMANENT_DELETE', licenseId: ids.license });
+  assert.deepEqual(Object.keys(tombstones[0].metadata).sort(), ['event', 'licenseId']);
+  assert.equal(state.deleteAuditUsedTransaction, true);
+  await assert.rejects(() => service.permanentlyDelete({ id, requestUser: { sub: ids.admin, role: 'ADMIN' } }));
+  assert.equal(state.audits.filter((entry) => entry.entityId === id && entry.action === 'DELETE').length, 1);
+});
+
+test('permanent delete transaction never commits tombstone or row deletion independently', async () => {
+  for (const failure of ['audit', 'delete']) {
+    const { state, storage, service } = harness({ auditDeleteFailure: failure === 'audit', deleteFailure: failure === 'delete', simulateTransactionRollback: true });
+    const id = ids.document;
+    const objectKey = `licenses/e/atomic-${failure}`;
+    state.documents.push({ id, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: objectKey, status: 'RETURNED_FOR_CORRECTION', isCurrent: false, version: 1, uploadedAt: new Date('2026-01-01'), resubmittedAt: new Date('2026-02-01') });
+    state.documents.push({ id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', employeeId: ids.employee, licenseId: ids.license, status: 'APPROVED', isCurrent: true, version: 2, uploadedAt: new Date('2026-03-01') });
+    state.audits.push({ actorUserId: ids.admin, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'PRIOR' } });
+    await storage.put(objectKey, pdf);
+    await assert.rejects(() => service.permanentlyDelete({ id, requestUser: { sub: ids.admin, role: 'ADMIN' } }), { statusCode: 503 });
+    assert.equal(state.documents.some((document) => document.id === id), true);
+    assert.equal(state.audits.some((entry) => entry.entityId === id && entry.action === 'UPDATE'), true);
+    assert.equal(state.audits.filter((entry) => entry.entityId === id && entry.action === 'DELETE').length, 0);
+    assert.equal(state.deleteAuditUsedTransaction, true);
+    assert.equal(state.deleteCalls, failure === 'delete' ? 1 : 0);
+  }
 });
 
 test('permanent delete is admin-only and rejects current, pending, and active correction', async () => {
   const { state, service } = harness();
   state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, status: 'APPROVED', isCurrent: true, version: 1, uploadedAt: new Date('2026-01-01') });
   await assert.rejects(() => service.permanentlyDelete({ id: ids.document, requestUser: { sub: ids.manager, role: 'MANAGER' } }), { statusCode: 403 });
+  await assert.rejects(() => service.permanentlyDelete({ id: ids.document, requestUser: { sub: ids.manager, role: 'VIEWER' } }), { statusCode: 403 });
   await assert.rejects(() => service.permanentlyDelete({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } }), { statusCode: 409 });
   state.documents[0].status = 'PENDING'; state.documents[0].isCurrent = false;
   await assert.rejects(() => service.permanentlyDelete({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } }), { statusCode: 409 });
@@ -245,6 +292,7 @@ test('storage failure returns sanitized 503 and does not report deletion success
   await storage.put('licenses/e/failing-hard-delete', pdf); storage.failNextRemove();
   await assert.rejects(() => service.permanentlyDelete({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } }), { statusCode: 503 });
   assert.equal(state.documents[0].status, 'REJECTED');
+  assert.equal(state.audits.filter((entry) => entry.entityId === ids.document && entry.action === 'DELETE').length, 0);
 });
 
 

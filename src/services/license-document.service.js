@@ -329,7 +329,13 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
         if (String(found.immediateDeletionRequestedAt) !== String(deletionRequestedAt)) throw new HttpError(409, 'The license document changed during permanent deletion.');
         const documents = await tx.employeeLicenseDocument.findMany({ where: { licenseId: found.licenseId }, select: { id: true, status: true, isCurrent: true, version: true, uploadedAt: true, resubmittedAt: true } });
         ensurePermanentDeleteEligible(found, documents);
-        await tx.auditLog.deleteMany({ where: { entityType: 'EmployeeLicenseDocument', entityId: id } });
+        await audit.log({
+          actorUserId: requestUser.sub,
+          action: 'DELETE',
+          entityType: 'EmployeeLicenseDocument',
+          entityId: id,
+          metadata: { event: 'PERMANENT_DELETE', licenseId: found.licenseId }
+        }, tx);
         await tx.employeeLicenseDocument.delete({ where: { id } });
       }, APPROVAL_TRANSACTION_OPTIONS);
     } catch (_error) { await prisma.employeeLicenseDocument.update({ where: { id }, data: { storageDeletedAt: new Date(), immediateDeletionRequestedAt: null, storageDeleteAfter: null, storageDeleteLastErrorCode: 'HARD_DELETE_DATABASE_FAILED' } }).catch(() => undefined); throw new HttpError(503, 'The file was removed but the document record could not be deleted.'); }
