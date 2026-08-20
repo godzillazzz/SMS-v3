@@ -42,6 +42,28 @@ function buildExpectationSnapshot({ shiftAssignment, shiftType, securitySite = n
   };
 }
 
+function resolveEventTiming({ provenance, receivedAt, offlineValidation }) {
+  if (provenance === 'ONLINE') {
+    return { effectiveEventAt: receivedAt, timeBasis: 'SERVER_RECEIVED' };
+  }
+
+  const effectiveEventAt = offlineValidation?.effectiveEventAt ? new Date(offlineValidation.effectiveEventAt) : null;
+  const timeBasis = offlineValidation?.timeBasis;
+  if (offlineValidation?.decision !== 'SERVER_VALIDATED'
+    || Number.isNaN(effectiveEventAt?.getTime())
+    || !['DEVICE_CAPTURED', 'CORRECTED'].includes(timeBasis)) {
+    throw new HttpError(400, 'Offline attendance requires a server validation decision.', { code: 'ATTENDANCE_OFFLINE_VALIDATION_REQUIRED' });
+  }
+  return { effectiveEventAt, timeBasis };
+}
+
+function hasMatchingCaptureIdentity(existing, { sessionId, eventType, provenance, capturedAt }) {
+  return existing.sessionId === sessionId
+    && existing.eventType === eventType
+    && existing.provenance === provenance
+    && new Date(existing.capturedAt).getTime() === new Date(capturedAt).getTime();
+}
+
 function createAttendanceFoundationService({ prismaClient = prisma, auditService = audit, clock = () => new Date() } = {}) {
   async function createSessionFromShiftAssignment({ shiftAssignmentId, actorUserId = null }) {
     return prismaClient.$transaction(async (tx) => {
@@ -56,16 +78,17 @@ function createAttendanceFoundationService({ prismaClient = prisma, auditService
     });
   }
 
-  async function recordEvent({ sessionId, captureId, eventType, provenance, capturedAt, actorUserId = null, locationEvidence = null, offlineContext = null, deviceContext = null }) {
+  async function recordEvent({ sessionId, captureId, eventType, provenance, capturedAt, actorUserId = null, locationEvidence = null, offlineContext = null, deviceContext = null, offlineValidation = null }) {
     if (!captureId || !String(captureId).trim()) throw new HttpError(400, 'captureId is required.', { code: 'ATTENDANCE_CAPTURE_ID_REQUIRED' });
     return prismaClient.$transaction(async (tx) => {
       const existing = await tx.attendanceEvent.findUnique({ where: { captureId } });
       if (existing) {
-        if (existing.sessionId === sessionId && existing.eventType === eventType && existing.provenance === provenance) return { event: existing, idempotent: true };
+        if (hasMatchingCaptureIdentity(existing, { sessionId, eventType, provenance, capturedAt })) return { event: existing, idempotent: true };
         throw new HttpError(409, 'captureId conflicts with a different attendance event.', { code: 'ATTENDANCE_CAPTURE_ID_CONFLICT' });
       }
       const receivedAt = clock();
-      const event = await tx.attendanceEvent.create({ data: { sessionId, captureId, eventType, provenance, capturedAt: new Date(capturedAt), receivedAt, effectiveEventAt: provenance === 'ONLINE' ? receivedAt : new Date(capturedAt), timeBasis: provenance === 'ONLINE' ? 'SERVER_RECEIVED' : 'DEVICE_CAPTURED', locationEvidence, offlineContext, deviceContext } });
+      const { effectiveEventAt, timeBasis } = resolveEventTiming({ provenance, receivedAt, offlineValidation });
+      const event = await tx.attendanceEvent.create({ data: { sessionId, captureId, eventType, provenance, capturedAt: new Date(capturedAt), receivedAt, effectiveEventAt, timeBasis, locationEvidence, offlineContext, deviceContext } });
       await auditService.log({ actorUserId, action: 'CREATE', entityType: 'AttendanceEvent', entityId: event.id, metadata: { sessionId, eventType, provenance, timeBasis: event.timeBasis } }, tx);
       return { event, idempotent: false };
     });
@@ -100,4 +123,4 @@ function createAttendanceFoundationService({ prismaClient = prisma, auditService
   return { appendCorrection, buildExpectationSnapshot, certifyMonth, createSessionFromShiftAssignment, recordEvent };
 }
 
-module.exports = { buildExpectationSnapshot, createAttendanceFoundationService, dateAtTime, isOvernightShift };
+module.exports = { buildExpectationSnapshot, createAttendanceFoundationService, dateAtTime, isOvernightShift, resolveEventTiming };

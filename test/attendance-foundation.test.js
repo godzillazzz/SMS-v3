@@ -27,6 +27,15 @@ function eventHarness(existing = null) {
   return { service, events, audits };
 }
 
+function validatedOfflineDecision(overrides = {}) {
+  return {
+    decision: 'SERVER_VALIDATED',
+    effectiveEventAt: '2026-08-20T01:05:00.000Z',
+    timeBasis: 'DEVICE_CAPTURED',
+    ...overrides
+  };
+}
+
 test('Security Site, optional schedule Site/Duty, and active shift-template fields are additive', () => {
   assert.match(schema, /model SecuritySite \{/);
   assert.match(schema, /model SecuritySiteDepartment \{/);
@@ -74,14 +83,52 @@ test('overnight shift expectation belongs to the start workDate and remains immu
   assert.equal(snapshot.expectedShiftName, 'Night');
 });
 
-test('captureId is the single idempotency identity and conflicts fail closed', async () => {
+test('online events use only the server receipt time as their effective time', async () => {
   const harness = eventHarness();
-  const first = await harness.service.recordEvent({ sessionId: 'session-1', captureId: 'capture-1', eventType: 'CHECK_IN', provenance: 'OFFLINE', capturedAt: '2026-08-20T01:00:00.000Z' });
-  const duplicate = await harness.service.recordEvent({ sessionId: 'session-1', captureId: 'capture-1', eventType: 'CHECK_IN', provenance: 'OFFLINE', capturedAt: '2026-08-20T01:00:00.000Z' });
+  const { event } = await harness.service.recordEvent({ sessionId: 'session-1', captureId: 'capture-online', eventType: 'CHECK_IN', provenance: 'ONLINE', capturedAt: '2026-08-20T01:00:00.000Z' });
+  assert.equal(event.capturedAt.toISOString(), '2026-08-20T01:00:00.000Z');
+  assert.equal(event.receivedAt.toISOString(), '2026-08-20T02:00:00.000Z');
+  assert.equal(event.effectiveEventAt.toISOString(), '2026-08-20T02:00:00.000Z');
+  assert.equal(event.timeBasis, 'SERVER_RECEIVED');
+});
+
+test('offline events require a server validation decision before creation', async () => {
+  const harness = eventHarness();
+  await assert.rejects(
+    () => harness.service.recordEvent({ sessionId: 'session-1', captureId: 'capture-offline-missing', eventType: 'CHECK_IN', provenance: 'OFFLINE', capturedAt: '2026-08-20T01:00:00.000Z' }),
+    (error) => error.statusCode === 400 && error.details.code === 'ATTENDANCE_OFFLINE_VALIDATION_REQUIRED'
+  );
+  assert.equal(harness.events.length, 0);
+});
+
+test('offline events preserve evidence times and use only server-approved effective time', async () => {
+  const harness = eventHarness();
+  const { event } = await harness.service.recordEvent({ sessionId: 'session-1', captureId: 'capture-offline-validated', eventType: 'CHECK_IN', provenance: 'OFFLINE', capturedAt: '2026-08-20T01:00:00.000Z', offlineValidation: validatedOfflineDecision() });
+  assert.equal(event.capturedAt.toISOString(), '2026-08-20T01:00:00.000Z');
+  assert.equal(event.receivedAt.toISOString(), '2026-08-20T02:00:00.000Z');
+  assert.equal(event.effectiveEventAt.toISOString(), '2026-08-20T01:05:00.000Z');
+  assert.equal(event.timeBasis, 'DEVICE_CAPTURED');
+});
+
+test('captureId is idempotent only for the same immutable core identity', async () => {
+  const harness = eventHarness();
+  const first = await harness.service.recordEvent({ sessionId: 'session-1', captureId: 'capture-1', eventType: 'CHECK_IN', provenance: 'ONLINE', capturedAt: '2026-08-20T01:00:00.000Z' });
+  const duplicate = await harness.service.recordEvent({ sessionId: 'session-1', captureId: 'capture-1', eventType: 'CHECK_IN', provenance: 'ONLINE', capturedAt: '2026-08-20T01:00:00.000Z' });
   assert.equal(first.idempotent, false);
   assert.equal(duplicate.idempotent, true);
   assert.equal(harness.events.length, 1);
-  await assert.rejects(() => harness.service.recordEvent({ sessionId: 'session-2', captureId: 'capture-1', eventType: 'CHECK_OUT', provenance: 'OFFLINE', capturedAt: '2026-08-20T01:00:00.000Z' }), (error) => error.statusCode === 409 && error.details.code === 'ATTENDANCE_CAPTURE_ID_CONFLICT');
+  for (const conflictingEvent of [
+    { sessionId: 'session-1', eventType: 'CHECK_IN', provenance: 'ONLINE', capturedAt: '2026-08-20T01:01:00.000Z' },
+    { sessionId: 'session-2', eventType: 'CHECK_IN', provenance: 'ONLINE', capturedAt: '2026-08-20T01:00:00.000Z' },
+    { sessionId: 'session-1', eventType: 'CHECK_OUT', provenance: 'ONLINE', capturedAt: '2026-08-20T01:00:00.000Z' },
+    { sessionId: 'session-1', eventType: 'CHECK_IN', provenance: 'OFFLINE', capturedAt: '2026-08-20T01:00:00.000Z', offlineValidation: validatedOfflineDecision() }
+  ]) {
+    await assert.rejects(
+      () => harness.service.recordEvent({ ...conflictingEvent, captureId: 'capture-1' }),
+      (error) => error.statusCode === 409 && error.details.code === 'ATTENDANCE_CAPTURE_ID_CONFLICT'
+    );
+  }
+  assert.equal(harness.events.length, 1);
 });
 
 test('corrections are append-only, require Manager/Admin actor and always flag the session as corrected', async () => {
