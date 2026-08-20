@@ -24,6 +24,7 @@ function fakePrisma(employeeCount = 250, activationValue = 'true') {
     $transaction: async (callback) => {
       transactions += 1;
       const tx = {
+        $executeRaw: async () => 1,
         systemSetting: { findUnique: async () => activationValue === null ? null : ({ value: activationValue }) },
         employee: {
           findFirst: async ({ where }) => employees.find((row) => row.id === where.id) || null

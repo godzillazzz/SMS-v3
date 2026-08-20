@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { linkLeaveQuota, LEAVE_QUOTA_STATE_CONFLICT } = require('../src/services/leave-quota-link.service');
 
-test('manual quota link uses Serializable isolation and maps P2034 to a safe conflict', async () => {
+test('manual quota link uses key-serialized ReadCommitted isolation and maps P2034 to a safe conflict', async () => {
   let isolationLevel;
   const prismaClient = {
     $transaction: async (_callback, options) => {
@@ -15,5 +15,5 @@ test('manual quota link uses Serializable isolation and maps P2034 to a safe con
     () => linkLeaveQuota({ quotaId: 'quota-1', employeeId: 'employee-1', quotaYear: 2027, actorUserId: 'admin-1', prismaClient }),
     (error) => error.statusCode === 409 && error.details?.code === LEAVE_QUOTA_STATE_CONFLICT
   );
-  assert.equal(isolationLevel, 'Serializable');
+  assert.equal(isolationLevel, 'ReadCommitted');
 });

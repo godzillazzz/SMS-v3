@@ -5,6 +5,7 @@ const {
   validateQuotaYear,
   bangkokQuotaYear,
   annualFingerprint,
+  lockAnnualQuotaProvisioning,
   LEAVE_QUOTA_ALREADY_EXISTS,
   LEAVE_QUOTA_STATE_CONFLICT
 } = require('./annual-leave-quota.service');
@@ -26,6 +27,7 @@ async function provisionLeaveQuota({
   const year = validateQuotaYear(quotaYear ?? bangkokQuotaYear());
   try {
     return await prismaClient.$transaction(async (tx) => {
+      await lockAnnualQuotaProvisioning(tx, employeeId, year);
       const employee = await tx.employee.findFirst({
         where: { id: employeeId, deletedAt: null, isActive: true },
         select: { id: true, firstName: true, lastName: true, displayName: true }
@@ -90,7 +92,7 @@ async function provisionLeaveQuota({
       }, tx);
 
       return quota;
-    }, { isolationLevel: 'Serializable' });
+    }, { isolationLevel: 'ReadCommitted' });
   } catch (error) {
     if (error?.code === 'P2002') throw new HttpError(409, 'Employee already has a leave quota for this year.', { code: LEAVE_QUOTA_ALREADY_EXISTS, quotaYear: year });
     if (error?.code === 'P2034') throw new HttpError(409, 'Leave quota state changed. Refresh and try again.', { code: LEAVE_QUOTA_STATE_CONFLICT });

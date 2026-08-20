@@ -30,6 +30,17 @@ function annualFingerprint(employeeId, quotaYear) {
   return crypto.createHash('sha256').update(`v3:annual-leave-quota:${employeeId}:${quotaYear}:${crypto.randomUUID()}`).digest('hex');
 }
 
+function annualQuotaProvisioningLockKey(employeeId, quotaYear) {
+  const year = validateQuotaYear(quotaYear);
+  const digest = crypto.createHash('sha256').update(`v3:annual-leave-quota-provisioning:${employeeId}:${year}`).digest();
+  return [digest.readInt32BE(0), digest.readInt32BE(4)];
+}
+
+async function lockAnnualQuotaProvisioning(tx, employeeId, quotaYear) {
+  const [namespaceKey, identityKey] = annualQuotaProvisioningLockKey(employeeId, quotaYear);
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${namespaceKey}::integer, ${identityKey}::integer)`;
+}
+
 async function resolveAnnualQuotaState(tx, employeeId, quotaYear) {
   const year = validateQuotaYear(quotaYear);
   const [annual, legacy] = await Promise.all([
@@ -52,6 +63,7 @@ async function ensureEmployeeEligible(tx, employeeId) {
 
 async function ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear, source = 'ON_DEMAND', auditService = audit }) {
   const year = validateQuotaYear(quotaYear);
+  await lockAnnualQuotaProvisioning(tx, employeeId, year);
   const employee = await ensureEmployeeEligible(tx, employeeId);
   const state = await resolveAnnualQuotaState(tx, employeeId, year);
   if (state.state === 'ANNUAL_EXISTS') return { quota: state.quota, created: false };
@@ -100,7 +112,7 @@ async function ensureAnnualQuota({ employeeId, quotaYear, source = 'ON_DEMAND', 
   const year = validateQuotaYear(quotaYear);
   const run = () => prismaClient.$transaction(
     (tx) => ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear: year, source, auditService }),
-    { isolationLevel: 'Serializable' }
+    { isolationLevel: 'ReadCommitted' }
   );
   const rereadWinner = () => prismaClient.leaveQuota.findUnique({ where: { employeeId_quotaYear: { employeeId, quotaYear: year } } });
   try {
@@ -144,6 +156,8 @@ module.exports = {
   validateQuotaYear,
   bangkokQuotaYear,
   annualFingerprint,
+  annualQuotaProvisioningLockKey,
+  lockAnnualQuotaProvisioning,
   resolveAnnualQuotaState,
   ensureAnnualQuotaInTransaction,
   ensureAnnualQuota,

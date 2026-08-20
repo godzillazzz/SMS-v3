@@ -3,12 +3,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   ensureAnnualQuotaInTransaction,
+  annualQuotaProvisioningLockKey,
+  ensureAnnualQuota,
   LEAVE_QUOTA_LEGACY_AMBIGUOUS
 } = require('../src/services/annual-leave-quota.service');
 
 function fixture({ employee = { id: 'e1', firstName: 'A', lastName: 'B', displayName: 'A B' }, annual, legacy = [], inserted = 1, activationValue = 'true', activationExists = true } = {}) {
   const state = { audits: [], creates: [] };
   const tx = {
+    $executeRaw: async () => 1,
     employee: { findFirst: async () => employee },
     systemSetting: { findUnique: async () => activationExists ? { value: activationValue } : null },
     leaveQuota: {
@@ -77,4 +80,23 @@ test('createMany race loser re-reads winner and does not emit duplicate audit', 
   assert.equal(result.raceRecovered, true);
   assert.equal(result.quota.vacationLeave, 9);
   assert.equal(f.state.audits.length, 0);
+});
+
+test('provisioning lock keys are stable per employee/year and distinct for independent years', () => {
+  assert.deepEqual(annualQuotaProvisioningLockKey('e1', 2027), annualQuotaProvisioningLockKey('e1', 2027));
+  assert.notDeepEqual(annualQuotaProvisioningLockKey('e1', 2027), annualQuotaProvisioningLockKey('e1', 2028));
+  assert.notDeepEqual(annualQuotaProvisioningLockKey('e1', 2027), annualQuotaProvisioningLockKey('e2', 2027));
+});
+
+test('unrelated database errors during provisioning remain errors', async () => {
+  const f = fixture();
+  f.tx.$executeRaw = async () => { throw new Error('INJECTED_DATABASE_FAILURE'); };
+  const prismaClient = {
+    $transaction: async (operation) => operation(f.tx),
+    leaveQuota: { findUnique: async () => null }
+  };
+  await assert.rejects(
+    () => ensureAnnualQuota({ employeeId: 'e1', quotaYear: 2027, prismaClient, auditService: f.auditService }),
+    /INJECTED_DATABASE_FAILURE/
+  );
 });

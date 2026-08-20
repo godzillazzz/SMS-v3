@@ -1,13 +1,14 @@
 const prisma = require('../config/prisma');
 const audit = require('./audit.service');
 const HttpError = require('../utils/http-error');
-const { validateQuotaYear, LEAVE_QUOTA_STATE_CONFLICT } = require('./annual-leave-quota.service');
+const { validateQuotaYear, lockAnnualQuotaProvisioning, LEAVE_QUOTA_STATE_CONFLICT } = require('./annual-leave-quota.service');
 const { assertAnnualQuotaCreationAllowed } = require('./g03-1-multi-year-activation.service');
 
 async function linkLeaveQuota({ quotaId, employeeId, quotaYear, actorUserId, prismaClient = prisma, auditService = audit }) {
   const year = validateQuotaYear(quotaYear);
   try {
     return await prismaClient.$transaction(async (tx) => {
+      await lockAnnualQuotaProvisioning(tx, employeeId, year);
       const quota = await tx.leaveQuota.findUnique({
         where: { id: quotaId },
         select: { id: true, employeeId: true, quotaYear: true, employeeNameSnapshot: true, matchStatus: true }
@@ -55,7 +56,7 @@ async function linkLeaveQuota({ quotaId, employeeId, quotaYear, actorUserId, pri
         }
       }, tx);
       return { ...after, employee };
-    }, { isolationLevel: 'Serializable' });
+    }, { isolationLevel: 'ReadCommitted' });
   } catch (error) {
     if (error?.code === 'P2002') throw new HttpError(409, 'Selected employee already has a leave quota for this year.', { code: 'LEAVE_QUOTA_ALREADY_EXISTS', quotaYear: year });
     if (error?.code === 'P2034') throw new HttpError(409, 'Leave quota state changed. Refresh and try again.', { code: LEAVE_QUOTA_STATE_CONFLICT });
