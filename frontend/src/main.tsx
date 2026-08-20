@@ -39,6 +39,7 @@ import { OperationalRecordDrawer, type OperationalDrawerAction } from './compone
 import { SmsIcon, type SmsIconName } from './components/SmsIcon';
 import { ThemeControl } from './components/ThemeControl';
 import { PasskeySecurityPanel } from './components/PasskeySecurityPanel';
+import { AttendanceConfigurationPage } from './pages/attendance/AttendanceConfigurationPage';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/license-table.css';
@@ -56,7 +57,7 @@ import './styles/signature-experience-v1-2.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; department?: string; jobTitle?: string; isActive: boolean; updatedAt?: string };
-type Page = 'dashboard' | 'employees' | 'licenses' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
+type Page = 'dashboard' | 'employees' | 'licenses' | 'shiftSetup' | 'attendanceConfig' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
@@ -80,7 +81,8 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   ] },
   { label: 'ตารางกะ', items: [
     { id: 'schedule', icon: 'calendar', label: 'ตารางกะรายเดือน' },
-    { id: 'shiftSetup', icon: 'clock', label: 'รหัสกะและเวลา' }
+    { id: 'shiftSetup', icon: 'clock', label: 'รหัสกะและเวลา' },
+    { id: 'attendanceConfig', icon: 'settings', label: 'ตั้งค่าระบบลงเวลา' }
   ] },
   { label: 'การลา', items: [
     { id: 'leave', icon: 'leave', label: 'คำขอลา' },
@@ -712,7 +714,7 @@ function EmployeeMagicWandModal({
   );
 }
 
-type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
+type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'attendanceConfig' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
 
 const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
@@ -903,6 +905,8 @@ interface ShiftEditorModalProps {
   defaults?: Record<string, string>;
   employees: DataRow[];
   shiftTypes: DataRow[];
+  securitySites: DataRow[];
+  duties: DataRow[];
   licenses: DataRow[];
   isAdmin: boolean;
   onClose: () => void;
@@ -910,6 +914,8 @@ interface ShiftEditorModalProps {
     employeeId: string;
     workDate: string;
     shiftTypeId: string;
+    securitySiteId?: string;
+    dutyId?: string;
     remark: string;
     licenseOverride: boolean;
     overrideReason: string;
@@ -950,13 +956,15 @@ function useShiftEditorModalRoot() {
   return modalRoot;
 }
 
-function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, isAdmin, onClose, onSubmit }: ShiftEditorModalProps) {
+function ShiftEditorModal({ shift, defaults, employees, shiftTypes, securitySites, duties, licenses, isAdmin, onClose, onSubmit }: ShiftEditorModalProps) {
   const initialEmpId = String(shift?.employeeId || defaults?.employeeId || employees[0]?.id || '');
   const initialDate = shift ? inputDate(shift.workDate) : String(defaults?.workDate || '');
   const initialType = String(shift?.shiftTypeId || nested(shift?.shiftType).id || defaults?.shiftTypeId || shiftTypes[0]?.id || '');
   const initialRemark = String(shift?.remark || '');
   const initialOverride = Boolean(shift?.licenseOverride);
   const initialOverrideReason = String(shift?.overrideReason || '');
+  const initialSiteId = String(shift?.securitySiteId || defaults?.securitySiteId || '');
+  const initialDutyId = String(shift?.dutyId || defaults?.dutyId || '');
 
   const [employeeId, setEmployeeId] = useState(initialEmpId);
   const [workDate, setWorkDate] = useState(initialDate);
@@ -964,6 +972,8 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   const [remark, setRemark] = useState(initialRemark);
   const [licenseOverride, setLicenseOverride] = useState(initialOverride);
   const [overrideReason, setOverrideReason] = useState(initialOverrideReason);
+  const [securitySiteId, setSecuritySiteId] = useState(initialSiteId);
+  const [dutyId, setDutyId] = useState(initialDutyId);
   const [modalError, setModalError] = useState<string | null>(null);
   const modalRoot = useShiftEditorModalRoot();
   const initialFocusRef = useRef<HTMLSelectElement>(null);
@@ -1040,6 +1050,8 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
       employeeId,
       workDate,
       shiftTypeId,
+      securitySiteId: securitySiteId || undefined,
+      dutyId: dutyId || undefined,
       remark: remark || 'Manual batch edit',
       licenseOverride: isInvalidLicense ? licenseOverride : false,
       overrideReason: isInvalidLicense && licenseOverride ? overrideReason : ''
@@ -1106,6 +1118,20 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
                 ))}
               </select>
             </div>
+
+            {isAdmin && <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>จุดปฏิบัติงาน</label>
+              <select value={securitySiteId} onChange={(e) => setSecuritySiteId(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff', color: '#0f172a' }}>
+                <option value="">-- ไม่ระบุ --</option>{securitySites.map((site) => <option key={String(site.id)} value={String(site.id)}>{String(site.code)} · {String(site.name)}</option>)}
+              </select>
+            </div>}
+
+            {isAdmin && <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>ประเภทหน้าที่</label>
+              <select value={dutyId} onChange={(e) => setDutyId(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff', color: '#0f172a' }}>
+                <option value="">-- ไม่ระบุ --</option>{duties.map((duty) => <option key={String(duty.id)} value={String(duty.id)}>{String(duty.code)} · {String(duty.name)}</option>)}
+              </select>
+            </div>}
 
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
@@ -1401,6 +1427,8 @@ function Dashboard() {
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
   const [employeeRefresh, setEmployeeRefresh] = useState(0);
   const [shiftTypes, setShiftTypes] = useState<DataRow[]>([]);
+  const [attendanceSites, setAttendanceSites] = useState<DataRow[]>([]);
+  const [attendanceDuties, setAttendanceDuties] = useState<DataRow[]>([]);
   const [editor, setEditor] = useState<Editor>();
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorError, setEditorError] = useState<RequestErrorInput>();
@@ -1425,7 +1453,7 @@ function Dashboard() {
   const [employeeAutoContinue, setEmployeeAutoContinue] = useState(true);
   const [employeeAutoStartPhase, setEmployeeAutoStartPhase] = useState('D1');
   const [scheduleExportBusy, setScheduleExportBusy] = useState(false);
-  const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, { action: 'create' | 'update' | 'delete'; id?: string; employeeId: string; workDate: string; shiftTypeId?: string; shiftCode?: string; shiftName?: string; startTime?: string; endTime?: string; color?: string; remark?: string; licenseStatus?: string; licenseOverride?: boolean; overrideReason?: string; payload?: unknown }>>({});
+  const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, { action: 'create' | 'update' | 'delete'; id?: string; employeeId: string; workDate: string; shiftTypeId?: string; securitySiteId?: string; dutyId?: string; shiftCode?: string; shiftName?: string; startTime?: string; endTime?: string; color?: string; remark?: string; licenseStatus?: string; licenseOverride?: boolean; overrideReason?: string; payload?: unknown }>>({});
   const [batchSaveBusy, setBatchSaveBusy] = useState(false);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [deptMenuOpen, setDeptMenuOpen] = useState(false);
@@ -1478,6 +1506,7 @@ function Dashboard() {
               locked: true,
               licenseOverride: Boolean(d.licenseOverride),
               overrideReason: String(d.overrideReason || '')
+              , securitySiteId: d.securitySiteId || null, dutyId: d.dutyId || null
             }
           };
         });
@@ -1523,6 +1552,13 @@ function Dashboard() {
   }, [activePage, auth.token, operationRefresh]);
 
   useEffect(() => {
+    if (!auth.token || activePage !== 'schedule' || auth.user?.role !== 'ADMIN') { setAttendanceSites([]); setAttendanceDuties([]); return; }
+    Promise.all([api.attendanceSites(auth.token, false), api.attendanceDuties(auth.token, false)])
+      .then(([siteResponse, dutyResponse]) => { setAttendanceSites(siteResponse?.data || []); setAttendanceDuties(dutyResponse?.data || []); })
+      .catch(() => { setAttendanceSites([]); setAttendanceDuties([]); });
+  }, [activePage, auth.token, auth.user?.role, operationRefresh]);
+
+  useEffect(() => {
     if (!auth.token || activePage !== 'dashboard') return;
     setDashboardLoading(true);
     setDashboardError(undefined);
@@ -1566,14 +1602,14 @@ function Dashboard() {
   }, [activePage, auth.token, operationPage, dataQualityPageSize, dataQualityFilters, operationRefresh]);
 
   useEffect(() => {
-    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
+    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'shiftSetup' || activePage === 'attendanceConfig' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
     if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
       setOperationLoading(false);
       setOperationError(undefined);
       setOperationResponse({ data: [] });
       return;
     }
-    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
+    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'shiftSetup' | 'attendanceConfig' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
       users: api.users, audit: api.auditEvents, settings: api.systemSettings
@@ -1626,6 +1662,7 @@ function Dashboard() {
     employees: 'ข้อมูลพนักงานและใบอนุญาตปฏิบัติงาน',
     licenses: 'ทะเบียนใบอนุญาตของพนักงาน',
     shiftSetup: 'กำหนดประเภทกะและเวลาปฏิบัติงาน',
+    attendanceConfig: 'กำหนด Site กะ หน้าที่ และนโยบายก่อนเปิดใช้การลงเวลา',
     schedule: 'จัดตารางกะรายเดือนและส่งอนุมัติ',
     approvals: 'ตรวจสอบและอนุมัติตารางกะ',
     leave: 'ยื่นคำขอลา',
@@ -1648,6 +1685,7 @@ function Dashboard() {
     if (page === 'audit') return auth.user?.role === 'ADMIN';
     if (page === 'dataQuality') return auth.user?.role === 'ADMIN';
     if (page === 'settings') return auth.user?.role === 'ADMIN';
+    if (page === 'attendanceConfig') return auth.user?.role === 'ADMIN';
     if (page === 'users') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
     if (page === 'quota') return auth.user?.role === 'ADMIN';
     if (['licenses', 'reportCenter', 'reports', 'executiveReport'].includes(page)) return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
@@ -1885,6 +1923,7 @@ function Dashboard() {
 
   const content = () => {
     if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} filters={dashboardFilters} onFiltersChange={(next) => setDashboardFilters((current) => ({ ...current, ...next }))} onNavigate={setActivePage} />;
+    if (activePage === 'attendanceConfig') return <AttendanceConfigurationPage token={auth.token} role={auth.user?.role} />;
     // The former inline dashboard is intentionally disabled. DashboardPage above
     // is the only runtime dashboard presentation.
     if (false) {
@@ -2323,6 +2362,8 @@ function Dashboard() {
             employees={calendarEmployees.length ? calendarEmployees : (Array.isArray(operationResponse.data) ? operationResponse.data as DataRow[] : [])}
             shiftTypes={shiftTypes}
             licenses={licensesData}
+            securitySites={attendanceSites}
+            duties={attendanceDuties}
             isAdmin={auth.user?.role === 'ADMIN'}
             onClose={() => setShiftEditorTarget(null)}
             onSubmit={(data) => {
@@ -2331,6 +2372,8 @@ function Dashboard() {
               const payload: Record<string, unknown> = {
                 employeeId: data.employeeId,
                 shiftTypeId: data.shiftTypeId,
+                securitySiteId: data.securitySiteId || null,
+                dutyId: data.dutyId || null,
                 workDate: data.workDate,
                 remark: data.remark,
                 licenseOverride: data.licenseOverride,
@@ -2344,6 +2387,8 @@ function Dashboard() {
                   employeeId: data.employeeId,
                   workDate: data.workDate,
                   shiftTypeId: data.shiftTypeId,
+                  securitySiteId: data.securitySiteId,
+                  dutyId: data.dutyId,
                   shiftCode: String(selectedType?.code || ''),
                   shiftName: String(selectedType?.name || ''),
                   startTime: String(selectedType?.startTime || ''),

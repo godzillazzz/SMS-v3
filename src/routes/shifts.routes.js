@@ -6,16 +6,27 @@ const { authenticate, authorize } = require('../middlewares/authenticate');
 const router = express.Router();
 router.use(authenticate);
 
-const shiftSchema = z.object({
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Time must use HH:mm.');
+const shiftFields = {
   code: z.string().trim().min(1).max(20),
   name: z.string().trim().min(1).max(100),
-  startTime: z.string().trim().optional(),
-  endTime: z.string().trim().optional(),
+  startTime: timeSchema.optional(),
+  endTime: timeSchema.optional(),
   hours: z.coerce.number().min(0).max(24).default(8.0),
   color: z.string().trim().default('#3b82f6'),
   isActive: z.boolean().default(true),
   isOvernight: z.boolean().default(false)
-});
+};
+const assertShiftTiming = (value, context) => {
+  if (value.isOvernight && (!value.startTime || !value.endTime)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['isOvernight'], message: 'Overnight shifts require start and end times.' });
+  }
+  if (value.startTime && value.endTime && value.endTime <= value.startTime && !value.isOvernight) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['isOvernight'], message: 'Overnight must be enabled when the end time is not later than the start time.' });
+  }
+};
+const shiftSchema = z.object(shiftFields).superRefine(assertShiftTiming);
+const shiftUpdateSchema = z.object(shiftFields).partial();
 
 router.get('/', async (req, res, next) => {
   try {
@@ -43,7 +54,7 @@ router.post('/', authorize('ADMIN'), async (req, res, next) => {
 
 router.put('/:id', authorize('ADMIN'), async (req, res, next) => {
   try {
-    res.json({ data: await shiftService.update(req.params.id, shiftSchema.partial().parse(req.body), req.user.sub) });
+    res.json({ data: await shiftService.update(req.params.id, shiftUpdateSchema.parse(req.body), req.user.sub) });
   } catch (error) {
     next(error);
   }

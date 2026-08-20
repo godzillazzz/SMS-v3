@@ -153,7 +153,9 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
         Number(beforeAss.hours) !== Number(shift.hours) ||
         beforeAss.startTime !== shift.startTime ||
         beforeAss.endTime !== shift.endTime ||
-        (beforeAss.remark || null) !== (ass.remark || null);
+        (beforeAss.remark || null) !== (ass.remark || null) ||
+        (beforeAss.securitySiteId || null) !== (ass.securitySiteId || null) ||
+        (beforeAss.dutyId || null) !== (ass.dutyId || null);
 
       if (isAssChanged) {
         monthChangeStats[mStr].totalChanged += 1;

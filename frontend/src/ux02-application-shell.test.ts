@@ -6,7 +6,7 @@ const root = path.resolve(__dirname);
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const expectedNavigationIds = [
-  'dashboard', 'employees', 'licenses', 'schedule', 'shiftSetup', 'leave', 'leavePending',
+  'dashboard', 'employees', 'licenses', 'schedule', 'shiftSetup', 'attendanceConfig', 'leave', 'leavePending',
   'leaveHistory', 'quota', 'rules', 'audit', 'dataQuality', 'users', 'reportCenter', 'settings'
 ];
 
