@@ -24,6 +24,8 @@ const batchSchema = z.object({
     z.object({
       employeeId: z.string().uuid(),
       shiftTypeId: z.string().uuid(),
+      securitySiteId: z.string().uuid().nullable().optional(),
+      dutyId: z.string().uuid().nullable().optional(),
       workDate: workDateSchema,
       remark: z.string().optional(),
       licenseOverride: z.boolean().optional(),

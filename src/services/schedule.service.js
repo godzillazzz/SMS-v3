@@ -82,15 +82,21 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
 
   const empIds = [...new Set(assignments.map(a => a.employeeId).filter(Boolean))];
   const typeIds = [...new Set(assignments.map(a => a.shiftTypeId).filter(Boolean))];
+  const siteIds = [...new Set(assignments.map(a => a.securitySiteId).filter(Boolean))];
+  const dutyIds = [...new Set(assignments.map(a => a.dutyId).filter(Boolean))];
 
-  const [employees, shiftTypes, licenses] = await Promise.all([
+  const [employees, shiftTypes, licenses, securitySites, duties] = await Promise.all([
     prisma.employee.findMany({ where: { id: { in: empIds } } }),
     prisma.shiftType.findMany({ where: { id: { in: typeIds } } }),
-    prisma.employeeLicense.findMany({ where: { employeeId: { in: empIds } } })
+    prisma.employeeLicense.findMany({ where: { employeeId: { in: empIds } } }),
+    siteIds.length ? prisma.securitySite.findMany({ where: { id: { in: siteIds }, isActive: true } }) : Promise.resolve([]),
+    dutyIds.length ? prisma.duty.findMany({ where: { id: { in: dutyIds }, isActive: true } }) : Promise.resolve([])
   ]);
 
   const empMap = new Map(employees.map(e => [e.id, e]));
   const typeMap = new Map(shiftTypes.map(t => [t.id, t]));
+  const siteMap = new Map(securitySites.map(site => [site.id, site]));
+  const dutyMap = new Map(duties.map(duty => [duty.id, duty]));
   const licMap = new Map();
   licenses.forEach(l => {
     const list = licMap.get(l.employeeId) || [];
@@ -124,6 +130,9 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
       const shift = typeMap.get(ass.shiftTypeId);
       if (!emp) throw new HttpError(400, 'Employee not found for schedule assignment.');
       if (!shift) throw new HttpError(400, 'Shift type not found for schedule assignment.');
+      if (shift.isActive === false) throw new HttpError(400, 'Active Shift Type not found for schedule assignment.');
+      if (ass.securitySiteId && !siteMap.has(ass.securitySiteId)) throw new HttpError(400, 'Active Security Site not found for schedule assignment.');
+      if (ass.dutyId && !dutyMap.has(ass.dutyId)) throw new HttpError(400, 'Active Duty not found for schedule assignment.');
 
       const dateParts = String(ass.workDate).slice(0, 10).split('-').map(Number);
       const parsedDate = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2]));
@@ -200,7 +209,9 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
           licenseExpiryDate,
           licenseOverride,
           overrideReason,
-          overrideAt
+          overrideAt,
+          securitySiteId: ass.securitySiteId || null,
+          dutyId: ass.dutyId || null
         },
         create: {
           employeeId: ass.employeeId,
@@ -218,7 +229,9 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
           licenseExpiryDate,
           licenseOverride,
           overrideReason,
-          overrideAt
+          overrideAt,
+          securitySiteId: ass.securitySiteId || null,
+          dutyId: ass.dutyId || null
         }
       });
       if (licenseStatus === 'OVERRIDDEN') {

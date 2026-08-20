@@ -2,7 +2,7 @@ const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const audit = require('./audit.service');
 
-const auditFields = ['code', 'name', 'startTime', 'endTime', 'hours', 'color'];
+const auditFields = ['code', 'name', 'startTime', 'endTime', 'hours', 'color', 'isActive', 'isOvernight'];
 const safeRecord = (record) => Object.fromEntries(auditFields.map((field) => [field, record[field]]));
 
 async function list() {

@@ -19,6 +19,7 @@ const { bangkokQuotaYear, validateQuotaYear } = require('../services/annual-leav
 const { nativeUsageByQuotaYear, persistedUsageByQuotaYear, validateAnnualLeaveAvailability, annualSummary, quotaFieldForLeaveType } = require('../services/leave-annual-accounting.service');
 const { provisionAnnualLeaveQuotas } = require('../services/annual-leave-quota-cron.service');
 const { isReservedOperationalSettingKey } = require('../services/g03-1-multi-year-activation.service');
+const { validateAttendanceSystemSetting } = require('../services/attendance-policy.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
@@ -675,6 +676,7 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
     if (isReservedOperationalSettingKey(key)) throw new HttpError(403, 'This operational setting is managed through protected release operations.', { code: 'OPERATIONAL_SETTING_RESERVED' });
     if (/secret|token|password|credential|database|smtp|webhook|channel|access[_-]?key/i.test(key)) throw new HttpError(400, 'Sensitive settings must be configured through the approved environment-variable workflow.');
     const input = z.object({ value: z.string().max(2000), description: nullableText(2000) }).parse(req.body);
+    input.value = validateAttendanceSystemSetting(key, input.value);
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.systemSetting.findUnique({ where: { key } });
       const after = await tx.systemSetting.upsert({ where: { key }, update: input, create: { key, ...input } });
