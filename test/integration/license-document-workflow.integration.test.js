@@ -2,6 +2,7 @@ process.env.NODE_ENV = 'test';
 const crypto = require('node:crypto');
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const request = require('supertest');
 
 if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   test('license document integration suite requires RUN_INTEGRATION_TESTS=true', { skip: true }, () => {});
@@ -12,6 +13,8 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Production storage credentials must not be present in license document integration tests.');
 
   const prisma = require('../../src/config/prisma');
+  const app = require('../../src/app');
+  const { accessTokenFor } = require('../../src/services/auth.service');
   const audit = require('../../src/services/audit.service');
   const { reconcileEmployeeLicenseSchedules } = require('../../src/services/license-schedule-reconciliation.service');
   const { createLicenseDocumentService } = require('../../src/services/license-document.service');
@@ -132,6 +135,55 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const approvalAudits = await prisma.auditLog.count({ where: { entityId: pending.id, metadata: { path: ['event'], equals: 'APPROVE' } } });
     assert.equal(approvalAudits, 1);
     await trackAudits(context.user.id);
+  });
+
+  test('permanent delete preserves historical audits and exposes one minimal tombstone through the Audit API', async () => {
+    const context = await fixture('g05-tombstone');
+    try {
+      const first = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: pdf, input: { licenseNumber: `LN-${context.marker}-1`, proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } });
+      created.documentIds.push(first.id);
+      await context.service.approve({ id: first.id, requestUser: context.requestUser });
+      const replacement = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreplacement-g05'), size: 28 }, input: { licenseNumber: `LN-${context.marker}-2`, proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') } });
+      created.documentIds.push(replacement.id);
+      await context.service.approve({ id: replacement.id, requestUser: context.requestUser });
+
+      const superseded = await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: first.id } });
+      assert.equal(superseded.status, 'SUPERSEDED');
+      assert.equal(context.storage.objectExists(superseded.storageObjectKey), true);
+      const priorRows = await prisma.auditLog.findMany({ where: { entityType: 'EmployeeLicenseDocument', entityId: first.id }, orderBy: { createdAt: 'asc' } });
+      assert.ok(priorRows.length >= 2);
+      const priorIds = priorRows.map((row) => row.id);
+      created.auditIds.push(...priorIds.filter((id) => !created.auditIds.includes(id)));
+
+      const deletionStartedAt = new Date();
+      await assert.deepEqual(await context.service.permanentlyDelete({ id: first.id, requestUser: context.requestUser }), { id: first.id, deleted: true });
+      assert.equal(context.storage.objectExists(superseded.storageObjectKey), false);
+      assert.equal(await prisma.employeeLicenseDocument.count({ where: { id: first.id } }), 0);
+
+      const afterRows = await prisma.auditLog.findMany({ where: { entityType: 'EmployeeLicenseDocument', entityId: first.id }, orderBy: { createdAt: 'asc' } });
+      assert.equal(afterRows.length, priorRows.length + 1);
+      for (const priorId of priorIds) assert.equal(afterRows.some((row) => row.id === priorId), true);
+      const tombstones = afterRows.filter((row) => row.action === 'DELETE');
+      assert.equal(tombstones.length, 1);
+      assert.equal(tombstones[0].actorUserId, context.user.id);
+      assert.equal(tombstones[0].entityId, first.id);
+      assert.ok(tombstones[0].createdAt >= deletionStartedAt);
+      assert.deepEqual(tombstones[0].metadata, { event: 'PERMANENT_DELETE', licenseId: context.license.id });
+      assert.deepEqual(Object.keys(tombstones[0].metadata).sort(), ['event', 'licenseId']);
+      created.auditIds.push(tombstones[0].id);
+
+      const token = accessTokenFor(context.user);
+      const response = await request(app)
+        .get(`/api/v1/audit-events?entityType=EmployeeLicenseDocument&action=DELETE&search=${first.id}`)
+        .set('Authorization', `Bearer ${token}`);
+      assert.equal(response.status, 200);
+      const apiTombstone = response.body.data.find((row) => row.entityId === first.id && row.action === 'DELETE');
+      assert.ok(apiTombstone);
+      assert.equal(apiTombstone.module, 'LICENSE');
+      assert.deepEqual(apiTombstone.metadata, { event: 'PERMANENT_DELETE', licenseId: context.license.id });
+    } finally {
+      await trackAudits(context.user.id);
+    }
   });
 
   test('return, reuse/resubmit, reject deletion, and expiration preserve history safely', async () => {
