@@ -85,9 +85,22 @@ describe('Production Mobile Responsive Hotfix V1', () => {
     expect(css).toContain('-webkit-overflow-scrolling: touch');
     expect(css).toContain('touch-action: pan-x pan-y');
     expect(css).toContain('min-width: 112px');
-    expect(css).toContain('.schedule-calendar-page .calendar-delete');
-    expect(css).toContain('position: static');
-    expect(css).toContain('min-height: 40px');
+    expect(css).not.toContain('grid-template-columns: minmax(0, 1fr) 40px');
+
+    const deleteRule = css.match(/\.schedule-calendar-page \.calendar-delete,[\s\S]*?\{([\s\S]*?)\}/)?.[1] ?? '';
+    expect(deleteRule).toContain('position: absolute');
+    expect(deleteRule).toContain('top: auto');
+    expect(deleteRule).toContain('right: 6px');
+    expect(deleteRule).toContain('bottom: 6px');
+    expect(deleteRule).toContain('width: 36px');
+    expect(deleteRule).toContain('height: 36px');
+    expect(deleteRule).toContain('min-width: 36px');
+    expect(deleteRule).toContain('min-height: 36px');
+    expect(deleteRule).toContain('max-width: 36px');
+    expect(deleteRule).toContain('max-height: 36px');
+    expect(deleteRule).toContain('padding: 0');
+    expect(deleteRule).toContain('transform: none');
+    expect(deleteRule).not.toMatch(/(?:top|right|bottom|left):\s*-/);
   });
 
   test('uses natural mobile sheet heights with bounded internal scrolling', () => {
