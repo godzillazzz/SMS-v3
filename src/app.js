@@ -20,7 +20,7 @@ logger.info('application_startup', { configStatus: 'valid', status: 'initialized
 app.use(helmet());
 if (env.nodeEnv === 'production' && env.corsOrigins.length === 0) throw new Error('CORS_ORIGIN must contain at least one allowed origin in production.');
 app.use(cors({ credentials: true, origin(origin, callback) {
-  if (!origin || env.corsOrigins.includes(origin)) return callback(null, true);
+  if (env.isCorsOriginAllowed(origin, env.corsOrigins)) return callback(null, true);
   const error = new Error('Origin not allowed by CORS');
   error.statusCode = 403;
   error.publicMessage = 'Origin not allowed.';

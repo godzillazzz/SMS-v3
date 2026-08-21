@@ -8,6 +8,52 @@ const allowLocalTestDefaults = isTest && !isHostedVercel;
 if (!isTest && !isHostedVercel) dotenv.config();
 const emptyToUndefined = (value) => value === '' ? undefined : value;
 const optionalPositiveInteger = z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).optional());
+
+function normalizeOrigin(value, fieldName) {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`${fieldName} must contain an origin.`);
+  let parsedOrigin;
+  try {
+    parsedOrigin = new URL(value.trim());
+  } catch {
+    throw new Error(`${fieldName} must contain a valid origin.`);
+  }
+  if (!['http:', 'https:'].includes(parsedOrigin.protocol)
+    || parsedOrigin.username
+    || parsedOrigin.password
+    || parsedOrigin.pathname !== '/'
+    || parsedOrigin.search
+    || parsedOrigin.hash) {
+    throw new Error(`${fieldName} must contain only an http(s) scheme and host.`);
+  }
+  return parsedOrigin.origin;
+}
+
+function normalizeVercelOrigin(hostname, fieldName) {
+  if (typeof hostname !== 'string' || !hostname.trim()) return undefined;
+  const normalizedHostname = hostname.trim();
+  if (/[:/?#@\s]/.test(normalizedHostname)) {
+    throw new Error(`${fieldName} must be a hostname without protocol or path.`);
+  }
+  return normalizeOrigin(`https://${normalizedHostname}`, fieldName);
+}
+
+function buildCorsOrigins({ corsOrigin, vercelEnv, vercelUrl, vercelBranchUrl }) {
+  const configuredOrigins = corsOrigin.split(',').map((origin) => origin.trim()).filter(Boolean);
+  if (configuredOrigins.includes('*')) throw new Error('CORS_ORIGIN cannot contain a wildcard when credentials are enabled.');
+  const effectiveOrigins = configuredOrigins.map((origin) => normalizeOrigin(origin, 'CORS_ORIGIN'));
+  if (vercelEnv === 'preview') {
+    for (const [hostname, fieldName] of [[vercelUrl, 'VERCEL_URL'], [vercelBranchUrl, 'VERCEL_BRANCH_URL']]) {
+      const origin = normalizeVercelOrigin(hostname, fieldName);
+      if (origin) effectiveOrigins.push(origin);
+    }
+  }
+  return [...new Set(effectiveOrigins)];
+}
+
+function isCorsOriginAllowed(origin, corsOrigins) {
+  return !origin || corsOrigins.includes(origin);
+}
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   VERCEL_ENV: z.enum(['development', 'preview', 'production']).optional(),
@@ -117,10 +163,15 @@ if (allowLocalTestDefaults) {
     RATE_LIMIT_HASH_SECRET: process.env.RATE_LIMIT_HASH_SECRET?.length >= 32 ? process.env.RATE_LIMIT_HASH_SECRET : 'test-rate-limit-secret-with-at-least-thirty-two-chars'
   });
 } else {
-  const effectiveCorsOrigin = process.env.CORS_ORIGIN || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL},https://sms-v3-staging-ten.vercel.app,http://localhost:5173` : 'https://sms-v3-staging-ten.vercel.app,http://localhost:5173');
+  const effectiveCorsOrigins = buildCorsOrigins({
+    corsOrigin: process.env.CORS_ORIGIN || 'https://sms-v3-staging-ten.vercel.app,http://localhost:5173',
+    vercelEnv: process.env.VERCEL_ENV,
+    vercelUrl: process.env.VERCEL_URL,
+    vercelBranchUrl: process.env.VERCEL_BRANCH_URL
+  });
   const envToParse = {
     ...process.env,
-    CORS_ORIGIN: effectiveCorsOrigin
+    CORS_ORIGIN: effectiveCorsOrigins.join(',')
   };
   const result = schema.safeParse(envToParse);
   if (!result.success) {
@@ -132,6 +183,8 @@ if (allowLocalTestDefaults) {
 }
 
 module.exports = {
+  buildCorsOrigins,
+  isCorsOriginAllowed,
   port: parsed.PORT, nodeEnv: parsed.NODE_ENV, jwtSecret: parsed.JWT_SECRET,
   jwtExpiresIn: parsed.JWT_EXPIRES_IN, jwtAlgorithm: parsed.JWT_ALGORITHM,
   jwtIssuer: parsed.JWT_ISSUER, jwtAudience: parsed.JWT_AUDIENCE,
