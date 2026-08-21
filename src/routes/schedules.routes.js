@@ -90,7 +90,14 @@ router.post('/auto-plan', authorize('ADMIN', 'MANAGER'), async (req, res, next) 
 router.post('/approve', authorize('ADMIN'), async (req, res, next) => {
   try {
     const { month, note } = approveSchema.parse(req.body);
-    res.json({ data: await scheduleService.approveMonth(month, note, req.user) });
+    const result = await scheduleService.approveMonth(month, note, req.user);
+    try {
+      const { notifyScheduleApproved } = require('../services/notification-email.service');
+      await notifyScheduleApproved({ month, approvedBy: req.user.displayName || 'Admin', revision: result.revision });
+    } catch (emailError) {
+      logger.error('Failed to send schedule approval email notifications', { error: emailError.message, month, revision: result.revision });
+    }
+    res.json({ data: result });
   } catch (error) {
     next(error);
   }

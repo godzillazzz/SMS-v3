@@ -1,5 +1,5 @@
 // test/leave-broadcast.test.js
-// Focused tests for the Manager Leave-Created Email Broadcast feature.
+// Focused tests for the Leave-Created reviewer email broadcast feature.
 
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
@@ -10,6 +10,7 @@ let createTransportCallCount = 0;
 let queryUserManyCallCount = 0;
 let reservationCreateCallCount = 0;
 let lastSmtpConfig = null;
+let reservationEventKeys = new Set();
 
 // A helper to reset module cache and import the notification-email service
 // with a mock implementation of prisma and env configs.
@@ -18,6 +19,7 @@ function setupServiceMock(mocks = {}) {
   queryUserManyCallCount = 0;
   reservationCreateCallCount = 0;
   lastSmtpConfig = null;
+  reservationEventKeys = new Set();
 
   const fakePrisma = {
     user: {
@@ -54,10 +56,27 @@ function setupServiceMock(mocks = {}) {
         return { id: args.where.id, firstName: 'First', lastName: 'Last', displayName: 'First Last', department: 'ENG', user: { id: 'emp-user-id' } };
       }
     },
+    shiftAssignment: {
+      findMany: async (args) => {
+        const assignments = mocks.shiftAssignmentFindMany ? await mocks.shiftAssignmentFindMany(args) : [];
+        return assignments.filter((assignment) => {
+          const employee = assignment.employee || {};
+          if (args?.where?.employee?.isActive === true && employee.isActive === false) return false;
+          if (args?.where?.employee?.deletedAt === null && employee.deletedAt !== null) return false;
+          return true;
+        });
+      }
+    },
     emailDeliveryReservation: {
       create: async (args) => {
         reservationCreateCallCount++;
         if (mocks.reservationCreate) return mocks.reservationCreate(args);
+        if (reservationEventKeys.has(args.data.eventKey)) {
+          const error = new Error('Unique constraint failed');
+          error.code = 'P2002';
+          throw error;
+        }
+        reservationEventKeys.add(args.data.eventKey);
         return { id: 'reservation-uuid', eventKey: args.data.eventKey, status: 'RESERVED', attemptCount: 0 };
       },
       update: async (args) => {
@@ -181,7 +200,7 @@ test('3. Every eligible Manager receives an individual email (not grouped togeth
   cleanCache();
 });
 
-test('4. ADMIN does not receive email', async () => {
+test('4. Active ADMIN receives email', async () => {
   const { service, sentEmails } = setupServiceMock({
     userFindMany: async () => [
       { id: 'admin-1', role: 'ADMIN', isActive: true, accountStatus: 'ACTIVE', email: 'admin@example.com' }
@@ -191,7 +210,86 @@ test('4. ADMIN does not receive email', async () => {
   const leaveRequest = { id: 'leave-1', employeeId: 'emp-1', leaveType: 'SICK', startDate: new Date(), endDate: new Date(), dayCount: 1 };
   await service.broadcastLeaveRequestEmail(leaveRequest, { sub: 'actor-1' });
 
-  assert.equal(sentEmails.length, 0, 'ADMIN must not receive emails');
+  assert.equal(sentEmails.length, 1, 'Active ADMIN must receive reviewer email');
+  assert.equal(sentEmails[0].to, 'admin@example.com');
+  cleanCache();
+});
+
+test('4b. Registration approval and reviewer rejection notify the applicant once', async () => {
+  const { service, sentEmails } = setupServiceMock();
+  const approvedRequest = {
+    id: 'registration-approved-1',
+    email: 'Applicant@example.com',
+    submittedName: 'Applicant One',
+    passwordHash: 'must-not-be-mailed'
+  };
+
+  await service.notifyRegistrationDecision({ request: approvedRequest, eventType: 'REGISTRATION_APPROVED' });
+  await service.notifyRegistrationDecision({ request: approvedRequest, eventType: 'REGISTRATION_APPROVED' });
+
+  assert.equal(sentEmails.length, 1);
+  assert.equal(sentEmails[0].to, 'applicant@example.com');
+  assert.match(sentEmails[0].html, /บัญชีได้รับการอนุมัติแล้ว/);
+  assert.doesNotMatch(sentEmails[0].html, /must-not-be-mailed/);
+
+  const rejectedRequest = {
+    id: 'registration-rejected-1',
+    email: 'Rejected@example.com',
+    submittedName: 'Rejected Applicant',
+    rejectionReason: '<script>alert(1)</script>'
+  };
+  await service.notifyRegistrationDecision({ request: rejectedRequest, eventType: 'REGISTRATION_REJECTED' });
+
+  assert.equal(sentEmails.length, 2);
+  assert.equal(sentEmails[1].to, 'rejected@example.com');
+  assert.match(sentEmails[1].html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(sentEmails[1].html, /<script>/);
+  cleanCache();
+});
+
+test('4c. Registration business email failure does not throw or roll back the caller', async () => {
+  const { service, sentEmails } = setupServiceMock({ smtpFailure: true });
+  await assert.doesNotReject(() => service.notifyRegistrationDecision({
+    request: { id: 'registration-failure-1', email: 'applicant@example.com', submittedName: 'Applicant' },
+    eventType: 'REGISTRATION_APPROVED'
+  }));
+  assert.equal(sentEmails.length, 1);
+  cleanCache();
+});
+
+test('4d. Schedule approval notifies only assigned active employees and deduplicates recipients', async () => {
+  const activeEmployee = (id, email, displayName = id) => ({
+    id,
+    isActive: true,
+    deletedAt: null,
+    displayName,
+    firstName: displayName,
+    lastName: '',
+    user: { id: `${id}-user`, email, isActive: true, accountStatus: 'ACTIVE' }
+  });
+  const { service, sentEmails } = setupServiceMock({
+    shiftAssignmentFindMany: async () => [
+      { employeeId: 'employee-a', employee: activeEmployee('employee-a', 'a@example.com', 'Employee A') },
+      { employeeId: 'employee-a', employee: activeEmployee('employee-a', 'a@example.com', 'Employee A') },
+      { employeeId: 'employee-b', employee: activeEmployee('employee-b', 'b@example.com', 'Employee B') },
+      { employeeId: 'employee-inactive', employee: { ...activeEmployee('employee-inactive', 'inactive@example.com'), isActive: false } },
+      { employeeId: 'employee-suspended', employee: { ...activeEmployee('employee-suspended', 'suspended@example.com'), user: { id: 'suspended-user', email: 'suspended@example.com', isActive: true, accountStatus: 'SUSPENDED' } } }
+    ]
+  });
+
+  await service.notifyScheduleApproved({ month: '2026-08', approvedBy: 'Admin', revision: 3 });
+  await service.notifyScheduleApproved({ month: '2026-08', approvedBy: 'Admin', revision: 3 });
+
+  assert.deepEqual(sentEmails.map((message) => message.to), ['a@example.com', 'b@example.com']);
+  assert.equal(sentEmails.length, 2);
+  assert.ok(sentEmails.every((message) => !message.to.includes(',')));
+  cleanCache();
+});
+
+test('4e. Schedule approval fails closed when no assigned employee recipient is resolvable', async () => {
+  const { service, sentEmails } = setupServiceMock({ shiftAssignmentFindMany: async () => [] });
+  await service.notifyScheduleApproved({ month: '2026-08', approvedBy: 'Admin', revision: 1 });
+  assert.equal(sentEmails.length, 0);
   cleanCache();
 });
 

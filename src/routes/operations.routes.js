@@ -29,6 +29,7 @@ const { getAuditLogPage } = require('../services/audit-log-viewer.service');
 const { getExecutiveReport } = require('../services/executive-report.service');
 const shiftService = require('../services/shift.service');
 const HttpError = require('../utils/http-error');
+const { logger } = require('../utils/logger');
 
 const router = express.Router();
 const paging = z.object({
@@ -546,6 +547,12 @@ router.post('/schedule/approve-month', authorize('ADMIN'), async (req, res, next
     const result = await prisma.$transaction(async (tx) => {
       return approveMonthlySchedule(tx, { month: monthStart, approvalNote, actorUser: req.user });
     });
+    try {
+      const { notifyScheduleApproved } = require('../services/notification-email.service');
+      await notifyScheduleApproved({ month, approvedBy: req.user.displayName || 'Admin', revision: result.revision });
+    } catch (emailError) {
+      logger.error('Failed to send schedule approval email notifications', { error: emailError.message, month, revision: result.revision });
+    }
     res.json({ data: result });
   } catch (error) { next(error); }
 });

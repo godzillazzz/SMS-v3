@@ -32,6 +32,24 @@ test('enabled email notifications invoke the configured provider once with dedup
   assert.equal(messages[0].from, 'sender@example.invalid');
 });
 
+test('group notifications send individually without exposing the recipient list', async () => {
+  const messages = [];
+  await sendNotification({
+    to: ['admin@example.invalid', 'manager@example.invalid'],
+    subject: 'fixture subject',
+    html: '<p>fixture body</p>'
+  }, {
+    configuration: { emailNotificationsEnabled: true, otpFromEmail: 'sender@example.invalid', smtpUsername: 'sender@example.invalid' },
+    createTransporter: () => ({ sendMail: async (message) => { messages.push(message); } }),
+    logger: logger()
+  });
+
+  assert.equal(messages.length, 2);
+  assert.deepEqual(messages.map((message) => message.to), ['admin@example.invalid', 'manager@example.invalid']);
+  assert.ok(!messages[0].to.includes('manager@example.invalid'));
+  assert.ok(!messages[1].to.includes('admin@example.invalid'));
+});
+
 test('provider errors are logged without being thrown to the caller', async () => {
   const errors = [];
   await assert.doesNotReject(() => sendNotification({ to: 'fixture@example.invalid', subject: 'fixture', html: '<p>fixture</p>' }, {
