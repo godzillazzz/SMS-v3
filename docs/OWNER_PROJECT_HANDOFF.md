@@ -18,23 +18,23 @@ handoff copies.
 Production is separate from the current development/self-host candidate.
 G06 is not Production.
 
-- Production application SHA: 39f28d5d0c0216672f28567b315501e7b7b64990
-- Production tree: 8d9672b936f8a9b24ee3d0b095df1ef31eacee57
-- Production release: G05 + EMAIL-01P — License audit tombstone and normalized email policy
-- Production deployment: dpl_6vYMt8yYtpkCmYvfo1RHuavZoZpX
-- Production immutable URL: https://sms-v3-staging-7i3butp28-godzillazz.vercel.app
+- Production application SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
+- Production tree: d6c6e79a2b39256906e76863befde7b04e881cab
+- Production release: MOBILE RESPONSIVE V1 + inherited G05 / EMAIL-01P behavior
+- Production deployment: dpl_8V5bWpjYpfGEG1nPsjyAEvxKtS8P
+- Production immutable URL: https://sms-v3-staging-qrshx2imp-godzillazz.vercel.app
 - Canonical current Vercel hostname: sms-v3-staging-ten.vercel.app
-- Rollback deployment: dpl_GLmDVZHQwrEkvBuUwuDcvSzNRf5Z
-- Rollback SHA: 94b4667771006b00759ddf6f0ec447d27400206c
+- Immediate rollback deployment: dpl_6vYMt8yYtpkCmYvfo1RHuavZoZpX
+- Immediate rollback SHA: 39f28d5d0c0216672f28567b315501e7b7b64990
 
-EMAIL-01P is now verified in Production through a fresh GitSource deployment
-from the exact authorized GitHub SHA. G06/self-host development remains
-outside Production.
+Mobile Responsive V1 is Owner-approved on real iPhone Safari and verified in
+Production from the exact authorized GitHub SHA. The release preserves the
+existing G05 / EMAIL-01P Production behavior. EMAIL-01P remains verified and
+is inherited by this release. G06/self-host development remains outside
+Production.
 
-Do not deploy the complete current development lineage directly to Production
-merely to release EMAIL-01. It also contains G06/self-host work that is not yet
-Production-authorized.
-
+Do not deploy the complete current development lineage directly to Production.
+It contains future G06/G07/self-host work that is not Production-authorized.
 ## EMAIL-01P PRODUCTION BACKPORT — VERIFIED IN PRODUCTION
 
 Owner authorization has been granted to deploy the isolated EMAIL-01P
@@ -94,6 +94,82 @@ SMS_EMAIL_01P_PRODUCTION_RELEASE_VERIFIED
 
 CURRENT PRODUCTION above is now the EMAIL-01P verified state.
 
+## MOBILE RESPONSIVE V1 — OWNER APPROVED / VERIFIED IN PRODUCTION
+
+Owner real-device result:
+
+- REAL_IOS_SAFARI_OWNER_REVIEW=PASS
+- OWNER_REVIEW_STATUS=APPROVED
+- Final status: SMS_MOBILE_RESPONSIVE_V1_PRODUCTION_RELEASE_VERIFIED
+- Inherited EMAIL-01P verified status: SMS_EMAIL_01P_PRODUCTION_RELEASE_VERIFIED
+
+Release lineage:
+
+- Base Production SHA: 39f28d5d0c0216672f28567b315501e7b7b64990
+- Responsive Product SHA: e7e693946a031bb8da9d5cb7c0550762456b3b25
+- CI topology SHA: 8bc0631b341262a9c5710808fb2789d9aba5b88e
+- Owner Review Fix V1: a31b0203034d29fd80aa219a4c584dfb120dfd2b
+- Owner Review Fix V2: fa32d46948514f3578574adb7b04d27e0cbebeb0
+- Owner Review Fix V3 / released SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
+- Released tree: d6c6e79a2b39256906e76863befde7b04e881cab
+- Release branch: fix/production-mobile-responsive-v1
+
+Exact-head CI:
+
+- Remote CI run: 32480708606
+- Remote CI job: 96766246161
+- Remote CI result: SUCCESS
+- Head SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
+- Checkout SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
+
+Owner-approved Preview:
+
+- Deployment: dpl_DifsRJJNtGBCFHCHP56fg8ePP9Hu
+- URL: https://sms-v3-staging-9a77opri2-godzillazz.vercel.app
+- GitHub repo ID: 1305361853
+- Ref: fix/production-mobile-responsive-v1
+- SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
+- Owner real iPhone Safari review: PASS
+
+Verified Production release:
+
+- Production deployment: dpl_8V5bWpjYpfGEG1nPsjyAEvxKtS8P
+- Production immutable URL: https://sms-v3-staging-qrshx2imp-godzillazz.vercel.app
+- Canonical: https://sms-v3-staging-ten.vercel.app
+- Target/state: production / READY
+- GitSource repo ID: 1305361853
+- GitSource ref: fix/production-mobile-responsive-v1
+- GitSource SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
+- Deployment creation: Vercel Deployments API via authenticated CLI wrapper;
+  source metadata reports cli, while gitSource/meta repo/ref/SHA are exact and
+  no local-source upload or Preview promotion was used.
+- Canonical cutover: VERIFIED
+- Post-release health: 3/3 PASS
+- Post-release ready/database: 3/3 PASS, database=ok
+- Root/login: 200 / 200
+- Unauthenticated auth/me: 401
+- Runtime environment-validation/startup/database/fatal/unexpected 5xx errors: 0
+- Production schema/migrations/DB-data/env/DNS/storage mutations: 0
+- Immediate rollback deployment: dpl_6vYMt8yYtpkCmYvfo1RHuavZoZpX
+- Immediate rollback SHA: 39f28d5d0c0216672f28567b315501e7b7b64990
+
+Mobile Responsive V1 defects closed:
+
+- shared body-level reference-counted document scroll lock
+- mobile utility menu body portal
+- Leave Request mobile width/scroll repair
+- Leave History mobile cards
+- License search mobile height repair
+- OperationalRecordDrawer body portal
+- License / Leave Quota iOS drawer repair with VisualViewport-safe geometry
+- deliberate mobile Schedule horizontal interaction
+- Schedule delete visible control = 30x30
+- Schedule effective touch target = 44x44
+- header / safe-area responsive correction
+
+G06/G07, Employee Master approval workflow, Reference Photo, Face Verification,
+Liveness and other future Owner-approved architecture remain future work and
+were not implemented by this Production responsive release.
 ## CURRENT DEVELOPMENT
 
 The current development lineage is EMAIL-01 on top of the G06/self-host
@@ -1203,7 +1279,7 @@ complete.
 
 Immediate development/release priorities:
 
-1. Preserve the verified EMAIL-01P Production release and immediate rollback
+1. Preserve the verified Mobile Responsive V1 Production release and immediate rollback
    checkpoint; do not deploy the broader development lineage.
 2. Design/implement the common approval-workflow standard and integrate
    Employee Master status/general edit into one governed Edit Employee flow.
@@ -1311,8 +1387,12 @@ SMS_EMAIL_01_CANDIDATE_READY
 EMAIL-01P isolated Production backport:
 SMS_EMAIL_01P_PRODUCTION_RELEASE_VERIFIED
 
-Current Production is the exact EMAIL-01P release recorded above. G06 and
-self-host remain outside Production.
+Mobile Responsive V1 Production release:
+SMS_MOBILE_RESPONSIVE_V1_PRODUCTION_RELEASE_VERIFIED
+
+Current Production is the exact Mobile Responsive V1 release recorded above,
+with inherited G05 / EMAIL-01P behavior. G06 and self-host remain outside
+Production.
 
 G06/G07 architecture is now Owner-locked to:
 
