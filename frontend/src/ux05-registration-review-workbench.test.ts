@@ -113,12 +113,12 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
   });
 
   it('provides Escape, backdrop close, body scroll lock, initial focus, and focus restoration for reject dialog', () => {
-    expect(panel).toContain("document.body.style.overflow = 'hidden'");
+    expect(panel).toContain('const releaseScrollLock = acquireDocumentScrollLock()');
     expect(panel).toContain("if (event.key === 'Escape') closeReject()");
     expect(panel).toContain('rejectTextareaRef.current?.focus()');
     expect(panel).toContain('rejectTriggerRef.current?.focus()');
     expect(panel).toContain('if (event.target === event.currentTarget) closeReject()');
-    expect(panel).toContain('document.body.style.overflow = previousOverflow');
+    expect(panel).toContain('releaseScrollLock()');
   });
 
   it('keeps refresh, match, approve, reject, and onChanged mutation sequencing intact', () => {

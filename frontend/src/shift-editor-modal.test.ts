@@ -60,8 +60,8 @@ describe('Shift editor modal viewport isolation', () => {
     expect(mainTsx).toContain("if (event.key === 'Escape') onCloseRef.current()");
     expect(mainTsx).toContain('if (event.target === event.currentTarget) onClose()');
     expect(mainTsx).toContain('onMouseDown={(event) => event.stopPropagation()}');
-    expect(mainTsx).toContain("document.body.style.overflow = 'hidden'");
-    expect(mainTsx).toContain('document.body.style.overflow = previousOverflow');
+    expect(mainTsx).toContain('const releaseScrollLock = acquireDocumentScrollLock()');
+    expect(mainTsx).toContain('releaseScrollLock()');
     expect(mainTsx).toContain('initialFocusRef.current?.focus({ preventScroll: true })');
     expect(mainTsx).toContain('previouslyFocusedElement?.focus({ preventScroll: true })');
   });

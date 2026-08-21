@@ -1,0 +1,258 @@
+/* Production Mobile Responsive Hotfix V1
+   Scoped structural fixes only. Desktop geometry and business semantics remain unchanged. */
+
+.leave-history-mobile-list {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  :root {
+    --sms-mobile-header-height: 60px;
+    --sms-mobile-header-gap: 6px;
+  }
+
+  html {
+    scroll-padding-top: calc(var(--sms-mobile-header-height) + max(var(--sms-mobile-header-gap), env(safe-area-inset-top, 0px)) + 12px);
+  }
+
+  .topbar {
+    top: max(var(--sms-mobile-header-gap), env(safe-area-inset-top, 0px));
+    margin-top: max(var(--sms-mobile-header-gap), env(safe-area-inset-top, 0px));
+    min-height: var(--sms-mobile-header-height);
+  }
+
+  .content-area > .view-pane,
+  .content-area > .data-surface-page,
+  .content-area > .leave-page {
+    scroll-margin-top: calc(var(--sms-mobile-header-height) + max(var(--sms-mobile-header-gap), env(safe-area-inset-top, 0px)) + 12px);
+  }
+
+  /* Leave History: preserve the desktop table above this breakpoint and use complete cards on phones. */
+  .leave-history-card .leave-history-desktop-table {
+    display: none;
+  }
+
+  .leave-history-mobile-list {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .leave-history-mobile-card {
+    display: grid;
+    min-width: 0;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+  }
+
+  .leave-history-mobile-card > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 0 10px;
+    border-bottom: 1px solid var(--color-border);
+    background: transparent;
+  }
+
+  .leave-history-mobile-card > header > div:first-child {
+    min-width: 0;
+  }
+
+  .leave-history-mobile-card h3 {
+    margin: 2px 0 0;
+    overflow-wrap: anywhere;
+    color: var(--color-text);
+    font-size: 15px;
+    line-height: 1.4;
+  }
+
+  .leave-history-mobile-card header small,
+  .leave-history-mobile-card dt {
+    color: var(--color-text-muted);
+    font-size: 11px;
+  }
+
+  .leave-history-mobile-card header small {
+    display: block;
+    margin-top: 3px;
+  }
+
+  .leave-history-mobile-card dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+  }
+
+  .leave-history-mobile-card dl > div {
+    min-width: 0;
+    padding: 9px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 9px;
+    background: var(--color-surface-muted);
+  }
+
+  .leave-history-mobile-card dl > div.leave-history-mobile-wide {
+    grid-column: 1 / -1;
+  }
+
+  .leave-history-mobile-card dd {
+    margin: 3px 0 0;
+    overflow-wrap: anywhere;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .leave-history-mobile-card footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 2px;
+  }
+
+  .leave-history-mobile-card footer button {
+    min-height: 44px;
+  }
+
+  /* License search: reset the desktop flex-basis after the toolbar becomes a column. */
+  .data-surface-page--licenses .search-box.data-search-control {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: none;
+    height: 50px;
+    min-height: 50px;
+  }
+
+  .data-surface-page--licenses .search-box.data-search-control input {
+    height: 48px;
+    min-height: 48px;
+    line-height: 48px;
+  }
+
+  .data-surface-page--licenses .license-employee-status-filter,
+  .data-surface-page--licenses .license-employee-status-filter select {
+    width: 100%;
+  }
+
+  .data-surface-page--licenses .toolbar-count {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* Monthly Schedule: horizontal scroll is intentional; controls must remain inside each cell. */
+  .schedule-calendar-page .calendar-card {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .schedule-calendar-page .calendar-card > .table-scroll {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-inline: contain;
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .schedule-calendar-page .schedule-grid .employee-sticky {
+    min-width: 158px;
+    max-width: 158px;
+  }
+
+  .schedule-calendar-page .schedule-grid th:not(.employee-sticky),
+  .schedule-calendar-page .schedule-grid td:not(.employee-sticky) {
+    width: 112px;
+    min-width: 112px;
+    padding-inline: 4px;
+  }
+
+  .schedule-calendar-page .calendar-shift-wrap {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) 40px;
+    place-items: center;
+    gap: 4px;
+  }
+
+  .schedule-calendar-page .calendar-shift,
+  .schedule-calendar-page .empty-shift {
+    width: 62px;
+    max-width: 62px;
+    min-height: 46px;
+    min-width: 0;
+  }
+
+  .schedule-calendar-page .calendar-delete,
+  .schedule-calendar-page .calendar-shift-wrap:hover .calendar-delete {
+    position: static;
+    display: grid;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    place-items: center;
+    justify-self: end;
+    border-radius: 10px;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  /* Operational record drawers use natural sheet height on mobile; the body owns overflow when needed. */
+  .signature-drawer-backdrop {
+    align-items: flex-end;
+  }
+
+  .signature-record-drawer {
+    width: 100vw;
+    max-width: none;
+    height: auto;
+    max-height: 92dvh;
+    align-self: flex-end;
+    grid-template-rows: auto minmax(0, auto) auto;
+    overflow: hidden;
+    border: 0;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .signature-record-drawer__body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .signature-record-drawer__actions {
+    position: sticky;
+    bottom: 0;
+  }
+
+  /* License document modals are sheets with natural content height rather than forced 100dvh. */
+  .license-modal-viewport {
+    align-items: flex-end;
+    padding: max(12px, env(safe-area-inset-top, 0px)) 0 0;
+  }
+
+  .license-modal-dialog {
+    width: 100%;
+    min-height: 0;
+    max-height: 92dvh;
+    margin: auto 0 0;
+    border-radius: 16px 16px 0 0;
+    padding: 18px 14px max(18px, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 420px) {
+  .leave-history-mobile-card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .leave-history-mobile-card dl > div.leave-history-mobile-wide {
+    grid-column: auto;
+  }
+}

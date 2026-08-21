@@ -81,7 +81,8 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(main).toContain("experience?: 'personnel'");
     expect(main).toContain("experience: 'personnel'");
     expect(main).toContain("event.key === 'Escape' && !busyRef.current");
-    expect(main).toContain("document.documentElement.style.overflow = 'hidden'");
+    expect(main).toContain('const releaseScrollLock = acquireDocumentScrollLock()');
+    expect(main).toContain('releaseScrollLock()');
     expect(personnelDrawer).toContain('role="dialog" aria-modal="true"');
     expect(personnelDrawer).toContain("event.key === 'Escape'");
     expect(personnelDrawer).toContain("event.key !== 'Tab'");
@@ -147,8 +148,8 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
   it('provides foreground-first dialog stacking, Escape suspension, body locking, and focus restoration', () => {
     expect(accessPage).toContain('suspendEscape={Boolean(dialog)}');
     expect(accessPage).toContain("if (!suspendEscape) window.addEventListener('keydown', onKey)");
-    expect(accessPage).toContain("document.body.style.overflow = 'hidden'");
-    expect(accessPage).toContain("document.documentElement.style.overflow = 'hidden'");
+    expect(accessPage).toContain('const releaseScrollLock = acquireDocumentScrollLock()');
+    expect(accessPage).toContain('releaseScrollLock()');
     expect(accessPage).toContain("if (event.key === 'Escape')");
     expect(accessPage).toContain('window.setTimeout(() => dialogTriggerRef.current?.focus(), 0)');
     expect(accessCss).toContain('.account-drawer-backdrop{z-index:90');

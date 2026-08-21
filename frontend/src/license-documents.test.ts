@@ -159,7 +159,8 @@ describe('license document viewer and review', () => {
     expect(componentSource).toContain("document.getElementById('modal-root') || document.body");
     expect(componentSource).toContain("if (event.key === 'Escape') onCloseRef.current()");
     expect(componentSource).toContain('if (event.target === event.currentTarget) onClose()');
-    expect(componentSource).toContain("document.body.style.overflow = 'hidden'");
+    expect(componentSource).toContain('const releaseScrollLock = acquireDocumentScrollLock()');
+    expect(componentSource).toContain('releaseScrollLock()');
     expect(styleSource).toContain('position:fixed!important');
     expect(styleSource).toContain('inset:0!important');
     expect(styleSource).toContain('z-index:2147483100');

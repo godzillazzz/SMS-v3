@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DataRowActionMenu, type DataRowAction } from '../../components/DataRowActionMenu';
+import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import {
   accessManagementState,
@@ -93,10 +94,7 @@ function AccountDrawer({ account, role, originalUserId, suspendEscape = false, o
   const drawerRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!account) return;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousDocumentOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
+    const releaseScrollLock = acquireDocumentScrollLock();
     const timer = window.setTimeout(() => closeRef.current?.focus({ preventScroll: true }), 0);
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
@@ -111,8 +109,7 @@ function AccountDrawer({ account, role, originalUserId, suspendEscape = false, o
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousDocumentOverflow;
+      releaseScrollLock();
     };
   }, [account, onClose, suspendEscape]);
   if (!account) return null;
@@ -139,10 +136,7 @@ function Modal({ title, eyebrow, tone = 'default', children, onClose }: { title:
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const modalRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousDocumentOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
+    const releaseScrollLock = acquireDocumentScrollLock();
     const timer = window.setTimeout(() => {
       const firstField = modalRef.current?.querySelector<HTMLElement>('input:not([type="checkbox"]), select, textarea');
       (firstField || closeRef.current)?.focus({ preventScroll: true });
@@ -152,8 +146,7 @@ function Modal({ title, eyebrow, tone = 'default', children, onClose }: { title:
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousDocumentOverflow;
+      releaseScrollLock();
     };
   }, [onClose]);
   return <div className="account-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={modalRef} className={`account-modal account-modal--${tone}`} role="dialog" aria-modal="true" aria-labelledby="account-modal-title"><header><div><p>{eyebrow}</p><h2 id="account-modal-title">{title}</h2></div><button ref={closeRef} type="button" className="drawer-close overlay-close" onClick={onClose} aria-label="ปิดหน้าต่าง"><SmsIcon name="close" size={20} /></button></header>{children}</section></div>;

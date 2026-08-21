@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../request-error';
+import { acquireDocumentScrollLock } from '../document-scroll-lock';
 import {
   formatFileSize,
   formatLicenseDate,
@@ -51,15 +52,14 @@ function useModalBehavior(onClose: () => void, enabled = true) {
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!enabled) return;
-    const previousOverflow = document.body.style.overflow;
+    const releaseScrollLock = acquireDocumentScrollLock();
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    document.body.style.overflow = 'hidden';
     initialFocusRef.current?.focus({ preventScroll: true });
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onCloseRef.current(); };
     document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
+      releaseScrollLock();
       previousFocus?.focus({ preventScroll: true });
     };
   }, [enabled]);

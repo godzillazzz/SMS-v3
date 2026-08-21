@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { SmsIcon } from '../SmsIcon';
+import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import type { PersonnelRecord, PersonnelRole } from './types';
 
 type Props = { employee?: PersonnelRecord; canManage: boolean; role: PersonnelRole; onClose(): void; onEdit(): void; onLifecycle(): void };
@@ -11,10 +12,7 @@ export function PersonnelDetailDrawer({ employee, canManage, role, onClose, onEd
   useEffect(() => {
     if (!employee) return;
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousDocumentOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
+    const releaseScrollLock = acquireDocumentScrollLock();
     const timer = window.setTimeout(() => closeRef.current?.focus({ preventScroll: true }), 0);
     const handler = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
@@ -30,8 +28,7 @@ export function PersonnelDetailDrawer({ employee, canManage, role, onClose, onEd
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener('keydown', handler);
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousDocumentOverflow;
+      releaseScrollLock();
       previouslyFocused?.focus({ preventScroll: true });
     };
   }, [employee, onClose]);

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import type { AuditEvent } from './audit-types';
 import { actionLabel, entityLabel, formatAuditTime, moduleLabel, safe, safeMetadataEntries } from './audit-utils';
 
@@ -10,10 +11,7 @@ export function AuditEventPreview({ event, onClose }: Props) {
   useEffect(() => {
     if (!event) return;
     const previous = document.activeElement as HTMLElement | null;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousDocumentOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
+    const releaseScrollLock = acquireDocumentScrollLock();
     closeRef.current?.focus();
     const handler = (keyboardEvent: KeyboardEvent) => {
       if (keyboardEvent.key === 'Escape') { onClose(); return; }
@@ -28,8 +26,7 @@ export function AuditEventPreview({ event, onClose }: Props) {
     window.addEventListener('keydown', handler);
     return () => {
       window.removeEventListener('keydown', handler);
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousDocumentOverflow;
+      releaseScrollLock();
       previous?.focus();
     };
   }, [event, onClose]);

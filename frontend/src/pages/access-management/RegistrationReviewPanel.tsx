@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../api';
+import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { SmsIcon } from '../../components/SmsIcon';
 import '../../styles/registration-review.css';
 
@@ -115,15 +116,14 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
 
   useEffect(() => {
     if (!rejectOpen) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const releaseScrollLock = acquireDocumentScrollLock();
     const timer = window.setTimeout(() => rejectTextareaRef.current?.focus(), 0);
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeReject(); };
     window.addEventListener('keydown', onKeyDown);
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
+      releaseScrollLock();
     };
   }, [rejectOpen]);
 

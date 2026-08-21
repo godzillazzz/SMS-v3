@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { SmsIcon } from '../SmsIcon';
 import { api } from '../../api';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
@@ -94,10 +95,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
   useEffect(() => { void loadHistory(); }, [employee.id, token]);
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousDocumentOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
+    const releaseScrollLock = acquireDocumentScrollLock();
     const timer = window.setTimeout(() => closeRef.current?.focus({ preventScroll: true }), 0);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !busyRef.current) { event.preventDefault(); onCloseRef.current(); return; }
@@ -112,8 +110,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousDocumentOverflow;
+      releaseScrollLock();
       previouslyFocused?.focus({ preventScroll: true });
     };
   }, []);

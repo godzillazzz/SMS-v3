@@ -68,7 +68,8 @@ describe('G04.2 UX-02 application shell contract', () => {
     expect(main).toContain('id="app-navigation-drawer"');
     expect(main).toContain("if (event.key === 'Escape') setMobileMenuOpen(false)");
     expect(main).toContain('mobileMenuTriggerRef.current?.focus()');
-    expect(main).toContain('document.body.style.overflow = \'hidden\'');
+    expect(main).toContain('const releaseScrollLock = acquireDocumentScrollLock()');
+    expect(main).toContain('releaseScrollLock()');
     expect(main).toContain('className="sidebar-overlay"');
     expect(main).toContain('className="sidebar-close-button"');
   });

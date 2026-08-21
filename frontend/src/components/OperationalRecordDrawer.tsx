@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { SmsIcon, type SmsIconName } from './SmsIcon';
+import { acquireDocumentScrollLock } from '../document-scroll-lock';
 
 export type OperationalDrawerAction = {
   label: string;
@@ -28,10 +29,7 @@ export function OperationalRecordDrawer({ open, eyebrow, title, subtitle, status
 
   useEffect(() => {
     if (!open) return;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousDocumentOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
+    const releaseScrollLock = acquireDocumentScrollLock();
     const timer = window.setTimeout(() => closeRef.current?.focus({ preventScroll: true }), 0);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -56,8 +54,7 @@ export function OperationalRecordDrawer({ open, eyebrow, title, subtitle, status
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousDocumentOverflow;
+      releaseScrollLock();
     };
   }, [open, onClose]);
 
