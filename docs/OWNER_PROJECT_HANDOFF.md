@@ -10,7 +10,7 @@ Repository:
 godzillazzz/SMS-v3
 
 This is the single canonical project-continuity document. Future approved
-updates must replace or update this file rather than creating versioned
+updates must update/overwrite this same file rather than creating versioned
 handoff copies.
 
 ## CURRENT PRODUCTION
@@ -23,23 +23,39 @@ G06 is not Production.
 - Production release: G05 — License Document Permanent-Delete Audit Tombstone
 - Production deployment: dpl_GLmDVZHQwrEkvBuUwuDcvSzNRf5Z
 - Canonical current Vercel hostname: sms-v3-staging-ten.vercel.app
+- Rollback deployment: dpl_xKvsNaKHJLabrSH3J3aHUUzNoUpZ
+
+Do not deploy the current development lineage directly to Production merely to
+release EMAIL-01. It also contains G06/self-host work that is not yet
+Production-authorized.
 
 ## CURRENT DEVELOPMENT
 
-The current development candidate is EMAIL-01 on top of the self-host
-foundation lineage. It is not the Production deployment.
+The current development lineage is EMAIL-01 on top of the G06/self-host
+foundation. It is not the Production deployment.
 
 - Development branch: fix/email-01-notification-policy-v1
-- EMAIL-01 product candidate SHA: ad62b1b44755fe59064676e9a22aa4e13a56610b
-- EMAIL-01 product candidate tree: b3fe80af0f86df98b132aee0659e2f0abbe9db3e
+- EMAIL-01 product commit: ad62b1b44755fe59064676e9a22aa4e13a56610b
 - EMAIL-01 CI-only commit: 1aeef1d879b79bb9a8c27b82f8ebc17ee6f0fda7
-- Current branch validation tree: afcfc5d8c4a1cb3cc8060de581f2c972cf6bd48e
-- Status: SMS_EMAIL_01_EXACT_HEAD_CI_PENDING
+- EMAIL-01 validated candidate SHA before this handoff update:
+  7aa7d7511f0c679b76ba98ef6737af39476bb3a2
+- EMAIL-01 validated candidate tree:
+  77ed5927a0857bb74dbd9d58cd265e4ede6aa469
+- Remote CI run: 32449542272
+- Remote CI job: 96675263111
+- Remote exact-head CI result: PASS
+- Frontend: 346/346 PASS
+- TypeScript/build: PASS
+- Automatic Preview: dpl_7Z5Masj2LMeGuMLRcs8bnDPiiTnL — READY
+- Schema delta: 0
+- New migrations: 0
+- Production mutations for EMAIL-01: 0
+- Real-user email smoke: 0
+- Status: SMS_EMAIL_01_CANDIDATE_READY
 - EMAIL-01: NOT PRODUCTION
 
-The self-host foundation remains candidate-ready but requires Owner
-infrastructure input. The canonical self-host domain is unresolved, so G06.2
-Production rollout remains blocked by the canonical origin/domain gate.
+The canonical handoff has been persisted on GitHub. This file must continue to
+be updated on this development lineage after major approved gates.
 
 ## COMPLETED G06 GATES
 
@@ -54,8 +70,7 @@ Employee Attendance is not live in Production.
 
 ## EMAIL-01 CANDIDATE — NOT PRODUCTION
 
-This section records the implemented EMAIL-01 candidate behavior. It is not
-deployed to or authoritative for CURRENT PRODUCTION.
+Implemented EMAIL-01 candidate behavior:
 
 1. Registration OTP
    - Recipient: submitted email
@@ -66,191 +81,449 @@ deployed to or authoritative for CURRENT PRODUCTION.
 3. Registration email verified / reviewable request created
    - Recipient: active ADMIN + MANAGER group
 
-4. Leave request created — reviewer notification
-   - Candidate recipient: active ADMIN + MANAGER group
+4. Registration approved
+   - Recipient: applicant
+   - Sent after decision transaction commits
+   - Idempotent
 
-5. Leave request created — employee confirmation
+5. Registration rejected by reviewer
+   - Recipient: applicant
+   - Sent after decision transaction commits
+   - Idempotent
+
+6. Leave request created
+   - Recipient: linked active employee + active ADMIN + active MANAGER
+
+7. Leave approved
    - Recipient: linked active employee user
 
-6. Leave approved
+8. Leave rejected
    - Recipient: linked active employee user
 
-7. Leave rejected
+9. Leave cancelled
    - Recipient: linked active employee user
 
-8. Leave cancelled
-   - Recipient: linked active employee user
-
-9. Monthly schedule approved
-   - Candidate recipient: only active eligible employees represented by
+10. Monthly schedule approved
+   - Recipient: only eligible employees represented by authoritative
      assignments in the approved schedule month
+   - No broad all-user fallback
 
 Important findings:
 
 - Email delivery is gated by email-notification and SMTP configuration.
-- Registration approval/rejection applicant mail is sent only after the
-  decision transaction commits.
 - Registration approval/rejection uses an idempotent
   EmailDeliveryReservation event key per request and decision.
-- Leave reviewer delivery is individual per eligible reviewer, with no shared
-  visible recipient list.
+- Leave reviewer delivery is individual per eligible reviewer; recipient
+  addresses are not exposed to each other.
 - Schedule approval has no broad fallback to all Users/Employees; an empty or
   unresolved assignment set fails closed.
-- Legacy leave notification helpers/routes exist, but must not be assumed
-  active without mounted-route and callsite proof.
-- routes/index.js mounts the operations route and does not directly mount the
-  legacy leaves.routes.js path.
+- Legacy leave notification helpers/routes must not be treated as active
+  without mounted-route and callsite proof.
 - There is no active Attendance email behavior.
+- OTP remains authentication-critical and separate from optional ordinary
+  business-notification semantics.
+- Business-notification delivery failure must not roll back registration,
+  leave, or schedule database state.
 
 No email addresses or SMTP credentials belong in this document.
 
-## EMAIL POLICY — IMPLEMENTED IN EMAIL-01 CANDIDATE
+## EMAIL-01 PRODUCTION RELEASE SAFETY
 
-### Registration
+EMAIL-01 is validated on the development lineage, but the development lineage
+contains G06/self-host commits beyond the current G05 Production baseline.
 
-- OTP: applicant
-- Verified/reviewable: Admin + Manager
-- Approved: applicant
-- Rejected: applicant
+Do NOT deploy the complete development head directly as an EMAIL-only release.
 
-### Leave
+Preferred Production release path:
 
-- Submitted: employee + Admin + Manager
-- Approved: employee
-- Rejected: employee
-- Cancelled: employee
+- Start exactly from Production G05 SHA
+  94b4667771006b00759ddf6f0ec447d27400206c.
+- Backport only the EMAIL-01 product behavior and focused tests.
+- No G06 files.
+- No self-host files.
+- No Attendance schema/migration.
+- Schema delta must remain 0.
+- Require exact-head Remote CI before Owner Production authorization.
 
-### Schedule
+Suggested status for a successful isolated backport candidate:
 
-- Approved: affected eligible employees for the approved month only
+SMS_EMAIL_01P_PRODUCTION_BACKPORT_CANDIDATE_READY
 
-### License
+## G06 / G07 OWNER-APPROVED NO-PHOTO SECURITY MODEL
 
-- Future approval/rejection: owner
-- Future expiry warnings: policy still to be designed
+OWNER DECISION SUPERSEDING THE EARLIER PHOTO REQUIREMENT:
 
-### Attendance
+Attendance and Patrol must NOT require or retain employee photos.
+SMS must NOT implement its own Face Recognition for this scope.
 
-Do not email every check-in/out. Future notification should focus on
-high-value exceptions and supervisor digest events.
+The approved security/evidence model is:
 
-EMAIL-01 does not add operational Attendance email behavior.
+ACCOUNT / PASSKEY
++
+PERSONAL DEVICE ENROLLMENT
++
+CRYPTOGRAPHIC DEVICE CREDENTIAL
++
+GPS / GEOFENCE
++
+STATIC SECURE PAPER QR
++
+SCHEDULE / SHIFT / ROUTE AUTHORITY
++
+SERVER TIME
++
+ANTI-REPLAY / IDEMPOTENCY
++
+RISK ENGINE
++
+CONTROLLED OFFLINE FALLBACK
 
-OTP remains authentication-critical and separate from optional ordinary
-business-notification semantics. Business-notification delivery failures do
-not roll back registration, leave, or schedule database changes.
+NO PHOTO STORAGE.
+NO FACE TEMPLATE.
+NO SMS FACE RECOGNITION.
+NO CONTINUOUS GPS TRACKING.
 
-## G06 ATTENDANCE OWNER-APPROVED CORE
+The design goal is to keep Attendance/Patrol lightweight in storage and
+bandwidth so the current hosting model can remain viable as long as practical.
+This is a design goal, not a guarantee that any external free tier will remain
+sufficient forever.
 
-The approved architecture is:
+## PASSKEY ROLE — IMPORTANT
+
+Passkey authenticates access to an account. Passkey is NOT the authoritative
+Attendance/Patrol device identity.
+
+Reason:
+
+- One Android phone may legitimately contain passkeys for multiple accounts.
+- Therefore possession of a valid passkey alone must not allow the same phone
+  to act as the primary Attendance device for multiple employees.
+
+Attendance/Patrol authority must additionally verify the active personal
+device enrollment bound to the Employee.
+
+Existing WebAuthn/passkey behavior must not be weakened.
+
+## PERSONAL ATTENDANCE / PATROL DEVICE ENROLLMENT
+
+Default Owner rule:
+
+1 Employee = 1 ACTIVE primary Attendance/Patrol device at a time.
+
+The server must maintain an explicit Employee-to-device enrollment rather than
+trusting a browser fingerprint, User-Agent string, cookie, or arbitrary device
+name.
+
+Preferred web/PWA concept:
+
+- Device/browser generates a cryptographic key pair.
+- Private key remains local and should be non-exportable where the platform
+  permits.
+- Server stores the public credential and enrollment identity.
+- Server challenge is signed by the enrolled device credential.
+- Server verifies that the credential is ACTIVE and belongs to the Employee
+  performing Attendance/Patrol.
+
+A valid account/passkey on a device enrolled to another Employee is not enough
+for normal Attendance/Patrol acceptance.
+
+Example security outcome:
+
+Account = Employee B
+Active enrolled device = Employee A device
+→ DEVICE_OWNER_MISMATCH
+→ do not accept as a normal verified Attendance/Patrol event.
+
+Do not use IMEI/browser fingerprinting as the core web device identity.
+
+### DEVICE CHANGE — OWNER-APPROVED FLOW
+
+The device replacement authority is ADMIN ONLY.
+Manager approval is NOT sufficient.
+
+Required flow:
+
+New phone
+→ Login
+→ Request attendance device change
+→ ADMIN approves
+→ Old device REVOKED
+→ New device ACTIVE
+
+Requirements:
+
+- Only one ACTIVE primary device after approval.
+- Old credential is revoked atomically with activation of the new credential.
+- Reason/request/actor/timestamps must be auditable.
+- Employee must not be able to self-activate unlimited replacement devices.
+- Manager must not approve the device replacement.
+- ADMIN can approve according to existing Admin authority and audit rules.
+
+If the old device is lost/unavailable, Admin-controlled replacement remains the
+recovery path.
+
+Shared-device mode is NOT the default approved model and must not be silently
+introduced.
+
+## STATIC SECURE PAPER QR MODEL
+
+Operational constraint: Sites/Checkpoints may only have printed paper QR
+codes. Dynamic display QR is not required.
+
+Each Site/Checkpoint QR must contain an unguessable random token/reference, not
+plain identifiers such as CP01 alone.
+
+Recommended security properties:
+
+- unique token per Site/Checkpoint
+- random high-entropy value
+- server stores a hash/derived verifier rather than relying on plaintext
+  storage where practical
+- token is mapped to authoritative Site/Checkpoint identity
+- Admin can regenerate/revoke a compromised QR and print a replacement
+- old revoked token must stop validating
+
+A paper QR is NOT sufficient evidence by itself because it can be photographed
+or copied.
+
+The QR must therefore be validated together with:
+
+- authenticated Employee/account
+- active enrolled personal device credential
+- GPS coordinates
+- GPS accuracy
+- expected Site/Checkpoint
+- geofence radius
+- server validation/time
+- Schedule/Shift or Patrol Route authority
+
+Scanning a copied QR away from the physical location should result in a
+location mismatch/risk outcome rather than normal verified attendance.
+
+The QR-scanning camera is used only to decode the QR. Camera frames/photos are
+not stored as Attendance/Patrol evidence and must not be uploaded as employee
+photos.
+
+Gallery-based QR import should not be a normal employee scanning path.
+
+## G06 ATTENDANCE APPROVED FLOW
+
+Architecture:
 
 ONLINE FIRST
 → CONTROLLED OFFLINE FALLBACK
 → AUTO SYNC
 → SERVER VALIDATION
 
-Employee self-attendance requires GPS and a fresh live photo. There is no
-continuous location tracking and no ordinary gallery-upload substitute.
+Typical employee flow:
 
-Online:
+Open SMS
+→ authenticate as required
+→ Scan Attendance QR
+→ obtain GPS
+→ verify active enrolled personal device
+→ validate authoritative Schedule / Shift / Expected Site
+→ server decides CHECK-IN or CHECK-OUT from current Attendance state
+→ return verified result or risk/review result
 
-- Server receivedAt/server time is authoritative.
+Employees do not manually select Expected Site, Shift, Duty, or Patrol Route.
+Those come from authoritative Schedule/assignment.
 
-Offline:
+No employee photo capture is required.
 
-- Capture locally with captureId, capturedAt, GPS, mandatory fresh photo, and
-  signed or cached expected context where applicable.
-- Display OFFLINE_PENDING / waiting sync.
-- Never represent offline pending as server-confirmed attendance.
+### ONLINE
 
-On reconnect, automatic retry/sync is validated by the server for:
+- Server receivedAt/server time is authoritative for receipt.
+- Capture context includes stable captureId and device credential proof.
+- Server validates idempotency, assignment, site, geofence, device, QR, and
+  risk rules.
 
-- idempotency
-- schedule and shift
-- expected site and geofence
-- evidence
-- time and risk
+### CONTROLLED OFFLINE
+
+Offline remains Owner-approved because field connectivity may be unreliable.
+
+Capture locally with at least:
+
+- stable captureId UUID
+- deviceCapturedAt/capturedAt
+- GPS latitude/longitude
+- GPS accuracy and location capturedAt where available
+- scanned static secure QR reference/token proof
+- active enrolled device credential/signature proof appropriate to the design
+- cached/signed expected Schedule/Site context where applicable
+
+Display OFFLINE_PENDING / saved on device / waiting sync.
+Never present offline pending as server-confirmed Attendance.
+
+On reconnect:
+
+AUTO SYNC
+→ SERVER REVALIDATION
+
+Server must revalidate:
+
+- captureId/idempotency
+- active/revoked device status
+- Employee/device ownership
+- Schedule/Shift
+- expected Site and geofence
+- QR validity/revocation
+- GPS/accuracy
+- capturedAt versus receivedAt
+- timing and risk
 
 Both capturedAt and receivedAt must be preserved. Sync time must not silently
 replace the captured event time.
 
-Owner defaults:
+Owner defaults retained:
 
 - Normal offline sync window: 24 hours
 - Local unsynced hard retention: 7 days
-- Overdue evidence: review/risk required; it is not silently deleted
+- >24h unsynced/late arrival: overdue/review; do not silently discard
+- unresolved offline/time/schedule/location conflicts block official month
+  certification until resolved
+
+The browser/PWA queue must use stable idempotency/capture IDs so retries do not
+create duplicate Attendance records.
 
 ## ATTENDANCE BUSINESS RULES
 
 - Schedule is expected; Attendance is actual.
 - Site and Department are separate concepts.
 - Expected Site is assigned by Admin through Schedule/assignment.
-- Current examples are configurable Shift Master values:
+- Current configurable Shift examples:
   - DAY: 07:00–19:00
   - NIGHT: 19:00–07:00 next day
-- DAY and NIGHT are not permanent hardcoded limits.
-- There is no grace period; late begins immediately after expected start.
-- Early checkout is flagged EARLY_OUT immediately.
-- Overtime is not part of the approved rule set.
-- Wrong shift preserves evidence and adds WRONG_SHIFT.
-- A different valid site preserves evidence and adds ASSIST_OTHER_SITE.
-- Outside all sites preserves evidence and adds OUTSIDE_ALL_SITES and review.
+- DAY/NIGHT values must remain configurable, not hardcoded forever.
+- No grace period; late begins immediately after expected start.
+- Early checkout is EARLY_OUT immediately before expected end.
+- Overtime is not part of the approved initial rule set.
+- Wrong shift preserves the event/evidence and adds WRONG_SHIFT according to
+  validation policy.
+- A different valid site may preserve the event and add ASSIST_OTHER_SITE.
+- Outside all sites must not become a normal verified event; preserve the
+  attempt/evidence as appropriate and add OUTSIDE_ALL_SITES / LOCATION_RISK
+  for review according to the validation engine.
 - Missing checkout must not invent checkout time or worked hours.
-- Manager and Admin corrections are allowed, but original evidence remains
-  immutable and reason, actor, time, and Audit are required.
+- Manager and Admin may perform governed corrections under the approved
+  correction model, but original evidence remains immutable and reason,
+  actor, time, and Audit are required.
+- Device replacement remains ADMIN-only even though operational Attendance
+  corrections may permit Manager/Admin according to correction policy.
 
-## PATROL RELATIONSHIP
+## G07 PATROL / CHECKPOINT APPROVED DIRECTION
 
 PS and PN are Patrol Routes, not shift names.
+Attendance is independent from Patrol execution.
 
-Valid future relationship:
+Patrol uses the same personal-device and no-photo security principles, plus
+checkpoint/route validation.
 
-- Manager
-- Shift = NIGHT
-- Patrol Route = PS
+Per checkpoint event:
 
-Attendance is independent from Patrol execution. G07 handles Patrol execution
-later.
+Account / Employee
++
+ACTIVE enrolled personal device
++
+cryptographic device proof
++
+GPS + accuracy
++
+Static Secure Paper QR for that checkpoint
++
+Server time / receivedAt
++
+Route authority
++
+sequence / movement plausibility where configured
++
+risk engine
 
-## MOBILE ATTENDANCE UX DIRECTION
+No continuous GPS tracking is required. Location is captured at relevant
+checkpoint events.
 
-The approved direction is mobile-first: simple front end with strong backend
-authority.
+A copied Checkpoint QR scanned away from the checkpoint must not be accepted as
+a normal verified checkpoint because GPS/geofence validation is independent of
+the QR token.
 
-Employee primary flow:
+Movement plausibility should compare successive checkpoint observations, for
+example impossible travel distance/time. It is a risk signal, not an automatic
+accusation of misconduct.
 
-- Clock Home with one large primary action
-- Before check-in: CHECK-IN
-- After check-in: CHECK-OUT
-- Main navigation: Clock and History
+Route order may be fixed or configurable by Patrol policy. Do not hardcode a
+single sequence assumption until the operational route rules are formally
+locked.
 
-Employees do not choose Expected Site, Shift, Duty, or Patrol Route. Those
-come from authoritative Schedule/assignment.
+Controlled Offline behavior must preserve capturedAt, checkpoint identity,
+GPS, device proof, and route context, then revalidate on sync.
 
-Self-service flow:
+## RISK / ANTI-ABUSE DIRECTION
 
-Open → Check-in → Live camera → GPS → Photo preview → Confirm → Server result
+Candidate risk/result vocabulary should include at least concepts such as:
 
-Offline uses the same capture UX, but the result must say saved on device /
-waiting sync, not server-confirmed success.
+- DEVICE_OWNER_MISMATCH
+- NEW_DEVICE
+- DEVICE_REVOKED
+- OUTSIDE_GEOFENCE
+- LOW_GPS_ACCURACY
+- QR_LOCATION_MISMATCH
+- WRONG_SHIFT
+- WRONG_SITE
+- ASSIST_OTHER_SITE
+- REPEATED_SCAN
+- REPLAY_ATTEMPT
+- IMPOSSIBLE_MOVEMENT
+- TIME_ABNORMAL
+- OFFLINE_OVERDUE
+- LOCATION_RISK
 
-Permission onboarding must explain that GPS is collected only at attendance
-events and is not continuous tracking.
+Do not assume one signal proves misconduct. Preserve enough audit evidence for
+Supervisor/Admin review according to RBAC.
 
-## EVIDENCE
+GPS spoofing/mock-location detection may be used as a risk signal where the
+client platform safely exposes it, but do not claim web GPS anti-spoofing is
+perfect.
 
-- Fresh photo is mandatory for employee Attendance.
-- Evidence is private.
-- Ordinary gallery upload is not allowed.
-- Continuous tracking is not allowed.
-- Server binary retention is rolling one year from capturedAt.
-- PostgreSQL stores metadata/reference, not photo blobs.
-- Authorized viewing uses an eye/view action with private access.
-- Photos are not embedded in Excel or PDF reports.
+## FUTURE ANDROID HARDENING — OPTIONAL, NOT A CURRENT BLOCKER
+
+Most field guards are expected to use Android devices.
+
+If Web/PWA device binding proves insufficient in real operation, a future
+small Android app may harden device identity using platform capabilities such
+as:
+
+- Android Keystore
+- non-exportable app/device keys where supported
+- Play Integrity or equivalent app/device integrity signals
+- GPS
+- Static Secure Paper QR
+
+This does NOT require moving the backend to a private server. A native Android
+client may continue to use the existing backend hosting architecture.
+
+Do not start a native app merely to satisfy G06/G07 unless a later Owner gate
+authorizes it.
+
+## NO-PHOTO DATA / STORAGE DECISION
+
+For G06 Attendance and G07 Patrol under the current Owner decision:
+
+- No employee check-in/check-out photo storage.
+- No Patrol employee photo storage.
+- No Face Recognition model/template.
+- No image evidence retention requirement for Attendance/Patrol.
+- No Attendance/Patrol photo binary in PostgreSQL/object storage.
+- QR camera frames are not retained as evidence.
+- GPS remains event-based, not continuous tracking.
+
+This materially reduces object-storage, bandwidth, backup, and retention load.
+
+Existing License document storage is a separate feature and is not removed by
+this no-photo Attendance/Patrol decision.
 
 ## SELF-HOST FOUNDATION
 
-The verified foundation contains:
+The verified self-host foundation remains a valid future deployment option:
 
 - Node.js 22 application runtime
 - Docker runtime
@@ -263,30 +536,27 @@ The verified foundation contains:
 - exact-SHA release model
 - application rollback model
 
-Disposable validation proved:
+Disposable validation previously proved Docker build, non-root runtime,
+PostgreSQL 16, health/ready, DB persistence, backup/restore, and release
+rollback mechanics.
 
-- Docker build: PASS
-- non-root application container: PASS
-- PostgreSQL 16: PASS
-- root, health, and ready endpoints: PASS
-- unauthenticated auth/me: HTTP 401
-- database persistence after application restart: PASS
-- database persistence after image replacement: PASS
-- backup: PASS
-- restore with data verification: PASS
-- release replacement and rollback mechanics: PASS
+OWNER DECISION UPDATE:
 
-The physical private evidence provider is not implemented because the Owner
-storage protocol/location is not yet specified.
+Self-host migration is NOT required solely because Attendance/Patrol is being
+built. The no-photo model substantially reduces the storage pressure that had
+made early self-host migration more attractive.
 
-## PHYSICAL INFRASTRUCTURE PLAN
+Current hosting may continue while G06/G07 are developed and measured.
+Self-host remains an option when scale, policy, integration, reliability,
+cost, internal-network requirements, or Owner preference justify migration.
 
-Current Owner inputs:
+Do not perform a self-host Production cutover without a separate explicit
+Owner gate.
 
-- Internet: Static Public IPv4
-- Power: station UPS plus emergency diesel generator
+## PHYSICAL INFRASTRUCTURE PLAN — FUTURE OPTION
 
-Preferred architecture:
+Current Owner infrastructure plan remains available if/when self-host is
+chosen:
 
 ### Dell R330 — Production/Main Candidate
 
@@ -298,8 +568,7 @@ Approximate known configuration:
 - 2 × 1GbE
 - former CCTV server
 
-The R330 exact hardware and disk health must be verified before Production
-use. Disk health is not yet verified.
+R330 disk/controller health must be verified before Production use.
 
 ### Dell R520 — Backup/Restore Candidate
 
@@ -313,106 +582,196 @@ Known:
 - iDRAC 7 Enterprise
 - dual PSU
 
-## DOMAIN
+Preferred host OS if self-hosted:
+Ubuntu Server 24.04 LTS bare metal.
 
-The Owner currently has no registered canonical SMS domain.
+Do not use Windows Server 2008 R2 as an internet-facing SMS Production host.
 
-Preferred name discussed:
+## PRODUCTION ORIGIN / DOMAIN DECISION
+
+Current Production origin is:
+
+https://sms-v3-staging-ten.vercel.app
+
+A future Owner-controlled custom domain has been discussed but is not locked.
+Previously discussed preference:
 
 - secureops.in.th
+- possible application origin: https://sms.secureops.in.th
 
-Possible application origin:
+This is NOT purchased/confirmed merely because it appears in this document.
 
-- https://sms.secureops.in.th
+Important updated rule:
 
-This is a preference only. It is not purchased or locked.
+Self-host itself is no longer a prerequisite for G06/G07.
+However, before REAL employee controlled-offline/PWA rollout, the Owner must
+lock the rollout origin strategy because IndexedDB, Service Worker, Cache
+Storage, cookies, device-local keys, and WebAuthn/passkeys are origin-sensitive.
 
-CANONICAL DOMAIN GATE: OWNER INPUT REQUIRED
+The rollout origin may be the current Vercel hostname if the Owner explicitly
+accepts it for that rollout, or a future custom domain. Do not assume the
+choice silently.
 
-Do not treat the domain as active until the Owner confirms registration and
-DNS ownership.
-
-## WHY DOMAIN BLOCKS REAL G06.2 ROLLOUT
-
-Service Worker, Cache Storage, IndexedDB, cookies, and WebAuthn/passkeys are
-origin-sensitive.
-
-Do not roll employee controlled-offline Attendance into real Production on a
-temporary origin and then change the canonical origin. That could make
-browser-local queues inaccessible from the new origin.
-
-Local and mocked development may continue. Real employee rollout waits for the
-canonical origin lock.
+Do not roll out a critical offline queue on a temporary origin and then change
+origin without a controlled migration/cutover plan.
 
 ## WEBAUTHN
 
-Current Production passkeys are bound to the current Vercel origin and RP
-identity.
+Current Production passkeys are bound to the current Vercel RP/origin.
 
-Moving to a new Owner-controlled domain requires a controlled WebAuthn
-cutover. Password/OTP fallback must remain available during transition.
+Moving to a different canonical domain requires controlled WebAuthn cutover.
+Password/OTP fallback must remain available during transition.
 
-Do not weaken WebAuthn security to preserve old-origin passkeys.
+Do not weaken WebAuthn to preserve old-origin passkeys.
 
-## BACKUP DIRECTION
+## BACKUP DIRECTION IF SELF-HOSTED
 
-Preferred topology:
+Preferred future topology:
 
 R330 Production
 → private LAN backup
 → R520 Backup/Restore
 
-The R520 backup target may contain:
+RAID is not backup. An additional offline/offsite copy remains recommended.
+Exact backup retention/RPO/RTO require Owner lock before self-host Production.
 
-- PostgreSQL backups
-- evidence backups
-- report and release metadata
-- restore-test environment
+## LOCAL FILESYSTEM BOUNDARY — PERMANENT OWNER RULE
 
-RAID is not backup. An additional offline or offsite copy remains recommended.
+This is a PERMANENT OWNER-AUTHORIZED project rule.
 
-Exact backup retention, RPO, and RTO remain Owner infrastructure decisions
-until formally locked.
+AUTHORITATIVE LOCAL WORKSPACE ROOT:
+
+C:\Users\sermp\OneDrive - PTTPLC\04_SSO\ปี-2569\40.AI\ระบบ Security Management System V3
+
+ALL SMS project-controlled local filesystem operations must remain inside this
+root.
+
+This includes, but is not limited to:
+
+- repository clones
+- Git worktrees
+- isolated release clones
+- source working copies
+- documentation
+- OWNER_PROJECT_HANDOFF.md local backup
+- screenshots
+- visual evidence
+- test evidence
+- generated reports
+- release evidence
+- patches
+- exported files
+- backup staging
+- deployment notes
+- temporary project files created by CODEX
+- disposable project databases/files where filesystem paths are explicitly
+  controlled
+- scripts generated for project work
+
+FORBIDDEN OWNER-MANAGED PROJECT LOCATIONS include:
+
+- C:\Users\sermp\AppData\Local\Temp\...
+- C:\Users\sermp\Documents\...
+- Desktop
+- Downloads
+- another OneDrive directory
+- another repository clone outside the authorized root
+- arbitrary C:\Temp or similar project workspaces
+
+Do NOT create new SMS isolated clones/worktrees in Windows Temp.
+When isolation is required, create the isolated workspace UNDER the authorized
+root.
+
+Before every major local CODEX task, verify:
+
+AUTHORIZED_WORKSPACE_ROOT =
+C:\Users\sermp\OneDrive - PTTPLC\04_SSO\ปี-2569\40.AI\ระบบ Security Management System V3
+
+ACTIVE_WORKING_DIRECTORY = <actual path>
+
+WORKSPACE_BOUNDARY_CHECK = PASS / FAIL
+
+PASS is allowed only when the active SMS project working directory is a
+descendant of the authorized root.
+
+If not:
+
+SMS_LOCAL_WORKSPACE_BOUNDARY_VIOLATION
+
+STOP before project-controlled file creation, commit, push, deployment, or
+evidence generation from that unauthorized workspace.
+
+Operating system/Git/Node/browser/Docker/antivirus/OneDrive internals may use
+system-managed cache/temp areas that are not under project control. CODEX must
+not intentionally choose those locations for SMS project artifacts.
+
+## CANONICAL HANDOFF LOCAL BACKUP — PERMANENT OWNER RULE
+
+Canonical repository handoff:
+
+docs/OWNER_PROJECT_HANDOFF.md
+
+Required Owner local/OneDrive copy:
+
+C:\Users\sermp\OneDrive - PTTPLC\04_SSO\ปี-2569\40.AI\ระบบ Security Management System V3\OWNER_PROJECT_HANDOFF.md
+
+After CODEX updates this handoff and the final branch is successfully pushed
+and remote HEAD is verified, CODEX must:
+
+1. Copy the final repository handoff to the path above.
+2. OVERWRITE the same OWNER_PROJECT_HANDOFF.md.
+3. Do not create V2/V3/FINAL/date-stamped duplicates.
+4. Compute SHA256 of repository source and local destination.
+5. Require matching hashes.
+
+Expected success report:
+
+LOCAL_HANDOFF_BACKUP = VERIFIED
+
+If GitHub push succeeds but local backup fails, do not rewrite or undo pushed
+Git history. Report the safe error and do not claim local handoff closeout is
+complete.
 
 ## NEXT WORK PLAN
 
-Current immediate work:
+Immediate development/release priorities:
 
-- EMAIL-01: exact-head Remote CI and Owner review of the non-Production
-  candidate
+1. Preserve EMAIL-01 candidate as development-authoritative.
+2. If Owner wants EMAIL-01 in Production before G06 release, create a clean
+   EMAIL-only Production backport from G05 baseline; do not deploy the entire
+   G06/self-host development lineage.
+3. Update G06 implementation/design from the superseded mandatory-photo model
+   to the approved NO-PHOTO + PERSONAL DEVICE + STATIC SECURE QR model before
+   continuing employee Attendance implementation.
+4. Design device enrollment and ADMIN-only device replacement authority.
+5. Design static secure Site QR and Checkpoint QR lifecycle, including
+   regenerate/revoke and location binding.
+6. Continue Attendance/Patrol server validation and mobile UX without
+   introducing image evidence storage.
+7. Before real controlled-offline employee rollout, obtain explicit Owner
+   decision on rollout origin strategy.
 
-Potential later work that does not require the final Production origin:
+Do not start G07 Production rollout before G06 foundations required by the
+shared device/location/QR security model are stable.
 
-- Mobile Attendance UI and local visual harness
-- camera/GPS client contracts
-- server validation
-- Attendance Engine
-- history/review concepts
-- focused tests
+## OWNER INPUT / FUTURE GATES
 
-Do not perform real employee PWA/offline Production rollout before the
-canonical-domain and server gates are complete.
+Still requiring explicit Owner decisions when relevant:
 
-## OWNER INPUT REQUIRED
+- Production authorization for EMAIL-01 backport/release
+- actual rollout origin for employee PWA/offline
+- whether/when to purchase an Owner-controlled custom domain
+- whether/when to self-host
+- R330 exact disk/controller health before any self-host Production use
+- exact Patrol route sequencing/policy where not yet defined
+- any future native Android hardening gate
 
-Before real self-host Production cutover, obtain:
-
-- registered canonical custom domain and DNS ownership
-- TLS termination and certificate plan
-- R330 exact hardware, disk health, and capacity
-- network and ingress topology
-- PostgreSQL host/database identity and deployment fingerprint
-- private evidence-storage protocol and location
-- backup destination, retention, RPO, and RTO
-- scheduler host and monitoring/alert destination
-- WebAuthn domain cutover strategy
-
-Do not request or record passwords, tokens, cookies, private keys, or SMTP
-credentials in this file.
+Do not request or record passwords, tokens, cookies, private keys, SMTP
+credentials, or similar secrets in this file.
 
 ## SAFETY / RELEASE RULES
 
-- GitHub is the source of truth.
+- GitHub is the remote source of truth.
 - Exact SHA and tree identity are required.
 - Exact-head Remote CI is required.
 - No Production deployment without explicit Owner authorization.
@@ -420,7 +779,7 @@ credentials in this file.
 - No Production environment or data mutation without explicit Owner
   authorization.
 - Never deploy from a dirty or wrong worktree.
-- Use isolated clones/worktrees for release operations.
+- Use isolated clones/worktrees under the authorized Owner workspace root.
 - Never put passwords, tokens, cookies, or private keys in this handoff.
 - No destructive Production UAT.
 - Never edit live source directly on a Production server.
@@ -428,21 +787,36 @@ credentials in this file.
 - Do not promote an arbitrary old Preview deployment.
 - Schema migration creation and Production migration execution are separate
   gates.
+- Inactive employees are historical records, not current operational workload.
+- Operational eligibility remains isActive === true && deletedAt === null
+  unless a later Owner-approved domain rule explicitly supersedes it.
+- Risk flags are evidence for validation/review, not automatic accusations.
 
-## CURRENT GATE — EMAIL-01
+## CURRENT GATE
 
-EMAIL-01 is a development candidate only and is not Production.
+EMAIL-01 development candidate:
+SMS_EMAIL_01_CANDIDATE_READY
 
-- Product source changes in candidate: 7 files
-- Schema changes: 0
-- Migration created: 0
-- Production deployment: 0
-- Production migration: 0
-- Production environment changes: 0
-- Production DB/data changes: 0
-- Real-user email smoke: 0
-- Vercel mutation: 0
-- DNS mutation: 0
+Production remains G05.
+
+G06/G07 architecture has now been Owner-updated to:
+
+NO PHOTO
++
+PERSONAL DEVICE ENROLLMENT
++
+ADMIN-ONLY DEVICE REPLACEMENT APPROVAL
++
+GPS/GEOFENCE
++
+STATIC SECURE PAPER QR
++
+SERVER VALIDATION / RISK ENGINE
++
+CONTROLLED OFFLINE FALLBACK
+
+This architecture decision supersedes the earlier mandatory fresh-photo
+Attendance requirement in prior handoff text or earlier chat context.
 
 ## New Chat / New CODEX Session
 
@@ -451,6 +825,9 @@ Before doing any work:
 1. Read this entire file.
 2. Verify CURRENT PRODUCTION separately from CURRENT DEVELOPMENT.
 3. Verify Git SHA/tree before modifying source.
-4. Treat Owner-approved rules in this document as authoritative unless the
+4. Verify the local workspace is inside the permanent authorized root.
+5. Treat Owner-approved rules in this document as authoritative unless the
    Owner explicitly supersedes them.
-5. Update/overwrite THIS SAME FILE after each major approved gate.
+6. Update/overwrite THIS SAME FILE after each major approved gate.
+7. After successful CODEX push, overwrite the required local OneDrive handoff
+   copy and verify SHA256 equality.
