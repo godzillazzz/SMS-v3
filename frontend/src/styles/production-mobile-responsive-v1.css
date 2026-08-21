@@ -5,6 +5,15 @@
   display: none;
 }
 
+/* Shared record drawer foreground is a viewport-root sibling of its backdrop on every viewport. */
+.signature-record-drawer.operational-drawer {
+  position: fixed;
+  z-index: 96;
+  top: 0;
+  right: 0;
+  bottom: 0;
+}
+
 @media (max-width: 760px) {
   :root {
     --sms-mobile-header-height: 60px;
@@ -228,29 +237,54 @@
   .schedule-calendar-page .calendar-shift-wrap:hover .calendar-delete {
     position: absolute;
     top: auto;
-    right: 6px;
-    bottom: 6px;
+    right: 2px;
+    bottom: 2px;
     display: grid;
     box-sizing: border-box;
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
-    max-width: 36px;
-    max-height: 36px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    max-width: 44px;
+    max-height: 44px;
     margin: 0;
     padding: 0;
     place-items: center;
-    border-radius: 9px;
-    font-size: 16px;
+    border: 0;
+    border-radius: 12px;
+    color: transparent;
+    background: transparent;
+    font-size: 0;
     line-height: 1;
     transform: none;
     touch-action: manipulation;
     z-index: 2;
   }
 
+  .schedule-calendar-page .calendar-delete::before {
+    content: '×';
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: 8px;
+    color: #fff;
+    background: #dc2626;
+    box-shadow: 0 2px 6px rgba(127, 29, 29, .22);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+  }
+
   /* Operational record drawers use natural sheet height on mobile; the body owns overflow when needed. */
   .signature-drawer-backdrop {
+    top: var(--sms-overlay-vv-top, 0px);
+    right: auto;
+    bottom: auto;
+    left: var(--sms-overlay-vv-left, 0px);
+    width: var(--sms-overlay-vv-width, 100vw);
+    height: var(--sms-overlay-vv-height, 100dvh);
     align-items: flex-end;
   }
 
@@ -264,6 +298,15 @@
     overflow: hidden;
     border: 0;
     border-radius: 16px 16px 0 0;
+  }
+
+  .signature-record-drawer.operational-drawer {
+    top: calc(var(--sms-overlay-vv-top, 0px) + max(12px, env(safe-area-inset-top, 0px)));
+    right: auto;
+    bottom: auto;
+    left: var(--sms-overlay-vv-left, 0px);
+    width: var(--sms-overlay-vv-width, 100vw);
+    max-height: min(92dvh, calc(var(--sms-overlay-vv-height, 100dvh) - max(12px, env(safe-area-inset-top, 0px)) - max(12px, env(safe-area-inset-bottom, 0px))));
   }
 
   .signature-record-drawer__body {

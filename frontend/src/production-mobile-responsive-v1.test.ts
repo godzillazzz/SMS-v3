@@ -7,6 +7,7 @@ const source = (file: string) => fs.readFileSync(path.resolve(process.cwd(), 'sr
 const main = source('main.tsx');
 const css = source('styles/production-mobile-responsive-v1.css');
 const lockSource = source('document-scroll-lock.ts');
+const operationalDrawer = source('components/OperationalRecordDrawer.tsx');
 const lockUsers = [
   'main.tsx',
   'components/OperationalRecordDrawer.tsx',
@@ -90,17 +91,46 @@ describe('Production Mobile Responsive Hotfix V1', () => {
     const deleteRule = css.match(/\.schedule-calendar-page \.calendar-delete,[\s\S]*?\{([\s\S]*?)\}/)?.[1] ?? '';
     expect(deleteRule).toContain('position: absolute');
     expect(deleteRule).toContain('top: auto');
-    expect(deleteRule).toContain('right: 6px');
-    expect(deleteRule).toContain('bottom: 6px');
-    expect(deleteRule).toContain('width: 36px');
-    expect(deleteRule).toContain('height: 36px');
-    expect(deleteRule).toContain('min-width: 36px');
-    expect(deleteRule).toContain('min-height: 36px');
-    expect(deleteRule).toContain('max-width: 36px');
-    expect(deleteRule).toContain('max-height: 36px');
+    expect(deleteRule).toContain('right: 2px');
+    expect(deleteRule).toContain('bottom: 2px');
+    expect(deleteRule).toContain('width: 44px');
+    expect(deleteRule).toContain('height: 44px');
+    expect(deleteRule).toContain('min-width: 44px');
+    expect(deleteRule).toContain('min-height: 44px');
+    expect(deleteRule).toContain('max-width: 44px');
+    expect(deleteRule).toContain('max-height: 44px');
+    expect(deleteRule).toContain('background: transparent');
+    expect(deleteRule).toContain('font-size: 0');
     expect(deleteRule).toContain('padding: 0');
     expect(deleteRule).toContain('transform: none');
     expect(deleteRule).not.toMatch(/(?:top|right|bottom|left):\s*-/);
+
+    const visibleDeleteRule = css.match(/\.schedule-calendar-page \.calendar-delete::before\s*\{([\s\S]*?)\}/)?.[1] ?? '';
+    expect(visibleDeleteRule).toContain("content: '×'");
+    expect(visibleDeleteRule).toContain('width: 30px');
+    expect(visibleDeleteRule).toContain('height: 30px');
+    expect(visibleDeleteRule).toContain('background: #dc2626');
+    expect(visibleDeleteRule).toContain('pointer-events: none');
+  });
+
+  test('portals the shared operational drawer to document.body for License and Leave Quota', () => {
+    expect(main).toContain('<OperationalRecordDrawer open={Boolean(selectedRow)}');
+    expect(main).toContain("page === 'licenses'");
+    expect(main).toContain("page === 'quota'");
+    expect(operationalDrawer).toContain("import { createPortal } from 'react-dom'");
+    expect(operationalDrawer).toContain("if (!open || typeof document === 'undefined') return null");
+    expect(operationalDrawer).toContain('return createPortal(<>');
+    expect(operationalDrawer).toContain('<div ref={backdropRef} className="signature-drawer-backdrop" role="presentation" onMouseDown={onClose} />');
+    expect(operationalDrawer).toContain('</>, document.body)');
+    expect(css).toContain('.signature-record-drawer.operational-drawer');
+    expect(css).toContain('z-index: 96');
+    expect(operationalDrawer).toContain('const visualViewport = window.visualViewport');
+    expect(operationalDrawer).toContain("visualViewport?.addEventListener('scroll', syncVisualViewport)");
+    expect(operationalDrawer).toContain("visualViewport?.removeEventListener('resize', syncVisualViewport)");
+    expect(css).toContain('top: calc(var(--sms-overlay-vv-top, 0px) + max(12px, env(safe-area-inset-top, 0px)))');
+    expect(css).toContain('max-height: min(92dvh, calc(var(--sms-overlay-vv-height, 100dvh)');
+    expect(operationalDrawer).toContain('const releaseScrollLock = acquireDocumentScrollLock()');
+    expect(operationalDrawer).toContain('releaseScrollLock()');
   });
 
   test('portals the mobile utility foreground to the viewport root and locks through the shared owner', () => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { SmsIcon, type SmsIconName } from './SmsIcon';
 import { acquireDocumentScrollLock } from '../document-scroll-lock';
 
@@ -25,11 +26,29 @@ const actionClass = (tone: OperationalDrawerAction['tone']) => tone === 'danger'
 
 export function OperationalRecordDrawer({ open, eyebrow, title, subtitle, status, fields, primaryAction, secondaryActions = [], onClose }: OperationalRecordDrawerProps) {
   const drawerRef = useRef<HTMLElement | null>(null);
+  const backdropRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     const releaseScrollLock = acquireDocumentScrollLock();
+    const visualViewport = window.visualViewport;
+    const syncVisualViewport = () => {
+      const top = visualViewport?.offsetTop ?? 0;
+      const left = visualViewport?.offsetLeft ?? 0;
+      const width = visualViewport?.width ?? window.innerWidth;
+      const height = visualViewport?.height ?? window.innerHeight;
+      for (const element of [backdropRef.current, drawerRef.current]) {
+        if (!element) continue;
+        element.style.setProperty('--sms-overlay-vv-top', `${top}px`);
+        element.style.setProperty('--sms-overlay-vv-left', `${left}px`);
+        element.style.setProperty('--sms-overlay-vv-width', `${width}px`);
+        element.style.setProperty('--sms-overlay-vv-height', `${height}px`);
+      }
+    };
+    syncVisualViewport();
+    visualViewport?.addEventListener('scroll', syncVisualViewport);
+    visualViewport?.addEventListener('resize', syncVisualViewport);
     const timer = window.setTimeout(() => closeRef.current?.focus({ preventScroll: true }), 0);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -54,13 +73,16 @@ export function OperationalRecordDrawer({ open, eyebrow, title, subtitle, status
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener('keydown', onKeyDown);
+      visualViewport?.removeEventListener('scroll', syncVisualViewport);
+      visualViewport?.removeEventListener('resize', syncVisualViewport);
       releaseScrollLock();
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
-  return <div className="signature-drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  return createPortal(<>
+    <div ref={backdropRef} className="signature-drawer-backdrop" role="presentation" onMouseDown={onClose} />
     <aside ref={drawerRef} className="signature-record-drawer operational-drawer" role="dialog" aria-modal="true" aria-labelledby="signature-record-drawer-title">
       <header className="signature-record-drawer__header">
         <div className="signature-record-drawer__identity">
@@ -87,5 +109,5 @@ export function OperationalRecordDrawer({ open, eyebrow, title, subtitle, status
         {secondaryActions.map((action) => <button type="button" key={action.label} className={actionClass(action.tone || 'secondary')} onClick={action.onSelect}>{action.icon && <SmsIcon name={action.icon} size={17} />}{action.label}</button>)}
       </footer>}
     </aside>
-  </div>;
+  </>, document.body);
 }
