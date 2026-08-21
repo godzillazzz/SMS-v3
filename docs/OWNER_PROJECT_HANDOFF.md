@@ -191,13 +191,130 @@ Important rules:
 
 No email addresses or SMTP credentials belong in this document.
 
-## G06 / G07 OWNER-APPROVED NO-PHOTO SECURITY MODEL
+## COMMON APPROVAL WORKFLOW STANDARD — OWNER APPROVED
 
-OWNER DECISION SUPERSEDING THE EARLIER PHOTO REQUIREMENT:
+Owner decision: workflows that send a request to ADMIN/MANAGER for review must
+not be designed as only a binary APPROVE / REJECT choice when correction and
+withdrawal are legitimate operational outcomes.
 
-Attendance and Patrol must NOT require or retain employee photos in the current
-approved version. SMS must NOT implement its own Face Recognition for this
-scope.
+Default review-state vocabulary for applicable approval loops:
+
+DRAFT
+→ PENDING_APPROVAL
+→ APPROVED / RETURNED_FOR_CORRECTION / REJECTED / CANCELLED
+
+Required semantic distinction:
+
+- APPROVED: terminal reviewer approval; the authorized business effect may be
+  applied according to that module's transaction rules.
+- RETURNED_FOR_CORRECTION: non-terminal. The reviewer is not rejecting the
+  request. The request owner may correct the identified fields and resubmit the
+  same governed request/revision.
+- REJECTED: terminal reviewer decision for that request/revision; a reason is
+  required where the workflow supports rejection.
+- CANCELLED: withdrawal by the request owner or another explicitly authorized
+  role while cancellation remains legally/operationally valid. Cancellation
+  is not the same as reviewer rejection.
+
+Where applicable, the review UI must expose actions equivalent to:
+
+- อนุมัติ / Approve
+- ส่งกลับไปแก้ไข / Return for Correction
+- ไม่อนุมัติ / Reject
+- ยกเลิกคำขอ / Cancel Request
+
+The exact action set may vary where a domain rule makes one action impossible,
+but any omission must be intentional and documented rather than a generic
+binary-approval shortcut.
+
+Workflow requirements:
+
+- Every transition must preserve immutable audit history: request/revision,
+  previous state, next state, actor, timestamp, and reason/comment where
+  applicable.
+- RETURNED_FOR_CORRECTION must not overwrite the prior reviewer decision or
+  prior submitted values. Resubmission must remain traceable.
+- APPROVED business effects must occur only after the authorized approval
+  transition succeeds.
+- A pending or returned request must not silently mutate authoritative master
+  data unless that module explicitly uses a different Owner-approved model.
+- Reviewer notifications and queue visibility should follow the actionable
+  state, not create duplicate queue items for each resubmission.
+- Existing module-specific authority remains authoritative. This common model
+  does not grant MANAGER authority where a feature is ADMIN-only, such as
+  Attendance/Patrol primary-device replacement.
+
+This standard must be reviewed for every existing/new module that has an
+approval loop, including Employee Master changes, registration, leave,
+license/document review, Attendance corrections/exceptions, and other governed
+requests. Existing business rules are not silently changed merely by this
+standard; each module must be mapped explicitly before implementation.
+
+## EMPLOYEE MASTER EDIT + STATUS GOVERNANCE — OWNER APPROVED
+
+Employee Master should present one coherent Edit Employee experience rather
+than forcing ordinary employee-data editing and employment-status management
+into unrelated controls.
+
+The Edit Employee surface should be able to contain, as applicable:
+
+- employee/general information
+- organization/department/position information
+- employment status and effective date/reason
+- employee reference face photo used for Attendance identity verification
+- current/pending change state
+- relevant status/change history
+
+Authority model:
+
+ADMIN edit
+→ may apply the authorized change directly
+→ audit required
+
+MANAGER edit
+→ create governed Employee Master change request
+→ PENDING_ADMIN_APPROVAL
+→ authoritative Employee Master remains unchanged until ADMIN approval
+
+ADMIN review of a Manager-originated Employee Master change must support:
+
+- APPROVE
+- RETURN_FOR_CORRECTION
+- REJECT
+
+The Manager/request owner must be able to CANCEL a still-pending or returned
+request where no terminal decision/business effect has occurred.
+
+Admin review should show a clear before/after diff for the proposed changes,
+including employment-status transitions and effective-date/reason where
+applicable.
+
+Employment status is not a cosmetic field. A change such as ACTIVE → INACTIVE
+or RESIGNED may affect operational eligibility, Schedule, Attendance, Patrol,
+and other current-work views. Historical records must not be deleted merely
+because status changes.
+
+Manager-proposed employment-status changes must not become effective before
+ADMIN approval.
+
+Employee reference face-photo replacement is security-sensitive and follows
+the same authority principle:
+
+- ADMIN may replace the active reference photo directly with audit.
+- MANAGER may propose a replacement, but the new reference photo must not
+  become authoritative until ADMIN approval.
+
+This prevents a lower-authority reference-photo change from bypassing the
+Attendance identity-control layer.
+
+## G06 / G07 OWNER-APPROVED ATTENDANCE/PATROL IDENTITY SECURITY MODEL
+
+OWNER DECISION SUPERSEDING THE EARLIER ABSOLUTE NO-PHOTO / NO-FACE LANGUAGE:
+
+Attendance and Patrol must continue to avoid storing employee photos for each
+check-in/check-out/patrol event. However, SMS may retain one authoritative
+Employee Reference Photo in Employee Master for 1:1 identity verification at
+Attendance check-in/check-out.
 
 The approved security/evidence model is:
 
@@ -211,6 +328,12 @@ GPS / GEOFENCE
 +
 STATIC SECURE PAPER QR
 +
+EMPLOYEE REFERENCE PHOTO
++
+1:1 LIVE FACE VERIFICATION
++
+LIVENESS / ANTI-SPOOF
++
 SCHEDULE / SHIFT / ROUTE AUTHORITY
 +
 SERVER TIME
@@ -221,15 +344,43 @@ RISK ENGINE
 +
 CONTROLLED OFFLINE FALLBACK
 
-NO PHOTO STORAGE.
-NO FACE TEMPLATE.
-NO SMS FACE RECOGNITION.
-NO CONTINUOUS GPS TRACKING.
+Important identity/photo rules:
 
-The design goal is to keep Attendance/Patrol lightweight in storage and
-bandwidth so the current hosting model can remain viable as long as practical.
-This is a design goal, not a guarantee that an external free tier will remain
-sufficient forever.
+- Employee Reference Photo: retained as an authoritative Employee Master
+  security reference.
+- Attendance check-in photo: NOT retained as event evidence.
+- Attendance check-out photo: NOT retained as event evidence.
+- Patrol event employee photo: NOT retained as event evidence under the current
+  approved scope.
+- Live camera frames used for face/liveness verification are temporary
+  processing data and must be discarded after verification; they must not be
+  silently written to Attendance/Patrol evidence storage.
+- Face verification is 1:1 only: the authenticated/assigned Employee is already
+  known and the live face is compared only with that Employee's authoritative
+  reference.
+- 1:N face identification/search across the employee roster is NOT required and
+  is not approved by this decision.
+- Liveness/anti-spoof is required together with face matching; a plain still
+  photo-to-live-frame similarity check alone is not sufficient.
+- Do not classify a face-verification failure as misconduct automatically.
+  Preserve it as a verification/risk outcome for retry/review according to
+  policy.
+- NO CONTINUOUS GPS TRACKING.
+
+The purpose of the face layer is anti-buddy-punching: Device + GPS + QR can
+show that the assigned device is at the expected location, while 1:1 face
+verification adds evidence that the person presenting the device matches the
+Employee reference identity.
+
+The other approved security layers remain mandatory; face verification does
+not replace Device Enrollment, Device Credential, GPS/Geofence, Static Secure
+QR, Schedule/Shift authority, Server Time, Anti-Replay, Risk Engine, or
+Controlled Offline safeguards.
+
+Current operating scale is approximately 65 employees. This makes reference
+photo storage small, but implementation choices must still be driven by
+security, privacy, liveness quality, offline behavior, device compatibility,
+and cost rather than by storage size alone.
 
 ## PASSKEY ROLE — IMPORTANT
 
@@ -301,6 +452,9 @@ Requirements:
 - Employee must not be able to self-activate unlimited replacement devices.
 - Manager must not approve the device replacement.
 - ADMIN can approve according to existing Admin authority and audit rules.
+- The common approval-workflow standard may add Return for Correction / Cancel
+  semantics to the request lifecycle where technically appropriate, but the
+  actual approval authority remains ADMIN ONLY.
 
 If the old device is lost/unavailable, Admin-controlled replacement remains the
 recovery path.
@@ -339,13 +493,13 @@ The QR must therefore be validated together with:
 - geofence radius
 - server validation/time
 - Schedule/Shift or Patrol Route authority
+- face/liveness verification where Attendance policy requires it
 
 Scanning a copied QR away from the physical location should result in a
 location mismatch/risk outcome rather than normal verified attendance.
 
-The QR-scanning camera is used only to decode the QR. Camera frames/photos are
-not stored as Attendance/Patrol evidence and must not be uploaded as employee
-photos.
+The QR-scanning camera is used only to decode the QR. QR camera frames/photos
+are not stored as Attendance/Patrol evidence.
 
 Gallery-based QR import should not be a normal employee scanning path.
 
@@ -366,20 +520,29 @@ Open SMS
 → obtain GPS
 → verify active enrolled personal device
 → validate authoritative Schedule / Shift / Expected Site
+→ capture temporary live front-camera frames
+→ perform liveness / anti-spoof
+→ perform 1:1 face verification against that Employee's reference photo
+→ discard live frames after verification
 → server decides CHECK-IN or CHECK-OUT from current Attendance state
 → return verified result or risk/review result
 
 Employees do not manually select Expected Site, Shift, Duty, or Patrol Route.
 Those come from authoritative Schedule/assignment.
 
-No employee photo capture is required under the current policy.
+No check-in/check-out employee photo is retained under the current policy.
 
 ### ONLINE
 
 - Server receivedAt/server time is authoritative for receipt.
 - Capture context includes stable captureId and device credential proof.
-- Server validates idempotency, assignment, site, geofence, device, QR, and
-  risk rules.
+- Server validates idempotency, assignment, site, geofence, device, QR, face
+  verification result/proof appropriate to the final design, and risk rules.
+- Live face frames must be discarded after verification and must not be retained
+  merely for routine Attendance evidence.
+- A bounded retry policy may be used for ordinary face/liveness failure caused
+  by lighting, pose, camera quality, or similar conditions; repeated failure
+  becomes a governed risk/exception outcome rather than an automatic accusation.
 
 ### CONTROLLED OFFLINE
 
@@ -394,9 +557,22 @@ Capture locally with at least:
 - scanned static secure QR reference/token proof
 - active enrolled device credential/signature proof appropriate to the design
 - cached/signed expected Schedule/Site context where applicable
+- face/liveness verification result/proof appropriate to the final approved
+  offline design
 
 Display OFFLINE_PENDING / saved on device / waiting sync.
 Never present offline pending as server-confirmed Attendance.
+
+The combination of FACE REQUIRED + NO EVENT PHOTO RETENTION + OFFLINE means the
+system must not solve offline verification by silently storing raw live-face
+images for later server comparison. The preferred architecture direction is
+on-device/local verification with a signed/tamper-resistant result/proof where
+technically supportable.
+
+If secure on-device liveness/1:1 verification cannot be achieved reliably in
+the selected Web/PWA stack, that limitation must be surfaced at a separate
+architecture gate. A small native Android hardening path may then be considered;
+it is not automatically authorized merely by this document.
 
 On reconnect:
 
@@ -413,6 +589,7 @@ Server must revalidate:
 - QR validity/revocation
 - GPS/accuracy
 - capturedAt versus receivedAt
+- face/liveness result/proof according to the approved offline design
 - timing and risk
 
 Both capturedAt and receivedAt must be preserved. Sync time must not silently
@@ -423,8 +600,8 @@ Owner defaults retained:
 - Normal offline sync window: 24 hours
 - Local unsynced hard retention: 7 days
 - >24h unsynced/late arrival: overdue/review; do not silently discard
-- unresolved offline/time/schedule/location conflicts block official month
-  certification until resolved
+- unresolved offline/time/schedule/location/identity conflicts block official
+  month certification until resolved
 
 The browser/PWA queue must use stable idempotency/capture IDs so retries do not
 create duplicate Attendance records.
@@ -453,14 +630,18 @@ create duplicate Attendance records.
   actor, time, and Audit are required.
 - Device replacement remains ADMIN-only even though operational Attendance
   corrections may permit Manager/Admin according to correction policy.
+- Face/liveness failure is a verification/risk outcome, not proof of deliberate
+  buddy punching or misconduct by itself.
 
 ## G07 PATROL / CHECKPOINT APPROVED DIRECTION
 
 PS and PN are Patrol Routes, not shift names.
 Attendance is independent from Patrol execution.
 
-Patrol uses the same personal-device and no-photo security principles, plus
-checkpoint/route validation.
+Patrol uses the same personal-device security principles, plus
+checkpoint/route validation. Current Owner approval adds reference-face 1:1
+verification specifically to Attendance check-in/check-out anti-buddy-punching;
+it does not automatically require a live face step at every Patrol checkpoint.
 
 Per checkpoint event:
 
@@ -519,6 +700,8 @@ Candidate risk/result vocabulary should include at least concepts such as:
 - TIME_ABNORMAL
 - OFFLINE_OVERDUE
 - LOCATION_RISK
+- FACE_VERIFICATION_FAILED
+- LIVENESS_FAILED
 
 Do not assume one signal proves misconduct. Preserve enough audit evidence for
 Supervisor/Admin review according to RBAC.
@@ -531,13 +714,14 @@ perfect.
 
 Most field guards are expected to use Android devices.
 
-If Web/PWA device binding proves insufficient in real operation, a future
-small Android app may harden device identity using platform capabilities such
-as:
+If Web/PWA device binding or secure offline face/liveness verification proves
+insufficient in real operation, a future small Android app may harden device
+identity/verification using platform capabilities such as:
 
 - Android Keystore
 - non-exportable app/device keys where supported
 - Play Integrity or equivalent app/device integrity signals
+- on-device 1:1 face/liveness capability where separately selected and tested
 - GPS
 - Static Secure Paper QR
 
@@ -547,30 +731,52 @@ client may continue to use the existing backend hosting architecture.
 Do not start a native app merely to satisfy G06/G07 unless a later Owner gate
 authorizes it.
 
-## NO-PHOTO DATA / STORAGE DECISION
+## EVENT-PHOTO / FACE DATA STORAGE DECISION
 
 For G06 Attendance and G07 Patrol under the current Owner decision:
 
-- No employee check-in/check-out photo storage.
-- No Patrol employee photo storage.
-- No Face Recognition model/template.
-- No image evidence retention requirement for Attendance/Patrol.
-- No Attendance/Patrol photo binary in PostgreSQL/object storage.
+- One authoritative Employee Reference Photo may be retained per Employee for
+  1:1 Attendance identity verification.
+- No employee check-in/check-out photo is retained as Attendance event evidence.
+- No Patrol employee event photo is retained under the current approved scope.
+- Live face/liveness camera frames are temporary processing data and must be
+  discarded after verification.
+- No Attendance/Patrol routine event-photo binary is stored in PostgreSQL/object
+  storage.
 - QR camera frames are not retained as evidence.
 - GPS remains event-based, not continuous tracking.
+- Broad 1:N employee face identification is not required/approved.
+- Persisting a reusable biometric template/embedding is NOT automatically
+  authorized by the reference-photo decision. If the selected implementation
+  requires persistent templates/embeddings, that requires an explicit
+  architecture/security/privacy decision before implementation.
 
-This materially reduces object-storage, bandwidth, backup, and retention load.
+Reference-photo governance:
+
+- The active reference photo is security-sensitive Employee Master data.
+- ADMIN replacement is direct + audited.
+- MANAGER replacement is pending until ADMIN approval.
+- Change history/audit metadata must remain traceable.
+- Old reference-photo binary retention/deletion safety window must be defined
+  before implementation; do not retain superseded biometric/reference images
+  indefinitely without an approved purpose.
+
+This remains materially lighter than storing a fresh photo for every
+check-in/check-out event.
 
 Existing License document storage is a separate feature and is not removed by
-this no-photo Attendance/Patrol decision.
+this Attendance/Patrol event-photo decision.
 
-## FUTURE PHOTO POLICY EXTENSION — OWNER-APPROVED DESIGN REQUIREMENT
+## FUTURE EVENT-PHOTO POLICY EXTENSION — OWNER-APPROVED DESIGN REQUIREMENT
 
-The current policy is NO PHOTO, but the architecture must preserve a clean
-future extension point so a later Owner policy can enable photo evidence
-without rebuilding Attendance/Patrol core logic.
+Current policy permits an Employee Reference Photo for 1:1 Attendance face
+verification, but routine Attendance/Patrol event photos are NOT retained.
 
-Do NOT create unused photo storage merely for this possibility now.
+The architecture must preserve a clean future extension point so a later Owner
+policy can enable event-photo evidence without rebuilding Attendance/Patrol
+core logic.
+
+Do NOT create unused event-photo storage merely for this possibility now.
 Instead, keep Attendance/Patrol event identity and validation independent from
 optional evidence storage so a future additive design can support concepts
 such as:
@@ -579,20 +785,23 @@ AttendanceEvent / PatrolEvent
 → optional Evidence relation
 → evidence type PHOTO when later authorized
 
-A future photo-enabled release may add an additive evidence model with fields
-such as event reference, evidence type, storage provider, object key/reference,
-checksum, capturedAt, and retention policy.
+A future event-photo-enabled release may add an additive evidence model with
+fields such as event reference, evidence type, storage provider, object
+key/reference, checksum, capturedAt, and retention policy.
 
 Future policy may support, after a separate Owner gate:
 
-- NO PHOTO
-- PHOTO OPTIONAL
-- PHOTO REQUIRED
-- PHOTO REQUIRED only for selected Site/risk/policy cases
+- NO EVENT PHOTO
+- EVENT PHOTO OPTIONAL
+- EVENT PHOTO REQUIRED
+- EVENT PHOTO REQUIRED only for selected Site/risk/policy cases
 
-A future photo policy is a separate implementation/release/privacy/storage gate.
-Do not silently enable photo capture, upload, retention, or face recognition.
-Face Recognition remains prohibited unless separately and explicitly approved.
+A future event-photo policy is a separate implementation/release/privacy/storage
+gate. Do not silently enable routine event-photo capture, upload, or retention.
+
+The currently approved face capability is limited to 1:1 verification against
+the known Employee reference with liveness/anti-spoof. Broad 1:N face
+identification across the employee roster remains outside the approved scope.
 
 ## DATA RETENTION ARCHITECTURE — OWNER APPROVED
 
@@ -630,8 +839,8 @@ artificially extend raw retention when the validated event occurred earlier.
 The raw-data purge must NOT silently delete official governance records.
 
 Attendance raw retention covers high-volume event/evidence/technical data such
-as event GPS, accuracy, QR/device validation context, sync/technical metadata,
-and raw risk details according to the final schema.
+as event GPS, accuracy, QR/device/identity validation context,
+sync/technical metadata, and raw risk details according to the final schema.
 
 Attendance monthly certification / official summary records are NOT covered by
 the 12-month raw-data purge unless a later Owner-approved policy explicitly
@@ -643,6 +852,10 @@ records according to the final schema.
 Patrol official/monthly summary records are NOT covered by the 3-month raw-data
 purge unless a later Owner-approved policy explicitly changes that rule.
 
+Employee Reference Photo is Employee Master security/reference data, not an
+Attendance raw event, and therefore is NOT governed by the 12-month raw-event
+purge. Its replacement/deletion policy is a separate reference-photo rule.
+
 ### OPERATIONAL LOGS VERSUS SECURITY / GOVERNANCE AUDIT
 
 Routine System Operational/Usage Logs may follow the 6-month retention policy.
@@ -650,7 +863,8 @@ Routine System Operational/Usage Logs may follow the 6-month retention policy.
 Security/Governance Audit is a separate data class and must NOT be silently
 included in the 6-month operational-log purge.
 Examples include Admin device replacement approval, Attendance correction,
-month unlock/certification action, QR regeneration/revocation, privileged
+month unlock/certification action, QR regeneration/revocation, Employee Master
+change approval, reference-photo replacement approval, privileged
 configuration changes, destructive data actions, and similar governance events.
 
 Security/Governance Audit retention requires its own policy. Until explicitly
@@ -755,16 +969,19 @@ broader data class.
 
 ## CAPACITY / FREE-TIER OPERATING DIRECTION
 
-The current NO-PHOTO + bounded-retention design is intentionally optimized to
-reduce object storage, bandwidth, backup load, and long-term raw database
-growth.
+The current no-Attendance-event-photo + bounded-retention design is
+intentionally optimized to reduce object storage, bandwidth, backup load, and
+long-term raw database growth. The addition of one Employee Reference Photo
+per Employee remains small at the current workforce scale compared with
+retaining photos for every Attendance event.
 
 This can materially extend the practical life of the current small/free hosting
 model, but no external provider free tier is guaranteed indefinitely.
 
 After G06/G07 real usage begins, capacity decisions should be based on measured
 usage rather than assumptions. Track at least database size/growth, request
-volume, function/runtime use, bandwidth, and any applicable provider limits.
+volume, function/runtime use, bandwidth, face/liveness verification cost where
+applicable, and any applicable provider limits.
 
 A future Admin capacity view may show current usage, growth trend, and estimated
 remaining capacity. This is recommended future operational tooling, not a
@@ -792,8 +1009,9 @@ rollback mechanics.
 OWNER DECISION UPDATE:
 
 Self-host migration is NOT required solely because Attendance/Patrol is being
-built. The no-photo model substantially reduces the storage pressure that had
-made early self-host migration more attractive.
+built. The no-event-photo model substantially reduces the storage pressure
+that had made early self-host migration more attractive. One reference photo
+per Employee does not by itself change that conclusion.
 
 Current hosting may continue while G06/G07 are developed and measured.
 Self-host remains an option when scale, policy, integration, reliability,
@@ -987,31 +1205,41 @@ Immediate development/release priorities:
 
 1. Preserve the verified EMAIL-01P Production release and immediate rollback
    checkpoint; do not deploy the broader development lineage.
-2. Update G06 implementation/design from the superseded mandatory-photo model
-   to the approved NO-PHOTO + PERSONAL DEVICE + STATIC SECURE QR model before
-   continuing employee Attendance implementation.
-3. Design/implement personal device enrollment and ADMIN-only device
+2. Design/implement the common approval-workflow standard and integrate
+   Employee Master status/general edit into one governed Edit Employee flow.
+3. Ensure Manager-originated Employee Master changes use
+   PENDING_ADMIN_APPROVAL with Approve / Return for Correction / Reject and
+   request-owner Cancel semantics, with immutable before/after audit.
+4. Perform a dedicated architecture/security/privacy/cost/device audit for
+   Employee Reference Photo + 1:1 Face Verification + Liveness before choosing
+   the implementation/vendor/library. Do not implement broad 1:N identification.
+5. Design the offline face/liveness approach so NO event-photo retention is
+   preserved. If secure Web/PWA on-device verification is insufficient, surface
+   that as a later Android hardening decision rather than storing raw offline
+   face images silently.
+6. Design/implement personal device enrollment and ADMIN-only device
    replacement authority.
-4. Design/implement static secure Site QR and Checkpoint QR lifecycle,
+7. Design/implement static secure Site QR and Checkpoint QR lifecycle,
    including regenerate/revoke and location binding.
-5. Add the configurable retention architecture to G06/G07 design so raw data
+8. Add the configurable retention architecture to G06/G07 design so raw data
    classes are explicitly identified before the retention worker can delete
    anything.
-6. Implement ADMIN-only Data Retention settings, policy audit, impact preview,
+9. Implement ADMIN-only Data Retention settings, policy audit, impact preview,
    and safe delayed application for retention reductions.
-7. Design the automatic daily retention worker with fail-closed data-class
-   boundaries and compact purge summaries.
-8. Preserve an optional future photo-evidence extension point without creating
-   or retaining employee photo data now.
-9. Continue Attendance/Patrol server validation and mobile UX without
-   introducing image evidence storage.
-10. Before real controlled-offline employee rollout, obtain explicit Owner
+10. Design the automatic daily retention worker with fail-closed data-class
+    boundaries and compact purge summaries.
+11. Preserve the optional future event-photo-evidence extension point without
+    enabling routine Attendance/Patrol event-photo storage.
+12. Continue Attendance/Patrol server validation and mobile UX with the approved
+    identity stack; face verification augments rather than replaces Device,
+    GPS, QR, Schedule, Server Time, Anti-Replay, Risk, and Offline controls.
+13. Before real controlled-offline employee rollout, obtain explicit Owner
     decision on rollout origin strategy.
-11. After real G06/G07 usage begins, measure capacity/growth before deciding on
-    paid hosting or self-host migration.
+14. After real G06/G07 usage begins, measure capacity/growth and face/liveness
+    verification cost before deciding on paid hosting or self-host migration.
 
 Do not start G07 Production rollout before G06 foundations required by the
-shared device/location/QR security model are stable.
+shared device/location/QR/identity security model are stable.
 
 ## OWNER INPUT / FUTURE GATES
 
@@ -1023,12 +1251,21 @@ Still requiring explicit Owner decisions when relevant:
 - whether/when to self-host
 - R330 exact disk/controller health before any self-host Production use
 - exact Patrol route sequencing/policy where not yet defined
-- any future native Android hardening gate
-- any future change from NO PHOTO to optional/required photo evidence
+- implementation/provider/library choice for 1:1 face verification and
+  liveness/anti-spoof
+- secure offline face/liveness design and whether a native Android hardening
+  gate is required
+- reference-photo capture quality rules, replacement safety window, and
+  superseded-binary deletion policy
+- whether persistent biometric templates/embeddings are ever required; current
+  approval does not automatically authorize them
+- any future change from NO EVENT PHOTO to optional/required event-photo
+  evidence
 - Security/Governance Audit retention duration
 
 Do not request or record passwords, tokens, cookies, private keys, SMTP
-credentials, or similar secrets in this file.
+credentials, biometric templates, or similar secrets/sensitive artifacts in
+this file.
 
 ## SAFETY / RELEASE RULES
 
@@ -1041,7 +1278,8 @@ credentials, or similar secrets in this file.
   authorization.
 - Never deploy from a dirty or wrong worktree.
 - Use isolated clones/worktrees under the authorized Owner workspace root.
-- Never put passwords, tokens, cookies, or private keys in this handoff.
+- Never put passwords, tokens, cookies, private keys, or biometric artifacts in
+  this handoff.
 - No destructive Production UAT.
 - Never edit live source directly on a Production server.
 - Preserve the rollback checkpoint.
@@ -1052,6 +1290,14 @@ credentials, or similar secrets in this file.
 - Operational eligibility remains isActive === true && deletedAt === null
   unless a later Owner-approved domain rule explicitly supersedes it.
 - Risk flags are evidence for validation/review, not automatic accusations.
+- Approval-loop transitions must preserve immutable audit and distinguish
+  Returned for Correction, Rejected, and Cancelled outcomes.
+- Manager-originated Employee Master changes must not mutate authoritative
+  master data before ADMIN approval.
+- Reference-photo changes are security-sensitive and must follow the approved
+  authority/audit model.
+- Routine Attendance/Patrol event-photo retention remains prohibited under the
+  current policy; live verification frames are ephemeral.
 - Retention deletion must be data-class scoped, policy driven, audited in
   compact form, and fail closed on ambiguity.
 - Increasing retention cannot restore already-purged data.
@@ -1070,7 +1316,21 @@ self-host remain outside Production.
 
 G06/G07 architecture is now Owner-locked to:
 
-NO PHOTO
+COMMON APPROVAL WORKFLOW STANDARD
++
+EMPLOYEE MASTER UNIFIED EDIT / STATUS GOVERNANCE
++
+MANAGER CHANGES → ADMIN APPROVAL
++
+APPROVE / RETURN FOR CORRECTION / REJECT / CANCEL
++
+NO ATTENDANCE/PATROL EVENT PHOTO STORAGE
++
+EMPLOYEE REFERENCE PHOTO
++
+1:1 FACE VERIFICATION + LIVENESS
++
+NO 1:N FACE IDENTIFICATION
 +
 PERSONAL DEVICE ENROLLMENT
 +
@@ -1101,10 +1361,12 @@ Official Attendance/Patrol summary/certification records are outside these raw
 purges. Security/Governance Audit is also outside the 6-month operational-log
 purge until its separate retention policy is explicitly approved.
 
-The current NO-PHOTO decision supersedes the earlier mandatory fresh-photo
-Attendance requirement in prior handoff text or earlier chat context, while
-the architecture must preserve a future additive photo-evidence extension
-point for a separately authorized policy change.
+The earlier absolute NO-PHOTO / NO-FACE language is superseded by the current
+Owner decision. The current rule is more precise: retain one governed Employee
+Reference Photo for 1:1 Attendance verification, require liveness/anti-spoof,
+discard routine live verification frames, and do NOT retain check-in/check-out
+or Patrol event photos. All previously approved Device/GPS/QR/Schedule/Server
+Time/Anti-Replay/Risk/Offline controls remain in force.
 
 ## New Chat / New CODEX Session
 
