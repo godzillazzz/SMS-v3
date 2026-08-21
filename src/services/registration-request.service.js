@@ -3,6 +3,7 @@
 const prisma = require('../config/prisma');
 const audit = require('./audit.service');
 const HttpError = require('../utils/http-error');
+const { logger } = require('../utils/logger');
 
 const REGISTRATION_REVIEW_LOCK = 746281904;
 const ACTIONABLE_STATUSES = ['PENDING', 'MATCHED'];
@@ -48,7 +49,7 @@ function assertReviewable(request) {
   if (!ACTIONABLE_STATUSES.includes(request.status)) throw conflict('REGISTRATION_REQUEST_NOT_ACTIONABLE', 'Registration request is no longer actionable.');
 }
 
-function createRegistrationRequestService({ prismaClient = prisma, auditService = audit } = {}) {
+function createRegistrationRequestService({ prismaClient = prisma, auditService = audit, notificationService = null } = {}) {
   async function list({ page = 1, pageSize = 25, status }) {
     const where = {
       emailVerifiedAt: { not: null },
@@ -147,7 +148,7 @@ function createRegistrationRequestService({ prismaClient = prisma, auditService 
   async function approve({ id, actorUserId, actorRole }) {
     if (!['ADMIN', 'MANAGER'].includes(actorRole)) throw new HttpError(403, 'Registration approval is not permitted.');
     try {
-      return await prismaClient.$transaction(async (tx) => {
+      const result = await prismaClient.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${REGISTRATION_REVIEW_LOCK})`;
         const request = await tx.registrationRequest.findUnique({ where: { id } });
         assertReviewable(request);
@@ -200,6 +201,13 @@ function createRegistrationRequestService({ prismaClient = prisma, auditService 
         }, tx);
         return { request: await tx.registrationRequest.findUnique({ where: { id }, select: requestSelect }), user };
       }, { isolationLevel: 'Serializable' });
+      try {
+        const notifier = notificationService || require('./notification-email.service');
+        await notifier.notifyRegistrationDecision({ request: result.request, eventType: 'REGISTRATION_APPROVED' });
+      } catch (notificationError) {
+        logger.error('Registration approval notification failed after commit', { error: notificationError.message, registrationRequestId: result.request?.id });
+      }
+      return result;
     } catch (error) {
       if (error?.code === 'P2002' || error?.code === 'P2034') throw conflict('REGISTRATION_APPROVAL_CONFLICT', 'Registration approval conflicted with another account operation.');
       throw error;
@@ -207,7 +215,7 @@ function createRegistrationRequestService({ prismaClient = prisma, auditService 
   }
 
   async function reject({ id, reason, actorUserId }) {
-    return prismaClient.$transaction(async (tx) => {
+    const result = await prismaClient.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${REGISTRATION_REVIEW_LOCK})`;
       const request = await tx.registrationRequest.findUnique({ where: { id } });
       assertReviewable(request);
@@ -225,6 +233,13 @@ function createRegistrationRequestService({ prismaClient = prisma, auditService 
       }, tx);
       return after;
     }, { isolationLevel: 'Serializable' });
+    try {
+      const notifier = notificationService || require('./notification-email.service');
+      await notifier.notifyRegistrationDecision({ request: result, eventType: 'REGISTRATION_REJECTED' });
+    } catch (notificationError) {
+      logger.error('Registration rejection notification failed after commit', { error: notificationError.message, registrationRequestId: result?.id });
+    }
+    return result;
   }
 
   return { list, getById, searchCandidates, match, approve, reject };

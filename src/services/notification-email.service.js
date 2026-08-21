@@ -3,6 +3,8 @@ const prisma = require('../config/prisma');
 const env = require('../config/env');
 const { logger, errorCategory } = require('../utils/logger');
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function createTransporter(configuration = env) {
   if (configuration.otpDeliveryProvider !== 'gmail_smtp' || !configuration.smtpHost) {
     return null;
@@ -41,7 +43,10 @@ async function sendNotification({ to, subject, html, text }, options = {}) {
     log.info('Email notification skipped (system disabled)', { subject });
     return;
   }
-  const recipients = Array.isArray(to) ? [...new Set(to.map((e) => String(e).trim().toLowerCase()).filter(Boolean))] : [String(to).trim().toLowerCase()];
+  const recipients = [...new Set((Array.isArray(to) ? to : [to])
+    .filter((email) => email !== null && email !== undefined)
+    .map((email) => String(email).trim().toLowerCase())
+    .filter(Boolean))];
   if (!recipients.length) return;
 
   const transporter = createConfiguredTransporter(configuration);
@@ -50,74 +55,164 @@ async function sendNotification({ to, subject, html, text }, options = {}) {
     return;
   }
 
+  let sentCount = 0;
+  for (const recipient of recipients) {
+    try {
+      await transporter.sendMail({
+        from: configuration.otpFromEmail || configuration.smtpUsername,
+        to: recipient,
+        subject,
+        text: text || html.replace(/<[^>]+>/g, ''),
+        html
+      });
+      sentCount += 1;
+    } catch (error) {
+      log.error('Failed to send notification email', { errorCategory: errorCategory(error), subject, recipientCount: 1 });
+    }
+  }
+  if (sentCount > 0) log.info('Notification email sent successfully', { subject, recipientCount: sentCount });
+}
+
+async function reserveEmailDelivery(eventKey, context = {}) {
   try {
-    await transporter.sendMail({
-      from: configuration.otpFromEmail || configuration.smtpUsername,
-      to: recipients.join(', '),
-      subject,
-      text: text || html.replace(/<[^>]+>/g, ''),
-      html
+    return await prisma.emailDeliveryReservation.create({
+      data: { eventKey, status: 'RESERVED' }
     });
-    log.info('Notification email sent successfully', { subject, recipientCount: recipients.length });
   } catch (error) {
-    log.error('Failed to send notification email', { errorCategory: errorCategory(error), subject, recipientCount: recipients.length });
+    if (error?.code === 'P2002') {
+      logger.info('Email delivery reservation already exists (duplicate ignored)', { eventKey, ...context });
+      return null;
+    }
+    logger.error('Failed to create email delivery reservation', { error: error.message, eventKey, ...context });
+    return null;
   }
 }
 
-async function getAllEmployeeAndUserEmails() {
+async function deliverReservedEmail({ reservation, eventKey, recipient, subject, html, transporter, context = {} }) {
   try {
-    const [users, employees] = await Promise.all([
-      prisma.user.findMany({
-        where: { isActive: true, accountStatus: 'ACTIVE', email: { not: '' } },
-        select: { email: true }
-      }),
-      prisma.employee.findMany({
-        where: {
-          isActive: true,
-          deletedAt: null,
-          email: { not: null }
-        },
-        select: { email: true }
-      })
-    ]);
-    const userEmails = users.map((u) => u.email.trim().toLowerCase());
-    const empEmails = employees.map((e) => (e.email || '').trim().toLowerCase());
-    return [...new Set([...userEmails, ...empEmails].filter(Boolean))];
+    await prisma.emailDeliveryReservation.update({
+      where: { id: reservation.id },
+      data: { attemptCount: { increment: 1 } }
+    });
+    await transporter.sendMail({
+      from: env.otpFromEmail || env.smtpUsername,
+      to: recipient,
+      subject,
+      text: html.replace(/<[^>]+>/g, ''),
+      html
+    });
+    await prisma.emailDeliveryReservation.update({
+      where: { id: reservation.id },
+      data: { status: 'SENT', sentAt: new Date() }
+    });
+    logger.info('Notification email sent successfully', { eventKey, ...context });
+  } catch (sendError) {
+    const { category, safeMessage } = mapSmtpError(sendError);
+    logger.error('Failed to send notification email', { errorCategory: category, eventKey, ...context });
+    try {
+      await prisma.emailDeliveryReservation.update({
+        where: { id: reservation.id },
+        data: { status: 'FAILED', failedAt: new Date(), lastErrorCategory: category, lastErrorSafe: safeMessage }
+      });
+    } catch (dbError) {
+      logger.error('Failed to update email reservation to FAILED status', { error: dbError.message, eventKey, ...context });
+    }
+  }
+}
+
+async function getApprovedScheduleRecipients(month) {
+  try {
+    const [year, monthNumber] = String(month).split('-').map(Number);
+    const start = new Date(Date.UTC(year, monthNumber - 1, 1));
+    const end = new Date(Date.UTC(year, monthNumber, 1));
+    const assignments = await prisma.shiftAssignment.findMany({
+      where: { workDate: { gte: start, lt: end }, employee: { isActive: true, deletedAt: null } },
+      select: {
+        employeeId: true,
+        employee: {
+          select: {
+            id: true,
+            displayName: true,
+            firstName: true,
+            lastName: true,
+            user: { select: { id: true, email: true, isActive: true, accountStatus: true } }
+          }
+        }
+      }
+    });
+    const recipients = new Map();
+    for (const assignment of assignments) {
+      const user = assignment.employee?.user;
+      const email = user?.email?.trim().toLowerCase();
+      if (!user || user.isActive !== true || user.accountStatus !== 'ACTIVE' || !email || !EMAIL_REGEX.test(email)) continue;
+      recipients.set(user.id, {
+        userId: user.id,
+        employeeId: assignment.employeeId,
+        email,
+        displayName: assignment.employee.displayName || [assignment.employee.firstName, assignment.employee.lastName].filter(Boolean).join(' ')
+      });
+    }
+    return [...recipients.values()];
   } catch (err) {
-    logger.error('Failed to query all employee and user emails', { error: err.message });
+    logger.error('Failed to query approved schedule recipients', { error: err.message });
     return [];
   }
 }
 
 /**
- * 1. Admin approves monthly schedule -> Notify ALL employees & users
+ * 1. Admin approves monthly schedule -> Notify affected active employees
  */
 async function notifyScheduleApproved({ month, approvedBy, revision }) {
   try {
-    const allRecipientEmails = await getAllEmployeeAndUserEmails();
-    if (!allRecipientEmails.length) return;
+    if (env.emailNotificationsEnabled !== true) {
+      logger.info('Schedule approval email skipped (system disabled)', { month, revision });
+      return;
+    }
+    const transporter = createTransporter(env);
+    if (!transporter) {
+      logger.info('Schedule approval email skipped (SMTP disabled or not configured)', { month, revision });
+      return;
+    }
+    const scheduleRecipients = await getApprovedScheduleRecipients(month);
+    if (!scheduleRecipients.length) return;
 
     const [yearStr, monthStr] = month.split('-');
     const thaiMonth = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(yearStr), Number(monthStr) - 1, 1)));
     const thaiYear = Number(yearStr) + 543;
     const monthText = `${thaiMonth} ${thaiYear}`;
+    const safeMonth = escapeHtml(month);
+    const safeMonthText = escapeHtml(monthText);
+    const safeApprovedBy = escapeHtml(approvedBy || 'Admin');
 
     const subject = `SMS v3: แจ้งเตือนอนุมัติตารางกะประจำเดือน ${monthText}`;
     const html = `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">
         <h2 style="color: #059669; margin-top: 0;">✓ อนุมัติตารางกะประจำเดือนเรียบร้อยแล้ว</h2>
-        <p>เรียน พนักงานและทีมผู้บริหารทุกท่าน (All Employees & Management Team),</p>
-        <p>ตารางกะการทำงานประจำเดือน <strong>${monthText}</strong> ได้รับการตรวจสอบและอนุมัติอย่างเป็นทางการเรียบร้อยแล้ว</p>
+        <p>เรียน พนักงานที่มีตารางกะในเดือนนี้</p>
+        <p>ตารางกะการทำงานประจำเดือน <strong>${safeMonthText}</strong> ได้รับการตรวจสอบและอนุมัติอย่างเป็นทางการเรียบร้อยแล้ว</p>
         <table style="border-collapse: collapse; margin: 15px 0; width: 100%; background: #f8fafc; border-radius: 8px;">
-          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 140px;">ประจำเดือน:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${monthText} (${month})</td></tr>
-          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">ผู้อนุมัติ:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${approvedBy || 'Admin'}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 140px;">ประจำเดือน:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${safeMonthText} (${safeMonth})</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">ผู้อนุมัติ:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${safeApprovedBy}</td></tr>
           <tr><td style="padding: 10px; font-weight: bold;">สถานะตาราง:</td><td style="padding: 10px; color: #059669; font-weight: bold;">Approved (Revision ${revision || 1})</td></tr>
         </table>
         <p>ท่านสามารถเข้าสู่ระบบเพื่อตรวจสอบปฏิทินตารางกะการทำงานของตนเองได้ที่หน้า <strong>Schedule Calendar</strong></p>
         <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">ระบบ Security Management System v3</p>
       </div>
     `;
-    await sendNotification({ to: allRecipientEmails, subject, html });
+    for (const recipient of scheduleRecipients) {
+      const eventKey = 'schedule:' + month + ':revision:' + String(revision || 1) + ':APPROVED:employee:' + recipient.userId;
+      const reservation = await reserveEmailDelivery(eventKey, { userId: recipient.userId });
+      if (!reservation) continue;
+      await deliverReservedEmail({
+        reservation,
+        eventKey,
+        recipient: recipient.email,
+        subject,
+        html,
+        transporter,
+        context: { userId: recipient.userId, employeeId: recipient.employeeId }
+      });
+    }
   } catch (err) {
     logger.error('notifyScheduleApproved failed', { error: err.message });
   }
@@ -155,8 +250,71 @@ async function notifyNewRegistration({ displayName, email, department }) {
   }
 }
 
+async function notifyRegistrationDecision({ request, eventType }) {
+  if (!['REGISTRATION_APPROVED', 'REGISTRATION_REJECTED'].includes(eventType)) return;
+  if (env.emailNotificationsEnabled !== true) {
+    logger.info('Registration decision email skipped (system disabled)', { registrationRequestId: request?.id, eventType });
+    return;
+  }
+
+  const recipient = request?.email?.trim().toLowerCase();
+  if (!recipient || !EMAIL_REGEX.test(recipient)) {
+    logger.warn('Registration decision email skipped (missing or invalid applicant email)', { registrationRequestId: request?.id, eventType });
+    return;
+  }
+
+  const transporter = createTransporter(env);
+  if (!transporter) {
+    logger.info('Registration decision email skipped (SMTP disabled or not configured)', { registrationRequestId: request.id, eventType });
+    return;
+  }
+
+  const eventKey = 'registration:' + request.id + ':' + eventType + ':applicant';
+  const reservation = await reserveEmailDelivery(eventKey, { registrationRequestId: request.id });
+  if (!reservation) return;
+
+  const isApproved = eventType === 'REGISTRATION_APPROVED';
+  const safeName = escapeHtml(request.submittedName || 'ผู้สมัคร');
+  const safeReason = escapeHtml(request.rejectionReason || '-');
+  const appUrl = getPublicAppUrl(env);
+  const safeAppUrl = appUrl ? escapeHtml(appUrl) : '';
+  const linkHtml = safeAppUrl
+    ? '<p>เข้าสู่ระบบได้ที่: <a href="' + safeAppUrl + '">' + safeAppUrl + '</a></p>'
+    : '';
+  const subject = isApproved
+    ? 'SMS v3: บัญชีได้รับการอนุมัติแล้ว'
+    : 'SMS v3: ผลการพิจารณาคำขอลงทะเบียน';
+  const html = isApproved
+    ? '<div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">' +
+      '<h2 style="color: #059669; margin-top: 0;">บัญชีได้รับการอนุมัติแล้ว</h2>' +
+      '<p>เรียน คุณ ' + safeName + '</p>' +
+      '<p>บัญชีของคุณได้รับการอนุมัติแล้ว สามารถเข้าสู่ระบบได้</p>' +
+      linkHtml +
+      '<p style="color: #64748b; font-size: 13px;">ระบบ Security Management System v3</p>' +
+      '</div>'
+    : '<div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">' +
+      '<h2 style="color: #b91c1c; margin-top: 0;">ผลการพิจารณาคำขอลงทะเบียน</h2>' +
+      '<p>เรียน คุณ ' + safeName + '</p>' +
+      '<p>คำขอลงทะเบียนของคุณไม่ได้รับการอนุมัติ</p>' +
+      '<p>เหตุผล: ' + safeReason + '</p>' +
+      linkHtml +
+      '<p style="color: #64748b; font-size: 13px;">ระบบ Security Management System v3</p>' +
+      '</div>';
+
+  await deliverReservedEmail({
+    reservation,
+    eventKey,
+    recipient,
+    subject,
+    html,
+    transporter,
+    context: { registrationRequestId: request.id, eventType }
+  });
+}
+
 /**
- * 3. Leave request submitted -> Notify Admin & Manager group
+ * Legacy/unmounted leave-service helper. Active leave submission notifications
+ * use broadcastLeaveRequestEmail from operations.routes.js.
  */
 async function notifyLeaveSubmitted({ employeeName, leaveType, startDate, endDate, dayCount, reason, substitute, department }) {
   try {
@@ -190,7 +348,9 @@ async function notifyLeaveSubmitted({ employeeName, leaveType, startDate, endDat
 }
 
 /**
- * 4. Leave request approved/rejected -> Notify Requesting Employee AND Admin & Manager group
+ * Legacy/unmounted leave-service helper retained for compatibility. Active
+ * leave status notifications use notifyEmployeeLeaveStatusChange from
+ * operations.routes.js.
  */
 async function notifyLeaveProcessed({ leave, status, approverName }) {
   try {
@@ -340,58 +500,61 @@ async function broadcastLeaveRequestEmail(leaveRequest, requestUser) {
     logger.error('Failed to query employee details for leave request broadcast', { error: err.message, employeeId: leaveRequest.employeeId });
   }
 
-  // 4. Resolve active MANAGER recipients
-  let managers = [];
+  // 4. Resolve active ADMIN and MANAGER recipients
+  let reviewers = [];
   try {
-    managers = await prisma.user.findMany({
+    reviewers = await prisma.user.findMany({
       where: {
-        role: 'MANAGER',
+        role: { in: ['ADMIN', 'MANAGER'] },
         isActive: true,
         accountStatus: 'ACTIVE',
         email: { not: '' }
       },
       select: {
         id: true,
+        role: true,
         email: true,
         displayName: true
       }
     });
   } catch (err) {
-    logger.error('Failed to query manager recipients for leave request broadcast', { error: err.message });
+    logger.error('Failed to query reviewer recipients for leave request broadcast', { error: err.message });
     return;
   }
 
   // 5. Normalize, validate and deduplicate email addresses
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const eligibleManagers = [];
+  const eligibleReviewers = [];
   const seenUserIds = new Set();
 
-  for (const mgr of managers) {
-    if (!mgr.email || seenUserIds.has(mgr.id)) continue;
-    const trimmed = mgr.email.trim();
+  for (const reviewer of reviewers) {
+    if (!reviewer.email || seenUserIds.has(reviewer.id)) continue;
+    const trimmed = reviewer.email.trim();
     if (!trimmed) continue;
     const normalized = trimmed.toLowerCase();
     if (!emailRegex.test(normalized)) {
-      logger.warn('Skipping invalid manager email address', { managerUserId: mgr.id });
+      logger.warn('Skipping invalid reviewer email address', { reviewerUserId: reviewer.id });
       continue;
     }
-    seenUserIds.add(mgr.id);
-    eligibleManagers.push({
-      id: mgr.id,
+    seenUserIds.add(reviewer.id);
+    eligibleReviewers.push({
+      id: reviewer.id,
+      role: reviewer.role,
       email: normalized,
-      displayName: mgr.displayName
+      displayName: reviewer.displayName
     });
   }
 
-  if (!eligibleManagers.length) {
-    logger.info('No eligible managers found for leave request notification', { leaveRequestId: leaveRequest.id });
+  if (!eligibleReviewers.length) {
+    logger.info('No eligible leave reviewers found for leave request notification', { leaveRequestId: leaveRequest.id });
     return;
   }
 
   // 6. Create reservations outside of leave transaction (using individual inserts to capture duplicates per user safely)
   const reservationsToSend = [];
-  for (const mgr of eligibleManagers) {
-    const eventKey = `leave:${leaveRequest.id}:LEAVE_CREATED:manager:${mgr.id}`;
+  for (const reviewer of eligibleReviewers) {
+    const roleKey = reviewer.role === 'MANAGER' ? 'manager' : 'admin';
+    const eventKey = 'leave:' + leaveRequest.id + ':LEAVE_CREATED:' + roleKey + ':' + reviewer.id;
     try {
       const reservation = await prisma.emailDeliveryReservation.create({
         data: {
@@ -399,19 +562,19 @@ async function broadcastLeaveRequestEmail(leaveRequest, requestUser) {
           status: 'RESERVED'
         }
       });
-      reservationsToSend.push({ manager: mgr, reservation });
+      reservationsToSend.push({ reviewer, reservation });
     } catch (err) {
       if (err.code === 'P2002') {
-        logger.info('Email delivery reservation already exists (ignoring duplicate)', { eventKey, managerUserId: mgr.id });
+        logger.info('Email delivery reservation already exists (ignoring duplicate)', { eventKey, reviewerUserId: reviewer.id });
       } else {
-        logger.error('Failed to create email delivery reservation', { error: err.message, eventKey, managerUserId: mgr.id });
+        logger.error('Failed to create email delivery reservation', { error: err.message, eventKey, reviewerUserId: reviewer.id });
       }
     }
   }
 
   // 7. Send emails sequentially (concurrency limit = 1, ensuring all settle before returning)
   for (const item of reservationsToSend) {
-    const { manager, reservation } = item;
+    const { reviewer, reservation } = item;
     try {
       // Increment attempt count on database first
       await prisma.emailDeliveryReservation.update({
@@ -441,7 +604,7 @@ async function broadcastLeaveRequestEmail(leaveRequest, requestUser) {
 
       const escapedLeaveType = escapeHtml(leaveRequest.leaveType);
       const escapedReason = escapeHtml(leaveRequest.reason || '-');
-      const escapedManagerName = escapeHtml(manager.displayName || 'ผู้จัดการ');
+      const escapedManagerName = escapeHtml(reviewer.displayName || (reviewer.role === 'ADMIN' ? 'ผู้ดูแลระบบ' : 'ผู้จัดการ'));
       const escapedEmployeeDept = escapeHtml(employeeDept);
 
       const startText = leaveRequest.startDate ? new Date(leaveRequest.startDate).toISOString().slice(0, 10) : '';
@@ -473,7 +636,7 @@ async function broadcastLeaveRequestEmail(leaveRequest, requestUser) {
 
       await transporter.sendMail({
         from: env.otpFromEmail || env.smtpUsername,
-        to: manager.email,
+        to: reviewer.email,
         subject,
         text: html.replace(/<[^>]+>/g, ''),
         html
@@ -486,10 +649,10 @@ async function broadcastLeaveRequestEmail(leaveRequest, requestUser) {
           sentAt: new Date()
         }
       });
-      logger.info('Broadcast email sent to manager successfully', { eventKey: reservation.eventKey, managerUserId: manager.id });
+      logger.info('Broadcast email sent to reviewer successfully', { eventKey: reservation.eventKey, reviewerUserId: reviewer.id });
     } catch (sendErr) {
       const { category, safeMessage } = mapSmtpError(sendErr);
-      logger.error('Failed to send broadcast email to manager', { errorCategory: category, eventKey: reservation.eventKey, managerUserId: manager.id });
+      logger.error('Failed to send broadcast email to reviewer', { errorCategory: category, eventKey: reservation.eventKey, reviewerUserId: reviewer.id });
       try {
         await prisma.emailDeliveryReservation.update({
           where: { id: reservation.id },
@@ -501,7 +664,7 @@ async function broadcastLeaveRequestEmail(leaveRequest, requestUser) {
           }
         });
       } catch (dbErr) {
-        logger.error('Failed to update email reservation to FAILED status', { error: dbErr.message, eventKey: reservation.eventKey, managerUserId: manager.id });
+        logger.error('Failed to update email reservation to FAILED status', { error: dbErr.message, eventKey: reservation.eventKey, reviewerUserId: reviewer.id });
       }
     }
   }
@@ -776,6 +939,7 @@ async function notifyEmployeeLeaveStatusChange(leaveRequest, eventType, actorUse
 module.exports = {
   notifyScheduleApproved,
   notifyNewRegistration,
+  notifyRegistrationDecision,
   notifyLeaveSubmitted,
   notifyLeaveProcessed,
   broadcastLeaveRequestEmail,
