@@ -7,6 +7,10 @@ export type PersonnelRecord = {
   department?: string;
   jobTitle?: string;
   isActive: boolean;
+  email?: string | null;
+  phone?: string | null;
+  hiredAt?: string | null;
+  skill?: string | null;
   updatedAt?: string;
 };
 

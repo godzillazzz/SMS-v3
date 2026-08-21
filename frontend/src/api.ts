@@ -18,12 +18,14 @@ function responseRequestId(response: Response, payload?: unknown) {
 export class ApiRequestError extends Error {
   status: number;
   requestId?: string;
+  details?: unknown;
 
-  constructor(message: string, status: number, requestId?: unknown) {
+  constructor(message: string, status: number, requestId?: unknown, details?: unknown) {
     super(message);
     this.name = 'ApiRequestError';
     this.status = status;
     this.requestId = normalizeRequestId(requestId);
+    this.details = details;
   }
 }
 
@@ -66,7 +68,7 @@ async function call(path: string, init: RequestInit = {}, isRetry = false): Prom
       }
     }
     const errMessage = payload.error || (response.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ');
-    throw new ApiRequestError(errMessage, response.status, responseRequestId(response, payload));
+    throw new ApiRequestError(errMessage, response.status, responseRequestId(response, payload), payload.details);
   }
   return payload;
 }
@@ -169,6 +171,18 @@ export const api = {
   reportSummary: (token: string) => call('/reports/summary', { headers: { Authorization: `Bearer ${token}` } }),
   createEmployee: (token: string, data: unknown) => call('/employees', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateEmployee: (token: string, id: string, data: unknown) => call(`/employees/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
+  employeeChangeRequests: (token: string, employeeId: string) => call(`/employees/${encodeURIComponent(employeeId)}/change-requests`, { headers: { Authorization: `Bearer ${token}` } }),
+  preflightEmployeeMasterEdit: (token: string, employeeId: string, data: unknown) => call(`/employees/${encodeURIComponent(employeeId)}/master-edit/preflight`, { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
+  createEmployeeChangeDraft: (token: string, employeeId: string, data: unknown) => call(`/employees/${encodeURIComponent(employeeId)}/change-requests`, { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
+  employeeChangeRequestQueue: (token: string, status?: string) => call(`/employee-change-requests?page=1&pageSize=50${status ? `&status=${encodeURIComponent(status)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
+  employeeChangeRequest: (token: string, id: string) => call(`/employee-change-requests/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } }),
+  saveEmployeeChangeDraft: (token: string, id: string, data: unknown) => call(`/employee-change-requests/${encodeURIComponent(id)}/draft`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
+  submitEmployeeChangeRequest: (token: string, id: string, idempotencyKey: string) => call(`/employee-change-requests/${encodeURIComponent(id)}/submit`, { method: 'POST', body: JSON.stringify({ idempotencyKey }), headers: { Authorization: `Bearer ${token}` } }),
+  resubmitEmployeeChangeRequest: (token: string, id: string, idempotencyKey: string) => call(`/employee-change-requests/${encodeURIComponent(id)}/resubmit`, { method: 'POST', body: JSON.stringify({ idempotencyKey }), headers: { Authorization: `Bearer ${token}` } }),
+  cancelEmployeeChangeRequest: (token: string, id: string, idempotencyKey: string, reason?: string) => call(`/employee-change-requests/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ idempotencyKey, ...(reason ? { reason } : {}) }), headers: { Authorization: `Bearer ${token}` } }),
+  approveEmployeeChangeRequest: (token: string, id: string, idempotencyKey: string, acknowledgeWarnings = false) => call(`/employee-change-requests/${encodeURIComponent(id)}/approve`, { method: 'POST', body: JSON.stringify({ idempotencyKey, acknowledgeWarnings }), headers: { Authorization: `Bearer ${token}` } }),
+  returnEmployeeChangeRequest: (token: string, id: string, comment: string, idempotencyKey: string) => call(`/employee-change-requests/${encodeURIComponent(id)}/return-for-correction`, { method: 'POST', body: JSON.stringify({ comment, idempotencyKey }), headers: { Authorization: `Bearer ${token}` } }),
+  rejectEmployeeChangeRequest: (token: string, id: string, reason: string, idempotencyKey: string) => call(`/employee-change-requests/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify({ reason, idempotencyKey }), headers: { Authorization: `Bearer ${token}` } }),
   deleteEmployee: (token: string, id: string) => call(`/employees/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
   employeeLifecycleHistory: (token: string, id: string, page = 1) => call(`/employees/${id}/lifecycle?page=${page}&pageSize=50`, { headers: { Authorization: `Bearer ${token}` } }),
   employeeLifecycleState: (token: string, id: string, date: string) => call(`/employees/${id}/lifecycle/state?date=${encodeURIComponent(date)}`, { headers: { Authorization: `Bearer ${token}` } }),

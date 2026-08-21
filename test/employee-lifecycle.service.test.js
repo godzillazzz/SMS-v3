@@ -265,7 +265,8 @@ test('route contract keeps mutations ADMIN-only and lifecycle history read-only'
   assert.match(source, /post\('\/:id\/lifecycle', authorize\('ADMIN'\)/);
   assert.match(source, /get\('\/:id\/lifecycle', authorize\('ADMIN', 'MANAGER'\)/);
   assert.match(source, /expectedLifecycleSequence: z\.number\(\)\.int\(\)\.min\(0\)/);
-  assert.match(source, /LIFECYCLE_ACTION_REQUIRED/);
+  assert.match(source, /EMPLOYEE_CHANGE_REQUEST_REQUIRED/);
+  assert.match(source, /post\('\/:id\/master-edit\/preflight', authorize\('ADMIN'\)/);
   assert.match(source, /LIFECYCLE_TERMINATION_REQUIRED/);
   assert.doesNotMatch(source, /router\.(?:put|delete)\('\/:id\/lifecycle/);
 });

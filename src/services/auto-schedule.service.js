@@ -1,5 +1,6 @@
 const HttpError = require('../utils/http-error');
 const audit = require('./audit.service');
+const { validateScheduleRowsOperational } = require('./employee-operational-eligibility.service');
 const { isoWeek } = require('./schedule-rules.service');
 const { licenseStateForWorkDate } = require('./license-state.service');
 
@@ -278,8 +279,9 @@ async function commitAutoSchedule(prisma, month, actorUserId) {
     const employeeIds = [...new Set(plan.rows.map((row) => row.employeeId))];
     const al = await tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' }, select: { id: true } });
     const { start, end } = monthBounds(month);
-    const deleted = await tx.shiftAssignment.deleteMany({ where: { employeeId: { in: employeeIds }, workDate: { gte: start, lt: end }, locked: false, shiftTypeId: { not: al.id } } });
     const generated = plan.rows.filter((row) => !row.locked);
+    await validateScheduleRowsOperational(tx, generated.map((row) => ({ employeeId: row.employeeId, workDate: new Date(`${row.date}T00:00:00Z`), code: row.code })));
+    const deleted = await tx.shiftAssignment.deleteMany({ where: { employeeId: { in: employeeIds }, workDate: { gte: start, lt: end }, locked: false, shiftTypeId: { not: al.id } } });
     if (generated.length) await tx.shiftAssignment.createMany({ data: generated.map((row) => ({
       employeeId: row.employeeId, shiftTypeId: row.shiftTypeId, workDate: new Date(`${row.date}T00:00:00Z`), employeeNameSnapshot: row.employeeName,
       departmentSnapshot: row.department, startTime: row.startTime, endTime: row.endTime, hours: row.hours, remark: row.remark, source: 'AUTO', locked: false,
@@ -298,13 +300,14 @@ async function commitEmployeeAutoSchedule(prisma, month, employeeId, actorUserId
     const plan = await buildEmployeeAutoSchedulePlan(tx, month, employeeId, startPhase, patternType);
     const al = await tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' }, select: { id: true } });
     const { start, end } = monthBounds(month);
+    const generated = plan.rows.filter((row) => !row.locked);
+    await validateScheduleRowsOperational(tx, generated.map((row) => ({ employeeId: row.employeeId, workDate: new Date(`${row.date}T00:00:00Z`), code: row.code })));
     const deleted = await tx.shiftAssignment.deleteMany({
       where: {
         employeeId, workDate: { gte: start, lt: end }, shiftTypeId: { not: al.id },
         licenseOverride: false
       }
     });
-    const generated = plan.rows.filter((row) => !row.locked);
     if (generated.length) await tx.shiftAssignment.createMany({ data: generated.map((row) => ({
       employeeId: row.employeeId, shiftTypeId: row.shiftTypeId, workDate: new Date(`${row.date}T00:00:00Z`), employeeNameSnapshot: row.employeeName,
       departmentSnapshot: row.department, startTime: row.startTime, endTime: row.endTime, hours: row.hours, remark: row.remark, source: 'AUTO', locked: false,

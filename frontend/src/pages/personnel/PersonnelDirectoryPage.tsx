@@ -18,12 +18,13 @@ type Props = {
   searchValue?: string;
   onSearchValueChange?(value: string): void;
   onAdd(): void;
+  onReviewChanges?(): void;
   onEdit(employee: PersonnelRecord): void;
   onLifecycle(employee: PersonnelRecord): void;
   onRefresh(): void;
 };
 
-export function PersonnelDirectoryPage({ employees, totalCount, loading, error, canManage, role, searchValue, onSearchValueChange, onAdd, onEdit, onLifecycle, onRefresh }: Props) {
+export function PersonnelDirectoryPage({ employees, totalCount, loading, error, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, onLifecycle, onRefresh }: Props) {
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('');
   const [status, setStatus] = useState('');
@@ -51,7 +52,7 @@ export function PersonnelDirectoryPage({ employees, totalCount, loading, error, 
   const closeDrawer = () => { const id = lastSelectedId.current; setSelected(undefined); if (id) requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-personnel-id="${id}"]`)?.focus()); };
 
   return <section className="personnel-directory-page data-surface-page" aria-label="Personnel Directory">
-    <PersonnelDirectoryHeader canManage={canManage} totalCount={totalCount} onAdd={onAdd} onRefresh={onRefresh} />
+    <PersonnelDirectoryHeader canManage={canManage} canReviewChanges={role === 'ADMIN'} totalCount={totalCount} onAdd={onAdd} onReviewChanges={onReviewChanges} onRefresh={onRefresh} />
     <PersonnelSearchToolbar search={search} department={department} status={status} departments={departments} onSearch={changeFilter(setSearch)} onDepartment={changeFilter(setDepartment)} onStatus={changeFilter(setStatus)} onClear={clear} />
     <div className="personnel-summary-grid"><PersonnelMetricCard icon="users" label="บุคลากรทั้งหมด" value={totalCount} context="รายการที่เข้าถึงได้" tone="indigo" /><PersonnelMetricCard icon="check" label="บุคลากรที่ใช้งาน" value={employees.filter((employee) => employee.isActive).length} context="กำลังปฏิบัติงาน" tone="green" /><PersonnelMetricCard icon="quality" label="โปรไฟล์ไม่สมบูรณ์" value={incomplete} context={incomplete ? 'ต้องตรวจสอบข้อมูล' : 'ข้อมูลครบถ้วน'} tone="amber" /></div>
     {permissionDenied ? <div className="personnel-empty-state data-state data-state--permission"><span>⛨</span><h2>ไม่มีสิทธิ์เข้าถึงข้อมูล</h2><p>บัญชีนี้ไม่ได้รับอนุญาตให้ดู Personnel Directory</p></div>
