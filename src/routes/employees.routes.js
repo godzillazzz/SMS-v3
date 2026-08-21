@@ -2,6 +2,9 @@ const express = require('express');
 const { z } = require('zod');
 const employee = require('../services/employee.service');
 const lifecycle = require('../services/employee-lifecycle.service');
+const masterMutation = require('../services/employee-master-mutation.service');
+const { createEmployeeChangeRequestService } = require('../services/employee-change-request.service');
+const changeRequests = createEmployeeChangeRequestService();
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const HttpError = require('../utils/http-error');
 
@@ -36,17 +39,51 @@ const lifecycleActionSchema = lifecyclePreflightSchema.extend({
   idempotencyKey: z.string().uuid(),
   acknowledgeWarnings: z.boolean().default(false)
 });
+const masterEditPreflightSchema = z.object({
+  changes: z.record(z.unknown()),
+  effectiveMode: z.enum(['IMMEDIATE', 'FUTURE_EFFECTIVE']).default('IMMEDIATE'),
+  effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  reason: z.string().trim().max(1000).nullable().optional()
+}).strict();
+const masterEditSchema = masterEditPreflightSchema.extend({
+  expectedEmployeeUpdatedAt: z.string().datetime(),
+  expectedLifecycleSequence: z.number().int().min(0),
+  idempotencyKey: z.string().uuid(),
+  acknowledgeWarnings: z.boolean().default(false)
+});
+const employeeChangeDraftSchema = z.object({
+  proposal: z.record(z.unknown()).nullable().optional(),
+  effectiveMode: z.enum(['IMMEDIATE', 'FUTURE_EFFECTIVE']).default('IMMEDIATE'),
+  effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  reason: z.string().trim().max(1000).nullable().optional(),
+  idempotencyKey: z.string().uuid()
+}).strict();
 
 router.use(authenticate);
 const uuid = z.string().uuid();
 const listSchema = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20), search: z.string().trim().min(1).max(100).optional(), isActive: z.enum(['true', 'false']).transform((value) => value === 'true').optional(), department: z.string().trim().min(1).max(100).optional() });
 router.get('/', async (req, res, next) => { try { res.json(await employee.list(listSchema.parse(req.query), req.user.role)); } catch (error) { next(error); } });
-router.get('/:id/lifecycle', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const query = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(25) }).parse(req.query); res.json(await lifecycle.getEmployeeLifecycleHistory(uuid.parse(req.params.id), query)); } catch (error) { next(error); } });
+router.get('/:id/lifecycle', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const query = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(25) }).parse(req.query); res.json(await lifecycle.getEmployeeLifecycleHistory(uuid.parse(req.params.id), query, req.user.role)); } catch (error) { next(error); } });
 router.get('/:id/lifecycle/state', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const query = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(req.query); res.json({ data: await lifecycle.getEmployeeStateAt(uuid.parse(req.params.id), query.date) }); } catch (error) { next(error); } });
 router.post('/:id/lifecycle/preflight', authorize('ADMIN'), async (req, res, next) => { try { const input = lifecyclePreflightSchema.parse(req.body); res.json({ data: await lifecycle.preflightEmployeeLifecycleAction({ employeeId: uuid.parse(req.params.id), ...input }) }); } catch (error) { next(error); } });
 router.post('/:id/lifecycle', authorize('ADMIN'), async (req, res, next) => { try { const input = lifecycleActionSchema.parse(req.body); const result = await lifecycle.createEmployeeLifecycleEvent({ employeeId: uuid.parse(req.params.id), actorUserId: req.user.sub, ...input }); res.status(result.idempotent ? 200 : 201).json({ data: result }); } catch (error) { next(error); } });
+router.get('/:id/change-requests', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try { res.json(await changeRequests.listForEmployee({ employeeId: uuid.parse(req.params.id), actor: req.user })); } catch (error) { next(error); }
+});
+router.post('/:id/change-requests', authorize('MANAGER'), async (req, res, next) => {
+  try { const input = employeeChangeDraftSchema.parse(req.body); res.status(201).json({ data: await changeRequests.createDraft({ employeeId: uuid.parse(req.params.id), actor: req.user, ...input }) }); } catch (error) { next(error); }
+});
+router.post('/:id/master-edit/preflight', authorize('ADMIN'), async (req, res, next) => {
+  try { const input = masterEditPreflightSchema.parse(req.body); res.json({ data: await masterMutation.preflightEmployeeMasterMutation({ employeeId: uuid.parse(req.params.id), actorRole: 'ADMIN', fieldScope: 'ADMIN', ...input }) }); } catch (error) { next(error); }
+});
 router.get('/:id', async (req, res, next) => { try { res.json({ data: await employee.getById(uuid.parse(req.params.id), req.user.role) }); } catch (error) { next(error); } });
 router.post('/', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { res.status(201).json({ data: await employee.create(employeeSchema.parse(req.body), req.user.sub) }); } catch (error) { next(error); } });
-router.put('/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const controlled = ['firstName', 'lastName', 'department', 'jobTitle', 'isActive'].filter((field) => Object.prototype.hasOwnProperty.call(req.body || {}, field)); if (controlled.length) throw new HttpError(409, 'กรุณาใช้การจัดการวงจรพนักงานสำหรับชื่อ หน่วยงาน ตำแหน่ง หรือสถานะ', { code: 'LIFECYCLE_ACTION_REQUIRED', fields: controlled }); const body = employeeSchema.pick({ employeeCode: true, email: true, phone: true, hiredAt: true, skill: true }).partial().parse(req.body); if (Object.keys(body).length === 0) throw new HttpError(400, 'Update body cannot be empty.'); res.json({ data: await employee.update(uuid.parse(req.params.id), body, req.user.sub) }); } catch (error) { next(error); } });
+router.put('/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    if (req.user.role === 'MANAGER') throw new HttpError(403, 'Manager Employee edits require a governed change request.', { code: 'EMPLOYEE_CHANGE_REQUEST_REQUIRED' });
+    const input = masterEditSchema.parse(req.body);
+    res.json({ data: await masterMutation.mutateEmployeeMaster({ employeeId: uuid.parse(req.params.id), actorUserId: req.user.sub, actorRole: req.user.role, fieldScope: 'ADMIN', ...input }) });
+  } catch (error) { next(error); }
+});
 router.delete('/:id', authorize('ADMIN'), (_req, _res, next) => next(new HttpError(409, 'กรุณาใช้รายการลาออกในระบบวงจรพนักงาน', { code: 'LIFECYCLE_TERMINATION_REQUIRED' })));
 module.exports = router;

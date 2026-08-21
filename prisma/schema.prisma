@@ -35,6 +35,33 @@ enum EmployeeLifecycleEventType {
   POSITION_CHANGE
   EMPLOYMENT_TERMINATION
   REHIRE
+  MASTER_EDIT
+}
+
+enum EmployeeChangeRequestStatus {
+  DRAFT
+  PENDING_APPROVAL
+  RETURNED_FOR_CORRECTION
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum EmployeeChangeEffectiveMode {
+  IMMEDIATE
+  FUTURE_EFFECTIVE
+}
+
+enum EmployeeChangeEventAction {
+  DRAFT_SAVED
+  SUBMIT
+  RETURN_FOR_CORRECTION
+  RESUBMIT
+  APPROVE
+  REJECT
+  CANCEL
+  STALE_CONFLICT
+  APPLY_EFFECTIVE
 }
 
 enum EmployeeLifecycleEventStatus {
@@ -69,41 +96,44 @@ enum WebAuthnChallengePurpose {
 }
 
 model User {
-  id                           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                        String                    @unique @db.VarChar(255)
-  passwordHash                 String                    @map("password_hash") @db.VarChar(255)
-  displayName                  String                    @map("display_name") @db.VarChar(150)
-  role                         UserRole                  @default(VIEWER)
-  isActive                     Boolean                   @default(true) @map("is_active")
-  tokenVersion                 Int                       @default(0) @map("token_version")
-  lastLoginAt                  DateTime?                 @map("last_login_at")
-  failedLoginCount             Int                       @default(0) @map("failed_login_count")
-  legacyUserId                 String?                   @unique @map("legacy_user_id") @db.VarChar(100)
-  employeeId                   String?                   @unique @map("employee_id") @db.Uuid
-  legacyRole                   String?                   @map("legacy_role") @db.VarChar(50)
-  accountStatus                AccountStatus             @default(ACTIVE) @map("account_status")
-  passwordResetRequired        Boolean                   @default(false) @map("password_reset_required")
-  employmentSuspendedAt        DateTime?                 @map("employment_suspended_at")
-  department                   String?                   @db.VarChar(100)
-  requestedAt                  DateTime?                 @map("requested_at")
-  approvedByLegacyRef          String?                   @map("approved_by_legacy_ref") @db.VarChar(255)
-  approvedAt                   DateTime?                 @map("approved_at")
-  rejectionReason              String?                   @map("rejection_reason") @db.VarChar(2000)
-  legacyUpdatedAt              DateTime?                 @map("legacy_updated_at")
-  createdAt                    DateTime                  @default(now()) @map("created_at")
-  updatedAt                    DateTime                  @updatedAt @map("updated_at")
-  auditLogs                    AuditLog[]                @relation("ActorAuditLogs")
-  sessions                     RefreshSession[]
-  otpChallenges                AuthOtpChallenge[]
-  webAuthnCredentials          WebAuthnCredential[]
-  webAuthnChallenges           WebAuthnChallenge[]
-  uploadedLicenseDocuments     EmployeeLicenseDocument[] @relation("UploadedLicenseDocuments")
-  reviewedLicenseDocuments     EmployeeLicenseDocument[] @relation("ReviewedLicenseDocuments")
-  returnedLicenseDocuments     EmployeeLicenseDocument[] @relation("ReturnedLicenseDocuments")
-  employee                     Employee?                 @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-  createdLeaveRequests         LeaveRequest[]            @relation("LeaveRequestCreatedBy")
-  lifecycleEventsChanged       EmployeeLifecycleEvent[]  @relation("LifecycleChangedBy")
-  reviewedRegistrationRequests RegistrationRequest[]     @relation("RegistrationRequestReviewedBy")
+  id                               String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                            String                          @unique @db.VarChar(255)
+  passwordHash                     String                          @map("password_hash") @db.VarChar(255)
+  displayName                      String                          @map("display_name") @db.VarChar(150)
+  role                             UserRole                        @default(VIEWER)
+  isActive                         Boolean                         @default(true) @map("is_active")
+  tokenVersion                     Int                             @default(0) @map("token_version")
+  lastLoginAt                      DateTime?                       @map("last_login_at")
+  failedLoginCount                 Int                             @default(0) @map("failed_login_count")
+  legacyUserId                     String?                         @unique @map("legacy_user_id") @db.VarChar(100)
+  employeeId                       String?                         @unique @map("employee_id") @db.Uuid
+  legacyRole                       String?                         @map("legacy_role") @db.VarChar(50)
+  accountStatus                    AccountStatus                   @default(ACTIVE) @map("account_status")
+  passwordResetRequired            Boolean                         @default(false) @map("password_reset_required")
+  employmentSuspendedAt            DateTime?                       @map("employment_suspended_at")
+  department                       String?                         @db.VarChar(100)
+  requestedAt                      DateTime?                       @map("requested_at")
+  approvedByLegacyRef              String?                         @map("approved_by_legacy_ref") @db.VarChar(255)
+  approvedAt                       DateTime?                       @map("approved_at")
+  rejectionReason                  String?                         @map("rejection_reason") @db.VarChar(2000)
+  legacyUpdatedAt                  DateTime?                       @map("legacy_updated_at")
+  createdAt                        DateTime                        @default(now()) @map("created_at")
+  updatedAt                        DateTime                        @updatedAt @map("updated_at")
+  auditLogs                        AuditLog[]                      @relation("ActorAuditLogs")
+  sessions                         RefreshSession[]
+  otpChallenges                    AuthOtpChallenge[]
+  webAuthnCredentials              WebAuthnCredential[]
+  webAuthnChallenges               WebAuthnChallenge[]
+  uploadedLicenseDocuments         EmployeeLicenseDocument[]       @relation("UploadedLicenseDocuments")
+  reviewedLicenseDocuments         EmployeeLicenseDocument[]       @relation("ReviewedLicenseDocuments")
+  returnedLicenseDocuments         EmployeeLicenseDocument[]       @relation("ReturnedLicenseDocuments")
+  employee                         Employee?                       @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  createdLeaveRequests             LeaveRequest[]                  @relation("LeaveRequestCreatedBy")
+  lifecycleEventsChanged           EmployeeLifecycleEvent[]        @relation("LifecycleChangedBy")
+  reviewedRegistrationRequests     RegistrationRequest[]           @relation("RegistrationRequestReviewedBy")
+  employeeChangeRequestsOwned      EmployeeChangeRequest[]         @relation("EmployeeChangeRequestOwner")
+  employeeChangeRevisionsSubmitted EmployeeChangeRequestRevision[] @relation("EmployeeChangeRevisionSubmitter")
+  employeeChangeEventsActed        EmployeeChangeRequestEvent[]    @relation("EmployeeChangeEventActor")
 
   @@map("users")
 }
@@ -205,23 +235,23 @@ model RefreshSession {
 }
 
 model Employee {
-  id                          String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeCode                String                    @unique @map("employee_code") @db.VarChar(50)
-  firstName                   String                    @map("first_name") @db.VarChar(100)
-  lastName                    String                    @map("last_name") @db.VarChar(100)
-  email                       String?                   @unique @db.VarChar(255)
-  phone                       String?                   @db.VarChar(50)
-  department                  String?                   @db.VarChar(100)
-  jobTitle                    String?                   @map("job_title") @db.VarChar(100)
-  hiredAt                     DateTime?                 @map("hired_at") @db.Date
-  isActive                    Boolean                   @default(true) @map("is_active")
-  deletedAt                   DateTime?                 @map("deleted_at")
-  deletedByUserId             String?                   @map("deleted_by_user_id") @db.Uuid
-  legacyEmployeeId            String?                   @unique @map("legacy_employee_id") @db.VarChar(100)
-  displayName                 String?                   @map("display_name") @db.VarChar(255)
-  skill                       String?                   @db.VarChar(255)
-  createdAt                   DateTime                  @default(now()) @map("created_at")
-  updatedAt                   DateTime                  @updatedAt @map("updated_at")
+  id                          String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeCode                String                       @unique @map("employee_code") @db.VarChar(50)
+  firstName                   String                       @map("first_name") @db.VarChar(100)
+  lastName                    String                       @map("last_name") @db.VarChar(100)
+  email                       String?                      @unique @db.VarChar(255)
+  phone                       String?                      @db.VarChar(50)
+  department                  String?                      @db.VarChar(100)
+  jobTitle                    String?                      @map("job_title") @db.VarChar(100)
+  hiredAt                     DateTime?                    @map("hired_at") @db.Date
+  isActive                    Boolean                      @default(true) @map("is_active")
+  deletedAt                   DateTime?                    @map("deleted_at")
+  deletedByUserId             String?                      @map("deleted_by_user_id") @db.Uuid
+  legacyEmployeeId            String?                      @unique @map("legacy_employee_id") @db.VarChar(100)
+  displayName                 String?                      @map("display_name") @db.VarChar(255)
+  skill                       String?                      @db.VarChar(255)
+  createdAt                   DateTime                     @default(now()) @map("created_at")
+  updatedAt                   DateTime                     @updatedAt @map("updated_at")
   user                        User?
   licenses                    EmployeeLicense[]
   licenseDocuments            EmployeeLicenseDocument[]
@@ -230,6 +260,8 @@ model Employee {
   leaveQuotas                 LeaveQuota[]
   lifecycleEvents             EmployeeLifecycleEvent[]
   matchedRegistrationRequests RegistrationRequest[]
+  changeRequests              EmployeeChangeRequest[]
+  changeRequestEvents         EmployeeChangeRequestEvent[]
 
   @@index([isActive, deletedAt])
   @@index([department])
@@ -237,29 +269,114 @@ model Employee {
 }
 
 model EmployeeLifecycleEvent {
-  id                        String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId                String                       @map("employee_id") @db.Uuid
-  sequence                  Int
-  type                      EmployeeLifecycleEventType
-  status                    EmployeeLifecycleEventStatus @default(PENDING)
-  effectiveDate             DateTime                     @map("effective_date") @db.Date
-  oldValue                  Json                         @map("old_value")
-  newValue                  Json                         @map("new_value")
-  reason                    String                       @db.VarChar(1000)
-  changedByUserId           String                       @map("changed_by_user_id") @db.Uuid
-  idempotencyKey            String                       @unique @map("idempotency_key") @db.Uuid
-  expectedEmployeeUpdatedAt DateTime                     @map("expected_employee_updated_at")
-  appliedAt                 DateTime?                    @map("applied_at")
-  createdAt                 DateTime                     @default(now()) @map("created_at")
-  updatedAt                 DateTime                     @updatedAt @map("updated_at")
-  employee                  Employee                     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  changedBy                 User                         @relation("LifecycleChangedBy", fields: [changedByUserId], references: [id], onDelete: Restrict)
+  id                          String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId                  String                       @map("employee_id") @db.Uuid
+  sequence                    Int
+  type                        EmployeeLifecycleEventType
+  status                      EmployeeLifecycleEventStatus @default(PENDING)
+  effectiveDate               DateTime                     @map("effective_date") @db.Date
+  oldValue                    Json                         @map("old_value")
+  newValue                    Json                         @map("new_value")
+  reason                      String                       @db.VarChar(1000)
+  changedByUserId             String                       @map("changed_by_user_id") @db.Uuid
+  idempotencyKey              String                       @unique @map("idempotency_key") @db.Uuid
+  expectedEmployeeUpdatedAt   DateTime                     @map("expected_employee_updated_at")
+  sourceChangeRequestId       String?                      @map("source_change_request_id") @db.Uuid
+  sourceChangeRequestRevision Int?                         @map("source_change_request_revision")
+  appliedAt                   DateTime?                    @map("applied_at")
+  createdAt                   DateTime                     @default(now()) @map("created_at")
+  updatedAt                   DateTime                     @updatedAt @map("updated_at")
+  employee                    Employee                     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  changedBy                   User                         @relation("LifecycleChangedBy", fields: [changedByUserId], references: [id], onDelete: Restrict)
+  sourceChangeRequest         EmployeeChangeRequest?       @relation(fields: [sourceChangeRequestId], references: [id], onDelete: Restrict)
 
   @@unique([employeeId, sequence])
   @@index([employeeId, effectiveDate, sequence])
   @@index([status, effectiveDate])
   @@index([changedByUserId, createdAt])
+  @@index([sourceChangeRequestId, sourceChangeRequestRevision])
   @@map("employee_lifecycle_events")
+}
+
+model EmployeeChangeRequest {
+  id                       String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId               String                          @map("employee_id") @db.Uuid
+  status                   EmployeeChangeRequestStatus     @default(DRAFT)
+  requestOwnerUserId       String                          @map("request_owner_user_id") @db.Uuid
+  requestOwnerRoleSnapshot String                          @map("request_owner_role_snapshot") @db.VarChar(50)
+  activeEmployeeId         String?                         @unique @map("active_employee_id") @db.Uuid
+  currentRevision          Int                             @default(0) @map("current_revision")
+  approvedRevision         Int?                            @map("approved_revision")
+  draftProposal            Json?                           @map("draft_proposal")
+  draftEffectiveMode       EmployeeChangeEffectiveMode     @default(IMMEDIATE) @map("draft_effective_mode")
+  draftEffectiveDate       DateTime?                       @map("draft_effective_date") @db.Date
+  draftReason              String?                         @map("draft_reason") @db.VarChar(1000)
+  lastReviewerComment      String?                         @map("last_reviewer_comment") @db.VarChar(1000)
+  approvedAt               DateTime?                       @map("approved_at")
+  appliedAt                DateTime?                       @map("applied_at")
+  rejectedAt               DateTime?                       @map("rejected_at")
+  cancelledAt              DateTime?                       @map("cancelled_at")
+  createdAt                DateTime                        @default(now()) @map("created_at")
+  updatedAt                DateTime                        @updatedAt @map("updated_at")
+  employee                 Employee                        @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  requestOwner             User                            @relation("EmployeeChangeRequestOwner", fields: [requestOwnerUserId], references: [id], onDelete: Restrict)
+  revisions                EmployeeChangeRequestRevision[]
+  events                   EmployeeChangeRequestEvent[]
+  lifecycleEvents          EmployeeLifecycleEvent[]
+
+  @@index([employeeId, createdAt])
+  @@index([status, createdAt])
+  @@index([requestOwnerUserId, status, createdAt])
+  @@map("employee_change_requests")
+}
+
+model EmployeeChangeRequestRevision {
+  id                      String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId               String                      @map("request_id") @db.Uuid
+  revision                Int
+  baseEmployeeUpdatedAt   DateTime                    @map("base_employee_updated_at")
+  baseLifecycleSequence   Int                         @map("base_lifecycle_sequence")
+  beforeSnapshot          Json                        @map("before_snapshot")
+  afterSnapshot           Json                        @map("after_snapshot")
+  changedFields           Json                        @map("changed_fields")
+  effectiveMode           EmployeeChangeEffectiveMode @map("effective_mode")
+  effectiveDate           DateTime?                   @map("effective_date") @db.Date
+  reason                  String?                     @db.VarChar(1000)
+  submittedByUserId       String                      @map("submitted_by_user_id") @db.Uuid
+  submittedByRoleSnapshot String                      @map("submitted_by_role_snapshot") @db.VarChar(50)
+  submittedAt             DateTime                    @default(now()) @map("submitted_at")
+  proposalHash            String                      @map("proposal_hash") @db.Char(64)
+  createdAt               DateTime                    @default(now()) @map("created_at")
+  request                 EmployeeChangeRequest       @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  submittedBy             User                        @relation("EmployeeChangeRevisionSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([requestId, revision])
+  @@index([submittedByUserId, submittedAt])
+  @@map("employee_change_request_revisions")
+}
+
+model EmployeeChangeRequestEvent {
+  id                String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId         String                       @map("request_id") @db.Uuid
+  employeeId        String                       @map("employee_id") @db.Uuid
+  revision          Int?
+  action            EmployeeChangeEventAction
+  fromStatus        EmployeeChangeRequestStatus? @map("from_status")
+  toStatus          EmployeeChangeRequestStatus? @map("to_status")
+  actorUserId       String?                      @map("actor_user_id") @db.Uuid
+  actorRoleSnapshot String?                      @map("actor_role_snapshot") @db.VarChar(50)
+  reason            String?                      @db.VarChar(1000)
+  metadata          Json?
+  idempotencyKey    String                       @unique @map("idempotency_key") @db.Uuid
+  createdAt         DateTime                     @default(now()) @map("created_at")
+  request           EmployeeChangeRequest        @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  employee          Employee                     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  actor             User?                        @relation("EmployeeChangeEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([requestId, createdAt])
+  @@index([employeeId, createdAt])
+  @@index([action, createdAt])
+  @@map("employee_change_request_events")
 }
 
 model ShiftType {

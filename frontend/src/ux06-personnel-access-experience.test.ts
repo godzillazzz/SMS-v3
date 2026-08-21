@@ -58,13 +58,14 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(personnelDrawer).not.toContain('รหัสพนักงานองค์กรที่ยืนยันตัวตน');
   });
 
-  it('keeps create/edit Employee APIs, field names, optional payload semantics, and edit callback behavior unchanged', () => {
+  it('keeps Employee create API unchanged while routing existing edit callbacks through governed edit authority', () => {
     for (const field of ["name: 'employeeCode'", "name: 'firstName'", "name: 'lastName'", "name: 'email'", "name: 'phone'", "name: 'department'", "name: 'jobTitle'", "name: 'hiredAt'"]) expect(main).toContain(field);
-    expect(main).toContain("api.updateEmployee(auth.token!, employee.id, formPayload(form, ['email', 'phone', 'hiredAt']))");
     expect(main).toContain("api.createEmployee(auth.token!, formPayload(form, ['email', 'phone', 'department', 'jobTitle', 'hiredAt']))");
+    expect(main).toContain('setEmployeeGovernedEditTarget(employee)');
     expect(main).toContain('onEdit={openEmployeeEditor}');
     expect(main).toContain('onAdd={() => openEmployeeEditor()}');
     expect(personnelPage).toContain('onEdit={onEdit}');
+    expect(main).not.toContain("api.updateEmployee(auth.token!, employee.id, formPayload(form, ['email', 'phone', 'hiredAt']))");
   });
 
   it('keeps Employee lifecycle preflight, idempotency, termination confirmation, and mutation APIs unchanged', () => {
@@ -204,6 +205,6 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
   });
 
   it('locks the authorized V1.2 API source after the Passkey extension', () => {
-    expect(apiSha256).toBe('c1a011dbe6258552c9928548f89f61c2597f50a3e14708251e6a6b547ab55379');
+    expect(apiSha256).toBe('3eac59893794ae21b040e3fd5b6b298c9c4f3a7f6e3d92393b60129e7a655441');
   });
 });

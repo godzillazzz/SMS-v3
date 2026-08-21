@@ -27,6 +27,7 @@ const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filte
 const { getDashboardSummary } = require('../services/dashboard.service');
 const { getAuditLogPage } = require('../services/audit-log-viewer.service');
 const { getExecutiveReport } = require('../services/executive-report.service');
+const { ensureEmployeeOperationalForShift, projectedScheduleConflictIds } = require('../services/employee-operational-eligibility.service');
 const shiftService = require('../services/shift.service');
 const HttpError = require('../utils/http-error');
 const { logger } = require('../utils/logger');
@@ -483,8 +484,10 @@ router.get('/schedule-calendar', async (req, res, next) => {
       select: { id: true, employeeId: true, shiftTypeId: true, workDate: true, startTime: true, endTime: true, hours: true, remark: true, locked: true, licenseStatus: true, licenseOverride: true, licenseBlockedFromShiftTypeId: true, shiftType: { select: { id: true, code: true, name: true, color: true } } },
       orderBy: [{ employeeId: 'asc' }, { workDate: 'asc' }]
     }) : Promise.resolve([]), prisma.scheduleApproval.findFirst({ where: { month: monthStart }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true, approvalNote: true } })]);
+    const operationalConflictIds = await projectedScheduleConflictIds(prisma, shifts);
+    const visibleShifts = shifts.map((shift) => ({ ...shift, operationalConflict: operationalConflictIds.has(String(shift.id)) ? 'INACTIVE_EMPLOYEE_SCHEDULE_CONFLICT' : null }));
     const dates = Array.from({ length: Math.round((nextMonth - monthStart) / 86400000) }, (_, index) => new Date(Date.UTC(year, monthIndex - 1, index + 1)).toISOString().slice(0, 10));
-    res.json({ data: { month: filters.month, dates, approval, employees: employees.map((employee) => ({ ...employee, shifts: shifts.filter((shift) => shift.employeeId === employee.id) })) }, meta: { page: filters.page, pageSize: filters.pageSize, total, totalPages: Math.ceil(total / filters.pageSize) } });
+    res.json({ data: { month: filters.month, dates, approval, employees: employees.map((employee) => ({ ...employee, shifts: visibleShifts.filter((shift) => shift.employeeId === employee.id) })) }, meta: { page: filters.page, pageSize: filters.pageSize, total, totalPages: Math.ceil(total / filters.pageSize) } });
   } catch (error) { next(error); }
 });
 router.post('/schedule/auto-preview', authorize('ADMIN'), async (req, res, next) => {
@@ -561,6 +564,7 @@ router.post('/shifts', authorize('ADMIN', 'MANAGER'), async (req, res, next) => 
     const input = shiftInput.parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
       const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: input.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: input.shiftTypeId } })]);
+      await ensureEmployeeOperationalForShift(tx, { employeeId: input.employeeId, workDate: input.workDate, shiftCode: shiftType.code });
       const licenseState = await licenseStateForShift(tx, { employeeId: input.employeeId, workDate: input.workDate, shiftCode: shiftType.code, override: input.licenseOverride, overrideReason: input.overrideReason, actorRole: req.user.role });
       const shift = await tx.shiftAssignment.create({ data: { ...input, startTime: input.startTime ?? shiftType.startTime, endTime: input.endTime ?? shiftType.endTime, hours: input.hours ?? shiftType.hours, ...licenseState, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, source: 'SMS_V3' } });
       const isAlOnly = String(shiftType.code || '').toUpperCase() === 'AL';
@@ -580,6 +584,7 @@ router.put('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) 
       const shiftTypeId = input.shiftTypeId || before.shiftTypeId;
       const workDate = input.workDate || before.workDate;
       const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: shiftTypeId } })]);
+      await ensureEmployeeOperationalForShift(tx, { employeeId, workDate, shiftCode: shiftType.code });
       const licenseState = await licenseStateForShift(tx, { employeeId, workDate, shiftCode: shiftType.code, override: input.licenseOverride, overrideReason: input.overrideReason, actorRole: req.user.role });
       const shiftTypeChanged = Boolean(input.shiftTypeId && input.shiftTypeId !== before.shiftTypeId);
       const after = await tx.shiftAssignment.update({ where: { id }, data: { ...input, ...(shiftTypeChanged && input.startTime === undefined && { startTime: shiftType.startTime }), ...(shiftTypeChanged && input.endTime === undefined && { endTime: shiftType.endTime }), ...(shiftTypeChanged && input.hours === undefined && { hours: shiftType.hours }), ...(input.employeeId && { employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department }), ...licenseState } });

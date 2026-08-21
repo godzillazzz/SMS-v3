@@ -72,6 +72,6 @@ describe('G04.2 VF-06 final visual fidelity closure contract', () => {
   });
 
   it('locks the authorized V1.2 API source after the Passkey extension', () => {
-    expect(apiSha256).toBe('c1a011dbe6258552c9928548f89f61c2597f50a3e14708251e6a6b547ab55379');
+    expect(apiSha256).toBe('3eac59893794ae21b040e3fd5b6b298c9c4f3a7f6e3d92393b60129e7a655441');
   });
 });

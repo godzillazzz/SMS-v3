@@ -12,9 +12,12 @@ const EVENT_TYPES = [
   'NAME_CHANGE',
   'POSITION_CHANGE',
   'EMPLOYMENT_TERMINATION',
-  'REHIRE'
+  'REHIRE',
+  'MASTER_EDIT'
 ];
 const CONTROLLED_FIELDS = ['firstName', 'lastName', 'displayName', 'department', 'jobTitle', 'isActive'];
+const MASTER_FIELDS = ['employeeCode', 'firstName', 'lastName', 'displayName', 'email', 'phone', 'department', 'jobTitle', 'hiredAt', 'skill', 'isActive'];
+const MANAGER_MASTER_FIELDS = ['employeeCode', 'firstName', 'lastName', 'displayName', 'department', 'jobTitle', 'isActive'];
 const MAX_DUE_EVENTS_PER_REQUEST = 10;
 let requestSyncPromise = null;
 let nextRequestSyncAt = 0;
@@ -45,6 +48,34 @@ function employeeState(employee) {
   };
 }
 
+function dateValue(value) {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
+function employeeMasterState(employee) {
+  return {
+    employeeCode: employee.employeeCode,
+    firstName: employee.firstName,
+    lastName: employee.lastName,
+    displayName: employee.displayName || `${employee.firstName} ${employee.lastName}`.trim(),
+    email: employee.email || null,
+    phone: employee.phone || null,
+    department: employee.department || null,
+    jobTitle: employee.jobTitle || null,
+    hiredAt: dateValue(employee.hiredAt),
+    skill: employee.skill || null,
+    isActive: Boolean(employee.isActive),
+    employmentStatus: employee.isActive ? 'ACTIVE' : 'TERMINATED'
+  };
+}
+
+function managerEmployeeState(employee) {
+  const state = employeeMasterState(employee);
+  return Object.fromEntries([...MANAGER_MASTER_FIELDS, 'employmentStatus'].map((field) => [field, state[field]]));
+}
+
 function userState(user) {
   if (!user) return null;
   return {
@@ -61,9 +92,19 @@ function lifecycleSnapshot(employee, user) {
   return { employee: employeeState(employee), user: userState(user) };
 }
 
-function sameControlledState(current, expected) {
+function masterLifecycleSnapshot(employee, user, projected) {
+  const snapshot = { employee: employeeMasterState(employee), user: userState(user) };
+  if (projected?.employee) {
+    for (const field of CONTROLLED_FIELDS) if (Object.prototype.hasOwnProperty.call(projected.employee, field)) snapshot.employee[field] = projected.employee[field];
+    snapshot.employee.employmentStatus = snapshot.employee.isActive ? 'ACTIVE' : 'TERMINATED';
+  }
+  if (projected?.user) snapshot.user = projected.user;
+  return snapshot;
+}
+
+function sameControlledState(current, expected, fields = CONTROLLED_FIELDS) {
   if (!current || !expected) return false;
-  return CONTROLLED_FIELDS.every((field) => (current[field] ?? null) === (expected[field] ?? null));
+  return fields.every((field) => (current[field] ?? null) === (expected[field] ?? null));
 }
 
 function cleanText(value, label, max = 100) {
@@ -76,7 +117,26 @@ function cleanText(value, label, max = 100) {
 function nextSnapshot(type, priorSnapshot, changes = {}, effectiveDate) {
   const next = JSON.parse(JSON.stringify(priorSnapshot));
   const current = next.employee;
-  if (type === 'NAME_CHANGE') {
+  if (type === 'MASTER_EDIT') {
+    for (const [field, value] of Object.entries(changes || {})) {
+      if (!MASTER_FIELDS.includes(field) || field === 'displayName') continue;
+      current[field] = field === 'hiredAt' ? dateValue(value) : value;
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'firstName') || Object.prototype.hasOwnProperty.call(changes, 'lastName')) {
+      current.displayName = `${current.firstName} ${current.lastName}`.trim();
+      if (next.user) next.user.displayName = current.displayName;
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'department') && next.user) next.user.department = current.department || null;
+    if (Object.prototype.hasOwnProperty.call(changes, 'isActive')) {
+      current.isActive = Boolean(changes.isActive);
+      current.employmentStatus = current.isActive ? 'ACTIVE' : 'TERMINATED';
+      if (next.user && !current.isActive) {
+        next.user.isActive = false; next.user.accountStatus = 'SUSPENDED'; next.user.employmentSuspendedAt = dateOnly(effectiveDate).toISOString();
+      } else if (next.user && current.isActive && next.user.employmentSuspendedAt) {
+        next.user.isActive = true; next.user.accountStatus = 'ACTIVE'; next.user.employmentSuspendedAt = null;
+      }
+    }
+  } else if (type === 'NAME_CHANGE') {
     current.firstName = cleanText(changes.firstName, 'ชื่อ');
     current.lastName = cleanText(changes.lastName, 'นามสกุล');
     current.displayName = `${current.firstName} ${current.lastName}`.trim();
@@ -115,6 +175,7 @@ function actionValidation(type, prior, next) {
   const blockingIssues = [];
   const add = (code, message) => blockingIssues.push({ code, message });
   if (!EVENT_TYPES.includes(type)) add('UNSUPPORTED_EVENT_TYPE', 'ประเภทการเปลี่ยนแปลงไม่ถูกต้อง');
+  if (type === 'MASTER_EDIT' && sameControlledState(prior.employee, next.employee, MASTER_FIELDS)) add('NO_STATE_CHANGE', 'Employee Master proposal does not change authoritative data.');
   if (type === 'NAME_CHANGE' && prior.employee.displayName === next.employee.displayName) add('NO_STATE_CHANGE', 'ชื่อใหม่ต้องแตกต่างจากชื่อปัจจุบัน');
   if (type === 'DEPARTMENT_TRANSFER' && prior.employee.department === next.employee.department) add('NO_STATE_CHANGE', 'หน่วยงานใหม่ต้องแตกต่างจากหน่วยงานปัจจุบัน');
   if (type === 'POSITION_CHANGE' && prior.employee.jobTitle === next.employee.jobTitle) add('NO_STATE_CHANGE', 'ตำแหน่งใหม่ต้องแตกต่างจากตำแหน่งปัจจุบัน');
@@ -131,6 +192,34 @@ function hasLifecycleModel(client) {
   return Boolean(client && Reflect.has(client, 'employeeLifecycleEvent'));
 }
 
+async function applyEmployeeSnapshot(tx, employee, type, snapshot, effectiveDate, clock = () => new Date()) {
+  const state = snapshot.employee;
+  const masterEdit = type === 'MASTER_EDIT';
+  const data = masterEdit ? {
+    employeeCode: state.employeeCode, firstName: state.firstName, lastName: state.lastName, displayName: state.displayName,
+    email: state.email || null, phone: state.phone || null, department: state.department || null, jobTitle: state.jobTitle || null,
+    hiredAt: state.hiredAt ? dateOnly(state.hiredAt) : null, skill: state.skill || null, isActive: Boolean(state.isActive)
+  } : { firstName: state.firstName, lastName: state.lastName, displayName: state.displayName, department: state.department, jobTitle: state.jobTitle, isActive: state.isActive };
+  const after = await tx.employee.update({ where: { id: employee.id }, data });
+  const linkedUser = await tx.user.findUnique({ where: { employeeId: employee.id } });
+  let synchronizedUser = linkedUser;
+  const nameChanged = masterEdit ? employee.displayName !== state.displayName : type === 'NAME_CHANGE';
+  const departmentChanged = masterEdit ? (employee.department || null) !== (state.department || null) : ['DEPARTMENT_TRANSFER', 'REHIRE'].includes(type);
+  const terminates = type === 'EMPLOYMENT_TERMINATION' || (masterEdit && Boolean(employee.isActive) && !Boolean(state.isActive));
+  const rehires = type === 'REHIRE' || (masterEdit && !Boolean(employee.isActive) && Boolean(state.isActive));
+  if (linkedUser && nameChanged) synchronizedUser = await tx.user.update({ where: { id: linkedUser.id }, data: { displayName: state.displayName } });
+  if (linkedUser && departmentChanged) synchronizedUser = await tx.user.update({ where: { id: linkedUser.id }, data: { department: state.department || null } });
+  if (linkedUser && terminates) {
+    synchronizedUser = await tx.user.update({ where: { id: linkedUser.id }, data: { isActive: false, accountStatus: 'SUSPENDED', employmentSuspendedAt: effectiveDate, tokenVersion: { increment: 1 } } });
+    await tx.refreshSession.updateMany({ where: { userId: linkedUser.id, revokedAt: null }, data: { revokedAt: clock() } });
+  }
+  if (linkedUser && rehires && linkedUser.employmentSuspendedAt) {
+    synchronizedUser = await tx.user.update({ where: { id: linkedUser.id }, data: { isActive: true, accountStatus: 'ACTIVE', employmentSuspendedAt: null, tokenVersion: { increment: 1 } } });
+    await tx.refreshSession.updateMany({ where: { userId: linkedUser.id, revokedAt: null }, data: { revokedAt: clock() } });
+  }
+  return { employee: after, user: synchronizedUser };
+}
+
 function createEmployeeLifecycleService({ prismaClient = prisma, auditService = audit, clock = () => new Date() } = {}) {
   async function authoritativeMutationState({ employeeId, type, effectiveDate, changes = {} }, client = prismaClient) {
     const effective = dateOnly(effectiveDate);
@@ -140,7 +229,8 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
     const latestEvent = hasLifecycleModel(client)
       ? await client.employeeLifecycleEvent.findFirst({ where: { employeeId }, orderBy: [{ effectiveDate: 'desc' }, { sequence: 'desc' }] })
       : null;
-    const prior = latestEvent?.newValue || lifecycleSnapshot(employee, employee.user);
+    const projected = latestEvent?.newValue || lifecycleSnapshot(employee, employee.user);
+    const prior = type === 'MASTER_EDIT' ? masterLifecycleSnapshot(employee, employee.user, projected) : projected;
     const next = nextSnapshot(type, prior, changes, effective);
     const blockingIssues = actionValidation(type, prior, next);
     if (latestEvent && new Date(latestEvent.effectiveDate) > effective) {
@@ -165,11 +255,13 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
 
     const warnings = [];
     if (effective > bangkokToday(clock())) warnings.push(warning('FUTURE_EFFECTIVE_DATE', 'รายการนี้จะรอจนถึงวันที่มีผลก่อนปรับข้อมูลปัจจุบัน'));
-    if (['DEPARTMENT_TRANSFER', 'POSITION_CHANGE', 'EMPLOYMENT_TERMINATION'].includes(type) && impacts.futureShiftAssignments > 0) warnings.push(warning('FUTURE_SHIFT_ASSIGNMENTS', 'พบรายการจัดเวรตั้งแต่วันที่มีผล โปรดตรวจสอบก่อนยืนยัน', impacts.futureShiftAssignments));
-    if (['DEPARTMENT_TRANSFER', 'EMPLOYMENT_TERMINATION'].includes(type) && impacts.pendingLeaveRequests > 0) warnings.push(warning('PENDING_LEAVE_REQUESTS', 'พบคำขอลาที่รอพิจารณา', impacts.pendingLeaveRequests));
-    if (type === 'EMPLOYMENT_TERMINATION' && impacts.approvedFutureLeaveRequests > 0) warnings.push(warning('APPROVED_FUTURE_LEAVE', 'พบคำขอลาที่อนุมัติแล้วหลังวันที่มีผล', impacts.approvedFutureLeaveRequests));
-    if (type === 'EMPLOYMENT_TERMINATION' && impacts.activeLicenses > 0) warnings.push(warning('ACTIVE_LICENSES', 'พบใบอนุญาตที่ยังมีผลและจะถูกเก็บเป็นประวัติ', impacts.activeLicenses));
-    if (['NAME_CHANGE', 'DEPARTMENT_TRANSFER', 'EMPLOYMENT_TERMINATION', 'REHIRE'].includes(type) && !employee.user) warnings.push(warning('LINKED_USER_MISSING', 'ไม่พบบัญชีผู้ใช้ที่เชื่อมด้วย employeeId ระบบจะไม่คาดเดาจากชื่อ'));
+    const masterChanged = (field) => type === 'MASTER_EDIT' && Object.prototype.hasOwnProperty.call(changes || {}, field);
+    const masterTerminates = masterChanged('isActive') && changes.isActive === false;
+    if ((['DEPARTMENT_TRANSFER', 'POSITION_CHANGE', 'EMPLOYMENT_TERMINATION'].includes(type) || masterChanged('department') || masterChanged('jobTitle') || masterTerminates) && impacts.futureShiftAssignments > 0) warnings.push(warning('FUTURE_SHIFT_ASSIGNMENTS', 'พบรายการจัดเวรตั้งแต่วันที่มีผล โปรดตรวจสอบก่อนยืนยัน', impacts.futureShiftAssignments));
+    if ((['DEPARTMENT_TRANSFER', 'EMPLOYMENT_TERMINATION'].includes(type) || masterChanged('department') || masterTerminates) && impacts.pendingLeaveRequests > 0) warnings.push(warning('PENDING_LEAVE_REQUESTS', 'พบคำขอลาที่รอพิจารณา', impacts.pendingLeaveRequests));
+    if ((type === 'EMPLOYMENT_TERMINATION' || masterTerminates) && impacts.approvedFutureLeaveRequests > 0) warnings.push(warning('APPROVED_FUTURE_LEAVE', 'พบคำขอลาที่อนุมัติแล้วหลังวันที่มีผล', impacts.approvedFutureLeaveRequests));
+    if ((type === 'EMPLOYMENT_TERMINATION' || masterTerminates) && impacts.activeLicenses > 0) warnings.push(warning('ACTIVE_LICENSES', 'พบใบอนุญาตที่ยังมีผลและจะถูกเก็บเป็นประวัติ', impacts.activeLicenses));
+    if ((['NAME_CHANGE', 'DEPARTMENT_TRANSFER', 'EMPLOYMENT_TERMINATION', 'REHIRE'].includes(type) || masterChanged('firstName') || masterChanged('lastName') || masterChanged('department') || masterChanged('isActive')) && !employee.user) warnings.push(warning('LINKED_USER_MISSING', 'ไม่พบบัญชีผู้ใช้ที่เชื่อมด้วย employeeId ระบบจะไม่คาดเดาจากชื่อ'));
     if (type === 'REHIRE' && employee.user && !employee.user.employmentSuspendedAt) warnings.push(warning('USER_NOT_EMPLOYMENT_SUSPENDED', 'บัญชีผู้ใช้ไม่ได้ถูกระงับโดยเหตุการณ์ลาออก ระบบจะไม่เปิดบัญชีโดยอัตโนมัติ'));
 
     return {
@@ -188,35 +280,10 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
   }
 
   async function updateMasterFromSnapshot(tx, employee, type, snapshot, effectiveDate) {
-    const state = snapshot.employee;
-    const after = await tx.employee.update({
-      where: { id: employee.id },
-      data: {
-        firstName: state.firstName,
-        lastName: state.lastName,
-        displayName: state.displayName,
-        department: state.department,
-        jobTitle: state.jobTitle,
-        isActive: state.isActive
-      }
-    });
-
-    const linkedUser = await tx.user.findUnique({ where: { employeeId: employee.id } });
-    let synchronizedUser = linkedUser;
-    if (linkedUser && type === 'NAME_CHANGE') synchronizedUser = await tx.user.update({ where: { id: linkedUser.id }, data: { displayName: state.displayName } });
-    if (linkedUser && ['DEPARTMENT_TRANSFER', 'REHIRE'].includes(type)) synchronizedUser = await tx.user.update({ where: { id: linkedUser.id }, data: { department: state.department } });
-    if (linkedUser && type === 'EMPLOYMENT_TERMINATION') {
-      synchronizedUser = await tx.user.update({ where: { id: linkedUser.id }, data: { isActive: false, accountStatus: 'SUSPENDED', employmentSuspendedAt: effectiveDate, tokenVersion: { increment: 1 } } });
-      await tx.refreshSession.updateMany({ where: { userId: linkedUser.id, revokedAt: null }, data: { revokedAt: clock() } });
-    }
-    if (linkedUser && type === 'REHIRE' && linkedUser.employmentSuspendedAt) {
-      synchronizedUser = await tx.user.update({ where: { id: linkedUser.id }, data: { isActive: true, accountStatus: 'ACTIVE', employmentSuspendedAt: null, tokenVersion: { increment: 1 } } });
-      await tx.refreshSession.updateMany({ where: { userId: linkedUser.id, revokedAt: null }, data: { revokedAt: clock() } });
-    }
-    return { employee: after, user: synchronizedUser };
+    return applyEmployeeSnapshot(tx, employee, type, snapshot, effectiveDate, clock);
   }
 
-  async function createEvent({ employeeId, actorUserId, type, effectiveDate, reason, changes = {}, expectedEmployeeUpdatedAt, expectedLifecycleSequence, idempotencyKey, acknowledgeWarnings = false }) {
+  async function createEvent({ employeeId, actorUserId, type, effectiveDate, reason, changes = {}, expectedEmployeeUpdatedAt, expectedLifecycleSequence, idempotencyKey, acknowledgeWarnings = false, sourceChangeRequestId = null, sourceChangeRequestRevision = null }) {
     const effective = dateOnly(effectiveDate);
     const safeReason = cleanText(reason, 'เหตุผล', 1000);
 
@@ -266,6 +333,8 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
           changedByUserId: actorUserId,
           idempotencyKey,
           expectedEmployeeUpdatedAt: new Date(expectedEmployeeUpdatedAt),
+          sourceChangeRequestId,
+          sourceChangeRequestRevision,
           appliedAt: appliesNow ? clock() : null
         }
       });
@@ -274,7 +343,7 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
       if (appliesNow) {
         const synchronized = await updateMasterFromSnapshot(tx, employee, type, newValue, effective);
         currentEmployee = synchronized.employee;
-        await auditService.log({ actorUserId, action: 'UPDATE', entityType: 'Employee', entityId: employeeId, metadata: { lifecycleEventId: event.id, type, effectiveDate: effective, before: oldValue.employee, after: employeeState(currentEmployee) } }, tx);
+        await auditService.log({ actorUserId, action: 'UPDATE', entityType: 'Employee', entityId: employeeId, metadata: { lifecycleEventId: event.id, type, effectiveDate: effective, before: oldValue.employee, after: type === 'MASTER_EDIT' ? employeeMasterState(currentEmployee) : employeeState(currentEmployee) } }, tx);
       }
       await auditService.log({ actorUserId, action: 'CREATE', entityType: 'EmployeeLifecycleEvent', entityId: event.id, metadata: { employeeId, type, status: event.status, effectiveDate: effective, reason: safeReason, impacts: analysis.impacts } }, tx);
       return { event: { ...event, changedBy: { id: actorUserId } }, employee: currentEmployee, preflight: analysis, idempotent: false };
@@ -287,17 +356,26 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
       const event = await tx.employeeLifecycleEvent.findUnique({ where: { id: eventId } });
       if (!event || event.status !== 'PENDING' || new Date(event.effectiveDate) > bangkokToday(clock())) return null;
       const employee = await tx.employee.findUniqueOrThrow({ where: { id: event.employeeId } });
-      if (!sameControlledState(employeeState(employee), event.oldValue.employee)) throw new HttpError(409, 'สถานะปัจจุบันไม่ตรงกับข้อมูลก่อนเหตุการณ์', { code: 'EMPLOYEE_STATE_CONFLICT' });
+      const currentState = event.type === 'MASTER_EDIT' ? employeeMasterState(employee) : employeeState(employee);
+      const expectedFields = event.type === 'MASTER_EDIT' ? MASTER_FIELDS : CONTROLLED_FIELDS;
+      if (!sameControlledState(currentState, event.oldValue.employee, expectedFields)) throw new HttpError(409, 'สถานะปัจจุบันไม่ตรงกับข้อมูลก่อนเหตุการณ์', { code: 'EMPLOYEE_STATE_CONFLICT' });
       const synchronized = await updateMasterFromSnapshot(tx, employee, event.type, event.newValue, event.effectiveDate);
       const applied = await tx.employeeLifecycleEvent.update({ where: { id: event.id }, data: { status: 'APPLIED', appliedAt: clock() } });
-      await auditService.log({ actorUserId: event.changedByUserId, action: 'UPDATE', entityType: 'Employee', entityId: event.employeeId, metadata: { lifecycleEventId: event.id, type: event.type, effectiveDate: event.effectiveDate, appliedBy: 'SYSTEM_DUE_EVENT', before: event.oldValue.employee, after: employeeState(synchronized.employee) } }, tx);
+      await auditService.log({ actorUserId: event.changedByUserId, action: 'UPDATE', entityType: 'Employee', entityId: event.employeeId, metadata: { lifecycleEventId: event.id, type: event.type, effectiveDate: event.effectiveDate, appliedBy: 'SYSTEM_DUE_EVENT', before: event.oldValue.employee, after: event.type === 'MASTER_EDIT' ? employeeMasterState(synchronized.employee) : employeeState(synchronized.employee) } }, tx);
+      if (event.sourceChangeRequestId && Reflect.has(tx, 'employeeChangeRequest')) {
+        const claimed = await tx.employeeChangeRequest.updateMany({ where: { id: event.sourceChangeRequestId, status: 'APPROVED', approvedRevision: event.sourceChangeRequestRevision, appliedAt: null }, data: { appliedAt: clock() } });
+        if (claimed.count === 1 && Reflect.has(tx, 'employeeChangeRequestEvent')) {
+          await tx.employeeChangeRequestEvent.create({ data: { requestId: event.sourceChangeRequestId, employeeId: event.employeeId, revision: event.sourceChangeRequestRevision, action: 'APPLY_EFFECTIVE', fromStatus: 'APPROVED', toStatus: 'APPROVED', actorUserId: null, actorRoleSnapshot: 'SYSTEM', metadata: { lifecycleEventId: event.id }, idempotencyKey: event.idempotencyKey } });
+          await auditService.log({ actorUserId: null, action: 'UPDATE', entityType: 'EmployeeChangeRequest', entityId: event.sourceChangeRequestId, metadata: { event: 'APPLY_EFFECTIVE', revision: event.sourceChangeRequestRevision, lifecycleEventId: event.id } }, tx);
+        }
+      }
       return applied;
     }, { isolationLevel: 'Serializable' });
   }
 
   async function synchronizeDueEvents({ limit = MAX_DUE_EVENTS_PER_REQUEST, employeeId, failClosedOnTermination = false } = {}) {
     if (!hasLifecycleModel(prismaClient)) return { scanned: 0, applied: 0, failed: 0 };
-    const due = await prismaClient.employeeLifecycleEvent.findMany({ where: { status: 'PENDING', effectiveDate: { lte: bangkokToday(clock()) }, ...(employeeId && { employeeId }) }, select: { id: true, type: true }, orderBy: [{ effectiveDate: 'asc' }, { sequence: 'asc' }], take: limit });
+    const due = await prismaClient.employeeLifecycleEvent.findMany({ where: { status: 'PENDING', effectiveDate: { lte: bangkokToday(clock()) }, ...(employeeId && { employeeId }) }, select: { id: true, type: true, oldValue: true, newValue: true }, orderBy: [{ effectiveDate: 'asc' }, { sequence: 'asc' }], take: limit });
     let applied = 0;
     let failed = 0;
     for (const row of due) {
@@ -306,7 +384,8 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
       } catch (error) {
         failed += 1;
         logger.error('employee_lifecycle_due_event_failure', { eventId: row.id, errorCategory: errorCategory(error) });
-        if (failClosedOnTermination && row.type === 'EMPLOYMENT_TERMINATION') {
+        const employmentTermination = row.type === 'EMPLOYMENT_TERMINATION' || (row.type === 'MASTER_EDIT' && row.oldValue?.employee?.isActive === true && row.newValue?.employee?.isActive === false);
+        if (failClosedOnTermination && employmentTermination) {
           throw new HttpError(503, 'ไม่สามารถตรวจสอบสถานะการจ้างงานได้ กรุณาลองใหม่อีกครั้ง', { code: 'EMPLOYMENT_STATUS_SYNC_FAILED' });
         }
       }
@@ -314,7 +393,7 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
     return { scanned: due.length, applied, failed };
   }
 
-  async function history(employeeId, { page = 1, pageSize = 25 } = {}) {
+  async function history(employeeId, { page = 1, pageSize = 25 } = {}, role = 'ADMIN') {
     const employee = await prismaClient.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
     if (!employee) throw new HttpError(404, 'ไม่พบข้อมูลพนักงาน');
     const where = { employeeId };
@@ -322,7 +401,8 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
       prismaClient.employeeLifecycleEvent.count({ where }),
       prismaClient.employeeLifecycleEvent.findMany({ where, include: { changedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: [{ effectiveDate: 'desc' }, { sequence: 'desc' }], skip: (page - 1) * pageSize, take: pageSize })
     ]);
-    return { data: rows, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
+    const data = role === 'MANAGER' ? rows.map((event) => ({ ...event, oldValue: { ...event.oldValue, employee: managerEmployeeState(event.oldValue.employee || {}) }, newValue: { ...event.newValue, employee: managerEmployeeState(event.newValue.employee || {}) } })) : rows;
+    return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
   }
 
   async function statesAt(employeeIds, asOfDate, client = prismaClient, employeeRecords) {
@@ -333,19 +413,31 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
     if (!hasLifecycleModel(client)) return new Map(employees.map((employee) => [employee.id, employeeState(employee)]));
     const latest = await client.employeeLifecycleEvent.findMany({ where: { employeeId: { in: ids }, status: 'APPLIED', effectiveDate: { lte: date } }, orderBy: [{ employeeId: 'asc' }, { effectiveDate: 'desc' }, { sequence: 'desc' }], distinct: ['employeeId'] });
     const earliestAfter = await client.employeeLifecycleEvent.findMany({ where: { employeeId: { in: ids }, status: 'APPLIED', effectiveDate: { gt: date } }, orderBy: [{ employeeId: 'asc' }, { effectiveDate: 'asc' }, { sequence: 'asc' }], distinct: ['employeeId'] });
-    const latestByEmployee = new Map(latest.map((event) => [event.employeeId, event.newValue.employee]));
-    const earliestByEmployee = new Map(earliestAfter.map((event) => [event.employeeId, event.oldValue.employee]));
+    const latestByEmployee = new Map(latest.map((event) => [event.employeeId, employeeState(event.newValue.employee)]));
+    const earliestByEmployee = new Map(earliestAfter.map((event) => [event.employeeId, employeeState(event.oldValue.employee)]));
     return new Map(employees.map((employee) => [employee.id, latestByEmployee.get(employee.id) || earliestByEmployee.get(employee.id) || employeeState(employee)]));
   }
 
-  async function stateAt(employeeId, asOfDate) {
-    const states = await statesAt([employeeId], asOfDate);
+  async function stateAt(employeeId, asOfDate, client = prismaClient) {
+    const states = await statesAt([employeeId], asOfDate, client);
     const state = states.get(employeeId);
     if (!state) throw new HttpError(404, 'ไม่พบข้อมูลพนักงาน');
     return state;
   }
 
-  return { preflight, createEvent, applyPendingEvent, synchronizeDueEvents, history, statesAt, stateAt };
+  async function projectedStateAt(employeeId, asOfDate, client = prismaClient) {
+    const date = dateOnly(asOfDate);
+    const employee = await client.employee.findUnique({ where: { id: employeeId }, select: { id: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true, isActive: true, deletedAt: true } });
+    if (!employee || employee.deletedAt) throw new HttpError(404, 'Employee not found.');
+    if (!hasLifecycleModel(client)) return employeeState(employee);
+    const event = await client.employeeLifecycleEvent.findFirst({
+      where: { employeeId, effectiveDate: { lte: date } },
+      orderBy: [{ effectiveDate: 'desc' }, { sequence: 'desc' }]
+    });
+    return event?.newValue?.employee ? employeeState(event.newValue.employee) : employeeState(employee);
+  }
+
+  return { authoritativeMutationState, preflight, createEvent, applyPendingEvent, synchronizeDueEvents, history, statesAt, stateAt, projectedStateAt };
 }
 
 const defaultService = createEmployeeLifecycleService();
@@ -370,10 +462,18 @@ async function synchronizeDueLifecycleEventsForEmployee(employeeId) {
 
 module.exports = {
   EVENT_TYPES,
+  LIFECYCLE_LOCK,
+  LIFECYCLE_TRANSACTION_OPTIONS,
+  CONTROLLED_FIELDS,
+  MASTER_FIELDS,
+  MANAGER_MASTER_FIELDS,
   MAX_DUE_EVENTS_PER_REQUEST,
   bangkokToday,
   dateOnly,
   employeeState,
+  employeeMasterState,
+  managerEmployeeState,
+  applyEmployeeSnapshot,
   hasLifecycleModel,
   lifecycleSnapshot,
   nextSnapshot,
@@ -385,5 +485,6 @@ module.exports = {
   synchronizeDueLifecycleEventsForEmployee,
   getEmployeeLifecycleHistory: defaultService.history,
   getEmployeeStatesAt: defaultService.statesAt,
-  getEmployeeStateAt: defaultService.stateAt
+  getEmployeeStateAt: defaultService.stateAt,
+  getEmployeeProjectedStateAt: defaultService.projectedStateAt
 };

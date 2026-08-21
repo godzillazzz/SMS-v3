@@ -3,6 +3,7 @@ const HttpError = require('../utils/http-error');
 const { evaluateRulesForAssignments } = require('./schedule-rules.service');
 const audit = require('./audit.service');
 const { licenseStateForWorkDate } = require('./license-state.service');
+const { ensureEmployeeOperationalForShift } = require('./employee-operational-eligibility.service');
 
 function parseMonthDates(yearMonth) {
   const [yearStr, monthStr] = yearMonth.split('-');
@@ -155,6 +156,7 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
       }
 
       const shiftCode = String(shift.code || '').toUpperCase();
+      await ensureEmployeeOperationalForShift(tx, { employeeId: ass.employeeId, workDate: parsedDate, shiftCode });
       let licenseStatus = 'VALID';
       let licenseExpiryDate = null;
       let licenseOverride = Boolean(ass.licenseOverride);
