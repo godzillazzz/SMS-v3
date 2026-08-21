@@ -27,6 +27,32 @@
     scroll-margin-top: calc(var(--sms-mobile-header-height) + max(var(--sms-mobile-header-gap), env(safe-area-inset-top, 0px)) + 12px);
   }
 
+  /* Utility overlay is portalled to document.body so fixed geometry is viewport-rooted on Safari. */
+  .mobile-utility-backdrop {
+    z-index: 100;
+    inset: 0;
+    width: auto;
+    height: auto;
+  }
+
+  .mobile-utility-panel {
+    z-index: 101;
+    top: calc(env(safe-area-inset-top, 0px) + var(--sms-mobile-header-height) + 16px);
+    right: max(10px, env(safe-area-inset-right, 0px));
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--sms-mobile-header-height) - 28px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Leave Request keeps native document scrolling; explicitly preserve vertical touch panning without changing overflow geometry. */
+  .leave-page.leave-mode-all,
+  .leave-page.leave-mode-all .leave-main-grid,
+  .leave-page.leave-mode-all .leave-submit-card,
+  .leave-page.leave-mode-all .leave-submit-card form {
+    touch-action: pan-y;
+  }
+
   /* Leave History: preserve the desktop table above this breakpoint and use complete cards on phones. */
   .leave-history-card .leave-history-desktop-table {
     display: none;

@@ -62,7 +62,7 @@ describe('Production Mobile Responsive Hotfix V1', () => {
     expect(main).toContain('leave-history-mobile-card');
     expect(main).toContain('employee.employeeCode');
     expect(main).toContain('row.substitute || row.substituteName');
-    expect(main).toContain(", mode === 'history')");
+    expect(main).toContain("'ไม่มีรายการ', true)");
     expect(css).toContain('.leave-history-card .leave-history-desktop-table');
   });
 
@@ -101,6 +101,25 @@ describe('Production Mobile Responsive Hotfix V1', () => {
     expect(deleteRule).toContain('padding: 0');
     expect(deleteRule).toContain('transform: none');
     expect(deleteRule).not.toMatch(/(?:top|right|bottom|left):\s*-/);
+  });
+
+  test('portals the mobile utility foreground to the viewport root and locks through the shared owner', () => {
+    expect(main).toContain('mobileUtilityOpen && createPortal(<>');
+    expect(main).toContain('</>, document.body)');
+    const utilityEffect = main.slice(main.indexOf('if (!mobileUtilityOpen) return;'), main.indexOf('}, [mobileUtilityOpen]);'));
+    expect(utilityEffect).toContain('acquireDocumentScrollLock()');
+    expect(utilityEffect).toContain('releaseScrollLock()');
+    expect(css).toContain('.mobile-utility-backdrop');
+    expect(css).toContain('z-index: 100');
+    expect(css).toContain('.mobile-utility-panel');
+    expect(css).toContain('z-index: 101');
+  });
+
+  test('keeps Leave Request on native document scrolling with explicit vertical touch panning', () => {
+    expect(css).toContain('.leave-page.leave-mode-all');
+    expect(css).toContain('.leave-page.leave-mode-all .leave-submit-card form');
+    expect(css).toContain('touch-action: pan-y');
+    expect(css).not.toMatch(/\.leave-page\.leave-mode-all[\s\S]{0,260}overflow-y:\s*(?:auto|scroll)/);
   });
 
   test('uses natural mobile sheet heights with bounded internal scrolling', () => {

@@ -83,6 +83,11 @@ describe('G04.2 UX-02 application shell contract', () => {
     expect(main).toContain('aria-expanded={mobileUtilityOpen}');
     expect(main).toContain("if (event.key === 'Escape') setMobileUtilityOpen(false)");
     expect(main).toContain('mobileUtilityTriggerRef.current?.focus()');
+    expect(main).toContain('mobileUtilityOpen && createPortal(<>');
+    expect(main).toContain('</>, document.body)');
+    const utilityEffect = main.slice(main.indexOf('if (!mobileUtilityOpen) return;'), main.indexOf('}, [mobileUtilityOpen]);'));
+    expect(utilityEffect).toContain('acquireDocumentScrollLock()');
+    expect(utilityEffect).toContain('releaseScrollLock()');
   });
 
   it('preserves business page routing and search navigation behavior', () => {
