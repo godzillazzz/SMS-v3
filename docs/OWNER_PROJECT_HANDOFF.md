@@ -26,18 +26,20 @@ G06 is not Production.
 
 ## CURRENT DEVELOPMENT
 
-The current development candidate is the self-host infrastructure foundation,
-not the Production deployment.
+The current development candidate is EMAIL-01 on top of the self-host
+foundation lineage. It is not the Production deployment.
 
-- Development branch: feat/self-host-infrastructure-foundation-v1
-- Development SHA: 6281e233751a7b0299ec3713296c863af4fb538d
-- Development tree: ad28215e9cca2bdb1a715dfcbb3ea127d1fb2294
-- Self-host product commit: 045a8ef73d2ab0364d541b650647e4efde82b6e4
-- Exact-head Remote CI: run 32442374968, job 96655476241, PASS
-- Status: SMS_SELF_HOST_INFRASTRUCTURE_CANDIDATE_READY_OWNER_INPUT_REQUIRED
+- Development branch: fix/email-01-notification-policy-v1
+- EMAIL-01 product candidate SHA: ad62b1b44755fe59064676e9a22aa4e13a56610b
+- EMAIL-01 product candidate tree: b3fe80af0f86df98b132aee0659e2f0abbe9db3e
+- EMAIL-01 CI-only commit: 1aeef1d879b79bb9a8c27b82f8ebc17ee6f0fda7
+- Current branch validation tree: afcfc5d8c4a1cb3cc8060de581f2c972cf6bd48e
+- Status: SMS_EMAIL_01_EXACT_HEAD_CI_PENDING
+- EMAIL-01: NOT PRODUCTION
 
-The canonical self-host domain is unresolved. G06.2 Production rollout remains
-blocked by the canonical origin/domain gate.
+The self-host foundation remains candidate-ready but requires Owner
+infrastructure input. The canonical self-host domain is unresolved, so G06.2
+Production rollout remains blocked by the canonical origin/domain gate.
 
 ## COMPLETED G06 GATES
 
@@ -50,9 +52,10 @@ blocked by the canonical origin/domain gate.
 
 Employee Attendance is not live in Production.
 
-## EMAIL NOTIFICATION — CURRENT ACTIVE BEHAVIOR
+## EMAIL-01 CANDIDATE — NOT PRODUCTION
 
-This section records current code behavior, not desired future policy.
+This section records the implemented EMAIL-01 candidate behavior. It is not
+deployed to or authoritative for CURRENT PRODUCTION.
 
 1. Registration OTP
    - Recipient: submitted email
@@ -64,7 +67,7 @@ This section records current code behavior, not desired future policy.
    - Recipient: active ADMIN + MANAGER group
 
 4. Leave request created — reviewer notification
-   - Current active recipient: active MANAGER group
+   - Candidate recipient: active ADMIN + MANAGER group
 
 5. Leave request created — employee confirmation
    - Recipient: linked active employee user
@@ -79,15 +82,20 @@ This section records current code behavior, not desired future policy.
    - Recipient: linked active employee user
 
 9. Monthly schedule approved
-   - Current behavior: broadcast to active Users/Employees with valid email
+   - Candidate recipient: only active eligible employees represented by
+     assignments in the approved schedule month
 
 Important findings:
 
 - Email delivery is gated by email-notification and SMTP configuration.
-- The active leave reviewer broadcast targets MANAGER in the operations path.
-- Registration approve/reject has no confirmed applicant email notification
-  path.
-- Schedule approval recipient scope is broad.
+- Registration approval/rejection applicant mail is sent only after the
+  decision transaction commits.
+- Registration approval/rejection uses an idempotent
+  EmailDeliveryReservation event key per request and decision.
+- Leave reviewer delivery is individual per eligible reviewer, with no shared
+  visible recipient list.
+- Schedule approval has no broad fallback to all Users/Employees; an empty or
+  unresolved assignment set fails closed.
 - Legacy leave notification helpers/routes exist, but must not be assumed
   active without mounted-route and callsite proof.
 - routes/index.js mounts the operations route and does not directly mount the
@@ -96,9 +104,7 @@ Important findings:
 
 No email addresses or SMTP credentials belong in this document.
 
-## EMAIL POLICY — OWNER REVIEW / PROPOSED
-
-The following policy is proposed and not implemented.
+## EMAIL POLICY — IMPLEMENTED IN EMAIL-01 CANDIDATE
 
 ### Registration
 
@@ -116,8 +122,7 @@ The following policy is proposed and not implemented.
 
 ### Schedule
 
-- Approved: preferably affected employees for that month rather than every
-  system account
+- Approved: affected eligible employees for the approved month only
 
 ### License
 
@@ -129,7 +134,11 @@ The following policy is proposed and not implemented.
 Do not email every check-in/out. Future notification should focus on
 high-value exceptions and supervisor digest events.
 
-Do not implement EMAIL-01 as part of this handoff documentation update.
+EMAIL-01 does not add operational Attendance email behavior.
+
+OTP remains authentication-critical and separate from optional ordinary
+business-notification semantics. Business-notification delivery failures do
+not roll back registration, leave, or schedule database changes.
 
 ## G06 ATTENDANCE OWNER-APPROVED CORE
 
@@ -369,7 +378,8 @@ until formally locked.
 
 Current immediate work:
 
-- EMAIL-01: review and normalize notification policy
+- EMAIL-01: exact-head Remote CI and Owner review of the non-Production
+  candidate
 
 Potential later work that does not require the final Production origin:
 
@@ -419,20 +429,18 @@ credentials in this file.
 - Schema migration creation and Production migration execution are separate
   gates.
 
-## DOCUMENTATION-ONLY CURRENT GATE
+## CURRENT GATE — EMAIL-01
 
-This handoff update changes only:
+EMAIL-01 is a development candidate only and is not Production.
 
-- docs/OWNER_PROJECT_HANDOFF.md
-
-Current operation mutation counts:
-
-- Product/source behavior changes: 0
+- Product source changes in candidate: 7 files
 - Schema changes: 0
-- Migration: 0
+- Migration created: 0
 - Production deployment: 0
+- Production migration: 0
 - Production environment changes: 0
 - Production DB/data changes: 0
+- Real-user email smoke: 0
 - Vercel mutation: 0
 - DNS mutation: 0
 
