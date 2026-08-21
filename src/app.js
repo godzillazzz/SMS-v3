@@ -11,6 +11,7 @@ const { logger, errorCategory, setOperationalEventSink } = require('./utils/logg
 const { createConfiguredAlerting } = require('./services/alerting.service');
 
 const app = express();
+app.set('trust proxy', env.trustProxy);
 const alerting = createConfiguredAlerting(env, {
   onStoreFailure: (fields) => logger.error('alert_dedup_store_unavailable', fields)
 });

@@ -1,0 +1,16 @@
+[Unit]
+Description=SMS protected internal job (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=sms
+Group=sms
+EnvironmentFile=/etc/sms/scheduler.env
+ExecStart=/opt/sms/deploy/self-host/scheduler/run-internal-job.sh %i
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run

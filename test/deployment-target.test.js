@@ -12,6 +12,9 @@ const databaseUrl = 'postgresql://postgres.project-ref@aws-0-region.pooler.supab
 const directUrl = 'postgresql://postgres:placeholder@db.project-ref.supabase.co:5432/postgres?sslmode=require';
 const sessionUrl = 'postgresql://postgres.project-ref:placeholder@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require';
 const approvedFingerprint = targetFingerprint(parseTarget('DATABASE_URL', databaseUrl), parseTarget('DIRECT_URL', directUrl));
+const privateDatabaseUrl = 'postgresql://sms_app:placeholder@db.private.example:5432/sms_v3_prod?sslmode=require';
+const privateDirectUrl = 'postgresql://sms_app:placeholder@db.private.example:5432/sms_v3_prod?sslmode=require';
+const privateApprovedFingerprint = targetFingerprint(parseTarget('DATABASE_URL', privateDatabaseUrl), parseTarget('DIRECT_URL', privateDirectUrl));
 
 function runWith(overrides = {}) {
   const logs = [];
@@ -79,15 +82,28 @@ test('pgbouncer query DIRECT_URL fails closed', () => {
 });
 
 test('pooler hostname DIRECT_URL fails closed', () => {
-  const result = runWith({ DIRECT_URL: 'postgresql://postgres.project-ref@pooler.example.com:5432/postgres' });
+  const result = runWith({ DIRECT_URL: 'postgresql://postgres.project-ref@pooler.example.com:5432/postgres?pool_mode=transaction' });
   assert.equal(result.status, 1);
-  assert.match(result.errors[0], /mode could not be verified/);
+  assert.match(result.errors[0], /pooled PostgreSQL connection/);
 });
 
-test('unknown DIRECT_URL mode fails closed', () => {
-  const result = runWith({ DIRECT_URL: 'postgresql://postgres:placeholder@database.example.com:5432/postgres' });
+test('generic PostgreSQL target requires its approved fingerprint', () => {
+  const result = runWith({ DATABASE_URL: privateDatabaseUrl, DIRECT_URL: privateDirectUrl, APPROVED_DATABASE_TARGET_FINGERPRINT: undefined });
   assert.equal(result.status, 1);
-  assert.match(result.errors[0], /mode could not be verified as direct or verified Supabase session/);
+  assert.match(result.errors[0], /fingerprint mismatch/);
+});
+
+test('approved generic PostgreSQL target passes as direct without revealing connection details', () => {
+  const result = runWith({ DATABASE_URL: privateDatabaseUrl, DIRECT_URL: privateDirectUrl, APPROVED_DATABASE_TARGET_FINGERPRINT: privateApprovedFingerprint });
+  assert.equal(result.status, 0);
+  assert.match(result.logs.join('\n'), /DATABASE_MODE=direct/);
+  assert.match(result.logs.join('\n'), /DIRECT_MODE=direct/);
+  assert.doesNotMatch(result.logs.join('\n'), /private\.example|placeholder|postgresql:\/\//i);
+});
+
+test('private PostgreSQL fingerprint changes when the direct endpoint port changes', () => {
+  const alternatePort = 'postgresql://sms_app:placeholder@db.private.example:5433/sms_v3_prod?sslmode=require';
+  assert.notEqual(privateApprovedFingerprint, targetFingerprint(parseTarget('DATABASE_URL', privateDatabaseUrl), parseTarget('DIRECT_URL', alternatePort)));
 });
 
 test('verified direct URL passes with pooled DATABASE_URL', () => {

@@ -1,0 +1,10 @@
+[Unit]
+Description=SMS license reconciliation schedule
+
+[Timer]
+OnCalendar=*-*-* 17:05:00 UTC
+Persistent=true
+Unit=sms-internal-job@license-reconciliation.service
+
+[Install]
+WantedBy=timers.target

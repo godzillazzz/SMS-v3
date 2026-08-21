@@ -1,4 +1,5 @@
 const dotenv = require('dotenv');
+const net = require('node:net');
 const { z } = require('zod');
 const { logger } = require('../utils/logger');
 
@@ -37,6 +38,32 @@ function normalizeVercelOrigin(hostname, fieldName) {
   return normalizeOrigin(`https://${normalizedHostname}`, fieldName);
 }
 
+const trustedProxyAliases = new Set(['loopback', 'linklocal', 'uniquelocal']);
+
+function isTrustedProxyAddress(value) {
+  const [address, prefix] = value.split('/');
+  const version = net.isIP(address);
+  if (address === '0.0.0.0' || address === '::') return false;
+  if (!version) return false;
+  if (prefix === undefined) return true;
+  if (!/^\d+$/.test(prefix)) return false;
+  const numericPrefix = Number(prefix);
+  return numericPrefix > 0 && numericPrefix <= (version === 4 ? 32 : 128);
+}
+
+function parseTrustedProxy(value = 'false') {
+  const normalized = String(value).trim();
+  if (!normalized || normalized.toLowerCase() === 'false') return false;
+  const entries = normalized.split(',').map((entry) => entry.trim()).filter(Boolean);
+  if (!entries.length || entries.some((entry) => ['true', '*'].includes(entry.toLowerCase()))) {
+    throw new Error('TRUST_PROXY must use explicit proxy IP/CIDR values or loopback/linklocal/uniquelocal.');
+  }
+  if (entries.some((entry) => !trustedProxyAliases.has(entry.toLowerCase()) && !isTrustedProxyAddress(entry))) {
+    throw new Error('TRUST_PROXY contains an invalid or unbounded proxy value.');
+  }
+  return entries.length === 1 ? entries[0] : entries;
+}
+
 function buildCorsOrigins({ corsOrigin, vercelEnv, vercelUrl, vercelBranchUrl }) {
   const configuredOrigins = corsOrigin.split(',').map((origin) => origin.trim()).filter(Boolean);
   if (configuredOrigins.includes('*')) throw new Error('CORS_ORIGIN cannot contain a wildcard when credentials are enabled.');
@@ -64,6 +91,7 @@ const schema = z.object({
   JWT_ISSUER: z.string().min(1).default('smsv3-api'),
   JWT_AUDIENCE: z.string().min(1).default('smsv3-clients'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  TRUST_PROXY: z.string().min(1).default('false'),
   CORS_ORIGIN: z.string().min(1).refine((value) => !value.split(',').map((origin) => origin.trim()).includes('*'), 'CORS_ORIGIN cannot contain a wildcard when credentials are enabled.').default('http://localhost:5173'),
   LOGIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(15 * 60 * 1000),
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1000).default(10),
@@ -185,7 +213,9 @@ if (allowLocalTestDefaults) {
 module.exports = {
   buildCorsOrigins,
   isCorsOriginAllowed,
+  parseTrustedProxy,
   port: parsed.PORT, nodeEnv: parsed.NODE_ENV, jwtSecret: parsed.JWT_SECRET,
+  trustProxy: parseTrustedProxy(parsed.TRUST_PROXY),
   jwtExpiresIn: parsed.JWT_EXPIRES_IN, jwtAlgorithm: parsed.JWT_ALGORITHM,
   jwtIssuer: parsed.JWT_ISSUER, jwtAudience: parsed.JWT_AUDIENCE,
   corsOrigins: parsed.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean),

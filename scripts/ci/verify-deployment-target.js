@@ -44,6 +44,7 @@ function detectConnectionMode(url, provider) {
   if (queryMode === 'unknown') return 'unknown';
   if (provider === 'supabase' && /^db\.[a-z0-9-]+\.supabase\.co$/i.test(hostname) && port === '5432' && queryMode !== 'session') return 'direct';
   if (provider === 'supabase' && supabaseSessionHostPattern.test(hostname) && port === '5432') return 'verified-supabase-session';
+  if (provider === 'postgresql' && port !== '6543' && queryMode === null) return 'direct';
   return 'unknown';
 }
 
@@ -118,7 +119,7 @@ function normalizeLogicalTarget(databaseUrl, directUrl) {
   }
 
   if (databaseUrl.hostname !== directUrl.hostname) throw new Error('Deployment target endpoint identity could not be verified');
-  return { provider: databaseUrl.provider, endpoint: databaseUrl.hostname, database: databaseUrl.database };
+  return { provider: databaseUrl.provider, endpoint: directUrl.hostname, port: directUrl.port, database: databaseUrl.database };
 }
 
 function targetFingerprint(databaseUrl, directUrl) {

@@ -1,0 +1,10 @@
+[Unit]
+Description=SMS annual leave quota provisioning schedule
+
+[Timer]
+OnCalendar=*-12-31 17:00:00 UTC
+Persistent=true
+Unit=sms-internal-job@annual-leave-quota-provisioning.service
+
+[Install]
+WantedBy=timers.target
