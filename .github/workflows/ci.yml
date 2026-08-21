@@ -9,6 +9,7 @@ on:
       - feat/g06-1-attendance-foundation-v1
       - feat/g06-1b-attendance-admin-config-ui-v1
       - feat/self-host-infrastructure-foundation-v1
+      - fix/email-01-notification-policy-v1
   pull_request:
     branches: [main, fix/serverless-database-reliability]
 
