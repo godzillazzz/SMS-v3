@@ -25,9 +25,61 @@ G06 is not Production.
 - Canonical current Vercel hostname: sms-v3-staging-ten.vercel.app
 - Rollback deployment: dpl_xKvsNaKHJLabrSH3J3aHUUzNoUpZ
 
-Do not deploy the current development lineage directly to Production merely to
-release EMAIL-01. It also contains G06/self-host work that is not yet
+EMAIL-01P has an Owner-authorized isolated Production backport candidate, but
+Production must NOT be described as upgraded until the fresh exact-SHA
+Production deployment, canonical cutover, health/ready, runtime, and rollback
+gates are all verified.
+
+Do not deploy the complete current development lineage directly to Production
+merely to release EMAIL-01. It also contains G06/self-host work that is not yet
 Production-authorized.
+
+## EMAIL-01P PRODUCTION BACKPORT — OWNER AUTHORIZED, RELEASE VERIFICATION PENDING
+
+Owner authorization has been granted to deploy the isolated EMAIL-01P
+Production backport.
+
+Authoritative release candidate:
+
+- Branch: fix/email-01-production-backport-v1
+- Base Production SHA: 94b4667771006b00759ddf6f0ec447d27400206c
+- Base Production tree: 31e1dbe6c5fb4f8aa47f41052d1d1ae31cfd9f3e
+- Product backport SHA: 2c83f4e1527ad100395c97bcec8ca8f8a1fcc1b2
+- CI-only / final release SHA: 39f28d5d0c0216672f28567b315501e7b7b64990
+- Final release tree: 8d9672b936f8a9b24ee3d0b095df1ef31eacee57
+- Remote CI run: 32451401152
+- Remote CI job: 96680459866
+- Remote CI result: SUCCESS
+- Focused email tests: 32/32 PASS
+- Backend: 539/539 PASS
+- Integration: 108/108 PASS
+- Frontend: 342/342 PASS
+- TypeScript/build: PASS
+- Schema delta: 0
+- New migrations: 0
+- G06/self-host/Attendance files imported: 0
+- Automatic Preview reference only: dpl_DMVPsbVrr5UTBCCSjCE5wizQbRTz — READY
+- Preview URL: https://sms-v3-staging-3l2qzpqzs-godzillazz.vercel.app
+
+Release rule:
+
+- Use a fresh Production-target exact-SHA deployment from
+  39f28d5d0c0216672f28567b315501e7b7b64990.
+- Do NOT promote the automatic Preview above.
+- No Production migration.
+- No Production schema change.
+- No Production environment mutation.
+- No manual Production DB/data mutation.
+- No DNS/storage mutation.
+- Do not fabricate real-user business events merely to smoke-test email.
+- Current G05 Production deployment remains the rollback authority until the
+  new Production release is fully verified.
+
+Required success status after release verification only:
+
+SMS_EMAIL_01P_PRODUCTION_RELEASE_VERIFIED
+
+Until that status is proven, CURRENT PRODUCTION above remains authoritative.
 
 ## CURRENT DEVELOPMENT
 
@@ -37,7 +89,7 @@ foundation. It is not the Production deployment.
 - Development branch: fix/email-01-notification-policy-v1
 - EMAIL-01 product commit: ad62b1b44755fe59064676e9a22aa4e13a56610b
 - EMAIL-01 CI-only commit: 1aeef1d879b79bb9a8c27b82f8ebc17ee6f0fda7
-- EMAIL-01 validated candidate SHA before this handoff update:
+- EMAIL-01 validated candidate SHA before documentation-only handoff updates:
   7aa7d7511f0c679b76ba98ef6737af39476bb3a2
 - EMAIL-01 validated candidate tree:
   77ed5927a0857bb74dbd9d58cd265e4ede6aa469
@@ -49,13 +101,12 @@ foundation. It is not the Production deployment.
 - Automatic Preview: dpl_7Z5Masj2LMeGuMLRcs8bnDPiiTnL — READY
 - Schema delta: 0
 - New migrations: 0
-- Production mutations for EMAIL-01: 0
+- Production mutations for development-line EMAIL-01: 0
 - Real-user email smoke: 0
 - Status: SMS_EMAIL_01_CANDIDATE_READY
-- EMAIL-01: NOT PRODUCTION
 
-The canonical handoff has been persisted on GitHub. This file must continue to
-be updated on this development lineage after major approved gates.
+The canonical handoff must continue to be updated on this development lineage
+after major approved gates.
 
 ## COMPLETED G06 GATES
 
@@ -68,7 +119,7 @@ be updated on this development lineage after major approved gates.
 
 Employee Attendance is not live in Production.
 
-## EMAIL-01 CANDIDATE — NOT PRODUCTION
+## EMAIL-01 OWNER-APPROVED POLICY
 
 Implemented EMAIL-01 candidate behavior:
 
@@ -108,11 +159,11 @@ Implemented EMAIL-01 candidate behavior:
      assignments in the approved schedule month
    - No broad all-user fallback
 
-Important findings:
+Important rules:
 
 - Email delivery is gated by email-notification and SMTP configuration.
-- Registration approval/rejection uses an idempotent
-  EmailDeliveryReservation event key per request and decision.
+- Registration approval/rejection uses an idempotent EmailDeliveryReservation
+  event key per request and decision.
 - Leave reviewer delivery is individual per eligible reviewer; recipient
   addresses are not exposed to each other.
 - Schedule approval has no broad fallback to all Users/Employees; an empty or
@@ -127,34 +178,13 @@ Important findings:
 
 No email addresses or SMTP credentials belong in this document.
 
-## EMAIL-01 PRODUCTION RELEASE SAFETY
-
-EMAIL-01 is validated on the development lineage, but the development lineage
-contains G06/self-host commits beyond the current G05 Production baseline.
-
-Do NOT deploy the complete development head directly as an EMAIL-only release.
-
-Preferred Production release path:
-
-- Start exactly from Production G05 SHA
-  94b4667771006b00759ddf6f0ec447d27400206c.
-- Backport only the EMAIL-01 product behavior and focused tests.
-- No G06 files.
-- No self-host files.
-- No Attendance schema/migration.
-- Schema delta must remain 0.
-- Require exact-head Remote CI before Owner Production authorization.
-
-Suggested status for a successful isolated backport candidate:
-
-SMS_EMAIL_01P_PRODUCTION_BACKPORT_CANDIDATE_READY
-
 ## G06 / G07 OWNER-APPROVED NO-PHOTO SECURITY MODEL
 
 OWNER DECISION SUPERSEDING THE EARLIER PHOTO REQUIREMENT:
 
-Attendance and Patrol must NOT require or retain employee photos.
-SMS must NOT implement its own Face Recognition for this scope.
+Attendance and Patrol must NOT require or retain employee photos in the current
+approved version. SMS must NOT implement its own Face Recognition for this
+scope.
 
 The approved security/evidence model is:
 
@@ -185,7 +215,7 @@ NO CONTINUOUS GPS TRACKING.
 
 The design goal is to keep Attendance/Patrol lightweight in storage and
 bandwidth so the current hosting model can remain viable as long as practical.
-This is a design goal, not a guarantee that any external free tier will remain
+This is a design goal, not a guarantee that an external free tier will remain
 sufficient forever.
 
 ## PASSKEY ROLE — IMPORTANT
@@ -329,7 +359,7 @@ Open SMS
 Employees do not manually select Expected Site, Shift, Duty, or Patrol Route.
 Those come from authoritative Schedule/assignment.
 
-No employee photo capture is required.
+No employee photo capture is required under the current policy.
 
 ### ONLINE
 
@@ -520,6 +550,212 @@ This materially reduces object-storage, bandwidth, backup, and retention load.
 
 Existing License document storage is a separate feature and is not removed by
 this no-photo Attendance/Patrol decision.
+
+## FUTURE PHOTO POLICY EXTENSION — OWNER-APPROVED DESIGN REQUIREMENT
+
+The current policy is NO PHOTO, but the architecture must preserve a clean
+future extension point so a later Owner policy can enable photo evidence
+without rebuilding Attendance/Patrol core logic.
+
+Do NOT create unused photo storage merely for this possibility now.
+Instead, keep Attendance/Patrol event identity and validation independent from
+optional evidence storage so a future additive design can support concepts
+such as:
+
+AttendanceEvent / PatrolEvent
+→ optional Evidence relation
+→ evidence type PHOTO when later authorized
+
+A future photo-enabled release may add an additive evidence model with fields
+such as event reference, evidence type, storage provider, object key/reference,
+checksum, capturedAt, and retention policy.
+
+Future policy may support, after a separate Owner gate:
+
+- NO PHOTO
+- PHOTO OPTIONAL
+- PHOTO REQUIRED
+- PHOTO REQUIRED only for selected Site/risk/policy cases
+
+A future photo policy is a separate implementation/release/privacy/storage gate.
+Do not silently enable photo capture, upload, retention, or face recognition.
+Face Recognition remains prohibited unless separately and explicitly approved.
+
+## DATA RETENTION ARCHITECTURE — OWNER APPROVED
+
+SMS must use bounded rolling retention for high-volume raw operational data so
+the database does not grow without limit.
+
+Initial Owner-approved defaults:
+
+1. SYSTEM OPERATIONAL / USAGE LOGS
+   - Retention: 6 calendar months
+   - Automatic hard delete after the retention cutoff
+
+2. ATTENDANCE RAW EVENTS
+   - Retention: 12 calendar months / 1 calendar year
+   - Automatic hard delete after the retention cutoff
+
+3. PATROL / CHECKPOINT RAW SCANS
+   - Retention: 3 calendar months
+   - Automatic hard delete after the retention cutoff
+
+Retention is calculated by calendar month/year, not by approximating 6 months
+as 180 days, 1 year as 365 days, or 3 months as 90 days.
+
+Retention calendar/timezone authority:
+
+Asia/Bangkok
+
+For event data, retention age must be based on the authoritative effective
+occurrence/capture date, not merely the later server sync-receipt date.
+For controlled-offline records, a later receivedAt/syncReceivedAt must not
+artificially extend raw retention when the validated event occurred earlier.
+
+### RAW DATA VERSUS OFFICIAL RECORDS
+
+The raw-data purge must NOT silently delete official governance records.
+
+Attendance raw retention covers high-volume event/evidence/technical data such
+as event GPS, accuracy, QR/device validation context, sync/technical metadata,
+and raw risk details according to the final schema.
+
+Attendance monthly certification / official summary records are NOT covered by
+the 12-month raw-data purge unless a later Owner-approved policy explicitly
+changes that rule.
+
+Patrol raw retention covers per-checkpoint raw scan/location/device/validation
+records according to the final schema.
+
+Patrol official/monthly summary records are NOT covered by the 3-month raw-data
+purge unless a later Owner-approved policy explicitly changes that rule.
+
+### OPERATIONAL LOGS VERSUS SECURITY / GOVERNANCE AUDIT
+
+Routine System Operational/Usage Logs may follow the 6-month retention policy.
+
+Security/Governance Audit is a separate data class and must NOT be silently
+included in the 6-month operational-log purge.
+Examples include Admin device replacement approval, Attendance correction,
+month unlock/certification action, QR regeneration/revocation, privileged
+configuration changes, destructive data actions, and similar governance events.
+
+Security/Governance Audit retention requires its own policy. Until explicitly
+set, the raw operational-log cleanup must fail closed and exclude governance
+audit records.
+
+## ADMIN-CONFIGURABLE RETENTION POLICY — OWNER APPROVED
+
+Retention durations must be data/configuration driven and manageable through
+an ADMIN-only System Settings / Data Retention UI.
+
+Do NOT hard-code the business retention durations so a future policy change
+requires a source-code edit or redeployment.
+
+Initial UI defaults:
+
+- System Operational Logs: 6 months
+- Attendance Raw Events: 12 months
+- Patrol / Checkpoint Raw Scans: 3 months
+- Automatic Daily Cleanup: enabled
+
+Example future policy change:
+
+Patrol / Checkpoint Raw Scans
+3 months → 6 months
+
+This must be possible from the application by an ADMIN without code change or
+redeploy.
+
+Every retention-policy change must be audited with at least policy identity,
+previous value, new value, Admin actor, changedAt, and effective timing.
+
+Manager is NOT authorized to change retention policy unless a later Owner rule
+explicitly changes this authority.
+
+### RETENTION CHANGE SAFETY
+
+Increasing retention does NOT restore data that was already permanently purged
+under the previous policy. The Admin UI must state this clearly.
+
+Decreasing retention can make existing data immediately eligible for deletion.
+Therefore the application must NOT hard-delete data inside the same Save
+request.
+
+For a retention decrease:
+
+1. calculate and show an impact preview before confirmation
+2. show the affected cutoff and estimated/actual eligible record count where
+   technically practical
+3. require explicit ADMIN confirmation
+4. save the new policy
+5. apply deletion through the controlled retention worker, not the UI request
+6. use a safety delay before destructive effect; initial approved target is
+   approximately 24 hours so an accidental policy reduction can be corrected
+   before the purge runs
+
+The implementation must prevent invalid or dangerous values such as zero,
+negative, or unbounded arbitrary retention entries.
+
+Initial UI safety bounds:
+
+- System Operational Logs: 1–24 months
+- Attendance Raw Events: 3–36 months
+- Patrol / Checkpoint Raw Scans: 1–24 months
+
+These bounds are owner-approved initial guardrails and may themselves be
+changed only through a later controlled policy/design gate.
+
+## AUTOMATIC RETENTION JOB — OWNER APPROVED
+
+Retention cleanup must be automatic and server-authoritative. Admin should not
+need to manually delete expired raw records day by day.
+
+Preferred behavior:
+
+Daily Retention Worker
+→ read current retention configuration
+→ calculate Asia/Bangkok calendar cutoffs
+→ delete only eligible raw records
+→ preserve excluded official records/governance audits
+→ record a compact purge result
+
+Do NOT create one audit row per deleted raw record merely to prove cleanup;
+that would recreate unnecessary data growth.
+
+A single compact retention-purge record per run should capture appropriate
+summary information such as:
+
+- runAt
+- applied policy versions/values
+- calculated cutoffs
+- counts deleted per data class
+- result/success/failure
+- relevant error summary without sensitive payloads
+
+Deletion should be batch-safe/idempotent/retry-safe and should avoid long
+unbounded transactions. Exact batch sizing and scheduler implementation are
+implementation details to be validated against the target runtime/database.
+
+If a policy/data dependency is ambiguous, fail closed rather than deleting a
+broader data class.
+
+## CAPACITY / FREE-TIER OPERATING DIRECTION
+
+The current NO-PHOTO + bounded-retention design is intentionally optimized to
+reduce object storage, bandwidth, backup load, and long-term raw database
+growth.
+
+This can materially extend the practical life of the current small/free hosting
+model, but no external provider free tier is guaranteed indefinitely.
+
+After G06/G07 real usage begins, capacity decisions should be based on measured
+usage rather than assumptions. Track at least database size/growth, request
+volume, function/runtime use, bandwidth, and any applicable provider limits.
+
+A future Admin capacity view may show current usage, growth trend, and estimated
+remaining capacity. This is recommended future operational tooling, not a
+reason to block current G06 architecture work.
 
 ## SELF-HOST FOUNDATION
 
@@ -736,20 +972,31 @@ complete.
 
 Immediate development/release priorities:
 
-1. Preserve EMAIL-01 candidate as development-authoritative.
-2. If Owner wants EMAIL-01 in Production before G06 release, create a clean
-   EMAIL-only Production backport from G05 baseline; do not deploy the entire
-   G06/self-host development lineage.
-3. Update G06 implementation/design from the superseded mandatory-photo model
+1. Complete the Owner-authorized EMAIL-01P Production release using only the
+   isolated exact-SHA backport and close the release only after canonical,
+   health/ready, runtime, and rollback verification.
+2. Update G06 implementation/design from the superseded mandatory-photo model
    to the approved NO-PHOTO + PERSONAL DEVICE + STATIC SECURE QR model before
    continuing employee Attendance implementation.
-4. Design device enrollment and ADMIN-only device replacement authority.
-5. Design static secure Site QR and Checkpoint QR lifecycle, including
-   regenerate/revoke and location binding.
-6. Continue Attendance/Patrol server validation and mobile UX without
+3. Design/implement personal device enrollment and ADMIN-only device
+   replacement authority.
+4. Design/implement static secure Site QR and Checkpoint QR lifecycle,
+   including regenerate/revoke and location binding.
+5. Add the configurable retention architecture to G06/G07 design so raw data
+   classes are explicitly identified before the retention worker can delete
+   anything.
+6. Implement ADMIN-only Data Retention settings, policy audit, impact preview,
+   and safe delayed application for retention reductions.
+7. Design the automatic daily retention worker with fail-closed data-class
+   boundaries and compact purge summaries.
+8. Preserve an optional future photo-evidence extension point without creating
+   or retaining employee photo data now.
+9. Continue Attendance/Patrol server validation and mobile UX without
    introducing image evidence storage.
-7. Before real controlled-offline employee rollout, obtain explicit Owner
-   decision on rollout origin strategy.
+10. Before real controlled-offline employee rollout, obtain explicit Owner
+    decision on rollout origin strategy.
+11. After real G06/G07 usage begins, measure capacity/growth before deciding on
+    paid hosting or self-host migration.
 
 Do not start G07 Production rollout before G06 foundations required by the
 shared device/location/QR security model are stable.
@@ -758,13 +1005,16 @@ shared device/location/QR security model are stable.
 
 Still requiring explicit Owner decisions when relevant:
 
-- Production authorization for EMAIL-01 backport/release
+- final verification result of the Owner-authorized EMAIL-01P Production
+  release
 - actual rollout origin for employee PWA/offline
 - whether/when to purchase an Owner-controlled custom domain
 - whether/when to self-host
 - R330 exact disk/controller health before any self-host Production use
 - exact Patrol route sequencing/policy where not yet defined
 - any future native Android hardening gate
+- any future change from NO PHOTO to optional/required photo evidence
+- Security/Governance Audit retention duration
 
 Do not request or record passwords, tokens, cookies, private keys, SMTP
 credentials, or similar secrets in this file.
@@ -791,15 +1041,23 @@ credentials, or similar secrets in this file.
 - Operational eligibility remains isActive === true && deletedAt === null
   unless a later Owner-approved domain rule explicitly supersedes it.
 - Risk flags are evidence for validation/review, not automatic accusations.
+- Retention deletion must be data-class scoped, policy driven, audited in
+  compact form, and fail closed on ambiguity.
+- Increasing retention cannot restore already-purged data.
+- Retention decreases require impact preview and explicit ADMIN confirmation.
 
 ## CURRENT GATE
 
 EMAIL-01 development candidate:
 SMS_EMAIL_01_CANDIDATE_READY
 
-Production remains G05.
+EMAIL-01P isolated Production backport:
+OWNER AUTHORIZED FOR PRODUCTION DEPLOYMENT
+RELEASE VERIFICATION PENDING
 
-G06/G07 architecture has now been Owner-updated to:
+Current Production remains G05 until the exact Production release is verified.
+
+G06/G07 architecture is now Owner-locked to:
 
 NO PHOTO
 +
@@ -814,9 +1072,28 @@ STATIC SECURE PAPER QR
 SERVER VALIDATION / RISK ENGINE
 +
 CONTROLLED OFFLINE FALLBACK
++
+CONFIGURABLE BOUNDED DATA RETENTION
 
-This architecture decision supersedes the earlier mandatory fresh-photo
-Attendance requirement in prior handoff text or earlier chat context.
+Initial rolling raw-data retention defaults:
+
+- System Operational Logs: 6 calendar months
+- Attendance Raw Events: 12 calendar months
+- Patrol / Checkpoint Raw Scans: 3 calendar months
+
+ADMIN may change these within approved safety bounds through the application
+without code change/redeploy. Policy changes are audited. Retention decreases
+require impact preview + explicit ADMIN confirmation + controlled delayed
+purge. Increasing retention never restores already-purged data.
+
+Official Attendance/Patrol summary/certification records are outside these raw
+purges. Security/Governance Audit is also outside the 6-month operational-log
+purge until its separate retention policy is explicitly approved.
+
+The current NO-PHOTO decision supersedes the earlier mandatory fresh-photo
+Attendance requirement in prior handoff text or earlier chat context, while
+the architecture must preserve a future additive photo-evidence extension
+point for a separately authorized policy change.
 
 ## New Chat / New CODEX Session
 
