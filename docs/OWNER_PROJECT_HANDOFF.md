@@ -18,23 +18,24 @@ handoff copies.
 Production is separate from the current development/self-host candidate.
 G06 is not Production.
 
-- Production application SHA: 94b4667771006b00759ddf6f0ec447d27400206c
-- Production tree: 31e1dbe6c5fb4f8aa47f41052d1d1ae31cfd9f3e
-- Production release: G05 — License Document Permanent-Delete Audit Tombstone
-- Production deployment: dpl_GLmDVZHQwrEkvBuUwuDcvSzNRf5Z
+- Production application SHA: 39f28d5d0c0216672f28567b315501e7b7b64990
+- Production tree: 8d9672b936f8a9b24ee3d0b095df1ef31eacee57
+- Production release: G05 + EMAIL-01P — License audit tombstone and normalized email policy
+- Production deployment: dpl_6vYMt8yYtpkCmYvfo1RHuavZoZpX
+- Production immutable URL: https://sms-v3-staging-7i3butp28-godzillazz.vercel.app
 - Canonical current Vercel hostname: sms-v3-staging-ten.vercel.app
-- Rollback deployment: dpl_xKvsNaKHJLabrSH3J3aHUUzNoUpZ
+- Rollback deployment: dpl_GLmDVZHQwrEkvBuUwuDcvSzNRf5Z
+- Rollback SHA: 94b4667771006b00759ddf6f0ec447d27400206c
 
-EMAIL-01P has an Owner-authorized isolated Production backport candidate, but
-Production must NOT be described as upgraded until the fresh exact-SHA
-Production deployment, canonical cutover, health/ready, runtime, and rollback
-gates are all verified.
+EMAIL-01P is now verified in Production through a fresh GitSource deployment
+from the exact authorized GitHub SHA. G06/self-host development remains
+outside Production.
 
 Do not deploy the complete current development lineage directly to Production
 merely to release EMAIL-01. It also contains G06/self-host work that is not yet
 Production-authorized.
 
-## EMAIL-01P PRODUCTION BACKPORT — OWNER AUTHORIZED, RELEASE VERIFICATION PENDING
+## EMAIL-01P PRODUCTION BACKPORT — VERIFIED IN PRODUCTION
 
 Owner authorization has been granted to deploy the isolated EMAIL-01P
 Production backport.
@@ -58,8 +59,21 @@ Authoritative release candidate:
 - Schema delta: 0
 - New migrations: 0
 - G06/self-host/Attendance files imported: 0
-- Automatic Preview reference only: dpl_DMVPsbVrr5UTBCCSjCE5wizQbRTz — READY
+- Automatic Preview reference only: dpl_DMVPsbVrr5UTBCCSjCE5wizQbRTz — never promoted
 - Preview URL: https://sms-v3-staging-3l2qzpqzs-godzillazz.vercel.app
+- Production deployment: dpl_6vYMt8yYtpkCmYvfo1RHuavZoZpX
+- Production immutable URL: https://sms-v3-staging-7i3butp28-godzillazz.vercel.app
+- GitSource: GitHub repo 1305361853, branch fix/email-01-production-backport-v1,
+  SHA 39f28d5d0c0216672f28567b315501e7b7b64990
+- Deployment target/state: production / READY
+- Canonical cutover: verified on sms-v3-staging-ten.vercel.app
+- Health: 3/3 PASS
+- Ready/database: 3/3 PASS, database=ok
+- Root/login: 200 / 200
+- Unauthenticated auth/me: 401
+- Runtime fatal/unexpected 5xx/database/config errors: 0
+- Production migrations/env/DB-data/DNS/storage mutations: 0
+- Real-user email smoke: 0
 
 Release rule:
 
@@ -72,14 +86,13 @@ Release rule:
 - No manual Production DB/data mutation.
 - No DNS/storage mutation.
 - Do not fabricate real-user business events merely to smoke-test email.
-- Current G05 Production deployment remains the rollback authority until the
-  new Production release is fully verified.
+- The prior G05 deployment remains the immediate rollback authority.
 
-Required success status after release verification only:
+Verified release status:
 
 SMS_EMAIL_01P_PRODUCTION_RELEASE_VERIFIED
 
-Until that status is proven, CURRENT PRODUCTION above remains authoritative.
+CURRENT PRODUCTION above is now the EMAIL-01P verified state.
 
 ## CURRENT DEVELOPMENT
 
@@ -103,7 +116,7 @@ foundation. It is not the Production deployment.
 - New migrations: 0
 - Production mutations for development-line EMAIL-01: 0
 - Real-user email smoke: 0
-- Status: SMS_EMAIL_01_CANDIDATE_READY
+- Status: SMS_EMAIL_01_CANDIDATE_READY (development lineage; not Production)
 
 The canonical handoff must continue to be updated on this development lineage
 after major approved gates.
@@ -972,9 +985,8 @@ complete.
 
 Immediate development/release priorities:
 
-1. Complete the Owner-authorized EMAIL-01P Production release using only the
-   isolated exact-SHA backport and close the release only after canonical,
-   health/ready, runtime, and rollback verification.
+1. Preserve the verified EMAIL-01P Production release and immediate rollback
+   checkpoint; do not deploy the broader development lineage.
 2. Update G06 implementation/design from the superseded mandatory-photo model
    to the approved NO-PHOTO + PERSONAL DEVICE + STATIC SECURE QR model before
    continuing employee Attendance implementation.
@@ -1005,8 +1017,7 @@ shared device/location/QR security model are stable.
 
 Still requiring explicit Owner decisions when relevant:
 
-- final verification result of the Owner-authorized EMAIL-01P Production
-  release
+- any future EMAIL-01P rollback or follow-up release decision
 - actual rollout origin for employee PWA/offline
 - whether/when to purchase an Owner-controlled custom domain
 - whether/when to self-host
@@ -1052,10 +1063,10 @@ EMAIL-01 development candidate:
 SMS_EMAIL_01_CANDIDATE_READY
 
 EMAIL-01P isolated Production backport:
-OWNER AUTHORIZED FOR PRODUCTION DEPLOYMENT
-RELEASE VERIFICATION PENDING
+SMS_EMAIL_01P_PRODUCTION_RELEASE_VERIFIED
 
-Current Production remains G05 until the exact Production release is verified.
+Current Production is the exact EMAIL-01P release recorded above. G06 and
+self-host remain outside Production.
 
 G06/G07 architecture is now Owner-locked to:
 
