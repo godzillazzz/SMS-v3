@@ -6,6 +6,7 @@ on:
       - fix/serverless-database-reliability
       - fix/sms-v1-2-1-visual-consistency-inactive-darkmode
       - fix/g05-license-document-delete-audit-tombstone
+      - fix/email-01-production-backport-v1
   pull_request:
     branches: [main, fix/serverless-database-reliability]
 
