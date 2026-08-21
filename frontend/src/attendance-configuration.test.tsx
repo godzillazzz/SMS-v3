@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AttendanceConfigurationPage, overnightPreview, validateShiftDraft, validateSiteDraft } from './pages/attendance/AttendanceConfigurationPage';
 
@@ -21,5 +22,11 @@ describe('attendance configuration contracts', () => {
     expect(html).toContain('ตั้งค่าระบบลงเวลา');
     expect(html).toContain('จุดปฏิบัติงาน');
     expect(html).not.toMatch(/<button[^>]*>[^<]*(Check-in|Check-out)/i);
+  });
+
+  it('keeps the Attendance search control on semantic theme surfaces', () => {
+    const css = readFileSync(new URL('./pages/attendance/attendance-configuration.css', import.meta.url), 'utf8');
+    expect(css).toContain('.attendance-master-toolbar .search-box { flex: 0 1 320px; border-color: var(--sms-border); background: var(--sms-input, var(--sms-card));');
+    expect(css).toContain('.attendance-master-toolbar .search-box { flex-basis: auto; }');
   });
 });
