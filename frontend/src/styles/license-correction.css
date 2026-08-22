@@ -4,3 +4,36 @@
 .license-correction-reason{color:#9a6700}
 .license-correction-reason-panel{margin-bottom:14px;padding:12px;border:1px solid #f2d58a;border-radius:10px;background:#fffaf0;color:#9a6700}
 .license-correction-reason-panel p{margin:4px 0 0}
+
+.license-revision-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 2px;
+}
+
+.license-revision-card {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-surface-subtle);
+}
+
+.license-revision-card > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.license-revision-card p,
+.license-revision-card small {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.license-cancel-panel {
+  border-color: color-mix(in srgb, var(--color-danger) 32%, var(--color-border-subtle));
+}

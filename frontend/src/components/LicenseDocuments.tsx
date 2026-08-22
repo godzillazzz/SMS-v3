@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../request-error';
 import { acquireDocumentScrollLock } from '../document-scroll-lock';
+import { approvalStatusPresentation, type ApprovalStatus } from '../approval-workflow-semantics';
 import {
   formatFileSize,
   formatLicenseDate,
@@ -24,7 +25,7 @@ type EmployeeIdentity = { employeeCode: string; firstName: string; lastName: str
 type LicenseIdentity = { id: string; licenseNumber?: string | null; licenseType?: string | null; issueDate?: string | null; expiryDate?: string | null; status?: string | null; employee: EmployeeIdentity };
 type ViewResult = { url: string; mimeType: string; fileName: string };
 export type LicenseTableDocumentSummary = {
-  state: 'CURRENT_WITH_PENDING' | 'CURRENT_WITH_RETURNED' | 'CURRENT' | 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'REJECTED' | 'EXPIRED' | 'EMPTY';
+  state: 'CURRENT_WITH_PENDING' | 'CURRENT_WITH_RETURNED' | 'CURRENT' | 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'REJECTED' | 'CANCELLED' | 'EXPIRED' | 'EMPTY';
   selectedDocumentId?: string | null;
   selectedFileAvailable?: boolean;
   selectedFileDeleted?: boolean;
@@ -40,11 +41,17 @@ type Services = {
   returnForCorrection: (documentId: string, reason: string) => Promise<void>;
   resubmit: (documentId: string, data: UploadData, file?: File) => Promise<void>;
   reject: (documentId: string, reason: string) => Promise<void>;
+  cancel: (documentId: string) => Promise<void>;
   permanentlyDelete: (documentId: string) => Promise<void>;
 };
 
 type UploadData = { licenseNumber: string; proposedStartDate: string; proposedExpiryDate: string; note?: string };
 const licenseRequestError = (reason: unknown) => toRequestErrorState(reason, sanitizeLicenseDocumentError(reason));
+const standardLicenseStatuses = new Set(['PENDING', 'RETURNED_FOR_CORRECTION', 'APPROVED', 'REJECTED', 'CANCELLED']);
+const licenseStatusClass = (status: LicenseDocument['status']) => standardLicenseStatuses.has(status)
+  ? approvalStatusPresentation(status as ApprovalStatus).className
+  : `is-${status.toLowerCase()}`;
+const tableLicenseStatusClass = (tone: string) => tone === 'cancelled' ? 'status-cancelled' : `license-status-${tone}`;
 
 function useModalBehavior(onClose: () => void, enabled = true) {
   const onCloseRef = useRef(onClose);
@@ -116,7 +123,8 @@ export function LicenseTableDocumentColumns({ license, summary, services, isAdmi
     }
     if (state === 'PENDING') return { label: 'รอตรวจสอบ', tone: 'pending' };
     if (state === 'RETURNED_FOR_CORRECTION') return { label: 'ส่งกลับแก้ไข', tone: 'returned' };
-    if (state === 'REJECTED') return { label: 'ไม่อนุมัติ', tone: 'rejected' };
+    if (state === 'REJECTED') return { label: licenseDocumentStatusLabel.REJECTED, tone: 'rejected' };
+    if (state === 'CANCELLED') return { label: licenseDocumentStatusLabel.CANCELLED, tone: 'cancelled' };
     if (state === 'EXPIRED') return { label: 'หมดอายุ', tone: 'expired' };
     return { label: 'ยังไม่มีเอกสาร', tone: 'empty' };
   };
@@ -135,7 +143,7 @@ export function LicenseTableDocumentColumns({ license, summary, services, isAdmi
   const canView = Boolean(summary?.selectedDocumentId && summary.selectedFileAvailable && !summary.selectedFileDeleted);
   const unavailable = Boolean(summary?.selectedDocumentId && (!summary.selectedFileAvailable || summary.selectedFileDeleted));
   return <>
-    <td className="license-table-status"><span className={`status-badge license-status-${tableStatus.tone}`}>{tableStatus.label}</span></td>
+    <td className="license-table-status"><span className={`status-badge ${tableLicenseStatusClass(tableStatus.tone)}`}>{tableStatus.label}</span></td>
     <td className="license-table-view">{canView && <button type="button" className="btn-icon-only" aria-label="ดูไฟล์ใบอนุญาต" title="ดูไฟล์ใบอนุญาต" onClick={() => setViewerId(String(summary?.selectedDocumentId))}>👁</button>}{isAdmin && summary?.reviewAvailable && summary.pendingDocumentId && <button type="button" className="btn-warning compact" aria-label="ตรวจสอบเอกสารใบอนุญาต" disabled={reviewBusy} onClick={() => void openReview()}>{reviewBusy ? 'กำลังโหลด…' : 'ตรวจสอบ'}</button>}{!canView && <span className="license-file-unavailable" title={unavailable ? 'ไฟล์ต้นฉบับถูกลบตามนโยบายจัดเก็บข้อมูล' : undefined}>{unavailable ? 'ไฟล์ถูกลบตามนโยบาย' : 'ไม่มีไฟล์'}</span>}{reviewError && <span className="license-doc-inline-error" role="alert"><RequestErrorContent error={reviewError} /></span>}</td>
     {viewerId && <LicenseDocumentViewerModal documentId={viewerId} onRequestView={services.view} onClose={() => setViewerId(undefined)} />}
     {reviewDocument && <ReviewModal document={reviewDocument} license={license} services={services} isAdmin={isAdmin} onClose={() => setReviewDocument(undefined)} onChanged={async (message) => { setReviewDocument(undefined); onChanged(message); }} />}
@@ -149,7 +157,7 @@ function DocumentFacts({ document }: { document: LicenseDocument }) {
     <div><dt>ผู้แนบ</dt><dd>{document.uploadedBy?.displayName || '-'}</dd></div>
     <div><dt>แนบเมื่อ</dt><dd>{formatLicenseDateTime(document.uploadedAt)}</dd></div>
     <div><dt>หมายเหตุ</dt><dd>{document.note || '-'}</dd></div>
-    <div><dt>สถานะ</dt><dd><span className={`license-doc-badge is-${document.status.toLowerCase()}`}>{licenseDocumentStatusLabel[document.status]}</span></dd></div>
+    <div><dt>สถานะ</dt><dd><span className={`license-doc-badge ${licenseStatusClass(document.status)}`}>{licenseDocumentStatusLabel[document.status]}</span></dd></div>
     {document.correctionReason && <div><dt>เหตุผลที่ส่งกลับแก้ไข</dt><dd>{document.correctionReason}</dd></div>}
     {document.returnedBy && <div><dt>ผู้ส่งกลับแก้ไข</dt><dd>{document.returnedBy.displayName}</dd></div>}
     {document.returnedAt && <div><dt>ส่งกลับเมื่อ</dt><dd>{formatLicenseDateTime(document.returnedAt)}</dd></div>}
@@ -198,10 +206,10 @@ function ReviewModal({ document, license, services, isAdmin, onClose, onChanged 
         <div><h3>วันที่เสนอ</h3><p>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</p></div>
       </section>
       {error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /></div>}
-      {mode === 'approve' && <div className="license-confirm-panel"><strong>ยืนยันการอนุมัติ?</strong><p>วันหลักจะเปลี่ยนจาก {formatLicenseDate(license.issueDate)} – {formatLicenseDate(license.expiryDate)} เป็น {formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)} เมื่อยืนยัน</p><div><button type="button" className="btn-neutral" disabled={busy} onClick={() => setMode(undefined)}>ย้อนกลับ</button><button type="button" className="btn-success" disabled={busy} onClick={submitApprove}>{busy ? 'กำลังอนุมัติ…' : 'ยืนยันอนุมัติ'}</button></div></div>}
-      {mode === 'return' && <div className="license-confirm-panel license-return-panel"><label className="field-group"><span>เหตุผลที่ส่งกลับแก้ไข <b>*</b></span><textarea autoFocus rows={3} value={reason} maxLength={1000} onChange={(event) => setReason(event.target.value)} /></label><div><button type="button" className="btn-neutral" disabled={busy} onClick={() => setMode(undefined)}>ยกเลิก</button><button type="button" className="btn-warning" disabled={busy || !reason.trim()} onClick={submitReturn}>{busy ? 'กำลังบันทึก…' : 'ยืนยันส่งกลับแก้ไข'}</button></div></div>}
-      {mode === 'reject' && <div className="license-confirm-panel"><p>เมื่อไม่อนุมัติ ระบบจะลบไฟล์ต้นฉบับและเก็บไว้เฉพาะประวัติการดำเนินการ</p><label className="field-group"><span>เหตุผลที่ไม่อนุมัติ <b>*</b></span><textarea autoFocus rows={3} value={reason} maxLength={2000} onChange={(event) => setReason(event.target.value)} /></label><div><button type="button" className="btn-neutral" disabled={busy} onClick={() => setMode(undefined)}>ยกเลิก</button><button type="button" className="btn-danger" disabled={busy || !reason.trim()} onClick={submitReject}>{busy ? 'กำลังบันทึก…' : 'ยืนยันไม่อนุมัติ'}</button></div></div>}
-      {isAdmin && document.status === 'PENDING' && !mode && <footer className="license-modal-actions"><button type="button" className="btn-success" disabled={busy} onClick={() => setMode('approve')}>อนุมัติ</button><button type="button" className="btn-warning" aria-label="ส่งกลับเอกสารใบอนุญาตให้แก้ไข" disabled={busy} onClick={() => { setReason(''); setMode('return'); }}>ส่งกลับแก้ไข</button><button type="button" className="btn-danger-outline" disabled={busy} onClick={() => { setReason(''); setMode('reject'); }}>ไม่อนุมัติ</button></footer>}
+      {mode === 'approve' && <div className="license-confirm-panel"><strong>ยืนยันการอนุมัติ?</strong><p>เฉพาะการอนุมัติขั้นสุดท้ายโดย Admin เท่านั้นที่จะปรับข้อมูลใบอนุญาตหลัก</p><div><button type="button" className="btn-neutral" disabled={busy} onClick={() => setMode(undefined)}>กลับ</button><button type="button" className="btn-approve" disabled={busy} onClick={submitApprove}>{busy ? 'กำลังอนุมัติ…' : 'ยืนยันอนุมัติ'}</button></div></div>}
+      {mode === 'return' && <div className="license-confirm-panel license-return-panel"><label className="field-group"><span>เหตุผลที่ส่งกลับไปแก้ไข <b>*</b></span><textarea autoFocus rows={3} value={reason} maxLength={1000} onChange={(event) => setReason(event.target.value)} /></label><div><button type="button" className="btn-neutral" disabled={busy} onClick={() => setMode(undefined)}>กลับ</button><button type="button" className="btn-return" disabled={busy || !reason.trim()} onClick={submitReturn}>{busy ? 'กำลังบันทึก…' : 'ยืนยันส่งกลับไปแก้ไข'}</button></div></div>}
+      {mode === 'reject' && <div className="license-confirm-panel"><p>การไม่อนุมัติคำขอเป็นการสิ้นสุดคำขอ แต่จะไม่ลบไฟล์หรือประวัติของคำขอ</p><label className="field-group"><span>เหตุผลที่ไม่อนุมัติ <b>*</b></span><textarea autoFocus rows={3} value={reason} maxLength={2000} onChange={(event) => setReason(event.target.value)} /></label><div><button type="button" className="btn-neutral" disabled={busy} onClick={() => setMode(undefined)}>กลับ</button><button type="button" className="btn-reject" disabled={busy || !reason.trim()} onClick={submitReject}>{busy ? 'กำลังบันทึก…' : 'ยืนยันไม่อนุมัติคำขอ'}</button></div></div>}
+      {isAdmin && document.status === 'PENDING' && !mode && <footer className="license-modal-actions"><button type="button" className="btn-approve" disabled={busy} onClick={() => setMode('approve')}>อนุมัติ</button><button type="button" className="btn-return" aria-label="ส่งกลับไปแก้ไขเอกสารใบอนุญาต" disabled={busy} onClick={() => { setReason(''); setMode('return'); }}>ส่งกลับไปแก้ไข</button><button type="button" className="btn-reject" disabled={busy} onClick={() => { setReason(''); setMode('reject'); }}>ไม่อนุมัติ</button></footer>}
     </ModalFrame>
     {viewerId && <LicenseDocumentViewerModal documentId={viewerId} onRequestView={services.view} onClose={() => setViewerId(undefined)} />}
   </>;
@@ -239,7 +247,7 @@ function HistoryModal({ documents, services, isAdmin, onClose, onDeleted }: { do
       <header className="license-modal-heading"><div><p>ประวัติการดำเนินการ</p><h2 id="license-history-title">เอกสารทั้งหมด</h2><span>เรียงจากรายการล่าสุดไปเก่า</span></div></header>
       {!sorted.length && <div className="license-modal-state">ยังไม่มีประวัติเอกสาร</div>}
       <div className="license-history-list">{sorted.map((document) => <article key={document.id} className="license-history-card">
-        <header><strong>ประวัติการดำเนินการ</strong><span className={`license-doc-badge is-${document.status.toLowerCase()}`}>{licenseDocumentStatusLabel[document.status]}</span></header>
+        <header><strong>ประวัติการดำเนินการ</strong><span className={`license-doc-badge ${licenseStatusClass(document.status)}`}>{licenseDocumentStatusLabel[document.status]}</span></header>
         <p className="license-history-file">{document.safeDisplayFileName}</p>
         <p>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</p>
         <small>ผู้แนบ: {document.uploadedBy?.displayName || '-'} · {formatLicenseDateTime(document.uploadedAt)}</small>
@@ -248,6 +256,15 @@ function HistoryModal({ documents, services, isAdmin, onClose, onDeleted }: { do
         {document.rejectionReason && <p className="license-rejection-reason">เหตุผลไม่อนุมัติ: {document.rejectionReason}</p>}
         {document.returnedBy && <small>ผู้ส่งกลับแก้ไข: {document.returnedBy.displayName} · {formatLicenseDateTime(document.returnedAt)}</small>}
         {document.proposedLicenseNumber && <p>เลขใบอนุญาต: {document.proposedLicenseNumber}</p>}
+        {!!document.revisions?.length && <div className="license-revision-list" aria-label="ประวัติ Revision">
+          {document.revisions.map((revision) => <section key={revision.id} className="license-revision-card">
+            <div><strong>Revision {revision.revision}</strong><span>{revision.proposedLicenseNumber || '-'}</span></div>
+            <p>{formatLicenseDate(revision.proposedStartDate)} → {formatLicenseDate(revision.proposedExpiryDate)}</p>
+            <small>{revision.safeDisplayFileName} · {formatFileSize(revision.fileSize)}</small>
+            <small>ส่งโดย {revision.submittedBy?.displayName || '-'} · {formatLicenseDateTime(revision.submittedAt)}</small>
+            {revision.correctionReason && <small className="license-correction-reason">บริบทการแก้ไข: {revision.correctionReason}</small>}
+          </section>)}
+        </div>}
         <div className="license-inline-actions">{document.fileAvailable !== false && <button type="button" className="btn-ghost compact" aria-label="ดูไฟล์ใบอนุญาต" onClick={() => setViewerId(document.id)}>◉ ดูไฟล์</button>}{isAdmin && canPermanentlyDeleteDocument(document, documents) && <button type="button" className="btn-danger-outline compact" aria-label="ลบเอกสารใบอนุญาตถาวร" onClick={() => setDeleteDocument(document)}>ลบถาวร</button>}</div>
       </article>)}</div>
     </ModalFrame>
@@ -263,33 +280,42 @@ function CorrectionModal({ document, services, onClose, onChanged }: { document:
   const [proposedExpiryDate, setProposedExpiryDate] = useState(String(document.proposedExpiryDate || '').slice(0, 10));
   const [note, setNote] = useState(String(document.note || ''));
   const [busy, setBusy] = useState(false);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
   const [error, setError] = useState<RequestErrorInput>();
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!licenseNumber.trim()) { setError('กรุณากรอกเลขใบอนุญาต'); return; }
-    if (file && file.size > MAX_LICENSE_DOCUMENT_BYTES) { setError('ไฟล์ต้องมีขนาดไม่เกิน 2 MB'); return; }
-    if (!proposedStartDate || !proposedExpiryDate || proposedStartDate > proposedExpiryDate) { setError('วันที่เริ่มต้นต้องไม่เกินวันหมดอายุ'); return; }
+    if (file && file.size > MAX_LICENSE_DOCUMENT_BYTES) { setError('ไฟล์ต้องมีขนาดไม่เกิน 4 MB'); return; }
+    if (!proposedStartDate || !proposedExpiryDate || proposedStartDate > proposedExpiryDate) { setError('วันที่เริ่มต้นต้องไม่เกินวันที่หมดอายุ'); return; }
     if (busy) return;
     setBusy(true); setError(undefined);
-    try { await services.resubmit(document.id, { licenseNumber: licenseNumber.trim(), proposedStartDate, proposedExpiryDate, note }, file); await onChanged(file ? 'เปลี่ยนไฟล์และส่งตรวจสอบใหม่สำเร็จแล้ว' : 'แก้ไขและส่งตรวจสอบใหม่สำเร็จแล้ว'); onClose(); }
+    try { await services.resubmit(document.id, { licenseNumber: licenseNumber.trim(), proposedStartDate, proposedExpiryDate, note }, file); await onChanged('ส่งตรวจสอบอีกครั้งเรียบร้อยแล้ว'); onClose(); }
+    catch (reason) { setError(licenseRequestError(reason)); }
+    finally { setBusy(false); }
+  };
+  const cancelRequest = async () => {
+    if (busy) return;
+    setBusy(true); setError(undefined);
+    try { await services.cancel(document.id); await onChanged('ยกเลิกคำขอเรียบร้อยแล้ว'); onClose(); }
     catch (reason) { setError(licenseRequestError(reason)); }
     finally { setBusy(false); }
   };
   return <ModalFrame labelledBy="license-correction-title" className="license-review-dialog" onClose={onClose}>
-    <header className="license-modal-heading"><div><p>แก้ไขเอกสารใบอนุญาต</p><h2 id="license-correction-title">แก้ไขและส่งตรวจสอบใหม่</h2><span>ไฟล์เดิมยังคงอยู่จนกว่าจะเปลี่ยนไฟล์สำเร็จ</span></div></header>
-    {document.correctionReason && <div className="license-correction-reason-panel"><strong>เหตุผลที่ส่งกลับแก้ไข</strong><p>{document.correctionReason}</p></div>}
+    <header className="license-modal-heading"><div><p>แก้ไขเอกสารใบอนุญาต</p><h2 id="license-correction-title">แก้ไขและส่งตรวจสอบอีกครั้ง</h2><span>คำขอยังไม่อนุมัติจนกว่า Admin จะอนุมัติขั้นสุดท้าย</span></div></header>
+    {document.correctionReason && <div className="license-correction-reason-panel"><strong>เหตุผลที่ส่งกลับไปแก้ไข</strong><p>{document.correctionReason}</p></div>}
     <form className="license-upload-form" onSubmit={submit}>
       <label className="field-group"><span>เลขใบอนุญาต <b>*</b></span><input value={licenseNumber} maxLength={100} onChange={(event) => setLicenseNumber(event.target.value)} required /></label>
-      <label className="field-group"><span>ไฟล์ใหม่ (ไม่บังคับ)</span><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} /><small>{file ? 'จะอัปโหลดไฟล์ใหม่ก่อนบันทึกการอ้างอิง' : 'เว้นว่างเพื่อใช้ไฟล์เดิม'}</small></label>
-      <div className="license-date-comparison"><label className="field-group"><span>วันที่เริ่มต้น <b>*</b></span><input type="date" value={proposedStartDate} onChange={(event) => setProposedStartDate(event.target.value)} required /></label><label className="field-group"><span>วันหมดอายุ <b>*</b></span><input type="date" value={proposedExpiryDate} onChange={(event) => setProposedExpiryDate(event.target.value)} required /></label></div>
+      <label className="field-group"><span>ไฟล์ใหม่ (ไม่บังคับ)</span><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} /><small>{file ? 'ไฟล์ใหม่จะเป็น Revision ถัดไป โดยเก็บไฟล์ Revision เดิมไว้ในประวัติ' : 'ใช้ไฟล์เดิมต่อได้ · PDF, JPG หรือ PNG ขนาดไม่เกิน 4 MB'}</small></label>
+      <div className="license-date-comparison"><label className="field-group"><span>วันที่เริ่มต้น <b>*</b></span><input type="date" value={proposedStartDate} onChange={(event) => setProposedStartDate(event.target.value)} required /></label><label className="field-group"><span>วันที่หมดอายุ <b>*</b></span><input type="date" value={proposedExpiryDate} onChange={(event) => setProposedExpiryDate(event.target.value)} required /></label></div>
       <label className="field-group"><span>หมายเหตุ</span><textarea rows={3} value={note} maxLength={2000} onChange={(event) => setNote(event.target.value)} /></label>
       {error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /></div>}
-      <div className="license-modal-actions"><button type="button" className="btn-neutral" disabled={busy} onClick={onClose}>ยกเลิก</button><button type="submit" className="btn-primary" disabled={busy}>{busy ? 'กำลังส่ง…' : 'ส่งตรวจสอบใหม่'}</button></div>
+      {cancelConfirm && <div className="license-confirm-panel license-cancel-panel" role="alert"><strong>ยืนยันยกเลิกคำขอของฉัน?</strong><p>คำขอจะสิ้นสุดเป็นยกเลิก แต่ไฟล์และประวัติ Revision จะยังคงอยู่ การยกเลิกไม่ใช่การไม่อนุมัติของผู้ตรวจสอบ</p><div><button type="button" className="btn-neutral" disabled={busy} onClick={() => setCancelConfirm(false)}>กลับ</button><button type="button" className="btn-cancel" disabled={busy} onClick={() => void cancelRequest()}>{busy ? 'กำลังยกเลิก…' : 'ยืนยันยกเลิกคำขอของฉัน'}</button></div></div>}
+      {!cancelConfirm && <div className="license-modal-actions"><button type="button" className="btn-cancel" disabled={busy} onClick={() => setCancelConfirm(true)}>ยกเลิกคำขอ</button><button type="button" className="btn-neutral" disabled={busy} onClick={onClose}>ปิด</button><button type="submit" className="btn-resubmit" disabled={busy}>{busy ? 'กำลังส่ง…' : 'ส่งตรวจสอบอีกครั้ง'}</button></div>}
     </form>
   </ModalFrame>;
 }
 
-export function LicenseEditModal({ license, isAdmin, services, onUpload, onChanged, onClose }: { license: LicenseIdentity; isAdmin: boolean; services: Services; onUpload: (data: UploadData, file: File) => Promise<void>; onChanged: (message: string) => void; onClose: () => void }) {
+export function LicenseEditModal({ license, isAdmin, currentUserId, services, onUpload, onChanged, onClose }: { license: LicenseIdentity; isAdmin: boolean; currentUserId: string; services: Services; onUpload: (data: UploadData, file: File) => Promise<void>; onChanged: (message: string) => void; onClose: () => void }) {
   const [tab, setTab] = useState<'details' | 'documents'>('details');
   const [documents, setDocuments] = useState<LicenseDocument[]>([]);
   const [file, setFile] = useState<File>();
@@ -309,7 +335,7 @@ export function LicenseEditModal({ license, isAdmin, services, onUpload, onChang
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!file) { setError('กรุณาเลือกไฟล์ใบอนุญาต'); return; }
-    if (file.size > MAX_LICENSE_DOCUMENT_BYTES) { setError('ไฟล์ต้องมีขนาดไม่เกิน 2 MB'); return; }
+    if (file.size > MAX_LICENSE_DOCUMENT_BYTES) { setError('ไฟล์ต้องมีขนาดไม่เกิน 4 MB'); return; }
     if (!licenseNumber.trim()) { setError('กรุณากรอกเลขใบอนุญาต'); return; }
     if (!proposedStartDate || !proposedExpiryDate || proposedStartDate > proposedExpiryDate) { setError('วันที่เริ่มต้นต้องไม่เกินวันหมดอายุ'); return; }
     setBusy(true); setError(undefined);
@@ -318,13 +344,26 @@ export function LicenseEditModal({ license, isAdmin, services, onUpload, onChang
     finally { setBusy(false); }
   };
   const changed = async (message: string) => { await load(); onChanged(message); };
-  const documentLine = (document: LicenseDocument) => <div className="license-edit-document" key={document.id}><div><span className={`license-doc-badge is-${document.status.toLowerCase()}`}>{licenseDocumentStatusLabel[document.status]}</span><strong>{document.proposedLicenseNumber || license.licenseNumber || 'ยังไม่มีเลขใบอนุญาต'}</strong><small>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</small>{document.correctionReason && <small className="license-correction-reason">เหตุผล: {document.correctionReason}</small>}</div><div className="license-inline-actions">{document.fileAvailable !== false && <button type="button" className="btn-icon-only" aria-label="ดูไฟล์ใบอนุญาต" title="ดูไฟล์ใบอนุญาต" onClick={() => setViewerId(document.id)}>◉</button>}{document.fileAvailable === false && <span title="ไฟล์ต้นฉบับถูกลบตามนโยบายจัดเก็บข้อมูล">ไฟล์ถูกลบตามนโยบาย</span>}{isAdmin && document.status === 'PENDING' && <button type="button" className="btn-warning compact" onClick={() => setReviewDocument(document)}>ตรวจสอบ</button>}{document.status === 'RETURNED_FOR_CORRECTION' && document.fileAvailable !== false && <button type="button" className="btn-warning compact" onClick={() => setCorrectionDocument(document)}>แก้ไขและส่งตรวจสอบใหม่</button>}</div></div>;
+  const documentLine = (document: LicenseDocument) => <div className="license-edit-document" key={document.id}>
+    <div>
+      <span className={`license-doc-badge ${licenseStatusClass(document.status)}`}>{licenseDocumentStatusLabel[document.status]}</span>
+      <strong>{document.proposedLicenseNumber || license.licenseNumber || 'ยังไม่มีเลขใบอนุญาต'}</strong>
+      <small>{formatLicenseDate(document.proposedStartDate)} → {formatLicenseDate(document.proposedExpiryDate)}</small>
+      {document.correctionReason && <small className="license-correction-reason">เหตุผล: {document.correctionReason}</small>}
+    </div>
+    <div className="license-inline-actions">
+      {document.fileAvailable !== false && <button type="button" className="btn-icon-only" aria-label="ดูใบอนุญาต" title="ดูใบอนุญาต" onClick={() => setViewerId(document.id)}>👁</button>}
+      {document.fileAvailable === false && <span title="ไฟล์ต้นฉบับไม่พร้อมใช้งาน">ไฟล์ไม่พร้อมใช้งาน</span>}
+      {isAdmin && document.status === 'PENDING' && <button type="button" className="btn-warning compact" onClick={() => setReviewDocument(document)}>ตรวจสอบ</button>}
+      {document.status === 'RETURNED_FOR_CORRECTION' && document.fileAvailable !== false && document.uploadedBy?.id === currentUserId && <button type="button" className="btn-resubmit compact" onClick={() => setCorrectionDocument(document)}>แก้ไข / ส่งตรวจสอบอีกครั้ง</button>}
+    </div>
+  </div>;
   return <>
     <ModalFrame labelledBy="license-edit-title" className="license-edit-dialog" onClose={onClose} escapeEnabled={!reviewDocument && !correctionDocument && !viewerId}>
       <header className="license-modal-heading"><div><p>จัดการใบอนุญาต</p><h2 id="license-edit-title">{license.employee.firstName} {license.employee.lastName}</h2><span>{license.employee.employeeCode} · {license.employee.department || '-'}</span></div></header>
       <div className="license-edit-tabs" role="tablist"><button type="button" role="tab" aria-selected={tab === 'details'} className={tab === 'details' ? 'is-active' : ''} onClick={() => setTab('details')}>ข้อมูลใบอนุญาต</button><button type="button" role="tab" aria-selected={tab === 'documents'} className={tab === 'documents' ? 'is-active' : ''} onClick={() => setTab('documents')}>เอกสารและประวัติการดำเนินการ</button></div>
       {tab === 'details' && <dl className="license-document-facts"><div><dt>เลขใบอนุญาตปัจจุบัน</dt><dd>{license.licenseNumber || 'ยังไม่มีเลขใบอนุญาต'}</dd></div><div><dt>ประเภทใบอนุญาต</dt><dd>{license.licenseType || '-'}</dd></div><div><dt>วันที่เริ่มต้นปัจจุบัน</dt><dd>{formatLicenseDate(license.issueDate)}</dd></div><div><dt>วันหมดอายุปัจจุบัน</dt><dd>{formatLicenseDate(license.expiryDate)}</dd></div><div><dt>สถานะ</dt><dd>{license.status || '-'}</dd></div><div><dt>หน่วยงาน</dt><dd>{license.employee.department || '-'}</dd></div></dl>}
-      {tab === 'documents' && <div className="license-edit-documents"><div className="license-edit-current"><h3>เอกสารปัจจุบัน</h3>{summary.current ? documentLine(summary.current) : <p>ยังไม่มีเอกสารที่อนุมัติแล้ว</p>}{summary.pending.length > 0 && <><h3>เอกสารต่ออายุที่รอตรวจสอบ</h3>{summary.pending.map(documentLine)}</>}{summary.returned.length > 0 && <><h3>เอกสารที่ส่งกลับแก้ไข</h3>{summary.returned.map(documentLine)}</>}{documents.length > 0 && <button type="button" className="btn-info-outline compact" onClick={() => setHistoryOpen(true)}>ดูประวัติการดำเนินการ</button>}</div><form className="license-upload-form" onSubmit={submit}><h3>แนบใบอนุญาตใหม่</h3><label className="field-group"><span>เลขใบอนุญาต <b>*</b></span><input value={licenseNumber} maxLength={100} onChange={(event) => setLicenseNumber(event.target.value)} required /></label><label className="field-group"><span>ไฟล์ใบอนุญาต <b>*</b></span><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} required /><small>PDF, JPG หรือ PNG ขนาดไม่เกิน 2 MB</small></label><div className="license-date-comparison"><label className="field-group"><span>วันที่เริ่มต้น <b>*</b></span><input type="date" value={proposedStartDate} onChange={(event) => setProposedStartDate(event.target.value)} required /></label><label className="field-group"><span>วันหมดอายุ <b>*</b></span><input type="date" value={proposedExpiryDate} onChange={(event) => setProposedExpiryDate(event.target.value)} required /></label></div><label className="field-group"><span>หมายเหตุ</span><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} /></label>{error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /></div>}<button type="submit" className="btn-primary" disabled={busy}>{busy ? 'กำลังส่ง…' : 'ส่งตรวจสอบ'}</button></form></div>}
+      {tab === 'documents' && <div className="license-edit-documents"><div className="license-edit-current"><h3>เอกสารปัจจุบัน</h3>{summary.current ? documentLine(summary.current) : <p>ยังไม่มีเอกสารที่อนุมัติแล้ว</p>}{summary.pending.length > 0 && <><h3>เอกสารต่ออายุที่รอตรวจสอบ</h3>{summary.pending.map(documentLine)}</>}{summary.returned.length > 0 && <><h3>เอกสารที่ส่งกลับแก้ไข</h3>{summary.returned.map(documentLine)}</>}{documents.length > 0 && <button type="button" className="btn-info-outline compact" onClick={() => setHistoryOpen(true)}>ดูประวัติการดำเนินการ</button>}</div><form className="license-upload-form" onSubmit={submit}><h3>แนบใบอนุญาตใหม่</h3><label className="field-group"><span>เลขใบอนุญาต <b>*</b></span><input value={licenseNumber} maxLength={100} onChange={(event) => setLicenseNumber(event.target.value)} required /></label><label className="field-group"><span>ไฟล์ใบอนุญาต <b>*</b></span><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} required /><small>PDF, JPG หรือ PNG ขนาดไม่เกิน 4 MB</small></label><div className="license-date-comparison"><label className="field-group"><span>วันที่เริ่มต้น <b>*</b></span><input type="date" value={proposedStartDate} onChange={(event) => setProposedStartDate(event.target.value)} required /></label><label className="field-group"><span>วันหมดอายุ <b>*</b></span><input type="date" value={proposedExpiryDate} onChange={(event) => setProposedExpiryDate(event.target.value)} required /></label></div><label className="field-group"><span>หมายเหตุ</span><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} /></label>{error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /></div>}<button type="submit" className="btn-primary" disabled={busy}>{busy ? 'กำลังส่ง…' : 'ส่งตรวจสอบ'}</button></form></div>}
     </ModalFrame>
     {reviewDocument && <ReviewModal document={reviewDocument} license={license} services={services} isAdmin={isAdmin} onClose={() => setReviewDocument(undefined)} onChanged={changed} />}
     {correctionDocument && <CorrectionModal document={correctionDocument} services={services} onClose={() => setCorrectionDocument(undefined)} onChanged={changed} />}
@@ -351,7 +390,7 @@ export function LicenseDocumentsCell({ license, isAdmin, refreshSignal, services
   const summary = useMemo(() => selectLicenseDocumentSummary(documents), [documents]);
   const changed = async (message: string) => { await load(); setNotice(message); window.setTimeout(() => onChanged(message), 1200); };
   const documentLine = (document: LicenseDocument, renewal = false) => <div className="license-document-line" key={document.id}>
-    <div><span className={`license-doc-badge is-${document.status.toLowerCase()}`}>{renewal ? 'ฉบับต่ออายุรอตรวจสอบ' : licenseDocumentStatusLabel[document.status]}</span>{document.proposedLicenseNumber && <small>{renewal ? `เลขใหม่รอตรวจสอบ: ${document.proposedLicenseNumber}` : `เลขใบอนุญาต: ${document.proposedLicenseNumber}`}</small>}<small>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</small></div>
+    <div><span className={`license-doc-badge ${licenseStatusClass(document.status)}`}>{renewal ? 'ฉบับต่ออายุรอตรวจสอบ' : licenseDocumentStatusLabel[document.status]}</span>{document.proposedLicenseNumber && <small>{renewal ? `เลขใหม่รอตรวจสอบ: ${document.proposedLicenseNumber}` : `เลขใบอนุญาต: ${document.proposedLicenseNumber}`}</small>}<small>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</small></div>
     <div className="license-inline-actions">{document.fileAvailable !== false && <button type="button" className="btn-icon-only" aria-label="ดูไฟล์ใบอนุญาต" title="ดูไฟล์ใบอนุญาต" onClick={() => setViewerId(document.id)}>◉</button>}{isAdmin && document.status === 'PENDING' && <button type="button" className="btn-warning compact" onClick={() => setReviewDocument(document)}>ตรวจสอบ</button>}</div>
   </div>;
   return <div className="license-documents-cell">
@@ -360,6 +399,7 @@ export function LicenseDocumentsCell({ license, isAdmin, refreshSignal, services
     {!loading && !error && !documents.length && <div className="license-document-summary"><span className="license-doc-badge is-empty">ยังไม่มีไฟล์</span></div>}
     {summary.current && <>{documentLine(summary.current)}<small className="license-primary-status">สถานะใบอนุญาต: {licenseValidityLabel(license.issueDate, license.expiryDate, license.status)}</small></>}
     {summary.pending.map((document) => documentLine(document, Boolean(summary.current)))}
+    {!summary.pending.length && summary.latestCancelled && (!summary.current || summary.latestCancelled.version > summary.current.version) && documentLine(summary.latestCancelled)}
     {!summary.pending.length && summary.latestRejected && (!summary.current || summary.latestRejected.version > summary.current.version) && documentLine(summary.latestRejected)}
     {!loading && !error && documents.length > 0 && <div className="license-document-footer"><button type="button" className="btn-info-outline compact" onClick={onEdit || onUpload}>แก้ไข</button></div>}
     {!loading && !error && !documents.length && <button type="button" className="btn-info-outline compact" onClick={onEdit || onUpload}>แก้ไข</button>}

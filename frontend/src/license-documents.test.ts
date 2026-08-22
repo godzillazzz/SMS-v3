@@ -4,6 +4,7 @@ import path from 'node:path';
 import { api } from './api';
 import {
   LicenseDocument,
+  MAX_LICENSE_DOCUMENT_BYTES,
   licenseValidityLabel,
   licenseDocumentStatusLabel,
   sanitizeLicenseDocumentError,
@@ -51,11 +52,14 @@ describe('license document table state', () => {
     expect(licenseTableStatus([renewal, current]).label).toBe('มีรายการรอตรวจสอบ');
   });
 
-  it('selects pending or rejected files only when no current file exists', () => {
-    const pending = documentRow({ id: 'pending', status: 'PENDING', version: 2 });
+  it('selects pending, cancelled, or rejected files only when no current file exists', () => {
+    const pending = documentRow({ id: 'pending', status: 'PENDING', version: 3 });
+    const cancelled = documentRow({ id: 'cancelled', status: 'CANCELLED', version: 2 });
     const rejected = documentRow({ id: 'rejected', status: 'REJECTED', version: 1 });
     expect(selectLicenseDocumentForTable([pending])?.id).toBe('pending');
+    expect(selectLicenseDocumentForTable([cancelled])?.id).toBe('cancelled');
     expect(selectLicenseDocumentForTable([rejected])?.id).toBe('rejected');
+    expect(licenseTableStatus([cancelled]).label).toBe('ยกเลิกคำขอ');
     expect(selectLicenseDocumentForTable([])).toBeUndefined();
   });
 
@@ -65,17 +69,21 @@ describe('license document table state', () => {
     expect(componentSource).toContain('ไฟล์ต้นฉบับถูกลบตามนโยบายจัดเก็บข้อมูล');
   });
 
-  it('supports empty, pending, approved, and rejected Thai badges', () => {
-    expect(componentSource).toContain('ยังไม่มีไฟล์');
+  it('supports the shared pending, returned, approved, rejected, and cancelled Thai status semantics', () => {
     expect(componentSource).toContain('licenseDocumentStatusLabel[document.status]');
-    expect(componentSource).toContain('เหตุผลไม่อนุมัติ: {document.rejectionReason}');
+    expect(licenseDocumentStatusLabel.PENDING).toBe('รอตรวจสอบ');
+    expect(licenseDocumentStatusLabel.RETURNED_FOR_CORRECTION).toBe('ส่งกลับไปแก้ไข');
+    expect(licenseDocumentStatusLabel.APPROVED).toBe('อนุมัติแล้ว');
+    expect(licenseDocumentStatusLabel.REJECTED).toBe('ไม่อนุมัติ');
+    expect(licenseDocumentStatusLabel.CANCELLED).toBe('ยกเลิกคำขอ');
   });
 
-  it('labels returned, superseded, and expired documents with the required business wording', () => {
-    expect(licenseDocumentStatusLabel.RETURNED_FOR_CORRECTION).toBe('ส่งกลับแก้ไข');
-    expect(licenseDocumentStatusLabel.SUPERSEDED).toBe('ถูกแทนที่แล้ว');
-    expect(licenseDocumentStatusLabel.EXPIRED).toBe('หมดอายุ');
-    expect(componentSource).toContain('ส่งกลับแก้ไข');
+  it('keeps returned/cancelled shared wording and legacy superseded/expired wording distinct', () => {
+    expect(licenseDocumentStatusLabel.RETURNED_FOR_CORRECTION).toBe('ส่งกลับไปแก้ไข');
+    expect(licenseDocumentStatusLabel.CANCELLED).toBe('ยกเลิกคำขอ');
+    expect(licenseDocumentStatusLabel.SUPERSEDED).toBeTruthy();
+    expect(licenseDocumentStatusLabel.EXPIRED).toBeTruthy();
+    expect(componentSource).toContain('status-cancelled');
   });
 
   it('keeps an approved current document and pending renewal visible together', () => {
@@ -103,14 +111,15 @@ describe('license document table state', () => {
     expect(sortLicenseDocuments([returned, approved]).map((item) => item.id)).toEqual(['approved-new', 'returned']);
   });
 
-  it('keeps approved current data while exposing a returned correction request', () => {
+  it('keeps approved current data while exposing returned correction only to the uploadedBy owner', () => {
     const current = documentRow({ id: 'approved', status: 'APPROVED', isCurrent: true, version: 2 });
-    const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 3, correctionReason: 'แก้วันที่' });
+    const returned = documentRow({ id: 'returned', status: 'RETURNED_FOR_CORRECTION', version: 3, correctionReason: 'แก้วันที่', uploadedBy: { id: 'manager-owner', displayName: 'Manager Owner' } });
     const summary = selectLicenseDocumentSummary([current, returned]);
     expect(summary.current?.id).toBe('approved');
     expect(summary.returned.map((item) => item.id)).toEqual(['returned']);
-    expect(licenseTableStatus([current, returned]).label).toBe('มีรายการส่งกลับแก้ไข');
-    expect(componentSource).toContain('แก้ไขและส่งตรวจสอบใหม่');
+    expect(componentSource).toContain('document.uploadedBy?.id === currentUserId');
+    expect(componentSource).toContain('แก้ไข / ส่งตรวจสอบอีกครั้ง');
+    expect(mainSource).toContain("currentUserId={auth.user?.id || ''}");
   });
 
   it('uses the existing 60-day warning rule without timezone shifting date-only values', () => {
@@ -120,11 +129,11 @@ describe('license document table state', () => {
     expect(licenseValidityLabel('2026-01-01', '2027-01-01', 'Active', now)).toBe('ปกติ');
   });
 
-  it('keeps the upload form and 2 MB license contract visible in the modal', () => {
-    expect(componentSource).toContain('แนบใบอนุญาตใหม่');
-    expect(componentSource).toContain('ขนาดไม่เกิน 2 MB');
+  it('keeps the upload form and 4 MB license contract visible in the modal', () => {
+    expect(MAX_LICENSE_DOCUMENT_BYTES).toBe(4 * 1024 * 1024);
+    expect(componentSource).toContain('ขนาดไม่เกิน 4 MB');
     expect(componentSource).toContain('MAX_LICENSE_DOCUMENT_BYTES');
-    expect(componentSource).toContain('แก้ไขและส่งตรวจสอบใหม่');
+    expect(componentSource).not.toContain('ขนาดไม่เกิน 2 MB');
   });
 
   it('keeps permanent deletion inside the admin history flow', () => {
@@ -166,14 +175,16 @@ describe('license document viewer and review', () => {
     expect(styleSource).toContain('z-index:2147483100');
   });
 
-  it('allows an admin uploader to approve and confirms old/new dates', () => {
+  it('keeps Admin-only review actions, Admin self-approval, and distinct Thai review semantics', () => {
     expect(componentSource).toContain("isAdmin && document.status === 'PENDING'");
-    expect(componentSource).toContain('aria-label="ส่งกลับเอกสารใบอนุญาตให้แก้ไข"');
     expect(componentSource).not.toMatch(/uploadedBy[^\n]+disabled/);
-    expect(componentSource).toContain('วันหลักจะเปลี่ยนจาก');
-    expect(componentSource).toContain("setMode('approve')");
-    expect(componentSource).toContain('ยืนยันส่งกลับแก้ไข');
-    expect(componentSource).toContain('เมื่อไม่อนุมัติ ระบบจะลบไฟล์ต้นฉบับ');
+    expect(componentSource).toContain('className="btn-approve"');
+    expect(componentSource).toContain('className="btn-return"');
+    expect(componentSource).toContain('className="btn-reject"');
+    expect(componentSource).toContain('>อนุมัติ</button>');
+    expect(componentSource).toContain('>ส่งกลับไปแก้ไข</button>');
+    expect(componentSource).toContain('>ไม่อนุมัติ</button>');
+    expect(componentSource).toContain('การไม่อนุมัติคำขอเป็นการสิ้นสุดคำขอ แต่จะไม่ลบไฟล์หรือประวัติของคำขอ');
   });
 
   it('renders review from the license table only for admins with a pending document', () => {
@@ -191,19 +202,19 @@ describe('license document viewer and review', () => {
     expect(componentSource).toContain('if (busy) return;');
   });
 
-  it('uses centralized accessible action colors without changing license handlers', () => {
-    expect(mainSource).toContain('import \'./styles/action-system.css\';');
-    expect(actionStyleSource).toContain('--sms-action-primary: var(--color-primary)');
-    expect(actionStyleSource).toContain('.btn-info-outline');
-    expect(actionStyleSource).toContain('.btn-danger-outline');
-    expect(actionStyleSource).toContain('.license-table-view .btn-icon-only');
-    expect(actionStyleSource).toContain('button.btn-success');
-    expect(actionStyleSource).toContain('button.btn-danger:focus-visible');
-    expect(componentSource).toContain('className="btn-danger-outline"');
-    expect(componentSource).toContain('className="btn-success"');
-    expect(componentSource).toContain('className="btn-ghost license-view-button"');
-    expect(componentSource).toContain("setMode('reject')");
-    expect(componentSource).toContain('onClick={() => setMode(\'approve\')}');
+  it('uses shared approval action aliases with accessible focus and disabled semantics', () => {
+    expect(mainSource).toContain("import './styles/action-system.css';");
+    expect(actionStyleSource).toContain('button.btn-approve');
+    expect(actionStyleSource).toContain('button.btn-return');
+    expect(actionStyleSource).toContain('button.btn-reject');
+    expect(actionStyleSource).toContain('button.btn-resubmit');
+    expect(actionStyleSource).toContain('button.btn-cancel');
+    expect(actionStyleSource).toContain('button.btn-approve:focus-visible');
+    expect(actionStyleSource).toContain('button.btn-cancel:disabled');
+    expect(componentSource).toContain('className="btn-resubmit"');
+    expect(componentSource).toContain('className="btn-cancel"');
+    expect(componentSource).toContain('ยืนยันยกเลิกคำขอของฉัน?');
+    expect(componentSource).toContain('การยกเลิกไม่ใช่การไม่อนุมัติของผู้ตรวจสอบ');
   });
 });
 
@@ -218,17 +229,24 @@ describe('license document history and safety', () => {
     expect(componentSource).toContain('licenseDocumentStatusLabel[document.status]');
   });
 
+  it('renders immutable revision history with deterministic revision identity and correction context', () => {
+    expect(componentSource).toContain('license-revision-list');
+    expect(componentSource).toContain('Revision {revision.revision}');
+    expect(componentSource).toContain('revision.safeDisplayFileName');
+    expect(componentSource).toContain('revision.submittedBy?.displayName');
+    expect(componentSource).toContain('revision.correctionReason');
+  });
   it('sanitizes internal details, storage data, URLs, and stack traces', () => {
     expect(sanitizeLicenseDocumentError(new Error('storageObjectKey=https://private.example/file'))).toBe('ระบบไม่สามารถดำเนินการเอกสารได้ชั่วคราว กรุณาลองใหม่อีกครั้ง');
     expect(sanitizeLicenseDocumentError(new Error('กรุณาลองใหม่'))).toBe('กรุณาลองใหม่');
   });
 
-  it('refetches document history and the license table after mutations and upload', () => {
+  it('refetches document history and exposes return/resubmit/cancel API adapters without widening review authority', () => {
     expect(componentSource).toContain('await load(); setNotice(message); window.setTimeout(() => onChanged(message), 1200)');
-    expect(mainSource).toContain('onLicenseDocumentChanged={() => setOperationRefresh((value) => value + 1)}');
-    expect(mainSource).toContain("if (action === 'document' && activePage === 'licenses')");
     expect(mainSource).toContain('returnLicenseDocumentForCorrection');
     expect(mainSource).toContain('resubmitLicenseDocument');
+    expect(mainSource).toContain('cancelLicenseDocument');
+    expect(componentSource).toContain('services.cancel(document.id)');
   });
 });
 

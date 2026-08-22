@@ -1,7 +1,24 @@
-export type LicenseDocumentStatus = 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED' | 'EXPIRED';
+import { approvalStatusUi } from '../approval-workflow-semantics';
 
-export const MAX_LICENSE_DOCUMENT_BYTES = 2 * 1024 * 1024;
+export type LicenseDocumentStatus = 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'SUPERSEDED' | 'EXPIRED';
 
+export const MAX_LICENSE_DOCUMENT_BYTES = 4 * 1024 * 1024;
+
+export type LicenseDocumentRevision = {
+  id: string;
+  documentId: string;
+  revision: number;
+  safeDisplayFileName: string;
+  mimeType: string;
+  fileSize: number;
+  proposedStartDate: string;
+  proposedExpiryDate: string;
+  proposedLicenseNumber?: string | null;
+  note?: string | null;
+  correctionReason?: string | null;
+  submittedAt: string;
+  submittedBy?: { id: string; displayName: string } | null;
+};
 export type LicenseDocument = {
   id: string;
   employeeId: string;
@@ -30,13 +47,15 @@ export type LicenseDocument = {
   uploadedBy?: { id: string; displayName: string } | null;
   reviewedBy?: { id: string; displayName: string } | null;
   returnedBy?: { id: string; displayName: string } | null;
+  revisions?: LicenseDocumentRevision[];
 };
 
 export const licenseDocumentStatusLabel: Record<LicenseDocumentStatus, string> = {
-  PENDING: 'รอตรวจสอบ',
-  RETURNED_FOR_CORRECTION: 'ส่งกลับแก้ไข',
-  APPROVED: 'อนุมัติแล้ว',
-  REJECTED: 'ไม่อนุมัติ',
+  PENDING: approvalStatusUi.PENDING.label,
+  RETURNED_FOR_CORRECTION: approvalStatusUi.RETURNED_FOR_CORRECTION.label,
+  APPROVED: approvalStatusUi.APPROVED.label,
+  REJECTED: approvalStatusUi.REJECTED.label,
+  CANCELLED: approvalStatusUi.CANCELLED.label,
   SUPERSEDED: 'ถูกแทนที่แล้ว',
   EXPIRED: 'หมดอายุ'
 };
@@ -54,7 +73,7 @@ export function selectLicenseDocumentSummary(documents: LicenseDocument[]) {
   const returned = sorted.filter((item) => {
     if (item.status !== 'RETURNED_FOR_CORRECTION' || item.resubmittedAt) return false;
     return !sorted.some((newer) => {
-      if (newer.id === item.id || !['PENDING', 'APPROVED', 'REJECTED', 'SUPERSEDED'].includes(newer.status)) return false;
+      if (newer.id === item.id || !['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'SUPERSEDED'].includes(newer.status)) return false;
       if (Number(newer.version) > Number(item.version)) return true;
       if (Number(newer.version) < Number(item.version)) return false;
       return new Date(newer.uploadedAt).getTime() > new Date(item.uploadedAt).getTime();
@@ -65,12 +84,13 @@ export function selectLicenseDocumentSummary(documents: LicenseDocument[]) {
     pending: sorted.filter((item) => item.status === 'PENDING'),
     returned,
     latestRejected: sorted.find((item) => item.status === 'REJECTED'),
+    latestCancelled: sorted.find((item) => item.status === 'CANCELLED'),
     latestExpired: sorted.find((item) => item.status === 'EXPIRED')
   };
 }
 
 export function canPermanentlyDeleteDocument(document: LicenseDocument, documents: LicenseDocument[]) {
-  if (!['RETURNED_FOR_CORRECTION', 'REJECTED', 'SUPERSEDED'].includes(document.status)) return false;
+  if (!['RETURNED_FOR_CORRECTION', 'REJECTED', 'CANCELLED', 'SUPERSEDED'].includes(document.status)) return false;
   if (document.status === 'RETURNED_FOR_CORRECTION' && selectLicenseDocumentSummary(documents).returned.some((item) => item.id === document.id)) return false;
   if (document.status === 'SUPERSEDED' && !documents.some((item) => item.status === 'APPROVED' && item.isCurrent)) return false;
   return true;
@@ -81,6 +101,7 @@ export function selectLicenseDocumentForTable(documents: LicenseDocument[]) {
   if (summary.current) return summary.current;
   return summary.pending.find((item) => item.fileAvailable !== false)
     || summary.returned.find((item) => item.fileAvailable !== false)
+    || (summary.latestCancelled?.fileAvailable !== false ? summary.latestCancelled : undefined)
     || (summary.latestRejected?.fileAvailable !== false ? summary.latestRejected : undefined);
 }
 
@@ -96,7 +117,8 @@ export function licenseTableStatus(documents: LicenseDocument[], issueDate?: str
   }
   if (summary.pending.length) return { label: 'รอตรวจสอบ', tone: 'pending' as const };
   if (summary.returned.length) return { label: 'ส่งกลับแก้ไข', tone: 'returned' as const };
-  if (summary.latestRejected) return { label: 'ไม่อนุมัติ', tone: 'rejected' as const };
+  if (summary.latestCancelled) return { label: approvalStatusUi.CANCELLED.label, tone: 'cancelled' as const };
+  if (summary.latestRejected) return { label: approvalStatusUi.REJECTED.label, tone: 'rejected' as const };
   if (summary.latestExpired) return { label: 'หมดอายุ', tone: 'expired' as const };
   return { label: 'ยังไม่มีเอกสาร', tone: 'empty' as const };
 }

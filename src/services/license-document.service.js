@@ -109,17 +109,20 @@ function tableDocumentSummary(documents, now = new Date()) {
   const pending = sorted.find((item) => item.status === 'PENDING');
   const returned = sorted.find((item) => isActiveReturnedDocument(item, sorted));
   const latestRejected = sorted.find((item) => item.status === 'REJECTED');
+  const latestCancelled = sorted.find((item) => item.status === 'CANCELLED');
   const latestExpired = sorted.find((item) => item.status === 'EXPIRED');
   const selected = current
     || sorted.find((item) => item.status === 'PENDING' && isDocumentFileAvailable(item, now))
     || (returned && isDocumentFileAvailable(returned, now) ? returned : undefined)
+    || (latestCancelled && isDocumentFileAvailable(latestCancelled, now) ? latestCancelled : undefined)
     || (latestRejected && isDocumentFileAvailable(latestRejected, now) ? latestRejected : undefined);
   const state = pending && current ? 'CURRENT_WITH_PENDING'
     : returned && current ? 'CURRENT_WITH_RETURNED'
       : current ? 'CURRENT'
         : pending ? 'PENDING'
           : returned ? 'RETURNED_FOR_CORRECTION'
-            : latestRejected ? 'REJECTED'
+            : latestCancelled ? 'CANCELLED'
+              : latestRejected ? 'REJECTED'
               : latestExpired ? 'EXPIRED' : 'EMPTY';
   return {
     state,
