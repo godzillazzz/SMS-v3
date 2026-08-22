@@ -18,6 +18,7 @@ const { provisionLeaveQuota } = require('../services/leave-quota-provisioning.se
 const { bangkokQuotaYear, validateQuotaYear } = require('../services/annual-leave-quota.service');
 const { nativeUsageByQuotaYear, persistedUsageByQuotaYear, validateAnnualLeaveAvailability, annualSummary, quotaFieldForLeaveType } = require('../services/leave-annual-accounting.service');
 const { measureLeaveApprovalStage, runLeaveApprovalTransaction } = require('../services/leave-approval-transaction.service');
+const { createLeaveStageDurations, measureLeaveTransactionStage, runLeaveTransaction: runLeaveTransactionWithClient } = require('../services/leave-transaction.service');
 const { provisionAnnualLeaveQuotas } = require('../services/annual-leave-quota-cron.service');
 const { isReservedOperationalSettingKey } = require('../services/g03-1-multi-year-activation.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
@@ -144,14 +145,7 @@ const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedUsageByY
   lock: Boolean(options.lock),
   stageTimer: options.stageTimer
 });
-const runLeaveTransaction = async (callback) => {
-  try {
-    return await prisma.$transaction(callback, { isolationLevel: 'ReadCommitted' });
-  } catch (error) {
-    if (error?.code === 'P2034') throw new HttpError(409, 'Leave quota state changed. Refresh and try again.', { code: 'LEAVE_QUOTA_STATE_CONFLICT' });
-    throw error;
-  }
-};
+const runLeaveTransaction = (callback, options) => runLeaveTransactionWithClient(prisma, callback, options);
 const licenseStateForShift = async (tx, { employeeId, workDate, shiftCode, override, overrideReason, actorRole }) => {
   if (['OFF', 'AL'].includes(String(shiftCode).toUpperCase())) return { licenseStatus: 'NOT_REQUIRED', licenseExpiryDate: null, licenseOverride: false, overrideReason: null, overrideAt: null };
   const licenses = await tx.employeeLicense.findMany({ where: { employeeId }, select: { status: true, issueDate: true, expiryDate: true } });
@@ -164,11 +158,12 @@ const touchScheduleApproval = async (tx, workDate, actorUserId, changeType, opti
   return updateScheduleApprovalState(tx, { workDate, actorUserId, changeType, ...options });
 };
 
-const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
-  const currentUser = await tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employeeId: true } });
+const createLeaveRequest = async (tx, input, requestUser, file, substitute, options = {}) => {
+  const stageTimer = options.stageTimer || (async (_stage, operation) => operation());
+  const currentUser = await stageTimer('current_user_lookup', () => tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employeeId: true } }));
   const employeeId = currentUser.role === 'VIEWER' ? currentUser.employeeId : input.employeeId;
   if (!employeeId) throw new HttpError(400, 'Employee is required.');
-  const employee = await tx.employee.findUniqueOrThrow({ where: { id: employeeId } });
+  const employee = await stageTimer('employee_lookup', () => tx.employee.findUniqueOrThrow({ where: { id: employeeId } }));
   const leaveType = normalizeLeaveType(input.leaveType);
   const requestedUsageByYear = nativeUsageByQuotaYear(input.startDate, input.endDate);
   const dayCount = Object.values(requestedUsageByYear).reduce((sum, value) => sum + Number(value), 0);
@@ -188,12 +183,12 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   // MANAGER global scope: department check is removed for on-behalf creation.
   // Retroactive guard (manager cannot key retro for themselves) is enforced above (line 152).
   if (currentUser.role === 'MANAGER' && onBehalfOf) {
-    await ensureLeaveApprovalAllowed(tx, employeeId, requestUser, { isRetroactive });
+    await stageTimer('approval_policy_lookup', () => ensureLeaveApprovalAllowed(tx, employeeId, requestUser, { isRetroactive }));
   }
 
-  const overlap = await tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } });
+  const overlap = await stageTimer('overlap_lookup', () => tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } }));
   if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.');
-  await ensureLeaveAvailable(tx, employeeId, leaveType, requestedUsageByYear);
+  await ensureLeaveAvailable(tx, employeeId, leaveType, requestedUsageByYear, undefined, { stageTimer });
   if (file && !allowedAttachmentTypes.has(file.mimetype)) throw new HttpError(415, 'Attachment must be PDF, JPEG, or PNG.');
   if (leaveType === 'SICK' && dayCount > 3 && !file) throw new HttpError(400, 'Sick leave longer than 3 days requires an attachment.');
   const safeFileName = file?.originalname.replace(/[\\/\0]/g, '_').slice(0, 255);
@@ -207,12 +202,14 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute) => {
   const prefix = onBehalfOf ? `[บันทึกแทนโดย: ${currentUser.role}] ` : '';
   const reason = `${prefix}[แทน: ${substituteText.slice(0, 255)}] ${reasonText || '-'}`;
 
-  const leave = await tx.leaveRequest.create({ data: { employeeId, createdByUserId: requestUser.sub, leaveType, startDate: input.startDate, endDate: input.endDate, reason, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: file ? 'STORED' : 'NONE', status: 'PENDING' } });
+  const leave = await stageTimer('leave_create', () => tx.leaveRequest.create({ data: { employeeId, createdByUserId: requestUser.sub, leaveType, startDate: input.startDate, endDate: input.endDate, reason, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: file ? 'STORED' : 'NONE', status: 'PENDING' } }));
   if (file) {
-    await tx.leaveAttachment.create({ data: { leaveRequestId: leave.id, fileName: safeFileName || 'attachment', mimeType: file.mimetype, sizeBytes: file.size, sha256: crypto.createHash('sha256').update(file.buffer).digest('hex'), content: file.buffer, uploadedByLegacyRef: requestUser.sub } });
-    await tx.leaveRequest.update({ where: { id: leave.id }, data: { attachmentUrl: `/api/v1/leave-requests/${leave.id}/attachment` } });
+    await stageTimer('attachment_create', async () => {
+      await tx.leaveAttachment.create({ data: { leaveRequestId: leave.id, fileName: safeFileName || 'attachment', mimeType: file.mimetype, sizeBytes: file.size, sha256: crypto.createHash('sha256').update(file.buffer).digest('hex'), content: file.buffer, uploadedByLegacyRef: requestUser.sub } });
+      await tx.leaveRequest.update({ where: { id: leave.id }, data: { attachmentUrl: `/api/v1/leave-requests/${leave.id}/attachment` } });
+    });
   }
-  await audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']), attachment: file ? { present: true, mimeType: file.mimetype, sizeBytes: file.size } : { present: false }, isRetroactive, onBehalfOf } }, tx);
+  await stageTimer('audit', () => audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']), attachment: file ? { present: true, mimeType: file.mimetype, sizeBytes: file.size } : { present: false }, isRetroactive, onBehalfOf } }, tx));
   return {
     id: leave.id, employeeId: leave.employeeId, requestedAt: leave.requestedAt,
     employeeNameSnapshot: leave.employeeNameSnapshot, departmentSnapshot: leave.departmentSnapshot,
@@ -787,7 +784,9 @@ router.post('/leave-requests', async (req, res, next) => {
     // Viewer forms intentionally omit employee selection. Treat an empty HTML
     // value as absent so the authenticated Viewer employee link is used.
     const input = leaveInput.parse({ ...req.body, employeeId: req.body.employeeId || undefined });
-    const result = await runLeaveTransaction((tx) => createLeaveRequest(tx, input, req.user));
+    const stageDurationsMs = createLeaveStageDurations();
+    const stageTimer = (stage, operation) => measureLeaveTransactionStage(stageDurationsMs, stage, operation);
+    const result = await runLeaveTransaction((tx) => createLeaveRequest(tx, input, req.user, undefined, undefined, { stageTimer }), { requestId: req.requestId, stageDurationsMs, timingEvent: 'leave_create_transaction_timing' });
 
     try {
       const { broadcastLeaveRequestEmail } = require('../services/notification-email.service');
@@ -811,7 +810,9 @@ router.post('/leave-requests', async (req, res, next) => {
 router.post('/leave-requests/with-attachment', leaveUpload, async (req, res, next) => {
   try {
     const input = leaveInput.parse({ ...req.body, employeeId: req.body.employeeId || undefined });
-    const result = await runLeaveTransaction((tx) => createLeaveRequest(tx, input, req.user, req.file));
+    const stageDurationsMs = createLeaveStageDurations();
+    const stageTimer = (stage, operation) => measureLeaveTransactionStage(stageDurationsMs, stage, operation);
+    const result = await runLeaveTransaction((tx) => createLeaveRequest(tx, input, req.user, req.file, undefined, { stageTimer }), { requestId: req.requestId, stageDurationsMs, timingEvent: 'leave_create_transaction_timing' });
 
     try {
       const { broadcastLeaveRequestEmail } = require('../services/notification-email.service');
