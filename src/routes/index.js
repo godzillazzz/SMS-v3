@@ -8,20 +8,8 @@ const operationsRoutes = require('./operations.routes');
 const dataQualityRoutes = require('./data-quality.routes');
 const registrationRequestRoutes = require('./registration-requests.routes');
 const employeeChangeRequestRoutes = require('./employee-change-requests.routes');
-const prisma = require('../config/prisma');
 
 const router = express.Router();
-
-// TEMPORARY PREVIEW-ONLY DATABASE IDENTITY PROBE. Remove immediately after isolation proof.
-router.get('/internal/preview-db-identity', async (_req, res, next) => {
-  if (process.env.VERCEL_ENV !== 'preview') return res.status(404).json({ error: 'Not found' });
-  try {
-    const rows = await prisma.$queryRaw`SELECT current_database() AS database`;
-    return res.json({ database: rows[0]?.database ?? null });
-  } catch (error) {
-    return next(error);
-  }
-});
 router.use('/auth', authRoutes);
 router.use('/users', usersRoutes);
 router.use('/employees', employeesRoutes);
