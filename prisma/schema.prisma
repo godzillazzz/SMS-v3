@@ -127,6 +127,7 @@ model User {
   uploadedLicenseDocuments         EmployeeLicenseDocument[]       @relation("UploadedLicenseDocuments")
   reviewedLicenseDocuments         EmployeeLicenseDocument[]       @relation("ReviewedLicenseDocuments")
   returnedLicenseDocuments         EmployeeLicenseDocument[]       @relation("ReturnedLicenseDocuments")
+  submittedLicenseDocumentRevisions EmployeeLicenseDocumentRevision[] @relation("SubmittedLicenseDocumentRevisions")
   employee                         Employee?                       @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   createdLeaveRequests             LeaveRequest[]                  @relation("LeaveRequestCreatedBy")
   lifecycleEventsChanged           EmployeeLifecycleEvent[]        @relation("LifecycleChangedBy")
@@ -458,6 +459,7 @@ enum LicenseDocumentStatus {
   RETURNED_FOR_CORRECTION
   APPROVED
   REJECTED
+  CANCELLED
   SUPERSEDED
   EXPIRED
 }
@@ -505,6 +507,7 @@ model EmployeeLicenseDocument {
   uploadedBy                   User                  @relation("UploadedLicenseDocuments", fields: [uploadedById], references: [id], onDelete: Restrict)
   reviewedBy                   User?                 @relation("ReviewedLicenseDocuments", fields: [reviewedById], references: [id], onDelete: Restrict)
   returnedBy                   User?                 @relation("ReturnedLicenseDocuments", fields: [returnedById], references: [id], onDelete: Restrict)
+  revisions                    EmployeeLicenseDocumentRevision[]
 
   @@unique([licenseId, version])
   @@index([employeeId, status])
@@ -515,6 +518,33 @@ model EmployeeLicenseDocument {
   @@map("employee_license_documents")
 }
 
+model EmployeeLicenseDocumentRevision {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId            String                  @map("document_id") @db.Uuid
+  revision              Int
+  storageProvider       String                  @map("storage_provider") @db.VarChar(50)
+  storageBucket         String                  @map("storage_bucket") @db.VarChar(255)
+  storageObjectKey      String                  @map("storage_object_key") @db.VarChar(500)
+  originalFileName      String                  @map("original_file_name") @db.VarChar(255)
+  safeDisplayFileName   String                  @map("safe_display_file_name") @db.VarChar(255)
+  mimeType              String                  @map("mime_type") @db.VarChar(100)
+  fileSize              Int                     @map("file_size")
+  checksum              String?                 @db.Char(64)
+  proposedStartDate     DateTime                @map("proposed_start_date") @db.Date
+  proposedExpiryDate    DateTime                @map("proposed_expiry_date") @db.Date
+  proposedLicenseNumber String?                 @map("proposed_license_number") @db.VarChar(100)
+  note                  String?                 @db.VarChar(2000)
+  submittedById         String                  @map("submitted_by_id") @db.Uuid
+  submittedAt           DateTime                @default(now()) @map("submitted_at")
+  correctionReason      String?                 @map("correction_reason") @db.VarChar(1000)
+  document              EmployeeLicenseDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  submittedBy           User                    @relation("SubmittedLicenseDocumentRevisions", fields: [submittedById], references: [id], onDelete: Restrict)
+
+  @@unique([documentId, revision])
+  @@index([documentId, submittedAt])
+  @@index([submittedById])
+  @@map("employee_license_document_revisions")
+}
 model LeaveRequest {
   id                        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   sourceFingerprint         String           @unique @map("source_fingerprint") @db.VarChar(64)

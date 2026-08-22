@@ -11,7 +11,7 @@ function harness({ createFailure = false, deleteFailure = false, auditDeleteFail
   const state = {
     license: { id: ids.license, employeeId: ids.employee, issueDate: new Date('2026-01-01'), expiryDate: new Date('2026-12-31') },
     employee: { id: ids.employee, department: 'Operations', isActive: true, deletedAt: null },
-    manager: { department: 'Operations', employee: null }, documents: [], audits: [], reconciles: [], transactionCalls: 0, deleteCalls: 0, deleteAuditUsedTransaction: false
+    manager: { department: 'Operations', employee: null }, documents: [], revisions: [], audits: [], reconciles: [], transactionCalls: 0, deleteCalls: 0, deleteAuditUsedTransaction: false
   };
   const tx = {
     $queryRaw: async () => [],
@@ -20,6 +20,11 @@ function harness({ createFailure = false, deleteFailure = false, auditDeleteFail
     employeeLicense: {
       findUniqueOrThrow: async () => state.license,
       update: async ({ data }) => Object.assign(state.license, data)
+    },
+    employeeLicenseDocumentRevision: {
+      findFirst: async ({ where }) => [...state.revisions].filter((revision) => revision.documentId === where.documentId).sort((a, b) => b.revision - a.revision)[0] || null,
+      create: async ({ data }) => { const revision = { id: `revision-${state.revisions.length + 1}`, ...data }; state.revisions.push(revision); return revision; },
+      findMany: async ({ where }) => [...state.revisions].filter((revision) => !where?.documentId || revision.documentId === where.documentId).sort((a, b) => b.revision - a.revision)
     },
     employeeLicenseDocument: {
       findFirst: async ({ where }) => state.documents.find((document) => document.licenseId === where.licenseId && document.checksum === where.checksum && document.status === where.status) || null,
@@ -40,18 +45,21 @@ function harness({ createFailure = false, deleteFailure = false, auditDeleteFail
     }
     const snapshot = simulateTransactionRollback ? {
       documents: state.documents.map((document) => ({ ...document })),
+      revisions: state.revisions.map((revision) => ({ ...revision })),
       audits: state.audits.map((entry) => ({ ...entry, metadata: entry.metadata && { ...entry.metadata } }))
     } : null;
     try { return await callback(tx); }
     catch (error) {
       if (snapshot) {
         state.documents.splice(0, state.documents.length, ...snapshot.documents);
+        state.revisions.splice(0, state.revisions.length, ...snapshot.revisions);
         state.audits.splice(0, state.audits.length, ...snapshot.audits);
       }
       throw error;
     }
   } };
   prisma.employeeLicense = tx.employeeLicense;
+  prisma.employeeLicenseDocumentRevision = tx.employeeLicenseDocumentRevision;
   prisma.employeeLicenseDocument = tx.employeeLicenseDocument;
   prisma.employeeLicenseDocument.update = tx.employeeLicenseDocument.update;
   const storage = createFakeLicenseDocumentStorage();
@@ -74,6 +82,7 @@ test('upload creates PENDING metadata without changing master dates and uses a r
   assert.equal(document.status, 'PENDING'); assert.equal(document.isCurrent, false); assert.equal(state.license.expiryDate, before);
   assert.equal(storage.calls.put.length, 1); assert.doesNotMatch(storage.calls.put[0].objectKey, /guard license/);
   assert.equal(document.safeDisplayFileName, '.._guard license.pdf');
+  assert.equal(state.revisions.length, 1); assert.equal(state.revisions[0].documentId, document.id); assert.equal(state.revisions[0].revision, 1);
 });
 
 test('inactive employees remain readable but cannot receive operational license changes', async () => {
@@ -211,16 +220,17 @@ test('manager resubmits a returned document with the existing file', async () =>
   assert.equal(state.audits.at(-1).metadata.event, 'RESUBMIT');
 });
 
-test('manager replacement upload commits the new file before deleting the old file', async () => {
+test('replacement resubmit preserves the previous revision file and creates immutable next revision', async () => {
   const { state, storage, service } = harness();
   state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, storageObjectKey: 'licenses/e/old', proposedLicenseNumber: 'OLD', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31'), status: 'RETURNED_FOR_CORRECTION', isCurrent: false, version: 1 });
   await storage.put('licenses/e/old', pdf);
   const replacement = { buffer: Buffer.from('%PDF-1.7\nreplacement'), mimetype: 'application/pdf', originalname: 'replacement.pdf', size: 23 };
   const updated = await service.resubmit({ id: ids.document, requestUser: { sub: ids.manager, role: 'MANAGER' }, input: { licenseNumber: 'NEW', proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') }, file: replacement });
   assert.equal(updated.status, 'PENDING'); assert.notEqual(updated.storageObjectKey, 'licenses/e/old');
-  assert.equal(storage.calls.put.length, 2); assert.equal(storage.calls.remove.length, 1);
-  assert.equal(storage.objectExists('licenses/e/old'), false); assert.equal(storage.objectExists(updated.storageObjectKey), true);
-  assert.equal(state.documents[0].storageDeleteObjectKey, null);
+  assert.equal(storage.calls.put.length, 2); assert.equal(storage.calls.remove.length, 0);
+  assert.equal(storage.objectExists('licenses/e/old'), true); assert.equal(storage.objectExists(updated.storageObjectKey), true);
+  assert.equal(state.revisions.length, 2); assert.equal(state.revisions[0].revision, 1); assert.equal(state.revisions[0].storageObjectKey, 'licenses/e/old');
+  assert.equal(state.revisions[1].revision, 2); assert.equal(state.revisions[1].storageObjectKey, updated.storageObjectKey);
 });
 
 test('rejected document remains rejected when immediate storage deletion fails and signed view is denied', async () => {
