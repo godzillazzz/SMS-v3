@@ -277,3 +277,103 @@ button.danger-action:disabled {
   button.btn-icon-only,
   button.danger-action { transition: none; }
 }
+
+/* Approval Workflow Standard V1 — semantic aliases on the existing action system. */
+button.btn-approve,
+button.btn-return,
+button.btn-reject,
+button.btn-resubmit,
+button.btn-cancel,
+button.btn-save-draft {
+  min-height: var(--control-height);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+button.btn-approve {
+  color: var(--color-text-inverse);
+  background: var(--action-success);
+  border: 1px solid var(--action-success);
+}
+button.btn-approve:hover:not(:disabled) { background: var(--action-success-hover); border-color: var(--action-success-hover); }
+
+button.btn-return {
+  color: var(--color-text-inverse);
+  background: var(--action-warning);
+  border: 1px solid var(--action-warning);
+}
+button.btn-return:hover:not(:disabled) { background: var(--action-warning-hover); border-color: var(--action-warning-hover); }
+
+button.btn-reject {
+  color: var(--color-text-inverse);
+  background: var(--action-danger);
+  border: 1px solid var(--action-danger);
+}
+button.btn-reject:hover:not(:disabled) { background: var(--action-danger-hover); border-color: var(--action-danger-hover); }
+
+button.btn-resubmit {
+  color: var(--color-text-inverse);
+  background: var(--action-primary);
+  border: 1px solid var(--action-primary);
+}
+button.btn-resubmit:hover:not(:disabled) { background: var(--action-primary-hover); border-color: var(--action-primary-hover); }
+
+button.btn-cancel {
+  color: var(--action-danger);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--action-danger);
+}
+button.btn-cancel:hover:not(:disabled) { color: var(--action-danger); background: var(--color-danger-soft); border-color: var(--action-danger); }
+
+button.btn-save-draft {
+  color: var(--action-primary);
+  background: var(--color-primary-soft);
+  border: 1px solid color-mix(in srgb, var(--action-primary) 38%, var(--color-border-strong));
+}
+button.btn-save-draft:hover:not(:disabled) { color: var(--action-primary-hover); border-color: var(--action-primary-hover); }
+
+button.btn-approve:focus-visible,
+button.btn-return:focus-visible,
+button.btn-reject:focus-visible,
+button.btn-resubmit:focus-visible,
+button.btn-cancel:focus-visible,
+button.btn-save-draft:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+button.btn-approve:disabled,
+button.btn-return:disabled,
+button.btn-reject:disabled,
+button.btn-resubmit:disabled,
+button.btn-cancel:disabled,
+button.btn-save-draft:disabled {
+  color: var(--color-text-muted);
+  background: var(--color-surface-muted);
+  border-color: var(--color-border);
+  opacity: .72;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.status-draft,
+.status-pending,
+.status-returned,
+.status-approved,
+.status-rejected,
+.status-cancelled {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-weight: var(--font-weight-semibold);
+}
+.status-draft { color: var(--sms-status-neutral-text); background: var(--sms-status-neutral-bg); border-color: color-mix(in srgb, var(--color-neutral) 24%, transparent); }
+.status-pending,
+.status-returned { color: var(--sms-status-pending-text); background: var(--sms-status-pending-bg); border-color: color-mix(in srgb, var(--color-warning) 24%, transparent); }
+.status-approved { color: var(--sms-status-approved-text); background: var(--sms-status-approved-bg); border-color: color-mix(in srgb, var(--color-success) 24%, transparent); }
+.status-rejected,
+.status-cancelled { color: var(--sms-status-danger-text); background: var(--sms-status-danger-bg); border-color: color-mix(in srgb, var(--color-danger) 24%, transparent); }
