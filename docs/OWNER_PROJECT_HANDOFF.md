@@ -1591,3 +1591,126 @@ Do not collapse pre-final workflow correction with the existing approved-Leave a
 Phase 0–2 produced no Production deployment, migration, data mutation, schema mutation, environment mutation, DNS mutation, or storage mutation. No Preview deployment is part of this closeout.
 
 Subsequent implementation phases have NOT started. Do not begin License workflow changes, Leave Return/Resubmit changes, Registration correction implementation, or Schedule workflow redesign until the Owner explicitly authorizes the next phase.
+
+
+## 2026-08-22 — Approval Workflow Standard V1 Phase 3 License Closeout
+
+Owner review is APPROVED. Phase 3 License source, tests, migration design, and exact-head CI evidence are accepted as the locked License workflow candidate. This closeout records authority only; it does not deploy Preview or Production and does not start any later workflow phase.
+
+### Phase 3 exact identity and commit lineage
+
+- Branch: `feature/approval-workflow-standard-v1`
+- Phase 3 behavior SHA / Commit C: `fe5ed03c62a21d7d3e9edec036f41a172dd56fd0` — `feat: align license workflow review ui`
+- Commit A: `e3d78d765d955f2089ff9809ea44f83546a28c45` — `feat: add license document immutable revisions`
+- Commit B: `f0da50441c0ca973c5e8600dc96fb1cef87ba7f1` — `feat: align license workflow ownership and transitions`
+- Test-baseline-only commit: `21af471bd47b16209a61d7801191185952bfcad6` — `test: refresh authorized frontend api source locks`
+- Prisma format-only commit: `9f7cc5795a8b966a5667c47c7fbcc94ab25b7769` — `style: format prisma schema`
+- Exact Phase 3 candidate SHA: `9f7cc5795a8b966a5667c47c7fbcc94ab25b7769`
+- Exact Phase 3 candidate tree: `712a576159a4da3c047cf8138d6cce145fc85e2a`
+
+### License migration, request ownership, and immutable revision contract
+
+- Migration: `202608220001_license_document_workflow_alignment_v1`.
+- Migration design is additive only; no published migration was edited and no Production/Preview migration was applied during Phase 3.
+- `LICENSE_REQUEST_OWNER_MODEL=EmployeeLicenseDocument.uploadedById`.
+- The request owner is the User who submitted/uploaded the License workflow request; the Employee who owns the License is not treated as requester merely because the document belongs to that Employee.
+- `IMMUTABLE_REVISION_MODEL=EmployeeLicenseDocumentRevision`.
+- Initial submit creates Revision 1. Return + Resubmit creates the next immutable revision. Historical Revision N must never be overwritten by Revision N+1.
+- Historical rows may materialize Revision 1 only through the implemented safe compatibility path.
+- Only ADMIN `FINAL_APPROVE` may apply the current immutable revision values to authoritative `EmployeeLicense`.
+- `RETURN_FOR_CORRECTION`, `RESUBMIT`, `REJECT`, and `CANCEL` must not mutate authoritative `EmployeeLicense`.
+
+### License authority and terminal-state semantics — Owner locked
+
+- `ADMIN_FINAL_APPROVE=ALLOWED`.
+- `MANAGER_FINAL_APPROVE=BLOCKED`.
+- `ADMIN_SELF_APPROVE=ALLOWED`; self-approval remains explicitly audited and is not generalized to other workflows.
+- `RETURN_BY_ADMIN=ALLOWED`.
+- `RETURN_BY_MANAGER=BLOCKED`.
+- `RESUBMIT_BY_REQUEST_OWNER=ALLOWED`.
+- `RESUBMIT_BY_UNRELATED_MANAGER=BLOCKED`.
+- `LICENSE_CANCEL_ALLOWED_STATES=RETURNED_FOR_CORRECTION only`.
+- `CANCEL_BY_REQUEST_OWNER_WHEN_RETURNED=ALLOWED`.
+- `CANCEL_PENDING=BLOCKED`.
+- `CANCEL_APPROVED=BLOCKED`.
+- `CANCEL_REJECTED=BLOCKED`.
+- `APPROVED`, `REJECTED`, and `CANCELLED` remain distinct terminal meanings; `RETURNED_FOR_CORRECTION` remains recoverable.
+- Cancel is requester withdrawal after Return and is not reviewer Reject.
+
+### License storage and document contract — Owner locked
+
+- Accepted document types remain PDF / JPEG / PNG.
+- Maximum file size is 4 MB.
+- Magic-byte validation remains required.
+- License storage remains private and document viewing remains signed.
+- Historical private storage objects are not automatically deleted merely because a document becomes `RETURNED_FOR_CORRECTION`, `REJECTED`, `CANCELLED`, or `SUPERSEDED`.
+- Governed permanent deletion remains a separate ADMIN behavior; expiration cleanup remains separate.
+- Approved historical document/predecessor preservation semantics remain intact.
+
+### Shared approval UI and audit semantics preserved
+
+- License review actions use the shared Phase 1 action system: Approve = green, Return for Correction = orange, Reject = red, Resubmit = blue, Cancel Request = red outline.
+- Authoritative Thai Return label is `ส่งกลับไปแก้ไข`.
+- Cancel confirmation is distinct from Reject and does not imply document deletion.
+- New License transition audit metadata uses the normalized Phase 1 vocabulary, including `SUBMIT`, `RETURN_FOR_CORRECTION`, `RESUBMIT`, `FINAL_APPROVE`, `REJECT`, and `CANCEL` where compatible with existing immutable `AuditLog` persistence.
+- No redundant License workflow event table was introduced.
+
+### System-wide authority regressions preserved
+
+- `SCHEDULE_APPROVE_AUTHORITY=ADMIN_ONLY`.
+- `SCHEDULE_FINAL_APPROVE_AUTHORITY=ADMIN_ONLY`.
+- `SCHEDULE_APPROVE_BY_MANAGER=BLOCKED`.
+- `SCHEDULE_APPROVE_BY_ADMIN=ALLOWED`.
+- `LEAVE_CANCEL_AUTHORITY=ADMIN_ONLY`.
+- `LEAVE_CANCEL_BY_VIEWER=BLOCKED`.
+- `LEAVE_CANCEL_BY_MANAGER=BLOCKED`.
+- `LEAVE_CANCEL_BY_ADMIN=ALLOWED`.
+- Subsequent shared workflow work must not weaken these module-specific authority rules.
+
+### Phase 3 validation evidence
+
+- Commit C focused frontend tests: `29/29 PASS`.
+- License backend focused tests: `41/41 PASS`.
+- License real-DB integration: `8/8 PASS`.
+- Phase 0–2 focused regression: `PASS`.
+- Full backend: `551/551 PASS`.
+- Full integration: `162/162 PASS`.
+- Full frontend: `373/373 PASS` across `41/41` files.
+- TypeScript: `PASS`.
+- Production build: `PASS`.
+- Prisma validate: `PASS`.
+- Prisma generate: `PASS`.
+- Prisma format check: `PASS`.
+- Git diff check: `PASS`.
+- Exact-head Remote CI run: `32560097886`.
+- Exact-head Remote CI job: `97000264510`.
+- Exact-head CI SHA: `9f7cc5795a8b966a5667c47c7fbcc94ab25b7769`.
+- Exact-head CI event: `push`.
+- Exact-head CI result: `SUCCESS`.
+
+### Prisma format-only closeout
+
+- `FORMATTER_OUTPUT_EXACT_MATCH=YES`.
+- `FORMAT_ONLY_FILE=prisma/schema.prisma`.
+- The format-only commit is formatter normalization only and is not a Product behavior change.
+- `SCHEMA_SEMANTIC_CHANGE=NO`.
+- `MIGRATION_CHANGE=NO`.
+
+### Preview isolation and Production hard stop
+
+- `PREVIEW_DATABASE_CLASSIFICATION=PRODUCTION_DB` for the current branch configuration.
+- `PREVIEW_BRANCH_DATABASE_URL_OVERRIDE=NO`.
+- `PREVIEW_BRANCH_DIRECT_URL_OVERRIDE=NO`.
+- `PREVIEW_BRANCH_JWT_SECRET_OVERRIDE=NO`.
+- `PREVIEW_BLOCKED_BY_DATABASE_ISOLATION=YES`.
+- No Preview deployment, migration, data mutation, schema mutation, or environment mutation is authorized until an isolated Preview database configuration is separately created and proven.
+- Phase 3 produced no Production deployment, migration, data mutation, schema mutation, environment mutation, storage mutation, or DNS mutation.
+- `PRODUCTION_RELEASE=NOT_AUTHORIZED`.
+
+### Subsequent-phase hard stop
+
+- Phase 4 Leave Return/Resubmit implementation has NOT started.
+- Phase 5 Registration correction implementation has NOT started.
+- Phase 6 Schedule workflow redesign has NOT started.
+- The separate Employee Master UX request to combine `แก้ไข` and `จัดการสถานะพนักงาน` entry points has NOT started and remains a separate subsequent task.
+- No Product source, tests, Prisma schema, migrations, or CI workflow are to be changed as part of this Phase 3 documentation closeout.
