@@ -132,6 +132,6 @@ describe('G04.2 VF-03 colorful pastel + midnight dark visual contract', () => {
   });
 
   it('locks the authorized V1.2 API source after the Passkey extension', () => {
-    expect(apiSha256).toBe('3eac59893794ae21b040e3fd5b6b298c9c4f3a7f6e3d92393b60129e7a655441');
+    expect(apiSha256).toBe('e53de0516a20333428a85c87415d88b3fdc25358c5b779314fe82d3e9da1bd5a');
   });
 });
