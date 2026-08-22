@@ -87,6 +87,9 @@ function runBuild({ env = process.env, run = runCommand, log = console.log, erro
 
   if (env.VERCEL_ENV !== 'production') {
     log(`Vercel ${env.VERCEL_ENV} build: production migration skipped`);
+    if (env.VERCEL_ENV === 'preview') {
+      if (!runStep('Preview migration gate', process.execPath, ['scripts/preview-migration-gate.js'], { env, run, log, error })) return 1;
+    }
     return runApplicationBuild({ env, run, log, error });
   }
 
