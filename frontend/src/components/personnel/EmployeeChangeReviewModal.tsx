@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { api, ApiRequestError } from '../../api';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
+import { approvalActionPresentation } from '../../approval-workflow-semantics';
 import { SmsIcon } from '../SmsIcon';
 import '../../styles/employee-governed-edit.css';
 
@@ -13,6 +14,9 @@ type Props = { token: string; onClose(): void; onChanged(): void };
 const labels: Record<string, string> = { employeeCode: 'รหัสพนักงาน', firstName: 'ชื่อ', lastName: 'นามสกุล', department: 'หน่วยงาน', jobTitle: 'ตำแหน่ง', isActive: 'สถานะการทำงาน' };
 const show = (field: string, value: unknown) => field === 'isActive' ? (value === true ? 'ACTIVE' : 'TERMINATED') : value === null || value === undefined || value === '' ? '—' : String(value);
 const codeOf = (error: unknown) => error instanceof ApiRequestError && error.details && typeof error.details === 'object' && 'code' in error.details ? String((error.details as { code?: unknown }).code || '') : '';
+const approveAction = approvalActionPresentation('APPROVE');
+const returnAction = approvalActionPresentation('RETURN_FOR_CORRECTION');
+const rejectAction = approvalActionPresentation('REJECT');
 
 export function EmployeeChangeReviewModal({ token, onClose, onChanged }: Props) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -75,7 +79,7 @@ export function EmployeeChangeReviewModal({ token, onClose, onChanged }: Props) 
           <section className="employee-review-comment"><label><span>ความเห็น / เหตุผลสำหรับส่งกลับหรือไม่อนุมัติ</span><textarea rows={3} value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} placeholder="ระบุเมื่อส่งกลับแก้ไขหรือไม่อนุมัติ" /></label></section>
         </> : !loading && <div className="employee-governed-empty">เลือกรายการเพื่อดูรายละเอียด</div>}</div>
       </div>
-      <footer className="employee-governed-actions"><button type="button" className="btn-neutral" onClick={onClose}>ปิด</button>{selected && <><button type="button" className="btn-neutral" disabled={busy || reviewComment.trim().length < 3} onClick={() => void act('return')}>ส่งกลับไปแก้ไข</button><button type="button" className="btn-danger-outline" disabled={busy || reviewComment.trim().length < 3} onClick={() => void act('reject')}>ไม่อนุมัติ</button><button type="button" className="btn-primary" disabled={busy || (warningCodes.length > 0 && !acknowledgeWarnings)} onClick={() => void act('approve')}>อนุมัติ</button></>}</footer>
+      <footer className="employee-governed-actions"><button type="button" className="btn-neutral" onClick={onClose}>ปิด</button>{selected && <><button type="button" className={returnAction.className} disabled={busy || reviewComment.trim().length < 3} onClick={() => void act('return')}>{returnAction.label}</button><button type="button" className={rejectAction.className} disabled={busy || reviewComment.trim().length < 3} onClick={() => void act('reject')}>{rejectAction.label}</button><button type="button" className={approveAction.className} disabled={busy || (warningCodes.length > 0 && !acknowledgeWarnings)} onClick={() => void act('approve')}>{approveAction.label}</button></>}</footer>
     </section>
   </div>, document.body);
 }

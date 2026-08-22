@@ -11,6 +11,7 @@ const page = read('pages/personnel/PersonnelDirectoryPage.tsx');
 const header = read('components/personnel/PersonnelDirectoryHeader.tsx');
 const api = read('api.ts');
 const css = read('styles/employee-governed-edit.css');
+const approvalSemantics = read('approval-workflow-semantics.ts');
 
 function managerOnlySource() {
   const start = editor.indexOf("const operationalFields =");
@@ -50,7 +51,9 @@ describe('Employee Master Governed Edit V1 frontend contracts', () => {
     expect(manager).toContain('api.resubmitEmployeeChangeRequest');
     expect(manager).toContain('api.cancelEmployeeChangeRequest');
     expect(editor).toContain('ส่งคำขอแก้ไข');
-    expect(editor).toContain('แก้ไขและส่งใหม่');
+    expect(editor).toContain("approvalActionPresentation('RESUBMIT')");
+    expect(editor).toContain('resubmitAction.label');
+    expect(approvalSemantics).toContain("label: 'ส่งตรวจสอบอีกครั้ง'");
     expect(editor).not.toContain('Manager Save authoritative');
   });
 
@@ -107,9 +110,15 @@ describe('Employee Master Governed Edit V1 frontend contracts', () => {
 
   it('Return and Reject require comments while Approve is distinct', () => {
     expect(review).toContain("action !== 'approve' && reviewComment.trim().length < 3");
-    expect(review).toContain('ส่งกลับไปแก้ไข');
-    expect(review).toContain('ไม่อนุมัติ');
-    expect(review).toContain('อนุมัติ');
+    expect(review).toContain("approvalActionPresentation('RETURN_FOR_CORRECTION')");
+    expect(review).toContain("approvalActionPresentation('REJECT')");
+    expect(review).toContain("approvalActionPresentation('APPROVE')");
+    expect(review).toContain('returnAction.label');
+    expect(review).toContain('rejectAction.label');
+    expect(review).toContain('approveAction.label');
+    expect(approvalSemantics).toContain("label: 'ส่งกลับไปแก้ไข'");
+    expect(approvalSemantics).toContain("label: 'ไม่อนุมัติ'");
+    expect(approvalSemantics).toContain("label: 'อนุมัติ'");
     expect(review).toContain("api.returnEmployeeChangeRequest");
     expect(review).toContain("api.rejectEmployeeChangeRequest");
     expect(review).toContain("api.approveEmployeeChangeRequest");

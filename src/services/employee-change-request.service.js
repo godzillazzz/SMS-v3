@@ -6,6 +6,7 @@ const audit = require('./audit.service');
 const lifecycle = require('./employee-lifecycle.service');
 const mutationModule = require('./employee-master-mutation.service');
 const HttpError = require('../utils/http-error');
+const { APPROVAL_TRANSITIONS, workflowAuditActionFor, buildWorkflowAuditEnvelope } = require('./approval-workflow-semantics');
 
 const REQUEST_LOCK = 615042919;
 const TRANSACTION_OPTIONS = { isolationLevel: 'Serializable', maxWait: 5000, timeout: 10000 };
@@ -62,8 +63,22 @@ function createEmployeeChangeRequestService({ prismaClient = prisma, auditServic
     return tx.employeeChangeRequestEvent.create({ data: { requestId, employeeId, revision, action, fromStatus, toStatus, actorUserId: actor?.sub || null, actorRoleSnapshot: actor?.role || 'SYSTEM', reason, metadata, idempotencyKey } });
   }
 
-  async function auditTransition(tx, { actor, requestId, action, fromStatus, toStatus, revision, reasonProvided = false, metadata = {} }) {
-    await auditService.log({ actorUserId: actor?.sub || null, action: 'UPDATE', entityType: 'EmployeeChangeRequest', entityId: requestId, metadata: { event: action, fromStatus, toStatus, revision: revision ?? null, reasonProvided, ...metadata } }, tx);
+  async function auditTransition(tx, { actor, requestId, action, auditAction = null, fromStatus, toStatus, revision, reasonProvided = false, metadata = {} }) {
+    const normalized = auditAction ? buildWorkflowAuditEnvelope({
+      workflow: 'EMPLOYEE_MASTER',
+      requestId,
+      revision: revision ?? null,
+      actorUserId: actor?.sub || null,
+      actorRole: actor?.role || null,
+      fromStatus,
+      toStatus,
+      action: auditAction,
+      timestamp: clock()
+    }) : null;
+    const auditMetadata = normalized
+      ? { event: auditAction, persistedEventAction: action, ...normalized, reasonProvided, ...metadata }
+      : { event: action, fromStatus, toStatus, revision: revision ?? null, reasonProvided, ...metadata };
+    await auditService.log({ actorUserId: actor?.sub || null, action: 'UPDATE', entityType: 'EmployeeChangeRequest', entityId: requestId, metadata: auditMetadata }, tx);
   }
 
   async function createDraft({ employeeId, actor, proposal = null, effectiveMode = 'IMMEDIATE', effectiveDate = null, reason = null, idempotencyKey = crypto.randomUUID() }) {
@@ -235,7 +250,7 @@ function createEmployeeChangeRequestService({ prismaClient = prisma, auditServic
         const now = clock();
         await tx.employeeChangeRequest.update({ where: { id }, data: { status: 'APPROVED', activeEmployeeId: null, approvedRevision: revision.revision, approvedAt: now, appliedAt: result.applied ? now : null, lastReviewerComment: null } });
         await createEvent(tx, { requestId: id, employeeId: request.employeeId, revision: revision.revision, action: 'APPROVE', fromStatus: 'PENDING_APPROVAL', toStatus: 'APPROVED', actor, metadata: { lifecycleEventId: result.lifecycleEvent.id, applied: result.applied, effectiveMode: revision.effectiveMode }, idempotencyKey });
-        await auditTransition(tx, { actor, requestId: id, action: 'APPROVE', fromStatus: 'PENDING_APPROVAL', toStatus: 'APPROVED', revision: revision.revision, metadata: { lifecycleEventId: result.lifecycleEvent.id, applied: result.applied } });
+        await auditTransition(tx, { actor, requestId: id, action: 'APPROVE', auditAction: workflowAuditActionFor({ transition: APPROVAL_TRANSITIONS.APPROVE, hasNextReviewStage: false }), fromStatus: 'PENDING_APPROVAL', toStatus: 'APPROVED', revision: revision.revision, metadata: { lifecycleEventId: result.lifecycleEvent.id, applied: result.applied } });
         return { request: await findWithHistory(id, tx), mutation: result, preflight: impact, idempotent: false };
       }, TRANSACTION_OPTIONS);
     } catch (error) {

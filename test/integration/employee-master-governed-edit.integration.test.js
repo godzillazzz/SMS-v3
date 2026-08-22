@@ -409,7 +409,10 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const { service, submitted } = await submitRequest(employee);
     await service.approve({ id: submitted.id, actor: actors.admin, idempotencyKey: randomUUID(), acknowledgeWarnings: true });
     assert.equal(await prisma.employeeChangeRequestEvent.count({ where: { requestId: submitted.id, action: 'APPROVE' } }), 1);
-    assert.equal(await prisma.auditLog.count({ where: { actorUserId: ids.admin, entityType: 'EmployeeChangeRequest', entityId: submitted.id, action: 'UPDATE' } }), 1);
+    const approvalAudit = await prisma.auditLog.findFirstOrThrow({ where: { actorUserId: ids.admin, entityType: 'EmployeeChangeRequest', entityId: submitted.id, action: 'UPDATE' } });
+    assert.equal(approvalAudit.metadata?.event, 'FINAL_APPROVE');
+    assert.equal(approvalAudit.metadata?.persistedEventAction, 'APPROVE');
+    assert.equal(approvalAudit.metadata?.workflow, 'EMPLOYEE_MASTER');
     assert.equal(await prisma.employeeLifecycleEvent.count({ where: { sourceChangeRequestId: submitted.id } }), 1);
   });
 
