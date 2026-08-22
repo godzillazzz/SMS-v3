@@ -1,398 +1,780 @@
 # SMS — OWNER PROJECT HANDOFF
 
 > START HERE FOR A NEW CHAT / CODEX SESSION.
-> Read this complete file before proposing or modifying the SMS project.
+> Read this complete file before proposing, modifying, integrating, testing, or releasing SMS V3.
 
 Last Updated:
-2026-08-21
+2026-08-22
 
 Repository:
 godzillazzz/SMS-v3
 
-This is the single canonical project-continuity document. Future approved
-updates must update/overwrite this same file rather than creating versioned
-handoff copies.
+This is the single canonical project-continuity document. Future approved updates must update/overwrite this same file rather than creating V2/V3/FINAL/date-stamped handoff copies.
 
-## CURRENT PRODUCTION
+Historical implementation detail remains available in Git history. This file is the current Owner-authoritative state, release baseline, governance policy, and forward-work lock.
 
-Production is separate from the current development/self-host candidate.
-G06 is not Production.
+---
 
-- Production application SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
-- Production tree: d6c6e79a2b39256906e76863befde7b04e881cab
-- Production release: MOBILE RESPONSIVE V1 + inherited G05 / EMAIL-01P behavior
-- Production deployment: dpl_8V5bWpjYpfGEG1nPsjyAEvxKtS8P
-- Production immutable URL: https://sms-v3-staging-qrshx2imp-godzillazz.vercel.app
-- Canonical current Vercel hostname: sms-v3-staging-ten.vercel.app
-- Immediate rollback deployment: dpl_6vYMt8yYtpkCmYvfo1RHuavZoZpX
-- Immediate rollback SHA: 39f28d5d0c0216672f28567b315501e7b7b64990
+## CURRENT PRODUCTION — AUTHORITATIVE BASELINE
 
-Mobile Responsive V1 is Owner-approved on real iPhone Safari and verified in
-Production from the exact authorized GitHub SHA. The release preserves the
-existing G05 / EMAIL-01P Production behavior. EMAIL-01P remains verified and
-is inherited by this release. G06/self-host development remains outside
-Production.
+Canonical Production:
+https://sms-v3-staging-ten.vercel.app
 
-Do not deploy the complete current development lineage directly to Production.
-It contains future G06/G07/self-host work that is not Production-authorized.
-## EMAIL-01P PRODUCTION BACKPORT — VERIFIED IN PRODUCTION
+Current Production deployment:
+dpl_FAEJmdXEmTcCuDAzqVznwq75CdLL
 
-Owner authorization has been granted to deploy the isolated EMAIL-01P
-Production backport.
+Current Production immutable URL:
+https://sms-v3-staging-h0ezqql3e-godzillazz.vercel.app
 
-Authoritative release candidate:
+Current Production SHA:
+db0bf9c8ece06db467cb7690ad4d6fadd941a04b
 
-- Branch: fix/email-01-production-backport-v1
-- Base Production SHA: 94b4667771006b00759ddf6f0ec447d27400206c
-- Base Production tree: 31e1dbe6c5fb4f8aa47f41052d1d1ae31cfd9f3e
-- Product backport SHA: 2c83f4e1527ad100395c97bcec8ca8f8a1fcc1b2
-- CI-only / final release SHA: 39f28d5d0c0216672f28567b315501e7b7b64990
-- Final release tree: 8d9672b936f8a9b24ee3d0b095df1ef31eacee57
-- Remote CI run: 32451401152
-- Remote CI job: 96680459866
-- Remote CI result: SUCCESS
-- Focused email tests: 32/32 PASS
-- Backend: 539/539 PASS
-- Integration: 108/108 PASS
-- Frontend: 342/342 PASS
-- TypeScript/build: PASS
-- Schema delta: 0
-- New migrations: 0
-- G06/self-host/Attendance files imported: 0
-- Automatic Preview reference only: dpl_DMVPsbVrr5UTBCCSjCE5wizQbRTz — never promoted
-- Preview URL: https://sms-v3-staging-3l2qzpqzs-godzillazz.vercel.app
-- Production deployment: dpl_6vYMt8yYtpkCmYvfo1RHuavZoZpX
-- Production immutable URL: https://sms-v3-staging-7i3butp28-godzillazz.vercel.app
-- GitSource: GitHub repo 1305361853, branch fix/email-01-production-backport-v1,
-  SHA 39f28d5d0c0216672f28567b315501e7b7b64990
-- Deployment target/state: production / READY
-- Canonical cutover: verified on sms-v3-staging-ten.vercel.app
-- Health: 3/3 PASS
-- Ready/database: 3/3 PASS, database=ok
-- Root/login: 200 / 200
-- Unauthenticated auth/me: 401
-- Runtime fatal/unexpected 5xx/database/config errors: 0
-- Production migrations/env/DB-data/DNS/storage mutations: 0
-- Real-user email smoke: 0
+Current Production release lineage:
+MOBILE RESPONSIVE V1
++
+inherited G05 / EMAIL-01P behavior
++
+LEAVE P2028 TRANSACTION RELIABILITY HOTFIX
 
-Release rule:
+Current Production state:
+READY
 
-- Use a fresh Production-target exact-SHA deployment from
-  39f28d5d0c0216672f28567b315501e7b7b64990.
-- Do NOT promote the automatic Preview above.
-- No Production migration.
-- No Production schema change.
-- No Production environment mutation.
-- No manual Production DB/data mutation.
-- No DNS/storage mutation.
-- Do not fabricate real-user business events merely to smoke-test email.
-- The prior G05 deployment remains the immediate rollback authority.
+Canonical cutover:
+PASS
 
-Verified release status:
+Post-release smoke:
+- health: PASS 3/3
+- ready: PASS 3/3
+- database: ok
+- root: 200
+- login: 200
+- unauthenticated auth/me: 401
+- runtime environment-validation errors: 0
+- runtime startup errors: 0
+- runtime database errors at release gate: 0
+- runtime fatal errors: 0
+- runtime unexpected 5xx at release gate: 0
 
-SMS_EMAIL_01P_PRODUCTION_RELEASE_VERIFIED
+Production release mutations for the Leave hotfix:
+- migration: 0
+- schema mutation: 0
+- manual data mutation: 0
+- environment mutation: 0
+- DNS mutation: 0
+- storage mutation: 0
 
-CURRENT PRODUCTION above is now the EMAIL-01P verified state.
+### CURRENT IMMEDIATE ROLLBACK AUTHORITY
 
-## MOBILE RESPONSIVE V1 — OWNER APPROVED / VERIFIED IN PRODUCTION
+For the next release, the current known-good Production rollback baseline is:
 
-Owner real-device result:
+Deployment:
+dpl_FAEJmdXEmTcCuDAzqVznwq75CdLL
 
-- REAL_IOS_SAFARI_OWNER_REVIEW=PASS
-- OWNER_REVIEW_STATUS=APPROVED
-- Final status: SMS_MOBILE_RESPONSIVE_V1_PRODUCTION_RELEASE_VERIFIED
-- Inherited EMAIL-01P verified status: SMS_EMAIL_01P_PRODUCTION_RELEASE_VERIFIED
+SHA:
+db0bf9c8ece06db467cb7690ad4d6fadd941a04b
 
-Release lineage:
+Do NOT use an older pre-P2028 deployment as the normal next-release rollback baseline unless the Owner explicitly authorizes such a deeper rollback.
 
-- Base Production SHA: 39f28d5d0c0216672f28567b315501e7b7b64990
-- Responsive Product SHA: e7e693946a031bb8da9d5cb7c0550762456b3b25
-- CI topology SHA: 8bc0631b341262a9c5710808fb2789d9aba5b88e
-- Owner Review Fix V1: a31b0203034d29fd80aa219a4c584dfb120dfd2b
-- Owner Review Fix V2: fa32d46948514f3578574adb7b04d27e0cbebeb0
-- Owner Review Fix V3 / released SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
-- Released tree: d6c6e79a2b39256906e76863befde7b04e881cab
-- Release branch: fix/production-mobile-responsive-v1
+The previous Production before the Leave hotfix remains historical evidence:
+- deployment: dpl_8V5bWpjYpfGEG1nPsjyAEvxKtS8P
+- SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
+
+---
+
+## PRODUCTION BASELINE LOCK — LEAVE P2028 HOTFIX
+
+The Leave approval incident where MANAGER could not approve a real leave request is CLOSED.
+
+Root cause:
+PRODUCTION_DATABASE_TRANSACTION_TIMEOUT
+
+Prisma code:
+P2028
+
+Affected real Production leave used to prove the incident and controlled retry:
+83757a3a-17eb-4699-98b1-40a146702548
+
+Production evidence before the hotfix proved repeated HTTP 503 / P2028 transaction timeouts while surrounding DB-backed endpoints were also abnormally slow.
+
+Hotfix branch:
+fix/production-leave-p2028-transaction-reliability-v1
+
+Base SHA:
+6b899c0c613ded6dcb28744448c5f5562c6ae8cc
+
+Product SHA:
+668682900a12ca1b1506160690491bd30a7f0fa7
+
+CI-only / final Production SHA:
+db0bf9c8ece06db467cb7690ad4d6fadd941a04b
 
 Exact-head CI:
+- run: 32550688964
+- job: 96976813434
+- result: SUCCESS
 
-- Remote CI run: 32480708606
-- Remote CI job: 96766246161
-- Remote CI result: SUCCESS
-- Head SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
-- Checkout SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
+Locked transaction behavior:
+- isolationLevel: ReadCommitted
+- maxWait: 5000 ms
+- timeout: 15000 ms
+- P2028 maps to HTTP 503 with public code LEAVE_APPROVAL_TRANSACTION_TIMEOUT
+- automatic transaction retry: NO
+- all authoritative approval writes remain inside one transaction
+- partial approval remains prohibited
+- stage timing instrumentation must not emit PII/secrets
 
-Owner-approved Preview:
+The approval transaction must continue to preserve:
+- Leave row lock
+- authorization/RBAC
+- Manager self-approval prohibition
+- quota ensure/lock and approved-usage validation
+- AL ShiftType lookup
+- ShiftAssignment upsert
+- LeaveRequest status update
+- AuditLog write
+- post-commit notification behavior
 
-- Deployment: dpl_DifsRJJNtGBCFHCHP56fg8ePP9Hu
-- URL: https://sms-v3-staging-9a77opri2-godzillazz.vercel.app
-- GitHub repo ID: 1305361853
-- Ref: fix/production-mobile-responsive-v1
-- SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
-- Owner real iPhone Safari review: PASS
+### CONTROLLED PRODUCTION RETRY — PASS
 
-Verified Production release:
+The real Owner-controlled retry was performed once by the Manager and succeeded.
 
-- Production deployment: dpl_8V5bWpjYpfGEG1nPsjyAEvxKtS8P
-- Production immutable URL: https://sms-v3-staging-qrshx2imp-godzillazz.vercel.app
-- Canonical: https://sms-v3-staging-ten.vercel.app
-- Target/state: production / READY
-- GitSource repo ID: 1305361853
-- GitSource ref: fix/production-mobile-responsive-v1
-- GitSource SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
-- Deployment creation: Vercel Deployments API via authenticated CLI wrapper;
-  source metadata reports cli, while gitSource/meta repo/ref/SHA are exact and
-  no local-source upload or Preview promotion was used.
-- Canonical cutover: VERIFIED
-- Post-release health: 3/3 PASS
-- Post-release ready/database: 3/3 PASS, database=ok
-- Root/login: 200 / 200
-- Unauthenticated auth/me: 401
-- Runtime environment-validation/startup/database/fatal/unexpected 5xx errors: 0
-- Production schema/migrations/DB-data/env/DNS/storage mutations: 0
-- Immediate rollback deployment: dpl_6vYMt8yYtpkCmYvfo1RHuavZoZpX
-- Immediate rollback SHA: 39f28d5d0c0216672f28567b315501e7b7b64990
+Result:
+- HTTP: 200
+- transaction outcome: COMMITTED
+- request ID: sin1::ccxqm-1787373608520-89bc8d8aab04
+- transaction duration: 5584.82 ms
+- Prisma P2028: NO
+- Leave status: APPROVED
+- employee leave-approved email: sent successfully after commit
 
-Mobile Responsive V1 defects closed:
+Stage timings from the successful Production retry:
+- leave_lock_read: 619.89 ms
+- approval_authority: 1235.07 ms
+- quota_ensure: 927.86 ms
+- quota_lock: 309.37 ms
+- approved_usage_lookup: 309.45 ms
+- employee_lookup: 620.55 ms
+- al_lookup: 620.44 ms
+- shift_upsert: 320.39 ms
+- leave_update: 313.76 ms
+- audit: 310.33 ms
 
+Incident status:
+CONTROLLED_PRODUCTION_RETRY=PASS
+INCIDENT_CLOSED=YES
+ROLLBACK_REQUIRED=NO
+
+### PERMANENT RELEASE RULE FROM THIS INCIDENT
+
+ALL future SMS V3 releases must preserve the Leave P2028 hotfix.
+
+Do NOT promote an older candidate directly over Production if that candidate predates SHA db0bf9c8ece06db467cb7690ad4d6fadd941a04b.
+
+Future work such as Employee Master and Approval Workflow Standard must integrate onto the current Production lineage containing the P2028 fix.
+
+Do NOT re-fix the Manager leave-approval incident in another branch unless new evidence proves a regression.
+
+### SEPARATE RELIABILITY TRACK
+
+Production and Preview have shown multi-second database-backed request latency beyond the Leave approval route.
+
+This is a separate future workstream:
+SMS V3 — PRODUCTION DATABASE / SUPABASE POOLER PERFORMANCE & RELIABILITY V1
+
+Do NOT mix Supabase/Pooler tuning into the closed Leave hotfix or unrelated Employee Master/approval-workflow commits.
+
+Do NOT change DATABASE_URL, DIRECT_URL, connection_limit, pool_timeout, connect_timeout, Pooler mode, or Production environment as part of unrelated feature work.
+
+Operational monitoring for recurrence of Prisma P2028 is enabled separately.
+
+---
+
+## MOBILE RESPONSIVE V1 — VERIFIED PRODUCTION FOUNDATION
+
+Released branch:
+fix/production-mobile-responsive-v1
+
+Released SHA:
+6b899c0c613ded6dcb28744448c5f5562c6ae8cc
+
+Released tree:
+d6c6e79a2b39256906e76863befde7b04e881cab
+
+Owner real iPhone Safari review:
+PASS
+
+Important responsive fixes inherited by current Production include:
 - shared body-level reference-counted document scroll lock
-- mobile utility menu body portal
+- body-level portals for mobile overlays/drawers where required
 - Leave Request mobile width/scroll repair
 - Leave History mobile cards
 - License search mobile height repair
 - OperationalRecordDrawer body portal
-- License / Leave Quota iOS drawer repair with VisualViewport-safe geometry
+- License / Leave Quota iOS drawer repair
 - deliberate mobile Schedule horizontal interaction
-- Schedule delete visible control = 30x30
-- Schedule effective touch target = 44x44
+- visible Schedule delete control 30x30 with 44x44 effective touch target
 - header / safe-area responsive correction
 
-G06/G07, Employee Master approval workflow, Reference Photo, Face Verification,
-Liveness and other future Owner-approved architecture remain future work and
-were not implemented by this Production responsive release.
-## CURRENT DEVELOPMENT
+Do not regress these behaviors during future integrated releases.
 
-The current development lineage is EMAIL-01 on top of the G06/self-host
-foundation. It is not the Production deployment.
+---
 
-- Development branch: fix/email-01-notification-policy-v1
-- EMAIL-01 product commit: ad62b1b44755fe59064676e9a22aa4e13a56610b
-- EMAIL-01 CI-only commit: 1aeef1d879b79bb9a8c27b82f8ebc17ee6f0fda7
-- EMAIL-01 validated candidate SHA before documentation-only handoff updates:
-  7aa7d7511f0c679b76ba98ef6737af39476bb3a2
-- EMAIL-01 validated candidate tree:
-  77ed5927a0857bb74dbd9d58cd265e4ede6aa469
-- Remote CI run: 32449542272
-- Remote CI job: 96675263111
-- Remote exact-head CI result: PASS
-- Frontend: 346/346 PASS
-- TypeScript/build: PASS
-- Automatic Preview: dpl_7Z5Masj2LMeGuMLRcs8bnDPiiTnL — READY
-- Schema delta: 0
-- New migrations: 0
-- Production mutations for development-line EMAIL-01: 0
-- Real-user email smoke: 0
-- Status: SMS_EMAIL_01_CANDIDATE_READY (development lineage; not Production)
+## EMAIL-01P — VERIFIED PRODUCTION POLICY
 
-The canonical handoff must continue to be updated on this development lineage
-after major approved gates.
+Current Production inherits the verified EMAIL-01P behavior.
 
-## COMPLETED G06 GATES
+Active notification policy includes:
+- Registration OTP → submitted email
+- Password Reset OTP → eligible account email
+- verified/reviewable registration request → active ADMIN + MANAGER reviewers
+- registration approved/rejected → applicant after decision commit, idempotent
+- leave request created/submitted → linked active employee + active ADMIN/MANAGER as implemented
+- leave approved/rejected/cancelled → linked active employee user where applicable
+- approved monthly schedule → eligible employees represented by authoritative assignments only
 
-- G06.0 — Architecture / Existing-System Fit / Self-host Audit: OWNER APPROVED
-- G06.1A — Attendance Core Foundation: APPROVED
-- G06.1B — Admin Configuration: COMPLETE
-- Owner Visual Gate: APPROVED
-- Preview Runtime Gate: VERIFIED
-- Self-host Infrastructure Foundation: CANDIDATE READY / OWNER INPUT REQUIRED
+Rules:
+- OTP delivery is authentication-critical and separate from ordinary optional business notifications.
+- Business-notification delivery failure must not roll back authoritative business transactions.
+- Group recipients must not expose recipient addresses to each other.
+- Schedule notification must not use a broad all-user fallback.
+- There is no active Attendance email behavior unless a later Owner-approved release explicitly adds it.
 
-Employee Attendance is not live in Production.
+Never store SMTP credentials or addresses in this handoff.
 
-## EMAIL-01 OWNER-APPROVED POLICY
+---
 
-Implemented EMAIL-01 candidate behavior:
+## EMPLOYEE MASTER GOVERNED EDIT V1 — CANDIDATE READY / NOT PRODUCTION
 
-1. Registration OTP
-   - Recipient: submitted email
+Branch:
+feature/employee-master-governed-edit-v1
 
-2. Password Reset OTP
-   - Recipient: active account email when eligible
+Base at feature start:
+6b899c0c613ded6dcb28744448c5f5562c6ae8cc
 
-3. Registration email verified / reviewable request created
-   - Recipient: active ADMIN + MANAGER group
+Product SHA:
+b570862ef7964d1679a6924dfa6a1a00834d6276
 
-4. Registration approved
-   - Recipient: applicant
-   - Sent after decision transaction commits
-   - Idempotent
+Product tree:
+5344b155d00c2bd62fe03308b0e69fcd20b12635
 
-5. Registration rejected by reviewer
-   - Recipient: applicant
-   - Sent after decision transaction commits
-   - Idempotent
+CI-only / final candidate SHA:
+a082bb8b4b28f07bc2c3ad6951d87fd2de0e156c
 
-6. Leave request created
-   - Recipient: linked active employee + active ADMIN + active MANAGER
+Final candidate tree:
+f4a08748cce67ecea93c276b4d79ca465476db06
 
-7. Leave approved
-   - Recipient: linked active employee user
+Exact-head CI:
+- run: 32496391030
+- job: 96815693634
+- result: SUCCESS
 
-8. Leave rejected
-   - Recipient: linked active employee user
+Exact Preview:
+- deployment: dpl_cYi4mtT7tEpNtwQsphSpoQGpuX4h
+- URL: https://sms-v3-staging-33aof1gec-godzillazz.vercel.app
+- ref: feature/employee-master-governed-edit-v1
+- SHA: a082bb8b4b28f07bc2c3ad6951d87fd2de0e156c
+- state: READY
 
-9. Leave cancelled
-   - Recipient: linked active employee user
+Migration:
+202608210001_employee_master_governed_edit_v1
 
-10. Monthly schedule approved
-   - Recipient: only eligible employees represented by authoritative
-     assignments in the approved schedule month
-   - No broad all-user fallback
+The candidate adds governed EmployeeChangeRequest / Revision / Event structures and preserves immutable request history.
 
-Important rules:
-
-- Email delivery is gated by email-notification and SMTP configuration.
-- Registration approval/rejection uses an idempotent EmailDeliveryReservation
-  event key per request and decision.
-- Leave reviewer delivery is individual per eligible reviewer; recipient
-  addresses are not exposed to each other.
-- Schedule approval has no broad fallback to all Users/Employees; an empty or
-  unresolved assignment set fails closed.
-- Legacy leave notification helpers/routes must not be treated as active
-  without mounted-route and callsite proof.
-- There is no active Attendance email behavior.
-- OTP remains authentication-critical and separate from optional ordinary
-  business-notification semantics.
-- Business-notification delivery failure must not roll back registration,
-  leave, or schedule database state.
-
-No email addresses or SMTP credentials belong in this document.
-
-## COMMON APPROVAL WORKFLOW STANDARD — OWNER APPROVED
-
-Owner decision: workflows that send a request to ADMIN/MANAGER for review must
-not be designed as only a binary APPROVE / REJECT choice when correction and
-withdrawal are legitimate operational outcomes.
-
-Default review-state vocabulary for applicable approval loops:
-
-DRAFT
-→ PENDING_APPROVAL
-→ APPROVED / RETURNED_FOR_CORRECTION / REJECTED / CANCELLED
-
-Required semantic distinction:
-
-- APPROVED: terminal reviewer approval; the authorized business effect may be
-  applied according to that module's transaction rules.
-- RETURNED_FOR_CORRECTION: non-terminal. The reviewer is not rejecting the
-  request. The request owner may correct the identified fields and resubmit the
-  same governed request/revision.
-- REJECTED: terminal reviewer decision for that request/revision; a reason is
-  required where the workflow supports rejection.
-- CANCELLED: withdrawal by the request owner or another explicitly authorized
-  role while cancellation remains legally/operationally valid. Cancellation
-  is not the same as reviewer rejection.
-
-Where applicable, the review UI must expose actions equivalent to:
-
-- อนุมัติ / Approve
-- ส่งกลับไปแก้ไข / Return for Correction
-- ไม่อนุมัติ / Reject
-- ยกเลิกคำขอ / Cancel Request
-
-The exact action set may vary where a domain rule makes one action impossible,
-but any omission must be intentional and documented rather than a generic
-binary-approval shortcut.
-
-Workflow requirements:
-
-- Every transition must preserve immutable audit history: request/revision,
-  previous state, next state, actor, timestamp, and reason/comment where
-  applicable.
-- RETURNED_FOR_CORRECTION must not overwrite the prior reviewer decision or
-  prior submitted values. Resubmission must remain traceable.
-- APPROVED business effects must occur only after the authorized approval
-  transition succeeds.
-- A pending or returned request must not silently mutate authoritative master
-  data unless that module explicitly uses a different Owner-approved model.
-- Reviewer notifications and queue visibility should follow the actionable
-  state, not create duplicate queue items for each resubmission.
-- Existing module-specific authority remains authoritative. This common model
-  does not grant MANAGER authority where a feature is ADMIN-only, such as
-  Attendance/Patrol primary-device replacement.
-
-This standard must be reviewed for every existing/new module that has an
-approval loop, including Employee Master changes, registration, leave,
-license/document review, Attendance corrections/exceptions, and other governed
-requests. Existing business rules are not silently changed merely by this
-standard; each module must be mapped explicitly before implementation.
-
-## EMPLOYEE MASTER EDIT + STATUS GOVERNANCE — OWNER APPROVED
-
-Employee Master should present one coherent Edit Employee experience rather
-than forcing ordinary employee-data editing and employment-status management
-into unrelated controls.
-
-The Edit Employee surface should be able to contain, as applicable:
-
-- employee/general information
-- organization/department/position information
-- employment status and effective date/reason
-- employee reference face photo used for Attendance identity verification
-- current/pending change state
-- relevant status/change history
-
-Authority model:
+Owner-locked Employee Master authority:
 
 ADMIN edit
-→ may apply the authorized change directly
-→ audit required
+→ may apply authorized Employee Master changes directly
+→ Audit required
 
 MANAGER edit
-→ create governed Employee Master change request
-→ PENDING_ADMIN_APPROVAL
-→ authoritative Employee Master remains unchanged until ADMIN approval
+→ governed request
+→ authoritative Employee Master remains unchanged until ADMIN final approval
 
-ADMIN review of a Manager-originated Employee Master change must support:
+Manager old direct PUT bypass is blocked.
 
-- APPROVE
+The candidate supports:
+- Admin direct edit
+- Manager submit
+- Admin review
+- Return for Correction
+- Resubmit
+- Approve
+- Reject
+- Cancel
+- one active request per Employee
+- future-effective status changes
+- whole-master stale conflict fail-closed
+- schedule projected-status validation
+- immutable revisions/events
+- shared authoritative mutation service
+
+Closed Preview/UAT gates include:
+- Admin direct edit: PASS
+- Manager submit: PASS
+- Admin review: PASS
+- Return: PASS
+- Resubmit: PASS
+- Approve: PASS
+- Reject: PASS
+- Cancel: PASS
+- one-active-request: PASS
+- Manager bypass blocked: PASS
+- future-effective: PASS
+- stale conflict: PASS
+- schedule projected-status: PASS
+- governed viewport 390x844: PASS
+- governed viewport 360x800: PASS
+- governed viewport 768x1024: PASS
+- governed viewport 1440x960: PASS
+- governed editor open/close cycles: PASS
+- governed review open/close cycles: PASS
+- route cleanup: PASS
+- stale conflict visual UX: PASS
+- Preview responsive evidence: PASS
+- Mobile Responsive V1 focused regression: PASS
+- Preview runtime gate: PASS
+- Product source changes after lock: 0
+- worktree clean: YES
+
+UAT run IDs:
+- R2-20260822023309-738C25
+- R2-SCHED-20260822025546-EADB17
+
+Preview UAT records intentionally left with explicit ZZZ-UAT labeling where supported deletion would violate lifecycle/history governance. Broad/raw cleanup must not be used merely to remove governed evidence.
+
+Final candidate status:
+SMS_EMPLOYEE_MASTER_GOVERNED_EDIT_V1_CANDIDATE_READY
+
+OWNER_REVIEW=PENDING / IN PROGRESS
+PRODUCTION_RELEASE=NO
+
+### EMPLOYEE MASTER RELEASE INTEGRATION LOCK
+
+Do NOT promote SHA a082bb8b4b28f07bc2c3ad6951d87fd2de0e156c directly to Production.
+
+That candidate predates the current Production Leave P2028 lineage.
+
+Future release must create a NEW integrated candidate based on current Production SHA:
+db0bf9c8ece06db467cb7690ad4d6fadd941a04b
+
+Then integrate the Employee Master product changes while preserving the P2028 hotfix and Mobile Responsive/EMAIL behavior.
+
+Employee Master migration creation is already part of the candidate history; migration execution for any future Production release remains a separate explicit Owner gate.
+
+---
+
+## COMMON APPROVAL WORKFLOW STANDARD V1 — OWNER LOCKED SYSTEM-WIDE
+
+This is NOT an Employee Master-only feature.
+
+Any SMS V3 business workflow representing:
+
+REQUESTER
+→ REVIEWER
+→ optional NEXT REVIEWER
+→ FINAL APPROVAL
+
+must use one common approval semantic while retaining module-specific business authority and authoritative mutation logic.
+
+### REVIEWER ACTIONS — REQUIRED SEMANTICS
+
+Every applicable review stage must support:
+
+1. APPROVE
+2. RETURN FOR CORRECTION
+3. REJECT
+
+APPROVE:
+- advances to the next review stage if another reviewer stage exists
+- does NOT complete the business workflow merely because an intermediate reviewer approves
+- only approval by the FINAL APPROVER produces final APPROVED/COMPLETED state
+
+RETURN FOR CORRECTION:
+- recoverable, non-terminal
+- request is NOT rejected
+- authoritative business effect must not be applied
+- request goes to the workflow-defined editable owner
+- editable owner may correct and resubmit
+- prior submitted revision/reviewer action remains immutable
+
+REJECT:
+- terminal reviewer decision
+- state becomes REJECTED
+- reject is not the same as Return or requester Cancel
+
+### REQUESTER ACTIONS AFTER RETURN
+
+When a request is RETURNED_FOR_CORRECTION, the editable requester/owner must have BOTH choices:
+
+A. EDIT + RESUBMIT
+
+B. CANCEL REQUEST
+
+CANCEL REQUEST:
+- terminal requester/authorized-owner withdrawal
+- state becomes CANCELLED
+- must remain semantically different from reviewer REJECTED
+
+Where workflow policy permits, requester cancellation may also be allowed while still pending review, provided no terminal decision/business effect has occurred.
+
+### MULTI-STAGE ROUTING
+
+Example:
+
+Employee SUBMIT
+→ MANAGER_REVIEW
+
+Manager:
+- RETURN → editable requester corrects/resubmits
+- REJECT → REJECTED
+- APPROVE → COMPLETED if Manager is final approver
+- APPROVE → ADMIN_REVIEW if Admin is required next
+
+Admin:
+- RETURN → return to the correct editable owner defined by workflow routing
+- REJECT → REJECTED
+- APPROVE → APPROVED / COMPLETED
+
+Do NOT hard-code Admin Return → Employee.
+
+Return target must be the workflow's editable owner / prior request-owner stage.
+
+Example: if a Manager authored an Employee Master change request for Admin review, an Admin Return goes back to that Manager/request owner.
+
+### IMMUTABLE AUDIT / EVENT VOCABULARY
+
+Every applicable workflow transition must preserve immutable history for:
+- CREATE / DRAFT where applicable
+- SUBMIT
 - RETURN_FOR_CORRECTION
+- RESUBMIT
+- STAGE_APPROVE
+- FINAL_APPROVE
 - REJECT
+- CANCEL
 
-The Manager/request owner must be able to CANCEL a still-pending or returned
-request where no terminal decision/business effect has occurred.
+Capture at minimum where architecture supports it:
+- workflow/module
+- request ID
+- revision/version
+- actor
+- actor role
+- timestamp
+- previous state/stage
+- next state/stage
+- reason/comment where applicable
 
-Admin review should show a clear before/after diff for the proposed changes,
-including employment-status transitions and effective-date/reason where
-applicable.
+Never overwrite prior history to simulate a transition.
 
-Employment status is not a cosmetic field. A change such as ACTIVE → INACTIVE
-or RESIGNED may affect operational eligibility, Schedule, Attendance, Patrol,
-and other current-work views. Historical records must not be deleted merely
-because status changes.
+### AUTHORITATIVE MUTATION RULE
 
-Manager-proposed employment-status changes must not become effective before
-ADMIN approval.
+Pending or returned requests must not silently mutate authoritative business data unless a separately Owner-approved module model explicitly requires it.
 
-Employee reference face-photo replacement is security-sensitive and follows
-the same authority principle:
+Final authoritative mutation must remain module-specific and transaction-safe.
 
-- ADMIN may replace the active reference photo directly with audit.
-- MANAGER may propose a replacement, but the new reference photo must not
-  become authoritative until ADMIN approval.
+Shared approval semantics do NOT replace module-specific validation such as Leave quota/AL assignment, Registration identity/OTP controls, License expiry application, or Employee Master stale/future-effective rules.
 
-This prevents a lower-authority reference-photo change from bypassing the
-Attendance identity-control layer.
+---
 
-## G06 / G07 OWNER-APPROVED ATTENDANCE/PATROL IDENTITY SECURITY MODEL
+## APPROVAL BUTTON / STATUS DESIGN STANDARD — OWNER LOCKED
 
-OWNER DECISION SUPERSEDING THE EARLIER ABSOLUTE NO-PHOTO / NO-FACE LANGUAGE:
+The same semantics and visual meaning must be used across all applicable modules.
 
-Attendance and Patrol must continue to avoid storing employee photos for each
-check-in/check-out/patrol event. However, SMS may retain one authoritative
-Employee Reference Photo in Employee Master for 1:1 identity verification at
-Attendance check-in/check-out.
+Do not allow each module to choose arbitrary approval colors.
 
-The approved security/evidence model is:
+### APPROVE
+Thai label:
+อนุมัติ
+
+Semantic color:
+GREEN
+
+Suggested shared token:
+#16A34A
+
+Meaning:
+positive reviewer action / advance to next stage / final approval
+
+### RETURN FOR CORRECTION
+Thai label:
+ส่งกลับไปแก้ไข
+
+Semantic color:
+ORANGE
+
+Suggested shared token:
+#F59E0B
+
+Meaning:
+recoverable correction required
+
+MUST NOT use Reject red.
+
+### REJECT
+Thai label:
+ไม่อนุมัติ
+
+Semantic color:
+RED
+
+Suggested shared token:
+#DC2626
+
+Meaning:
+terminal reviewer rejection
+
+### RESUBMIT
+Thai label:
+ส่งใหม่ / ส่งตรวจสอบอีกครั้ง
+
+Semantic color:
+PRIMARY BLUE
+
+Suggested shared token:
+#2563EB
+
+Meaning:
+requester sends corrected revision back to the workflow
+
+### CANCEL REQUEST
+Thai label:
+ยกเลิกคำขอ
+
+Semantic color:
+RED OUTLINE / DESTRUCTIVE SECONDARY
+
+Suggested treatment:
+- border: #DC2626
+- text: #B91C1C
+- white/neutral background
+
+Meaning:
+requester withdrawal
+
+Cancel must remain visually distinguishable from reviewer Reject.
+
+### OTHER ACTIONS
+
+SAVE DRAFT:
+secondary/light blue
+
+CLOSE / BACK:
+neutral gray
+
+DISABLED:
+neutral disabled gray
+
+Do not rely on color alone. Preserve explicit Thai labels, keyboard/focus accessibility, and disabled-state clarity.
+
+Preferred shared semantic abstractions:
+- btn-approve
+- btn-return
+- btn-reject
+- btn-resubmit
+- btn-cancel
+- btn-save-draft
+- btn-neutral
+
+Preferred shared status semantics:
+- status-approved
+- status-returned
+- status-rejected
+- status-cancelled
+- status-pending
+- status-draft
+
+The implementation may use equivalent shared components/tokens; exact CSS names are not mandatory. Semantic consistency is mandatory.
+
+---
+
+## APPROVAL WORKFLOW STANDARD — CURRENT IMPLEMENTATION PLAN
+
+Before system-wide implementation, perform a READ-ONLY inventory/gap analysis across every actual request/review workflow.
+
+At minimum inspect:
+- Leave Request
+- Employee Master Change Request
+- Registration Request
+- Employee License / License Document review
+- Schedule-related submission/approval if true requester/reviewer semantics exist
+- Attendance corrections/exceptions/device replacement when implemented
+- any other discovered governed business request
+
+Do not classify pure CRUD as an approval workflow without evidence.
+
+For every workflow determine:
+- requester roles
+- reviewer stages
+- final approver
+- current statuses/actions
+- Approve / Return / Reject support
+- requester Cancel support
+- Resubmit support
+- revision history
+- immutable transition audit
+- authoritative mutation timing
+- notification behavior
+- button/status semantics
+- API routes
+- schema models/enums
+
+Classify each workflow:
+COMPLIANT / PARTIAL / NON_COMPLIANT / NOT_APPLICABLE
+
+Typical gap codes include:
+- MISSING_RETURN
+- MISSING_REQUESTER_CANCEL
+- MISSING_RESUBMIT
+- APPROVE_COMPLETES_TOO_EARLY
+- NO_STAGE_ROUTING
+- RETURN_TARGET_HARDCODED
+- REJECT_AND_RETURN_COLLAPSED
+- CANCEL_AND_REJECT_COLLAPSED
+- NO_REVISION_HISTORY
+- AUDIT_NOT_IMMUTABLE
+- AUTHORITATIVE_MUTATION_BEFORE_FINAL_APPROVAL
+- BUTTON_SEMANTICS_INCONSISTENT
+- STATUS_COLOR_INCONSISTENT
+
+Preferred architecture direction:
+shared approval semantics/policy + shared UI components/tokens + shared audit vocabulary,
+while retaining module-specific routing and module-specific final authoritative mutation.
+
+Do NOT force one giant generic database workflow engine if domain rules materially differ.
+
+---
+
+## LEAVE WORKFLOW — PRESERVATION REQUIREMENTS FOR FUTURE STANDARDIZATION
+
+Current Production Leave approval is operational and proven after the P2028 hotfix.
+
+Future addition of Return / Resubmit / Cancel semantics must preserve:
+- P2028 transaction reliability hotfix
+- ReadCommitted / 5000 ms maxWait / 15000 ms timeout
+- controlled P2028 503 public behavior
+- no automatic retry after uncertain transaction outcome
+- Manager global approval scope as currently authorized
+- Manager self-approval prohibition
+- RBAC
+- annual leave quota safety
+- AL ShiftAssignment behavior
+- exactly-once/atomic business effect as implemented
+- audit
+- notifications after authoritative transaction commit
+
+Future Leave regression gate must prove at minimum:
+- valid Manager approve: PASS
+- Manager Return: PASS when implemented
+- employee/requester Edit + Resubmit: PASS when implemented
+- requester Cancel returned/pending request: PASS when policy allows
+- Manager Reject: PASS
+- self approval blocked: PASS
+- Viewer blocked: PASS
+- Admin behavior unchanged/authorized: PASS
+- approved leave creates AL exactly once: PASS
+- quota accounting correct: PASS
+- controlled P2028 handling preserved: PASS
+- no partial mutation: PASS
+
+Do not reopen the closed P2028 incident merely because workflow states are added around it.
+
+---
+
+## EMPLOYEE MASTER — OWNER DOMAIN RULES
+
+Unified Edit Employee combines ordinary Employee Master fields and employment-status governance.
+
+Admin:
+- direct authorized edit
+- immediate authoritative mutation where policy permits
+- Audit required
+
+Manager:
+- governed request only
+- authoritative Employee unchanged until Admin final approval
+
+Manager PII editing boundary currently excludes restricted Admin-only fields such as email/phone/hiredAt/skill as implemented in the candidate.
+
+Employment lifecycle authoritative state remains based on existing Employee.isActive / ACTIVE / TERMINATED semantics.
+
+Do not invent INACTIVE/RESIGNED enum values without separately locking their business meaning.
+
+Future-effective status request:
+- may become APPROVED before effective date
+- actual Employee authoritative snapshot changes only at the approved effective time
+- do not mix immediate and future-effective field semantics in a way that creates partial authority
+
+Termination/schedule rule:
+- do not auto-delete historical/future assignments merely because status changes
+- surface conflicts
+- block new operational shifts after projected termination/effective inactive state
+- OFF / AL are not operational work shifts for this eligibility rule
+
+Employee.email does not silently synchronize User.email.
+
+Reference Photo is a future security-sensitive Employee Master extension point; no reference-photo/biometric/liveness implementation is part of Employee Master Governed Edit V1.
+
+---
+
+## EMPLOYEE MASTER NAME DATA-QUALITY NOTE
+
+Separate from the Leave incident and from Employee Master feature logic:
+
+EMP029 Production Master data was observed as:
+ชยรบ วัดแก้ว
+
+Owner-confirmed correct name:
+ชยธน วัดแก้ว
+
+This is an Employee Master data-quality correction requiring proper authoritative/audited correction.
+
+Do NOT treat this name difference as the Leave P2028 root cause.
+
+Do NOT rewrite historical LeaveRequest snapshots merely to make them match a later corrected Employee Master name unless a separate historical-correction policy explicitly authorizes it.
+
+---
+
+## REGISTRATION / OTP SECURITY PRINCIPLES
+
+Employee Code is local/non-authoritative and must not be used for public identity, duplicate-person identity, auto-match, or roster exposure.
+
+OTP proves control of the submitted email only; it does not prove Employee/User ownership.
+
+SubmittedName is a non-authoritative hint.
+
+No fuzzy public Employee identity lookup.
+
+Do not weaken:
+- OTP verification
+- single-active OTP semantics where implemented
+- no employee roster exposure
+- existing-account guard
+- duplicate-registration guard
+- Admin/Manager controlled matching/activation
+
+Return for Correction in Registration must be designed so applicant re-entry/editing remains privacy-safe and does not expose Employee roster/account existence improperly.
+
+---
+
+## LICENSE DOCUMENT GOVERNANCE
+
+Security-guard license document feature includes private document storage, upload/history/view, Admin review, and authoritative expiry update on approval.
+
+Owner rules include:
+- file size <= 4 MB
+- allowed document types PDF/JPEG/PNG as implemented
+- Admin review/approval
+- Admin may approve own document where current policy explicitly permits
+- view without ordinary download UX
+- approved expiry becomes authoritative only after the authorized approval effect
+
+Future Approval Workflow Standard work must inventory whether Return + Resubmit + Cancel can be added safely without changing approved historical records or weakening audit/storage controls.
+
+---
+
+## G06 / G07 ATTENDANCE/PATROL IDENTITY SECURITY MODEL — OWNER APPROVED DIRECTION
+
+Attendance/Patrol security stack remains:
 
 ACCOUNT / PASSKEY
 +
@@ -420,1044 +802,263 @@ RISK ENGINE
 +
 CONTROLLED OFFLINE FALLBACK
 
-Important identity/photo rules:
+### PHOTO / FACE POLICY
 
-- Employee Reference Photo: retained as an authoritative Employee Master
-  security reference.
-- Attendance check-in photo: NOT retained as event evidence.
-- Attendance check-out photo: NOT retained as event evidence.
-- Patrol event employee photo: NOT retained as event evidence under the current
-  approved scope.
-- Live camera frames used for face/liveness verification are temporary
-  processing data and must be discarded after verification; they must not be
-  silently written to Attendance/Patrol evidence storage.
-- Face verification is 1:1 only: the authenticated/assigned Employee is already
-  known and the live face is compared only with that Employee's authoritative
-  reference.
-- 1:N face identification/search across the employee roster is NOT required and
-  is not approved by this decision.
-- Liveness/anti-spoof is required together with face matching; a plain still
-  photo-to-live-frame similarity check alone is not sufficient.
-- Do not classify a face-verification failure as misconduct automatically.
-  Preserve it as a verification/risk outcome for retry/review according to
-  policy.
-- NO CONTINUOUS GPS TRACKING.
+Owner-approved current direction:
+- one authoritative Employee Reference Photo may be retained per Employee
+- no Attendance check-in event photo retention
+- no Attendance check-out event photo retention
+- no routine Patrol employee event photo retention
+- live verification frames are temporary and discarded after verification
+- QR camera frames are not retained as evidence
+- face verification is 1:1 against the already-known Employee
+- broad 1:N roster identification/search is NOT approved
+- liveness/anti-spoof is required with face matching
+- persistent biometric templates/embeddings are NOT automatically authorized
 
-The purpose of the face layer is anti-buddy-punching: Device + GPS + QR can
-show that the assigned device is at the expected location, while 1:1 face
-verification adds evidence that the person presenting the device matches the
-Employee reference identity.
+Face verification is an additional anti-buddy-punching control. It does not replace account/passkey, personal device enrollment, device credential, GPS/geofence, QR, Schedule/Shift authority, Server Time, Anti-Replay, Risk Engine, or Controlled Offline.
 
-The other approved security layers remain mandatory; face verification does
-not replace Device Enrollment, Device Credential, GPS/Geofence, Static Secure
-QR, Schedule/Shift authority, Server Time, Anti-Replay, Risk Engine, or
-Controlled Offline safeguards.
+Face/liveness failure is a verification/risk outcome, not automatic proof of misconduct.
 
-Current operating scale is approximately 65 employees. This makes reference
-photo storage small, but implementation choices must still be driven by
-security, privacy, liveness quality, offline behavior, device compatibility,
-and cost rather than by storage size alone.
+### DEVICE ENROLLMENT
 
-## PASSKEY ROLE — IMPORTANT
-
-Passkey authenticates access to an account. Passkey is NOT the authoritative
-Attendance/Patrol device identity.
-
-Reason:
-
-- One Android phone may legitimately contain passkeys for multiple accounts.
-- Therefore possession of a valid passkey alone must not allow the same phone
-  to act as the primary Attendance device for multiple employees.
-
-Attendance/Patrol authority must additionally verify the active personal
-device enrollment bound to the Employee.
-
-Existing WebAuthn/passkey behavior must not be weakened.
-
-## PERSONAL ATTENDANCE / PATROL DEVICE ENROLLMENT
-
-Default Owner rule:
-
+Default:
 1 Employee = 1 ACTIVE primary Attendance/Patrol device at a time.
 
-The server must maintain an explicit Employee-to-device enrollment rather than
-trusting a browser fingerprint, User-Agent string, cookie, or arbitrary device
-name.
+Device replacement authority:
+ADMIN ONLY
 
-Preferred web/PWA concept:
+Required conceptual flow:
+New phone → Login → Request device change → Admin approves → old device REVOKED → new device ACTIVE
 
-- Device/browser generates a cryptographic key pair.
-- Private key remains local and should be non-exportable where the platform
-  permits.
-- Server stores the public credential and enrollment identity.
-- Server challenge is signed by the enrolled device credential.
-- Server verifies that the credential is ACTIVE and belongs to the Employee
-  performing Attendance/Patrol.
+Manager approval is not sufficient for primary Attendance/Patrol device replacement.
 
-A valid account/passkey on a device enrolled to another Employee is not enough
-for normal Attendance/Patrol acceptance.
+### STATIC SECURE PAPER QR
 
-Example security outcome:
+Operational sites/checkpoints may use printed paper QR.
 
-Account = Employee B
-Active enrolled device = Employee A device
-→ DEVICE_OWNER_MISMATCH
-→ do not accept as a normal verified Attendance/Patrol event.
+QR must use an unguessable token/reference and must be validated together with account, active enrolled device, GPS/accuracy, expected site/checkpoint, geofence, server validation/time, assignment/route authority, and face/liveness where Attendance policy requires it.
 
-Do not use IMEI/browser fingerprinting as the core web device identity.
+A copied QR away from the physical location must not become normal verified attendance/patrol evidence.
 
-### DEVICE CHANGE — OWNER-APPROVED FLOW
-
-The device replacement authority is ADMIN ONLY.
-Manager approval is NOT sufficient.
-
-Required flow:
-
-New phone
-→ Login
-→ Request attendance device change
-→ ADMIN approves
-→ Old device REVOKED
-→ New device ACTIVE
-
-Requirements:
-
-- Only one ACTIVE primary device after approval.
-- Old credential is revoked atomically with activation of the new credential.
-- Reason/request/actor/timestamps must be auditable.
-- Employee must not be able to self-activate unlimited replacement devices.
-- Manager must not approve the device replacement.
-- ADMIN can approve according to existing Admin authority and audit rules.
-- The common approval-workflow standard may add Return for Correction / Cancel
-  semantics to the request lifecycle where technically appropriate, but the
-  actual approval authority remains ADMIN ONLY.
-
-If the old device is lost/unavailable, Admin-controlled replacement remains the
-recovery path.
-
-Shared-device mode is NOT the default approved model and must not be silently
-introduced.
-
-## STATIC SECURE PAPER QR MODEL
-
-Operational constraint: Sites/Checkpoints may only have printed paper QR
-codes. Dynamic display QR is not required.
-
-Each Site/Checkpoint QR must contain an unguessable random token/reference, not
-plain identifiers such as CP01 alone.
-
-Recommended security properties:
-
-- unique token per Site/Checkpoint
-- random high-entropy value
-- server stores a hash/derived verifier rather than relying on plaintext
-  storage where practical
-- token is mapped to authoritative Site/Checkpoint identity
-- Admin can regenerate/revoke a compromised QR and print a replacement
-- old revoked token must stop validating
-
-A paper QR is NOT sufficient evidence by itself because it can be photographed
-or copied.
-
-The QR must therefore be validated together with:
-
-- authenticated Employee/account
-- active enrolled personal device credential
-- GPS coordinates
-- GPS accuracy
-- expected Site/Checkpoint
-- geofence radius
-- server validation/time
-- Schedule/Shift or Patrol Route authority
-- face/liveness verification where Attendance policy requires it
-
-Scanning a copied QR away from the physical location should result in a
-location mismatch/risk outcome rather than normal verified attendance.
-
-The QR-scanning camera is used only to decode the QR. QR camera frames/photos
-are not stored as Attendance/Patrol evidence.
-
-Gallery-based QR import should not be a normal employee scanning path.
-
-## G06 ATTENDANCE APPROVED FLOW
+### OFFLINE DIRECTION
 
 Architecture:
+ONLINE FIRST → CONTROLLED OFFLINE FALLBACK → AUTO SYNC → SERVER VALIDATION
 
-ONLINE FIRST
-→ CONTROLLED OFFLINE FALLBACK
-→ AUTO SYNC
-→ SERVER VALIDATION
+Controlled offline must preserve stable captureId/idempotency, capturedAt and receivedAt separately, GPS/accuracy, secure QR context, enrolled device proof, cached/signed expected schedule/site context where applicable, and approved identity-verification result/proof.
 
-Typical employee flow:
+Do NOT solve offline face verification by silently storing raw face images for later server comparison.
 
-Open SMS
-→ authenticate as required
-→ Scan Attendance QR
-→ obtain GPS
-→ verify active enrolled personal device
-→ validate authoritative Schedule / Shift / Expected Site
-→ capture temporary live front-camera frames
-→ perform liveness / anti-spoof
-→ perform 1:1 face verification against that Employee's reference photo
-→ discard live frames after verification
-→ server decides CHECK-IN or CHECK-OUT from current Attendance state
-→ return verified result or risk/review result
+If secure Web/PWA offline face/liveness proves insufficient, surface a separate Android hardening architecture gate rather than weakening the no-event-photo rule.
 
-Employees do not manually select Expected Site, Shift, Duty, or Patrol Route.
-Those come from authoritative Schedule/assignment.
+No continuous GPS tracking.
 
-No check-in/check-out employee photo is retained under the current policy.
-
-### ONLINE
-
-- Server receivedAt/server time is authoritative for receipt.
-- Capture context includes stable captureId and device credential proof.
-- Server validates idempotency, assignment, site, geofence, device, QR, face
-  verification result/proof appropriate to the final design, and risk rules.
-- Live face frames must be discarded after verification and must not be retained
-  merely for routine Attendance evidence.
-- A bounded retry policy may be used for ordinary face/liveness failure caused
-  by lighting, pose, camera quality, or similar conditions; repeated failure
-  becomes a governed risk/exception outcome rather than an automatic accusation.
-
-### CONTROLLED OFFLINE
-
-Offline remains Owner-approved because field connectivity may be unreliable.
-
-Capture locally with at least:
-
-- stable captureId UUID
-- deviceCapturedAt/capturedAt
-- GPS latitude/longitude
-- GPS accuracy and location capturedAt where available
-- scanned static secure QR reference/token proof
-- active enrolled device credential/signature proof appropriate to the design
-- cached/signed expected Schedule/Site context where applicable
-- face/liveness verification result/proof appropriate to the final approved
-  offline design
-
-Display OFFLINE_PENDING / saved on device / waiting sync.
-Never present offline pending as server-confirmed Attendance.
-
-The combination of FACE REQUIRED + NO EVENT PHOTO RETENTION + OFFLINE means the
-system must not solve offline verification by silently storing raw live-face
-images for later server comparison. The preferred architecture direction is
-on-device/local verification with a signed/tamper-resistant result/proof where
-technically supportable.
-
-If secure on-device liveness/1:1 verification cannot be achieved reliably in
-the selected Web/PWA stack, that limitation must be surfaced at a separate
-architecture gate. A small native Android hardening path may then be considered;
-it is not automatically authorized merely by this document.
-
-On reconnect:
-
-AUTO SYNC
-→ SERVER REVALIDATION
-
-Server must revalidate:
-
-- captureId/idempotency
-- active/revoked device status
-- Employee/device ownership
-- Schedule/Shift
-- expected Site and geofence
-- QR validity/revocation
-- GPS/accuracy
-- capturedAt versus receivedAt
-- face/liveness result/proof according to the approved offline design
-- timing and risk
-
-Both capturedAt and receivedAt must be preserved. Sync time must not silently
-replace the captured event time.
-
-Owner defaults retained:
-
-- Normal offline sync window: 24 hours
-- Local unsynced hard retention: 7 days
-- >24h unsynced/late arrival: overdue/review; do not silently discard
-- unresolved offline/time/schedule/location/identity conflicts block official
-  month certification until resolved
-
-The browser/PWA queue must use stable idempotency/capture IDs so retries do not
-create duplicate Attendance records.
-
-## ATTENDANCE BUSINESS RULES
-
-- Schedule is expected; Attendance is actual.
-- Site and Department are separate concepts.
-- Expected Site is assigned by Admin through Schedule/assignment.
-- Current configurable Shift examples:
-  - DAY: 07:00–19:00
-  - NIGHT: 19:00–07:00 next day
-- DAY/NIGHT values must remain configurable, not hardcoded forever.
-- No grace period; late begins immediately after expected start.
-- Early checkout is EARLY_OUT immediately before expected end.
-- Overtime is not part of the approved initial rule set.
-- Wrong shift preserves the event/evidence and adds WRONG_SHIFT according to
-  validation policy.
-- A different valid site may preserve the event and add ASSIST_OTHER_SITE.
-- Outside all sites must not become a normal verified event; preserve the
-  attempt/evidence as appropriate and add OUTSIDE_ALL_SITES / LOCATION_RISK
-  for review according to the validation engine.
-- Missing checkout must not invent checkout time or worked hours.
-- Manager and Admin may perform governed corrections under the approved
-  correction model, but original evidence remains immutable and reason,
-  actor, time, and Audit are required.
-- Device replacement remains ADMIN-only even though operational Attendance
-  corrections may permit Manager/Admin according to correction policy.
-- Face/liveness failure is a verification/risk outcome, not proof of deliberate
-  buddy punching or misconduct by itself.
-
-## G07 PATROL / CHECKPOINT APPROVED DIRECTION
-
-PS and PN are Patrol Routes, not shift names.
-Attendance is independent from Patrol execution.
-
-Patrol uses the same personal-device security principles, plus
-checkpoint/route validation. Current Owner approval adds reference-face 1:1
-verification specifically to Attendance check-in/check-out anti-buddy-punching;
-it does not automatically require a live face step at every Patrol checkpoint.
-
-Per checkpoint event:
-
-Account / Employee
-+
-ACTIVE enrolled personal device
-+
-cryptographic device proof
-+
-GPS + accuracy
-+
-Static Secure Paper QR for that checkpoint
-+
-Server time / receivedAt
-+
-Route authority
-+
-sequence / movement plausibility where configured
-+
-risk engine
-
-No continuous GPS tracking is required. Location is captured at relevant
-checkpoint events.
-
-A copied Checkpoint QR scanned away from the checkpoint must not be accepted as
-a normal verified checkpoint because GPS/geofence validation is independent of
-the QR token.
-
-Movement plausibility should compare successive checkpoint observations, for
-example impossible travel distance/time. It is a risk signal, not an automatic
-accusation of misconduct.
-
-Route order may be fixed or configurable by Patrol policy. Do not hardcode a
-single sequence assumption until the operational route rules are formally
-locked.
-
-Controlled Offline behavior must preserve capturedAt, checkpoint identity,
-GPS, device proof, and route context, then revalidate on sync.
-
-## RISK / ANTI-ABUSE DIRECTION
-
-Candidate risk/result vocabulary should include at least concepts such as:
-
-- DEVICE_OWNER_MISMATCH
-- NEW_DEVICE
-- DEVICE_REVOKED
-- OUTSIDE_GEOFENCE
-- LOW_GPS_ACCURACY
-- QR_LOCATION_MISMATCH
-- WRONG_SHIFT
-- WRONG_SITE
-- ASSIST_OTHER_SITE
-- REPEATED_SCAN
-- REPLAY_ATTEMPT
-- IMPOSSIBLE_MOVEMENT
-- TIME_ABNORMAL
-- OFFLINE_OVERDUE
-- LOCATION_RISK
-- FACE_VERIFICATION_FAILED
-- LIVENESS_FAILED
-
-Do not assume one signal proves misconduct. Preserve enough audit evidence for
-Supervisor/Admin review according to RBAC.
-
-GPS spoofing/mock-location detection may be used as a risk signal where the
-client platform safely exposes it, but do not claim web GPS anti-spoofing is
-perfect.
-
-## FUTURE ANDROID HARDENING — OPTIONAL, NOT A CURRENT BLOCKER
-
-Most field guards are expected to use Android devices.
-
-If Web/PWA device binding or secure offline face/liveness verification proves
-insufficient in real operation, a future small Android app may harden device
-identity/verification using platform capabilities such as:
-
-- Android Keystore
-- non-exportable app/device keys where supported
-- Play Integrity or equivalent app/device integrity signals
-- on-device 1:1 face/liveness capability where separately selected and tested
-- GPS
-- Static Secure Paper QR
-
-This does NOT require moving the backend to a private server. A native Android
-client may continue to use the existing backend hosting architecture.
-
-Do not start a native app merely to satisfy G06/G07 unless a later Owner gate
-authorizes it.
-
-## EVENT-PHOTO / FACE DATA STORAGE DECISION
-
-For G06 Attendance and G07 Patrol under the current Owner decision:
-
-- One authoritative Employee Reference Photo may be retained per Employee for
-  1:1 Attendance identity verification.
-- No employee check-in/check-out photo is retained as Attendance event evidence.
-- No Patrol employee event photo is retained under the current approved scope.
-- Live face/liveness camera frames are temporary processing data and must be
-  discarded after verification.
-- No Attendance/Patrol routine event-photo binary is stored in PostgreSQL/object
-  storage.
-- QR camera frames are not retained as evidence.
-- GPS remains event-based, not continuous tracking.
-- Broad 1:N employee face identification is not required/approved.
-- Persisting a reusable biometric template/embedding is NOT automatically
-  authorized by the reference-photo decision. If the selected implementation
-  requires persistent templates/embeddings, that requires an explicit
-  architecture/security/privacy decision before implementation.
-
-Reference-photo governance:
-
-- The active reference photo is security-sensitive Employee Master data.
-- ADMIN replacement is direct + audited.
-- MANAGER replacement is pending until ADMIN approval.
-- Change history/audit metadata must remain traceable.
-- Old reference-photo binary retention/deletion safety window must be defined
-  before implementation; do not retain superseded biometric/reference images
-  indefinitely without an approved purpose.
-
-This remains materially lighter than storing a fresh photo for every
-check-in/check-out event.
-
-Existing License document storage is a separate feature and is not removed by
-this Attendance/Patrol event-photo decision.
-
-## FUTURE EVENT-PHOTO POLICY EXTENSION — OWNER-APPROVED DESIGN REQUIREMENT
-
-Current policy permits an Employee Reference Photo for 1:1 Attendance face
-verification, but routine Attendance/Patrol event photos are NOT retained.
-
-The architecture must preserve a clean future extension point so a later Owner
-policy can enable event-photo evidence without rebuilding Attendance/Patrol
-core logic.
-
-Do NOT create unused event-photo storage merely for this possibility now.
-Instead, keep Attendance/Patrol event identity and validation independent from
-optional evidence storage so a future additive design can support concepts
-such as:
-
-AttendanceEvent / PatrolEvent
-→ optional Evidence relation
-→ evidence type PHOTO when later authorized
-
-A future event-photo-enabled release may add an additive evidence model with
-fields such as event reference, evidence type, storage provider, object
-key/reference, checksum, capturedAt, and retention policy.
-
-Future policy may support, after a separate Owner gate:
-
-- NO EVENT PHOTO
-- EVENT PHOTO OPTIONAL
-- EVENT PHOTO REQUIRED
-- EVENT PHOTO REQUIRED only for selected Site/risk/policy cases
-
-A future event-photo policy is a separate implementation/release/privacy/storage
-gate. Do not silently enable routine event-photo capture, upload, or retention.
-
-The currently approved face capability is limited to 1:1 verification against
-the known Employee reference with liveness/anti-spoof. Broad 1:N face
-identification across the employee roster remains outside the approved scope.
+---
 
 ## DATA RETENTION ARCHITECTURE — OWNER APPROVED
 
-SMS must use bounded rolling retention for high-volume raw operational data so
-the database does not grow without limit.
+Initial rolling raw-data defaults:
+- System Operational / Usage Logs: 6 calendar months
+- Attendance Raw Events: 12 calendar months
+- Patrol / Checkpoint Raw Scans: 3 calendar months
 
-Initial Owner-approved defaults:
-
-1. SYSTEM OPERATIONAL / USAGE LOGS
-   - Retention: 6 calendar months
-   - Automatic hard delete after the retention cutoff
-
-2. ATTENDANCE RAW EVENTS
-   - Retention: 12 calendar months / 1 calendar year
-   - Automatic hard delete after the retention cutoff
-
-3. PATROL / CHECKPOINT RAW SCANS
-   - Retention: 3 calendar months
-   - Automatic hard delete after the retention cutoff
-
-Retention is calculated by calendar month/year, not by approximating 6 months
-as 180 days, 1 year as 365 days, or 3 months as 90 days.
-
-Retention calendar/timezone authority:
-
+Timezone/calendar authority:
 Asia/Bangkok
 
-For event data, retention age must be based on the authoritative effective
-occurrence/capture date, not merely the later server sync-receipt date.
-For controlled-offline records, a later receivedAt/syncReceivedAt must not
-artificially extend raw retention when the validated event occurred earlier.
+Retention must be calendar-month/year based, not approximate fixed-day conversions.
 
-### RAW DATA VERSUS OFFICIAL RECORDS
+For controlled-offline data, raw retention age follows authoritative validated occurrence/capture timing, not merely later sync receipt.
 
-The raw-data purge must NOT silently delete official governance records.
+Official Attendance/Patrol monthly summary/certification records are outside the raw-event purge unless later explicitly changed.
 
-Attendance raw retention covers high-volume event/evidence/technical data such
-as event GPS, accuracy, QR/device/identity validation context,
-sync/technical metadata, and raw risk details according to the final schema.
+Employee Reference Photo is Employee Master security/reference data, not an Attendance raw event.
 
-Attendance monthly certification / official summary records are NOT covered by
-the 12-month raw-data purge unless a later Owner-approved policy explicitly
-changes that rule.
+Security/Governance Audit is separate from 6-month operational logs and must fail closed out of operational-log purge until its own retention duration is approved.
 
-Patrol raw retention covers per-checkpoint raw scan/location/device/validation
-records according to the final schema.
+### ADMIN-CONFIGURABLE RETENTION
 
-Patrol official/monthly summary records are NOT covered by the 3-month raw-data
-purge unless a later Owner-approved policy explicitly changes that rule.
-
-Employee Reference Photo is Employee Master security/reference data, not an
-Attendance raw event, and therefore is NOT governed by the 12-month raw-event
-purge. Its replacement/deletion policy is a separate reference-photo rule.
-
-### OPERATIONAL LOGS VERSUS SECURITY / GOVERNANCE AUDIT
-
-Routine System Operational/Usage Logs may follow the 6-month retention policy.
-
-Security/Governance Audit is a separate data class and must NOT be silently
-included in the 6-month operational-log purge.
-Examples include Admin device replacement approval, Attendance correction,
-month unlock/certification action, QR regeneration/revocation, Employee Master
-change approval, reference-photo replacement approval, privileged
-configuration changes, destructive data actions, and similar governance events.
-
-Security/Governance Audit retention requires its own policy. Until explicitly
-set, the raw operational-log cleanup must fail closed and exclude governance
-audit records.
-
-## ADMIN-CONFIGURABLE RETENTION POLICY — OWNER APPROVED
-
-Retention durations must be data/configuration driven and manageable through
-an ADMIN-only System Settings / Data Retention UI.
-
-Do NOT hard-code the business retention durations so a future policy change
-requires a source-code edit or redeployment.
-
-Initial UI defaults:
-
+Initial Admin UI defaults:
 - System Operational Logs: 6 months
 - Attendance Raw Events: 12 months
-- Patrol / Checkpoint Raw Scans: 3 months
+- Patrol Raw Scans: 3 months
 - Automatic Daily Cleanup: enabled
 
-Example future policy change:
+Initial safety bounds:
+- Operational Logs: 1–24 months
+- Attendance Raw: 3–36 months
+- Patrol Raw: 1–24 months
 
-Patrol / Checkpoint Raw Scans
-3 months → 6 months
+Retention changes must be audited.
 
-This must be possible from the application by an ADMIN without code change or
-redeploy.
+Increasing retention does not restore already purged data.
 
-Every retention-policy change must be audited with at least policy identity,
-previous value, new value, Admin actor, changedAt, and effective timing.
+Decreasing retention requires:
+1. impact preview
+2. cutoff / eligible count where practical
+3. explicit Admin confirmation
+4. save new policy
+5. controlled worker applies deletion
+6. safety delay, initial target approximately 24 hours
 
-Manager is NOT authorized to change retention policy unless a later Owner rule
-explicitly changes this authority.
+Do not hard-delete inside the same settings Save request.
 
-### RETENTION CHANGE SAFETY
+Retention worker must be batch-safe, retry-safe, scoped by data class, compactly audited, and fail closed on ambiguity.
 
-Increasing retention does NOT restore data that was already permanently purged
-under the previous policy. The Admin UI must state this clearly.
+---
 
-Decreasing retention can make existing data immediately eligible for deletion.
-Therefore the application must NOT hard-delete data inside the same Save
-request.
+## SELF-HOST / INFRASTRUCTURE DIRECTION
 
-For a retention decrease:
+Current Vercel/Supabase hosting may continue while G06/G07 are developed and measured.
 
-1. calculate and show an impact preview before confirmation
-2. show the affected cutoff and estimated/actual eligible record count where
-   technically practical
-3. require explicit ADMIN confirmation
-4. save the new policy
-5. apply deletion through the controlled retention worker, not the UI request
-6. use a safety delay before destructive effect; initial approved target is
-   approximately 24 hours so an accidental policy reduction can be corrected
-   before the purge runs
+Self-host is a future option, not a prerequisite solely because Attendance/Patrol exists.
 
-The implementation must prevent invalid or dangerous values such as zero,
-negative, or unbounded arbitrary retention entries.
+Known future candidates:
+- Dell R330: main/Production candidate, health/controller/storage verification required before any Production use
+- Dell R520: backup/restore candidate
 
-Initial UI safety bounds:
-
-- System Operational Logs: 1–24 months
-- Attendance Raw Events: 3–36 months
-- Patrol / Checkpoint Raw Scans: 1–24 months
-
-These bounds are owner-approved initial guardrails and may themselves be
-changed only through a later controlled policy/design gate.
-
-## AUTOMATIC RETENTION JOB — OWNER APPROVED
-
-Retention cleanup must be automatic and server-authoritative. Admin should not
-need to manually delete expired raw records day by day.
-
-Preferred behavior:
-
-Daily Retention Worker
-→ read current retention configuration
-→ calculate Asia/Bangkok calendar cutoffs
-→ delete only eligible raw records
-→ preserve excluded official records/governance audits
-→ record a compact purge result
-
-Do NOT create one audit row per deleted raw record merely to prove cleanup;
-that would recreate unnecessary data growth.
-
-A single compact retention-purge record per run should capture appropriate
-summary information such as:
-
-- runAt
-- applied policy versions/values
-- calculated cutoffs
-- counts deleted per data class
-- result/success/failure
-- relevant error summary without sensitive payloads
-
-Deletion should be batch-safe/idempotent/retry-safe and should avoid long
-unbounded transactions. Exact batch sizing and scheduler implementation are
-implementation details to be validated against the target runtime/database.
-
-If a policy/data dependency is ambiguous, fail closed rather than deleting a
-broader data class.
-
-## CAPACITY / FREE-TIER OPERATING DIRECTION
-
-The current no-Attendance-event-photo + bounded-retention design is
-intentionally optimized to reduce object storage, bandwidth, backup load, and
-long-term raw database growth. The addition of one Employee Reference Photo
-per Employee remains small at the current workforce scale compared with
-retaining photos for every Attendance event.
-
-This can materially extend the practical life of the current small/free hosting
-model, but no external provider free tier is guaranteed indefinitely.
-
-After G06/G07 real usage begins, capacity decisions should be based on measured
-usage rather than assumptions. Track at least database size/growth, request
-volume, function/runtime use, bandwidth, face/liveness verification cost where
-applicable, and any applicable provider limits.
-
-A future Admin capacity view may show current usage, growth trend, and estimated
-remaining capacity. This is recommended future operational tooling, not a
-reason to block current G06 architecture work.
-
-## SELF-HOST FOUNDATION
-
-The verified self-host foundation remains a valid future deployment option:
-
-- Node.js 22 application runtime
-- Docker runtime
-- PostgreSQL 16 target
-- reverse proxy and same-origin frontend/API delivery
-- restricted trusted-proxy configuration
-- private evidence-provider contract
-- scheduler reference
-- backup/restore model
-- exact-SHA release model
-- application rollback model
-
-Disposable validation previously proved Docker build, non-root runtime,
-PostgreSQL 16, health/ready, DB persistence, backup/restore, and release
-rollback mechanics.
-
-OWNER DECISION UPDATE:
-
-Self-host migration is NOT required solely because Attendance/Patrol is being
-built. The no-event-photo model substantially reduces the storage pressure
-that had made early self-host migration more attractive. One reference photo
-per Employee does not by itself change that conclusion.
-
-Current hosting may continue while G06/G07 are developed and measured.
-Self-host remains an option when scale, policy, integration, reliability,
-cost, internal-network requirements, or Owner preference justify migration.
-
-Do not perform a self-host Production cutover without a separate explicit
-Owner gate.
-
-## PHYSICAL INFRASTRUCTURE PLAN — FUTURE OPTION
-
-Current Owner infrastructure plan remains available if/when self-host is
-chosen:
-
-### Dell R330 — Production/Main Candidate
-
-Approximate known configuration:
-
-- Xeon E3-12xx v5/v6 class
-- 32–64 GB ECC class
-- H330/H730/H730P class controller
-- 2 × 1GbE
-- former CCTV server
-
-R330 disk/controller health must be verified before Production use.
-
-### Dell R520 — Backup/Restore Candidate
-
-Known:
-
-- dual Xeon E5-2450 v2
-- 16 cores / 32 threads total
-- 128 GB ECC
-- 8 × 2 TB SAS
-- PERC H710 with battery
-- iDRAC 7 Enterprise
-- dual PSU
-
-Preferred host OS if self-hosted:
-Ubuntu Server 24.04 LTS bare metal.
+Preferred future host OS if self-hosted:
+Ubuntu Server 24.04 LTS bare metal
 
 Do not use Windows Server 2008 R2 as an internet-facing SMS Production host.
 
-## PRODUCTION ORIGIN / DOMAIN DECISION
+Do not perform self-host Production cutover without separate explicit Owner authorization.
 
-Current Production origin is:
+Future custom domain has been discussed but is not locked.
 
-https://sms-v3-staging-ten.vercel.app
+Before real controlled-offline/PWA employee rollout, Owner must explicitly lock the rollout origin strategy because IndexedDB, Service Worker, Cache Storage, cookies, device-local keys, and WebAuthn/passkeys are origin-sensitive.
 
-A future Owner-controlled custom domain has been discussed but is not locked.
-Previously discussed preference:
+Do not roll out a critical offline queue on a temporary origin and then change origin without a controlled migration/cutover plan.
 
-- secureops.in.th
-- possible application origin: https://sms.secureops.in.th
-
-This is NOT purchased/confirmed merely because it appears in this document.
-
-Important updated rule:
-
-Self-host itself is no longer a prerequisite for G06/G07.
-However, before REAL employee controlled-offline/PWA rollout, the Owner must
-lock the rollout origin strategy because IndexedDB, Service Worker, Cache
-Storage, cookies, device-local keys, and WebAuthn/passkeys are origin-sensitive.
-
-The rollout origin may be the current Vercel hostname if the Owner explicitly
-accepts it for that rollout, or a future custom domain. Do not assume the
-choice silently.
-
-Do not roll out a critical offline queue on a temporary origin and then change
-origin without a controlled migration/cutover plan.
-
-## WEBAUTHN
-
-Current Production passkeys are bound to the current Vercel RP/origin.
-
-Moving to a different canonical domain requires controlled WebAuthn cutover.
-Password/OTP fallback must remain available during transition.
-
-Do not weaken WebAuthn to preserve old-origin passkeys.
-
-## BACKUP DIRECTION IF SELF-HOSTED
-
-Preferred future topology:
-
-R330 Production
-→ private LAN backup
-→ R520 Backup/Restore
-
-RAID is not backup. An additional offline/offsite copy remains recommended.
-Exact backup retention/RPO/RTO require Owner lock before self-host Production.
+---
 
 ## LOCAL FILESYSTEM BOUNDARY — PERMANENT OWNER RULE
-
-This is a PERMANENT OWNER-AUTHORIZED project rule.
 
 AUTHORITATIVE LOCAL WORKSPACE ROOT:
 
 C:\Users\sermp\OneDrive - PTTPLC\04_SSO\ปี-2569\40.AI\ระบบ Security Management System V3
 
-ALL SMS project-controlled local filesystem operations must remain inside this
-root.
+ALL SMS project-controlled local filesystem operations must remain inside this root.
 
-This includes, but is not limited to:
+This includes repository clones, Git worktrees, isolated release clones, source copies, documentation, evidence, screenshots, reports, patches, exports, scripts, project-controlled temporary files, and local backup staging.
 
-- repository clones
-- Git worktrees
-- isolated release clones
-- source working copies
-- documentation
-- OWNER_PROJECT_HANDOFF.md local backup
-- screenshots
-- visual evidence
-- test evidence
-- generated reports
-- release evidence
-- patches
-- exported files
-- backup staging
-- deployment notes
-- temporary project files created by CODEX
-- disposable project databases/files where filesystem paths are explicitly
-  controlled
-- scripts generated for project work
+Do NOT intentionally create SMS project workspaces/artifacts in Windows Temp, Documents, Desktop, Downloads, arbitrary C:\Temp, another OneDrive folder, or another clone outside the authorized root.
 
-FORBIDDEN OWNER-MANAGED PROJECT LOCATIONS include:
+Before major local CODEX work verify:
 
-- C:\Users\sermp\AppData\Local\Temp\...
-- C:\Users\sermp\Documents\...
-- Desktop
-- Downloads
-- another OneDrive directory
-- another repository clone outside the authorized root
-- arbitrary C:\Temp or similar project workspaces
+AUTHORIZED_WORKSPACE_ROOT=<path above>
+ACTIVE_WORKING_DIRECTORY=<actual path>
+WORKSPACE_BOUNDARY_CHECK=PASS
 
-Do NOT create new SMS isolated clones/worktrees in Windows Temp.
-When isolation is required, create the isolated workspace UNDER the authorized
-root.
-
-Before every major local CODEX task, verify:
-
-AUTHORIZED_WORKSPACE_ROOT =
-C:\Users\sermp\OneDrive - PTTPLC\04_SSO\ปี-2569\40.AI\ระบบ Security Management System V3
-
-ACTIVE_WORKING_DIRECTORY = <actual path>
-
-WORKSPACE_BOUNDARY_CHECK = PASS / FAIL
-
-PASS is allowed only when the active SMS project working directory is a
-descendant of the authorized root.
-
-If not:
-
+If the working directory is not a descendant of the authorized root:
 SMS_LOCAL_WORKSPACE_BOUNDARY_VIOLATION
+STOP.
 
-STOP before project-controlled file creation, commit, push, deployment, or
-evidence generation from that unauthorized workspace.
+System-managed caches/temp used internally by OS/Git/Node/browser/Docker are not project-controlled artifacts and are not governed by this path rule unless CODEX intentionally chooses them as the project workspace.
 
-Operating system/Git/Node/browser/Docker/antivirus/OneDrive internals may use
-system-managed cache/temp areas that are not under project control. CODEX must
-not intentionally choose those locations for SMS project artifacts.
+---
 
 ## CANONICAL HANDOFF LOCAL BACKUP — PERMANENT OWNER RULE
 
 Canonical repository handoff:
-
 docs/OWNER_PROJECT_HANDOFF.md
 
 Required Owner local/OneDrive copy:
 
 C:\Users\sermp\OneDrive - PTTPLC\04_SSO\ปี-2569\40.AI\ระบบ Security Management System V3\OWNER_PROJECT_HANDOFF.md
 
-After CODEX updates this handoff and the final branch is successfully pushed
-and remote HEAD is verified, CODEX must:
+After CODEX updates the repository handoff and pushes/verifies the final branch, CODEX must:
+1. copy the final repository handoff to the local path above
+2. OVERWRITE the same OWNER_PROJECT_HANDOFF.md
+3. do not create V2/V3/FINAL/date-stamped duplicates
+4. compute SHA256 of repository source and local destination
+5. require matching hashes
 
-1. Copy the final repository handoff to the path above.
-2. OVERWRITE the same OWNER_PROJECT_HANDOFF.md.
-3. Do not create V2/V3/FINAL/date-stamped duplicates.
-4. Compute SHA256 of repository source and local destination.
-5. Require matching hashes.
+Expected success:
+LOCAL_HANDOFF_BACKUP=VERIFIED
 
-Expected success report:
+If repository update succeeds but local backup cannot be performed, do not rewrite Git history. Report the limitation and do not falsely claim local handoff backup verification.
 
-LOCAL_HANDOFF_BACKUP = VERIFIED
-
-If GitHub push succeeds but local backup fails, do not rewrite or undo pushed
-Git history. Report the safe error and do not claim local handoff closeout is
-complete.
-
-## NEXT WORK PLAN
-
-Immediate development/release priorities:
-
-1. Preserve the verified Mobile Responsive V1 Production release and immediate rollback
-   checkpoint; do not deploy the broader development lineage.
-2. Design/implement the common approval-workflow standard and integrate
-   Employee Master status/general edit into one governed Edit Employee flow.
-3. Ensure Manager-originated Employee Master changes use
-   PENDING_ADMIN_APPROVAL with Approve / Return for Correction / Reject and
-   request-owner Cancel semantics, with immutable before/after audit.
-4. Perform a dedicated architecture/security/privacy/cost/device audit for
-   Employee Reference Photo + 1:1 Face Verification + Liveness before choosing
-   the implementation/vendor/library. Do not implement broad 1:N identification.
-5. Design the offline face/liveness approach so NO event-photo retention is
-   preserved. If secure Web/PWA on-device verification is insufficient, surface
-   that as a later Android hardening decision rather than storing raw offline
-   face images silently.
-6. Design/implement personal device enrollment and ADMIN-only device
-   replacement authority.
-7. Design/implement static secure Site QR and Checkpoint QR lifecycle,
-   including regenerate/revoke and location binding.
-8. Add the configurable retention architecture to G06/G07 design so raw data
-   classes are explicitly identified before the retention worker can delete
-   anything.
-9. Implement ADMIN-only Data Retention settings, policy audit, impact preview,
-   and safe delayed application for retention reductions.
-10. Design the automatic daily retention worker with fail-closed data-class
-    boundaries and compact purge summaries.
-11. Preserve the optional future event-photo-evidence extension point without
-    enabling routine Attendance/Patrol event-photo storage.
-12. Continue Attendance/Patrol server validation and mobile UX with the approved
-    identity stack; face verification augments rather than replaces Device,
-    GPS, QR, Schedule, Server Time, Anti-Replay, Risk, and Offline controls.
-13. Before real controlled-offline employee rollout, obtain explicit Owner
-    decision on rollout origin strategy.
-14. After real G06/G07 usage begins, measure capacity/growth and face/liveness
-    verification cost before deciding on paid hosting or self-host migration.
-
-Do not start G07 Production rollout before G06 foundations required by the
-shared device/location/QR/identity security model are stable.
-
-## OWNER INPUT / FUTURE GATES
-
-Still requiring explicit Owner decisions when relevant:
-
-- any future EMAIL-01P rollback or follow-up release decision
-- actual rollout origin for employee PWA/offline
-- whether/when to purchase an Owner-controlled custom domain
-- whether/when to self-host
-- R330 exact disk/controller health before any self-host Production use
-- exact Patrol route sequencing/policy where not yet defined
-- implementation/provider/library choice for 1:1 face verification and
-  liveness/anti-spoof
-- secure offline face/liveness design and whether a native Android hardening
-  gate is required
-- reference-photo capture quality rules, replacement safety window, and
-  superseded-binary deletion policy
-- whether persistent biometric templates/embeddings are ever required; current
-  approval does not automatically authorize them
-- any future change from NO EVENT PHOTO to optional/required event-photo
-  evidence
-- Security/Governance Audit retention duration
-
-Do not request or record passwords, tokens, cookies, private keys, SMTP
-credentials, biometric templates, or similar secrets/sensitive artifacts in
-this file.
+---
 
 ## SAFETY / RELEASE RULES
 
 - GitHub is the remote source of truth.
-- Exact SHA and tree identity are required.
-- Exact-head Remote CI is required.
+- Exact SHA/tree identity is required.
+- Exact-head Remote CI is required before Production release unless Owner explicitly authorizes a documented exception.
 - No Production deployment without explicit Owner authorization.
 - No Production migration without explicit Owner authorization.
-- No Production environment or data mutation without explicit Owner
-  authorization.
+- No Production environment/data/schema/DNS/storage mutation without explicit Owner authorization.
 - Never deploy from a dirty or wrong worktree.
-- Use isolated clones/worktrees under the authorized Owner workspace root.
-- Never put passwords, tokens, cookies, private keys, or biometric artifacts in
-  this handoff.
+- Use isolated worktrees/clones under the authorized workspace root.
+- Never record passwords, tokens, cookies, private keys, SMTP credentials, biometric templates, or similar secrets in this handoff.
 - No destructive Production UAT.
 - Never edit live source directly on a Production server.
-- Preserve the rollback checkpoint.
-- Do not promote an arbitrary old Preview deployment.
-- Schema migration creation and Production migration execution are separate
-  gates.
-- Inactive employees are historical records, not current operational workload.
-- Operational eligibility remains isActive === true && deletedAt === null
-  unless a later Owner-approved domain rule explicitly supersedes it.
-- Risk flags are evidence for validation/review, not automatic accusations.
-- Approval-loop transitions must preserve immutable audit and distinguish
-  Returned for Correction, Rejected, and Cancelled outcomes.
-- Manager-originated Employee Master changes must not mutate authoritative
-  master data before ADMIN approval.
-- Reference-photo changes are security-sensitive and must follow the approved
-  authority/audit model.
-- Routine Attendance/Patrol event-photo retention remains prohibited under the
-  current policy; live verification frames are ephemeral.
-- Retention deletion must be data-class scoped, policy driven, audited in
-  compact form, and fail closed on ambiguity.
-- Increasing retention cannot restore already-purged data.
-- Retention decreases require impact preview and explicit ADMIN confirmation.
+- Preserve current known-good Production rollback authority.
+- Do not promote arbitrary old Preview deployments.
+- Migration creation and Production migration execution are separate gates.
+- Inactive employees remain historical records, not current operational workload.
+- Operational eligibility remains isActive === true && deletedAt === null unless later explicitly superseded.
+- Risk flags are evidence for review, not automatic accusations.
+- Approval-loop transitions must distinguish Returned for Correction, Rejected, Cancelled, intermediate approval, and final approval.
+- Manager-originated Employee Master changes must not mutate authoritative master data before Admin final approval.
+- Routine Attendance/Patrol event-photo retention remains prohibited under current policy.
+- Retention deletion must be policy/data-class scoped and fail closed on ambiguity.
 
-## CURRENT GATE
+---
 
-EMAIL-01 development candidate:
-SMS_EMAIL_01_CANDIDATE_READY
+## CURRENT WORK PRIORITY / NEXT PLAN
 
-EMAIL-01P isolated Production backport:
-SMS_EMAIL_01P_PRODUCTION_RELEASE_VERIFIED
+1. Preserve current Production SHA db0bf9c8ece06db467cb7690ad4d6fadd941a04b as the mandatory release baseline containing the proven Leave P2028 fix.
+2. Do NOT directly promote the older Employee Master candidate over Production.
+3. Complete Owner review of the Employee Master candidate Preview as needed.
+4. Perform the system-wide Approval Workflow Standard V1 READ-ONLY inventory + gap analysis before implementation.
+5. Based on that inventory, implement shared approval semantics/UI tokens/audit vocabulary in controlled phases while retaining module-specific business logic.
+6. Create a NEW integrated release candidate from current Production SHA db0bf9c8... and integrate Employee Master + authorized Approval Workflow changes without losing the Leave P2028 hotfix.
+7. Run focused regression gates including Leave Manager approval/P2028 preservation, Mobile Responsive V1, Employee Master governed flows, RBAC, and exact migration provenance before any Production release request.
+8. Keep Supabase/Pooler performance tuning as a separate reliability branch/workstream; do not mix it into feature/hotfix commits.
+9. Continue future G06/G07 identity/device/QR/offline/retention architecture only under their separate Owner gates.
 
-Mobile Responsive V1 Production release:
-SMS_MOBILE_RESPONSIVE_V1_PRODUCTION_RELEASE_VERIFIED
+---
 
-Current Production is the exact Mobile Responsive V1 release recorded above,
-with inherited G05 / EMAIL-01P behavior. G06 and self-host remain outside
-Production.
+## CURRENT GATE SUMMARY
 
-G06/G07 architecture is now Owner-locked to:
+CURRENT_PRODUCTION_DEPLOYMENT=
+dpl_FAEJmdXEmTcCuDAzqVznwq75CdLL
 
-COMMON APPROVAL WORKFLOW STANDARD
-+
-EMPLOYEE MASTER UNIFIED EDIT / STATUS GOVERNANCE
-+
-MANAGER CHANGES → ADMIN APPROVAL
-+
-APPROVE / RETURN FOR CORRECTION / REJECT / CANCEL
-+
-NO ATTENDANCE/PATROL EVENT PHOTO STORAGE
-+
-EMPLOYEE REFERENCE PHOTO
-+
-1:1 FACE VERIFICATION + LIVENESS
-+
-NO 1:N FACE IDENTIFICATION
-+
-PERSONAL DEVICE ENROLLMENT
-+
-ADMIN-ONLY DEVICE REPLACEMENT APPROVAL
-+
-GPS/GEOFENCE
-+
-STATIC SECURE PAPER QR
-+
-SERVER VALIDATION / RISK ENGINE
-+
-CONTROLLED OFFLINE FALLBACK
-+
-CONFIGURABLE BOUNDED DATA RETENTION
+CURRENT_PRODUCTION_SHA=
+db0bf9c8ece06db467cb7690ad4d6fadd941a04b
 
-Initial rolling raw-data retention defaults:
+LEAVE_P2028_INCIDENT=
+CLOSED / CONTROLLED PRODUCTION RETRY PASS
 
-- System Operational Logs: 6 calendar months
-- Attendance Raw Events: 12 calendar months
-- Patrol / Checkpoint Raw Scans: 3 calendar months
+EMPLOYEE_MASTER_CANDIDATE=
+SMS_EMPLOYEE_MASTER_GOVERNED_EDIT_V1_CANDIDATE_READY
 
-ADMIN may change these within approved safety bounds through the application
-without code change/redeploy. Policy changes are audited. Retention decreases
-require impact preview + explicit ADMIN confirmation + controlled delayed
-purge. Increasing retention never restores already-purged data.
+EMPLOYEE_MASTER_OWNER_REVIEW=
+PENDING / IN PROGRESS
 
-Official Attendance/Patrol summary/certification records are outside these raw
-purges. Security/Governance Audit is also outside the 6-month operational-log
-purge until its separate retention policy is explicitly approved.
+EMPLOYEE_MASTER_PRODUCTION_RELEASE=
+NO
 
-The earlier absolute NO-PHOTO / NO-FACE language is superseded by the current
-Owner decision. The current rule is more precise: retain one governed Employee
-Reference Photo for 1:1 Attendance verification, require liveness/anti-spoof,
-discard routine live verification frames, and do NOT retain check-in/check-out
-or Patrol event photos. All previously approved Device/GPS/QR/Schedule/Server
-Time/Anti-Replay/Risk/Offline controls remain in force.
+APPROVAL_WORKFLOW_STANDARD_V1=
+OWNER SEMANTICS LOCKED / SYSTEM-WIDE INVENTORY NEXT
 
-## New Chat / New CODEX Session
+PRODUCTION_DATABASE_POOLER_PERFORMANCE=
+SEPARATE RELIABILITY WORKSTREAM / NOT PART OF CLOSED LEAVE HOTFIX
+
+---
+
+## NEW CHAT / NEW CODEX SESSION
 
 Before doing any work:
 
 1. Read this entire file.
-2. Verify CURRENT PRODUCTION separately from CURRENT DEVELOPMENT.
-3. Verify Git SHA/tree before modifying source.
-4. Verify the local workspace is inside the permanent authorized root.
-5. Treat Owner-approved rules in this document as authoritative unless the
-   Owner explicitly supersedes them.
-6. Update/overwrite THIS SAME FILE after each major approved gate.
-7. After successful CODEX push, overwrite the required local OneDrive handoff
-   copy and verify SHA256 equality.
+2. Verify CURRENT PRODUCTION separately from any candidate/Preview.
+3. Treat db0bf9c8ece06db467cb7690ad4d6fadd941a04b as the current Production baseline until a later explicitly authorized release supersedes it.
+4. Never directly promote an older candidate in a way that removes the Leave P2028 fix.
+5. Verify Git SHA/tree before modifying source.
+6. Verify the local workspace is inside the permanent authorized root.
+7. Treat Owner-approved workflow, release, security, retention, and UI semantic rules in this document as authoritative unless explicitly superseded by the Owner.
+8. Update/overwrite THIS SAME FILE after each major approved gate.
+9. After successful CODEX push, overwrite the required local OneDrive handoff copy and verify SHA256 equality.
