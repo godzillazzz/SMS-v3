@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const MODE = 'status';
+const MODE = 'deploy';
 const EXPECTED_BRANCH = 'feature/approval-workflow-standard-v1';
 const PREVIEW_PROJECT_REF = 'ezxanpfagitckpfsnflp';
 const PRODUCTION_PROJECT_REF = 'jkexwnlxnxbemwavsebv';
