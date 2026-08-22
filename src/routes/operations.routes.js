@@ -74,8 +74,8 @@ const executiveReportQuery = z.object({
 });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('attachment');
 const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'Attachment must not exceed 4 MB.' : 'Attachment upload is invalid.')) : next());
-const licenseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 12 } }).single('document');
-const licenseDocumentUpload = (req, res, next) => licenseUpload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ต้องมีขนาดไม่เกิน 2 MB' : 'License document upload is invalid.')) : next());
+const licenseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('document');
+const licenseDocumentUpload = (req, res, next) => licenseUpload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ต้องมีขนาดไม่เกิน 4 MB' : 'License document upload is invalid.')) : next());
 const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const authorizedLicenseReconciliationCron = (req) => {
   const secret = process.env.CRON_SECRET;
@@ -387,6 +387,11 @@ router.post('/license-documents/:id/reject', authorize('ADMIN'), async (req, res
   try {
     const id = uuid.parse(req.params.id); const { rejectionReason } = z.object({ rejectionReason: z.string().trim().min(1).max(2000) }).parse(req.body);
     res.json({ data: await licenseDocuments.reject({ id, requestUser: req.user, rejectionReason }) });
+  } catch (error) { next(error); }
+});router.post('/license-documents/:id/cancel', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    res.json({ data: await licenseDocuments.cancel({ id, requestUser: req.user }) });
   } catch (error) { next(error); }
 });
 router.delete('/license-documents/:id/permanent', authorize('ADMIN'), async (req, res, next) => {

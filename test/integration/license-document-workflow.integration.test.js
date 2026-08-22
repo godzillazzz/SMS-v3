@@ -8,7 +8,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   test('license document integration suite requires RUN_INTEGRATION_TESTS=true', { skip: true }, () => {});
 } else {
   const target = new URL(process.env.DATABASE_URL || '');
-  const isConfiguredTestTarget = target.pathname.replace(/^\//, '') === 'sms_v3_test' && ((target.hostname === 'host.docker.internal' && target.port === '5433') || (target.hostname === '127.0.0.1' && target.port === '5433') || (target.hostname === '127.0.0.1' && target.port === '5432' && process.env.TEST_DATABASE_RUNNER === 'docker-container-network'));
+  const isConfiguredTestTarget = target.pathname.replace(/^\//, '') === 'sms_v3_test' && ((target.hostname === 'host.docker.internal' && target.port === '5433') || (target.hostname === '127.0.0.1' && target.port === '5433') || (target.hostname === '127.0.0.1' && target.port === '5432' && process.env.TEST_DATABASE_RUNNER === 'docker-container-network') || (target.hostname === '127.0.0.1' && target.port === '55433' && process.env.TEST_DATABASE_RUNNER === 'phase3-disposable-local'));
   if (!isConfiguredTestTarget) throw new Error('License document integration tests require the isolated sms_v3_test target.');
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Production storage credentials must not be present in license document integration tests.');
 
@@ -46,12 +46,13 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const employee = await prisma.employee.create({ data: { employeeCode: `LIC-${marker}`.slice(0, 50), firstName: 'License', lastName: 'Fixture', department: 'Operations', isActive: true } });
     created.employeeIds.push(employee.id);
     const user = await prisma.user.create({ data: { email: `${marker}@example.test`, passwordHash: 'integration-test-only', displayName: `Admin ${marker}`, role: 'ADMIN', accountStatus: 'ACTIVE', isActive: true } });
-    created.userIds.push(user.id);
+    const managerUser = await prisma.user.create({ data: { email: `manager-${marker}@example.test`, passwordHash: 'integration-test-only', displayName: `Manager ${marker}`, role: 'MANAGER', accountStatus: 'ACTIVE', isActive: true } });
+    created.userIds.push(user.id, managerUser.id);
     const license = await prisma.employeeLicense.create({ data: { legacyLicenseId: `v3:${marker}`, employeeId: employee.id, licenseType: 'Security Guard', licenseNumber: `LN-${marker}`, issueDate: new Date('2026-01-01'), expiryDate: new Date('2026-12-31'), status: 'Active' } });
     created.licenseIds.push(license.id);
     const storage = createFakeLicenseDocumentStorage();
     const service = createLicenseDocumentService({ prisma, storage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
-    return { marker, employee, user, license, storage, service, requestUser: { sub: user.id, role: 'ADMIN' } };
+    return { marker, employee, user, managerUser, license, storage, service, requestUser: { sub: user.id, role: 'ADMIN' }, managerRequestUser: { sub: managerUser.id, role: 'MANAGER' } };
   }
 
   async function trackAudits(userId) {
@@ -86,7 +87,8 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const versions = await prisma.employeeLicenseDocument.findMany({ where: { licenseId: context.license.id }, orderBy: { version: 'asc' } });
     assert.equal(versions[0].status, 'SUPERSEDED'); assert.equal(versions[0].isCurrent, false);
     assert.equal(versions[1].status, 'APPROVED'); assert.equal(versions[1].isCurrent, true);
-    assert.ok(versions[0].storageDeleteAfter);
+    assert.equal(versions[0].storageDeleteAfter, null);
+    assert.equal(context.storage.objectExists(versions[0].storageObjectKey), true);
     assert.equal((await prisma.employeeLicense.findUniqueOrThrow({ where: { id: context.license.id } })).licenseNumber, `LN-${context.marker}-2`);
     assert.equal(versions.filter((document) => document.isCurrent).length, 1);
 
@@ -100,9 +102,9 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     assert.equal((await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: renewal.id } })).isCurrent, true);
     const rejected = await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: rejectedCandidate.id } });
     assert.equal(rejected.status, 'REJECTED');
-    assert.ok(rejected.storageDeletedAt);
-    assert.equal(context.storage.objectExists(rejectedCandidate.storageObjectKey), false);
-    await assert.rejects(() => context.service.view({ id: rejectedCandidate.id, requestUser: context.requestUser }), { statusCode: 410 });
+    assert.equal(rejected.storageDeletedAt, null);
+    assert.equal(context.storage.objectExists(rejectedCandidate.storageObjectKey), true);
+    await assert.doesNotReject(() => context.service.view({ id: rejectedCandidate.id, requestUser: context.requestUser }));
     await trackAudits(context.user.id);
   }
 
@@ -132,7 +134,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const rejected = results.find((result) => result.status === 'rejected');
     assert.equal(rejected.reason.statusCode, 409);
     assert.equal(await prisma.employeeLicenseDocument.count({ where: { licenseId: context.license.id, isCurrent: true } }), 1);
-    const approvalAudits = await prisma.auditLog.count({ where: { entityId: pending.id, metadata: { path: ['event'], equals: 'APPROVE' } } });
+    const approvalAudits = await prisma.auditLog.count({ where: { entityId: pending.id, metadata: { path: ['event'], equals: 'FINAL_APPROVE' } } });
     assert.equal(approvalAudits, 1);
     await trackAudits(context.user.id);
   });
@@ -186,24 +188,24 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     }
   });
 
-  test('return, reuse/resubmit, reject deletion, and expiration preserve history safely', async () => {
+  test('return, owner resubmit, reject preservation, and expiration preserve history safely', async () => {
     const context = await fixture('correction-disposal');
     try {
-      const pending = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: pdf, input: { licenseNumber: `LN-${context.marker}-return`, proposedStartDate: new Date('2025-01-01'), proposedExpiryDate: new Date('2025-12-31'), note: 'initial' } });
+      const pending = await context.service.upload({ licenseId: context.license.id, requestUser: context.managerRequestUser, file: pdf, input: { licenseNumber: `LN-${context.marker}-return`, proposedStartDate: new Date('2025-01-01'), proposedExpiryDate: new Date('2025-12-31'), note: 'initial' } });
       created.documentIds.push(pending.id);
       const returned = await context.service.returnForCorrection({ id: pending.id, requestUser: context.requestUser, correctionReason: 'กรุณาตรวจสอบวันที่และเลขใบอนุญาต' });
       assert.equal(returned.status, 'RETURNED_FOR_CORRECTION'); assert.equal(context.storage.objectExists(pending.storageObjectKey), true); assert.equal(context.storage.calls.remove.length, 0);
-      await context.service.view({ id: pending.id, requestUser: { sub: context.user.id, role: 'MANAGER' } });
-      const resubmitted = await context.service.resubmit({ id: pending.id, requestUser: { sub: context.user.id, role: 'MANAGER' }, input: { licenseNumber: `LN-${context.marker}-fixed`, proposedStartDate: new Date('2025-01-01'), proposedExpiryDate: new Date('2025-12-31'), note: 'corrected' } });
+      await assert.rejects(() => context.service.resubmit({ id: pending.id, requestUser: context.requestUser, input: { licenseNumber: 'ADMIN-NOT-OWNER', proposedStartDate: new Date('2025-01-01'), proposedExpiryDate: new Date('2025-12-31') } }), (error) => error.statusCode === 403 && error.details?.code === 'LICENSE_DOCUMENT_REQUEST_OWNER_REQUIRED');
+      const resubmitted = await context.service.resubmit({ id: pending.id, requestUser: context.managerRequestUser, input: { licenseNumber: `LN-${context.marker}-fixed`, proposedStartDate: new Date('2025-01-01'), proposedExpiryDate: new Date('2025-12-31'), note: 'corrected' } });
       assert.equal(resubmitted.status, 'PENDING'); assert.equal(resubmitted.storageObjectKey, pending.storageObjectKey); assert.equal(context.storage.calls.remove.length, 0);
       const approved = await context.service.approve({ id: pending.id, requestUser: context.requestUser });
       assert.equal(approved.status, 'APPROVED'); assert.equal(approved.isCurrent, true);
-      const rejectedCandidate = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreject-correction'), size: 26 }, input: { licenseNumber: `LN-${context.marker}-reject`, proposedStartDate: new Date('2026-01-01'), proposedExpiryDate: new Date('2026-12-31') } });
+      const rejectedCandidate = await context.service.upload({ licenseId: context.license.id, requestUser: context.managerRequestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreject-correction'), size: 26 }, input: { licenseNumber: `LN-${context.marker}-reject`, proposedStartDate: new Date('2026-01-01'), proposedExpiryDate: new Date('2026-12-31') } });
       created.documentIds.push(rejectedCandidate.id);
       await context.service.reject({ id: rejectedCandidate.id, requestUser: context.requestUser, rejectionReason: 'เอกสารไม่ชัดเจน' });
       assert.equal((await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: rejectedCandidate.id } })).status, 'REJECTED');
-      assert.equal(context.storage.objectExists(rejectedCandidate.storageObjectKey), false);
-      await assert.rejects(() => context.service.view({ id: rejectedCandidate.id, requestUser: context.requestUser }), { statusCode: 410 });
+      assert.equal(context.storage.objectExists(rejectedCandidate.storageObjectKey), true);
+      await assert.doesNotReject(() => context.service.view({ id: rejectedCandidate.id, requestUser: context.requestUser }));
       const expiration = await expireDueLicenseDocuments({ prisma, storage: context.storage, audit, now: new Date('2026-08-02T00:00:00Z') });
       assert.equal(expiration.expired, 1); assert.equal(expiration.deleted, 1);
       const expired = await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: pending.id } });
@@ -212,6 +214,41 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       await trackAudits(context.user.id);
     } finally {
       await trackAudits(context.user.id);
+    }
+  });
+
+  test('owner correction revisions remain immutable through revision 3, final approve, and returned cancel', async () => {
+    const context = await fixture('phase3-owner-revisions');
+    try {
+      const pending = await context.service.upload({ licenseId: context.license.id, requestUser: context.managerRequestUser, file: pdf, input: { licenseNumber: `LN-${context.marker}-R1`, proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31'), note: 'revision one' } });
+      created.documentIds.push(pending.id);
+      await context.service.returnForCorrection({ id: pending.id, requestUser: context.requestUser, correctionReason: 'แก้รอบหนึ่ง' });
+      await context.service.resubmit({ id: pending.id, requestUser: context.managerRequestUser, input: { licenseNumber: `LN-${context.marker}-R2`, proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31'), note: 'revision two' } });
+      await context.service.returnForCorrection({ id: pending.id, requestUser: context.requestUser, correctionReason: 'แก้รอบสอง' });
+      await context.service.resubmit({ id: pending.id, requestUser: context.managerRequestUser, input: { licenseNumber: `LN-${context.marker}-R3`, proposedStartDate: new Date('2029-01-01'), proposedExpiryDate: new Date('2029-12-31'), note: null } });
+      const revisions = await prisma.employeeLicenseDocumentRevision.findMany({ where: { documentId: pending.id }, orderBy: { revision: 'asc' } });
+      assert.equal(revisions.length, 3); assert.deepEqual(revisions.map((row) => row.revision), [1, 2, 3]);
+      assert.equal(revisions[0].proposedLicenseNumber, `LN-${context.marker}-R1`); assert.equal(revisions[1].proposedLicenseNumber, `LN-${context.marker}-R2`); assert.equal(revisions[2].proposedLicenseNumber, `LN-${context.marker}-R3`);
+      assert.equal(revisions[0].note, 'revision one'); assert.equal(revisions[1].note, 'revision two'); assert.equal(revisions[2].note, null);
+      const approved = await context.service.approve({ id: pending.id, requestUser: context.requestUser });
+      assert.equal(approved.status, 'APPROVED');
+      const master = await prisma.employeeLicense.findUniqueOrThrow({ where: { id: context.license.id } });
+      assert.equal(master.licenseNumber, `LN-${context.marker}-R3`); assert.equal(master.expiryDate.toISOString().slice(0, 10), '2029-12-31');
+      const finalAudit = await prisma.auditLog.findFirst({ where: { entityId: pending.id, metadata: { path: ['event'], equals: 'FINAL_APPROVE' } }, orderBy: { createdAt: 'desc' } });
+      assert.ok(finalAudit); assert.equal(finalAudit.metadata.revision, 3); assert.equal(finalAudit.metadata.selfApproved, false);
+
+      const cancellable = await context.service.upload({ licenseId: context.license.id, requestUser: context.managerRequestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\ncancel'), size: 20 }, input: { licenseNumber: `LN-${context.marker}-CANCEL`, proposedStartDate: new Date('2030-01-01'), proposedExpiryDate: new Date('2030-12-31') } });
+      created.documentIds.push(cancellable.id);
+      await context.service.returnForCorrection({ id: cancellable.id, requestUser: context.requestUser, correctionReason: 'เจ้าของเลือกถอนคำขอ' });
+      await assert.rejects(() => context.service.cancel({ id: cancellable.id, requestUser: context.requestUser }), (error) => error.statusCode === 403 && error.details?.code === 'LICENSE_DOCUMENT_REQUEST_OWNER_REQUIRED');
+      const cancelled = await context.service.cancel({ id: cancellable.id, requestUser: context.managerRequestUser });
+      assert.equal(cancelled.status, 'CANCELLED'); assert.equal(context.storage.objectExists(cancellable.storageObjectKey), true);
+      await assert.rejects(() => context.service.resubmit({ id: cancellable.id, requestUser: context.managerRequestUser, input: { licenseNumber: 'AFTER-CANCEL', proposedStartDate: new Date('2031-01-01'), proposedExpiryDate: new Date('2031-12-31') } }), { statusCode: 409 });
+      const cancelAudit = await prisma.auditLog.findFirst({ where: { entityId: cancellable.id, metadata: { path: ['event'], equals: 'CANCEL' } } });
+      assert.ok(cancelAudit); assert.equal(cancelAudit.metadata.actorUserId, context.managerUser.id);
+    } finally {
+      await trackAudits(context.user.id);
+      await trackAudits(context.managerUser.id);
     }
   });
 }

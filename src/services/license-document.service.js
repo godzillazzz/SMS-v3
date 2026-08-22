@@ -5,8 +5,9 @@ const { LICENSE_DOCUMENT_TRANSACTION_OPTIONS, removeLicenseDocumentFile } = requ
 const { APPROVAL_TRANSITIONS, workflowAuditActionFor, buildWorkflowAuditEnvelope } = require('./approval-workflow-semantics');
 
 const APPROVAL_TRANSACTION_OPTIONS = LICENSE_DOCUMENT_TRANSACTION_OPTIONS;
-const VIEWABLE_STATUSES = new Set(['PENDING', 'RETURNED_FOR_CORRECTION', 'APPROVED', 'SUPERSEDED']);
-const PERMANENT_DELETE_STATUSES = new Set(['RETURNED_FOR_CORRECTION', 'REJECTED', 'SUPERSEDED']);
+const VIEWABLE_STATUSES = new Set(['PENDING', 'RETURNED_FOR_CORRECTION', 'APPROVED', 'REJECTED', 'CANCELLED', 'SUPERSEDED']);
+const PERMANENT_DELETE_STATUSES = new Set(['RETURNED_FOR_CORRECTION', 'REJECTED', 'CANCELLED', 'SUPERSEDED']);
+const LICENSE_CANCEL_ALLOWED_STATES = new Set(['RETURNED_FOR_CORRECTION']);
 
 const revisionSelect = {
   id: true, documentId: true, revision: true, safeDisplayFileName: true, mimeType: true, fileSize: true,
@@ -141,22 +142,26 @@ async function ensureOperationalEmployee(client, employeeId) {
   return employee;
 }
 
+function revisionValue(overrides, key, fallback) {
+  return Object.prototype.hasOwnProperty.call(overrides, key) ? overrides[key] : fallback;
+}
+
 function revisionData(document, { revision, submittedById, submittedAt, correctionReason = null, overrides = {} }) {
   return {
     documentId: document.id,
     revision,
-    storageProvider: overrides.storageProvider ?? document.storageProvider,
-    storageBucket: overrides.storageBucket ?? document.storageBucket,
-    storageObjectKey: overrides.storageObjectKey ?? document.storageObjectKey,
-    originalFileName: overrides.originalFileName ?? document.originalFileName,
-    safeDisplayFileName: overrides.safeDisplayFileName ?? document.safeDisplayFileName,
-    mimeType: overrides.mimeType ?? document.mimeType,
-    fileSize: overrides.fileSize ?? document.fileSize,
-    checksum: overrides.checksum ?? document.checksum ?? null,
-    proposedStartDate: overrides.proposedStartDate ?? document.proposedStartDate,
-    proposedExpiryDate: overrides.proposedExpiryDate ?? document.proposedExpiryDate,
-    proposedLicenseNumber: overrides.proposedLicenseNumber ?? document.proposedLicenseNumber ?? null,
-    note: overrides.note ?? document.note ?? null,
+    storageProvider: revisionValue(overrides, 'storageProvider', document.storageProvider),
+    storageBucket: revisionValue(overrides, 'storageBucket', document.storageBucket),
+    storageObjectKey: revisionValue(overrides, 'storageObjectKey', document.storageObjectKey),
+    originalFileName: revisionValue(overrides, 'originalFileName', document.originalFileName),
+    safeDisplayFileName: revisionValue(overrides, 'safeDisplayFileName', document.safeDisplayFileName),
+    mimeType: revisionValue(overrides, 'mimeType', document.mimeType),
+    fileSize: revisionValue(overrides, 'fileSize', document.fileSize),
+    checksum: revisionValue(overrides, 'checksum', document.checksum ?? null),
+    proposedStartDate: revisionValue(overrides, 'proposedStartDate', document.proposedStartDate),
+    proposedExpiryDate: revisionValue(overrides, 'proposedExpiryDate', document.proposedExpiryDate),
+    proposedLicenseNumber: revisionValue(overrides, 'proposedLicenseNumber', document.proposedLicenseNumber ?? null),
+    note: revisionValue(overrides, 'note', document.note ?? null),
     submittedById,
     submittedAt,
     correctionReason
@@ -170,6 +175,35 @@ async function ensureInitialRevision(tx, document) {
     data: revisionData(document, { revision: 1, submittedById: document.uploadedById, submittedAt: document.uploadedAt || document.createdAt || new Date(), correctionReason: null }),
     select: revisionSelect
   });
+}
+
+function ensureRequestOwner(document, requestUser) {
+  if (!document.uploadedById || !requestUser?.sub || document.uploadedById !== requestUser.sub) {
+    throw new HttpError(403, 'Only the license document request owner can correct, resubmit, or cancel this request.', { code: 'LICENSE_DOCUMENT_REQUEST_OWNER_REQUIRED' });
+  }
+}
+
+function workflowAuditMetadata({ document, requestUser, transition, revision, fromStatus, toStatus, reason = null, comment = null, timestamp = new Date(), extra = {} }) {
+  const action = workflowAuditActionFor({ transition, hasNextReviewStage: false });
+  return {
+    event: action,
+    ...buildWorkflowAuditEnvelope({
+      workflow: 'EMPLOYEE_LICENSE_DOCUMENT',
+      requestId: document.id,
+      revision,
+      actorUserId: requestUser?.sub || null,
+      actorRole: requestUser?.role || null,
+      fromStatus,
+      toStatus,
+      action,
+      reason,
+      comment,
+      timestamp
+    }),
+    licenseId: document.licenseId,
+    employeeId: document.employeeId,
+    ...extra
+  };
 }
 
 function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedules }) {
@@ -227,8 +261,8 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
         const version = (await tx.employeeLicenseDocument.aggregate({ where: { licenseId }, _max: { version: true } }))._max.version || 0;
         const displayName = safeName(file.originalname);
         const document = await tx.employeeLicenseDocument.create({ data: { employeeId: license.employeeId, licenseId, storageProvider: stored.provider, storageBucket: stored.bucket, storageObjectKey: objectKey, originalFileName: displayName, safeDisplayFileName: displayName, mimeType: fileInfo.mimeType, fileSize: file.size, checksum: fileInfo.checksum, proposedStartDate: input.proposedStartDate, proposedExpiryDate: input.proposedExpiryDate, proposedLicenseNumber, version: version + 1, note, uploadedById: requestUser.sub } });
-        await tx.employeeLicenseDocumentRevision.create({ data: revisionData(document, { revision: 1, submittedById: requestUser.sub, submittedAt: document.uploadedAt }), select: revisionSelect });
-        await audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'EmployeeLicenseDocument', entityId: document.id, metadata: { licenseId, employeeId: license.employeeId, status: 'PENDING', version: document.version, mimeType: document.mimeType, fileSize: document.fileSize } }, tx);
+        const revision = await tx.employeeLicenseDocumentRevision.create({ data: revisionData(document, { revision: 1, submittedById: requestUser.sub, submittedAt: document.uploadedAt }), select: revisionSelect });
+        await audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'EmployeeLicenseDocument', entityId: document.id, metadata: workflowAuditMetadata({ document, requestUser, transition: APPROVAL_TRANSITIONS.SUBMIT, revision: revision.revision, fromStatus: null, toStatus: 'PENDING', timestamp: document.uploadedAt, extra: { created: true, version: document.version, mimeType: document.mimeType, fileSize: document.fileSize } }) }, tx);
         return document;
       });
     } catch (error) {
@@ -261,10 +295,10 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
         const license = await tx.employeeLicense.findUniqueOrThrow({ where: { id: document.licenseId }, select: { id: true, employeeId: true, licenseNumber: true } });
         await ensureOperationalEmployee(tx, license.employeeId);
         const reviewedAt = new Date();
-        await tx.employeeLicenseDocument.updateMany({ where: { licenseId: document.licenseId, isCurrent: true }, data: { isCurrent: false, status: 'SUPERSEDED', storageDeleteAfter: addRetentionDays(reviewedAt, retentionDays()) } });
+        await tx.employeeLicenseDocument.updateMany({ where: { licenseId: document.licenseId, isCurrent: true }, data: { isCurrent: false, status: 'SUPERSEDED', storageDeleteAfter: null, immediateDeletionRequestedAt: null } });
         const approved = await tx.employeeLicenseDocument.update({ where: { id }, data: { status: 'APPROVED', isCurrent: true, reviewedById: requestUser.sub, reviewedAt, rejectionReason: null } });
         await tx.employeeLicense.update({ where: { id: document.licenseId }, data: { licenseNumber: currentRevision.proposedLicenseNumber || license.licenseNumber, issueDate: currentRevision.proposedStartDate, expiryDate: currentRevision.proposedExpiryDate } });
-        await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'APPROVE', licenseId: document.licenseId, uploadedById: document.uploadedById, reviewedById: requestUser.sub, selfApproved: document.uploadedById === requestUser.sub, revision: currentRevision.revision } }, tx);
+        await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: workflowAuditMetadata({ document, requestUser, transition: APPROVAL_TRANSITIONS.APPROVE, revision: currentRevision.revision, fromStatus: 'PENDING', toStatus: 'APPROVED', timestamp: reviewedAt, extra: { uploadedById: document.uploadedById, reviewedById: requestUser.sub, selfApproved: document.uploadedById === requestUser.sub } }) }, tx);
         await reconcileSchedules(tx, license.employeeId, requestUser.sub);
         return approved;
       }, APPROVAL_TRANSACTION_OPTIONS);
@@ -283,10 +317,10 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
        ensureDocumentNotPendingDeletion(document);
        if (document.status !== 'PENDING') throw new HttpError(409, 'Only pending license documents can be returned for correction.');
        await ensureOperationalEmployee(tx, document.employeeId);
-      await ensureInitialRevision(tx, document);
+      const currentRevision = await ensureInitialRevision(tx, document);
       const returnedAt = new Date();
       const returned = await tx.employeeLicenseDocument.update({ where: { id }, data: { status: 'RETURNED_FOR_CORRECTION', isCurrent: false, correctionReason: reason, returnedById: requestUser.sub, returnedAt, resubmittedAt: null, rejectionReason: null, storageDeleteAfter: null, immediateDeletionRequestedAt: null } });
-      await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'RETURN_FOR_CORRECTION', licenseId: document.licenseId, returnedById: requestUser.sub } }, tx);
+      await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: workflowAuditMetadata({ document, requestUser, transition: APPROVAL_TRANSITIONS.RETURN_FOR_CORRECTION, revision: currentRevision.revision, fromStatus: 'PENDING', toStatus: 'RETURNED_FOR_CORRECTION', comment: reason, timestamp: returnedAt, extra: { returnedById: requestUser.sub } }) }, tx);
       return returned;
     }, APPROVAL_TRANSACTION_OPTIONS);
   }
@@ -302,7 +336,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
       const document = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
       ensureDocumentNotPendingDeletion(document);
       if (document.status !== 'RETURNED_FOR_CORRECTION') throw new HttpError(409, 'Only returned license documents can be resubmitted.');
-      if (!(await canAccess(tx, requestUser, document.employeeId))) throw new HttpError(403, 'You cannot edit this employee license.');
+      ensureRequestOwner(document, requestUser);
       await ensureOperationalEmployee(tx, document.employeeId);
       await ensureInitialRevision(tx, document);
       if (!file && !isDocumentFileAvailable(document)) throw new HttpError(410, 'The returned license document file is no longer available.');
@@ -318,7 +352,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
         const document = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
         ensureDocumentNotPendingDeletion(document);
         if (document.status !== 'RETURNED_FOR_CORRECTION') throw new HttpError(409, 'Only returned license documents can be resubmitted.');
-        if (!(await canAccess(tx, requestUser, document.employeeId))) throw new HttpError(403, 'You cannot edit this employee license.');
+        ensureRequestOwner(document, requestUser);
         await ensureOperationalEmployee(tx, document.employeeId);
         const currentRevision = await ensureInitialRevision(tx, document);
         const resubmittedAt = new Date();
@@ -330,7 +364,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
         const data = { status: 'PENDING', isCurrent: false, proposedLicenseNumber, proposedStartDate: input.proposedStartDate, proposedExpiryDate: input.proposedExpiryDate, note, reviewedById: null, reviewedAt: null, rejectionReason: null, resubmittedAt, storageDeleteAfter: null, storageDeleteObjectKey: null, immediateDeletionRequestedAt: null };
         if (file) Object.assign(data, fileOverrides, { storageDeleteAttempts: 0, storageDeleteLastErrorAt: null, storageDeleteLastErrorCode: null, storageDeletedAt: null });
         const resubmitted = await tx.employeeLicenseDocument.update({ where: { id }, data });
-        await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'RESUBMIT', licenseId: document.licenseId, replacedFile: Boolean(file), revision: nextRevision.revision } }, tx);
+        await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: workflowAuditMetadata({ document, requestUser, transition: APPROVAL_TRANSITIONS.RESUBMIT, revision: nextRevision.revision, fromStatus: 'RETURNED_FOR_CORRECTION', toStatus: 'PENDING', comment: document.correctionReason, timestamp: resubmittedAt, extra: { replacedFile: Boolean(file) } }) }, tx);
         return resubmitted;
       }, APPROVAL_TRANSACTION_OPTIONS);
     } catch (error) {
@@ -343,19 +377,33 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
     ensureAdmin(requestUser);
     const reason = normalizeReason(rejectionReason, 'Rejection reason', 2000);
     const reviewedAt = new Date();
-    const rejected = await prisma.$transaction(async (tx) => {
+    return prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM employee_license_documents WHERE id = ${id}::uuid FOR UPDATE`;
       const document = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
       ensureDocumentNotPendingDeletion(document);
       if (document.status !== 'PENDING') throw new HttpError(409, 'Only pending license documents can be rejected.');
       await ensureOperationalEmployee(tx, document.employeeId);
       const currentRevision = await ensureInitialRevision(tx, document);
-      const next = await tx.employeeLicenseDocument.update({ where: { id }, data: { status: 'REJECTED', isCurrent: false, reviewedById: requestUser.sub, reviewedAt, rejectionReason: reason, storageDeleteAfter: reviewedAt, immediateDeletionRequestedAt: reviewedAt, storageDeletedAt: null } });
-      await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: { event: 'REJECT', licenseId: document.licenseId, revision: currentRevision.revision } }, tx);
+      const next = await tx.employeeLicenseDocument.update({ where: { id }, data: { status: 'REJECTED', isCurrent: false, reviewedById: requestUser.sub, reviewedAt, rejectionReason: reason, storageDeleteAfter: null, immediateDeletionRequestedAt: null } });
+      await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: workflowAuditMetadata({ document, requestUser, transition: APPROVAL_TRANSITIONS.REJECT, revision: currentRevision.revision, fromStatus: 'PENDING', toStatus: 'REJECTED', reason, timestamp: reviewedAt }) }, tx);
       return next;
     }, APPROVAL_TRANSACTION_OPTIONS);
-    const cleanup = await removeLicenseDocumentFile({ prisma, storage, document: rejected, now: reviewedAt });
-    return cleanup.document || rejected;
+  }
+
+  async function cancel({ id, requestUser }) {
+    ensureEditor(requestUser);
+    const cancelledAt = new Date();
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM employee_license_documents WHERE id = ${id}::uuid FOR UPDATE`;
+      const document = await tx.employeeLicenseDocument.findUniqueOrThrow({ where: { id } });
+      ensureDocumentNotPendingDeletion(document);
+      ensureRequestOwner(document, requestUser);
+      if (!LICENSE_CANCEL_ALLOWED_STATES.has(document.status)) throw new HttpError(409, 'Only a returned license document request can be cancelled.', { code: 'LICENSE_DOCUMENT_CANCEL_NOT_ALLOWED' });
+      const currentRevision = await ensureInitialRevision(tx, document);
+      const cancelled = await tx.employeeLicenseDocument.update({ where: { id }, data: { status: 'CANCELLED', isCurrent: false, reviewedById: null, reviewedAt: null, storageDeleteAfter: null, immediateDeletionRequestedAt: null } });
+      await audit.log({ actorUserId: requestUser.sub, action: 'UPDATE', entityType: 'EmployeeLicenseDocument', entityId: id, metadata: workflowAuditMetadata({ document, requestUser, transition: APPROVAL_TRANSITIONS.CANCEL, revision: currentRevision.revision, fromStatus: document.status, toStatus: 'CANCELLED', timestamp: cancelledAt }) }, tx);
+      return cancelled;
+    }, APPROVAL_TRANSACTION_OPTIONS);
   }
 
   async function permanentlyDelete({ id, requestUser }) {
@@ -390,7 +438,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
     return { id, deleted: true };
   }
 
-  return { list, tableSummaries, upload, view, approve, returnForCorrection, resubmit, reject, permanentlyDelete, canAccess };
+  return { list, tableSummaries, upload, view, approve, returnForCorrection, resubmit, reject, cancel, permanentlyDelete, canAccess };
 }
 
-module.exports = { createLicenseDocumentService, historySelect, normalizeLicenseNumber, normalizeReason, retentionDays, isDocumentFileAvailable, tableDocumentSummary, APPROVAL_TRANSACTION_OPTIONS };
+module.exports = { createLicenseDocumentService, historySelect, revisionSelect, normalizeLicenseNumber, normalizeReason, retentionDays, isDocumentFileAvailable, tableDocumentSummary, LICENSE_CANCEL_ALLOWED_STATES, APPROVAL_TRANSACTION_OPTIONS };

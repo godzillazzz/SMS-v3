@@ -27,3 +27,12 @@ test('license document service grants manager access without department scope', 
 test('master license fields remain behind the document approval workflow', () => {
   assert.match(routeSource, /License number and dates require a new document for review/);
 });
+
+test('license correction authority is owner-scoped while final review remains Admin-only', () => {
+  assert.match(routeSource, /router\.post\('\/license-documents\/:id\/cancel', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(serviceSource, /ensureRequestOwner\(document, requestUser\)/);
+  assert.match(serviceSource, /LICENSE_CANCEL_ALLOWED_STATES = new Set\(\['RETURNED_FOR_CORRECTION'\]\)/);
+  assert.match(routeSource, /license-documents\/:id\/approve', authorize\('ADMIN'\)/);
+  assert.match(routeSource, /license-documents\/:id\/return-for-correction', authorize\('ADMIN'\)/);
+  assert.match(routeSource, /license-documents\/:id\/reject', authorize\('ADMIN'\)/);
+});

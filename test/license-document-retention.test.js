@@ -7,49 +7,37 @@ function harness(documents) {
   const updates = [];
   const prisma = {
     employeeLicenseDocument: {
-      findMany: async () => documents.filter((document) => !document.isCurrent && document.storageDeleteAfter <= new Date('2026-08-01T00:00:00Z') && !document.storageDeletedAt && ((document.status === 'SUPERSEDED' && !document.storageDeleteObjectKey) || ['REJECTED', 'EXPIRED'].includes(document.status) || document.storageDeleteObjectKey)),
+      findMany: async () => documents.filter((document) => !document.isCurrent && document.status === 'EXPIRED' && document.storageDeleteAfter <= new Date('2026-08-01T00:00:00Z') && !document.storageDeletedAt),
       update: async ({ where, data }) => { const document = documents.find((item) => item.id === where.id); const next = { ...data }; if (data.storageDeleteAttempts?.increment) { document.storageDeleteAttempts += data.storageDeleteAttempts.increment; delete next.storageDeleteAttempts; } Object.assign(document, next); updates.push({ where, data }); return document; }
     }
   };
   return { prisma, updates, storage: createFakeLicenseDocumentStorage() };
 }
 
-test('retention cleanup removes only due superseded files and keeps metadata', async () => {
-  const due = { id: 'due', storageObjectKey: 'licenses/due', status: 'SUPERSEDED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
-  const pending = { id: 'pending', storageObjectKey: 'licenses/pending', status: 'SUPERSEDED', isCurrent: false, storageDeleteAfter: new Date('2026-09-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
-  const current = { id: 'current', storageObjectKey: 'licenses/current', status: 'APPROVED', isCurrent: true, storageDeleteAfter: new Date('2026-01-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
-  const context = harness([due, pending, current]);
-  await context.storage.put(due.storageObjectKey, { buffer: Buffer.from('%PDF-1.7'), mimetype: 'application/pdf', size: 8 });
-  const result = await cleanupSupersededLicenseDocuments({ ...context, now: new Date('2026-08-01T00:00:00Z') });
+test('workflow retention cleanup preserves superseded, rejected, and cancelled files and removes only due expired files', async () => {
+  const superseded = { id: 'superseded', storageObjectKey: 'licenses/superseded', status: 'SUPERSEDED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
+  const rejected = { id: 'rejected', storageObjectKey: 'licenses/rejected', status: 'REJECTED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
+  const cancelled = { id: 'cancelled', storageObjectKey: 'licenses/cancelled', status: 'CANCELLED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
+  const expired = { id: 'expired', storageObjectKey: 'licenses/expired', status: 'EXPIRED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
+  const context = harness([superseded, rejected, cancelled, expired]);
+  for (const document of [superseded, rejected, cancelled, expired]) await context.storage.put(document.storageObjectKey, { buffer: Buffer.from('%PDF-1.7'), mimetype: 'application/pdf', size: 8 });
+  const result = await cleanupDueLicenseDocuments({ ...context, now: new Date('2026-08-01T00:00:00Z') });
   assert.deepEqual(result, { inspected: 1, deleted: 1, failed: 0 });
-  assert.equal(context.storage.objectExists(due.storageObjectKey), false);
-  assert.ok(due.storageDeletedAt);
-  assert.equal(pending.storageDeletedAt, null);
-  assert.equal(current.storageDeletedAt, null);
+  assert.equal(context.storage.objectExists(expired.storageObjectKey), false); assert.ok(expired.storageDeletedAt);
+  for (const document of [superseded, rejected, cancelled]) {
+    assert.equal(context.storage.objectExists(document.storageObjectKey), true);
+    assert.equal(document.storageDeletedAt, null);
+  }
 });
 
-test('retention cleanup records a sanitized retry marker when storage removal fails', async () => {
-  const due = { id: 'due', storageObjectKey: 'licenses/due', status: 'SUPERSEDED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
+test('expired-file cleanup records a sanitized retry marker when storage removal fails', async () => {
+  const due = { id: 'due', storageObjectKey: 'licenses/due', status: 'EXPIRED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
   const context = harness([due]);
   await context.storage.put(due.storageObjectKey, { buffer: Buffer.from('%PDF-1.7'), mimetype: 'application/pdf', size: 8 });
   context.storage.failNextRemove();
   const result = await cleanupSupersededLicenseDocuments({ ...context, now: new Date('2026-08-01T00:00:00Z') });
   assert.deepEqual(result, { inspected: 1, deleted: 0, failed: 1 });
-  assert.equal(due.storageDeletedAt, null);
-  assert.equal(due.storageDeleteAttempts, 1);
-  assert.equal(due.storageDeleteLastErrorCode, 'Error');
-});
-
-test('immediate cleanup removes rejected and expired files while retaining metadata', async () => {
-  const rejected = { id: 'rejected', storageObjectKey: 'licenses/rejected', status: 'REJECTED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
-  const expired = { id: 'expired', storageObjectKey: 'licenses/expired', status: 'EXPIRED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
-  const context = harness([rejected, expired]);
-  await context.storage.put(rejected.storageObjectKey, { buffer: Buffer.from('%PDF-1.7'), mimetype: 'application/pdf', size: 8 });
-  await context.storage.put(expired.storageObjectKey, { buffer: Buffer.from('%PDF-1.7'), mimetype: 'application/pdf', size: 8 });
-  const result = await cleanupDueLicenseDocuments({ ...context, now: new Date('2026-08-01T00:00:00Z') });
-  assert.deepEqual(result, { inspected: 2, deleted: 2, failed: 0 });
-  assert.equal(rejected.storageDeletedAt instanceof Date, true); assert.equal(expired.storageDeletedAt instanceof Date, true);
-  assert.equal(context.storage.objectExists(rejected.storageObjectKey), false); assert.equal(context.storage.objectExists(expired.storageObjectKey), false);
+  assert.equal(due.storageDeletedAt, null); assert.equal(due.storageDeleteAttempts, 1); assert.equal(due.storageDeleteLastErrorCode, 'Error');
 });
 
 function expirationHarness(documents) {

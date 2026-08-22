@@ -40,11 +40,9 @@ async function cleanupDueLicenseDocuments({ prisma, storage, now = new Date(), l
     where: {
       storageDeleteAfter: { lte: now },
       storageDeletedAt: null,
-      OR: [
-        { status: 'SUPERSEDED', isCurrent: false, storageDeleteObjectKey: null },
-        { status: { in: ['REJECTED', 'EXPIRED'] }, isCurrent: false },
-        { storageDeleteObjectKey: { not: null } }
-      ]
+      status: 'EXPIRED',
+      isCurrent: false
+
     },
     select: { id: true, storageObjectKey: true, storageDeleteObjectKey: true },
     orderBy: { storageDeleteAfter: 'asc' },
