@@ -104,13 +104,14 @@ async function validateAnnualLeaveAvailability(tx, {
   requestedUsageByYear,
   excludeId,
   source = 'ON_DEMAND',
-  lock = false
+  lock = false,
+  stageTimer = async (_stage, operation) => operation()
 }) {
   const quotaYears = Object.keys(requestedUsageByYear).map(Number).sort((a, b) => a - b);
   if (!quotaYears.length) throw new HttpError(400, 'Leave request has no chargeable days.');
-  const quotas = await ensureQuotaRows(tx, { employeeId, quotaYears, source });
-  if (lock) await lockAnnualQuotas(tx, employeeId, quotaYears);
-  const used = await approvedUsageByYear(tx, { employeeId, leaveType, quotaYears, excludeId });
+  const quotas = await stageTimer('quota_ensure', () => ensureQuotaRows(tx, { employeeId, quotaYears, source }));
+  if (lock) await stageTimer('quota_lock', () => lockAnnualQuotas(tx, employeeId, quotaYears));
+  const used = await stageTimer('approved_usage_lookup', () => approvedUsageByYear(tx, { employeeId, leaveType, quotaYears, excludeId }));
   const field = quotaFieldForLeaveType(leaveType);
   const balances = {};
   for (const quotaYear of quotaYears) {

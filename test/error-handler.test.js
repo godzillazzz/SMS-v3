@@ -34,6 +34,22 @@ test('Prisma client initialization failure returns a retryable 503', () => {
   assert.deepEqual(body, { error: 'Database unavailable.', requestId: 'request-init' });
 });
 
+test('controlled leave transaction timeout exposes only its safe public code and message', () => {
+  let statusCode; let body;
+  const response = {
+    status: (value) => { statusCode = value; return response; },
+    json: (value) => { body = value; return response; }
+  };
+  const error = new Error('private transaction detail');
+  error.statusCode = 503;
+  error.publicMessage = 'การอนุมัติใบลาใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง';
+  error.publicCode = 'LEAVE_APPROVAL_TRANSACTION_TIMEOUT';
+  error.details = { code: 'LEAVE_APPROVAL_TRANSACTION_TIMEOUT', private: 'must not be exposed' };
+  errorHandler(error, { requestId: 'request-leave-timeout' }, response, () => {});
+  assert.equal(statusCode, 503);
+  assert.deepEqual(body, { error: 'การอนุมัติใบลาใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง', requestId: 'request-leave-timeout', code: 'LEAVE_APPROVAL_TRANSACTION_TIMEOUT' });
+});
+
 
 test('lifecycle database failures log safe operation classification without raw Prisma details', () => {
   const { logger } = require('../src/utils/logger');

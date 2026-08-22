@@ -49,7 +49,7 @@ function errorHandler(error, _req, res, _next) {
     logger.error(error.isOperational ? 'http_5xx' : 'unexpected_http_5xx', { requestId, status, errorCategory: errorCategory(error), error });
   }
   const message = error.publicMessage || (isDatabaseConnectionError ? 'Database unavailable.' : (status >= 500 ? 'Internal server error.' : (error.message || 'Internal server error.')));
-  return res.status(status).json({ error: message, requestId, ...(error.details && status < 500 && { details: error.details }) });
+  return res.status(status).json({ error: message, requestId, ...(error.publicCode && { code: error.publicCode }), ...(error.details && status < 500 && { details: error.details }) });
 }
 
 module.exports = { notFound, errorHandler, databaseOperation };

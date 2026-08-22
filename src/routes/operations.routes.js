@@ -17,6 +17,7 @@ const { linkLeaveQuota } = require('../services/leave-quota-link.service');
 const { provisionLeaveQuota } = require('../services/leave-quota-provisioning.service');
 const { bangkokQuotaYear, validateQuotaYear } = require('../services/annual-leave-quota.service');
 const { nativeUsageByQuotaYear, persistedUsageByQuotaYear, validateAnnualLeaveAvailability, annualSummary, quotaFieldForLeaveType } = require('../services/leave-annual-accounting.service');
+const { measureLeaveApprovalStage, runLeaveApprovalTransaction } = require('../services/leave-approval-transaction.service');
 const { provisionAnnualLeaveQuotas } = require('../services/annual-leave-quota-cron.service');
 const { isReservedOperationalSettingKey } = require('../services/g03-1-multi-year-activation.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
@@ -139,7 +140,8 @@ const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedUsageByY
   requestedUsageByYear,
   excludeId,
   source: options.source || 'ON_DEMAND',
-  lock: Boolean(options.lock)
+  lock: Boolean(options.lock),
+  stageTimer: options.stageTimer
 });
 const runLeaveTransaction = async (callback) => {
   try {
@@ -835,37 +837,52 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
   try {
     const id = uuid.parse(req.params.id);
     const input = z.object({ status: z.enum(['APPROVED', 'REJECTED']), reason: nullableText(2000) }).parse(req.body);
-    const result = await runLeaveTransaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM leave_requests WHERE id = ${id}::uuid FOR UPDATE`;
-      const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
-      if (before.status !== 'PENDING') throw new HttpError(409, 'This leave request has already been reviewed.');
-      const isRetroactive = checkIsRetroactive(before.startDate);
-      // MANAGER global scope: no department check in any path.
-      // Self-approval guard remains enforced regardless of retroactive status.
-      await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive });
-      if (req.user.role === 'MANAGER') {
-        const approverUser = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
-        if (before.employeeId === approverUser.employeeId) {
-          throw new HttpError(400, 'ไม่สามารถอนุมัติใบลาของตนเองได้', 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED');
+    const stageDurationsMs = {};
+    let before;
+    const result = await runLeaveApprovalTransaction(prisma, async (tx) => {
+      await measureLeaveApprovalStage(stageDurationsMs, 'leave_lock_read', async () => {
+        await tx.$queryRaw`SELECT id FROM leave_requests WHERE id = ${id}::uuid FOR UPDATE`;
+        before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
+        if (before.status !== 'PENDING') throw new HttpError(409, 'This leave request has already been reviewed.');
+      });
+      let isRetroactive;
+      await measureLeaveApprovalStage(stageDurationsMs, 'approval_authority', async () => {
+        isRetroactive = checkIsRetroactive(before.startDate);
+        // MANAGER global scope: no department check in any path.
+        // Self-approval guard remains enforced regardless of retroactive status.
+        await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive });
+        if (req.user.role === 'MANAGER') {
+          const approverUser = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
+          if (before.employeeId === approverUser.employeeId) {
+            throw new HttpError(400, 'ไม่สามารถอนุมัติใบลาของตนเองได้', 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED');
+          }
         }
-      }
+      });
       if (input.status === 'APPROVED') {
         const requestedUsageByYear = persistedUsageByQuotaYear(before);
-        await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, requestedUsageByYear, before.id, { lock: true });
-        const [employee, leaveShift] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: before.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' } })]);
-        for (let date = new Date(before.startDate); date <= before.endDate; date.setUTCDate(date.getUTCDate() + 1)) {
-          const workDate = new Date(date);
-          await tx.shiftAssignment.upsert({
-            where: { workDate_employeeId: { workDate, employeeId: before.employeeId } },
-            update: { shiftTypeId: leaveShift.id, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, source: 'LEAVE_APPROVAL', licenseStatus: 'NOT_REQUIRED', licenseOverride: false },
-            create: { employeeId: before.employeeId, shiftTypeId: leaveShift.id, workDate, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, source: 'LEAVE_APPROVAL', licenseStatus: 'NOT_REQUIRED' }
-          });
-        }
+        await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, requestedUsageByYear, before.id, { lock: true, stageTimer: (stage, operation) => measureLeaveApprovalStage(stageDurationsMs, stage, operation) });
+        const [employee, leaveShift] = await Promise.all([
+          measureLeaveApprovalStage(stageDurationsMs, 'employee_lookup', () => tx.employee.findUniqueOrThrow({ where: { id: before.employeeId } })),
+          measureLeaveApprovalStage(stageDurationsMs, 'al_lookup', () => tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' } }))
+        ]);
+        await measureLeaveApprovalStage(stageDurationsMs, 'shift_upsert', async () => {
+          for (let date = new Date(before.startDate); date <= before.endDate; date.setUTCDate(date.getUTCDate() + 1)) {
+            const workDate = new Date(date);
+            await tx.shiftAssignment.upsert({
+              where: { workDate_employeeId: { workDate, employeeId: before.employeeId } },
+              update: { shiftTypeId: leaveShift.id, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, source: 'LEAVE_APPROVAL', licenseStatus: 'NOT_REQUIRED', licenseOverride: false },
+              create: { employeeId: before.employeeId, shiftTypeId: leaveShift.id, workDate, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, startTime: leaveShift.startTime, endTime: leaveShift.endTime, hours: leaveShift.hours, remark: `Leave: ${before.leaveType}`, source: 'LEAVE_APPROVAL', licenseStatus: 'NOT_REQUIRED' }
+            });
+          }
+        });
       }
-      const after = await tx.leaveRequest.update({ where: { id }, data: { status: input.status, approvedAt: new Date(), approvedByLegacyRef: req.user.sub } });
-      await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx);
+      const after = await measureLeaveApprovalStage(stageDurationsMs, 'leave_update', async () => {
+        const after = await tx.leaveRequest.update({ where: { id }, data: { status: input.status, approvedAt: new Date(), approvedByLegacyRef: req.user.sub } });
+        return after;
+      });
+      await measureLeaveApprovalStage(stageDurationsMs, 'audit', () => audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'LeaveRequest', entityId: id, metadata: { before: safeRecord(before, ['status']), after: safeRecord(after, ['status', 'approvedAt']) } }, tx));
       return after;
-    });
+    }, { requestId: req.requestId, stageDurationsMs });
     try {
       const { notifyEmployeeLeaveStatusChange } = require('../services/notification-email.service');
       const eventType = result.status === 'APPROVED' ? 'LEAVE_APPROVED' : 'LEAVE_REJECTED';
