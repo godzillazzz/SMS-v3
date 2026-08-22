@@ -1714,3 +1714,118 @@ Owner review is APPROVED. Phase 3 License source, tests, migration design, and e
 - Phase 6 Schedule workflow redesign has NOT started.
 - The separate Employee Master UX request to combine `แก้ไข` and `จัดการสถานะพนักงาน` entry points has NOT started and remains a separate subsequent task.
 - No Product source, tests, Prisma schema, migrations, or CI workflow are to be changed as part of this Phase 3 documentation closeout.
+
+
+## 2026-08-22 — Approval Workflow Standard V1 Preview Migration / UAT Checkpoint
+
+This checkpoint supersedes older Preview-isolation statements above for the active `feature/approval-workflow-standard-v1` release line. Preview isolation is now proven and the Phase 3 License migration has been applied to the isolated Preview database. Production has not been promoted.
+
+### Current Production baseline — preserve
+
+- Current Production deployment: `dpl_FAEJmdXEmTcCuDAzqVznwq75CdLL`.
+- Current Production SHA: `db0bf9c8ece06db467cb7690ad4d6fadd941a04b`.
+- Leave P2028 Product SHA: `668682900a12ca1b1506160690491bd30a7f0fa7`.
+- The Manager Leave-approval P2028 reliability fix remains mandatory lineage and must not be lost in any later promotion.
+- Preserve `ReadCommitted`, `maxWait=5000`, `timeout=15000`, P2028 → HTTP 503 `LEAVE_APPROVAL_TRANSACTION_TIMEOUT`, P2034 → HTTP 409 `LEAVE_QUOTA_STATE_CONFLICT`, no automatic retry, quota locking, AL ShiftAssignment atomicity, self-approval protection, AuditLog, and post-commit notification behavior.
+- `LEAVE_CANCEL_AUTHORITY=ADMIN_ONLY` remains locked.
+- `SCHEDULE_APPROVE_AUTHORITY=ADMIN_ONLY` and `SCHEDULE_FINAL_APPROVE_AUTHORITY=ADMIN_ONLY` remain locked.
+
+### Preview isolation — proven
+
+- Target branch: `feature/approval-workflow-standard-v1`.
+- Preview Supabase project name: `sms-v3-preview`.
+- Preview Supabase project ref: `ezxanpfagitckpfsnflp`.
+- Production Supabase project ref: `jkexwnlxnxbemwavsebv`.
+- Branch-scoped Preview `DATABASE_URL`, `DIRECT_URL`, and `JWT_SECRET` overrides are present.
+- Runtime project-identity proof confirmed both Preview database URLs resolve to the Preview project ref and not the Production project ref.
+- `RUNTIME_CURRENT_DATABASE=postgres` is the normal Supabase PostgreSQL database name and is not itself evidence of Production use.
+- Preview JWT/runtime validation is healthy after the Preview-only `JWT_SECRET` correction.
+- `PREVIEW_DATABASE_CLASSIFICATION=ISOLATED_PREVIEW_DB`.
+- `PREVIEW_ISOLATED_DATABASE_PROVEN=YES`.
+
+### Migration checksum forensic closure
+
+The apparent checksum drift for these already-applied migrations was a Windows working-tree line-ending artifact only:
+
+- `202608190001_signature_v12_webauthn_passkeys`
+- `202608210001_employee_master_governed_edit_v1`
+
+Locked result:
+
+- `MIGRATION_1_DIFFERENCE_CLASS=LINE_ENDINGS_ONLY`.
+- `MIGRATION_2_DIFFERENCE_CLASS=LINE_ENDINGS_ONLY`.
+- `MIGRATION_1_SEMANTIC_DRIFT=NO`.
+- `MIGRATION_2_SEMANTIC_DRIFT=NO`.
+- `PREVIEW_SCHEMA_STATE=SEMANTICALLY_EQUIVALENT`.
+- `ROOT_CAUSE_CLASSIFICATION=WINDOWS_CRLF_LOCAL_CHECKSUM_ARTIFACT`.
+- `ACTUAL_MIGRATION_DRIFT=NO`.
+- `RECOMMENDED_REMEDIATION=NO_DATABASE_REPAIR_REQUIRED`.
+
+Canonical migration-byte authority for this Windows workspace is the committed Git object bytes (`git cat-file blob` or equivalent byte-exact Git-object source), not CRLF materialized working-tree/archive bytes.
+
+Do not rebuild Preview, edit `_prisma_migrations`, run `prisma migrate resolve`, rewrite applied migrations, or reopen this forensic gate unless new semantic evidence appears.
+
+### Preview migration — completed
+
+- Migration inventory before: `20 applied / 1 pending`.
+- Applied migration: `202608220001_license_document_workflow_alignment_v1`.
+- Migration inventory after: `21 applied / 0 pending`.
+- Failed/rolled-back migrations: `0`.
+- License migration canonical checksum: `498e3ded8cfd47890f792f0d2595f56c15204e1335d5092f1b30eaf54c08b3a6`.
+- `employee_license_document_revisions` exists.
+- `LicenseDocumentStatus.CANCELLED` exists.
+- `DATABASE_REPAIR_PERFORMED=NO`.
+- `PRISMA_MIGRATE_RESOLVE_USED=NO`.
+- `PRISMA_DB_PUSH_USED=NO`.
+- `PREVIEW_SEED=0` during the migration gate.
+- Temporary migration/probe mechanisms were removed after evidence capture.
+
+### Clean Preview deployment
+
+- Clean Preview deployment: `dpl_3m39Pu3QVWPZqSznpgGqumsd7WbD`.
+- Branch: `feature/approval-workflow-standard-v1`.
+- Git SHA: `686a95df6080f60a0019407002e1d08c277dd2e8`.
+- Clean tree: `51da7d7d1c4aa0ed1889e7e6f30365018c5c571e`.
+- Deployment state: `READY`.
+- `/health`: `200`, `status=ok`.
+- `/ready`: `200`, `status=ready`, `database=ok`.
+- Temporary identity probe: absent.
+- Temporary migration mechanism: absent.
+
+### Preview UAT fixtures and transport checkpoint
+
+- UAT marker: `AWV1-UAT-20260822`.
+- The first interrupted fixture transaction was read back as `ROLLED_BACK_COMPLETELY`.
+- The known dedicated Preview fixture set was then provisioned once and confirmed complete.
+- Dedicated UAT ADMIN / MANAGER / VIEWER accounts are present.
+- Dedicated UAT Employee and 2027 LeaveQuota are present.
+- Additional marker-scoped unrelated-Manager and Manager-linked Employee/quota fixtures exist for authority/self-approval checks.
+- `FIXTURE_SCOPE=DEDICATED_PREVIEW_ONLY`.
+- Existing realish user credentials were not modified.
+- Vercel Deployment Protection was correctly distinguished from SMS authentication.
+- Temporary Vercel-protection transport bridge fix: `PASS`.
+- `vercel curl` informational stderr is tolerated only when native exit code is `0`; secret output remains prohibited.
+
+### UAT status — not yet complete
+
+Business workflow UAT has not yet been completed after the transport fix. Do not claim Preview UAT PASS or Production readiness yet.
+
+Remaining minimum manual/automated Preview checks are:
+
+1. Employee Master: Manager Submit → Admin `ส่งกลับไปแก้ไข` → Manager Edit/Resubmit → Admin Final Approve; also confirm authoritative mutation only after final approval.
+2. License: Upload → Admin Return → request owner Resubmit → Admin Final Approve; Manager final approval blocked; returned-owner Cancel path; immutable revision increment.
+3. Leave: authorized Manager approval PASS; Manager cancellation BLOCKED; Admin cancellation ALLOWED; self-approval guard preserved; do not remove the P2028 hotfix.
+4. Schedule: Manager edit allowed where authorized; Manager Approve/Final Approve BLOCKED; Admin Approve ALLOWED.
+5. Shared UI: Approve green, `ส่งกลับไปแก้ไข` orange, Reject red, Resubmit blue, Cancel red-outline.
+6. Preview runtime closeout: no environment-validation errors, no unhandled exceptions, no unexplained HTTP 5xx during the UAT window.
+
+Existing authoritative Phase 3 exact-head CI remains `32560097886 = SUCCESS`. If Product source does not change, the Owner-approved fast path does not require rerunning the full backend/integration/frontend suites merely to repeat already-proven CI evidence.
+
+Current gate:
+
+- `FINAL_STATUS=SMS_APPROVAL_WORKFLOW_STANDARD_V1_PREVIEW_UAT_IN_PROGRESS`.
+- `READY_FOR=NOT_READY_FOR_PRODUCTION`.
+- `PRODUCTION_RELEASE=NOT_AUTHORIZED` at this checkpoint.
+- No Production deployment, migration, data/schema/env/storage/DNS mutation occurred during Preview isolation/migration/UAT preparation.
+
+Next safe continuation: perform only the minimum Preview business UAT and runtime closeout above. Do not rerun Preview isolation, migration, fixture provisioning, CRLF forensic work, or transport setup unless new evidence proves those established gates invalid.
