@@ -78,3 +78,24 @@ This preserves data minimization while preventing “old photo deleted but new a
 Phase 3A requires explicit Owner authorization covering additive Prisma schema/migration and local/source implementation. Any actual Supabase bucket/env/Preview/Production storage mutation requires separate exact authorization. Production migration/deploy/data mutation remains separately gated.
 
 Architecture status: `G06_REFERENCE_PHOTO_FACE_LIVENESS_V1_PHASE0_ARCHITECTURE_COMPLETE_RETENTION_A_LOCKED`
+
+## Phase 3A Employee Reference Photo foundation implementation note
+
+Implemented locally/source-only under explicit Owner authorization for additive schema/migration + local/source implementation.
+
+- Added `EmployeeReferencePhoto` governed sub-resource and additive migration `202608240001_g06_employee_reference_photo_v1`.
+- Database partial unique guards enforce at most one ACTIVE and one PENDING_APPROVAL Reference Photo per Employee.
+- No mutable permanent photo URL or image binary is stored in Employee. Storage metadata is private server-side only.
+- Private storage adapter uses a dedicated future configuration key `EMPLOYEE_REFERENCE_PHOTOS_BUCKET`; this phase did not create a bucket or change any environment.
+- Upload accepts JPEG/PNG only, <= 4 MB, validates file signature, dimensions (256..4096), aspect ratio, and SHA-256 checksum.
+- ADMIN may direct-activate a photo; MANAGER submission remains PENDING_APPROVAL until ADMIN final approval.
+- Retention A is implemented as post-commit supersession/deletion: new ACTIVE is committed first, superseded old photo immediately loses signed-view access, then physical object deletion occurs.
+- Failed physical deletion records retry metadata without rolling back the new ACTIVE photo. Storage DELETE treats an already-absent object as idempotent success.
+- Known Employee/pending conflicts are preflighted before object upload, while the transaction re-checks state under row locks to preserve race safety.
+- Signed Reference Photo view URLs are short-lived (60 seconds) and are never issued for SUPERSEDED, REJECTED, CANCELLED, or deletion-requested rows.
+- Employee Master `แก้ไขข้อมูล` contains the Reference Photo section; no separate navigation is introduced.
+- Viewer/Employee self-change remains blocked.
+- Attendance/Patrol event photos and live face/liveness frames remain non-retained under V1.
+- No face model, liveness/PAD engine, biometric embedding/template persistence, Service Worker, controlled offline, Preview/Production deploy, or actual Supabase storage mutation is introduced in Phase 3A.
+
+Phase 3A local validation evidence: focused 8/8 PASS; real PostgreSQL workflow 1/1 PASS; backend 591/591 PASS; frontend 393/393 PASS; full integration 164/164 PASS with 0 skipped; fresh PostgreSQL migration chain 23/23 PASS; Prisma validate/generate PASS; frontend production build PASS.

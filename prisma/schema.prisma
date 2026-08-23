@@ -122,6 +122,14 @@ enum AttendanceDeviceChallengePurpose {
   PATROL_EVENT
 }
 
+enum EmployeeReferencePhotoStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  REJECTED
+  CANCELLED
+  SUPERSEDED
+}
+
 model User {
   id                                String                            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email                             String                            @unique @db.VarChar(255)
@@ -166,6 +174,8 @@ model User {
   attendanceDevicesApproved         AttendanceDeviceEnrollment[]      @relation("AttendanceDeviceApprovedBy")
   attendanceDeviceRequestsCreated   AttendanceDeviceChangeRequest[]   @relation("AttendanceDeviceRequestedBy")
   attendanceDeviceRequestsReviewed  AttendanceDeviceChangeRequest[]   @relation("AttendanceDeviceReviewedBy")
+  referencePhotosUploaded           EmployeeReferencePhoto[]          @relation("EmployeeReferencePhotoUploadedBy")
+  referencePhotosReviewed           EmployeeReferencePhoto[]          @relation("EmployeeReferencePhotoReviewedBy")
 
   @@map("users")
 }
@@ -374,10 +384,51 @@ model Employee {
   attendanceDevices           AttendanceDeviceEnrollment[]
   attendanceDeviceChallenges  AttendanceDeviceChallenge[]
   attendanceDeviceRequests    AttendanceDeviceChangeRequest[]
+  referencePhotos             EmployeeReferencePhoto[]
 
   @@index([isActive, deletedAt])
   @@index([department])
   @@map("employees")
+}
+
+model EmployeeReferencePhoto {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId                 String                       @map("employee_id") @db.Uuid
+  status                     EmployeeReferencePhotoStatus @default(PENDING_APPROVAL)
+  storageProvider            String                       @map("storage_provider") @db.VarChar(50)
+  storageBucket              String                       @map("storage_bucket") @db.VarChar(255)
+  storageObjectKey           String                       @unique @map("storage_object_key") @db.VarChar(500)
+  originalFileName           String                       @map("original_file_name") @db.VarChar(255)
+  safeDisplayFileName        String                       @map("safe_display_file_name") @db.VarChar(255)
+  mimeType                   String                       @map("mime_type") @db.VarChar(100)
+  fileSize                   Int                          @map("file_size")
+  checksum                   String                       @db.Char(64)
+  imageWidth                 Int                          @map("image_width")
+  imageHeight                Int                          @map("image_height")
+  uploadedByUserId           String                       @map("uploaded_by_user_id") @db.Uuid
+  uploadedByRoleSnapshot     String                       @map("uploaded_by_role_snapshot") @db.VarChar(50)
+  uploadedAt                 DateTime                     @default(now()) @map("uploaded_at")
+  reviewedByUserId           String?                      @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt                 DateTime?                    @map("reviewed_at")
+  rejectionReason            String?                      @map("rejection_reason") @db.VarChar(1000)
+  activatedAt                DateTime?                    @map("activated_at")
+  supersededAt               DateTime?                    @map("superseded_at")
+  storageDeletionRequestedAt DateTime?                    @map("storage_deletion_requested_at")
+  storageDeletedAt           DateTime?                    @map("storage_deleted_at")
+  storageDeleteAttempts      Int                          @default(0) @map("storage_delete_attempts")
+  storageDeleteLastErrorAt   DateTime?                    @map("storage_delete_last_error_at")
+  storageDeleteLastErrorCode String?                      @map("storage_delete_last_error_code") @db.VarChar(80)
+  cancelledAt                DateTime?                    @map("cancelled_at")
+  createdAt                  DateTime                     @default(now()) @map("created_at")
+  updatedAt                  DateTime                     @updatedAt @map("updated_at")
+  employee                   Employee                     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  uploadedBy                 User                         @relation("EmployeeReferencePhotoUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  reviewedBy                 User?                        @relation("EmployeeReferencePhotoReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, status, createdAt])
+  @@index([status, storageDeletionRequestedAt, storageDeletedAt])
+  @@index([uploadedByUserId, createdAt])
+  @@map("employee_reference_photos")
 }
 
 model EmployeeLifecycleEvent {

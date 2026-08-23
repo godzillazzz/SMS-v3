@@ -104,6 +104,6 @@ describe('G04.2 VF-04 mockup lock visual contract', () => {
   });
 
   it('locks the authorized V1.2 API source after the Passkey extension', () => {
-    expect(apiSha256).toBe('1e227374f2c98031244bb3b7c8b41a832ca3c69bc8bc072d0d3076e6d7f56f11');
+    expect(apiSha256).toBe('d406eee5ef19095d6c020f87bb31ede016afefd9a5dd009b39fab107fcab51e0');
   });
 });

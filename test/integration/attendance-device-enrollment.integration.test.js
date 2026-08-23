@@ -5,10 +5,10 @@ const crypto = require('crypto');
 
 const target = new URL(process.env.DATABASE_URL || 'postgresql://invalid/invalid');
 const isConfiguredG06Target = process.env.RUN_INTEGRATION_TESTS === 'true'
-  && process.env.TEST_DATABASE_RUNNER === 'g06-disposable-local'
   && target.hostname === '127.0.0.1'
-  && target.port === '55435'
-  && target.pathname.replace(/^\//, '') === 'sms_v3_test';
+  && target.pathname.replace(/^\//, '') === 'sms_v3_test'
+  && ((process.env.TEST_DATABASE_RUNNER === 'g06-disposable-local' && target.port === '55435')
+    || (process.env.TEST_DATABASE_RUNNER === 'g06-reference-photo-disposable-local' && target.port === '55436'));
 
 if (!isConfiguredG06Target) {
   test('G06 attendance-device integration requires the explicit disposable local target', { skip: true }, () => {});
