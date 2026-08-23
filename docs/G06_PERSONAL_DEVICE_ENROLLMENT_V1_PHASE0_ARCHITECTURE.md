@@ -261,19 +261,24 @@ These are validation/risk evidence, not automatic misconduct findings.
 - no face/liveness implementation;
 - no Production deployment or Preview deployment.
 
-## Owner decision required before Phase 1 schema/implementation
+## Owner decision for Phase 1 schema/implementation
 
-The permanent rules explicitly lock ADMIN-only authority for **replacement**, but the canonical handoff does not explicitly define final activation authority for the **first-ever primary device** when an Employee has no previous device.
+**RESOLVED 2026-08-23 — Option A locked by Owner.**
 
-Phase 1 must not silently invent that authority. Before schema/behavior implementation, Owner should lock one of these models:
+- **A — ADMIN_APPROVAL_FOR_INITIAL_AND_REPLACEMENT** is authoritative: an authenticated User linked to an active Employee may request/enroll a candidate device, but the first primary device does not become ACTIVE until ADMIN final approval. Every later replacement is also ADMIN-only.
+- Manager final approval is not permitted.
+- A successful account login or passkey ceremony does not activate an Attendance/Patrol device.
+- Activation/replacement must remain auditable and atomic, with at most one ACTIVE primary device per Employee.
 
-- **A — ADMIN_APPROVAL_FOR_INITIAL_AND_REPLACEMENT**: Employee requests first device; ADMIN activates it. Replacement is also ADMIN-only.
-- **B — SELF_ACTIVATE_INITIAL_ONLY, ADMIN_REPLACEMENT**: authenticated linked Employee may activate the first device only when no device history/active device exists; every later replacement is ADMIN-only.
-
-Security recommendation: **A** provides the strongest and simplest authority boundary and avoids a compromised account self-binding a new Attendance device without a second administrative gate.
+Related media-policy lock remains unchanged for G06/G07 V1:
+- Employee Reference Photo may be retained as the 1:1 verification reference under Employee Master governance.
+- Attendance check-in/check-out event photos are not retained.
+- Patrol event photos are not retained.
+- Live face/liveness frames are temporary and discarded after verification.
+- Future event-photo retention may be introduced only as a separate policy/storage/retention change; Phase 1 device enrollment does not silently add it.
 
 ## Phase 0 result
 
 `G06_PERSONAL_DEVICE_ENROLLMENT_V1_PHASE0_ARCHITECTURE_AUDIT_COMPLETE`
 
-Ready for Owner authority decision on first-device activation, then Phase 1 additive schema/service/test implementation. Production remains unchanged.
+Owner authority decision is resolved as Option A. Phase 1 additive schema/service/test implementation is authorized locally; Production remains unchanged until separately approved.
