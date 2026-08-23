@@ -54,35 +54,38 @@ test('bulk magic-wand preview replaces ordinary manual rows but preserves approv
   assert.equal(plan.summary.manualLocked, 2);
 });
 
-test('bulk magic-wand continues each rotating employee from the final day of the previous month', async () => {
+test('bulk and individual magic-wand share AUTO Continue phase analysis', async () => {
   const history = [
     { employeeId: 'worker', workDate: new Date('2026-06-30T00:00:00Z'), shiftType: { code: 'N' } },
     { employeeId: 'worker', workDate: new Date('2026-06-29T00:00:00Z'), shiftType: { code: 'N' } }
   ];
-  const plan = await buildAutoSchedulePlan(client({ history }), '2026-07');
-  assert.deepEqual(plan.rows.filter((row) => row.employeeId === 'worker').slice(0, 5).map((row) => row.code), ['N', 'N', 'N', 'N', 'OFF']);
-  assert.ok(plan.rows.find((row) => row.employeeId === 'worker' && row.date === '2026-07-01').remark.includes('N3'));
-  assert.ok(!plan.warnings.some((warning) => warning.includes('Sample Worker') && warning.includes('D1')));
+  const bulk = await buildAutoSchedulePlan(client({ history }), '2026-07');
+  const individual = await buildEmployeeAutoSchedulePlan(client({ history }), '2026-07', 'worker', 'AUTO', 'ROTATE');
+  const bulkRows = bulk.rows.filter((row) => row.employeeId === 'worker');
+  assert.equal(individual.analysis.code, 'N3');
+  assert.deepEqual(bulkRows.map((row) => row.code), individual.rows.map((row) => row.code));
+  assert.deepEqual(bulkRows.slice(0, 5).map((row) => row.code), ['N', 'N', 'N', 'N', 'OFF']);
 });
 
-test('bulk magic-wand does not bridge a stale history gap across the previous-month final day', async () => {
+test('bulk uses the same individual history behavior when the previous-month final day is missing', async () => {
   const history = [
     { employeeId: 'worker', workDate: new Date('2026-06-29T00:00:00Z'), shiftType: { code: 'N' } },
     { employeeId: 'worker', workDate: new Date('2026-06-28T00:00:00Z'), shiftType: { code: 'N' } }
   ];
-  const plan = await buildAutoSchedulePlan(client({ history }), '2026-07');
-  assert.deepEqual(plan.rows.filter((row) => row.employeeId === 'worker').slice(0, 7).map((row) => row.code), ['D', 'D', 'D', 'D', 'D', 'D', 'OFF']);
-  assert.ok(plan.warnings.some((warning) => warning.includes('Sample Worker') && warning.includes('D1')));
+  const bulk = await buildAutoSchedulePlan(client({ history }), '2026-07');
+  const individual = await buildEmployeeAutoSchedulePlan(client({ history }), '2026-07', 'worker', 'AUTO', 'ROTATE');
+  const bulkRows = bulk.rows.filter((row) => row.employeeId === 'worker');
+  assert.equal(individual.analysis.code, 'N3');
+  assert.deepEqual(bulkRows.map((row) => row.code), individual.rows.map((row) => row.code));
+  assert.deepEqual(bulkRows.slice(0, 5).map((row) => row.code), ['N', 'N', 'N', 'N', 'OFF']);
 });
-test('individual magic-wand keeps its original history analysis even when the previous-month final day is missing', async () => {
-  const history = [
-    { employeeId: 'worker', workDate: new Date('2026-06-29T00:00:00Z'), shiftType: { code: 'N' } },
-    { employeeId: 'worker', workDate: new Date('2026-06-28T00:00:00Z'), shiftType: { code: 'N' } }
-  ];
-  const plan = await buildEmployeeAutoSchedulePlan(client({ history }), '2026-07', 'worker', 'AUTO', 'ROTATE');
-  assert.equal(plan.analysis.code, 'N3');
-  assert.deepEqual(plan.rows.slice(0, 5).map((row) => row.code), ['N', 'N', 'N', 'N', 'OFF']);
-  assert.ok(!plan.warnings.some((warning) => warning.includes('ไม่พบกะในวันสุดท้ายของเดือนก่อน')));
+
+test('bulk and individual Supervisor pattern produce identical rows', async () => {
+  const bulk = await buildAutoSchedulePlan(client(), '2026-07');
+  const individual = await buildEmployeeAutoSchedulePlan(client(), '2026-07', 'supervisor', 'AUTO', 'SUPERVISOR');
+  const bulkRows = bulk.rows.filter((row) => row.employeeId === 'supervisor');
+  assert.deepEqual(bulkRows.map((row) => row.code), individual.rows.map((row) => row.code));
+  assert.equal(bulkRows.find((row) => row.date === '2026-07-05').code, 'OFF');
 });
 test('individual magic-wand plan writes only the selected employee six-on/one-off rotation', async () => {
   const plan = await buildEmployeeAutoSchedulePlan(client(), '2026-07', 'worker');

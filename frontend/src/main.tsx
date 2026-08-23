@@ -2305,8 +2305,8 @@ function Dashboard() {
             )}
             <span className="toolbar-count" style={{ marginLeft: 'auto' }}>แสดง {calendarEmployees.length} จาก {operationResponse.meta?.total || 0} คน</span>
           </div>
-          <div title="ไม้กายสิทธิ์สำหรับ Admin — จัดกะทุกคนต่อจากวันสุดท้ายของเดือนก่อน โดยใช้แพทเทิร์นเดียวกับรายบุคคล" style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>
-            ต่อแพทเทิร์นจากวันสุดท้ายของเดือนก่อน · Supervisor ทำงาน จ.-ส. / OFF อาทิตย์ · พนักงานทั่วไป 6D / OFF / 6N / OFF · คง AL และ Admin license override
+          <div title="ไม้กายสิทธิ์สำหรับ Admin — จัดกะทุกคนด้วย Shared Pattern Engine เดียวกับไม้กายสิทธิ์รายบุคคล" style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>
+            Auto Continue แบบเดียวกับไม้กายสิทธิ์รายบุคคล · Supervisor ทำงาน จ.-ส. / OFF อาทิตย์ · พนักงานทั่วไป 6D / OFF / 6N / OFF · คง AL และ Admin license override
           </div>
 
           <div className="schedule-draft-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', paddingTop: '12px', borderTop: '1px dashed #bfdbfe' }}>

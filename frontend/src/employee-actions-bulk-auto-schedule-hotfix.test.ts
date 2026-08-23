@@ -28,7 +28,8 @@ describe('Employee action and bulk auto-schedule hotfix', () => {
   it('describes bulk auto scheduling as all-employee magic-wand continuation from the previous month', () => {
     expect(main).toContain('✨ ดูตัวอย่างจัดกะอัตโนมัติ');
     expect(main).toContain('api.previewAutoSchedule(auth.token, scheduleMonth)');
-    expect(main).toContain('ต่อแพทเทิร์นจากวันสุดท้ายของเดือนก่อน');
+    expect(main).toContain('Shared Pattern Engine เดียวกับไม้กายสิทธิ์รายบุคคล');
+    expect(main).toContain('Auto Continue แบบเดียวกับไม้กายสิทธิ์รายบุคคล');
     expect(main).toContain('พนักงานทั่วไป 6D / OFF / 6N / OFF');
     expect(main).toContain('คง AL และ Admin license override');
   });
