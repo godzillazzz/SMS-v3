@@ -1,0 +1,37 @@
+import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = path.resolve(__dirname);
+const editor = fs.readFileSync(path.join(root, 'components/personnel/EmployeeGovernedEditModal.tsx'), 'utf8');
+const lifecycle = fs.readFileSync(path.join(root, 'components/personnel/EmployeeLifecycleModal.tsx'), 'utf8');
+
+describe('Employee Master + Lifecycle UX V1', () => {
+  it('groups Employee editing into the three Owner-locked information groups', () => {
+    expect(editor).toContain('1. ข้อมูลทั่วไป');
+    expect(editor).toContain('2. ข้อมูลการปฏิบัติงาน');
+    expect(editor).toContain('3. สถานะพนักงาน / วงจรพนักงาน');
+    expect(editor).toContain('คำขอ / ประวัติการเปลี่ยนแปลง');
+  });
+
+  it('uses Thai lifecycle choices without exposing raw termination terminology in the governed selector', () => {
+    expect(editor).toContain('<option value="ACTIVE">ปฏิบัติงาน</option>');
+    expect(editor).toContain('<option value="RESIGN">ลาออก</option>');
+    expect(editor).toContain('<option value="RESIGNED">ลาออก</option>');
+    expect(editor).toContain('<option value="RETURN_TO_WORK">กลับเข้าทำงาน</option>');
+    expect(editor).toContain("['ACTIVE', 'RETURN_TO_WORK'].includes(event.target.value)");
+  });
+
+  it('requires an auditable reason when employment status changes', () => {
+    expect(editor).toContain('const lifecycleStatusChanged = Boolean(form.isActive) !== Boolean(employee.isActive)');
+    expect(editor).toContain('required={lifecycleStatusChanged}');
+    expect(editor).toContain('การลาออกหรือกลับเข้าทำงานต้องระบุเหตุผลเพื่อบันทึก Audit');
+  });
+
+  it('keeps the existing lifecycle engine for termination and rehire rather than creating a second identity', () => {
+    expect(lifecycle).toContain('EMPLOYMENT_TERMINATION');
+    expect(lifecycle).toContain('REHIRE');
+    expect(editor).toContain("update('isActive'");
+    expect(editor).not.toContain('createEmployee(');
+  });
+});
