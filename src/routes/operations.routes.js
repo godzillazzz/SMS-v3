@@ -59,6 +59,36 @@ const booleanCoerce = z.union([z.boolean(), z.string().transform((val) => val ==
 const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.coerce.date(), startTime: nullableText(20), endTime: nullableText(20), hours: z.coerce.number().min(0).max(24).optional(), remark: nullableText(2000), locked: booleanCoerce, licenseOverride: booleanCoerce, overrideReason: nullableText(2000) });
 const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), substitute: z.string().trim().min(1).max(255), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
 const leaveListQuery = paging.extend({ status: z.string().trim().min(1).max(100).optional(), employeeId: uuid.optional(), department: z.string().trim().max(100).optional(), search: z.string().trim().max(255).optional(), year: z.coerce.number().int().optional(), month: z.coerce.number().int().optional() });
+const leaveCorrectionInput = z.object({
+  leaveType: z.string().trim().min(1).max(100),
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+  substitute: z.string().trim().min(1).max(255),
+  reason: nullableText(2000)
+}).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
+const leaveWorkflowReasonInput = z.object({ reason: z.string().trim().min(3).max(2000) });
+const LEAVE_OVERLAP_ACTIVE_STATUSES = ['PENDING', 'APPROVED', 'RETURNED_FOR_CORRECTION'];
+const leaveStoredReasonParts = (value) => {
+  const raw = String(value || '').trim();
+  const prefixMatch = raw.match(/^(\[บันทึกแทนโดย:\s*[^\]]+\]\s*)/);
+  const recordedByPrefix = prefixMatch?.[1] || '';
+  const body = recordedByPrefix ? raw.slice(recordedByPrefix.length) : raw;
+  const match = body.match(/^\[แทน:\s*([^\]]*)\]\s*([\s\S]*)$/);
+  return {
+    recordedByPrefix,
+    substitute: String(match?.[1] || '').trim(),
+    reasonDetail: String(match?.[2] || '').trim() === '-' ? '' : String(match?.[2] || '').trim()
+  };
+};
+const buildLeaveStoredReason = (existingReason, substitute, reason) => {
+  const { recordedByPrefix } = leaveStoredReasonParts(existingReason);
+  return `${recordedByPrefix}[แทน: ${String(substitute || '').trim().slice(0, 255)}] ${String(reason || '').trim() || '-'}`;
+};
+const assertReturnedLeaveOwner = (leave, actor) => {
+  const ownsEmployee = Boolean(actor.employeeId) && leave.employeeId === actor.employeeId;
+  const originalCreator = Boolean(leave.createdByUserId) && leave.createdByUserId === actor.id;
+  if (!ownsEmployee && !originalCreator) throw new HttpError(403, 'Only the leave requester or authorized original creator may change a returned request.', { code: 'LEAVE_RETURNED_OWNER_REQUIRED' });
+};
 const leaveQuotaEntitlementInput = z.union([z.number(), z.string().trim().regex(/^\d+(?:\.\d+)?$/).transform(Number)]).pipe(z.number().finite().min(0).max(999));
 const leaveQuotaYearInput = z.coerce.number().int().min(2000).max(2200);
 const dashboardDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => { const date = new Date(`${value}T00:00:00.000Z`); return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value; });
@@ -186,7 +216,7 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute, opti
     await stageTimer('approval_policy_lookup', () => ensureLeaveApprovalAllowed(tx, employeeId, requestUser, { isRetroactive }));
   }
 
-  const overlap = await stageTimer('overlap_lookup', () => tx.leaveRequest.findFirst({ where: { employeeId, status: { in: ['PENDING', 'APPROVED'] }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } }));
+  const overlap = await stageTimer('overlap_lookup', () => tx.leaveRequest.findFirst({ where: { employeeId, status: { in: LEAVE_OVERLAP_ACTIVE_STATUSES }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } }));
   if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.');
   await ensureLeaveAvailable(tx, employeeId, leaveType, requestedUsageByYear, undefined, { stageTimer });
   if (file && !allowedAttachmentTypes.has(file.mimetype)) throw new HttpError(415, 'Attachment must be PDF, JPEG, or PNG.');
@@ -749,23 +779,47 @@ router.get('/leave-requests', async (req, res, next) => {
     const approverById = new Map(approvers.map((user) => [user.id, user]));
 
     const leaveIds = response.data.map((row) => row.id);
-    const auditLogs = leaveIds.length ? await prisma.auditLog.findMany({
-      where: { entityType: 'LeaveRequest', entityId: { in: leaveIds }, action: 'CREATE' },
-      select: { entityId: true, actorUserId: true, metadata: true }
-    }) : [];
-    const auditMap = new Map(auditLogs.map((log) => [log.entityId, log]));
+    const [createAuditLogs, workflowAuditLogs] = leaveIds.length ? await Promise.all([
+      prisma.auditLog.findMany({
+        where: { entityType: 'LeaveRequest', entityId: { in: leaveIds }, action: 'CREATE' },
+        select: { entityId: true, actorUserId: true, metadata: true }
+      }),
+      prisma.auditLog.findMany({
+        where: { entityType: 'LeaveRequest', entityId: { in: leaveIds }, action: 'UPDATE' },
+        select: { entityId: true, actorUserId: true, metadata: true, createdAt: true, actor: { select: { displayName: true, role: true } } },
+        orderBy: { createdAt: 'desc' }
+      })
+    ]) : [[], []];
+    const createAuditMap = new Map(createAuditLogs.map((log) => [log.entityId, log]));
+    const returnAuditMap = new Map();
+    for (const log of workflowAuditLogs) {
+      if (log.metadata?.workflowAction === 'RETURN_FOR_CORRECTION' && !returnAuditMap.has(log.entityId)) returnAuditMap.set(log.entityId, log);
+    }
 
     res.json({ ...response, data: response.data.map((row) => {
       const approver = approverById.get(row.approvedByLegacyRef);
-      const audit = auditMap.get(row.id);
-      const isRetroactive = Boolean(audit?.metadata?.isRetroactive);
+      const createAudit = createAuditMap.get(row.id);
+      const returnAudit = returnAuditMap.get(row.id);
+      const isRetroactive = Boolean(createAudit?.metadata?.isRetroactive);
+      const reasonParts = leaveStoredReasonParts(row.reason);
+      const createdByUserId = row.createdByUserId || createAudit?.actorUserId || null;
+      const ownsReturnedRequest = row.status === 'RETURNED_FOR_CORRECTION'
+        && ((Boolean(currentUser.employeeId) && row.employeeId === currentUser.employeeId) || createdByUserId === req.user.sub);
       return {
         ...row,
+        reasonDetail: reasonParts.reasonDetail,
+        substitute: reasonParts.substitute,
         attachmentUrl: row.attachment ? `/api/v1/leave-requests/${row.id}/attachment` : null,
         approvedByDisplayName: approver?.displayName || null,
         approvedByRole: approver?.role || null,
         isRetroactive,
-        createdByUserId: audit?.actorUserId || null
+        createdByUserId,
+        returnReason: returnAudit?.metadata?.reason || null,
+        returnedAt: returnAudit?.createdAt || null,
+        returnedByDisplayName: returnAudit?.actor?.displayName || null,
+        returnedByRole: returnAudit?.actor?.role || null,
+        canEditReturned: ownsReturnedRequest,
+        canCancelReturned: ownsReturnedRequest
       };
     }) });
   } catch (error) { next(error); }
@@ -844,6 +898,160 @@ router.get('/leave-requests/:id/attachment', async (req, res, next) => {
     res.send(Buffer.from(leave.attachment.content));
   } catch (error) { next(error); }
 });
+router.post('/leave-requests/:id/return-for-correction', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const input = leaveWorkflowReasonInput.parse(req.body || {});
+    const stageDurationsMs = {};
+    const result = await runLeaveApprovalTransaction(prisma, async (tx) => {
+      await measureLeaveApprovalStage(stageDurationsMs, 'leave_lock_read', async () => {
+        await tx.$queryRaw`SELECT id FROM leave_requests WHERE id = ${id}::uuid FOR UPDATE`;
+      });
+      const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
+      if (before.status !== 'PENDING') throw new HttpError(409, 'Only pending leave requests can be returned for correction.', { code: 'LEAVE_RETURN_INVALID_STATE' });
+      const isRetroactive = checkIsRetroactive(before.startDate);
+      await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive });
+      if (req.user.role === 'MANAGER') {
+        const approver = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
+        if (before.employeeId === approver.employeeId) throw new HttpError(400, 'ไม่สามารถตรวจสอบใบลาของตนเอง', { code: 'LEAVE_OWNER_SELF_REVIEW_NOT_ALLOWED' });
+      }
+      const after = await tx.leaveRequest.update({
+        where: { id },
+        data: { status: 'RETURNED_FOR_CORRECTION', approvedAt: null, approvedByLegacyRef: null }
+      });
+      await audit.log({
+        actorUserId: req.user.sub,
+        action: 'UPDATE',
+        entityType: 'LeaveRequest',
+        entityId: id,
+        metadata: {
+          workflowAction: 'RETURN_FOR_CORRECTION',
+          fromStatus: before.status,
+          toStatus: after.status,
+          reason: input.reason,
+          actorRole: req.user.role
+        }
+      }, tx);
+      return after;
+    }, { requestId: req.requestId, stageDurationsMs });
+    try {
+      const { notifyEmployeeLeaveStatusChange } = require('../services/notification-email.service');
+      await notifyEmployeeLeaveStatusChange(result, 'LEAVE_RETURNED_FOR_CORRECTION', req.user, { reason: input.reason });
+    } catch (emailErr) {
+      logger.error('Failed to send returned leave notification', { error: emailErr.message, leaveRequestId: result?.id });
+    }
+    res.json({ data: result });
+  } catch (error) { next(error); }
+});
+
+router.put('/leave-requests/:id/correction', async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const input = leaveCorrectionInput.parse(req.body || {});
+    const stageDurationsMs = {};
+    const result = await runLeaveApprovalTransaction(prisma, async (tx) => {
+      await measureLeaveApprovalStage(stageDurationsMs, 'leave_lock_read', async () => {
+        await tx.$queryRaw`SELECT id FROM leave_requests WHERE id = ${id}::uuid FOR UPDATE`;
+      });
+      const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
+      if (before.status !== 'RETURNED_FOR_CORRECTION') throw new HttpError(409, 'Only returned leave requests can be edited.', { code: 'LEAVE_CORRECTION_INVALID_STATE' });
+      const actor = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { id: true, role: true, employeeId: true } });
+      assertReturnedLeaveOwner(before, actor);
+      const isRetroactive = checkIsRetroactive(input.startDate);
+      if (isRetroactive && actor.role === 'VIEWER') throw new HttpError(400, 'พนักงานทั่วไปไม่สามารถแก้ไขเป็นการลาย้อนหลังได้', { code: 'LEAVE_CORRECTION_RETROACTIVE_NOT_ALLOWED' });
+      if (isRetroactive && actor.role === 'MANAGER' && before.employeeId === actor.employeeId) throw new HttpError(400, 'ผู้จัดการไม่สามารถแก้ไขการลาย้อนหลังให้ตนเองได้', { code: 'LEAVE_CORRECTION_MANAGER_RETROACTIVE_SELF_NOT_ALLOWED' });
+      if (actor.role === 'MANAGER' && before.employeeId !== actor.employeeId) await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive });
+      const leaveType = normalizeLeaveType(input.leaveType);
+      const requestedUsageByYear = nativeUsageByQuotaYear(input.startDate, input.endDate);
+      const dayCount = Object.values(requestedUsageByYear).reduce((sum, value) => sum + Number(value), 0);
+      const overlap = await tx.leaveRequest.findFirst({
+        where: {
+          id: { not: id },
+          employeeId: before.employeeId,
+          status: { in: LEAVE_OVERLAP_ACTIVE_STATUSES },
+          startDate: { lte: input.endDate },
+          endDate: { gte: input.startDate }
+        },
+        select: { id: true }
+      });
+      if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.', { code: 'LEAVE_CORRECTION_OVERLAP' });
+      await ensureLeaveAvailable(tx, before.employeeId, leaveType, requestedUsageByYear, id, { lock: true });
+      if (leaveType === 'SICK' && dayCount > 3 && !before.attachmentUrl) throw new HttpError(400, 'Sick leave longer than 3 days requires an attachment.');
+      const after = await tx.leaveRequest.update({
+        where: { id },
+        data: {
+          leaveType,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          dayCount,
+          reason: buildLeaveStoredReason(before.reason, input.substitute, input.reason)
+        }
+      });
+      await audit.log({
+        actorUserId: req.user.sub,
+        action: 'UPDATE',
+        entityType: 'LeaveRequest',
+        entityId: id,
+        metadata: {
+          workflowAction: 'EDIT_RETURNED_REQUEST',
+          fromStatus: before.status,
+          toStatus: after.status,
+          before: safeRecord(before, ['leaveType', 'startDate', 'endDate', 'dayCount', 'reason']),
+          after: safeRecord(after, ['leaveType', 'startDate', 'endDate', 'dayCount', 'reason']),
+          actorRole: actor.role
+        }
+      }, tx);
+      return after;
+    }, { requestId: req.requestId, stageDurationsMs });
+    res.json({ data: result });
+  } catch (error) { next(error); }
+});
+
+router.post('/leave-requests/:id/resubmit', async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const stageDurationsMs = {};
+    const result = await runLeaveApprovalTransaction(prisma, async (tx) => {
+      await measureLeaveApprovalStage(stageDurationsMs, 'leave_lock_read', async () => {
+        await tx.$queryRaw`SELECT id FROM leave_requests WHERE id = ${id}::uuid FOR UPDATE`;
+      });
+      const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
+      if (before.status !== 'RETURNED_FOR_CORRECTION') throw new HttpError(409, 'Only returned leave requests can be resubmitted.', { code: 'LEAVE_RESUBMIT_INVALID_STATE' });
+      const actor = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { id: true, role: true, employeeId: true } });
+      assertReturnedLeaveOwner(before, actor);
+      const overlap = await tx.leaveRequest.findFirst({
+        where: {
+          id: { not: id },
+          employeeId: before.employeeId,
+          status: { in: LEAVE_OVERLAP_ACTIVE_STATUSES },
+          startDate: { lte: before.endDate },
+          endDate: { gte: before.startDate }
+        },
+        select: { id: true }
+      });
+      if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.', { code: 'LEAVE_RESUBMIT_OVERLAP' });
+      const requestedUsageByYear = persistedUsageByQuotaYear(before);
+      await ensureLeaveAvailable(tx, before.employeeId, before.leaveType, requestedUsageByYear, id, { lock: true });
+      const after = await tx.leaveRequest.update({ where: { id }, data: { status: 'PENDING', approvedAt: null, approvedByLegacyRef: null, requestedAt: new Date() } });
+      await audit.log({
+        actorUserId: req.user.sub,
+        action: 'UPDATE',
+        entityType: 'LeaveRequest',
+        entityId: id,
+        metadata: { workflowAction: 'RESUBMIT', fromStatus: before.status, toStatus: after.status, actorRole: actor.role }
+      }, tx);
+      return after;
+    }, { requestId: req.requestId, stageDurationsMs });
+    try {
+      const { broadcastLeaveRequestEmail, notifyEmployeeLeaveStatusChange } = require('../services/notification-email.service');
+      await broadcastLeaveRequestEmail(result, req.user, 'LEAVE_RESUBMITTED');
+      await notifyEmployeeLeaveStatusChange(result, 'LEAVE_RESUBMITTED', req.user);
+    } catch (emailErr) {
+      logger.error('Failed to send resubmitted leave notification', { error: emailErr.message, leaveRequestId: result?.id });
+    }
+    res.json({ data: result });
+  } catch (error) { next(error); }
+});
 router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
@@ -907,24 +1115,39 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res
   } catch (error) { next(error); }
 });
 
-router.post('/leave-requests/:id/cancel', authorize('ADMIN'), async (req, res, next) => {
+router.post('/leave-requests/:id/cancel', async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
-    const input = z.object({ reason: nullableText(2000) }).parse(req.body || {});
-    const result = await prisma.$transaction(async (tx) => {
+    const input = leaveWorkflowReasonInput.parse(req.body || {});
+    const stageDurationsMs = {};
+    const result = await runLeaveApprovalTransaction(prisma, async (tx) => {
+      await measureLeaveApprovalStage(stageDurationsMs, 'leave_lock_read', async () => {
+        await tx.$queryRaw`SELECT id FROM leave_requests WHERE id = ${id}::uuid FOR UPDATE`;
+      });
       const before = await tx.leaveRequest.findUniqueOrThrow({ where: { id } });
-      if (before.status !== 'APPROVED') throw new HttpError(409, 'Only approved leave requests can be cancelled for quota restoration.');
-      // MANAGER global scope: no department check for cancel.
-      await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive: true });
-      const alShift = await tx.shiftType.findUnique({ where: { code: 'AL' }, select: { id: true } });
-      const removedLeaveShifts = alShift ? await tx.shiftAssignment.deleteMany({
-        where: {
-          employeeId: before.employeeId,
-          shiftTypeId: alShift.id,
-          workDate: { gte: before.startDate, lte: before.endDate },
-          OR: [{ source: 'LEAVE_APPROVAL' }, { remark: `Leave: ${before.leaveType}` }]
-        }
-      }) : { count: 0 };
+      const actor = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { id: true, role: true, employeeId: true } });
+      let cancellationKind;
+      let removedLeaveShifts = { count: 0 };
+      let affectedQuotaYears = [];
+      if (before.status === 'RETURNED_FOR_CORRECTION') {
+        assertReturnedLeaveOwner(before, actor);
+        cancellationKind = 'RETURNED_REQUEST_OWNER_CANCEL';
+      } else if (before.status === 'APPROVED') {
+        if (actor.role !== 'ADMIN') throw new HttpError(403, 'Only Admin may cancel an approved leave request.', { code: 'LEAVE_APPROVED_CANCEL_ADMIN_ONLY' });
+        cancellationKind = 'APPROVED_ADMIN_REVERSAL';
+        affectedQuotaYears = Object.keys(persistedUsageByQuotaYear(before)).map(Number).sort((left, right) => left - right);
+        const alShift = await tx.shiftType.findUnique({ where: { code: 'AL' }, select: { id: true } });
+        removedLeaveShifts = alShift ? await tx.shiftAssignment.deleteMany({
+          where: {
+            employeeId: before.employeeId,
+            shiftTypeId: alShift.id,
+            workDate: { gte: before.startDate, lte: before.endDate },
+            OR: [{ source: 'LEAVE_APPROVAL' }, { remark: `Leave: ${before.leaveType}` }]
+          }
+        }) : { count: 0 };
+      } else {
+        throw new HttpError(409, 'This leave request cannot be cancelled in its current state.', { code: 'LEAVE_CANCEL_INVALID_STATE' });
+      }
       const after = await tx.leaveRequest.update({
         where: { id },
         data: { status: 'CANCELLED', approvedAt: null, approvedByLegacyRef: null }
@@ -935,23 +1158,31 @@ router.post('/leave-requests/:id/cancel', authorize('ADMIN'), async (req, res, n
         entityType: 'LeaveRequest',
         entityId: id,
         metadata: {
-          before: safeRecord(before, ['status', 'leaveType', 'startDate', 'endDate', 'dayCount']),
-          after: safeRecord(after, ['status']),
-          quotaRestored: true,
-          removedLeaveShifts: removedLeaveShifts.count,
-          reason: input.reason ? 'provided' : 'not_provided'
+          workflowAction: 'CANCEL',
+          cancellationKind,
+          fromStatus: before.status,
+          toStatus: after.status,
+          reason: input.reason,
+          actorRole: actor.role,
+          quotaRecalculatedByApprovedStatus: before.status === 'APPROVED',
+          affectedQuotaYears,
+          removedLeaveShifts: removedLeaveShifts.count
         }
       }, tx);
-      return { ...after, removedLeaveShifts: removedLeaveShifts.count };
-    });
+      return {
+        ...after,
+        cancellationKind,
+        quotaRecalculated: before.status === 'APPROVED',
+        affectedQuotaYears,
+        removedLeaveShifts: removedLeaveShifts.count
+      };
+    }, { requestId: req.requestId, stageDurationsMs });
     try {
       const { notifyEmployeeLeaveStatusChange } = require('../services/notification-email.service');
       await notifyEmployeeLeaveStatusChange(result, 'LEAVE_CANCELLED', req.user, { reason: input.reason });
     } catch (emailErr) {
-      const { logger } = require('../utils/logger');
-      logger.error('Failed to send employee leave status change email notification', { error: emailErr.message, leaveRequestId: result?.id, status: result?.status });
+      logger.error('Failed to send employee leave cancellation notification', { error: emailErr.message, leaveRequestId: result?.id, status: result?.status });
     }
-
     res.json({ data: result });
   } catch (error) { next(error); }
 });
