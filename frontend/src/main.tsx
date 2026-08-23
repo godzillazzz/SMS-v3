@@ -25,7 +25,6 @@ import './design-system.css';
 import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage';
-import { EmployeeLifecycleModal } from './components/personnel/EmployeeLifecycleModal';
 import { EmployeeGovernedEditModal } from './components/personnel/EmployeeGovernedEditModal';
 import { EmployeeChangeReviewModal } from './components/personnel/EmployeeChangeReviewModal';
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
@@ -1459,7 +1458,6 @@ function Dashboard() {
   const [editor, setEditor] = useState<Editor>();
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorError, setEditorError] = useState<RequestErrorInput>();
-  const [lifecycleTarget, setLifecycleTarget] = useState<Employee>();
   const [employeeGovernedEditTarget, setEmployeeGovernedEditTarget] = useState<Employee>();
   const [employeeChangeReviewOpen, setEmployeeChangeReviewOpen] = useState(false);
   const [licenseEditTarget, setLicenseEditTarget] = useState<DataRow>();
@@ -2143,7 +2141,7 @@ function Dashboard() {
         </section>
       );
     }
-    if (activePage === 'employees') return <PersonnelDirectoryPage employees={employees} totalCount={totalCount} loading={empLoading} error={typeof fetchError === 'string' ? fetchError : fetchError?.message} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) setEmployeeChangeReviewOpen(true); }} onEdit={openEmployeeEditor} onLifecycle={(employee) => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) setLifecycleTarget(employee); }} onRefresh={() => setEmployeeRefresh((value) => value + 1)} />;
+    if (activePage === 'employees') return <PersonnelDirectoryPage employees={employees} totalCount={totalCount} loading={empLoading} error={typeof fetchError === 'string' ? fetchError : fetchError?.message} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) setEmployeeChangeReviewOpen(true); }} onEdit={openEmployeeEditor} onRefresh={() => setEmployeeRefresh((value) => value + 1)} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       return <AuditCompliancePage rows={auditRows} total={operationResponse.meta?.total ?? auditRows.length} page={operationResponse.meta?.page || operationPage} totalPages={operationResponse.meta?.totalPages || 1} pageSize={auditPageSize} loading={operationLoading} error={typeof operationError === 'string' ? operationError : operationError?.message} permissionDenied={auth.user?.role !== 'ADMIN'} filters={auditFilters} onFiltersChange={(filters) => { setAuditFilters(filters); setOperationPage(1); }} onRefresh={() => setOperationRefresh((value) => value + 1)} onPageChange={setOperationPage} onPageSize={(value) => { setAuditPageSize(value); setOperationPage(1); }} onExport={(rows) => downloadCsv(rows as DataRow[], 'audit-events')} onPrint={() => window.print()} />;
@@ -2305,13 +2303,10 @@ function Dashboard() {
                 {autoScheduleBusy ? 'กำลังคำนวณ…' : '✨ ดูตัวอย่างจัดกะอัตโนมัติ'}
               </button>
             )}
-            <button className="btn-neutral small-action" style={{ border: '1px solid #fdba74', color: '#c2410c' }} onClick={() => window.alert('ตารางกะเดิมถูกเก็บในระบบแยกส่วนย้อนหลังแล้ว')}>
-              ย้ายตารางกะเก่าไป Schedule Archive
-            </button>
             <span className="toolbar-count" style={{ marginLeft: 'auto' }}>แสดง {calendarEmployees.length} จาก {operationResponse.meta?.total || 0} คน</span>
           </div>
-          <div title="เครื่องมือไม้กายสิทธิ์สำหรับ Admin — สร้างตัวอย่างก่อนบันทึก โดยคงกะที่ล็อกและวันลา (AL)" style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>
-            ไม่เกิน 72 ชม./สัปดาห์ · Supervisor หยุดวันอาทิตย์ · AL และกะ Manual ไม่ถูกเขียนทับ
+          <div title="ไม้กายสิทธิ์สำหรับ Admin — จัดกะทุกคนต่อจากวันสุดท้ายของเดือนก่อน โดยใช้แพทเทิร์นเดียวกับรายบุคคล" style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>
+            ต่อแพทเทิร์นจากวันสุดท้ายของเดือนก่อน · Supervisor ทำงาน จ.-ส. / OFF อาทิตย์ · พนักงานทั่วไป 6D / OFF / 6N / OFF · คง AL และ Admin license override
           </div>
 
           <div className="schedule-draft-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', paddingTop: '12px', borderTop: '1px dashed #bfdbfe' }}>
@@ -2539,7 +2534,6 @@ function Dashboard() {
     <>
       <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''}`}>
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
-      {lifecycleTarget && auth.token && <EmployeeLifecycleModal token={auth.token} employee={lifecycleTarget} onClose={() => setLifecycleTarget(undefined)} onApplied={() => setEmployeeRefresh((value) => value + 1)} />}
       {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} />}
       {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <EmployeeChangeReviewModal token={auth.token} onClose={() => setEmployeeChangeReviewOpen(false)} onChanged={() => setEmployeeRefresh((value) => value + 1)} />}
       {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({auth.user?.role}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}

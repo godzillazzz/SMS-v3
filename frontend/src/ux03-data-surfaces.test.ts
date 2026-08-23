@@ -152,7 +152,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
 
   it('retains mobile actions instead of hiding operational capability', () => {
     expect(personnelTable).toContain('data-row-primary-action');
-    expect(personnelTable).toContain('<DataRowActionMenu');
+    expect(personnelTable).not.toContain('จัดการสถานะพนักงาน');
     expect(accessPage).toContain('เปิดรายละเอียด');
     expect(dataQuality).toContain('data-mobile-card');
     expect(auditTable).toContain('ดูรายละเอียด');

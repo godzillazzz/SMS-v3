@@ -41,12 +41,15 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(personnelPage).not.toContain('รอตรวจสอบ');
   });
 
-  it('keeps Personnel canManage and ADMIN lifecycle gates unchanged', () => {
+  it('keeps the Personnel edit gate while removing the obsolete dedicated lifecycle entry point', () => {
     expect(personnelHeader).toContain('{canManage &&');
     expect(personnelTable).toContain('{canManage &&');
-    expect(personnelTable).toContain("{role === 'ADMIN' &&");
-    expect(personnelDrawer).toContain("{role === 'ADMIN' &&");
-    expect(main).toContain("if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) setLifecycleTarget(employee)");
+    expect(personnelTable).not.toContain("{role === 'ADMIN' &&");
+    expect(personnelDrawer).not.toContain("{role === 'ADMIN' &&");
+    expect(personnelTable).not.toContain('จัดการสถานะพนักงาน');
+    expect(personnelDrawer).not.toContain('จัดการสถานะพนักงาน');
+    expect(main).not.toContain('setLifecycleTarget');
+    expect(main).toContain('EmployeeGovernedEditModal');
   });
 
   it('keeps Personnel drawer selection and focus restoration while presenting only real Employee Master fields', () => {

@@ -1,18 +1,15 @@
-import { DataRowActionMenu } from '../DataRowActionMenu';
 import { TableActionCell, TableActionHeader } from '../TableActionColumn';
-import type { PersonnelRecord, PersonnelRole } from './types';
+import type { PersonnelRecord } from './types';
 
 type Props = {
   rows: PersonnelRecord[];
   canManage: boolean;
-  role: PersonnelRole;
   selectedId?: string;
   onSelect(employee: PersonnelRecord): void;
   onEdit(employee: PersonnelRecord): void;
-  onLifecycle(employee: PersonnelRecord): void;
 };
 
-export function PersonnelTable({ rows, canManage, role, selectedId, onSelect, onEdit, onLifecycle }: Props) {
+export function PersonnelTable({ rows, canManage, selectedId, onSelect, onEdit }: Props) {
   return <div className="personnel-table-card data-surface-card">
     <div className="personnel-table-scroll data-table-scroll">
       <table className="personnel-table data-surface-table">
@@ -31,7 +28,7 @@ export function PersonnelTable({ rows, canManage, role, selectedId, onSelect, on
           <td>{employee.department || '—'}</td>
           <td>{employee.jobTitle || '—'}</td>
           <td><span className={`status-badge ${employee.isActive ? 'active status-badge--success' : 'inactive status-badge--neutral'}`}>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td>
-          {canManage && <TableActionCell className="personnel-row-actions data-row-actions" onClick={(event) => event.stopPropagation()}><button type="button" className="data-row-primary-action" aria-label={`แก้ไขข้อมูล ${employee.firstName} ${employee.lastName}`} onClick={() => onEdit(employee)}>แก้ไขข้อมูล</button>{role === 'ADMIN' && <DataRowActionMenu label={`การทำงานเพิ่มเติมสำหรับ ${employee.firstName} ${employee.lastName}`} actions={[{ label: 'จัดการสถานะพนักงาน', onSelect: () => onLifecycle(employee) }]} />}</TableActionCell>}
+          {canManage && <TableActionCell className="personnel-row-actions data-row-actions" onClick={(event) => event.stopPropagation()}><button type="button" className="data-row-primary-action" aria-label={`แก้ไขข้อมูล ${employee.firstName} ${employee.lastName}`} onClick={() => onEdit(employee)}>แก้ไขข้อมูล</button></TableActionCell>}
         </tr>) : <tr><td colSpan={canManage ? 6 : 5} className="personnel-no-rows data-table-empty-cell">ไม่พบข้อมูลบุคลากรตามเงื่อนไขที่เลือก</td></tr>}</tbody>
       </table>
     </div>

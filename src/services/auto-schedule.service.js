@@ -49,7 +49,7 @@ const suggestedPhase = (history) => {
 
 async function buildAutoSchedulePlan(client, month) {
   const { start, end, dates } = monthBounds(month);
-  const historyStart = new Date(start.getTime() - 366 * DAY_MS);
+  const historyStart = new Date(start.getTime() - 14 * DAY_MS);
   const [rules, allEmployees, shiftTypes, currentShifts, historyRows, licenses] = await Promise.all([
     client.schedulingRule.findMany({ select: { ruleId: true, value: true, enabled: true } }),
     client.employee.findMany({ where: { deletedAt: null, isActive: true }, select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true, jobTitle: true }, orderBy: { employeeCode: 'asc' } }),
@@ -68,16 +68,18 @@ async function buildAutoSchedulePlan(client, month) {
   const dayMinimum = Math.max(0, Number(ruleValue(rules, 'RULE003', 0)) || 0);
   const nightMinimum = Math.max(0, Number(ruleValue(rules, 'RULE004', 0)) || 0);
   const employeeIds = new Set(employees.map((employee) => employee.id));
-  const existing = new Map(currentShifts.filter((row) => employeeIds.has(row.employeeId) && (row.locked || String(row.shiftType.code).toUpperCase() === 'AL')).map((row) => [`${row.employeeId}|${isoDate(row.workDate)}`, row]));
+  const existing = new Map(currentShifts.filter((row) => employeeIds.has(row.employeeId) && (String(row.shiftType.code).toUpperCase() === 'AL' || row.licenseOverride)).map((row) => [`${row.employeeId}|${isoDate(row.workDate)}`, row]));
+  const previousMonthLastDate = isoDate(new Date(start.getTime() - DAY_MS));
   const histories = new Map();
   historyRows.forEach((row) => { const list = histories.get(row.employeeId) || []; if (list.length < 14) list.push(row); histories.set(row.employeeId, list); });
   const licensesByEmployee = new Map();
   licenses.forEach((license) => { const list = licensesByEmployee.get(license.employeeId) || []; list.push(license); licensesByEmployee.set(license.employeeId, list); });
 
+  const continuityWarnings = [];
   const weeklyHours = new Map();
   const planned = new Map();
   const licenseBlocked = new Map();
-  const assign = (employee, date, shift, { source = 'AUTO', locked = false, remark = '', existingRow, licenseStatus, licenseBlockedFromShiftTypeId, licenseBlockedFromRemark, licenseBlockedAt } = {}) => {
+  const assign = (employee, date, shift, { source = 'AUTO', locked = false, remark = '', existingRow, licenseStatus, overrideReason, licenseBlockedFromShiftTypeId, licenseBlockedFromRemark, licenseBlockedAt } = {}) => {
     const dateText = isoDate(date); const key = `${employee.id}|${dateText}`;
     if (planned.has(key)) return false;
     const hours = Number(shift.hours || 0);
@@ -92,7 +94,7 @@ async function buildAutoSchedulePlan(client, month) {
       date: dateText, employeeId: employee.id, employeeCode: employee.employeeCode, employeeName: displayName(employee), department: employee.department,
       shiftTypeId: shift.id, code: String(shift.code).toUpperCase(), name: shift.name, startTime: shift.startTime, endTime: shift.endTime,
       hours, color: shift.color, remark, source, locked, licenseStatus: allowedOverride ? 'OVERRIDDEN' : (licenseStatus || (hours === 0 ? 'NOT_REQUIRED' : license.code)),
-      licenseExpiryDate: license.expiryDate ? isoDate(license.expiryDate) : null, licenseOverride: allowedOverride,
+      licenseExpiryDate: license.expiryDate ? isoDate(license.expiryDate) : null, licenseOverride: allowedOverride, overrideReason: allowedOverride ? String(overrideReason || existingRow?.overrideReason || '') : '',
       licenseValidForWorkDate: license.valid, licenseStateForWorkDate: license.code,
       licenseBlockedFromShiftTypeId: licenseBlockedFromShiftTypeId || null, licenseBlockedFromRemark: licenseBlockedFromRemark || null, licenseBlockedAt: licenseBlockedAt || null
     });
@@ -104,14 +106,17 @@ async function buildAutoSchedulePlan(client, month) {
     const row = existing.get(`${employee.id}|${isoDate(date)}`);
     if (row) assign(employee, date, row.shiftType, {
       source: row.source || 'MANUAL', locked: true, remark: row.remark || '', existingRow: row,
-      licenseStatus: row.licenseStatus, licenseBlockedFromShiftTypeId: row.licenseBlockedFromShiftTypeId,
+      licenseStatus: row.licenseStatus, overrideReason: row.overrideReason, licenseBlockedFromShiftTypeId: row.licenseBlockedFromShiftTypeId,
       licenseBlockedFromRemark: row.licenseBlockedFromRemark, licenseBlockedAt: row.licenseBlockedAt
     });
   }));
 
   employees.forEach((employee) => {
     const supervisor = isSupervisor(employee);
-    const phaseCode = suggestedPhase(histories.get(employee.id) || []);
+    const employeeHistory = histories.get(employee.id) || [];
+    const anchoredHistory = employeeHistory.length && isoDate(employeeHistory[0].workDate) === previousMonthLastDate ? employeeHistory : [];
+    if (!supervisor && !anchoredHistory.length) continuityWarnings.push(`${displayName(employee)}: ไม่พบกะในวันสุดท้ายของเดือนก่อน ใช้ D1 เป็นจุดเริ่มต้น`);
+    const phaseCode = suggestedPhase(anchoredHistory);
     const empCycle = ['D', 'D', 'D', 'D', 'D', 'D', 'OFF', 'N', 'N', 'N', 'N', 'N', 'N', 'OFF'];
     const phaseOffsetMap = { D1: 0, D2: 1, D3: 2, D4: 3, D5: 4, D6: 5, 'OFF-D': 6, N1: 7, N2: 8, N3: 9, N4: 10, N5: 11, N6: 12, 'OFF-N': 13 };
     let cycleIndex = supervisor ? 0 : (phaseOffsetMap[phaseCode] ?? 0);
@@ -122,11 +127,11 @@ async function buildAutoSchedulePlan(client, month) {
       const license = licenseForDate(licensesByEmployee.get(employee.id) || [], date);
       if (code !== 'OFF' && !license.valid) {
         licenseBlocked.set(key, license);
-        assign(employee, date, shifts.get('OFF'), { remark: 'License Block', licenseStatus: license.code, licenseBlockedFromShiftTypeId: shifts.get(code).id, licenseBlockedFromRemark: supervisor ? 'Auto Supervisor Pattern' : 'Auto Rotating Pattern', licenseBlockedAt: new Date().toISOString() });
+        assign(employee, date, shifts.get('OFF'), { remark: 'License Block', licenseStatus: license.code, licenseBlockedFromShiftTypeId: shifts.get(code).id, licenseBlockedFromRemark: supervisor ? 'Auto Supervisor Pattern' : `Auto Rotating Pattern (${phaseCode})`, licenseBlockedAt: new Date().toISOString() });
         if (!supervisor) cycleIndex += 1;
         return;
       }
-      const assigned = assign(employee, date, shifts.get(code), { remark: supervisor ? 'Auto Supervisor Pattern' : 'Auto Rotating Pattern' });
+      const assigned = assign(employee, date, shifts.get(code), { remark: supervisor ? 'Auto Supervisor Pattern' : `Auto Rotating Pattern (${phaseCode})` });
       if (!assigned) assign(employee, date, shifts.get('OFF'), { remark: 'Weekly hour limit' });
       if (!supervisor) cycleIndex += 1;
     });
@@ -136,7 +141,7 @@ async function buildAutoSchedulePlan(client, month) {
   const counts = rows.reduce((result, row) => ({ ...result, [row.code]: (result[row.code] || 0) + 1 }), {});
   const blockedCounts = {};
   licenseBlocked.forEach((_value, key) => { const employeeId = key.split('|')[0]; blockedCounts[employeeId] = (blockedCounts[employeeId] || 0) + 1; });
-  const warnings = Object.entries(blockedCounts).map(([employeeId, count]) => `${displayName(employees.find((item) => item.id === employeeId) || { firstName: employeeId, lastName: '' })}: ถูกป้องกันกะทำงาน ${count} วัน เนื่องจากใบอนุญาตไม่ผ่าน`);
+  const warnings = [...continuityWarnings, ...Object.entries(blockedCounts).map(([employeeId, count]) => `${displayName(employees.find((item) => item.id === employeeId) || { firstName: employeeId, lastName: '' })}: ถูกป้องกันกะทำงาน ${count} วัน เนื่องจากใบอนุญาตไม่ผ่าน`)];
   return { month, startDate: isoDate(start), endDate: isoDate(new Date(end.getTime() - DAY_MS)), dates: dates.map(isoDate), rows, warnings, summary: { employees: employees.length, days: dates.length, totalRows: rows.length, manualLocked: rows.filter((row) => row.locked).length, counts, maxWeeklyHours, dayMinimum, nightMinimum } };
 }
 
@@ -178,7 +183,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
   if (!rows.length) throw new HttpError(404, 'Eligible employee was not found for automatic scheduling.');
 
   const { start } = monthBounds(month);
-  const historyStart = new Date(start.getTime() - 366 * DAY_MS);
+  const historyStart = new Date(start.getTime() - 14 * DAY_MS);
   const [history, allShiftTypes] = await Promise.all([
     client.shiftAssignment.findMany({
       where: { employeeId, workDate: { gte: historyStart, lt: start } },
@@ -188,7 +193,9 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
     client.shiftType.findMany({ select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } })
   ]);
   const shiftTypeMap = new Map(allShiftTypes.map((st) => [String(st.code).toUpperCase(), st]));
-  const analysis = getPhaseAnalysis(history);
+  const previousMonthLastDate = isoDate(new Date(start.getTime() - DAY_MS));
+  const continuityHistory = history.length && isoDate(history[0].workDate) === previousMonthLastDate ? history : [];
+  const analysis = getPhaseAnalysis(continuityHistory);
 
   const customWarnings = [];
   const offType = shiftTypeMap.get('OFF') || { id: '', code: 'OFF', name: 'วันหยุด', startTime: '00:00', endTime: '00:00', hours: 0, color: '#64748b' };

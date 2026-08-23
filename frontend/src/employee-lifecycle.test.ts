@@ -14,9 +14,11 @@ describe('Employee Lifecycle Management V1', () => {
   it('supports all five ADMIN-controlled lifecycle actions in Thai', () => {
     for (const type of ['NAME_CHANGE', 'DEPARTMENT_TRANSFER', 'POSITION_CHANGE', 'EMPLOYMENT_TERMINATION', 'REHIRE']) expect(modal).toContain(type);
     for (const label of ['เปลี่ยนชื่อ', 'ย้ายแผนก', 'เปลี่ยนตำแหน่ง', 'ลาออก', 'กลับเข้าทำงาน', 'วันที่มีผล', 'เหตุผล', 'ผลกระทบและคำเตือน']) expect(modal).toContain(label);
-    expect(table).toContain("role === 'ADMIN'");
-    expect(directory).toContain('onLifecycle');
-    expect(app).toContain("auth.user?.role === 'ADMIN'");
+    expect(table).not.toContain('จัดการสถานะพนักงาน');
+    expect(table).not.toContain('onLifecycle');
+    expect(directory).not.toContain('onLifecycle');
+    expect(app).not.toContain('EmployeeLifecycleModal');
+    expect(app).toContain('EmployeeGovernedEditModal');
   });
 
   it('uses preflight, idempotency, explicit warning acknowledgement, and deliberate termination confirmation', () => {

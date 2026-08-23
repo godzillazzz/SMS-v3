@@ -52,7 +52,7 @@ test('legacy schedule and leave controls remain available to Admin and Manager',
   const routes = read('src/routes/operations.routes.js');
   const employees = read('src/services/employee.service.js');
 
-  assert.match(frontend, /เครื่องมือไม้กายสิทธิ์สำหรับ Admin/);
+  assert.match(frontend, /ไม้กายสิทธิ์สำหรับ Admin/);
   assert.match(frontend, /จัดกะแพทเทิร์นด่วน: 6 วันทำงาน \/ 1 วันหยุด/);
   assert.match(frontend, /รายการใบลาที่รออนุมัติ/);
   assert.match(frontend, /Submit Leave Request/);

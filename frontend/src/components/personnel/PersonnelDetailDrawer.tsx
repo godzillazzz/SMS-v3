@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { SmsIcon } from '../SmsIcon';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
-import type { PersonnelRecord, PersonnelRole } from './types';
+import type { PersonnelRecord } from './types';
 
-type Props = { employee?: PersonnelRecord; canManage: boolean; role: PersonnelRole; onClose(): void; onEdit(): void; onLifecycle(): void };
+type Props = { employee?: PersonnelRecord; canManage: boolean; onClose(): void; onEdit(): void };
 
-export function PersonnelDetailDrawer({ employee, canManage, role, onClose, onEdit, onLifecycle }: Props) {
+export function PersonnelDetailDrawer({ employee, canManage, onClose, onEdit }: Props) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
 
@@ -62,9 +62,8 @@ export function PersonnelDetailDrawer({ employee, canManage, role, onClose, onEd
           <div className="personnel-employment-state"><span>สถานะปัจจุบัน</span><strong>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</strong><small>{employee.isActive ? 'ระเบียนพนักงานเปิดใช้งานอยู่' : 'ระเบียนพนักงานถูกทำเครื่องหมายว่าไม่ใช้งาน'}</small></div>
         </section>
       </div>
-      {(canManage || role === 'ADMIN') && <footer className="personnel-drawer-actions">
-        {canManage && <button type="button" className="btn-primary personnel-drawer-primary" onClick={onEdit}><SmsIcon name="edit" size={17} />แก้ไขข้อมูล</button>}
-        {role === 'ADMIN' && <button type="button" className="btn-neutral personnel-lifecycle-action" onClick={onLifecycle}><SmsIcon name="history" size={17} />จัดการสถานะพนักงาน</button>}
+      {canManage && <footer className="personnel-drawer-actions">
+        <button type="button" className="btn-primary personnel-drawer-primary" onClick={onEdit}><SmsIcon name="edit" size={17} />แก้ไขข้อมูล</button>
       </footer>}
     </aside>
   </div>;
