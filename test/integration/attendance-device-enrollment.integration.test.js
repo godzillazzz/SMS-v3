@@ -65,6 +65,16 @@ if (!isConfiguredG06Target) {
     await assert.rejects(() => service.approve({ actor: adminActor, requestId: first.id }), (error) => error.details?.code === 'ATTENDANCE_DEVICE_PROOF_REQUIRED');
     await prove(service, first.id, firstKeys);
 
+    const adminQueue = await service.listRequests({ actor: adminActor });
+    assert.equal(adminQueue.length, 1);
+    assert.equal(adminQueue[0].employee.firstName, 'G06');
+    assert.equal(adminQueue[0].employee.lastName, 'Device');
+    assert.equal(adminQueue[0].requestedBy.displayName, 'G06 Employee');
+    assert.equal(adminQueue[0].candidateDevice.proofVerifiedAt instanceof Date, true);
+    const queueJson = JSON.stringify(adminQueue[0]);
+    assert.equal(queueJson.includes('employeeCode'), false);
+    assert.equal(queueJson.includes('@example.test'), false);
+
     const concurrentApproval = await Promise.allSettled([
       service.approve({ actor: adminActor, requestId: first.id }),
       service.approve({ actor: adminActor, requestId: first.id })

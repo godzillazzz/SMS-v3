@@ -26,7 +26,9 @@ function mapConflict(error) {
   return error;
 }
 function safeEnrollment(row) { return row ? { id: row.id, employeeId: row.employeeId, displayName: row.displayName, keyAlgorithm: row.keyAlgorithm, credentialFingerprint: row.credentialFingerprint, platformHint: row.platformHint, status: row.status, proofVerifiedAt: row.proofVerifiedAt, enrolledAt: row.enrolledAt, activatedAt: row.activatedAt, revokedAt: row.revokedAt } : null; }
-function safeRequest(row) { return row ? { id: row.id, employeeId: row.employeeId, requestType: row.requestType, status: row.status, requestedByUserId: row.requestedByUserId, candidateDeviceEnrollmentId: row.candidateDeviceEnrollmentId, currentDeviceEnrollmentId: row.currentDeviceEnrollmentId, reason: row.reason, reviewerComment: row.reviewerComment, reviewedByUserId: row.reviewedByUserId, reviewedAt: row.reviewedAt, returnedAt: row.returnedAt, cancelledAt: row.cancelledAt, createdAt: row.createdAt, updatedAt: row.updatedAt, candidateDevice: row.candidateDevice ? safeEnrollment(row.candidateDevice) : undefined } : null; }
+function safeEmployee(row) { return row ? { id: row.id, displayName: row.displayName, firstName: row.firstName, lastName: row.lastName, department: row.department } : undefined; }
+function safeRequester(row) { return row ? { id: row.id, displayName: row.displayName } : undefined; }
+function safeRequest(row) { return row ? { id: row.id, employeeId: row.employeeId, requestType: row.requestType, status: row.status, requestedByUserId: row.requestedByUserId, candidateDeviceEnrollmentId: row.candidateDeviceEnrollmentId, currentDeviceEnrollmentId: row.currentDeviceEnrollmentId, reason: row.reason, reviewerComment: row.reviewerComment, reviewedByUserId: row.reviewedByUserId, reviewedAt: row.reviewedAt, returnedAt: row.returnedAt, cancelledAt: row.cancelledAt, createdAt: row.createdAt, updatedAt: row.updatedAt, candidateDevice: row.candidateDevice ? safeEnrollment(row.candidateDevice) : undefined, employee: safeEmployee(row.employee), requestedBy: safeRequester(row.requestedBy) } : null; }
 
 function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date(), randomBytes = crypto.randomBytes } = {}) {
   async function loadLinkedEmployee(client, actor) {
@@ -115,7 +117,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
 
   async function listRequests({ actor, status = 'PENDING_APPROVAL' }) {
     assertAdmin(actor);
-    const rows = await prisma.attendanceDeviceChangeRequest.findMany({ where: status ? { status } : {}, include: { candidateDevice: true }, orderBy: { createdAt: 'asc' } });
+    const rows = await prisma.attendanceDeviceChangeRequest.findMany({ where: status ? { status } : {}, include: { candidateDevice: true, employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } }, requestedBy: { select: { id: true, displayName: true } } }, orderBy: { createdAt: 'asc' } });
     return rows.map(safeRequest);
   }
 

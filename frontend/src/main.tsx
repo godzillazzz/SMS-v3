@@ -31,6 +31,7 @@ import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import { DataQualityCenterPage, type DataQualityFilters, type DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
+import { AttendanceDevicePage } from './pages/attendance-device/AttendanceDevicePage';
 import { RegistrationReviewPanel } from './pages/access-management/RegistrationReviewPanel';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
 import type { DashboardFilters } from './components/dashboard/types';
@@ -56,10 +57,11 @@ import './styles/signature-experience.css';
 import './styles/signature-experience-v1-1.css';
 import './styles/signature-experience-v1-2.css';
 import './styles/production-mobile-responsive-v1.css';
+import './styles/attendance-device.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
-type Page = 'dashboard' | 'employees' | 'licenses' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
+type Page = 'dashboard' | 'employees' | 'licenses' | 'attendanceDevice' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
@@ -79,7 +81,8 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   { label: 'ภาพรวม', items: [{ id: 'dashboard', icon: 'dashboard', label: 'Dashboard' }] },
   { label: 'พนักงาน', items: [
     { id: 'employees', icon: 'employees', label: 'ข้อมูลพนักงาน' },
-    { id: 'licenses', icon: 'license', label: 'ใบอนุญาต รปภ.' }
+    { id: 'licenses', icon: 'license', label: 'ใบอนุญาต รปภ.' },
+    { id: 'attendanceDevice', icon: 'key', label: 'อุปกรณ์ลงเวลา' }
   ] },
   { label: 'ตารางกะ', items: [
     { id: 'schedule', icon: 'calendar', label: 'ตารางกะรายเดือน' },
@@ -710,7 +713,7 @@ function EmployeeMagicWandModal({
   );
 }
 
-type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
+type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'attendanceDevice' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
 
 const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
@@ -1621,14 +1624,14 @@ function Dashboard() {
   }, [activePage, auth.token, operationPage, dataQualityPageSize, dataQualityFilters, operationRefresh]);
 
   useEffect(() => {
-    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
+    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'attendanceDevice' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
     if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
       setOperationLoading(false);
       setOperationError(undefined);
       setOperationResponse({ data: [] });
       return;
     }
-    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
+    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'attendanceDevice' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
       users: api.users, audit: api.auditEvents, settings: api.systemSettings
@@ -1680,6 +1683,7 @@ function Dashboard() {
     dashboard: 'ภาพรวม KPI และสถานะการปฏิบัติงาน',
     employees: 'ข้อมูลพนักงานและใบอนุญาตปฏิบัติงาน',
     licenses: 'ทะเบียนใบอนุญาตของพนักงาน',
+    attendanceDevice: 'ลงทะเบียนและตรวจสอบอุปกรณ์หลักสำหรับ Attendance/Patrol',
     shiftSetup: 'กำหนดประเภทกะและเวลาปฏิบัติงาน',
     schedule: 'จัดตารางกะรายเดือนและส่งอนุมัติ',
     approvals: 'ตรวจสอบและอนุมัติตารางกะ',
@@ -2474,6 +2478,9 @@ function Dashboard() {
         <div className="section-title"><div><h2>รายการที่ต้องแก้ไข</h2><p>{violations.length ? `พบ ${violations.length} รายการ` : 'ผ่านทุกกฎที่เปิดใช้งาน'}</p></div></div>
         <div className="table-card"><div className="table-scroll"><table className="data-table"><thead><tr><th>Rule</th><th>รายการ</th><th>รายละเอียด</th><th>ระดับ</th></tr></thead><tbody>{violations.length ? violations.slice(0, 500).map((item, index) => <tr key={`${text(item.ruleId)}-${index}`}><td><code>{text(item.ruleId)}</code><small className="cell-note">{text(item.ruleName)}</small></td><td className="employee-name">{text(item.title)}</td><td>{text(item.description)}</td><td><span className={`status-badge ${item.severity === 'error' ? 'inactive' : 'pending'}`}>{text(item.severity)}</span></td></tr>) : <tr><td colSpan={4} className="no-rows">✓ ไม่พบรายการขัดกฎในเดือนนี้</td></tr>}</tbody></table></div></div>
       </section>;
+    }
+    if (activePage === 'attendanceDevice' && auth.token) {
+      return <AttendanceDevicePage token={auth.token} role={auth.user?.role || 'VIEWER'} readOnly={auth.isViewingAs} />;
     }
     if (activePage === 'users') {
       const users = Array.isArray(operationResponse.data) ? operationResponse.data : [];

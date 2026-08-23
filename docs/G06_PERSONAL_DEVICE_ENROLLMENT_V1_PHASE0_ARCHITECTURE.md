@@ -282,3 +282,20 @@ Related media-policy lock remains unchanged for G06/G07 V1:
 `G06_PERSONAL_DEVICE_ENROLLMENT_V1_PHASE0_ARCHITECTURE_AUDIT_COMPLETE`
 
 Owner authority decision is resolved as Option A. Phase 1 additive schema/service/test implementation is authorized locally; Production remains unchanged until separately approved.
+
+## Phase 2 Web/PWA device enrollment implementation note
+
+Implemented on the same G06 branch after Phase 1 without a new Prisma schema or migration.
+
+- Dedicated UI page: **อุปกรณ์ลงเวลา**; do not reuse the Passkey panel as Attendance/Patrol device authority.
+- Browser support is fail-closed: secure context (HTTPS), Web Crypto, and IndexedDB are required.
+- Browser generates ECDSA P-256 key material with the private key marked non-exportable.
+- Only the public SPKI key and signatures are sent to the server. The private CryptoKey is stored in IndexedDB under the current web origin.
+- Local key records are scoped by authoritative Employee.id; cleanup removes only stale records belonging to the same Employee.
+- If local key persistence fails after request creation, the client attempts to cancel the pending server request and never falls back to a reusable bearer-device token.
+- If a pending candidate key is missing from the current browser/origin, the UX requires cancellation/re-enrollment from the intended device rather than weakening proof.
+- Replacement UX requires a human-entered reason; first device and replacement still require ADMIN final approval under Option A.
+- ADMIN review receives only the safe context needed for review (Employee display/name/department, requester display name, candidate/proof state); employeeCode and account email are not added to the device queue response.
+- View As remains read-only for device enrollment/review.
+- No Service Worker or controlled-offline key/event workflow is introduced in Phase 2. Controlled-offline rollout origin remains a separate Owner gate because IndexedDB/CryptoKey persistence is origin-sensitive.
+- G06/G07 V1 media policy is unchanged: Employee Reference Photo may be retained; Attendance/Patrol event photos are not retained; live face/liveness frames are temporary and discarded.
