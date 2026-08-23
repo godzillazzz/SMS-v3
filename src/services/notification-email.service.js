@@ -444,7 +444,7 @@ function mapSmtpError(err) {
   return { category, safeMessage };
 }
 
-async function broadcastLeaveRequestEmail(leaveRequest, requestUser) {
+async function broadcastLeaveRequestEmail(leaveRequest, requestUser, eventType = 'LEAVE_CREATED') {
   if (env.emailNotificationsEnabled !== true) {
     logger.info('Email notification broadcast skipped (system disabled)', { leaveRequestId: leaveRequest.id });
     return;
@@ -554,7 +554,7 @@ async function broadcastLeaveRequestEmail(leaveRequest, requestUser) {
   const reservationsToSend = [];
   for (const reviewer of eligibleReviewers) {
     const roleKey = reviewer.role === 'MANAGER' ? 'manager' : 'admin';
-    const eventKey = 'leave:' + leaveRequest.id + ':LEAVE_CREATED:' + roleKey + ':' + reviewer.id;
+    const eventKey = 'leave:' + leaveRequest.id + ':' + eventType + ':' + roleKey + ':' + reviewer.id;
     try {
       const reservation = await prisma.emailDeliveryReservation.create({
         data: {
@@ -583,7 +583,9 @@ async function broadcastLeaveRequestEmail(leaveRequest, requestUser) {
       });
 
       const escapedEmployeeName = escapeHtml(employeeName);
-      const subject = `SMS v3: มีคำขอลาใหม่รออนุมัติ (${escapedEmployeeName})`;
+const subject = eventType === 'LEAVE_RESUBMITTED'
+        ? `SMS v3: มีคำขอลาส่งตรวจสอบอีกครั้ง (${escapedEmployeeName})`
+        : `SMS v3: มีคำขอลาใหม่รออนุมัติ (${escapedEmployeeName})`;
 
       const appUrl = getPublicAppUrl(env);
       let isValidHttpsUrl = false;
@@ -671,7 +673,7 @@ async function broadcastLeaveRequestEmail(leaveRequest, requestUser) {
 }
 
 async function notifyEmployeeLeaveStatusChange(leaveRequest, eventType, actorUser, extraData) {
-  const validEvents = ['LEAVE_CREATED', 'LEAVE_APPROVED', 'LEAVE_REJECTED', 'LEAVE_CANCELLED'];
+  const validEvents = ['LEAVE_CREATED', 'LEAVE_RESUBMITTED', 'LEAVE_RETURNED_FOR_CORRECTION', 'LEAVE_APPROVED', 'LEAVE_REJECTED', 'LEAVE_CANCELLED'];
   if (!validEvents.includes(eventType)) {
     logger.info('notifyEmployeeLeaveStatusChange skipped: unsupported event type', { eventType });
     return;
@@ -840,7 +842,32 @@ async function notifyEmployeeLeaveStatusChange(leaveRequest, eventType, actorUse
         <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">ระบบ Security Management System v3</p>
       </div>
     `;
-  } else if (eventType === 'LEAVE_APPROVED') {
+  } else if (eventType === 'LEAVE_RESUBMITTED') {
+    subject = 'SMS v3: ส่งคำขอลาตรวจสอบอีกครั้งแล้ว';
+    html = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">
+        <h2 style="color: #2563eb; margin-top: 0;">ส่งคำขอลาตรวจสอบอีกครั้งแล้ว</h2>
+        <p>เรียน คุณ ${escapedEmployeeName},</p>
+        <p>คำขอลาของท่านถูกแก้ไขและส่งเข้าคิวตรวจสอบอีกครั้งเรียบร้อยแล้ว</p>
+        <p><strong>สถานะ:</strong> PENDING · รอตรวจสอบ</p>
+        ${linkHtml}
+        <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">ระบบ Security Management System v3</p>
+      </div>
+    `;
+  } else if (eventType === 'LEAVE_RETURNED_FOR_CORRECTION') {
+    subject = 'SMS v3: คำขอลาถูกส่งกลับไปแก้ไข';
+    html = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">
+        <h2 style="color: #d97706; margin-top: 0;">คำขอลาถูกส่งกลับไปแก้ไข</h2>
+        <p>เรียน คุณ ${escapedEmployeeName},</p>
+        <p>ผู้ตรวจสอบส่งคำขอลาของท่านกลับเพื่อแก้ไขข้อมูลก่อนส่งตรวจสอบอีกครั้ง</p>
+        <p><strong>ดำเนินการโดย:</strong> ${escapedActorName}</p>
+        <p><strong>เหตุผล:</strong> ${escapedExtraReason || '-'}</p>
+        <p><strong>สถานะ:</strong> RETURNED_FOR_CORRECTION</p>
+        ${linkHtml}
+        <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">ระบบ Security Management System v3</p>
+      </div>
+    `;  } else if (eventType === 'LEAVE_APPROVED') {
     subject = 'SMS v3: ใบลาได้รับการอนุมัติแล้ว';
     html = `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">

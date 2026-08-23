@@ -132,7 +132,7 @@ describe('G04.2 UX-04 auth experience contract', () => {
   });
 
   it('locks the authorized V1.2 API source after the Passkey extension', () => {
-    expect(apiSha256).toBe('e53de0516a20333428a85c87415d88b3fdc25358c5b779314fe82d3e9da1bd5a');
+    expect(apiSha256).toBe('762764230f03a4a5f70349b2c58c9b569f23b2a419cc016b79da05cdc77f229b');
   });
 
   it('keeps theme changes frontend-only and prevents theme controls from submitting or resetting auth form state', () => {
