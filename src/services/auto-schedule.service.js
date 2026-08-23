@@ -183,7 +183,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
   if (!rows.length) throw new HttpError(404, 'Eligible employee was not found for automatic scheduling.');
 
   const { start } = monthBounds(month);
-  const historyStart = new Date(start.getTime() - 14 * DAY_MS);
+  const historyStart = new Date(start.getTime() - 366 * DAY_MS);
   const [history, allShiftTypes] = await Promise.all([
     client.shiftAssignment.findMany({
       where: { employeeId, workDate: { gte: historyStart, lt: start } },
@@ -193,9 +193,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
     client.shiftType.findMany({ select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } })
   ]);
   const shiftTypeMap = new Map(allShiftTypes.map((st) => [String(st.code).toUpperCase(), st]));
-  const previousMonthLastDate = isoDate(new Date(start.getTime() - DAY_MS));
-  const continuityHistory = history.length && isoDate(history[0].workDate) === previousMonthLastDate ? history : [];
-  const analysis = getPhaseAnalysis(continuityHistory);
+  const analysis = getPhaseAnalysis(history);
 
   const customWarnings = [];
   const offType = shiftTypeMap.get('OFF') || { id: '', code: 'OFF', name: 'วันหยุด', startTime: '00:00', endTime: '00:00', hours: 0, color: '#64748b' };
@@ -269,7 +267,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
     });
   }
 
-  const allWarnings = [...new Set([...plan.warnings.filter((warning) => warning.includes(rows[0]?.employeeName || '')), ...customWarnings])];
+  const allWarnings = [...new Set([...plan.warnings.filter((warning) => warning.includes(rows[0]?.employeeName || '') && !warning.includes('ไม่พบกะในวันสุดท้ายของเดือนก่อน ใช้ D1 เป็นจุดเริ่มต้น')), ...customWarnings])];
 
   return {
     ...plan,

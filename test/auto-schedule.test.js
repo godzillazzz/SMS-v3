@@ -74,6 +74,16 @@ test('bulk magic-wand does not bridge a stale history gap across the previous-mo
   assert.deepEqual(plan.rows.filter((row) => row.employeeId === 'worker').slice(0, 7).map((row) => row.code), ['D', 'D', 'D', 'D', 'D', 'D', 'OFF']);
   assert.ok(plan.warnings.some((warning) => warning.includes('Sample Worker') && warning.includes('D1')));
 });
+test('individual magic-wand keeps its original history analysis even when the previous-month final day is missing', async () => {
+  const history = [
+    { employeeId: 'worker', workDate: new Date('2026-06-29T00:00:00Z'), shiftType: { code: 'N' } },
+    { employeeId: 'worker', workDate: new Date('2026-06-28T00:00:00Z'), shiftType: { code: 'N' } }
+  ];
+  const plan = await buildEmployeeAutoSchedulePlan(client({ history }), '2026-07', 'worker', 'AUTO', 'ROTATE');
+  assert.equal(plan.analysis.code, 'N3');
+  assert.deepEqual(plan.rows.slice(0, 5).map((row) => row.code), ['N', 'N', 'N', 'N', 'OFF']);
+  assert.ok(!plan.warnings.some((warning) => warning.includes('ไม่พบกะในวันสุดท้ายของเดือนก่อน')));
+});
 test('individual magic-wand plan writes only the selected employee six-on/one-off rotation', async () => {
   const plan = await buildEmployeeAutoSchedulePlan(client(), '2026-07', 'worker');
   assert.equal(plan.summary.employees, 1);
