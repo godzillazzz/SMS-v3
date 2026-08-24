@@ -107,3 +107,11 @@ test('Phase 3B core service remains provider-neutral while the AWS PoC adapter i
   assert.doesNotMatch(provider, /OutputConfig|S3Bucket|S3KeyPrefix/);
   assert.ok(fs.existsSync(path.join(root, 'src/routes/face-verification.routes.js')));
 });
+
+test('receipt consumer exposes a caller-transaction path for atomic Attendance event acceptance', () => {
+  const service = read('src/services/face-verification-session.service.js');
+  assert.match(service, /consumeReceiptInTransaction/);
+  assert.match(service, /consumeReceiptWithClient/);
+  assert.match(service, /VERIFICATION_TRANSACTION_REQUIRED/);
+  assert.match(service, /return \{ createSession, verifyDeviceProof, bindProviderSession, recordTrustedProviderResult, consumeReceipt, consumeReceiptInTransaction, failSession \}/);
+});

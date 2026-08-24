@@ -181,36 +181,55 @@ function createFaceVerificationSessionService({ prisma = prismaDefault, audit = 
     } catch (error) { if (error?.details?.code === 'VERIFICATION_STALE') await failSession(sessionId, 'VERIFICATION_STALE').catch(() => {}); throw mapConflict(error); }
   }
 
-  async function consumeReceipt({ receipt, expected }) {
-    const now = clock(); const secret = String(receipt || ''); if (secret.length < 32 || secret.length > 512) throw http(400, 'VERIFICATION_RECEIPT_INVALID', 'Verification receipt is invalid.');
-    const e = expected || {}; const purpose = String(e.purpose || ''); if (!PURPOSES.has(purpose)) throw http(400, 'FACE_VERIFICATION_PURPOSE_INVALID', 'Unsupported face verification purpose.');
+  async function consumeReceiptWithClient(client, { receipt, expected, now = clock() }) {
+    const secret = String(receipt || '');
+    if (secret.length < 32 || secret.length > 512) throw http(400, 'VERIFICATION_RECEIPT_INVALID', 'Verification receipt is invalid.');
+    const e = expected || {};
+    const purpose = String(e.purpose || '');
+    if (!PURPOSES.has(purpose)) throw http(400, 'FACE_VERIFICATION_PURPOSE_INVALID', 'Unsupported face verification purpose.');
     const context = digest64(e.contextDigest);
     const hashedReceipt = receiptHash(secret);
-    const receiptSnapshot = await prisma.faceVerificationReceipt.findUnique({ where: { receiptHash: hashedReceipt }, select: { sessionId: true } });
-    try {
-      return await prisma.$transaction(async (tx) => {
-        const row = await tx.faceVerificationReceipt.findUnique({ where: { receiptHash: hashedReceipt }, include: { session: true } });
-        if (!row) throw http(404, 'VERIFICATION_RECEIPT_INVALID', 'Verification receipt is invalid.');
-        if (row.consumedAt) throw http(409, 'VERIFICATION_REPLAYED', 'Verification receipt was already consumed.');
-        if (row.expiresAt <= now || row.session.expiresAt <= now) throw http(410, 'VERIFICATION_EXPIRED', 'Verification receipt expired.');
-        if (row.session.status !== 'VERIFIED') throw http(409, 'VERIFICATION_RECEIPT_INVALID', 'Verification receipt is not actionable.');
-        const bindingMatch = row.employeeId === e.employeeId && row.userId === e.userId && row.deviceEnrollmentId === e.deviceEnrollmentId && row.referencePhotoId === e.referencePhotoId && row.purpose === purpose && row.contextDigest === context;
-        if (!bindingMatch) throw http(409, 'VERIFICATION_CONTEXT_MISMATCH', 'Verification receipt does not match the Attendance context.');
-        const user = await tx.user.findUnique({ where: { id: row.userId }, select: { id: true, employeeId: true, isActive: true, accountStatus: true, employee: { select: { id: true, isActive: true, deletedAt: true } } } });
-        if (!user?.isActive || user.accountStatus !== 'ACTIVE' || user.employeeId !== row.employeeId || !user.employee?.isActive || user.employee.deletedAt) throw http(409, 'VERIFICATION_STALE', 'Employee authority changed before Attendance acceptance.');
-        const binding = await exactActiveBinding(tx, row.employeeId);
-        if (binding.device.id !== row.deviceEnrollmentId || binding.device.credentialFingerprint !== row.deviceCredentialFingerprint || binding.referencePhoto.id !== row.referencePhotoId || binding.referencePhoto.checksum !== row.referencePhotoChecksum) throw http(409, 'VERIFICATION_STALE', 'Device or Reference Photo authority changed before Attendance acceptance.');
-        const claimed = await tx.faceVerificationReceipt.updateMany({ where: { id: row.id, consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
-        if (claimed.count !== 1) throw http(409, 'VERIFICATION_REPLAYED', 'Verification receipt was already consumed.');
-        const sessionClaimed = await tx.faceVerificationSession.updateMany({ where: { id: row.sessionId, status: 'VERIFIED' }, data: { status: 'CONSUMED' } });
-        if (sessionClaimed.count !== 1) throw http(409, 'VERIFICATION_REPLAYED', 'Verification session was already consumed.');
-        await audit.log({ actorUserId: row.userId, action: 'UPDATE', entityType: 'FaceVerificationSession', entityId: row.sessionId, metadata: { event: 'VERIFICATION_RECEIPT_CONSUMED', employeeId: row.employeeId, deviceEnrollmentId: row.deviceEnrollmentId, referencePhotoId: row.referencePhotoId, purpose: row.purpose, contextDigest: row.contextDigest } }, tx);
-        return { sessionId: row.sessionId, employeeId: row.employeeId, userId: row.userId, deviceEnrollmentId: row.deviceEnrollmentId, referencePhotoId: row.referencePhotoId, purpose: row.purpose, contextDigest: row.contextDigest, verifiedAt: row.session.verifiedAt, consumedAt: now, provider: row.session.provider, policyProfileId: row.session.providerPolicyProfileId, engineVersion: row.session.providerEngineVersion };
-      });
-    } catch (error) { if (error?.details?.code === 'VERIFICATION_STALE' && receiptSnapshot?.sessionId) await failSession(receiptSnapshot.sessionId, 'VERIFICATION_STALE').catch(() => {}); throw mapConflict(error); }
+    const row = await client.faceVerificationReceipt.findUnique({ where: { receiptHash: hashedReceipt }, include: { session: true } });
+    if (!row) throw http(404, 'VERIFICATION_RECEIPT_INVALID', 'Verification receipt is invalid.');
+    if (row.consumedAt) throw http(409, 'VERIFICATION_REPLAYED', 'Verification receipt was already consumed.');
+    if (row.expiresAt <= now || row.session.expiresAt <= now) throw http(410, 'VERIFICATION_EXPIRED', 'Verification receipt expired.');
+    if (row.session.status !== 'VERIFIED') throw http(409, 'VERIFICATION_RECEIPT_INVALID', 'Verification receipt is not actionable.');
+    const bindingMatch = row.employeeId === e.employeeId
+      && row.userId === e.userId
+      && row.deviceEnrollmentId === e.deviceEnrollmentId
+      && row.referencePhotoId === e.referencePhotoId
+      && row.purpose === purpose
+      && row.contextDigest === context;
+    if (!bindingMatch) throw http(409, 'VERIFICATION_CONTEXT_MISMATCH', 'Verification receipt does not match the Attendance context.');
+    const user = await client.user.findUnique({ where: { id: row.userId }, select: { id: true, employeeId: true, isActive: true, accountStatus: true, employee: { select: { id: true, isActive: true, deletedAt: true } } } });
+    if (!user?.isActive || user.accountStatus !== 'ACTIVE' || user.employeeId !== row.employeeId || !user.employee?.isActive || user.employee.deletedAt) throw http(409, 'VERIFICATION_STALE', 'Employee authority changed before Attendance acceptance.');
+    const binding = await exactActiveBinding(client, row.employeeId);
+    if (binding.device.id !== row.deviceEnrollmentId || binding.device.credentialFingerprint !== row.deviceCredentialFingerprint || binding.referencePhoto.id !== row.referencePhotoId || binding.referencePhoto.checksum !== row.referencePhotoChecksum) throw http(409, 'VERIFICATION_STALE', 'Device or Reference Photo authority changed before Attendance acceptance.');
+    const claimed = await client.faceVerificationReceipt.updateMany({ where: { id: row.id, consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
+    if (claimed.count !== 1) throw http(409, 'VERIFICATION_REPLAYED', 'Verification receipt was already consumed.');
+    const sessionClaimed = await client.faceVerificationSession.updateMany({ where: { id: row.sessionId, status: 'VERIFIED' }, data: { status: 'CONSUMED' } });
+    if (sessionClaimed.count !== 1) throw http(409, 'VERIFICATION_REPLAYED', 'Verification session was already consumed.');
+    await audit.log({ actorUserId: row.userId, action: 'UPDATE', entityType: 'FaceVerificationSession', entityId: row.sessionId, metadata: { event: 'VERIFICATION_RECEIPT_CONSUMED', employeeId: row.employeeId, deviceEnrollmentId: row.deviceEnrollmentId, referencePhotoId: row.referencePhotoId, purpose: row.purpose, contextDigest: row.contextDigest } }, client);
+    return { sessionId: row.sessionId, employeeId: row.employeeId, userId: row.userId, deviceEnrollmentId: row.deviceEnrollmentId, referencePhotoId: row.referencePhotoId, purpose: row.purpose, contextDigest: row.contextDigest, verifiedAt: row.session.verifiedAt, consumedAt: now, provider: row.session.provider, policyProfileId: row.session.providerPolicyProfileId, engineVersion: row.session.providerEngineVersion };
   }
 
-  return { createSession, verifyDeviceProof, bindProviderSession, recordTrustedProviderResult, consumeReceipt, failSession };
+  async function consumeReceiptInTransaction({ tx, receipt, expected }) {
+    if (!tx) throw http(500, 'VERIFICATION_TRANSACTION_REQUIRED', 'Verification receipt consumption requires an existing transaction.');
+    return consumeReceiptWithClient(tx, { receipt, expected, now: clock() });
+  }
+
+  async function consumeReceipt({ receipt, expected }) {
+    const hashedReceipt = receiptHash(String(receipt || ''));
+    const receiptSnapshot = await prisma.faceVerificationReceipt.findUnique({ where: { receiptHash: hashedReceipt }, select: { sessionId: true } }).catch(() => null);
+    try {
+      return await prisma.$transaction(async (tx) => consumeReceiptWithClient(tx, { receipt, expected, now: clock() }));
+    } catch (error) {
+      if (error?.details?.code === 'VERIFICATION_STALE' && receiptSnapshot?.sessionId) await failSession(receiptSnapshot.sessionId, 'VERIFICATION_STALE').catch(() => {});
+      throw mapConflict(error);
+    }
+  }
+
+  return { createSession, verifyDeviceProof, bindProviderSession, recordTrustedProviderResult, consumeReceipt, consumeReceiptInTransaction, failSession };
 }
 
 module.exports = { PURPOSES, ACTIVE_SESSION_STATUSES, SESSION_TTL_MS, RECEIPT_TTL_MS, challengeHash, receiptHash, providerRefHash, createFaceVerificationSessionService };
