@@ -115,22 +115,24 @@ test('every defined readiness state is non-authoritative for Attendance acceptan
   }
 });
 
-test('readiness mapper is internal/provider-neutral and no route or frontend surface imports it', () => {
+test('readiness mapper stays internal/provider-neutral while frontend only renders server outcomes', () => {
   const source = read('src/services/attendance-readiness-state.service.js');
   const doc = read('docs/G06_ATTENDANCE_READINESS_UX_CONTRACT.md');
   const routes = fs.readdirSync(path.join(root, 'src', 'routes'))
     .filter((name) => name.endsWith('.js'))
     .map((name) => read(path.join('src', 'routes', name)))
     .join('\n');
-  const frontend = fs.readdirSync(path.join(root, 'frontend', 'src'))
-    .filter((name) => name.endsWith('.ts') || name.endsWith('.tsx'))
-    .map((name) => read(path.join('frontend', 'src', name)))
-    .join('\n');
+  const frontend = [
+    read('frontend/src/main.tsx'),
+    read('frontend/src/pages/attendance/AttendancePage.tsx'),
+    read('frontend/src/pages/attendance/attendance-client.ts')
+  ].join('\n');
 
   assert.doesNotMatch(source, /process\.env|AWS_|Rekognition|CreateFaceLivenessSession|CompareFaces|fetch\(|axios|http:\/\/|https:\/\//i);
   assert.doesNotMatch(source, /padPassed|faceMatchPassed|injectionRiskDetected|receiptHash|receipt\s*=/i);
   assert.doesNotMatch(routes, /attendance-readiness-state\.service/);
-  assert.doesNotMatch(frontend, /attendance-readiness-state|READY_TO_START_VERIFICATION|BIOMETRIC_RUNTIME_DISABLED/);
+  assert.doesNotMatch(frontend, /attendance-readiness-state/);
+  assert.doesNotMatch(frontend, /attendanceAccepted\s*[:=]\s*true|padPassed|faceMatchPassed|receiptHash/);
   assert.match(doc, /always returns `attendanceAccepted: false`/);
   assert.match(doc, /No frontend\/page\/API route is introduced by this checkpoint/);
 });

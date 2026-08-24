@@ -186,6 +186,7 @@ test('Attendance API contract remains provider-neutral after gated route skeleto
     .filter((name) => name.endsWith('.ts') || name.endsWith('.tsx'))
     .map((name) => read(path.join('frontend', 'src', name)))
     .join('\n');
+  const attendanceClient = read('frontend/src/pages/attendance/attendance-client.ts');
 
   assert.doesNotMatch(service, /process\.env|AWS_|Rekognition|CreateFaceLivenessSession|CompareFaces|fetch\(|axios|https?:\/\//i);
   assert.doesNotMatch(service, /padPassed|faceMatchPassed|injectionRiskDetected|contextDigest\s*:/i);
@@ -195,5 +196,7 @@ test('Attendance API contract remains provider-neutral after gated route skeleto
   assert.match(route, /const prepareInput = z\.object\(\{\s*captureId: uuid,\s*attendanceEvidence: attendanceEvidenceInput\s*\}\)\.strict\(\)/);
   assert.match(service, /resolveServerIntent/);
   assert.match(index, /router\.use\('\/attendance', attendanceRoutes\)/);
-  assert.doesNotMatch(frontend, /attendance-api-contract|\/attendance\/readiness|\/attendance\/verification\/start|\/attendance\/events/);
+  assert.doesNotMatch(frontend, /attendance-api-contract/);
+  assert.match(attendanceClient, /\/attendance\/readiness/);
+  assert.doesNotMatch(attendanceClient, /\/attendance\/verification\/start|\/attendance\/events|padPassed|faceMatchPassed|receipt/);
 });
