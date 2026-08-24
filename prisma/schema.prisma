@@ -635,6 +635,39 @@ model EmployeeChangeRequestEvent {
   @@map("employee_change_request_events")
 }
 
+model SecuritySite {
+  id                   String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                 String                     @unique @db.VarChar(50)
+  name                 String                     @db.VarChar(150)
+  latitude             Decimal                    @db.Decimal(10, 7)
+  longitude            Decimal                    @db.Decimal(10, 7)
+  geofenceRadiusMeters Int                        @map("geofence_radius_meters")
+  isActive             Boolean                    @default(true) @map("is_active")
+  createdAt            DateTime                   @default(now()) @map("created_at")
+  updatedAt            DateTime                   @updatedAt @map("updated_at")
+  shiftAssignments     ShiftAssignment[]
+  qrCredentials        SecuritySiteQrCredential[]
+
+  @@index([isActive, code])
+  @@map("security_sites")
+}
+
+model SecuritySiteQrCredential {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  securitySiteId String       @map("security_site_id") @db.Uuid
+  tokenHash      String       @unique @map("token_hash") @db.Char(64)
+  version        Int
+  validFrom      DateTime     @default(now()) @map("valid_from")
+  validUntil     DateTime?    @map("valid_until")
+  revokedAt      DateTime?    @map("revoked_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  securitySite   SecuritySite @relation(fields: [securitySiteId], references: [id], onDelete: Restrict)
+
+  @@unique([securitySiteId, version])
+  @@index([securitySiteId, revokedAt, validFrom, validUntil])
+  @@map("security_site_qr_credentials")
+}
+
 model ShiftType {
   id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code             String            @unique @db.VarChar(50)
@@ -654,6 +687,7 @@ model ShiftAssignment {
   id                            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   employeeId                    String    @map("employee_id") @db.Uuid
   shiftTypeId                   String    @map("shift_type_id") @db.Uuid
+  securitySiteId                String?   @map("security_site_id") @db.Uuid
   workDate                      DateTime  @map("work_date") @db.Date
   employeeNameSnapshot          String    @map("employee_name_snapshot") @db.VarChar(255)
   departmentSnapshot            String?   @map("department_snapshot") @db.VarChar(100)
@@ -679,9 +713,11 @@ model ShiftAssignment {
   employee                      Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   shiftType                     ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
 
+  securitySite                  SecuritySite? @relation(fields: [securitySiteId], references: [id], onDelete: SetNull)
   @@unique([workDate, employeeId])
   @@index([employeeId, workDate])
   @@index([shiftTypeId, workDate])
+  @@index([securitySiteId, workDate])
   @@map("shift_assignments")
 }
 

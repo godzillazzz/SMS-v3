@@ -1,0 +1,294 @@
+'use strict';
+
+const crypto = require('node:crypto');
+const prismaDefault = require('../config/prisma');
+const HttpError = require('../utils/http-error');
+
+const SITE_BINDING_VERSION = 'ATTENDANCE_SITE_AUTHORITY_V1';
+const QR_BINDING_VERSION = 'ATTENDANCE_QR_AUTHORITY_V1';
+const LOCATION_BINDING_VERSION = 'ATTENDANCE_LOCATION_AUTHORITY_V1';
+const MAX_LOCATION_ACCURACY_METERS = 50;
+const LOCATION_MAX_AGE_MS = 3 * 60 * 1000;
+const LOCATION_FUTURE_SKEW_MS = 30 * 1000;
+const QR_TOKEN_MIN_LENGTH = 24;
+const QR_TOKEN_MAX_LENGTH = 512;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DIGEST_RE = /^[0-9a-f]{64}$/;
+
+function http(statusCode, code, message) {
+  return new HttpError(statusCode, message, { code });
+}
+
+function sha256(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function canonicalize(value) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw http(400, 'ATTENDANCE_EVIDENCE_INVALID', 'Attendance evidence contains an invalid number.');
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (typeof value === 'object') {
+    const out = {};
+    for (const key of Object.keys(value).sort()) {
+      if (value[key] === undefined) continue;
+      out[key] = canonicalize(value[key]);
+    }
+    return out;
+  }
+  throw http(400, 'ATTENDANCE_EVIDENCE_INVALID', 'Attendance evidence contains an unsupported value.');
+}
+
+function bindingDigest(payload) {
+  return sha256(Buffer.from(JSON.stringify(canonicalize(payload)), 'utf8'));
+}
+
+function normalizedUuid(value, code) {
+  const text = String(value || '').trim().toLowerCase();
+  if (!UUID_RE.test(text)) throw http(400, code, 'A valid UUID is required.');
+  return text;
+}
+
+function finiteNumber(value, code, message) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw http(400, code, message);
+  return number;
+}
+
+function coordinate(value, min, max, code, message) {
+  const number = finiteNumber(value, code, message);
+  if (number < min || number > max) throw http(400, code, message);
+  return number;
+}
+
+function decimal7(value) {
+  return Number(value).toFixed(7);
+}
+
+function decimal2(value) {
+  return Number(value).toFixed(2);
+}
+
+function tokenHash(token) {
+  const text = String(token || '').trim();
+  if (text.length < QR_TOKEN_MIN_LENGTH || text.length > QR_TOKEN_MAX_LENGTH) {
+    throw http(400, 'ATTENDANCE_QR_INVALID', 'Attendance QR proof is invalid.');
+  }
+  return sha256(Buffer.from(text, 'utf8'));
+}
+
+function parseCapturedAt(value) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) throw http(400, 'ATTENDANCE_LOCATION_CAPTURED_AT_INVALID', 'A valid location capture time is required.');
+  return date;
+}
+
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const radius = 6371008.8;
+  const toRadians = (degrees) => degrees * Math.PI / 180;
+  const phi1 = toRadians(lat1);
+  const phi2 = toRadians(lat2);
+  const deltaPhi = toRadians(lat2 - lat1);
+  const deltaLambda = toRadians(lon2 - lon1);
+  const a = Math.sin(deltaPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
+  return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function assertSite(site) {
+  if (!site) throw http(409, 'ATTENDANCE_SITE_REQUIRED', 'An authoritative Security Site is required for Attendance.');
+  if (site.isActive !== true) throw http(409, 'ATTENDANCE_SITE_INACTIVE', 'The assigned Security Site is inactive.');
+  const latitude = coordinate(site.latitude, -90, 90, 'ATTENDANCE_SITE_INVALID', 'Security Site latitude is invalid.');
+  const longitude = coordinate(site.longitude, -180, 180, 'ATTENDANCE_SITE_INVALID', 'Security Site longitude is invalid.');
+  const geofenceRadiusMeters = finiteNumber(site.geofenceRadiusMeters, 'ATTENDANCE_SITE_INVALID', 'Security Site geofence is invalid.');
+  if (!Number.isInteger(geofenceRadiusMeters) || geofenceRadiusMeters <= 0) throw http(409, 'ATTENDANCE_SITE_INVALID', 'Security Site geofence is invalid.');
+  return { ...site, latitude, longitude, geofenceRadiusMeters };
+}
+
+function sitePayload(site) {
+  return {
+    version: SITE_BINDING_VERSION,
+    siteId: site.id,
+    code: String(site.code || ''),
+    latitude: decimal7(site.latitude),
+    longitude: decimal7(site.longitude),
+    geofenceRadiusMeters: site.geofenceRadiusMeters,
+    isActive: true
+  };
+}
+
+function assertQrCredential(credential, siteId, now) {
+  if (!credential || credential.securitySiteId !== siteId) throw http(400, 'ATTENDANCE_QR_INVALID', 'Attendance QR proof is invalid for the assigned Security Site.');
+  if (!DIGEST_RE.test(String(credential.tokenHash || ''))) throw http(409, 'ATTENDANCE_QR_AUTHORITY_INVALID', 'Attendance QR authority is inconsistent.');
+  if (credential.revokedAt) throw http(409, 'ATTENDANCE_QR_REVOKED', 'Attendance QR authority has been revoked.');
+  if (credential.validFrom && new Date(credential.validFrom) > now) throw http(409, 'ATTENDANCE_QR_NOT_ACTIVE', 'Attendance QR authority is not active yet.');
+  if (credential.validUntil && new Date(credential.validUntil) <= now) throw http(410, 'ATTENDANCE_QR_EXPIRED', 'Attendance QR authority has expired.');
+  if (!Number.isInteger(credential.version) || credential.version <= 0) throw http(409, 'ATTENDANCE_QR_AUTHORITY_INVALID', 'Attendance QR authority is inconsistent.');
+  return credential;
+}
+
+function qrPayload(credential) {
+  return {
+    version: QR_BINDING_VERSION,
+    siteId: credential.securitySiteId,
+    credentialId: credential.id,
+    credentialVersion: credential.version,
+    tokenHash: credential.tokenHash,
+    validFrom: credential.validFrom ? new Date(credential.validFrom).toISOString() : null,
+    validUntil: credential.validUntil ? new Date(credential.validUntil).toISOString() : null
+  };
+}
+
+function normalizeLocation(location, now, {
+  maxAccuracyMeters = MAX_LOCATION_ACCURACY_METERS,
+  maxAgeMs = LOCATION_MAX_AGE_MS,
+  futureSkewMs = LOCATION_FUTURE_SKEW_MS
+} = {}) {
+  const latitude = coordinate(location?.latitude, -90, 90, 'ATTENDANCE_LOCATION_INVALID', 'Attendance location latitude is invalid.');
+  const longitude = coordinate(location?.longitude, -180, 180, 'ATTENDANCE_LOCATION_INVALID', 'Attendance location longitude is invalid.');
+  const accuracyMeters = finiteNumber(location?.accuracyMeters, 'ATTENDANCE_LOCATION_ACCURACY_INVALID', 'Attendance location accuracy is invalid.');
+  if (accuracyMeters <= 0 || accuracyMeters > maxAccuracyMeters) {
+    throw http(409, 'ATTENDANCE_LOCATION_ACCURACY_INSUFFICIENT', 'Attendance location accuracy is not sufficient for verification.');
+  }
+  const capturedAt = parseCapturedAt(location?.capturedAt);
+  const ageMs = now.getTime() - capturedAt.getTime();
+  if (ageMs > maxAgeMs) throw http(410, 'ATTENDANCE_LOCATION_STALE', 'Attendance location sample is too old.');
+  if (ageMs < -futureSkewMs) throw http(400, 'ATTENDANCE_LOCATION_FROM_FUTURE', 'Attendance location sample time is invalid.');
+  return { latitude, longitude, accuracyMeters, capturedAt };
+}
+
+function validateLocationAgainstSite(site, sample, policy) {
+  const distanceMeters = haversineMeters(site.latitude, site.longitude, sample.latitude, sample.longitude);
+  if (distanceMeters + sample.accuracyMeters > site.geofenceRadiusMeters) {
+    throw http(409, 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE', 'Attendance location is outside the assigned Security Site geofence.');
+  }
+  return {
+    distanceMeters,
+    payload: {
+      version: LOCATION_BINDING_VERSION,
+      siteId: site.id,
+      latitude: decimal7(sample.latitude),
+      longitude: decimal7(sample.longitude),
+      accuracyMeters: decimal2(sample.accuracyMeters),
+      capturedAt: sample.capturedAt.toISOString(),
+      policy: {
+        maxAccuracyMeters: policy.maxAccuracyMeters,
+        maxAgeMs: policy.maxAgeMs,
+        futureSkewMs: policy.futureSkewMs,
+        containment: 'DISTANCE_PLUS_ACCURACY_LTE_RADIUS'
+      }
+    }
+  };
+}
+
+function createAttendanceSiteEvidenceService({
+  prisma = prismaDefault,
+  clock = () => new Date(),
+  maxLocationAccuracyMeters = MAX_LOCATION_ACCURACY_METERS,
+  locationMaxAgeMs = LOCATION_MAX_AGE_MS,
+  locationFutureSkewMs = LOCATION_FUTURE_SKEW_MS
+} = {}) {
+  const policy = {
+    maxAccuracyMeters: maxLocationAccuracyMeters,
+    maxAgeMs: locationMaxAgeMs,
+    futureSkewMs: locationFutureSkewMs
+  };
+
+  async function loadSite(client, siteId) {
+    const id = normalizedUuid(siteId, 'ATTENDANCE_SITE_INVALID');
+    return assertSite(await client.securitySite.findUnique({ where: { id } }));
+  }
+
+  async function validateQrToken(client, site, qrToken, now) {
+    const hash = tokenHash(qrToken);
+    const credential = assertQrCredential(await client.securitySiteQrCredential.findUnique({ where: { tokenHash: hash } }), site.id, now);
+    return { credential, digest: bindingDigest(qrPayload(credential)) };
+  }
+
+  async function revalidateQrCredential(client, site, credentialId, now) {
+    const id = normalizedUuid(credentialId, 'ATTENDANCE_QR_CREDENTIAL_INVALID');
+    const credential = assertQrCredential(await client.securitySiteQrCredential.findUnique({ where: { id } }), site.id, now);
+    return { credential, digest: bindingDigest(qrPayload(credential)) };
+  }
+
+  function validateLocation(site, location, now) {
+    const sample = normalizeLocation(location, now, policy);
+    const checked = validateLocationAgainstSite(site, sample, policy);
+    return {
+      sample,
+      distanceMeters: checked.distanceMeters,
+      digest: bindingDigest(checked.payload)
+    };
+  }
+
+  async function validateForAssignment({ assignment, qrToken, location }, client = prisma) {
+    if (!assignment?.securitySiteId) throw http(409, 'ATTENDANCE_SITE_REQUIRED', 'The Shift Assignment does not have an authoritative Security Site.');
+    const now = clock();
+    const site = await loadSite(client, assignment.securitySiteId);
+    const qr = await validateQrToken(client, site, qrToken, now);
+    const gps = validateLocation(site, location, now);
+    return {
+      siteBindingDigest: bindingDigest(sitePayload(site)),
+      qrBindingDigest: qr.digest,
+      locationBindingDigest: gps.digest,
+      evidenceRef: {
+        siteId: site.id,
+        qrCredentialId: qr.credential.id,
+        location: {
+          latitude: decimal7(gps.sample.latitude),
+          longitude: decimal7(gps.sample.longitude),
+          accuracyMeters: decimal2(gps.sample.accuracyMeters),
+          capturedAt: gps.sample.capturedAt.toISOString()
+        }
+      },
+      decision: {
+        siteId: site.id,
+        insideGeofence: true,
+        distanceMeters: Number(gps.distanceMeters.toFixed(2))
+      }
+    };
+  }
+
+  async function revalidateRef({ ref }, client = prisma) {
+    const now = clock();
+    const site = await loadSite(client, ref?.siteId);
+    const qr = await revalidateQrCredential(client, site, ref?.qrCredentialId, now);
+    const gps = validateLocation(site, ref?.location, now);
+    return {
+      siteBindingDigest: bindingDigest(sitePayload(site)),
+      qrBindingDigest: qr.digest,
+      locationBindingDigest: gps.digest,
+      evidenceRef: {
+        siteId: site.id,
+        qrCredentialId: qr.credential.id,
+        location: {
+          latitude: decimal7(gps.sample.latitude),
+          longitude: decimal7(gps.sample.longitude),
+          accuracyMeters: decimal2(gps.sample.accuracyMeters),
+          capturedAt: gps.sample.capturedAt.toISOString()
+        }
+      },
+      decision: {
+        siteId: site.id,
+        insideGeofence: true,
+        distanceMeters: Number(gps.distanceMeters.toFixed(2))
+      }
+    };
+  }
+
+  return { validateForAssignment, revalidateRef };
+}
+
+module.exports = {
+  SITE_BINDING_VERSION,
+  QR_BINDING_VERSION,
+  LOCATION_BINDING_VERSION,
+  MAX_LOCATION_ACCURACY_METERS,
+  LOCATION_MAX_AGE_MS,
+  LOCATION_FUTURE_SKEW_MS,
+  tokenHash,
+  haversineMeters,
+  bindingDigest,
+  createAttendanceSiteEvidenceService
+};

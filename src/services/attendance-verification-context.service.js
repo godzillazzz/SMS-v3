@@ -4,12 +4,12 @@ const crypto = require('node:crypto');
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
+const { createAttendanceSiteEvidenceService } = require('./attendance-site-evidence.service');
 
 const CONTEXT_VERSION = 'ATTENDANCE_FACE_CONTEXT_V1';
 const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
 const EVENT_INTENTS = new Set(['CHECK_IN', 'CHECK_OUT']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const DIGEST_RE = /^[0-9a-f]{64}$/;
 
 function http(statusCode, code, message) {
   return new HttpError(statusCode, message, { code });
@@ -22,12 +22,6 @@ function sha256(value) {
 function normalizedUuid(value, code) {
   const text = String(value || '').trim().toLowerCase();
   if (!UUID_RE.test(text)) throw http(400, code, 'A valid UUID is required.');
-  return text;
-}
-
-function normalizedDigest(value, code) {
-  const text = String(value || '').trim().toLowerCase();
-  if (!DIGEST_RE.test(text)) throw http(400, code, 'A SHA-256 validation digest is required.');
   return text;
 }
 
@@ -109,15 +103,6 @@ function actionableAssignment(assignment) {
   return Boolean(assignment && assignment.locked === true && !['OFF', 'AL'].includes(code) && timeMinutes(startTime) !== null && timeMinutes(endTime) !== null);
 }
 
-function evidenceDigests(validatedEvidence) {
-  const input = validatedEvidence || {};
-  return {
-    siteBindingDigest: normalizedDigest(input.siteBindingDigest, 'ATTENDANCE_SITE_VALIDATION_REQUIRED'),
-    qrBindingDigest: normalizedDigest(input.qrBindingDigest, 'ATTENDANCE_QR_VALIDATION_REQUIRED'),
-    locationBindingDigest: normalizedDigest(input.locationBindingDigest, 'ATTENDANCE_LOCATION_VALIDATION_REQUIRED')
-  };
-}
-
 function scheduleMonth(workDate) {
   return new Date(`${workDate.slice(0, 7)}-01T00:00:00.000Z`);
 }
@@ -125,9 +110,11 @@ function scheduleMonth(workDate) {
 function createAttendanceVerificationContextService({
   prisma = prismaDefault,
   faceSessionService = null,
+  siteEvidenceService = null,
   clock = () => new Date()
 } = {}) {
   const face = faceSessionService || createFaceVerificationSessionService({ prisma, clock });
+  const siteEvidence = siteEvidenceService || createAttendanceSiteEvidenceService({ prisma, clock });
 
   async function resolveIdentity(client, actor) {
     const user = await client.user.findUnique({
@@ -177,7 +164,7 @@ function createAttendanceVerificationContextService({
         employeeId,
         workDate: { in: [new Date(`${yesterday}T00:00:00.000Z`), new Date(`${local.date}T00:00:00.000Z`)] }
       },
-      include: { shiftType: true },
+      include: { shiftType: true, securitySite: true },
       orderBy: { workDate: 'asc' }
     });
     const byDate = new Map(rows.map((row) => [workDateText(row.workDate), row]));
@@ -193,7 +180,7 @@ function createAttendanceVerificationContextService({
 
   async function loadExactAssignment(client, employeeId, shiftAssignmentId) {
     const id = normalizedUuid(shiftAssignmentId, 'ATTENDANCE_SHIFT_ASSIGNMENT_INVALID');
-    const assignment = await client.shiftAssignment.findUnique({ where: { id }, include: { shiftType: true } });
+    const assignment = await client.shiftAssignment.findUnique({ where: { id }, include: { shiftType: true, securitySite: true } });
     if (!assignment || assignment.employeeId !== employeeId) throw http(409, 'ATTENDANCE_ASSIGNMENT_STALE', 'Attendance Shift Assignment changed or is no longer authoritative.');
     return assignment;
   }
@@ -233,36 +220,36 @@ function createAttendanceVerificationContextService({
     };
   }
 
-  function contextRef({ captureId, eventIntent, assignment, evidence }) {
+  function contextRef({ captureId, eventIntent, assignment, evidenceRef }) {
     return {
       captureId,
       eventIntent,
       shiftAssignmentId: assignment.id,
-      siteBindingDigest: evidence.siteBindingDigest,
-      qrBindingDigest: evidence.qrBindingDigest,
-      locationBindingDigest: evidence.locationBindingDigest
+      evidence: evidenceRef
     };
   }
 
-  async function prepareContext({ actor, captureId, eventIntent, validatedEvidence }, client = prisma) {
+  async function prepareContext({ actor, captureId, eventIntent, attendanceEvidence }, client = prisma) {
     const normalizedCaptureId = normalizedUuid(captureId, 'ATTENDANCE_CAPTURE_ID_INVALID');
     const action = String(eventIntent || '').trim().toUpperCase();
     if (!EVENT_INTENTS.has(action)) throw http(400, 'ATTENDANCE_EVENT_INTENT_INVALID', 'Attendance event intent must be CHECK_IN or CHECK_OUT.');
-    const evidence = evidenceDigests(validatedEvidence);
     const identity = await resolveIdentity(client, actor);
     const binding = await resolveBiometricAuthority(client, identity.employeeId);
     const assignment = await resolveCurrentAssignment(client, identity.employeeId, clock());
     const approval = await requireApprovedSchedule(client, assignment);
+    const validated = await siteEvidence.validateForAssignment({ assignment, qrToken: attendanceEvidence?.qrToken, location: attendanceEvidence?.location }, client);
+    const evidence = { siteBindingDigest: validated.siteBindingDigest, qrBindingDigest: validated.qrBindingDigest, locationBindingDigest: validated.locationBindingDigest };
     const payload = contextPayload({ identity, binding, assignment, approval, captureId: normalizedCaptureId, eventIntent: action, evidence });
     return {
       contextDigest: buildAttendanceContextDigest(payload),
-      contextRef: contextRef({ captureId: normalizedCaptureId, eventIntent: action, assignment, evidence }),
+      contextRef: contextRef({ captureId: normalizedCaptureId, eventIntent: action, assignment, evidenceRef: validated.evidenceRef }),
       authority: {
         userId: identity.userId,
         employeeId: identity.employeeId,
         deviceEnrollmentId: binding.device.id,
         referencePhotoId: binding.referencePhoto.id,
         shiftAssignmentId: assignment.id,
+        securitySiteId: validated.evidenceRef.siteId,
         workDate: workDateText(assignment.workDate)
       }
     };
@@ -272,21 +259,24 @@ function createAttendanceVerificationContextService({
     const captureId = normalizedUuid(ref?.captureId, 'ATTENDANCE_CAPTURE_ID_INVALID');
     const action = String(ref?.eventIntent || '').trim().toUpperCase();
     if (!EVENT_INTENTS.has(action)) throw http(400, 'ATTENDANCE_EVENT_INTENT_INVALID', 'Attendance event intent must be CHECK_IN or CHECK_OUT.');
-    const evidence = evidenceDigests(ref);
     const identity = await resolveIdentity(client, actor);
     const binding = await resolveBiometricAuthority(client, identity.employeeId);
     const assignment = await loadExactAssignment(client, identity.employeeId, ref?.shiftAssignmentId);
     const approval = await requireApprovedSchedule(client, assignment);
+    const validated = await siteEvidence.revalidateRef({ ref: ref?.evidence }, client);
+    if (assignment.securitySiteId !== validated.evidenceRef.siteId) throw http(409, 'ATTENDANCE_SITE_STALE', 'Attendance Security Site authority changed.');
+    const evidence = { siteBindingDigest: validated.siteBindingDigest, qrBindingDigest: validated.qrBindingDigest, locationBindingDigest: validated.locationBindingDigest };
     const payload = contextPayload({ identity, binding, assignment, approval, captureId, eventIntent: action, evidence });
     return {
       contextDigest: buildAttendanceContextDigest(payload),
-      contextRef: contextRef({ captureId, eventIntent: action, assignment, evidence }),
+      contextRef: contextRef({ captureId, eventIntent: action, assignment, evidenceRef: validated.evidenceRef }),
       authority: {
         userId: identity.userId,
         employeeId: identity.employeeId,
         deviceEnrollmentId: binding.device.id,
         referencePhotoId: binding.referencePhoto.id,
         shiftAssignmentId: assignment.id,
+        securitySiteId: validated.evidenceRef.siteId,
         workDate: workDateText(assignment.workDate)
       }
     };
