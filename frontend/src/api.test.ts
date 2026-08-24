@@ -155,7 +155,7 @@ describe('API client', () => {
     for (const operation of [
       'createEmployee', 'updateEmployee', 'deleteEmployee',
       'createLicense', 'updateLicense', 'deleteLicense',
-      'createShiftType', 'deleteShiftType',
+      'createShiftType', 'updateShiftType', 'deleteShiftType',
       'createShift', 'updateShift', 'deleteShift',
       'previewAutoSchedule', 'commitAutoSchedule', 'previewEmployeeAutoSchedule', 'commitEmployeeAutoSchedule', 'exportScheduleExcel',
       'updateScheduleApproval', 'updateSchedulingRule', 'updateSystemSetting',
