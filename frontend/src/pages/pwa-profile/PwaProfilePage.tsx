@@ -1,4 +1,5 @@
 import { SmsIcon } from '../../components/SmsIcon';
+import { readSmsPwaDiagnostics } from '../../pwa-diagnostics';
 
 export type PwaProfileUser = {
   displayName?: string;
@@ -20,6 +21,13 @@ function initials(name?: string) {
 }
 
 export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys, onLogout }: Props) {
+  const diagnostics = readSmsPwaDiagnostics();
+  const serviceWorkerLabel = diagnostics.serviceWorkerControlled
+    ? 'ควบคุม PWA แล้ว'
+    : diagnostics.serviceWorkerSupported
+      ? 'รองรับ · รอควบคุม/รีโหลด'
+      : 'ไม่รองรับ';
+
   return <section className="pwa-profile-page" aria-label="โปรไฟล์">
     <header className="pwa-profile-hero">
       <span className="pwa-profile-avatar">{initials(user?.displayName)}</span>
@@ -35,6 +43,18 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
         <div><dt>Role</dt><dd>{user?.role || 'VIEWER'}</dd></div>
         <div><dt>หน่วยงาน</dt><dd>{user?.department || '-'}</dd></div>
         <div><dt>การเชื่อมต่อ</dt><dd className={online ? 'is-online' : 'is-offline'}>{online ? 'ออนไลน์' : 'ออฟไลน์'}</dd></div>
+      </dl>
+    </section>
+
+    <section className="pwa-profile-card" aria-label="PWA diagnostics">
+      <h2>ความพร้อม PWA บนอุปกรณ์</h2>
+      <p>ตรวจเฉพาะ capability และสถานะของเบราว์เซอร์ ไม่ขอสิทธิ์กล้อง/ตำแหน่ง และไม่สร้างหลักฐาน Attendance</p>
+      <dl>
+        <div><dt>โหมดแอป</dt><dd className={diagnostics.standalone ? 'is-online' : ''}>{diagnostics.standalone ? 'ติดตั้ง / Standalone' : 'Browser mode'}</dd></div>
+        <div><dt>Secure context</dt><dd className={diagnostics.secureContext ? 'is-online' : 'is-offline'}>{diagnostics.secureContext ? 'พร้อม' : 'ไม่พร้อม'}</dd></div>
+        <div><dt>กล้อง</dt><dd className={diagnostics.cameraSupported ? 'is-online' : 'is-offline'}>{diagnostics.cameraSupported ? 'รองรับ' : 'ไม่รองรับ'}</dd></div>
+        <div><dt>Location</dt><dd className={diagnostics.locationSupported ? 'is-online' : 'is-offline'}>{diagnostics.locationSupported ? 'รองรับ' : 'ไม่รองรับ'}</dd></div>
+        <div><dt>Service Worker</dt><dd className={diagnostics.serviceWorkerSupported ? 'is-online' : 'is-offline'}>{serviceWorkerLabel}</dd></div>
       </dl>
     </section>
 
