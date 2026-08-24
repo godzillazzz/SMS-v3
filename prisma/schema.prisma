@@ -145,6 +145,24 @@ enum FaceVerificationSessionStatus {
   CONSUMED
 }
 
+enum AttendanceSessionState {
+  OPEN
+  CLOSED
+}
+
+enum AttendanceEventType {
+  CHECK_IN
+  CHECK_OUT
+}
+
+enum AttendanceEventProvenance {
+  ONLINE
+}
+
+enum AttendanceTimeBasis {
+  SERVER_RECEIVED
+}
+
 model User {
   id                                String                            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email                             String                            @unique @db.VarChar(255)
@@ -407,6 +425,7 @@ model Employee {
   referencePhotos             EmployeeReferencePhoto[]
   faceVerificationSessions    FaceVerificationSession[]
   faceVerificationReceipts    FaceVerificationReceipt[]
+  attendanceSessions          AttendanceSession[]
 
   @@index([isActive, deletedAt])
   @@index([department])
@@ -488,6 +507,7 @@ model FaceVerificationSession {
   referencePhoto              EmployeeReferencePhoto        @relation(fields: [referencePhotoId], references: [id], onDelete: Restrict)
   deviceChallenge             AttendanceDeviceChallenge     @relation(fields: [deviceChallengeId], references: [id], onDelete: Restrict)
   receipt                     FaceVerificationReceipt?
+  attendanceEvent             AttendanceEvent?
 
   @@index([employeeId, purpose, status, expiresAt])
   @@index([deviceEnrollmentId, purpose, status, expiresAt])
@@ -522,6 +542,54 @@ model FaceVerificationReceipt {
   @@index([deviceEnrollmentId, purpose, expiresAt, consumedAt])
   @@index([referencePhotoId, issuedAt])
   @@map("face_verification_receipts")
+}
+
+model AttendanceSession {
+  id                     String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId             String                 @map("employee_id") @db.Uuid
+  shiftAssignmentId      String                 @unique @map("shift_assignment_id") @db.Uuid
+  expectedShiftTypeId    String                 @map("expected_shift_type_id") @db.Uuid
+  expectedSiteId         String                 @map("expected_site_id") @db.Uuid
+  workDate               DateTime               @map("work_date") @db.Date
+  expectationSnapshot    Json                   @map("expectation_snapshot")
+  expectationDigest      String                 @map("expectation_digest") @db.Char(64)
+  state                  AttendanceSessionState @default(OPEN)
+  openedAt               DateTime               @default(now()) @map("opened_at")
+  closedAt               DateTime?              @map("closed_at")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+  employee               Employee               @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  shiftAssignment        ShiftAssignment        @relation(fields: [shiftAssignmentId], references: [id], onDelete: Restrict)
+  expectedShiftType      ShiftType              @relation("AttendanceSessionExpectedShiftType", fields: [expectedShiftTypeId], references: [id], onDelete: Restrict)
+  expectedSite           SecuritySite           @relation("AttendanceSessionExpectedSite", fields: [expectedSiteId], references: [id], onDelete: Restrict)
+  events                 AttendanceEvent[]
+
+  @@index([employeeId, workDate])
+  @@index([workDate, state])
+  @@map("attendance_sessions")
+}
+
+model AttendanceEvent {
+  id                        String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId                 String                    @map("session_id") @db.Uuid
+  faceVerificationSessionId String                    @unique @map("face_verification_session_id") @db.Uuid
+  captureId                 String                    @unique @map("capture_id") @db.Uuid
+  eventType                 AttendanceEventType       @map("event_type")
+  provenance                AttendanceEventProvenance @default(ONLINE)
+  receivedAt                DateTime                  @map("received_at")
+  effectiveEventAt          DateTime                  @map("effective_event_at")
+  timeBasis                 AttendanceTimeBasis       @default(SERVER_RECEIVED) @map("time_basis")
+  contextDigest             String                    @map("context_digest") @db.Char(64)
+  locationEvidence          Json                      @map("location_evidence")
+  verificationSnapshot      Json                      @map("verification_snapshot")
+  createdAt                 DateTime                  @default(now()) @map("created_at")
+  session                   AttendanceSession         @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  faceVerificationSession   FaceVerificationSession   @relation(fields: [faceVerificationSessionId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, eventType])
+  @@index([sessionId, effectiveEventAt])
+  @@index([receivedAt])
+  @@map("attendance_events")
 }
 
 model EmployeeLifecycleEvent {
@@ -647,6 +715,7 @@ model SecuritySite {
   updatedAt            DateTime                   @updatedAt @map("updated_at")
   shiftAssignments     ShiftAssignment[]
   qrCredentials        SecuritySiteQrCredential[]
+  attendanceSessions   AttendanceSession[] @relation("AttendanceSessionExpectedSite")
 
   @@index([isActive, code])
   @@map("security_sites")
@@ -679,6 +748,7 @@ model ShiftType {
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @updatedAt @map("updated_at")
   shiftAssignments ShiftAssignment[]
+  attendanceSessions  AttendanceSession[] @relation("AttendanceSessionExpectedShiftType")
 
   @@map("shift_types")
 }
@@ -714,6 +784,7 @@ model ShiftAssignment {
   shiftType                     ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
 
   securitySite                  SecuritySite? @relation(fields: [securitySiteId], references: [id], onDelete: SetNull)
+  attendanceSession             AttendanceSession?
   @@unique([workDate, employeeId])
   @@index([employeeId, workDate])
   @@index([shiftTypeId, workDate])
