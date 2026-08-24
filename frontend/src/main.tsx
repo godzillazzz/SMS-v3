@@ -32,6 +32,9 @@ import { defaultAuditFilters, type AuditFilters } from './components/audit/audit
 import { DataQualityCenterPage, type DataQualityFilters, type DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
 import { AttendanceDevicePage } from './pages/attendance-device/AttendanceDevicePage';
+import { PwaProfilePage } from './pages/pwa-profile/PwaProfilePage';
+import { initialSmsPwaPage, isSmsPwaPage, isSmsPwaShellMode, type SmsPwaPage } from './pwa-mode';
+import { registerSmsPwa } from './pwa';
 import { AttendancePage } from './pages/attendance/AttendancePage';
 import { RegistrationReviewPanel } from './pages/access-management/RegistrationReviewPanel';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
@@ -59,10 +62,11 @@ import './styles/signature-experience-v1-1.css';
 import './styles/signature-experience-v1-2.css';
 import './styles/production-mobile-responsive-v1.css';
 import './styles/attendance-device.css';
+import './styles/pwa-shell.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
-type Page = 'dashboard' | 'employees' | 'licenses' | 'attendance' | 'attendanceDevice' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
+type Page = 'dashboard' | 'employees' | 'licenses' | 'attendance' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
@@ -715,7 +719,7 @@ function EmployeeMagicWandModal({
   );
 }
 
-type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'attendance' | 'attendanceDevice' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
+type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'attendance' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
 
 const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
@@ -1405,7 +1409,9 @@ function LeavePrintDocument({ row }: { row: DataRow }) {
 
 function Dashboard() {
   const auth = useContext(AuthContext)!;
-  const [activePage, setActivePage] = useState<Page>('dashboard');
+  const pwaShell = useMemo(() => isSmsPwaShellMode(), []);
+  const [activePage, setActivePage] = useState<Page>(() => pwaShell ? initialSmsPwaPage() : 'dashboard');
+  const [pwaOnline, setPwaOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [empLoading, setEmpLoading] = useState(false);
@@ -1423,6 +1429,28 @@ function Dashboard() {
   const [dataQualityFilters, setDataQualityFilters] = useState<DataQualityFilters>({ severity: '', module: '', rule: '', department: '', search: '' });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!pwaShell) return;
+    const update = () => setPwaOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
+  }, [pwaShell]);
+
+  useEffect(() => {
+    if (pwaShell && !isSmsPwaPage(activePage)) setActivePage('attendance');
+  }, [activePage, pwaShell]);
+
+  const selectPwaPage = (page: SmsPwaPage) => {
+    setActivePage(page);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('pwa', '1');
+      url.searchParams.set('page', page);
+      window.history.replaceState(window.history.state, '', url);
+    }
+  };
   const [mobileUtilityOpen, setMobileUtilityOpen] = useState(false);
   const [passkeyPanelOpen, setPasskeyPanelOpen] = useState(false);
   const mobileUtilityTriggerRef = useRef<HTMLButtonElement>(null);
@@ -1626,14 +1654,14 @@ function Dashboard() {
   }, [activePage, auth.token, operationPage, dataQualityPageSize, dataQualityFilters, operationRefresh]);
 
   useEffect(() => {
-    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'attendance' || activePage === 'attendanceDevice' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
+    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'attendance' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
     if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
       setOperationLoading(false);
       setOperationError(undefined);
       setOperationResponse({ data: [] });
       return;
     }
-    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'attendance' | 'attendanceDevice' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
+    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'attendance' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
       users: api.users, audit: api.auditEvents, settings: api.systemSettings
@@ -1680,13 +1708,14 @@ function Dashboard() {
 
   const parentPage: Partial<Record<Page, Page>> = { executiveReport: 'reportCenter', reports: 'reportCenter' };
   const navigationPage = parentPage[activePage] || activePage;
-  const pageTitle = navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || 'Dashboard';
+  const pageTitle = activePage === 'profile' ? 'โปรไฟล์' : navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || 'Dashboard';
   const pageSubtitle: Record<Page, string> = {
     dashboard: 'ภาพรวม KPI และสถานะการปฏิบัติงาน',
     employees: 'ข้อมูลพนักงานและใบอนุญาตปฏิบัติงาน',
     licenses: 'ทะเบียนใบอนุญาตของพนักงาน',
     attendance: 'ลงเวลาเข้า/ออกด้วย QR, GPS และ Server authority',
     attendanceDevice: 'ลงทะเบียนและตรวจสอบอุปกรณ์หลักสำหรับ Attendance/Patrol',
+    profile: 'ข้อมูลบัญชีและความปลอดภัย',
     shiftSetup: 'กำหนดประเภทกะและเวลาปฏิบัติงาน',
     schedule: 'จัดตารางกะรายเดือนและส่งอนุมัติ',
     approvals: 'ตรวจสอบและอนุมัติตารางกะ',
@@ -2446,7 +2475,7 @@ function Dashboard() {
       const rows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       const remaining = nested(leaveSummary.remaining);
         const canCancelApprovedLeave = auth.user?.role === 'ADMIN';
-        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} quotaYear={Number(leaveSummary.quotaYear || currentBangkokQuotaYear())} canManage={canManage} canSubmit={auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked)} canCancelApprovedLeave={canCancelApprovedLeave} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onReturnForCorrection={(row) => handleOperationAction(row, 'return')} onEditReturned={(row) => runEditor({
+        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} quotaYear={Number(leaveSummary.quotaYear || currentBangkokQuotaYear())} canManage={pwaShell ? false : canManage} canSubmit={auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked)} canCancelApprovedLeave={canCancelApprovedLeave} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onReturnForCorrection={(row) => handleOperationAction(row, 'return')} onEditReturned={(row) => runEditor({
           title: `แก้ไขคำขอลา · ${text(row.employeeNameSnapshot)}`,
           submitLabel: 'บันทึกและส่งตรวจสอบอีกครั้ง',
           fields: [
@@ -2483,7 +2512,10 @@ function Dashboard() {
       </section>;
     }
     if (activePage === 'attendance' && auth.token) {
-      return <AttendancePage token={auth.token} readOnly={auth.isViewingAs} onOpenDeviceSetup={() => setActivePage('attendanceDevice')} />;
+      return <AttendancePage token={auth.token} readOnly={auth.isViewingAs} onOpenDeviceSetup={pwaShell ? undefined : () => setActivePage('attendanceDevice')} />;
+    }
+    if (activePage === 'profile' && auth.token) {
+      return <PwaProfilePage user={auth.user} online={pwaOnline} readOnly={auth.isViewingAs} onOpenPasskeys={() => setPasskeyPanelOpen(true)} onLogout={() => auth.logout()} />;
     }
     if (activePage === 'attendanceDevice' && auth.token) {
       return <AttendanceDevicePage token={auth.token} role={auth.user?.role || 'VIEWER'} readOnly={auth.isViewingAs} />;
@@ -2545,7 +2577,7 @@ function Dashboard() {
 
   return (
     <>
-      <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''}`}>
+      <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? 'pwa-shell' : ''}`}>
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} />}
       {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <EmployeeChangeReviewModal token={auth.token} onClose={() => setEmployeeChangeReviewOpen(false)} onChanged={() => setEmployeeRefresh((value) => value + 1)} />}
@@ -2566,6 +2598,8 @@ function Dashboard() {
         </div>
       </aside>
       <main className="main-area">
+        {pwaShell && <header className="pwa-mobile-header"><span className="pwa-mobile-brand"><Logo /><span><strong>SMS</strong><small>{pageTitle}</small></span></span><span className={`pwa-online-state ${pwaOnline ? '' : 'offline'}`}>{pwaOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span></header>}
+        {pwaShell && !pwaOnline && <div className="pwa-offline-banner">ออฟไลน์ — เปิดดู shell ได้ แต่การลงเวลาและการส่งคำขอลาต้องรอการเชื่อมต่อ Server</div>}
         <header className="topbar">
           <div className="topbar-left">
             <button ref={mobileMenuTriggerRef} type="button" className="mobile-menu-button" aria-label="เปิดเมนูหลัก" aria-expanded={mobileMenuOpen} aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(true)}><SmsIcon name="menu" size={20} /></button>
@@ -2591,6 +2625,11 @@ function Dashboard() {
           </>, document.body)}
         </header>
         <div className="content-area">{content()}</div>
+        {pwaShell && <nav className="pwa-bottom-nav" aria-label="เมนู PWA">
+          <button type="button" className={activePage === 'attendance' ? 'active' : ''} onClick={() => selectPwaPage('attendance')}><SmsIcon name="clock" size={20} /><span>ลงเวลา</span></button>
+          <button type="button" className={activePage === 'leave' ? 'active' : ''} onClick={() => selectPwaPage('leave')}><SmsIcon name="leave" size={20} /><span>ลา</span></button>
+          <button type="button" className={activePage === 'profile' ? 'active' : ''} onClick={() => selectPwaPage('profile')}><SmsIcon name="users" size={20} /><span>โปรไฟล์</span></button>
+        </nav>}
       </main>
     </div>
     {passkeyPanelOpen && auth.token && <PasskeySecurityPanel token={auth.token} onClose={() => setPasskeyPanelOpen(false)} />}
@@ -2737,4 +2776,5 @@ function App() {
   return auth.token ? <Dashboard /> : <Login />;
 }
 
+registerSmsPwa();
 createRoot(document.getElementById('root')!).render(<React.StrictMode><AuthProvider><App /></AuthProvider></React.StrictMode>);

@@ -13,7 +13,7 @@ describe('G06 Personal Device Enrollment V1 Phase 2 UI contract', () => {
     expect(main).toContain("'attendanceDevice'");
     expect(main).toContain("{ id: 'attendanceDevice', icon: 'key', label: 'อุปกรณ์ลงเวลา' }");
     expect(main).toContain('<AttendanceDevicePage token={auth.token}');
-    expect(main).toContain("'attendanceDevice' | 'reportCenter'");
+    expect(main).toContain("'attendanceDevice' | 'profile' | 'reportCenter'");
     expect(page).toContain('บัญชี/Passkey ไม่ถือเป็นหลักฐานว่าเครื่องนี้เป็น Attendance device');
   });
 

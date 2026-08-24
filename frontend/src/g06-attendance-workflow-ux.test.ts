@@ -13,7 +13,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(main).toContain("'attendance'");
     expect(main).toContain("{ id: 'attendance', icon: 'clock', label: 'ลงเวลา' }");
     expect(main).toContain('<AttendancePage token={auth.token}');
-    expect(main).toContain("onOpenDeviceSetup={() => setActivePage('attendanceDevice')}");
+    expect(main).toContain("onOpenDeviceSetup={pwaShell ? undefined : () => setActivePage('attendanceDevice')}");
     expect(page).toContain('Server เป็นผู้ตัดสินว่าเป็นเวลาเข้า หรือเวลาออก');
   });
 
