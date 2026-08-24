@@ -32,3 +32,16 @@ export function readSmsPwaDiagnostics(): SmsPwaDiagnostics {
     locationSupported: 'geolocation' in navigator
   };
 }
+
+export function buildSmsPwaUatReport(diagnostics: SmsPwaDiagnostics, online: boolean) {
+  return [
+    'SMS_PWA_UAT_V1',
+    `online=${online}`,
+    `standalone=${diagnostics.standalone}`,
+    `secureContext=${diagnostics.secureContext}`,
+    `serviceWorkerSupported=${diagnostics.serviceWorkerSupported}`,
+    `serviceWorkerControlled=${diagnostics.serviceWorkerControlled}`,
+    `cameraSupported=${diagnostics.cameraSupported}`,
+    `locationSupported=${diagnostics.locationSupported}`
+  ].join('\n');
+}

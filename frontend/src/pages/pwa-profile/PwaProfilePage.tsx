@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
-import { readSmsPwaDiagnostics } from '../../pwa-diagnostics';
+import { buildSmsPwaUatReport, readSmsPwaDiagnostics } from '../../pwa-diagnostics';
 
 export type PwaProfileUser = {
   displayName?: string;
@@ -22,6 +23,17 @@ function initials(name?: string) {
 
 export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys, onLogout }: Props) {
   const diagnostics = readSmsPwaDiagnostics();
+  const [uatCopyState, setUatCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const clipboardSupported = typeof navigator !== 'undefined' && typeof navigator.clipboard?.writeText === 'function';
+  const copyUatReport = async () => {
+    if (!clipboardSupported) return;
+    try {
+      await navigator.clipboard.writeText(buildSmsPwaUatReport(diagnostics, online));
+      setUatCopyState('copied');
+    } catch {
+      setUatCopyState('failed');
+    }
+  };
   const serviceWorkerLabel = diagnostics.serviceWorkerControlled
     ? 'ควบคุม PWA แล้ว'
     : diagnostics.serviceWorkerSupported
@@ -56,6 +68,9 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
         <div><dt>Location</dt><dd className={diagnostics.locationSupported ? 'is-online' : 'is-offline'}>{diagnostics.locationSupported ? 'รองรับ' : 'ไม่รองรับ'}</dd></div>
         <div><dt>Service Worker</dt><dd className={diagnostics.serviceWorkerSupported ? 'is-online' : 'is-offline'}>{serviceWorkerLabel}</dd></div>
       </dl>
+      <button type="button" className="btn-neutral pwa-profile-action" disabled={!clipboardSupported} onClick={() => void copyUatReport()}><SmsIcon name="report" size={18} />คัดลอกรายงาน UAT</button>
+      {uatCopyState === 'copied' && <small className="is-online">คัดลอกรายงานแล้ว — ไม่มีชื่อ อีเมล QR หรือพิกัด</small>}
+      {uatCopyState === 'failed' && <small className="is-offline">ไม่สามารถคัดลอกได้ กรุณาตรวจสิทธิ์ Clipboard ของเบราว์เซอร์</small>}
     </section>
 
     <section className="pwa-profile-card">

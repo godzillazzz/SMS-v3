@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { readSmsPwaDiagnostics } from './pwa-diagnostics';
+import { buildSmsPwaUatReport, readSmsPwaDiagnostics } from './pwa-diagnostics';
 import { initialSmsPwaPage, isSmsPwaPage, isSmsPwaShellMode } from './pwa-mode';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -100,5 +100,24 @@ describe('G06 Employee PWA mobile UAT/hardening', () => {
     expect(getCurrentPosition).not.toHaveBeenCalled();
     expect(profile).toContain('ตรวจเฉพาะ capability และสถานะของเบราว์เซอร์ ไม่ขอสิทธิ์กล้อง/ตำแหน่ง');
     expect(profile).toContain('ไม่สร้างหลักฐาน Attendance');
+  });
+
+  it('builds a privacy-minimized copyable UAT report with no identity or evidence fields', () => {
+    const report = buildSmsPwaUatReport({
+      standalone: true,
+      secureContext: true,
+      serviceWorkerSupported: true,
+      serviceWorkerControlled: true,
+      cameraSupported: true,
+      locationSupported: true
+    }, true);
+    expect(report).toContain('SMS_PWA_UAT_V1');
+    expect(report).toContain('online=true');
+    expect(report).toContain('standalone=true');
+    expect(report).toContain('cameraSupported=true');
+    expect(report).toContain('locationSupported=true');
+    expect(report).not.toMatch(/email|displayName|latitude|longitude|qrToken|userAgent/i);
+    expect(profile).toContain('คัดลอกรายงาน UAT');
+    expect(profile).toContain('ไม่มีชื่อ อีเมล QR หรือพิกัด');
   });
 });
