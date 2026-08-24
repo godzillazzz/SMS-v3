@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
 import {
   AttendanceReadinessError,
@@ -180,6 +180,16 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     setCheckedAt(null);
     setError(undefined);
   };
+
+  useEffect(() => {
+    if (online) return;
+    setScannerOpen(false);
+    setQrToken('');
+    setLocation(null);
+    setLocationBusy(false);
+    setChecking(false);
+    resetServerState();
+  }, [online]);
 
   const acquireLocation = async () => {
     if (interactionDisabled) return;

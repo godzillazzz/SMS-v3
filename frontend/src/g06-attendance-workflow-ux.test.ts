@@ -92,6 +92,10 @@ describe('G06 Attendance frontend UX skeleton', () => {
   it('keeps View As read-only and offers device remediation without impersonated Attendance evidence', () => {
     expect(page).toContain('กำลังอยู่ใน View As');
     expect(page).toContain('const interactionDisabled = readOnly || !online');
+    expect(page).toContain('if (online) return;');
+    expect(page).toContain("setScannerOpen(false)");
+    expect(page).toContain("setQrToken('')");
+    expect(page).toContain('setLocation(null)');
     expect(page).toContain('disabled={interactionDisabled || checking}');
     expect(page).toContain("readiness?.state === 'DEVICE_SETUP_REQUIRED'");
     expect(page).toContain('ไปหน้าอุปกรณ์ลงเวลา');
