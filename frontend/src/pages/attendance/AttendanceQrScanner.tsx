@@ -29,10 +29,12 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const onDetectedRef = useRef(onDetected);
+  const onCloseRef = useRef(onClose);
   const [state, setState] = useState<ScannerState>('STARTING');
   const [error, setError] = useState<string>();
 
   useEffect(() => { onDetectedRef.current = onDetected; }, [onDetected]);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -55,7 +57,25 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
         videoRef.current.pause();
         videoRef.current.srcObject = null;
       }
+      if (canvasRef.current) {
+        canvasRef.current.width = 1;
+        canvasRef.current.height = 1;
+      }
     };
+
+    const stopAndCloseForLifecycle = () => {
+      if (!active) return;
+      active = false;
+      stop();
+      onCloseRef.current();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') stopAndCloseForLifecycle();
+    };
+    const handlePageHide = () => stopAndCloseForLifecycle();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
 
     const scanFrame = () => {
       if (!active || decoding) return;
@@ -154,6 +174,8 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
     void start();
     return () => {
       active = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
       stop();
       document.body.style.overflow = previousBodyOverflow;
     };

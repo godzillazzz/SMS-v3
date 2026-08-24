@@ -46,6 +46,13 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(scanner).toContain('navigator.mediaDevices.getUserMedia');
     expect(scanner).toContain("facingMode: { ideal: 'environment' }");
     expect(scanner).toContain('stream?.getTracks().forEach((track) => track.stop())');
+    expect(scanner).toContain('canvasRef.current.width = 1');
+    expect(scanner).toContain('canvasRef.current.height = 1');
+    expect(scanner).toContain("document.addEventListener('visibilitychange', handleVisibilityChange)");
+    expect(scanner).toContain("window.addEventListener('pagehide', handlePageHide)");
+    expect(scanner).toContain("document.removeEventListener('visibilitychange', handleVisibilityChange)");
+    expect(scanner).toContain("window.removeEventListener('pagehide', handlePageHide)");
+    expect(scanner).toContain('onCloseRef.current()');
     expect(scanner).toContain('context.getImageData');
     expect(scanner).toContain('jsQR(frame.data');
     expect(scanner).toContain('onDetectedRef.current(value)');
@@ -92,13 +99,27 @@ describe('G06 Attendance frontend UX skeleton', () => {
   it('keeps View As read-only and offers device remediation without impersonated Attendance evidence', () => {
     expect(page).toContain('กำลังอยู่ใน View As');
     expect(page).toContain('const interactionDisabled = readOnly || !online');
-    expect(page).toContain('if (online) return;');
+    expect(page).toContain('if (!interactionDisabled) return;');
     expect(page).toContain("setScannerOpen(false)");
     expect(page).toContain("setQrToken('')");
     expect(page).toContain('setLocation(null)');
     expect(page).toContain('disabled={interactionDisabled || checking}');
     expect(page).toContain("readiness?.state === 'DEVICE_SETUP_REQUIRED'");
     expect(page).toContain('ไปหน้าอุปกรณ์ลงเวลา');
+  });
+
+  it('invalidates in-flight GPS/readiness results when Attendance becomes blocked or the attempt resets', () => {
+    expect(page).toContain('const asyncEvidenceEpochRef = useRef(0)');
+    expect(page).toContain('const interactionDisabledRef = useRef(interactionDisabled)');
+    expect(page).toContain('interactionDisabledRef.current = interactionDisabled');
+    expect(page).toContain('if (!interactionDisabled) return;');
+    expect(page).toContain('asyncEvidenceEpochRef.current += 1');
+    expect(page).toContain('}, [interactionDisabled]);');
+    expect(page.match(/const operationEpoch = asyncEvidenceEpochRef\.current;/g)?.length).toBe(2);
+    expect(page.match(/operationEpoch !== asyncEvidenceEpochRef\.current \|\| interactionDisabledRef\.current/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(page).toContain('if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false)');
+    expect(page).toContain('if (operationEpoch === asyncEvidenceEpochRef.current) setChecking(false)');
+    expect(page).toMatch(/const resetAttempt = \(\) => \{\s*asyncEvidenceEpochRef\.current \+= 1;/);
   });
 
   it('has responsive mobile layouts for the four-step flow and evidence cards', () => {

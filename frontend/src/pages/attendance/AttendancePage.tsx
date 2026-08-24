@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
 import {
   AttendanceReadinessError,
@@ -165,11 +165,14 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
   const [error, setError] = useState<string>();
   const [requestId, setRequestId] = useState<string>();
   const [checkedAt, setCheckedAt] = useState<Date | null>(null);
+  const asyncEvidenceEpochRef = useRef(0);
 
   const copy = useMemo(() => fallbackCopy(readiness), [readiness]);
   const qrReady = qrToken.trim().length >= 24;
   const gpsReady = Boolean(location);
   const interactionDisabled = readOnly || !online;
+  const interactionDisabledRef = useRef(interactionDisabled);
+  interactionDisabledRef.current = interactionDisabled;
   const canCheck = !interactionDisabled && qrReady && gpsReady && !checking && !locationBusy;
 
   const resetServerState = () => {
@@ -182,31 +185,37 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
   };
 
   useEffect(() => {
-    if (online) return;
+    if (!interactionDisabled) return;
+    asyncEvidenceEpochRef.current += 1;
     setScannerOpen(false);
     setQrToken('');
     setLocation(null);
     setLocationBusy(false);
     setChecking(false);
     resetServerState();
-  }, [online]);
+  }, [interactionDisabled]);
 
   const acquireLocation = async () => {
     if (interactionDisabled) return;
+    const operationEpoch = asyncEvidenceEpochRef.current;
     setLocationBusy(true);
     resetServerState();
     try {
-      setLocation(await positionOnce());
+      const nextLocation = await positionOnce();
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      setLocation(nextLocation);
     } catch (reason) {
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
       setLocation(null);
       setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
     } finally {
-      setLocationBusy(false);
+      if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
     }
   };
 
   const checkReadiness = async () => {
     if (!canCheck || !location) return;
+    const operationEpoch = asyncEvidenceEpochRef.current;
     setChecking(true);
     setError(undefined);
     setRouteUnavailable(false);
@@ -220,6 +229,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
         qrToken: qrToken.trim(),
         location
       });
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
       setRequestId(result.requestId);
       setCheckedAt(new Date());
       if (!result.routeAvailable) {
@@ -229,6 +239,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       setReadiness(result.data.readiness);
       setEventIntent(result.data.eventIntent);
     } catch (reason) {
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
       if (reason instanceof AttendanceReadinessError) {
         setRequestId(reason.requestId);
         setError(reason.message);
@@ -236,14 +247,17 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
         setError(reason instanceof Error ? reason.message : 'ไม่สามารถตรวจสอบความพร้อมได้');
       }
     } finally {
-      setChecking(false);
+      if (operationEpoch === asyncEvidenceEpochRef.current) setChecking(false);
     }
   };
 
   const resetAttempt = () => {
+    asyncEvidenceEpochRef.current += 1;
     setScannerOpen(false);
     setQrToken('');
     setLocation(null);
+    setLocationBusy(false);
+    setChecking(false);
     resetServerState();
   };
 
