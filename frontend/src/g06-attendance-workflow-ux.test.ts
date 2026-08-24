@@ -57,14 +57,14 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(css).toContain('.attendance-qr-backdrop');
     expect(css).toContain('.attendance-qr-camera video');
     expect(css).toContain('-webkit-transform: translateZ(0)');
-    expect(css).toContain('.attendance-qr-backdrop { align-items: start; padding: max(10px, env(safe-area-inset-top)) 0 0; }');
-    expect(css).toContain('height: auto; max-height: calc(100dvh - max(20px, env(safe-area-inset-top)))');
+    expect(css).toContain('.attendance-qr-backdrop { align-items: start; padding: max(12px, env(safe-area-inset-top)) 12px 20px; }');
+    expect(css).toContain('max-width: 430px; height: auto; max-height: calc(100dvh - max(32px, env(safe-area-inset-top)))');
     expect(css).not.toContain('height: calc(100dvh - max(10px, env(safe-area-inset-top)))');
     expect(css).not.toContain('.attendance-qr-backdrop { align-items: end;');
-    expect(css).toContain('.attendance-qr-camera { aspect-ratio: 5 / 4; border-radius: 14px; }');
-    expect(css).toContain('padding: 12px;');
-    expect(css).toContain('width: 42px; height: 42px;');
-    expect(css).toContain('min-height: 48px;');
+    expect(css).toContain('.attendance-qr-camera { aspect-ratio: 3 / 2; border-radius: 12px; }');
+    expect(css).toContain('border-radius: 18px; padding: 10px;');
+    expect(css).toContain('width: 36px; height: 36px;');
+    expect(css).toContain('min-height: 44px;');
     expect(scanner).toContain('ใช้กล้องเฉพาะขณะสแกน และไม่บันทึกหรืออัปโหลดภาพ');
   });
 

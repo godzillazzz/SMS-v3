@@ -75,7 +75,8 @@ describe('G06 Mobile/PWA Foundation V1', () => {
   it('registers the service worker only in secure-capable browsers and never caches API data', () => {
     expect(register).toContain("window.isSecureContext");
     expect(register).toContain("'serviceWorker' in navigator");
-    expect(register).toContain("navigator.serviceWorker.register('/sw.js', { scope: '/' })");
+    expect(register).toContain("navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })");
+    expect(register).toContain('.then((registration) => registration.update())');
     expect(sw).toContain("if (url.pathname.startsWith('/api/')) return");
     expect(sw).toContain("if (request.method !== 'GET') return");
     expect(sw).not.toContain('sync');
