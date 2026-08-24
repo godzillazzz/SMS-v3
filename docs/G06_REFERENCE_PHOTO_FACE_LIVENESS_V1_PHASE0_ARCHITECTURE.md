@@ -99,3 +99,24 @@ Implemented locally/source-only under explicit Owner authorization for additive 
 - No face model, liveness/PAD engine, biometric embedding/template persistence, Service Worker, controlled offline, Preview/Production deploy, or actual Supabase storage mutation is introduced in Phase 3A.
 
 Phase 3A local validation evidence: focused 8/8 PASS; real PostgreSQL workflow 1/1 PASS; backend 591/591 PASS; frontend 393/393 PASS; full integration 164/164 PASS with 0 skipped; fresh PostgreSQL migration chain 23/23 PASS; Prisma validate/generate PASS; frontend production build PASS.
+
+
+## Phase 3B architecture / engine-selection note (2026-08-24)
+
+Phase 3B architecture was completed source-only on top of the Phase 3A Preview-accepted candidate. See `docs/G06_FACE_VERIFICATION_LIVENESS_V1_PHASE3B_ARCHITECTURE.md`.
+
+Locked direction:
+
+- server-authoritative short-lived verification session and single-use receipt;
+- current ACTIVE Reference Photo 1:1 only;
+- ACTIVE Attendance device P-256 proof required;
+- PAD/liveness required before authoritative face acceptance;
+- no client-authoritative `faceVerified` / `livenessPassed`;
+- no 1:N roster search;
+- no persistent biometric template/embedding;
+- live frames and Attendance/Patrol event photos remain non-retained;
+- pluggable provider adapter; prefer independently certified face-verification/PAD providers for Production assurance;
+- Amazon Rekognition Face Liveness + stateless CompareFaces selected only as a practical engineering PoC candidate, not automatic Production provider approval;
+- Web/PWA is a Pilot path until injection/device-integrity tests pass; Android/native hardening is required if browser assurance is insufficient.
+
+No schema, migration, provider credential, runtime integration, Preview/Production mutation or deployment was performed by this Phase 3B architecture step.
