@@ -122,7 +122,7 @@
   .attendance-qr-evidence-header { grid-template-columns: auto minmax(0, 1fr); }
   .attendance-qr-open-action { grid-column: 1 / -1; width: 100%; justify-content: center; }
   .attendance-qr-backdrop { align-items: start; padding: max(10px, env(safe-area-inset-top)) 0 0; }
-  .attendance-qr-dialog { width: 100%; height: calc(100dvh - max(10px, env(safe-area-inset-top))); max-height: none; border-radius: 22px 22px 0 0; padding: 15px; }
+  .attendance-qr-dialog { width: 100%; height: auto; max-height: calc(100dvh - max(20px, env(safe-area-inset-top))); border-radius: 22px; padding: 15px; }
   .attendance-qr-camera { border-radius: 15px; }
   .attendance-qr-dialog footer .btn-neutral { width: 100%; justify-content: center; }
 }
