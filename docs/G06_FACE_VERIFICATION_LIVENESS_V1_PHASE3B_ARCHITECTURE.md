@@ -320,3 +320,25 @@ Current public evidence reviewed on 2026-08-24 included:
 - Amazon Rekognition CompareFaces current API documentation: image-to-image comparison is stateless; returned comparison data does not persist.
 
 Architecture decisions remain vendor-neutral. Any provider certification/version used for Production must be re-verified at the Production provider-selection gate.
+
+## 19. Phase 3B-1 verification session / receipt foundation implementation note (2026-08-24)
+
+Implemented source/local-only under explicit Owner authorization for the Phase 3B-1 additive schema + service-contract/test layer.
+
+- Added additive migration `202608240002_g06_face_verification_session_v1` with `FaceVerificationSession` and `FaceVerificationReceipt`.
+- A verification session is bound to authoritative `Employee.id`, authenticated `User.id`, ACTIVE Attendance device, the device credential fingerprint snapshot, current ACTIVE Reference Photo, the Reference Photo SHA-256 checksum snapshot, an `AttendanceDeviceChallenge`, verification purpose, and caller-supplied canonical context digest.
+- One active verification session per Employee + device + purpose is enforced in PostgreSQL.
+- Session lifetime is 5 minutes. Verification receipts are bounded to 2 minutes and never outlive the parent session.
+- Attendance device proof uses the existing P-256 public credential and single-use hashed challenge. A failed signature consumes the challenge and fails closed.
+- Provider correlation is persisted only as SHA-256 hash. The raw provider session reference is not persisted.
+- Authoritative provider-result acceptance requires PAD/liveness PASS, 1:1 face match PASS, and no capture/injection-risk signal before a receipt can be issued.
+- Receipt secret is random/opaque and returned once; PostgreSQL stores only its SHA-256 hash. Consumption is atomic, single-use, context-bound, and replay-safe.
+- Receipt consumption re-checks current Employee/account authority, ACTIVE Attendance device + credential fingerprint, and current ACTIVE Reference Photo + checksum. Authority changes fail as `VERIFICATION_STALE`; expired sessions persist `EXPIRED` fail-closed.
+- Stable device fingerprint and Reference Photo checksum remain internal DB binding metadata and are excluded from the safe service response projection.
+- No public Phase 3B route was mounted. No provider SDK, provider credential, Preview/Production env change, face model runtime, or provider network call was added.
+- No raw image/video/live frame, Attendance/Patrol event photo, biometric embedding/template, face collection, or permanent biometric media URL is persisted.
+- No `employeeCode` identity coupling is introduced.
+
+Final local validation evidence for this source candidate: Prisma format/validate/generate PASS; focused Phase 3B-1 contracts 9/9 PASS; focused real PostgreSQL 3/3 PASS; fresh PostgreSQL migration chain 24/24 PASS; official serialized integration suite 167/167 PASS with 0 skipped; backend 600/600 PASS; frontend 45 files / 393 tests PASS; frontend production build PASS; scope/security audit found no route/env/package/workflow/provider-credential/Production coupling or biometric-media/template persistence.
+
+Phase 3B-1 status: `G06_PHASE3B1_VERIFICATION_SESSION_RECEIPT_FOUNDATION_SOURCE_COMPLETE_PRODUCTION_UNCHANGED`

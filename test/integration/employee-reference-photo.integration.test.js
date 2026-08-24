@@ -5,9 +5,9 @@ const crypto = require('node:crypto');
 
 const target = new URL(process.env.DATABASE_URL || 'postgresql://invalid/invalid');
 const configured = process.env.RUN_INTEGRATION_TESTS === 'true'
-  && process.env.TEST_DATABASE_RUNNER === 'g06-reference-photo-disposable-local'
+  && ((process.env.TEST_DATABASE_RUNNER === 'g06-reference-photo-disposable-local' && target.port === '55436')
+    || (process.env.TEST_DATABASE_RUNNER === 'g06-face-verification-disposable-local' && target.port === '55437'))
   && target.hostname === '127.0.0.1'
-  && target.port === '55436'
   && target.pathname.replace(/^\//, '') === 'sms_v3_test';
 
 if (!configured) {

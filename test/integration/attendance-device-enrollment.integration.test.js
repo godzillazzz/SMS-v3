@@ -8,7 +8,8 @@ const isConfiguredG06Target = process.env.RUN_INTEGRATION_TESTS === 'true'
   && target.hostname === '127.0.0.1'
   && target.pathname.replace(/^\//, '') === 'sms_v3_test'
   && ((process.env.TEST_DATABASE_RUNNER === 'g06-disposable-local' && target.port === '55435')
-    || (process.env.TEST_DATABASE_RUNNER === 'g06-reference-photo-disposable-local' && target.port === '55436'));
+    || (process.env.TEST_DATABASE_RUNNER === 'g06-reference-photo-disposable-local' && target.port === '55436')
+    || (process.env.TEST_DATABASE_RUNNER === 'g06-face-verification-disposable-local' && target.port === '55437'));
 
 if (!isConfiguredG06Target) {
   test('G06 attendance-device integration requires the explicit disposable local target', { skip: true }, () => {});
