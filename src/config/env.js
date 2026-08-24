@@ -47,6 +47,12 @@ const schema = z.object({
   WEBAUTHN_RP_ID: z.preprocess(emptyToUndefined, z.string().min(1).max(253).regex(/^(localhost|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)$/i, 'WEBAUTHN_RP_ID must be a valid hostname.').optional()),
   WEBAUTHN_ORIGIN: z.preprocess(emptyToUndefined, z.string().url().optional()),
   WEBAUTHN_CHALLENGE_TTL_SECONDS: z.coerce.number().int().min(60).max(600).default(300),
+  FACE_VERIFICATION_POC_API_ENABLED: z.enum(['true', 'false']).default('false'),
+  FACE_VERIFICATION_PROVIDER: z.preprocess(emptyToUndefined, z.enum(['AWS_REKOGNITION_POC']).optional()),
+  FACE_VERIFICATION_AWS_REGION: z.preprocess(emptyToUndefined, z.literal('ap-southeast-7').optional()),
+  FACE_LIVENESS_CHALLENGE_TYPE: z.preprocess(emptyToUndefined, z.enum(['FaceMovementAndLightChallenge', 'FaceMovementChallenge']).optional()),
+  FACE_LIVENESS_MIN_CONFIDENCE: z.preprocess(emptyToUndefined, z.coerce.number().positive().max(100).optional()),
+  FACE_MATCH_MIN_SIMILARITY: z.preprocess(emptyToUndefined, z.coerce.number().positive().max(100).optional()),
   ALERTING_ENABLED: z.enum(['true', 'false']).default('false'),
   ALERTING_PROVIDER: z.string().regex(/^[A-Za-z0-9_-]+$/).default('disabled'),
   ALERTING_API_TOKEN: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -84,7 +90,15 @@ const schema = z.object({
     for (const field of ['OTP_HASH_SECRET', 'OTP_FROM_EMAIL', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USERNAME', 'SMTP_PASSWORD']) {
       if (!value[field]) context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required when OTP_DELIVERY_PROVIDER=gmail_smtp.` });
     }
+  }  if (value.FACE_VERIFICATION_POC_API_ENABLED === 'true') {
+    if (value.VERCEL_ENV !== 'preview') {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['FACE_VERIFICATION_POC_API_ENABLED'], message: 'Face Verification PoC API may be enabled only in Vercel Preview.' });
+    }
+    for (const field of ['FACE_VERIFICATION_PROVIDER', 'FACE_VERIFICATION_AWS_REGION', 'FACE_LIVENESS_MIN_CONFIDENCE', 'FACE_MATCH_MIN_SIMILARITY']) {
+      if (value[field] == null) context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required when FACE_VERIFICATION_POC_API_ENABLED=true.` });
+    }
   }
+
   if (value.WEBAUTHN_ENABLED === 'true') {
     for (const field of ['WEBAUTHN_RP_NAME', 'WEBAUTHN_RP_ID', 'WEBAUTHN_ORIGIN']) {
       if (!value[field]) context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required when WEBAUTHN_ENABLED=true.` });
@@ -161,6 +175,12 @@ module.exports = {
   webAuthnRpId: parsed.WEBAUTHN_RP_ID,
   webAuthnOrigin: parsed.WEBAUTHN_ORIGIN,
   webAuthnChallengeTtlSeconds: parsed.WEBAUTHN_CHALLENGE_TTL_SECONDS,
+  faceVerificationPocApiEnabled: parsed.FACE_VERIFICATION_POC_API_ENABLED === 'true',
+  faceVerificationProvider: parsed.FACE_VERIFICATION_PROVIDER,
+  faceVerificationAwsRegion: parsed.FACE_VERIFICATION_AWS_REGION,
+  faceLivenessChallengeType: parsed.FACE_LIVENESS_CHALLENGE_TYPE,
+  faceLivenessMinConfidence: parsed.FACE_LIVENESS_MIN_CONFIDENCE,
+  faceMatchMinSimilarity: parsed.FACE_MATCH_MIN_SIMILARITY,
   alertingEnabled: parsed.ALERTING_ENABLED === 'true',
   alertingProvider: parsed.ALERTING_PROVIDER,
   alertingApiToken: parsed.ALERTING_API_TOKEN,
