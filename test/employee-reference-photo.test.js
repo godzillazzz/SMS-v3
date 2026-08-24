@@ -38,15 +38,17 @@ test('upload validation accepts real PNG signature/dimensions and rejects non-im
 
 test('storage configuration is private and requires a dedicated Reference Photo bucket', () => {
   assert.throws(() => storageConfig({}), /not configured/);
-  const config = storageConfig({ SUPABASE_URL: 'https://example.test/', SUPABASE_SERVICE_ROLE_KEY: 'test-only', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos' });
+  const config = storageConfig({ SUPABASE_URL: 'https://example.test/rest/v1/', SUPABASE_SERVICE_ROLE_KEY: 'test-only', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos' });
   assert.equal(config.url, 'https://example.test'); assert.equal(config.bucket, 'employee-reference-photos');
+  assert.throws(() => storageConfig({ SUPABASE_URL: 'not-a-url', SUPABASE_SERVICE_ROLE_KEY: 'test-only', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos' }), /not configured/);
 });
 
 test('private storage deletion is idempotent when the object is already absent', async () => {
   const calls = [];
-  const storage = createSupabaseEmployeeReferencePhotoStorage({ environment: { SUPABASE_URL: 'https://example.test', SUPABASE_SERVICE_ROLE_KEY: 'test-only', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos' }, fetchImpl: async (url, options) => { calls.push({ url, options }); return { ok: false, status: 404 }; } });
+  const storage = createSupabaseEmployeeReferencePhotoStorage({ environment: { SUPABASE_URL: 'https://example.test/rest/v1/', SUPABASE_SERVICE_ROLE_KEY: 'test-only', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos' }, fetchImpl: async (url, options) => { calls.push({ url, options }); return { ok: false, status: 404 }; } });
   await storage.remove('employee-reference-photos/employee/photo.png');
   assert.equal(calls.length, 1); assert.equal(calls[0].options.method, 'DELETE');
+  assert.match(calls[0].url, /^https:\/\/example\.test\/storage\/v1\/object\//);
 });
 
 test('service implements post-commit deletion, fail-closed viewing, retry foundation, and 60-second signed URLs', () => {

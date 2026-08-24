@@ -60,7 +60,10 @@ function storageConfig(environment = process.env) {
   const serviceKey = environment.SUPABASE_SERVICE_ROLE_KEY;
   const bucket = environment.EMPLOYEE_REFERENCE_PHOTOS_BUCKET;
   if (!url || !serviceKey || !bucket) throw new HttpError(503, 'Employee reference photo storage is not configured.', { code: 'REFERENCE_PHOTO_STORAGE_NOT_CONFIGURED' });
-  return { url: url.replace(/\/$/, ''), serviceKey, bucket };
+  let storageOrigin;
+  try { storageOrigin = new URL(url).origin; } catch { throw new HttpError(503, 'Employee reference photo storage is not configured.', { code: 'REFERENCE_PHOTO_STORAGE_NOT_CONFIGURED' }); }
+  if (!/^https?:\/\//i.test(storageOrigin)) throw new HttpError(503, 'Employee reference photo storage is not configured.', { code: 'REFERENCE_PHOTO_STORAGE_NOT_CONFIGURED' });
+  return { url: storageOrigin, serviceKey, bucket };
 }
 
 function createSupabaseEmployeeReferencePhotoStorage({ environment = process.env, fetchImpl = globalThis.fetch } = {}) {
