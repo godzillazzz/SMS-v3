@@ -164,7 +164,7 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
   return createPortal(<div className="attendance-qr-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="attendance-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="attendance-qr-title">
       <header>
-        <div><p>ATTENDANCE SITE QR</p><h2 id="attendance-qr-title">สแกน QR จุดปฏิบัติงาน</h2><span>กล้องทำงานเฉพาะในหน้าต่างนี้ และระบบไม่บันทึกหรืออัปโหลดภาพจากกล้อง</span></div>
+        <div><p>ATTENDANCE SITE QR</p><h2 id="attendance-qr-title">สแกน QR จุดปฏิบัติงาน</h2><span>ใช้กล้องเฉพาะขณะสแกน และไม่บันทึกหรืออัปโหลดภาพ</span></div>
         <button type="button" className="drawer-close overlay-close" onClick={onClose} aria-label="ปิดกล้องสแกน QR"><SmsIcon name="close" size={20} /></button>
       </header>
 

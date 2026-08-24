@@ -61,6 +61,11 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(css).toContain('height: auto; max-height: calc(100dvh - max(20px, env(safe-area-inset-top)))');
     expect(css).not.toContain('height: calc(100dvh - max(10px, env(safe-area-inset-top)))');
     expect(css).not.toContain('.attendance-qr-backdrop { align-items: end;');
+    expect(css).toContain('.attendance-qr-camera { aspect-ratio: 5 / 4; border-radius: 14px; }');
+    expect(css).toContain('padding: 12px;');
+    expect(css).toContain('width: 42px; height: 42px;');
+    expect(css).toContain('min-height: 48px;');
+    expect(scanner).toContain('ใช้กล้องเฉพาะขณะสแกน และไม่บันทึกหรืออัปโหลดภาพ');
   });
 
   it('uses one-shot high-accuracy geolocation without continuous tracking or local persistence', () => {
