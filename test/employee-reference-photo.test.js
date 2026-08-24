@@ -43,6 +43,30 @@ test('storage configuration is private and requires a dedicated Reference Photo 
   assert.throws(() => storageConfig({ SUPABASE_URL: 'not-a-url', SUPABASE_SERVICE_ROLE_KEY: 'test-only', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos' }), /not configured/);
 });
 
+test('private storage byte-read uses the object API, enforces size/type guards, and never creates a public URL', async () => {
+  const image = png();
+  const calls = [];
+  const storage = createSupabaseEmployeeReferencePhotoStorage({
+    environment: { SUPABASE_URL: 'https://example.test/rest/v1/', SUPABASE_SERVICE_ROLE_KEY: 'test-only', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos' },
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return { ok: true, status: 200, headers: { get: (name) => name.toLowerCase() === 'content-length' ? String(image.length) : null }, arrayBuffer: async () => image.buffer.slice(image.byteOffset, image.byteOffset + image.byteLength) };
+    }
+  });
+  const result = await storage.getBytes('employee-id/reference.png');
+  assert.deepEqual(result, image);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.method, 'GET');
+  assert.match(calls[0].url, /^https:\/\/example\.test\/storage\/v1\/object\/employee-reference-photos\//);
+  assert.equal(calls[0].url.includes('/sign/'), false);
+
+  const oversized = createSupabaseEmployeeReferencePhotoStorage({
+    environment: { SUPABASE_URL: 'https://example.test', SUPABASE_SERVICE_ROLE_KEY: 'test-only', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos' },
+    fetchImpl: async () => ({ ok: true, status: 200, headers: { get: () => String((4 * 1024 * 1024) + 1) }, arrayBuffer: async () => { throw new Error('must not read oversized body'); } })
+  });
+  await assert.rejects(() => oversized.getBytes('employee-id/reference.png'), (error) => error.details?.code === 'REFERENCE_PHOTO_STORAGE_READ_FAILED');
+});
+
 test('private storage deletion is idempotent when the object is already absent', async () => {
   const calls = [];
   const storage = createSupabaseEmployeeReferencePhotoStorage({ environment: { SUPABASE_URL: 'https://example.test/rest/v1/', SUPABASE_SERVICE_ROLE_KEY: 'test-only', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos' }, fetchImpl: async (url, options) => { calls.push({ url, options }); return { ok: false, status: 404 }; } });

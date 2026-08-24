@@ -81,6 +81,16 @@ function createSupabaseEmployeeReferencePhotoStorage({ environment = process.env
       if (response.status === 404) return;
       if (!response.ok) throw new HttpError(502, 'Reference photo cleanup failed.', { code: 'REFERENCE_PHOTO_STORAGE_DELETE_FAILED' });
     },
+    async getBytes(objectKey) {
+      const { url, serviceKey, bucket } = config();
+      const response = await fetchImpl(`${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'GET', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey } });
+      if (!response.ok) throw new HttpError(502, 'Reference photo read failed.', { code: 'REFERENCE_PHOTO_STORAGE_READ_FAILED' });
+      const declaredSize = Number(response.headers?.get?.('content-length'));
+      if (Number.isFinite(declaredSize) && declaredSize > MAX_FILE_SIZE) throw new HttpError(502, 'Reference photo read failed.', { code: 'REFERENCE_PHOTO_STORAGE_READ_FAILED' });
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (!buffer.length || buffer.length > MAX_FILE_SIZE || !detectedType(buffer)) throw new HttpError(502, 'Reference photo read failed.', { code: 'REFERENCE_PHOTO_STORAGE_READ_FAILED' });
+      return buffer;
+    },
     async createSignedUrl(objectKey, expiresIn = 300) {
       const { url, serviceKey, bucket } = config();
       const response = await fetchImpl(`${url}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${objectKey.split('/').map(encodeURIComponent).join('/')}`, { method: 'POST', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey, 'content-type': 'application/json' }, body: JSON.stringify({ expiresIn }) });

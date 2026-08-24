@@ -31,6 +31,7 @@
     "node": "22.x"
   },
   "dependencies": {
+    "@aws-sdk/client-rekognition": "3.1116.0",
     "@prisma/client": "^6.11.1",
     "@simplewebauthn/server": "13.3.2",
     "bcryptjs": "^3.0.2",

@@ -342,3 +342,26 @@ Implemented source/local-only under explicit Owner authorization for the Phase 3
 Final local validation evidence for this source candidate: Prisma format/validate/generate PASS; focused Phase 3B-1 contracts 9/9 PASS; focused real PostgreSQL 3/3 PASS; fresh PostgreSQL migration chain 24/24 PASS; official serialized integration suite 167/167 PASS with 0 skipped; backend 600/600 PASS; frontend 45 files / 393 tests PASS; frontend production build PASS; scope/security audit found no route/env/package/workflow/provider-credential/Production coupling or biometric-media/template persistence.
 
 Phase 3B-1 status: `G06_PHASE3B1_VERIFICATION_SESSION_RECEIPT_FOUNDATION_SOURCE_COMPLETE_PRODUCTION_UNCHANGED`
+
+
+## 20. Phase 3B-2 isolated Preview migration + AWS Rekognition PoC source note (2026-08-24)
+
+Implemented under the explicit isolated-Preview Phase 3B-2 gate. This step applies the Phase 3B-1 schema to the existing isolated Preview database and prepares a guarded AWS Rekognition engineering PoC. It does not authorize Production biometric runtime.
+
+- Existing isolated Preview database identity was guard-verified as Supabase ref `ezxanpfagitckpfsnflp`; the Production ref was explicitly rejected by the one-shot migration guard.
+- Before mutation, the only pending Preview migration was `202608240002_g06_face_verification_session_v1`. It was applied exactly once and post-migration status was `UP_TO_DATE`.
+- The temporary migration deployment/remote branch was removed after evidence collection.
+- Added exact backend dependency `@aws-sdk/client-rekognition@3.1116.0` behind an isolated provider adapter. The provider-neutral Face Verification session/receipt service remains separate from AWS-specific commands.
+- AWS PoC region is fail-closed to `ap-southeast-7` (Thailand). PoC challenge type defaults to `FaceMovementAndLightChallenge`. Liveness session creation sets `AuditImagesLimit=0` and does not configure S3 OutputConfig.
+- The provider adapter uses server-side `CreateFaceLivenessSession` and `GetFaceLivenessSessionResults`. A successful liveness result supplies only a transient reference frame in memory, which is compared 1:1 against the current ACTIVE private Employee Reference Photo with stateless `CompareFaces`.
+- ACTIVE Reference Photo bytes are read directly from the private Supabase Storage object endpoint. No public URL is created for provider comparison. Size/type guards are enforced and the SHA-256 checksum is rechecked against the verification-session snapshot.
+- Provider and Reference Photo byte buffers are wiped after use where the runtime representation allows it. SMS V3 does not persist provider reference frames, liveness video, audit images, confidence score, face similarity score, biometric embedding/template, or face collection.
+- PoC thresholds are environment-controlled and mandatory; no threshold defaults are silently assumed. Provider configuration remains fail-closed when required values are absent or invalid.
+- The authenticated PoC API is mounted in source but hidden by a guard that returns unavailable unless `VERCEL_ENV=preview` and `FACE_VERIFICATION_POC_API_ENABLED=true`. `VERCEL_ENV=production` always wins and disables the PoC route even if another flag or test-mode variable is misconfigured.
+- Provider errors are sanitized. Long-lived AWS access-key literals are not present in source. No AWS credential is sent to browser code.
+- Preview currently has no AWS credential/profile configured, so no live AWS provider call, browser liveness capture, or controlled print/screen/video/injection attack test was performed in this step. The PoC API remains disabled in Preview.
+- No Phase 3B-2 Production deploy/promotion/migration/env/DB/data/auth/storage/provider mutation was performed.
+
+Validation on the current source candidate: focused Reference Photo + core Face Verification + AWS PoC contracts 26/26 PASS; fresh local PostgreSQL migration chain 24/24 PASS; real PostgreSQL core/PoC orchestration 4/4 PASS; official serialized integration suite 168/168 PASS with 0 skipped; backend 609/609 PASS; frontend 45 files / 393 tests PASS; frontend production build PASS. Final hardening focused rerun after Production-route precedence and transient-byte wiping: 26/26 PASS.
+
+Phase 3B-2 source status before live provider credentials: `G06_PHASE3B2_PREVIEW_MIGRATION_COMPLETE_AWS_POC_SOURCE_READY_LIVE_PROVIDER_CREDENTIALS_PENDING`.

@@ -17,6 +17,7 @@ if (!configured) {
 } else {
   const { PrismaClient } = require('@prisma/client');
   const { createFaceVerificationSessionService, receiptHash, providerRefHash } = require('../../src/services/face-verification-session.service');
+  const { createFaceVerificationPocService } = require('../../src/services/face-verification-poc.service');
   const audit = require('../../src/services/audit.service');
   const prisma = new PrismaClient();
   const marker = crypto.randomUUID().slice(0, 8);
@@ -164,6 +165,44 @@ if (!configured) {
     assert.equal(expired.status, 'EXPIRED');
     assert.equal(expired.failureCode, 'VERIFICATION_EXPIRED');
     assert.ok(expired.failedAt);
+    await cleanup();
+  });
+
+  test('AWS PoC orchestration uses private Reference Photo bytes and real DB receipt lifecycle with a fake provider', async () => {
+    const material = keyMaterial();
+    const referenceBytes = Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1,2,3,4,5,6,7,8]);
+    const referenceChecksum = crypto.createHash('sha256').update(referenceBytes).digest('hex');
+    await seed(material);
+    await prisma.employeeReferencePhoto.update({ where: { id: ids.reference }, data: { checksum: referenceChecksum, fileSize: referenceBytes.length } });
+    const sessionService = createFaceVerificationSessionService({ prisma, audit });
+    const created = await startAndProve(sessionService, material);
+    const providerSessionRef = crypto.randomUUID();
+    let evaluateBytes = null;
+    const provider = {
+      publicConfig: () => ({ configured: true, provider: 'AWS_REKOGNITION_POC', region: 'ap-southeast-7', challengeType: 'FaceMovementAndLightChallenge' }),
+      createLivenessSession: async ({ clientRequestToken }) => { assert.equal(clientRequestToken, created.session.id); return { providerSessionRef, region: 'ap-southeast-7', challengeType: 'FaceMovementAndLightChallenge', policyProfileId: 'aws-poc-test', engineVersion: 'test-engine' }; },
+      evaluate: async ({ providerSessionRef: actual, referencePhotoBytes }) => { assert.equal(actual, providerSessionRef); evaluateBytes = Buffer.from(referencePhotoBytes); return { complete: true, providerStatus: 'SUCCEEDED', padPassed: true, faceMatchPassed: true, injectionRiskDetected: false, resultCode: 'AWS_VERIFICATION_PASS', policyProfileId: 'aws-poc-test', engineVersion: 'test-engine' }; }
+    };
+    let storageReads = 0;
+    const storage = { getBytes: async (key) => { storageReads += 1; assert.equal(key, 'face/' + marker + '/reference.png'); return Buffer.from(referenceBytes); } };
+    const poc = createFaceVerificationPocService({ prisma, sessionService, provider, storage });
+    const bound = await poc.createProviderSession({ actor, sessionId: created.session.id });
+    assert.equal(bound.session.status, 'PROVIDER_PENDING');
+    assert.equal(bound.providerSessionId, providerSessionRef);
+    const completed = await poc.completeProviderSession({ actor, sessionId: created.session.id, providerSessionId: providerSessionRef });
+    assert.equal(completed.pending, false);
+    assert.equal(completed.session.status, 'VERIFIED');
+    assert.ok(completed.receipt.length >= 32);
+    assert.equal(storageReads, 1);
+    assert.deepEqual(evaluateBytes, referenceBytes);
+    const receiptRow = await prisma.faceVerificationReceipt.findUniqueOrThrow({ where: { sessionId: created.session.id } });
+    assert.equal(receiptRow.receiptHash, receiptHash(completed.receipt));
+    const sessionRow = await prisma.faceVerificationSession.findUniqueOrThrow({ where: { id: created.session.id } });
+    assert.equal(sessionRow.provider, 'AWS_REKOGNITION_POC');
+    assert.equal(sessionRow.providerResultCode, 'AWS_VERIFICATION_PASS');
+    const serialized = JSON.stringify(sessionRow) + JSON.stringify(receiptRow);
+    assert.equal(serialized.includes(referenceBytes.toString('base64')), false);
+    assert.equal(serialized.includes(providerSessionRef), false);
     await cleanup();
   });
 

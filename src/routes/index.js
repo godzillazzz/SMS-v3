@@ -10,6 +10,7 @@ const registrationRequestRoutes = require('./registration-requests.routes');
 const employeeChangeRequestRoutes = require('./employee-change-requests.routes');
 const attendanceDeviceRoutes = require('./attendance-device.routes');
 const employeeReferencePhotoRoutes = require('./employee-reference-photo.routes');
+const { router: faceVerificationRoutes } = require('./face-verification.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -19,6 +20,7 @@ router.use('/registration-requests', registrationRequestRoutes);
 router.use('/employee-change-requests', employeeChangeRequestRoutes);
 router.use('/attendance/devices', attendanceDeviceRoutes);
 router.use('/employee-reference-photos', employeeReferencePhotoRoutes);
+router.use('/face-verification', faceVerificationRoutes);
 router.use('/shift-types', shiftsRoutes);
 router.use('/schedules', schedulesRoutes);
 router.use('/schedule-calendar', schedulesRoutes);

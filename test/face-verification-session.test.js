@@ -65,13 +65,16 @@ test('service binds account employee active device current Reference Photo chall
   assert.doesNotMatch(service, /employeeCode/);
 });
 
-test('trusted provider result is an internal service contract and no public Phase 3B route is mounted', () => {
+test('trusted provider result stays in the core service while Phase 3B-2 exposes only a preview-gated authenticated PoC route', () => {
   const service = read('src/services/face-verification-session.service.js');
+  const route = read('src/routes/face-verification.routes.js');
   const routes = read('src/routes/index.js');
   assert.match(service, /recordTrustedProviderResult/);
   assert.match(service, /providerSessionRefHash/);
-  assert.equal(routes.includes('face-verification'), false);
-  assert.equal(fs.existsSync(path.join(root, 'src/routes/face-verification.routes.js')), false);
+  assert.match(route, /router.use\(requirePreviewPoc, authenticate\)/);
+  assert.match(route, /VERCEL_ENV === 'preview'/);
+  assert.match(route, /FACE_VERIFICATION_POC_API_ENABLED === 'true'/);
+  assert.ok(routes.includes("router.use('/face-verification', faceVerificationRoutes)"));
 });
 
 test('PAD face match and injection risk all gate receipt issuance fail closed', () => {
@@ -94,10 +97,13 @@ test('receipt consumption is atomic single-use and re-checks current authority',
   assert.match(service, /VERIFICATION_STALE/);
 });
 
-test('Phase 3B-1 remains provider-neutral and does not add SDK credentials or biometric runtime routes', () => {
+test('Phase 3B core service remains provider-neutral while the AWS PoC adapter is isolated and carries no credential literals', () => {
   const service = read('src/services/face-verification-session.service.js');
+  const provider = read('src/services/aws-rekognition-face-verification.provider.js');
   const pkg = read('package.json');
   assert.doesNotMatch(service, /AWS_ACCESS_KEY|AWS_SECRET|IPROOV|REKOGNITION/i);
-  assert.doesNotMatch(pkg, /rekognition|iproov|face-api|tensorflow/i);
-  assert.equal(fs.existsSync(path.join(root, 'src/routes/face-verification.routes.js')), false);
+  assert.match(pkg, /@aws-sdk\/client-rekognition/);
+  assert.doesNotMatch(provider, /AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN/);
+  assert.doesNotMatch(provider, /OutputConfig|S3Bucket|S3KeyPrefix/);
+  assert.ok(fs.existsSync(path.join(root, 'src/routes/face-verification.routes.js')));
 });
