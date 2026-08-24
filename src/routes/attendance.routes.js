@@ -22,7 +22,6 @@ const attendanceEvidenceInput = z.object({
 }).strict();
 const prepareInput = z.object({
   captureId: uuid,
-  eventIntent: z.enum(['CHECK_IN', 'CHECK_OUT']),
   attendanceEvidence: attendanceEvidenceInput
 }).strict();
 const contextLocationInput = z.object({

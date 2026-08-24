@@ -83,7 +83,7 @@ test('Attendance workflow conflicts never become success and CHECK_OUT without C
   assert.equal(required.action, 'START_CHECK_IN');
   assert.equal(required.attendanceAccepted, false);
 
-  for (const code of ['ATTENDANCE_ALREADY_CHECKED_IN', 'ATTENDANCE_ALREADY_CHECKED_OUT', 'ATTENDANCE_SESSION_CLOSED', 'ATTENDANCE_EVENT_CONFLICT']) {
+  for (const code of ['ATTENDANCE_ALREADY_CHECKED_IN', 'ATTENDANCE_ALREADY_CHECKED_OUT', 'ATTENDANCE_SESSION_CLOSED', 'ATTENDANCE_SESSION_INCONSISTENT', 'ATTENDANCE_EVENT_CONFLICT']) {
     const result = mapAttendanceDomainOutcome(code);
     assert.equal(result.state, 'ATTENDANCE_STATE_REFRESH_REQUIRED');
     assert.equal(result.action, 'REFRESH_ATTENDANCE_STATUS');

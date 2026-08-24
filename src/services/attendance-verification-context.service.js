@@ -178,6 +178,35 @@ function createAttendanceVerificationContextService({
     throw http(409, 'ATTENDANCE_ASSIGNMENT_REQUIRED', 'No authoritative Shift Assignment is available for Attendance verification.');
   }
 
+  async function resolveEventIntent({ actor }, client = prisma) {
+    const identity = await resolveIdentity(client, actor);
+    const assignment = await resolveCurrentAssignment(client, identity.employeeId, clock());
+    await requireApprovedSchedule(client, assignment);
+    const session = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
+    if (!session) {
+      return { eventIntent: 'CHECK_IN', shiftAssignmentId: assignment.id, workDate: workDateText(assignment.workDate) };
+    }
+    if (session.employeeId !== identity.employeeId || session.shiftAssignmentId !== assignment.id) {
+      throw http(409, 'ATTENDANCE_SESSION_STALE', 'Attendance session no longer matches the authoritative Shift Assignment.');
+    }
+    const events = await client.attendanceEvent.findMany({
+      where: { sessionId: session.id, eventType: { in: ['CHECK_IN', 'CHECK_OUT'] } },
+      select: { eventType: true }
+    });
+    const hasCheckIn = events.some((row) => row.eventType === 'CHECK_IN');
+    const hasCheckOut = events.some((row) => row.eventType === 'CHECK_OUT');
+    if (hasCheckOut) {
+      throw http(409, 'ATTENDANCE_ALREADY_CHECKED_OUT', 'Attendance is already complete for the current Shift Assignment.');
+    }
+    if (session.state === 'CLOSED' || session.closedAt) {
+      throw http(409, 'ATTENDANCE_SESSION_INCONSISTENT', 'Attendance session state is inconsistent.');
+    }
+    if (!hasCheckIn) {
+      throw http(409, 'ATTENDANCE_SESSION_INCONSISTENT', 'Attendance session is missing its committed CHECK_IN event.');
+    }
+    return { eventIntent: 'CHECK_OUT', shiftAssignmentId: assignment.id, workDate: workDateText(assignment.workDate) };
+  }
+
   async function loadExactAssignment(client, employeeId, shiftAssignmentId) {
     const id = normalizedUuid(shiftAssignmentId, 'ATTENDANCE_SHIFT_ASSIGNMENT_INVALID');
     const assignment = await client.shiftAssignment.findUnique({ where: { id }, include: { shiftType: true, securitySite: true } });
@@ -323,6 +352,7 @@ function createAttendanceVerificationContextService({
 
   return {
     prepareContext,
+    resolveEventIntent,
     resolveContextRef,
     prepareVerification,
     consumeVerification,

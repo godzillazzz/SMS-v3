@@ -69,12 +69,13 @@ function serviceSpy() {
     service: {
       async assessReadiness(input) {
         calls.push(['readiness', input]);
-        return { ok: true, readiness: { state: 'READY_TO_START_VERIFICATION', attendanceAccepted: false } };
+        return { ok: true, eventIntent: 'CHECK_IN', readiness: { state: 'READY_TO_START_VERIFICATION', attendanceAccepted: false } };
       },
       async beginVerification(input) {
         calls.push(['start', input]);
         return {
           ok: true,
+          eventIntent: 'CHECK_IN',
           readiness: { state: 'READY_TO_START_VERIFICATION', attendanceAccepted: false },
           verification: { sessionId: 'session-1', attendanceContext: context }
         };
@@ -117,14 +118,16 @@ test('flagged Preview Attendance route requires authentication before contract e
 test('readiness accepts only raw Attendance evidence and rejects client biometric/context authority fields', async () => {
   const spy = serviceSpy();
   const app = appFor({ environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }, service: spy.service });
-  const valid = { captureId, eventIntent: 'CHECK_IN', attendanceEvidence: evidence };
+  const valid = { captureId, attendanceEvidence: evidence };
   const response = await request(app).post('/api/v1/attendance/readiness').set('Authorization', 'Bearer route-test').send(valid);
   assert.equal(response.status, 200);
   assert.equal(response.body.data.readiness.attendanceAccepted, false);
   assert.equal(spy.calls.length, 1);
   assert.deepEqual(spy.calls[0][1], { actor: { sub: 'route-user', role: 'VIEWER' }, ...valid });
+  assert.equal(response.body.data.eventIntent, 'CHECK_IN');
 
   for (const injected of [
+    { ...valid, eventIntent: 'CHECK_OUT' },
     { ...valid, padPassed: true },
     { ...valid, faceMatchPassed: true },
     { ...valid, contextDigest: 'a'.repeat(64) },
@@ -141,9 +144,10 @@ test('verification start uses the same strict evidence contract and returns only
   const app = appFor({ environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }, service: spy.service });
   const response = await request(app).post('/api/v1/attendance/verification/start')
     .set('Authorization', 'Bearer route-test')
-    .send({ captureId, eventIntent: 'CHECK_IN', attendanceEvidence: evidence });
+    .send({ captureId, attendanceEvidence: evidence });
   assert.equal(response.status, 201);
   assert.equal(response.body.data.verification.sessionId, 'session-1');
+  assert.equal(response.body.data.eventIntent, 'CHECK_IN');
   assert.equal(response.body.data.readiness.attendanceAccepted, false);
   assert.equal(spy.calls[0][0], 'start');
 });

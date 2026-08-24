@@ -35,31 +35,47 @@ function createAttendanceApiContractService({
     }
   }
 
-  async function assessReadiness({ actor, captureId, eventIntent, attendanceEvidence } = {}) {
+  async function resolveServerIntent(actor) {
+    if (typeof verification.resolveEventIntent !== 'function') {
+      const error = new Error('Attendance server intent resolver is unavailable.');
+      error.details = { code: 'ATTENDANCE_INTENT_RESOLVER_UNAVAILABLE' };
+      throw error;
+    }
+    return verification.resolveEventIntent({ actor });
+  }
+
+  async function assessReadiness({ actor, captureId, attendanceEvidence } = {}) {
     if (!runtimeEnabled()) {
-      return { ok: true, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }) };
+      return { ok: true, eventIntent: null, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }) };
     }
     try {
-      await verification.prepareContext({ actor, captureId, eventIntent, attendanceEvidence });
-      return { ok: true, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: true }) };
+      const resolvedIntent = await resolveServerIntent(actor);
+      await verification.prepareContext({ actor, captureId, eventIntent: resolvedIntent.eventIntent, attendanceEvidence });
+      return {
+        ok: true,
+        eventIntent: resolvedIntent.eventIntent,
+        readiness: serverRuntimeReadiness({ serverRuntimeEnabled: true })
+      };
     } catch (error) {
-      return { ok: false, readiness: mapAttendanceDomainOutcome(error) };
+      return { ok: false, eventIntent: null, readiness: mapAttendanceDomainOutcome(error) };
     }
   }
 
-  async function beginVerification({ actor, captureId, eventIntent, attendanceEvidence } = {}) {
+  async function beginVerification({ actor, captureId, attendanceEvidence } = {}) {
     if (!runtimeEnabled()) {
-      return { ok: false, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }), verification: null };
+      return { ok: false, eventIntent: null, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }), verification: null };
     }
     try {
-      const result = await verification.prepareVerification({ actor, captureId, eventIntent, attendanceEvidence });
+      const resolvedIntent = await resolveServerIntent(actor);
+      const result = await verification.prepareVerification({ actor, captureId, eventIntent: resolvedIntent.eventIntent, attendanceEvidence });
       return {
         ok: true,
+        eventIntent: resolvedIntent.eventIntent,
         readiness: serverRuntimeReadiness({ serverRuntimeEnabled: true }),
         verification: safeVerificationStart(result)
       };
     } catch (error) {
-      return { ok: false, readiness: mapAttendanceDomainOutcome(error), verification: null };
+      return { ok: false, eventIntent: null, readiness: mapAttendanceDomainOutcome(error), verification: null };
     }
   }
 

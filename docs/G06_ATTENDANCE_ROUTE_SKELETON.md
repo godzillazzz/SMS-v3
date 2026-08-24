@@ -47,7 +47,7 @@ The current Owner decision keeps AWS/provider runtime paused, so no Face Livenes
 
 - authenticated account identity from server middleware;
 - client-generated UUID `captureId` used only as idempotency/correlation input;
-- `CHECK_IN` or `CHECK_OUT` intent;
+- no client event intent; the backend resolves `CHECK_IN` / `CHECK_OUT` from authoritative Attendance state;
 - raw Attendance QR token;
 - GPS latitude/longitude/accuracy/capturedAt.
 
@@ -102,3 +102,8 @@ This checkpoint does not:
 ## Next gate
 
 After source/tests/Preview build verification, the next consequential gate is guarded isolated Preview migration `003/004` plus temporary route visibility for authenticated Preview UAT. Biometric provider runtime may remain disabled during readiness/authority UAT. Enabling actual biometric runtime remains a separate Owner decision.
+
+
+## Server-owned CHECK_IN / CHECK_OUT
+
+Client-supplied `eventIntent` on readiness/start is rejected by the strict route schema. The backend chooses intent from the current authoritative shift/session/events. The event intent inside the later server-issued Attendance context remains digest-bound and cannot be substituted independently by the client.

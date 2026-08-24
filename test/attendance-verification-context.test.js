@@ -58,8 +58,8 @@ function assignment({ id = ids.assignmentToday, workDate = '2026-08-24', startTi
   };
 }
 
-function fakeDb({ now = new Date('2026-08-24T03:00:00.000Z'), rows = [assignment()], approvalStatus = 'APPROVED' } = {}) {
-  const state = { rows, approvalStatus };
+function fakeDb({ now = new Date('2026-08-24T03:00:00.000Z'), rows = [assignment()], approvalStatus = 'APPROVED', sessionRow = null, attendanceEvents = [] } = {}) {
+  const state = { rows, approvalStatus, sessionRow, attendanceEvents };
   const db = {
     user: {
       findUnique: async () => ({
@@ -85,6 +85,14 @@ function fakeDb({ now = new Date('2026-08-24T03:00:00.000Z'), rows = [assignment
     },
     scheduleApproval: {
       findFirst: async () => ({ id: ids.approval, status: state.approvalStatus, revision: 3, updatedAt: now })
+    },
+    attendanceSession: {
+      findUnique: async ({ where }) => state.sessionRow?.shiftAssignmentId === where.shiftAssignmentId ? state.sessionRow : null
+    },
+    attendanceEvent: {
+      findMany: async ({ where }) => state.attendanceEvents
+        .filter((row) => row.sessionId === where.sessionId && (!where.eventType?.in || where.eventType.in.includes(row.eventType)))
+        .map((row) => ({ eventType: row.eventType }))
     }
   };
   return { db, state, clock: () => now };
@@ -167,6 +175,36 @@ test('Bangkok time and overnight detection preserve the prior-day shift tail', (
   assert.deepEqual(bangkokParts(new Date('2026-08-23T18:30:00.000Z')), { date: '2026-08-24', minutes: 90 });
   assert.equal(isOvernightAssignment(assignment({ startTime: '19:00', endTime: '07:00' })), true);
   assert.equal(isOvernightAssignment(assignment({ startTime: '07:00', endTime: '19:00' })), false);
+});
+
+test('server resolves CHECK_IN when the authoritative current shift has no AttendanceSession', async () => {
+  const { db, clock } = fakeDb();
+  const service = createAttendanceVerificationContextService({ prisma: db, faceSessionService: fakeFace(), siteEvidenceService: fakeSiteEvidence(), clock });
+  const resolved = await service.resolveEventIntent({ actor: { sub: ids.user } });
+  assert.deepEqual(resolved, { eventIntent: 'CHECK_IN', shiftAssignmentId: ids.assignmentToday, workDate: '2026-08-24' });
+});
+
+test('server resolves CHECK_OUT only after a committed CHECK_IN on the current open session', async () => {
+  const session = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccd', employeeId: ids.employee, shiftAssignmentId: ids.assignmentToday, state: 'OPEN', closedAt: null };
+  const { db, clock } = fakeDb({ sessionRow: session, attendanceEvents: [{ sessionId: session.id, eventType: 'CHECK_IN' }] });
+  const service = createAttendanceVerificationContextService({ prisma: db, faceSessionService: fakeFace(), siteEvidenceService: fakeSiteEvidence(), clock });
+  const resolved = await service.resolveEventIntent({ actor: { sub: ids.user } });
+  assert.equal(resolved.eventIntent, 'CHECK_OUT');
+  assert.equal(resolved.shiftAssignmentId, ids.assignmentToday);
+});
+
+test('server blocks a shift that already has a committed CHECK_OUT', async () => {
+  const session = { id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccce', employeeId: ids.employee, shiftAssignmentId: ids.assignmentToday, state: 'CLOSED', closedAt: new Date('2026-08-24T10:00:00.000Z') };
+  const { db, clock } = fakeDb({ sessionRow: session, attendanceEvents: [{ sessionId: session.id, eventType: 'CHECK_IN' }, { sessionId: session.id, eventType: 'CHECK_OUT' }] });
+  const service = createAttendanceVerificationContextService({ prisma: db, faceSessionService: fakeFace(), siteEvidenceService: fakeSiteEvidence(), clock });
+  await assert.rejects(() => service.resolveEventIntent({ actor: { sub: ids.user } }), (error) => error.details?.code === 'ATTENDANCE_ALREADY_CHECKED_OUT');
+});
+
+test('server fails closed when an existing AttendanceSession is missing its committed CHECK_IN', async () => {
+  const session = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccf', employeeId: ids.employee, shiftAssignmentId: ids.assignmentToday, state: 'OPEN', closedAt: null };
+  const { db, clock } = fakeDb({ sessionRow: session, attendanceEvents: [] });
+  const service = createAttendanceVerificationContextService({ prisma: db, faceSessionService: fakeFace(), siteEvidenceService: fakeSiteEvidence(), clock });
+  await assert.rejects(() => service.resolveEventIntent({ actor: { sub: ids.user } }), (error) => error.details?.code === 'ATTENDANCE_SESSION_INCONSISTENT');
 });
 
 test('prepareContext derives Site/QR/GPS digests from raw evidence through the server validator', async () => {

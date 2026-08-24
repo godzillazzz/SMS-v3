@@ -17,8 +17,9 @@ const attendanceEvidence = {
 };
 
 function fakeDependencies() {
-  const calls = { prepareContext: [], prepareVerification: [], accept: [] };
+  const calls = { resolveIntent: [], prepareContext: [], prepareVerification: [], accept: [] };
   const verification = {
+    resolveEventIntent: async (input) => { calls.resolveIntent.push(input); return { eventIntent: 'CHECK_IN', shiftAssignmentId: '66666666-6666-4666-8666-666666666666', workDate: '2026-08-24' }; },
     prepareContext: async (input) => { calls.prepareContext.push(input); return { contextDigest: 'a'.repeat(64) }; },
     prepareVerification: async (input) => {
       calls.prepareVerification.push(input);
@@ -59,10 +60,12 @@ function fakeDependencies() {
 test('runtime-disabled readiness returns a server blocking state before any context/provider work', async () => {
   const { calls, verification, events } = fakeDependencies();
   const service = createAttendanceApiContractService({ verificationContextService: verification, attendanceEventService: events, isBiometricRuntimeEnabled: () => false });
-  const result = await service.assessReadiness({ actor, captureId, eventIntent: 'CHECK_IN', attendanceEvidence });
+  const result = await service.assessReadiness({ actor, captureId, attendanceEvidence });
   assert.equal(result.ok, true);
   assert.equal(result.readiness.state, 'BIOMETRIC_RUNTIME_DISABLED');
   assert.equal(result.readiness.attendanceAccepted, false);
+  assert.equal(result.eventIntent, null);
+  assert.equal(calls.resolveIntent.length, 0);
   assert.equal(calls.prepareContext.length, 0);
   assert.equal(calls.prepareVerification.length, 0);
   assert.equal(calls.accept.length, 0);
@@ -71,22 +74,27 @@ test('runtime-disabled readiness returns a server blocking state before any cont
 test('runtime-enabled readiness validates server authority but still cannot report Attendance success', async () => {
   const { calls, verification, events } = fakeDependencies();
   const service = createAttendanceApiContractService({ verificationContextService: verification, attendanceEventService: events, isBiometricRuntimeEnabled: () => true });
-  const result = await service.assessReadiness({ actor, captureId, eventIntent: 'CHECK_IN', attendanceEvidence, contextDigest: 'f'.repeat(64) });
+  const result = await service.assessReadiness({ actor, captureId, attendanceEvidence, eventIntent: 'CHECK_OUT', contextDigest: 'f'.repeat(64) });
   assert.equal(result.ok, true);
   assert.equal(result.readiness.state, 'READY_TO_START_VERIFICATION');
   assert.equal(result.readiness.attendanceAccepted, false);
+  assert.equal(result.eventIntent, 'CHECK_IN');
+  assert.equal(calls.resolveIntent.length, 1);
   assert.equal(calls.prepareContext.length, 1);
   assert.deepEqual(Object.keys(calls.prepareContext[0]).sort(), ['actor', 'attendanceEvidence', 'captureId', 'eventIntent']);
+  assert.equal(calls.prepareContext[0].eventIntent, 'CHECK_IN');
   assert.equal(Object.prototype.hasOwnProperty.call(calls.prepareContext[0], 'contextDigest'), false);
 });
 
 test('beginVerification is blocked while runtime is disabled and creates no FaceVerificationSession work', async () => {
   const { calls, verification, events } = fakeDependencies();
   const service = createAttendanceApiContractService({ verificationContextService: verification, attendanceEventService: events, isBiometricRuntimeEnabled: () => false });
-  const result = await service.beginVerification({ actor, captureId, eventIntent: 'CHECK_IN', attendanceEvidence });
+  const result = await service.beginVerification({ actor, captureId, attendanceEvidence });
   assert.equal(result.ok, false);
   assert.equal(result.readiness.state, 'BIOMETRIC_RUNTIME_DISABLED');
+  assert.equal(result.eventIntent, null);
   assert.equal(result.verification, null);
+  assert.equal(calls.resolveIntent.length, 0);
   assert.equal(calls.prepareVerification.length, 0);
 });
 
@@ -96,16 +104,19 @@ test('beginVerification passes only raw Attendance evidence inputs and returns a
   const result = await service.beginVerification({
     actor,
     captureId,
-    eventIntent: 'CHECK_IN',
     attendanceEvidence,
+    eventIntent: 'CHECK_OUT',
     contextDigest: 'f'.repeat(64),
     padPassed: true,
     faceMatchPassed: true
   });
   assert.equal(result.ok, true);
   assert.equal(result.readiness.attendanceAccepted, false);
+  assert.equal(result.eventIntent, 'CHECK_IN');
+  assert.equal(calls.resolveIntent.length, 1);
   assert.equal(calls.prepareVerification.length, 1);
   assert.deepEqual(Object.keys(calls.prepareVerification[0]).sort(), ['actor', 'attendanceEvidence', 'captureId', 'eventIntent']);
+  assert.equal(calls.prepareVerification[0].eventIntent, 'CHECK_IN');
   assert.deepEqual(Object.keys(result.verification).sort(), ['attendanceContext', 'challenge', 'challengeId', 'expiresAt', 'sessionId', 'status']);
   const serialized = JSON.stringify(result);
   assert.equal(serialized.includes('secret-fingerprint'), false);
@@ -130,7 +141,7 @@ test('only a committed AttendanceEvent service result may set attendanceAccepted
 test('event-acceptance domain errors map to fail-closed readiness without leaking receipt or raw provider error', async () => {
   const error = new Error('SECRET provider payload receipt=should-not-leak');
   error.details = { code: 'VERIFICATION_REPLAYED', providerPayload: 'SECRET' };
-  const verification = { prepareContext: async () => {}, prepareVerification: async () => {} };
+  const verification = { resolveEventIntent: async () => ({ eventIntent: 'CHECK_IN' }), prepareContext: async () => {}, prepareVerification: async () => {} };
   const events = { acceptVerifiedEvent: async () => { throw error; } };
   const service = createAttendanceApiContractService({ verificationContextService: verification, attendanceEventService: events, isBiometricRuntimeEnabled: () => true });
   const result = await service.acceptVerifiedEvent({ actor, receipt: 'secret-receipt', attendanceContext: { captureId } });
@@ -149,9 +160,10 @@ test('runtime gate exceptions fail closed without downstream verification work',
     attendanceEventService: events,
     isBiometricRuntimeEnabled: () => { throw new Error('runtime config failure'); }
   });
-  const result = await service.beginVerification({ actor, captureId, eventIntent: 'CHECK_IN', attendanceEvidence });
+  const result = await service.beginVerification({ actor, captureId, attendanceEvidence });
   assert.equal(result.ok, false);
   assert.equal(result.readiness.state, 'BIOMETRIC_RUNTIME_DISABLED');
+  assert.equal(calls.resolveIntent.length, 0);
   assert.equal(calls.prepareVerification.length, 0);
 });
 
@@ -180,6 +192,8 @@ test('Attendance API contract remains provider-neutral after gated route skeleto
   assert.match(route, /createAttendanceApiContractService/);
   assert.match(route, /attendanceApiEnabled/);
   assert.match(route, /VERCEL_ENV === 'production'/);
+  assert.match(route, /const prepareInput = z\.object\(\{\s*captureId: uuid,\s*attendanceEvidence: attendanceEvidenceInput\s*\}\)\.strict\(\)/);
+  assert.match(service, /resolveServerIntent/);
   assert.match(index, /router\.use\('\/attendance', attendanceRoutes\)/);
   assert.doesNotMatch(frontend, /attendance-api-contract|\/attendance\/readiness|\/attendance\/verification\/start|\/attendance\/events/);
 });

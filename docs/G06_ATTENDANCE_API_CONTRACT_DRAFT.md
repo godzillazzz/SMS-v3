@@ -17,7 +17,7 @@ Future conceptual operation: `POST /api/v1/attendance/verification/readiness` �
 Input owned by the request:
 
 - `captureId` — UUID generated for this Attendance attempt.
-- `eventIntent` — `CHECK_IN` or `CHECK_OUT`.
+- The client does NOT send `eventIntent`. The server resolves `CHECK_IN` or `CHECK_OUT` from the authoritative current ShiftAssignment + AttendanceSession/Event state.
 - `attendanceEvidence.qrToken` — raw current-site QR presented only for server validation; it must not be logged or persisted.
 - `attendanceEvidence.location` — current GPS latitude/longitude, accuracy and capturedAt.
 
@@ -106,3 +106,11 @@ Before any route is mounted, review must explicitly confirm:
 10. no Production activation without separate Owner authorization.
 
 This checkpoint deliberately stops before mounting any route.
+
+
+### Server-owned event intent
+
+- No current AttendanceSession for the authoritative shift -> server resolves `CHECK_IN`.
+- OPEN session with a committed `CHECK_IN` and no `CHECK_OUT` -> server resolves `CHECK_OUT`.
+- Completed/closed or inconsistent session state -> fail closed; the client cannot override the decision.
+- A server-issued `attendanceContext.eventIntent` is bound into the verification context digest and may be echoed back only for opaque-receipt event acceptance.

@@ -235,7 +235,10 @@ if (!configured) {
     const context = createAttendanceVerificationContextService({ prisma, faceSessionService: face, clock: () => now });
     const events = createAttendanceEventService({ prisma, audit, verificationContextService: context, clock: () => now });
 
-    const flow = await trustedReceipt({ face, context, material, captureId: ids.captureIn, eventIntent: 'CHECK_IN' });
+    const intentBeforeCheckIn = await context.resolveEventIntent({ actor });
+    assert.equal(intentBeforeCheckIn.eventIntent, 'CHECK_IN');
+
+    const flow = await trustedReceipt({ face, context, material, captureId: ids.captureIn, eventIntent: intentBeforeCheckIn.eventIntent });
     const accepted = await events.acceptVerifiedEvent({ actor, receipt: flow.verified.receipt, attendanceContext: flow.prepared.attendanceContext });
     assert.equal(accepted.idempotent, false);
     assert.equal(accepted.event.eventType, 'CHECK_IN');
@@ -254,6 +257,8 @@ if (!configured) {
     assert.equal(eventRows[0].receivedAt.toISOString(), eventRows[0].effectiveEventAt.toISOString());
     assert.ok(receiptRow.consumedAt);
     assert.equal(faceRow.status, 'CONSUMED');
+    const intentAfterCheckIn = await context.resolveEventIntent({ actor });
+    assert.equal(intentAfterCheckIn.eventIntent, 'CHECK_OUT');
 
     const retry = await events.acceptVerifiedEvent({ actor, receipt: flow.verified.receipt, attendanceContext: flow.prepared.attendanceContext });
     assert.equal(retry.idempotent, true);
@@ -306,6 +311,7 @@ if (!configured) {
     assert.ok(finalReceipt.consumedAt);
     assert.equal(finalFace.status, 'CONSUMED');
     assert.equal(await prisma.attendanceEvent.count({ where: { sessionId: accepted.session.id } }), 2);
+    await assert.rejects(() => context.resolveEventIntent({ actor }), (error) => error.details?.code === 'ATTENDANCE_ALREADY_CHECKED_OUT');
   });
 
   test('real DB constraints reject impossible closed-session state and malformed Attendance event digest', async () => {
