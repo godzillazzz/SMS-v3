@@ -7,6 +7,7 @@ import {
   type AttendanceLocationEvidence,
   type AttendanceReadinessState
 } from './attendance-client';
+import { AttendanceQrScanner } from './AttendanceQrScanner';
 import './attendance.css';
 
 type Props = {
@@ -153,6 +154,7 @@ function fallbackCopy(state?: AttendanceReadinessState | null): Copy {
 
 export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: Props) {
   const [qrToken, setQrToken] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [location, setLocation] = useState<AttendanceLocationEvidence | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -227,12 +229,18 @@ export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: P
   };
 
   const resetAttempt = () => {
+    setScannerOpen(false);
     setQrToken('');
     setLocation(null);
     resetServerState();
   };
 
   return <section className="view-pane attendance-page">
+    <AttendanceQrScanner
+      open={scannerOpen && !readOnly}
+      onDetected={(value) => { setQrToken(value); setScannerOpen(false); resetServerState(); }}
+      onClose={() => setScannerOpen(false)}
+    />
     <div className="page-heading attendance-heading">
       <div>
         <p className="eyebrow">G06 · ATTENDANCE</p>
@@ -270,7 +278,7 @@ export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: P
 
     <div className="attendance-workspace-grid">
       <article className="attendance-evidence-card">
-        <header><span><SmsIcon name="quality" size={20} /></span><div><h2>1. QR จุดปฏิบัติงาน</h2><p>QR ใช้เฉพาะ attempt ปัจจุบันและไม่บันทึกลง localStorage/sessionStorage</p></div></header>
+        <header className="attendance-qr-evidence-header"><span><SmsIcon name="quality" size={20} /></span><div><h2>1. QR จุดปฏิบัติงาน</h2><p>สแกนด้วยกล้องหรือวางข้อมูล QR; ค่า QR อยู่เฉพาะ attempt ปัจจุบันและไม่บันทึกลง localStorage/sessionStorage</p></div><button type="button" className="btn-primary attendance-qr-open-action" disabled={readOnly || checking} onClick={() => { resetServerState(); setScannerOpen(true); }}><SmsIcon name="quality" size={17} />สแกน QR</button></header>
         <label className="attendance-field">
           <span>ข้อมูลจาก QR</span>
           <input
@@ -280,7 +288,7 @@ export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: P
             value={qrToken}
             disabled={readOnly || checking}
             onChange={(event) => { setQrToken(event.target.value); resetServerState(); }}
-            placeholder="สแกนหรือวางข้อมูล QR จากป้าย ณ จุดปฏิบัติงาน"
+            placeholder="วางข้อมูล QR จากป้าย ณ จุดปฏิบัติงาน หรือกดสแกน QR"
           />
           <small>{qrReady ? 'พร้อมส่งให้ server ตรวจ credential/site binding' : 'ต้องมีข้อมูล QR ที่สมบูรณ์ก่อนตรวจ readiness'}</small>
         </label>

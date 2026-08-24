@@ -5,6 +5,7 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf
 const main = read('./main.tsx');
 const page = read('./pages/attendance/AttendancePage.tsx');
 const client = read('./pages/attendance/attendance-client.ts');
+const scanner = read('./pages/attendance/AttendanceQrScanner.tsx');
 const css = read('./pages/attendance/attendance.css');
 
 describe('G06 Attendance frontend UX skeleton', () => {
@@ -33,6 +34,24 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).not.toContain('faceMatchPassed');
     expect(page).not.toContain('attendanceAccepted = true');
     expect(page).toContain('ยังไม่เปิด runtime ในรอบนี้');
+  });
+
+  it('uses a transient camera QR scanner and releases all media tracks without persisting frames', () => {
+    expect(page).toContain('<AttendanceQrScanner');
+    expect(page).toContain('สแกน QR');
+    expect(scanner).toContain('navigator.mediaDevices.getUserMedia');
+    expect(scanner).toContain("facingMode: { ideal: 'environment' }");
+    expect(scanner).toContain('stream?.getTracks().forEach((track) => track.stop())');
+    expect(scanner).toContain('context.getImageData');
+    expect(scanner).toContain('jsQR(frame.data');
+    expect(scanner).toContain('onDetectedRef.current(value)');
+    expect(scanner).not.toContain('fetch(');
+    expect(scanner).not.toContain('XMLHttpRequest');
+    expect(scanner).not.toContain('localStorage.');
+    expect(scanner).not.toContain('sessionStorage.');
+    expect(scanner).not.toContain('MediaRecorder');
+    expect(css).toContain('.attendance-qr-backdrop');
+    expect(css).toContain('.attendance-qr-camera video');
   });
 
   it('uses one-shot high-accuracy geolocation without continuous tracking or local persistence', () => {
