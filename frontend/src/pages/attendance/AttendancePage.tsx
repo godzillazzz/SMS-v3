@@ -13,6 +13,7 @@ import './attendance.css';
 type Props = {
   token: string;
   readOnly?: boolean;
+  online?: boolean;
   onOpenDeviceSetup?: () => void;
 };
 
@@ -152,7 +153,7 @@ function fallbackCopy(state?: AttendanceReadinessState | null): Copy {
   };
 }
 
-export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: Props) {
+export function AttendancePage({ token, readOnly = false, online = true, onOpenDeviceSetup }: Props) {
   const [qrToken, setQrToken] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [location, setLocation] = useState<AttendanceLocationEvidence | null>(null);
@@ -168,7 +169,8 @@ export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: P
   const copy = useMemo(() => fallbackCopy(readiness), [readiness]);
   const qrReady = qrToken.trim().length >= 24;
   const gpsReady = Boolean(location);
-  const canCheck = !readOnly && qrReady && gpsReady && !checking && !locationBusy;
+  const interactionDisabled = readOnly || !online;
+  const canCheck = !interactionDisabled && qrReady && gpsReady && !checking && !locationBusy;
 
   const resetServerState = () => {
     setReadiness(null);
@@ -180,7 +182,7 @@ export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: P
   };
 
   const acquireLocation = async () => {
-    if (readOnly) return;
+    if (interactionDisabled) return;
     setLocationBusy(true);
     resetServerState();
     try {
@@ -237,7 +239,7 @@ export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: P
 
   return <section className="view-pane attendance-page">
     <AttendanceQrScanner
-      open={scannerOpen && !readOnly}
+      open={scannerOpen && !interactionDisabled}
       onDetected={(value) => { setQrToken(value); setScannerOpen(false); resetServerState(); }}
       onClose={() => setScannerOpen(false)}
     />
@@ -255,6 +257,7 @@ export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: P
     </div>
 
     {readOnly && <div className="settings-notice">กำลังอยู่ใน View As — หน้า Attendance เป็นแบบอ่านอย่างเดียวและไม่สามารถส่งหลักฐานลงเวลาแทนพนักงานได้</div>}
+    {!online && <div className="settings-notice">ออฟไลน์ — ปิดการสแกน QR, GPS และ Server readiness จนกว่าจะเชื่อมต่อ Server อีกครั้ง</div>}
 
     <section className="attendance-safety-banner">
       <span className="attendance-safety-banner__icon"><SmsIcon name="shield" size={22} /></span>
@@ -278,7 +281,7 @@ export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: P
 
     <div className="attendance-workspace-grid">
       <article className="attendance-evidence-card">
-        <header className="attendance-qr-evidence-header"><span><SmsIcon name="quality" size={20} /></span><div><h2>1. QR จุดปฏิบัติงาน</h2><p>สแกนด้วยกล้องหรือวางข้อมูล QR; ค่า QR อยู่เฉพาะ attempt ปัจจุบันและไม่บันทึกลง localStorage/sessionStorage</p></div><button type="button" className="btn-primary attendance-qr-open-action" disabled={readOnly || checking} onClick={() => { resetServerState(); setScannerOpen(true); }}><SmsIcon name="quality" size={17} />สแกน QR</button></header>
+        <header className="attendance-qr-evidence-header"><span><SmsIcon name="quality" size={20} /></span><div><h2>1. QR จุดปฏิบัติงาน</h2><p>สแกนด้วยกล้องหรือวางข้อมูล QR; ค่า QR อยู่เฉพาะ attempt ปัจจุบันและไม่บันทึกลง localStorage/sessionStorage</p></div><button type="button" className="btn-primary attendance-qr-open-action" disabled={interactionDisabled || checking} onClick={() => { resetServerState(); setScannerOpen(true); }}><SmsIcon name="quality" size={17} />สแกน QR</button></header>
         <label className="attendance-field">
           <span>ข้อมูลจาก QR</span>
           <input
@@ -286,7 +289,7 @@ export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: P
             autoComplete="off"
             spellCheck={false}
             value={qrToken}
-            disabled={readOnly || checking}
+            disabled={interactionDisabled || checking}
             onChange={(event) => { setQrToken(event.target.value); resetServerState(); }}
             placeholder="วางข้อมูล QR จากป้าย ณ จุดปฏิบัติงาน หรือกดสแกน QR"
           />
@@ -300,7 +303,7 @@ export function AttendancePage({ token, readOnly = false, onOpenDeviceSetup }: P
           <div><dt>ความแม่นยำ</dt><dd>±{Math.round(location.accuracyMeters)} เมตร</dd></div>
           <div><dt>อ่านเมื่อ</dt><dd>{thaiTime(location.capturedAt)}</dd></div>
         </dl> : <div className="attendance-empty-evidence">ยังไม่มีตำแหน่งสำหรับ attempt นี้</div>}
-        <button type="button" className="btn-neutral attendance-location-action" disabled={readOnly || locationBusy || checking} onClick={() => void acquireLocation()}>
+        <button type="button" className="btn-neutral attendance-location-action" disabled={interactionDisabled || locationBusy || checking} onClick={() => void acquireLocation()}>
           <SmsIcon name="refresh" size={17} />{locationBusy ? 'กำลังอ่านตำแหน่ง…' : location ? 'อ่านตำแหน่งใหม่' : 'อ่านตำแหน่งปัจจุบัน'}
         </button>
       </article>
