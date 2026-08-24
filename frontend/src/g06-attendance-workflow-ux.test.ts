@@ -24,6 +24,9 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).toContain('location: input.location');
     expect(client).toMatch(/body: JSON\.stringify\(\{\s*captureId: input\.captureId,\s*attendanceEvidence: \{\s*qrToken: input\.qrToken,\s*location: input\.location\s*\}\s*\}\)/);
     expect(page).toContain('client ไม่ส่ง eventIntent');
+    expect(page).toContain('const qrLength = qrToken.trim().length');
+    expect(page).toContain('const qrReady = qrLength >= 24 && qrLength <= 512');
+    expect(page).toContain('maxLength={512}');
   });
 
   it('does not open biometric verification or Attendance event acceptance from the browser skeleton', () => {
@@ -128,10 +131,14 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toMatch(/const clearTransientAttemptForLifecycle = \(\) => \{[\s\S]*?asyncEvidenceEpochRef\.current \+= 1;[\s\S]*?setScannerOpen\(false\);[\s\S]*?setQrToken\(''\);[\s\S]*?setLocation\(null\);[\s\S]*?setLocationBusy\(false\);[\s\S]*?setChecking\(false\);[\s\S]*?resetServerState\(\);/);
     expect(page).toContain("if (document.visibilityState === 'hidden') clearTransientAttemptForLifecycle();");
     expect(page).toContain('const handlePageHide = () => clearTransientAttemptForLifecycle();');
+    expect(page).toContain('const handlePageShow = (event: PageTransitionEvent) => {');
+    expect(page).toContain('if (event.persisted) clearTransientAttemptForLifecycle();');
     expect(page).toContain("document.addEventListener('visibilitychange', handleVisibilityChange)");
     expect(page).toContain("window.addEventListener('pagehide', handlePageHide)");
+    expect(page).toContain("window.addEventListener('pageshow', handlePageShow)");
     expect(page).toContain("document.removeEventListener('visibilitychange', handleVisibilityChange)");
     expect(page).toContain("window.removeEventListener('pagehide', handlePageHide)");
+    expect(page).toContain("window.removeEventListener('pageshow', handlePageShow)");
   });
 
   it('has responsive mobile layouts for the four-step flow and evidence cards', () => {

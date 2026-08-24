@@ -168,7 +168,8 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
   const asyncEvidenceEpochRef = useRef(0);
 
   const copy = useMemo(() => fallbackCopy(readiness), [readiness]);
-  const qrReady = qrToken.trim().length >= 24;
+  const qrLength = qrToken.trim().length;
+  const qrReady = qrLength >= 24 && qrLength <= 512;
   const gpsReady = Boolean(location);
   const interactionDisabled = readOnly || !online;
   const interactionDisabledRef = useRef(interactionDisabled);
@@ -209,11 +210,16 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       if (document.visibilityState === 'hidden') clearTransientAttemptForLifecycle();
     };
     const handlePageHide = () => clearTransientAttemptForLifecycle();
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) clearTransientAttemptForLifecycle();
+    };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('pageshow', handlePageShow);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pageshow', handlePageShow);
     };
   }, []);
 
@@ -335,6 +341,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
             autoComplete="off"
             spellCheck={false}
             value={qrToken}
+            maxLength={512}
             disabled={interactionDisabled || checking}
             onChange={(event) => { setQrToken(event.target.value); resetServerState(); }}
             placeholder="วางข้อมูล QR จากป้าย ณ จุดปฏิบัติงาน หรือกดสแกน QR"
