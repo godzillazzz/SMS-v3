@@ -9,6 +9,7 @@ const dataQualityRoutes = require('./data-quality.routes');
 const registrationRequestRoutes = require('./registration-requests.routes');
 const employeeChangeRequestRoutes = require('./employee-change-requests.routes');
 const attendanceDeviceRoutes = require('./attendance-device.routes');
+const { router: attendanceRoutes } = require('./attendance.routes');
 const employeeReferencePhotoRoutes = require('./employee-reference-photo.routes');
 const { router: faceVerificationRoutes } = require('./face-verification.routes');
 
@@ -19,6 +20,7 @@ router.use('/employees', employeesRoutes);
 router.use('/registration-requests', registrationRequestRoutes);
 router.use('/employee-change-requests', employeeChangeRequestRoutes);
 router.use('/attendance/devices', attendanceDeviceRoutes);
+router.use('/attendance', attendanceRoutes);
 router.use('/employee-reference-photos', employeeReferencePhotoRoutes);
 router.use('/face-verification', faceVerificationRoutes);
 router.use('/shift-types', shiftsRoutes);

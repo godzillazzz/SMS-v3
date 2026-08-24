@@ -295,7 +295,7 @@ test('schema/migration enforce one session per shift, one event type per session
   assert.match(migration, /attendance_events_context_digest_format/);
 });
 
-test('Attendance event workflow remains internal and adds no public Attendance route', () => {
+test('Attendance event service remains behind the gated API contract with no direct route coupling', () => {
   const root = path.resolve(__dirname, '..');
   const routesRoot = path.join(root, 'src', 'routes');
   const routeSource = fs.readdirSync(routesRoot).filter((name) => name.endsWith('.js')).map((name) => fs.readFileSync(path.join(routesRoot, name), 'utf8')).join('\n');

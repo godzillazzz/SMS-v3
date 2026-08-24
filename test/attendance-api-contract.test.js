@@ -166,13 +166,10 @@ test('safe verification projection does not expose biometric/provider/internal a
   assert.deepEqual(projected, { sessionId: 's', status: 'CREATED', expiresAt: 'soon', challengeId: 'c', challenge: 'challenge', attendanceContext: { captureId: 'cap' } });
 });
 
-test('Attendance API contract remains unmounted and provider-neutral', () => {
+test('Attendance API contract remains provider-neutral after gated route skeleton mount', () => {
   const service = read('src/services/attendance-api-contract.service.js');
-  const doc = read('docs/G06_ATTENDANCE_API_CONTRACT_DRAFT.md');
-  const routes = fs.readdirSync(path.join(root, 'src', 'routes'))
-    .filter((name) => name.endsWith('.js'))
-    .map((name) => read(path.join('src', 'routes', name)))
-    .join('\n');
+  const route = read('src/routes/attendance.routes.js');
+  const index = read('src/routes/index.js');
   const frontend = fs.readdirSync(path.join(root, 'frontend', 'src'))
     .filter((name) => name.endsWith('.ts') || name.endsWith('.tsx'))
     .map((name) => read(path.join('frontend', 'src', name)))
@@ -180,8 +177,9 @@ test('Attendance API contract remains unmounted and provider-neutral', () => {
 
   assert.doesNotMatch(service, /process\.env|AWS_|Rekognition|CreateFaceLivenessSession|CompareFaces|fetch\(|axios|https?:\/\//i);
   assert.doesNotMatch(service, /padPassed|faceMatchPassed|injectionRiskDetected|contextDigest\s*:/i);
-  assert.doesNotMatch(routes, /attendance-api-contract\.service|\/attendance\/verification\/readiness|\/attendance\/verification\/start|\/attendance\/events/);
-  assert.doesNotMatch(frontend, /attendance-api-contract|\/attendance\/verification\/readiness|\/attendance\/verification\/start|\/attendance\/events/);
-  assert.match(doc, /INTERNAL \/ UNMOUNTED \/ NO PUBLIC ATTENDANCE WRITE ROUTE/);
-  assert.match(doc, /This checkpoint deliberately stops before mounting any route/);
+  assert.match(route, /createAttendanceApiContractService/);
+  assert.match(route, /attendanceApiEnabled/);
+  assert.match(route, /VERCEL_ENV === 'production'/);
+  assert.match(index, /router\.use\('\/attendance', attendanceRoutes\)/);
+  assert.doesNotMatch(frontend, /attendance-api-contract|\/attendance\/readiness|\/attendance\/verification\/start|\/attendance\/events/);
 });
