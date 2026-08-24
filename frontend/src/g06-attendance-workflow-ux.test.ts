@@ -57,6 +57,9 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(css).toContain('.attendance-qr-backdrop');
     expect(css).toContain('.attendance-qr-camera video');
     expect(css).toContain('-webkit-transform: translateZ(0)');
+    expect(css).toContain('.attendance-qr-backdrop { align-items: start; padding: max(10px, env(safe-area-inset-top)) 0 0; }');
+    expect(css).toContain('height: calc(100dvh - max(10px, env(safe-area-inset-top)))');
+    expect(css).not.toContain('.attendance-qr-backdrop { align-items: end;');
   });
 
   it('uses one-shot high-accuracy geolocation without continuous tracking or local persistence', () => {
