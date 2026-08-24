@@ -31,6 +31,9 @@ async function update(id, data, actorUserId) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.shiftType.findUnique({ where: { id } });
     if (!existing) throw new HttpError(404, 'Shift type not found.');
+    const existingCode = String(existing.code || '').toUpperCase();
+    const nextCode = data.code === undefined ? existingCode : String(data.code || '').toUpperCase();
+    if (['D', 'N', 'OFF', 'AL'].includes(existingCode) && nextCode !== existingCode) throw new HttpError(400, `Core shift ${existingCode} code cannot be changed.`);
     const updated = await tx.shiftType.update({ where: { id }, data });
     await audit.log({ actorUserId, action: 'UPDATE', entityType: 'ShiftType', entityId: id, metadata: { before: safeRecord(existing), after: safeRecord(updated) } }, tx);
     return updated;

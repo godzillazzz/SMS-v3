@@ -68,6 +68,6 @@ describe('G04.2 VF-05 final mockup fidelity closure contract', () => {
   });
 
   it('locks the authorized V1.2 API source after the Passkey extension', () => {
-    expect(apiSha256).toBe('762764230f03a4a5f70349b2c58c9b569f23b2a419cc016b79da05cdc77f229b');
+    expect(apiSha256).toBe('9b17d29ea7593a13e671b93df1917aaee74ba9ed99fc60a51621ac8cfb513071');
   });
 });

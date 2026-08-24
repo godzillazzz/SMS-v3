@@ -1864,11 +1864,38 @@ function Dashboard() {
     }, (form, files) => files.attachment ? api.createLeaveRequestWithAttachment(auth.token!, form, files.attachment) : api.createLeaveRequest(auth.token!, formPayload(form)));
   };
 
+  const shiftTypeEditorFields: FormField[] = [
+    { name: 'code', label: 'Shift Code', required: true },
+    { name: 'name', label: 'ชื่อกะ', required: true },
+    { name: 'startTime', label: 'เวลาเริ่ม' },
+    { name: 'endTime', label: 'เวลาเลิก' },
+    { name: 'hours', label: 'ชั่วโมง', type: 'number', required: true, min: 0, max: 24 },
+    { name: 'color', label: 'สี HEX', required: true }
+  ];
+
   const openShiftTypeCreator = () => runEditor({
     title: 'เพิ่มรหัสกะ', submitLabel: 'บันทึกรหัสกะ',
-    fields: [{ name: 'code', label: 'Shift Code', required: true }, { name: 'name', label: 'ชื่อกะ', required: true }, { name: 'startTime', label: 'เวลาเริ่ม' }, { name: 'endTime', label: 'เวลาเลิก' }, { name: 'hours', label: 'ชั่วโมง', type: 'number', required: true }, { name: 'color', label: 'สี HEX', required: true }],
+    fields: shiftTypeEditorFields,
     values: { color: '#2F80FF', hours: '8' }
   }, (form) => api.createShiftType(auth.token!, formPayload(form, ['startTime', 'endTime'])));
+
+  const openShiftTypeEditor = (shiftType: DataRow) => {
+    const isCoreShiftType = ['D', 'N', 'OFF', 'AL'].includes(String(shiftType.code || '').toUpperCase());
+    return runEditor({
+      title: `แก้ไขรหัสกะ ${text(shiftType.code)}`,
+      submitLabel: 'บันทึกการแก้ไข',
+      notice: isCoreShiftType ? 'รหัสกะหลัก D / N / OFF / AL ถูกใช้เป็นกฎหลักของระบบ จึงแก้ Shift Code ไม่ได้ แต่ยังแก้ชื่อ เวลา ชั่วโมง และสีได้' : undefined,
+      fields: isCoreShiftType ? shiftTypeEditorFields.filter((field) => field.name !== 'code') : shiftTypeEditorFields,
+      values: {
+        code: String(shiftType.code || ''),
+        name: String(shiftType.name || ''),
+        startTime: String(shiftType.startTime || ''),
+        endTime: String(shiftType.endTime || ''),
+        hours: String(shiftType.hours ?? ''),
+        color: String(shiftType.color || '#2F80FF')
+      }
+    }, (form) => api.updateShiftType(auth.token!, String(shiftType.id), formPayload(form, ['startTime', 'endTime'])));
+  };
 
   const handleOperationAction = async (row: DataRow, action: string) => {
     if (!auth.token || !row.id) return;
@@ -2154,7 +2181,7 @@ function Dashboard() {
       <section className="view-pane">
         <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Shift Setup</h1><p>กำหนดรหัสกะ และเวลาปฏิบัติงานที่ใช้ใน ตารางกะรายเดือน</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && <button className="btn-primary compact" onClick={openShiftTypeCreator}>+ เพิ่มรหัสกะ</button>}<span className="record-chip">ทั้งหมด {shiftTypes.length} รหัสกะ</span></div></div>
         <ErrorAlert message={operationError} />
-        <div className="table-card"><div className="table-scroll"><table className="data-table"><thead><tr><th>Shift Code</th><th>ชื่อกะ</th><th>เวลาเริ่ม</th><th>เวลาเลิก</th><th>ชั่วโมง</th><th>สี</th>{auth.user?.role === 'ADMIN' && <th>จัดการ</th>}</tr></thead><tbody>{shiftTypes.length ? shiftTypes.map((shiftType) => <tr key={text(shiftType.id)}><td><code>{text(shiftType.code)}</code></td><td className="employee-name">{text(shiftType.name)}</td><td>{text(shiftType.startTime)}</td><td>{text(shiftType.endTime)}</td><td>{text(shiftType.hours)}</td><td><span className="shift-color" style={{ backgroundColor: String(shiftType.color || '#2F80FF') }} /> {text(shiftType.color)}</td>{auth.user?.role === 'ADMIN' && <td className="row-actions data-row-actions"><button className="danger-action" disabled={['D', 'N', 'OFF', 'AL'].includes(String(shiftType.code))} onClick={async () => { if (!auth.token || !window.confirm(`ยืนยันการลบรหัสกะ ${text(shiftType.code)}?`)) return; try { await api.deleteShiftType(auth.token, String(shiftType.id)); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(toRequestErrorState(reason, 'ลบรหัสกะไม่สำเร็จ')); } }}>ลบ</button></td>}</tr>) : <tr><td colSpan={auth.user?.role === 'ADMIN' ? 7 : 6} className="no-rows">ยังไม่มีข้อมูลรหัสกะ</td></tr>}</tbody></table></div></div>
+        <div className="table-card"><div className="table-scroll"><table className="data-table"><thead><tr><th>Shift Code</th><th>ชื่อกะ</th><th>เวลาเริ่ม</th><th>เวลาเลิก</th><th>ชั่วโมง</th><th>สี</th>{auth.user?.role === 'ADMIN' && <th>จัดการ</th>}</tr></thead><tbody>{shiftTypes.length ? shiftTypes.map((shiftType) => <tr key={text(shiftType.id)}><td><code>{text(shiftType.code)}</code></td><td className="employee-name">{text(shiftType.name)}</td><td>{text(shiftType.startTime)}</td><td>{text(shiftType.endTime)}</td><td>{text(shiftType.hours)}</td><td><span className="shift-color" style={{ backgroundColor: String(shiftType.color || '#2F80FF') }} /> {text(shiftType.color)}</td>{auth.user?.role === 'ADMIN' && <td className="row-actions data-row-actions"><button className="btn-secondary compact" onClick={() => openShiftTypeEditor(shiftType)}>แก้ไข</button><button className="danger-action" disabled={['D', 'N', 'OFF', 'AL'].includes(String(shiftType.code))} onClick={async () => { if (!auth.token || !window.confirm(`ยืนยันการลบรหัสกะ ${text(shiftType.code)}?`)) return; try { await api.deleteShiftType(auth.token, String(shiftType.id)); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(toRequestErrorState(reason, 'ลบรหัสกะไม่สำเร็จ')); } }}>ลบ</button></td>}</tr>) : <tr><td colSpan={auth.user?.role === 'ADMIN' ? 7 : 6} className="no-rows">ยังไม่มีข้อมูลรหัสกะ</td></tr>}</tbody></table></div></div>
       </section>
     );
     if (activePage === 'schedule') {
