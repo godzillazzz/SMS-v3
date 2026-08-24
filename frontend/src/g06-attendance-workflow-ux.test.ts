@@ -39,6 +39,10 @@ describe('G06 Attendance frontend UX skeleton', () => {
   it('uses a transient camera QR scanner and releases all media tracks without persisting frames', () => {
     expect(page).toContain('<AttendanceQrScanner');
     expect(page).toContain('สแกน QR');
+    expect(scanner).toContain("import { createPortal } from 'react-dom'");
+    expect(scanner).toContain('createPortal(<div className="attendance-qr-backdrop"');
+    expect(scanner).toContain("document.body.style.overflow = 'hidden'");
+    expect(scanner).toContain('document.body.style.overflow = previousBodyOverflow');
     expect(scanner).toContain('navigator.mediaDevices.getUserMedia');
     expect(scanner).toContain("facingMode: { ideal: 'environment' }");
     expect(scanner).toContain('stream?.getTracks().forEach((track) => track.stop())');
@@ -52,6 +56,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(scanner).not.toContain('MediaRecorder');
     expect(css).toContain('.attendance-qr-backdrop');
     expect(css).toContain('.attendance-qr-camera video');
+    expect(css).toContain('-webkit-transform: translateZ(0)');
   });
 
   it('uses one-shot high-accuracy geolocation without continuous tracking or local persistence', () => {

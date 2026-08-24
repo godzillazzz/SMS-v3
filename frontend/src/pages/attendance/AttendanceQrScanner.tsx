@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import jsQR from 'jsqr';
 import { SmsIcon } from '../../components/SmsIcon';
 
@@ -35,6 +36,9 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return undefined;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
 
     let active = true;
     let stream: MediaStream | null = null;
@@ -151,12 +155,13 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
     return () => {
       active = false;
       stop();
+      document.body.style.overflow = previousBodyOverflow;
     };
   }, [open]);
 
   if (!open) return null;
 
-  return <div className="attendance-qr-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  return createPortal(<div className="attendance-qr-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="attendance-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="attendance-qr-title">
       <header>
         <div><p>ATTENDANCE SITE QR</p><h2 id="attendance-qr-title">สแกน QR จุดปฏิบัติงาน</h2><span>กล้องทำงานเฉพาะในหน้าต่างนี้ และระบบไม่บันทึกหรืออัปโหลดภาพจากกล้อง</span></div>
@@ -176,5 +181,5 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
       <div className="attendance-qr-privacy"><SmsIcon name="shield" size={17} /><span>Frame ใช้ถอดรหัส QR ในหน่วยความจำของ browser เท่านั้น ไม่มีภาพถ่าย ไฟล์ หรือวิดีโอถูกส่งขึ้น server</span></div>
       <footer><button type="button" className="btn-neutral" onClick={onClose}>ปิดกล้อง / กรอก QR เอง</button></footer>
     </section>
-  </div>;
+  </div>, document.body);
 }
