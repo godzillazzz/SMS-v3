@@ -55,3 +55,8 @@ Once an authenticated AWS account/session exists:
 7. Only after genuine flow succeeds proceed to separately gated Phase 3B-3 print/screen/video/injection testing.
 
 Production AWS identity/provider configuration is not authorized by this document.
+
+
+## No local-authority fallback while credentials are unavailable
+
+If an authenticated AWS session is unavailable, keep the authoritative Face Verification PoC disabled. A browser-local detector/liveness model or device-signed client result may be used only as non-authoritative diagnostics; it must not mint a verification receipt or substitute for the server-validated provider result. The ACTIVE Attendance device key proves device possession, not camera-pipeline or biometric truth.

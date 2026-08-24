@@ -365,3 +365,21 @@ Implemented under the explicit isolated-Preview Phase 3B-2 gate. This step appli
 Validation on the current source candidate: focused Reference Photo + core Face Verification + AWS PoC contracts 26/26 PASS; fresh local PostgreSQL migration chain 24/24 PASS; real PostgreSQL core/PoC orchestration 4/4 PASS; official serialized integration suite 168/168 PASS with 0 skipped; backend 609/609 PASS; frontend 45 files / 393 tests PASS; frontend production build PASS. Final hardening focused rerun after Production-route precedence and transient-byte wiping: 26/26 PASS.
 
 Phase 3B-2 source status before live provider credentials: `G06_PHASE3B2_PREVIEW_MIGRATION_COMPLETE_AWS_POC_SOURCE_READY_LIVE_PROVIDER_CREDENTIALS_PENDING`.
+
+
+## 21. Client-signed local biometric evidence is diagnostic only
+
+A browser-local detector or liveness model may be useful for camera readiness, lighting/position guidance, developer diagnostics, or a non-authoritative pilot comparison. It must not become a trusted biometric provider merely because its result is signed by the ACTIVE Attendance device key.
+
+The existing non-exportable P-256 browser key proves possession of the enrolled device credential for a signed message. It does **not** prove that the message describes a genuine camera frame, a real person, a successful PAD challenge, or an uncompromised browser pipeline. JavaScript that can invoke the signing key can also construct arbitrary booleans such as `faceMatchPassed=true` or `livenessPassed=true` and ask the same key to sign them. Therefore a signature over client-generated biometric evidence authenticates the device/message, not the truth of the biometric claim.
+
+Locked consequence for G06 V1:
+
+- Local/browser face processing may expose only diagnostic/readiness state.
+- A local diagnostic PASS must never call `recordTrustedProviderResult`, mint `FaceVerificationReceipt`, or authorize Attendance/Patrol.
+- The public API must not accept client biometric PASS/FAIL booleans, liveness/face scores, embeddings, or a client assertion that PAD succeeded.
+- Authoritative PASS remains server-validated provider evidence obtained through the trusted provider boundary. The current Preview PoC shape is backend retrieval of AWS Rekognition result plus server-side 1:1 comparison.
+- If a future native client can provide hardware-backed device attestation plus a provider-signed/verifiable biometric result, that is a new trust-boundary design and requires a separate Owner gate.
+- Lack of AWS credentials is not permission to downgrade the authoritative path to browser-local liveness. Fail closed and keep the PoC disabled until the authenticated provider gate is satisfied.
+
+This section is a security hardening clarification only. It adds no schema, route, environment value, biometric runtime, Preview mutation, or Production mutation.
