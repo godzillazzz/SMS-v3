@@ -131,7 +131,17 @@ if (allowLocalTestDefaults) {
     RATE_LIMIT_HASH_SECRET: process.env.RATE_LIMIT_HASH_SECRET?.length >= 32 ? process.env.RATE_LIMIT_HASH_SECRET : 'test-rate-limit-secret-with-at-least-thirty-two-chars'
   });
 } else {
-  const effectiveCorsOrigin = process.env.CORS_ORIGIN || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL},https://sms-v3-staging-ten.vercel.app,http://localhost:5173` : 'https://sms-v3-staging-ten.vercel.app,http://localhost:5173');
+  const normalizeVercelPreviewOrigin = (value) => {
+    const hostname = String(value || '').trim().toLowerCase();
+    if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.vercel\.app$/.test(hostname)) return null;
+    return `https://${hostname}`;
+  };
+  const configuredCorsOrigins = String(process.env.CORS_ORIGIN || 'https://sms-v3-staging-ten.vercel.app,http://localhost:5173')
+    .split(',').map((origin) => origin.trim()).filter(Boolean);
+  const previewVercelOrigins = process.env.VERCEL_ENV === 'preview'
+    ? [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL].map(normalizeVercelPreviewOrigin).filter(Boolean)
+    : [];
+  const effectiveCorsOrigin = [...new Set([...configuredCorsOrigins, ...previewVercelOrigins])].join(',');
   const envToParse = {
     ...process.env,
     CORS_ORIGIN: effectiveCorsOrigin
