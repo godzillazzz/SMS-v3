@@ -53,6 +53,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(scanner).toContain("document.removeEventListener('visibilitychange', handleVisibilityChange)");
     expect(scanner).toContain("window.removeEventListener('pagehide', handlePageHide)");
     expect(scanner).toContain('onCloseRef.current()');
+    expect(scanner).toMatch(/const stopAndCloseForLifecycle = \(\) => \{[\s\S]*?stop\(\);[\s\S]*?document\.body\.style\.overflow = previousBodyOverflow;[\s\S]*?onCloseRef\.current\(\);/);
     expect(scanner).toContain('context.getImageData');
     expect(scanner).toContain('jsQR(frame.data');
     expect(scanner).toContain('onDetectedRef.current(value)');
@@ -120,6 +121,17 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain('if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false)');
     expect(page).toContain('if (operationEpoch === asyncEvidenceEpochRef.current) setChecking(false)');
     expect(page).toMatch(/const resetAttempt = \(\) => \{\s*asyncEvidenceEpochRef\.current \+= 1;/);
+  });
+
+  it('clears transient Attendance evidence when the PWA is backgrounded or page lifecycle hides it', () => {
+    expect(page).toContain('const clearTransientAttemptForLifecycle = () => {');
+    expect(page).toMatch(/const clearTransientAttemptForLifecycle = \(\) => \{[\s\S]*?asyncEvidenceEpochRef\.current \+= 1;[\s\S]*?setScannerOpen\(false\);[\s\S]*?setQrToken\(''\);[\s\S]*?setLocation\(null\);[\s\S]*?setLocationBusy\(false\);[\s\S]*?setChecking\(false\);[\s\S]*?resetServerState\(\);/);
+    expect(page).toContain("if (document.visibilityState === 'hidden') clearTransientAttemptForLifecycle();");
+    expect(page).toContain('const handlePageHide = () => clearTransientAttemptForLifecycle();');
+    expect(page).toContain("document.addEventListener('visibilitychange', handleVisibilityChange)");
+    expect(page).toContain("window.addEventListener('pagehide', handlePageHide)");
+    expect(page).toContain("document.removeEventListener('visibilitychange', handleVisibilityChange)");
+    expect(page).toContain("window.removeEventListener('pagehide', handlePageHide)");
   });
 
   it('has responsive mobile layouts for the four-step flow and evidence cards', () => {

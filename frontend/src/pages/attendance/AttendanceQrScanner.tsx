@@ -67,6 +67,7 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
       if (!active) return;
       active = false;
       stop();
+      document.body.style.overflow = previousBodyOverflow;
       onCloseRef.current();
     };
 

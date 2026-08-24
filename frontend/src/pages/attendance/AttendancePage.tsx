@@ -195,6 +195,28 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     resetServerState();
   }, [interactionDisabled]);
 
+  useEffect(() => {
+    const clearTransientAttemptForLifecycle = () => {
+      asyncEvidenceEpochRef.current += 1;
+      setScannerOpen(false);
+      setQrToken('');
+      setLocation(null);
+      setLocationBusy(false);
+      setChecking(false);
+      resetServerState();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') clearTransientAttemptForLifecycle();
+    };
+    const handlePageHide = () => clearTransientAttemptForLifecycle();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, []);
+
   const acquireLocation = async () => {
     if (interactionDisabled) return;
     const operationEpoch = asyncEvidenceEpochRef.current;
