@@ -71,12 +71,25 @@ function eventByType(events, eventType) {
 
 function actionableShift(assignment) {
   const code = String(assignment?.shiftType?.code || '').trim().toUpperCase();
-  return !['OFF'].includes(code);
+  return code !== 'OFF';
 }
 
 function leaveShift(assignment) {
   const code = String(assignment?.shiftType?.code || '').trim().toUpperCase();
   return ['AL', 'LEAVE'].includes(code);
+}
+
+function leaveResult({ window = null, evaluatedAt }) {
+  return {
+    status: 'LEAVE',
+    flags: [ATTENDANCE_RESULT_FLAGS.LEAVE],
+    expectedStartAt: window?.startAt || null,
+    expectedEndAt: window?.endAt || null,
+    checkInAt: null,
+    checkOutAt: null,
+    workedMinutes: null,
+    evaluatedAt
+  };
 }
 
 function classifyAttendanceDay({ assignment, events = [], approvedLeave = false, asOf = new Date() } = {}) {
@@ -97,19 +110,10 @@ function classifyAttendanceDay({ assignment, events = [], approvedLeave = false,
     };
   }
 
+  if (leaveShift(assignment)) return leaveResult({ evaluatedAt });
+
   const window = assignmentWindow(assignment);
-  if (approvedLeave || leaveShift(assignment)) {
-    return {
-      status: 'LEAVE',
-      flags: [ATTENDANCE_RESULT_FLAGS.LEAVE],
-      expectedStartAt: window.startAt,
-      expectedEndAt: window.endAt,
-      checkInAt: null,
-      checkOutAt: null,
-      workedMinutes: null,
-      evaluatedAt
-    };
-  }
+  if (approvedLeave) return leaveResult({ window, evaluatedAt });
 
   const checkIn = eventAt(eventByType(events, 'CHECK_IN'));
   const checkOut = eventAt(eventByType(events, 'CHECK_OUT'));
