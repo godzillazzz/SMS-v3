@@ -6,6 +6,7 @@ const HttpError = require('../utils/http-error');
 const { authenticate } = require('../middlewares/authenticate');
 const { createAttendanceCorrectionService } = require('../services/attendance-correction.service');
 const { createAttendanceMonthGovernanceService } = require('../services/attendance-month-governance.service');
+const { attendanceRuntimeEnabled } = require('../services/attendance-production-runtime.service');
 
 const router = express.Router();
 const corrections = createAttendanceCorrectionService();
@@ -20,11 +21,10 @@ const correctionInput = z.object({
 const unlockInput = z.object({ reason: z.string().trim().min(5).max(1000) }).strict();
 
 function attendanceGovernanceApiEnabled(environment = process.env) {
-  if (environment.VERCEL_ENV === 'production') return false;
-  return environment.VERCEL_ENV === 'preview' && environment.ATTENDANCE_API_PREVIEW_ENABLED === 'true';
+  return attendanceRuntimeEnabled(environment);
 }
 
-function requirePreviewAttendance(_req, _res, next) {
+function requireAttendanceRuntime(_req, _res, next) {
   return attendanceGovernanceApiEnabled() ? next() : next(new HttpError(404, 'Not found.'));
 }
 
@@ -40,7 +40,7 @@ function requireAdmin(req, _res, next) {
     : next(new HttpError(403, 'Attendance certification requires Admin authority.'));
 }
 
-router.use(requirePreviewAttendance, authenticate);
+router.use(requireAttendanceRuntime, authenticate);
 
 router.get('/assignments/:id/corrections', requireManagerOrAdmin, async (req, res, next) => {
   try {
