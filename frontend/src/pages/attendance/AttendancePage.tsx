@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
+import { SecuritySiteManagementPanel } from '../../components/SecuritySiteManagementPanel';
 import {
   AttendanceFlowError,
   AttendanceReadinessError,
@@ -587,6 +588,7 @@ export function AttendancePage({ token, readOnly = false, online = true }: Props
     </section>
 
     <AttendanceFaceChallengeUatPanel token={token} online={online} readOnly={readOnly} />
+    <SecuritySiteManagementPanel token={token} />
   </section>;
 
 }
