@@ -103,7 +103,7 @@ function summaryFor(rows) {
     leave: count((row) => row.flags.includes('LEAVE')),
     absent: count((row) => row.flags.includes('ABSENT')),
     corrected: count((row) => row.flags.includes('CORRECTED')),
-    timeAbnormal: count((row) => row.flags.includes('TIME_ABNORMAL') || row.flags.includes('MISSING_CHECK_OUT') || (row.flags.includes('MISSING_CHECK_IN') && !row.flags.includes('ABSENT')))
+    timeAbnormal: count((row) => row.flags.includes('TIME_ABNORMAL') || row.flags.includes('MISSING_CHECK_OUT') || row.flags.includes('MISSING_CHECK_IN'))
   };
 }
 
