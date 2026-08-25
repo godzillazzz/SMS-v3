@@ -12,7 +12,8 @@ const shiftSchema = z.object({
   startTime: z.string().trim().optional(),
   endTime: z.string().trim().optional(),
   hours: z.coerce.number().min(0).max(24).default(8.0),
-  color: z.string().trim().default('#3b82f6')
+  color: z.string().trim().default('#3b82f6'),
+  isActive: z.boolean().optional()
 });
 
 router.get('/', async (req, res, next) => {

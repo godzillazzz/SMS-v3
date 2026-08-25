@@ -6,10 +6,13 @@ const HttpError = require('../utils/http-error');
 const { authenticate } = require('../middlewares/authenticate');
 const { createAttendanceCorrectionService } = require('../services/attendance-correction.service');
 const { createAttendanceMonthGovernanceService } = require('../services/attendance-month-governance.service');
+const { createAttendanceReportService } = require('../services/attendance-report.service');
+const { attendanceRuntimeEnabled } = require('../services/attendance-production-runtime.service');
 
 const router = express.Router();
 const corrections = createAttendanceCorrectionService();
 const months = createAttendanceMonthGovernanceService();
+const reports = createAttendanceReportService();
 const uuid = z.string().uuid();
 const month = z.string().regex(/^\d{4}-\d{2}$/);
 const correctionInput = z.object({
@@ -20,11 +23,10 @@ const correctionInput = z.object({
 const unlockInput = z.object({ reason: z.string().trim().min(5).max(1000) }).strict();
 
 function attendanceGovernanceApiEnabled(environment = process.env) {
-  if (environment.VERCEL_ENV === 'production') return false;
-  return environment.VERCEL_ENV === 'preview' && environment.ATTENDANCE_API_PREVIEW_ENABLED === 'true';
+  return attendanceRuntimeEnabled(environment);
 }
 
-function requirePreviewAttendance(_req, _res, next) {
+function requireAttendanceRuntime(_req, _res, next) {
   return attendanceGovernanceApiEnabled() ? next() : next(new HttpError(404, 'Not found.'));
 }
 
@@ -40,7 +42,7 @@ function requireAdmin(req, _res, next) {
     : next(new HttpError(403, 'Attendance certification requires Admin authority.'));
 }
 
-router.use(requirePreviewAttendance, authenticate);
+router.use(requireAttendanceRuntime, authenticate);
 
 router.get('/assignments/:id/corrections', requireManagerOrAdmin, async (req, res, next) => {
   try {
@@ -63,6 +65,21 @@ router.get('/months/:month/preview', requireAdmin, async (req, res, next) => {
 router.get('/months/:month/certifications', requireAdmin, async (req, res, next) => {
   try { res.json({ data: await months.certificationHistory(month.parse(req.params.month)) }); }
   catch (error) { next(error); }
+});
+
+router.get('/months/:month/report', requireAdmin, async (req, res, next) => {
+  try { res.json({ data: await reports.official(month.parse(req.params.month)) }); }
+  catch (error) { next(error); }
+});
+
+router.get('/months/:month/report.xlsx', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await reports.xlsx(month.parse(req.params.month));
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(result.buffer);
+  } catch (error) { next(error); }
 });
 
 router.post('/months/:month/certify', requireAdmin, async (req, res, next) => {
