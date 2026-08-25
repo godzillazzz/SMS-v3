@@ -172,6 +172,14 @@ function createSecuritySiteService({
           id
         );
         if (defaults.length) throw http(409, 'SECURITY_SITE_DEFAULT_IN_USE', 'Remove this Site as Department Default before deactivation.');
+
+        const openAttendanceSession = await tx.attendanceSession.findFirst({
+          where: { expectedSiteId: id, state: 'OPEN', closedAt: null },
+          select: { id: true }
+        });
+        if (openAttendanceSession) {
+          throw http(409, 'SECURITY_SITE_OPEN_ATTENDANCE_IN_USE', 'Close the open Attendance session before deactivating this Security Site.');
+        }
       }
       let updated;
       try {
