@@ -67,7 +67,10 @@ function createSecuritySiteAuthorityService({ prisma = prismaDefault } = {}) {
     // Once an AttendanceSession exists, its expected Site is historical evidence.
     // Later Schedule/Department configuration changes must not remap the open or historical session.
     if (existingSession?.expectedSiteId) {
-      const site = await loadActiveSite(client, existingSession.expectedSiteId);
+      const suppliedPinnedSite = assignment.securitySiteId === existingSession.expectedSiteId
+        ? assignment.securitySite
+        : null;
+      const site = await loadActiveSite(client, existingSession.expectedSiteId, suppliedPinnedSite);
       const snapshot = snapshotSiteAuthority(existingSession);
       return {
         site,
