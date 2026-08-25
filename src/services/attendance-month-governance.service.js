@@ -81,6 +81,7 @@ function certificationBlockers(rows) {
 
 function monthSummary(rows) {
   const countFlag = (flag) => rows.reduce((sum, row) => sum + (row.flags.includes(flag) ? 1 : 0), 0);
+  const timeAbnormal = rows.reduce((sum, row) => sum + (row.flags.includes('TIME_ABNORMAL') || row.flags.includes('MISSING_CHECK_OUT') ? 1 : 0), 0);
   return {
     assignments: rows.length,
     complete: rows.filter((row) => row.status === 'COMPLETE').length,
@@ -90,12 +91,21 @@ function monthSummary(rows) {
     earlyOut: countFlag('EARLY_OUT'),
     assistOtherSite: countFlag('ASSIST_OTHER_SITE'),
     corrected: countFlag('CORRECTED'),
-    timeAbnormal: countFlag('TIME_ABNORMAL') + countFlag('MISSING_CHECK_OUT')
+    timeAbnormal
   };
 }
 
 function assertAdmin(actor) {
   if (String(actor?.role || '').toUpperCase() !== 'ADMIN') throw http(403, 'ATTENDANCE_CERTIFICATION_ADMIN_REQUIRED', 'Attendance month certification requires Admin authority.');
+}
+
+async function requireApprovedSchedule(client, period) {
+  const approval = await client.scheduleApproval.findFirst({
+    where: { month: period.start },
+    orderBy: [{ revision: 'desc' }, { updatedAt: 'desc' }]
+  });
+  if (!approval || approval.status !== 'APPROVED') throw http(409, 'ATTENDANCE_SCHEDULE_NOT_APPROVED', 'Monthly Schedule must be approved before Attendance certification.');
+  return approval;
 }
 
 function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date(), siteAuthorityService = null } = {}) {
@@ -172,7 +182,6 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
       const rawCheckIn = eventByType(rawEvents, 'CHECK_IN');
       const rawCheckOut = eventByType(rawEvents, 'CHECK_OUT');
       const flags = [...new Set([...result.flags, ...evidenceFlags(rawEvents), ...(assignmentCorrections.length ? ['CORRECTED'] : [])])];
-      const actualId = actualSiteId(rawEvents);
       rows.push({
         assignmentId: assignment.id,
         sessionId: session?.id || null,
@@ -183,7 +192,7 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
         workDate: assignment.workDate.toISOString().slice(0, 10),
         shift: { id: assignment.shiftTypeId, code: assignment.shiftType?.code || null, name: assignment.shiftType?.name || null },
         expectedSite: expectedSite ? { id: expectedSite.id, code: expectedSite.code, name: expectedSite.name } : null,
-        actualSiteId: actualId,
+        actualSiteId: actualSiteId(rawEvents),
         expectedStartAt: result.expectedStartAt,
         expectedEndAt: result.expectedEndAt,
         originalCheckInAt: rawCheckIn?.effectiveEventAt || null,
@@ -200,9 +209,15 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
   }
 
   async function preview(month, client = prisma) {
-    const rows = await officialRows(month, client);
+    const period = parseMonth(month);
+    const approval = await client.scheduleApproval.findFirst({ where: { month: period.start }, orderBy: [{ revision: 'desc' }, { updatedAt: 'desc' }] });
+    const rows = await officialRows(period.text, client);
     const blockers = certificationBlockers(rows);
-    return { month: parseMonth(month).text, summary: monthSummary(rows), blockerCount: blockers.length, blockers, rows };
+    return {
+      month: period.text,
+      scheduleApproval: approval ? { status: approval.status, revision: approval.revision, approvedAt: approval.approvedAt } : null,
+      summary: monthSummary(rows), blockerCount: blockers.length, blockers, rows
+    };
   }
 
   async function certify({ actor, month } = {}) {
@@ -210,7 +225,8 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
     const period = parseMonth(month);
     const now = clock();
     return prisma.$transaction(async (tx) => {
-      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`attendance-cert:${period.text}`}))`);
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`attendance-cert:${period.text}`}))`);
+      await requireApprovedSchedule(tx, period);
       const current = await tx.$queryRaw(Prisma.sql`
         SELECT id FROM attendance_month_certifications
         WHERE month = ${period.start}::date AND status = 'CERTIFIED' LIMIT 1
@@ -255,7 +271,7 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
     if (normalizedReason.length < 5 || normalizedReason.length > 1000) throw http(400, 'ATTENDANCE_UNLOCK_REASON_INVALID', 'Unlock reason must contain 5-1000 characters.');
     const now = clock();
     return prisma.$transaction(async (tx) => {
-      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`attendance-cert:${period.text}`}))`);
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`attendance-cert:${period.text}`}))`);
       const current = await tx.$queryRaw(Prisma.sql`
         SELECT id, revision, summary_digest AS "summaryDigest"
         FROM attendance_month_certifications
@@ -291,5 +307,6 @@ module.exports = {
   certificationBlockers,
   monthSummary,
   assertAdmin,
+  requireApprovedSchedule,
   createAttendanceMonthGovernanceService
 };
