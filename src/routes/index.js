@@ -13,6 +13,7 @@ const { router: attendanceRoutes } = require('./attendance.routes');
 const employeeReferencePhotoRoutes = require('./employee-reference-photo.routes');
 const { router: faceVerificationRoutes } = require('./face-verification.routes');
 const { router: selfHostedFaceVerificationRoutes } = require('./face-verification-self-hosted.routes');
+const securitySitesRoutes = require('./security-sites.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -25,6 +26,7 @@ router.use('/attendance', attendanceRoutes);
 router.use('/employee-reference-photos', employeeReferencePhotoRoutes);
 router.use('/face-verification', faceVerificationRoutes);
 router.use('/face-verification-self-hosted', selfHostedFaceVerificationRoutes);
+router.use('/admin/security-sites', securitySitesRoutes);
 router.use('/shift-types', shiftsRoutes);
 router.use('/schedules', schedulesRoutes);
 router.use('/schedule-calendar', schedulesRoutes);

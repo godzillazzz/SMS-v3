@@ -5,6 +5,7 @@ const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createAttendanceSiteEvidenceService } = require('./attendance-site-evidence.service');
+const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
 
 const CONTEXT_VERSION = 'ATTENDANCE_FACE_CONTEXT_V1';
 const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
@@ -111,10 +112,12 @@ function createAttendanceVerificationContextService({
   prisma = prismaDefault,
   faceSessionService = null,
   siteEvidenceService = null,
+  siteAuthorityService = null,
   clock = () => new Date()
 } = {}) {
   const face = faceSessionService || createFaceVerificationSessionService({ prisma, clock });
   const siteEvidence = siteEvidenceService || createAttendanceSiteEvidenceService({ prisma, clock });
+  const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
 
   async function resolveIdentity(client, actor) {
     const user = await client.user.findUnique({
@@ -195,15 +198,9 @@ function createAttendanceVerificationContextService({
     });
     const hasCheckIn = events.some((row) => row.eventType === 'CHECK_IN');
     const hasCheckOut = events.some((row) => row.eventType === 'CHECK_OUT');
-    if (hasCheckOut) {
-      throw http(409, 'ATTENDANCE_ALREADY_CHECKED_OUT', 'Attendance is already complete for the current Shift Assignment.');
-    }
-    if (session.state === 'CLOSED' || session.closedAt) {
-      throw http(409, 'ATTENDANCE_SESSION_INCONSISTENT', 'Attendance session state is inconsistent.');
-    }
-    if (!hasCheckIn) {
-      throw http(409, 'ATTENDANCE_SESSION_INCONSISTENT', 'Attendance session is missing its committed CHECK_IN event.');
-    }
+    if (hasCheckOut) throw http(409, 'ATTENDANCE_ALREADY_CHECKED_OUT', 'Attendance is already complete for the current Shift Assignment.');
+    if (session.state === 'CLOSED' || session.closedAt) throw http(409, 'ATTENDANCE_SESSION_INCONSISTENT', 'Attendance session state is inconsistent.');
+    if (!hasCheckIn) throw http(409, 'ATTENDANCE_SESSION_INCONSISTENT', 'Attendance session is missing its committed CHECK_IN event.');
     return { eventIntent: 'CHECK_OUT', shiftAssignmentId: assignment.id, workDate: workDateText(assignment.workDate) };
   }
 
@@ -222,18 +219,9 @@ function createAttendanceVerificationContextService({
       provenance: 'ONLINE',
       captureId,
       eventIntent,
-      identity: {
-        userId: identity.userId,
-        employeeId: identity.employeeId
-      },
-      device: {
-        enrollmentId: binding.device.id,
-        credentialFingerprint: binding.device.credentialFingerprint
-      },
-      referencePhoto: {
-        id: binding.referencePhoto.id,
-        checksum: binding.referencePhoto.checksum
-      },
+      identity: { userId: identity.userId, employeeId: identity.employeeId },
+      device: { enrollmentId: binding.device.id, credentialFingerprint: binding.device.credentialFingerprint },
+      referencePhoto: { id: binding.referencePhoto.id, checksum: binding.referencePhoto.checksum },
       schedule: {
         shiftAssignmentId: assignment.id,
         workDate: workDateText(assignment.workDate),
@@ -250,12 +238,25 @@ function createAttendanceVerificationContextService({
   }
 
   function contextRef({ captureId, eventIntent, assignment, evidenceRef }) {
-    return {
-      captureId,
-      eventIntent,
-      shiftAssignmentId: assignment.id,
-      evidence: evidenceRef
-    };
+    return { captureId, eventIntent, shiftAssignmentId: assignment.id, evidence: evidenceRef };
+  }
+
+  async function validatedSiteEvidence(client, assignment, attendanceEvidence, existingSession) {
+    const authority = await siteAuthority.resolve({ assignment, existingSession }, client);
+    const evidenceAssignment = { ...assignment, securitySiteId: authority.site.id, securitySite: authority.site };
+    const validated = await siteEvidence.validateForAssignment({
+      assignment: evidenceAssignment,
+      qrToken: attendanceEvidence?.qrToken,
+      location: attendanceEvidence?.location
+    }, client);
+    return { authority, validated };
+  }
+
+  async function revalidatedSiteEvidence(client, assignment, ref, existingSession) {
+    const authority = await siteAuthority.resolve({ assignment, existingSession }, client);
+    const validated = await siteEvidence.revalidateRef({ ref: ref?.evidence }, client);
+    if (authority.site.id !== validated.evidenceRef.siteId) throw http(409, 'ATTENDANCE_SITE_STALE', 'Attendance Security Site authority changed.');
+    return { authority, validated };
   }
 
   async function prepareContext({ actor, captureId, eventIntent, attendanceEvidence }, client = prisma) {
@@ -266,7 +267,8 @@ function createAttendanceVerificationContextService({
     const binding = await resolveBiometricAuthority(client, identity.employeeId);
     const assignment = await resolveCurrentAssignment(client, identity.employeeId, clock());
     const approval = await requireApprovedSchedule(client, assignment);
-    const validated = await siteEvidence.validateForAssignment({ assignment, qrToken: attendanceEvidence?.qrToken, location: attendanceEvidence?.location }, client);
+    const existingSession = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
+    const { authority: site, validated } = await validatedSiteEvidence(client, assignment, attendanceEvidence, existingSession);
     const evidence = { siteBindingDigest: validated.siteBindingDigest, qrBindingDigest: validated.qrBindingDigest, locationBindingDigest: validated.locationBindingDigest };
     const payload = contextPayload({ identity, binding, assignment, approval, captureId: normalizedCaptureId, eventIntent: action, evidence });
     return {
@@ -278,7 +280,8 @@ function createAttendanceVerificationContextService({
         deviceEnrollmentId: binding.device.id,
         referencePhotoId: binding.referencePhoto.id,
         shiftAssignmentId: assignment.id,
-        securitySiteId: validated.evidenceRef.siteId,
+        securitySiteId: site.site.id,
+        securitySiteAuthoritySource: site.source,
         workDate: workDateText(assignment.workDate)
       }
     };
@@ -292,8 +295,8 @@ function createAttendanceVerificationContextService({
     const binding = await resolveBiometricAuthority(client, identity.employeeId);
     const assignment = await loadExactAssignment(client, identity.employeeId, ref?.shiftAssignmentId);
     const approval = await requireApprovedSchedule(client, assignment);
-    const validated = await siteEvidence.revalidateRef({ ref: ref?.evidence }, client);
-    if (assignment.securitySiteId !== validated.evidenceRef.siteId) throw http(409, 'ATTENDANCE_SITE_STALE', 'Attendance Security Site authority changed.');
+    const existingSession = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
+    const { authority: site, validated } = await revalidatedSiteEvidence(client, assignment, ref, existingSession);
     const evidence = { siteBindingDigest: validated.siteBindingDigest, qrBindingDigest: validated.qrBindingDigest, locationBindingDigest: validated.locationBindingDigest };
     const payload = contextPayload({ identity, binding, assignment, approval, captureId, eventIntent: action, evidence });
     return {
@@ -305,7 +308,8 @@ function createAttendanceVerificationContextService({
         deviceEnrollmentId: binding.device.id,
         referencePhotoId: binding.referencePhoto.id,
         shiftAssignmentId: assignment.id,
-        securitySiteId: validated.evidenceRef.siteId,
+        securitySiteId: site.site.id,
+        securitySiteAuthoritySource: site.source,
         workDate: workDateText(assignment.workDate)
       }
     };

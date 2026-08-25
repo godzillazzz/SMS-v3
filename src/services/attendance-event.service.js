@@ -5,6 +5,7 @@ const prismaDefault = require('../config/prisma');
 const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { createAttendanceVerificationContextService } = require('./attendance-verification-context.service');
+const { createSecuritySiteAuthorityService, SITE_AUTHORITY_SOURCES } = require('./security-site-authority.service');
 
 const EVENT_INTENTS = new Set(['CHECK_IN', 'CHECK_OUT']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -62,7 +63,21 @@ function decimalString(value) {
   return value == null ? null : String(value);
 }
 
-function buildExpectationSnapshot(assignment, approval) {
+function buildExpectationSnapshot(assignment, approval, siteAuthority = null) {
+  const site = siteAuthority?.site || assignment.securitySite;
+  const siteSnapshot = {
+    id: site.id,
+    code: site.code,
+    name: site.name,
+    latitude: decimalString(site.latitude),
+    longitude: decimalString(site.longitude),
+    geofenceRadiusMeters: site.geofenceRadiusMeters,
+    isActive: site.isActive === true
+  };
+  if (siteAuthority?.source === SITE_AUTHORITY_SOURCES.DEPARTMENT_DEFAULT) {
+    siteSnapshot.authoritySource = SITE_AUTHORITY_SOURCES.DEPARTMENT_DEFAULT;
+    siteSnapshot.departmentName = siteAuthority.departmentName || null;
+  }
   return {
     version: 'ATTENDANCE_EXPECTATION_V1',
     shiftAssignmentId: assignment.id,
@@ -77,15 +92,7 @@ function buildExpectationSnapshot(assignment, approval) {
       endTime: assignment.endTime || assignment.shiftType.endTime || null,
       hours: decimalString(assignment.hours)
     },
-    site: {
-      id: assignment.securitySite.id,
-      code: assignment.securitySite.code,
-      name: assignment.securitySite.name,
-      latitude: decimalString(assignment.securitySite.latitude),
-      longitude: decimalString(assignment.securitySite.longitude),
-      geofenceRadiusMeters: assignment.securitySite.geofenceRadiusMeters,
-      isActive: assignment.securitySite.isActive === true
-    },
+    site: siteSnapshot,
     scheduleApproval: {
       id: approval.id,
       revision: approval.revision,
@@ -131,9 +138,11 @@ function createAttendanceEventService({
   prisma = prismaDefault,
   audit = auditDefault,
   verificationContextService = null,
+  siteAuthorityService = null,
   clock = () => new Date()
 } = {}) {
   const verificationContext = verificationContextService || createAttendanceVerificationContextService({ prisma, clock });
+  const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
 
   async function actorIdentity(client, actor) {
     const user = await client.user.findUnique({
@@ -161,7 +170,10 @@ function createAttendanceEventService({
     if (!assignment || assignment.employeeId !== resolved.authority.employeeId || assignment.locked !== true) {
       throw http(409, 'ATTENDANCE_SCHEDULE_STALE', 'Attendance Shift Assignment changed before event acceptance.');
     }
-    if (!assignment.shiftType || !assignment.securitySite || assignment.securitySite.id !== resolved.authority.securitySiteId || assignment.securitySite.isActive !== true) {
+    if (!assignment.shiftType) throw http(409, 'ATTENDANCE_SCHEDULE_STALE', 'Attendance Shift Type changed before event acceptance.');
+    const existingSession = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
+    const authority = await siteAuthority.resolve({ assignment, existingSession }, client);
+    if (authority.site.id !== resolved.authority.securitySiteId) {
       throw http(409, 'ATTENDANCE_SITE_STALE', 'Attendance Security Site changed before event acceptance.');
     }
     const approval = await client.scheduleApproval.findFirst({
@@ -169,15 +181,15 @@ function createAttendanceEventService({
       orderBy: [{ revision: 'desc' }, { updatedAt: 'desc' }]
     });
     if (!approval || approval.status !== 'APPROVED') throw http(409, 'ATTENDANCE_SCHEDULE_NOT_APPROVED', 'The monthly schedule is not currently approved.');
-    const snapshot = buildExpectationSnapshot(assignment, approval);
-    return { assignment, approval, snapshot, digest: sha256Json(snapshot) };
+    const snapshot = buildExpectationSnapshot(assignment, approval, authority);
+    return { assignment, approval, siteAuthority: authority, snapshot, digest: sha256Json(snapshot) };
   }
 
   function assertExistingSession(session, resolved, expectation) {
     if (session.employeeId !== resolved.authority.employeeId
       || session.shiftAssignmentId !== resolved.authority.shiftAssignmentId
       || session.expectedShiftTypeId !== expectation.assignment.shiftTypeId
-      || session.expectedSiteId !== expectation.assignment.securitySiteId
+      || session.expectedSiteId !== expectation.siteAuthority.site.id
       || session.expectationDigest !== expectation.digest) {
       throw http(409, 'ATTENDANCE_SESSION_STALE', 'Attendance session expectation changed.');
     }
@@ -193,7 +205,7 @@ function createAttendanceEventService({
           employeeId: resolved.authority.employeeId,
           shiftAssignmentId: expectation.assignment.id,
           expectedShiftTypeId: expectation.assignment.shiftTypeId,
-          expectedSiteId: expectation.assignment.securitySiteId,
+          expectedSiteId: expectation.siteAuthority.site.id,
           workDate: expectation.assignment.workDate,
           expectationSnapshot: expectation.snapshot,
           expectationDigest: expectation.digest,
@@ -272,10 +284,7 @@ function createAttendanceEventService({
 
         let finalSession = session;
         if (intent === 'CHECK_OUT') {
-          finalSession = await tx.attendanceSession.update({
-            where: { id: session.id },
-            data: { state: 'CLOSED', closedAt: now }
-          });
+          finalSession = await tx.attendanceSession.update({ where: { id: session.id }, data: { state: 'CLOSED', closedAt: now } });
         }
 
         await audit.log({
