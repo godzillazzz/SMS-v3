@@ -13,7 +13,7 @@ test('client provider-result contract accepts only an opaque provider session re
   const schema = route.match(/const providerResultInput = z\.object\(\{([^}]*)\}\)\.strict\(\);/s);
   assert.ok(schema, 'providerResultInput schema must remain explicit and strict');
   assert.match(schema[1], /providerSessionId/);
-  assert.doesNotMatch(schema[1], /padPassed|livenessPassed|faceMatchPassed|confidence|similarity|score|embedding/i);
+  assert.doesNotMatch(schema[1], /padPassed|livenessPassed|faceMatchPassed|activeChallengePassed|confidence|similarity|score|embedding/i);
   assert.doesNotMatch(route, /recordTrustedProviderResult\s*\(/, 'public route must not directly mint a trusted biometric result');
 });
 

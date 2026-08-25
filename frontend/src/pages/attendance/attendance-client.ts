@@ -31,6 +31,12 @@ export type AttendanceContextRef = {
   evidence: Record<string, unknown>;
 };
 
+export type AttendanceActiveChallenge = {
+  version: string;
+  code: 'TURN_LEFT' | 'TURN_RIGHT' | 'LOOK_UP' | 'LOOK_DOWN' | string;
+  frameCount: number;
+};
+
 export type AttendanceVerificationStart = {
   sessionId: string | null;
   status: string | null;
@@ -38,6 +44,7 @@ export type AttendanceVerificationStart = {
   challengeId: string | null;
   challenge: string | null;
   attendanceContext: AttendanceContextRef | null;
+  activeChallenge: AttendanceActiveChallenge | null;
 };
 
 export type AttendanceVerificationStartData = AttendanceReadinessData & {
@@ -226,9 +233,10 @@ export async function verifyAttendanceDeviceProof(token: string, sessionId: stri
   return payload.data as Record<string, unknown>;
 }
 
-export async function attendanceFaceMatch(token: string, sessionId: string, photo: Blob): Promise<AttendanceFaceVerificationData> {
+export async function attendanceFaceMatch(token: string, sessionId: string, photo: Blob, challengeFrames: Blob[]): Promise<AttendanceFaceVerificationData> {
   const form = new FormData();
   form.append('photo', photo, 'attendance-live-face.jpg');
+  challengeFrames.forEach((frame, index) => form.append('challengeFrame', frame, `attendance-challenge-${index + 1}.jpg`));
   const response = await fetch(`${baseUrl}/attendance/verification/${encodeURIComponent(sessionId)}/face-match`, {
     method: 'POST',
     credentials: 'include',

@@ -161,7 +161,7 @@ test('verification start uses the same strict evidence contract and returns only
   assert.equal(spy.calls[0][0], 'start');
 });
 
-test('generic Attendance verification endpoints accept only device proof and one in-memory live photo', async () => {
+test('generic Attendance verification endpoints accept only device proof plus bounded in-memory active-challenge frames and live photo', async () => {
   const spy = serviceSpy();
   const app = appFor({ environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }, service: spy.service });
   const sessionId = '55555555-5555-4555-8555-555555555555';
@@ -179,15 +179,42 @@ test('generic Attendance verification endpoints accept only device proof and one
   assert.equal(invalidProof.status, 400);
 
   const photo = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(100, 0x11)]);
-  const match = await request(app).post(`/api/v1/attendance/verification/${sessionId}/face-match`)
+  let matchRequest = request(app).post(`/api/v1/attendance/verification/${sessionId}/face-match`)
     .set('Authorization', 'Bearer route-test')
     .attach('photo', photo, { filename: 'live.jpg', contentType: 'image/jpeg' });
+  for (let index = 0; index < 4; index += 1) matchRequest = matchRequest.attach('challengeFrame', photo, { filename: `challenge-${index + 1}.jpg`, contentType: 'image/jpeg' });
+  const match = await matchRequest;
   assert.equal(match.status, 200);
   assert.equal(match.body.data.verificationAccepted, true);
   assert.equal(match.body.data.evidence.storageStatus, 'NOT_STORED');
   assert.equal(spy.calls[1][0], 'face-match');
   assert.equal(Buffer.isBuffer(spy.calls[1][1].livePhotoFile.buffer), true);
+  assert.equal(spy.calls[1][1].challengeFrameFiles.length, 4);
   assert.equal(Object.prototype.hasOwnProperty.call(match.body.data, 'faceMatchPassed'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(match.body.data, 'activeChallengePassed'), false);
+
+  let injectedRequest = request(app).post(`/api/v1/attendance/verification/${sessionId}/face-match`)
+    .set('Authorization', 'Bearer route-test')
+    .field('activeChallengePassed', 'true')
+    .attach('photo', photo, { filename: 'live.jpg', contentType: 'image/jpeg' });
+  for (let index = 0; index < 4; index += 1) injectedRequest = injectedRequest.attach('challengeFrame', photo, { filename: `injected-${index + 1}.jpg`, contentType: 'image/jpeg' });
+  const injectedMatch = await injectedRequest;
+  assert.equal(injectedMatch.status, 400);
+
+  const incomplete = await request(app).post(`/api/v1/attendance/verification/${sessionId}/face-match`)
+    .set('Authorization', 'Bearer route-test')
+    .attach('photo', photo, { filename: 'live.jpg', contentType: 'image/jpeg' })
+    .attach('challengeFrame', photo, { filename: 'only-one.jpg', contentType: 'image/jpeg' });
+  assert.equal(incomplete.status, 400);
+
+  const oversized = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(1024 * 1024 + 32, 0x22)]);
+  let oversizedRequest = request(app).post(`/api/v1/attendance/verification/${sessionId}/face-match`)
+    .set('Authorization', 'Bearer route-test')
+    .attach('photo', photo, { filename: 'live.jpg', contentType: 'image/jpeg' })
+    .attach('challengeFrame', oversized, { filename: 'oversized.jpg', contentType: 'image/jpeg' });
+  for (let index = 0; index < 3; index += 1) oversizedRequest = oversizedRequest.attach('challengeFrame', photo, { filename: `small-${index + 1}.jpg`, contentType: 'image/jpeg' });
+  const oversizedMatch = await oversizedRequest;
+  assert.equal(oversizedMatch.status, 400);
 });
 
 test('event acceptance accepts only opaque receipt + server-issued Attendance context', async () => {

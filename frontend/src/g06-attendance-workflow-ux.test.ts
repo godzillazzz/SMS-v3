@@ -50,6 +50,9 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).not.toContain('face-verification-self-hosted');
     expect(page).toMatch(/attendanceVerificationStart[\s\S]*?signAttendanceDeviceChallenge[\s\S]*?verifyAttendanceDeviceProof[\s\S]*?setFaceCaptureOpen\(true\)/);
     expect(client).toContain("form.append('photo', photo, 'attendance-live-face.jpg')");
+    expect(client).toContain("form.append('challengeFrame', frame");
+    expect(page).toContain('verification.activeChallenge');
+    expect(page).toContain('challenge={verificationSession?.activeChallenge || null}');
     expect(client).toContain('/attendance/verification/${encodeURIComponent(sessionId)}/face-match');
     expect(page).toContain('matched.verificationAccepted !== true || !matched.receipt');
     expect(client).toContain('attendance/events');
@@ -59,6 +62,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).not.toContain('padPassed: input.');
     expect(client).not.toContain('faceMatchPassed');
     expect(client).not.toContain('padPassed');
+    expect(client).not.toContain('activeChallengePassed');
     expect(page).not.toContain('attendanceAccepted = true');
   });
 
@@ -110,7 +114,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain('navigator.mediaDevices.getUserMedia');
     expect(faceCapture).toContain("facingMode: { ideal: 'user' }");
     expect(faceCapture).toContain("canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY)");
-    expect(faceCapture).toContain('URL.createObjectURL(blob)');
+    expect(faceCapture).toContain('URL.createObjectURL(finalPhoto)');
     expect(faceCapture).toContain('URL.revokeObjectURL(previewUrlRef.current)');
     expect(faceCapture).toContain('streamRef.current?.getTracks().forEach((track) => track.stop())');
     expect(faceCapture).toContain('canvasRef.current.width = 1');
@@ -121,14 +125,21 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain('if (cameraEpoch !== cameraRequestEpochRef.current)');
     expect(faceCapture).toContain('stream.getTracks().forEach((track) => track.stop())');
     expect(faceCapture).toContain('cameraRequestEpochRef.current += 1');
-    expect(faceCapture).toContain('await onConfirm(photo)');
-    expect(faceCapture).toContain('ยืนยันและตรวจใบหน้า');
+    expect(faceCapture).toContain('await onConfirm({ photo, challengeFrames: [...challengeFrames] })');
+    expect(faceCapture).toContain('const captureSequenceEpochRef = useRef(0)');
+    expect(faceCapture).toContain('if (sequenceEpoch !== captureSequenceEpochRef.current) return');
+    expect(faceCapture).toContain('challenge.frameCount !== 4');
+    expect(faceCapture).toContain('กำลังเก็บลำดับภาพ');
+    expect(faceCapture).toContain('Simple Active Challenge');
+    expect(faceCapture).toContain('ไม่ใช่ certified Liveness/PAD');
+    expect(faceCapture).toContain('เริ่ม Active Challenge');
     expect(faceCapture).toContain('ไม่มี file picker / Gallery');
     expect(faceCapture).not.toContain('type="file"');
     expect(faceCapture).not.toContain('accept="image/');
     expect(faceCapture).not.toContain('localStorage.');
     expect(faceCapture).not.toContain('sessionStorage.');
     expect(faceCapture).not.toContain('indexedDB.');
+    expect(faceCapture).not.toContain('MediaRecorder');
     expect(faceCapture).not.toContain('fetch(');
     expect(css).toContain('.attendance-face-backdrop');
     expect(css).toContain('.attendance-face-camera video');

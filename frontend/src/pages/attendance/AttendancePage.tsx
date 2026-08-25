@@ -9,6 +9,7 @@ import {
   attendanceVerificationStart,
   attendanceFaceMatch,
   verifyAttendanceDeviceProof,
+  type AttendanceActiveChallenge,
   type AttendanceContextRef,
   type AttendanceEventIntent,
   type AttendanceLocationEvidence,
@@ -30,7 +31,7 @@ type Copy = { title: string; detail: string; tone: 'ready' | 'warning' | 'blocke
 
 const readinessCopy: Record<string, Copy> = {
   BIOMETRIC_RUNTIME_DISABLED: {
-    title: 'ระบบตรวจใบหน้า 1:1 ยังไม่เปิดใช้งาน',
+    title: 'ระบบ Active Challenge + ตรวจใบหน้า 1:1 ยังไม่เปิดใช้งาน',
     detail: 'ระบบจะไม่บันทึกเวลาและไม่ถือว่าการตรวจครั้งนี้สำเร็จ จนกว่าจะเปิด trusted face verifier ฝั่ง server',
     tone: 'blocked'
   },
@@ -103,6 +104,11 @@ const readinessCopy: Record<string, Copy> = {
     title: 'ต้องมีเวลาเข้าก่อน',
     detail: 'Server ไม่พบ CHECK_IN ที่สมบูรณ์สำหรับ session นี้ จึงไม่อนุญาตให้เดินหน้าต่อ',
     tone: 'blocked'
+  },
+  ACTIVE_CHALLENGE_RETRY: {
+    title: 'การเคลื่อนไหวตามคำสั่งยังไม่ชัดเจน',
+    detail: 'กรุณาเริ่ม Active Challenge ใหม่ ทำท่าตามคำสั่งจาก Server แล้วกลับมามองตรงที่กล้อง ระบบนี้เป็น anti-spoof risk gate ไม่ใช่ certified Liveness/PAD',
+    tone: 'warning'
   },
   ATTENDANCE_UNAVAILABLE: {
     title: 'ยังไม่สามารถตรวจสอบ Attendance ได้',
@@ -177,7 +183,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
   const [faceCaptureOpen, setFaceCaptureOpen] = useState(false);
   const [verificationBusy, setVerificationBusy] = useState(false);
   const [verificationStage, setVerificationStage] = useState<string>();
-  const [verificationSession, setVerificationSession] = useState<{ sessionId: string; attendanceContext: AttendanceContextRef } | null>(null);
+  const [verificationSession, setVerificationSession] = useState<{ sessionId: string; attendanceContext: AttendanceContextRef; activeChallenge: AttendanceActiveChallenge } | null>(null);
   const [attendanceAccepted, setAttendanceAccepted] = useState<{ intent: AttendanceEventIntent | null; acceptedAt: Date } | null>(null);
   const asyncEvidenceEpochRef = useRef(0);
 
@@ -276,8 +282,8 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
         setVerificationStage('Server ยังไม่อนุญาตให้เริ่ม Face Verification');
         return;
       }
-      if (!verification.sessionId || !verification.challengeId || !verification.challenge || !verification.attendanceContext) {
-        throw new Error('Server ไม่ได้ออก Verification session ที่สมบูรณ์');
+      if (!verification.sessionId || !verification.challengeId || !verification.challenge || !verification.attendanceContext || !verification.activeChallenge) {
+        throw new Error('Server ไม่ได้ออก Verification session และ Active Challenge ที่สมบูรณ์');
       }
 
       setVerificationStage('กำลังยืนยันคีย์ของอุปกรณ์หลัก…');
@@ -294,8 +300,8 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       });
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
 
-      setVerificationSession({ sessionId: verification.sessionId, attendanceContext: verification.attendanceContext });
-      setVerificationStage('Device proof ผ่านแล้ว · พร้อมถ่ายภาพสด');
+      setVerificationSession({ sessionId: verification.sessionId, attendanceContext: verification.attendanceContext, activeChallenge: verification.activeChallenge });
+      setVerificationStage('Device proof ผ่านแล้ว · พร้อมทำ Simple Active Challenge');
       setFaceCaptureOpen(true);
     } catch (reason) {
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
@@ -424,21 +430,25 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     await checkReadinessWithEvidence(globalThis.crypto.randomUUID(), qrToken, location, operationEpoch);
   };
 
-  const handleFacePhotoConfirmed = async (photo: Blob) => {
+  const handleFacePhotoConfirmed = async ({ photo, challengeFrames }: { photo: Blob; challengeFrames: Blob[] }) => {
     const activeVerification = verificationSession;
     if (!activeVerification) throw new Error('Verification session ไม่พร้อม กรุณาเริ่มตรวจสอบใหม่');
     const operationEpoch = asyncEvidenceEpochRef.current;
     setVerificationBusy(true);
-    setVerificationStage('กำลังส่งภาพสดให้ trusted verifier ตรวจแบบ 1:1…');
+    setVerificationStage('กำลังส่งลำดับ Active Challenge และภาพสดให้ trusted verifier ตรวจ…');
     setError(undefined);
     try {
-      const matched = await attendanceFaceMatch(token, activeVerification.sessionId, photo);
+      const matched = await attendanceFaceMatch(token, activeVerification.sessionId, photo, challengeFrames);
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
       if (matched.verificationAccepted !== true || !matched.receipt) {
         setFaceCaptureOpen(false);
         setVerificationSession(null);
-        setVerificationStage('ใบหน้าไม่ตรงกับ Reference Photo');
-        throw new Error('Server ตรวจแล้วใบหน้าไม่ตรงกับ Reference Photo กรุณาเริ่ม attempt ใหม่');
+        if (matched.readiness) setReadiness(matched.readiness);
+        const activeChallengeFailed = matched.readiness?.state === 'ACTIVE_CHALLENGE_RETRY';
+        setVerificationStage(activeChallengeFailed ? 'Simple Active Challenge ยังไม่ผ่าน' : 'ใบหน้าไม่ตรงกับ Reference Photo');
+        throw new Error(activeChallengeFailed
+          ? 'Server ยังยืนยันการเคลื่อนไหวตามคำสั่งไม่ได้ กรุณาเริ่ม Active Challenge ใหม่'
+          : 'Server ตรวจแล้วใบหน้าไม่ตรงกับ Reference Photo กรุณาเริ่ม attempt ใหม่');
       }
 
       setVerificationStage('ใบหน้าตรงแล้ว · กำลังให้ Server บันทึก AttendanceEvent…');
@@ -504,6 +514,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     <AttendanceFaceCapture
       open={faceCaptureOpen && !interactionDisabled}
       busy={verificationBusy}
+      challenge={verificationSession?.activeChallenge || null}
       onConfirm={handleFacePhotoConfirmed}
       onClose={() => setFaceCaptureOpen(false)}
     />
@@ -544,7 +555,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
         <span>3</span><div><strong>Server readiness</strong><small>{routeUnavailable ? 'ยังไม่เปิดใช้งาน' : readiness ? readiness.state : 'รอหลักฐานครบ'}</small></div><SmsIcon name={readiness?.state === 'READY_TO_START_VERIFICATION' ? 'check' : 'shield'} size={18} />
       </article>
       <article className={`attendance-flow-step ${attendanceAccepted ? 'is-ready' : verificationSession || verificationBusy ? 'is-checked' : 'is-locked'}`}>
-        <span>4</span><div><strong>ตรวจใบหน้า 1:1</strong><small>{attendanceAccepted ? 'Server รับผลและบันทึกเวลาแล้ว' : verificationStage || 'รอ Server readiness'}</small></div><SmsIcon name={attendanceAccepted ? 'check' : verificationBusy ? 'clock' : verificationSession ? 'shield' : 'pause'} size={18} />
+        <span>4</span><div><strong>Active Challenge + ตรวจใบหน้า 1:1</strong><small>{attendanceAccepted ? 'Server รับผลและบันทึกเวลาแล้ว' : verificationStage || 'รอ Server readiness'}</small></div><SmsIcon name={attendanceAccepted ? 'check' : verificationBusy ? 'clock' : verificationSession ? 'shield' : 'pause'} size={18} />
       </article>
     </div>
 
@@ -601,9 +612,9 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     </section>
 
     <section className={`attendance-face-gate ${attendanceAccepted ? 'is-success' : ''}`}>
-      <div><span className="attendance-face-gate__icon"><SmsIcon name={attendanceAccepted ? 'check' : verificationBusy ? 'clock' : verificationSession ? 'shield' : 'pause'} size={21} /></span><div><h2>4. ตรวจใบหน้า 1:1</h2><p>{attendanceAccepted
+      <div><span className="attendance-face-gate__icon"><SmsIcon name={attendanceAccepted ? 'check' : verificationBusy ? 'clock' : verificationSession ? 'shield' : 'pause'} size={21} /></span><div><h2>4. Active Challenge + ตรวจใบหน้า 1:1</h2><p>{attendanceAccepted
         ? `${intentLabel(attendanceAccepted.intent)} สำเร็จเมื่อ ${thaiTime(attendanceAccepted.acceptedAt)} — ยืนยันจาก AttendanceEvent ที่ Server รับแล้ว`
-        : verificationStage || 'เมื่อ Server readiness พร้อม ระบบจะยืนยันคีย์อุปกรณ์ แล้วเปิดกล้องหน้าสำหรับภาพสดแบบ memory-only โดยอัตโนมัติ'}</p><small>ภาพสดไม่ลง Gallery, localStorage/sessionStorage/IndexedDB หรือ Attendance Storage และ client ไม่ส่งค่า Face PASS ไปตัดสินเอง</small></div></div>
+        : verificationStage || 'เมื่อ Server readiness พร้อม ระบบจะยืนยันคีย์อุปกรณ์ แล้วเปิดกล้องหน้าสำหรับภาพสดแบบ memory-only โดยอัตโนมัติ'}</p><small>ภาพ Challenge/ภาพสดไม่ลง Gallery, localStorage/sessionStorage/IndexedDB หรือ Attendance Storage และ client ไม่ส่งค่า Challenge PASS / Face PASS ไปตัดสินเอง</small></div></div>
       {attendanceAccepted
         ? <span className="attendance-face-success-badge">บันทึกเวลาแล้ว</span>
         : verificationSession

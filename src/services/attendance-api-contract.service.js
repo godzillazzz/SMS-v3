@@ -16,7 +16,8 @@ function safeVerificationStart(result) {
     expiresAt: session.expiresAt || null,
     challengeId: result?.challengeId || null,
     challenge: result?.challenge || null,
-    attendanceContext: result?.attendanceContext || null
+    attendanceContext: result?.attendanceContext || null,
+    activeChallenge: result?.activeChallenge || null
   };
 }
 
@@ -94,16 +95,16 @@ function createAttendanceApiContractService({
     }
   }
 
-  async function verifyLiveFace({ actor, sessionId, livePhotoFile } = {}) {
+  async function verifyLiveFace({ actor, sessionId, livePhotoFile, challengeFrameFiles } = {}) {
     if (!runtimeEnabled()) {
       return { ok: false, verificationAccepted: false, receipt: null, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }) };
     }
     try {
-      const result = await face.verifyLiveFace({ actor, sessionId, livePhotoFile });
+      const result = await face.verifyLiveFace({ actor, sessionId, livePhotoFile, challengeFrameFiles });
       if (result.verificationAccepted !== true || !result.receipt) {
-        return { ok: false, verificationAccepted: false, receipt: null, evidence: result.evidence || null, readiness: mapAttendanceDomainOutcome('FACE_MATCH_FAILED') };
+        return { ok: false, verificationAccepted: false, receipt: null, evidence: result.evidence || null, readiness: mapAttendanceDomainOutcome(result.domainCode || 'FACE_MATCH_FAILED') };
       }
-      return { ok: true, ...result };
+      return { ok: true, verificationAccepted: true, receipt: result.receipt, receiptExpiresAt: result.receiptExpiresAt || null, evidence: result.evidence || null };
     } catch (error) {
       return { ok: false, verificationAccepted: false, receipt: null, readiness: mapAttendanceDomainOutcome(error) };
     }

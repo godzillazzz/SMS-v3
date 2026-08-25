@@ -24,6 +24,7 @@ const STATES = Object.freeze({
   VERIFICATION_REPLAY_BLOCKED: Object.freeze({ state: 'VERIFICATION_REPLAY_BLOCKED', blocking: true, retryable: false, action: 'START_NEW_ATTENDANCE_ATTEMPT', messageKey: 'attendance.verification_replay_blocked' }),
   CONTEXT_CHANGED_RESTART: Object.freeze({ state: 'CONTEXT_CHANGED_RESTART', blocking: true, retryable: true, action: 'RESTART_ATTENDANCE', messageKey: 'attendance.context_changed_restart' }),
   LIVENESS_NOT_VERIFIED: Object.freeze({ state: 'LIVENESS_NOT_VERIFIED', blocking: true, retryable: true, action: 'RETRY_FACE_VERIFICATION', messageKey: 'attendance.liveness_not_verified' }),
+  ACTIVE_CHALLENGE_RETRY: Object.freeze({ state: 'ACTIVE_CHALLENGE_RETRY', blocking: true, retryable: true, action: 'RETRY_ACTIVE_CHALLENGE', messageKey: 'attendance.active_challenge_retry' }),
   FACE_NOT_MATCHED: Object.freeze({ state: 'FACE_NOT_MATCHED', blocking: true, retryable: true, action: 'RETRY_FACE_VERIFICATION', messageKey: 'attendance.face_not_matched' }),
   SECURITY_REVIEW_REQUIRED: Object.freeze({ state: 'SECURITY_REVIEW_REQUIRED', blocking: true, retryable: false, action: 'CONTACT_ADMIN_OR_SECURITY', messageKey: 'attendance.security_review_required' }),
   ATTENDANCE_STATE_REFRESH_REQUIRED: Object.freeze({ state: 'ATTENDANCE_STATE_REFRESH_REQUIRED', blocking: true, retryable: true, action: 'REFRESH_ATTENDANCE_STATUS', messageKey: 'attendance.state_refresh_required' }),
@@ -97,6 +98,7 @@ mapCodes('CONTEXT_CHANGED_RESTART', [
   'ATTENDANCE_SESSION_STALE'
 ]);
 mapCodes('LIVENESS_NOT_VERIFIED', ['LIVENESS_FAILED']);
+mapCodes('ACTIVE_CHALLENGE_RETRY', ['ACTIVE_CHALLENGE_FAILED', 'ACTIVE_CHALLENGE_FRAMES_INVALID', 'ACTIVE_CHALLENGE_FRAME_INVALID']);
 mapCodes('FACE_NOT_MATCHED', ['FACE_MATCH_FAILED']);
 mapCodes('SECURITY_REVIEW_REQUIRED', [
   'CAPTURE_INJECTION_RISK',

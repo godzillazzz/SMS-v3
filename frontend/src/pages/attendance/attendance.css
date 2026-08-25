@@ -171,3 +171,9 @@
   .attendance-face-dialog footer { margin-top: auto; }
   .attendance-face-dialog footer button { flex: 1 1 0; min-height: 44px; }
 }
+
+.attendance-face-challenge { display: flex; align-items: flex-start; gap: 10px; border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-border)); border-radius: 14px; padding: 11px 12px; background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface)); }
+.attendance-face-challenge__icon { display: grid; flex: 0 0 auto; width: 34px; height: 34px; place-items: center; border-radius: 10px; color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface)); }
+.attendance-face-challenge small { display: block; color: var(--color-text-muted); font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.attendance-face-challenge strong { display: block; margin-top: 2px; color: var(--color-text); font-size: 15px; }
+.attendance-face-challenge p { margin: 3px 0 0; color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }

@@ -5,7 +5,7 @@ Status: additive design/implementation checkpoint. Production runtime remains di
 ## Owner decision
 
 - Do not depend on paid AWS Face/Liveness for the current Attendance V1 direction.
-- Current target is trusted server-side **1:1 face match** against the employee's active Reference Photo.
+- Current target is trusted server-side **1:1 face match** against the employee's active Reference Photo, preceded by a Server-issued **Simple Active Face Challenge** anti-spoof risk gate.
 - Do **not** claim PAD/Liveness when only face matching is performed.
 - The live Attendance photo is transient for now: process in memory, verify, then discard.
 - A future private-server photo archive must be pluggable without redesigning Attendance.
@@ -23,7 +23,7 @@ Status: additive design/implementation checkpoint. Production runtime remains di
 
 ## Current no-storage path
 
-`Camera -> SMS backend memory -> trusted self-hosted verifier -> MATCH/NO_MATCH -> zero buffers`
+`Server challenge -> front-camera transient frame sequence -> final live still -> SMS backend memory -> trusted self-hosted verifier -> ACTIVE_CHALLENGE_PASS + MATCH -> zero buffers`
 
 Default `AttendanceFaceEvidenceStorage` implementation is `NoopAttendanceFaceEvidenceStorage`.
 It returns `NOT_STORED`, has no object reference, and writes no file to Supabase, Vercel disk, localStorage or sessionStorage.
@@ -36,6 +36,18 @@ The verification orchestrator already depends on an `AttendanceFaceEvidenceStora
 - `remove(input)`
 
 When the private server is ready, add a new adapter implementation. The current orchestration invokes evidence storage only after the trusted 1:1 match has produced an actionable receipt; failed/non-matching attempts remain `NOT_STORED`. Attendance/QR/GPS/session authority does not need to change. A later additive schema can persist opaque `objectRef`, provider, checksum, retention and purge metadata without storing a public URL.
+
+## Simple Active Face Challenge (not certified Liveness/PAD)
+
+- The Server derives a fresh challenge from the random `FaceVerificationSession.id`; the browser cannot choose the challenge.
+- V1 challenge set is bounded to `TURN_LEFT`, `TURN_RIGHT`, `LOOK_UP`, `LOOK_DOWN`.
+- The PWA captures exactly four transient JPEG challenge frames plus one final still using canvas snapshots; no Gallery/file picker and no `MediaRecorder` requirement.
+- The browser sends only the images to the provider-neutral `/attendance/...` facade. It does not send `activeChallengePassed`, `faceMatchPassed`, `padPassed`, provider name, score, embedding, or template.
+- The SMS backend recomputes the challenge from the session ID and forwards challenge metadata and frames server-to-server to the trusted verifier.
+- The trusted verifier must return both boolean `activeChallengePassed` and boolean `match`. Missing either value fails closed.
+- `ACTIVE_CHALLENGE_FAILED` and `FACE_MATCH_FAILED` remain distinct. Only challenge=true AND match=true may mint an opaque receipt.
+- `padPassed` remains `NULL` for `FACE_MATCH_ONLY`; this control is a lightweight anti-spoof/risk gate and must never be represented as certified Liveness/PAD.
+- Challenge frames, final live photo, and the process copy of the Reference Photo are released/overwritten after verification; failed attempts are never sent to the future evidence-storage hook.
 
 ## Self-hosted verifier contract
 
@@ -58,6 +70,7 @@ Expected verifier response is intentionally narrow:
 
 ```json
 {
+  "activeChallengePassed": true,
   "match": true,
   "resultCode": "MATCH",
   "policyProfileId": "private-v1",

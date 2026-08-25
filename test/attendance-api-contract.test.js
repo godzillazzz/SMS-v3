@@ -35,6 +35,7 @@ function fakeDependencies() {
         },
         challengeId: '55555555-5555-4555-8555-555555555555',
         challenge: 'opaque-device-challenge',
+        activeChallenge: { version: 'ACTIVE_FACE_CHALLENGE_V1', code: 'TURN_LEFT', frameCount: 4 },
         attendanceContext: {
           captureId,
           eventIntent: 'CHECK_IN',
@@ -121,7 +122,7 @@ test('beginVerification passes only raw Attendance evidence inputs and returns a
   assert.equal(calls.prepareVerification.length, 1);
   assert.deepEqual(Object.keys(calls.prepareVerification[0]).sort(), ['actor', 'attendanceEvidence', 'captureId', 'eventIntent']);
   assert.equal(calls.prepareVerification[0].eventIntent, 'CHECK_IN');
-  assert.deepEqual(Object.keys(result.verification).sort(), ['attendanceContext', 'challenge', 'challengeId', 'expiresAt', 'sessionId', 'status']);
+  assert.deepEqual(Object.keys(result.verification).sort(), ['activeChallenge', 'attendanceContext', 'challenge', 'challengeId', 'expiresAt', 'sessionId', 'status']);
   const serialized = JSON.stringify(result);
   assert.equal(serialized.includes('secret-fingerprint'), false);
   assert.equal(serialized.includes('secret-checksum'), false);
@@ -137,11 +138,13 @@ test('device proof and live-face execution remain server-gated and provider-neut
   assert.equal(device.verificationReady, true);
   assert.equal(calls.deviceProof.length, 1);
   const livePhotoFile = { buffer: Buffer.from('temporary-live-photo'), mimetype: 'image/jpeg' };
-  const matched = await service.verifyLiveFace({ actor, sessionId: '33333333-3333-4333-8333-333333333333', livePhotoFile });
+  const challengeFrameFiles = [1, 2, 3, 4].map((value) => ({ buffer: Buffer.from(`frame-${value}`), mimetype: 'image/jpeg' }));
+  const matched = await service.verifyLiveFace({ actor, sessionId: '33333333-3333-4333-8333-333333333333', livePhotoFile, challengeFrameFiles });
   assert.equal(matched.ok, true);
   assert.equal(matched.verificationAccepted, true);
   assert.equal(matched.receipt, 'server-issued-receipt');
   assert.equal(calls.liveFace.length, 1);
+  assert.equal(calls.liveFace[0].challengeFrameFiles.length, 4);
   assert.equal(calls.accept.length, 0);
 });
 
@@ -209,7 +212,7 @@ test('safe verification projection does not expose biometric/provider/internal a
     attendanceContext: { captureId: 'cap' },
     receipt: 'must-never-be-here'
   });
-  assert.deepEqual(projected, { sessionId: 's', status: 'CREATED', expiresAt: 'soon', challengeId: 'c', challenge: 'challenge', attendanceContext: { captureId: 'cap' } });
+  assert.deepEqual(projected, { sessionId: 's', status: 'CREATED', expiresAt: 'soon', challengeId: 'c', challenge: 'challenge', attendanceContext: { captureId: 'cap' }, activeChallenge: null });
 });
 
 test('Attendance API contract remains provider-neutral after gated route skeleton mount', () => {

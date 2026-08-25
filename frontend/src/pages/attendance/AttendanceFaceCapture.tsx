@@ -1,16 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SmsIcon } from '../../components/SmsIcon';
+import type { AttendanceActiveChallenge } from './attendance-client';
+
+type CapturedFaceEvidence = {
+  photo: Blob;
+  challengeFrames: Blob[];
+};
 
 type Props = {
   open: boolean;
   busy?: boolean;
-  onConfirm: (photo: Blob) => Promise<void>;
+  challenge: AttendanceActiveChallenge | null;
+  onConfirm: (evidence: CapturedFaceEvidence) => Promise<void>;
   onClose: () => void;
 };
 
 const MAX_CAPTURE_EDGE = 960;
 const JPEG_QUALITY = 0.82;
+const FRAME_INTERVAL_MS = 650;
+const FINAL_STILL_DELAY_MS = 650;
+
+const challengeCopy: Record<string, { title: string; detail: string }> = {
+  TURN_LEFT: { title: 'หันหน้าไปทางซ้าย', detail: 'ค่อย ๆ หันหน้าไปทางซ้าย แล้วกลับมามองตรงที่กล้อง' },
+  TURN_RIGHT: { title: 'หันหน้าไปทางขวา', detail: 'ค่อย ๆ หันหน้าไปทางขวา แล้วกลับมามองตรงที่กล้อง' },
+  LOOK_UP: { title: 'เงยหน้าขึ้นเล็กน้อย', detail: 'เงยหน้าขึ้นเล็กน้อย แล้วกลับมามองตรงที่กล้อง' },
+  LOOK_DOWN: { title: 'ก้มหน้าลงเล็กน้อย', detail: 'ก้มหน้าลงเล็กน้อย แล้วกลับมามองตรงที่กล้อง' }
+};
 
 function cameraErrorMessage(reason: unknown) {
   const name = reason instanceof DOMException ? reason.name : '';
@@ -20,15 +36,23 @@ function cameraErrorMessage(reason: unknown) {
   return reason instanceof Error ? reason.message : 'ไม่สามารถเปิดกล้องหน้าได้';
 }
 
-export function AttendanceFaceCapture({ open, busy = false, onConfirm, onClose }: Props) {
+function sleep(milliseconds: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+export function AttendanceFaceCapture({ open, busy = false, challenge, onConfirm, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const previewUrlRef = useRef<string | null>(null);
   const cameraRequestEpochRef = useRef(0);
+  const captureSequenceEpochRef = useRef(0);
   const onCloseRef = useRef(onClose);
   const [starting, setStarting] = useState(false);
+  const [capturing, setCapturing] = useState(false);
+  const [captureProgress, setCaptureProgress] = useState(0);
   const [photo, setPhoto] = useState<Blob | null>(null);
+  const [challengeFrames, setChallengeFrames] = useState<Blob[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string>();
   onCloseRef.current = onClose;
@@ -45,21 +69,29 @@ export function AttendanceFaceCapture({ open, busy = false, onConfirm, onClose }
     canvasRef.current.height = 1;
   };
 
-  const clearPhoto = () => {
+  const clearCapturedEvidence = () => {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     previewUrlRef.current = null;
     setPreviewUrl(null);
     setPhoto(null);
+    setChallengeFrames([]);
+    setCaptureProgress(0);
     purgeCanvas();
+  };
+
+  const invalidateCaptureSequence = () => {
+    captureSequenceEpochRef.current += 1;
+    setCapturing(false);
   };
 
   const startCamera = async () => {
     const cameraEpoch = cameraRequestEpochRef.current + 1;
     cameraRequestEpochRef.current = cameraEpoch;
+    invalidateCaptureSequence();
     setError(undefined);
     setStarting(true);
     stopStream();
-    clearPhoto();
+    clearCapturedEvidence();
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('เบราว์เซอร์นี้ไม่รองรับกล้องที่ระบบต้องใช้');
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -94,8 +126,9 @@ export function AttendanceFaceCapture({ open, busy = false, onConfirm, onClose }
   useEffect(() => {
     if (!open) {
       cameraRequestEpochRef.current += 1;
+      invalidateCaptureSequence();
       stopStream();
-      clearPhoto();
+      clearCapturedEvidence();
       setError(undefined);
       return;
     }
@@ -105,8 +138,9 @@ export function AttendanceFaceCapture({ open, busy = false, onConfirm, onClose }
 
     const stopAndCloseForLifecycle = () => {
       cameraRequestEpochRef.current += 1;
+      invalidateCaptureSequence();
       stopStream();
-      clearPhoto();
+      clearCapturedEvidence();
       document.body.style.overflow = previousBodyOverflow;
       onCloseRef.current();
     };
@@ -120,6 +154,7 @@ export function AttendanceFaceCapture({ open, busy = false, onConfirm, onClose }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pagehide', handlePageHide);
       cameraRequestEpochRef.current += 1;
+      captureSequenceEpochRef.current += 1;
       stopStream();
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       previewUrlRef.current = null;
@@ -128,63 +163,105 @@ export function AttendanceFaceCapture({ open, busy = false, onConfirm, onClose }
     };
   }, [open]);
 
-
-  const capture = async () => {
+  const captureFrame = async (): Promise<Blob> => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
-      setError('ภาพจากกล้องหน้ายังไม่พร้อม กรุณารอสักครู่แล้วลองใหม่');
-      return;
-    }
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) throw new Error('ภาพจากกล้องหน้ายังไม่พร้อม กรุณารอสักครู่แล้วลองใหม่');
     const scale = Math.min(1, MAX_CAPTURE_EDGE / Math.max(video.videoWidth, video.videoHeight));
     canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
     canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
     const context = canvas.getContext('2d', { alpha: false });
     if (!context) {
-      setError('ไม่สามารถเตรียมภาพสดสำหรับตรวจใบหน้าได้');
       purgeCanvas();
-      return;
+      throw new Error('ไม่สามารถเตรียมภาพสดสำหรับตรวจใบหน้าได้');
     }
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
     purgeCanvas();
-    if (!blob || blob.size < 64) {
-      setError('ถ่ายภาพสดไม่สำเร็จ กรุณาลองใหม่');
+    if (!blob || blob.size < 64) throw new Error('ถ่ายภาพสดไม่สำเร็จ กรุณาลองใหม่');
+    return blob;
+  };
+
+  const captureChallenge = async () => {
+    if (capturing || busy || starting) return;
+    if (!challenge || challenge.frameCount !== 4 || !challengeCopy[challenge.code]) {
+      setError('คำสั่ง Active Challenge จาก Server ไม่ถูกต้อง กรุณาเริ่มการลงเวลาใหม่');
       return;
     }
-    stopStream();
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    const nextUrl = URL.createObjectURL(blob);
-    previewUrlRef.current = nextUrl;
-    setPhoto(blob);
-    setPreviewUrl(nextUrl);
+    const sequenceEpoch = captureSequenceEpochRef.current + 1;
+    captureSequenceEpochRef.current = sequenceEpoch;
+    clearCapturedEvidence();
     setError(undefined);
+    setCapturing(true);
+    const frames: Blob[] = [];
+    try {
+      for (let index = 0; index < challenge.frameCount; index += 1) {
+        await sleep(index === 0 ? 500 : FRAME_INTERVAL_MS);
+        if (sequenceEpoch !== captureSequenceEpochRef.current) return;
+        const frame = await captureFrame();
+        if (sequenceEpoch !== captureSequenceEpochRef.current) return;
+        frames.push(frame);
+        setCaptureProgress(index + 1);
+      }
+      await sleep(FINAL_STILL_DELAY_MS);
+      if (sequenceEpoch !== captureSequenceEpochRef.current) return;
+      const finalPhoto = await captureFrame();
+      if (sequenceEpoch !== captureSequenceEpochRef.current) return;
+      stopStream();
+      const nextUrl = URL.createObjectURL(finalPhoto);
+      previewUrlRef.current = nextUrl;
+      setChallengeFrames(frames);
+      setPhoto(finalPhoto);
+      setPreviewUrl(nextUrl);
+    } catch (reason) {
+      if (sequenceEpoch !== captureSequenceEpochRef.current) return;
+      setError(reason instanceof Error ? reason.message : 'ไม่สามารถเก็บลำดับภาพ Active Challenge ได้');
+      clearCapturedEvidence();
+    } finally {
+      if (sequenceEpoch === captureSequenceEpochRef.current) setCapturing(false);
+    }
   };
 
   const retake = async () => {
     if (busy) return;
-    clearPhoto();
+    invalidateCaptureSequence();
+    clearCapturedEvidence();
     await startCamera();
   };
 
+  const closeNow = () => {
+    if (busy) return;
+    cameraRequestEpochRef.current += 1;
+    invalidateCaptureSequence();
+    stopStream();
+    clearCapturedEvidence();
+    onClose();
+  };
+
   const confirm = async () => {
-    if (!photo || busy) return;
+    if (!photo || busy || !challenge || challengeFrames.length !== challenge.frameCount) return;
     setError(undefined);
     try {
-      await onConfirm(photo);
+      await onConfirm({ photo, challengeFrames: [...challengeFrames] });
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถตรวจใบหน้าได้');
+      setError(reason instanceof Error ? reason.message : 'ไม่สามารถตรวจ Active Challenge และใบหน้าได้');
     }
   };
 
   if (!open) return null;
+  const activeCopy = challenge ? challengeCopy[challenge.code] : null;
 
   return createPortal(<div className="attendance-face-backdrop" role="presentation">
     <section className="attendance-face-dialog" role="dialog" aria-modal="true" aria-labelledby="attendance-face-title">
       <header>
-        <div><p>LIVE FACE · MEMORY ONLY</p><h2 id="attendance-face-title">ถ่ายภาพสดยืนยันใบหน้า</h2><span>ใช้กล้องหน้าเท่านั้น ภาพอยู่ชั่วคราวในหน่วยความจำและไม่บันทึกลงเครื่องหรือ Storage ในรอบนี้</span></div>
-        <button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => onClose()} aria-label="ปิด"><SmsIcon name="close" size={20} /></button>
+        <div><p>ACTIVE CHALLENGE · MEMORY ONLY</p><h2 id="attendance-face-title">ทำท่าตามคำสั่งและตรวจใบหน้า</h2><span>เป็น Simple Active Challenge เพื่อลดความเสี่ยงจากรูปนิ่ง/หน้าจอ ไม่ใช่ certified Liveness/PAD และภาพทั้งหมดถูกใช้ชั่วคราวเท่านั้น</span></div>
+        <button type="button" className="drawer-close overlay-close" disabled={busy} onClick={closeNow} aria-label="ปิด"><SmsIcon name="close" size={20} /></button>
       </header>
+
+      <div className="attendance-face-challenge" role="status">
+        <span className="attendance-face-challenge__icon"><SmsIcon name="shield" size={20} /></span>
+        <div><small>คำสั่งสุ่มจาก Server</small><strong>{activeCopy?.title || 'กำลังรอคำสั่งจาก Server'}</strong><p>{activeCopy?.detail || 'กรุณาเริ่มการลงเวลาใหม่หากคำสั่งไม่พร้อม'}</p></div>
+      </div>
 
       <div className="attendance-face-camera">
         {previewUrl
@@ -193,15 +270,16 @@ export function AttendanceFaceCapture({ open, busy = false, onConfirm, onClose }
         <canvas ref={canvasRef} className="attendance-face-canvas" aria-hidden="true" />
         {!previewUrl && <div className="attendance-face-guide" aria-hidden="true"><span /></div>}
         {starting && <div className="attendance-face-status"><SmsIcon name="clock" size={22} /><span>กำลังเปิดกล้องหน้า…</span></div>}
+        {capturing && <div className="attendance-face-status"><SmsIcon name="clock" size={22} /><span>กำลังเก็บลำดับภาพ {captureProgress}/{challenge?.frameCount || 4} · ทำท่าตามคำสั่งแล้วกลับมามองตรง</span></div>}
       </div>
 
       {error && <div className="alert alert-error attendance-face-error" role="alert">{error}</div>}
-      <div className="attendance-face-privacy"><SmsIcon name="shield" size={17} /><span>ไม่มี file picker / Gallery และไม่มี localStorage, sessionStorage หรือ IndexedDB สำหรับภาพสดนี้ เมื่อปิด/ออกจากแอป/สลับหน้าจอ ระบบจะทิ้งภาพและหยุดกล้องทันที</span></div>
+      <div className="attendance-face-privacy"><SmsIcon name="shield" size={17} /><span>ไม่มี file picker / Gallery และไม่มี localStorage, sessionStorage หรือ IndexedDB ภาพ Challenge และภาพสุดท้ายอยู่ในหน่วยความจำเท่านั้น เมื่อปิด/สลับแอป/ล็อกหน้าจอ ระบบจะทิ้งหลักฐานชั่วคราวและหยุดกล้อง</span></div>
 
       <footer>
         {previewUrl
-          ? <><button type="button" className="btn-neutral" disabled={busy} onClick={() => void retake()}>ถ่ายใหม่</button><button type="button" className="btn-primary" disabled={busy || !photo} onClick={() => void confirm()}><SmsIcon name="shield" size={17} />{busy ? 'กำลังส่งให้ Server ตรวจ…' : 'ยืนยันและตรวจใบหน้า'}</button></>
-          : <><button type="button" className="btn-neutral" disabled={busy} onClick={() => onClose()}>ยกเลิก</button><button type="button" className="btn-primary" disabled={busy || starting || Boolean(error)} onClick={() => void capture()}><SmsIcon name="quality" size={17} />ถ่ายภาพสด</button></>}
+          ? <><button type="button" className="btn-neutral" disabled={busy} onClick={() => void retake()}>ทำ Challenge ใหม่</button><button type="button" className="btn-primary" disabled={busy || !photo || challengeFrames.length !== challenge?.frameCount} onClick={() => void confirm()}><SmsIcon name="shield" size={17} />{busy ? 'กำลังส่งให้ Server ตรวจ…' : 'ยืนยันและส่งตรวจ'}</button></>
+          : <><button type="button" className="btn-neutral" disabled={busy} onClick={closeNow}>ยกเลิก</button><button type="button" className="btn-primary" disabled={busy || starting || capturing || Boolean(error) || !activeCopy} onClick={() => void captureChallenge()}><SmsIcon name="quality" size={17} />{capturing ? 'กำลังทำ Challenge…' : 'เริ่ม Active Challenge'}</button></>}
       </footer>
     </section>
   </div>, document.body);

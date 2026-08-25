@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const prismaDefault = require('../config/prisma');
 const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
+const { deriveActiveFaceChallenge } = require('./active-face-challenge.service');
 
 const PURPOSES = new Set(['ATTENDANCE_EVENT', 'PATROL_EVENT']);
 const VERIFICATION_MODES = new Set(['FACE_MATCH_ONLY', 'FACE_MATCH_WITH_LIVENESS']);
@@ -81,7 +82,7 @@ function createFaceVerificationSessionService({ prisma = prismaDefault, audit = 
         const deviceChallenge = await tx.attendanceDeviceChallenge.create({ data: { employeeId: identity.employeeId, deviceEnrollmentId: binding.device.id, purpose, challengeHash: challengeHash(challenge), expiresAt } });
         const session = await tx.faceVerificationSession.create({ data: { employeeId: identity.employeeId, userId: identity.userId, deviceEnrollmentId: binding.device.id, deviceCredentialFingerprint: binding.device.credentialFingerprint, referencePhotoId: binding.referencePhoto.id, referencePhotoChecksum: binding.referencePhoto.checksum, deviceChallengeId: deviceChallenge.id, purpose, contextDigest: context, expiresAt } });
         await audit.log({ actorUserId: identity.userId, action: 'CREATE', entityType: 'FaceVerificationSession', entityId: session.id, metadata: { event: 'SESSION_CREATED', employeeId: identity.employeeId, deviceEnrollmentId: binding.device.id, referencePhotoId: binding.referencePhoto.id, purpose, contextDigest: context } }, tx);
-        return { session: safeSession(session), challengeId: deviceChallenge.id, challenge, keyAlgorithm: binding.device.keyAlgorithm };
+        return { session: safeSession(session), challengeId: deviceChallenge.id, challenge, keyAlgorithm: binding.device.keyAlgorithm, activeChallenge: deriveActiveFaceChallenge(session.id) };
       });
     } catch (error) { throw mapConflict(error); }
   }
@@ -184,7 +185,7 @@ function createFaceVerificationSessionService({ prisma = prismaDefault, audit = 
     } catch (error) { if (error?.details?.code === 'VERIFICATION_STALE') await failSession(sessionId, 'VERIFICATION_STALE').catch(() => {}); throw mapConflict(error); }
   }
 
-  async function recordTrustedFaceMatchOnlyResult({ sessionId, providerSessionRef, faceMatchPassed, resultCode = null, policyProfileId = null, engineVersion = null }) {
+  async function recordTrustedFaceMatchOnlyResult({ sessionId, providerSessionRef, activeChallengePassed, faceMatchPassed, resultCode = null, policyProfileId = null, engineVersion = null }) {
     const now = clock(); const providerRef = clean(providerSessionRef, 1000);
     if (!providerRef) throw http(400, 'VERIFICATION_PROVIDER_SESSION_INVALID', 'Provider session metadata is required.');
     const snapshot = await prisma.faceVerificationSession.findUnique({ where: { id: sessionId } });
@@ -193,11 +194,13 @@ function createFaceVerificationSessionService({ prisma = prismaDefault, audit = 
     if (snapshot.verificationMode !== 'FACE_MATCH_ONLY') throw http(409, 'FACE_VERIFICATION_MODE_MISMATCH', 'Face verification mode does not accept a face-match-only result.');
     if (snapshot.expiresAt <= now) { await expireSessionById(sessionId); throw http(410, 'VERIFICATION_EXPIRED', 'Face verification session expired.'); }
     if (!snapshot.providerSessionRefHash || snapshot.providerSessionRefHash !== providerRefHash(providerRef)) { await failSession(sessionId, 'VERIFICATION_PROVIDER_SESSION_MISMATCH'); throw http(409, 'VERIFICATION_PROVIDER_SESSION_MISMATCH', 'Trusted provider session does not match.'); }
-    if (faceMatchPassed !== true) {
+    const activeChallenge = deriveActiveFaceChallenge(sessionId);
+    const failureCode = activeChallengePassed === true ? (faceMatchPassed === true ? null : 'FACE_MATCH_FAILED') : 'ACTIVE_CHALLENGE_FAILED';
+    if (failureCode) {
       await prisma.$transaction(async (tx) => {
-        const claimed = await tx.faceVerificationSession.updateMany({ where: { id: sessionId, status: 'PROVIDER_PENDING', verificationMode: 'FACE_MATCH_ONLY' }, data: { status: 'FAILED', padPassed: null, faceMatchPassed: false, injectionRiskDetected: null, providerResultCode: clean(resultCode,80), providerPolicyProfileId: clean(policyProfileId,120) || snapshot.providerPolicyProfileId, providerEngineVersion: clean(engineVersion,120) || snapshot.providerEngineVersion, failedAt: now, failureCode: 'FACE_MATCH_FAILED' } });
+        const claimed = await tx.faceVerificationSession.updateMany({ where: { id: sessionId, status: 'PROVIDER_PENDING', verificationMode: 'FACE_MATCH_ONLY' }, data: { status: 'FAILED', padPassed: null, faceMatchPassed: faceMatchPassed === true, injectionRiskDetected: null, providerResultCode: clean(resultCode,80), providerPolicyProfileId: clean(policyProfileId,120) || snapshot.providerPolicyProfileId, providerEngineVersion: clean(engineVersion,120) || snapshot.providerEngineVersion, failedAt: now, failureCode } });
         if (claimed.count !== 1) throw http(409, 'FACE_VERIFICATION_STATE_CONFLICT', 'Face verification state changed.');
-        await audit.log({ actorUserId: snapshot.userId, action: 'UPDATE', entityType: 'FaceVerificationSession', entityId: sessionId, metadata: { event: 'VERIFICATION_FAILED', failureCode: 'FACE_MATCH_FAILED', provider: snapshot.provider, verificationMode: 'FACE_MATCH_ONLY', resultCode: clean(resultCode,80) } }, tx);
+        await audit.log({ actorUserId: snapshot.userId, action: 'UPDATE', entityType: 'FaceVerificationSession', entityId: sessionId, metadata: { event: 'VERIFICATION_FAILED', failureCode, provider: snapshot.provider, verificationMode: 'FACE_MATCH_ONLY', resultCode: clean(resultCode,80), activeChallengeVersion: activeChallenge.version, activeChallengeCode: activeChallenge.code, activeChallengePassed: activeChallengePassed === true } }, tx);
       });
       return { session: safeSession(await prisma.faceVerificationSession.findUnique({ where: { id: sessionId } })), receipt: null };
     }
@@ -216,7 +219,7 @@ function createFaceVerificationSessionService({ prisma = prismaDefault, audit = 
         const claimed = await tx.faceVerificationSession.updateMany({ where: { id: session.id, status: 'PROVIDER_PENDING', verificationMode: 'FACE_MATCH_ONLY', expiresAt: { gt: now } }, data: { status: 'VERIFIED', padPassed: null, faceMatchPassed: true, injectionRiskDetected: null, providerResultCode: clean(resultCode,80), providerPolicyProfileId: clean(policyProfileId,120) || session.providerPolicyProfileId, providerEngineVersion: clean(engineVersion,120) || session.providerEngineVersion, verifiedAt: now } });
         if (claimed.count !== 1) throw http(409, 'FACE_VERIFICATION_STATE_CONFLICT', 'Face verification state changed.');
         await tx.faceVerificationReceipt.create({ data: { sessionId: session.id, employeeId: session.employeeId, userId: session.userId, deviceEnrollmentId: session.deviceEnrollmentId, deviceCredentialFingerprint: session.deviceCredentialFingerprint, referencePhotoId: session.referencePhotoId, referencePhotoChecksum: session.referencePhotoChecksum, purpose: session.purpose, verificationMode: 'FACE_MATCH_ONLY', receiptHash: hash, contextDigest: session.contextDigest, issuedAt: now, expiresAt: receiptExpiresAt } });
-        await audit.log({ actorUserId: session.userId, action: 'UPDATE', entityType: 'FaceVerificationSession', entityId: session.id, metadata: { event: 'VERIFICATION_VERIFIED', employeeId: session.employeeId, deviceEnrollmentId: session.deviceEnrollmentId, referencePhotoId: session.referencePhotoId, purpose: session.purpose, provider: session.provider, verificationMode: 'FACE_MATCH_ONLY', policyProfileId: clean(policyProfileId,120) || session.providerPolicyProfileId, engineVersion: clean(engineVersion,120) || session.providerEngineVersion } }, tx);
+        await audit.log({ actorUserId: session.userId, action: 'UPDATE', entityType: 'FaceVerificationSession', entityId: session.id, metadata: { event: 'VERIFICATION_VERIFIED', employeeId: session.employeeId, deviceEnrollmentId: session.deviceEnrollmentId, referencePhotoId: session.referencePhotoId, purpose: session.purpose, provider: session.provider, verificationMode: 'FACE_MATCH_ONLY', policyProfileId: clean(policyProfileId,120) || session.providerPolicyProfileId, engineVersion: clean(engineVersion,120) || session.providerEngineVersion, activeChallengeVersion: activeChallenge.version, activeChallengeCode: activeChallenge.code, activeChallengePassed: true } }, tx);
         return { session: safeSession(await tx.faceVerificationSession.findUnique({ where: { id: session.id } })), receipt, receiptExpiresAt };
       });
     } catch (error) { if (error?.details?.code === 'VERIFICATION_STALE') await failSession(sessionId, 'VERIFICATION_STALE').catch(() => {}); throw mapConflict(error); }

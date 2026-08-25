@@ -24,18 +24,23 @@ test('core verification service keeps liveness and face-match-only result paths 
   assert.match(service, /verificationMode !== 'FACE_MATCH_WITH_LIVENESS'/);
   assert.match(service, /recordTrustedFaceMatchOnlyResult/);
   assert.match(service, /verificationMode !== 'FACE_MATCH_ONLY'/);
+  assert.match(service, /activeChallengePassed/);
+  assert.match(service, /ACTIVE_CHALLENGE_FAILED/);
   assert.match(service, /padPassed: null, faceMatchPassed: true, injectionRiskDetected: null/);
   assert.match(service, /verificationMode: 'FACE_MATCH_ONLY'/);
 });
 
-test('self-hosted route is Preview/test gated, memory-only and never accepts client face-match booleans', () => {
+test('self-hosted route is Preview/test gated, memory-only and requires bounded challenge frames without client pass booleans', () => {
   const route = read('src/routes/face-verification-self-hosted.routes.js');
   assert.ok(route.includes("if (environment.VERCEL_ENV === 'production') return false;"));
   assert.ok(route.includes("environment.VERCEL_ENV === 'preview' && environment.FACE_VERIFICATION_SELF_HOSTED_API_ENABLED === 'true'"));
   assert.match(route, /multer\.memoryStorage\(\)/);
-  assert.match(route, /upload\.single\('photo'\)/);
+  assert.match(route, /multer\.memoryStorage\(\)/);
+  assert.match(route, /name: 'photo', maxCount: 1/);
+  assert.match(route, /name: 'challengeFrame', maxCount: ACTIVE_FACE_CHALLENGE_FRAME_COUNT/);
+  assert.match(route, /Object\.keys\(req\.body \|\| \{\}\)\.length !== 0/);
   assert.match(route, /verifier\.verifyFaceMatch/);
-  assert.doesNotMatch(route, /padPassed|faceMatchPassed|livenessPassed|confidence|similarity|score/);
+  assert.doesNotMatch(route, /padPassed|faceMatchPassed|activeChallengePassed|livenessPassed|confidence|similarity|score/);
 });
 
 test('self-hosted face route is mounted separately so legacy AWS PoC remains isolated and paused', () => {

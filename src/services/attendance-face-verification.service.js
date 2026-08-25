@@ -4,6 +4,7 @@ const { createFaceVerificationSessionService } = require('./face-verification-se
 const { createSelfHostedFaceVerificationService } = require('./face-verification-self-hosted.service');
 
 const MAX_ATTENDANCE_LIVE_PHOTO_SIZE = 2 * 1024 * 1024;
+const MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE = 1024 * 1024;
 
 function safeDeviceProof(result, sessionId) {
   return {
@@ -14,7 +15,7 @@ function safeDeviceProof(result, sessionId) {
 }
 
 function safeFaceVerification(result) {
-  const accepted = result?.faceMatchPassed === true && typeof result?.receipt === 'string' && result.receipt.length > 0;
+  const accepted = result?.verificationAccepted === true && typeof result?.receipt === 'string' && result.receipt.length > 0;
   return {
     verificationAccepted: accepted,
     receipt: accepted ? result.receipt : null,
@@ -38,9 +39,10 @@ function createAttendanceFaceVerificationService({
     return safeDeviceProof(result, sessionId);
   }
 
-  async function verifyLiveFace({ actor, sessionId, livePhotoFile } = {}) {
-    const result = await verifier.verifyFaceMatch({ actor, sessionId, livePhotoFile });
-    return safeFaceVerification(result);
+  async function verifyLiveFace({ actor, sessionId, livePhotoFile, challengeFrameFiles } = {}) {
+    const result = await verifier.verifyFaceMatch({ actor, sessionId, livePhotoFile, challengeFrameFiles });
+    const safe = safeFaceVerification(result);
+    return { ...safe, domainCode: safe.verificationAccepted ? null : (result?.session?.failureCode || 'FACE_MATCH_FAILED') };
   }
 
   return {
@@ -51,6 +53,7 @@ function createAttendanceFaceVerificationService({
 
 module.exports = {
   MAX_ATTENDANCE_LIVE_PHOTO_SIZE,
+  MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE,
   safeDeviceProof,
   safeFaceVerification,
   createAttendanceFaceVerificationService

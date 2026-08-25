@@ -40,7 +40,8 @@ The only authoritative Attendance success is a committed AttendanceEvent returne
 | VERIFICATION_EXPIRED | yes | yes | RESTART_VERIFICATION | ขั้นตอนยืนยันตัวตนหมดเวลา กรุณาเริ่มใหม่ |
 | VERIFICATION_REPLAY_BLOCKED | yes | no | START_NEW_ATTENDANCE_ATTEMPT | รายการยืนยันนี้ถูกใช้แล้ว กรุณาเริ่มการลงเวลาใหม่ |
 | CONTEXT_CHANGED_RESTART | yes | yes | RESTART_ATTENDANCE | ข้อมูลการลงเวลาเปลี่ยนระหว่างดำเนินการ กรุณาเริ่มใหม่ |
-| LIVENESS_NOT_VERIFIED | yes | yes | RETRY_FACE_VERIFICATION | ไม่สามารถยืนยันว่าเป็นบุคคลจริงขณะนี้ได้ กรุณาลองใหม่ |
+| LIVENESS_NOT_VERIFIED | yes | yes | RETRY_FACE_VERIFICATION | ไม่สามารถยืนยัน Liveness/PAD ของ provider ที่รองรับได้ กรุณาลองใหม่ |
+| ACTIVE_CHALLENGE_RETRY | yes | yes | RETRY_ACTIVE_CHALLENGE | การเคลื่อนไหวตามคำสั่งยังไม่ชัดเจน กรุณาทำ Simple Active Challenge ใหม่ |
 | FACE_NOT_MATCHED | yes | yes | RETRY_FACE_VERIFICATION | ใบหน้าไม่ตรงกับรูปอ้างอิง กรุณาลองใหม่ |
 | SECURITY_REVIEW_REQUIRED | yes | no | CONTACT_ADMIN_OR_SECURITY | พบความเสี่ยงในการยืนยันตัวตน กรุณาติดต่อผู้ดูแลระบบหรือหน่วยงานความปลอดภัย |
 | CHECK_IN_REQUIRED | yes | no | START_CHECK_IN | ต้องลงเวลาเข้าให้เรียบร้อยก่อนลงเวลาออก |
@@ -61,7 +62,8 @@ The only authoritative Attendance success is a committed AttendanceEvent returne
 - Receipt/session expiry → `VERIFICATION_EXPIRED`.
 - Receipt/capture replay → `VERIFICATION_REPLAY_BLOCKED`.
 - Employee/device/reference/schedule/site/context drift → `CONTEXT_CHANGED_RESTART`.
-- PAD fail → `LIVENESS_NOT_VERIFIED`.
+- Certified provider PAD fail (when that optional mode is used) → `LIVENESS_NOT_VERIFIED`.
+- Current `FACE_MATCH_ONLY` Simple Active Challenge fail → `ACTIVE_CHALLENGE_RETRY`. This is an anti-spoof risk gate, not certified Liveness/PAD.
 - 1:1 mismatch → `FACE_NOT_MATCHED`.
 - Injection/provider-session integrity risk → `SECURITY_REVIEW_REQUIRED`.
 - Unknown code → fail closed `ATTENDANCE_UNAVAILABLE`.

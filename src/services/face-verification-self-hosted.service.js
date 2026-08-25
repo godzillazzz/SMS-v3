@@ -5,11 +5,13 @@ const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createSupabaseEmployeeReferencePhotoStorage, detectedType } = require('./employee-reference-photo-storage.service');
+const { deriveActiveFaceChallenge, ACTIVE_FACE_CHALLENGE_FRAME_COUNT } = require('./active-face-challenge.service');
 const {
   PROVIDER_NAME,
   VERIFICATION_MODE,
   POLICY_PROFILE_ID,
   MAX_LIVE_PHOTO_SIZE,
+  MAX_CHALLENGE_FRAME_SIZE,
   createSelfHostedFaceMatchProvider
 } = require('./self-hosted-face-match.provider');
 const {
@@ -25,13 +27,32 @@ function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
-function validateLivePhoto(file) {
-  if (!file || !Buffer.isBuffer(file.buffer)) throw http(400, 'LIVE_FACE_PHOTO_REQUIRED', 'Live face photo is required.');
-  if (file.buffer.length < 64 || file.buffer.length > MAX_LIVE_PHOTO_SIZE) throw http(400, 'LIVE_FACE_PHOTO_INVALID', 'Live face photo is invalid.');
+function validateImageFile(file, { requiredCode, invalidCode, maxBytes }) {
+  if (!file || !Buffer.isBuffer(file.buffer)) throw http(400, requiredCode, 'Face verification image is required.');
+  if (file.buffer.length < 64 || file.buffer.length > maxBytes) throw http(400, invalidCode, 'Face verification image is invalid.');
   const type = detectedType(file.buffer);
   const expectedMime = type === 'png' ? 'image/png' : type === 'jpeg' ? 'image/jpeg' : null;
-  if (!expectedMime || file.mimetype !== expectedMime) throw http(415, 'LIVE_FACE_PHOTO_INVALID', 'Live face photo must be a valid JPEG or PNG image.');
+  if (!expectedMime || file.mimetype !== expectedMime) throw http(415, invalidCode, 'Face verification image must be a valid JPEG or PNG image.');
   return { mimeType: expectedMime, sizeBytes: file.buffer.length, checksum: sha256(file.buffer) };
+}
+
+function validateLivePhoto(file) {
+  return validateImageFile(file, {
+    requiredCode: 'LIVE_FACE_PHOTO_REQUIRED',
+    invalidCode: 'LIVE_FACE_PHOTO_INVALID',
+    maxBytes: MAX_LIVE_PHOTO_SIZE
+  });
+}
+
+function validateChallengeFrames(files) {
+  if (!Array.isArray(files) || files.length !== ACTIVE_FACE_CHALLENGE_FRAME_COUNT) {
+    throw http(400, 'ACTIVE_CHALLENGE_FRAMES_INVALID', `Exactly ${ACTIVE_FACE_CHALLENGE_FRAME_COUNT} active challenge frames are required.`);
+  }
+  return files.map((file) => validateImageFile(file, {
+    requiredCode: 'ACTIVE_CHALLENGE_FRAME_REQUIRED',
+    invalidCode: 'ACTIVE_CHALLENGE_FRAME_INVALID',
+    maxBytes: MAX_CHALLENGE_FRAME_SIZE
+  }));
 }
 
 function safeEvidenceResult(result) {
@@ -70,9 +91,11 @@ function createSelfHostedFaceVerificationService({
     return row;
   }
 
-  async function verifyFaceMatch({ actor, sessionId, livePhotoFile }) {
+  async function verifyFaceMatch({ actor, sessionId, livePhotoFile, challengeFrameFiles }) {
     const liveInfo = validateLivePhoto(livePhotoFile);
+    validateChallengeFrames(challengeFrameFiles);
     const snapshot = await ownedSession(actor, sessionId);
+    const activeChallenge = deriveActiveFaceChallenge(snapshot.id);
     const reference = await prisma.employeeReferencePhoto.findUnique({
       where: { id: snapshot.referencePhotoId },
       select: {
@@ -92,6 +115,7 @@ function createSelfHostedFaceVerificationService({
 
     let referenceBytes;
     const providerSessionRef = randomUUID();
+    const challengeFrameBytes = challengeFrameFiles.map((file) => file.buffer);
     try {
       referenceBytes = await referenceStorage.getBytes(reference.storageObjectKey);
       if (!Buffer.isBuffer(referenceBytes) || sha256(referenceBytes) !== snapshot.referencePhotoChecksum) {
@@ -112,6 +136,8 @@ function createSelfHostedFaceVerificationService({
       try {
         evaluation = await provider.evaluate({
           providerSessionRef,
+          activeChallenge,
+          challengeFrameBytes,
           livePhotoBytes: livePhotoFile.buffer,
           referencePhotoBytes: referenceBytes
         });
@@ -123,6 +149,7 @@ function createSelfHostedFaceVerificationService({
       const accepted = await sessionService.recordTrustedFaceMatchOnlyResult({
         sessionId,
         providerSessionRef,
+        activeChallengePassed: evaluation.activeChallengePassed,
         faceMatchPassed: evaluation.faceMatchPassed,
         resultCode: evaluation.resultCode,
         policyProfileId: evaluation.policyProfileId || POLICY_PROFILE_ID,
@@ -130,7 +157,7 @@ function createSelfHostedFaceVerificationService({
       });
 
       let evidenceResult = { storageStatus: 'NOT_STORED' };
-      if (evaluation.faceMatchPassed === true && accepted.receipt) {
+      if (evaluation.activeChallengePassed === true && evaluation.faceMatchPassed === true && accepted.receipt) {
         try {
           evidenceResult = await attendanceEvidenceStorage.store({
             sessionId,
@@ -147,8 +174,8 @@ function createSelfHostedFaceVerificationService({
       }
 
       return {
+        verificationAccepted: evaluation.activeChallengePassed === true && evaluation.faceMatchPassed === true && Boolean(accepted.receipt),
         verificationMode: VERIFICATION_MODE,
-        faceMatchPassed: evaluation.faceMatchPassed === true,
         evidence: safeEvidenceResult(evidenceResult),
         session: accepted.session,
         receipt: accepted.receipt || null,
@@ -157,6 +184,7 @@ function createSelfHostedFaceVerificationService({
     } finally {
       if (Buffer.isBuffer(referenceBytes)) referenceBytes.fill(0);
       if (Buffer.isBuffer(livePhotoFile?.buffer)) livePhotoFile.buffer.fill(0);
+      for (const frame of challengeFrameBytes) if (Buffer.isBuffer(frame)) frame.fill(0);
     }
   }
 
@@ -165,5 +193,6 @@ function createSelfHostedFaceVerificationService({
 
 module.exports = {
   validateLivePhoto,
+  validateChallengeFrames,
   createSelfHostedFaceVerificationService
 };

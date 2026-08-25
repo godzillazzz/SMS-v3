@@ -18,6 +18,7 @@ if (!configured) {
   const { PrismaClient } = require('@prisma/client');
   const { createFaceVerificationSessionService, receiptHash, providerRefHash } = require('../../src/services/face-verification-session.service');
   const { createFaceVerificationPocService } = require('../../src/services/face-verification-poc.service');
+  const { deriveActiveFaceChallenge } = require('../../src/services/active-face-challenge.service');
   const audit = require('../../src/services/audit.service');
   const prisma = new PrismaClient();
   const marker = crypto.randomUUID().slice(0, 8);
@@ -148,6 +149,48 @@ if (!configured) {
     const staleReceiptRow = await prisma.faceVerificationReceipt.findUniqueOrThrow({ where: { sessionId: fourth.session.id } });
     assert.equal(staleReceiptRow.consumedAt, null);
 
+    await cleanup();
+  });
+
+  test('FACE_MATCH_ONLY requires trusted active challenge and face match while padPassed remains null', async () => {
+    const material = keyMaterial();
+    await seed(material);
+    const service = createFaceVerificationSessionService({ prisma, audit });
+
+    const challengeFailSession = await startAndProve(service, material);
+    assert.deepEqual(challengeFailSession.activeChallenge, deriveActiveFaceChallenge(challengeFailSession.session.id));
+    const providerRef1 = 'face-only-challenge-fail-' + crypto.randomUUID();
+    await service.bindProviderSession({ sessionId: challengeFailSession.session.id, provider: 'SELF_HOSTED_TEST', providerSessionRef: providerRef1, verificationMode: 'FACE_MATCH_ONLY' });
+    const challengeFail = await service.recordTrustedFaceMatchOnlyResult({ sessionId: challengeFailSession.session.id, providerSessionRef: providerRef1, activeChallengePassed: false, faceMatchPassed: true, resultCode: 'ACTIVE_CHALLENGE_FAILED' });
+    assert.equal(challengeFail.receipt, null);
+    assert.equal(challengeFail.session.failureCode, 'ACTIVE_CHALLENGE_FAILED');
+    const challengeFailRow = await prisma.faceVerificationSession.findUniqueOrThrow({ where: { id: challengeFailSession.session.id } });
+    assert.equal(challengeFailRow.padPassed, null);
+    assert.equal(challengeFailRow.faceMatchPassed, true);
+    assert.equal(challengeFailRow.injectionRiskDetected, null);
+
+    const faceFailSession = await startAndProve(service, material);
+    const providerRef2 = 'face-only-face-fail-' + crypto.randomUUID();
+    await service.bindProviderSession({ sessionId: faceFailSession.session.id, provider: 'SELF_HOSTED_TEST', providerSessionRef: providerRef2, verificationMode: 'FACE_MATCH_ONLY' });
+    const faceFail = await service.recordTrustedFaceMatchOnlyResult({ sessionId: faceFailSession.session.id, providerSessionRef: providerRef2, activeChallengePassed: true, faceMatchPassed: false, resultCode: 'FACE_NO_MATCH' });
+    assert.equal(faceFail.receipt, null);
+    assert.equal(faceFail.session.failureCode, 'FACE_MATCH_FAILED');
+
+    const passedSession = await startAndProve(service, material);
+    const providerRef3 = 'face-only-pass-' + crypto.randomUUID();
+    await service.bindProviderSession({ sessionId: passedSession.session.id, provider: 'SELF_HOSTED_TEST', providerSessionRef: providerRef3, verificationMode: 'FACE_MATCH_ONLY' });
+    const passed = await service.recordTrustedFaceMatchOnlyResult({ sessionId: passedSession.session.id, providerSessionRef: providerRef3, activeChallengePassed: true, faceMatchPassed: true, resultCode: 'FACE_MATCH' });
+    assert.ok(passed.receipt.length >= 32);
+    assert.equal(passed.session.status, 'VERIFIED');
+    const passedRow = await prisma.faceVerificationSession.findUniqueOrThrow({ where: { id: passedSession.session.id } });
+    assert.equal(passedRow.padPassed, null);
+    assert.equal(passedRow.faceMatchPassed, true);
+    assert.equal(passedRow.injectionRiskDetected, null);
+    const receipt = await prisma.faceVerificationReceipt.findUniqueOrThrow({ where: { sessionId: passedSession.session.id } });
+    assert.equal(receipt.verificationMode, 'FACE_MATCH_ONLY');
+    const auditJson = JSON.stringify(await prisma.auditLog.findMany({ where: { entityType: 'FaceVerificationSession', entityId: passedSession.session.id } }));
+    assert.ok(auditJson.includes('ACTIVE_FACE_CHALLENGE_V1'));
+    assert.ok(auditJson.includes(deriveActiveFaceChallenge(passedSession.session.id).code));
     await cleanup();
   });
 
