@@ -168,7 +168,7 @@ function createSecuritySiteService({
       if (!before) throw http(404, 'SECURITY_SITE_NOT_FOUND', 'Security Site not found.');
       if (data.isActive === false && before.isActive === true) {
         const defaults = await tx.$queryRawUnsafe(
-          `SELECT department_name AS "departmentName" FROM security_site_departments WHERE security_site_id = $1 AND is_default = TRUE LIMIT 1`,
+          `SELECT department_name AS "departmentName" FROM security_site_departments WHERE security_site_id = $1::uuid AND is_default = TRUE LIMIT 1`,
           id
         );
         if (defaults.length) throw http(409, 'SECURITY_SITE_DEFAULT_IN_USE', 'Remove this Site as Department Default before deactivation.');
@@ -199,7 +199,7 @@ function createSecuritySiteService({
         throw error;
       }
       if (data.isActive === false) {
-        await tx.$executeRawUnsafe(`DELETE FROM security_site_departments WHERE security_site_id = $1`, id);
+        await tx.$executeRawUnsafe(`DELETE FROM security_site_departments WHERE security_site_id = $1::uuid`, id);
       }
       await audit.log({ actorUserId, action: 'UPDATE', entityType: 'SecuritySite', entityId: id, metadata: { before: siteSafe(before), after: siteSafe(updated) } }, tx);
       return siteSafe(updated);
@@ -277,7 +277,7 @@ function createSecuritySiteService({
 
   async function revokeQr(siteId, credentialId, actorUserId) {
     return prisma.$transaction(async (tx) => {
-      const credential = await tx.securitySiteQrCredential.findUnique({ where: { id: credentialId } });
+      const credential = await prisma.securitySiteQrCredential.findUnique({ where: { id: credentialId } });
       if (!credential || credential.securitySiteId !== siteId) throw http(404, 'SECURITY_SITE_QR_NOT_FOUND', 'Security Site QR credential not found.');
       const revoked = credential.revokedAt
         ? credential
