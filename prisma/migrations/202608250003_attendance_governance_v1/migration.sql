@@ -1,7 +1,8 @@
 -- Attendance governance is additive: raw AttendanceEvent rows remain immutable.
 CREATE TABLE "attendance_corrections" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-  "attendance_session_id" UUID NOT NULL,
+  "shift_assignment_id" UUID NOT NULL,
+  "attendance_session_id" UUID,
   "event_type" "AttendanceEventType" NOT NULL,
   "original_event_id" UUID,
   "original_effective_event_at" TIMESTAMPTZ,
@@ -13,6 +14,7 @@ CREATE TABLE "attendance_corrections" (
   "superseded_at" TIMESTAMPTZ,
   "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "attendance_corrections_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "attendance_corrections_assignment_fkey" FOREIGN KEY ("shift_assignment_id") REFERENCES "shift_assignments"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "attendance_corrections_session_fkey" FOREIGN KEY ("attendance_session_id") REFERENCES "attendance_sessions"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "attendance_corrections_original_event_fkey" FOREIGN KEY ("original_event_id") REFERENCES "attendance_events"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT "attendance_corrections_actor_fkey" FOREIGN KEY ("actor_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -21,8 +23,9 @@ CREATE TABLE "attendance_corrections" (
 );
 
 CREATE UNIQUE INDEX "attendance_corrections_current_event_key"
-  ON "attendance_corrections"("attendance_session_id", "event_type")
+  ON "attendance_corrections"("shift_assignment_id", "event_type")
   WHERE "is_current" = TRUE;
+CREATE INDEX "attendance_corrections_assignment_created_idx" ON "attendance_corrections"("shift_assignment_id", "created_at");
 CREATE INDEX "attendance_corrections_session_created_idx" ON "attendance_corrections"("attendance_session_id", "created_at");
 CREATE INDEX "attendance_corrections_actor_created_idx" ON "attendance_corrections"("actor_user_id", "created_at");
 
