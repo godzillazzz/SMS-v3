@@ -4,7 +4,7 @@
 > Read this complete file before proposing or modifying the SMS project.
 
 Last Updated:
-2026-08-21
+2026-08-25
 
 Repository:
 godzillazzz/SMS-v3
@@ -1684,7 +1684,7 @@ Owner review is APPROVED. Phase 3 License source, tests, migration design, and e
 - Git diff check: `PASS`.
 - Exact-head Remote CI run: `32560097886`.
 - Exact-head Remote CI job: `97000264510`.
-- Exact-head CI SHA: `9f7cc5795a8b966a5667c47c7fbcc94ab25b7769`.
+- Exact-head CI SHA: `9f7cc5795a8b966a5667c47c7fb1cef87ba7f1`.
 - Exact-head CI event: `push`.
 - Exact-head CI result: `SUCCESS`.
 
@@ -1829,3 +1829,68 @@ Current gate:
 - No Production deployment, migration, data/schema/env/storage/DNS mutation occurred during Preview isolation/migration/UAT preparation.
 
 Next safe continuation: perform only the minimum Preview business UAT and runtime closeout above. Do not rerun Preview isolation, migration, fixture provisioning, CRLF forensic work, or transport setup unless new evidence proves those established gates invalid.
+
+## 2026-08-25 — G06 Department ↔ SecuritySite / Default Site / Admin Security Site Management CI Closeout
+
+This section records the isolated G06 feature-branch implementation candidate and its exact-head CI evidence. It does not authorize a Production release and does not claim the complete Attendance V1 program is finished.
+
+### Exact branch / PR identity
+
+- Branch: `feature/g06-department-security-site-v1`.
+- Draft PR: `#111`.
+- PR status at candidate verification: `OPEN / DRAFT / UNMERGED`.
+- Verified implementation candidate HEAD: `ce612fa473c10d1e29b1eaaf2c1dde26ce9efdce`.
+- Verified implementation candidate tree: `172094ae4a06a3d205a50e785fd97caa2356cb3a`.
+- Exact-head Remote CI run: `32857117495`.
+- Exact-head Remote CI job: `97831816379`.
+- Remote CI result: `SUCCESS`.
+
+### Database / migration / test gate evidence
+
+CI uses an ephemeral PostgreSQL 16-alpine service with database `sms_v3_test`; no Production database is involved.
+
+Exact candidate CI passed:
+
+- Prisma format check: `PASS`.
+- Prisma validate: `PASS`.
+- Prisma generate: `PASS`.
+- PostgreSQL test migrations: `PASS`.
+- Test seed: `PASS`.
+- Migration status: `PASS`.
+- Backend unit tests: `PASS`.
+- Backend integration tests: `PASS`.
+- Frontend tests: `PASS`.
+- Frontend TypeScript `tsc --noEmit`: `PASS`.
+- Frontend production build: `PASS`.
+- Repository hygiene: `PASS`.
+
+### G06 authority / regression locks proven in this gate
+
+- Department and SecuritySite remain separate concepts with Department ↔ SecuritySite mapping.
+- Fresh Attendance Expected Site authority remains Schedule Site first, then Department Default Site, otherwise fail closed rather than guessing a fallback.
+- Existing/open Attendance sessions preserve the pinned `expectedSiteId`; later schedule/default/mapping changes must not remap the session.
+- Security Site deactivation is blocked when the Site is a Department Default with `SECURITY_SITE_DEFAULT_IN_USE`.
+- A real PostgreSQL integration regression now creates an OPEN `AttendanceSession` using the actual schema semantics `state=OPEN`, `closedAt=null`, `expectedSiteId=<Site>` and proves deactivation fails with `SECURITY_SITE_OPEN_ATTENDANCE_IN_USE` without mutating the Site/session.
+- The regression intentionally does not use the obsolete/nonexistent `checkOutAt` field.
+- Raw SQL paths that operate on `security_site_departments.security_site_id` now cast bind values explicitly as UUID (`::uuid`) so PostgreSQL does not compare/insert UUID columns as text.
+- Security Site QR lifecycle, Department default changes, Schedule override, historical pinning, and database uniqueness/invariant coverage remain part of the PostgreSQL integration gate.
+
+### Frontend boundary correction
+
+The Admin Security Site Management surface is no longer coupled to the Preview-only physical Active Challenge rehearsal flag.
+
+- `AttendanceFaceChallengeUatPanel` again returns `null` when `VITE_G06_FACE_CHALLENGE_UAT` is disabled.
+- `SecuritySiteManagementPanel` is rendered independently by `AttendancePage`.
+- This preserves the permanent rule that physical Active Challenge rehearsal is Preview/UAT-only and non-authoritative while keeping Admin Site Management available independently.
+
+### Release / Production hard stop
+
+- Production deploy/promotion/alias: `0`.
+- Production DB migration/data mutation: `0`.
+- Production environment mutation: `0`.
+- Production workflow dispatch: `0`.
+- Merge to Production/default branch: `0`.
+- PR #111 remains Draft/Open and must not be merged as part of this closeout.
+- No Vercel Preview was required for this CI-only gate.
+- `G06_DEPARTMENT_SECURITY_SITE_GATE=CI_GREEN_CANDIDATE`.
+- `ATTENDANCE_V1_100_PERCENT=NO` — later Attendance V1 gates/audit items remain separate work.
