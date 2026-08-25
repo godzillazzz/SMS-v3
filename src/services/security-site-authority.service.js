@@ -64,17 +64,8 @@ function createSecuritySiteAuthorityService({ prisma = prismaDefault } = {}) {
       throw http(409, 'ATTENDANCE_ASSIGNMENT_REQUIRED', 'An authoritative Shift Assignment is required for Attendance.');
     }
 
-    if (assignment.securitySiteId) {
-      const site = await loadActiveSite(client, assignment.securitySiteId, assignment.securitySite);
-      return {
-        site,
-        siteId: site.id,
-        source: SITE_AUTHORITY_SOURCES.SCHEDULE,
-        departmentName: departmentName(assignment.departmentSnapshot || employee?.department),
-        pinnedBySession: false
-      };
-    }
-
+    // Once an AttendanceSession exists, its expected Site is historical evidence.
+    // Later Schedule/Department configuration changes must not remap the open or historical session.
     if (existingSession?.expectedSiteId) {
       const site = await loadActiveSite(client, existingSession.expectedSiteId);
       const snapshot = snapshotSiteAuthority(existingSession);
@@ -84,6 +75,17 @@ function createSecuritySiteAuthorityService({ prisma = prismaDefault } = {}) {
         source: snapshot.source || SITE_AUTHORITY_SOURCES.DEPARTMENT_DEFAULT,
         departmentName: snapshot.departmentName || departmentName(assignment.departmentSnapshot || employee?.department),
         pinnedBySession: true
+      };
+    }
+
+    if (assignment.securitySiteId) {
+      const site = await loadActiveSite(client, assignment.securitySiteId, assignment.securitySite);
+      return {
+        site,
+        siteId: site.id,
+        source: SITE_AUTHORITY_SOURCES.SCHEDULE,
+        departmentName: departmentName(assignment.departmentSnapshot || employee?.department),
+        pinnedBySession: false
       };
     }
 
