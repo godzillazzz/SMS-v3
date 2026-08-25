@@ -10,9 +10,15 @@ const ATTENDANCE_RESULT_FLAGS = Object.freeze({
   EARLY_OUT: 'EARLY_OUT',
   ABSENT: 'ABSENT',
   LEAVE: 'LEAVE',
+  ASSIST_OTHER_SITE: 'ASSIST_OTHER_SITE',
+  WRONG_SHIFT: 'WRONG_SHIFT',
   MISSING_CHECK_IN: 'MISSING_CHECK_IN',
   MISSING_CHECK_OUT: 'MISSING_CHECK_OUT',
-  TIME_ABNORMAL: 'TIME_ABNORMAL'
+  TIME_ABNORMAL: 'TIME_ABNORMAL',
+  OUTSIDE_ALL_SITES: 'OUTSIDE_ALL_SITES',
+  CORRECTED: 'CORRECTED',
+  LOCATION_RISK: 'LOCATION_RISK',
+  PHOTO_RISK: 'PHOTO_RISK'
 });
 
 function http(statusCode, code, message) {
@@ -79,6 +85,11 @@ function leaveShift(assignment) {
   return ['AL', 'LEAVE'].includes(code);
 }
 
+function positiveMinuteDelta(later, earlier) {
+  if (!later || !earlier || later.getTime() <= earlier.getTime()) return 0;
+  return Math.ceil((later.getTime() - earlier.getTime()) / 60000);
+}
+
 function leaveResult({ window = null, evaluatedAt }) {
   return {
     status: 'LEAVE',
@@ -88,6 +99,8 @@ function leaveResult({ window = null, evaluatedAt }) {
     checkInAt: null,
     checkOutAt: null,
     workedMinutes: null,
+    lateMinutes: null,
+    earlyOutMinutes: null,
     evaluatedAt
   };
 }
@@ -106,6 +119,8 @@ function classifyAttendanceDay({ assignment, events = [], approvedLeave = false,
       checkInAt: null,
       checkOutAt: null,
       workedMinutes: null,
+      lateMinutes: null,
+      earlyOutMinutes: null,
       evaluatedAt
     };
   }
@@ -118,9 +133,11 @@ function classifyAttendanceDay({ assignment, events = [], approvedLeave = false,
   const checkIn = eventAt(eventByType(events, 'CHECK_IN'));
   const checkOut = eventAt(eventByType(events, 'CHECK_OUT'));
   const flags = [];
+  const lateMinutes = checkIn ? positiveMinuteDelta(checkIn, window.startAt) : null;
+  const earlyOutMinutes = checkOut ? positiveMinuteDelta(window.endAt, checkOut) : null;
 
   if (checkIn) {
-    flags.push(checkIn.getTime() > window.startAt.getTime()
+    flags.push(lateMinutes > 0
       ? ATTENDANCE_RESULT_FLAGS.LATE
       : ATTENDANCE_RESULT_FLAGS.ON_TIME);
   } else if (evaluatedAt.getTime() >= window.endAt.getTime()) {
@@ -131,10 +148,10 @@ function classifyAttendanceDay({ assignment, events = [], approvedLeave = false,
     if (!checkIn && !flags.includes(ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_IN)) {
       flags.push(ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_IN);
     }
-    if (checkOut.getTime() < window.endAt.getTime()) flags.push(ATTENDANCE_RESULT_FLAGS.EARLY_OUT);
+    if (earlyOutMinutes > 0) flags.push(ATTENDANCE_RESULT_FLAGS.EARLY_OUT);
     if (checkIn && checkOut.getTime() < checkIn.getTime()) flags.push(ATTENDANCE_RESULT_FLAGS.TIME_ABNORMAL);
   } else if (checkIn && evaluatedAt.getTime() >= window.endAt.getTime()) {
-    flags.push(ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_OUT);
+    flags.push(ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_OUT, ATTENDANCE_RESULT_FLAGS.TIME_ABNORMAL);
   }
 
   const workedMinutes = checkIn && checkOut && checkOut.getTime() >= checkIn.getTime()
@@ -158,6 +175,8 @@ function classifyAttendanceDay({ assignment, events = [], approvedLeave = false,
     checkInAt: checkIn,
     checkOutAt: checkOut,
     workedMinutes,
+    lateMinutes,
+    earlyOutMinutes,
     evaluatedAt
   };
 }
