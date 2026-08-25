@@ -228,7 +228,7 @@ function createSecuritySiteService({
       for (const siteId of uniqueSiteIds) {
         await tx.$executeRawUnsafe(
           `INSERT INTO security_site_departments (id, security_site_id, department_name, is_default, created_at, updated_at)
-           VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW())`,
+           VALUES (gen_random_uuid(), $1::uuid, $2, $3, NOW(), NOW())`,
           siteId,
           department,
           String(siteId) === String(defaultSiteId || '')
