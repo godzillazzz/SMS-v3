@@ -89,6 +89,23 @@ test('existing AttendanceSession pins historical expected Site when Department D
   assert.equal(state.rawCalls, 0);
 });
 
+test('existing AttendanceSession without authority marker preserves legacy Schedule authority after schedule Site changes', async () => {
+  const pinned = site(ids.scheduleSite);
+  const { db, state } = fakeDb({ sites: { [ids.scheduleSite]: pinned } });
+  const result = await createSecuritySiteAuthorityService({ prisma: db }).resolve({
+    assignment: assignment({ securitySiteId: ids.defaultSite, securitySite: site(ids.defaultSite) }),
+    existingSession: {
+      expectedSiteId: ids.scheduleSite,
+      expectationSnapshot: { site: { id: ids.scheduleSite, code: 'SCH' } }
+    }
+  });
+  assert.equal(result.site.id, ids.scheduleSite);
+  assert.equal(result.source, SITE_AUTHORITY_SOURCES.SCHEDULE);
+  assert.equal(result.pinnedBySession, true);
+  assert.equal(state.rawCalls, 0);
+  assert.equal(state.siteCalls, 1);
+});
+
 test('inactive schedule/default/pinned Site fails closed', async () => {
   const inactiveSchedule = site(ids.scheduleSite, { isActive: false });
   const { db: explicitDb } = fakeDb();
