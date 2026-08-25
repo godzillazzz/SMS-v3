@@ -115,18 +115,20 @@ test('approved leave wins over absence evaluation', () => {
   assert.deepEqual(result.flags, [ATTENDANCE_RESULT_FLAGS.LEAVE]);
 });
 
-test('AL schedule is classified as LEAVE without requiring an Attendance event', () => {
+test('AL schedule is LEAVE even when leave shift has no clock times', () => {
   const result = classifyAttendanceDay({
-    assignment: assignment({ code: 'AL' }),
+    assignment: assignment({ code: 'AL', startTime: null, endTime: null }),
     events: [],
     asOf: new Date('2026-08-25T13:00:00.000Z')
   });
   assert.equal(result.status, 'LEAVE');
   assert.deepEqual(result.flags, [ATTENDANCE_RESULT_FLAGS.LEAVE]);
+  assert.equal(result.expectedStartAt, null);
+  assert.equal(result.expectedEndAt, null);
 });
 
 test('OFF schedule is not actionable', () => {
-  const result = classifyAttendanceDay({ assignment: assignment({ code: 'OFF' }) });
+  const result = classifyAttendanceDay({ assignment: assignment({ code: 'OFF', startTime: null, endTime: null }) });
   assert.equal(result.status, 'NOT_ACTIONABLE');
   assert.deepEqual(result.flags, []);
   assert.equal(result.expectedStartAt, null);
