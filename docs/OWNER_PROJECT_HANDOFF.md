@@ -1894,3 +1894,49 @@ The Admin Security Site Management surface is no longer coupled to the Preview-o
 - No Vercel Preview was required for this CI-only gate.
 - `G06_DEPARTMENT_SECURITY_SITE_GATE=CI_GREEN_CANDIDATE`.
 - `ATTENDANCE_V1_100_PERCENT=NO` — later Attendance V1 gates/audit items remain separate work.
+
+## 2026-08-26 — G06 Department ↔ SecuritySite Diagnostic Closure
+
+This section records the final CI-only closeout evidence for the G06
+Department ↔ SecuritySite / Default Site / Admin Security Site Management
+gate. It does not authorize Production release and does not claim that the
+complete Attendance V1 program is finished.
+
+### Exact branch / PR identity
+
+- Branch: `feature/g06-department-security-site-v1`.
+- Draft PR: `#111`.
+- PR state: `OPEN / DRAFT / UNMERGED`.
+- Verified candidate before this handoff-only commit: `ccaa9ac67f7740439d27ef6a208c58326c71f18e`.
+- Candidate tree: `74931613ba3df21c42c94a7bdeb6cf24de6a4d95`.
+- Exact-head Remote CI: Run `32877182970`, Job `97897857652`, event `push`, result `SUCCESS`.
+
+### Diagnostic failure and minimal correction
+
+- Diagnostic artifact `9565609838` from Run `32854400888` / Job `97822732368` identified the first deterministic failure in `test/integration/security-site-department-authority.integration.test.js:109`.
+- The failure reached `src/services/security-site.service.js:229`: PostgreSQL SQLSTATE `42804` rejected a text bind for UUID column `security_site_id` in the Department ↔ Site insert.
+- `2bec7748e136380d2a7dd8de1a0acb3a1158b116` added the explicit `$1::uuid` cast for mapping inserts; `e3a5457d4646b2cb9b2a9d76d8c857a681ef7342` retained explicit UUID casts in deactivation queries.
+- `37db2f98e6aa140a6aed75a8f24e06870401dd74` added the real PostgreSQL OPEN `AttendanceSession` deactivation regression using `state=OPEN`, `closedAt=null`, and `expectedSiteId`; no obsolete `checkOutAt` field is used.
+- Temporary diagnostic artifact wrappers were removed in `ccaa9ac67f7740439d27ef6a208c58326c71f18e`; authoritative tests remain enabled.
+
+### G06 evidence
+
+- PostgreSQL 16 ephemeral migrations, seed, and migration-status checks: `PASS`.
+- Prisma format, validate, and generate: `PASS`.
+- Backend unit tests: `PASS`.
+- Backend integration tests: `PASS`.
+- Authoritative Attendance event PostgreSQL integration: `PASS`.
+- Frontend tests: `PASS`.
+- Frontend TypeScript noEmit: `PASS`.
+- Frontend production build: `PASS`.
+- Tracked frontend build metadata restore: `PASS`.
+- Repository hygiene: `PASS`.
+- Required authority behavior remains covered: Department ↔ Site mapping, one PostgreSQL-enforced Default Site per Department, Schedule Site precedence, Department Default fallback, fail-closed resolution, historical `expectedSiteId` pinning, Schedule changes not remapping open sessions, both deactivation guards, QR SHA-256/revocation/version/audit invariants, and actual-schema cleanup.
+- The raw partial unique index for one Default Site per Department remains a PostgreSQL migration invariant; no Prisma `@@unique` replacement was introduced.
+
+### Scope and safety
+
+- Production deployment, promotion, alias, environment, database/data, migration, storage, and workflow-dispatch mutations: `0`.
+- No Production database or secrets were used for diagnosis or validation.
+- Owner decision remains that Department and SecuritySite are separate entities, Employee keeps `Employee.department`, and existing Attendance sessions retain their historical expected Site.
+- `ATTENDANCE_V1_100_PERCENT=NO`: remaining Attendance V1 work includes employee check-in/out end-to-end, authoritative server time, event GPS/accuracy/geofence and expected/actual Site, Shift Master/Schedule/overnight and timing/risk flags, missing/absent/leave handling, corrections/audit, supervisor dashboard, monthly certification and lock/revision, PDF/Excel/privacy/retention, and final Preview/UAT gates. No event-photo evidence is claimed by this G06 gate.
