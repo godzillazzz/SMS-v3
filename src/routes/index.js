@@ -11,6 +11,7 @@ const employeeChangeRequestRoutes = require('./employee-change-requests.routes')
 const attendanceDeviceRoutes = require('./attendance-device.routes');
 const { router: attendanceRoutes } = require('./attendance.routes');
 const { router: attendanceSupervisorRoutes } = require('./attendance-supervisor.routes');
+const { router: attendanceGovernanceRoutes } = require('./attendance-governance.routes');
 const employeeReferencePhotoRoutes = require('./employee-reference-photo.routes');
 const { router: faceVerificationRoutes } = require('./face-verification.routes');
 const { router: selfHostedFaceVerificationRoutes } = require('./face-verification-self-hosted.routes');
@@ -24,6 +25,7 @@ router.use('/registration-requests', registrationRequestRoutes);
 router.use('/employee-change-requests', employeeChangeRequestRoutes);
 router.use('/attendance/devices', attendanceDeviceRoutes);
 router.use('/attendance/supervisor', attendanceSupervisorRoutes);
+router.use('/attendance/governance', attendanceGovernanceRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/employee-reference-photos', employeeReferencePhotoRoutes);
 router.use('/face-verification', faceVerificationRoutes);
