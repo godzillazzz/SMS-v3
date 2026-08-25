@@ -84,7 +84,11 @@ function monthSummary(rows) {
     late: countFlag('LATE'),
     earlyOut: countFlag('EARLY_OUT'),
     assistOtherSite: countFlag('ASSIST_OTHER_SITE'),
+    wrongShift: countFlag('WRONG_SHIFT'),
+    outsideAllSites: countFlag('OUTSIDE_ALL_SITES'),
     corrected: countFlag('CORRECTED'),
+    locationRisk: countFlag('LOCATION_RISK'),
+    photoRisk: countFlag('PHOTO_RISK'),
     timeAbnormal
   };
 }
@@ -136,13 +140,19 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
     });
     const assignmentIds = assignments.map((row) => row.id);
     const employeeIds = [...new Set(assignments.map((row) => row.employeeId))];
-    const [corrections, leaves] = await Promise.all([
+    const actualSiteIds = [...new Set(assignments.map((row) => actualSiteId(row.attendanceSession?.events || [])).filter(Boolean))];
+    const [corrections, leaves, actualSites] = await Promise.all([
       currentCorrectionsForAssignments(client, assignmentIds),
       employeeIds.length ? client.leaveRequest.findMany({
         where: { employeeId: { in: employeeIds }, status: 'APPROVED', startDate: { lt: period.next }, endDate: { gte: period.start } },
         select: { employeeId: true, startDate: true, endDate: true }
+      }) : [],
+      actualSiteIds.length ? client.securitySite.findMany({
+        where: { id: { in: actualSiteIds } },
+        select: { id: true, code: true, name: true }
       }) : []
     ]);
+    const actualSiteById = new Map(actualSites.map((site) => [String(site.id), site]));
     const correctionsByAssignment = new Map();
     for (const correction of corrections) {
       const list = correctionsByAssignment.get(correction.shiftAssignmentId) || [];
@@ -164,6 +174,8 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
       }
       const rawCheckIn = eventByType(rawEvents, 'CHECK_IN');
       const rawCheckOut = eventByType(rawEvents, 'CHECK_OUT');
+      const currentActualSiteId = actualSiteId(rawEvents);
+      const actualSite = currentActualSiteId ? actualSiteById.get(currentActualSiteId) || null : null;
       const flags = [...new Set([...result.flags, ...evidenceFlags(rawEvents), ...(assignmentCorrections.length ? ['CORRECTED'] : [])])];
       rows.push({
         assignmentId: assignment.id,
@@ -175,7 +187,8 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
         workDate: assignment.workDate.toISOString().slice(0, 10),
         shift: { id: assignment.shiftTypeId, code: assignment.shiftType?.code || null, name: assignment.shiftType?.name || null },
         expectedSite: expectedSite ? { id: expectedSite.id, code: expectedSite.code, name: expectedSite.name } : null,
-        actualSiteId: actualSiteId(rawEvents),
+        actualSiteId: currentActualSiteId,
+        actualSite: actualSite ? { id: actualSite.id, code: actualSite.code, name: actualSite.name } : null,
         expectedStartAt: result.expectedStartAt,
         expectedEndAt: result.expectedEndAt,
         originalCheckInAt: rawCheckIn?.effectiveEventAt || null,
@@ -183,6 +196,8 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
         checkInAt: result.checkInAt,
         checkOutAt: result.checkOutAt,
         workedMinutes: result.workedMinutes,
+        lateMinutes: result.lateMinutes,
+        earlyOutMinutes: result.earlyOutMinutes,
         status: result.status,
         flags,
         corrections: assignmentCorrections.map((row) => ({ id: row.id, eventType: row.eventType, reason: row.reason, actorUserId: row.actorUserId, createdAt: row.createdAt }))
