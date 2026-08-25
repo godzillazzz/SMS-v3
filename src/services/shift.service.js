@@ -1,29 +1,37 @@
 const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const audit = require('./audit.service');
+const { setAttendanceShiftActive, shiftActivationMap } = require('./attendance-shift-runtime.service');
 
 const auditFields = ['code', 'name', 'startTime', 'endTime', 'hours', 'color'];
-const safeRecord = (record) => Object.fromEntries(auditFields.map((field) => [field, record[field]]));
+const safeRecord = (record, isActive = true) => ({ ...Object.fromEntries(auditFields.map((field) => [field, record[field]])), isActive });
+
+async function withActivation(rows, client = prisma) {
+  const list = Array.isArray(rows) ? rows : [rows];
+  const activation = await shiftActivationMap(list.filter(Boolean).map((row) => row.id), client);
+  const mapped = list.filter(Boolean).map((row) => ({ ...row, isActive: activation.get(row.id) !== false }));
+  return Array.isArray(rows) ? mapped : mapped[0] || null;
+}
 
 async function list() {
-  return prisma.shiftType.findMany({
-    orderBy: { code: 'asc' }
-  });
+  return withActivation(await prisma.shiftType.findMany({ orderBy: { code: 'asc' } }));
 }
 
 async function getById(id) {
   const shift = await prisma.shiftType.findUnique({ where: { id } });
   if (!shift) throw new HttpError(404, 'Shift type not found.');
-  return shift;
+  return withActivation(shift);
 }
 
 async function create(data, actorUserId) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.shiftType.findUnique({ where: { code: data.code } });
     if (existing) throw new HttpError(400, 'Shift code already exists.');
-    const created = await tx.shiftType.create({ data });
-    await audit.log({ actorUserId, action: 'CREATE', entityType: 'ShiftType', entityId: created.id, metadata: { after: safeRecord(created) } }, tx);
-    return created;
+    const { isActive = true, ...shiftData } = data;
+    const created = await tx.shiftType.create({ data: shiftData });
+    await setAttendanceShiftActive({ shiftTypeId: created.id, isActive }, tx);
+    await audit.log({ actorUserId, action: 'CREATE', entityType: 'ShiftType', entityId: created.id, metadata: { after: safeRecord(created, Boolean(isActive)) } }, tx);
+    return { ...created, isActive: Boolean(isActive) };
   });
 }
 
@@ -31,9 +39,13 @@ async function update(id, data, actorUserId) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.shiftType.findUnique({ where: { id } });
     if (!existing) throw new HttpError(404, 'Shift type not found.');
-    const updated = await tx.shiftType.update({ where: { id }, data });
-    await audit.log({ actorUserId, action: 'UPDATE', entityType: 'ShiftType', entityId: id, metadata: { before: safeRecord(existing), after: safeRecord(updated) } }, tx);
-    return updated;
+    const beforeMap = await shiftActivationMap([id], tx);
+    const beforeActive = beforeMap.get(id) !== false;
+    const { isActive, ...shiftData } = data;
+    const updated = Object.keys(shiftData).length ? await tx.shiftType.update({ where: { id }, data: shiftData }) : existing;
+    const nextActive = isActive === undefined ? beforeActive : await setAttendanceShiftActive({ shiftTypeId: id, isActive }, tx);
+    await audit.log({ actorUserId, action: 'UPDATE', entityType: 'ShiftType', entityId: id, metadata: { before: safeRecord(existing, beforeActive), after: safeRecord(updated, nextActive) } }, tx);
+    return { ...updated, isActive: nextActive };
   });
 }
 
@@ -41,10 +53,11 @@ async function remove(id, actorUserId) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.shiftType.findUnique({ where: { id } });
     if (!existing) throw new HttpError(404, 'Shift type not found.');
-    if (['D', 'N', 'OFF', 'AL'].includes(existing.code.toUpperCase())) throw new HttpError(400, `Core shift ${existing.code} cannot be deleted.`);
-    const deleted = await tx.shiftType.delete({ where: { id } });
-    await audit.log({ actorUserId, action: 'DELETE', entityType: 'ShiftType', entityId: id, metadata: { before: safeRecord(existing) } }, tx);
-    return deleted;
+    const beforeMap = await shiftActivationMap([id], tx);
+    const beforeActive = beforeMap.get(id) !== false;
+    await setAttendanceShiftActive({ shiftTypeId: id, isActive: false }, tx);
+    await audit.log({ actorUserId, action: 'UPDATE', entityType: 'ShiftType', entityId: id, metadata: { transition: 'DEACTIVATE', before: safeRecord(existing, beforeActive), after: safeRecord(existing, false) } }, tx);
+    return { ...existing, isActive: false };
   });
 }
 
