@@ -4,7 +4,7 @@ const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
 const { classifyAttendanceDay, ATTENDANCE_RESULT_FLAGS } = require('./attendance-result.service');
-const { currentCorrectionsForSessions, applyCurrentCorrections } = require('./attendance-correction.service');
+const { currentCorrectionsForAssignments, applyCurrentCorrections } = require('./attendance-correction.service');
 
 const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
 const EMPTY_ID = '00000000-0000-0000-0000-000000000000';
@@ -103,7 +103,7 @@ function summaryFor(rows) {
     leave: count((row) => row.flags.includes('LEAVE')),
     absent: count((row) => row.flags.includes('ABSENT')),
     corrected: count((row) => row.flags.includes('CORRECTED')),
-    timeAbnormal: count((row) => row.flags.includes('TIME_ABNORMAL') || row.flags.includes('MISSING_CHECK_OUT') || row.flags.includes('MISSING_CHECK_IN'))
+    timeAbnormal: count((row) => row.flags.includes('TIME_ABNORMAL') || row.flags.includes('MISSING_CHECK_OUT') || (row.flags.includes('MISSING_CHECK_IN') && !row.flags.includes('ABSENT')))
   };
 }
 
@@ -143,7 +143,7 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     });
 
     const employeeIds = [...new Set(assignments.map((row) => row.employeeId))];
-    const sessionIds = assignments.map((row) => row.attendanceSession?.id).filter(Boolean);
+    const assignmentIds = assignments.map((row) => row.id);
     const [leaves, currentCorrections] = await Promise.all([
       employeeIds.length ? client.leaveRequest.findMany({
         where: {
@@ -154,21 +154,21 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
         },
         select: { employeeId: true }
       }) : [],
-      typeof client.$queryRaw === 'function' ? currentCorrectionsForSessions(client, sessionIds) : []
+      typeof client.$queryRaw === 'function' ? currentCorrectionsForAssignments(client, assignmentIds) : []
     ]);
     const leaveIds = new Set(leaves.map((row) => row.employeeId));
-    const correctionsBySession = new Map();
+    const correctionsByAssignment = new Map();
     for (const correction of currentCorrections) {
-      const list = correctionsBySession.get(correction.attendanceSessionId) || [];
+      const list = correctionsByAssignment.get(correction.shiftAssignmentId) || [];
       list.push(correction);
-      correctionsBySession.set(correction.attendanceSessionId, list);
+      correctionsByAssignment.set(correction.shiftAssignmentId, list);
     }
 
     const rows = [];
     for (const assignment of assignments) {
       const session = assignment.attendanceSession || null;
       const rawEvents = session?.events || [];
-      const corrections = session ? (correctionsBySession.get(session.id) || []) : [];
+      const corrections = correctionsByAssignment.get(assignment.id) || [];
       const events = applyCurrentCorrections(rawEvents, corrections);
       let expectedSite = session?.expectedSite || assignment.securitySite || null;
       if (!expectedSite) {
