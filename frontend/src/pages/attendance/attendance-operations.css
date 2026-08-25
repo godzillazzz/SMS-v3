@@ -1,0 +1,26 @@
+.attendance-operations-panel { display:grid; gap:16px; margin-top:6px; padding-top:20px; border-top:1px solid var(--color-border); }
+.attendance-ops-toolbar { display:flex; gap:10px; align-items:end; flex-wrap:wrap; }
+.attendance-ops-toolbar label, .attendance-ops-form label { display:grid; gap:6px; color:var(--color-text-muted); font-size:12px; font-weight:650; }
+.attendance-ops-toolbar input, .attendance-ops-form input, .attendance-ops-form select, .attendance-ops-form textarea, .attendance-unlock-row input { min-height:40px; border:1px solid var(--color-border); border-radius:10px; padding:8px 10px; background:var(--color-surface); color:var(--color-text); font:inherit; }
+.attendance-ops-form textarea { min-height:82px; resize:vertical; }
+.attendance-summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(125px,1fr)); gap:10px; }
+.attendance-summary-grid article, .attendance-governance-state article { display:grid; gap:4px; padding:12px; border:1px solid var(--color-border); border-radius:12px; background:var(--color-surface); }
+.attendance-summary-grid span, .attendance-governance-state span { color:var(--color-text-muted); font-size:11px; }
+.attendance-summary-grid strong, .attendance-governance-state strong { color:var(--color-text); font-size:20px; }
+.attendance-ops-table td { vertical-align:top; }
+.attendance-correction-card, .attendance-month-governance, .attendance-blockers { display:grid; gap:12px; padding:16px; border:1px solid var(--color-border); border-radius:14px; background:var(--color-surface); }
+.attendance-ops-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.attendance-ops-form .is-wide { grid-column:1/-1; }
+.attendance-ops-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.attendance-governance-state { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.attendance-blockers { border-color:color-mix(in srgb, var(--color-warning, #f59e0b) 35%, var(--color-border)); background:color-mix(in srgb, var(--color-warning, #f59e0b) 7%, var(--color-surface)); font-size:12px; }
+.attendance-unlock-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+.attendance-official-print { display:none; }
+.attendance-official-print h1 { margin:0 0 6px; font-size:20px; }
+.attendance-official-print p { margin:2px 0; font-size:10px; }
+.attendance-official-print table { width:100%; border-collapse:collapse; margin-top:14px; font-size:8px; }
+.attendance-official-print th, .attendance-official-print td { border:1px solid #cbd5e1; padding:4px; vertical-align:top; }
+.attendance-official-print th { background:#e8f1ff; }
+.attendance-official-print footer { margin-top:12px; font-size:8px; color:#475569; }
+@media (max-width: 760px) { .attendance-ops-form, .attendance-governance-state { grid-template-columns:1fr; } .attendance-unlock-row { grid-template-columns:1fr; } }
+@media print { .attendance-official-print { display:block !important; background:#fff !important; color:#111827 !important; } }
