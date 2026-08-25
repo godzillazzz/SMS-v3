@@ -1907,9 +1907,11 @@ complete Attendance V1 program is finished.
 - Branch: `feature/g06-department-security-site-v1`.
 - Draft PR: `#111`.
 - PR state: `OPEN / DRAFT / UNMERGED`.
-- Verified candidate before this handoff-only commit: `ccaa9ac67f7740439d27ef6a208c58326c71f18e`.
+- Verified G06 candidate before the handoff commits: `ccaa9ac67f7740439d27ef6a208c58326c71f18e`.
 - Candidate tree: `74931613ba3df21c42c94a7bdeb6cf24de6a4d95`.
-- Exact-head Remote CI: Run `32877182970`, Job `97897857652`, event `push`, result `SUCCESS`.
+- Handoff commit verified by the final exact-head CI: `f4066c9ff1972f909489bd353635b3cf421e3039`.
+- Handoff tree: `30b0161c1c087ef85371893819c2f02ede7ed879`.
+- Final handoff CI: Run `32877558427`, Job `97899095041`, event `push`, checkout `f4066c9ff1972f909489bd353635b3cf421e3039`, result `SUCCESS`.
 
 ### Diagnostic failure and minimal correction
 
