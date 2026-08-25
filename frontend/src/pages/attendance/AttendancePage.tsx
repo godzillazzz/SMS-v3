@@ -223,27 +223,12 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     };
   }, []);
 
-  const acquireLocation = async () => {
-    if (interactionDisabled) return;
-    const operationEpoch = asyncEvidenceEpochRef.current;
-    setLocationBusy(true);
-    resetServerState();
-    try {
-      const nextLocation = await positionOnce();
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
-      setLocation(nextLocation);
-    } catch (reason) {
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
-      setLocation(null);
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
-    } finally {
-      if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
-    }
-  };
-
-  const checkReadiness = async () => {
-    if (!canCheck || !location) return;
-    const operationEpoch = asyncEvidenceEpochRef.current;
+  const checkReadinessWithEvidence = async (
+    nextQrToken: string,
+    nextLocation: AttendanceLocationEvidence,
+    operationEpoch: number
+  ) => {
+    if (interactionDisabledRef.current) return;
     setChecking(true);
     setError(undefined);
     setRouteUnavailable(false);
@@ -254,8 +239,8 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       if (!globalThis.crypto?.randomUUID) throw new Error('เบราว์เซอร์นี้ไม่รองรับ secure attempt identifier ที่ระบบต้องใช้');
       const result = await attendanceReadiness(token, {
         captureId: globalThis.crypto.randomUUID(),
-        qrToken: qrToken.trim(),
-        location
+        qrToken: nextQrToken.trim(),
+        location: nextLocation
       });
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
       setRequestId(result.requestId);
@@ -279,6 +264,63 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     }
   };
 
+  const acquireLocation = async () => {
+    if (interactionDisabled) return;
+    const operationEpoch = asyncEvidenceEpochRef.current;
+    setLocationBusy(true);
+    resetServerState();
+    try {
+      const nextLocation = await positionOnce();
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      setLocation(nextLocation);
+    } catch (reason) {
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      setLocation(null);
+      setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
+    } finally {
+      if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
+    }
+  };
+
+  const handleQrDetected = async (value: string) => {
+    if (interactionDisabledRef.current) return;
+    const nextQrToken = value.trim();
+    asyncEvidenceEpochRef.current += 1;
+    const operationEpoch = asyncEvidenceEpochRef.current;
+    setScannerOpen(false);
+    setQrToken(nextQrToken);
+    setLocation(null);
+    setLocationBusy(false);
+    setChecking(false);
+    resetServerState();
+
+    if (nextQrToken.length < 24 || nextQrToken.length > 512) {
+      setError('QR ไม่อยู่ในรูปแบบที่พร้อมตรวจ กรุณาสแกน QR จุดปฏิบัติงานอีกครั้ง');
+      return;
+    }
+
+    setLocationBusy(true);
+    try {
+      const nextLocation = await positionOnce();
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      setLocation(nextLocation);
+      setLocationBusy(false);
+      await checkReadinessWithEvidence(nextQrToken, nextLocation, operationEpoch);
+    } catch (reason) {
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      setLocation(null);
+      setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
+    } finally {
+      if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
+    }
+  };
+
+  const checkReadiness = async () => {
+    if (!canCheck || !location) return;
+    const operationEpoch = asyncEvidenceEpochRef.current;
+    await checkReadinessWithEvidence(qrToken, location, operationEpoch);
+  };
+
   const resetAttempt = () => {
     asyncEvidenceEpochRef.current += 1;
     setScannerOpen(false);
@@ -292,14 +334,14 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
   return <section className="view-pane attendance-page">
     <AttendanceQrScanner
       open={scannerOpen && !interactionDisabled}
-      onDetected={(value) => { setQrToken(value); setScannerOpen(false); resetServerState(); }}
+      onDetected={(value) => { void handleQrDetected(value); }}
       onClose={() => setScannerOpen(false)}
     />
     <div className="page-heading attendance-heading">
       <div>
         <p className="eyebrow">G06 · ATTENDANCE</p>
         <h1>ลงเวลา</h1>
-        <p>ตรวจ QR และตำแหน่งแบบครั้งต่อครั้ง โดย Server เป็นผู้ตัดสินว่าเป็นเวลาเข้า หรือเวลาออก</p>
+        <p>สแกน QR ครั้งเดียว แล้วระบบอ่าน GPS แบบ one-shot และตรวจ Server ต่อให้อัตโนมัติ โดย Server เป็นผู้ตัดสินเวลาเข้า/ออก</p>
       </div>
       <div className="heading-actions">
         <button type="button" className="btn-neutral small-action" onClick={resetAttempt} disabled={checking || locationBusy}>
@@ -310,6 +352,11 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
 
     {readOnly && <div className="settings-notice">กำลังอยู่ใน View As — หน้า Attendance เป็นแบบอ่านอย่างเดียวและไม่สามารถส่งหลักฐานลงเวลาแทนพนักงานได้</div>}
     {!online && <div className="settings-notice">ออฟไลน์ — ปิดการสแกน QR, GPS และ Server readiness จนกว่าจะเชื่อมต่อ Server อีกครั้ง</div>}
+
+    <div className="settings-notice">
+      <strong>Scan once · Auto flow</strong> — หลังสแกน QR สำเร็จ ระบบจะอ่านตำแหน่งปัจจุบันและตรวจ Server readiness ต่อทันทีโดยไม่ต้องกดทีละขั้น
+      ปุ่ม GPS และตรวจความพร้อมด้านล่างยังคงไว้สำหรับลองใหม่เมื่อมีข้อผิดพลาดเท่านั้น
+    </div>
 
     <section className="attendance-safety-banner">
       <span className="attendance-safety-banner__icon"><SmsIcon name="shield" size={22} /></span>
@@ -333,9 +380,9 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
 
     <div className="attendance-workspace-grid">
       <article className="attendance-evidence-card">
-        <header className="attendance-qr-evidence-header"><span><SmsIcon name="quality" size={20} /></span><div><h2>1. QR จุดปฏิบัติงาน</h2><p>สแกนด้วยกล้องหรือวางข้อมูล QR; ค่า QR อยู่เฉพาะ attempt ปัจจุบันและไม่บันทึกลง localStorage/sessionStorage</p></div><button type="button" className="btn-primary attendance-qr-open-action" disabled={interactionDisabled || checking} onClick={() => { resetServerState(); setScannerOpen(true); }}><SmsIcon name="quality" size={17} />สแกน QR</button></header>
+        <header className="attendance-qr-evidence-header"><span><SmsIcon name="quality" size={20} /></span><div><h2>1. QR จุดปฏิบัติงาน</h2><p>สแกนครั้งเดียวเพื่อเริ่ม QR → GPS → Server readiness อัตโนมัติ; ค่า QR อยู่เฉพาะ attempt ปัจจุบันและไม่บันทึกลง localStorage/sessionStorage</p></div><button type="button" className="btn-primary attendance-qr-open-action" disabled={interactionDisabled || checking || locationBusy} onClick={() => { resetServerState(); setScannerOpen(true); }}><SmsIcon name="quality" size={17} />สแกน QR เพื่อลงเวลา</button></header>
         <label className="attendance-field">
-          <span>ข้อมูลจาก QR</span>
+          <span>ข้อมูลจาก QR (สำรอง / UAT)</span>
           <input
             type="password"
             autoComplete="off"
@@ -346,7 +393,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
             onChange={(event) => { setQrToken(event.target.value); resetServerState(); }}
             placeholder="วางข้อมูล QR จากป้าย ณ จุดปฏิบัติงาน หรือกดสแกน QR"
           />
-          <small>{qrReady ? 'พร้อมส่งให้ server ตรวจ credential/site binding' : 'ต้องมีข้อมูล QR ที่สมบูรณ์ก่อนตรวจ readiness'}</small>
+          <small>{qrReady ? 'พร้อมตรวจ; หากสแกนด้วยกล้อง ระบบจะเดินต่ออัตโนมัติ' : 'ช่องนี้เป็นทางสำรอง การใช้งานปกติให้กดสแกน QR เพื่อลงเวลา'}</small>
         </label>
       </article>
 
@@ -366,9 +413,9 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
 
     <section className="attendance-readiness-card">
       <header>
-        <div><p className="eyebrow">SERVER DECISION</p><h2>3. ตรวจความพร้อม</h2><span>Server จะ resolve Attendance state ก่อน และ client ไม่ส่ง eventIntent</span></div>
+        <div><p className="eyebrow">SERVER DECISION</p><h2>3. ตรวจความพร้อม</h2><span>หลังสแกน QR ระบบตรวจให้อัตโนมัติ; ปุ่มนี้ใช้ลองซ้ำเท่านั้น และ client ไม่ส่ง eventIntent</span></div>
         <button type="button" className="btn-primary" disabled={!canCheck} onClick={() => void checkReadiness()}>
-          <SmsIcon name="shield" size={17} />{checking ? 'กำลังตรวจสอบ…' : 'ตรวจสอบความพร้อม'}
+          <SmsIcon name="shield" size={17} />{checking ? 'กำลังตรวจสอบ…' : 'ตรวจความพร้อมอีกครั้ง'}
         </button>
       </header>
 

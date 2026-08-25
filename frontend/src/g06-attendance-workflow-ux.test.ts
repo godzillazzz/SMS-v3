@@ -14,7 +14,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(main).toContain("{ id: 'attendance', icon: 'clock', label: 'ลงเวลา' }");
     expect(main).toContain('<AttendancePage token={auth.token}');
     expect(main).toContain("onOpenDeviceSetup={pwaShell ? undefined : () => setActivePage('attendanceDevice')}");
-    expect(page).toContain('Server เป็นผู้ตัดสินว่าเป็นเวลาเข้า หรือเวลาออก');
+    expect(page).toContain('Server เป็นผู้ตัดสินเวลาเข้า/ออก');
   });
 
   it('sends only captureId plus raw QR/GPS evidence to readiness and never sends a client event intent', () => {
@@ -27,6 +27,17 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain('const qrLength = qrToken.trim().length');
     expect(page).toContain('const qrReady = qrLength >= 24 && qrLength <= 512');
     expect(page).toContain('maxLength={512}');
+  });
+
+  it('automates QR scan into one-shot GPS and server readiness without adding client authority', () => {
+    expect(page).toContain('const handleQrDetected = async (value: string) => {');
+    expect(page).toMatch(/handleQrDetected[\s\S]*?positionOnce\(\)[\s\S]*?checkReadinessWithEvidence\(nextQrToken, nextLocation, operationEpoch\)/);
+    expect(page).toContain('onDetected={(value) => { void handleQrDetected(value); }}');
+    expect(page).toContain('สแกน QR เพื่อลงเวลา');
+    expect(page).toContain('Scan once · Auto flow');
+    expect(page).toContain('ตรวจความพร้อมอีกครั้ง');
+    expect(page).not.toContain('watchPosition');
+    expect(page).not.toContain('/attendance/events');
   });
 
   it('does not open biometric verification or Attendance event acceptance from the browser skeleton', () => {
@@ -119,8 +130,8 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain('if (!interactionDisabled) return;');
     expect(page).toContain('asyncEvidenceEpochRef.current += 1');
     expect(page).toContain('}, [interactionDisabled]);');
-    expect(page.match(/const operationEpoch = asyncEvidenceEpochRef\.current;/g)?.length).toBe(2);
-    expect(page.match(/operationEpoch !== asyncEvidenceEpochRef\.current \|\| interactionDisabledRef\.current/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(page.match(/const operationEpoch = asyncEvidenceEpochRef\.current;/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(page.match(/operationEpoch !== asyncEvidenceEpochRef\.current \|\| interactionDisabledRef\.current/g)?.length).toBeGreaterThanOrEqual(4);
     expect(page).toContain('if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false)');
     expect(page).toContain('if (operationEpoch === asyncEvidenceEpochRef.current) setChecking(false)');
     expect(page).toMatch(/const resetAttempt = \(\) => \{\s*asyncEvidenceEpochRef\.current \+= 1;/);
