@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { securitySiteTokenRole } from './SecuritySiteManagementPanel';
+import { securitySiteTokenRole } from './security-site-management-auth';
 
-describe('SecuritySiteManagementPanel authority gate', () => {
+describe('Security Site Admin token role gate', () => {
   it('reads ADMIN role from the access token payload', () => {
     expect(securitySiteTokenRole('x.eyJyb2xlIjoiQURNSU4ifQ.y')).toBe('ADMIN');
   });
