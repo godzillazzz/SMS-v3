@@ -10,6 +10,7 @@ on:
       - fix/production-mobile-responsive-v1
       - fix/production-leave-p2028-transaction-reliability-v1
       - feature/approval-workflow-standard-v1
+      - feature/g06-department-security-site-v1
   pull_request:
     branches: [main, fix/serverless-database-reliability]
 
