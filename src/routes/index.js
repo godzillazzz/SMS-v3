@@ -1,4 +1,5 @@
 const express = require('express');
+const { assertProductionAttendanceRuntime } = require('../services/attendance-production-runtime.service');
 const authRoutes = require('./auth.routes');
 const usersRoutes = require('./users.routes');
 const employeesRoutes = require('./employees.routes');
@@ -16,6 +17,8 @@ const employeeReferencePhotoRoutes = require('./employee-reference-photo.routes'
 const { router: faceVerificationRoutes } = require('./face-verification.routes');
 const { router: selfHostedFaceVerificationRoutes } = require('./face-verification-self-hosted.routes');
 const securitySitesRoutes = require('./security-sites.routes');
+
+assertProductionAttendanceRuntime(process.env);
 
 const router = express.Router();
 router.use('/auth', authRoutes);
