@@ -1,6 +1,7 @@
 const express = require('express');
 const { z } = require('zod');
 const scheduleService = require('../services/schedule.service');
+const shiftService = require('../services/shift.service');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const { logger, errorCategory } = require('../utils/logger');
 
@@ -56,6 +57,7 @@ router.post('/batch', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { assignments } = batchSchema.parse(req.body);
     assignmentCount = assignments.length;
+    await shiftService.assertAssignableShiftTypes(assignments);
     res.json({ data: await scheduleService.saveBatchAssignments(assignments, req.user.sub, req.user.role) });
   } catch (error) {
     // Keep operational diagnostics tied to the write endpoint without

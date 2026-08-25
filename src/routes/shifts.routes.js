@@ -12,7 +12,8 @@ const shiftSchema = z.object({
   startTime: z.string().trim().optional(),
   endTime: z.string().trim().optional(),
   hours: z.coerce.number().min(0).max(24).default(8.0),
-  color: z.string().trim().default('#3b82f6')
+  color: z.string().trim().default('#3b82f6'),
+  isActive: z.boolean().optional()
 });
 
 router.get('/', async (req, res, next) => {
@@ -47,6 +48,24 @@ router.put('/:id', authorize('ADMIN'), async (req, res, next) => {
   }
 });
 
+router.post('/:id/activate', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    res.json({ data: await shiftService.update(req.params.id, { isActive: true }, req.user.sub) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/deactivate', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    res.json({ data: await shiftService.update(req.params.id, { isActive: false }, req.user.sub) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Backward-compatible safety endpoint: DELETE no longer destroys ShiftType history.
+// It deactivates the shift so existing ShiftAssignment/AttendanceSession references remain valid.
 router.delete('/:id', authorize('ADMIN'), async (req, res, next) => {
   try {
     await shiftService.remove(req.params.id, req.user.sub);
