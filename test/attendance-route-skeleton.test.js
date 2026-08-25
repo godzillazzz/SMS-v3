@@ -81,6 +81,14 @@ function serviceSpy() {
           verification: { sessionId: 'session-1', attendanceContext: context }
         };
       },
+      async verifyDeviceProof(input) {
+        calls.push(['device-proof', input]);
+        return { ok: true, verificationReady: true, sessionId: input.sessionId, status: 'DEVICE_PROOF_VERIFIED' };
+      },
+      async verifyLiveFace(input) {
+        calls.push(['face-match', input]);
+        return { ok: true, verificationAccepted: true, receipt: 'r'.repeat(43), evidence: { storageStatus: 'NOT_STORED', stored: false } };
+      },
       async acceptVerifiedEvent(input) {
         calls.push(['event', input]);
         return { ok: true, attendanceAccepted: true, idempotent: false, event: { id: 'event-1' }, session: { id: 'attendance-session-1' } };
@@ -153,6 +161,35 @@ test('verification start uses the same strict evidence contract and returns only
   assert.equal(spy.calls[0][0], 'start');
 });
 
+test('generic Attendance verification endpoints accept only device proof and one in-memory live photo', async () => {
+  const spy = serviceSpy();
+  const app = appFor({ environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }, service: spy.service });
+  const sessionId = '55555555-5555-4555-8555-555555555555';
+  const proof = await request(app).post(`/api/v1/attendance/verification/${sessionId}/device-proof`)
+    .set('Authorization', 'Bearer route-test')
+    .send({ challengeId: '66666666-6666-4666-8666-666666666666', challenge: 'opaque-device-challenge', signatureBase64: 'opaque-signature-value' });
+  assert.equal(proof.status, 200);
+  assert.equal(proof.body.data.verificationReady, true);
+  assert.equal(spy.calls[0][0], 'device-proof');
+  assert.deepEqual(Object.keys(spy.calls[0][1]).sort(), ['actor', 'challenge', 'challengeId', 'sessionId', 'signatureBase64']);
+
+  const invalidProof = await request(app).post(`/api/v1/attendance/verification/${sessionId}/device-proof`)
+    .set('Authorization', 'Bearer route-test')
+    .send({ challengeId: '66666666-6666-4666-8666-666666666666', challenge: 'opaque-device-challenge', signatureBase64: 'opaque-signature-value', faceMatchPassed: true });
+  assert.equal(invalidProof.status, 400);
+
+  const photo = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(100, 0x11)]);
+  const match = await request(app).post(`/api/v1/attendance/verification/${sessionId}/face-match`)
+    .set('Authorization', 'Bearer route-test')
+    .attach('photo', photo, { filename: 'live.jpg', contentType: 'image/jpeg' });
+  assert.equal(match.status, 200);
+  assert.equal(match.body.data.verificationAccepted, true);
+  assert.equal(match.body.data.evidence.storageStatus, 'NOT_STORED');
+  assert.equal(spy.calls[1][0], 'face-match');
+  assert.equal(Buffer.isBuffer(spy.calls[1][1].livePhotoFile.buffer), true);
+  assert.equal(Object.prototype.hasOwnProperty.call(match.body.data, 'faceMatchPassed'), false);
+});
+
 test('event acceptance accepts only opaque receipt + server-issued Attendance context', async () => {
   const spy = serviceSpy();
   const app = appFor({ environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }, service: spy.service });
@@ -176,7 +213,7 @@ test('runtime gate can be true only for explicitly flagged Preview and never Pro
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'preview' }), false);
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), true);
   assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), false);
-  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_POC_API_ENABLED: 'true' }), true);
+  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_POC_API_ENABLED: 'true' }), false);
   assert.equal(selfHostedFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true' }), false);
   assert.equal(selfHostedFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), true);
   assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), true);
@@ -190,7 +227,10 @@ test('route skeleton is mounted only behind the Attendance prefix and imports no
   assert.match(index, /router\.use\('\/attendance', attendanceRoutes\)/);
   assert.match(route, /router\.use\(requirePreviewAttendance, authenticateMiddleware\)/);
   assert.doesNotMatch(route, /aws-rekognition|CreateFaceLivenessSession|CompareFaces|recordTrustedProviderResult|padPassed|faceMatchPassed/i);
-  const frontendFiles = fs.readdirSync(frontendRoot, { recursive: true }).filter((name) => typeof name === 'string' && /\.(ts|tsx)$/.test(name));
-  const imported = frontendFiles.some((name) => fs.readFileSync(path.join(frontendRoot, name), 'utf8').includes('/attendance/verification/start'));
-  assert.equal(imported, false);
+  const frontendFiles = fs.readdirSync(frontendRoot, { recursive: true }).filter((name) => typeof name === 'string' && /\.(ts|tsx)$/.test(name) && !/\.test\.(ts|tsx)$/.test(name));
+  const frontendSource = frontendFiles.map((name) => fs.readFileSync(path.join(frontendRoot, name), 'utf8')).join('\n');
+  assert.match(frontendSource, /\/attendance\/verification\/start/);
+  assert.match(frontendSource, /\/attendance\/verification\/\$\{encodeURIComponent\(sessionId\)\}\/device-proof/);
+  assert.match(frontendSource, /\/attendance\/verification\/\$\{encodeURIComponent\(sessionId\)\}\/face-match/);
+  assert.doesNotMatch(frontendSource, /face-verification-self-hosted|AWS_|Rekognition|CompareFaces|padPassed|faceMatchPassed/);
 });

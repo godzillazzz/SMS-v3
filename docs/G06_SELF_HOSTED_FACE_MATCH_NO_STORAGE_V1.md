@@ -67,6 +67,12 @@ Expected verifier response is intentionally narrow:
 
 Scores/embeddings/templates are not returned to the browser and are not persisted by this V1 adapter.
 
+## Provider-neutral browser facade
+
+The employee PWA does not call the self-hosted verifier route directly. Browser orchestration uses only the gated Attendance contract under `/attendance/...` for verification start, device proof, one transient live-photo match request, and opaque-receipt Attendance event acceptance. Provider selection and trusted face-match interpretation remain server-side.
+
+The browser never submits `padPassed` or `faceMatchPassed`, never receives provider scores/templates, and may show Attendance success only after the server returns a committed `attendanceAccepted: true` event result.
+
 ## Runtime gates
 
 - Production remains hard-disabled regardless of flags.

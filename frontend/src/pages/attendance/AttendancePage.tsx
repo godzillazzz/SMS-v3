@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
 import {
+  AttendanceFlowError,
   AttendanceReadinessError,
+  attendanceAcceptVerifiedEvent,
+  attendanceDeviceState,
   attendanceReadiness,
+  attendanceVerificationStart,
+  attendanceFaceMatch,
+  verifyAttendanceDeviceProof,
+  type AttendanceContextRef,
   type AttendanceEventIntent,
   type AttendanceLocationEvidence,
   type AttendanceReadinessState
 } from './attendance-client';
+import { signAttendanceDeviceChallenge } from '../../lib/attendance-device-key';
+import { AttendanceFaceCapture } from './AttendanceFaceCapture';
 import { AttendanceQrScanner } from './AttendanceQrScanner';
 import './attendance.css';
 
@@ -22,7 +31,7 @@ type Copy = { title: string; detail: string; tone: 'ready' | 'warning' | 'blocke
 const readinessCopy: Record<string, Copy> = {
   BIOMETRIC_RUNTIME_DISABLED: {
     title: 'ระบบตรวจใบหน้า 1:1 ยังไม่เปิดใช้งาน',
-    detail: 'ระบบจะไม่บันทึกเวลาและไม่ถือว่าการตรวจครั้งนี้สำเร็จ จนกว่าจะเปิด trusted self-hosted face verifier ฝั่ง server',
+    detail: 'ระบบจะไม่บันทึกเวลาและไม่ถือว่าการตรวจครั้งนี้สำเร็จ จนกว่าจะเปิด trusted face verifier ฝั่ง server',
     tone: 'blocked'
   },
   READY_TO_START_VERIFICATION: {
@@ -165,6 +174,11 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
   const [error, setError] = useState<string>();
   const [requestId, setRequestId] = useState<string>();
   const [checkedAt, setCheckedAt] = useState<Date | null>(null);
+  const [faceCaptureOpen, setFaceCaptureOpen] = useState(false);
+  const [verificationBusy, setVerificationBusy] = useState(false);
+  const [verificationStage, setVerificationStage] = useState<string>();
+  const [verificationSession, setVerificationSession] = useState<{ sessionId: string; attendanceContext: AttendanceContextRef } | null>(null);
+  const [attendanceAccepted, setAttendanceAccepted] = useState<{ intent: AttendanceEventIntent | null; acceptedAt: Date } | null>(null);
   const asyncEvidenceEpochRef = useRef(0);
 
   const copy = useMemo(() => fallbackCopy(readiness), [readiness]);
@@ -174,7 +188,15 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
   const interactionDisabled = readOnly || !online;
   const interactionDisabledRef = useRef(interactionDisabled);
   interactionDisabledRef.current = interactionDisabled;
-  const canCheck = !interactionDisabled && qrReady && gpsReady && !checking && !locationBusy;
+  const canCheck = !interactionDisabled && qrReady && gpsReady && !checking && !locationBusy && !verificationBusy;
+
+  const resetVerificationState = () => {
+    setFaceCaptureOpen(false);
+    setVerificationBusy(false);
+    setVerificationStage(undefined);
+    setVerificationSession(null);
+    setAttendanceAccepted(null);
+  };
 
   const resetServerState = () => {
     setReadiness(null);
@@ -183,6 +205,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     setRequestId(undefined);
     setCheckedAt(null);
     setError(undefined);
+    resetVerificationState();
   };
 
   useEffect(() => {
@@ -223,7 +246,75 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     };
   }, []);
 
+  const beginFaceVerificationWithEvidence = async (
+    captureId: string,
+    nextQrToken: string,
+    nextLocation: AttendanceLocationEvidence,
+    operationEpoch: number
+  ) => {
+    if (interactionDisabledRef.current) return;
+    setVerificationBusy(true);
+    setVerificationStage('กำลังขอ Verification session จาก Server…');
+    setError(undefined);
+    try {
+      const started = await attendanceVerificationStart(token, {
+        captureId,
+        qrToken: nextQrToken.trim(),
+        location: nextLocation
+      });
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      setRequestId(started.requestId);
+      if (!started.routeAvailable) {
+        setRouteUnavailable(true);
+        setVerificationStage('Attendance runtime ยังไม่เปิด');
+        return;
+      }
+      setReadiness(started.data.readiness);
+      setEventIntent(started.data.eventIntent);
+      const verification = started.data.verification;
+      if (!started.data.ok || started.data.readiness.state !== 'READY_TO_START_VERIFICATION' || !verification) {
+        setVerificationStage('Server ยังไม่อนุญาตให้เริ่ม Face Verification');
+        return;
+      }
+      if (!verification.sessionId || !verification.challengeId || !verification.challenge || !verification.attendanceContext) {
+        throw new Error('Server ไม่ได้ออก Verification session ที่สมบูรณ์');
+      }
+
+      setVerificationStage('กำลังยืนยันคีย์ของอุปกรณ์หลัก…');
+      const deviceState = await attendanceDeviceState(token);
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      const activeDeviceId = deviceState.activeDevice?.status === 'ACTIVE' ? deviceState.activeDevice.id : null;
+      if (!activeDeviceId) throw new Error('ไม่พบอุปกรณ์หลัก ACTIVE สำหรับลงเวลา กรุณาตรวจสอบหน้าอุปกรณ์ลงเวลา');
+      const signatureBase64 = await signAttendanceDeviceChallenge(activeDeviceId, verification.challenge);
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      await verifyAttendanceDeviceProof(token, verification.sessionId, {
+        challengeId: verification.challengeId,
+        challenge: verification.challenge,
+        signatureBase64
+      });
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+
+      setVerificationSession({ sessionId: verification.sessionId, attendanceContext: verification.attendanceContext });
+      setVerificationStage('Device proof ผ่านแล้ว · พร้อมถ่ายภาพสด');
+      setFaceCaptureOpen(true);
+    } catch (reason) {
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      setVerificationSession(null);
+      if (reason instanceof AttendanceFlowError) {
+        setRequestId(reason.requestId);
+        setVerificationStage(reason.code === 'FACE_VERIFIER_UNAVAILABLE' ? 'FACE_VERIFIER_UNAVAILABLE' : 'Face Verification เริ่มไม่สำเร็จ');
+        setError(reason.message);
+      } else {
+        setVerificationStage('Face Verification เริ่มไม่สำเร็จ');
+        setError(reason instanceof Error ? reason.message : 'ไม่สามารถเริ่ม Face Verification ได้');
+      }
+    } finally {
+      if (operationEpoch === asyncEvidenceEpochRef.current) setVerificationBusy(false);
+    }
+  };
+
   const checkReadinessWithEvidence = async (
+    captureId: string,
     nextQrToken: string,
     nextLocation: AttendanceLocationEvidence,
     operationEpoch: number
@@ -235,10 +326,10 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     setReadiness(null);
     setEventIntent(null);
     setRequestId(undefined);
+    resetVerificationState();
     try {
-      if (!globalThis.crypto?.randomUUID) throw new Error('เบราว์เซอร์นี้ไม่รองรับ secure attempt identifier ที่ระบบต้องใช้');
       const result = await attendanceReadiness(token, {
-        captureId: globalThis.crypto.randomUUID(),
+        captureId,
         qrToken: nextQrToken.trim(),
         location: nextLocation
       });
@@ -251,6 +342,9 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       }
       setReadiness(result.data.readiness);
       setEventIntent(result.data.eventIntent);
+      if (result.data.readiness.state === 'READY_TO_START_VERIFICATION') {
+        await beginFaceVerificationWithEvidence(captureId, nextQrToken, nextLocation, operationEpoch);
+      }
     } catch (reason) {
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
       if (reason instanceof AttendanceReadinessError) {
@@ -299,13 +393,18 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       return;
     }
 
+    if (!globalThis.crypto?.randomUUID) {
+      setError('เบราว์เซอร์นี้ไม่รองรับ secure attempt identifier ที่ระบบต้องใช้');
+      return;
+    }
+    const captureId = globalThis.crypto.randomUUID();
     setLocationBusy(true);
     try {
       const nextLocation = await positionOnce();
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
       setLocation(nextLocation);
       setLocationBusy(false);
-      await checkReadinessWithEvidence(nextQrToken, nextLocation, operationEpoch);
+      await checkReadinessWithEvidence(captureId, nextQrToken, nextLocation, operationEpoch);
     } catch (reason) {
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
       setLocation(null);
@@ -317,8 +416,73 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
 
   const checkReadiness = async () => {
     if (!canCheck || !location) return;
+    if (!globalThis.crypto?.randomUUID) {
+      setError('เบราว์เซอร์นี้ไม่รองรับ secure attempt identifier ที่ระบบต้องใช้');
+      return;
+    }
     const operationEpoch = asyncEvidenceEpochRef.current;
-    await checkReadinessWithEvidence(qrToken, location, operationEpoch);
+    await checkReadinessWithEvidence(globalThis.crypto.randomUUID(), qrToken, location, operationEpoch);
+  };
+
+  const handleFacePhotoConfirmed = async (photo: Blob) => {
+    const activeVerification = verificationSession;
+    if (!activeVerification) throw new Error('Verification session ไม่พร้อม กรุณาเริ่มตรวจสอบใหม่');
+    const operationEpoch = asyncEvidenceEpochRef.current;
+    setVerificationBusy(true);
+    setVerificationStage('กำลังส่งภาพสดให้ trusted verifier ตรวจแบบ 1:1…');
+    setError(undefined);
+    try {
+      const matched = await attendanceFaceMatch(token, activeVerification.sessionId, photo);
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (matched.verificationAccepted !== true || !matched.receipt) {
+        setFaceCaptureOpen(false);
+        setVerificationSession(null);
+        setVerificationStage('ใบหน้าไม่ตรงกับ Reference Photo');
+        throw new Error('Server ตรวจแล้วใบหน้าไม่ตรงกับ Reference Photo กรุณาเริ่ม attempt ใหม่');
+      }
+
+      setVerificationStage('ใบหน้าตรงแล้ว · กำลังให้ Server บันทึก AttendanceEvent…');
+      const accepted = await attendanceAcceptVerifiedEvent(token, {
+        receipt: matched.receipt,
+        attendanceContext: activeVerification.attendanceContext
+      });
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (accepted.attendanceAccepted !== true) {
+        setFaceCaptureOpen(false);
+        setVerificationSession(null);
+        if (accepted.readiness) setReadiness(accepted.readiness);
+        throw new Error('Server ยังไม่ยอมรับ AttendanceEvent กรุณาเริ่มตรวจสอบใหม่');
+      }
+
+      const acceptedIntent = eventIntent;
+      setFaceCaptureOpen(false);
+      setVerificationSession(null);
+      setQrToken('');
+      setLocation(null);
+      setLocationBusy(false);
+      setChecking(false);
+      setReadiness(null);
+      setEventIntent(null);
+      setRouteUnavailable(false);
+      setRequestId(undefined);
+      setCheckedAt(null);
+      setError(undefined);
+      setAttendanceAccepted({ intent: acceptedIntent, acceptedAt: new Date() });
+      setVerificationStage('Server บันทึกเวลาเรียบร้อยแล้ว');
+      setVerificationBusy(false);
+      asyncEvidenceEpochRef.current += 1;
+    } catch (reason) {
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (reason instanceof AttendanceFlowError) {
+        setRequestId(reason.requestId);
+        setError(reason.message);
+      } else {
+        setError(reason instanceof Error ? reason.message : 'ไม่สามารถตรวจใบหน้าหรือบันทึกเวลาได้');
+      }
+      throw reason;
+    } finally {
+      if (operationEpoch === asyncEvidenceEpochRef.current) setVerificationBusy(false);
+    }
   };
 
   const resetAttempt = () => {
@@ -337,6 +501,12 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       onDetected={(value) => { void handleQrDetected(value); }}
       onClose={() => setScannerOpen(false)}
     />
+    <AttendanceFaceCapture
+      open={faceCaptureOpen && !interactionDisabled}
+      busy={verificationBusy}
+      onConfirm={handleFacePhotoConfirmed}
+      onClose={() => setFaceCaptureOpen(false)}
+    />
     <div className="page-heading attendance-heading">
       <div>
         <p className="eyebrow">G06 · ATTENDANCE</p>
@@ -344,7 +514,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
         <p>สแกน QR ครั้งเดียว แล้วระบบอ่าน GPS แบบ one-shot และตรวจ Server ต่อให้อัตโนมัติ โดย Server เป็นผู้ตัดสินเวลาเข้า/ออก</p>
       </div>
       <div className="heading-actions">
-        <button type="button" className="btn-neutral small-action" onClick={resetAttempt} disabled={checking || locationBusy}>
+        <button type="button" className="btn-neutral small-action" onClick={resetAttempt} disabled={checking || locationBusy || verificationBusy}>
           <SmsIcon name="refresh" size={17} />เริ่มใหม่
         </button>
       </div>
@@ -373,14 +543,14 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       <article className={`attendance-flow-step ${readiness || routeUnavailable ? 'is-checked' : ''}`}>
         <span>3</span><div><strong>Server readiness</strong><small>{routeUnavailable ? 'ยังไม่เปิดใช้งาน' : readiness ? readiness.state : 'รอหลักฐานครบ'}</small></div><SmsIcon name={readiness?.state === 'READY_TO_START_VERIFICATION' ? 'check' : 'shield'} size={18} />
       </article>
-      <article className="attendance-flow-step is-locked">
-        <span>4</span><div><strong>ตรวจใบหน้า 1:1</strong><small>Self-hosted verifier ยังไม่เปิด runtime</small></div><SmsIcon name="pause" size={18} />
+      <article className={`attendance-flow-step ${attendanceAccepted ? 'is-ready' : verificationSession || verificationBusy ? 'is-checked' : 'is-locked'}`}>
+        <span>4</span><div><strong>ตรวจใบหน้า 1:1</strong><small>{attendanceAccepted ? 'Server รับผลและบันทึกเวลาแล้ว' : verificationStage || 'รอ Server readiness'}</small></div><SmsIcon name={attendanceAccepted ? 'check' : verificationBusy ? 'clock' : verificationSession ? 'shield' : 'pause'} size={18} />
       </article>
     </div>
 
     <div className="attendance-workspace-grid">
       <article className="attendance-evidence-card">
-        <header className="attendance-qr-evidence-header"><span><SmsIcon name="quality" size={20} /></span><div><h2>1. QR จุดปฏิบัติงาน</h2><p>สแกนครั้งเดียวเพื่อเริ่ม QR → GPS → Server readiness อัตโนมัติ; ค่า QR อยู่เฉพาะ attempt ปัจจุบันและไม่บันทึกลง localStorage/sessionStorage</p></div><button type="button" className="btn-primary attendance-qr-open-action" disabled={interactionDisabled || checking || locationBusy} onClick={() => { resetServerState(); setScannerOpen(true); }}><SmsIcon name="quality" size={17} />สแกน QR เพื่อลงเวลา</button></header>
+        <header className="attendance-qr-evidence-header"><span><SmsIcon name="quality" size={20} /></span><div><h2>1. QR จุดปฏิบัติงาน</h2><p>สแกนครั้งเดียวเพื่อเริ่ม QR → GPS → Server readiness อัตโนมัติ; ค่า QR อยู่เฉพาะ attempt ปัจจุบันและไม่บันทึกลง localStorage/sessionStorage</p></div><button type="button" className="btn-primary attendance-qr-open-action" disabled={interactionDisabled || checking || locationBusy || verificationBusy} onClick={() => { resetServerState(); setScannerOpen(true); }}><SmsIcon name="quality" size={17} />สแกน QR เพื่อลงเวลา</button></header>
         <label className="attendance-field">
           <span>ข้อมูลจาก QR (สำรอง / UAT)</span>
           <input
@@ -403,7 +573,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
           <div><dt>ความแม่นยำ</dt><dd>±{Math.round(location.accuracyMeters)} เมตร</dd></div>
           <div><dt>อ่านเมื่อ</dt><dd>{thaiTime(location.capturedAt)}</dd></div>
         </dl> : <div className="attendance-empty-evidence">ยังไม่มีตำแหน่งสำหรับ attempt นี้</div>}
-        <button type="button" className="btn-neutral attendance-location-action" disabled={interactionDisabled || locationBusy || checking} onClick={() => void acquireLocation()}>
+        <button type="button" className="btn-neutral attendance-location-action" disabled={interactionDisabled || locationBusy || checking || verificationBusy} onClick={() => void acquireLocation()}>
           <SmsIcon name="refresh" size={17} />{locationBusy ? 'กำลังอ่านตำแหน่ง…' : location ? 'อ่านตำแหน่งใหม่' : 'อ่านตำแหน่งปัจจุบัน'}
         </button>
       </article>
@@ -430,9 +600,15 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       {readiness?.state === 'DEVICE_SETUP_REQUIRED' && onOpenDeviceSetup && <button type="button" className="btn-neutral attendance-remediation" onClick={onOpenDeviceSetup}>ไปหน้าอุปกรณ์ลงเวลา</button>}
     </section>
 
-    <section className="attendance-face-gate">
-      <div><span className="attendance-face-gate__icon"><SmsIcon name="pause" size={21} /></span><div><h2>4. ตรวจใบหน้า 1:1</h2><p>ภาพสดจะใช้ตรวจเทียบกับ Reference Photo ผ่าน trusted self-hosted verifier และทิ้งหลังประมวลผล โดยยังไม่เก็บ Attendance photo ใน Storage รอบนี้</p></div></div>
-      <button type="button" className="btn-primary" disabled>ตรวจใบหน้า — รอ Self-hosted verifier</button>
+    <section className={`attendance-face-gate ${attendanceAccepted ? 'is-success' : ''}`}>
+      <div><span className="attendance-face-gate__icon"><SmsIcon name={attendanceAccepted ? 'check' : verificationBusy ? 'clock' : verificationSession ? 'shield' : 'pause'} size={21} /></span><div><h2>4. ตรวจใบหน้า 1:1</h2><p>{attendanceAccepted
+        ? `${intentLabel(attendanceAccepted.intent)} สำเร็จเมื่อ ${thaiTime(attendanceAccepted.acceptedAt)} — ยืนยันจาก AttendanceEvent ที่ Server รับแล้ว`
+        : verificationStage || 'เมื่อ Server readiness พร้อม ระบบจะยืนยันคีย์อุปกรณ์ แล้วเปิดกล้องหน้าสำหรับภาพสดแบบ memory-only โดยอัตโนมัติ'}</p><small>ภาพสดไม่ลง Gallery, localStorage/sessionStorage/IndexedDB หรือ Attendance Storage และ client ไม่ส่งค่า Face PASS ไปตัดสินเอง</small></div></div>
+      {attendanceAccepted
+        ? <span className="attendance-face-success-badge">บันทึกเวลาแล้ว</span>
+        : verificationSession
+          ? <button type="button" className="btn-primary" disabled={interactionDisabled || verificationBusy} onClick={() => setFaceCaptureOpen(true)}>เปิดกล้องหน้าอีกครั้ง</button>
+          : <button type="button" className="btn-primary" disabled>รอ Server readiness</button>}
     </section>
   </section>;
 }

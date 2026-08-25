@@ -134,5 +134,6 @@ test('readiness mapper stays internal/provider-neutral while frontend only rende
   assert.doesNotMatch(frontend, /attendance-readiness-state/);
   assert.doesNotMatch(frontend, /attendanceAccepted\s*[:=]\s*true|padPassed|faceMatchPassed|receiptHash/);
   assert.match(doc, /always returns `attendanceAccepted: false`/);
-  assert.match(doc, /No frontend\/page\/API route is introduced by this checkpoint/);
+  assert.match(doc, /Browser orchestration is restricted to the Preview-gated `\/attendance\/\.\.\.` contract/);
+  assert.match(doc, /server returns `attendanceAccepted: true` from a committed AttendanceEvent/);
 });

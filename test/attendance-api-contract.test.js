@@ -17,7 +17,7 @@ const attendanceEvidence = {
 };
 
 function fakeDependencies() {
-  const calls = { resolveIntent: [], prepareContext: [], prepareVerification: [], accept: [] };
+  const calls = { resolveIntent: [], prepareContext: [], prepareVerification: [], deviceProof: [], liveFace: [], accept: [] };
   const verification = {
     resolveEventIntent: async (input) => { calls.resolveIntent.push(input); return { eventIntent: 'CHECK_IN', shiftAssignmentId: '66666666-6666-4666-8666-666666666666', workDate: '2026-08-24' }; },
     prepareContext: async (input) => { calls.prepareContext.push(input); return { contextDigest: 'a'.repeat(64) }; },
@@ -44,6 +44,10 @@ function fakeDependencies() {
       };
     }
   };
+  const face = {
+    verifyDeviceProof: async (input) => { calls.deviceProof.push(input); return { verificationReady: true, sessionId: input.sessionId, status: 'DEVICE_PROOF_VERIFIED' }; },
+    verifyLiveFace: async (input) => { calls.liveFace.push(input); return { verificationAccepted: true, receipt: 'server-issued-receipt', receiptExpiresAt: 'soon', evidence: { storageStatus: 'NOT_STORED', stored: false } }; }
+  };
   const events = {
     acceptVerifiedEvent: async (input) => {
       calls.accept.push(input);
@@ -54,7 +58,7 @@ function fakeDependencies() {
       };
     }
   };
-  return { calls, verification, events };
+  return { calls, verification, face, events };
 }
 
 test('runtime-disabled readiness returns a server blocking state before any context/provider work', async () => {
@@ -123,6 +127,36 @@ test('beginVerification passes only raw Attendance evidence inputs and returns a
   assert.equal(serialized.includes('secret-checksum'), false);
   assert.equal(serialized.includes('secret-provider-ref-hash'), false);
   assert.equal(serialized.includes(attendanceEvidence.qrToken), false);
+});
+
+test('device proof and live-face execution remain server-gated and provider-neutral at the Attendance contract', async () => {
+  const { calls, verification, face, events } = fakeDependencies();
+  const service = createAttendanceApiContractService({ verificationContextService: verification, faceVerificationService: face, attendanceEventService: events, isBiometricRuntimeEnabled: () => true });
+  const device = await service.verifyDeviceProof({ actor, sessionId: '33333333-3333-4333-8333-333333333333', challengeId: '55555555-5555-4555-8555-555555555555', challenge: 'opaque-device-challenge', signatureBase64: 'opaque-signature' });
+  assert.equal(device.ok, true);
+  assert.equal(device.verificationReady, true);
+  assert.equal(calls.deviceProof.length, 1);
+  const livePhotoFile = { buffer: Buffer.from('temporary-live-photo'), mimetype: 'image/jpeg' };
+  const matched = await service.verifyLiveFace({ actor, sessionId: '33333333-3333-4333-8333-333333333333', livePhotoFile });
+  assert.equal(matched.ok, true);
+  assert.equal(matched.verificationAccepted, true);
+  assert.equal(matched.receipt, 'server-issued-receipt');
+  assert.equal(calls.liveFace.length, 1);
+  assert.equal(calls.accept.length, 0);
+});
+
+test('device proof and live-face execution fail closed before trusted services when runtime is disabled', async () => {
+  const { calls, verification, face, events } = fakeDependencies();
+  const service = createAttendanceApiContractService({ verificationContextService: verification, faceVerificationService: face, attendanceEventService: events, isBiometricRuntimeEnabled: () => false });
+  const device = await service.verifyDeviceProof({ actor, sessionId: '33333333-3333-4333-8333-333333333333', challengeId: '55555555-5555-4555-8555-555555555555', challenge: 'opaque-device-challenge', signatureBase64: 'opaque-signature' });
+  const matched = await service.verifyLiveFace({ actor, sessionId: '33333333-3333-4333-8333-333333333333', livePhotoFile: { buffer: Buffer.from('temporary-live-photo'), mimetype: 'image/jpeg' } });
+  assert.equal(device.ok, false);
+  assert.equal(device.verificationReady, false);
+  assert.equal(matched.ok, false);
+  assert.equal(matched.verificationAccepted, false);
+  assert.equal(matched.receipt, null);
+  assert.equal(calls.deviceProof.length, 0);
+  assert.equal(calls.liveFace.length, 0);
 });
 
 test('only a committed AttendanceEvent service result may set attendanceAccepted=true', async () => {
@@ -198,5 +232,9 @@ test('Attendance API contract remains provider-neutral after gated route skeleto
   assert.match(index, /router\.use\('\/attendance', attendanceRoutes\)/);
   assert.doesNotMatch(frontend, /attendance-api-contract/);
   assert.match(attendanceClient, /\/attendance\/readiness/);
-  assert.doesNotMatch(attendanceClient, /\/attendance\/verification\/start|\/attendance\/events|padPassed|faceMatchPassed|receipt/);
+  assert.match(attendanceClient, /\/attendance\/verification\/start/);
+  assert.match(attendanceClient, /\/attendance\/verification\/\$\{encodeURIComponent\(sessionId\)\}\/device-proof/);
+  assert.match(attendanceClient, /\/attendance\/verification\/\$\{encodeURIComponent\(sessionId\)\}\/face-match/);
+  assert.match(attendanceClient, /\/attendance\/events/);
+  assert.doesNotMatch(attendanceClient, /face-verification-self-hosted|AWS_|Rekognition|padPassed|faceMatchPassed|receiptHash/);
 });

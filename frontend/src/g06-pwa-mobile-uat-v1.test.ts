@@ -62,7 +62,8 @@ describe('G06 Employee PWA mobile UAT/hardening', () => {
     expect(attendance).toContain('if (interactionDisabled) return');
     expect(attendance).toContain('open={scannerOpen && !interactionDisabled}');
     expect(attendance).toContain('disabled={interactionDisabled || checking}');
-    expect(attendance).toContain('disabled={interactionDisabled || locationBusy || checking}');
+    expect(attendance).toContain('disabled={interactionDisabled || locationBusy || checking || verificationBusy}');
+    expect(attendance).toContain('open={faceCaptureOpen && !interactionDisabled}');
     expect(attendance).toContain('ออฟไลน์ — ปิดการสแกน QR, GPS และ Server readiness');
   });
 

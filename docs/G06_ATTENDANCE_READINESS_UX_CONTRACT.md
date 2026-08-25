@@ -1,12 +1,12 @@
 # G06 — Attendance Readiness / UX State Contract
 
-Status: **INTERNAL CONTRACT ONLY / NO PUBLIC ROUTE / NO ATTENDANCE PAGE**
+Status: **PREVIEW-GATED ATTENDANCE CONTRACT / PROVIDER-NEUTRAL BROWSER ORCHESTRATION**
 
 Owner decision remains: AWS/provider integration is paused. Biometric runtime remains closed.
 
 ## Purpose
 
-This contract gives the future Attendance UI one stable, provider-neutral vocabulary for server-owned readiness and failure outcomes. It does not decide biometric PASS and does not create AttendanceEvent records.
+This contract gives the Attendance UI one stable, provider-neutral vocabulary for server-owned readiness and failure outcomes. Readiness still does not decide biometric PASS and does not create AttendanceEvent records; the browser may now orchestrate only the gated Attendance verification endpoints and must consume server-owned outcomes.
 
 The only authoritative Attendance success is a committed AttendanceEvent returned by the future governed event-write API. The readiness mapper therefore always returns `attendanceAccepted: false`, including `READY_TO_START_VERIFICATION`.
 
@@ -68,6 +68,6 @@ The only authoritative Attendance success is a committed AttendanceEvent returne
 
 ## Future UI/API integration rule
 
-When a future Attendance page is implemented, it may render these states and actions but must not construct or override them from local biometric inference. A future event-write endpoint may only show an Attendance success UI after the server has committed the corresponding AttendanceEvent transaction.
+The Attendance page may render these states and actions but must not construct or override them from local biometric inference. Browser orchestration is restricted to the Preview-gated `/attendance/...` contract: readiness/start, provider-neutral device proof, one transient live-photo face-match request, and opaque-receipt event acceptance. The browser must not call provider-specific routes, submit `padPassed`/`faceMatchPassed`, or mint/interpret a verification receipt as Attendance success.
 
-No frontend/page/API route is introduced by this checkpoint.
+The UI may show Attendance success only after the server returns `attendanceAccepted: true` from a committed AttendanceEvent. Production remains route-gated off until separately authorized.

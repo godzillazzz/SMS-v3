@@ -6,6 +6,7 @@ const main = read('./main.tsx');
 const page = read('./pages/attendance/AttendancePage.tsx');
 const client = read('./pages/attendance/attendance-client.ts');
 const scanner = read('./pages/attendance/AttendanceQrScanner.tsx');
+const faceCapture = read('./pages/attendance/AttendanceFaceCapture.tsx');
 const css = read('./pages/attendance/attendance.css');
 
 describe('G06 Attendance frontend UX skeleton', () => {
@@ -31,7 +32,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
 
   it('automates QR scan into one-shot GPS and server readiness without adding client authority', () => {
     expect(page).toContain('const handleQrDetected = async (value: string) => {');
-    expect(page).toMatch(/handleQrDetected[\s\S]*?positionOnce\(\)[\s\S]*?checkReadinessWithEvidence\(nextQrToken, nextLocation, operationEpoch\)/);
+    expect(page).toMatch(/handleQrDetected[\s\S]*?positionOnce\(\)[\s\S]*?checkReadinessWithEvidence\(captureId, nextQrToken, nextLocation, operationEpoch\)/);
     expect(page).toContain('onDetected={(value) => { void handleQrDetected(value); }}');
     expect(page).toContain('สแกน QR เพื่อลงเวลา');
     expect(page).toContain('Scan once · Auto flow');
@@ -40,14 +41,25 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).not.toContain('/attendance/events');
   });
 
-  it('does not open biometric verification or Attendance event acceptance from the browser skeleton', () => {
-    expect(client).not.toContain('/verification/start');
-    expect(client).not.toContain('/attendance/events');
-    expect(client).not.toContain('receipt');
-    expect(client).not.toContain('padPassed');
+  it('orchestrates Face Match only through server-issued context, device proof, opaque receipt, and server Attendance acceptance', () => {
+    expect(client).toContain('attendance/verification/start');
+    expect(page).toContain("result.data.readiness.state === 'READY_TO_START_VERIFICATION'");
+    expect(page).toContain('attendanceVerificationStart(token');
+    expect(page).toContain('signAttendanceDeviceChallenge(activeDeviceId, verification.challenge)');
+    expect(client).toContain('/attendance/verification/${encodeURIComponent(sessionId)}/device-proof');
+    expect(client).not.toContain('face-verification-self-hosted');
+    expect(page).toMatch(/attendanceVerificationStart[\s\S]*?signAttendanceDeviceChallenge[\s\S]*?verifyAttendanceDeviceProof[\s\S]*?setFaceCaptureOpen\(true\)/);
+    expect(client).toContain("form.append('photo', photo, 'attendance-live-face.jpg')");
+    expect(client).toContain('/attendance/verification/${encodeURIComponent(sessionId)}/face-match');
+    expect(page).toContain('matched.verificationAccepted !== true || !matched.receipt');
+    expect(client).toContain('attendance/events');
+    expect(client).toMatch(/body: JSON.stringify\(\{\s*receipt: input\.receipt,\s*attendanceContext: input\.attendanceContext\s*\}\)/);
+    expect(page).toContain('accepted.attendanceAccepted !== true');
+    expect(page).toContain('setAttendanceAccepted({ intent: acceptedIntent, acceptedAt: new Date() })');
+    expect(client).not.toContain('padPassed: input.');
     expect(client).not.toContain('faceMatchPassed');
+    expect(client).not.toContain('padPassed');
     expect(page).not.toContain('attendanceAccepted = true');
-    expect(page).toContain('Self-hosted verifier ยังไม่เปิด runtime');
   });
 
   it('uses a transient camera QR scanner and releases all media tracks without persisting frames', () => {
@@ -92,6 +104,34 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(css).not.toContain('aspect-ratio: 3 / 2');
     expect(css).not.toContain('margin-inline: auto');
     expect(scanner).toContain('ใช้กล้องเฉพาะขณะสแกน และไม่บันทึกหรืออัปโหลดภาพ');
+  });
+
+  it('captures the front-camera still only in memory, provides preview/confirm, and purges media on lifecycle exit', () => {
+    expect(faceCapture).toContain('navigator.mediaDevices.getUserMedia');
+    expect(faceCapture).toContain("facingMode: { ideal: 'user' }");
+    expect(faceCapture).toContain("canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY)");
+    expect(faceCapture).toContain('URL.createObjectURL(blob)');
+    expect(faceCapture).toContain('URL.revokeObjectURL(previewUrlRef.current)');
+    expect(faceCapture).toContain('streamRef.current?.getTracks().forEach((track) => track.stop())');
+    expect(faceCapture).toContain('canvasRef.current.width = 1');
+    expect(faceCapture).toContain('canvasRef.current.height = 1');
+    expect(faceCapture).toContain("document.addEventListener('visibilitychange', handleVisibilityChange)");
+    expect(faceCapture).toContain("window.addEventListener('pagehide', handlePageHide)");
+    expect(faceCapture).toContain('const cameraRequestEpochRef = useRef(0)');
+    expect(faceCapture).toContain('if (cameraEpoch !== cameraRequestEpochRef.current)');
+    expect(faceCapture).toContain('stream.getTracks().forEach((track) => track.stop())');
+    expect(faceCapture).toContain('cameraRequestEpochRef.current += 1');
+    expect(faceCapture).toContain('await onConfirm(photo)');
+    expect(faceCapture).toContain('ยืนยันและตรวจใบหน้า');
+    expect(faceCapture).toContain('ไม่มี file picker / Gallery');
+    expect(faceCapture).not.toContain('type="file"');
+    expect(faceCapture).not.toContain('accept="image/');
+    expect(faceCapture).not.toContain('localStorage.');
+    expect(faceCapture).not.toContain('sessionStorage.');
+    expect(faceCapture).not.toContain('indexedDB.');
+    expect(faceCapture).not.toContain('fetch(');
+    expect(css).toContain('.attendance-face-backdrop');
+    expect(css).toContain('.attendance-face-camera video');
   });
 
   it('uses one-shot high-accuracy geolocation without continuous tracking or local persistence', () => {

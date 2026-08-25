@@ -1,9 +1,11 @@
 'use strict';
 
 const express = require('express');
+const multer = require('multer');
 const { z } = require('zod');
 const HttpError = require('../utils/http-error');
 const { createAttendanceApiContractService } = require('../services/attendance-api-contract.service');
+const { MAX_ATTENDANCE_LIVE_PHOTO_SIZE } = require('../services/attendance-face-verification.service');
 
 const uuid = z.string().uuid();
 const decimal = z.union([
@@ -44,6 +46,12 @@ const acceptInput = z.object({
   receipt: z.string().trim().min(32).max(512),
   attendanceContext: attendanceContextInput
 }).strict();
+const deviceProofInput = z.object({
+  challengeId: uuid,
+  challenge: z.string().min(16).max(512),
+  signatureBase64: z.string().min(16).max(4096)
+}).strict();
+const livePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1, fileSize: MAX_ATTENDANCE_LIVE_PHOTO_SIZE } });
 
 function attendanceApiEnabled(environment = process.env) {
   if (environment.VERCEL_ENV === 'production') return false;
@@ -59,7 +67,7 @@ function selfHostedFaceRuntimeConfigured(environment = process.env) {
 
 function attendanceBiometricRuntimeEnabled(environment = process.env) {
   if (!attendanceApiEnabled(environment)) return false;
-  return environment.FACE_VERIFICATION_POC_API_ENABLED === 'true' || selfHostedFaceRuntimeConfigured(environment);
+  return selfHostedFaceRuntimeConfigured(environment);
 }
 
 function defaultAuthenticate(req, res, next) {
@@ -96,6 +104,19 @@ function createAttendanceRoutes({
     } catch (error) { next(error); }
   });
 
+  router.post('/verification/:id/device-proof', async (req, res, next) => {
+    try {
+      const input = deviceProofInput.parse(req.body);
+      res.json({ data: await service.verifyDeviceProof({ actor: req.user, sessionId: uuid.parse(req.params.id), ...input }) });
+    } catch (error) { next(error); }
+  });
+
+  router.post('/verification/:id/face-match', livePhotoUpload.single('photo'), async (req, res, next) => {
+    try {
+      res.json({ data: await service.verifyLiveFace({ actor: req.user, sessionId: uuid.parse(req.params.id), livePhotoFile: req.file }) });
+    } catch (error) { next(error); }
+  });
+
   router.post('/events', async (req, res, next) => {
     try {
       const input = acceptInput.parse(req.body);
@@ -115,5 +136,6 @@ module.exports = {
   attendanceBiometricRuntimeEnabled,
   createAttendanceRoutes,
   prepareInput,
+  deviceProofInput,
   acceptInput
 };

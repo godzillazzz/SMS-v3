@@ -2,6 +2,7 @@
 
 const { createAttendanceVerificationContextService } = require('./attendance-verification-context.service');
 const { createAttendanceEventService } = require('./attendance-event.service');
+const { createAttendanceFaceVerificationService } = require('./attendance-face-verification.service');
 const {
   serverRuntimeReadiness,
   mapAttendanceDomainOutcome
@@ -22,10 +23,12 @@ function safeVerificationStart(result) {
 function createAttendanceApiContractService({
   verificationContextService = null,
   attendanceEventService = null,
+  faceVerificationService = null,
   isBiometricRuntimeEnabled = () => false
 } = {}) {
   const verification = verificationContextService || createAttendanceVerificationContextService();
   const events = attendanceEventService || createAttendanceEventService({ verificationContextService: verification });
+  const face = faceVerificationService || createAttendanceFaceVerificationService();
 
   function runtimeEnabled() {
     try {
@@ -79,6 +82,33 @@ function createAttendanceApiContractService({
     }
   }
 
+  async function verifyDeviceProof({ actor, sessionId, challengeId, challenge, signatureBase64 } = {}) {
+    if (!runtimeEnabled()) {
+      return { ok: false, verificationReady: false, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }) };
+    }
+    try {
+      const result = await face.verifyDeviceProof({ actor, sessionId, challengeId, challenge, signatureBase64 });
+      return { ok: true, ...result };
+    } catch (error) {
+      return { ok: false, verificationReady: false, readiness: mapAttendanceDomainOutcome(error) };
+    }
+  }
+
+  async function verifyLiveFace({ actor, sessionId, livePhotoFile } = {}) {
+    if (!runtimeEnabled()) {
+      return { ok: false, verificationAccepted: false, receipt: null, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }) };
+    }
+    try {
+      const result = await face.verifyLiveFace({ actor, sessionId, livePhotoFile });
+      if (result.verificationAccepted !== true || !result.receipt) {
+        return { ok: false, verificationAccepted: false, receipt: null, evidence: result.evidence || null, readiness: mapAttendanceDomainOutcome('FACE_MATCH_FAILED') };
+      }
+      return { ok: true, ...result };
+    } catch (error) {
+      return { ok: false, verificationAccepted: false, receipt: null, readiness: mapAttendanceDomainOutcome(error) };
+    }
+  }
+
   async function acceptVerifiedEvent({ actor, receipt, attendanceContext } = {}) {
     try {
       const result = await events.acceptVerifiedEvent({ actor, receipt, attendanceContext });
@@ -101,6 +131,8 @@ function createAttendanceApiContractService({
   return {
     assessReadiness,
     beginVerification,
+    verifyDeviceProof,
+    verifyLiveFace,
     acceptVerifiedEvent
   };
 }

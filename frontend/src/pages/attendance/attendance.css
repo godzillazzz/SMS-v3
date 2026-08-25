@@ -134,3 +134,40 @@
   .attendance-qr-dialog footer { flex: 0 0 auto; margin-top: 8px; }
   .attendance-qr-dialog footer .btn-neutral { width: 100%; min-height: 44px; justify-content: center; padding: 8px 12px; }
 }
+
+
+/* G06 transient front-camera face capture — memory only, no gallery/storage. */
+.attendance-face-backdrop { position: fixed; inset: 0; z-index: 2250; display: grid; place-items: center; width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); overflow: auto; background: color-mix(in srgb, #020611 88%, transparent); }
+.attendance-face-dialog { box-sizing: border-box; display: grid; width: min(560px, 100%); max-height: 100%; gap: 12px; overflow: auto; border: 1px solid var(--color-border); border-radius: 20px; padding: 16px; background: var(--color-surface); box-shadow: var(--shadow-lg); }
+.attendance-face-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.attendance-face-dialog > header > div { min-width: 0; }
+.attendance-face-dialog > header p { margin: 0 0 3px; color: var(--color-primary); font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+.attendance-face-dialog > header h2 { margin: 0; color: var(--color-text); font-size: 19px; }
+.attendance-face-dialog > header span { display: block; margin-top: 5px; color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }
+.attendance-face-camera { position: relative; min-height: min(58dvh, 460px); overflow: hidden; border: 1px solid var(--color-border); border-radius: 16px; background: #050914; }
+.attendance-face-camera video,
+.attendance-face-camera img { display: block; width: 100%; height: 100%; min-height: min(58dvh, 460px); object-fit: cover; background: #050914; -webkit-transform: translateZ(0); transform: translateZ(0); }
+.attendance-face-camera video { transform: scaleX(-1) translateZ(0); }
+.attendance-face-canvas { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.attendance-face-guide { position: absolute; inset: 14% 20%; border: 2px solid rgba(255,255,255,.68); border-radius: 48% 48% 44% 44%; box-shadow: 0 0 0 999px rgba(1,4,10,.18); pointer-events: none; }
+.attendance-face-guide span { position: absolute; left: 50%; bottom: 8%; width: 38%; height: 2px; transform: translateX(-50%); background: rgba(255,255,255,.7); }
+.attendance-face-status { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 8px; color: #fff; background: rgba(4,8,18,.65); font-size: 11px; }
+.attendance-face-error { margin: 0; }
+.attendance-face-privacy { display: flex; align-items: flex-start; gap: 8px; border-radius: 12px; padding: 10px 11px; color: var(--color-text-muted); background: var(--color-surface-muted); font-size: 10px; line-height: 1.5; }
+.attendance-face-privacy svg { flex: 0 0 auto; color: var(--color-primary); }
+.attendance-face-dialog footer { display: flex; justify-content: flex-end; gap: 8px; }
+.attendance-face-dialog footer button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; }
+.attendance-face-gate.is-success { border-color: color-mix(in srgb, var(--color-success) 32%, var(--color-border)); background: color-mix(in srgb, var(--color-success) 6%, var(--color-surface)); }
+.attendance-face-gate.is-success .attendance-face-gate__icon { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface)); }
+.attendance-face-gate small { display: block; margin-top: 5px; color: var(--color-text-muted); font-size: 9px; line-height: 1.45; }
+.attendance-face-success-badge { flex: 0 0 auto; border: 1px solid color-mix(in srgb, var(--color-success) 40%, var(--color-border)); border-radius: 999px; padding: 7px 10px; color: var(--color-success); background: var(--color-surface); font-size: 10px; font-weight: 750; }
+
+@media (max-width: 640px) {
+  .attendance-face-backdrop { place-items: stretch; padding: 0; }
+  .attendance-face-dialog { width: 100dvw; height: 100dvh; max-height: none; align-content: start; border: 0; border-radius: 0; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  .attendance-face-camera { min-height: 0; height: min(58dvh, 500px); border-radius: 14px; }
+  .attendance-face-camera video,
+  .attendance-face-camera img { min-height: 0; height: 100%; }
+  .attendance-face-dialog footer { margin-top: auto; }
+  .attendance-face-dialog footer button { flex: 1 1 0; min-height: 44px; }
+}
