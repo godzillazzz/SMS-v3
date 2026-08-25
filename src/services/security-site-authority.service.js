@@ -75,7 +75,10 @@ function createSecuritySiteAuthorityService({ prisma = prismaDefault } = {}) {
       return {
         site,
         siteId: site.id,
-        source: snapshot.source || SITE_AUTHORITY_SOURCES.DEPARTMENT_DEFAULT,
+        // Department-default sessions always persist their authority marker in the expectation snapshot.
+        // A missing marker is therefore the legacy/current explicit Schedule snapshot shape and must
+        // remain Schedule authority; defaulting it to DEPARTMENT_DEFAULT would mutate the digest.
+        source: snapshot.source || SITE_AUTHORITY_SOURCES.SCHEDULE,
         departmentName: snapshot.departmentName || departmentName(assignment.departmentSnapshot || employee?.department),
         pinnedBySession: true
       };
