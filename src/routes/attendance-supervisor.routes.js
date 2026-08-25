@@ -20,16 +20,16 @@ const filtersSchema = z.object({
 }).strict();
 
 function attendanceSupervisorApiEnabled(environment = process.env) {
-  if (environment.VERCEL_ENV === 'production') return false;
+  if (environment.VERCEL_ENV === 'production') return environment.ATTENDANCE_API_PRODUCTION_ENABLED === 'true';
   return environment.VERCEL_ENV === 'preview' && environment.ATTENDANCE_API_PREVIEW_ENABLED === 'true';
 }
 
-function requirePreviewAttendance(_req, _res, next) {
+function requireAttendanceApi(_req, _res, next) {
   if (attendanceSupervisorApiEnabled()) return next();
   return next(new HttpError(404, 'Not found.'));
 }
 
-router.use(requirePreviewAttendance, authenticate, authorize('ADMIN', 'MANAGER'));
+router.use(requireAttendanceApi, authenticate, authorize('ADMIN', 'MANAGER'));
 
 router.get('/daily', async (req, res, next) => {
   try {
