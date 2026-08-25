@@ -17,6 +17,7 @@ import {
 } from './attendance-client';
 import { signAttendanceDeviceChallenge } from '../../lib/attendance-device-key';
 import { AttendanceFaceCapture } from './AttendanceFaceCapture';
+import { AttendanceFaceChallengeUatPanel } from './AttendanceFaceChallengeUatPanel';
 import { AttendanceQrScanner } from './AttendanceQrScanner';
 import './attendance.css';
 
@@ -621,5 +622,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
           ? <button type="button" className="btn-primary" disabled={interactionDisabled || verificationBusy} onClick={() => setFaceCaptureOpen(true)}>เปิดกล้องหน้าอีกครั้ง</button>
           : <button type="button" className="btn-primary" disabled>รอ Server readiness</button>}
     </section>
+
+    <AttendanceFaceChallengeUatPanel token={token} online={online} readOnly={readOnly} />
   </section>;
 }

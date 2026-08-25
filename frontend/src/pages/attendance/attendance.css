@@ -177,3 +177,42 @@
 .attendance-face-challenge small { display: block; color: var(--color-text-muted); font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .attendance-face-challenge strong { display: block; margin-top: 2px; color: var(--color-text); font-size: 15px; }
 .attendance-face-challenge p { margin: 3px 0 0; color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }
+
+
+/* Preview-only Active Challenge rehearsal. This surface never represents Face or Attendance authority. */
+.attendance-uat-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px dashed var(--border-strong, #9ca3af);
+  border-radius: 16px;
+  background: var(--surface-soft, #f8fafc);
+}
+.attendance-uat-card > header { display: flex; gap: 12px; align-items: flex-start; }
+.attendance-uat-card > header h2 { margin: 2px 0 4px; }
+.attendance-uat-card > header p { margin: 0; }
+.attendance-uat-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  flex: 0 0 auto;
+}
+.attendance-uat-boundary,
+.attendance-uat-success {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.attendance-uat-card > footer { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 540px) {
+  .attendance-uat-card { padding: 14px; }
+  .attendance-uat-card > footer { display: grid; grid-template-columns: 1fr; }
+  .attendance-uat-card > footer > button { width: 100%; }
+}

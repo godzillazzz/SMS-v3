@@ -7,6 +7,7 @@ const page = read('./pages/attendance/AttendancePage.tsx');
 const client = read('./pages/attendance/attendance-client.ts');
 const scanner = read('./pages/attendance/AttendanceQrScanner.tsx');
 const faceCapture = read('./pages/attendance/AttendanceFaceCapture.tsx');
+const faceUat = read('./pages/attendance/AttendanceFaceChallengeUatPanel.tsx');
 const css = read('./pages/attendance/attendance.css');
 
 describe('G06 Attendance frontend UX skeleton', () => {
@@ -143,6 +144,35 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).not.toContain('fetch(');
     expect(css).toContain('.attendance-face-backdrop');
     expect(css).toContain('.attendance-face-camera video');
+  });
+
+  it('keeps the physical Active Challenge rehearsal Preview-only and permanently non-authoritative', () => {
+    expect(page).toContain('<AttendanceFaceChallengeUatPanel token={token} online={online} readOnly={readOnly} />');
+    expect(faceUat).toContain("import.meta.env.VITE_G06_FACE_CHALLENGE_UAT === 'true'");
+    expect(faceUat).toContain('if (!FACE_CHALLENGE_UAT_ENABLED) return null');
+    expect(faceUat).toContain('attendanceFaceChallengeUatStart(token)');
+    expect(faceUat).toContain('attendanceFaceChallengeUatCapture(token, attempt.attemptId, photo, challengeFrames)');
+    expect(faceUat).toContain('rehearsalOnly');
+    expect(faceUat).toContain('started.verifierCalled !== false');
+    expect(faceUat).toContain('started.verificationAccepted !== false');
+    expect(faceUat).toContain('started.attendanceAccepted !== false');
+    expect(faceUat).toContain('result.verifierCalled !== false');
+    expect(faceUat).toContain('result.verificationAccepted !== false');
+    expect(faceUat).toContain('result.attendanceAccepted !== false');
+    expect(faceUat).toContain('result.receipt !== null');
+    expect(faceUat).toContain('result.retained !== false');
+    expect(faceUat).toContain('ไม่เรียก Face Verifier');
+    expect(faceUat).toContain('ไม่สร้าง AttendanceEvent');
+    expect(client).toContain('/attendance/uat/face-challenge/start');
+    expect(client).toContain('/attendance/uat/face-challenge/');
+    expect(faceUat).not.toContain('/attendance/events');
+    expect(faceUat).not.toContain('faceMatchPassed');
+    expect(faceUat).not.toContain('activeChallengePassed');
+    expect(faceUat).not.toContain('localStorage.');
+    expect(faceUat).not.toContain('sessionStorage.');
+    expect(faceUat).not.toContain('indexedDB.');
+    expect(faceCapture).toContain('rehearsalOnly?: boolean');
+    expect(faceCapture).toContain('UAT นี้ไม่มี Face PASS และไม่มี Attendance PASS');
   });
 
   it('uses one-shot high-accuracy geolocation without continuous tracking or local persistence', () => {

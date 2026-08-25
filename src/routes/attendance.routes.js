@@ -7,6 +7,7 @@ const HttpError = require('../utils/http-error');
 const { createAttendanceApiContractService } = require('../services/attendance-api-contract.service');
 const { MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE } = require('../services/attendance-face-verification.service');
 const { ACTIVE_FACE_CHALLENGE_FRAME_COUNT } = require('../services/active-face-challenge.service');
+const { createAttendanceFaceChallengeUatService } = require('../services/attendance-face-challenge-uat.service');
 
 const uuid = z.string().uuid();
 const decimal = z.union([
@@ -81,6 +82,11 @@ function attendanceBiometricRuntimeEnabled(environment = process.env) {
   return selfHostedFaceRuntimeConfigured(environment);
 }
 
+function attendanceFaceChallengeUatEnabled(environment = process.env) {
+  if (environment.VERCEL_ENV === 'production') return false;
+  return environment.VERCEL_ENV === 'preview' && environment.G06_FACE_CHALLENGE_UAT_PREVIEW_ENABLED === 'true';
+}
+
 function defaultAuthenticate(req, res, next) {
   return require('../middlewares/authenticate').authenticate(req, res, next);
 }
@@ -88,16 +94,41 @@ function defaultAuthenticate(req, res, next) {
 function createAttendanceRoutes({
   environment = process.env,
   authenticateMiddleware = defaultAuthenticate,
-  contractService = null
+  contractService = null,
+  faceChallengeUatService = null
 } = {}) {
   const router = express.Router();
   const service = contractService || createAttendanceApiContractService({
     isBiometricRuntimeEnabled: () => attendanceBiometricRuntimeEnabled(environment)
   });
+  const uatService = faceChallengeUatService || createAttendanceFaceChallengeUatService();
 
   function requirePreviewAttendance(_req, _res, next) {
     return attendanceApiEnabled(environment) ? next() : next(new HttpError(404, 'Not found.'));
   }
+
+  function requireFaceChallengeUat(_req, _res, next) {
+    return attendanceFaceChallengeUatEnabled(environment) ? next() : next(new HttpError(404, 'Not found.'));
+  }
+
+  router.post('/uat/face-challenge/start', requireFaceChallengeUat, authenticateMiddleware, async (req, res, next) => {
+    try {
+      z.object({}).strict().parse(req.body || {});
+      res.status(201).json({ data: uatService.start() });
+    } catch (error) { next(error); }
+  });
+
+  router.post('/uat/face-challenge/:id/capture', requireFaceChallengeUat, authenticateMiddleware, faceCaptureUpload, async (req, res, next) => {
+    try {
+      if (Object.keys(req.body || {}).length !== 0) throw new HttpError(400, 'Unexpected UAT capture fields.', { code: 'FACE_CHALLENGE_UAT_CAPTURE_INVALID' });
+      const photoFiles = Array.isArray(req.files?.photo) ? req.files.photo : [];
+      const challengeFrameFiles = Array.isArray(req.files?.challengeFrame) ? req.files.challengeFrame : [];
+      if (photoFiles.length !== 1 || challengeFrameFiles.length !== ACTIVE_FACE_CHALLENGE_FRAME_COUNT) {
+        throw new HttpError(400, 'UAT face capture is incomplete.', { code: 'FACE_CHALLENGE_UAT_CAPTURE_INVALID' });
+      }
+      res.json({ data: uatService.acceptCapture({ attemptId: uuid.parse(req.params.id), livePhotoFile: photoFiles[0], challengeFrameFiles }) });
+    } catch (error) { next(error); }
+  });
 
   router.use(requirePreviewAttendance, authenticateMiddleware);
 
@@ -151,6 +182,7 @@ module.exports = {
   attendanceApiEnabled,
   selfHostedFaceRuntimeConfigured,
   attendanceBiometricRuntimeEnabled,
+  attendanceFaceChallengeUatEnabled,
   createAttendanceRoutes,
   prepareInput,
   deviceProofInput,

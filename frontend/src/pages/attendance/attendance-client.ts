@@ -82,6 +82,29 @@ export type AttendanceAcceptedData = {
   readiness?: AttendanceReadinessState;
 };
 
+export type AttendanceFaceChallengeUatStartData = {
+  ok: true;
+  uatOnly: true;
+  attemptId: string;
+  activeChallenge: AttendanceActiveChallenge;
+  verifierCalled: false;
+  verificationAccepted: false;
+  attendanceAccepted: false;
+  retained: false;
+};
+
+export type AttendanceFaceChallengeUatCaptureData = {
+  ok: true;
+  uatOnly: true;
+  captureReceived: true;
+  activeChallenge: AttendanceActiveChallenge;
+  verifierCalled: false;
+  verificationAccepted: false;
+  attendanceAccepted: false;
+  receipt: null;
+  retained: false;
+};
+
 const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 function csrfToken() {
@@ -252,6 +275,40 @@ export async function attendanceFaceMatch(token: string, sessionId: string, phot
     throw new AttendanceFlowError(message, response.status, requestId, response.status === 404 ? 'FACE_VERIFIER_UNAVAILABLE' : undefined);
   }
   return payload.data as AttendanceFaceVerificationData;
+}
+
+export async function attendanceFaceChallengeUatStart(token: string): Promise<AttendanceFaceChallengeUatStartData> {
+  const response = await fetch(`${baseUrl}/attendance/uat/face-challenge/start`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(token, true),
+    body: JSON.stringify({})
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) {
+    const message = response.status === 404
+      ? 'โหมดทดสอบ Active Challenge ยังไม่เปิดใน Preview นี้'
+      : publicError(payload, response.status, 'ไม่สามารถเริ่ม Active Challenge UAT ได้');
+    throw new AttendanceFlowError(message, response.status, requestId, response.status === 404 ? 'FACE_CHALLENGE_UAT_UNAVAILABLE' : undefined);
+  }
+  return payload.data as AttendanceFaceChallengeUatStartData;
+}
+
+export async function attendanceFaceChallengeUatCapture(token: string, attemptId: string, photo: Blob, challengeFrames: Blob[]): Promise<AttendanceFaceChallengeUatCaptureData> {
+  const form = new FormData();
+  form.append('photo', photo, 'uat-live-face.jpg');
+  challengeFrames.forEach((frame, index) => form.append('challengeFrame', frame, `uat-challenge-${index + 1}.jpg`));
+  const response = await fetch(`${baseUrl}/attendance/uat/face-challenge/${encodeURIComponent(attemptId)}/capture`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(token),
+    body: form
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถส่งชุดภาพ Active Challenge UAT ได้'), response.status, requestId);
+  return payload.data as AttendanceFaceChallengeUatCaptureData;
 }
 
 export async function attendanceAcceptVerifiedEvent(token: string, input: {
