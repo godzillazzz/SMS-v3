@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
+import { SecuritySiteManagementPanel } from '../../components/SecuritySiteManagementPanel';
 import {
   AttendanceFlowError,
   attendanceFaceChallengeUatCapture,
@@ -28,7 +29,7 @@ export function AttendanceFaceChallengeUatPanel({ token, online, readOnly }: Pro
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
 
-  if (!FACE_CHALLENGE_UAT_ENABLED) return null;
+  if (!FACE_CHALLENGE_UAT_ENABLED) return <SecuritySiteManagementPanel token={token} />;
 
   const blocked = readOnly || !online || busy;
 
@@ -103,47 +104,50 @@ export function AttendanceFaceChallengeUatPanel({ token, online, readOnly }: Pro
     }
   };
 
-  return <section className="attendance-uat-card" aria-label="Active Challenge Preview UAT">
-    <AttendanceFaceCapture
-      open={cameraOpen && online && !readOnly}
-      busy={busy}
-      challenge={attempt?.activeChallenge || null}
-      rehearsalOnly
-      onConfirm={submitCapture}
-      onClose={() => {
-        if (busy) return;
-        setCameraOpen(false);
-        setAttempt(null);
-      }}
-    />
+  return <>
+    <section className="attendance-uat-card" aria-label="Active Challenge Preview UAT">
+      <AttendanceFaceCapture
+        open={cameraOpen && online && !readOnly}
+        busy={busy}
+        challenge={attempt?.activeChallenge || null}
+        rehearsalOnly
+        onConfirm={submitCapture}
+        onClose={() => {
+          if (busy) return;
+          setCameraOpen(false);
+          setAttempt(null);
+        }}
+      />
 
-    <header>
-      <span className="attendance-uat-card__icon"><SmsIcon name="quality" size={21} /></span>
-      <div>
-        <p className="eyebrow">PREVIEW UAT · NO FACE PASS · NO ATTENDANCE WRITE</p>
-        <h2>ทดสอบกล้องหน้า + Active Challenge</h2>
-        <p>ใช้ตรวจการเปิดกล้องหน้า คำสั่งสุ่มจาก Server การเก็บ 4 เฟรม + final still และ lifecycle clearing บนอุปกรณ์จริงเท่านั้น</p>
+      <header>
+        <span className="attendance-uat-card__icon"><SmsIcon name="quality" size={21} /></span>
+        <div>
+          <p className="eyebrow">PREVIEW UAT · NO FACE PASS · NO ATTENDANCE WRITE</p>
+          <h2>ทดสอบกล้องหน้า + Active Challenge</h2>
+          <p>ใช้ตรวจการเปิดกล้องหน้า คำสั่งสุ่มจาก Server การเก็บ 4 เฟรม + final still และ lifecycle clearing บนอุปกรณ์จริงเท่านั้น</p>
+        </div>
+      </header>
+
+      <div className="attendance-uat-boundary">
+        <SmsIcon name="shield" size={18} />
+        <span>โหมดนี้ไม่เรียก Face Verifier, ไม่เทียบ Reference Photo, ไม่ออก verification receipt และไม่สร้าง AttendanceEvent ภาพอยู่ชั่วคราวใน RAM และ Server zero/ทิ้ง buffer หลังรับคำขอ</span>
       </div>
-    </header>
 
-    <div className="attendance-uat-boundary">
-      <SmsIcon name="shield" size={18} />
-      <span>โหมดนี้ไม่เรียก Face Verifier, ไม่เทียบ Reference Photo, ไม่ออก verification receipt และไม่สร้าง AttendanceEvent ภาพอยู่ชั่วคราวใน RAM และ Server zero/ทิ้ง buffer หลังรับคำขอ</span>
-    </div>
+      {!online && <div className="alert alert-error">ออฟไลน์ — Active Challenge UAT ต้องเชื่อมต่อ Preview Server</div>}
+      {readOnly && <div className="settings-notice">View As เป็น read-only — ไม่อนุญาตให้เปิดกล้อง UAT แทนผู้ใช้งาน</div>}
+      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {message && <div className="attendance-uat-success" role="status"><SmsIcon name="check" size={18} /><span>{message}</span></div>}
 
-    {!online && <div className="alert alert-error">ออฟไลน์ — Active Challenge UAT ต้องเชื่อมต่อ Preview Server</div>}
-    {readOnly && <div className="settings-notice">View As เป็น read-only — ไม่อนุญาตให้เปิดกล้อง UAT แทนผู้ใช้งาน</div>}
-    {error && <div className="alert alert-error" role="alert">{error}</div>}
-    {message && <div className="attendance-uat-success" role="status"><SmsIcon name="check" size={18} /><span>{message}</span></div>}
-
-    <footer>
-      {attempt && !cameraOpen
-        ? <button type="button" className="btn-neutral" disabled={blocked} onClick={() => setCameraOpen(true)}>เปิดกล้อง UAT อีกครั้ง</button>
-        : null}
-      <button type="button" className="btn-primary" disabled={blocked} onClick={() => void startUat()}>
-        <SmsIcon name="quality" size={17} />{busy ? 'กำลังเตรียม UAT…' : 'เริ่มทดสอบ Active Challenge'}
-      </button>
-      {(attempt || message || error) && <button type="button" className="btn-neutral" disabled={busy} onClick={resetAttempt}>ล้างผล UAT</button>}
-    </footer>
-  </section>;
+      <footer>
+        {attempt && !cameraOpen
+          ? <button type="button" className="btn-neutral" disabled={blocked} onClick={() => setCameraOpen(true)}>เปิดกล้อง UAT อีกครั้ง</button>
+          : null}
+        <button type="button" className="btn-primary" disabled={blocked} onClick={() => void startUat()}>
+          <SmsIcon name="quality" size={17} />{busy ? 'กำลังเตรียม UAT…' : 'เริ่มทดสอบ Active Challenge'}
+        </button>
+        {(attempt || message || error) && <button type="button" className="btn-neutral" disabled={busy} onClick={resetAttempt}>ล้างผล UAT</button>}
+      </footer>
+    </section>
+    <SecuritySiteManagementPanel token={token} />
+  </>;
 }
