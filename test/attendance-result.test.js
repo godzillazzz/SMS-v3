@@ -36,13 +36,14 @@ test('NIGHT boundaries end on the next Bangkok calendar day', () => {
   assert.equal(window.overnight, true);
 });
 
-test('no grace period: exact start is ON_TIME and one second late is LATE', () => {
+test('no grace period: exact start is ON_TIME and one second late is LATE with one late minute', () => {
   const exact = classifyAttendanceDay({
     assignment: assignment(),
     events: [event('CHECK_IN', '2026-08-25T00:00:00.000Z')],
     asOf: new Date('2026-08-25T01:00:00.000Z')
   });
   assert.deepEqual(exact.flags, [ATTENDANCE_RESULT_FLAGS.ON_TIME]);
+  assert.equal(exact.lateMinutes, 0);
 
   const late = classifyAttendanceDay({
     assignment: assignment(),
@@ -50,9 +51,10 @@ test('no grace period: exact start is ON_TIME and one second late is LATE', () =
     asOf: new Date('2026-08-25T01:00:00.000Z')
   });
   assert.deepEqual(late.flags, [ATTENDANCE_RESULT_FLAGS.LATE]);
+  assert.equal(late.lateMinutes, 1);
 });
 
-test('no early-out grace: checkout one second before expected end is EARLY_OUT', () => {
+test('no early-out grace: checkout one second before expected end is EARLY_OUT with one minute', () => {
   const result = classifyAttendanceDay({
     assignment: assignment(),
     events: [
@@ -64,6 +66,7 @@ test('no early-out grace: checkout one second before expected end is EARLY_OUT',
   assert.equal(result.status, 'COMPLETE');
   assert.deepEqual(result.flags, [ATTENDANCE_RESULT_FLAGS.ON_TIME, ATTENDANCE_RESULT_FLAGS.EARLY_OUT]);
   assert.equal(result.workedMinutes, 719);
+  assert.equal(result.earlyOutMinutes, 1);
 });
 
 test('checkout at expected end is not EARLY_OUT', () => {
@@ -77,18 +80,25 @@ test('checkout at expected end is not EARLY_OUT', () => {
   });
   assert.deepEqual(result.flags, [ATTENDANCE_RESULT_FLAGS.ON_TIME]);
   assert.equal(result.workedMinutes, 720);
+  assert.equal(result.earlyOutMinutes, 0);
 });
 
-test('missing checkout never fabricates checkout time or worked minutes', () => {
+test('missing checkout never fabricates checkout/worked time and is TIME_ABNORMAL', () => {
   const result = classifyAttendanceDay({
     assignment: assignment(),
     events: [event('CHECK_IN', '2026-08-25T00:05:00.000Z')],
     asOf: new Date('2026-08-25T12:00:00.000Z')
   });
   assert.equal(result.status, 'IN_PROGRESS');
-  assert.deepEqual(result.flags, [ATTENDANCE_RESULT_FLAGS.LATE, ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_OUT]);
+  assert.deepEqual(result.flags, [
+    ATTENDANCE_RESULT_FLAGS.LATE,
+    ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_OUT,
+    ATTENDANCE_RESULT_FLAGS.TIME_ABNORMAL
+  ]);
   assert.equal(result.checkOutAt, null);
   assert.equal(result.workedMinutes, null);
+  assert.equal(result.lateMinutes, 5);
+  assert.equal(result.earlyOutMinutes, null);
 });
 
 test('no check-in after shift end is ABSENT plus MISSING_CHECK_IN without invented time', () => {
@@ -102,6 +112,8 @@ test('no check-in after shift end is ABSENT plus MISSING_CHECK_IN without invent
   assert.equal(result.checkInAt, null);
   assert.equal(result.checkOutAt, null);
   assert.equal(result.workedMinutes, null);
+  assert.equal(result.lateMinutes, null);
+  assert.equal(result.earlyOutMinutes, null);
 });
 
 test('approved leave wins over absence evaluation', () => {
@@ -113,6 +125,8 @@ test('approved leave wins over absence evaluation', () => {
   });
   assert.equal(result.status, 'LEAVE');
   assert.deepEqual(result.flags, [ATTENDANCE_RESULT_FLAGS.LEAVE]);
+  assert.equal(result.lateMinutes, null);
+  assert.equal(result.earlyOutMinutes, null);
 });
 
 test('AL schedule is LEAVE even when leave shift has no clock times', () => {
@@ -146,4 +160,23 @@ test('impossible checkout before check-in is TIME_ABNORMAL and worked time remai
   });
   assert.ok(result.flags.includes(ATTENDANCE_RESULT_FLAGS.TIME_ABNORMAL));
   assert.equal(result.workedMinutes, null);
+});
+
+test('required Attendance V1 result flag vocabulary is exposed centrally', () => {
+  assert.deepEqual(new Set(Object.values(ATTENDANCE_RESULT_FLAGS)), new Set([
+    'ON_TIME',
+    'LATE',
+    'EARLY_OUT',
+    'ABSENT',
+    'LEAVE',
+    'ASSIST_OTHER_SITE',
+    'WRONG_SHIFT',
+    'MISSING_CHECK_IN',
+    'MISSING_CHECK_OUT',
+    'TIME_ABNORMAL',
+    'OUTSIDE_ALL_SITES',
+    'CORRECTED',
+    'LOCATION_RISK',
+    'PHOTO_RISK'
+  ]));
 });
