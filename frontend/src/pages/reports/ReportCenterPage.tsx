@@ -9,6 +9,7 @@ import {
   type ExecutiveReport,
   type ExecutiveReportFilters
 } from '../executive-report/ExecutiveReportCenterPage';
+import { AttendanceOfficialReportPanel } from './AttendanceOfficialReport';
 import '../../styles/report-center.css';
 
 type ReportTab = 'executive' | 'details' | 'export';
@@ -51,6 +52,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
   const years = useMemo(() => Array.from({ length: 4 }, (_, index) => current.year - index), [current.year]);
   const departmentOptions = executiveReport?.scope.availableDepartments || [];
   const pdfFilename = printableFilename(executiveReport, filters.department);
+  const attendanceMonth = `${filters.year}-${String(filters.month).padStart(2, '0')}`;
 
   useEffect(() => {
     setSummary(undefined);
@@ -94,6 +96,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
         {role === 'ADMIN' && <label><span>หน่วยงาน</span><select value={filters.department} onChange={(event) => setFilters((value) => ({ ...value, department: event.target.value }))}><option value="">ทุกหน่วยงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}
       </div>
       {activeTab === 'details' && <p className="report-center-filter-note">รายงานรายละเอียดใช้ยอดรวมปัจจุบันจาก API เดิม และไม่ส่งตัวกรองช่วงเวลา/หน่วยงานที่ backend ยังไม่รองรับ</p>}
+      {activeTab === 'export' && role === 'ADMIN' && <p className="report-center-filter-note">Official Attendance Report ใช้เดือน/ปีที่เลือกและ Certified Snapshot ทั้งองค์กร ไม่ใช้ตัวกรองหน่วยงานของ Executive Report</p>}
     </section>
 
     <div className="report-center-tabs" role="tablist" aria-label="ประเภทรายงาน">
@@ -118,6 +121,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
       <section className="report-center-section-heading"><div><p className="eyebrow">ADVANCED EXPORT</p><h2>Export</h2><p>รวมเฉพาะรูปแบบส่งออกที่ระบบรองรับจริงในปัจจุบัน</p></div></section>
       <div className="report-center-export-grid">
         <article className="report-center-export-card"><div className="report-center-export-icon">PDF</div><div><h3>รายงานผู้บริหาร PDF</h3><p>ใช้ข้อมูลและตัวกรองเดียวกับแท็บภาพรวมผู้บริหาร พร้อมรูปแบบเอกสาร A4 ที่มีอยู่เดิม</p><small>รูปแบบที่รองรับ: PDF</small></div><button type="button" className="btn-primary" disabled={!executiveReport} onClick={exportPdf}>ส่งออก PDF</button></article>
+        {role === 'ADMIN' && <AttendanceOfficialReportPanel token={token} month={attendanceMonth} enabled={activeTab === 'export'} />}
       </div>
       {!executiveReport && <div className="report-center-state" role="status"><strong>กำลังเตรียมข้อมูลสำหรับส่งออก</strong><span>รอข้อมูล Executive Report จาก API เดิม</span></div>}
     </div>
