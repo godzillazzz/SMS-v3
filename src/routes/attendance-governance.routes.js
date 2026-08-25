@@ -6,10 +6,12 @@ const HttpError = require('../utils/http-error');
 const { authenticate } = require('../middlewares/authenticate');
 const { createAttendanceCorrectionService } = require('../services/attendance-correction.service');
 const { createAttendanceMonthGovernanceService } = require('../services/attendance-month-governance.service');
+const { createAttendanceReportService } = require('../services/attendance-report.service');
 
 const router = express.Router();
 const corrections = createAttendanceCorrectionService();
 const months = createAttendanceMonthGovernanceService();
+const reports = createAttendanceReportService();
 const uuid = z.string().uuid();
 const month = z.string().regex(/^\d{4}-\d{2}$/);
 const correctionInput = z.object({
@@ -63,6 +65,25 @@ router.get('/months/:month/preview', requireAdmin, async (req, res, next) => {
 router.get('/months/:month/certifications', requireAdmin, async (req, res, next) => {
   try { res.json({ data: await months.certificationHistory(month.parse(req.params.month)) }); }
   catch (error) { next(error); }
+});
+
+router.get('/months/:month/report', requireAdmin, async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await reports.official({ actor: req.user, month: month.parse(req.params.month) }) });
+  } catch (error) { next(error); }
+});
+
+router.get('/months/:month/report.xlsx', requireAdmin, async (req, res, next) => {
+  try {
+    const report = await reports.workbook({ actor: req.user, month: month.parse(req.params.month) });
+    res.set({
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(report.fileName)}`
+    });
+    res.send(report.buffer);
+  } catch (error) { next(error); }
 });
 
 router.post('/months/:month/certify', requireAdmin, async (req, res, next) => {
