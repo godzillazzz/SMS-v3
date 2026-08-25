@@ -65,7 +65,20 @@ jobs:
       - run: npm run db:seed
       - run: node scripts/ci/prisma-migration.js status
       - run: npm test
-      - run: npm run test:integration
+      - name: Run backend integration tests
+        id: backend-integration
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:integration 2>&1 | tee backend-integration.log
+      - name: Upload backend integration failure diagnostics
+        if: failure() && steps.backend-integration.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-integration-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: backend-integration.log
+          if-no-files-found: error
+          retention-days: 3
       - run: npm --prefix frontend test
       - run: npx tsc --noEmit
         working-directory: frontend
