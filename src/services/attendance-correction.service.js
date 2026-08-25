@@ -35,13 +35,13 @@ function correctionReason(value) {
   return reason;
 }
 
-function assertCorrectionActor(actor, session) {
+function assertCorrectionActor(actor, assignment) {
   const role = String(actor?.role || '').toUpperCase();
   if (!['ADMIN', 'MANAGER'].includes(role)) throw http(403, 'ATTENDANCE_CORRECTION_FORBIDDEN', 'Attendance correction requires Manager or Admin authority.');
   if (role === 'MANAGER') {
     const actorDepartment = String(actor?.department || '').trim();
-    const sessionDepartment = String(session?.shiftAssignment?.departmentSnapshot || session?.employee?.department || '').trim();
-    if (!actorDepartment || !sessionDepartment || actorDepartment !== sessionDepartment) {
+    const assignmentDepartment = String(assignment?.departmentSnapshot || assignment?.employee?.department || '').trim();
+    if (!actorDepartment || !assignmentDepartment || actorDepartment !== assignmentDepartment) {
       throw http(403, 'ATTENDANCE_CORRECTION_SCOPE_FORBIDDEN', 'Manager may correct Attendance only for their own Department.');
     }
   }
@@ -58,11 +58,34 @@ async function currentMonthCertification(client, workDate) {
   return rows[0] || null;
 }
 
+async function currentCorrectionsForAssignments(client, assignmentIds) {
+  if (!Array.isArray(assignmentIds) || assignmentIds.length === 0) return [];
+  return client.$queryRaw(Prisma.sql`
+    SELECT
+      id,
+      shift_assignment_id AS "shiftAssignmentId",
+      attendance_session_id AS "attendanceSessionId",
+      event_type::text AS "eventType",
+      original_event_id AS "originalEventId",
+      original_effective_event_at AS "originalEffectiveEventAt",
+      corrected_effective_event_at AS "correctedEffectiveEventAt",
+      reason,
+      actor_user_id AS "actorUserId",
+      actor_role_snapshot AS "actorRoleSnapshot",
+      created_at AS "createdAt"
+    FROM attendance_corrections
+    WHERE shift_assignment_id IN (${Prisma.join(assignmentIds.map((id) => Prisma.sql`${id}::uuid`))})
+      AND is_current = TRUE
+    ORDER BY shift_assignment_id, event_type
+  `);
+}
+
 async function currentCorrectionsForSessions(client, sessionIds) {
   if (!Array.isArray(sessionIds) || sessionIds.length === 0) return [];
   return client.$queryRaw(Prisma.sql`
     SELECT
       id,
+      shift_assignment_id AS "shiftAssignmentId",
       attendance_session_id AS "attendanceSessionId",
       event_type::text AS "eventType",
       original_event_id AS "originalEventId",
@@ -107,25 +130,25 @@ function applyCurrentCorrections(events = [], corrections = []) {
 }
 
 function createAttendanceCorrectionService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date() } = {}) {
-  async function loadSession(client, sessionId) {
-    const session = await client.attendanceSession.findUnique({
-      where: { id: sessionId },
+  async function loadAssignment(client, assignmentId) {
+    const assignment = await client.shiftAssignment.findUnique({
+      where: { id: assignmentId },
       include: {
         employee: { select: { id: true, department: true } },
-        shiftAssignment: { select: { id: true, departmentSnapshot: true, workDate: true } },
-        events: { orderBy: { effectiveEventAt: 'asc' } }
+        attendanceSession: { include: { events: { orderBy: { effectiveEventAt: 'asc' } } } }
       }
     });
-    if (!session) throw http(404, 'ATTENDANCE_SESSION_NOT_FOUND', 'Attendance session was not found.');
-    return session;
+    if (!assignment) throw http(404, 'ATTENDANCE_ASSIGNMENT_NOT_FOUND', 'Shift Assignment was not found.');
+    return assignment;
   }
 
-  async function list({ actor, sessionId } = {}, client = prisma) {
-    const session = await loadSession(client, sessionId);
-    assertCorrectionActor(actor, session);
+  async function list({ actor, assignmentId } = {}, client = prisma) {
+    const assignment = await loadAssignment(client, assignmentId);
+    assertCorrectionActor(actor, assignment);
     return client.$queryRaw(Prisma.sql`
       SELECT
         id,
+        shift_assignment_id AS "shiftAssignmentId",
         attendance_session_id AS "attendanceSessionId",
         event_type::text AS "eventType",
         original_event_id AS "originalEventId",
@@ -138,37 +161,39 @@ function createAttendanceCorrectionService({ prisma = prismaDefault, audit = aud
         superseded_at AS "supersededAt",
         created_at AS "createdAt"
       FROM attendance_corrections
-      WHERE attendance_session_id = ${session.id}::uuid
+      WHERE shift_assignment_id = ${assignment.id}::uuid
       ORDER BY created_at ASC, id ASC
     `);
   }
 
-  async function correct({ actor, sessionId, eventType, correctedEffectiveEventAt, reason } = {}) {
+  async function correct({ actor, assignmentId, eventType, correctedEffectiveEventAt, reason } = {}) {
     const type = normalizedEventType(eventType);
     const correctedAt = correctedTime(correctedEffectiveEventAt);
     const normalizedReason = correctionReason(reason);
     const now = clock();
 
     return prisma.$transaction(async (tx) => {
-      const session = await loadSession(tx, sessionId);
-      const role = assertCorrectionActor(actor, session);
-      const certification = await currentMonthCertification(tx, session.workDate);
+      const assignment = await loadAssignment(tx, assignmentId);
+      const role = assertCorrectionActor(actor, assignment);
+      const certification = await currentMonthCertification(tx, assignment.workDate);
       if (certification) throw http(409, 'ATTENDANCE_MONTH_CERTIFIED', 'Certified Attendance month must be unlocked before correction.');
 
-      const original = session.events.find((row) => row.eventType === type) || null;
+      const session = assignment.attendanceSession || null;
+      const original = session?.events?.find((row) => row.eventType === type) || null;
       await tx.$executeRaw(Prisma.sql`
         UPDATE attendance_corrections
         SET is_current = FALSE, superseded_at = ${now}
-        WHERE attendance_session_id = ${session.id}::uuid
+        WHERE shift_assignment_id = ${assignment.id}::uuid
           AND event_type = ${type}::"AttendanceEventType"
           AND is_current = TRUE
       `);
       const rows = await tx.$queryRaw(Prisma.sql`
         INSERT INTO attendance_corrections (
-          attendance_session_id, event_type, original_event_id, original_effective_event_at,
+          shift_assignment_id, attendance_session_id, event_type, original_event_id, original_effective_event_at,
           corrected_effective_event_at, reason, actor_user_id, actor_role_snapshot
         ) VALUES (
-          ${session.id}::uuid,
+          ${assignment.id}::uuid,
+          ${session?.id || null}::uuid,
           ${type}::"AttendanceEventType",
           ${original?.id || null}::uuid,
           ${original?.effectiveEventAt || null},
@@ -179,6 +204,7 @@ function createAttendanceCorrectionService({ prisma = prismaDefault, audit = aud
         )
         RETURNING
           id,
+          shift_assignment_id AS "shiftAssignmentId",
           attendance_session_id AS "attendanceSessionId",
           event_type::text AS "eventType",
           original_event_id AS "originalEventId",
@@ -196,8 +222,8 @@ function createAttendanceCorrectionService({ prisma = prismaDefault, audit = aud
         entityType: 'AttendanceCorrection',
         entityId: correction.id,
         metadata: {
-          attendanceSessionId: session.id,
-          shiftAssignmentId: session.shiftAssignmentId,
+          shiftAssignmentId: assignment.id,
+          attendanceSessionId: session?.id || null,
           eventType: type,
           originalEventId: original?.id || null,
           originalEffectiveEventAt: original?.effectiveEventAt || null,
@@ -220,6 +246,7 @@ module.exports = {
   correctionReason,
   assertCorrectionActor,
   currentMonthCertification,
+  currentCorrectionsForAssignments,
   currentCorrectionsForSessions,
   applyCurrentCorrections,
   createAttendanceCorrectionService
