@@ -34,6 +34,7 @@ jobs:
           POSTGRES_DB: sms_v3_test
         ports:
           - 5432:5432
+          - 55438:5432
         options: >-
           --health-cmd "pg_isready -U ci_user -d sms_v3_test"
           --health-interval 5s --health-timeout 5s --health-retries 20
@@ -77,6 +78,24 @@ jobs:
         with:
           name: backend-integration-failure-${{ github.run_id }}-${{ github.run_attempt }}
           path: backend-integration.log
+          if-no-files-found: error
+          retention-days: 3
+      - name: Run authoritative Attendance event integration
+        id: attendance-event-integration
+        shell: bash
+        env:
+          TEST_DATABASE_RUNNER: g06-attendance-event-disposable-local
+          DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
+          DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
+        run: |
+          set -o pipefail
+          node --test --test-concurrency=1 test/integration/attendance-event-workflow.integration.test.js 2>&1 | tee attendance-event-integration.log
+      - name: Upload Attendance event integration failure diagnostics
+        if: failure() && steps.attendance-event-integration.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: attendance-event-integration-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: attendance-event-integration.log
           if-no-files-found: error
           retention-days: 3
       - name: Run frontend tests
