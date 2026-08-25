@@ -50,7 +50,7 @@ function assertCorrectionActor(actor, assignment) {
 
 async function currentMonthCertification(client, workDate) {
   const rows = await client.$queryRaw(Prisma.sql`
-    SELECT id, revision, status
+    SELECT id, revision, status::text AS status
     FROM attendance_month_certifications
     WHERE month = ${monthStart(workDate)}::date AND status = 'CERTIFIED'
     LIMIT 1
