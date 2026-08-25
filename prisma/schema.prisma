@@ -135,6 +135,11 @@ enum FaceVerificationPurpose {
   PATROL_EVENT
 }
 
+enum FaceVerificationMode {
+  FACE_MATCH_ONLY
+  FACE_MATCH_WITH_LIVENESS
+}
+
 enum FaceVerificationSessionStatus {
   CREATED
   DEVICE_PROOF_VERIFIED
@@ -484,6 +489,7 @@ model FaceVerificationSession {
   referencePhotoChecksum      String                        @map("reference_photo_checksum") @db.Char(64)
   deviceChallengeId           String                        @unique @map("device_challenge_id") @db.Uuid
   purpose                     FaceVerificationPurpose
+  verificationMode            FaceVerificationMode          @default(FACE_MATCH_WITH_LIVENESS) @map("verification_mode")
   status                      FaceVerificationSessionStatus @default(CREATED)
   contextDigest               String                        @map("context_digest") @db.Char(64)
   provider                    String?                       @db.VarChar(80)
@@ -526,6 +532,7 @@ model FaceVerificationReceipt {
   referencePhotoId            String                     @map("reference_photo_id") @db.Uuid
   referencePhotoChecksum      String                     @map("reference_photo_checksum") @db.Char(64)
   purpose                     FaceVerificationPurpose
+  verificationMode            FaceVerificationMode       @default(FACE_MATCH_WITH_LIVENESS) @map("verification_mode")
   receiptHash                 String                     @unique @map("receipt_hash") @db.Char(64)
   contextDigest               String                     @map("context_digest") @db.Char(64)
   issuedAt                    DateTime                   @default(now()) @map("issued_at")
@@ -545,24 +552,24 @@ model FaceVerificationReceipt {
 }
 
 model AttendanceSession {
-  id                     String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId             String                 @map("employee_id") @db.Uuid
-  shiftAssignmentId      String                 @unique @map("shift_assignment_id") @db.Uuid
-  expectedShiftTypeId    String                 @map("expected_shift_type_id") @db.Uuid
-  expectedSiteId         String                 @map("expected_site_id") @db.Uuid
-  workDate               DateTime               @map("work_date") @db.Date
-  expectationSnapshot    Json                   @map("expectation_snapshot")
-  expectationDigest      String                 @map("expectation_digest") @db.Char(64)
-  state                  AttendanceSessionState @default(OPEN)
-  openedAt               DateTime               @default(now()) @map("opened_at")
-  closedAt               DateTime?              @map("closed_at")
-  createdAt              DateTime               @default(now()) @map("created_at")
-  updatedAt              DateTime               @updatedAt @map("updated_at")
-  employee               Employee               @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  shiftAssignment        ShiftAssignment        @relation(fields: [shiftAssignmentId], references: [id], onDelete: Restrict)
-  expectedShiftType      ShiftType              @relation("AttendanceSessionExpectedShiftType", fields: [expectedShiftTypeId], references: [id], onDelete: Restrict)
-  expectedSite           SecuritySite           @relation("AttendanceSessionExpectedSite", fields: [expectedSiteId], references: [id], onDelete: Restrict)
-  events                 AttendanceEvent[]
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId          String                 @map("employee_id") @db.Uuid
+  shiftAssignmentId   String                 @unique @map("shift_assignment_id") @db.Uuid
+  expectedShiftTypeId String                 @map("expected_shift_type_id") @db.Uuid
+  expectedSiteId      String                 @map("expected_site_id") @db.Uuid
+  workDate            DateTime               @map("work_date") @db.Date
+  expectationSnapshot Json                   @map("expectation_snapshot")
+  expectationDigest   String                 @map("expectation_digest") @db.Char(64)
+  state               AttendanceSessionState @default(OPEN)
+  openedAt            DateTime               @default(now()) @map("opened_at")
+  closedAt            DateTime?              @map("closed_at")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+  employee            Employee               @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  shiftAssignment     ShiftAssignment        @relation(fields: [shiftAssignmentId], references: [id], onDelete: Restrict)
+  expectedShiftType   ShiftType              @relation("AttendanceSessionExpectedShiftType", fields: [expectedShiftTypeId], references: [id], onDelete: Restrict)
+  expectedSite        SecuritySite           @relation("AttendanceSessionExpectedSite", fields: [expectedSiteId], references: [id], onDelete: Restrict)
+  events              AttendanceEvent[]
 
   @@index([employeeId, workDate])
   @@index([workDate, state])
@@ -715,7 +722,7 @@ model SecuritySite {
   updatedAt            DateTime                   @updatedAt @map("updated_at")
   shiftAssignments     ShiftAssignment[]
   qrCredentials        SecuritySiteQrCredential[]
-  attendanceSessions   AttendanceSession[] @relation("AttendanceSessionExpectedSite")
+  attendanceSessions   AttendanceSession[]        @relation("AttendanceSessionExpectedSite")
 
   @@index([isActive, code])
   @@map("security_sites")
@@ -738,17 +745,17 @@ model SecuritySiteQrCredential {
 }
 
 model ShiftType {
-  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code             String            @unique @db.VarChar(50)
-  name             String            @db.VarChar(150)
-  startTime        String?           @map("start_time") @db.VarChar(20)
-  endTime          String?           @map("end_time") @db.VarChar(20)
-  hours            Decimal           @db.Decimal(6, 2)
-  color            String?           @db.VarChar(50)
-  createdAt        DateTime          @default(now()) @map("created_at")
-  updatedAt        DateTime          @updatedAt @map("updated_at")
-  shiftAssignments ShiftAssignment[]
-  attendanceSessions  AttendanceSession[] @relation("AttendanceSessionExpectedShiftType")
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code               String              @unique @db.VarChar(50)
+  name               String              @db.VarChar(150)
+  startTime          String?             @map("start_time") @db.VarChar(20)
+  endTime            String?             @map("end_time") @db.VarChar(20)
+  hours              Decimal             @db.Decimal(6, 2)
+  color              String?             @db.VarChar(50)
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  shiftAssignments   ShiftAssignment[]
+  attendanceSessions AttendanceSession[] @relation("AttendanceSessionExpectedShiftType")
 
   @@map("shift_types")
 }
@@ -783,8 +790,9 @@ model ShiftAssignment {
   employee                      Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   shiftType                     ShiftType @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
 
-  securitySite                  SecuritySite? @relation(fields: [securitySiteId], references: [id], onDelete: SetNull)
-  attendanceSession             AttendanceSession?
+  securitySite      SecuritySite?      @relation(fields: [securitySiteId], references: [id], onDelete: SetNull)
+  attendanceSession AttendanceSession?
+
   @@unique([workDate, employeeId])
   @@index([employeeId, workDate])
   @@index([shiftTypeId, workDate])

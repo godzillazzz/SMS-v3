@@ -47,7 +47,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).not.toContain('padPassed');
     expect(client).not.toContain('faceMatchPassed');
     expect(page).not.toContain('attendanceAccepted = true');
-    expect(page).toContain('ยังไม่เปิด runtime ในรอบนี้');
+    expect(page).toContain('Self-hosted verifier ยังไม่เปิด runtime');
   });
 
   it('uses a transient camera QR scanner and releases all media tracks without persisting frames', () => {

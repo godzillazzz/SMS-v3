@@ -11,6 +11,7 @@ const { errorHandler } = require('../src/middlewares/error-handler');
 const {
   createAttendanceRoutes,
   attendanceApiEnabled,
+  selfHostedFaceRuntimeConfigured,
   attendanceBiometricRuntimeEnabled
 } = require('../src/routes/attendance.routes');
 
@@ -176,7 +177,10 @@ test('runtime gate can be true only for explicitly flagged Preview and never Pro
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), true);
   assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), false);
   assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_POC_API_ENABLED: 'true' }), true);
-  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_POC_API_ENABLED: 'true' }), false);
+  assert.equal(selfHostedFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true' }), false);
+  assert.equal(selfHostedFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), true);
+  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), true);
+  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_POC_API_ENABLED: 'true', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), false);
 });
 
 test('route skeleton is mounted only behind the Attendance prefix and imports no provider implementation', () => {

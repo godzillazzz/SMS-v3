@@ -21,13 +21,13 @@ type Copy = { title: string; detail: string; tone: 'ready' | 'warning' | 'blocke
 
 const readinessCopy: Record<string, Copy> = {
   BIOMETRIC_RUNTIME_DISABLED: {
-    title: 'การยืนยันใบหน้ายังไม่เปิดใช้งาน',
-    detail: 'ระบบจะไม่บันทึกเวลาและไม่ถือว่าการตรวจครั้งนี้สำเร็จ จนกว่าจะเปิด biometric runtime ที่เชื่อถือได้จากฝั่ง server',
+    title: 'ระบบตรวจใบหน้า 1:1 ยังไม่เปิดใช้งาน',
+    detail: 'ระบบจะไม่บันทึกเวลาและไม่ถือว่าการตรวจครั้งนี้สำเร็จ จนกว่าจะเปิด trusted self-hosted face verifier ฝั่ง server',
     tone: 'blocked'
   },
   READY_TO_START_VERIFICATION: {
     title: 'หลักฐาน QR / GPS พร้อมสำหรับขั้นยืนยันตัวตน',
-    detail: 'Server ตรวจ authority แล้ว แต่หน้าเว็บรอบนี้ยังไม่เริ่ม Face/Liveness และยังไม่สามารถบันทึกเวลาได้',
+    detail: 'Server ตรวจ authority แล้ว แต่ยังต้องตรวจใบหน้าแบบ 1:1 กับ Reference Photo ผ่าน trusted verifier ก่อนจึงจะบันทึกเวลาได้',
     tone: 'ready'
   },
   ACCOUNT_NOT_ELIGIBLE: {
@@ -374,7 +374,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
         <span>3</span><div><strong>Server readiness</strong><small>{routeUnavailable ? 'ยังไม่เปิดใช้งาน' : readiness ? readiness.state : 'รอหลักฐานครบ'}</small></div><SmsIcon name={readiness?.state === 'READY_TO_START_VERIFICATION' ? 'check' : 'shield'} size={18} />
       </article>
       <article className="attendance-flow-step is-locked">
-        <span>4</span><div><strong>Face / Liveness</strong><small>ยังไม่เปิด runtime ในรอบนี้</small></div><SmsIcon name="pause" size={18} />
+        <span>4</span><div><strong>ตรวจใบหน้า 1:1</strong><small>Self-hosted verifier ยังไม่เปิด runtime</small></div><SmsIcon name="pause" size={18} />
       </article>
     </div>
 
@@ -431,8 +431,8 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     </section>
 
     <section className="attendance-face-gate">
-      <div><span className="attendance-face-gate__icon"><SmsIcon name="pause" size={21} /></span><div><h2>4. Face / Liveness</h2><p>ส่วนนี้ถูกเตรียมไว้สำหรับ trusted provider เท่านั้น ขณะนี้ AWS/provider runtime ยังหยุดไว้ตาม gate ปัจจุบัน</p></div></div>
-      <button type="button" className="btn-primary" disabled>ยืนยันใบหน้า — ยังไม่เปิดใช้งาน</button>
+      <div><span className="attendance-face-gate__icon"><SmsIcon name="pause" size={21} /></span><div><h2>4. ตรวจใบหน้า 1:1</h2><p>ภาพสดจะใช้ตรวจเทียบกับ Reference Photo ผ่าน trusted self-hosted verifier และทิ้งหลังประมวลผล โดยยังไม่เก็บ Attendance photo ใน Storage รอบนี้</p></div></div>
+      <button type="button" className="btn-primary" disabled>ตรวจใบหน้า — รอ Self-hosted verifier</button>
     </section>
   </section>;
 }

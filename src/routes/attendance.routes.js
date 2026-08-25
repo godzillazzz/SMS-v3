@@ -50,9 +50,16 @@ function attendanceApiEnabled(environment = process.env) {
   return environment.VERCEL_ENV === 'preview' && environment.ATTENDANCE_API_PREVIEW_ENABLED === 'true';
 }
 
+function selfHostedFaceRuntimeConfigured(environment = process.env) {
+  if (environment.FACE_VERIFICATION_SELF_HOSTED_API_ENABLED !== 'true') return false;
+  const token = String(environment.FACE_VERIFIER_SHARED_TOKEN || '').trim();
+  if (token.length < 16) return false;
+  try { return new URL(String(environment.FACE_VERIFIER_URL || '')).protocol === 'https:'; } catch { return false; }
+}
+
 function attendanceBiometricRuntimeEnabled(environment = process.env) {
   if (!attendanceApiEnabled(environment)) return false;
-  return environment.FACE_VERIFICATION_POC_API_ENABLED === 'true';
+  return environment.FACE_VERIFICATION_POC_API_ENABLED === 'true' || selfHostedFaceRuntimeConfigured(environment);
 }
 
 function defaultAuthenticate(req, res, next) {
@@ -104,6 +111,7 @@ const router = createAttendanceRoutes();
 module.exports = {
   router,
   attendanceApiEnabled,
+  selfHostedFaceRuntimeConfigured,
   attendanceBiometricRuntimeEnabled,
   createAttendanceRoutes,
   prepareInput,

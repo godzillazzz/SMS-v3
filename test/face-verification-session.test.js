@@ -113,5 +113,5 @@ test('receipt consumer exposes a caller-transaction path for atomic Attendance e
   assert.match(service, /consumeReceiptInTransaction/);
   assert.match(service, /consumeReceiptWithClient/);
   assert.match(service, /VERIFICATION_TRANSACTION_REQUIRED/);
-  assert.match(service, /return \{ createSession, verifyDeviceProof, bindProviderSession, recordTrustedProviderResult, consumeReceipt, consumeReceiptInTransaction, failSession \}/);
+  assert.match(service, /return \{ createSession, verifyDeviceProof, bindProviderSession, recordTrustedProviderResult, recordTrustedFaceMatchOnlyResult, consumeReceipt, consumeReceiptInTransaction, failSession \}/);
 });
