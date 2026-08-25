@@ -25,7 +25,6 @@ type Props = {
   token: string;
   readOnly?: boolean;
   online?: boolean;
-  onOpenDeviceSetup?: () => void;
 };
 
 type Copy = { title: string; detail: string; tone: 'ready' | 'warning' | 'blocked' | 'neutral' };
@@ -58,7 +57,7 @@ const readinessCopy: Record<string, Copy> = {
   },
   DEVICE_PROOF_RETRY: {
     title: 'ต้องยืนยันคีย์ของอุปกรณ์อีกครั้ง',
-    detail: 'กลับไปหน้าอุปกรณ์ลงเวลาเพื่อยืนยัน possession ของ private key แล้วลองใหม่',
+    detail: 'กรุณาติดต่อ Admin เพื่อตรวจสอบอุปกรณ์หลักและสิทธิ์การลงเวลา แล้วกด “ลงเวลา” ใหม่',
     tone: 'warning'
   },
   REFERENCE_PHOTO_REQUIRED: {
@@ -81,9 +80,14 @@ const readinessCopy: Record<string, Copy> = {
     detail: 'Security Site ของกะนี้ไม่สามารถใช้เป็น authority สำหรับ Attendance ได้',
     tone: 'blocked'
   },
+  QR_STEP_UP_REQUIRED: {
+    title: 'ต้องยืนยันพื้นที่เพิ่มด้วย QR',
+    detail: 'GPS อยู่ใน Site แต่ความแม่นยำ/ตำแหน่งใกล้ขอบหรือพื้นที่ซ้อนกัน ทำให้ Server ขอ QR ของ Site เป็น Step-up เพิ่มอีกชั้น',
+    tone: 'warning'
+  },
   QR_RESCAN_REQUIRED: {
-    title: 'กรุณาสแกน QR ปัจจุบันอีกครั้ง',
-    detail: 'QR ไม่ตรงกับ Site/credential ที่ server ยอมรับ หรือ credential ปัจจุบันเปลี่ยนแล้ว',
+    title: 'QR ยังไม่ตรงกับ Site ปัจจุบัน',
+    detail: 'กรุณาสแกน QR ของ Site ปัจจุบันอีกครั้ง ระบบจะไม่ใช้ QR แทน GPS และจะไม่ยอมรับเมื่ออยู่นอก geofence',
     tone: 'warning'
   },
   LOCATION_REFRESH_REQUIRED: {
@@ -158,8 +162,8 @@ function intentLabel(intent: AttendanceEventIntent | null) {
 
 function fallbackCopy(state?: AttendanceReadinessState | null): Copy {
   if (!state) return {
-    title: 'รอหลักฐาน QR และ GPS',
-    detail: 'ระบบจะส่งเฉพาะหลักฐานของ attempt นี้ให้ server ตรวจ authority ก่อนเริ่มขั้นยืนยันตัวตน',
+    title: 'พร้อมเริ่มลงเวลาแบบอัตโนมัติ',
+    detail: 'กด “ลงเวลา” หนึ่งครั้ง ระบบจะอ่าน GPS แล้วให้ Server ตัดสินเองว่าต้องสแกน QR เพิ่มหรือไม่',
     tone: 'neutral'
   };
   return readinessCopy[state.state] || {
@@ -169,7 +173,7 @@ function fallbackCopy(state?: AttendanceReadinessState | null): Copy {
   };
 }
 
-export function AttendancePage({ token, readOnly = false, online = true, onOpenDeviceSetup }: Props) {
+export function AttendancePage({ token, readOnly = false, online = true }: Props) {
   const [qrToken, setQrToken] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [location, setLocation] = useState<AttendanceLocationEvidence | null>(null);
@@ -186,7 +190,9 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
   const [verificationStage, setVerificationStage] = useState<string>();
   const [verificationSession, setVerificationSession] = useState<{ sessionId: string; attendanceContext: AttendanceContextRef; activeChallenge: AttendanceActiveChallenge } | null>(null);
   const [attendanceAccepted, setAttendanceAccepted] = useState<{ intent: AttendanceEventIntent | null; acceptedAt: Date } | null>(null);
+  const [qrStepUpRequired, setQrStepUpRequired] = useState(false);
   const asyncEvidenceEpochRef = useRef(0);
+  const activeCaptureIdRef = useRef<string | null>(null);
 
   const copy = useMemo(() => fallbackCopy(readiness), [readiness]);
   const qrLength = qrToken.trim().length;
@@ -195,7 +201,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
   const interactionDisabled = readOnly || !online;
   const interactionDisabledRef = useRef(interactionDisabled);
   interactionDisabledRef.current = interactionDisabled;
-  const canCheck = !interactionDisabled && qrReady && gpsReady && !checking && !locationBusy && !verificationBusy;
+  const canStartAttendance = !interactionDisabled && !checking && !locationBusy && !verificationBusy && !faceCaptureOpen && !scannerOpen;
 
   const resetVerificationState = () => {
     setFaceCaptureOpen(false);
@@ -223,6 +229,8 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     setLocation(null);
     setLocationBusy(false);
     setChecking(false);
+    setQrStepUpRequired(false);
+    activeCaptureIdRef.current = null;
     resetServerState();
   }, [interactionDisabled]);
 
@@ -234,6 +242,8 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       setLocation(null);
       setLocationBusy(false);
       setChecking(false);
+      setQrStepUpRequired(false);
+      activeCaptureIdRef.current = null;
       resetServerState();
     };
     const handleVisibilityChange = () => {
@@ -255,7 +265,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
 
   const beginFaceVerificationWithEvidence = async (
     captureId: string,
-    nextQrToken: string,
+    nextQrToken: string | undefined,
     nextLocation: AttendanceLocationEvidence,
     operationEpoch: number
   ) => {
@@ -266,7 +276,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     try {
       const started = await attendanceVerificationStart(token, {
         captureId,
-        qrToken: nextQrToken.trim(),
+        qrToken: nextQrToken?.trim() || undefined,
         location: nextLocation
       });
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
@@ -279,10 +289,17 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       setReadiness(started.data.readiness);
       setEventIntent(started.data.eventIntent);
       const verification = started.data.verification;
+      if (started.data.readiness.state === 'QR_STEP_UP_REQUIRED' || started.data.readiness.state === 'QR_RESCAN_REQUIRED') {
+        setQrStepUpRequired(true);
+        setVerificationStage('Server ขอ QR Step-up เพื่อยืนยัน Site เพิ่มเติม');
+        setScannerOpen(true);
+        return;
+      }
       if (!started.data.ok || started.data.readiness.state !== 'READY_TO_START_VERIFICATION' || !verification) {
         setVerificationStage('Server ยังไม่อนุญาตให้เริ่ม Face Verification');
         return;
       }
+      setQrStepUpRequired(false);
       if (!verification.sessionId || !verification.challengeId || !verification.challenge || !verification.attendanceContext || !verification.activeChallenge) {
         throw new Error('Server ไม่ได้ออก Verification session และ Active Challenge ที่สมบูรณ์');
       }
@@ -322,7 +339,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
 
   const checkReadinessWithEvidence = async (
     captureId: string,
-    nextQrToken: string,
+    nextQrToken: string | undefined,
     nextLocation: AttendanceLocationEvidence,
     operationEpoch: number
   ) => {
@@ -337,7 +354,7 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     try {
       const result = await attendanceReadiness(token, {
         captureId,
-        qrToken: nextQrToken.trim(),
+        qrToken: nextQrToken?.trim() || undefined,
         location: nextLocation
       });
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
@@ -349,6 +366,12 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       }
       setReadiness(result.data.readiness);
       setEventIntent(result.data.eventIntent);
+      if (result.data.readiness.state === 'QR_STEP_UP_REQUIRED' || result.data.readiness.state === 'QR_RESCAN_REQUIRED') {
+        setQrStepUpRequired(true);
+        setScannerOpen(true);
+        return;
+      }
+      setQrStepUpRequired(false);
       if (result.data.readiness.state === 'READY_TO_START_VERIFICATION') {
         await beginFaceVerificationWithEvidence(captureId, nextQrToken, nextLocation, operationEpoch);
       }
@@ -365,46 +388,29 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     }
   };
 
-  const acquireLocation = async () => {
-    if (interactionDisabled) return;
-    const operationEpoch = asyncEvidenceEpochRef.current;
-    setLocationBusy(true);
-    resetServerState();
-    try {
-      const nextLocation = await positionOnce();
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
-      setLocation(nextLocation);
-    } catch (reason) {
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
-      setLocation(null);
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
-    } finally {
-      if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
-    }
-  };
-
   const handleQrDetected = async (value: string) => {
     if (interactionDisabledRef.current) return;
+    const captureId = activeCaptureIdRef.current;
+    if (!captureId) {
+      setScannerOpen(false);
+      setError('Attempt นี้หมดอายุแล้ว กรุณากดลงเวลาใหม่');
+      return;
+    }
     const nextQrToken = value.trim();
     asyncEvidenceEpochRef.current += 1;
     const operationEpoch = asyncEvidenceEpochRef.current;
     setScannerOpen(false);
     setQrToken(nextQrToken);
-    setLocation(null);
     setLocationBusy(false);
     setChecking(false);
     resetServerState();
+    setQrStepUpRequired(true);
 
     if (nextQrToken.length < 24 || nextQrToken.length > 512) {
-      setError('QR ไม่อยู่ในรูปแบบที่พร้อมตรวจ กรุณาสแกน QR จุดปฏิบัติงานอีกครั้ง');
+      setError('QR ไม่อยู่ในรูปแบบที่พร้อมตรวจ กรุณาสแกน QR ของ Site ปัจจุบันอีกครั้ง');
       return;
     }
 
-    if (!globalThis.crypto?.randomUUID) {
-      setError('เบราว์เซอร์นี้ไม่รองรับ secure attempt identifier ที่ระบบต้องใช้');
-      return;
-    }
-    const captureId = globalThis.crypto.randomUUID();
     setLocationBusy(true);
     try {
       const nextLocation = await positionOnce();
@@ -421,14 +427,37 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     }
   };
 
-  const checkReadiness = async () => {
-    if (!canCheck || !location) return;
+  const handleStartAttendance = async () => {
+    if (!canStartAttendance) return;
     if (!globalThis.crypto?.randomUUID) {
       setError('เบราว์เซอร์นี้ไม่รองรับ secure attempt identifier ที่ระบบต้องใช้');
       return;
     }
+    asyncEvidenceEpochRef.current += 1;
     const operationEpoch = asyncEvidenceEpochRef.current;
-    await checkReadinessWithEvidence(globalThis.crypto.randomUUID(), qrToken, location, operationEpoch);
+    const captureId = globalThis.crypto.randomUUID();
+    activeCaptureIdRef.current = captureId;
+    setScannerOpen(false);
+    setQrToken('');
+    setQrStepUpRequired(false);
+    setLocation(null);
+    setLocationBusy(true);
+    setChecking(false);
+    resetServerState();
+    setVerificationStage('กำลังอ่าน GPS และให้ Server ประเมิน Site…');
+    try {
+      const nextLocation = await positionOnce();
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      setLocation(nextLocation);
+      setLocationBusy(false);
+      await checkReadinessWithEvidence(captureId, undefined, nextLocation, operationEpoch);
+    } catch (reason) {
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      setLocation(null);
+      setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
+    } finally {
+      if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
+    }
   };
 
   const handleFacePhotoConfirmed = async ({ photo, challengeFrames }: { photo: Blob; challengeFrames: Blob[] }) => {
@@ -479,6 +508,8 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
       setCheckedAt(null);
       setError(undefined);
       setAttendanceAccepted({ intent: acceptedIntent, acceptedAt: new Date() });
+      setQrStepUpRequired(false);
+      activeCaptureIdRef.current = null;
       setVerificationStage('Server บันทึกเวลาเรียบร้อยแล้ว');
       setVerificationBusy(false);
       asyncEvidenceEpochRef.current += 1;
@@ -496,133 +527,66 @@ export function AttendancePage({ token, readOnly = false, online = true, onOpenD
     }
   };
 
-  const resetAttempt = () => {
-    asyncEvidenceEpochRef.current += 1;
-    setScannerOpen(false);
-    setQrToken('');
-    setLocation(null);
-    setLocationBusy(false);
-    setChecking(false);
-    resetServerState();
-  };
-
-  return <section className="view-pane attendance-page">
+  return <section className="view-pane attendance-page attendance-one-action">
     <AttendanceQrScanner
       open={scannerOpen && !interactionDisabled}
+      autoFlow
       onDetected={(value) => { void handleQrDetected(value); }}
+      onFailure={(message) => { setError(message); setVerificationStage('QR Step-up ไม่สำเร็จ · กดลงเวลาเพื่อลองใหม่'); setQrStepUpRequired(false); activeCaptureIdRef.current = null; }}
       onClose={() => setScannerOpen(false)}
     />
     <AttendanceFaceCapture
       open={faceCaptureOpen && !interactionDisabled}
       busy={verificationBusy}
       challenge={verificationSession?.activeChallenge || null}
+      autoFlow
       onConfirm={handleFacePhotoConfirmed}
+      onFailure={(message) => { setError(message); setVerificationStage('การยืนยันตัวตนไม่สำเร็จ · กดลงเวลาเพื่อลองใหม่'); setVerificationSession(null); }}
       onClose={() => setFaceCaptureOpen(false)}
     />
+
     <div className="page-heading attendance-heading">
       <div>
         <p className="eyebrow">G06 · ATTENDANCE</p>
         <h1>ลงเวลา</h1>
-        <p>สแกน QR ครั้งเดียว แล้วระบบอ่าน GPS แบบ one-shot และตรวจ Server ต่อให้อัตโนมัติ โดย Server เป็นผู้ตัดสินเวลาเข้า/ออก</p>
-      </div>
-      <div className="heading-actions">
-        <button type="button" className="btn-neutral small-action" onClick={resetAttempt} disabled={checking || locationBusy || verificationBusy}>
-          <SmsIcon name="refresh" size={17} />เริ่มใหม่
-        </button>
+        <p>พนักงานกดปุ่มเดียว ระบบทำ GPS → Site/Schedule/Device → QR Step-up เฉพาะเมื่อ Server ขอ → Active Challenge + Face Match → CHECK-IN/CHECK-OUT และบันทึกเวลาให้อัตโนมัติ</p>
       </div>
     </div>
 
-    {readOnly && <div className="settings-notice">กำลังอยู่ใน View As — หน้า Attendance เป็นแบบอ่านอย่างเดียวและไม่สามารถส่งหลักฐานลงเวลาแทนพนักงานได้</div>}
-    {!online && <div className="settings-notice">ออฟไลน์ — ปิดการสแกน QR, GPS และ Server readiness จนกว่าจะเชื่อมต่อ Server อีกครั้ง</div>}
-
-    <div className="settings-notice">
-      <strong>Scan once · Auto flow</strong> — หลังสแกน QR สำเร็จ ระบบจะอ่านตำแหน่งปัจจุบันและตรวจ Server readiness ต่อทันทีโดยไม่ต้องกดทีละขั้น
-      ปุ่ม GPS และตรวจความพร้อมด้านล่างยังคงไว้สำหรับลองใหม่เมื่อมีข้อผิดพลาดเท่านั้น
-    </div>
+    {readOnly && <div className="settings-notice">กำลังอยู่ใน View As — ไม่อนุญาตให้ลงเวลาแทนพนักงาน</div>}
+    {!online && <div className="settings-notice">ออฟไลน์ — การลงเวลาต้องเชื่อมต่อ Server</div>}
 
     <section className="attendance-safety-banner">
       <span className="attendance-safety-banner__icon"><SmsIcon name="shield" size={22} /></span>
-      <div><strong>Server time และ Server authority เท่านั้นที่ตัดสินผล</strong><p>หน้าเว็บไม่มีตัวเลือก CHECK_IN/CHECK_OUT และไม่มีสถานะ PASS จาก QR, GPS หรือ Face ที่สามารถบันทึกเวลาได้เอง</p></div>
+      <div><strong>One tap · Server controlled</strong><p>พนักงานไม่เลือก CHECK-IN/CHECK-OUT, ไม่กด GPS, ไม่กด QR, ไม่กด Face และไม่กด Submit แยกขั้นตอน ทุก policy ถูกตัดสินฝั่ง Server</p></div>
     </section>
 
-    <div className="attendance-flow-grid" aria-label="ขั้นตอนลงเวลา">
-      <article className={`attendance-flow-step ${qrReady ? 'is-ready' : ''}`}>
-        <span>1</span><div><strong>QR จุดปฏิบัติงาน</strong><small>{qrReady ? 'มีหลักฐาน QR พร้อมตรวจ' : 'รอสแกน/รับข้อมูล QR'}</small></div><SmsIcon name={qrReady ? 'check' : 'quality'} size={18} />
-      </article>
-      <article className={`attendance-flow-step ${gpsReady ? 'is-ready' : ''}`}>
-        <span>2</span><div><strong>GPS ปัจจุบัน</strong><small>{gpsReady ? `±${Math.round(location?.accuracyMeters || 0)} เมตร` : 'ยังไม่ได้อ่านตำแหน่ง'}</small></div><SmsIcon name={gpsReady ? 'check' : 'quality'} size={18} />
-      </article>
-      <article className={`attendance-flow-step ${readiness || routeUnavailable ? 'is-checked' : ''}`}>
-        <span>3</span><div><strong>Server readiness</strong><small>{routeUnavailable ? 'ยังไม่เปิดใช้งาน' : readiness ? readiness.state : 'รอหลักฐานครบ'}</small></div><SmsIcon name={readiness?.state === 'READY_TO_START_VERIFICATION' ? 'check' : 'shield'} size={18} />
-      </article>
-      <article className={`attendance-flow-step ${attendanceAccepted ? 'is-ready' : verificationSession || verificationBusy ? 'is-checked' : 'is-locked'}`}>
-        <span>4</span><div><strong>Active Challenge + ตรวจใบหน้า 1:1</strong><small>{attendanceAccepted ? 'Server รับผลและบันทึกเวลาแล้ว' : verificationStage || 'รอ Server readiness'}</small></div><SmsIcon name={attendanceAccepted ? 'check' : verificationBusy ? 'clock' : verificationSession ? 'shield' : 'pause'} size={18} />
-      </article>
+    <article className="attendance-evidence-card attendance-one-action-card">
+      <header><span><SmsIcon name="clock" size={22} /></span><div><h2>{attendanceAccepted ? 'บันทึกเวลาเรียบร้อย' : 'พร้อมลงเวลา'}</h2><p>{attendanceAccepted
+        ? `${intentLabel(attendanceAccepted.intent)} สำเร็จเมื่อ ${thaiTime(attendanceAccepted.acceptedAt)}`
+        : verificationStage || 'กดลงเวลา 1 ครั้ง แล้วทำท่าตามคำสั่งบนกล้องเมื่อระบบร้องขอ'}</p></div></header>
+      {location && <dl className="attendance-location-summary"><div><dt>GPS ล่าสุด</dt><dd>±{Math.round(location.accuracyMeters)} เมตร</dd></div><div><dt>อ่านเมื่อ</dt><dd>{thaiTime(location.capturedAt)}</dd></div></dl>}
+      <button type="button" className="btn-primary attendance-location-action attendance-primary-one-action" disabled={!canStartAttendance} onClick={() => void handleStartAttendance()}>
+        <SmsIcon name="clock" size={19} />{locationBusy || checking || verificationBusy || faceCaptureOpen || scannerOpen ? 'กำลังลงเวลา…' : 'ลงเวลา'}
+      </button>
+      <small className="attendance-one-action-note">หาก GPS ชัดเจน Server จะข้าม QR ให้อัตโนมัติ หากต้องยืนยันพื้นที่เพิ่ม กล้อง QR จะเปิดเองโดยไม่ต้องเลือกขั้นตอน</small>
+    </article>
+
+    <div className="attendance-flow-grid" aria-label="สถานะขั้นตอนลงเวลา">
+      <article className={`attendance-flow-step ${gpsReady ? 'is-ready' : ''}`}><span>1</span><div><strong>GPS + Site</strong><small>{gpsReady ? `±${Math.round(location?.accuracyMeters || 0)} เมตร` : 'รอเริ่ม'}</small></div><SmsIcon name={gpsReady ? 'check' : 'quality'} size={18} /></article>
+      <article className={`attendance-flow-step ${qrReady ? 'is-ready' : qrStepUpRequired ? 'is-checked' : ''}`}><span>2</span><div><strong>QR Step-up</strong><small>{qrReady ? 'ยืนยันแล้ว' : qrStepUpRequired ? 'Server ขอ QR · กล้องเปิดอัตโนมัติ' : 'ไม่จำเป็นใน attempt นี้'}</small></div><SmsIcon name={qrReady ? 'check' : qrStepUpRequired ? 'shield' : 'pause'} size={18} /></article>
+      <article className={`attendance-flow-step ${verificationSession || verificationBusy || faceCaptureOpen ? 'is-checked' : ''}`}><span>3</span><div><strong>Device + Face</strong><small>{verificationStage || 'รอ Server'}</small></div><SmsIcon name={verificationBusy || faceCaptureOpen ? 'clock' : verificationSession ? 'shield' : 'pause'} size={18} /></article>
+      <article className={`attendance-flow-step ${attendanceAccepted ? 'is-ready' : 'is-locked'}`}><span>4</span><div><strong>Server ลงเวลา</strong><small>{attendanceAccepted ? 'AttendanceEvent บันทึกแล้ว' : intentLabel(eventIntent)}</small></div><SmsIcon name={attendanceAccepted ? 'check' : 'shield'} size={18} /></article>
     </div>
 
-    <div className="attendance-workspace-grid">
-      <article className="attendance-evidence-card">
-        <header className="attendance-qr-evidence-header"><span><SmsIcon name="quality" size={20} /></span><div><h2>1. QR จุดปฏิบัติงาน</h2><p>สแกนครั้งเดียวเพื่อเริ่ม QR → GPS → Server readiness อัตโนมัติ; ค่า QR อยู่เฉพาะ attempt ปัจจุบันและไม่บันทึกลง localStorage/sessionStorage</p></div><button type="button" className="btn-primary attendance-qr-open-action" disabled={interactionDisabled || checking || locationBusy || verificationBusy} onClick={() => { resetServerState(); setScannerOpen(true); }}><SmsIcon name="quality" size={17} />สแกน QR เพื่อลงเวลา</button></header>
-        <label className="attendance-field">
-          <span>ข้อมูลจาก QR (สำรอง / UAT)</span>
-          <input
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            value={qrToken}
-            maxLength={512}
-            disabled={interactionDisabled || checking}
-            onChange={(event) => { setQrToken(event.target.value); resetServerState(); }}
-            placeholder="วางข้อมูล QR จากป้าย ณ จุดปฏิบัติงาน หรือกดสแกน QR"
-          />
-          <small>{qrReady ? 'พร้อมตรวจ; หากสแกนด้วยกล้อง ระบบจะเดินต่ออัตโนมัติ' : 'ช่องนี้เป็นทางสำรอง การใช้งานปกติให้กดสแกน QR เพื่อลงเวลา'}</small>
-        </label>
-      </article>
-
-      <article className="attendance-evidence-card">
-        <header><span><SmsIcon name="quality" size={20} /></span><div><h2>2. ตำแหน่งปัจจุบัน</h2><p>อ่านแบบ one-shot เท่านั้น ไม่มี continuous tracking และไม่เก็บตำแหน่งเบื้องหลัง</p></div></header>
-        {location ? <dl className="attendance-location-summary">
-          <div><dt>ความแม่นยำ</dt><dd>±{Math.round(location.accuracyMeters)} เมตร</dd></div>
-          <div><dt>อ่านเมื่อ</dt><dd>{thaiTime(location.capturedAt)}</dd></div>
-        </dl> : <div className="attendance-empty-evidence">ยังไม่มีตำแหน่งสำหรับ attempt นี้</div>}
-        <button type="button" className="btn-neutral attendance-location-action" disabled={interactionDisabled || locationBusy || checking || verificationBusy} onClick={() => void acquireLocation()}>
-          <SmsIcon name="refresh" size={17} />{locationBusy ? 'กำลังอ่านตำแหน่ง…' : location ? 'อ่านตำแหน่งใหม่' : 'อ่านตำแหน่งปัจจุบัน'}
-        </button>
-      </article>
-    </div>
-
-    {error && <div className="alert alert-error attendance-error" role="alert"><strong>ยังตรวจสอบต่อไม่ได้</strong><span>{error}</span>{requestId && <small>Request ID: {requestId}</small>}</div>}
+    {error && <div className="alert alert-error attendance-error" role="alert"><strong>ลงเวลายังไม่สำเร็จ</strong><span>{error}</span>{requestId && <small>Request ID: {requestId}</small>}<small>กด “ลงเวลา” ปุ่มเดิมเพื่อเริ่ม attempt ใหม่</small></div>}
 
     <section className="attendance-readiness-card">
-      <header>
-        <div><p className="eyebrow">SERVER DECISION</p><h2>3. ตรวจความพร้อม</h2><span>หลังสแกน QR ระบบตรวจให้อัตโนมัติ; ปุ่มนี้ใช้ลองซ้ำเท่านั้น และ client ไม่ส่ง eventIntent</span></div>
-        <button type="button" className="btn-primary" disabled={!canCheck} onClick={() => void checkReadiness()}>
-          <SmsIcon name="shield" size={17} />{checking ? 'กำลังตรวจสอบ…' : 'ตรวจความพร้อมอีกครั้ง'}
-        </button>
-      </header>
-
-      {routeUnavailable ? <div className="attendance-server-state blocked">
-        <span className="attendance-server-state__icon"><SmsIcon name="pause" size={23} /></span>
-        <div><strong>ระบบลงเวลายังไม่เปิดใช้งานในสภาพแวดล้อมนี้</strong><p>Attendance API ถูกซ่อนโดย server gate จึงไม่มีการเริ่ม Face Verification และไม่มี AttendanceEvent ถูกสร้าง</p></div>
-      </div> : <div className={`attendance-server-state ${copy.tone}`}>
-        <span className="attendance-server-state__icon"><SmsIcon name={copy.tone === 'ready' ? 'check' : copy.tone === 'neutral' ? 'clock' : 'shield'} size={23} /></span>
-        <div><strong>{copy.title}</strong><p>{copy.detail}</p>{readiness && <div className="attendance-server-meta"><span>{readiness.state}</span><span>{intentLabel(eventIntent)}</span>{checkedAt && <span>{thaiTime(checkedAt)}</span>}</div>}</div>
-      </div>}
-
-      {readiness?.state === 'DEVICE_SETUP_REQUIRED' && onOpenDeviceSetup && <button type="button" className="btn-neutral attendance-remediation" onClick={onOpenDeviceSetup}>ไปหน้าอุปกรณ์ลงเวลา</button>}
-    </section>
-
-    <section className={`attendance-face-gate ${attendanceAccepted ? 'is-success' : ''}`}>
-      <div><span className="attendance-face-gate__icon"><SmsIcon name={attendanceAccepted ? 'check' : verificationBusy ? 'clock' : verificationSession ? 'shield' : 'pause'} size={21} /></span><div><h2>4. Active Challenge + ตรวจใบหน้า 1:1</h2><p>{attendanceAccepted
-        ? `${intentLabel(attendanceAccepted.intent)} สำเร็จเมื่อ ${thaiTime(attendanceAccepted.acceptedAt)} — ยืนยันจาก AttendanceEvent ที่ Server รับแล้ว`
-        : verificationStage || 'เมื่อ Server readiness พร้อม ระบบจะยืนยันคีย์อุปกรณ์ แล้วเปิดกล้องหน้าสำหรับภาพสดแบบ memory-only โดยอัตโนมัติ'}</p><small>ภาพ Challenge/ภาพสดไม่ลง Gallery, localStorage/sessionStorage/IndexedDB หรือ Attendance Storage และ client ไม่ส่งค่า Challenge PASS / Face PASS ไปตัดสินเอง</small></div></div>
-      {attendanceAccepted
-        ? <span className="attendance-face-success-badge">บันทึกเวลาแล้ว</span>
-        : verificationSession
-          ? <button type="button" className="btn-primary" disabled={interactionDisabled || verificationBusy} onClick={() => setFaceCaptureOpen(true)}>เปิดกล้องหน้าอีกครั้ง</button>
-          : <button type="button" className="btn-primary" disabled>รอ Server readiness</button>}
+      {routeUnavailable ? <div className="attendance-server-state blocked"><span className="attendance-server-state__icon"><SmsIcon name="pause" size={23} /></span><div><strong>ระบบลงเวลายังไม่เปิดใช้งานในสภาพแวดล้อมนี้</strong><p>Server gate ยังปิด จึงไม่มี Face Verification และไม่มี AttendanceEvent ถูกสร้าง</p></div></div>
+        : <div className={`attendance-server-state ${copy.tone}`}><span className="attendance-server-state__icon"><SmsIcon name={copy.tone === 'ready' ? 'check' : copy.tone === 'neutral' ? 'clock' : 'shield'} size={23} /></span><div><strong>{copy.title}</strong><p>{copy.detail}</p>{readiness && <div className="attendance-server-meta"><span>{readiness.state}</span><span>{intentLabel(eventIntent)}</span>{checkedAt && <span>{thaiTime(checkedAt)}</span>}</div>}</div></div>}
     </section>
 
     <AttendanceFaceChallengeUatPanel token={token} online={online} readOnly={readOnly} />
   </section>;
+
 }

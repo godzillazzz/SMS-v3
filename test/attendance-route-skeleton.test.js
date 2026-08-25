@@ -35,6 +35,7 @@ const context = {
   shiftAssignmentId,
   evidence: {
     siteId,
+    qrMode: 'STEP_UP_QR',
     qrCredentialId,
     location: {
       latitude: '13.7563000',

@@ -13,7 +13,9 @@ type Props = {
   busy?: boolean;
   challenge: AttendanceActiveChallenge | null;
   rehearsalOnly?: boolean;
+  autoFlow?: boolean;
   onConfirm: (evidence: CapturedFaceEvidence) => Promise<void>;
+  onFailure?: (message: string) => void;
   onClose: () => void;
 };
 
@@ -41,13 +43,14 @@ function sleep(milliseconds: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
-export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsalOnly = false, onConfirm, onClose }: Props) {
+export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsalOnly = false, autoFlow = false, onConfirm, onFailure, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const previewUrlRef = useRef<string | null>(null);
   const cameraRequestEpochRef = useRef(0);
   const captureSequenceEpochRef = useRef(0);
+  const autoStartedRef = useRef(false);
   const onCloseRef = useRef(onClose);
   const [starting, setStarting] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -118,7 +121,9 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
     } catch (reason) {
       if (cameraEpoch !== cameraRequestEpochRef.current) return;
       stopStream();
-      setError(cameraErrorMessage(reason));
+      const message = cameraErrorMessage(reason);
+      setError(message);
+      if (autoFlow) { onFailure?.(message); onCloseRef.current(); }
     } finally {
       if (cameraEpoch === cameraRequestEpochRef.current) setStarting(false);
     }
@@ -209,6 +214,21 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
       const finalPhoto = await captureFrame();
       if (sequenceEpoch !== captureSequenceEpochRef.current) return;
       stopStream();
+      if (autoFlow) {
+        try { await onConfirm({ photo: finalPhoto, challengeFrames: [...frames] }); }
+        catch (reason) {
+          const message = reason instanceof Error ? reason.message : 'ไม่สามารถตรวจ Active Challenge และใบหน้าได้';
+          setError(message);
+          onFailure?.(message);
+          onCloseRef.current();
+        } finally {
+          setChallengeFrames([]);
+          setPhoto(null);
+          setCaptureProgress(0);
+          purgeCanvas();
+        }
+        return;
+      }
       const nextUrl = URL.createObjectURL(finalPhoto);
       previewUrlRef.current = nextUrl;
       setChallengeFrames(frames);
@@ -216,12 +236,24 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
       setPreviewUrl(nextUrl);
     } catch (reason) {
       if (sequenceEpoch !== captureSequenceEpochRef.current) return;
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถเก็บลำดับภาพ Active Challenge ได้');
+      const message = reason instanceof Error ? reason.message : 'ไม่สามารถเก็บลำดับภาพ Active Challenge ได้';
+      setError(message);
       clearCapturedEvidence();
+      if (autoFlow) { onFailure?.(message); onCloseRef.current(); }
     } finally {
       if (sequenceEpoch === captureSequenceEpochRef.current) setCapturing(false);
     }
   };
+
+  useEffect(() => {
+    if (!open || !autoFlow || busy || starting || capturing || error || !challenge || !streamRef.current || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    void captureChallenge();
+  }, [open, autoFlow, busy, starting, capturing, error, challenge]);
+
+  useEffect(() => {
+    if (!open) autoStartedRef.current = false;
+  }, [open]);
 
   const retake = async () => {
     if (busy) return;
@@ -256,7 +288,7 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
     <section className="attendance-face-dialog" role="dialog" aria-modal="true" aria-labelledby="attendance-face-title">
       <header>
         <div><p>{rehearsalOnly ? 'ACTIVE CHALLENGE · PREVIEW UAT · MEMORY ONLY' : 'ACTIVE CHALLENGE · MEMORY ONLY'}</p><h2 id="attendance-face-title">{rehearsalOnly ? 'ทดสอบกล้องหน้า + Active Challenge' : 'ทำท่าตามคำสั่งและตรวจใบหน้า'}</h2><span>{rehearsalOnly ? 'โหมดนี้ใช้ทดสอบกล้องและลำดับภาพเท่านั้น Server จะทิ้งภาพทันที ไม่เรียก Face Verifier ไม่ออก receipt และไม่สร้าง AttendanceEvent' : 'เป็น Simple Active Challenge เพื่อลดความเสี่ยงจากรูปนิ่ง/หน้าจอ ไม่ใช่ certified Liveness/PAD และภาพทั้งหมดถูกใช้ชั่วคราวเท่านั้น'}</span></div>
-        <button type="button" className="drawer-close overlay-close" disabled={busy} onClick={closeNow} aria-label="ปิด"><SmsIcon name="close" size={20} /></button>
+        {!autoFlow && <button type="button" className="drawer-close overlay-close" disabled={busy} onClick={closeNow} aria-label="ปิด"><SmsIcon name="close" size={20} /></button>}
       </header>
 
       <div className="attendance-face-challenge" role="status">
@@ -277,11 +309,11 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
       {error && <div className="alert alert-error attendance-face-error" role="alert">{error}</div>}
       <div className="attendance-face-privacy"><SmsIcon name="shield" size={17} /><span>ไม่มี file picker / Gallery และไม่มี localStorage, sessionStorage หรือ IndexedDB ภาพ Challenge และภาพสุดท้ายอยู่ในหน่วยความจำเท่านั้น เมื่อปิด/สลับแอป/ล็อกหน้าจอ ระบบจะทิ้งหลักฐานชั่วคราวและหยุดกล้อง{rehearsalOnly ? ' · UAT นี้ไม่มี Face PASS และไม่มี Attendance PASS' : ''}</span></div>
 
-      <footer>
+      {!autoFlow && <footer>
         {previewUrl
           ? <><button type="button" className="btn-neutral" disabled={busy} onClick={() => void retake()}>ทำ Challenge ใหม่</button><button type="button" className="btn-primary" disabled={busy || !photo || challengeFrames.length !== challenge?.frameCount} onClick={() => void confirm()}><SmsIcon name="shield" size={17} />{busy ? (rehearsalOnly ? 'กำลังส่งชุดภาพ UAT…' : 'กำลังส่งให้ Server ตรวจ…') : (rehearsalOnly ? 'ส่งชุดภาพ UAT และทิ้งทันที' : 'ยืนยันและส่งตรวจ')}</button></>
           : <><button type="button" className="btn-neutral" disabled={busy} onClick={closeNow}>ยกเลิก</button><button type="button" className="btn-primary" disabled={busy || starting || capturing || Boolean(error) || !activeCopy} onClick={() => void captureChallenge()}><SmsIcon name="quality" size={17} />{capturing ? 'กำลังทำ Challenge…' : 'เริ่ม Active Challenge'}</button></>}
-      </footer>
+      </footer>}
     </section>
   </div>, document.body);
 }

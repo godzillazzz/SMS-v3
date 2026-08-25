@@ -7,6 +7,8 @@ type Props = {
   open: boolean;
   onDetected: (qrToken: string) => void;
   onClose: () => void;
+  autoFlow?: boolean;
+  onFailure?: (message: string) => void;
 };
 
 type ScannerState = 'STARTING' | 'SCANNING' | 'ERROR';
@@ -15,6 +17,7 @@ const MIN_QR_LENGTH = 24;
 const MAX_QR_LENGTH = 512;
 const SCAN_INTERVAL_MS = 220;
 const MAX_DECODE_WIDTH = 720;
+const AUTO_FLOW_TIMEOUT_MS = 30000;
 
 function cameraErrorMessage(error: unknown) {
   const name = error && typeof error === 'object' && 'name' in error ? String((error as { name?: unknown }).name || '') : '';
@@ -25,7 +28,7 @@ function cameraErrorMessage(error: unknown) {
   return 'ไม่สามารถเปิดกล้องสำหรับสแกน QR ได้ กรุณาลองใหม่หรือใช้ช่องกรอก QR ด้านหลัง';
 }
 
-export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
+export function AttendanceQrScanner({ open, onDetected, onClose, autoFlow = false, onFailure }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const onDetectedRef = useRef(onDetected);
@@ -45,12 +48,15 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
     let active = true;
     let stream: MediaStream | null = null;
     let scanTimer: number | undefined;
+    let autoFlowTimeout: number | undefined;
     let decoding = false;
     let lastRejectedValue = '';
 
     const stop = () => {
       if (scanTimer !== undefined) window.clearInterval(scanTimer);
+      if (autoFlowTimeout !== undefined) window.clearTimeout(autoFlowTimeout);
       scanTimer = undefined;
+      autoFlowTimeout = undefined;
       stream?.getTracks().forEach((track) => track.stop());
       stream = null;
       if (videoRef.current) {
@@ -164,11 +170,21 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
         }
         setState('SCANNING');
         scanTimer = window.setInterval(scanFrame, SCAN_INTERVAL_MS);
+        if (autoFlow) {
+          autoFlowTimeout = window.setTimeout(() => {
+            if (!active) return;
+            const message = 'ยังสแกน QR ของ Site ไม่สำเร็จภายในเวลาที่กำหนด กรุณากด “ลงเวลา” แล้วลองใหม่';
+            onFailure?.(message);
+            stopAndCloseForLifecycle();
+          }, AUTO_FLOW_TIMEOUT_MS);
+        }
       } catch (reason) {
         stop();
         if (!active) return;
         setState('ERROR');
-        setError(cameraErrorMessage(reason));
+        const message = cameraErrorMessage(reason);
+        setError(message);
+        if (autoFlow) { onFailure?.(message); onCloseRef.current(); }
       }
     };
 
@@ -180,15 +196,15 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
       stop();
       document.body.style.overflow = previousBodyOverflow;
     };
-  }, [open]);
+  }, [open, autoFlow]);
 
   if (!open) return null;
 
-  return createPortal(<div className="attendance-qr-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  return createPortal(<div className="attendance-qr-backdrop" role="presentation" onMouseDown={(event) => { if (!autoFlow && event.target === event.currentTarget) onClose(); }}>
     <section className="attendance-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="attendance-qr-title">
       <header>
         <div><p>ATTENDANCE SITE QR</p><h2 id="attendance-qr-title">สแกน QR จุดปฏิบัติงาน</h2><span>ใช้กล้องเฉพาะขณะสแกน และไม่บันทึกหรืออัปโหลดภาพ</span></div>
-        <button type="button" className="drawer-close overlay-close" onClick={onClose} aria-label="ปิดกล้องสแกน QR"><SmsIcon name="close" size={20} /></button>
+        {!autoFlow && <button type="button" className="drawer-close overlay-close" onClick={onClose} aria-label="ปิดกล้องสแกน QR"><SmsIcon name="close" size={20} /></button>}
       </header>
 
       <div className={`attendance-qr-camera ${state === 'ERROR' ? 'has-error' : ''}`}>
@@ -202,7 +218,7 @@ export function AttendanceQrScanner({ open, onDetected, onClose }: Props) {
 
       {error && <div className="alert alert-error attendance-qr-error" role="alert">{error}</div>}
       <div className="attendance-qr-privacy"><SmsIcon name="shield" size={17} /><span>Frame ใช้ถอดรหัส QR ในหน่วยความจำของ browser เท่านั้น ไม่มีภาพถ่าย ไฟล์ หรือวิดีโอถูกส่งขึ้น server</span></div>
-      <footer><button type="button" className="btn-neutral" onClick={onClose}>ปิดกล้อง / กรอก QR เอง</button></footer>
+      {!autoFlow && <footer><button type="button" className="btn-neutral" onClick={onClose}>ปิดกล้อง / กรอก QR เอง</button></footer>}
     </section>
   </div>, document.body);
 }

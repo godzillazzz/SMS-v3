@@ -40,7 +40,7 @@ function fakeDependencies() {
           captureId,
           eventIntent: 'CHECK_IN',
           shiftAssignmentId: '66666666-6666-4666-8666-666666666666',
-          evidence: { siteId: '77777777-7777-4777-8777-777777777777', qrCredentialId: '88888888-8888-4888-8888-888888888888' }
+          evidence: { siteId: '77777777-7777-4777-8777-777777777777', qrMode: 'STEP_UP_QR', qrCredentialId: '88888888-8888-4888-8888-888888888888' }
         }
       };
     }

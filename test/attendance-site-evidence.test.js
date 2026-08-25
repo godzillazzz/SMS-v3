@@ -8,10 +8,13 @@ const path = require('node:path');
 const {
   SITE_BINDING_VERSION,
   QR_BINDING_VERSION,
+  QR_ASSURANCE_BINDING_VERSION,
   LOCATION_BINDING_VERSION,
   MAX_LOCATION_ACCURACY_METERS,
   LOCATION_MAX_AGE_MS,
   LOCATION_FUTURE_SKEW_MS,
+  QR_STEP_UP_MAX_ACCURACY_METERS,
+  QR_STEP_UP_INNER_MARGIN_METERS,
   tokenHash,
   haversineMeters,
   createAttendanceSiteEvidenceService
@@ -61,13 +64,17 @@ function location(overrides = {}) {
   };
 }
 
-function fakeDb({ site = baseSite(), credential = baseCredential() } = {}) {
-  const state = { site, credential };
+function fakeDb({ site = baseSite(), credential = baseCredential(), otherSites = [] } = {}) {
+  const state = { site, credential, otherSites };
   return {
     state,
     db: {
+      systemSetting: {
+        findMany: async () => []
+      },
       securitySite: {
-        findUnique: async ({ where }) => state.site?.id === where.id ? state.site : null
+        findUnique: async ({ where }) => state.site?.id === where.id ? state.site : null,
+        findMany: async () => [state.site, ...state.otherSites].filter((row) => row?.isActive === true)
       },
       securitySiteQrCredential: {
         findUnique: async ({ where }) => {
@@ -80,16 +87,19 @@ function fakeDb({ site = baseSite(), credential = baseCredential() } = {}) {
   };
 }
 
-function serviceFor(options = {}) {
+function serviceFor(options = {}, serviceOptions = {}) {
   const { db, state } = fakeDb(options);
-  return { service: createAttendanceSiteEvidenceService({ prisma: db, clock: () => now }), db, state };
+  return { service: createAttendanceSiteEvidenceService({ prisma: db, clock: () => now, ...serviceOptions }), db, state };
 }
 
 test('site/QR/location authority contracts are versioned and QR tokens are hashed', () => {
   assert.equal(SITE_BINDING_VERSION, 'ATTENDANCE_SITE_AUTHORITY_V1');
   assert.equal(QR_BINDING_VERSION, 'ATTENDANCE_QR_AUTHORITY_V1');
+  assert.equal(QR_ASSURANCE_BINDING_VERSION, 'ATTENDANCE_QR_ASSURANCE_V1');
   assert.equal(LOCATION_BINDING_VERSION, 'ATTENDANCE_LOCATION_AUTHORITY_V1');
   assert.equal(MAX_LOCATION_ACCURACY_METERS, 50);
+  assert.equal(QR_STEP_UP_MAX_ACCURACY_METERS, 20);
+  assert.equal(QR_STEP_UP_INNER_MARGIN_METERS, 20);
   assert.equal(LOCATION_MAX_AGE_MS, 3 * 60 * 1000);
   assert.equal(LOCATION_FUTURE_SKEW_MS, 30 * 1000);
   const hashed = tokenHash(qrToken);
@@ -110,11 +120,81 @@ test('valid server-side Site + QR + GPS produces three digests and a secret-free
   assert.match(result.qrBindingDigest, /^[0-9a-f]{64}$/);
   assert.match(result.locationBindingDigest, /^[0-9a-f]{64}$/);
   assert.equal(result.evidenceRef.siteId, ids.site);
+  assert.equal(result.evidenceRef.qrMode, 'STEP_UP_QR');
   assert.equal(result.evidenceRef.qrCredentialId, ids.qr);
   assert.equal(result.decision.insideGeofence, true);
   const serialized = JSON.stringify(result.evidenceRef);
   assert.equal(serialized.includes(qrToken), false);
   assert.equal(serialized.includes(tokenHash(qrToken)), false);
+});
+
+test('strong unambiguous GPS may proceed without QR while weak, boundary, or ambiguous GPS requires QR step-up', async () => {
+  const strong = serviceFor().service;
+  const gpsOnly = await strong.validateForAssignment({ assignment: { securitySiteId: ids.site }, location: location() });
+  assert.equal(gpsOnly.evidenceRef.qrMode, 'GPS_ASSURED');
+  assert.equal(gpsOnly.evidenceRef.qrCredentialId, null);
+  assert.equal(gpsOnly.decision.qrRequired, false);
+  assert.match(gpsOnly.qrBindingDigest, /^[0-9a-f]{64}$/);
+
+  await assert.rejects(
+    () => strong.validateForAssignment({ assignment: { securitySiteId: ids.site }, location: location({ accuracyMeters: 25 }) }),
+    (error) => error.details?.code === 'ATTENDANCE_QR_STEP_UP_REQUIRED'
+  );
+
+  const nearBoundary = serviceFor({ site: baseSite({ geofenceRadiusMeters: 25 }) }).service;
+  await assert.rejects(
+    () => nearBoundary.validateForAssignment({ assignment: { securitySiteId: ids.site }, location: location() }),
+    (error) => error.details?.code === 'ATTENDANCE_QR_STEP_UP_REQUIRED'
+  );
+
+  const overlapping = serviceFor({
+    otherSites: [{ ...baseSite({ id: ids.otherSite, code: 'HQ-B' }), latitude: 13.72411, longitude: 100.57011 }]
+  }).service;
+  await assert.rejects(
+    () => overlapping.validateForAssignment({ assignment: { securitySiteId: ids.site }, location: location() }),
+    (error) => error.details?.code === 'ATTENDANCE_QR_STEP_UP_REQUIRED'
+  );
+
+  const steppedUp = await overlapping.validateForAssignment({ assignment: { securitySiteId: ids.site }, qrToken, location: location() });
+  assert.equal(steppedUp.evidenceRef.qrMode, 'STEP_UP_QR');
+  assert.equal(steppedUp.evidenceRef.qrCredentialId, ids.qr);
+});
+
+test('Admin QR policy changes Server behavior without source changes and never overrides geofence', async () => {
+  const required = serviceFor({}, { policyOverride: { qrPolicy: 'REQUIRED' } }).service;
+  await assert.rejects(
+    () => required.validateForAssignment({ assignment: { securitySiteId: ids.site }, location: location() }),
+    (error) => error.details?.code === 'ATTENDANCE_QR_STEP_UP_REQUIRED'
+  );
+  const requiredWithQr = await required.validateForAssignment({ assignment: { securitySiteId: ids.site }, qrToken, location: location() });
+  assert.equal(requiredWithQr.decision.qrPolicy, 'REQUIRED');
+  assert.equal(requiredWithQr.evidenceRef.qrMode, 'STEP_UP_QR');
+
+  const disabled = serviceFor({}, { policyOverride: { qrPolicy: 'DISABLED', autoPassAccuracyMeters: 10 } }).service;
+  await assert.rejects(
+    () => disabled.validateForAssignment({ assignment: { securitySiteId: ids.site }, location: location({ accuracyMeters: 15 }) }),
+    (error) => error.details?.code === 'ATTENDANCE_LOCATION_ASSURANCE_INSUFFICIENT'
+  );
+  const disabledStrong = await disabled.validateForAssignment({ assignment: { securitySiteId: ids.site }, location: location({ accuracyMeters: 8 }) });
+  assert.equal(disabledStrong.decision.qrPolicy, 'DISABLED');
+  assert.equal(disabledStrong.evidenceRef.qrMode, 'GPS_ASSURED');
+
+  const anyPolicy = serviceFor({}, { policyOverride: { qrPolicy: 'REQUIRED' } }).service;
+  await assert.rejects(
+    () => anyPolicy.validateForAssignment({ assignment: { securitySiteId: ids.site }, qrToken, location: location({ latitude: 13.7253, accuracyMeters: 10 }) }),
+    (error) => error.details?.code === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE'
+  );
+});
+
+test('GPS-assured context revalidation fails closed if current location policy later requires QR step-up', async () => {
+  const { service, state } = serviceFor();
+  const first = await service.validateForAssignment({ assignment: { securitySiteId: ids.site }, location: location() });
+  assert.equal(first.evidenceRef.qrMode, 'GPS_ASSURED');
+  state.otherSites = [{ ...baseSite({ id: ids.otherSite, code: 'HQ-B' }), latitude: 13.72411, longitude: 100.57011 }];
+  await assert.rejects(
+    () => service.revalidateRef({ ref: first.evidenceRef }),
+    (error) => error.details?.code === 'ATTENDANCE_QR_STEP_UP_REQUIRED'
+  );
 });
 
 test('missing site assignment and inactive site fail closed', async () => {

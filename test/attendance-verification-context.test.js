@@ -111,6 +111,7 @@ function evidenceDecision(location = attendanceEvidence.location) {
     locationBindingDigest: digest(JSON.stringify(normalizedLocation)),
     evidenceRef: {
       siteId: ids.site,
+      qrMode: 'STEP_UP_QR',
       qrCredentialId: ids.qrCredential,
       location: normalizedLocation
     },
@@ -124,10 +125,12 @@ function fakeSiteEvidence() {
     calls,
     validateForAssignment: async (input, client) => {
       calls.validate.push({ input, client });
+      const result = evidenceDecision(input.location);
       if (!input.qrToken) {
-        const error = new Error('QR required'); error.details = { code: 'ATTENDANCE_QR_INVALID' }; throw error;
+        result.evidenceRef.qrMode = 'GPS_ASSURED';
+        result.evidenceRef.qrCredentialId = null;
       }
-      return evidenceDecision(input.location);
+      return result;
     },
     revalidateRef: async ({ ref }, client) => {
       calls.revalidate.push({ ref, client });
@@ -227,14 +230,14 @@ test('prepareContext derives Site/QR/GPS digests from raw evidence through the s
   assert.match(prepared.contextDigest, /^[0-9a-f]{64}$/);
 });
 
-test('missing raw QR evidence fails closed before face verification', async () => {
+test('strong GPS evidence may prepare a context without QR and records the GPS_ASSURED mode', async () => {
   const { db, clock } = fakeDb();
   const face = fakeFace();
   const service = createAttendanceVerificationContextService({ prisma: db, faceSessionService: face, siteEvidenceService: fakeSiteEvidence(), clock });
-  await assert.rejects(
-    () => service.prepareContext({ actor: { sub: ids.user }, captureId: ids.capture, eventIntent: 'CHECK_IN', attendanceEvidence: { location: attendanceEvidence.location } }),
-    (error) => error.details?.code === 'ATTENDANCE_QR_INVALID'
-  );
+  const prepared = await service.prepareContext({ actor: { sub: ids.user }, captureId: ids.capture, eventIntent: 'CHECK_IN', attendanceEvidence: { location: attendanceEvidence.location } });
+  assert.equal(prepared.contextRef.evidence.qrMode, 'GPS_ASSURED');
+  assert.equal(prepared.contextRef.evidence.qrCredentialId, null);
+  assert.match(prepared.contextDigest, /^[0-9a-f]{64}$/);
   assert.equal(face.calls.create.length, 0);
 });
 

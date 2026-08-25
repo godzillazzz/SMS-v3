@@ -21,7 +21,7 @@ const locationInput = z.object({
   capturedAt: z.string().datetime({ offset: true })
 }).strict();
 const attendanceEvidenceInput = z.object({
-  qrToken: z.string().trim().min(24).max(512),
+  qrToken: z.string().trim().min(24).max(512).optional(),
   location: locationInput
 }).strict();
 const prepareInput = z.object({
@@ -40,7 +40,8 @@ const attendanceContextInput = z.object({
   shiftAssignmentId: uuid,
   evidence: z.object({
     siteId: uuid,
-    qrCredentialId: uuid,
+    qrMode: z.enum(['GPS_ASSURED', 'STEP_UP_QR']),
+    qrCredentialId: uuid.nullable(),
     location: contextLocationInput
   }).strict()
 }).strict();

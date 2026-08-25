@@ -168,7 +168,7 @@ async function jsonPayload(response: Response) {
 
 export async function attendanceReadiness(token: string, input: {
   captureId: string;
-  qrToken: string;
+  qrToken?: string;
   location: AttendanceLocationEvidence;
 }): Promise<AttendanceReadinessResult> {
   const response = await fetch(`${baseUrl}/attendance/readiness`, {
@@ -178,7 +178,7 @@ export async function attendanceReadiness(token: string, input: {
     body: JSON.stringify({
       captureId: input.captureId,
       attendanceEvidence: {
-        qrToken: input.qrToken,
+        ...(input.qrToken ? { qrToken: input.qrToken } : {}),
         location: input.location
       }
     })
@@ -193,7 +193,7 @@ export async function attendanceReadiness(token: string, input: {
 
 export async function attendanceVerificationStart(token: string, input: {
   captureId: string;
-  qrToken: string;
+  qrToken?: string;
   location: AttendanceLocationEvidence;
 }): Promise<AttendanceVerificationStartResult> {
   const response = await fetch(`${baseUrl}/attendance/verification/start`, {
@@ -203,7 +203,7 @@ export async function attendanceVerificationStart(token: string, input: {
     body: JSON.stringify({
       captureId: input.captureId,
       attendanceEvidence: {
-        qrToken: input.qrToken,
+        ...(input.qrToken ? { qrToken: input.qrToken } : {}),
         location: input.location
       }
     })

@@ -216,3 +216,9 @@
   .attendance-uat-card > footer { display: grid; grid-template-columns: 1fr; }
   .attendance-uat-card > footer > button { width: 100%; }
 }
+
+/* G06 employee one-action Attendance surface. */
+.attendance-one-action-card { max-width: 760px; margin-inline: auto; }
+.attendance-primary-one-action { width: 100%; min-height: 58px; justify-content: center; font-size: 17px; font-weight: 750; }
+.attendance-one-action-note { display: block; margin-top: 9px; color: var(--color-text-muted); font-size: 10px; line-height: 1.5; text-align: center; }
+@media (max-width: 540px) { .attendance-primary-one-action { min-height: 56px; } }

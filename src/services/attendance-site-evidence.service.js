@@ -3,13 +3,21 @@
 const crypto = require('node:crypto');
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
+const { createAttendancePolicyService, DEFAULT_ATTENDANCE_POLICY } = require('./attendance-policy.service');
 
 const SITE_BINDING_VERSION = 'ATTENDANCE_SITE_AUTHORITY_V1';
 const QR_BINDING_VERSION = 'ATTENDANCE_QR_AUTHORITY_V1';
+const QR_ASSURANCE_BINDING_VERSION = 'ATTENDANCE_QR_ASSURANCE_V1';
 const LOCATION_BINDING_VERSION = 'ATTENDANCE_LOCATION_AUTHORITY_V1';
 const MAX_LOCATION_ACCURACY_METERS = 50;
 const LOCATION_MAX_AGE_MS = 3 * 60 * 1000;
 const LOCATION_FUTURE_SKEW_MS = 30 * 1000;
+const QR_STEP_UP_MAX_ACCURACY_METERS = 20;
+const QR_STEP_UP_INNER_MARGIN_METERS = 20;
+const QR_ASSURANCE_MODES = Object.freeze({
+  GPS_ASSURED: 'GPS_ASSURED',
+  STEP_UP_QR: 'STEP_UP_QR'
+});
 const QR_TOKEN_MIN_LENGTH = 24;
 const QR_TOKEN_MAX_LENGTH = 512;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -140,6 +148,21 @@ function qrPayload(credential) {
   };
 }
 
+function gpsAssuredQrPayload(site, policy) {
+  return {
+    version: QR_ASSURANCE_BINDING_VERSION,
+    mode: QR_ASSURANCE_MODES.GPS_ASSURED,
+    siteId: site.id,
+    policy: {
+      qrPolicy: policy.qrPolicy,
+      maxAccuracyMeters: policy.autoPassAccuracyMeters,
+      innerMarginMeters: policy.innerMarginMeters,
+      stepUpOnSiteOverlap: policy.stepUpOnSiteOverlap,
+      ambiguityRule: policy.stepUpOnSiteOverlap ? 'NO_OTHER_ACTIVE_SITE_CONTAINS_SAMPLE' : 'DISABLED_BY_ADMIN_POLICY'
+    }
+  };
+}
+
 function normalizeLocation(location, now, {
   maxAccuracyMeters = MAX_LOCATION_ACCURACY_METERS,
   maxAgeMs = LOCATION_MAX_AGE_MS,
@@ -185,15 +208,15 @@ function validateLocationAgainstSite(site, sample, policy) {
 function createAttendanceSiteEvidenceService({
   prisma = prismaDefault,
   clock = () => new Date(),
-  maxLocationAccuracyMeters = MAX_LOCATION_ACCURACY_METERS,
-  locationMaxAgeMs = LOCATION_MAX_AGE_MS,
-  locationFutureSkewMs = LOCATION_FUTURE_SKEW_MS
+  policyService = null,
+  policyOverride = null
 } = {}) {
-  const policy = {
-    maxAccuracyMeters: maxLocationAccuracyMeters,
-    maxAgeMs: locationMaxAgeMs,
-    futureSkewMs: locationFutureSkewMs
-  };
+  const policies = policyService || createAttendancePolicyService({ prisma });
+
+  async function currentPolicy(client) {
+    if (policyOverride) return Object.freeze({ ...DEFAULT_ATTENDANCE_POLICY, ...policyOverride });
+    return policies.getPolicy(client);
+  }
 
   async function loadSite(client, siteId) {
     const id = normalizedUuid(siteId, 'ATTENDANCE_SITE_INVALID');
@@ -212,67 +235,114 @@ function createAttendanceSiteEvidenceService({
     return { credential, digest: bindingDigest(qrPayload(credential)) };
   }
 
-  function validateLocation(site, location, now) {
-    const sample = normalizeLocation(location, now, policy);
-    const checked = validateLocationAgainstSite(site, sample, policy);
-    return {
-      sample,
-      distanceMeters: checked.distanceMeters,
-      digest: bindingDigest(checked.payload)
-    };
+  function validateLocation(site, location, now, policy) {
+    const sample = normalizeLocation(location, now, {
+      maxAccuracyMeters: policy.maxAccuracyMeters,
+      maxAgeMs: policy.maxAgeMs,
+      futureSkewMs: policy.futureSkewMs
+    });
+    const checked = validateLocationAgainstSite(site, sample, {
+      maxAccuracyMeters: policy.maxAccuracyMeters,
+      maxAgeMs: policy.maxAgeMs,
+      futureSkewMs: policy.futureSkewMs
+    });
+    return { sample, distanceMeters: checked.distanceMeters, digest: bindingDigest(checked.payload) };
+  }
+
+  async function assessQrStepUp(client, site, gps, policy) {
+    const activeSites = policy.stepUpOnSiteOverlap
+      ? await client.securitySite.findMany({ where: { isActive: true }, select: { id: true, latitude: true, longitude: true, geofenceRadiusMeters: true, isActive: true } })
+      : [site];
+    const containingSiteIds = activeSites
+      .map((candidate) => { try { return assertSite(candidate); } catch { return null; } })
+      .filter(Boolean)
+      .filter((candidate) => haversineMeters(candidate.latitude, candidate.longitude, gps.sample.latitude, gps.sample.longitude) + gps.sample.accuracyMeters <= candidate.geofenceRadiusMeters)
+      .map((candidate) => candidate.id);
+    const innerMarginMeters = site.geofenceRadiusMeters - (gps.distanceMeters + gps.sample.accuracyMeters);
+    const reasons = [];
+    if (gps.sample.accuracyMeters > policy.autoPassAccuracyMeters) reasons.push('GPS_ACCURACY');
+    if (innerMarginMeters < policy.innerMarginMeters) reasons.push('GEOFENCE_BOUNDARY');
+    if (policy.stepUpOnSiteOverlap && containingSiteIds.some((siteId) => siteId !== site.id)) reasons.push('SITE_AMBIGUITY');
+    if (policy.qrPolicy === 'REQUIRED') reasons.unshift('ADMIN_POLICY_REQUIRED');
+    return { required: reasons.length > 0, reasons, innerMarginMeters };
+  }
+
+  function assertQrPolicyCanProceedWithoutQr(stepUp, policy) {
+    if (!stepUp.required) return;
+    if (policy.qrPolicy === 'DISABLED') {
+      throw http(409, 'ATTENDANCE_LOCATION_ASSURANCE_INSUFFICIENT', 'Location assurance is not strong enough under the current Attendance policy.');
+    }
+    throw http(409, 'ATTENDANCE_QR_STEP_UP_REQUIRED', 'Scan the current Site QR to strengthen location assurance.');
   }
 
   async function validateForAssignment({ assignment, qrToken, location }, client = prisma) {
     if (!assignment?.securitySiteId) throw http(409, 'ATTENDANCE_SITE_REQUIRED', 'The Shift Assignment does not have an authoritative Security Site.');
     const now = clock();
+    const policy = await currentPolicy(client);
     const site = await loadSite(client, assignment.securitySiteId);
-    const qr = await validateQrToken(client, site, qrToken, now);
-    const gps = validateLocation(site, location, now);
+    const gps = validateLocation(site, location, now, policy);
+    const stepUp = await assessQrStepUp(client, site, gps, policy);
+    const suppliedQr = String(qrToken || '').trim();
+    let qrCredential = null;
+    let qrMode = QR_ASSURANCE_MODES.GPS_ASSURED;
+    let qrBindingDigest;
+    if (suppliedQr) {
+      const qr = await validateQrToken(client, site, suppliedQr, now);
+      qrCredential = qr.credential;
+      qrMode = QR_ASSURANCE_MODES.STEP_UP_QR;
+      qrBindingDigest = qr.digest;
+    } else {
+      assertQrPolicyCanProceedWithoutQr(stepUp, policy);
+      qrBindingDigest = bindingDigest(gpsAssuredQrPayload(site, policy));
+    }
     return {
       siteBindingDigest: bindingDigest(sitePayload(site)),
-      qrBindingDigest: qr.digest,
+      qrBindingDigest,
       locationBindingDigest: gps.digest,
       evidenceRef: {
         siteId: site.id,
-        qrCredentialId: qr.credential.id,
-        location: {
-          latitude: decimal7(gps.sample.latitude),
-          longitude: decimal7(gps.sample.longitude),
-          accuracyMeters: decimal2(gps.sample.accuracyMeters),
-          capturedAt: gps.sample.capturedAt.toISOString()
-        }
+        qrMode,
+        qrCredentialId: qrCredential?.id || null,
+        location: { latitude: decimal7(gps.sample.latitude), longitude: decimal7(gps.sample.longitude), accuracyMeters: decimal2(gps.sample.accuracyMeters), capturedAt: gps.sample.capturedAt.toISOString() }
       },
       decision: {
-        siteId: site.id,
-        insideGeofence: true,
-        distanceMeters: Number(gps.distanceMeters.toFixed(2))
+        siteId: site.id, insideGeofence: true, distanceMeters: Number(gps.distanceMeters.toFixed(2)),
+        qrRequired: stepUp.required, qrMode, qrStepUpReasons: stepUp.reasons, qrPolicy: policy.qrPolicy
       }
     };
   }
 
   async function revalidateRef({ ref }, client = prisma) {
     const now = clock();
+    const policy = await currentPolicy(client);
     const site = await loadSite(client, ref?.siteId);
-    const qr = await revalidateQrCredential(client, site, ref?.qrCredentialId, now);
-    const gps = validateLocation(site, ref?.location, now);
+    const gps = validateLocation(site, ref?.location, now, policy);
+    const stepUp = await assessQrStepUp(client, site, gps, policy);
+    const qrMode = String(ref?.qrMode || '');
+    let qrCredential = null;
+    let qrBindingDigest;
+    if (qrMode === QR_ASSURANCE_MODES.STEP_UP_QR) {
+      const qr = await revalidateQrCredential(client, site, ref?.qrCredentialId, now);
+      qrCredential = qr.credential;
+      qrBindingDigest = qr.digest;
+    } else if (qrMode === QR_ASSURANCE_MODES.GPS_ASSURED) {
+      if (ref?.qrCredentialId != null) throw http(409, 'ATTENDANCE_QR_AUTHORITY_INVALID', 'GPS-assured Attendance context must not contain a QR credential.');
+      assertQrPolicyCanProceedWithoutQr(stepUp, policy);
+      qrBindingDigest = bindingDigest(gpsAssuredQrPayload(site, policy));
+    } else {
+      throw http(409, 'ATTENDANCE_QR_AUTHORITY_INVALID', 'Attendance QR assurance mode is invalid.');
+    }
     return {
       siteBindingDigest: bindingDigest(sitePayload(site)),
-      qrBindingDigest: qr.digest,
+      qrBindingDigest,
       locationBindingDigest: gps.digest,
       evidenceRef: {
-        siteId: site.id,
-        qrCredentialId: qr.credential.id,
-        location: {
-          latitude: decimal7(gps.sample.latitude),
-          longitude: decimal7(gps.sample.longitude),
-          accuracyMeters: decimal2(gps.sample.accuracyMeters),
-          capturedAt: gps.sample.capturedAt.toISOString()
-        }
+        siteId: site.id, qrMode, qrCredentialId: qrCredential?.id || null,
+        location: { latitude: decimal7(gps.sample.latitude), longitude: decimal7(gps.sample.longitude), accuracyMeters: decimal2(gps.sample.accuracyMeters), capturedAt: gps.sample.capturedAt.toISOString() }
       },
       decision: {
-        siteId: site.id,
-        insideGeofence: true,
-        distanceMeters: Number(gps.distanceMeters.toFixed(2))
+        siteId: site.id, insideGeofence: true, distanceMeters: Number(gps.distanceMeters.toFixed(2)),
+        qrRequired: stepUp.required, qrMode, qrStepUpReasons: stepUp.reasons, qrPolicy: policy.qrPolicy
       }
     };
   }
@@ -283,10 +353,14 @@ function createAttendanceSiteEvidenceService({
 module.exports = {
   SITE_BINDING_VERSION,
   QR_BINDING_VERSION,
+  QR_ASSURANCE_BINDING_VERSION,
   LOCATION_BINDING_VERSION,
   MAX_LOCATION_ACCURACY_METERS,
   LOCATION_MAX_AGE_MS,
   LOCATION_FUTURE_SKEW_MS,
+  QR_STEP_UP_MAX_ACCURACY_METERS,
+  QR_STEP_UP_INNER_MARGIN_METERS,
+  QR_ASSURANCE_MODES,
   tokenHash,
   haversineMeters,
   bindingDigest,

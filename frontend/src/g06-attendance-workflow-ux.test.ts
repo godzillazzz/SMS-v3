@@ -15,29 +15,32 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(main).toContain("'attendance'");
     expect(main).toContain("{ id: 'attendance', icon: 'clock', label: 'ลงเวลา' }");
     expect(main).toContain('<AttendancePage token={auth.token}');
-    expect(main).toContain("onOpenDeviceSetup={pwaShell ? undefined : () => setActivePage('attendanceDevice')}");
-    expect(page).toContain('Server เป็นผู้ตัดสินเวลาเข้า/ออก');
+    expect(page).toContain('One tap · Server controlled');
+    expect(page.match(/<button\b/g)?.length).toBe(1);
+    expect(page).not.toContain('onOpenDeviceSetup');
   });
 
-  it('sends only captureId plus raw QR/GPS evidence to readiness and never sends a client event intent', () => {
+  it('sends captureId + GPS first, with QR optional only when Server requests step-up, and never sends client event intent', () => {
     expect(client).toContain("fetch(`${baseUrl}/attendance/readiness`");
     expect(client).toContain('captureId: input.captureId');
-    expect(client).toContain('qrToken: input.qrToken');
+    expect(client).toContain('...(input.qrToken ? { qrToken: input.qrToken } : {})');
     expect(client).toContain('location: input.location');
-    expect(client).toMatch(/body: JSON\.stringify\(\{\s*captureId: input\.captureId,\s*attendanceEvidence: \{\s*qrToken: input\.qrToken,\s*location: input\.location\s*\}\s*\}\)/);
-    expect(page).toContain('client ไม่ส่ง eventIntent');
-    expect(page).toContain('const qrLength = qrToken.trim().length');
-    expect(page).toContain('const qrReady = qrLength >= 24 && qrLength <= 512');
-    expect(page).toContain('maxLength={512}');
+    expect(client).toContain('qrToken?: string');
+    expect(page).toContain('พนักงานไม่เลือก CHECK-IN/CHECK-OUT');
+    expect(page).toContain("result.data.readiness.state === 'QR_STEP_UP_REQUIRED'");
+    expect(page).toContain("result.data.readiness.state === 'QR_RESCAN_REQUIRED'");
+    expect(page).toContain('กล้อง QR จะเปิดเอง');
   });
 
-  it('automates QR scan into one-shot GPS and server readiness without adding client authority', () => {
+  it('runs one-tap GPS first and opens QR only as automatic step-up while preserving server authority', () => {
+    expect(page).toContain('const handleStartAttendance = async () => {');
+    expect(page).toMatch(/handleStartAttendance[\s\S]*?positionOnce\(\)[\s\S]*?checkReadinessWithEvidence\(captureId, undefined, nextLocation, operationEpoch\)/);
+    expect(page).toContain("setScannerOpen(true)");
     expect(page).toContain('const handleQrDetected = async (value: string) => {');
     expect(page).toMatch(/handleQrDetected[\s\S]*?positionOnce\(\)[\s\S]*?checkReadinessWithEvidence\(captureId, nextQrToken, nextLocation, operationEpoch\)/);
     expect(page).toContain('onDetected={(value) => { void handleQrDetected(value); }}');
-    expect(page).toContain('สแกน QR เพื่อลงเวลา');
-    expect(page).toContain('Scan once · Auto flow');
-    expect(page).toContain('ตรวจความพร้อมอีกครั้ง');
+    expect(page).toContain("'ลงเวลา'");
+    expect(page).not.toContain('สแกน QR เพื่อยืนยันพื้นที่</button>');
     expect(page).not.toContain('watchPosition');
     expect(page).not.toContain('/attendance/events');
   });
@@ -69,7 +72,12 @@ describe('G06 Attendance frontend UX skeleton', () => {
 
   it('uses a transient camera QR scanner and releases all media tracks without persisting frames', () => {
     expect(page).toContain('<AttendanceQrScanner');
-    expect(page).toContain('สแกน QR');
+    expect(page).toContain('autoFlow');
+    expect(scanner).toContain('autoFlow?: boolean');
+    expect(scanner).toContain('AUTO_FLOW_TIMEOUT_MS = 30000');
+    expect(scanner).toContain('{!autoFlow && <button type="button" className="drawer-close overlay-close"');
+    expect(scanner).toContain('{!autoFlow && <footer>');
+    expect(page).toContain('QR Step-up');
     expect(scanner).toContain("import { createPortal } from 'react-dom'");
     expect(scanner).toContain('createPortal(<div className="attendance-qr-backdrop"');
     expect(scanner).toContain("document.body.style.overflow = 'hidden'");
@@ -107,12 +115,15 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(css).toContain('padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left))');
     expect(css).not.toContain('max-width: 430px');
     expect(css).not.toContain('aspect-ratio: 3 / 2');
-    expect(css).not.toContain('margin-inline: auto');
     expect(scanner).toContain('ใช้กล้องเฉพาะขณะสแกน และไม่บันทึกหรืออัปโหลดภาพ');
   });
 
   it('captures the front-camera still only in memory, provides preview/confirm, and purges media on lifecycle exit', () => {
     expect(faceCapture).toContain('navigator.mediaDevices.getUserMedia');
+    expect(faceCapture).toContain('autoFlow?: boolean');
+    expect(faceCapture).toContain('autoStartedRef');
+    expect(faceCapture).toContain('{!autoFlow && <footer>');
+    expect(page).toContain('autoFlow');
     expect(faceCapture).toContain("facingMode: { ideal: 'user' }");
     expect(faceCapture).toContain("canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY)");
     expect(faceCapture).toContain('URL.createObjectURL(finalPhoto)');
@@ -189,7 +200,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).toContain("if (response.status === 404) return { routeAvailable: false");
     expect(page).toContain('ระบบลงเวลายังไม่เปิดใช้งานในสภาพแวดล้อมนี้');
     expect(page).toContain('ไม่มี AttendanceEvent ถูกสร้าง');
-    expect(page).toContain("readiness?.state === 'READY_TO_START_VERIFICATION'");
+    expect(page).toContain("result.data.readiness.state === 'READY_TO_START_VERIFICATION'");
   });
 
   it('keeps View As read-only and offers device remediation without impersonated Attendance evidence', () => {
@@ -199,9 +210,8 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain("setScannerOpen(false)");
     expect(page).toContain("setQrToken('')");
     expect(page).toContain('setLocation(null)');
-    expect(page).toContain('disabled={interactionDisabled || checking}');
-    expect(page).toContain("readiness?.state === 'DEVICE_SETUP_REQUIRED'");
-    expect(page).toContain('ไปหน้าอุปกรณ์ลงเวลา');
+    expect(page).toContain('disabled={!canStartAttendance}');
+    expect(page).not.toContain('ไปหน้าอุปกรณ์ลงเวลา');
   });
 
   it('invalidates in-flight GPS/readiness results when Attendance becomes blocked or the attempt resets', () => {
@@ -215,7 +225,8 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page.match(/operationEpoch !== asyncEvidenceEpochRef\.current \|\| interactionDisabledRef\.current/g)?.length).toBeGreaterThanOrEqual(4);
     expect(page).toContain('if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false)');
     expect(page).toContain('if (operationEpoch === asyncEvidenceEpochRef.current) setChecking(false)');
-    expect(page).toMatch(/const resetAttempt = \(\) => \{\s*asyncEvidenceEpochRef\.current \+= 1;/);
+    expect(page).toContain('const activeCaptureIdRef = useRef<string | null>(null)');
+    expect(page).toContain('activeCaptureIdRef.current = null');
   });
 
   it('clears transient Attendance evidence when the PWA is backgrounded or page lifecycle hides it', () => {
@@ -238,5 +249,18 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(css).toContain('@media (max-width: 540px)');
     expect(css).toContain('.attendance-workspace-grid { grid-template-columns: 1fr; }');
     expect(css).toContain('.attendance-flow-grid { grid-template-columns: 1fr; }');
+  });
+
+  it('keeps Attendance policy controls on the existing ADMIN-only Settings page', () => {
+    const policyCard = read('./components/AttendancePolicySettingsCard.tsx');
+    expect(main).toContain("if (page === 'settings') return auth.user?.role === 'ADMIN'");
+    expect(main).toContain('<AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />');
+    expect(main).toContain('onSaveAttendancePolicy={async (policy) =>');
+    expect(policyCard).toContain('บันทึก Attendance Policy');
+    expect(policyCard).toContain('คืนค่าแนะนำ');
+    expect(policyCard).toContain('ADAPTIVE');
+    expect(policyCard).toContain('REQUIRED');
+    expect(policyCard).toContain('DISABLED');
+    expect(page).not.toContain('บันทึก Attendance Policy');
   });
 });

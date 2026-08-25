@@ -56,15 +56,17 @@ describe('G06 Employee PWA mobile UAT/hardening', () => {
     expect(isSmsPwaShellMode()).toBe(false);
   });
 
-  it('blocks Attendance evidence actions while the PWA is offline without mislabeling it as View As', () => {
+  it('blocks the single Attendance action and all transient evidence surfaces while the PWA is offline without mislabeling it as View As', () => {
     expect(main).toContain('online={!pwaShell || pwaOnline}');
     expect(attendance).toContain('const interactionDisabled = readOnly || !online');
-    expect(attendance).toContain('if (interactionDisabled) return');
+    expect(attendance).toContain('const canStartAttendance = !interactionDisabled');
+    expect(attendance).toContain('disabled={!canStartAttendance}');
     expect(attendance).toContain('open={scannerOpen && !interactionDisabled}');
-    expect(attendance).toContain('disabled={interactionDisabled || checking}');
-    expect(attendance).toContain('disabled={interactionDisabled || locationBusy || checking || verificationBusy}');
     expect(attendance).toContain('open={faceCaptureOpen && !interactionDisabled}');
-    expect(attendance).toContain('ออฟไลน์ — ปิดการสแกน QR, GPS และ Server readiness');
+    expect(attendance).toContain('if (!interactionDisabled) return;');
+    expect(attendance).toContain("setScannerOpen(false)");
+    expect(attendance).toContain('setFaceCaptureOpen(false)');
+    expect(attendance).toContain('ออฟไลน์ — การลงเวลาต้องเชื่อมต่อ Server');
   });
 
   it('blocks Leave mutations while offline but keeps normal Web authority unchanged', () => {

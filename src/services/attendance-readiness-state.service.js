@@ -16,6 +16,7 @@ const STATES = Object.freeze({
   REFERENCE_PHOTO_REVIEW_REQUIRED: Object.freeze({ state: 'REFERENCE_PHOTO_REVIEW_REQUIRED', blocking: true, retryable: false, action: 'CONTACT_ADMIN', messageKey: 'attendance.reference_photo_review_required' }),
   SCHEDULE_NOT_READY: Object.freeze({ state: 'SCHEDULE_NOT_READY', blocking: true, retryable: false, action: 'CONTACT_MANAGER', messageKey: 'attendance.schedule_not_ready' }),
   SITE_NOT_READY: Object.freeze({ state: 'SITE_NOT_READY', blocking: true, retryable: false, action: 'CONTACT_MANAGER', messageKey: 'attendance.site_not_ready' }),
+  QR_STEP_UP_REQUIRED: Object.freeze({ state: 'QR_STEP_UP_REQUIRED', blocking: true, retryable: true, action: 'SCAN_CURRENT_SITE_QR', messageKey: 'attendance.qr_step_up_required' }),
   QR_RESCAN_REQUIRED: Object.freeze({ state: 'QR_RESCAN_REQUIRED', blocking: true, retryable: true, action: 'SCAN_CURRENT_SITE_QR', messageKey: 'attendance.qr_rescan_required' }),
   LOCATION_REFRESH_REQUIRED: Object.freeze({ state: 'LOCATION_REFRESH_REQUIRED', blocking: true, retryable: true, action: 'REFRESH_LOCATION', messageKey: 'attendance.location_refresh_required' }),
   OUTSIDE_SITE_GEOFENCE: Object.freeze({ state: 'OUTSIDE_SITE_GEOFENCE', blocking: true, retryable: true, action: 'MOVE_INSIDE_ASSIGNED_SITE', messageKey: 'attendance.outside_site_geofence' }),
@@ -62,6 +63,7 @@ mapCodes('SITE_NOT_READY', [
   'ATTENDANCE_SITE_INACTIVE',
   'ATTENDANCE_SITE_INVALID'
 ]);
+mapCodes('QR_STEP_UP_REQUIRED', ['ATTENDANCE_QR_STEP_UP_REQUIRED']);
 mapCodes('QR_RESCAN_REQUIRED', [
   'ATTENDANCE_QR_INVALID',
   'ATTENDANCE_QR_AUTHORITY_INVALID',
@@ -76,7 +78,8 @@ mapCodes('LOCATION_REFRESH_REQUIRED', [
   'ATTENDANCE_LOCATION_ACCURACY_INVALID',
   'ATTENDANCE_LOCATION_ACCURACY_INSUFFICIENT',
   'ATTENDANCE_LOCATION_STALE',
-  'ATTENDANCE_LOCATION_FROM_FUTURE'
+  'ATTENDANCE_LOCATION_FROM_FUTURE',
+  'ATTENDANCE_LOCATION_ASSURANCE_INSUFFICIENT'
 ]);
 mapCodes('OUTSIDE_SITE_GEOFENCE', ['ATTENDANCE_OUTSIDE_SITE_GEOFENCE']);
 mapCodes('BIOMETRIC_TEMPORARILY_UNAVAILABLE', [

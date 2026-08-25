@@ -21,6 +21,7 @@ const { measureLeaveApprovalStage, runLeaveApprovalTransaction } = require('../s
 const { createLeaveStageDurations, measureLeaveTransactionStage, runLeaveTransaction: runLeaveTransactionWithClient } = require('../services/leave-transaction.service');
 const { provisionAnnualLeaveQuotas } = require('../services/annual-leave-quota-cron.service');
 const { isReservedOperationalSettingKey } = require('../services/g03-1-multi-year-activation.service');
+const { ATTENDANCE_POLICY_KEYS, validateAttendancePolicySetting } = require('../services/attendance-policy.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
@@ -721,9 +722,14 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
     if (isReservedOperationalSettingKey(key)) throw new HttpError(403, 'This operational setting is managed through protected release operations.', { code: 'OPERATIONAL_SETTING_RESERVED' });
     if (/secret|token|password|credential|database|smtp|webhook|channel|access[_-]?key/i.test(key)) throw new HttpError(400, 'Sensitive settings must be configured through the approved environment-variable workflow.');
     const input = z.object({ value: z.string().max(2000), description: nullableText(2000) }).parse(req.body);
+    let normalizedInput = input;
+    if (Object.values(ATTENDANCE_POLICY_KEYS).includes(key)) {
+      try { normalizedInput = { ...input, value: validateAttendancePolicySetting(key, input.value) }; }
+      catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'Attendance policy setting is invalid.', { code: 'ATTENDANCE_POLICY_SETTING_INVALID' }); }
+    }
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.systemSetting.findUnique({ where: { key } });
-      const after = await tx.systemSetting.upsert({ where: { key }, update: input, create: { key, ...input } });
+      const after = await tx.systemSetting.upsert({ where: { key }, update: normalizedInput, create: { key, ...normalizedInput } });
       await audit.log({ actorUserId: req.user.sub, action: before ? 'UPDATE' : 'CREATE', entityType: 'SystemSetting', entityId: key, metadata: { key, configured: Boolean(after.value) } }, tx);
       return { key: after.key, value: after.value, description: after.description, updatedAt: after.updatedAt };
     });

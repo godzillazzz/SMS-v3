@@ -46,6 +46,7 @@ import { OperationalRecordDrawer, type OperationalDrawerAction } from './compone
 import { SmsIcon, type SmsIconName } from './components/SmsIcon';
 import { ThemeControl } from './components/ThemeControl';
 import { PasskeySecurityPanel } from './components/PasskeySecurityPanel';
+import { AttendancePolicySettingsCard, attendancePolicyKeys, type AttendancePolicyForm } from './components/AttendancePolicySettingsCard';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/license-table.css';
@@ -873,7 +874,7 @@ const defaultLeaveStatusTemplate = `📢 [อัปเดตสถานะใ�
 📅 วันที่: {StartDate} ถึง {EndDate}
 📝 เหตุผล: {Reason}`;
 
-function SettingsPage({ settings, loading, error, onRefresh, onSaveTemplates, onAudit }: { settings: DataRow[]; loading: boolean; error?: RequestErrorInput; onRefresh(): void; onSaveTemplates(newLeave: string, leaveStatus: string): Promise<void>; onAudit(): void }) {
+function SettingsPage({ settings, loading, error, onRefresh, onSaveTemplates, onSaveAttendancePolicy, onAudit }: { settings: DataRow[]; loading: boolean; error?: RequestErrorInput; onRefresh(): void; onSaveTemplates(newLeave: string, leaveStatus: string): Promise<void>; onSaveAttendancePolicy(policy: AttendancePolicyForm): Promise<void>; onAudit(): void }) {
   const readSetting = (key: string, fallback: string) => String(settings.find((setting) => setting.key === key)?.value || fallback);
   const [newLeaveTemplate, setNewLeaveTemplate] = useState(defaultNewLeaveTemplate);
   const [leaveStatusTemplate, setLeaveStatusTemplate] = useState(defaultLeaveStatusTemplate);
@@ -883,7 +884,8 @@ function SettingsPage({ settings, loading, error, onRefresh, onSaveTemplates, on
     setNewLeaveTemplate(readSetting('LINE_TEMPLATE_NEW_LEAVE', defaultNewLeaveTemplate));
     setLeaveStatusTemplate(readSetting('LINE_TEMPLATE_LEAVE_STATUS', defaultLeaveStatusTemplate));
   }, [settings]);
-  const visibleSettings = settings.filter((setting) => !['LINE_TEMPLATE_NEW_LEAVE', 'LINE_TEMPLATE_LEAVE_STATUS'].includes(String(setting.key)));
+  const attendanceSettingKeys = new Set<string>(Object.values(attendancePolicyKeys));
+  const visibleSettings = settings.filter((setting) => !['LINE_TEMPLATE_NEW_LEAVE', 'LINE_TEMPLATE_LEAVE_STATUS'].includes(String(setting.key)) && !attendanceSettingKeys.has(String(setting.key)));
   const saveTemplates = async () => {
     setSaving(true); setNotice(undefined);
     try { await onSaveTemplates(newLeaveTemplate, leaveStatusTemplate); setNotice('บันทึกเทมเพลตการแจ้งเตือนสำเร็จแล้ว'); }
@@ -894,6 +896,7 @@ function SettingsPage({ settings, loading, error, onRefresh, onSaveTemplates, on
     <div className="page-heading settings-heading"><div><h1>Settings</h1><p>ตั้งค่าระบบและการแจ้งเตือน โดยไม่เก็บ token หรือความลับไว้ในฐานข้อมูล</p></div><div className="heading-actions"><button className="btn-neutral small-action" disabled={!visibleSettings.length} onClick={() => downloadCsv(visibleSettings, 'smsv3-settings')}>⇧ Export</button><button className="btn-neutral small-action" onClick={onAudit}>Audit Log</button><button className="btn-primary compact" disabled title="SMS ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก">↻ Google Sheets ถูกยกเลิก</button></div></div>
     {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
     <div className="table-card settings-table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล Settings…</div> : <div className="table-scroll"><table className="data-table settings-table"><thead><tr><th>Key</th><th>Value</th><th>Description</th></tr></thead><tbody>{visibleSettings.length ? visibleSettings.map((setting) => <tr key={text(setting.key)}><td><code>{text(setting.key)}</code></td><td>{setting.configured === undefined ? text(setting.value) : <span className={setting.configured ? 'status-badge active' : 'status-badge inactive'}>{setting.configured ? 'Configured' : 'Not configured'}</span>}</td><td>{text(setting.description)}</td></tr>) : <tr><td colSpan={3} className="no-rows">ยังไม่มีข้อมูล Settings ที่นำเข้าจากระบบเดิม</td></tr>}</tbody></table></div>}</div>
+    <AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />
     <section className="line-settings-card">
       <div className="line-settings-title"><span>💬</span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
       <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><input type="password" value="••••••••••••••••" disabled aria-label="LINE access token is managed securely" /><small>ไม่แสดงและไม่บันทึก token ในหน้าจอนี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>
@@ -2512,7 +2515,7 @@ function Dashboard() {
       </section>;
     }
     if (activePage === 'attendance' && auth.token) {
-      return <AttendancePage token={auth.token} readOnly={auth.isViewingAs} online={!pwaShell || pwaOnline} onOpenDeviceSetup={pwaShell ? undefined : () => setActivePage('attendanceDevice')} />;
+      return <AttendancePage token={auth.token} readOnly={auth.isViewingAs} online={!pwaShell || pwaOnline} />;
     }
     if (activePage === 'profile' && auth.token) {
       return <PwaProfilePage user={auth.user} online={pwaOnline} readOnly={auth.isViewingAs} onOpenPasskeys={() => setPasskeyPanelOpen(true)} onLogout={() => auth.logout()} />;
@@ -2540,7 +2543,7 @@ function Dashboard() {
     }
     if (activePage === 'settings') {
       const settings = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      return <SettingsPage settings={settings} loading={operationLoading} error={operationError} onRefresh={() => setOperationRefresh((value) => value + 1)} onAudit={() => setActivePage('audit')} onSaveTemplates={async (newLeave, leaveStatus) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_NEW_LEAVE', { value: newLeave, description: 'เทมเพลตข้อความคำขอลาใหม่ (รูปแบบเดิม)' }), api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_LEAVE_STATUS', { value: leaveStatus, description: 'เทมเพลตข้อความอัปเดตสถานะการลา (รูปแบบเดิม)' })]); setOperationRefresh((value) => value + 1); }} />;
+      return <SettingsPage settings={settings} loading={operationLoading} error={operationError} onRefresh={() => setOperationRefresh((value) => value + 1)} onAudit={() => setActivePage('audit')} onSaveTemplates={async (newLeave, leaveStatus) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_NEW_LEAVE', { value: newLeave, description: 'เทมเพลตข้อความคำขอลาใหม่ (รูปแบบเดิม)' }), api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_LEAVE_STATUS', { value: leaveStatus, description: 'เทมเพลตข้อความอัปเดตสถานะการลา (รูปแบบเดิม)' })]); setOperationRefresh((value) => value + 1); }} onSaveAttendancePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, attendancePolicyKeys.qrPolicy, { value: policy.qrPolicy, description: 'Attendance QR policy: ADAPTIVE / REQUIRED / DISABLED' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAccuracyMeters, { value: String(policy.maxAccuracyMeters), description: 'GPS accuracy สูงสุดที่ Attendance ยอมรับ (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAgeSeconds, { value: String(policy.maxAgeSeconds), description: 'อายุ GPS sample สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.futureSkewSeconds, { value: String(policy.futureSkewSeconds), description: 'GPS future clock skew สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.autoPassAccuracyMeters, { value: String(policy.autoPassAccuracyMeters), description: 'GPS accuracy สำหรับข้าม QR ใน Adaptive mode (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.innerMarginMeters, { value: String(policy.innerMarginMeters), description: 'ระยะจากขอบ geofence ที่ใช้ตัดสิน QR Step-up (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.stepUpOnSiteOverlap, { value: String(policy.stepUpOnSiteOverlap), description: 'ขอ QR Step-up เมื่อ GPS อยู่ในหลาย Site พร้อมกัน' })]); setOperationRefresh((value) => value + 1); }} />;
     }
     if ((activePage === 'reportCenter' || activePage === 'executiveReport' || activePage === 'reports') && auth.token) {
       const initialTab = activePage === 'reports' ? 'details' : 'executive';
