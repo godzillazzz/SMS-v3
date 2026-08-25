@@ -96,7 +96,7 @@ export function AttendanceOfficialReportPanel({ token, month, enabled }: { token
   }, [token, month]);
 
   useEffect(() => {
-    if (!enabled || report || loading) return;
+    if (!enabled || report || loading || error) return;
     let active = true;
     setLoading(true);
     setError(undefined);
@@ -105,7 +105,7 @@ export function AttendanceOfficialReportPanel({ token, month, enabled }: { token
       .catch((reason) => { if (active) setError(toRequestErrorState(reason, 'ไม่สามารถโหลดรายงานลงเวลาที่รับรองแล้วได้')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [enabled, loading, month, report, token]);
+  }, [enabled, error, loading, month, report, token]);
 
   const exportExcel = async () => {
     setDownloading(true);
