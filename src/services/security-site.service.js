@@ -277,7 +277,7 @@ function createSecuritySiteService({
 
   async function revokeQr(siteId, credentialId, actorUserId) {
     return prisma.$transaction(async (tx) => {
-      const credential = await prisma.securitySiteQrCredential.findUnique({ where: { id: credentialId } });
+      const credential = await tx.securitySiteQrCredential.findUnique({ where: { id: credentialId } });
       if (!credential || credential.securitySiteId !== siteId) throw http(404, 'SECURITY_SITE_QR_NOT_FOUND', 'Security Site QR credential not found.');
       const revoked = credential.revokedAt
         ? credential
