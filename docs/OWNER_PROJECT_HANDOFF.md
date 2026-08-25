@@ -1684,7 +1684,7 @@ Owner review is APPROVED. Phase 3 License source, tests, migration design, and e
 - Git diff check: `PASS`.
 - Exact-head Remote CI run: `32560097886`.
 - Exact-head Remote CI job: `97000264510`.
-- Exact-head CI SHA: `9f7cc5795a8b966a5667c47c7fb1cef87ba7f1`.
+- Exact-head CI SHA: `9f7cc5795a8b966a5667c47c7fbcc94ab25b7769`.
 - Exact-head CI event: `push`.
 - Exact-head CI result: `SUCCESS`.
 
