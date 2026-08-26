@@ -2,6 +2,7 @@
 
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createSelfHostedFaceVerificationService } = require('./face-verification-self-hosted.service');
+const { createInProcessFaceVerificationService } = require('./face-verification-in-process.service');
 
 const MAX_ATTENDANCE_LIVE_PHOTO_SIZE = 2 * 1024 * 1024;
 const MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE = 1024 * 1024;
@@ -28,11 +29,15 @@ function safeFaceVerification(result) {
 }
 
 function createAttendanceFaceVerificationService({
+  environment = process.env,
   sessionService = null,
   faceVerificationService = null
 } = {}) {
   const sessions = sessionService || createFaceVerificationSessionService();
-  const verifier = faceVerificationService || createSelfHostedFaceVerificationService({ sessionService: sessions });
+  const verifier = faceVerificationService
+    || (environment.FACE_VERIFICATION_IN_PROCESS_ENABLED === 'true'
+      ? createInProcessFaceVerificationService({ sessionService: sessions, environment })
+      : createSelfHostedFaceVerificationService({ sessionService: sessions }));
 
   async function verifyDeviceProof({ actor, sessionId, challengeId, challenge, signatureBase64 } = {}) {
     const result = await sessions.verifyDeviceProof({ actor, sessionId, challengeId, challenge, signatureBase64 });
