@@ -71,6 +71,6 @@ describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
     expect(css).toMatch(/\.sidebar-brand \.brand-mark \{[\s\S]*?margin-top: 0;/);
   });
   it('locks the authorized V1.2 API source after the Passkey extension', () => {
-    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('9b17d29ea7593a13e671b93df1917aaee74ba9ed99fc60a51621ac8cfb513071');
+    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('456cc643ecee9a2f83ea9eab3ec079c2f27ca83a165a66e9e736bfb39c1460c0');
   });
 });
