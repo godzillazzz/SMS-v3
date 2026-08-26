@@ -66,7 +66,7 @@ describe('G06 Employee PWA mobile UAT/hardening', () => {
     expect(attendance).toContain('if (!interactionDisabled) return;');
     expect(attendance).toContain("setScannerOpen(false)");
     expect(attendance).toContain('setFaceCaptureOpen(false)');
-    expect(attendance).toContain('ออฟไลน์ — การลงเวลาต้องเชื่อมต่อ Server');
+    expect(attendance).toContain('ออฟไลน์ — กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนลงเวลา');
   });
 
   it('blocks Leave mutations while offline but keeps normal Web authority unchanged', () => {

@@ -15,7 +15,8 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(main).toContain("'attendance'");
     expect(main).toContain("{ id: 'attendance', icon: 'clock', label: 'ลงเวลา' }");
     expect(main).toContain('<AttendancePage token={auth.token}');
-    expect(page).toContain('One tap · Server controlled');
+    expect(page).toContain('attendance-v2-hero');
+    expect(main).toContain('displayName={auth.user?.displayName}');
     expect(page.match(/<button\b/g)?.length).toBe(1);
     expect(page).not.toContain('onOpenDeviceSetup');
   });
@@ -26,10 +27,10 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).toContain('...(input.qrToken ? { qrToken: input.qrToken } : {})');
     expect(client).toContain('location: input.location');
     expect(client).toContain('qrToken?: string');
-    expect(page).toContain('พนักงานไม่เลือก CHECK-IN/CHECK-OUT');
+    expect(page).toContain('ระบบเป็นผู้ตัดสินเวลาเข้า/ออก');
     expect(page).toContain("result.data.readiness.state === 'QR_STEP_UP_REQUIRED'");
     expect(page).toContain("result.data.readiness.state === 'QR_RESCAN_REQUIRED'");
-    expect(page).toContain('กล้อง QR จะเปิดเอง');
+    expect(page).toContain('QR จะเปิดเฉพาะเมื่อจำเป็น');
   });
 
   it('runs one-tap GPS first and opens QR only as automatic step-up while preserving server authority', () => {
@@ -115,7 +116,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(css).toContain('padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left))');
     expect(css).not.toContain('max-width: 430px');
     expect(css).not.toContain('aspect-ratio: 3 / 2');
-    expect(scanner).toContain('ใช้กล้องเฉพาะขณะสแกน และไม่บันทึกหรืออัปโหลดภาพ');
+    expect(scanner).toContain('ใช้กล้องเฉพาะขณะสแกน QR และไม่บันทึกภาพหรือวิดีโอจากกล้อง');
   });
 
   it('captures the front-camera still only in memory, provides preview/confirm, and purges media on lifecycle exit', () => {
@@ -141,9 +142,9 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain('const captureSequenceEpochRef = useRef(0)');
     expect(faceCapture).toContain('if (sequenceEpoch !== captureSequenceEpochRef.current) return');
     expect(faceCapture).toContain('challenge.frameCount !== 4');
-    expect(faceCapture).toContain('กำลังเก็บลำดับภาพ');
-    expect(faceCapture).toContain('Simple Active Challenge');
-    expect(faceCapture).toContain('ไม่ใช่ certified Liveness/PAD');
+    expect(faceCapture).toContain('กำลังยืนยัน {captureProgress}/{challenge?.frameCount || 4}');
+    expect(faceCapture).toContain('ยืนยันใบหน้า');
+    expect(faceCapture).toContain('ทำตามคำสั่งบนหน้าจอ');
     expect(faceCapture).toContain('เริ่ม Active Challenge');
     expect(faceCapture).toContain('ไม่มี file picker / Gallery');
     expect(faceCapture).not.toContain('type="file"');
@@ -158,7 +159,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
   });
 
   it('keeps the physical Active Challenge rehearsal Preview-only and permanently non-authoritative', () => {
-    expect(page).toContain('<AttendanceFaceChallengeUatPanel token={token} online={online} readOnly={readOnly} />');
+    expect(page).not.toContain('<AttendanceFaceChallengeUatPanel');
     expect(faceUat).toContain("import.meta.env.VITE_G06_FACE_CHALLENGE_UAT === 'true'");
     expect(faceUat).toContain('if (!FACE_CHALLENGE_UAT_ENABLED) return null');
     expect(faceUat).toContain('attendanceFaceChallengeUatStart(token)');
@@ -198,8 +199,8 @@ describe('G06 Attendance frontend UX skeleton', () => {
 
   it('fails closed when the Attendance route is hidden and never presents route availability as success', () => {
     expect(client).toContain("if (response.status === 404) return { routeAvailable: false");
-    expect(page).toContain('ระบบลงเวลายังไม่เปิดใช้งานในสภาพแวดล้อมนี้');
-    expect(page).toContain('ไม่มี AttendanceEvent ถูกสร้าง');
+    expect(page).toContain('ระบบลงเวลายังไม่เปิดใช้งาน');
+    expect(page).toContain('ขณะนี้ระบบป้องกันการบันทึกเวลาไว้');
     expect(page).toContain("result.data.readiness.state === 'READY_TO_START_VERIFICATION'");
   });
 
@@ -249,6 +250,23 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(css).toContain('@media (max-width: 540px)');
     expect(css).toContain('.attendance-workspace-grid { grid-template-columns: 1fr; }');
     expect(css).toContain('.attendance-flow-grid { grid-template-columns: 1fr; }');
+  });
+
+  it('uses an Android-first mobile surface without exposing admin or UAT controls to employees', () => {
+    expect(page).toContain('attendance-v2-clock');
+    expect(page).toContain('GPS เฉพาะตอนลงเวลา');
+    expect(page).toContain('QR เฉพาะเมื่อจำเป็น');
+    expect(page).toContain('ยืนยันใบหน้าชั่วคราว');
+    expect(page).toContain('รายละเอียดสำหรับผู้ดูแล');
+    expect(page).not.toContain('<SecuritySiteManagementPanel');
+    expect(page).not.toContain('<AttendanceFaceChallengeUatPanel');
+    expect(faceCapture).toContain("'ยืนยันใบหน้า'");
+    expect(scanner).toContain('<p>ยืนยันพื้นที่</p>');
+    expect(css).toContain('@media (pointer: coarse)');
+    expect(css).toContain('.attendance-v2-primary { min-height: 64px;');
+    expect(css).toContain('width: 100dvw; height: 100dvh; max-height: none;');
+    expect(css).toContain('touch-action: manipulation');
+    expect(css).toContain('env(safe-area-inset-bottom)');
   });
 
   it('keeps Attendance policy controls on the existing ADMIN-only Settings page', () => {

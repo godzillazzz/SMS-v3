@@ -222,3 +222,112 @@
 .attendance-primary-one-action { width: 100%; min-height: 58px; justify-content: center; font-size: 17px; font-weight: 750; }
 .attendance-one-action-note { display: block; margin-top: 9px; color: var(--color-text-muted); font-size: 10px; line-height: 1.5; text-align: center; }
 @media (max-width: 540px) { .attendance-primary-one-action { min-height: 56px; } }
+
+
+/* G06 Attendance UI V2 — Android-first employee surface. */
+.attendance-v2 { --attendance-touch: 56px; }
+.attendance-v2-shell { display: grid; width: min(100%, 680px); gap: 16px; margin-inline: auto; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.attendance-v2-heading { padding: 2px 2px 0; }
+.attendance-v2-heading h1 { margin: 2px 0 4px; color: var(--color-text); font-size: clamp(24px, 5vw, 32px); line-height: 1.18; }
+.attendance-v2-heading > div > p:last-child { max-width: 620px; margin: 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.55; }
+.attendance-v2-notice { margin: 0; }
+.attendance-v2-hero { display: grid; gap: 18px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--color-primary) 18%, var(--color-border)); border-radius: 24px; padding: 20px; background: linear-gradient(165deg, color-mix(in srgb, var(--color-primary) 7%, var(--color-surface)), var(--color-surface) 46%); box-shadow: var(--shadow-md); }
+.attendance-v2-hero.is-success { border-color: color-mix(in srgb, var(--color-success) 34%, var(--color-border)); background: linear-gradient(165deg, color-mix(in srgb, var(--color-success) 9%, var(--color-surface)), var(--color-surface) 48%); }
+.attendance-v2-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.attendance-v2-status-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; border: 1px solid var(--color-border); border-radius: 999px; padding: 5px 10px; color: var(--color-text-muted); background: var(--color-surface); font-size: 11px; font-weight: 750; }
+.attendance-v2-status-chip > span { width: 8px; height: 8px; border-radius: 999px; background: var(--color-text-muted); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-text-muted) 12%, transparent); }
+.attendance-v2-status-chip.is-ready { color: var(--color-success); }
+.attendance-v2-status-chip.is-ready > span { background: var(--color-success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 14%, transparent); }
+.attendance-v2-status-chip.is-blocked { color: var(--color-danger); }
+.attendance-v2-status-chip.is-blocked > span { background: var(--color-danger); }
+.attendance-v2-secure { display: inline-flex; align-items: center; gap: 5px; color: var(--color-text-muted); font-size: 10px; font-weight: 650; }
+.attendance-v2-secure svg { color: var(--color-primary); }
+.attendance-v2-clock { display: grid; justify-items: center; gap: 3px; padding: 5px 0 2px; text-align: center; }
+.attendance-v2-clock strong { color: var(--color-text); font-size: clamp(54px, 13vw, 76px); font-variant-numeric: tabular-nums; font-weight: 780; letter-spacing: -.055em; line-height: .98; }
+.attendance-v2-clock span { color: var(--color-text-muted); font-size: 13px; }
+.attendance-v2-location { display: flex; align-items: center; gap: 11px; border: 1px solid var(--color-border); border-radius: 16px; padding: 12px 13px; background: color-mix(in srgb, var(--color-surface-muted) 58%, transparent); }
+.attendance-v2-location.is-ready { border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border)); background: color-mix(in srgb, var(--color-success) 5%, var(--color-surface)); }
+.attendance-v2-location-icon { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 12px; color: var(--color-primary); background: var(--color-surface); }
+.attendance-v2-location.is-ready .attendance-v2-location-icon { color: var(--color-success); }
+.attendance-v2-location > div { display: grid; min-width: 0; gap: 2px; }
+.attendance-v2-location strong { color: var(--color-text); font-size: 13px; }
+.attendance-v2-location span { color: var(--color-text-muted); font-size: 10px; line-height: 1.45; }
+.attendance-v2-action-zone { display: grid; gap: 8px; }
+.attendance-v2-primary { width: 100%; min-height: 64px; justify-content: center; gap: 9px; border-radius: 16px; padding: 13px 18px; font-size: 18px; font-weight: 780; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.attendance-v2-primary:active:not(:disabled) { transform: translateY(1px); }
+.attendance-v2-action-zone > small { color: var(--color-text-muted); font-size: 10px; line-height: 1.45; text-align: center; }
+.attendance-v2-success { display: flex; align-items: center; gap: 13px; border: 1px solid color-mix(in srgb, var(--color-success) 32%, var(--color-border)); border-radius: 16px; padding: 13px 14px; background: color-mix(in srgb, var(--color-success) 7%, var(--color-surface)); }
+.attendance-v2-success-icon { display: grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border-radius: 50%; color: var(--color-success); background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface)); }
+.attendance-v2-success > div { display: grid; gap: 2px; }
+.attendance-v2-success strong { color: var(--color-text); font-size: 16px; }
+.attendance-v2-success span { color: var(--color-text-muted); font-size: 11px; }
+.attendance-v2-progress { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.attendance-v2-progress-step { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; border: 1px solid var(--color-border); border-radius: 14px; padding: 10px; background: var(--color-surface); }
+.attendance-v2-progress-step > span { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--color-text-muted); background: var(--color-surface-muted); font-size: 10px; font-weight: 800; }
+.attendance-v2-progress-step > div { display: grid; min-width: 0; gap: 2px; }
+.attendance-v2-progress-step strong { overflow: hidden; color: var(--color-text); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.attendance-v2-progress-step small { overflow: hidden; color: var(--color-text-muted); font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; }
+.attendance-v2-progress-step.is-active { border-color: color-mix(in srgb, var(--color-primary) 36%, var(--color-border)); background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface)); }
+.attendance-v2-progress-step.is-active > span { color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface)); }
+.attendance-v2-progress-step.is-done { border-color: color-mix(in srgb, var(--color-success) 30%, var(--color-border)); }
+.attendance-v2-progress-step.is-done > span { color: #fff; background: var(--color-success); }
+.attendance-v2-error { display: grid; gap: 5px; border-radius: 16px; }
+.attendance-v2-error strong { font-size: 13px; }
+.attendance-v2-error span { font-size: 11px; line-height: 1.5; }
+.attendance-v2-error > small { font-size: 9px; opacity: .76; }
+.attendance-v2-error details { margin-top: 4px; color: inherit; font-size: 9px; }
+.attendance-v2-error summary { cursor: pointer; }
+.attendance-v2-error code { display: block; margin-top: 5px; overflow-wrap: anywhere; }
+.attendance-v2-state { display: flex; align-items: flex-start; gap: 11px; border: 1px solid var(--color-border); border-radius: 16px; padding: 13px; background: var(--color-surface); }
+.attendance-v2-state > span { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 12px; background: var(--color-surface-muted); }
+.attendance-v2-state > div { min-width: 0; }
+.attendance-v2-state strong { color: var(--color-text); font-size: 13px; }
+.attendance-v2-state p { margin: 3px 0 0; color: var(--color-text-muted); font-size: 10px; line-height: 1.5; }
+.attendance-v2-state.warning { border-color: color-mix(in srgb, var(--color-warning) 34%, var(--color-border)); }
+.attendance-v2-state.warning > span { color: var(--color-warning); }
+.attendance-v2-state.blocked, .attendance-v2-state.is-blocked { border-color: color-mix(in srgb, var(--color-danger) 28%, var(--color-border)); }
+.attendance-v2-state.blocked > span, .attendance-v2-state.is-blocked > span { color: var(--color-danger); }
+.attendance-v2-trust { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.attendance-v2-trust > div { display: flex; align-items: flex-start; gap: 8px; border: 1px solid var(--color-border); border-radius: 14px; padding: 10px; background: color-mix(in srgb, var(--color-surface-muted) 45%, var(--color-surface)); }
+.attendance-v2-trust > div > svg { flex: 0 0 auto; color: var(--color-primary); margin-top: 1px; }
+.attendance-v2-trust span { display: grid; min-width: 0; gap: 2px; }
+.attendance-v2-trust strong { color: var(--color-text); font-size: 9.5px; }
+.attendance-v2-trust small { color: var(--color-text-muted); font-size: 8px; line-height: 1.4; }
+
+@media (max-width: 760px) {
+  .attendance-v2-shell { width: 100%; gap: 13px; }
+  .attendance-v2-heading > div > p:last-child { font-size: 11px; }
+  .attendance-v2-hero { gap: 16px; border-radius: 20px; padding: 17px; }
+  .attendance-v2-primary { min-height: 62px; border-radius: 15px; }
+  .attendance-v2-progress { grid-template-columns: 1fr; }
+  .attendance-v2-progress-step { min-height: 54px; }
+  .attendance-v2-progress-step strong, .attendance-v2-progress-step small { white-space: normal; }
+  .attendance-v2-trust { grid-template-columns: 1fr; }
+  .attendance-v2-trust > div { min-height: 52px; align-items: center; }
+  .attendance-face-backdrop { place-items: stretch; padding: 0; }
+  .attendance-face-dialog { width: 100dvw; height: 100dvh; max-height: none; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 10px; overflow: hidden; border: 0; border-radius: 0; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  .attendance-face-dialog > header h2 { font-size: 20px; }
+  .attendance-face-dialog > header span { font-size: 10px; line-height: 1.4; }
+  .attendance-face-challenge { padding: 10px 11px; }
+  .attendance-face-challenge strong { font-size: 16px; }
+  .attendance-face-camera { min-height: 0; height: auto; border-radius: 16px; }
+  .attendance-face-camera video, .attendance-face-camera img { min-height: 0; height: 100%; }
+  .attendance-face-privacy { font-size: 9px; }
+  .attendance-face-dialog footer { position: sticky; bottom: 0; margin-top: 0; padding-bottom: env(safe-area-inset-bottom); background: var(--color-surface); }
+  .attendance-face-dialog footer button { min-height: 52px; }
+  .attendance-qr-dialog { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+}
+
+@media (max-width: 420px) {
+  .attendance-v2-heading h1 { font-size: 25px; }
+  .attendance-v2-hero { padding: 15px; }
+  .attendance-v2-hero-top { align-items: flex-start; }
+  .attendance-v2-secure { max-width: 110px; justify-content: flex-end; text-align: right; }
+  .attendance-v2-clock strong { font-size: clamp(54px, 18vw, 68px); }
+  .attendance-v2-primary { min-height: 60px; font-size: 17px; }
+}
+
+@media (pointer: coarse) {
+  .attendance-v2 button, .attendance-qr-dialog button, .attendance-face-dialog button { min-height: var(--attendance-touch, 48px); touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .attendance-v2-primary { min-height: 64px; }
+}

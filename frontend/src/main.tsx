@@ -2542,7 +2542,7 @@ function Dashboard() {
       </section>;
     }
     if (activePage === 'attendance' && auth.token) {
-      return <AttendancePage token={auth.token} readOnly={auth.isViewingAs} online={!pwaShell || pwaOnline} />;
+      return <AttendancePage token={auth.token} displayName={auth.user?.displayName} readOnly={auth.isViewingAs} online={!pwaShell || pwaOnline} />;
     }
     if (activePage === 'profile' && auth.token) {
       return <PwaProfilePage user={auth.user} online={pwaOnline} readOnly={auth.isViewingAs} onOpenPasskeys={() => setPasskeyPanelOpen(true)} onLogout={() => auth.logout()} />;
