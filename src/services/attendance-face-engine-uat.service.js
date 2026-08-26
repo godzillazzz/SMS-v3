@@ -6,7 +6,7 @@ const {
   ACTIVE_FACE_CHALLENGE_VERSION,
   ACTIVE_FACE_CHALLENGE_FRAME_COUNT
 } = require('./active-face-challenge.service');
-const { createInProcessFaceMatchProvider } = require('./in-process-face-match.provider');
+const { createInProcessFaceMatchProvider, SAFE_RUNTIME_STAGES } = require('./in-process-face-match.provider');
 
 function http(statusCode, code, message) {
   return new HttpError(statusCode, message, { code });
@@ -44,6 +44,18 @@ function createAttendanceFaceEngineUatService({
         inferenceCompleted: true,
         staticChallengeRejected: result.activeChallengePassed === false,
         resultCode: result.resultCode,
+        elapsedMs: Math.round(elapsedMs)
+      });
+    } catch (error) {
+      const elapsedMs = Number(nowNs() - started) / 1e6;
+      const runtimeStage = SAFE_RUNTIME_STAGES.includes(error?.details?.runtimeStage) ? error.details.runtimeStage : null;
+      return Object.freeze({
+        uatOnly: true,
+        engineReady: false,
+        inferenceCompleted: false,
+        staticChallengeRejected: false,
+        resultCode: error?.details?.code === 'VERIFICATION_PROVIDER_UNAVAILABLE' ? 'VERIFICATION_PROVIDER_UNAVAILABLE' : 'FACE_ENGINE_UAT_FAILED',
+        runtimeStage,
         elapsedMs: Math.round(elapsedMs)
       });
     } finally {

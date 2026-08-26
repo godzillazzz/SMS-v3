@@ -142,3 +142,35 @@ test('face-engine UAT service runs the production provider path and always zeroe
   assert.equal(Object.prototype.hasOwnProperty.call(result, 'similarity'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(result, 'embedding'), false);
 });
+
+
+test('face-engine UAT service exposes only allowlisted runtime stage on provider failure', async () => {
+  const provider = {
+    async evaluate() {
+      const error = new Error('secret internal path must never escape');
+      error.details = { code: 'VERIFICATION_PROVIDER_UNAVAILABLE', runtimeStage: 'HUMAN_MODEL_LOAD', privateDetail: 'do-not-return' };
+      throw error;
+    }
+  };
+  const ticks = [2_000_000n, 5_200_000n];
+  const service = createAttendanceFaceEngineUatService({
+    environment: { FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' },
+    provider,
+    randomUUID: () => 'probe-failure',
+    nowNs: () => ticks.shift()
+  });
+  const buffer = jpeg(0x77);
+  const result = await service.probe({ photoFile: { buffer, mimetype: 'image/jpeg' } });
+  assert.deepEqual(result, {
+    uatOnly: true,
+    engineReady: false,
+    inferenceCompleted: false,
+    staticChallengeRejected: false,
+    resultCode: 'VERIFICATION_PROVIDER_UNAVAILABLE',
+    runtimeStage: 'HUMAN_MODEL_LOAD',
+    elapsedMs: 3
+  });
+  assert.equal(buffer.every((value) => value === 0), true);
+  assert.equal(JSON.stringify(result).includes('secret internal path'), false);
+  assert.equal(JSON.stringify(result).includes('privateDetail'), false);
+});

@@ -124,6 +124,30 @@ function installLocalModelFetch(modelDir) {
   localModelFetchInstalled = true;
 }
 
+const SAFE_RUNTIME_STAGES = Object.freeze([
+  'SHARP_LOAD',
+  'WASM_MODULE_LOAD',
+  'PACKAGE_PATHS',
+  'WASM_CONFIG',
+  'MODEL_FETCH_ADAPTER',
+  'HUMAN_MODULE_LOAD',
+  'HUMAN_CONSTRUCT',
+  'HUMAN_MODEL_LOAD'
+]);
+
+async function runtimeStage(stage, operation) {
+  try { return await operation(); }
+  catch (error) {
+    if (error instanceof HttpError && error?.details?.code === 'VERIFICATION_PROVIDER_UNAVAILABLE') {
+      error.details = { ...error.details, runtimeStage: SAFE_RUNTIME_STAGES.includes(error.details?.runtimeStage) ? error.details.runtimeStage : stage };
+      throw error;
+    }
+    const wrapped = http(503, 'VERIFICATION_PROVIDER_UNAVAILABLE', 'In-process face verifier is unavailable.');
+    wrapped.details = { ...wrapped.details, runtimeStage: stage };
+    throw wrapped;
+  }
+}
+
 function packagePaths() {
   const humanNodeEntry = require.resolve('@vladmandic/human');
   const humanDistDir = path.dirname(humanNodeEntry);
@@ -136,18 +160,18 @@ function packagePaths() {
 }
 
 async function buildHumanRuntime() {
-  const sharp = require('sharp');
-  const wasm = require('@tensorflow/tfjs-backend-wasm');
-  const { humanWasmEntry, modelDir, wasmDistDir } = packagePaths();
-  wasm.setWasmPaths({
+  const sharp = await runtimeStage('SHARP_LOAD', async () => require('sharp'));
+  const wasm = await runtimeStage('WASM_MODULE_LOAD', async () => require('@tensorflow/tfjs-backend-wasm'));
+  const { humanWasmEntry, modelDir, wasmDistDir } = await runtimeStage('PACKAGE_PATHS', async () => packagePaths());
+  await runtimeStage('WASM_CONFIG', async () => wasm.setWasmPaths({
     'tfjs-backend-wasm.wasm': path.join(wasmDistDir, 'tfjs-backend-wasm.wasm'),
     'tfjs-backend-wasm-simd.wasm': path.join(wasmDistDir, 'tfjs-backend-wasm-simd.wasm'),
     'tfjs-backend-wasm-threaded-simd.wasm': path.join(wasmDistDir, 'tfjs-backend-wasm-threaded-simd.wasm')
-  });
-  installLocalModelFetch(modelDir);
-  const HumanModule = require(humanWasmEntry);
+  }));
+  await runtimeStage('MODEL_FETCH_ADAPTER', async () => installLocalModelFetch(modelDir));
+  const HumanModule = await runtimeStage('HUMAN_MODULE_LOAD', async () => require(humanWasmEntry));
   const Human = HumanModule.default || HumanModule.Human || HumanModule;
-  const human = new Human({
+  const human = await runtimeStage('HUMAN_CONSTRUCT', async () => new Human({
     backend: 'wasm',
     modelBasePath: pathToFileURL(`${modelDir}${path.sep}`).href,
     cacheSensitivity: 0,
@@ -166,8 +190,8 @@ async function buildHumanRuntime() {
     hand: { enabled: false },
     object: { enabled: false },
     gesture: { enabled: false }
-  });
-  await human.load();
+  }));
+  await runtimeStage('HUMAN_MODEL_LOAD', async () => human.load());
 
   async function detect(buffer, code) {
     let tensor;
@@ -325,5 +349,6 @@ module.exports = {
   inProcessFaceConfig,
   validateActiveChallenge,
   evaluateActiveChallenge,
-  createInProcessFaceMatchProvider
+  createInProcessFaceMatchProvider,
+  SAFE_RUNTIME_STAGES
 };
