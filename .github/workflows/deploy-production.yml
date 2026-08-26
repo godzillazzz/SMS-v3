@@ -232,6 +232,12 @@ jobs:
             echo 'Vercel build log secret scan failed'
             exit 1
           fi
+      - name: Restore tracked build metadata and verify git-clean source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore -- frontend/tsconfig.tsbuildinfo
+          test -z "$(git status --porcelain)"
       - name: Deploy prebuilt artifact to the approved production project
         id: deploy
         shell: bash
