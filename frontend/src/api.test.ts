@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError, api, normalizeRequestId } from './api';
 import { sanitizeLicenseDocumentError } from './components/license-document-utils';
+import { PDFDocument } from 'pdf-lib';
 
 const success = () => ({ status: 200, ok: true, json: async () => ({ accessToken: 'test-access-token', user: {} }) });
 afterEach(() => vi.unstubAllGlobals());
@@ -178,7 +179,9 @@ describe('API client', () => {
     const fetchMock = vi.fn().mockResolvedValue({ status: 503, ok: false, headers: new Headers({ 'x-request-id': 'iad1::multipart-503' }), json: async () => ({ error: 'Upload temporarily unavailable.', requestId: 'body-multipart' }) });
     vi.stubGlobal('document', { cookie: '' });
     vi.stubGlobal('fetch', fetchMock);
-    const file = new File(['fixture'], 'license.pdf', { type: 'application/pdf' });
+    const pdf = await PDFDocument.create(); pdf.addPage([595, 842]); const saved = await pdf.save({ useObjectStreams: true });
+    const bytes = new Uint8Array(saved.byteLength); bytes.set(saved);
+    const file = new File([bytes.buffer], 'license.pdf', { type: 'application/pdf' });
     await expect(api.uploadLicenseDocument('test-access-token', 'license-id', { licenseNumber: 'LN-1', proposedStartDate: '2026-01-01', proposedExpiryDate: '2026-12-31' }, file)).rejects.toMatchObject({ name: 'ApiRequestError', status: 503, requestId: 'iad1::multipart-503', message: 'Upload temporarily unavailable.' });
   });
 

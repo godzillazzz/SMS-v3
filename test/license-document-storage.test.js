@@ -1,10 +1,10 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { MAX_FILE_SIZE, validateUpload, safeName, createSupabaseLicenseDocumentStorage } = require('../src/services/license-document-storage.service');
+const { MAX_FILE_SIZE, MAX_IMAGE_FILE_SIZE, validateUpload, safeName, createSupabaseLicenseDocumentStorage } = require('../src/services/license-document-storage.service');
 const { createFakeLicenseDocumentStorage } = require('./support/fake-license-document-storage');
 
-const pdf = Buffer.from('%PDF-1.7\nfixture');
+const pdf = Buffer.from('%PDF-1.7\nfixture\n%%EOF');
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0x00]);
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
 const file = (buffer, mimetype, originalname = 'license.pdf') => ({ buffer, mimetype, originalname, size: buffer.length });
@@ -17,11 +17,14 @@ test('validates PDF, JPEG, and PNG magic bytes and checksums', () => {
   }
 });
 
-test('accepts the 4 MB boundary and rejects oversized, mismatched, HTML, SVG, and executable uploads', () => {
-  assert.equal(MAX_FILE_SIZE, 4 * 1024 * 1024);
+test('enforces optimized stored-file hard limits and rejects mismatched, HTML, SVG, and executable uploads', () => {
+  assert.equal(MAX_FILE_SIZE, 1024 * 1024);
+  assert.equal(MAX_IMAGE_FILE_SIZE, 500 * 1024);
   assert.throws(() => validateUpload(), { statusCode: 400 });
-  assert.doesNotThrow(() => validateUpload({ ...file(pdf, 'application/pdf'), size: MAX_FILE_SIZE }));
-  assert.throws(() => validateUpload({ ...file(pdf, 'application/pdf'), size: MAX_FILE_SIZE + 1 }), { statusCode: 400 });
+  const pdfAtLimit = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(MAX_FILE_SIZE - 15), Buffer.from('\n%%EOF')]);
+  assert.doesNotThrow(() => validateUpload(file(pdfAtLimit, 'application/pdf')));
+  const pdfOver = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(MAX_FILE_SIZE - 14), Buffer.from('\n%%EOF')]);
+  assert.throws(() => validateUpload(file(pdfOver, 'application/pdf')), { statusCode: 400 });
   for (const candidate of [file(pdf, 'image/png'), file(Buffer.from('<html>'), 'text/html'), file(Buffer.from('<svg>'), 'image/svg+xml'), file(Buffer.from('MZ'), 'application/octet-stream')]) {
     assert.throws(() => validateUpload(candidate), { statusCode: 415 });
   }

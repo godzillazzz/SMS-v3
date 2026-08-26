@@ -21,7 +21,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   const { expireDueLicenseDocuments } = require('../../src/services/license-document-retention.service');
   const { createFakeLicenseDocumentStorage } = require('../support/fake-license-document-storage');
 
-  const pdf = { buffer: Buffer.from('%PDF-1.7\nintegration fixture'), mimetype: 'application/pdf', originalname: 'integration-license.pdf', size: 32 };
+  const pdf = { buffer: Buffer.from('%PDF-1.7\nintegration fixture\n%%EOF'), mimetype: 'application/pdf', originalname: 'integration-license.pdf', size: 32 };
   const created = { documentIds: [], auditIds: [], licenseIds: [], employeeIds: [], userIds: [] };
 
   async function cleanup() {
@@ -80,7 +80,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     assert.equal(approvedMaster.expiryDate.toISOString().slice(0, 10), '2027-12-31');
     assert.equal(approvedMaster.licenseNumber, `LN-${context.marker}-1`);
 
-    const renewal = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nrenewal'), size: 18 }, input: { licenseNumber: `LN-${context.marker}-2`, proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') } });
+    const renewal = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nrenewal\n%%EOF'), size: 18 }, input: { licenseNumber: `LN-${context.marker}-2`, proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') } });
     created.documentIds.push(renewal.id);
     assert.equal((await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: first.id } })).isCurrent, true);
     await context.service.approve({ id: renewal.id, requestUser: context.requestUser });
@@ -92,7 +92,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     assert.equal((await prisma.employeeLicense.findUniqueOrThrow({ where: { id: context.license.id } })).licenseNumber, `LN-${context.marker}-2`);
     assert.equal(versions.filter((document) => document.isCurrent).length, 1);
 
-    const rejectedCandidate = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreject'), size: 17 }, input: { licenseNumber: `LN-${context.marker}-3`, proposedStartDate: new Date('2029-01-01'), proposedExpiryDate: new Date('2029-12-31') } });
+    const rejectedCandidate = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreject\n%%EOF'), size: 17 }, input: { licenseNumber: `LN-${context.marker}-3`, proposedStartDate: new Date('2029-01-01'), proposedExpiryDate: new Date('2029-12-31') } });
     created.documentIds.push(rejectedCandidate.id);
     const currentBeforeReject = (await prisma.employeeLicense.findUniqueOrThrow({ where: { id: context.license.id } })).expiryDate;
     await context.service.reject({ id: rejectedCandidate.id, requestUser: context.requestUser, rejectionReason: 'Integration rejection' });
@@ -145,7 +145,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       const first = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: pdf, input: { licenseNumber: `LN-${context.marker}-1`, proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31') } });
       created.documentIds.push(first.id);
       await context.service.approve({ id: first.id, requestUser: context.requestUser });
-      const replacement = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreplacement-g05'), size: 28 }, input: { licenseNumber: `LN-${context.marker}-2`, proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') } });
+      const replacement = await context.service.upload({ licenseId: context.license.id, requestUser: context.requestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreplacement-g05\n%%EOF'), size: 28 }, input: { licenseNumber: `LN-${context.marker}-2`, proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') } });
       created.documentIds.push(replacement.id);
       await context.service.approve({ id: replacement.id, requestUser: context.requestUser });
 
@@ -200,7 +200,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       assert.equal(resubmitted.status, 'PENDING'); assert.equal(resubmitted.storageObjectKey, pending.storageObjectKey); assert.equal(context.storage.calls.remove.length, 0);
       const approved = await context.service.approve({ id: pending.id, requestUser: context.requestUser });
       assert.equal(approved.status, 'APPROVED'); assert.equal(approved.isCurrent, true);
-      const rejectedCandidate = await context.service.upload({ licenseId: context.license.id, requestUser: context.managerRequestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreject-correction'), size: 26 }, input: { licenseNumber: `LN-${context.marker}-reject`, proposedStartDate: new Date('2026-01-01'), proposedExpiryDate: new Date('2026-12-31') } });
+      const rejectedCandidate = await context.service.upload({ licenseId: context.license.id, requestUser: context.managerRequestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\nreject-correction\n%%EOF'), size: 26 }, input: { licenseNumber: `LN-${context.marker}-reject`, proposedStartDate: new Date('2026-01-01'), proposedExpiryDate: new Date('2026-12-31') } });
       created.documentIds.push(rejectedCandidate.id);
       await context.service.reject({ id: rejectedCandidate.id, requestUser: context.requestUser, rejectionReason: 'เอกสารไม่ชัดเจน' });
       assert.equal((await prisma.employeeLicenseDocument.findUniqueOrThrow({ where: { id: rejectedCandidate.id } })).status, 'REJECTED');
@@ -237,7 +237,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       const finalAudit = await prisma.auditLog.findFirst({ where: { entityId: pending.id, metadata: { path: ['event'], equals: 'FINAL_APPROVE' } }, orderBy: { createdAt: 'desc' } });
       assert.ok(finalAudit); assert.equal(finalAudit.metadata.revision, 3); assert.equal(finalAudit.metadata.selfApproved, false);
 
-      const cancellable = await context.service.upload({ licenseId: context.license.id, requestUser: context.managerRequestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\ncancel'), size: 20 }, input: { licenseNumber: `LN-${context.marker}-CANCEL`, proposedStartDate: new Date('2030-01-01'), proposedExpiryDate: new Date('2030-12-31') } });
+      const cancellable = await context.service.upload({ licenseId: context.license.id, requestUser: context.managerRequestUser, file: { ...pdf, buffer: Buffer.from('%PDF-1.7\ncancel\n%%EOF'), size: 20 }, input: { licenseNumber: `LN-${context.marker}-CANCEL`, proposedStartDate: new Date('2030-01-01'), proposedExpiryDate: new Date('2030-12-31') } });
       created.documentIds.push(cancellable.id);
       await context.service.returnForCorrection({ id: cancellable.id, requestUser: context.requestUser, correctionReason: 'เจ้าของเลือกถอนคำขอ' });
       await assert.rejects(() => context.service.cancel({ id: cancellable.id, requestUser: context.requestUser }), (error) => error.statusCode === 403 && error.details?.code === 'LICENSE_DOCUMENT_REQUEST_OWNER_REQUIRED');

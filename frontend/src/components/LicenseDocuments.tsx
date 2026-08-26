@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../request-error';
 import { acquireDocumentScrollLock } from '../document-scroll-lock';
+import { ATTACHMENT_POLICIES } from '../lib/attachment-optimizer';
 import { approvalStatusPresentation, type ApprovalStatus } from '../approval-workflow-semantics';
 import {
   formatFileSize,
@@ -11,7 +12,6 @@ import {
   licenseTableStatus,
   licenseValidityLabel,
   LicenseDocument,
-  MAX_LICENSE_DOCUMENT_BYTES,
   licenseDocumentStatusLabel,
   sanitizeLicenseDocumentError,
   selectLicenseDocumentForTable,
@@ -285,7 +285,7 @@ function CorrectionModal({ document, services, onClose, onChanged }: { document:
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!licenseNumber.trim()) { setError('กรุณากรอกเลขใบอนุญาต'); return; }
-    if (file && file.size > MAX_LICENSE_DOCUMENT_BYTES) { setError('ไฟล์ต้องมีขนาดไม่เกิน 4 MB'); return; }
+    if (file && file.size > ATTACHMENT_POLICIES.DOCUMENT.maxSourceBytes) { setError('ไฟล์ต้นฉบับมีขนาดใหญ่เกิน 20 MB'); return; }
     if (!proposedStartDate || !proposedExpiryDate || proposedStartDate > proposedExpiryDate) { setError('วันที่เริ่มต้นต้องไม่เกินวันที่หมดอายุ'); return; }
     if (busy) return;
     setBusy(true); setError(undefined);
@@ -305,7 +305,7 @@ function CorrectionModal({ document, services, onClose, onChanged }: { document:
     {document.correctionReason && <div className="license-correction-reason-panel"><strong>เหตุผลที่ส่งกลับไปแก้ไข</strong><p>{document.correctionReason}</p></div>}
     <form className="license-upload-form" onSubmit={submit}>
       <label className="field-group"><span>เลขใบอนุญาต <b>*</b></span><input value={licenseNumber} maxLength={100} onChange={(event) => setLicenseNumber(event.target.value)} required /></label>
-      <label className="field-group"><span>ไฟล์ใหม่ (ไม่บังคับ)</span><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} /><small>{file ? 'ไฟล์ใหม่จะเป็น Revision ถัดไป โดยเก็บไฟล์ Revision เดิมไว้ในประวัติ' : 'ใช้ไฟล์เดิมต่อได้ · PDF, JPG หรือ PNG ขนาดไม่เกิน 4 MB'}</small></label>
+      <label className="field-group"><span>ไฟล์ใหม่ (ไม่บังคับ)</span><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} /><small>{file ? 'ไฟล์ใหม่จะเป็น Revision ถัดไป โดยเก็บไฟล์ Revision เดิมไว้ในประวัติ' : 'ใช้ไฟล์เดิมต่อได้ · ไฟล์ใหม่จะปรับขนาดอัตโนมัติ: รูป ≤ 500 KB, PDF ≤ 1 MB'}</small></label>
       <div className="license-date-comparison"><label className="field-group"><span>วันที่เริ่มต้น <b>*</b></span><input type="date" value={proposedStartDate} onChange={(event) => setProposedStartDate(event.target.value)} required /></label><label className="field-group"><span>วันที่หมดอายุ <b>*</b></span><input type="date" value={proposedExpiryDate} onChange={(event) => setProposedExpiryDate(event.target.value)} required /></label></div>
       <label className="field-group"><span>หมายเหตุ</span><textarea rows={3} value={note} maxLength={2000} onChange={(event) => setNote(event.target.value)} /></label>
       {error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /></div>}
@@ -335,7 +335,7 @@ export function LicenseEditModal({ license, isAdmin, currentUserId, services, on
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!file) { setError('กรุณาเลือกไฟล์ใบอนุญาต'); return; }
-    if (file.size > MAX_LICENSE_DOCUMENT_BYTES) { setError('ไฟล์ต้องมีขนาดไม่เกิน 4 MB'); return; }
+    if (file.size > ATTACHMENT_POLICIES.DOCUMENT.maxSourceBytes) { setError('ไฟล์ต้นฉบับมีขนาดใหญ่เกิน 20 MB'); return; }
     if (!licenseNumber.trim()) { setError('กรุณากรอกเลขใบอนุญาต'); return; }
     if (!proposedStartDate || !proposedExpiryDate || proposedStartDate > proposedExpiryDate) { setError('วันที่เริ่มต้นต้องไม่เกินวันหมดอายุ'); return; }
     setBusy(true); setError(undefined);
@@ -363,7 +363,7 @@ export function LicenseEditModal({ license, isAdmin, currentUserId, services, on
       <header className="license-modal-heading"><div><p>จัดการใบอนุญาต</p><h2 id="license-edit-title">{license.employee.firstName} {license.employee.lastName}</h2><span>{license.employee.employeeCode} · {license.employee.department || '-'}</span></div></header>
       <div className="license-edit-tabs" role="tablist"><button type="button" role="tab" aria-selected={tab === 'details'} className={tab === 'details' ? 'is-active' : ''} onClick={() => setTab('details')}>ข้อมูลใบอนุญาต</button><button type="button" role="tab" aria-selected={tab === 'documents'} className={tab === 'documents' ? 'is-active' : ''} onClick={() => setTab('documents')}>เอกสารและประวัติการดำเนินการ</button></div>
       {tab === 'details' && <dl className="license-document-facts"><div><dt>เลขใบอนุญาตปัจจุบัน</dt><dd>{license.licenseNumber || 'ยังไม่มีเลขใบอนุญาต'}</dd></div><div><dt>ประเภทใบอนุญาต</dt><dd>{license.licenseType || '-'}</dd></div><div><dt>วันที่เริ่มต้นปัจจุบัน</dt><dd>{formatLicenseDate(license.issueDate)}</dd></div><div><dt>วันหมดอายุปัจจุบัน</dt><dd>{formatLicenseDate(license.expiryDate)}</dd></div><div><dt>สถานะ</dt><dd>{license.status || '-'}</dd></div><div><dt>หน่วยงาน</dt><dd>{license.employee.department || '-'}</dd></div></dl>}
-      {tab === 'documents' && <div className="license-edit-documents"><div className="license-edit-current"><h3>เอกสารปัจจุบัน</h3>{summary.current ? documentLine(summary.current) : <p>ยังไม่มีเอกสารที่อนุมัติแล้ว</p>}{summary.pending.length > 0 && <><h3>เอกสารต่ออายุที่รอตรวจสอบ</h3>{summary.pending.map(documentLine)}</>}{summary.returned.length > 0 && <><h3>เอกสารที่ส่งกลับแก้ไข</h3>{summary.returned.map(documentLine)}</>}{documents.length > 0 && <button type="button" className="btn-info-outline compact" onClick={() => setHistoryOpen(true)}>ดูประวัติการดำเนินการ</button>}</div><form className="license-upload-form" onSubmit={submit}><h3>แนบใบอนุญาตใหม่</h3><label className="field-group"><span>เลขใบอนุญาต <b>*</b></span><input value={licenseNumber} maxLength={100} onChange={(event) => setLicenseNumber(event.target.value)} required /></label><label className="field-group"><span>ไฟล์ใบอนุญาต <b>*</b></span><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} required /><small>PDF, JPG หรือ PNG ขนาดไม่เกิน 4 MB</small></label><div className="license-date-comparison"><label className="field-group"><span>วันที่เริ่มต้น <b>*</b></span><input type="date" value={proposedStartDate} onChange={(event) => setProposedStartDate(event.target.value)} required /></label><label className="field-group"><span>วันหมดอายุ <b>*</b></span><input type="date" value={proposedExpiryDate} onChange={(event) => setProposedExpiryDate(event.target.value)} required /></label></div><label className="field-group"><span>หมายเหตุ</span><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} /></label>{error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /></div>}<button type="submit" className="btn-primary" disabled={busy}>{busy ? 'กำลังส่ง…' : 'ส่งตรวจสอบ'}</button></form></div>}
+      {tab === 'documents' && <div className="license-edit-documents"><div className="license-edit-current"><h3>เอกสารปัจจุบัน</h3>{summary.current ? documentLine(summary.current) : <p>ยังไม่มีเอกสารที่อนุมัติแล้ว</p>}{summary.pending.length > 0 && <><h3>เอกสารต่ออายุที่รอตรวจสอบ</h3>{summary.pending.map(documentLine)}</>}{summary.returned.length > 0 && <><h3>เอกสารที่ส่งกลับแก้ไข</h3>{summary.returned.map(documentLine)}</>}{documents.length > 0 && <button type="button" className="btn-info-outline compact" onClick={() => setHistoryOpen(true)}>ดูประวัติการดำเนินการ</button>}</div><form className="license-upload-form" onSubmit={submit}><h3>แนบใบอนุญาตใหม่</h3><label className="field-group"><span>เลขใบอนุญาต <b>*</b></span><input value={licenseNumber} maxLength={100} onChange={(event) => setLicenseNumber(event.target.value)} required /></label><label className="field-group"><span>ไฟล์ใบอนุญาต <b>*</b></span><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} required /><small>ระบบปรับขนาดอัตโนมัติ · รูปเป้าหมาย 300–450 KB (สูงสุด 500 KB) · PDF สูงสุด 1 MB</small></label><div className="license-date-comparison"><label className="field-group"><span>วันที่เริ่มต้น <b>*</b></span><input type="date" value={proposedStartDate} onChange={(event) => setProposedStartDate(event.target.value)} required /></label><label className="field-group"><span>วันหมดอายุ <b>*</b></span><input type="date" value={proposedExpiryDate} onChange={(event) => setProposedExpiryDate(event.target.value)} required /></label></div><label className="field-group"><span>หมายเหตุ</span><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} /></label>{error && <div className="license-modal-error" role="alert"><RequestErrorContent error={error} /></div>}<button type="submit" className="btn-primary" disabled={busy}>{busy ? 'กำลังส่ง…' : 'ส่งตรวจสอบ'}</button></form></div>}
     </ModalFrame>
     {reviewDocument && <ReviewModal document={reviewDocument} license={license} services={services} isAdmin={isAdmin} onClose={() => setReviewDocument(undefined)} onChanged={changed} />}
     {correctionDocument && <CorrectionModal document={correctionDocument} services={services} onClose={() => setCorrectionDocument(undefined)} onChanged={changed} />}

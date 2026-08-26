@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { validPngFixture } = require('./support/valid-jpeg-fixture');
 const assert = require('node:assert/strict');
 
 const { errorHandler } = require('../src/middlewares/error-handler');
@@ -209,7 +210,8 @@ test('D. normal leave submission creates exactly one LeaveRequest', async () => 
 test('E. multipart leave submission creates one LeaveRequest and one attachment', async () => {
   const f = createFakePrisma();
   const handler = loadHandler('/leave-requests/with-attachment', f.prisma);
-  const file = { mimetype: 'image/png', size: 12, originalname: 'proof.png', buffer: Buffer.from('png-content') };
+  const buffer = validPngFixture();
+  const file = { mimetype: 'image/png', size: buffer.length, originalname: 'proof.png', buffer };
   const result = await invoke(handler, { file });
   assert.equal(result.nextError, undefined);
   assert.equal(result.statusCode, 201);
@@ -221,7 +223,8 @@ test('E. multipart leave submission creates one LeaveRequest and one attachment'
 test('F. P2028 after callback rolls back leave, attachment, audit, and auto-created annual quota', async () => {
   const f = createFakePrisma({ autoQuota: true, failAfterCallbackCode: 'P2028' });
   const handler = loadHandler('/leave-requests/with-attachment', f.prisma);
-  const file = { mimetype: 'image/png', size: 12, originalname: 'proof.png', buffer: Buffer.from('png-content') };
+  const buffer = validPngFixture();
+  const file = { mimetype: 'image/png', size: buffer.length, originalname: 'proof.png', buffer };
   const result = await invoke(handler, { file });
   assert.equal(result.nextError?.statusCode, 503);
   assert.equal(result.nextError?.publicCode, LEAVE_TRANSACTION_TIMEOUT);

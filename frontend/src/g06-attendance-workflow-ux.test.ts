@@ -137,7 +137,8 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain('{!autoFlow && <footer>');
     expect(page).toContain('autoFlow');
     expect(faceCapture).toContain("facingMode: { ideal: 'user' }");
-    expect(faceCapture).toContain("canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY)");
+    expect(faceCapture).toContain("canvasToOptimizedJpeg(canvas, 'ATTENDANCE_FACE')");
+    expect(faceCapture).toContain('ATTACHMENT_POLICIES.ATTENDANCE_FACE.maxEdge');
     expect(faceCapture).toContain('URL.createObjectURL(finalPhoto)');
     expect(faceCapture).toContain('URL.revokeObjectURL(previewUrlRef.current)');
     expect(faceCapture).toContain('streamRef.current?.getTracks().forEach((track) => track.stop())');

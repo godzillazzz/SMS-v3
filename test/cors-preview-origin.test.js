@@ -9,6 +9,10 @@ function readCorsOrigins(overrides = {}, unset = []) {
     DATABASE_URL: 'postgresql://test:test@db.example.com:5432/smsv3_preview',
     JWT_SECRET: 'test-secret-with-at-least-thirty-two-chars',
     RATE_LIMIT_HASH_SECRET: 'test-rate-limit-secret-with-at-least-thirty-two-chars',
+    SUPABASE_URL: 'https://storage.example.invalid',
+    SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key',
+    LICENSE_DOCUMENTS_BUCKET: 'private-license-documents',
+    EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos',
     ...overrides
   };
   for (const key of unset) delete env[key];

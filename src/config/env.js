@@ -39,6 +39,10 @@ const schema = z.object({
   SMTP_SECURE: z.enum(['true', 'false']).default('true'),
   SMTP_USERNAME: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   SMTP_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  SUPABASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  SUPABASE_SERVICE_ROLE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  LICENSE_DOCUMENTS_BUCKET: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(100).optional()),
+  EMPLOYEE_REFERENCE_PHOTOS_BUCKET: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(100).optional()),
   OTP_CODE_EXPIRES_MINUTES: z.coerce.number().int().min(5).max(30).default(10),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(10).default(5),
   OTP_REQUEST_LIMIT_PER_HOUR: z.coerce.number().int().min(1).max(20).default(5),
@@ -85,6 +89,11 @@ const schema = z.object({
     const isLocalDatabase = ['sms_v3_dev', 'sms_v3_test', 'smsv3_test'].includes(databaseName);
     if (isLocalHost || isLocalDatabase) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['DATABASE_URL'], message: 'DATABASE_URL must use a non-local, non-test database in Vercel environments.' });
+    }
+  }
+  if (value.VERCEL_ENV === 'production') {
+    for (const field of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'LICENSE_DOCUMENTS_BUCKET', 'EMPLOYEE_REFERENCE_PHOTOS_BUCKET']) {
+      if (!value[field]) context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: `${field} is required in Production for private document/reference-photo storage.` });
     }
   }
   if (value.RATE_LIMIT_STORE === 'postgres' && !value.RATE_LIMIT_HASH_SECRET) {

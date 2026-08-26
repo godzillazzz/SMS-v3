@@ -24,6 +24,7 @@ const { isReservedOperationalSettingKey } = require('../services/g03-1-multi-yea
 const { ATTENDANCE_POLICY_KEYS, validateAttendancePolicySetting } = require('../services/attendance-policy.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
+const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
 const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
 const { normalizeLicenseNumber } = require('../services/license-document.service');
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
@@ -104,10 +105,11 @@ const executiveReportQuery = z.object({
   month: z.coerce.number().int().min(1).max(12).optional(),
   department: z.string().trim().min(1).max(100).optional()
 });
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('attachment');
-const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'Attachment must not exceed 4 MB.' : 'Attachment upload is invalid.')) : next());
-const licenseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 12 } }).single('document');
-const licenseDocumentUpload = (req, res, next) => licenseUpload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ต้องมีขนาดไม่เกิน 4 MB' : 'License document upload is invalid.')) : next());
+const documentInputLimit = ATTACHMENT_PROFILES.DOCUMENT.maxInputBytes;
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: documentInputLimit, files: 1, fields: 12 } }).single('attachment');
+const leaveUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ต้นฉบับมีขนาดใหญ่เกินกว่าที่ระบบรับได้ กรุณาใช้หน้าเว็บเพื่อย่อไฟล์อัตโนมัติก่อนส่ง' : 'Attachment upload is invalid.')) : next());
+const licenseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: documentInputLimit, files: 1, fields: 12 } }).single('document');
+const licenseDocumentUpload = (req, res, next) => licenseUpload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ต้นฉบับมีขนาดใหญ่เกินกว่าที่ระบบรับได้ กรุณาใช้หน้าเว็บเพื่อย่อไฟล์อัตโนมัติก่อนส่ง' : 'License document upload is invalid.')) : next());
 const allowedAttachmentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const authorizedLicenseReconciliationCron = (req) => {
   const secret = process.env.CRON_SECRET;
@@ -872,7 +874,8 @@ router.post('/leave-requests/with-attachment', leaveUpload, async (req, res, nex
     const input = leaveInput.parse({ ...req.body, employeeId: req.body.employeeId || undefined });
     const stageDurationsMs = createLeaveStageDurations();
     const stageTimer = (stage, operation) => measureLeaveTransactionStage(stageDurationsMs, stage, operation);
-    const result = await runLeaveTransaction((tx) => createLeaveRequest(tx, input, req.user, req.file, undefined, { stageTimer }), { requestId: req.requestId, stageDurationsMs, timingEvent: 'leave_create_transaction_timing' });
+    const optimizedFile = req.file ? (await optimizeAttachment(req.file, 'DOCUMENT')).file : undefined;
+    const result = await runLeaveTransaction((tx) => createLeaveRequest(tx, input, req.user, optimizedFile, undefined, { stageTimer }), { requestId: req.requestId, stageDurationsMs, timingEvent: 'leave_create_transaction_timing' });
 
     try {
       const { broadcastLeaveRequestEmail } = require('../services/notification-email.service');

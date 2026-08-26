@@ -6,11 +6,11 @@ const { z } = require('zod');
 const HttpError = require('../utils/http-error');
 const { createAttendanceApiContractService } = require('../services/attendance-api-contract.service');
 const { createAttendanceFaceVerificationService } = require('../services/attendance-face-verification.service');
-const { MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE } = require('../services/attendance-face-verification.service');
 const { ACTIVE_FACE_CHALLENGE_FRAME_COUNT } = require('../services/active-face-challenge.service');
 const { createAttendanceFaceChallengeUatService } = require('../services/attendance-face-challenge-uat.service');
 const { createAttendanceFaceEngineUatService } = require('../services/attendance-face-engine-uat.service');
 const { inProcessFaceConfig } = require('../services/in-process-face-match.provider');
+const { validateAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
 
 const uuid = z.string().uuid();
 const decimal = z.union([z.number().finite(), z.string().trim().regex(/^-?\d+(?:\.\d+)?$/).max(32)]);
@@ -31,15 +31,19 @@ const attendanceContextInput = z.object({
 }).strict();
 const acceptInput = z.object({ receipt: z.string().trim().min(32).max(512), attendanceContext: attendanceContextInput }).strict();
 const deviceProofInput = z.object({ challengeId: uuid, challenge: z.string().min(16).max(512), signatureBase64: z.string().min(16).max(4096) }).strict();
-const livePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fields: 0, parts: 2 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fileSize: MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE } }).fields([
+const livePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fields: 0, parts: 2 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fileSize: ATTACHMENT_PROFILES.ATTENDANCE_FACE.imageHardLimitBytes } }).fields([
   { name: 'photo', maxCount: 1 },
   { name: 'challengeFrame', maxCount: ACTIVE_FACE_CHALLENGE_FRAME_COUNT }
 ]);
 
 function faceCaptureUpload(req, res, next) {
-  livePhotoUpload(req, res, (error) => {
+  livePhotoUpload(req, res, async (error) => {
     if (error) return next(new HttpError(400, 'Invalid face capture upload.', { code: 'ATTENDANCE_FACE_INPUT_INVALID' }));
-    return next();
+    try {
+      const files = Object.values(req.files || {}).flat();
+      for (const file of files) await validateAttachment(file, 'ATTENDANCE_FACE');
+      return next();
+    } catch (validationError) { return next(validationError); }
   });
 }
 

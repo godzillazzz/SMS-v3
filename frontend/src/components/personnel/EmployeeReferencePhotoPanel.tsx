@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { SmsIcon } from '../SmsIcon';
+import { ATTACHMENT_POLICIES } from '../../lib/attachment-optimizer';
 import type { PersonnelRole } from './types';
 import '../../styles/employee-reference-photo.css';
 
@@ -54,7 +55,7 @@ export function EmployeeReferencePhotoPanel({ token, employeeId, role, onChanged
     setNotice(''); setError(undefined); setAckDeleteOld(false);
     if (!next) { setFile(undefined); return; }
     if (!['image/jpeg', 'image/png'].includes(next.type)) { setError('รองรับเฉพาะไฟล์ JPEG หรือ PNG'); return; }
-    if (next.size > 4 * 1024 * 1024) { setError('รูปอ้างอิงต้องมีขนาดไม่เกิน 4 MB'); return; }
+    if (next.size > ATTACHMENT_POLICIES.EMPLOYEE_REFERENCE_PHOTO.maxSourceBytes) { setError('รูปต้นฉบับมีขนาดใหญ่เกิน 12 MB กรุณาเลือกภาพอื่น'); return; }
     setFile(next);
   };
   const upload = async () => {
@@ -101,7 +102,7 @@ export function EmployeeReferencePhotoPanel({ token, employeeId, role, onChanged
       <article className="reference-photo-card"><header><div><strong>{pending ? 'รูปที่รอพิจารณา' : isAdmin ? 'เปลี่ยนรูปอ้างอิง' : 'เสนอรูปอ้างอิงใหม่'}</strong><span>{pending ? `ส่งเมื่อ ${fmt(pending.uploadedAt)}` : isAdmin ? 'Admin เปิดใช้งานรูปใหม่โดยตรง' : 'รูปเดิมยัง ACTIVE จนกว่า Admin อนุมัติ'}</span></div>{pending && <span className="status-badge pending">PENDING</span>}</header>
         {pending ? <><div className="reference-photo-frame reference-photo-frame--candidate">{pendingUrl ? <img src={pendingUrl} alt="รูปอ้างอิงที่รอพิจารณา" /> : <div className="reference-photo-placeholder"><SmsIcon name="eye" size={28} /><span>ไม่สามารถเปิด candidate ชั่วคราว</span></div>}</div><dl><div><dt>ผู้เสนอ</dt><dd>{pending.uploadedBy?.displayName || 'Manager'}</dd></div><div><dt>ขนาด</dt><dd>{pending.imageWidth}×{pending.imageHeight} · {fileSize(pending.fileSize)}</dd></div></dl>
           {isAdmin ? <div className="reference-photo-review"><button type="button" className="btn-primary" disabled={busy} onClick={() => void approve()}><SmsIcon name="check" size={16} />อนุมัติและเปิดใช้</button><label><span>เหตุผลที่ไม่อนุมัติ</span><textarea rows={2} value={rejectReason} maxLength={1000} onChange={(event) => setRejectReason(event.target.value)} /></label><button type="button" className="btn-danger-outline" disabled={busy || rejectReason.trim().length < 3} onClick={() => void reject()}>ไม่อนุมัติ</button></div> : <button type="button" className="btn-danger-outline" disabled={busy} onClick={() => void cancel()}>ยกเลิกรูปที่เสนอ</button>}
-        </> : <div className="reference-photo-upload"><div className="reference-photo-frame">{localPreview ? <img src={localPreview} alt="ตัวอย่างรูปใหม่ก่อนอัปโหลด" /> : <div className="reference-photo-placeholder"><SmsIcon name="plus" size={28} /><span>เลือก JPEG/PNG · สูงสุด 4 MB</span></div>}</div><label className="reference-photo-file"><span>ไฟล์รูปอ้างอิง</span><input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={(event) => chooseFile(event.target.files?.[0])} /></label>
+        </> : <div className="reference-photo-upload"><div className="reference-photo-frame">{localPreview ? <img src={localPreview} alt="ตัวอย่างรูปใหม่ก่อนอัปโหลด" /> : <div className="reference-photo-placeholder"><SmsIcon name="plus" size={28} /><span>เลือก JPEG/PNG · ระบบปรับอัตโนมัติ เป้าหมาย 400–700 KB</span></div>}</div><label className="reference-photo-file"><span>ไฟล์รูปอ้างอิง</span><input type="file" accept="image/jpeg,image/png" disabled={busy} onChange={(event) => chooseFile(event.target.files?.[0])} /></label>
           {isAdmin && active && <label className="reference-photo-delete-ack"><input type="checkbox" checked={ackDeleteOld} onChange={(event) => setAckDeleteOld(event.target.checked)} /><span>ยืนยันว่าเมื่อรูปใหม่ ACTIVE สำเร็จ ระบบจะลบไฟล์รูปเดิมทันทีตาม Retention A</span></label>}
           <button type="button" className="btn-primary" disabled={busy || !file || Boolean(isAdmin && active && !ackDeleteOld)} onClick={() => void upload()}><SmsIcon name="plus" size={16} />{busy ? 'กำลังบันทึก…' : isAdmin ? 'เปิดใช้รูปใหม่นี้' : 'ส่งให้ Admin ตรวจสอบ'}</button></div>}
       </article>

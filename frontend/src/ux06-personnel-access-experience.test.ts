@@ -207,7 +207,7 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(reviewPanel).not.toContain('window.confirm');
   });
 
-  it('locks the authorized V1.2 API source after the Passkey extension', () => {
-    expect(apiSha256).toBe('98a10ea2a63e62f9e4b857f13d88df0996fe23d6ec50d89b186cf37439ed4c42');
+  it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
+    expect(apiSha256).toBe('1eeeb2738d6571c1aebd3b3ff6e3cf2a0bb3920107b821f4771e94041dea389f');
   });
 });

@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const HttpError = require('../utils/http-error');
 const { validateUpload, safeName } = require('./license-document-storage.service');
+const { optimizeAttachment } = require('./attachment-optimizer.service');
 const { LICENSE_DOCUMENT_TRANSACTION_OPTIONS, removeLicenseDocumentFile } = require('./license-document-retention.service');
 const { APPROVAL_TRANSITIONS, workflowAuditActionFor, buildWorkflowAuditEnvelope } = require('./approval-workflow-semantics');
 
@@ -244,6 +245,8 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
   async function upload({ licenseId, requestUser, file, input }) {
     ensureProposedDates(input?.proposedStartDate, input?.proposedExpiryDate);
     const proposedLicenseNumber = normalizeLicenseNumber(input?.licenseNumber);
+    const optimized = await optimizeAttachment(file, 'DOCUMENT');
+    file = optimized.file;
     const fileInfo = validateUpload(file);
     const note = normalizeNote(input?.note);
     const license = await prisma.$transaction(async (tx) => {
@@ -333,6 +336,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
     const proposedLicenseNumber = normalizeLicenseNumber(input?.proposedLicenseNumber ?? input?.licenseNumber);
     ensureProposedDates(input?.proposedStartDate, input?.proposedExpiryDate);
     const note = normalizeNote(input?.note);
+    if (file) file = (await optimizeAttachment(file, 'DOCUMENT')).file;
     const fileInfo = file ? validateUpload(file) : null;
     const previous = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM employee_license_documents WHERE id = ${id}::uuid FOR UPDATE`;

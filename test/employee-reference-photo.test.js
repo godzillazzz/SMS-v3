@@ -62,7 +62,7 @@ test('private storage byte-read uses the object API, enforces size/type guards, 
 
   const oversized = createSupabaseEmployeeReferencePhotoStorage({
     environment: { SUPABASE_URL: 'https://example.test', SUPABASE_SERVICE_ROLE_KEY: 'test-only', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos' },
-    fetchImpl: async () => ({ ok: true, status: 200, headers: { get: () => String((4 * 1024 * 1024) + 1) }, arrayBuffer: async () => { throw new Error('must not read oversized body'); } })
+    fetchImpl: async () => ({ ok: true, status: 200, headers: { get: () => String((1024 * 1024) + 1) }, arrayBuffer: async () => { throw new Error('must not read oversized body'); } })
   });
   await assert.rejects(() => oversized.getBytes('employee-id/reference.png'), (error) => error.details?.code === 'REFERENCE_PHOTO_STORAGE_READ_FAILED');
 });

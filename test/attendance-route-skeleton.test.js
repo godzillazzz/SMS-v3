@@ -8,6 +8,7 @@ const express = require('express');
 const request = require('supertest');
 const HttpError = require('../src/utils/http-error');
 const { errorHandler } = require('../src/middlewares/error-handler');
+const { validJpegFixture } = require('./support/valid-jpeg-fixture');
 const {
   createAttendanceRoutes,
   attendanceApiEnabled,
@@ -191,7 +192,7 @@ test('generic Attendance verification endpoints accept only device proof plus bo
     .send({ challengeId: '66666666-6666-4666-8666-666666666666', challenge: 'opaque-device-challenge', signatureBase64: 'opaque-signature-value', faceMatchPassed: true });
   assert.equal(invalidProof.status, 400);
 
-  const photo = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(100, 0x11)]);
+  const photo = validJpegFixture();
   let matchRequest = request(app).post(`/api/v1/attendance/verification/${sessionId}/face-match`)
     .set('Authorization', 'Bearer route-test')
     .attach('photo', photo, { filename: 'live.jpg', contentType: 'image/jpeg' });

@@ -10,9 +10,10 @@ const {
   attendanceFaceEngineUatEnabled
 } = require('../src/routes/attendance.routes');
 const { createAttendanceFaceEngineUatService } = require('../src/services/attendance-face-engine-uat.service');
+const { validJpegFixture } = require('./support/valid-jpeg-fixture');
 
-function jpeg(byte = 0x31) {
-  return Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(256, byte)]);
+function jpeg() {
+  return validJpegFixture();
 }
 
 function contractStub() {

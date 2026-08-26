@@ -2,17 +2,12 @@
 
 const crypto = require('node:crypto');
 const HttpError = require('../utils/http-error');
+const { ATTACHMENT_PROFILES, detectedType } = require('./attachment-optimizer.service');
 
-const MAX_FILE_SIZE = 4 * 1024 * 1024;
+const MAX_FILE_SIZE = ATTACHMENT_PROFILES.EMPLOYEE_REFERENCE_PHOTO.imageHardLimitBytes;
 const MIN_DIMENSION = 256;
 const MAX_DIMENSION = 4096;
 const MIME_BY_TYPE = new Map([['jpeg', 'image/jpeg'], ['png', 'image/png']]);
-
-function detectedType(buffer) {
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpeg';
-  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
-  return null;
-}
 
 function imageDimensions(buffer, type) {
   if (type === 'png') {
@@ -39,7 +34,7 @@ function imageDimensions(buffer, type) {
 
 function validateReferencePhoto(file) {
   if (!file || !Buffer.isBuffer(file.buffer)) throw new HttpError(400, 'Reference photo is required.', { code: 'REFERENCE_PHOTO_REQUIRED' });
-  if (file.size > MAX_FILE_SIZE) throw new HttpError(400, 'รูปอ้างอิงต้องมีขนาดไม่เกิน 4 MB', { code: 'REFERENCE_PHOTO_TOO_LARGE' });
+  if (file.buffer.length > MAX_FILE_SIZE) throw new HttpError(400, 'รูปอ้างอิงต้องมีขนาดไม่เกิน 1 MB หลังปรับคุณภาพอัตโนมัติ', { code: 'REFERENCE_PHOTO_TOO_LARGE' });
   const type = detectedType(file.buffer);
   if (!type || file.mimetype !== MIME_BY_TYPE.get(type)) throw new HttpError(415, 'Reference photo must be a valid JPEG or PNG image.', { code: 'REFERENCE_PHOTO_TYPE_INVALID' });
   const dimensions = imageDimensions(file.buffer, type);

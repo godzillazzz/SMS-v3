@@ -7,13 +7,14 @@ const { authenticate, authorize } = require('../middlewares/authenticate');
 const HttpError = require('../utils/http-error');
 const { createSupabaseEmployeeReferencePhotoStorage } = require('../services/employee-reference-photo-storage.service');
 const { createEmployeeReferencePhotoService } = require('../services/employee-reference-photo.service');
+const { ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
 
 const router = express.Router();
 const service = createEmployeeReferencePhotoService({ storage: createSupabaseEmployeeReferencePhotoStorage() });
 const uuid = z.string().uuid();
 const rejectSchema = z.object({ reason: z.string().trim().min(3).max(1000) }).strict();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 4 } }).single('photo');
-const photoUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'รูปอ้างอิงต้องมีขนาดไม่เกิน 4 MB' : 'Reference photo upload is invalid.', { code: error.code === 'LIMIT_FILE_SIZE' ? 'REFERENCE_PHOTO_TOO_LARGE' : 'REFERENCE_PHOTO_UPLOAD_INVALID' })) : next());
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: ATTACHMENT_PROFILES.EMPLOYEE_REFERENCE_PHOTO.maxInputBytes, files: 1, fields: 4 } }).single('photo');
+const photoUpload = (req, res, next) => upload(req, res, (error) => error ? next(new HttpError(400, error.code === 'LIMIT_FILE_SIZE' ? 'รูปต้นฉบับมีขนาดใหญ่เกินกว่าที่ระบบรับได้ กรุณาใช้หน้าเว็บเพื่อย่ออัตโนมัติก่อนส่ง' : 'Reference photo upload is invalid.', { code: error.code === 'LIMIT_FILE_SIZE' ? 'REFERENCE_PHOTO_INPUT_TOO_LARGE' : 'REFERENCE_PHOTO_UPLOAD_INVALID' })) : next());
 
 router.use(authenticate);
 router.get('/employee/:employeeId', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {

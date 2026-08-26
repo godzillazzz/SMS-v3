@@ -29,7 +29,8 @@ test('View As is short-lived, memory-only, audited, and server-enforced read-onl
 test('leave attachment and Excel routes never expose binary content in JSON', () => {
   const routes = read('src/routes/operations.routes.js');
   assert.match(routes, /multer\.memoryStorage/);
-  assert.match(routes, /Attachment must not exceed 4 MB/);
+  assert.match(routes, /ไฟล์ต้นฉบับมีขนาดใหญ่เกินกว่าที่ระบบรับได้/);
+  assert.ok(routes.includes("optimizeAttachment(req.file, 'DOCUMENT')"));
   assert.match(routes, /Content-Disposition.*inline/);
   assert.match(routes, /application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/);
   assert.doesNotMatch(routes, /content:\s*file\.buffer[^\n]*res\.json/);
