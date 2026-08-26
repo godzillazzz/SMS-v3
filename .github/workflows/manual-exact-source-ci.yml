@@ -1,0 +1,188 @@
+name: Manual Exact Source CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact application source SHA to validate
+        required: true
+        type: string
+      source_branch:
+        description: Exact remote source branch whose HEAD must equal source_sha
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-exact-source-ci-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: sms_v3_test
+        ports:
+          - 5432:5432
+          - 55438:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d sms_v3_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: test
+      RUN_INTEGRATION_TESTS: "true"
+      DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
+      DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:5432/sms_v3_test?schema=public
+      TEST_DATABASE_RUNNER: manual-exact-source-ci
+      JWT_SECRET: ci-test-secret-at-least-thirty-two-characters
+      DISABLE_EMAIL_NOTIFICATIONS: "true"
+      OTP_DELIVERY_PROVIDER: disabled
+      ALERTING_ENABLED: "false"
+      RATE_LIMIT_STORE: memory
+      SEED_ADMIN_EMAIL: ci-admin@example.test
+      SEED_ADMIN_PASSWORD: ci-seed-password-only-for-ephemeral-db
+    steps:
+      - name: Checkout trusted workflow host
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Validate exact remote source identity
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          if [[ "$SOURCE_BRANCH" == refs/* || "$SOURCE_BRANCH" == -* ]] || ! git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null; then
+            echo 'SOURCE_BRANCH_INVALID'
+            exit 1
+          fi
+          git fetch --no-tags origin "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH"
+          REMOTE_SHA="$(git rev-parse "refs/remotes/origin/$SOURCE_BRANCH")"
+          test "$REMOTE_SHA" = "$SOURCE_SHA"
+          git cat-file -e "${SOURCE_SHA}^{commit}"
+          echo "SOURCE_IDENTITY=PASS"
+          echo "SOURCE_BRANCH=$SOURCE_BRANCH"
+          echo "SOURCE_SHA=$SOURCE_SHA"
+
+      - name: Checkout exact application source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+          path: application-under-test
+
+      - name: Verify exact application checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C application-under-test rev-parse HEAD)" = "$SOURCE_SHA"
+          test -f application-under-test/package.json
+          echo "APPLICATION_CHECKOUT=PASS"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: application-under-test/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: application-under-test
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: application-under-test/frontend
+
+      - name: Check Prisma formatting
+        run: npm run prisma:format:check
+        working-directory: application-under-test
+
+      - name: Validate Prisma schema
+        run: npx prisma validate
+        working-directory: application-under-test
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        working-directory: application-under-test
+
+      - name: Apply disposable CI migrations
+        run: npm run db:test:migrate
+        working-directory: application-under-test
+
+      - name: Seed disposable CI database
+        run: npm run db:seed
+        working-directory: application-under-test
+
+      - name: Verify disposable migration status
+        run: node scripts/ci/prisma-migration.js status
+        working-directory: application-under-test
+
+      - name: Run backend test suite
+        run: npm test
+        working-directory: application-under-test
+
+      - name: Run integration test suite
+        run: npm run test:integration
+        working-directory: application-under-test
+
+      - name: Run authoritative Attendance event integration
+        env:
+          TEST_DATABASE_RUNNER: manual-exact-source-attendance
+          DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
+          DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
+        run: node --test --test-concurrency=1 test/integration/attendance-event-workflow.integration.test.js
+        working-directory: application-under-test
+
+      - name: Run frontend tests
+        run: npm test
+        working-directory: application-under-test/frontend
+
+      - name: Type-check frontend
+        run: npx tsc --noEmit
+        working-directory: application-under-test/frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: application-under-test/frontend
+
+      - name: Restore tracked frontend build metadata
+        shell: bash
+        run: git -C application-under-test restore -- frontend/tsconfig.tsbuildinfo
+
+      - name: Verify exact-source repository hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          secret_patterns='ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|ver''cel_[A-Za-z0-9]{20,}|-----BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY-----'
+          if git -C application-under-test grep -n -I -E "$secret_patterns" -- ':!test/**' ':!docs/**' ':!**/*.example' >/dev/null; then
+            echo 'Secret-pattern scan failed'
+            exit 1
+          fi
+          git -C application-under-test diff --check
+          test -z "$(git -C application-under-test status --porcelain)"
+
+      - name: Publish exact-source validation identity
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Manual Exact Source CI'
+            echo '- Source branch: `${{ inputs.source_branch }}`'
+            echo '- Source SHA: `${{ inputs.source_sha }}`'
+            echo '- Production database: not used'
+            echo '- Deployment: none'
+          } >> "$GITHUB_STEP_SUMMARY"
