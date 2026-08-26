@@ -5,30 +5,41 @@
   "functions": {
     "api/[...path].js": {
       "maxDuration": 60,
-      "includeFiles": [
-        "node_modules/@vladmandic/human/models/blazeface.*",
-        "node_modules/@vladmandic/human/models/facemesh.*",
-        "node_modules/@vladmandic/human/models/faceres.*",
-        "node_modules/@vladmandic/human/dist/human.node-wasm.js",
-        "node_modules/@tensorflow/tfjs-backend-wasm/dist/*.wasm"
-      ]
+      "includeFiles": "{node_modules/@vladmandic/human/models/**,node_modules/@vladmandic/human/dist/human.node-wasm.js,node_modules/@tensorflow/tfjs-backend-wasm/dist/*.wasm}"
     }
   },
   "crons": [
-    { "path": "/api/v1/internal/license-reconciliation", "schedule": "5 17 * * *" },
-    { "path": "/api/v1/internal/annual-leave-quota-provisioning", "schedule": "0 17 31 12 *" }
+    {
+      "path": "/api/v1/internal/license-reconciliation",
+      "schedule": "5 17 * * *"
+    },
+    {
+      "path": "/api/v1/internal/annual-leave-quota-provisioning",
+      "schedule": "0 17 31 12 *"
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
       ]
     }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/[...path].js" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/[...path].js"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
   ]
 }
