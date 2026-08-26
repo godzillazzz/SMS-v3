@@ -13,7 +13,7 @@ async function loginAs(page, role) {
     return url.pathname === '/api/v1/auth/login' && response.request().method() === 'POST';
   });
   await page.getByLabel('อีเมล').fill(account.email);
-  await page.getByLabel('รหัสผ่าน').fill(account.password);
+  await page.locator('#password').fill(account.password);
   await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click();
 
   const response = await loginResponse;

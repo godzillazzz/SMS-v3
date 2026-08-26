@@ -78,7 +78,7 @@ for (const viewport of viewports) {
     extractViteAssets(await page.content());
 
     const email = page.getByLabel('อีเมล');
-    const password = page.getByLabel('รหัสผ่าน');
+    const password = page.locator('#password');
     const submit = page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true });
     await expect(email).toBeVisible();
     await expect(password).toBeVisible();
