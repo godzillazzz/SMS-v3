@@ -14,7 +14,6 @@ concurrency:
 
 jobs:
   preserve-current-production:
-    if: ${{ github.event.head_commit.message == 'chore(release): stage G06 production compatibility helper' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -26,8 +25,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "8588838099b17f122307708e323e358d4b981d94"
+          git merge-base --is-ancestor 8588838099b17f122307708e323e358d4b981d94 HEAD
           git cat-file -e "1b25c9631526c44ad3f01b341f7b94f5f6941b12^{commit}"
+          actual_pre=$(git diff --name-only 8588838099b17f122307708e323e358d4b981d94 HEAD)
+          test "$actual_pre" = ".github/workflows/g06-release-preserve-production-shift-edit.yml"
           test -z "$(git status --porcelain)"
       - name: Cherry-pick current Production-only shift edit
         shell: bash
