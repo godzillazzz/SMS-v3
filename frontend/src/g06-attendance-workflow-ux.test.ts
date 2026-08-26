@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const main = read('./main.tsx');
 const page = read('./pages/attendance/AttendancePage.tsx');
+const icon = read('./components/SmsIcon.tsx');
 const client = read('./pages/attendance/attendance-client.ts');
 const scanner = read('./pages/attendance/AttendanceQrScanner.tsx');
 const faceCapture = read('./pages/attendance/AttendanceFaceCapture.tsx');
@@ -13,12 +14,22 @@ const css = read('./pages/attendance/attendance.css');
 describe('G06 Attendance frontend UX skeleton', () => {
   it('exposes a dedicated self-service Attendance page separate from Personal Device setup', () => {
     expect(main).toContain("'attendance'");
-    expect(main).toContain("{ id: 'attendance', icon: 'clock', label: 'ลงเวลา' }");
+    expect(main).toContain("{ id: 'attendance', icon: 'attendance', label: 'ลงเวลา' }");
     expect(main).toContain('<AttendancePage token={auth.token}');
     expect(page).toContain('attendance-v2-hero');
     expect(main).toContain('displayName={auth.user?.displayName}');
     expect(page.match(/<button\b/g)?.length).toBe(1);
     expect(page).not.toContain('onOpenDeviceSetup');
+  });
+
+  it('uses one attendance-specific clock-plus-confirmation icon without changing Shift Setup', () => {
+    expect(icon).toContain("| 'dashboard' | 'employees' | 'license' | 'calendar' | 'clock' | 'attendance'");
+    expect(icon).toContain('attendance: <><circle');
+    expect(icon).toContain('M14.5 16.5l2 2 4-4');
+    expect(main).toContain("{ id: 'attendance', icon: 'attendance', label: 'ลงเวลา' }");
+    expect(main).toContain("{ id: 'shiftSetup', icon: 'clock', label: 'รหัสกะและเวลา' }");
+    expect(page).toContain("<SmsIcon name={flowBusy ? 'refresh' : 'attendance'} size={21} />");
+    expect(page).not.toContain("<SmsIcon name={flowBusy ? 'refresh' : 'clock'} size={21} />");
   });
 
   it('sends captureId + GPS first, with QR optional only when Server requests step-up, and never sends client event intent', () => {
