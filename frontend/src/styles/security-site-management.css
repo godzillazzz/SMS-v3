@@ -199,19 +199,21 @@
 
 @page { size: A4 portrait; margin: 0; }
 @media print {
-  html, body, #root { height: 0 !important; min-height: 0 !important; overflow: hidden !important; }
+  html, body, #root { height: auto !important; min-height: 0 !important; overflow: visible !important; }
   body { margin: 0 !important; background: #fff !important; }
   body * { visibility: hidden !important; }
   .security-site-qr-print-sheet,
   .security-site-qr-print-sheet * { visibility: visible !important; }
   .security-site-qr-print-sheet {
     display: flex !important;
-    position: fixed !important;
-    inset: 0 !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
     z-index: 2147483647 !important;
     box-sizing: border-box;
-    width: 100vw;
-    min-height: 100vh;
+    width: 210mm;
+    min-height: 297mm;
+    max-height: 297mm;
     padding: 24mm 18mm;
     flex-direction: column;
     align-items: center;
@@ -222,6 +224,8 @@
     text-align: center;
     page-break-after: avoid;
     break-after: avoid-page;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .security-site-qr-print-sheet p,
   .security-site-qr-print-sheet h1,
@@ -230,7 +234,7 @@
   .security-site-qr-print-sheet p { font-size: 12pt; letter-spacing: .08em; }
   .security-site-qr-print-sheet h1 { font-size: 22pt; }
   .security-site-qr-print-sheet div { font-size: 12pt; }
-  .security-site-qr-print-sheet img { display: block; width: 150mm; height: 150mm; max-width: 100%; object-fit: contain; background: #fff; image-rendering: pixelated; }
+  .security-site-qr-print-sheet img { display: block; width: 150mm; height: 150mm; max-width: 150mm; max-height: 150mm; aspect-ratio: 1 / 1; object-fit: contain; background: #fff; image-rendering: pixelated; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .security-site-qr-print-sheet footer { margin-top: auto; font-size: 10pt; }
   .security-site-admin__header button,
   .security-site-actions,

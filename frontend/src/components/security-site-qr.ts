@@ -13,6 +13,47 @@ export async function createSecuritySiteQrDataUrl(rawToken: string, size = SECUR
   });
 }
 
+export async function ensureSecuritySiteQrImageReady(image: HTMLImageElement): Promise<void> {
+  if (!image.src) throw new Error('ไม่พบ QR image สำหรับการพิมพ์');
+
+  if (!image.complete) {
+    await new Promise<void>((resolve, reject) => {
+      const handleLoad = () => {
+        cleanup();
+        resolve();
+      };
+      const handleError = () => {
+        cleanup();
+        reject(new Error('QR image โหลดไม่สำเร็จ'));
+      };
+      const cleanup = () => {
+        image.removeEventListener('load', handleLoad);
+        image.removeEventListener('error', handleError);
+      };
+
+      image.addEventListener('load', handleLoad, { once: true });
+      image.addEventListener('error', handleError, { once: true });
+      if (image.complete) {
+        cleanup();
+        resolve();
+      }
+    });
+  }
+
+  if (image.naturalWidth === 0) throw new Error('QR image โหลดไม่สำเร็จ');
+  if (typeof image.decode === 'function') await image.decode();
+}
+
+export function nextSecuritySiteQrAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => resolve());
+      return;
+    }
+    setTimeout(resolve, 0);
+  });
+}
+
 export function securitySiteQrFilename(siteCode: string, version: number): string {
   const safeSiteCode = siteCode.trim().replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'SITE';
   return `SMSV3-Attendance-QR-${safeSiteCode}-v${version}.png`;
