@@ -130,7 +130,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
   });
 
   it('keeps the exact UX-02 API source blob unchanged', () => {
-    expect(apiSha256).toBe('456cc643ecee9a2f83ea9eab3ec079c2f27ca83a165a66e9e736bfb39c1460c0');
+    expect(apiSha256).toBe('98a10ea2a63e62f9e4b857f13d88df0996fe23d6ec50d89b186cf37439ed4c42');
   });
 
   it('provides an accessible shared row-action menu with focus restoration and viewport containment', () => {

@@ -1,45 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ApiRequestError, api } from '../api';
 import '../styles/security-site-management.css';
+import {
+  createSecuritySiteQrDataUrl,
+  securitySiteQrFilename
+} from './security-site-qr';
+import type {
+  SecuritySite as ApiSecuritySite,
+  SecuritySiteDepartmentMapping as ApiDepartmentMapping,
+  SecuritySiteInput,
+  SecuritySiteOverlapWarning,
+  SecuritySiteQrCredential
+} from '../api';
 
-type SecuritySite = {
-  id: string;
-  code: string;
-  name: string;
-  latitude: string | null;
-  longitude: string | null;
-  geofenceRadiusMeters: number;
-  isActive: boolean;
-  departmentLinks: Array<{ securitySiteId: string; departmentName: string; isDefault: boolean }>;
-  currentQrCredential: QrCredential | null;
-  qrCredentials: QrCredential[];
-};
-
-type QrCredential = {
-  id: string;
-  securitySiteId: string;
-  version: number;
-  validFrom: string;
-  validUntil: string | null;
-  revokedAt: string | null;
-  createdAt: string;
-};
-
-type DepartmentMapping = {
-  departmentName: string;
-  siteIds: string[];
-  defaultSiteId: string | null;
-  links: Array<{ securitySiteId: string; departmentName: string; isDefault: boolean }>;
-};
-
-type OverlapWarning = {
-  siteId: string;
-  otherSiteId: string;
-  siteCode: string;
-  otherSiteCode: string;
-  distanceMeters: number;
-  combinedRadiusMeters: number;
-  overlapMeters: number;
-};
+type SecuritySite = ApiSecuritySite;
+type QrCredential = SecuritySiteQrCredential;
+type DepartmentMapping = ApiDepartmentMapping;
+type OverlapWarning = SecuritySiteOverlapWarning;
 
 type SiteForm = {
   code: string;
@@ -74,19 +51,16 @@ function displayDate(value?: string | null) {
   return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value));
 }
 
-async function adminRequest<T>(token: string, path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api/v1${path}`, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(options.headers || {})
-    }
-  });
-  const body = await response.json().catch(() => ({})) as { data?: T; error?: { message?: string }; message?: string };
-  if (!response.ok) throw new Error(body.error?.message || body.message || `HTTP ${response.status}`);
-  return body.data as T;
+function requestErrorMessage(reason: unknown, fallback: string) {
+  return reason instanceof ApiRequestError || reason instanceof Error ? reason.message : fallback;
 }
+
+type GeneratedQr = {
+  dataUrl: string;
+  credential: QrCredential;
+  siteCode: string;
+  siteName: string;
+};
 
 function SitePreview({ site }: { site: SecuritySite | null }) {
   if (!site) return <div className="security-site-map-empty">เลือก Site เพื่อดู Geofence preview</div>;
@@ -113,6 +87,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   const [mappingSiteIds, setMappingSiteIds] = useState<string[]>([]);
   const [defaultSiteId, setDefaultSiteId] = useState('');
   const [rawQrToken, setRawQrToken] = useState('');
+  const [generatedQr, setGeneratedQr] = useState<GeneratedQr | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
@@ -135,6 +110,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
       geofenceRadiusMeters: String(site.geofenceRadiusMeters)
     } : emptyForm);
     setRawQrToken('');
+    setGeneratedQr(null);
     setError(undefined);
     setNotice(undefined);
   };
@@ -152,9 +128,9 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     setLoading(true);
     setError(undefined);
     try {
-      const [siteData, departmentData] = await Promise.all([
-        adminRequest<{ sites: SecuritySite[]; overlapWarnings: OverlapWarning[] }>(token, '/admin/security-sites'),
-        adminRequest<DepartmentMapping[]>(token, '/admin/security-sites/departments')
+      const [{ data: siteData }, { data: departmentData }] = await Promise.all([
+        api.getSecuritySites(token),
+        api.getSecuritySiteDepartments(token)
       ]);
       setSites(siteData.sites || []);
       setOverlaps(siteData.overlapWarnings || []);
@@ -168,7 +144,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
       if (nextDepartment) applyMapping(nextDepartment);
       else if (selectedDepartment && !nextDepartment) applyMapping(null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถโหลด Security Site configuration ได้');
+      setError(requestErrorMessage(reason, 'ไม่สามารถโหลด Security Site configuration ได้'));
     } finally {
       setLoading(false);
     }
@@ -188,20 +164,20 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     }
     setSaving(true); setError(undefined); setNotice(undefined);
     try {
-      const payload = JSON.stringify({
+      const payload: SecuritySiteInput = {
         code: form.code.trim(),
         name: form.name.trim(),
         latitude,
         longitude,
         geofenceRadiusMeters: Math.round(radius)
-      });
-      const saved = selectedSite
-        ? await adminRequest<SecuritySite>(token, `/admin/security-sites/${selectedSite.id}`, { method: 'PUT', body: payload })
-        : await adminRequest<SecuritySite>(token, '/admin/security-sites', { method: 'POST', body: payload });
+      };
+      const { data: saved } = selectedSite
+        ? await api.updateSecuritySite(token, selectedSite.id, payload)
+        : await api.createSecuritySite(token, payload);
       setNotice(selectedSite ? 'บันทึก Security Site แล้ว' : 'เพิ่ม Security Site แล้ว');
       await reload(saved.id, selectedDepartment);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'บันทึก Security Site ไม่สำเร็จ');
+      setError(requestErrorMessage(reason, 'บันทึก Security Site ไม่สำเร็จ'));
     } finally { setSaving(false); }
   };
 
@@ -209,14 +185,11 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     if (!selectedSite) return;
     setSaving(true); setError(undefined); setNotice(undefined);
     try {
-      await adminRequest<SecuritySite>(token, `/admin/security-sites/${selectedSite.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ isActive: !selectedSite.isActive })
-      });
+      await api.updateSecuritySite(token, selectedSite.id, { isActive: !selectedSite.isActive });
       setNotice(selectedSite.isActive ? 'ปิดใช้งาน Site แล้ว' : 'เปิดใช้งาน Site แล้ว');
       await reload(selectedSite.id, selectedDepartment);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'เปลี่ยนสถานะ Site ไม่สำเร็จ');
+      setError(requestErrorMessage(reason, 'เปลี่ยนสถานะ Site ไม่สำเร็จ'));
     } finally { setSaving(false); }
   };
 
@@ -228,14 +201,11 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     }
     setSaving(true); setError(undefined); setNotice(undefined);
     try {
-      await adminRequest<DepartmentMapping>(token, '/admin/security-sites/department-mapping', {
-        method: 'PUT',
-        body: JSON.stringify({ departmentName: selectedDepartment, siteIds: mappingSiteIds, defaultSiteId: defaultSiteId || null })
-      });
+      await api.updateSecuritySiteDepartmentMapping(token, { departmentName: selectedDepartment, siteIds: mappingSiteIds, defaultSiteId: defaultSiteId || null });
       setNotice(`บันทึก Site authority ของ ${selectedDepartment} แล้ว`);
       await reload(selectedSiteId, selectedDepartment);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'บันทึก Department ↔ Site mapping ไม่สำเร็จ');
+      setError(requestErrorMessage(reason, 'บันทึก Department ↔ Site mapping ไม่สำเร็จ'));
     } finally { setSaving(false); }
   };
 
@@ -245,29 +215,72 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   };
 
   const rotateQr = async () => {
-    if (!selectedSite) return;
-    setSaving(true); setError(undefined); setNotice(undefined); setRawQrToken('');
+    const site = selectedSite;
+    if (!site) return;
+    setSaving(true); setError(undefined); setNotice(undefined); setRawQrToken(''); setGeneratedQr(null);
     try {
-      const result = await adminRequest<{ credential: QrCredential; qrToken: string }>(token, `/admin/security-sites/${selectedSite.id}/qr/rotate`, { method: 'POST' });
+      const { data: result } = await api.rotateSecuritySiteQr(token, site.id);
       setRawQrToken(result.qrToken);
+      const nextQr: GeneratedQr = {
+        dataUrl: await createSecuritySiteQrDataUrl(result.qrToken),
+        credential: result.credential,
+        siteCode: site.code,
+        siteName: site.name
+      };
+      setGeneratedQr(nextQr);
+      await reload(site.id, selectedDepartment);
+      setRawQrToken(result.qrToken);
+      setGeneratedQr(nextQr);
       setNotice(`ออก QR credential version ${result.credential.version} แล้ว`);
-      await reload(selectedSite.id, selectedDepartment);
-      setRawQrToken(result.qrToken);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Rotate QR ไม่สำเร็จ');
+      setError(requestErrorMessage(reason, 'Rotate QR ไม่สำเร็จ'));
     } finally { setSaving(false); }
   };
 
   const revokeQr = async () => {
     if (!selectedSite?.currentQrCredential) return;
-    setSaving(true); setError(undefined); setNotice(undefined); setRawQrToken('');
+    setSaving(true); setError(undefined); setNotice(undefined); setRawQrToken(''); setGeneratedQr(null);
     try {
-      await adminRequest<QrCredential>(token, `/admin/security-sites/${selectedSite.id}/qr/${selectedSite.currentQrCredential.id}/revoke`, { method: 'POST' });
+      await api.revokeSecuritySiteQr(token, selectedSite.id, selectedSite.currentQrCredential.id);
       setNotice('ยกเลิก QR credential ปัจจุบันแล้ว');
       await reload(selectedSite.id, selectedDepartment);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Revoke QR ไม่สำเร็จ');
+      setError(requestErrorMessage(reason, 'Revoke QR ไม่สำเร็จ'));
     } finally { setSaving(false); }
+  };
+
+  const copyQrToken = async () => {
+    if (!rawQrToken) return;
+    if (!navigator.clipboard?.writeText) {
+      setError('เบราว์เซอร์นี้ไม่รองรับการคัดลอก Token อัตโนมัติ');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(rawQrToken);
+      setNotice('คัดลอก QR Token แล้ว');
+    } catch {
+      setError('คัดลอก QR Token ไม่สำเร็จ กรุณาใช้ปุ่มคัดลอกของเบราว์เซอร์');
+    }
+  };
+
+  const printQr = () => {
+    if (!generatedQr) return;
+    window.print();
+  };
+
+  const saveQr = () => {
+    if (!generatedQr) return;
+    try {
+      const link = document.createElement('a');
+      link.href = generatedQr.dataUrl;
+      link.download = securitySiteQrFilename(generatedQr.siteCode, generatedQr.credential.version);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setNotice('บันทึก QR เป็น PNG แล้ว');
+    } catch {
+      setError('บันทึก QR เป็น PNG ไม่สำเร็จ เบราว์เซอร์อาจไม่อนุญาตการดาวน์โหลดอัตโนมัติ');
+    }
   };
 
   return <section className="security-site-admin" aria-label="Admin Security Site Management">
@@ -315,7 +328,19 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
         {selectedSite ? <>
           <div className="security-site-qr-state"><span>Site</span><strong>{selectedSite.code} · {selectedSite.name}</strong><span>QR ปัจจุบัน</span><strong>{selectedSite.currentQrCredential ? `Version ${selectedSite.currentQrCredential.version} · ${displayDate(selectedSite.currentQrCredential.validFrom)}` : 'ยังไม่มี Active QR'}</strong></div>
           <div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving || !selectedSite.isActive} onClick={() => void rotateQr()}>Generate / Rotate QR</button>{selectedSite.currentQrCredential && <button type="button" className="danger-action" disabled={saving} onClick={() => void revokeQr()}>Revoke current QR</button>}</div>
-          {rawQrToken && <div className="security-site-qr-once"><strong>⚠ QR TOKEN — แสดงครั้งเดียว</strong><p>โปรดคัดลอกหรือพิมพ์เก็บไว้ตอนนี้ เมื่อปิดข้อความนี้ระบบจะไม่สามารถอ่าน token เดิมกลับจากฐานข้อมูลได้</p><code>{rawQrToken}</code><div className="security-site-actions"><button type="button" className="btn-neutral" onClick={() => void navigator.clipboard?.writeText(rawQrToken)}>คัดลอก Token</button><button type="button" className="btn-neutral" onClick={() => window.print()}>พิมพ์</button><button type="button" className="btn-neutral" onClick={() => setRawQrToken('')}>ปิด Token</button></div></div>}
+          {(rawQrToken || generatedQr) && <div className="security-site-qr-once"><strong>⚠ QR TOKEN — แสดง/สร้างได้จากผลการออกครั้งนี้เท่านั้น</strong><p>Server เก็บ SHA-256 hash เท่านั้น; QR Token จริงมีให้จากผล Rotate ครั้งนี้และไม่สามารถอ่านกลับจากฐานข้อมูลได้</p>{rawQrToken && <code>{rawQrToken}</code>}
+            {generatedQr && <>
+              <div className="security-site-qr-result" aria-label="QR generated">
+                <div className="security-site-qr-result__screen">
+                  <div className="security-site-qr-result__meta"><strong>{generatedQr.siteCode} · {generatedQr.siteName}</strong><span>QR Version {generatedQr.credential.version}</span><span>Generated: {displayDate(generatedQr.credential.createdAt)}</span><span>Valid from: {displayDate(generatedQr.credential.validFrom)}</span></div>
+                  <img className="security-site-qr-image" src={generatedQr.dataUrl} width={768} height={768} alt={`Attendance QR สำหรับ ${generatedQr.siteCode}`} />
+                </div>
+                <div className="security-site-actions">{rawQrToken && <button type="button" className="btn-neutral" onClick={() => void copyQrToken()}>คัดลอก Token</button>}<button type="button" className="btn-neutral" onClick={printQr}>พิมพ์ QR</button><button type="button" className="btn-neutral" onClick={saveQr}>บันทึก QR เป็น PNG</button>{rawQrToken && <button type="button" className="btn-neutral" onClick={() => setRawQrToken('')}>ซ่อน Token</button>}</div>
+              </div>
+              <div className="security-site-qr-print-sheet" aria-hidden="true"><p>SECURITY MANAGEMENT SYSTEM V3</p><h1>ATTENDANCE SITE QR</h1><div>Site: {generatedQr.siteCode} · {generatedQr.siteName}</div><div>QR Version: {generatedQr.credential.version}</div><div>Generated: {displayDate(generatedQr.credential.createdAt)} · Valid from: {displayDate(generatedQr.credential.validFrom)}</div><img src={generatedQr.dataUrl} width={768} height={768} alt="" /><footer>Security Management System V3</footer></div>
+            </>}
+            {rawQrToken && !generatedQr && <div className="security-site-actions"><button type="button" className="btn-neutral" onClick={() => void copyQrToken()}>คัดลอก Token</button><button type="button" className="btn-neutral" onClick={() => setRawQrToken('')}>ซ่อน Token</button></div>}
+          </div>}
         </> : <div className="security-site-map-empty">เลือก Site ก่อนจัดการ QR lifecycle</div>}
       </article>
     </div>
