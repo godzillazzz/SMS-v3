@@ -203,7 +203,7 @@ export function AttendanceQrScanner({ open, onDetected, onClose, autoFlow = fals
   return createPortal(<div className="attendance-qr-backdrop" role="presentation" onMouseDown={(event) => { if (!autoFlow && event.target === event.currentTarget) onClose(); }}>
     <section className="attendance-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="attendance-qr-title">
       <header>
-        <div><p>ATTENDANCE SITE QR</p><h2 id="attendance-qr-title">สแกน QR จุดปฏิบัติงาน</h2><span>ใช้กล้องเฉพาะขณะสแกน และไม่บันทึกหรืออัปโหลดภาพ</span></div>
+        <div><p>ยืนยันพื้นที่</p><h2 id="attendance-qr-title">สแกน QR จุดปฏิบัติงาน</h2><span>เล็งกล้องไปที่ QR บริเวณจุดปฏิบัติงาน ระบบจะอ่านให้อัตโนมัติ</span></div>
         {!autoFlow && <button type="button" className="drawer-close overlay-close" onClick={onClose} aria-label="ปิดกล้องสแกน QR"><SmsIcon name="close" size={20} /></button>}
       </header>
 
@@ -217,7 +217,7 @@ export function AttendanceQrScanner({ open, onDetected, onClose, autoFlow = fals
       </div>
 
       {error && <div className="alert alert-error attendance-qr-error" role="alert">{error}</div>}
-      <div className="attendance-qr-privacy"><SmsIcon name="shield" size={17} /><span>Frame ใช้ถอดรหัส QR ในหน่วยความจำของ browser เท่านั้น ไม่มีภาพถ่าย ไฟล์ หรือวิดีโอถูกส่งขึ้น server</span></div>
+      <div className="attendance-qr-privacy"><SmsIcon name="shield" size={17} /><span>ใช้กล้องเฉพาะขณะสแกน QR และไม่บันทึกภาพหรือวิดีโอจากกล้อง</span></div>
       {!autoFlow && <footer><button type="button" className="btn-neutral" onClick={onClose}>ปิดกล้อง / กรอก QR เอง</button></footer>}
     </section>
   </div>, document.body);

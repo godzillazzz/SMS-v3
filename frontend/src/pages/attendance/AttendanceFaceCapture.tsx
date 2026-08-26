@@ -287,13 +287,13 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
   return createPortal(<div className="attendance-face-backdrop" role="presentation">
     <section className="attendance-face-dialog" role="dialog" aria-modal="true" aria-labelledby="attendance-face-title">
       <header>
-        <div><p>{rehearsalOnly ? 'ACTIVE CHALLENGE · PREVIEW UAT · MEMORY ONLY' : 'ACTIVE CHALLENGE · MEMORY ONLY'}</p><h2 id="attendance-face-title">{rehearsalOnly ? 'ทดสอบกล้องหน้า + Active Challenge' : 'ทำท่าตามคำสั่งและตรวจใบหน้า'}</h2><span>{rehearsalOnly ? 'โหมดนี้ใช้ทดสอบกล้องและลำดับภาพเท่านั้น Server จะทิ้งภาพทันที ไม่เรียก Face Verifier ไม่ออก receipt และไม่สร้าง AttendanceEvent' : 'เป็น Simple Active Challenge เพื่อลดความเสี่ยงจากรูปนิ่ง/หน้าจอ ไม่ใช่ certified Liveness/PAD และภาพทั้งหมดถูกใช้ชั่วคราวเท่านั้น'}</span></div>
+        <div><p>{rehearsalOnly ? 'ACTIVE CHALLENGE · PREVIEW UAT · MEMORY ONLY' : 'ยืนยันตัวตน'}</p><h2 id="attendance-face-title">{rehearsalOnly ? 'ทดสอบกล้องหน้า + Active Challenge' : 'ยืนยันใบหน้า'}</h2><span>{rehearsalOnly ? 'โหมดนี้ใช้ทดสอบกล้องและลำดับภาพเท่านั้น Server จะทิ้งภาพทันที ไม่เรียก Face Verifier ไม่ออก receipt และไม่สร้าง AttendanceEvent' : 'จัดใบหน้าให้อยู่ในกรอบ แล้วทำตามคำสั่งบนหน้าจอ ระบบจะใช้ภาพชั่วคราวเพื่อยืนยันตัวตนก่อนบันทึกเวลา'}</span></div>
         {!autoFlow && <button type="button" className="drawer-close overlay-close" disabled={busy} onClick={closeNow} aria-label="ปิด"><SmsIcon name="close" size={20} /></button>}
       </header>
 
       <div className="attendance-face-challenge" role="status">
         <span className="attendance-face-challenge__icon"><SmsIcon name="shield" size={20} /></span>
-        <div><small>คำสั่งสุ่มจาก Server</small><strong>{activeCopy?.title || 'กำลังรอคำสั่งจาก Server'}</strong><p>{activeCopy?.detail || 'กรุณาเริ่มการลงเวลาใหม่หากคำสั่งไม่พร้อม'}</p></div>
+        <div><small>ทำตามคำสั่งบนหน้าจอ</small><strong>{activeCopy?.title || 'กำลังรอคำสั่งจาก Server'}</strong><p>{activeCopy?.detail || 'กรุณาเริ่มการลงเวลาใหม่หากคำสั่งไม่พร้อม'}</p></div>
       </div>
 
       <div className="attendance-face-camera">
@@ -303,11 +303,11 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
         <canvas ref={canvasRef} className="attendance-face-canvas" aria-hidden="true" />
         {!previewUrl && <div className="attendance-face-guide" aria-hidden="true"><span /></div>}
         {starting && <div className="attendance-face-status"><SmsIcon name="clock" size={22} /><span>กำลังเปิดกล้องหน้า…</span></div>}
-        {capturing && <div className="attendance-face-status"><SmsIcon name="clock" size={22} /><span>กำลังเก็บลำดับภาพ {captureProgress}/{challenge?.frameCount || 4} · ทำท่าตามคำสั่งแล้วกลับมามองตรง</span></div>}
+        {capturing && <div className="attendance-face-status"><SmsIcon name="clock" size={22} /><span>กำลังยืนยัน {captureProgress}/{challenge?.frameCount || 4} · ทำท่าตามคำสั่งแล้วกลับมามองตรง</span></div>}
       </div>
 
       {error && <div className="alert alert-error attendance-face-error" role="alert">{error}</div>}
-      <div className="attendance-face-privacy"><SmsIcon name="shield" size={17} /><span>ไม่มี file picker / Gallery และไม่มี localStorage, sessionStorage หรือ IndexedDB ภาพ Challenge และภาพสุดท้ายอยู่ในหน่วยความจำเท่านั้น เมื่อปิด/สลับแอป/ล็อกหน้าจอ ระบบจะทิ้งหลักฐานชั่วคราวและหยุดกล้อง{rehearsalOnly ? ' · UAT นี้ไม่มี Face PASS และไม่มี Attendance PASS' : ''}</span></div>
+      <div className="attendance-face-privacy"><SmsIcon name="shield" size={17} /><span>{rehearsalOnly ? 'ไม่มี file picker / Gallery และไม่มี localStorage, sessionStorage หรือ IndexedDB · UAT นี้ไม่มี Face PASS และไม่มี Attendance PASS' : 'ใช้กล้องเฉพาะขณะยืนยันตัวตน ภาพชั่วคราวจะถูกล้างเมื่อจบขั้นตอน ปิดหน้า หรือสลับแอป'}</span></div>
 
       {!autoFlow && <footer>
         {previewUrl
