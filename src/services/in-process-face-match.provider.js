@@ -127,6 +127,8 @@ function installLocalModelFetch(modelDir) {
 const SAFE_RUNTIME_STAGES = Object.freeze([
   'SHARP_LOAD',
   'WASM_MODULE_LOAD',
+  'TFJS_CORE_LOAD',
+  'TFJS_CONVERTER_LOAD',
   'PACKAGE_PATHS',
   'WASM_CONFIG',
   'MODEL_FETCH_ADAPTER',
@@ -162,6 +164,8 @@ function packagePaths() {
 async function buildHumanRuntime() {
   const sharp = await runtimeStage('SHARP_LOAD', async () => require('sharp'));
   const wasm = await runtimeStage('WASM_MODULE_LOAD', async () => require('@tensorflow/tfjs-backend-wasm'));
+  await runtimeStage('TFJS_CORE_LOAD', async () => require('@tensorflow/tfjs-core'));
+  await runtimeStage('TFJS_CONVERTER_LOAD', async () => require('@tensorflow/tfjs-converter'));
   const { humanWasmEntry, modelDir, wasmDistDir } = await runtimeStage('PACKAGE_PATHS', async () => packagePaths());
   await runtimeStage('WASM_CONFIG', async () => wasm.setWasmPaths({
     'tfjs-backend-wasm.wasm': path.join(wasmDistDir, 'tfjs-backend-wasm.wasm'),
