@@ -3,7 +3,16 @@
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "frontend/dist",
   "functions": {
-    "api/[...path].js": { "maxDuration": 60 }
+    "api/[...path].js": {
+      "maxDuration": 60,
+      "includeFiles": [
+        "node_modules/@vladmandic/human/models/blazeface.*",
+        "node_modules/@vladmandic/human/models/facemesh.*",
+        "node_modules/@vladmandic/human/models/faceres.*",
+        "node_modules/@vladmandic/human/dist/human.node-wasm.js",
+        "node_modules/@tensorflow/tfjs-backend-wasm/dist/*.wasm"
+      ]
+    }
   },
   "crons": [
     { "path": "/api/v1/internal/license-reconciliation", "schedule": "5 17 * * *" },

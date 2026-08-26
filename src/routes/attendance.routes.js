@@ -5,9 +5,11 @@ const multer = require('multer');
 const { z } = require('zod');
 const HttpError = require('../utils/http-error');
 const { createAttendanceApiContractService } = require('../services/attendance-api-contract.service');
+const { createAttendanceFaceVerificationService } = require('../services/attendance-face-verification.service');
 const { MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE } = require('../services/attendance-face-verification.service');
 const { ACTIVE_FACE_CHALLENGE_FRAME_COUNT } = require('../services/active-face-challenge.service');
 const { createAttendanceFaceChallengeUatService } = require('../services/attendance-face-challenge-uat.service');
+const { inProcessFaceConfig } = require('../services/in-process-face-match.provider');
 
 const uuid = z.string().uuid();
 const decimal = z.union([z.number().finite(), z.string().trim().regex(/^-?\d+(?:\.\d+)?$/).max(32)]);
@@ -52,9 +54,14 @@ function selfHostedFaceRuntimeConfigured(environment = process.env) {
   try { return new URL(String(environment.FACE_VERIFIER_URL || '')).protocol === 'https:'; } catch { return false; }
 }
 
+function inProcessFaceRuntimeConfigured(environment = process.env) {
+  if (environment.FACE_VERIFICATION_IN_PROCESS_ENABLED !== 'true') return false;
+  try { inProcessFaceConfig(environment); return true; } catch { return false; }
+}
+
 function attendanceBiometricRuntimeEnabled(environment = process.env) {
   if (!attendanceApiEnabled(environment)) return false;
-  return selfHostedFaceRuntimeConfigured(environment);
+  return inProcessFaceRuntimeConfigured(environment) || selfHostedFaceRuntimeConfigured(environment);
 }
 
 function attendanceFaceChallengeUatEnabled(environment = process.env) {
@@ -68,7 +75,10 @@ function defaultAuthenticate(req, res, next) {
 
 function createAttendanceRoutes({ environment = process.env, authenticateMiddleware = defaultAuthenticate, contractService = null, faceChallengeUatService = null } = {}) {
   const router = express.Router();
-  const service = contractService || createAttendanceApiContractService({ isBiometricRuntimeEnabled: () => attendanceBiometricRuntimeEnabled(environment) });
+  const service = contractService || createAttendanceApiContractService({
+    faceVerificationService: createAttendanceFaceVerificationService({ environment }),
+    isBiometricRuntimeEnabled: () => attendanceBiometricRuntimeEnabled(environment)
+  });
   const uatService = faceChallengeUatService || createAttendanceFaceChallengeUatService();
 
   function requirePreviewAttendance(_req, _res, next) {
@@ -130,6 +140,7 @@ module.exports = {
   router,
   attendanceApiEnabled,
   selfHostedFaceRuntimeConfigured,
+  inProcessFaceRuntimeConfigured,
   attendanceBiometricRuntimeEnabled,
   attendanceFaceChallengeUatEnabled,
   createAttendanceRoutes,

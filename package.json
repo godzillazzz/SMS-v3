@@ -34,6 +34,10 @@
     "@aws-sdk/client-rekognition": "3.1116.0",
     "@prisma/client": "^6.11.1",
     "@simplewebauthn/server": "13.3.2",
+    "@tensorflow/tfjs-backend-wasm": "4.22.0",
+    "@tensorflow/tfjs-converter": "4.22.0",
+    "@tensorflow/tfjs-core": "4.22.0",
+    "@vladmandic/human": "3.3.6",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "csv-parse": "^6.1.0",
@@ -45,6 +49,7 @@
     "morgan": "^1.10.0",
     "multer": "^2.2.0",
     "nodemailer": "^9.0.3",
+    "sharp": "0.35.4",
     "zod": "^3.25.76"
   },
   "devDependencies": {

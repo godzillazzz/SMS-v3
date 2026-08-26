@@ -12,6 +12,7 @@ const {
   createAttendanceRoutes,
   attendanceApiEnabled,
   selfHostedFaceRuntimeConfigured,
+  inProcessFaceRuntimeConfigured,
   attendanceBiometricRuntimeEnabled
 } = require('../src/routes/attendance.routes');
 
@@ -256,6 +257,11 @@ test('runtime gates require explicit environment flags and trusted face configur
   assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_POC_API_ENABLED: 'true' }), false);
   assert.equal(selfHostedFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true' }), false);
   assert.equal(selfHostedFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), true);
+  assert.equal(inProcessFaceRuntimeConfigured({ VERCEL_ENV: 'preview' }), false);
+  assert.equal(inProcessFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' }), true);
+  assert.equal(inProcessFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true', FACE_MATCH_SIMILARITY_THRESHOLD: 'not-a-number' }), false);
+  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' }), true);
+  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true', FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' }), true);
   assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), true);
   assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_POC_API_ENABLED: 'true', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), false);
 });

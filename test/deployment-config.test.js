@@ -67,3 +67,27 @@ test('Face Verification PoC environment contract is Preview-only and fail-closed
   const validPreview = loadEnvironment({ ...common, NODE_ENV: 'production', VERCEL_ENV: 'preview', FACE_VERIFICATION_POC_API_ENABLED: 'true', FACE_VERIFICATION_PROVIDER: 'AWS_REKOGNITION_POC', FACE_VERIFICATION_AWS_REGION: 'ap-southeast-7', FACE_LIVENESS_MIN_CONFIDENCE: '90', FACE_MATCH_MIN_SIMILARITY: '95' });
   assert.equal(validPreview.status, 0, `${validPreview.stdout}${validPreview.stderr}`);
 });
+
+
+test('In-process face environment contract is Production-capable but strictly bounded', () => {
+  const databaseUrl = ['postgresql:', '', 'preview:preview@example.invalid:5432', 'sms_v3_preview'].join('/');
+  const common = { DATABASE_URL: databaseUrl, JWT_SECRET: validJwtSecret, FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' };
+
+  const invalidThreshold = loadEnvironment({ ...common, NODE_ENV: 'production', VERCEL_ENV: 'production', FACE_MATCH_SIMILARITY_THRESHOLD: '0.20' });
+  assert.notEqual(invalidThreshold.status, 0);
+  assert.match(`${invalidThreshold.stdout}${invalidThreshold.stderr}`, /FACE_MATCH_SIMILARITY_THRESHOLD/);
+
+  const invalidMovement = loadEnvironment({ ...common, NODE_ENV: 'production', VERCEL_ENV: 'preview', FACE_CHALLENGE_MOVEMENT_RADIANS: '0.01' });
+  assert.notEqual(invalidMovement.status, 0);
+  assert.match(`${invalidMovement.stdout}${invalidMovement.stderr}`, /FACE_CHALLENGE_MOVEMENT_RADIANS/);
+
+  const validProduction = loadEnvironment({
+    ...common,
+    NODE_ENV: 'production',
+    VERCEL_ENV: 'production',
+    FACE_MATCH_SIMILARITY_THRESHOLD: '0.62',
+    FACE_CHALLENGE_MOVEMENT_RADIANS: '0.17',
+    FACE_CHALLENGE_NEUTRAL_MAX_RADIANS: '0.30'
+  });
+  assert.equal(validProduction.status, 0, `${validProduction.stdout}${validProduction.stderr}`);
+});
