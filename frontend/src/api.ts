@@ -33,6 +33,72 @@ let isRefreshing = false;
 let refreshPromise: Promise<any> | null = null;
 let onTokenRefreshed: ((token: string, user: any) => void) | null = null;
 
+export type SecuritySiteQrCredential = {
+  id: string;
+  securitySiteId: string;
+  version: number;
+  validFrom: string;
+  validUntil: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+};
+
+export type SecuritySite = {
+  id: string;
+  code: string;
+  name: string;
+  latitude: string | null;
+  longitude: string | null;
+  geofenceRadiusMeters: number;
+  isActive: boolean;
+  departmentLinks: Array<{ securitySiteId: string; departmentName: string; isDefault: boolean }>;
+  currentQrCredential: SecuritySiteQrCredential | null;
+  qrCredentials: SecuritySiteQrCredential[];
+};
+
+export type SecuritySiteDepartmentMapping = {
+  departmentName: string;
+  siteIds: string[];
+  defaultSiteId: string | null;
+  links: Array<{ securitySiteId: string; departmentName: string; isDefault: boolean }>;
+};
+
+export type SecuritySiteOverlapWarning = {
+  siteId: string;
+  otherSiteId: string;
+  siteCode: string;
+  otherSiteCode: string;
+  distanceMeters: number;
+  combinedRadiusMeters: number;
+  overlapMeters: number;
+};
+
+export type SecuritySiteListResponse = {
+  sites: SecuritySite[];
+  overlapWarnings: SecuritySiteOverlapWarning[];
+};
+
+export type SecuritySiteInput = {
+  code: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  geofenceRadiusMeters: number;
+};
+
+export type SecuritySiteUpdateInput = Partial<SecuritySiteInput> & { isActive?: boolean };
+
+export type SecuritySiteDepartmentMappingInput = {
+  departmentName: string;
+  siteIds: string[];
+  defaultSiteId: string | null;
+};
+
+export type SecuritySiteQrRotateResponse = {
+  credential: SecuritySiteQrCredential;
+  qrToken: string;
+};
+
 export function setTokenRefreshHandler(handler: ((token: string, user: any) => void) | null) {
   onTokenRefreshed = handler;
 }
@@ -109,6 +175,13 @@ async function binaryCall(path: string, init: RequestInit = {}, isRetry = false)
 export const api = {
   login: (email: string, password: string) => call('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, clientType: 'browser' }) }),
   passkeyConfig: () => call('/auth/passkeys/config'),
+  getSecuritySites: (token: string) => call('/admin/security-sites', { headers: { Authorization: `Bearer ${token}` } }) as Promise<{ data: SecuritySiteListResponse }>,
+  getSecuritySiteDepartments: (token: string) => call('/admin/security-sites/departments', { headers: { Authorization: `Bearer ${token}` } }) as Promise<{ data: SecuritySiteDepartmentMapping[] }>,
+  createSecuritySite: (token: string, data: SecuritySiteInput) => call('/admin/security-sites', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }) as Promise<{ data: SecuritySite }>,
+  updateSecuritySite: (token: string, id: string, data: SecuritySiteUpdateInput) => call(`/admin/security-sites/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }) as Promise<{ data: SecuritySite }>,
+  updateSecuritySiteDepartmentMapping: (token: string, data: SecuritySiteDepartmentMappingInput) => call('/admin/security-sites/department-mapping', { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }) as Promise<{ data: SecuritySiteDepartmentMapping }>,
+  rotateSecuritySiteQr: (token: string, id: string) => call(`/admin/security-sites/${id}/qr/rotate`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }) as Promise<{ data: SecuritySiteQrRotateResponse }>,
+  revokeSecuritySiteQr: (token: string, siteId: string, credentialId: string) => call(`/admin/security-sites/${siteId}/qr/${credentialId}/revoke`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }) as Promise<{ data: SecuritySiteQrCredential }>,
   passkeyLoginOptions: () => call('/auth/passkeys/login/options', { method: 'POST', body: '{}' }),
   passkeyLoginVerify: (challengeId: string, response: unknown) => call('/auth/passkeys/login/verify', { method: 'POST', body: JSON.stringify({ challengeId, response }) }),
   passkeys: (token: string) => call('/auth/passkeys', { headers: { Authorization: `Bearer ${token}` } }),

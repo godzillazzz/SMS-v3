@@ -10,6 +10,37 @@ describe('API client', () => {
     expect(typeof api.login).toBe('function'); expect(typeof api.refresh).toBe('function'); expect(typeof api.logout).toBe('function'); expect(typeof api.logoutAll).toBe('function');
     expect('registrationEmployees' in api).toBe(false); expect(typeof api.requestRegistrationOtp).toBe('function'); expect(typeof api.verifyRegistrationOtp).toBe('function'); expect(typeof api.requestPasswordResetOtp).toBe('function'); expect(typeof api.completePasswordReset).toBe('function');
   });
+  it('routes Security Site requests through the central refresh-and-retry contract', async () => {
+    const response = (status: number, body: unknown) => ({ status, ok: status >= 200 && status < 300, headers: new Headers(), json: async () => body });
+    const responses = [
+      response(401, { error: 'เซสชันหมดอายุ' }),
+      response(200, { accessToken: 'refreshed-token', user: { role: 'ADMIN' } }),
+      response(200, { data: { sites: [], overlapWarnings: [] } })
+    ];
+    const requests: Array<{ path: string; options: RequestInit }> = [];
+    const fetchMock = vi.fn((path: string, options: RequestInit) => {
+      requests.push({ path, options: { ...options, headers: new Headers(options.headers) } });
+      return Promise.resolve(responses[requests.length - 1]);
+    });
+    vi.stubGlobal('document', { cookie: 'smsv3_csrf=csrf-value' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.getSecuritySites('expired-token');
+
+    expect(requests).toHaveLength(3);
+    expect(requests[0].path).toBe('/api/v1/admin/security-sites');
+    expect(requests[0].options.credentials).toBe('include');
+    expect((requests[0].options.headers as Headers).get('authorization')).toBe('Bearer expired-token');
+    expect((requests[0].options.headers as Headers).get('x-csrf-token')).toBe('csrf-value');
+    expect(requests[1].path).toBe('/api/v1/auth/refresh');
+    expect(requests[2].path).toBe('/api/v1/admin/security-sites');
+    expect((requests[2].options.headers as Headers).get('authorization')).toBe('Bearer refreshed-token');
+  });
+  it('exposes typed Security Site lifecycle methods', () => {
+    for (const operation of ['getSecuritySites', 'getSecuritySiteDepartments', 'createSecuritySite', 'updateSecuritySite', 'updateSecuritySiteDepartmentMapping', 'rotateSecuritySiteQr', 'revokeSecuritySiteQr'] as const) {
+      expect(typeof api[operation]).toBe('function');
+    }
+  });
   it('submits private registration data without Employee authority fields', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ status: 202, ok: true, json: async () => ({ message: 'generic' }) });
     vi.stubGlobal('document', { cookie: '' });
