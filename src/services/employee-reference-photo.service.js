@@ -5,6 +5,7 @@ const prismaDefault = require('../config/prisma');
 const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { validateReferencePhoto, safeName } = require('./employee-reference-photo-storage.service');
+const { optimizeAttachment } = require('./attachment-optimizer.service');
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
 function assertReviewer(actor) { if (!['ADMIN', 'MANAGER'].includes(actor?.role)) throw http(403, 'REFERENCE_PHOTO_FORBIDDEN', 'Reference photo access requires Admin or Manager.'); }
@@ -52,6 +53,7 @@ function createEmployeeReferencePhotoService({ prisma = prismaDefault, storage, 
 
   async function upload({ employeeId, actor, file }) {
     assertReviewer(actor);
+    file = (await optimizeAttachment(file, 'EMPLOYEE_REFERENCE_PHOTO')).file;
     const fileInfo = validateReferencePhoto(file);
     await assertOperationalEmployee(prisma, employeeId);
     const preexistingPending = await prisma.employeeReferencePhoto.findFirst({ where: { employeeId, status: 'PENDING_APPROVAL' }, select: { id: true } });

@@ -2,8 +2,6 @@ import { approvalStatusUi } from '../approval-workflow-semantics';
 
 export type LicenseDocumentStatus = 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'SUPERSEDED' | 'EXPIRED';
 
-export const MAX_LICENSE_DOCUMENT_BYTES = 4 * 1024 * 1024;
-
 export type LicenseDocumentRevision = {
   id: string;
   documentId: string;

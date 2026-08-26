@@ -3,6 +3,7 @@
 
 process.env.NODE_ENV = 'test';
 const { test, afterEach } = require('node:test');
+const { validPngFixture } = require('./support/valid-jpeg-fixture');
 const assert = require('node:assert/strict');
 
 let createTransportCallCount = 0;
@@ -459,7 +460,7 @@ test('32. POST /leave-requests/with-attachment invokes Employee LEAVE_CREATED no
       reason: 'Sick leave test'
     },
     user: { sub: 'creator-1', role: 'ADMIN' },
-    file: { mimetype: 'image/png', size: 100, originalname: 'test.png', buffer: Buffer.from('hello') }
+    file: (() => { const buffer = validPngFixture(); return { mimetype: 'image/png', size: buffer.length, originalname: 'test.png', buffer }; })()
   };
 
   let resStatus = null;

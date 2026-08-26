@@ -20,7 +20,7 @@ test('workflow retention cleanup preserves superseded, rejected, and cancelled f
   const cancelled = { id: 'cancelled', storageObjectKey: 'licenses/cancelled', status: 'CANCELLED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
   const expired = { id: 'expired', storageObjectKey: 'licenses/expired', status: 'EXPIRED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
   const context = harness([superseded, rejected, cancelled, expired]);
-  for (const document of [superseded, rejected, cancelled, expired]) await context.storage.put(document.storageObjectKey, { buffer: Buffer.from('%PDF-1.7'), mimetype: 'application/pdf', size: 8 });
+  for (const document of [superseded, rejected, cancelled, expired]) await context.storage.put(document.storageObjectKey, { buffer: Buffer.from('%PDF-1.7\n%%EOF'), mimetype: 'application/pdf', size: 8 });
   const result = await cleanupDueLicenseDocuments({ ...context, now: new Date('2026-08-01T00:00:00Z') });
   assert.deepEqual(result, { inspected: 1, deleted: 1, failed: 0 });
   assert.equal(context.storage.objectExists(expired.storageObjectKey), false); assert.ok(expired.storageDeletedAt);
@@ -33,7 +33,7 @@ test('workflow retention cleanup preserves superseded, rejected, and cancelled f
 test('expired-file cleanup records a sanitized retry marker when storage removal fails', async () => {
   const due = { id: 'due', storageObjectKey: 'licenses/due', status: 'EXPIRED', isCurrent: false, storageDeleteAfter: new Date('2026-07-01T00:00:00Z'), storageDeletedAt: null, storageDeleteAttempts: 0 };
   const context = harness([due]);
-  await context.storage.put(due.storageObjectKey, { buffer: Buffer.from('%PDF-1.7'), mimetype: 'application/pdf', size: 8 });
+  await context.storage.put(due.storageObjectKey, { buffer: Buffer.from('%PDF-1.7\n%%EOF'), mimetype: 'application/pdf', size: 8 });
   context.storage.failNextRemove();
   const result = await cleanupSupersededLicenseDocuments({ ...context, now: new Date('2026-08-01T00:00:00Z') });
   assert.deepEqual(result, { inspected: 1, deleted: 0, failed: 1 });
@@ -65,7 +65,7 @@ test('expiration transitions only approved documents after their inclusive expir
   const stillValid = { id: 'valid', employeeId: 'employee', licenseId: 'license', storageObjectKey: 'licenses/valid', status: 'APPROVED', isCurrent: true, licenseExpiryDate: new Date('2026-08-01T00:00:00Z'), expirationProcessedAt: null, storageDeletedAt: null, storageDeleteAttempts: 0 };
   const pending = { id: 'pending', employeeId: 'employee', licenseId: 'license', storageObjectKey: 'licenses/pending', status: 'PENDING', isCurrent: false, licenseExpiryDate: new Date('2026-07-31T00:00:00Z'), expirationProcessedAt: null, storageDeletedAt: null, storageDeleteAttempts: 0 };
   const context = expirationHarness([expired, stillValid, pending]);
-  await context.storage.put(expired.storageObjectKey, { buffer: Buffer.from('%PDF-1.7'), mimetype: 'application/pdf', size: 8 });
+  await context.storage.put(expired.storageObjectKey, { buffer: Buffer.from('%PDF-1.7\n%%EOF'), mimetype: 'application/pdf', size: 8 });
   const first = await expireDueLicenseDocuments({ ...context, now: new Date('2026-08-01T00:00:00Z') });
   assert.deepEqual(first, { inspected: 1, expired: 1, deleted: 1, failed: 0 });
   assert.equal(expired.status, 'EXPIRED'); assert.equal(expired.isCurrent, false); assert.ok(expired.expirationProcessedAt); assert.ok(expired.storageDeletedAt);
@@ -77,7 +77,7 @@ test('expiration transitions only approved documents after their inclusive expir
 test('expiration keeps retry metadata when storage removal fails', async () => {
   const expired = { id: 'expired', employeeId: 'employee', licenseId: 'license', storageObjectKey: 'licenses/expired', status: 'APPROVED', isCurrent: true, licenseExpiryDate: new Date('2026-07-31T00:00:00Z'), expirationProcessedAt: null, storageDeletedAt: null, storageDeleteAttempts: 0 };
   const context = expirationHarness([expired]);
-  await context.storage.put(expired.storageObjectKey, { buffer: Buffer.from('%PDF-1.7'), mimetype: 'application/pdf', size: 8 }); context.storage.failNextRemove();
+  await context.storage.put(expired.storageObjectKey, { buffer: Buffer.from('%PDF-1.7\n%%EOF'), mimetype: 'application/pdf', size: 8 }); context.storage.failNextRemove();
   const result = await expireDueLicenseDocuments({ ...context, now: new Date('2026-08-01T00:00:00Z') });
   assert.deepEqual(result, { inspected: 1, expired: 1, deleted: 0, failed: 1 });
   assert.equal(expired.status, 'EXPIRED'); assert.equal(expired.storageDeletedAt, null); assert.equal(expired.storageDeleteAttempts, 1);

@@ -70,7 +70,7 @@ describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
     expect(css).toMatch(/\.brand-mark > b \{[\s\S]*?top: 50%;[\s\S]*?left: 50%;[\s\S]*?transform: translate\(-50%, -50%\);[\s\S]*?color: #fff !important;[\s\S]*?line-height: 1;/);
     expect(css).toMatch(/\.sidebar-brand \.brand-mark \{[\s\S]*?margin-top: 0;/);
   });
-  it('locks the authorized V1.2 API source after the Passkey extension', () => {
-    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('98a10ea2a63e62f9e4b857f13d88df0996fe23d6ec50d89b186cf37439ed4c42');
+  it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
+    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('1eeeb2738d6571c1aebd3b3ff6e3cf2a0bb3920107b821f4771e94041dea389f');
   });
 });

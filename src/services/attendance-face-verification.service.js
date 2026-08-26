@@ -1,11 +1,12 @@
 'use strict';
 
+const { ATTACHMENT_PROFILES } = require('./attachment-optimizer.service');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createSelfHostedFaceVerificationService } = require('./face-verification-self-hosted.service');
 const { createInProcessFaceVerificationService } = require('./face-verification-in-process.service');
 
-const MAX_ATTENDANCE_LIVE_PHOTO_SIZE = 2 * 1024 * 1024;
-const MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE = 1024 * 1024;
+const MAX_ATTENDANCE_LIVE_PHOTO_SIZE = ATTACHMENT_PROFILES.ATTENDANCE_FACE.imageHardLimitBytes;
+const MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE = ATTACHMENT_PROFILES.ATTENDANCE_FACE.imageHardLimitBytes;
 
 function safeDeviceProof(result, sessionId) {
   return {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SmsIcon } from '../../components/SmsIcon';
 import type { AttendanceActiveChallenge } from './attendance-client';
+import { ATTACHMENT_POLICIES, canvasToOptimizedJpeg } from '../../lib/attachment-optimizer';
 
 type CapturedFaceEvidence = {
   photo: Blob;
@@ -19,8 +20,7 @@ type Props = {
   onClose: () => void;
 };
 
-const MAX_CAPTURE_EDGE = 960;
-const JPEG_QUALITY = 0.82;
+const MAX_CAPTURE_EDGE = ATTACHMENT_POLICIES.ATTENDANCE_FACE.maxEdge;
 const FRAME_INTERVAL_MS = 650;
 const FINAL_STILL_DELAY_MS = 650;
 
@@ -182,7 +182,7 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
       throw new Error('ไม่สามารถเตรียมภาพสดสำหรับตรวจใบหน้าได้');
     }
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
+    const blob = await canvasToOptimizedJpeg(canvas, 'ATTENDANCE_FACE');
     purgeCanvas();
     if (!blob || blob.size < 64) throw new Error('ถ่ายภาพสดไม่สำเร็จ กรุณาลองใหม่');
     return blob;

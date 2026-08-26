@@ -17,6 +17,7 @@ function loadEnvironment(overrides = {}) {
 }
 
 const validJwtSecret = 'x'.repeat(32);
+const productionStorage = { SUPABASE_URL: 'https://storage.example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'test-only-service-key', LICENSE_DOCUMENTS_BUCKET: 'private-license-documents', EMPLOYEE_REFERENCE_PHOTOS_BUCKET: 'employee-reference-photos' };
 
 for (const vercelEnvironment of ['preview', 'production']) {
   test(`VERCEL_ENV=${vercelEnvironment} fails fast when DATABASE_URL is missing`, () => {
@@ -43,6 +44,16 @@ test('local NODE_ENV=test keeps isolated test defaults when not running on Verce
   assert.equal(result.status, 0);
 });
 
+
+test('Production fails fast when the Employee Reference Photo bucket is missing', () => {
+  const databaseUrl = ['postgresql:', '', 'prod:prod@example.invalid:5432', 'sms_v3_prod'].join('/');
+  const { EMPLOYEE_REFERENCE_PHOTOS_BUCKET: _missing, ...incompleteStorage } = productionStorage;
+  const result = loadEnvironment({ NODE_ENV: 'production', VERCEL_ENV: 'production', DATABASE_URL: databaseUrl, JWT_SECRET: validJwtSecret, ...incompleteStorage });
+  const output = `${result.stdout}${result.stderr}`;
+  assert.notEqual(result.status, 0);
+  assert.match(output, /EMPLOYEE_REFERENCE_PHOTOS_BUCKET/);
+  assert.doesNotMatch(output, /test-only-service-key|storage\.example\.invalid/);
+});
 
 test('Face Verification PoC environment contract is Preview-only and fail-closed', () => {
   const databaseUrl = ['postgresql:', '', 'preview:preview@example.invalid:5432', 'sms_v3_preview'].join('/');
@@ -71,7 +82,7 @@ test('Face Verification PoC environment contract is Preview-only and fail-closed
 
 test('In-process face environment contract is Production-capable but strictly bounded', () => {
   const databaseUrl = ['postgresql:', '', 'preview:preview@example.invalid:5432', 'sms_v3_preview'].join('/');
-  const common = { DATABASE_URL: databaseUrl, JWT_SECRET: validJwtSecret, FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' };
+  const common = { DATABASE_URL: databaseUrl, JWT_SECRET: validJwtSecret, FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true', ...productionStorage };
 
   const invalidThreshold = loadEnvironment({ ...common, NODE_ENV: 'production', VERCEL_ENV: 'production', FACE_MATCH_SIMILARITY_THRESHOLD: '0.20' });
   assert.notEqual(invalidThreshold.status, 0);

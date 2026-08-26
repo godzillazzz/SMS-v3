@@ -1,24 +1,24 @@
+'use strict';
+
 const crypto = require('node:crypto');
 const HttpError = require('../utils/http-error');
+const { ATTACHMENT_PROFILES, detectedType, hasPdfEof, MIME_BY_TYPE } = require('./attachment-optimizer.service');
 
-const MAX_FILE_SIZE = 4 * 1024 * 1024;
-const MIME_BY_SIGNATURE = new Map([
-  ['pdf', 'application/pdf'], ['jpeg', 'image/jpeg'], ['png', 'image/png']
-]);
-
-function detectedType(buffer) {
-  if (buffer.subarray(0, 5).toString('ascii') === '%PDF-') return 'pdf';
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpeg';
-  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
-  return null;
-}
+const MAX_FILE_SIZE = ATTACHMENT_PROFILES.DOCUMENT.pdfHardLimitBytes;
+const MAX_IMAGE_FILE_SIZE = ATTACHMENT_PROFILES.DOCUMENT.imageHardLimitBytes;
 
 function validateUpload(file) {
   if (!file || !Buffer.isBuffer(file.buffer)) throw new HttpError(400, 'License document is required.');
-  if (file.size > MAX_FILE_SIZE) throw new HttpError(400, 'ไฟล์ต้องมีขนาดไม่เกิน 4 MB');
   const type = detectedType(file.buffer);
-  if (!type || file.mimetype !== MIME_BY_SIGNATURE.get(type)) throw new HttpError(415, 'License document must be a valid PDF, JPEG, or PNG.');
-  return { mimeType: MIME_BY_SIGNATURE.get(type), checksum: crypto.createHash('sha256').update(file.buffer).digest('hex') };
+  const mimeType = type ? MIME_BY_TYPE[type] : null;
+  if (!type || !ATTACHMENT_PROFILES.DOCUMENT.allowedTypes.includes(type) || file.mimetype !== mimeType || (type === 'pdf' && !hasPdfEof(file.buffer))) {
+    throw new HttpError(415, 'License document must be a valid PDF, JPEG, or PNG.');
+  }
+  const hardLimit = type === 'pdf' ? MAX_FILE_SIZE : MAX_IMAGE_FILE_SIZE;
+  if (file.buffer.length > hardLimit) {
+    throw new HttpError(400, type === 'pdf' ? 'ไฟล์ PDF ต้องมีขนาดไม่เกิน 1 MB' : 'รูปเอกสารต้องมีขนาดไม่เกิน 500 KB');
+  }
+  return { type, mimeType, checksum: crypto.createHash('sha256').update(file.buffer).digest('hex') };
 }
 
 function safeName(name) {
@@ -59,4 +59,4 @@ function createSupabaseLicenseDocumentStorage({ environment = process.env, fetch
   };
 }
 
-module.exports = { MAX_FILE_SIZE, validateUpload, safeName, storageConfig, createSupabaseLicenseDocumentStorage };
+module.exports = { MAX_FILE_SIZE, MAX_IMAGE_FILE_SIZE, validateUpload, safeName, storageConfig, createSupabaseLicenseDocumentStorage };

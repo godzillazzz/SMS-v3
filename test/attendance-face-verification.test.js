@@ -13,7 +13,7 @@ const actor = { sub: '11111111-1111-4111-8111-111111111111', role: 'VIEWER' };
 const sessionId = '22222222-2222-4222-8222-222222222222';
 
 test('Attendance face adapter keeps the browser-facing contract provider-neutral', () => {
-  assert.equal(MAX_ATTENDANCE_LIVE_PHOTO_SIZE, 2 * 1024 * 1024);
+  assert.equal(MAX_ATTENDANCE_LIVE_PHOTO_SIZE, 1024 * 1024);
   assert.deepEqual(safeDeviceProof({ status: 'DEVICE_PROOF_VERIFIED', provider: 'secret' }, sessionId), {
     verificationReady: true,
     sessionId,

@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { api } from './api';
+import { ATTACHMENT_POLICIES, PDF_HARD_LIMIT_BYTES } from './lib/attachment-optimizer';
 import {
   LicenseDocument,
-  MAX_LICENSE_DOCUMENT_BYTES,
   licenseValidityLabel,
   licenseDocumentStatusLabel,
   sanitizeLicenseDocumentError,
@@ -129,10 +129,15 @@ describe('license document table state', () => {
     expect(licenseValidityLabel('2026-01-01', '2027-01-01', 'Active', now)).toBe('ปกติ');
   });
 
-  it('keeps the upload form and 4 MB license contract visible in the modal', () => {
-    expect(MAX_LICENSE_DOCUMENT_BYTES).toBe(4 * 1024 * 1024);
-    expect(componentSource).toContain('ขนาดไม่เกิน 4 MB');
-    expect(componentSource).toContain('MAX_LICENSE_DOCUMENT_BYTES');
+  it('uses the shared Attachment Optimizer V1 document contract in the modal', () => {
+    expect(ATTACHMENT_POLICIES.DOCUMENT.targetMinBytes).toBe(300 * 1024);
+    expect(ATTACHMENT_POLICIES.DOCUMENT.targetMaxBytes).toBe(450 * 1024);
+    expect(ATTACHMENT_POLICIES.DOCUMENT.hardLimitBytes).toBe(500 * 1024);
+    expect(PDF_HARD_LIMIT_BYTES).toBe(1024 * 1024);
+    expect(componentSource).toContain('ระบบปรับขนาดอัตโนมัติ');
+    expect(componentSource).toContain('สูงสุด 500 KB');
+    expect(componentSource).toContain('PDF สูงสุด 1 MB');
+    expect(componentSource).not.toContain('ขนาดไม่เกิน 4 MB');
     expect(componentSource).not.toContain('ขนาดไม่เกิน 2 MB');
   });
 

@@ -5,7 +5,7 @@ const { createLicenseDocumentService, tableDocumentSummary } = require('../src/s
 const { createFakeLicenseDocumentStorage } = require('./support/fake-license-document-storage');
 
 const ids = { admin: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', manager: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', employee: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', license: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', document: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
-const pdf = { buffer: Buffer.from('%PDF-1.7\nfixture'), mimetype: 'application/pdf', originalname: '../guard license.pdf', size: 16 };
+const pdf = { buffer: Buffer.from('%PDF-1.7\nfixture\n%%EOF'), mimetype: 'application/pdf', originalname: '../guard license.pdf', size: 16 };
 
 function harness({ createFailure = false, deleteFailure = false, auditDeleteFailure = false, simulateTransactionRollback = false, requireApprovalTransactionOptions = false } = {}) {
   const state = {
@@ -225,7 +225,7 @@ test('replacement resubmit preserves the previous revision file and creates immu
   const { state, storage, service } = harness();
   state.documents.push({ id: ids.document, employeeId: ids.employee, licenseId: ids.license, uploadedById: ids.manager, storageProvider: 'fake', storageBucket: 'private', originalFileName: 'old.pdf', safeDisplayFileName: 'old.pdf', mimeType: 'application/pdf', fileSize: pdf.size, storageObjectKey: 'licenses/e/old', proposedLicenseNumber: 'OLD', proposedStartDate: new Date('2027-01-01'), proposedExpiryDate: new Date('2027-12-31'), status: 'RETURNED_FOR_CORRECTION', isCurrent: false, version: 1, uploadedAt: new Date('2026-08-01') });
   await storage.put('licenses/e/old', pdf);
-  const replacement = { buffer: Buffer.from('%PDF-1.7\nreplacement'), mimetype: 'application/pdf', originalname: 'replacement.pdf', size: 23 };
+  const replacement = { buffer: Buffer.from('%PDF-1.7\nreplacement\n%%EOF'), mimetype: 'application/pdf', originalname: 'replacement.pdf', size: 23 };
   const updated = await service.resubmit({ id: ids.document, requestUser: { sub: ids.manager, role: 'MANAGER' }, input: { licenseNumber: 'NEW', proposedStartDate: new Date('2028-01-01'), proposedExpiryDate: new Date('2028-12-31') }, file: replacement });
   assert.equal(updated.status, 'PENDING'); assert.notEqual(updated.storageObjectKey, 'licenses/e/old');
   assert.equal(storage.calls.put.length, 2); assert.equal(storage.calls.remove.length, 0);

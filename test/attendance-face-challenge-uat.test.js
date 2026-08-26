@@ -11,6 +11,7 @@ const {
   attendanceFaceChallengeUatEnabled
 } = require('../src/routes/attendance.routes');
 const { createAttendanceFaceChallengeUatService } = require('../src/services/attendance-face-challenge-uat.service');
+const { validJpegFixture } = require('./support/valid-jpeg-fixture');
 
 function fakeAuth(req, _res, next) {
   if (req.headers.authorization !== 'Bearer uat-test') return next(new HttpError(401, 'Authentication required.'));
@@ -36,8 +37,8 @@ function appFor(environment) {
   return app;
 }
 
-function jpeg(byte = 0x31) {
-  return Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(128, byte)]);
+function jpeg() {
+  return validJpegFixture();
 }
 
 function attachCapture(req, photo = jpeg()) {
