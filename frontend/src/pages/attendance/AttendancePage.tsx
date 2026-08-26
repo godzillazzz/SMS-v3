@@ -23,6 +23,7 @@ import './attendance.css';
 type Props = {
   token: string;
   displayName?: string;
+  department?: string;
   readOnly?: boolean;
   online?: boolean;
 };
@@ -155,9 +156,10 @@ function thaiTime(value?: string | Date | null) {
 }
 
 function thaiClock(value: Date) {
-  return new Intl.DateTimeFormat('th-TH', {
+  return new Intl.DateTimeFormat('th-TH-u-nu-latn', {
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
     hour12: false,
     timeZone: 'Asia/Bangkok'
   }).format(value);
@@ -192,7 +194,7 @@ function fallbackCopy(state?: AttendanceReadinessState | null): Copy {
   };
 }
 
-export function AttendancePage({ token, displayName, readOnly = false, online = true }: Props) {
+export function AttendancePage({ token, displayName, department, readOnly = false, online = true }: Props) {
   const [qrToken, setQrToken] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [location, setLocation] = useState<AttendanceLocationEvidence | null>(null);
@@ -232,11 +234,24 @@ export function AttendancePage({ token, displayName, readOnly = false, online = 
   const idleStatusLabel = attendanceAccepted
     ? (attendanceAccepted.intent === 'CHECK_IN' ? 'กำลังปฏิบัติงาน' : 'ลงเวลาครบแล้ว')
     : online ? 'พร้อมลงเวลา' : 'ออฟไลน์';
+  const tapActionLabel = flowBusy
+    ? 'PROCESSING'
+    : eventIntent === 'CHECK_OUT' || attendanceAccepted?.intent === 'CHECK_IN'
+      ? 'TAP TO CHECK OUT'
+      : eventIntent === 'CHECK_IN'
+        ? 'TAP TO CHECK IN'
+        : 'TAP TO CLOCK';
+  const qrReady = Boolean(qrToken) || (Boolean(readiness) && !qrStepUpRequired && readiness?.state === 'READY_TO_START_VERIFICATION');
+  const faceReady = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
+  const deviceReady = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
+  const readinessLabel = attendanceAccepted
+    ? 'บันทึกเวลาเรียบร้อย'
+    : flowBusy ? 'กำลังตรวจสอบตามลำดับความปลอดภัย' : 'Ready for secure attendance';
 
   useEffect(() => {
     const refreshClock = () => setNow(new Date());
     refreshClock();
-    const timer = window.setInterval(refreshClock, 30000);
+    const timer = window.setInterval(refreshClock, 1000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -579,29 +594,76 @@ export function AttendancePage({ token, displayName, readOnly = false, online = 
       onClose={() => setFaceCaptureOpen(false)}
     />
 
-    <div className="attendance-v2-shell">
-      <header className="attendance-v2-heading">
-        <div>
-          <p className="eyebrow">ลงเวลาปฏิบัติงาน</p>
-          <h1>{displayName ? `สวัสดี, ${displayName}` : 'ลงเวลา'}</h1>
-          <p>กดเพียงครั้งเดียว ระบบจะตรวจตำแหน่งและยืนยันตัวตนตามที่จำเป็น แล้วบันทึกเวลาให้อัตโนมัติ</p>
-        </div>
-      </header>
-
+    <div className="attendance-v2-shell attendance-v3-shell">
       {readOnly && <div className="settings-notice attendance-v2-notice">กำลังอยู่ใน View As — ไม่สามารถลงเวลาแทนพนักงานได้</div>}
       {!online && <div className="settings-notice attendance-v2-notice">ออฟไลน์ — กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนลงเวลา</div>}
 
-      <article className={`attendance-v2-hero ${attendanceAccepted ? 'is-success' : ''}`}>
-        <div className="attendance-v2-hero-top">
+      <section className="attendance-v3-identity-card" aria-label="ข้อมูลพนักงานและตารางงาน">
+        <div className="attendance-v3-identity-copy">
+          <span className="attendance-v3-kicker">SMS EMPLOYEE</span>
+          <h1>{displayName || 'ผู้ใช้งาน SMS'}</h1>
+          <p>{department || 'หน่วยงานตาม Employee Master'}</p>
+        </div>
+        <div className="attendance-v3-assignment-grid">
+          <div>
+            <span className="attendance-v3-meta-icon"><SmsIcon name="clock" size={18} /></span>
+            <span><small>Shift</small><strong>ตามตารางที่อนุมัติ</strong></span>
+          </div>
+          <div>
+            <span className="attendance-v3-meta-icon"><SmsIcon name="location" size={18} /></span>
+            <span><small>Expected Site</small><strong>Server ตรวจอัตโนมัติ</strong></span>
+          </div>
+        </div>
+      </section>
+
+      <article className={`attendance-v2-hero attendance-v3-hero ${attendanceAccepted ? 'is-success' : ''}`}>
+        <div className="attendance-v2-hero-top attendance-v3-hero-top">
           <span className={`attendance-v2-status-chip ${online && !readOnly ? 'is-ready' : 'is-blocked'}`}>
-            <span aria-hidden="true" />{readOnly ? 'ดูอย่างเดียว' : idleStatusLabel}
+            <span aria-hidden="true" />{readOnly ? 'VIEW ONLY' : idleStatusLabel}
           </span>
-          <span className="attendance-v2-secure"><SmsIcon name="shield" size={16} /> ยืนยันผ่านระบบ</span>
+          <span className="attendance-v2-secure"><SmsIcon name="shield" size={16} /> Server Authority</span>
         </div>
 
-        <div className="attendance-v2-clock" aria-label={`เวลาปัจจุบัน ${thaiClock(now)} นาฬิกา`}>
+        <div className="attendance-v3-orb-wrap">
+          <button type="button" className="btn-primary attendance-v2-primary attendance-v3-orb-button" disabled={!canStartAttendance} onClick={() => void handleStartAttendance()}>
+            <span className="attendance-v3-orb-icon"><SmsIcon name={flowBusy ? 'refresh' : 'attendance'} size={42} /></span>
+            <strong>{tapActionLabel}</strong>
+            <small>{primaryActionLabel}</small>
+          </button>
+          <span className={`attendance-v3-intent-badge ${attendanceAccepted ? 'is-success' : ''}`}>
+            <SmsIcon name={attendanceAccepted ? 'check' : 'shield'} size={17} />
+            <span>{eventIntent ? intentLabel(eventIntent) : 'Server ตัดสิน IN / OUT'}</span>
+          </span>
+        </div>
+
+        <section className="attendance-v2-trust attendance-v3-trust-grid" aria-label="สถานะการตรวจสอบ Attendance">
+          <div className={gpsReady ? 'is-ready' : flowPhase >= 1 ? 'is-active' : ''}>
+            <SmsIcon name="location" size={21} />
+            <span><strong>GPS</strong><small>{gpsReady ? `Ready · ±${Math.round(location?.accuracyMeters || 0)} m` : 'GPS เฉพาะตอนลงเวลา'}</small></span>
+          </div>
+          <div className={qrStepUpRequired || scannerOpen ? 'is-active' : qrReady ? 'is-ready' : ''}>
+            <SmsIcon name="qr" size={21} />
+            <span><strong>QR</strong><small>{qrStepUpRequired || scannerOpen ? 'Step-up required' : qrReady ? 'Ready / not required' : 'QR เฉพาะเมื่อจำเป็น'}</small></span>
+          </div>
+          <div className={faceReady ? 'is-ready' : verificationBusy ? 'is-active' : ''}>
+            <SmsIcon name="face" size={21} />
+            <span><strong>Face</strong><small>{attendanceAccepted ? 'Verified' : faceReady ? 'Ready' : 'ยืนยันใบหน้าชั่วคราว'}</small></span>
+          </div>
+          <div className={deviceReady ? 'is-ready' : verificationStage?.includes('อุปกรณ์') ? 'is-active' : ''}>
+            <SmsIcon name="device" size={21} />
+            <span><strong>Device</strong><small>{deviceReady ? 'OK' : 'Server ตรวจอุปกรณ์หลัก'}</small></span>
+          </div>
+        </section>
+
+        <div className="attendance-v2-clock attendance-v3-clock-card" aria-label={`เวลาปัจจุบัน ${thaiClock(now)} นาฬิกา`}>
           <strong>{thaiClock(now)}</strong>
           <span>{thaiDateLabel(now)}</span>
+          <small>เวลาแสดงผลจากอุปกรณ์ · Server time เป็น authority ตอนบันทึก</small>
+        </div>
+
+        <div className="attendance-v3-ready-line" role="status">
+          <SmsIcon name={attendanceAccepted ? 'check' : flowBusy ? 'refresh' : 'clock'} size={18} />
+          <span>{readinessLabel}</span>
         </div>
 
         {attendanceAccepted && <div className="attendance-v2-success" role="status">
@@ -609,28 +671,19 @@ export function AttendancePage({ token, displayName, readOnly = false, online = 
           <div><strong>{intentLabel(attendanceAccepted.intent)}สำเร็จ</strong><span>{thaiTime(attendanceAccepted.acceptedAt)}</span></div>
         </div>}
 
-        {!attendanceAccepted && <div className={`attendance-v2-location ${gpsReady ? 'is-ready' : ''}`}>
-          <span className="attendance-v2-location-icon"><SmsIcon name={gpsReady ? 'check' : 'quality'} size={19} /></span>
-          <div>
-            <strong>{gpsReady ? 'ตำแหน่งพร้อม' : flowBusy ? 'กำลังตรวจสอบ…' : 'พร้อมตรวจตำแหน่ง'}</strong>
-            <span>{gpsReady ? `ความแม่นยำประมาณ ±${Math.round(location?.accuracyMeters || 0)} เมตร` : 'ระบบจะอ่าน GPS เฉพาะตอนที่คุณกดลงเวลา'}</span>
-          </div>
+        {!attendanceAccepted && gpsReady && <div className="attendance-v2-location is-ready">
+          <span className="attendance-v2-location-icon"><SmsIcon name="check" size={19} /></span>
+          <div><strong>ตำแหน่งพร้อมสำหรับ Server validation</strong><span>ความแม่นยำประมาณ ±{Math.round(location?.accuracyMeters || 0)} เมตร · ไม่มีการติดตามต่อเนื่อง</span></div>
         </div>}
 
-        <div className="attendance-v2-action-zone">
-          <button type="button" className="btn-primary attendance-v2-primary" disabled={!canStartAttendance} onClick={() => void handleStartAttendance()}>
-            <SmsIcon name={flowBusy ? 'refresh' : 'attendance'} size={21} />
-            <span>{primaryActionLabel}</span>
-          </button>
-          <small>ระบบเป็นผู้ตัดสินเวลาเข้า/ออก · QR จะเปิดเฉพาะเมื่อจำเป็น</small>
-        </div>
+        <small className="attendance-v3-authority-note">ระบบเป็นผู้ตัดสินเวลาเข้า/ออก · QR จะเปิดเฉพาะเมื่อจำเป็น</small>
       </article>
 
-      {(flowBusy || flowPhase > 0) && <section className="attendance-v2-progress" aria-label="ขั้นตอนการลงเวลา">
+      {(flowBusy || flowPhase > 0) && <section className="attendance-v2-progress attendance-v3-progress" aria-label="ขั้นตอนการลงเวลา">
         {[
-          { step: 1, title: 'ตรวจตำแหน่ง', detail: gpsReady ? 'ตำแหน่งพร้อม' : 'กำลังอ่าน GPS' },
-          { step: 2, title: 'ยืนยันพื้นที่และตัวตน', detail: qrStepUpRequired ? 'กำลังสแกน QR' : (verificationStage || 'ตรวจอัตโนมัติ') },
-          { step: 3, title: 'บันทึกเวลา', detail: attendanceAccepted ? 'เรียบร้อย' : 'รอการยืนยัน' }
+          { step: 1, title: 'GPS', detail: gpsReady ? 'ตำแหน่งพร้อม' : 'กำลังอ่าน GPS' },
+          { step: 2, title: 'QR / Device / Face', detail: qrStepUpRequired ? 'กำลังสแกน QR' : (verificationStage || 'Server ตรวจอัตโนมัติ') },
+          { step: 3, title: 'Attendance', detail: attendanceAccepted ? 'บันทึกเรียบร้อย' : 'รอการยืนยัน' }
         ].map((item) => {
           const done = flowPhase > item.step;
           const active = flowPhase === item.step && flowBusy;
@@ -658,10 +711,9 @@ export function AttendancePage({ token, displayName, readOnly = false, online = 
         <div><strong>{copy.title}</strong><p>{copy.detail}</p></div>
       </section>}
 
-      <section className="attendance-v2-trust" aria-label="ข้อมูลการใช้งาน">
-        <div><SmsIcon name="quality" size={18} /><span><strong>GPS เฉพาะตอนลงเวลา</strong><small>ไม่มีการติดตามตำแหน่งต่อเนื่อง</small></span></div>
-        <div><SmsIcon name="shield" size={18} /><span><strong>QR เฉพาะเมื่อจำเป็น</strong><small>ระบบจะเปิดกล้องให้เองเมื่อพื้นที่ต้องยืนยันเพิ่ม</small></span></div>
-        <div><SmsIcon name="users" size={18} /><span><strong>ยืนยันใบหน้าชั่วคราว</strong><small>ภาพไม่ถูกเก็บไว้ในเครื่องของคุณ</small></span></div>
+      <section className="attendance-v3-privacy-note" aria-label="นโยบายความเป็นส่วนตัว Attendance">
+        <SmsIcon name="shield" size={18} />
+        <p><strong>Privacy by design</strong><span>GPS เฉพาะตอนลงเวลา · QR เฉพาะเมื่อจำเป็น · ยืนยันใบหน้าชั่วคราวและไม่เก็บ live/challenge frames เป็นหลักฐานถาวร</span></p>
       </section>
     </div>
   </section>;

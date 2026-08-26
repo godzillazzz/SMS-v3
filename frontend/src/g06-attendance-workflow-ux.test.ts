@@ -28,8 +28,8 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(icon).toContain('M14.5 16.5l2 2 4-4');
     expect(main).toContain("{ id: 'attendance', icon: 'attendance', label: 'ลงเวลา' }");
     expect(main).toContain("{ id: 'shiftSetup', icon: 'clock', label: 'รหัสกะและเวลา' }");
-    expect(page).toContain("<SmsIcon name={flowBusy ? 'refresh' : 'attendance'} size={21} />");
-    expect(page).not.toContain("<SmsIcon name={flowBusy ? 'refresh' : 'clock'} size={21} />");
+    expect(page).toMatch(/<SmsIcon name=\{flowBusy \? 'refresh' : 'attendance'\} size=\{\d+\} \/>/);
+    expect(page).not.toContain("name={flowBusy ? 'refresh' : 'clock'}");
   });
 
   it('sends captureId + GPS first, with QR optional only when Server requests step-up, and never sends client event intent', () => {
