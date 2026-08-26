@@ -9,8 +9,8 @@ router.use(authenticate);
 const shiftSchema = z.object({
   code: z.string().trim().min(1).max(20),
   name: z.string().trim().min(1).max(100),
-  startTime: z.string().trim().optional(),
-  endTime: z.string().trim().optional(),
+  startTime: z.string().trim().max(20).nullable().optional(),
+  endTime: z.string().trim().max(20).nullable().optional(),
   hours: z.coerce.number().min(0).max(24).default(8.0),
   color: z.string().trim().default('#3b82f6')
 });

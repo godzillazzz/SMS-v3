@@ -130,6 +130,6 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
   });
 
   it('locks the authorized V1.2 API source after the Passkey extension', () => {
-    expect(apiSha256).toBe('d406eee5ef19095d6c020f87bb31ede016afefd9a5dd009b39fab107fcab51e0');
+    expect(apiSha256).toBe('456cc643ecee9a2f83ea9eab3ec079c2f27ca83a165a66e9e736bfb39c1460c0');
   });
 });
