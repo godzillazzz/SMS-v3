@@ -4,7 +4,7 @@
 > Read this complete file before proposing or modifying the SMS project.
 
 Last Updated:
-2026-08-25
+2026-08-26
 
 Repository:
 godzillazzz/SMS-v3
@@ -15,26 +15,85 @@ handoff copies.
 
 ## CURRENT PRODUCTION
 
-Production is separate from the current development/self-host candidate.
-G06 is not Production.
+Production now includes the approved G06 Time Attendance foundation and the
+G06 Attendance UI V2 Android-first employee surface. G07 remains outside
+Production and is not present in the released lineage.
 
-- Production application SHA: 6b899c0c613ded6dcb28744448c5f5562c6ae8cc
-- Production tree: d6c6e79a2b39256906e76863befde7b04e881cab
-- Production release: MOBILE RESPONSIVE V1 + inherited G05 / EMAIL-01P behavior
-- Production deployment: dpl_8V5bWpjYpfGEG1nPsjyAEvxKtS8P
-- Production immutable URL: https://sms-v3-staging-qrshx2imp-godzillazz.vercel.app
+- Production application SHA: 84df92c186ff320668775320ded21838dd8c05c8
+- Production tree: 2fac7982ccfd04db0d693611364ffa4cefad676a
+- Production release: G06 ATTENDANCE UI V2 — ANDROID-FIRST / MOBILE-FIRST
+- Production deployment: dpl_GwuVSrP49bdKK7TqqQwMCmNZ1jY8
+- Production immutable URL: https://sms-v3-staging-6vbfcazv9-godzillazz.vercel.app
 - Canonical current Vercel hostname: sms-v3-staging-ten.vercel.app
-- Immediate rollback deployment: dpl_6vYMt8yYtpkCmYvfo1RHuavZoZpX
-- Immediate rollback SHA: 39f28d5d0c0216672f28567b315501e7b7b64990
+- Immediate rollback deployment: dpl_M9NmtjkvKWH3z1Mnon5jf4fBkXXk
+- Immediate rollback SHA: c6f248f77b84110f8f1190c4edc9949167191615
+- Immediate rollback branch: rollback/g06-attendance-ui-v2-prod-precutover-2026-08-26
 
-Mobile Responsive V1 is Owner-approved on real iPhone Safari and verified in
-Production from the exact authorized GitHub SHA. The release preserves the
-existing G05 / EMAIL-01P Production behavior. EMAIL-01P remains verified and
-is inherited by this release. G06/self-host development remains outside
-Production.
+The released UI V2 commit is c4183e6db8b24149747218a31389dde33d57be0b
+and was merged by PR #119 into the Production integration branch as merge SHA
+84df92c186ff320668775320ded21838dd8c05c8. The merge tree is identical to the
+UI V2 commit tree: 2fac7982ccfd04db0d693611364ffa4cefad676a.
 
-Do not deploy the complete current development lineage directly to Production.
-It contains future G06/G07/self-host work that is not Production-authorized.
+G06 final SHA 05e240163301f1442c6fb3be393fbda314faf1d6 remains in the
+Production ancestry. G07 SHA da16dbbbacee0c0518908ddb94da01fc0eab71bb is
+NOT in the Production ancestry.
+
+## G06 ATTENDANCE UI V2 — VERIFIED IN PRODUCTION
+
+Scope:
+
+- Android-first / Mobile-first employee Attendance presentation.
+- Large coarse-touch primary action and mobile-safe layout.
+- 100dvh camera flows and safe-area handling for QR/Face steps.
+- Simplified employee-facing status, progress, error, GPS and identity copy.
+- Admin Security Site Management and physical UAT rehearsal controls removed
+  from the normal employee Attendance surface.
+- Existing one-tap server-authoritative flow preserved:
+  GPS → conditional QR step-up → device proof → face verification → server
+  CHECK-IN/CHECK-OUT acceptance.
+- iPhone/Safari support remains preserved.
+- Frontend-only product delta; Attendance backend/security authority was not
+  rewritten by this gate.
+
+Release identity and gates:
+
+- UI V2 product SHA: c4183e6db8b24149747218a31389dde33d57be0b
+- UI V2 tree: 2fac7982ccfd04db0d693611364ffa4cefad676a
+- Merge SHA released to Production: 84df92c186ff320668775320ded21838dd8c05c8
+- Merge tree released to Production: 2fac7982ccfd04db0d693611364ffa4cefad676a
+- PR: #119 — MERGED
+- PR CI run: 32948447076 — SUCCESS
+- Integration push CI run: 32948736055 — SUCCESS
+- Attendance targeted tests: 15/15 PASS
+- PWA mobile UAT tests: 7/7 PASS
+- Full frontend suite: 446/446 PASS
+- Frontend production build: PASS
+- Preview deployment: dpl_EX7Q4d98PZtuf7h6VhBL9GiTQ97W — READY
+- Production-target staged deployment: dpl_GwuVSrP49bdKK7TqqQwMCmNZ1jY8 — READY / STAGED before promotion
+- Production promotion workflow run: 32950132266 — SUCCESS
+- Canonical identity verification: PASS
+- Canonical /: 200
+- Canonical /login: 200
+- Canonical assets: 200
+- Canonical /api/v1/health: 200
+- Canonical /api/v1/ready: 200, status=ready, database=ok
+- Unauthenticated /api/v1/dashboard: 401
+- Unauthenticated /api/v1/licenses: 401
+- Production database migration performed by UI V2 release: NO
+- Production schema mutation by UI V2 release: NO
+- Production environment mutation by UI V2 release: NO
+- Production DB/data mutation by UI V2 release: NO
+- G07 imported into Production: NO
+
+Immediate rollback authority for this UI V2 cutover is the pre-cutover
+Production deployment dpl_M9NmtjkvKWH3z1Mnon5jf4fBkXXk at SHA
+c6f248f77b84110f8f1190c4edc9949167191615, also pinned by branch
+rollback/g06-attendance-ui-v2-prod-precutover-2026-08-26.
+
+Verified release status:
+
+SMS_G06_ATTENDANCE_UI_V2_ANDROID_FIRST_PRODUCTION_RELEASE_VERIFIED
+
 ## EMAIL-01P PRODUCTION BACKPORT — VERIFIED IN PRODUCTION
 
 Owner authorization has been granted to deploy the isolated EMAIL-01P
