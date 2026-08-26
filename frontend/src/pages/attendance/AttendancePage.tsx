@@ -619,7 +619,7 @@ export function AttendancePage({ token, displayName, readOnly = false, online = 
 
         <div className="attendance-v2-action-zone">
           <button type="button" className="btn-primary attendance-v2-primary" disabled={!canStartAttendance} onClick={() => void handleStartAttendance()}>
-            <SmsIcon name={flowBusy ? 'refresh' : 'clock'} size={21} />
+            <SmsIcon name={flowBusy ? 'refresh' : 'attendance'} size={21} />
             <span>{primaryActionLabel}</span>
           </button>
           <small>ระบบเป็นผู้ตัดสินเวลาเข้า/ออก · QR จะเปิดเฉพาะเมื่อจำเป็น</small>

@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react';
 
 export type SmsIconName =
-  | 'dashboard' | 'employees' | 'license' | 'calendar' | 'clock' | 'leave' | 'approval'
+  | 'dashboard' | 'employees' | 'license' | 'calendar' | 'clock' | 'attendance' | 'leave' | 'approval'
   | 'history' | 'quota' | 'shield' | 'audit' | 'quality' | 'users' | 'report' | 'settings'
   | 'bell' | 'search' | 'menu' | 'more' | 'close' | 'logout' | 'sun' | 'moon' | 'system' | 'eye' | 'eyeOff'
   | 'plus' | 'edit' | 'key' | 'pause' | 'check' | 'refresh';
@@ -12,6 +12,7 @@ const paths: Record<SmsIconName, React.ReactNode> = {
   license: <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6M7 17h4"/></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>,
   clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+  attendance: <><circle cx="9.5" cy="9.5" r="6.5"/><path d="M9.5 6.5v3.5l2.2 1.4M14.5 16.5l2 2 4-4"/></>,
   leave: <><path d="M7 3h10v18H7z"/><path d="M9.5 7h5M9.5 11h5M9.5 15h3"/></>,
   approval: <><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2 4.8-5"/></>,
   history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></>,

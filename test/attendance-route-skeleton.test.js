@@ -98,7 +98,7 @@ function serviceSpy() {
   };
 }
 
-test('Production always hides Attendance route skeleton even if Preview flags are accidentally true', async () => {
+test('Production hides Attendance route skeleton when only Preview flags are present', async () => {
   const spy = serviceSpy();
   const app = appFor({
     environment: { VERCEL_ENV: 'production', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_POC_API_ENABLED: 'true' },
@@ -107,6 +107,17 @@ test('Production always hides Attendance route skeleton even if Preview flags ar
   const response = await request(app).post('/api/v1/attendance/readiness').send({});
   assert.equal(response.status, 404);
   assert.equal(spy.calls.length, 0);
+});
+
+test('Production Attendance route requires its explicit flag and keeps biometric runtime separately gated', async () => {
+  const spy = serviceSpy();
+  const app = appFor({ environment: { VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true' }, service: spy.service });
+  const response = await request(app).post('/api/v1/attendance/readiness')
+    .set('Authorization', 'Bearer route-test')
+    .send({ captureId, attendanceEvidence: evidence });
+  assert.equal(response.status, 200);
+  assert.equal(spy.calls.length, 1);
+  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true' }), false);
 });
 
 test('Preview route remains hidden unless ATTENDANCE_API_PREVIEW_ENABLED is explicitly true', async () => {
@@ -236,8 +247,9 @@ test('event acceptance accepts only opaque receipt + server-issued Attendance co
   assert.equal(spy.calls.length, 1);
 });
 
-test('runtime gate can be true only for explicitly flagged Preview and never Production', () => {
+test('runtime gates require explicit environment flags and trusted face configuration', () => {
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), false);
+  assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true' }), true);
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'preview' }), false);
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), true);
   assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), false);

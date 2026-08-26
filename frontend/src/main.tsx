@@ -88,7 +88,7 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   { label: 'พนักงาน', items: [
     { id: 'employees', icon: 'employees', label: 'ข้อมูลพนักงาน' },
     { id: 'licenses', icon: 'license', label: 'ใบอนุญาต รปภ.' },
-    { id: 'attendance', icon: 'clock', label: 'ลงเวลา' },
+    { id: 'attendance', icon: 'attendance', label: 'ลงเวลา' },
     { id: 'attendanceDevice', icon: 'key', label: 'อุปกรณ์ลงเวลา' }
   ] },
   { label: 'ตารางกะ', items: [
