@@ -6,7 +6,7 @@ const root = path.resolve(__dirname);
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const expectedNavigationIds = [
-  'dashboard', 'employees', 'licenses', 'schedule', 'shiftSetup', 'leave', 'leavePending',
+  'dashboard', 'employees', 'licenses', 'attendance', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave', 'leavePending',
   'leaveHistory', 'quota', 'rules', 'audit', 'dataQuality', 'users', 'reportCenter', 'settings'
 ];
 
@@ -22,7 +22,7 @@ describe('G04.2 UX-02 application shell contract', () => {
   const themeControl = read('components/ThemeControl.tsx');
   const navigationBlock = main.slice(main.indexOf('const navigation:'), main.indexOf('function AuthProvider'));
 
-  it('keeps the navigation page ID set unchanged', () => {
+  it('keeps the existing navigation page IDs and adds only the authorized G06 Attendance pages', () => {
     const ids = Array.from(navigationBlock.matchAll(/id: '([^']+)'/g), (match) => match[1]);
     expect(ids).toEqual(expectedNavigationIds);
   });

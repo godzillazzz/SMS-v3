@@ -52,7 +52,7 @@ test('legacy schedule and leave controls remain available to Admin and Manager',
   const routes = read('src/routes/operations.routes.js');
   const employees = read('src/services/employee.service.js');
 
-  assert.match(frontend, /เครื่องมือไม้กายสิทธิ์สำหรับ Admin/);
+  assert.match(frontend, /ไม้กายสิทธิ์สำหรับ Admin/);
   assert.match(frontend, /จัดกะแพทเทิร์นด่วน: 6 วันทำงาน \/ 1 วันหยุด/);
   assert.match(frontend, /รายการใบลาที่รออนุมัติ/);
   assert.match(frontend, /Submit Leave Request/);
@@ -96,18 +96,22 @@ test('leave quota management exposes year-aware entitlement, approved usage, and
   assert.match(frontend, /quotaBalanceText\(row\.personalLeave, row\.personalLeaveUsed\)/);
   assert.match(frontend, /ข้อมูลเดิม — ยังไม่ระบุปี/);
 });
-test('approved test leave can be cancelled to restore quota and remove leave-generated AL shifts', () => {
+test('leave cancellation uses state-specific Owner authority and approved Admin reversal removes leave-generated AL shifts', () => {
   const routes = read('src/routes/operations.routes.js');
   const frontend = read('frontend/src/main.tsx');
   const api = read('frontend/src/api.ts');
-  assert.match(routes, /router\.post\('\/leave-requests\/:id\/cancel', authorize\('ADMIN'\)/);
-  assert.match(routes, /before\.status !== 'APPROVED'/);
+  assert.match(routes, /router\.post\('\/leave-requests\/:id\/cancel'/);
+  assert.match(routes, /before\.status === 'RETURNED_FOR_CORRECTION'/);
+  assert.match(routes, /assertReturnedLeaveOwner\(before, actor\)/);
+  assert.match(routes, /before\.status === 'APPROVED'/);
+  assert.match(routes, /actor\.role !== 'ADMIN'/);
   assert.match(routes, /status: 'CANCELLED'/);
   assert.match(routes, /source: 'LEAVE_APPROVAL'/);
   assert.match(routes, /removedLeaveShifts/);
+  assert.match(routes, /persistedUsageByQuotaYear\(before\)/);
   assert.match(api, /cancelLeaveRequest/);
   assert.match(frontend, /ยกเลิกใบลาที่อนุมัติแล้ว/);
-  assert.match(frontend, /row\.status === 'APPROVED' \? <button className="btn-info leave-print-button"/);
+  assert.match(frontend, /row\.status === 'APPROVED' && canCancelApprovedLeave/);
 });
 
 test('approved leave prints a dedicated A4 leave form rather than the application screen', () => {

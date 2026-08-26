@@ -2,7 +2,7 @@ import type { AuditFilters } from './audit-types';
 
 type Props = { pageSize: number; onPageSize(value: number): void; filters: AuditFilters; onFiltersChange(filters: AuditFilters): void; onClear(): void };
 
-const modules = ['', 'Employee', 'EmployeeLifecycleEvent', 'EmployeeLicense', 'EmployeeLicenseDocument', 'LeaveRequest', 'LeaveQuota', 'ShiftAssignment', 'ShiftType', 'ScheduleApproval', 'SchedulingRule', 'User', 'UserCredential', 'SystemSetting'];
+const modules = ['', 'Employee', 'EmployeeLifecycleEvent', 'EmployeeLicense', 'EmployeeReferencePhoto', 'EmployeeLicenseDocument', 'LeaveRequest', 'LeaveQuota', 'ShiftAssignment', 'ShiftType', 'ScheduleApproval', 'SchedulingRule', 'User', 'UserCredential', 'SystemSetting'];
 const actions = ['', 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGIN_FAILED', 'LOGOUT_ALL'];
 
 export function AuditToolbar({ pageSize, onPageSize, filters, onFiltersChange, onClear }: Props) {

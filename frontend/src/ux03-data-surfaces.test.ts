@@ -130,7 +130,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
   });
 
   it('keeps the exact UX-02 API source blob unchanged', () => {
-    expect(apiSha256).toBe('e53de0516a20333428a85c87415d88b3fdc25358c5b779314fe82d3e9da1bd5a');
+    expect(apiSha256).toBe('d406eee5ef19095d6c020f87bb31ede016afefd9a5dd009b39fab107fcab51e0');
   });
 
   it('provides an accessible shared row-action menu with focus restoration and viewport containment', () => {
@@ -152,7 +152,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
 
   it('retains mobile actions instead of hiding operational capability', () => {
     expect(personnelTable).toContain('data-row-primary-action');
-    expect(personnelTable).toContain('<DataRowActionMenu');
+    expect(personnelTable).not.toContain('จัดการสถานะพนักงาน');
     expect(accessPage).toContain('เปิดรายละเอียด');
     expect(dataQuality).toContain('data-mobile-card');
     expect(auditTable).toContain('ดูรายละเอียด');

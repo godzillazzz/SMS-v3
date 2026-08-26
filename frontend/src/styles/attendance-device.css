@@ -1,0 +1,101 @@
+.attendance-device-page { display: grid; gap: 20px; }
+.attendance-device-heading .heading-actions button { display: inline-flex; align-items: center; gap: 7px; }
+.attendance-device-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.attendance-device-card,
+.attendance-device-admin-section { border: 1px solid var(--color-border); border-radius: 18px; background: var(--color-surface); box-shadow: var(--shadow-sm); }
+.attendance-device-card { min-width: 0; padding: 20px; }
+.attendance-device-card--primary { background: linear-gradient(145deg, var(--color-surface), color-mix(in srgb, var(--decorative-sky) 28%, var(--color-surface))); }
+.attendance-device-card > header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
+.attendance-device-card__icon { display: inline-grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border: 1px solid color-mix(in srgb, var(--color-primary) 20%, var(--color-border)); border-radius: 12px; color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface)); }
+.attendance-device-card h2,
+.attendance-device-admin-section h2 { margin: 0; color: var(--color-text); font-size: 18px; }
+.attendance-device-card header p,
+.attendance-device-admin-section .section-title p { margin: 5px 0 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.55; }
+.attendance-device-state { display: grid; min-height: 120px; place-items: center; border: 1px dashed var(--color-border); border-radius: 14px; padding: 20px; color: var(--color-text-muted); text-align: center; }
+.attendance-device-state--empty { gap: 6px; }
+.attendance-device-state--empty strong { color: var(--color-text); font-size: 15px; }
+.attendance-device-state--empty span { max-width: 440px; font-size: 12px; line-height: 1.55; }
+.attendance-device-current { display: grid; gap: 18px; }
+.attendance-device-current__hero { display: flex; align-items: center; gap: 13px; }
+.device-orb { display: inline-grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border-radius: 15px; color: var(--color-success); background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface)); }
+.attendance-device-current__hero > div { display: grid; gap: 4px; min-width: 0; }
+.attendance-device-current__hero strong { overflow: hidden; color: var(--color-text); font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
+.attendance-device-current__hero span { color: var(--color-text-muted); font-size: 11px; }
+.attendance-device-current dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.attendance-device-current dl > div,
+.attendance-device-review-meta > div { display: grid; gap: 4px; border: 1px solid var(--color-border); border-radius: 11px; padding: 10px; background: color-mix(in srgb, var(--color-surface-muted) 60%, transparent); }
+.attendance-device-current dt,
+.attendance-device-review-meta span { color: var(--color-text-muted); font-size: 10px; }
+.attendance-device-current dd { overflow: hidden; margin: 0; color: var(--color-text); font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.attendance-device-enroll-form,
+.attendance-device-request { display: grid; gap: 14px; }
+.attendance-device-field { display: grid; gap: 6px; color: var(--color-text); font-size: 12px; font-weight: 650; }
+.attendance-device-field input,
+.attendance-device-field textarea { width: 100%; border: 1px solid var(--color-border); border-radius: 10px; padding: 10px 12px; color: var(--color-text); background: var(--color-surface); font: inherit; font-weight: 500; outline: none; }
+.attendance-device-field textarea { min-height: 88px; resize: vertical; }
+.attendance-device-field input:focus,
+.attendance-device-field textarea:focus { border-color: color-mix(in srgb, var(--color-primary) 58%, var(--color-border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 10%, transparent); }
+.attendance-device-security-note,
+.device-proof-state { display: flex; align-items: flex-start; gap: 10px; border: 1px solid color-mix(in srgb, var(--color-primary) 17%, var(--color-border)); border-radius: 11px; padding: 11px 12px; color: var(--color-text-muted); background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface)); font-size: 11px; line-height: 1.55; }
+.device-proof-state > div { display: grid; gap: 3px; }
+.device-proof-state strong { color: var(--color-text); font-size: 12px; }
+.device-proof-state.is-ready { border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border)); background: color-mix(in srgb, var(--color-success) 7%, var(--color-surface)); }
+.device-proof-state.is-ready svg { color: var(--color-success); }
+.device-proof-state.is-warning svg { color: var(--color-warning); }
+.attendance-device-enroll-action,
+.attendance-device-request > .btn-primary { display: inline-flex; justify-content: center; align-items: center; gap: 7px; width: fit-content; }
+.attendance-device-request__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.attendance-device-request__top > div { display: grid; gap: 3px; min-width: 0; }
+.attendance-device-request__top strong { overflow: hidden; color: var(--color-text); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.attendance-device-request__top > div > span { color: var(--color-text-muted); font-size: 11px; }
+.attendance-device-reason { margin: 0; border-left: 3px solid color-mix(in srgb, var(--color-primary) 45%, var(--color-border)); padding: 4px 0 4px 10px; color: var(--color-text-muted); font-size: 12px; line-height: 1.55; }
+.attendance-device-reason b { color: var(--color-text); }
+.attendance-device-review-note { display: grid; gap: 5px; border: 1px solid color-mix(in srgb, var(--color-warning) 30%, var(--color-border)); border-radius: 11px; padding: 10px 12px; background: color-mix(in srgb, var(--color-warning) 7%, var(--color-surface)); color: var(--color-text-muted); font-size: 12px; }
+.attendance-device-review-note b { color: var(--color-text); }
+.attendance-device-cancel { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; border-top: 1px solid var(--color-border); padding-top: 14px; }
+.attendance-device-admin-section { padding: 20px; }
+.attendance-device-admin-section .section-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 15px; }
+.attendance-device-admin-section .section-title .eyebrow { margin-bottom: 3px; color: var(--color-primary); }
+.attendance-device-queue-count { display: inline-grid; min-width: 34px; height: 34px; place-items: center; border-radius: 10px; color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 9%, var(--color-surface)); font-size: 13px; font-weight: 750; }
+.attendance-device-review-list { display: grid; gap: 12px; }
+.attendance-device-review-card { display: grid; gap: 13px; border: 1px solid var(--color-border); border-radius: 14px; padding: 15px; background: color-mix(in srgb, var(--color-surface-muted) 28%, var(--color-surface)); }
+.attendance-device-review-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.attendance-device-review-card__head > div { display: grid; gap: 4px; }
+.attendance-device-review-card__head strong { color: var(--color-text); font-size: 14px; }
+.attendance-device-review-card__head > div > span { color: var(--color-text-muted); font-size: 11px; }
+.attendance-device-review-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.attendance-device-review-meta b { overflow: hidden; color: var(--color-text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.attendance-device-review-card footer { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--color-border); padding-top: 12px; }
+.attendance-device-review-card footer button { display: inline-flex; align-items: center; gap: 6px; }
+.attendance-device-review-modal-backdrop { position: fixed; z-index: var(--sms-z-modal, 80); display: grid; inset: 0; place-items: center; padding: 18px; background: color-mix(in srgb, #000 42%, transparent); }
+.attendance-device-review-modal { display: grid; width: min(520px, 100%); gap: 18px; border: 1px solid var(--color-border); border-radius: 18px; padding: 20px; background: var(--color-surface); box-shadow: var(--shadow-lg); }
+.attendance-device-review-modal > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.attendance-device-review-modal header > div { display: grid; gap: 4px; }
+.attendance-device-review-modal header p { margin: 0; color: var(--color-primary); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
+.attendance-device-review-modal header h3 { margin: 0; color: var(--color-text); font-size: 18px; }
+.attendance-device-review-modal header span { color: var(--color-text-muted); font-size: 11px; }
+.attendance-device-review-modal > footer { display: flex; justify-content: flex-end; gap: 8px; }
+.status-badge.returned { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface)); }
+.status-badge.muted { color: var(--color-text-muted); background: var(--color-surface-muted); }
+
+@media (max-width: 980px) {
+  .attendance-device-grid { grid-template-columns: 1fr; }
+  .attendance-device-review-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .attendance-device-card,
+  .attendance-device-admin-section { border-radius: 14px; padding: 15px; }
+  .attendance-device-current dl,
+  .attendance-device-review-meta { grid-template-columns: 1fr; }
+  .attendance-device-cancel { grid-template-columns: 1fr; }
+  .attendance-device-review-card__head,
+  .attendance-device-request__top,
+  .attendance-device-admin-section .section-title { align-items: flex-start; flex-direction: column; }
+  .attendance-device-review-card footer,
+  .attendance-device-review-modal > footer { display: grid; grid-template-columns: 1fr; }
+  .attendance-device-review-card footer button,
+  .attendance-device-review-modal footer button,
+  .attendance-device-enroll-action,
+  .attendance-device-request > .btn-primary { width: 100%; justify-content: center; }
+}

@@ -1,0 +1,29 @@
+.employee-reference-photo-section { display: grid; gap: 14px; }
+.reference-photo-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.reference-photo-heading h3 { margin: 0; }
+.reference-photo-heading p { margin: 4px 0 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.5; }
+.reference-photo-policy { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; border: 1px solid color-mix(in srgb, var(--color-primary) 22%, var(--color-border)); border-radius: 999px; padding: 6px 9px; color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface)); font-size: 10px; font-weight: 750; }
+.reference-photo-loading { border: 1px dashed var(--color-border); border-radius: 12px; padding: 18px; color: var(--color-text-muted); text-align: center; }
+.reference-photo-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.reference-photo-card { display: grid; gap: 12px; min-width: 0; border: 1px solid var(--color-border); border-radius: 14px; padding: 14px; background: color-mix(in srgb, var(--color-surface-muted) 30%, var(--color-surface)); }
+.reference-photo-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.reference-photo-card > header > div { display: grid; gap: 3px; min-width: 0; }
+.reference-photo-card > header strong { color: var(--color-text); font-size: 13px; }
+.reference-photo-card > header span:not(.status-badge) { color: var(--color-text-muted); font-size: 10px; }
+.reference-photo-frame { overflow: hidden; display: grid; min-height: 220px; place-items: center; border: 1px solid var(--color-border); border-radius: 12px; background: color-mix(in srgb, var(--color-surface-muted) 72%, var(--color-surface)); aspect-ratio: 4 / 3; }
+.reference-photo-frame--candidate { border-color: color-mix(in srgb, var(--color-warning) 28%, var(--color-border)); }
+.reference-photo-frame img { width: 100%; height: 100%; object-fit: contain; background: var(--color-surface); }
+.reference-photo-placeholder { display: grid; gap: 8px; place-items: center; color: var(--color-text-muted); font-size: 11px; text-align: center; }
+.reference-photo-card dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin: 0; }
+.reference-photo-card dl > div { display: grid; gap: 3px; border: 1px solid var(--color-border); border-radius: 9px; padding: 8px; }
+.reference-photo-card dt { color: var(--color-text-muted); font-size: 9px; }
+.reference-photo-card dd { overflow: hidden; margin: 0; color: var(--color-text); font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.reference-photo-upload, .reference-photo-review { display: grid; gap: 10px; }
+.reference-photo-file, .reference-photo-review label { display: grid; gap: 6px; color: var(--color-text); font-size: 11px; font-weight: 650; }
+.reference-photo-file input { width: 100%; color: var(--color-text-muted); font: inherit; }
+.reference-photo-review textarea { width: 100%; min-height: 68px; resize: vertical; border: 1px solid var(--color-border); border-radius: 9px; padding: 9px; color: var(--color-text); background: var(--color-surface); font: inherit; }
+.reference-photo-delete-ack { display: flex; align-items: flex-start; gap: 8px; border: 1px solid color-mix(in srgb, var(--color-warning) 28%, var(--color-border)); border-radius: 10px; padding: 10px; background: color-mix(in srgb, var(--color-warning) 7%, var(--color-surface)); color: var(--color-text-muted); font-size: 10px; line-height: 1.5; }
+.reference-photo-delete-ack input { margin-top: 2px; }
+.reference-photo-upload > .btn-primary, .reference-photo-review > button, .reference-photo-card > .btn-danger-outline { display: inline-flex; justify-content: center; align-items: center; gap: 6px; width: 100%; }
+.reference-photo-footnote { margin: 0; border-left: 3px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border)); padding-left: 9px; color: var(--color-text-muted); font-size: 10px; line-height: 1.55; }
+@media (max-width: 760px) { .reference-photo-layout { grid-template-columns: 1fr; } .reference-photo-frame { min-height: 180px; } .reference-photo-card dl { grid-template-columns: 1fr; } .reference-photo-heading { flex-direction: column; } }

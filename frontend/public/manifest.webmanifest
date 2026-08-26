@@ -1,0 +1,21 @@
+{
+  "id": "/?pwa=1",
+  "name": "SMS Employee",
+  "short_name": "SMS",
+  "description": "Security Management System สำหรับลงเวลา ลา และโปรไฟล์พนักงาน",
+  "lang": "th",
+  "start_url": "/?pwa=1&page=attendance",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F7F8FC",
+  "theme_color": "#6D5DFB",
+  "icons": [
+    { "src": "/pwa-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/pwa-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "ลงเวลา", "short_name": "ลงเวลา", "url": "/?pwa=1&page=attendance", "icons": [{ "src": "/pwa-icon-192.png", "sizes": "192x192" }] },
+    { "name": "ลา", "short_name": "ลา", "url": "/?pwa=1&page=leave", "icons": [{ "src": "/pwa-icon-192.png", "sizes": "192x192" }] },
+    { "name": "โปรไฟล์", "short_name": "โปรไฟล์", "url": "/?pwa=1&page=profile", "icons": [{ "src": "/pwa-icon-192.png", "sizes": "192x192" }] }
+  ]
+}

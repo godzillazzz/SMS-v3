@@ -35,17 +35,58 @@ test('auto schedule preview follows Supervisor and six-day rotating patterns wit
   assert.deepEqual(plan.rows.filter((row) => row.employeeId === 'worker').slice(0, 7).map((row) => row.code), ['D', 'D', 'D', 'D', 'D', 'D', 'OFF']);
 });
 
-test('auto schedule preview preserves locked and approved-leave assignments', async () => {
+test('bulk magic-wand preview replaces ordinary manual rows but preserves approved leave and Admin license overrides', async () => {
   const current = [
-    { employeeId: 'worker', workDate: new Date('2026-07-01T00:00:00Z'), locked: true, source: 'MANUAL', remark: 'keep', licenseOverride: false, shiftType: shiftTypes[1] },
-    { employeeId: 'worker', workDate: new Date('2026-07-02T00:00:00Z'), locked: false, source: 'LEAVE_APPROVAL', remark: 'leave', licenseOverride: false, shiftType: shiftTypes[3] }
+    { employeeId: 'worker', workDate: new Date('2026-07-01T00:00:00Z'), locked: true, source: 'MANUAL', remark: 'replace me', licenseOverride: false, shiftType: shiftTypes[1] },
+    { employeeId: 'worker', workDate: new Date('2026-07-02T00:00:00Z'), locked: false, source: 'LEAVE_APPROVAL', remark: 'leave', licenseOverride: false, shiftType: shiftTypes[3] },
+    { employeeId: 'worker', workDate: new Date('2026-07-03T00:00:00Z'), locked: true, source: 'MANUAL', remark: 'admin coverage', licenseStatus: 'OVERRIDDEN', licenseOverride: true, overrideReason: 'Approved coverage', shiftType: shiftTypes[1] }
   ];
   const plan = await buildAutoSchedulePlan(client({ current }), '2026-07');
-  assert.equal(plan.rows.find((row) => row.employeeId === 'worker' && row.date === '2026-07-01').code, 'N');
-  assert.equal(plan.rows.find((row) => row.employeeId === 'worker' && row.date === '2026-07-02').code, 'AL');
+  const manual = plan.rows.find((row) => row.employeeId === 'worker' && row.date === '2026-07-01');
+  const leave = plan.rows.find((row) => row.employeeId === 'worker' && row.date === '2026-07-02');
+  const override = plan.rows.find((row) => row.employeeId === 'worker' && row.date === '2026-07-03');
+  assert.equal(manual.code, 'D');
+  assert.equal(manual.locked, false);
+  assert.equal(leave.code, 'AL');
+  assert.equal(override.code, 'N');
+  assert.equal(override.licenseOverride, true);
+  assert.equal(override.overrideReason, 'Approved coverage');
   assert.equal(plan.summary.manualLocked, 2);
 });
 
+test('bulk and individual magic-wand share AUTO Continue phase analysis', async () => {
+  const history = [
+    { employeeId: 'worker', workDate: new Date('2026-06-30T00:00:00Z'), shiftType: { code: 'N' } },
+    { employeeId: 'worker', workDate: new Date('2026-06-29T00:00:00Z'), shiftType: { code: 'N' } }
+  ];
+  const bulk = await buildAutoSchedulePlan(client({ history }), '2026-07');
+  const individual = await buildEmployeeAutoSchedulePlan(client({ history }), '2026-07', 'worker', 'AUTO', 'ROTATE');
+  const bulkRows = bulk.rows.filter((row) => row.employeeId === 'worker');
+  assert.equal(individual.analysis.code, 'N3');
+  assert.deepEqual(bulkRows.map((row) => row.code), individual.rows.map((row) => row.code));
+  assert.deepEqual(bulkRows.slice(0, 5).map((row) => row.code), ['N', 'N', 'N', 'N', 'OFF']);
+});
+
+test('bulk uses the same individual history behavior when the previous-month final day is missing', async () => {
+  const history = [
+    { employeeId: 'worker', workDate: new Date('2026-06-29T00:00:00Z'), shiftType: { code: 'N' } },
+    { employeeId: 'worker', workDate: new Date('2026-06-28T00:00:00Z'), shiftType: { code: 'N' } }
+  ];
+  const bulk = await buildAutoSchedulePlan(client({ history }), '2026-07');
+  const individual = await buildEmployeeAutoSchedulePlan(client({ history }), '2026-07', 'worker', 'AUTO', 'ROTATE');
+  const bulkRows = bulk.rows.filter((row) => row.employeeId === 'worker');
+  assert.equal(individual.analysis.code, 'N3');
+  assert.deepEqual(bulkRows.map((row) => row.code), individual.rows.map((row) => row.code));
+  assert.deepEqual(bulkRows.slice(0, 5).map((row) => row.code), ['N', 'N', 'N', 'N', 'OFF']);
+});
+
+test('bulk and individual Supervisor pattern produce identical rows', async () => {
+  const bulk = await buildAutoSchedulePlan(client(), '2026-07');
+  const individual = await buildEmployeeAutoSchedulePlan(client(), '2026-07', 'supervisor', 'AUTO', 'SUPERVISOR');
+  const bulkRows = bulk.rows.filter((row) => row.employeeId === 'supervisor');
+  assert.deepEqual(bulkRows.map((row) => row.code), individual.rows.map((row) => row.code));
+  assert.equal(bulkRows.find((row) => row.date === '2026-07-05').code, 'OFF');
+});
 test('individual magic-wand plan writes only the selected employee six-on/one-off rotation', async () => {
   const plan = await buildEmployeeAutoSchedulePlan(client(), '2026-07', 'worker');
   assert.equal(plan.summary.employees, 1);
@@ -57,8 +98,7 @@ test('individual magic-wand plan writes only the selected employee six-on/one-of
 test('auto schedule substitutes OFF and warns when a working license is unavailable', async () => {
   const plan = await buildAutoSchedulePlan(client({ licenseRows: licenses.filter((license) => license.employeeId !== 'worker') }), '2026-07');
   assert.ok(plan.rows.filter((row) => row.employeeId === 'worker').every((row) => row.code === 'OFF'));
-  assert.equal(plan.warnings.length, 1);
-  assert.match(plan.warnings[0], /Sample Worker/);
+  assert.ok(plan.warnings.some((warning) => /Sample Worker/.test(warning) && /ใบอนุญาต/.test(warning)));
 });
 
 test('individual magic-wand converts an expired-license work pattern to OFF License Block rows', async () => {
@@ -96,6 +136,7 @@ test('individual magic-wand retains an existing Admin license override during an
   assert.equal(override.locked, true);
   assert.equal(override.licenseOverride, true);
   assert.equal(override.licenseStatus, 'OVERRIDDEN');
+  assert.equal(override.overrideReason, 'Approved coverage');
 });
 
 test('the latest magic-wand action replaces prior manual shifts but keeps leave and Admin overrides', async () => {

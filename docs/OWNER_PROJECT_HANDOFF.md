@@ -4,7 +4,7 @@
 > Read this complete file before proposing or modifying the SMS project.
 
 Last Updated:
-2026-08-21
+2026-08-25
 
 Repository:
 godzillazzz/SMS-v3
@@ -1714,3 +1714,231 @@ Owner review is APPROVED. Phase 3 License source, tests, migration design, and e
 - Phase 6 Schedule workflow redesign has NOT started.
 - The separate Employee Master UX request to combine `แก้ไข` and `จัดการสถานะพนักงาน` entry points has NOT started and remains a separate subsequent task.
 - No Product source, tests, Prisma schema, migrations, or CI workflow are to be changed as part of this Phase 3 documentation closeout.
+
+
+## 2026-08-22 — Approval Workflow Standard V1 Preview Migration / UAT Checkpoint
+
+This checkpoint supersedes older Preview-isolation statements above for the active `feature/approval-workflow-standard-v1` release line. Preview isolation is now proven and the Phase 3 License migration has been applied to the isolated Preview database. Production has not been promoted.
+
+### Current Production baseline — preserve
+
+- Current Production deployment: `dpl_FAEJmdXEmTcCuDAzqVznwq75CdLL`.
+- Current Production SHA: `db0bf9c8ece06db467cb7690ad4d6fadd941a04b`.
+- Leave P2028 Product SHA: `668682900a12ca1b1506160690491bd30a7f0fa7`.
+- The Manager Leave-approval P2028 reliability fix remains mandatory lineage and must not be lost in any later promotion.
+- Preserve `ReadCommitted`, `maxWait=5000`, `timeout=15000`, P2028 → HTTP 503 `LEAVE_APPROVAL_TRANSACTION_TIMEOUT`, P2034 → HTTP 409 `LEAVE_QUOTA_STATE_CONFLICT`, no automatic retry, quota locking, AL ShiftAssignment atomicity, self-approval protection, AuditLog, and post-commit notification behavior.
+- `LEAVE_CANCEL_AUTHORITY=ADMIN_ONLY` remains locked.
+- `SCHEDULE_APPROVE_AUTHORITY=ADMIN_ONLY` and `SCHEDULE_FINAL_APPROVE_AUTHORITY=ADMIN_ONLY` remain locked.
+
+### Preview isolation — proven
+
+- Target branch: `feature/approval-workflow-standard-v1`.
+- Preview Supabase project name: `sms-v3-preview`.
+- Preview Supabase project ref: `ezxanpfagitckpfsnflp`.
+- Production Supabase project ref: `jkexwnlxnxbemwavsebv`.
+- Branch-scoped Preview `DATABASE_URL`, `DIRECT_URL`, and `JWT_SECRET` overrides are present.
+- Runtime project-identity proof confirmed both Preview database URLs resolve to the Preview project ref and not the Production project ref.
+- `RUNTIME_CURRENT_DATABASE=postgres` is the normal Supabase PostgreSQL database name and is not itself evidence of Production use.
+- Preview JWT/runtime validation is healthy after the Preview-only `JWT_SECRET` correction.
+- `PREVIEW_DATABASE_CLASSIFICATION=ISOLATED_PREVIEW_DB`.
+- `PREVIEW_ISOLATED_DATABASE_PROVEN=YES`.
+
+### Migration checksum forensic closure
+
+The apparent checksum drift for these already-applied migrations was a Windows working-tree line-ending artifact only:
+
+- `202608190001_signature_v12_webauthn_passkeys`
+- `202608210001_employee_master_governed_edit_v1`
+
+Locked result:
+
+- `MIGRATION_1_DIFFERENCE_CLASS=LINE_ENDINGS_ONLY`.
+- `MIGRATION_2_DIFFERENCE_CLASS=LINE_ENDINGS_ONLY`.
+- `MIGRATION_1_SEMANTIC_DRIFT=NO`.
+- `MIGRATION_2_SEMANTIC_DRIFT=NO`.
+- `PREVIEW_SCHEMA_STATE=SEMANTICALLY_EQUIVALENT`.
+- `ROOT_CAUSE_CLASSIFICATION=WINDOWS_CRLF_LOCAL_CHECKSUM_ARTIFACT`.
+- `ACTUAL_MIGRATION_DRIFT=NO`.
+- `RECOMMENDED_REMEDIATION=NO_DATABASE_REPAIR_REQUIRED`.
+
+Canonical migration-byte authority for this Windows workspace is the committed Git object bytes (`git cat-file blob` or equivalent byte-exact Git-object source), not CRLF materialized working-tree/archive bytes.
+
+Do not rebuild Preview, edit `_prisma_migrations`, run `prisma migrate resolve`, rewrite applied migrations, or reopen this forensic gate unless new semantic evidence appears.
+
+### Preview migration — completed
+
+- Migration inventory before: `20 applied / 1 pending`.
+- Applied migration: `202608220001_license_document_workflow_alignment_v1`.
+- Migration inventory after: `21 applied / 0 pending`.
+- Failed/rolled-back migrations: `0`.
+- License migration canonical checksum: `498e3ded8cfd47890f792f0d2595f56c15204e1335d5092f1b30eaf54c08b3a6`.
+- `employee_license_document_revisions` exists.
+- `LicenseDocumentStatus.CANCELLED` exists.
+- `DATABASE_REPAIR_PERFORMED=NO`.
+- `PRISMA_MIGRATE_RESOLVE_USED=NO`.
+- `PRISMA_DB_PUSH_USED=NO`.
+- `PREVIEW_SEED=0` during the migration gate.
+- Temporary migration/probe mechanisms were removed after evidence capture.
+
+### Clean Preview deployment
+
+- Clean Preview deployment: `dpl_3m39Pu3QVWPZqSznpgGqumsd7WbD`.
+- Branch: `feature/approval-workflow-standard-v1`.
+- Git SHA: `686a95df6080f60a0019407002e1d08c277dd2e8`.
+- Clean tree: `51da7d7d1c4aa0ed1889e7e6f30365018c5c571e`.
+- Deployment state: `READY`.
+- `/health`: `200`, `status=ok`.
+- `/ready`: `200`, `status=ready`, `database=ok`.
+- Temporary identity probe: absent.
+- Temporary migration mechanism: absent.
+
+### Preview UAT fixtures and transport checkpoint
+
+- UAT marker: `AWV1-UAT-20260822`.
+- The first interrupted fixture transaction was read back as `ROLLED_BACK_COMPLETELY`.
+- The known dedicated Preview fixture set was then provisioned once and confirmed complete.
+- Dedicated UAT ADMIN / MANAGER / VIEWER accounts are present.
+- Dedicated UAT Employee and 2027 LeaveQuota are present.
+- Additional marker-scoped unrelated-Manager and Manager-linked Employee/quota fixtures exist for authority/self-approval checks.
+- `FIXTURE_SCOPE=DEDICATED_PREVIEW_ONLY`.
+- Existing realish user credentials were not modified.
+- Vercel Deployment Protection was correctly distinguished from SMS authentication.
+- Temporary Vercel-protection transport bridge fix: `PASS`.
+- `vercel curl` informational stderr is tolerated only when native exit code is `0`; secret output remains prohibited.
+
+### UAT status — not yet complete
+
+Business workflow UAT has not yet been completed after the transport fix. Do not claim Preview UAT PASS or Production readiness yet.
+
+Remaining minimum manual/automated Preview checks are:
+
+1. Employee Master: Manager Submit → Admin `ส่งกลับไปแก้ไข` → Manager Edit/Resubmit → Admin Final Approve; also confirm authoritative mutation only after final approval.
+2. License: Upload → Admin Return → request owner Resubmit → Admin Final Approve; Manager final approval blocked; returned-owner Cancel path; immutable revision increment.
+3. Leave: authorized Manager approval PASS; Manager cancellation BLOCKED; Admin cancellation ALLOWED; self-approval guard preserved; do not remove the P2028 hotfix.
+4. Schedule: Manager edit allowed where authorized; Manager Approve/Final Approve BLOCKED; Admin Approve ALLOWED.
+5. Shared UI: Approve green, `ส่งกลับไปแก้ไข` orange, Reject red, Resubmit blue, Cancel red-outline.
+6. Preview runtime closeout: no environment-validation errors, no unhandled exceptions, no unexplained HTTP 5xx during the UAT window.
+
+Existing authoritative Phase 3 exact-head CI remains `32560097886 = SUCCESS`. If Product source does not change, the Owner-approved fast path does not require rerunning the full backend/integration/frontend suites merely to repeat already-proven CI evidence.
+
+Current gate:
+
+- `FINAL_STATUS=SMS_APPROVAL_WORKFLOW_STANDARD_V1_PREVIEW_UAT_IN_PROGRESS`.
+- `READY_FOR=NOT_READY_FOR_PRODUCTION`.
+- `PRODUCTION_RELEASE=NOT_AUTHORIZED` at this checkpoint.
+- No Production deployment, migration, data/schema/env/storage/DNS mutation occurred during Preview isolation/migration/UAT preparation.
+
+Next safe continuation: perform only the minimum Preview business UAT and runtime closeout above. Do not rerun Preview isolation, migration, fixture provisioning, CRLF forensic work, or transport setup unless new evidence proves those established gates invalid.
+
+## 2026-08-25 — G06 Department ↔ SecuritySite / Default Site / Admin Security Site Management CI Closeout
+
+This section records the isolated G06 feature-branch implementation candidate and its exact-head CI evidence. It does not authorize a Production release and does not claim the complete Attendance V1 program is finished.
+
+### Exact branch / PR identity
+
+- Branch: `feature/g06-department-security-site-v1`.
+- Draft PR: `#111`.
+- PR status at candidate verification: `OPEN / DRAFT / UNMERGED`.
+- Verified implementation candidate HEAD: `ce612fa473c10d1e29b1eaaf2c1dde26ce9efdce`.
+- Verified implementation candidate tree: `172094ae4a06a3d205a50e785fd97caa2356cb3a`.
+- Exact-head Remote CI run: `32857117495`.
+- Exact-head Remote CI job: `97831816379`.
+- Remote CI result: `SUCCESS`.
+
+### Database / migration / test gate evidence
+
+CI uses an ephemeral PostgreSQL 16-alpine service with database `sms_v3_test`; no Production database is involved.
+
+Exact candidate CI passed:
+
+- Prisma format check: `PASS`.
+- Prisma validate: `PASS`.
+- Prisma generate: `PASS`.
+- PostgreSQL test migrations: `PASS`.
+- Test seed: `PASS`.
+- Migration status: `PASS`.
+- Backend unit tests: `PASS`.
+- Backend integration tests: `PASS`.
+- Frontend tests: `PASS`.
+- Frontend TypeScript `tsc --noEmit`: `PASS`.
+- Frontend production build: `PASS`.
+- Repository hygiene: `PASS`.
+
+### G06 authority / regression locks proven in this gate
+
+- Department and SecuritySite remain separate concepts with Department ↔ SecuritySite mapping.
+- Fresh Attendance Expected Site authority remains Schedule Site first, then Department Default Site, otherwise fail closed rather than guessing a fallback.
+- Existing/open Attendance sessions preserve the pinned `expectedSiteId`; later schedule/default/mapping changes must not remap the session.
+- Security Site deactivation is blocked when the Site is a Department Default with `SECURITY_SITE_DEFAULT_IN_USE`.
+- A real PostgreSQL integration regression now creates an OPEN `AttendanceSession` using the actual schema semantics `state=OPEN`, `closedAt=null`, `expectedSiteId=<Site>` and proves deactivation fails with `SECURITY_SITE_OPEN_ATTENDANCE_IN_USE` without mutating the Site/session.
+- The regression intentionally does not use the obsolete/nonexistent `checkOutAt` field.
+- Raw SQL paths that operate on `security_site_departments.security_site_id` now cast bind values explicitly as UUID (`::uuid`) so PostgreSQL does not compare/insert UUID columns as text.
+- Security Site QR lifecycle, Department default changes, Schedule override, historical pinning, and database uniqueness/invariant coverage remain part of the PostgreSQL integration gate.
+
+### Frontend boundary correction
+
+The Admin Security Site Management surface is no longer coupled to the Preview-only physical Active Challenge rehearsal flag.
+
+- `AttendanceFaceChallengeUatPanel` again returns `null` when `VITE_G06_FACE_CHALLENGE_UAT` is disabled.
+- `SecuritySiteManagementPanel` is rendered independently by `AttendancePage`.
+- This preserves the permanent rule that physical Active Challenge rehearsal is Preview/UAT-only and non-authoritative while keeping Admin Site Management available independently.
+
+### Release / Production hard stop
+
+- Production deploy/promotion/alias: `0`.
+- Production DB migration/data mutation: `0`.
+- Production environment mutation: `0`.
+- Production workflow dispatch: `0`.
+- Merge to Production/default branch: `0`.
+- PR #111 remains Draft/Open and must not be merged as part of this closeout.
+- No Vercel Preview was required for this CI-only gate.
+- `G06_DEPARTMENT_SECURITY_SITE_GATE=CI_GREEN_CANDIDATE`.
+- `ATTENDANCE_V1_100_PERCENT=NO` — later Attendance V1 gates/audit items remain separate work.
+
+## 2026-08-26 — G06 Department ↔ SecuritySite Diagnostic Closure
+
+This section records the final CI-only closeout evidence for the G06
+Department ↔ SecuritySite / Default Site / Admin Security Site Management
+gate. It does not authorize Production release and does not claim that the
+complete Attendance V1 program is finished.
+
+### Exact branch / PR identity
+
+- Branch: `feature/g06-department-security-site-v1`.
+- Draft PR: `#111`.
+- PR state: `OPEN / DRAFT / UNMERGED`.
+- Verified G06 candidate before the handoff commits: `ccaa9ac67f7740439d27ef6a208c58326c71f18e`.
+- Candidate tree: `74931613ba3df21c42c94a7bdeb6cf24de6a4d95`.
+- Handoff commit verified by the final exact-head CI: `f4066c9ff1972f909489bd353635b3cf421e3039`.
+- Handoff tree: `30b0161c1c087ef85371893819c2f02ede7ed879`.
+- Final handoff CI: Run `32877558427`, Job `97899095041`, event `push`, checkout `f4066c9ff1972f909489bd353635b3cf421e3039`, result `SUCCESS`.
+
+### Diagnostic failure and minimal correction
+
+- Diagnostic artifact `9565609838` from Run `32854400888` / Job `97822732368` identified the first deterministic failure in `test/integration/security-site-department-authority.integration.test.js:109`.
+- The failure reached `src/services/security-site.service.js:229`: PostgreSQL SQLSTATE `42804` rejected a text bind for UUID column `security_site_id` in the Department ↔ Site insert.
+- `2bec7748e136380d2a7dd8de1a0acb3a1158b116` added the explicit `$1::uuid` cast for mapping inserts; `e3a5457d4646b2cb9b2a9d76d8c857a681ef7342` retained explicit UUID casts in deactivation queries.
+- `37db2f98e6aa140a6aed75a8f24e06870401dd74` added the real PostgreSQL OPEN `AttendanceSession` deactivation regression using `state=OPEN`, `closedAt=null`, and `expectedSiteId`; no obsolete `checkOutAt` field is used.
+- Temporary diagnostic artifact wrappers were removed in `ccaa9ac67f7740439d27ef6a208c58326c71f18e`; authoritative tests remain enabled.
+
+### G06 evidence
+
+- PostgreSQL 16 ephemeral migrations, seed, and migration-status checks: `PASS`.
+- Prisma format, validate, and generate: `PASS`.
+- Backend unit tests: `PASS`.
+- Backend integration tests: `PASS`.
+- Authoritative Attendance event PostgreSQL integration: `PASS`.
+- Frontend tests: `PASS`.
+- Frontend TypeScript noEmit: `PASS`.
+- Frontend production build: `PASS`.
+- Tracked frontend build metadata restore: `PASS`.
+- Repository hygiene: `PASS`.
+- Required authority behavior remains covered: Department ↔ Site mapping, one PostgreSQL-enforced Default Site per Department, Schedule Site precedence, Department Default fallback, fail-closed resolution, historical `expectedSiteId` pinning, Schedule changes not remapping open sessions, both deactivation guards, QR SHA-256/revocation/version/audit invariants, and actual-schema cleanup.
+- The raw partial unique index for one Default Site per Department remains a PostgreSQL migration invariant; no Prisma `@@unique` replacement was introduced.
+
+### Scope and safety
+
+- Production deployment, promotion, alias, environment, database/data, migration, storage, and workflow-dispatch mutations: `0`.
+- No Production database or secrets were used for diagnosis or validation.
+- Owner decision remains that Department and SecuritySite are separate entities, Employee keeps `Employee.department`, and existing Attendance sessions retain their historical expected Site.
+- `ATTENDANCE_V1_100_PERCENT=NO`: remaining Attendance V1 work includes employee check-in/out end-to-end, authoritative server time, event GPS/accuracy/geofence and expected/actual Site, Shift Master/Schedule/overnight and timing/risk flags, missing/absent/leave handling, corrections/audit, supervisor dashboard, monthly certification and lock/revision, PDF/Excel/privacy/retention, and final Preview/UAT gates. No event-photo evidence is claimed by this G06 gate.

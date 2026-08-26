@@ -10,6 +10,7 @@ on:
       - fix/production-mobile-responsive-v1
       - fix/production-leave-p2028-transaction-reliability-v1
       - feature/approval-workflow-standard-v1
+      - feature/g06-department-security-site-v1
   pull_request:
     branches: [main, fix/serverless-database-reliability]
 
@@ -33,6 +34,7 @@ jobs:
           POSTGRES_DB: sms_v3_test
         ports:
           - 5432:5432
+          - 55438:5432
         options: >-
           --health-cmd "pg_isready -U ci_user -d sms_v3_test"
           --health-interval 5s --health-timeout 5s --health-retries 20
@@ -65,6 +67,12 @@ jobs:
       - run: node scripts/ci/prisma-migration.js status
       - run: npm test
       - run: npm run test:integration
+      - name: Run authoritative Attendance event integration
+        env:
+          TEST_DATABASE_RUNNER: g06-attendance-event-disposable-local
+          DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
+          DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
+        run: node --test --test-concurrency=1 test/integration/attendance-event-workflow.integration.test.js
       - run: npm --prefix frontend test
       - run: npx tsc --noEmit
         working-directory: frontend

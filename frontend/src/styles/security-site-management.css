@@ -1,0 +1,187 @@
+.security-site-admin {
+  margin-top: 28px;
+  padding: 24px;
+  border: 1px solid var(--border-color, #dbe3ee);
+  border-radius: 18px;
+  background: var(--surface-color, #ffffff);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
+}
+
+.security-site-admin__header,
+.security-site-admin__card-title,
+.security-site-actions,
+.security-site-authority-rule,
+.security-site-qr-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.security-site-admin__header {
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.security-site-admin__header h2,
+.security-site-admin__card h3 {
+  margin: 0;
+  color: var(--text-primary, #0f172a);
+}
+
+.security-site-admin__header p,
+.security-site-admin__card-title small,
+.security-site-admin__footnote,
+.security-site-map__legend small {
+  color: var(--text-secondary, #64748b);
+}
+
+.security-site-authority-rule {
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+  font-size: 13px;
+}
+
+.security-site-authority-rule strong { margin-right: 6px; }
+.security-site-authority-rule span { padding: 4px 8px; border-radius: 999px; background: #ffffff; border: 1px solid #dbeafe; }
+
+.security-site-admin__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.security-site-admin__card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 16px;
+  background: var(--surface-color, #ffffff);
+}
+
+.security-site-admin__card--wide { grid-column: 1 / -1; }
+.security-site-admin__card-title { justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+.security-site-admin__card-title small { display: block; margin-top: 4px; line-height: 1.45; }
+
+.security-site-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.security-site-admin .field-group { display: grid; gap: 6px; margin-bottom: 12px; }
+.security-site-admin .field-group > span { font-size: 13px; font-weight: 700; color: var(--text-primary, #334155); }
+.security-site-admin .field-group input,
+.security-site-admin .field-group select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 10px;
+  background: var(--surface-color, #ffffff);
+  color: var(--text-primary, #0f172a);
+}
+.security-site-admin .field-group small { color: var(--text-secondary, #64748b); line-height: 1.4; }
+
+.security-site-actions { flex-wrap: wrap; margin-top: 12px; }
+.security-site-admin button { min-height: 38px; }
+
+.security-site-map {
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+.security-site-map svg { display: block; width: 100%; min-height: 190px; background: linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%); }
+.security-site-map__grid { stroke: #dbeafe; stroke-width: 1; fill: none; }
+.security-site-map__radius { fill: rgba(59, 130, 246, 0.12); stroke: #2563eb; stroke-width: 2; stroke-dasharray: 5 4; }
+.security-site-map__pin { fill: #1d4ed8; }
+.security-site-map__crosshair { stroke: #1e40af; stroke-width: 2; }
+.security-site-map__legend { display: grid; gap: 3px; padding: 12px 14px; font-size: 12px; color: #334155; }
+.security-site-map__legend strong { font-size: 13px; }
+.security-site-map-empty { padding: 28px 18px; border: 1px dashed #cbd5e1; border-radius: 12px; text-align: center; color: #64748b; background: #f8fafc; }
+
+.security-site-overlap-list { display: grid; gap: 8px; margin-top: 12px; }
+.security-site-overlap-warning { display: grid; gap: 3px; padding: 10px 12px; border-radius: 10px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; font-size: 12px; }
+.security-site-no-warning { padding: 10px 12px; border-radius: 10px; background: #ecfdf5; border: 1px solid #bbf7d0; color: #166534; font-size: 12px; }
+
+.security-site-mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.security-site-mapping-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  cursor: pointer;
+  background: #ffffff;
+}
+.security-site-mapping-option.is-selected { border-color: #60a5fa; background: #eff6ff; }
+.security-site-mapping-option input { margin-top: 3px; }
+.security-site-mapping-option span { display: grid; gap: 3px; min-width: 0; }
+.security-site-mapping-option strong { color: #0f172a; }
+.security-site-mapping-option small { color: #64748b; overflow-wrap: anywhere; }
+
+.security-site-qr-state {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: start;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.security-site-qr-state span { color: #64748b; font-size: 12px; }
+.security-site-qr-state strong { color: #0f172a; }
+
+.security-site-qr-once {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  background: #fffbeb;
+  color: #92400e;
+}
+.security-site-qr-once p { margin: 6px 0 10px; line-height: 1.5; }
+.security-site-qr-once code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #fde68a;
+  color: #451a03;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+.security-site-admin__footnote { margin-top: 16px; font-size: 12px; line-height: 1.55; }
+
+@media (max-width: 880px) {
+  .security-site-admin { padding: 16px; }
+  .security-site-admin__grid,
+  .security-site-form-grid,
+  .security-site-mapping-grid { grid-template-columns: 1fr; }
+  .security-site-admin__card--wide { grid-column: auto; }
+  .security-site-admin__header { gap: 10px; flex-direction: column; }
+  .security-site-qr-state { grid-template-columns: 1fr; }
+}
+
+@media print {
+  .security-site-admin__header button,
+  .security-site-actions,
+  .security-site-admin__card:not(:last-of-type),
+  .attendance-page > :not(.security-site-admin) { display: none !important; }
+  .security-site-admin { box-shadow: none; border: 0; margin: 0; }
+  .security-site-qr-once { break-inside: avoid; }
+}

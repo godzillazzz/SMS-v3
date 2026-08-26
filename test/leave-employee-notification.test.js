@@ -792,16 +792,25 @@ test('41. Email failure after cancellation leaves status CANCELLED', async () =>
   delete require.cache[require.resolve('../src/routes/operations.routes')];
 });
 
-test('42. Existing authorization tests remain passing', async () => {
+test('42. Review authority middleware remains and cancellation uses state-specific authority', async () => {
   const originalRoutes = require('../src/routes/operations.routes');
   const putLayer = originalRoutes.stack.find(l => l.route && l.route.path === '/leave-requests/:id' && l.route.methods.put);
+  const returnLayer = originalRoutes.stack.find(l => l.route && l.route.path === '/leave-requests/:id/return-for-correction' && l.route.methods.post);
   const cancelLayer = originalRoutes.stack.find(l => l.route && l.route.path === '/leave-requests/:id/cancel' && l.route.methods.post);
 
   assert.ok(putLayer.route.stack.length > 1);
-  assert.ok(cancelLayer.route.stack.length > 1);
-  // Authorize middleware layer exists on these routes as functions
+  assert.ok(returnLayer.route.stack.length > 1);
   assert.equal(typeof putLayer.route.stack[0].handle, 'function');
-  assert.equal(typeof cancelLayer.route.stack[0].handle, 'function');
+  assert.equal(typeof returnLayer.route.stack[0].handle, 'function');
+
+  // Cancellation intentionally has no blanket ADMIN middleware: returned owners/original creators
+  // may cancel while APPROVED cancellation remains ADMIN-only inside the locked transaction.
+  assert.equal(cancelLayer.route.stack.length, 1);
+  const handlerSource = String(cancelLayer.route.stack[0].handle);
+  assert.match(handlerSource, /before\.status === 'RETURNED_FOR_CORRECTION'/);
+  assert.match(handlerSource, /assertReturnedLeaveOwner\(before, actor\)/);
+  assert.match(handlerSource, /before\.status === 'APPROVED'/);
+  assert.match(handlerSource, /actor\.role !== 'ADMIN'/);
 });
 
 test('43. Existing quota, overlap and retroactive validation tests remain passing', async () => {
