@@ -6,8 +6,10 @@ vi.mock('qrcode', () => ({ default: qrEncoder }));
 
 import {
   createSecuritySiteQrDataUrl,
+  createSecuritySiteQrPrintHtml,
   ensureSecuritySiteQrImageReady,
   nextSecuritySiteQrAnimationFrame,
+  printSecuritySiteQrDocument,
   securitySiteQrFilename
 } from './security-site-qr';
 
@@ -82,5 +84,82 @@ describe('Security Site QR rendering', () => {
 
     expect(requestAnimationFrame).toHaveBeenCalledOnce();
     vi.unstubAllGlobals();
+  });
+
+  it('builds a standalone A4 print document and escapes site metadata', () => {
+    const html = createSecuritySiteQrPrintHtml({
+      dataUrl: 'data:image/png;base64,local-qr',
+      siteCode: 'SITE<01',
+      siteName: 'Main & Gate',
+      version: 4,
+      generatedLabel: '26 ส.ค. 2569 14:10',
+      validFromLabel: '26 ส.ค. 2569 14:10'
+    });
+
+    expect(html).toContain('@page { size: A4 portrait; margin: 12mm; }');
+    expect(html).toContain('id="security-site-qr-print-image"');
+    expect(html).toContain('width: 140mm; height: 140mm;');
+    expect(html).toContain('SITE&lt;01 · Main &amp; Gate');
+    expect(html).not.toContain('body * { visibility: hidden');
+  });
+
+  it('preloads the QR inside the standalone document before printing', async () => {
+    const image = {
+      src: 'data:image/png;base64,local-qr',
+      complete: true,
+      naturalWidth: 768,
+      decode: vi.fn().mockResolvedValue(undefined),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    } as unknown as HTMLImageElement;
+    const write = vi.fn();
+    const print = vi.fn();
+    const focus = vi.fn();
+    const requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    const fakeWindow = {
+      document: {
+        readyState: 'complete',
+        fonts: { ready: Promise.resolve() },
+        open: vi.fn(),
+        write,
+        close: vi.fn(),
+        getElementById: vi.fn(() => image)
+      },
+      requestAnimationFrame,
+      setTimeout: vi.fn((callback: () => void) => { callback(); return 1; }),
+      focus,
+      print,
+      close: vi.fn(),
+      addEventListener: vi.fn()
+    } as unknown as Window;
+
+    await printSecuritySiteQrDocument({
+      dataUrl: 'data:image/png;base64,local-qr',
+      siteCode: 'PS-01',
+      siteName: 'Primary Site',
+      version: 2,
+      generatedLabel: 'generated',
+      validFromLabel: 'valid'
+    }, () => fakeWindow);
+
+    expect(write).toHaveBeenCalledOnce();
+    expect(image.decode).toHaveBeenCalledOnce();
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(2);
+    expect(focus).toHaveBeenCalledOnce();
+    expect(print).toHaveBeenCalledOnce();
+  });
+
+  it('fails safely when Safari blocks the print window', async () => {
+    await expect(printSecuritySiteQrDocument({
+      dataUrl: 'data:image/png;base64,local-qr',
+      siteCode: 'PS-01',
+      siteName: 'Primary Site',
+      version: 2,
+      generatedLabel: 'generated',
+      validFromLabel: 'valid'
+    }, () => null)).rejects.toThrow('บล็อกหน้าต่างพิมพ์');
   });
 });

@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ApiRequestError, api } from '../api';
 import '../styles/security-site-management.css';
 import {
   createSecuritySiteQrDataUrl,
-  ensureSecuritySiteQrImageReady,
-  nextSecuritySiteQrAnimationFrame,
+  printSecuritySiteQrDocument,
   securitySiteQrFilename
 } from './security-site-qr';
 import type {
@@ -90,7 +89,6 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   const [defaultSiteId, setDefaultSiteId] = useState('');
   const [rawQrToken, setRawQrToken] = useState('');
   const [generatedQr, setGeneratedQr] = useState<GeneratedQr | null>(null);
-  const qrPrintImageRef = useRef<HTMLImageElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
@@ -268,18 +266,18 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
 
   const printQr = async () => {
     if (!generatedQr) return;
-    const printImage = qrPrintImageRef.current;
-    if (!printImage) {
-      setError('ไม่พบ QR image สำหรับการพิมพ์ กรุณาสร้าง QR ใหม่');
-      return;
-    }
+    setError(undefined);
     try {
-      await ensureSecuritySiteQrImageReady(printImage);
-      await nextSecuritySiteQrAnimationFrame();
-      await nextSecuritySiteQrAnimationFrame();
-      window.print();
+      await printSecuritySiteQrDocument({
+        dataUrl: generatedQr.dataUrl,
+        siteCode: generatedQr.siteCode,
+        siteName: generatedQr.siteName,
+        version: generatedQr.credential.version,
+        generatedLabel: displayDate(generatedQr.credential.createdAt),
+        validFromLabel: displayDate(generatedQr.credential.validFrom)
+      });
     } catch (reason) {
-      setError(requestErrorMessage(reason, 'QR image ยังไม่พร้อมสำหรับการพิมพ์ กรุณาลองใหม่'));
+      setError(requestErrorMessage(reason, 'เปิดเอกสารพิมพ์ QR ไม่สำเร็จ กรุณาลองใหม่'));
     }
   };
 
@@ -352,7 +350,6 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
                 </div>
                 <div className="security-site-actions">{rawQrToken && <button type="button" className="btn-neutral" onClick={() => void copyQrToken()}>คัดลอก Token</button>}<button type="button" className="btn-neutral" onClick={printQr}>พิมพ์ QR</button><button type="button" className="btn-neutral" onClick={saveQr}>บันทึก QR เป็น PNG</button>{rawQrToken && <button type="button" className="btn-neutral" onClick={() => setRawQrToken('')}>ซ่อน Token</button>}</div>
               </div>
-              <div className="security-site-qr-print-sheet" aria-hidden="true"><p>SECURITY MANAGEMENT SYSTEM V3</p><h1>ATTENDANCE SITE QR</h1><div>Site: {generatedQr.siteCode} · {generatedQr.siteName}</div><div>QR Version: {generatedQr.credential.version}</div><div>Generated: {displayDate(generatedQr.credential.createdAt)} · Valid from: {displayDate(generatedQr.credential.validFrom)}</div><img ref={qrPrintImageRef} src={generatedQr.dataUrl} width={768} height={768} alt="" /><footer>Security Management System V3</footer></div>
             </>}
             {rawQrToken && !generatedQr && <div className="security-site-actions"><button type="button" className="btn-neutral" onClick={() => void copyQrToken()}>คัดลอก Token</button><button type="button" className="btn-neutral" onClick={() => setRawQrToken('')}>ซ่อน Token</button></div>}
           </div>}
