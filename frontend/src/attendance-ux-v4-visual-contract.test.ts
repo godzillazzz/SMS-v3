@@ -53,7 +53,7 @@ describe('Attendance UX V4 visual acceptance contract', () => {
   it('uses the Owner-restored SMS header logo while keeping the retro robot mascot in the action orb', () => {
     const v4 = page.slice(page.indexOf("if (employeeV4)"));
     expect(v4.match(/\/attendance-retro-robot\.svg/g)?.length).toBe(1);
-    expect(v4).toContain('/pwa-icon-192.png');
+    expect(v4).toContain('/attendance-sms-logo.svg');
     expect(v4).toContain('alt="SMS"');
     expect(css).toContain('.attendance-v4__brand img');
     expect(css).toContain('.attendance-v4__action-logo');
