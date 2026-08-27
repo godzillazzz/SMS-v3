@@ -3,23 +3,23 @@ import { readFileSync } from 'node:fs';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const main = read('./main.tsx');
-const api = read('./api.ts');
+const client = read('./pages/attendance-supervisor/attendance-supervisor-client.ts');
 const page = read('./pages/attendance-supervisor/AttendanceSupervisorPage.tsx');
 const css = read('./pages/attendance-supervisor/attendance-supervisor-v4.css');
 
 describe('Attendance Supervisor UX V4', () => {
-  it('adds a Manager/Admin-only Attendance Dashboard destination outside the employee PWA shell', () => {
-    expect(main).toContain("{ id: 'attendanceSupervisor', icon: 'dashboard', label: 'Attendance Dashboard' }");
-    expect(main).toContain("page === 'leavePending' || page === 'attendanceSupervisor'");
-    expect(main).toContain("activePage === 'attendanceSupervisor' && auth.token && !pwaShell");
+  it('reuses the existing Attendance destination for Manager/Admin without changing certified navigation IDs', () => {
+    expect(main).toContain("activePage === 'attendance' && auth.token");
+    expect(main).toContain("!pwaShell && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
     expect(main).toContain('<AttendanceSupervisorPage');
+    expect(main).not.toContain("id: 'attendanceSupervisor'");
   });
 
-  it('provides daily history and detail clients on the supervisor API surface', () => {
-    expect(api).toContain('/attendance/supervisor/daily');
-    expect(api).toContain('/attendance/supervisor/history');
-    expect(api).toContain('/attendance/supervisor/assignments/');
-    expect(api).toContain('/detail');
+  it('isolates daily history and detail clients from the locked core API surface', () => {
+    expect(client).toContain('/attendance/supervisor/daily');
+    expect(client).toContain('/attendance/supervisor/history');
+    expect(client).toContain('/attendance/supervisor/assignments/');
+    expect(client).toContain('/detail');
   });
 
   it('implements approved dashboard filters and KPI/read-model fields', () => {
