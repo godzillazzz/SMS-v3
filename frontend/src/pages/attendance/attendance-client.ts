@@ -122,6 +122,8 @@ export type AttendanceSelfRow = {
   actualSite?: AttendanceSelfSite | null;
   expectedStartAt?: string | null;
   expectedEndAt?: string | null;
+  originalCheckInAt?: string | null;
+  originalCheckOutAt?: string | null;
   checkInAt?: string | null;
   checkOutAt?: string | null;
   checkInEventId?: string | null;
@@ -131,6 +133,8 @@ export type AttendanceSelfRow = {
   earlyOutMinutes?: number | null;
   status: string;
   flags: string[];
+  corrected?: boolean;
+  correctionEventTypes?: string[];
   authority?: string;
 };
 
