@@ -75,6 +75,7 @@ test('Governed adjustment API keeps public direct correction fail-closed', () =>
   const legacyGovernanceRoute = read('src/routes/attendance-governance.routes.js');
   const index = read('src/routes/index.js');
   const service = read('src/services/attendance-adjustment.service.js');
+  const correctionService = read('src/services/attendance-correction.service.js');
 
   assert.match(index, /router\.use\('\/attendance\/adjustment-requests', attendanceAdjustmentRoutes\)/);
   assert.match(adjustmentRoute, /router\.post\('\/:id\/approve', authorize\('ADMIN'\)/);
@@ -85,4 +86,8 @@ test('Governed adjustment API keeps public direct correction fail-closed', () =>
   assert.match(service, /INSERT INTO attendance_corrections/);
   assert.match(service, /STALE_ATTENDANCE_BASE/);
   assert.match(service, /source_adjustment_request_id/);
+  assert.match(correctionService, /ATTENDANCE_CORRECTION_DIRECT_WRITE_DISABLED/);
+  assert.match(correctionService, /source_adjustment_request_id IS NOT NULL/);
+  assert.match(correctionService, /approved_by_user_id IS NOT NULL/);
+  assert.match(correctionService, /approved_at IS NOT NULL/);
 });
