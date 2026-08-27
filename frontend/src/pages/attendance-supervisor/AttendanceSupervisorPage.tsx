@@ -338,6 +338,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId }: Pr
   const [error, setError] = useState<string>();
   const [detail, setDetail] = useState<DetailData>();
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailRequests, setDetailRequests] = useState<AttendanceAdjustmentRequest[]>([]);
 
   const [requestStatus, setRequestStatus] = useState<AttendanceAdjustmentStatus | ''>(admin ? 'PENDING_APPROVAL' : '');
   const [requestPage, setRequestPage] = useState(1);
@@ -480,11 +481,19 @@ export function AttendanceSupervisorPage({ token, role, department, userId }: Pr
 
   const openDetail = async (assignmentId: string) => {
     setDetail(undefined);
+    setDetailRequests([]);
     setDetailLoading(true);
     setError(undefined);
     try {
-      const response = await attendanceSupervisorDetail(token, assignmentId);
-      setDetail(response.data as DetailData);
+      const [detailResult, requestResult] = await Promise.allSettled([
+        attendanceSupervisorDetail(token, assignmentId),
+        listAttendanceAdjustments(token, { assignmentId, page: 1, pageSize: 10 })
+      ]);
+      if (detailResult.status === 'rejected') throw detailResult.reason;
+      setDetail(detailResult.value.data as DetailData);
+      if (requestResult.status === 'fulfilled') {
+        setDetailRequests(Array.isArray(requestResult.value.data) ? requestResult.value.data : []);
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านรายละเอียด Attendance ได้');
     } finally {
@@ -983,6 +992,26 @@ export function AttendanceSupervisorPage({ token, role, department, userId }: Pr
                 <article key={event.id}>
                   <div><strong>{event.eventType}</strong><span>{time(event.effectiveEventAt)}</span></div>
                   <small>Event ID: {event.id}</small>
+                </article>
+              ))}
+            </section>
+
+            <section className="attendance-supervisor-v4__detail-requests">
+              <h4>Adjustment Request History</h4>
+              {detailRequests.length === 0 ? (
+                <p>ยังไม่มีคำขอแก้ไข Attendance สำหรับรายการนี้</p>
+              ) : detailRequests.map((request) => (
+                <article key={request.id}>
+                  <div>
+                    <strong>{requestTypeLabel(request.requestType)}</strong>
+                    <span className={`attendance-supervisor-v4__status is-${requestStatusTone(request.status)}`}>
+                      {requestStatusLabel(request.status)}
+                    </span>
+                  </div>
+                  <small>
+                    Revision {request.currentRevision} · Maker {request.makerDisplayName || request.makerRoleSnapshot} · {dateTime(request.createdAt)}
+                  </small>
+                  <p>{request.reason}</p>
                 </article>
               ))}
             </section>
