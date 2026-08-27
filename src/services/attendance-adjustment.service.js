@@ -169,6 +169,7 @@ function requestShape(row) {
     status: row.status,
     makerUserId: row.makerUserId,
     makerRoleSnapshot: row.makerRoleSnapshot,
+    makerDisplayName: row.makerDisplayName || null,
     currentRevision: Number(row.currentRevision),
     approvedRevision: row.approvedRevision == null ? null : Number(row.approvedRevision),
     beforeSnapshot: row.beforeSnapshot,
@@ -178,6 +179,7 @@ function requestShape(row) {
     reason: row.reason,
     lastReviewerComment: row.lastReviewerComment,
     approverUserId: row.approverUserId,
+    approverDisplayName: row.approverDisplayName || null,
     approvedAt: row.approvedAt,
     rejectedByUserId: row.rejectedByUserId,
     rejectedAt: row.rejectedAt,
@@ -200,6 +202,7 @@ const requestSelect = Prisma.sql`
     r.status,
     r.maker_user_id AS "makerUserId",
     r.maker_role_snapshot AS "makerRoleSnapshot",
+    maker.display_name AS "makerDisplayName",
     r.current_revision AS "currentRevision",
     r.approved_revision AS "approvedRevision",
     r.before_snapshot AS "beforeSnapshot",
@@ -209,6 +212,7 @@ const requestSelect = Prisma.sql`
     r.reason,
     r.last_reviewer_comment AS "lastReviewerComment",
     r.approver_user_id AS "approverUserId",
+    approver.display_name AS "approverDisplayName",
     r.approved_at AS "approvedAt",
     r.rejected_by_user_id AS "rejectedByUserId",
     r.rejected_at AS "rejectedAt",
@@ -222,6 +226,8 @@ const requestSelect = Prisma.sql`
   FROM attendance_adjustment_requests r
   JOIN shift_assignments sa ON sa.id = r.shift_assignment_id
   LEFT JOIN employees e ON e.id = sa.employee_id
+  LEFT JOIN users maker ON maker.id = r.maker_user_id
+  LEFT JOIN users approver ON approver.id = r.approver_user_id
 `;
 
 function createAttendanceAdjustmentService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date() } = {}) {
