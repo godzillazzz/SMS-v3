@@ -566,6 +566,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId }: Pr
       }
       await submitAttendanceAdjustment(token, requestId as string);
       setAdjustmentDialog(undefined);
+      setDetail(undefined);
       setRequestNotice(
         admin
           ? 'ส่งคำขอแล้ว · ยังไม่มีผลต่อ Attendance จนกว่าจะกดอนุมัติแยกต่างหาก'
