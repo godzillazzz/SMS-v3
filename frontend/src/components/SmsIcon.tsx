@@ -1,10 +1,10 @@
 import type { SVGProps } from 'react';
 
 export type SmsIconName =
-  | 'dashboard' | 'employees' | 'license' | 'calendar' | 'clock' | 'leave' | 'approval'
+  | 'dashboard' | 'employees' | 'license' | 'calendar' | 'clock' | 'attendance' | 'leave' | 'approval'
   | 'history' | 'quota' | 'shield' | 'audit' | 'quality' | 'users' | 'report' | 'settings'
   | 'bell' | 'search' | 'menu' | 'more' | 'close' | 'logout' | 'sun' | 'moon' | 'system' | 'eye' | 'eyeOff'
-  | 'plus' | 'edit' | 'key' | 'pause' | 'check' | 'refresh';
+  | 'plus' | 'edit' | 'key' | 'pause' | 'check' | 'refresh' | 'location' | 'qr' | 'face' | 'device';
 
 const paths: Record<SmsIconName, React.ReactNode> = {
   dashboard: <><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></>,
@@ -12,6 +12,7 @@ const paths: Record<SmsIconName, React.ReactNode> = {
   license: <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6M7 17h4"/></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>,
   clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+  attendance: <><circle cx="9.5" cy="9.5" r="6.5"/><path d="M9.5 6.5v3.5l2.2 1.4M14.5 16.5l2 2 4-4"/></>,
   leave: <><path d="M7 3h10v18H7z"/><path d="M9.5 7h5M9.5 11h5M9.5 15h3"/></>,
   approval: <><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2 4.8-5"/></>,
   history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></>,
@@ -38,7 +39,11 @@ const paths: Record<SmsIconName, React.ReactNode> = {
   key: <><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M16 7l2 2M14 9l2 2"/></>,
   pause: <><circle cx="12" cy="12" r="9"/><path d="M9.5 8.5v7M14.5 8.5v7"/></>,
   check: <><path d="m5 12.5 4 4L19 7"/></>,
-  refresh: <><path d="M20 11a8 8 0 1 0 1 4"/><path d="M20 4v7h-7"/></>
+  refresh: <><path d="M20 11a8 8 0 1 0 1 4"/><path d="M20 4v7h-7"/></>,
+  location: <><path d="M20 10c0 5.2-8 11-8 11S4 15.2 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></>,
+  qr: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M15 14h2v2h-2zM19 14h2v4h-2zM14 19h4v2h-4zM20 20h1v1h-1z"/></>,
+  face: <><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/><circle cx="12" cy="11" r="4"/><path d="M9.5 16.5c.8-.7 1.6-1 2.5-1s1.7.3 2.5 1"/></>,
+  device: <><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M10 5h4M11 18.5h2"/></>
 };
 
 export function SmsIcon({ name, size = 20, ...props }: { name: SmsIconName; size?: number } & Omit<SVGProps<SVGSVGElement>, 'name'>) {

@@ -50,11 +50,8 @@ router.get('/assignments/:id/corrections', requireManagerOrAdmin, async (req, re
   } catch (error) { next(error); }
 });
 
-router.post('/assignments/:id/corrections', requireManagerOrAdmin, async (req, res, next) => {
-  try {
-    const input = correctionInput.parse(req.body);
-    res.status(201).json({ data: await corrections.correct({ actor: req.user, assignmentId: uuid.parse(req.params.id), ...input }) });
-  } catch (error) { next(error); }
+router.post('/assignments/:id/corrections', requireManagerOrAdmin, async (_req, _res, next) => {
+  next(new HttpError(404, 'Not found.'));
 });
 
 router.get('/months/:month/preview', requireAdmin, async (req, res, next) => {

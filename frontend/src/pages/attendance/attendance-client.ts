@@ -93,6 +93,85 @@ export type AttendanceFaceChallengeUatStartData = {
   retained: false;
 };
 
+export type AttendanceSelfEmployee = {
+  id: string;
+  employeeCode: string;
+  displayName: string;
+  firstName?: string;
+  lastName?: string;
+  department?: string | null;
+  jobTitle?: string | null;
+};
+
+export type AttendanceSelfSite = { id: string; code?: string | null; name: string };
+export type AttendanceSelfShift = {
+  id: string;
+  code?: string | null;
+  name?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+};
+
+export type AttendanceSelfRow = {
+  date: string;
+  assignmentId: string;
+  sessionId?: string | null;
+  employee: AttendanceSelfEmployee;
+  shift: AttendanceSelfShift;
+  expectedSite?: AttendanceSelfSite | null;
+  actualSite?: AttendanceSelfSite | null;
+  expectedStartAt?: string | null;
+  expectedEndAt?: string | null;
+  originalCheckInAt?: string | null;
+  originalCheckOutAt?: string | null;
+  checkInAt?: string | null;
+  checkOutAt?: string | null;
+  checkInEventId?: string | null;
+  checkOutEventId?: string | null;
+  workedMinutes?: number | null;
+  lateMinutes?: number | null;
+  earlyOutMinutes?: number | null;
+  status: string;
+  flags: string[];
+  corrected?: boolean;
+  correctionEventTypes?: string[];
+  authority?: string;
+};
+
+export type AttendanceSelfTodayData = {
+  generatedAt: string;
+  employee: AttendanceSelfEmployee;
+  assignment: AttendanceSelfRow | null;
+  scheduleReady: boolean;
+  scheduleRevision?: number;
+  reason?: string;
+};
+
+export type AttendanceSelfHistoryData = {
+  generatedAt: string;
+  employee: AttendanceSelfEmployee;
+  from: string;
+  to: string;
+  rows: AttendanceSelfRow[];
+};
+
+export type AttendanceSelfScheduleRow = {
+  date: string;
+  assignmentId: string;
+  shift: AttendanceSelfShift;
+  expectedSite?: AttendanceSelfSite | null;
+  remark?: string | null;
+};
+
+export type AttendanceSelfScheduleData = {
+  generatedAt: string;
+  employee: AttendanceSelfEmployee;
+  month: string;
+  approved: boolean;
+  revision?: number | null;
+  rows: AttendanceSelfScheduleRow[];
+};
+
 export type AttendanceFaceChallengeUatCaptureData = {
   ok: true;
   uatOnly: true;
@@ -309,6 +388,47 @@ export async function attendanceFaceChallengeUatCapture(token: string, attemptId
   const payload = await jsonPayload(response);
   if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถส่งชุดภาพ Active Challenge UAT ได้'), response.status, requestId);
   return payload.data as AttendanceFaceChallengeUatCaptureData;
+}
+
+export async function attendanceSelfToday(token: string): Promise<AttendanceSelfTodayData> {
+  const response = await fetch(`${baseUrl}/attendance/me/today`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: authHeaders(token)
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถอ่านข้อมูลลงเวลาวันนี้ได้'), response.status, requestId);
+  return payload.data as AttendanceSelfTodayData;
+}
+
+export async function attendanceSelfHistory(token: string, input: { from?: string; to?: string } = {}): Promise<AttendanceSelfHistoryData> {
+  const params = new URLSearchParams();
+  if (input.from) params.set('from', input.from);
+  if (input.to) params.set('to', input.to);
+  const response = await fetch(`${baseUrl}/attendance/me/history${params.size ? `?${params.toString()}` : ''}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: authHeaders(token)
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถอ่านประวัติการลงเวลาได้'), response.status, requestId);
+  return payload.data as AttendanceSelfHistoryData;
+}
+
+export async function attendanceSelfSchedule(token: string, month?: string): Promise<AttendanceSelfScheduleData> {
+  const params = new URLSearchParams();
+  if (month) params.set('month', month);
+  const response = await fetch(`${baseUrl}/attendance/me/schedule${params.size ? `?${params.toString()}` : ''}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: authHeaders(token)
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถอ่านตารางงานได้'), response.status, requestId);
+  return payload.data as AttendanceSelfScheduleData;
 }
 
 export async function attendanceAcceptVerifiedEvent(token: string, input: {

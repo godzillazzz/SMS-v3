@@ -7,6 +7,7 @@ const {
   scopeForActor,
   operationalStatus,
   summaryFor,
+  parseHistoryRange,
   createAttendanceSupervisorService
 } = require('../src/services/attendance-supervisor.service');
 
@@ -92,4 +93,86 @@ test('daily read model derives server-authoritative today status without writing
   assert.equal(result.rows[1].attendanceStatus, 'NOT_CHECKED_IN_YET');
   assert.equal(result.summary.currentlyWorking, 1);
   assert.equal(result.summary.notCheckedInYet, 1);
+});
+
+
+test('history range is bounded to protect serverless read cost', () => {
+  const range = parseHistoryRange({ from: '2026-08-01', to: '2026-08-27' }, new Date('2026-08-27T01:00:00.000Z'));
+  assert.equal(range.days, 27);
+  assert.throws(
+    () => parseHistoryRange({ from: '2026-06-01', to: '2026-08-27' }, new Date('2026-08-27T01:00:00.000Z')),
+    /must not exceed/
+  );
+});
+
+test('history returns paginated supervisor rows without writing Attendance state', async () => {
+  const assignments = [
+    shiftAssignment({
+      id: 'h-a', employeeId: 'emp-a', name: 'Alpha', department: 'OPS',
+      events: [event('CHECK_IN', '2026-08-25T00:00:00.000Z', 'h-a-site')]
+    }),
+    shiftAssignment({
+      id: 'h-b', employeeId: 'emp-b', name: 'Beta', department: 'OPS',
+      events: [event('CHECK_IN', '2026-08-25T00:05:00.000Z', 'h-b-site')]
+    })
+  ];
+  assignments[0].workDate = new Date('2026-08-25T00:00:00.000Z');
+  assignments[1].workDate = new Date('2026-08-24T00:00:00.000Z');
+
+  const prisma = {
+    shiftAssignment: { findMany: async () => assignments },
+    leaveRequest: { findMany: async () => [] },
+    securitySite: { findUnique: async () => null }
+  };
+  const service = createAttendanceSupervisorService({
+    prisma,
+    clock: () => new Date('2026-08-27T01:00:00.000Z'),
+    siteAuthorityService: { resolve: async ({ assignment }) => ({ site: assignment.securitySite }) }
+  });
+
+  const result = await service.history({
+    actor: { role: 'MANAGER', department: 'OPS' },
+    filters: { from: '2026-08-01', to: '2026-08-27', page: 1, pageSize: 1 }
+  });
+
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.meta.total, 2);
+  assert.equal(result.meta.totalPages, 2);
+  assert.equal(result.scope.department, 'OPS');
+  assert.equal(result.rows[0].correctionAuthority, 'RAW_ATTENDANCE_EVENT');
+});
+
+test('detail is Manager department-scoped and exposes original/effective authority metadata', async () => {
+  const row = shiftAssignment({
+    id: 'detail-a', employeeId: 'emp-a', name: 'Alpha', department: 'OPS',
+    events: [event('CHECK_IN', '2026-08-25T00:00:00.000Z', 'detail-a-site')]
+  });
+  row.attendanceSession.events[0].id = 'event-detail-in';
+  row.attendanceSession.events[0].receivedAt = new Date('2026-08-25T00:00:01.000Z');
+
+  const prisma = {
+    shiftAssignment: { findUnique: async () => row },
+    leaveRequest: { findMany: async () => [] },
+    securitySite: { findUnique: async () => null }
+  };
+  const service = createAttendanceSupervisorService({
+    prisma,
+    clock: () => new Date('2026-08-25T01:00:00.000Z'),
+    siteAuthorityService: { resolve: async ({ assignment }) => ({ site: assignment.securitySite }) }
+  });
+
+  const detail = await service.detail({
+    actor: { role: 'MANAGER', department: 'OPS' },
+    assignmentId: 'detail-a'
+  });
+  assert.equal(detail.assignmentId, 'detail-a');
+  assert.equal(detail.rawEvents[0].id, 'event-detail-in');
+  assert.equal(detail.governance.canCreateAdjustmentRequest, true);
+  assert.equal(detail.governance.canApproveAdjustmentRequest, false);
+  assert.equal(detail.governance.directOverrideEnabled, false);
+
+  await assert.rejects(
+    () => service.detail({ actor: { role: 'MANAGER', department: 'OTHER' }, assignmentId: 'detail-a' }),
+    /another Department/
+  );
 });
