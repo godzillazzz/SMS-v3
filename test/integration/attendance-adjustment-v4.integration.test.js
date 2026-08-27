@@ -170,6 +170,22 @@ if (!configured) {
     await prisma.$disconnect();
   });
 
+  test('legacy direct correction service is fail-closed and cannot create authoritative Attendance', async () => {
+    await assert.rejects(
+      () => legacyCorrection.correct({
+        actor: admin,
+        assignmentId: ids.assignment,
+        eventType: 'CHECK_IN',
+        correctedEffectiveEventAt: '2099-04-10T00:01:00.000Z',
+        reason: 'Legacy direct write must remain disabled'
+      }),
+      (error) => error.statusCode === 409 && error.details?.code === 'ATTENDANCE_CORRECTION_DIRECT_WRITE_DISABLED'
+    );
+
+    const corrections = await currentCorrectionsForAssignments(prisma, [ids.assignment]);
+    assert.equal(corrections.length, 0);
+  });
+
   test('pending Manager request has zero authority effect; Manager approval is forbidden; ADMIN approval creates effective provenance', async () => {
     const draft = await service.createDraft({
       actor: manager,
@@ -298,13 +314,16 @@ if (!configured) {
     });
     await service.submit({ actor: manager, id: draft.id });
 
-    await legacyCorrection.correct({
+    const newerDraft = await service.createDraft({
       actor: admin,
       assignmentId: ids.assignment,
-      eventType: 'CHECK_IN',
-      correctedEffectiveEventAt: '2099-04-10T00:10:00.000Z',
-      reason: 'Simulated authority change after request submission'
+      requestType: 'ADJUST_WORK_TIME',
+      proposal: { checkInAt: '2099-04-10T00:10:00.000Z' },
+      reason: 'Approved newer request changes authority after older request submission'
     });
+    await service.submit({ actor: admin, id: newerDraft.id });
+    const newerApproved = await service.approve({ actor: admin, id: newerDraft.id });
+    assert.equal(newerApproved.status, 'APPROVED');
 
     await assert.rejects(
       () => service.approve({ actor: admin, id: draft.id }),
