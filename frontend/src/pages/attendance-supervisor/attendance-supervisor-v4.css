@@ -527,6 +527,58 @@
   font-size: 8px;
 }
 
+.attendance-supervisor-v4__detail-requests {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #e7edf4;
+  padding: 16px 0;
+}
+
+.attendance-supervisor-v4__detail-requests h4 {
+  margin: 0 0 3px;
+  color: #183561;
+  font-size: 12px;
+}
+
+.attendance-supervisor-v4__detail-requests > p {
+  margin: 0;
+  color: #7e899b;
+  font-size: 8px;
+}
+
+.attendance-supervisor-v4__detail-requests article {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #e1e9f3;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fbfdff;
+}
+
+.attendance-supervisor-v4__detail-requests article > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.attendance-supervisor-v4__detail-requests article strong {
+  color: #254066;
+  font-size: 9px;
+}
+
+.attendance-supervisor-v4__detail-requests article small {
+  color: #7d899b;
+  font-size: 8px;
+}
+
+.attendance-supervisor-v4__detail-requests article p {
+  margin: 0;
+  color: #5f6f86;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
 .attendance-supervisor-v4__legacy-warning {
   display: grid;
   gap: 4px;
