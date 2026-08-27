@@ -1,0 +1,86 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+
+const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+const page = read('./pages/attendance/AttendancePage.tsx');
+const css = read('./pages/attendance/attendance-v4.css');
+const main = read('./main.tsx');
+const client = read('./pages/attendance/attendance-client.ts');
+const history = read('./pages/pwa-attendance/AttendanceHistoryPwaPage.tsx');
+const schedule = read('./pages/pwa-attendance/AttendanceSchedulePwaPage.tsx');
+
+describe('Attendance UX V4 visual acceptance contract', () => {
+  it('renders a dedicated mockup-locked Clock surface instead of merely restyling the legacy Attendance pane', () => {
+    expect(main).toContain("variant={pwaShell ? 'employeeV4' : 'legacy'}");
+    expect(main).toContain("activePage !== 'attendance'");
+    for (const className of [
+      'attendance-v4__topbar',
+      'attendance-v4__employee',
+      'attendance-v4__hero-wrap',
+      'attendance-v4__action',
+      'attendance-v4__status-pill',
+      'attendance-v4__readiness',
+      'attendance-v4__clock',
+      'attendance-v4__footer'
+    ]) expect(page).toContain(className);
+    expect(css).toContain('width: 286px;');
+    expect(css).toContain('height: 286px;');
+    expect(css).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
+    expect(css).toContain('linear-gradient(145deg, #fff, #f9fbff)');
+  });
+
+  it('locks the owner-approved information hierarchy and five-tab employee navigation', () => {
+    for (const text of ['SMS Time Attendance', 'Expected Site', 'TAP TO CHECK IN', 'GPS', 'QR', 'Face', 'Device', 'ดูประวัติวันนี้']) {
+      expect(page).toContain(text);
+    }
+    const nav = main.slice(main.indexOf('className="pwa-bottom-nav"'), main.indexOf('</nav>}', main.indexOf('className="pwa-bottom-nav"')));
+    for (const label of ['ลงเวลา', 'ประวัติ', 'ตารางงาน', 'ลา', 'โปรไฟล์']) expect(nav).toContain(label);
+  });
+
+  it('uses real self-service data rather than mock employee, shift, site, history, or schedule records', () => {
+    expect(client).toContain('/attendance/me/today');
+    expect(client).toContain('/attendance/me/history');
+    expect(client).toContain('/attendance/me/schedule');
+    expect(page).toContain('todayData?.employee.employeeCode');
+    expect(page).toContain('assignment?.expectedSite?.name');
+    expect(history).toContain('data.rows.map');
+    expect(schedule).toContain('data.rows.map');
+    expect(page).not.toContain('540368');
+    expect(page).not.toContain('SERMPONG');
+    expect(page).not.toContain('คลินิกฟัน รักษ์ยิ้ม');
+  });
+
+  it('creates a distinct Success Receipt using server-authoritative AttendanceEvent time and today-history CTA', () => {
+    expect(page).toContain('attendance-v4__receipt');
+    expect(page).toContain("typeof accepted.event?.effectiveEventAt === 'string'");
+    expect(page).toContain("typeof accepted.event?.receivedAt === 'string'");
+    expect(page).toContain('SERVER_RECEIVED');
+    expect(page).toContain('Receipt / Event ID');
+    expect(page).toContain('onTodayHistory');
+    expect(main).toContain("selectPwaPage('attendanceHistory', { today: true })");
+    expect(page).not.toContain('setAttendanceAccepted({ intent: acceptedIntent, acceptedAt: new Date() })');
+  });
+
+  it('provides actionable Location Denied recovery with automatic iOS/Android guidance and permission re-check', () => {
+    expect(page).toContain("'LOCATION_PERMISSION_DENIED'");
+    expect(page).toContain('เปิดการตั้งค่าตำแหน่ง');
+    expect(page).toContain("platform === 'ios'");
+    expect(page).toContain("platform === 'android'");
+    expect(page).toContain('Privacy & Security → Location Services');
+    expect(page).toContain('Location → App permissions');
+    expect(page).toContain("navigator.permissions.query({ name: 'geolocation' as PermissionName })");
+    expect(page).toContain('locationRecoveryPendingRef.current = true');
+    expect(page).toContain('retryLocationForActiveAttempt');
+    expect(page).not.toContain('watchPosition');
+  });
+
+  it('keeps visual quality responsive for phone widths and respects PWA safe-area chrome', () => {
+    expect(css).toContain('@media (max-width: 620px)');
+    expect(css).toContain('@media (max-width: 420px)');
+    expect(css).toContain('@media (max-width: 360px)');
+    const shell = read('./styles/pwa-shell.css');
+    expect(shell).toContain('env(safe-area-inset-top)');
+    expect(shell).toContain('env(safe-area-inset-bottom)');
+    expect(shell).toContain('.pwa-page-attendance');
+  });
+});
