@@ -1,0 +1,205 @@
+name: ONE-TIME G06 V4 CLEAN FINAL Staged Production
+
+on:
+  push:
+    branches:
+      - fix/serverless-database-reliability
+    paths:
+      - .github/workflows/one-time-g06-v4-staged-production.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-staging-production-fac8
+  cancel-in-progress: false
+
+env:
+  TARGET_SHA: fac8bfad14f6ba9a989173ae851b6239951654e0
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_CANONICAL_DEPLOYMENT_ID: dpl_HKjuqzLEfA8tj8WKpSp1JSnugeUB
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      NODE_ENV: production
+      VERCEL_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Checkout exact approved Application SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate exact source and target identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test -z "$(git status --porcelain)"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          git fetch --no-tags origin fix/serverless-database-reliability
+          git merge-base --is-ancestor "$TARGET_SHA" origin/fix/serverless-database-reliability
+          echo "STAGED_SOURCE_SHA=$TARGET_SHA"
+
+      - name: Install dependencies and verify Production migration ledger is current
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx prisma generate
+          node scripts/ci/prisma-migration.js status
+
+      - name: Pull approved Production configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=production --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/vercel-pull.log 2>&1
+          node - <<'NODE'
+          const fs = require('fs');
+          const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
+          if (project.projectId !== process.env.EXPECTED_PROJECT_ID || project.orgId !== process.env.EXPECTED_ORG_ID) {
+            throw new Error('Vercel project linkage mismatch');
+          }
+          NODE
+
+      - name: Build exact prebuilt Production artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_log=$(mktemp)
+          CI_MIGRATION_COMPLETED=true npx --yes vercel@"$VERCEL_CLI_VERSION" build --prod --token "$VERCEL_TOKEN" >"$build_log" 2>&1
+          grep -Fq 'Vercel build is build-only' "$build_log"
+          grep -Fq 'Prisma generate passed' "$build_log"
+          grep -Fq 'Application build passed' "$build_log"
+          if grep -Eiq 'prisma migrate deploy|Prisma migrate deploy started|Prisma migrate deploy passed' "$build_log"; then
+            echo 'Unexpected migration during Vercel build'
+            exit 1
+          fi
+          test -f frontend/dist/index.html
+          test -f .vercel/output/config.json
+          rm -f "$build_log"
+
+      - name: Restore exact source identity before deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD --staged --worktree -- .
+          git clean -fd
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test -z "$(git status --porcelain)"
+          test -f frontend/dist/index.html
+          test -f .vercel/output/config.json
+
+      - name: Create Production-target STAGED deployment without domain assignment
+        id: staged
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_json=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --prod --skip-domain --yes --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json >"$deploy_json"
+          node - "$deploy_json" <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('fs');
+          const raw = fs.readFileSync(process.argv[2], 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('Deployment JSON missing');
+          const data = JSON.parse(match[0]);
+          const id = data.id || data.deploymentId;
+          const url = data.url || data.deploymentUrl;
+          if (!/^dpl_[A-Za-z0-9]+$/.test(id || '')) throw new Error('Deployment id invalid');
+          if (!/^https:\/\/sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app\/?$/.test(url || '')) throw new Error('Deployment URL invalid');
+          process.stdout.write(`deployment_id=${id}\ndeployment_url=${url}\n`);
+          NODE
+          rm -f "$deploy_json"
+
+      - name: Inspect exact staged deployment and prove Canonical unchanged
+        shell: bash
+        env:
+          DEPLOYMENT_ID: ${{ steps.staged.outputs.deployment_id }}
+        run: |
+          set -euo pipefail
+          staged_json=$(mktemp)
+          canonical_json=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$DEPLOYMENT_ID" --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$staged_json"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical_json"
+          node - "$staged_json" "$canonical_json" <<'NODE'
+          const fs = require('fs');
+          const parse = (file) => {
+            const raw = fs.readFileSync(file, 'utf8');
+            const m = raw.match(/\{[\s\S]*\}/);
+            if (!m) throw new Error('inspect JSON missing');
+            return JSON.parse(m[0]);
+          };
+          const staged = parse(process.argv[2]);
+          const canonical = parse(process.argv[3]);
+          if (staged.name !== process.env.EXPECTED_PROJECT_NAME) throw new Error('staged project mismatch');
+          if (staged.target !== 'production') throw new Error('staged target is not production');
+          if (staged.readyState !== 'READY') throw new Error('staged deployment is not READY');
+          const stagedSha = staged.meta?.githubCommitSha || staged.gitSource?.sha || null;
+          if (stagedSha && stagedSha !== process.env.TARGET_SHA) throw new Error(`staged SHA mismatch: ${stagedSha}`);
+          if (canonical.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT_ID) throw new Error('Canonical changed before promotion');
+          console.log(`STAGED_DEPLOYMENT_ID=${staged.id}`);
+          console.log(`STAGED_DEPLOYMENT_URL=https://${staged.url}`);
+          console.log(`STAGED_SHA=${stagedSha || process.env.TARGET_SHA}`);
+          console.log(`CANONICAL_UNCHANGED=${canonical.id}`);
+          NODE
+          rm -f "$staged_json" "$canonical_json"
+
+      - name: Staged health and readiness
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.staged.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          for path in /api/v1/health /api/v1/ready; do
+            out=$(mktemp)
+            npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$path" --deployment "$DEPLOYMENT_URL" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$out"
+            node - "$out" "$path" <<'NODE'
+            const fs = require('fs');
+            const [file, path] = process.argv.slice(2);
+            const raw = fs.readFileSync(file, 'utf8');
+            let body;
+            try { body = JSON.parse(raw); } catch { throw new Error(`${path} response is not JSON`); }
+            if (path.endsWith('/health') && body.status !== 'ok') throw new Error('health failed');
+            if (path.endsWith('/ready') && (body.status !== 'ready' || body.database !== 'ok')) throw new Error('readiness failed');
+            console.log(`STAGED_${path.endsWith('/ready') ? 'READY' : 'HEALTH'}=PASS`);
+            NODE
+            rm -f "$out"
+          done
+
+      - name: Publish staged checkpoint
+        env:
+          DEPLOYMENT_ID: ${{ steps.staged.outputs.deployment_id }}
+          DEPLOYMENT_URL: ${{ steps.staged.outputs.deployment_url }}
+        run: |
+          {
+            echo '### G06 V4 clean staged Production checkpoint'
+            echo "Exact Application SHA: $TARGET_SHA"
+            echo "Staged deployment: $DEPLOYMENT_ID"
+            echo "Staged URL: $DEPLOYMENT_URL"
+            echo 'Target: production'
+            echo 'Domain assignment: SKIPPED'
+            echo "Canonical remains: $EXPECTED_CANONICAL_DEPLOYMENT_ID"
+            echo 'Promotion: NOT PERFORMED'
+          } >> "$GITHUB_STEP_SUMMARY"
