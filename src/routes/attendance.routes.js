@@ -145,14 +145,14 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
 
   router.get('/me/history', async (req, res, next) => {
     try {
-      const query = selfHistoryQuery.parse({ from: req.query.from, to: req.query.to });
+      const query = selfHistoryQuery.parse(req.query);
       res.json({ data: await employeeSelf.history({ actor: req.user, ...query }) });
     } catch (error) { next(error); }
   });
 
   router.get('/me/schedule', async (req, res, next) => {
     try {
-      const query = selfScheduleQuery.parse({ month: req.query.month });
+      const query = selfScheduleQuery.parse(req.query);
       res.json({ data: await employeeSelf.schedule({ actor: req.user, ...query }) });
     } catch (error) { next(error); }
   });
