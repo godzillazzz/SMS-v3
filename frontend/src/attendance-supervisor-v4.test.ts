@@ -40,6 +40,13 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain('LEGACY_CURRENT_CORRECTION_OVERLAY');
   });
 
+  it('shows governed request history inside Attendance detail without making pending values effective', () => {
+    expect(page).toContain('Adjustment Request History');
+    expect(page).toContain('detailRequests');
+    expect(page).toContain('listAttendanceAdjustments(token, { assignmentId, page: 1, pageSize: 10 })');
+    expect(page).toContain('requestStatusLabel(request.status)');
+  });
+
   it('wires governed Manager/Admin request creation without direct Attendance mutation', () => {
     expect(page).toContain('ยืนยันปฏิบัติงาน');
     expect(page).toContain('แก้ไขเวลาปฏิบัติงาน');
