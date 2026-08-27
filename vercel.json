@@ -41,5 +41,8 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ]
+  ],
+  "env": {
+    "ATTENDANCE_API_PREVIEW_ENABLED": "true"
+  }
 }
