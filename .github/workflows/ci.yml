@@ -12,7 +12,7 @@ on:
       - feature/approval-workflow-standard-v1
       - feature/g06-department-security-site-v1
   pull_request:
-    branches: [main, fix/serverless-database-reliability]
+    branches: [main, fix/serverless-database-reliability, ci/attendance-v4-prod-baseline]
 
 permissions:
   contents: read
