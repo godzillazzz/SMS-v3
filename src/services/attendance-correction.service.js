@@ -72,10 +72,18 @@ async function currentCorrectionsForAssignments(client, assignmentIds) {
       reason,
       actor_user_id AS "actorUserId",
       actor_role_snapshot AS "actorRoleSnapshot",
+      source_adjustment_request_id AS "sourceAdjustmentRequestId",
+      source_adjustment_revision AS "sourceAdjustmentRevision",
+      approved_by_user_id AS "approvedByUserId",
+      approved_at AS "approvedAt",
       created_at AS "createdAt"
     FROM attendance_corrections
     WHERE shift_assignment_id IN (${Prisma.join(assignmentIds.map((id) => Prisma.sql`${id}::uuid`))})
       AND is_current = TRUE
+      AND source_adjustment_request_id IS NOT NULL
+      AND source_adjustment_revision IS NOT NULL
+      AND approved_by_user_id IS NOT NULL
+      AND approved_at IS NOT NULL
     ORDER BY shift_assignment_id, event_type
   `);
 }
@@ -94,10 +102,18 @@ async function currentCorrectionsForSessions(client, sessionIds) {
       reason,
       actor_user_id AS "actorUserId",
       actor_role_snapshot AS "actorRoleSnapshot",
+      source_adjustment_request_id AS "sourceAdjustmentRequestId",
+      source_adjustment_revision AS "sourceAdjustmentRevision",
+      approved_by_user_id AS "approvedByUserId",
+      approved_at AS "approvedAt",
       created_at AS "createdAt"
     FROM attendance_corrections
     WHERE attendance_session_id IN (${Prisma.join(sessionIds.map((id) => Prisma.sql`${id}::uuid`))})
       AND is_current = TRUE
+      AND source_adjustment_request_id IS NOT NULL
+      AND source_adjustment_revision IS NOT NULL
+      AND approved_by_user_id IS NOT NULL
+      AND approved_at IS NOT NULL
     ORDER BY attendance_session_id, event_type
   `);
 }
@@ -123,6 +139,10 @@ function applyCurrentCorrections(events = [], corrections = []) {
         reason: correction.reason,
         actorUserId: correction.actorUserId,
         actorRoleSnapshot: correction.actorRoleSnapshot,
+        sourceAdjustmentRequestId: correction.sourceAdjustmentRequestId || null,
+        sourceAdjustmentRevision: correction.sourceAdjustmentRevision == null ? null : Number(correction.sourceAdjustmentRevision),
+        approvedByUserId: correction.approvedByUserId || null,
+        approvedAt: correction.approvedAt || null,
         createdAt: correction.createdAt
       }
     };
