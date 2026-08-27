@@ -5,6 +5,7 @@ const HttpError = require('../utils/http-error');
 const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
 const { classifyAttendanceDay } = require('./attendance-result.service');
 const { bangkokParts, isOvernightAssignment } = require('./attendance-verification-context.service');
+const { currentCorrectionsForAssignments, applyCurrentCorrections } = require('./attendance-correction.service');
 
 const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
 const MAX_HISTORY_DAYS = 62;
@@ -85,7 +86,7 @@ function siteSummary(site) {
   return site ? { id: site.id, code: site.code, name: site.name } : null;
 }
 
-function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new Date(), siteAuthorityService = null } = {}) {
+function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new Date(), siteAuthorityService = null, correctionsForAssignments = currentCorrectionsForAssignments, applyCorrections = applyCurrentCorrections } = {}) {
   const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
 
   async function identity(actor, client = prisma) {
@@ -149,10 +150,12 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
     }));
   }
 
-  async function normalizeAssignment(assignment, employee, asOf, client = prisma) {
+  async function normalizeAssignment(assignment, employee, asOf, client = prisma, providedCorrections = null) {
     const rawEvents = assignment.attendanceSession?.events || [];
+    const corrections = providedCorrections || await correctionsForAssignments(client, [assignment.id]);
+    const effectiveEvents = applyCorrections(rawEvents, corrections);
     const hasLeave = await approvedLeave(employee.id, assignment.workDate, client);
-    const result = classifyAttendanceDay({ assignment, events: rawEvents, approvedLeave: hasLeave, asOf });
+    const result = classifyAttendanceDay({ assignment, events: effectiveEvents, approvedLeave: hasLeave, asOf });
     const expectedSite = await resolveExpectedSite(assignment, client);
     const observedSiteId = actualSiteId(rawEvents);
     let actualSite = null;
@@ -161,8 +164,10 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
         ? expectedSite
         : await client.securitySite.findUnique({ where: { id: observedSiteId }, select: { id: true, code: true, name: true } }).catch(() => null);
     }
-    const checkIn = eventByType(rawEvents, 'CHECK_IN');
-    const checkOut = eventByType(rawEvents, 'CHECK_OUT');
+    const originalCheckIn = eventByType(rawEvents, 'CHECK_IN');
+    const originalCheckOut = eventByType(rawEvents, 'CHECK_OUT');
+    const correctedTypes = corrections.map((row) => String(row.eventType || '').toUpperCase()).filter(Boolean);
+    const corrected = correctedTypes.length > 0;
     return {
       date: dateText(assignment.workDate),
       assignmentId: assignment.id,
@@ -173,16 +178,20 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
       actualSite: siteSummary(actualSite),
       expectedStartAt: result.expectedStartAt,
       expectedEndAt: result.expectedEndAt,
+      originalCheckInAt: originalCheckIn?.effectiveEventAt || null,
+      originalCheckOutAt: originalCheckOut?.effectiveEventAt || null,
       checkInAt: result.checkInAt,
       checkOutAt: result.checkOutAt,
-      checkInEventId: checkIn?.id || null,
-      checkOutEventId: checkOut?.id || null,
+      checkInEventId: originalCheckIn?.id || null,
+      checkOutEventId: originalCheckOut?.id || null,
       workedMinutes: result.workedMinutes,
       lateMinutes: result.lateMinutes,
       earlyOutMinutes: result.earlyOutMinutes,
       status: result.status,
       flags: result.flags,
-      authority: 'RAW_ATTENDANCE_EVENT'
+      corrected,
+      correctionEventTypes: correctedTypes,
+      authority: corrected ? 'EFFECTIVE_ATTENDANCE_CORRECTION' : 'RAW_ATTENDANCE_EVENT'
     };
   }
 
@@ -271,11 +280,26 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
       include: assignmentInclude(),
       orderBy: { workDate: 'desc' }
     });
+    const corrections = await correctionsForAssignments(client, assignments.map((assignment) => assignment.id));
+    const correctionsByAssignment = new Map();
+    for (const correction of corrections) {
+      const key = String(correction.shiftAssignmentId);
+      const bucket = correctionsByAssignment.get(key) || [];
+      bucket.push(correction);
+      correctionsByAssignment.set(key, bucket);
+    }
+
     const rows = [];
     for (const assignment of assignments) {
       const approval = await latestApprovalForWorkDate(assignment.workDate, client);
       if (!approval || approval.status !== 'APPROVED') continue;
-      rows.push(await normalizeAssignment(assignment, resolved.employee, clock(), client));
+      rows.push(await normalizeAssignment(
+        assignment,
+        resolved.employee,
+        clock(),
+        client,
+        correctionsByAssignment.get(String(assignment.id)) || []
+      ));
     }
     return { generatedAt: clock(), employee: employeeSummary(resolved.employee), from: dateText(start), to: dateText(end), rows };
   }
