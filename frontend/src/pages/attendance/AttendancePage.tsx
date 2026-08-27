@@ -708,9 +708,13 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
 
   if (employeeV4) {
     const assignment = todayData?.assignment || null;
+    const scheduleReady = Boolean(todayData?.scheduleReady && assignment);
     const shiftCode = assignment?.shift.code || assignment?.shift.name || '—';
-    const shiftTime = assignment ? `${assignment.shift.startTime || '—'}–${assignment.shift.endTime || '—'}` : '—';
-    const siteName = assignment?.expectedSite?.name || 'รอข้อมูล Site';
+    const shiftTime = assignment
+      ? `${assignment.shift.startTime || '—'}–${assignment.shift.endTime || '—'}`
+      : todayLoading ? 'กำลังโหลดตารางงาน…' : 'ยังไม่มีตารางที่อนุมัติ';
+    const siteName = assignment?.expectedSite?.name
+      || (todayLoading ? 'กำลังโหลดข้อมูล Site…' : 'ยังไม่มี Site ตามตารางงาน');
     const employeeName = todayData?.employee.displayName || displayName || 'ผู้ใช้งาน SMS';
     const employeeCode = todayData?.employee.employeeCode || '';
     const nextIntent: AttendanceEventIntent = eventIntent || (assignment?.checkInAt && !assignment?.checkOutAt ? 'CHECK_OUT' : 'CHECK_IN');
@@ -719,13 +723,37 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       ? 'PROCESSING'
       : attendanceComplete
         ? 'ATTENDANCE COMPLETE'
-        : nextIntent === 'CHECK_OUT'
-          ? 'TAP TO CHECK OUT'
-          : 'TAP TO CHECK IN';
-    const actionThai = flowBusy ? 'กำลังตรวจสอบ…' : attendanceComplete ? 'ลงเวลาครบแล้ว' : nextIntent === 'CHECK_OUT' ? 'พร้อมเช็กเอาต์' : 'พร้อมเช็กอิน';
+        : todayLoading
+          ? 'LOADING SHIFT'
+          : !scheduleReady
+            ? 'SHIFT NOT READY'
+            : nextIntent === 'CHECK_OUT'
+              ? 'TAP TO CHECK OUT'
+              : 'TAP TO CHECK IN';
+    const actionThai = flowBusy
+      ? 'กำลังตรวจสอบ…'
+      : attendanceComplete
+        ? 'ลงเวลาครบแล้ว'
+        : todayLoading
+          ? 'กำลังอ่านตารางงาน…'
+          : !scheduleReady
+            ? 'รอตารางงานที่อนุมัติ'
+            : nextIntent === 'CHECK_OUT'
+              ? 'พร้อมเช็กเอาต์'
+              : 'พร้อมเช็กอิน';
     const flags = assignment?.flags || [];
-    const statusTone = flags.includes('TIME_ABNORMAL') || flags.includes('ABSENT') ? 'is-danger' : flags.includes('LATE') || flags.includes('EARLY_OUT') ? 'is-warning' : '';
-    const statusLabel = flags.includes('TIME_ABNORMAL') ? 'ABNORMAL' : flags.includes('ABSENT') ? 'ABSENT' : flags.includes('LATE') ? 'LATE' : todayData?.scheduleReady ? 'ON TIME' : 'NOT READY';
+    const statusTone = !scheduleReady ? 'is-pending' : flags.includes('TIME_ABNORMAL') || flags.includes('ABSENT') ? 'is-danger' : flags.includes('LATE') || flags.includes('EARLY_OUT') ? 'is-warning' : '';
+    const statusLabel = todayLoading
+      ? 'LOADING'
+      : !scheduleReady
+        ? 'NOT READY'
+        : flags.includes('TIME_ABNORMAL')
+          ? 'ABNORMAL'
+          : flags.includes('ABSENT')
+            ? 'ABSENT'
+            : flags.includes('LATE')
+              ? 'LATE'
+              : 'ON TIME';
     const dateLabel = new Intl.DateTimeFormat('en-US', {
       timeZone: 'Asia/Bangkok',
       weekday: 'long',
@@ -755,7 +783,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     const qrV4Ready = qrReady || Boolean(readiness && !qrStepUpRequired && readiness.state === 'READY_TO_START_VERIFICATION');
     const faceV4Ready = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
     const deviceV4Ready = deviceEnrolled || Boolean(attendanceAccepted) || Boolean(verificationSession);
-    const actionEnabled = canStartAttendance && !attendanceComplete && Boolean(todayData?.scheduleReady);
+    const actionEnabled = canStartAttendance && !attendanceComplete && scheduleReady;
 
     return <section className="attendance-v4" aria-label="SMS Time Attendance">
       <AttendanceQrScanner
@@ -804,7 +832,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         </button>
       </header>
 
-      <article className="attendance-v4__employee">
+      <article className={`attendance-v4__employee ${assignment ? '' : 'is-empty'}`}>
         <p className="attendance-v4__employee-site">{siteName}</p>
         <h1>{employeeCode ? `${employeeCode} ` : ''}{employeeName}</h1>
         <div className="attendance-v4__employee-meta">
@@ -882,7 +910,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
 
         <div className="attendance-v4__ready-line" role="status">
           <SmsIcon name={flowBusy ? 'refresh' : 'check'} size={18} />
-          <span>{todayLoading ? 'กำลังอ่านตารางงาน…' : todayData?.scheduleReady ? <>Ready for <b>{nextIntent === 'CHECK_OUT' ? 'CHECK OUT' : 'CHECK IN'}</b></> : 'ยังไม่พร้อมลงเวลา'}</span>
+          <span>{todayLoading ? 'กำลังอ่านตารางงาน…' : scheduleReady ? <>Ready for <b>{nextIntent === 'CHECK_OUT' ? 'CHECK OUT' : 'CHECK IN'}</b></> : 'ยังไม่พร้อมลงเวลา · ต้องมีตารางที่อนุมัติ'}</span>
         </div>
       </>}
 
