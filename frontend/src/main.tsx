@@ -2549,7 +2549,7 @@ function Dashboard() {
     }
     if (activePage === 'attendance' && auth.token) {
       if (!pwaShell && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')) {
-        return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} />;
+        return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} userId={auth.user?.id} />;
       }
       return <AttendancePage
         token={auth.token}
