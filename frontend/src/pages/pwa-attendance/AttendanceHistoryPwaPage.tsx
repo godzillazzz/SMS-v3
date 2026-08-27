@@ -96,7 +96,10 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
         return <article className="employee-v4-history-card" key={row.assignmentId}>
           <div className="employee-v4-history-card__top">
             <div><strong>{dateLabel(row.date)}</strong><span>{row.shift.code || row.shift.name || 'SHIFT'} · {row.shift.startTime || '—'}–{row.shift.endTime || '—'}</span></div>
-            <span className={`employee-v4-status is-${currentStatus.tone}`}>{currentStatus.label}</span>
+            <div className="employee-v4-history-card__badges">
+              {row.corrected && <span className="employee-v4-correction-badge"><SmsIcon name="history" size={12} />ปรับแล้ว</span>}
+              <span className={`employee-v4-status is-${currentStatus.tone}`}>{currentStatus.label}</span>
+            </div>
           </div>
           <div className="employee-v4-history-times">
             <div><span>เวลาเข้า</span><strong>{time(row.checkInAt)}</strong></div>
@@ -105,6 +108,19 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
             <i />
             <div><span>ชั่วโมง</span><strong>{duration(row.workedMinutes)}</strong></div>
           </div>
+          {row.corrected && <details className="employee-v4-history-correction">
+            <summary><SmsIcon name="history" size={15} />ดูเวลาเดิมและเวลาที่มีผล</summary>
+            <div>
+              <span>รายการ</span><strong>เดิม</strong><strong>มีผล</strong>
+            </div>
+            <div>
+              <span>เวลาเข้า</span><strong>{time(row.originalCheckInAt)}</strong><strong>{time(row.checkInAt)}</strong>
+            </div>
+            <div>
+              <span>เวลาออก</span><strong>{time(row.originalCheckOutAt)}</strong><strong>{time(row.checkOutAt)}</strong>
+            </div>
+            <small>แสดงเฉพาะการแก้ไขที่มีผลต่อ Attendance แล้ว · Raw AttendanceEvent เดิมไม่ถูกแก้ไข</small>
+          </details>}
           <div className="employee-v4-history-site"><SmsIcon name="quality" size={16} /><span>{row.actualSite?.name || row.expectedSite?.name || 'ไม่ระบุ Site'}</span></div>
           {(row.lateMinutes || row.earlyOutMinutes) ? <div className="employee-v4-history-flags">
             {Boolean(row.lateMinutes) && <span>สาย {row.lateMinutes} นาที</span>}
