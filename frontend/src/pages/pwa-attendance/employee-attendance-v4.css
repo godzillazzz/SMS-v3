@@ -298,15 +298,40 @@
   line-height: 1.5;
 }
 
-.employee-v4-history-site {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--employee-v4-muted);
-  font-size: 10px;
+.employee-v4-history-sites {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
-.employee-v4-history-site svg { color: var(--employee-v4-blue); }
+.employee-v4-history-sites > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 6px;
+  align-items: center;
+  border: 1px solid #e1e9f3;
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: #fbfdff;
+}
+
+.employee-v4-history-sites svg {
+  grid-row: 1 / span 2;
+  color: var(--employee-v4-blue);
+}
+
+.employee-v4-history-sites span {
+  color: var(--employee-v4-muted);
+  font-size: 8px;
+}
+
+.employee-v4-history-sites strong {
+  overflow: hidden;
+  color: var(--employee-v4-ink);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .employee-v4-history-flags {
   display: flex;
@@ -416,6 +441,7 @@
   .employee-v4-history-card__top { align-items: stretch; }
   .employee-v4-history-card__badges { max-width: 46%; }
   .employee-v4-history-correction > div { grid-template-columns: 68px 1fr 1fr; }
+  .employee-v4-history-sites { grid-template-columns: 1fr; }
   .employee-v4-schedule-card { grid-template-columns: 50px minmax(0, 1fr); }
   .employee-v4-schedule-date { width: 50px; height: 50px; border-radius: 14px; }
   .employee-v4-schedule-note { grid-column: 2; max-width: none; text-align: left; }
