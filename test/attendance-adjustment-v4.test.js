@@ -76,6 +76,7 @@ test('Governed adjustment API keeps public direct correction fail-closed', () =>
   const index = read('src/routes/index.js');
   const service = read('src/services/attendance-adjustment.service.js');
   const correctionService = read('src/services/attendance-correction.service.js');
+  const authorityMigration = read('prisma/migrations/202608270002_attendance_effective_correction_authority_v4/migration.sql');
 
   assert.match(index, /router\.use\('\/attendance\/adjustment-requests', attendanceAdjustmentRoutes\)/);
   assert.match(adjustmentRoute, /router\.post\('\/:id\/approve', authorize\('ADMIN'\)/);
@@ -90,4 +91,10 @@ test('Governed adjustment API keeps public direct correction fail-closed', () =>
   assert.match(correctionService, /source_adjustment_request_id IS NOT NULL/);
   assert.match(correctionService, /approved_by_user_id IS NOT NULL/);
   assert.match(correctionService, /approved_at IS NOT NULL/);
+  assert.match(authorityMigration, /attendance_corrections_current_requires_approval/);
+  assert.match(authorityMigration, /"is_current" = FALSE/);
+  assert.match(authorityMigration, /"source_adjustment_request_id" IS NOT NULL/);
+  assert.match(authorityMigration, /"source_adjustment_revision" IS NOT NULL/);
+  assert.match(authorityMigration, /"approved_by_user_id" IS NOT NULL/);
+  assert.match(authorityMigration, /"approved_at" IS NOT NULL/);
 });
