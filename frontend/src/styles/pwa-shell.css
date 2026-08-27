@@ -62,6 +62,7 @@
 .app-shell.pwa-shell.pwa-page-attendance .content-area {
   max-width: 820px;
   padding-top: max(10px, env(safe-area-inset-top));
+  padding-bottom: calc(112px + env(safe-area-inset-bottom));
 }
 
 .app-shell.pwa-shell .pwa-bottom-nav button {
