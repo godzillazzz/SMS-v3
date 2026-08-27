@@ -323,11 +323,13 @@ export function AttendancePage({ token, readOnly = false, online = true, variant
       resetServerState();
     };
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') clearTransientAttemptForLifecycle();
+      if (document.visibilityState === 'hidden' && !locationRecoveryPendingRef.current) clearTransientAttemptForLifecycle();
     };
-    const handlePageHide = () => clearTransientAttemptForLifecycle();
+    const handlePageHide = () => {
+      if (!locationRecoveryPendingRef.current) clearTransientAttemptForLifecycle();
+    };
     const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) clearTransientAttemptForLifecycle();
+      if (event.persisted && !locationRecoveryPendingRef.current) clearTransientAttemptForLifecycle();
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('pagehide', handlePageHide);
@@ -464,6 +466,67 @@ export function AttendancePage({ token, readOnly = false, online = true, variant
     }
   };
 
+  const handleLocationFailure = (reason: unknown) => {
+    setLocation(null);
+    if (reason instanceof AttendanceLocationError) {
+      setLocationIssue(reason);
+      setError(reason.message);
+      if (reason.code === 'LOCATION_PERMISSION_DENIED') {
+        locationRecoveryPendingRef.current = true;
+      } else {
+        locationRecoveryPendingRef.current = false;
+      }
+      return;
+    }
+    locationRecoveryPendingRef.current = false;
+    setLocationIssue(null);
+    setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
+  };
+
+  const retryLocationForActiveAttempt = async () => {
+    const captureId = activeCaptureIdRef.current;
+    if (!captureId || interactionDisabledRef.current) return;
+    asyncEvidenceEpochRef.current += 1;
+    const operationEpoch = asyncEvidenceEpochRef.current;
+    setLocationBusy(true);
+    setChecking(false);
+    setError(undefined);
+    setLocationIssue(null);
+    try {
+      const nextLocation = await positionOnce();
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      locationRecoveryPendingRef.current = false;
+      setLocationHelpOpen(false);
+      setLocation(nextLocation);
+      setLocationBusy(false);
+      await checkReadinessWithEvidence(captureId, qrToken.trim() || undefined, nextLocation, operationEpoch);
+    } catch (reason) {
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      handleLocationFailure(reason);
+    } finally {
+      if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (variant !== 'employeeV4') return;
+    const resumeLocationAttempt = async () => {
+      if (!locationRecoveryPendingRef.current || interactionDisabledRef.current || !activeCaptureIdRef.current) return;
+      const permission = await geolocationPermissionState();
+      if (permission === 'granted' || permission === 'unknown') await retryLocationForActiveAttempt();
+    };
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') void resumeLocationAttempt();
+    };
+    const handlePageShowForLocation = () => { void resumeLocationAttempt(); };
+    document.addEventListener('visibilitychange', handleVisible);
+    window.addEventListener('pageshow', handlePageShowForLocation);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisible);
+      window.removeEventListener('pageshow', handlePageShowForLocation);
+    };
+  });
+
   const handleQrDetected = async (value: string) => {
     if (interactionDisabledRef.current) return;
     const captureId = activeCaptureIdRef.current;
@@ -496,8 +559,7 @@ export function AttendancePage({ token, readOnly = false, online = true, variant
       await checkReadinessWithEvidence(captureId, nextQrToken, nextLocation, operationEpoch);
     } catch (reason) {
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
-      setLocation(null);
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
+      handleLocationFailure(reason);
     } finally {
       if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
     }
@@ -517,6 +579,9 @@ export function AttendancePage({ token, readOnly = false, online = true, variant
     setQrToken('');
     setQrStepUpRequired(false);
     setLocation(null);
+    setLocationIssue(null);
+    setLocationHelpOpen(false);
+    locationRecoveryPendingRef.current = false;
     setLocationBusy(true);
     setChecking(false);
     resetServerState();
@@ -529,8 +594,7 @@ export function AttendancePage({ token, readOnly = false, online = true, variant
       await checkReadinessWithEvidence(captureId, undefined, nextLocation, operationEpoch);
     } catch (reason) {
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
-      setLocation(null);
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
+      handleLocationFailure(reason);
     } finally {
       if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
     }
@@ -583,9 +647,26 @@ export function AttendancePage({ token, readOnly = false, online = true, variant
       setRequestId(undefined);
       setCheckedAt(null);
       setError(undefined);
-      setAttendanceAccepted({ intent: acceptedIntent, acceptedAt: new Date() });
+      const acceptedAt = typeof accepted.event?.effectiveEventAt === 'string'
+        ? accepted.event.effectiveEventAt
+        : typeof accepted.event?.receivedAt === 'string'
+          ? accepted.event.receivedAt
+          : '';
+      if (!acceptedAt) throw new Error('Server ยอมรับ AttendanceEvent แต่ไม่ส่งเวลาฝั่ง Server กลับมา');
+      setAttendanceAccepted({
+        intent: acceptedIntent,
+        acceptedAt,
+        eventId: typeof accepted.event?.id === 'string' ? accepted.event.id : null,
+        sessionId: typeof accepted.session?.id === 'string' ? accepted.session.id : null
+      });
       setQrStepUpRequired(false);
       activeCaptureIdRef.current = null;
+      locationRecoveryPendingRef.current = false;
+      setLocationIssue(null);
+      setLocationHelpOpen(false);
+      if (variant === 'employeeV4') {
+        void attendanceSelfToday(token).then(setTodayData).catch(() => {});
+      }
       setVerificationStage('Server บันทึกเวลาเรียบร้อยแล้ว');
       setVerificationBusy(false);
       asyncEvidenceEpochRef.current += 1;
@@ -602,6 +683,142 @@ export function AttendancePage({ token, readOnly = false, online = true, variant
       if (operationEpoch === asyncEvidenceEpochRef.current) setVerificationBusy(false);
     }
   };
+
+  if (variant === 'employeeV4') {
+    const busy = locationBusy || checking || verificationBusy || faceCaptureOpen || scannerOpen;
+    const assignment = todayData?.assignment || null;
+    const displayIntent: AttendanceEventIntent = eventIntent || (assignment?.checkInAt && !assignment?.checkOutAt ? 'CHECK_OUT' : 'CHECK_IN');
+    const attendanceComplete = Boolean(assignment?.checkInAt && assignment?.checkOutAt) && !attendanceAccepted;
+    const actionText = busy
+      ? 'กำลังตรวจสอบ…'
+      : attendanceComplete
+        ? 'ATTENDANCE COMPLETE'
+        : displayIntent === 'CHECK_OUT'
+          ? 'TAP TO CHECK OUT'
+          : 'TAP TO CHECK IN';
+    const actionThai = busy ? 'กรุณารอสักครู่' : attendanceComplete ? 'ลงเวลาครบแล้ว' : displayIntent === 'CHECK_OUT' ? 'พร้อมเช็กเอาต์' : 'พร้อมเช็กอิน';
+    const employeeName = todayData?.employee.displayName || user?.displayName || 'ผู้ใช้งาน';
+    const employeeCode = todayData?.employee.employeeCode || '';
+    const siteName = assignment?.expectedSite?.name || 'รอข้อมูล Site';
+    const shiftCode = assignment?.shift.code || assignment?.shift.name || '—';
+    const shiftTime = assignment ? `${assignment.shift.startTime || '—'}–${assignment.shift.endTime || '—'}` : '—';
+    const flags = assignment?.flags || [];
+    const statusTone = flags.includes('TIME_ABNORMAL') || flags.includes('ABSENT') ? 'is-danger' : flags.includes('LATE') || flags.includes('EARLY_OUT') ? 'is-warning' : '';
+    const statusLabel = flags.includes('TIME_ABNORMAL') ? 'ABNORMAL' : flags.includes('ABSENT') ? 'ABSENT' : flags.includes('LATE') ? 'LATE' : 'ON TIME';
+    const clock = bangkokClockParts(liveNow);
+    const qrStatusReady = qrReady || Boolean(readiness && !qrStepUpRequired && readiness.state === 'READY_TO_START_VERIFICATION');
+    const faceStatusReady = Boolean(verificationSession || faceCaptureOpen || attendanceAccepted);
+    const deviceStatusReady = deviceReady || Boolean(verificationSession || attendanceAccepted);
+    const platform = platformKind();
+    const platformName = platform === 'ios' ? 'iPhone / iPad' : platform === 'android' ? 'Android' : 'อุปกรณ์นี้';
+    const locationSteps = platform === 'ios'
+      ? [
+          'เปิด Settings → Privacy & Security → Location Services และเปิด Location Services',
+          'เลือก Safari Websites หรือเบราว์เซอร์ที่ใช้งาน → เลือก While Using และเปิด Precise Location',
+          'หากใช้ Safari ให้ตรวจ Website Settings → Location ของเว็บไซต์นี้เป็น Allow แล้วกลับมาที่ SMS'
+        ]
+      : platform === 'android'
+        ? [
+            'เปิด Settings → Location → App permissions → เลือก Chrome หรือเบราว์เซอร์ที่ใช้งาน',
+            'ตั้ง Location เป็น Allow only while using the app และเปิด Precise location หากมีตัวเลือก',
+            'ใน Chrome ตรวจ Site settings → Location → เว็บไซต์ SMS ต้องเป็น Allow แล้วกลับมาที่ SMS'
+          ]
+        : [
+            'เปิดการตั้งค่าความเป็นส่วนตัว/ตำแหน่งของระบบปฏิบัติการและอนุญาต Location ให้เบราว์เซอร์',
+            'เปิด Site permissions ของเว็บไซต์ SMS และตั้ง Location เป็น Allow',
+            'กลับมาที่ SMS ระบบจะตรวจสิทธิ์และลองอ่าน GPS ใหม่'
+          ];
+
+    return <section className="attendance-v4" aria-label="SMS Time Attendance">
+      <AttendanceQrScanner
+        open={scannerOpen && !interactionDisabled}
+        autoFlow
+        onDetected={(value) => { void handleQrDetected(value); }}
+        onFailure={(message) => { setError(message); setVerificationStage('QR Step-up ไม่สำเร็จ · กดลงเวลาเพื่อลองใหม่'); setQrStepUpRequired(false); activeCaptureIdRef.current = null; }}
+        onClose={() => setScannerOpen(false)}
+      />
+      <AttendanceFaceCapture
+        open={faceCaptureOpen && !interactionDisabled}
+        busy={verificationBusy}
+        challenge={verificationSession?.activeChallenge || null}
+        autoFlow
+        onConfirm={handleFacePhotoConfirmed}
+        onFailure={(message) => { setError(message); setVerificationStage('การยืนยันตัวตนไม่สำเร็จ · กดลงเวลาเพื่อลองใหม่'); setVerificationSession(null); }}
+        onClose={() => setFaceCaptureOpen(false)}
+      />
+
+      {locationHelpOpen && <div className="attendance-v4__location-help" role="dialog" aria-modal="true" aria-label="วิธีเปิดสิทธิ์ตำแหน่ง">
+        <section className="attendance-v4__location-sheet">
+          <div className="attendance-v4__location-sheet-head">
+            <span><SmsIcon name="quality" size={22} /></span>
+            <div><strong>เปิดสิทธิ์ตำแหน่งบน {platformName}</strong><p>Web/PWA ไม่สามารถบังคับเปิดหน้าตั้งค่าระบบได้ทุกเบราว์เซอร์ จึงแสดงขั้นตอนที่ตรงกับอุปกรณ์ให้อัตโนมัติ</p></div>
+          </div>
+          <ol className="attendance-v4__location-steps">{locationSteps.map((step, index) => <li key={step}><b>{index + 1}</b><span>{step}</span></li>)}</ol>
+          <div className="attendance-v4__location-actions">
+            <button type="button" onClick={() => setLocationHelpOpen(false)}>ปิดคำแนะนำ</button>
+            <button type="button" onClick={() => void retryLocationForActiveAttempt()}>ตรวจสิทธิ์อีกครั้ง</button>
+          </div>
+        </section>
+      </div>}
+
+      <header className="attendance-v4__topbar">
+        <div className="attendance-v4__brand"><img src="/pwa-icon-192.png" alt="" /><strong>SMS Time Attendance</strong></div>
+        <button type="button" className="attendance-v4__settings" aria-label="การตั้งค่า" onClick={onOpenSettings}><SmsIcon name="settings" size={24} /></button>
+      </header>
+
+      <article className="attendance-v4__employee">
+        <p className="attendance-v4__employee-site">{siteName}</p>
+        <h1>{employeeCode ? `${employeeCode} ` : ''}{employeeName}</h1>
+        <div className="attendance-v4__employee-meta">
+          <div className="attendance-v4__meta-item"><SmsIcon name="clock" size={22} /><div><span>Shift: {shiftCode}</span><strong>{shiftTime}</strong></div></div>
+          <i />
+          <div className="attendance-v4__meta-item"><SmsIcon name="quality" size={22} /><div><span>Expected Site</span><strong>{siteName}</strong></div></div>
+        </div>
+      </article>
+
+      {attendanceAccepted ? <article className="attendance-v4__receipt" aria-live="polite">
+        <div className="attendance-v4__receipt-head"><span className="attendance-v4__receipt-check"><SmsIcon name="check" size={24} /></span><div><strong>บันทึกเวลาเรียบร้อย</strong><span>{intentLabel(attendanceAccepted.intent)} สำเร็จ</span></div></div>
+        <div className="attendance-v4__receipt-time"><strong>{new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(attendanceAccepted.acceptedAt))}</strong><span>{thaiTime(attendanceAccepted.acceptedAt)}</span></div>
+        <dl>
+          <div><dt>Site</dt><dd>{siteName}</dd></div>
+          <div><dt>Shift</dt><dd>{shiftCode} {shiftTime}</dd></div>
+          <div><dt>Receipt / Event ID</dt><dd>{attendanceAccepted.eventId || 'Server accepted'}</dd></div>
+        </dl>
+        <small>เวลาบนใบรับรองนี้มาจาก AttendanceEvent ฝั่ง Server (SERVER_RECEIVED) ไม่ใช่เวลาจากโทรศัพท์</small>
+        <button type="button" className="attendance-v4__today-link" onClick={onTodayHistory}><SmsIcon name="history" size={17} />ดูประวัติวันนี้</button>
+      </article> : <>
+        <div className="attendance-v4__hero-wrap">
+          <button type="button" className={`attendance-v4__action ${busy ? 'is-busy' : ''}`} disabled={!canStartAttendance || attendanceComplete || !todayData?.scheduleReady} onClick={() => void handleStartAttendance()}>
+            <span className="attendance-v4__action-content"><img className="attendance-v4__action-logo" src="/pwa-icon-192.png" alt="" /><strong>{actionText}</strong><small>{actionThai}</small></span>
+          </button>
+          <div className={`attendance-v4__status-pill ${statusTone}`}><strong>{statusLabel}</strong><span>{shiftCode === '—' ? 'SHIFT' : `${shiftCode} SHIFT`}</span></div>
+        </div>
+
+        <div className="attendance-v4__readiness" aria-label="ความพร้อมสำหรับลงเวลา">
+          <article className={`attendance-v4__ready-card ${gpsReady ? 'is-ready' : ''}`}><span className="attendance-v4__ready-icon"><SmsIcon name="quality" size={21} /></span><div><strong>GPS</strong><small>{gpsReady ? `Ready ±${Math.round(location?.accuracyMeters || 0)}m` : 'On tap'}</small></div>{gpsReady && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}</article>
+          <article className={`attendance-v4__ready-card ${qrStatusReady ? 'is-ready' : ''}`}><span className="attendance-v4__ready-icon"><SmsIcon name="quality" size={21} /></span><div><strong>QR</strong><small>{qrStepUpRequired ? 'Required' : qrStatusReady ? 'Ready' : 'Auto'}</small></div>{qrStatusReady && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}</article>
+          <article className={`attendance-v4__ready-card ${faceStatusReady ? 'is-ready' : ''}`}><span className="attendance-v4__ready-icon"><SmsIcon name="users" size={21} /></span><div><strong>Face</strong><small>{faceStatusReady ? 'Ready' : 'Auto'}</small></div>{faceStatusReady && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}</article>
+          <article className={`attendance-v4__ready-card ${deviceStatusReady ? 'is-ready' : ''}`}><span className="attendance-v4__ready-icon"><SmsIcon name="key" size={21} /></span><div><strong>Device</strong><small>{deviceStatusReady ? 'OK' : 'Check'}</small></div>{deviceStatusReady && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}</article>
+        </div>
+
+        <article className="attendance-v4__clock">
+          <strong>{clock.time}</strong><span>{clock.date}</span><small>เวลาหน้าจอสำหรับอ้างอิง · เวลา Attendance จริงยืนยันโดย Server</small>
+        </article>
+
+        <div className="attendance-v4__ready-line"><SmsIcon name="approval" size={18} /><span>{todayLoading ? 'กำลังอ่านตารางงาน…' : todayData?.scheduleReady ? <>Ready for <b>{displayIntent === 'CHECK_OUT' ? 'CHECK OUT' : 'CHECK IN'}</b></> : 'ยังไม่พร้อมลงเวลา'}</span></div>
+      </>}
+
+      {readOnly && <div className="attendance-v4__notice is-warning"><strong>View As · อ่านอย่างเดียว</strong><span>ไม่อนุญาตให้ ADMIN/MANAGER ลงเวลาแทนพนักงานจากหน้าจอนี้</span></div>}
+      {!online && <div className="attendance-v4__notice is-warning"><strong>ออฟไลน์</strong><span>Attendance ต้องเชื่อมต่อ Server จึงจะลงเวลาได้</span></div>}
+      {routeUnavailable && <div className="attendance-v4__notice is-warning"><strong>Attendance runtime ยังไม่เปิด</strong><span>Server gate ปิดอยู่ จึงไม่มี AttendanceEvent ถูกสร้าง</span></div>}
+      {locationIssue?.code === 'LOCATION_PERMISSION_DENIED' && <div className="attendance-v4__notice is-danger" role="alert"><strong>ต้องเปิดสิทธิ์ตำแหน่งก่อนลงเวลา</strong><span>SMS ใช้ตำแหน่งเฉพาะตอนลงเวลา ไม่ติดตามตำแหน่งต่อเนื่อง เมื่อเปิดสิทธิ์แล้วระบบจะตรวจและลอง GPS ใหม่โดยคง attempt เดิมไว้</span><button type="button" className="attendance-v4__today-link" onClick={() => setLocationHelpOpen(true)}>เปิดการตั้งค่าตำแหน่ง</button></div>}
+      {error && locationIssue?.code !== 'LOCATION_PERMISSION_DENIED' && <div className="attendance-v4__notice is-danger" role="alert"><strong>ลงเวลายังไม่สำเร็จ</strong><span>{error}</span>{requestId && <span>Request ID: {requestId}</span>}</div>}
+
+      {!attendanceAccepted && <button type="button" className="attendance-v4__today-link" onClick={onTodayHistory}><SmsIcon name="history" size={17} />ดูประวัติวันนี้</button>}
+
+      <footer className="attendance-v4__footer"><span>Platform Version: SMS Time 4.0 Preview</span><span>© 2020 SMS Security Management System Co., Ltd. All rights reserved.</span></footer>
+    </section>;
+  }
 
   return <section className="view-pane attendance-page attendance-one-action">
     <AttendanceQrScanner
