@@ -670,9 +670,24 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       setRouteUnavailable(false);
       setRequestId(undefined);
       setError(undefined);
-      setAttendanceAccepted({ intent: acceptedIntent, acceptedAt: new Date() });
+      const acceptedAt = typeof accepted.event?.effectiveEventAt === 'string'
+        ? accepted.event.effectiveEventAt
+        : typeof accepted.event?.receivedAt === 'string'
+          ? accepted.event.receivedAt
+          : '';
+      if (!acceptedAt) throw new Error('Server ยอมรับ AttendanceEvent แต่ไม่ส่งเวลาฝั่ง Server กลับมา');
+      setAttendanceAccepted({
+        intent: acceptedIntent,
+        acceptedAt,
+        eventId: typeof accepted.event?.id === 'string' ? accepted.event.id : null,
+        sessionId: typeof accepted.session?.id === 'string' ? accepted.session.id : null
+      });
       setQrStepUpRequired(false);
       activeCaptureIdRef.current = null;
+      locationRecoveryPendingRef.current = false;
+      setLocationIssue(null);
+      setLocationHelpOpen(false);
+      if (employeeV4) void attendanceSelfToday(token).then(setTodayData).catch(() => {});
       setVerificationStage('Server บันทึกเวลาเรียบร้อยแล้ว');
       setVerificationBusy(false);
       asyncEvidenceEpochRef.current += 1;
