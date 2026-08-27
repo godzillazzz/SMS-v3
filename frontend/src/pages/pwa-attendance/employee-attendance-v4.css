@@ -183,6 +183,27 @@
 
 .employee-v4-history-card__top span { color: var(--employee-v4-muted); font-size: 10px; }
 
+.employee-v4-history-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.employee-v4-correction-badge {
+  display: inline-flex;
+  min-height: 27px;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  color: #0d5aa7 !important;
+  background: #e9f4ff;
+  font-size: 9px !important;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .employee-v4-status {
   display: inline-flex;
   min-height: 27px;
@@ -214,6 +235,68 @@
 .employee-v4-history-times span { color: var(--employee-v4-muted); font-size: 9px; }
 .employee-v4-history-times strong { color: var(--employee-v4-ink); font-size: 12px; }
 .employee-v4-history-times i { width: 1px; height: 30px; background: #d9e3f1; }
+
+.employee-v4-history-correction {
+  overflow: hidden;
+  border: 1px solid #d8e6f6;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.employee-v4-history-correction summary {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 11px;
+  color: #155aa9;
+  font-size: 10px;
+  font-weight: 760;
+  cursor: pointer;
+  list-style: none;
+}
+
+.employee-v4-history-correction summary::-webkit-details-marker { display: none; }
+
+.employee-v4-history-correction[open] summary {
+  border-bottom: 1px solid #e2ebf5;
+  background: #f2f7fd;
+}
+
+.employee-v4-history-correction > div {
+  display: grid;
+  grid-template-columns: minmax(78px, .9fr) 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  border-top: 1px solid #edf2f7;
+  padding: 7px 10px;
+}
+
+.employee-v4-history-correction > div:first-of-type {
+  border-top: 0;
+  color: #748198;
+  background: #fbfdff;
+}
+
+.employee-v4-history-correction > div span {
+  color: #748198;
+  font-size: 9px;
+}
+
+.employee-v4-history-correction > div strong {
+  color: #203a61;
+  font-size: 10px;
+}
+
+.employee-v4-history-correction > small {
+  display: block;
+  border-top: 1px solid #edf2f7;
+  padding: 8px 10px 10px;
+  color: #718097;
+  font-size: 8px;
+  line-height: 1.5;
+}
 
 .employee-v4-history-site {
   display: flex;
@@ -330,6 +413,9 @@
   .employee-v4-section-header { padding-top: 5px; }
   .employee-v4-history-times { gap: 7px; padding: 10px; }
   .employee-v4-history-times strong { font-size: 11px; }
+  .employee-v4-history-card__top { align-items: stretch; }
+  .employee-v4-history-card__badges { max-width: 46%; }
+  .employee-v4-history-correction > div { grid-template-columns: 68px 1fr 1fr; }
   .employee-v4-schedule-card { grid-template-columns: 50px minmax(0, 1fr); }
   .employee-v4-schedule-date { width: 50px; height: 50px; border-radius: 14px; }
   .employee-v4-schedule-note { grid-column: 2; max-width: none; text-align: left; }
