@@ -1,17 +1,13 @@
-name: ONE-TIME G06 V4 EXACT f097 Staged Production FINAL
+name: ONE-TIME G06 V4 EXACT f097 Staged Production MANUAL
 
 on:
-  push:
-    branches:
-      - fix/serverless-database-reliability
-    paths:
-      - .github/workflows/one-time-g06-v4-staged-production.yml
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: sms-v3-staging-production-f097-owner-final
+  group: sms-v3-staging-production-f097-manual-final
   cancel-in-progress: false
 
 env:
@@ -187,16 +183,7 @@ jobs:
           for path in /api/v1/health /api/v1/ready; do
             out=$(mktemp)
             npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$path" --deployment "$DEPLOYMENT_URL" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$out"
-            node - "$out" "$path" <<'NODE'
-            const fs = require('fs');
-            const [file, path] = process.argv.slice(2);
-            const raw = fs.readFileSync(file, 'utf8');
-            let body;
-            try { body = JSON.parse(raw); } catch { throw new Error(`${path} response is not JSON`); }
-            if (path.endsWith('/health') && body.status !== 'ok') throw new Error('health failed');
-            if (path.endsWith('/ready') && (body.status !== 'ready' || body.database !== 'ok')) throw new Error('readiness failed');
-            console.log(`STAGED_${path.endsWith('/ready') ? 'READY' : 'HEALTH'}=PASS`);
-            NODE
+            node -e 'const fs=require("fs"); const [file,path]=process.argv.slice(1); const raw=fs.readFileSync(file,"utf8"); let body; try { body=JSON.parse(raw); } catch { throw new Error(path+" response is not JSON"); } if (path.endsWith("/health") && body.status!=="ok") throw new Error("health failed"); if (path.endsWith("/ready") && (body.status!=="ready" || body.database!=="ok")) throw new Error("readiness failed"); console.log("STAGED_"+(path.endsWith("/ready")?"READY":"HEALTH")+"=PASS");' "$out" "$path"
             rm -f "$out"
           done
 
