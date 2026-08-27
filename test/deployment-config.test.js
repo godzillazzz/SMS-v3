@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const { attendanceApiEnabled } = require('../src/routes/attendance.routes');
 
 function loadEnvironment(overrides = {}) {
   const childEnvironment = { ...process.env };
@@ -66,4 +69,13 @@ test('Face Verification PoC environment contract is Preview-only and fail-closed
 
   const validPreview = loadEnvironment({ ...common, NODE_ENV: 'production', VERCEL_ENV: 'preview', FACE_VERIFICATION_POC_API_ENABLED: 'true', FACE_VERIFICATION_PROVIDER: 'AWS_REKOGNITION_POC', FACE_VERIFICATION_AWS_REGION: 'ap-southeast-7', FACE_LIVENESS_MIN_CONFIDENCE: '90', FACE_MATCH_MIN_SIMILARITY: '95' });
   assert.equal(validPreview.status, 0, `${validPreview.stdout}${validPreview.stderr}`);
+});
+
+
+test('repository config enables Attendance only for Preview while Production still requires its separate explicit flag', () => {
+  const vercelConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'vercel.json'), 'utf8'));
+  assert.equal(vercelConfig.env?.ATTENDANCE_API_PREVIEW_ENABLED, 'true');
+  assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), true);
+  assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), false);
+  assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true' }), true);
 });
