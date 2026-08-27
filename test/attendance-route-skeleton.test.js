@@ -52,16 +52,38 @@ function fakeAuth(req, _res, next) {
   return next();
 }
 
-function appFor({ environment, service }) {
+function appFor({ environment, service, selfService }) {
   const app = express();
   app.use(express.json());
   app.use('/api/v1/attendance', createAttendanceRoutes({
     environment,
     authenticateMiddleware: fakeAuth,
-    contractService: service
+    contractService: service,
+    selfService
   }));
   app.use(errorHandler);
   return app;
+}
+
+function selfServiceSpy() {
+  const calls = [];
+  return {
+    calls,
+    service: {
+      async today(input) {
+        calls.push(['today', input]);
+        return { generatedAt: '2026-08-27T08:00:00.000Z', employee: { id: 'employee-1' }, assignment: null, scheduleReady: false };
+      },
+      async history(input) {
+        calls.push(['history', input]);
+        return { generatedAt: '2026-08-27T08:00:00.000Z', employee: { id: 'employee-1' }, from: input.from, to: input.to, rows: [] };
+      },
+      async schedule(input) {
+        calls.push(['schedule', input]);
+        return { generatedAt: '2026-08-27T08:00:00.000Z', employee: { id: 'employee-1' }, month: input.month, approved: true, rows: [] };
+      }
+    }
+  };
 }
 
 function serviceSpy() {
@@ -123,6 +145,35 @@ test('flagged Preview Attendance route requires authentication before contract e
   const response = await request(app).post('/api/v1/attendance/readiness').send({});
   assert.equal(response.status, 401);
   assert.equal(spy.calls.length, 0);
+});
+
+test('employee self-service read routes are authenticated, actor-scoped, and strict about query input', async () => {
+  const spy = serviceSpy();
+  const self = selfServiceSpy();
+  const app = appFor({
+    environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' },
+    service: spy.service,
+    selfService: self.service
+  });
+
+  const today = await request(app).get('/api/v1/attendance/me/today').set('Authorization', 'Bearer route-test');
+  assert.equal(today.status, 200);
+  assert.deepEqual(self.calls[0], ['today', { actor: { sub: 'route-user', role: 'VIEWER' } }]);
+
+  const history = await request(app).get('/api/v1/attendance/me/history?from=2026-08-01&to=2026-08-27').set('Authorization', 'Bearer route-test');
+  assert.equal(history.status, 200);
+  assert.deepEqual(self.calls[1], ['history', { actor: { sub: 'route-user', role: 'VIEWER' }, from: '2026-08-01', to: '2026-08-27' }]);
+
+  const schedule = await request(app).get('/api/v1/attendance/me/schedule?month=2026-08').set('Authorization', 'Bearer route-test');
+  assert.equal(schedule.status, 200);
+  assert.deepEqual(self.calls[2], ['schedule', { actor: { sub: 'route-user', role: 'VIEWER' }, month: '2026-08' }]);
+
+  const anonymous = await request(app).get('/api/v1/attendance/me/today');
+  assert.equal(anonymous.status, 401);
+
+  const injected = await request(app).get('/api/v1/attendance/me/history?employeeId=33333333-3333-4333-8333-333333333333').set('Authorization', 'Bearer route-test');
+  assert.equal(injected.status, 400);
+  assert.equal(self.calls.length, 3);
 });
 
 test('readiness accepts only raw Attendance evidence and rejects client biometric/context authority fields', async () => {
