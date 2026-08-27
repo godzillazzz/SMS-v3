@@ -53,6 +53,17 @@ function status(row: AttendanceSelfRow) {
   return { label: 'ตามตาราง', tone: 'neutral' };
 }
 
+const operationalFlagLabels: Record<string, string> = {
+  WRONG_SHIFT: 'ผิดกะ',
+  ASSIST_OTHER_SITE: 'ช่วย Site อื่น',
+  OUTSIDE_ALL_SITES: 'นอกพื้นที่',
+  MISSING_CHECK_IN: 'ไม่มีเวลาเข้า',
+  MISSING_CHECK_OUT: 'ไม่มีเวลาออก',
+  TIME_ABNORMAL: 'เวลาผิดปกติ',
+  LOCATION_RISK: 'Location Risk',
+  PHOTO_RISK: 'Photo Risk'
+};
+
 export function AttendanceHistoryPwaPage({ token, online }: Props) {
   const [range, setRange] = useState<RangeKey>(() => new URLSearchParams(window.location.search).get('today') === '1' ? 'today' : 'week');
   const [data, setData] = useState<AttendanceSelfHistoryData>();
@@ -121,11 +132,18 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
             </div>
             <small>แสดงเฉพาะการแก้ไขที่มีผลต่อ Attendance แล้ว · Raw AttendanceEvent เดิมไม่ถูกแก้ไข</small>
           </details>}
-          <div className="employee-v4-history-site"><SmsIcon name="quality" size={16} /><span>{row.actualSite?.name || row.expectedSite?.name || 'ไม่ระบุ Site'}</span></div>
-          {(row.lateMinutes || row.earlyOutMinutes) ? <div className="employee-v4-history-flags">
-            {Boolean(row.lateMinutes) && <span>สาย {row.lateMinutes} นาที</span>}
-            {Boolean(row.earlyOutMinutes) && <span>ออกก่อน {row.earlyOutMinutes} นาที</span>}
-          </div> : null}
+          <div className="employee-v4-history-sites">
+            <div><SmsIcon name="quality" size={15} /><span>Expected Site</span><strong>{row.expectedSite?.name || 'ไม่ระบุ'}</strong></div>
+            <div><SmsIcon name="location" size={15} /><span>Actual Site</span><strong>{row.actualSite?.name || '—'}</strong></div>
+          </div>
+          {(() => {
+            const flags = row.flags.map((flag) => operationalFlagLabels[flag]).filter(Boolean);
+            return (row.lateMinutes || row.earlyOutMinutes || flags.length > 0) ? <div className="employee-v4-history-flags">
+              {Boolean(row.lateMinutes) && <span>สาย {row.lateMinutes} นาที</span>}
+              {Boolean(row.earlyOutMinutes) && <span>ออกก่อน {row.earlyOutMinutes} นาที</span>}
+              {flags.map((flag) => <span key={flag}>{flag}</span>)}
+            </div> : null;
+          })()}
         </article>;
       })}
     </div>}
