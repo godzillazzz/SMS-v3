@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
 import { attendanceSelfSchedule, type AttendanceSelfScheduleData } from '../attendance/attendance-client';
 import './employee-attendance-v4.css';
@@ -9,6 +9,17 @@ function currentBangkokMonth() {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
   const get = (type: string) => parts.find((part) => part.type === type)?.value || '';
   return `${get('year')}-${get('month')}`;
+}
+
+function currentBangkokDate() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
 function shiftMonth(value: string, offset: number) {
@@ -30,6 +41,15 @@ export function AttendanceSchedulePwaPage({ token, online }: Props) {
   const [data, setData] = useState<AttendanceSelfScheduleData>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+
+  const today = currentBangkokDate();
+  const highlights = useMemo(() => {
+    if (!data?.approved || month !== today.slice(0, 7)) return { today: undefined, next: undefined };
+    const sorted = [...data.rows].sort((a, b) => a.date.localeCompare(b.date));
+    const todayRow = sorted.find((row) => row.date === today);
+    const nextRow = sorted.find((row) => row.date > today);
+    return { today: todayRow, next: nextRow };
+  }, [data, month, today]);
 
   useEffect(() => {
     if (!online) return;
@@ -65,6 +85,20 @@ export function AttendanceSchedulePwaPage({ token, online }: Props) {
 
     {!loading && online && data?.approved && <div className="employee-v4-schedule-list">
       <div className="employee-v4-approved"><SmsIcon name="check" size={17} /><span>Approved Schedule</span><b>Revision {data.revision}</b></div>
+      {month === today.slice(0, 7) && (highlights.today || highlights.next) && <section className="employee-v4-shift-highlights" aria-label="กะวันนี้และกะถัดไป">
+        {highlights.today && <article className="is-today">
+          <span>กะวันนี้</span>
+          <strong>{highlights.today.shift.code || highlights.today.shift.name || 'SHIFT'}</strong>
+          <small>{highlights.today.shift.startTime || '—'}–{highlights.today.shift.endTime || '—'}</small>
+          <p><SmsIcon name="location" size={14} />{highlights.today.expectedSite?.name || 'ไม่ระบุ Site'}</p>
+        </article>}
+        {highlights.next && <article>
+          <span>กะถัดไป · {dateLabel(highlights.next.date)}</span>
+          <strong>{highlights.next.shift.code || highlights.next.shift.name || 'SHIFT'}</strong>
+          <small>{highlights.next.shift.startTime || '—'}–{highlights.next.shift.endTime || '—'}</small>
+          <p><SmsIcon name="location" size={14} />{highlights.next.expectedSite?.name || 'ไม่ระบุ Site'}</p>
+        </article>}
+      </section>}
       {data.rows.length === 0 && <article className="employee-v4-empty"><SmsIcon name="calendar" size={28} /><strong>ไม่มีตารางงานในเดือนนี้</strong></article>}
       {data.rows.map((row) => <article className="employee-v4-schedule-card" key={row.assignmentId}>
         <div className="employee-v4-schedule-date"><strong>{new Date(`${row.date}T00:00:00.000Z`).getUTCDate()}</strong><span>{dateLabel(row.date).split(' ')[0]}</span></div>
