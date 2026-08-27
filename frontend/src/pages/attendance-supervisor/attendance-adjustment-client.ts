@@ -19,6 +19,7 @@ export type AttendanceAdjustmentRequest = {
   status: AttendanceAdjustmentStatus;
   makerUserId: string;
   makerRoleSnapshot: string;
+  makerDisplayName?: string | null;
   currentRevision: number;
   approvedRevision?: number | null;
   beforeSnapshot: {
@@ -30,6 +31,7 @@ export type AttendanceAdjustmentRequest = {
   reason: string;
   lastReviewerComment?: string | null;
   approverUserId?: string | null;
+  approverDisplayName?: string | null;
   approvedAt?: string | null;
   employeeId?: string | null;
   employeeCode?: string | null;
@@ -95,6 +97,21 @@ export function createAttendanceAdjustment(token: string, input: {
 }) {
   return call('/attendance/adjustment-requests', token, {
     method: 'POST',
+    body: JSON.stringify(input)
+  });
+}
+
+export function getAttendanceAdjustment(token: string, id: string) {
+  return call(`/attendance/adjustment-requests/${encodeURIComponent(id)}`, token);
+}
+
+export function reviseAttendanceAdjustment(token: string, id: string, input: {
+  requestType: 'CONFIRM_WORK_PERFORMED' | 'ADJUST_WORK_TIME';
+  proposal: { checkInAt?: string | null; checkOutAt?: string | null };
+  reason: string;
+}) {
+  return call(`/attendance/adjustment-requests/${encodeURIComponent(id)}`, token, {
+    method: 'PUT',
     body: JSON.stringify(input)
   });
 }
