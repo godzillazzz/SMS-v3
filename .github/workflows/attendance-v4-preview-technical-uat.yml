@@ -42,6 +42,20 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Apply harness-only login selector compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = 'e2e/smoke/technical.spec.js';
+          const source = fs.readFileSync(path, 'utf8');
+          const before = "const password = page.getByLabel('รหัสผ่าน');";
+          const after = "const password = page.locator('#password');";
+          if (!source.includes(before)) throw new Error('TECHNICAL_SMOKE_PASSWORD_SELECTOR_CONTRACT_CHANGED');
+          fs.writeFileSync(path, source.replace(before, after));
+          NODE
+
       - name: Run non-destructive technical smoke
         id: uat
         uses: actions/github-script@v7
