@@ -1,7 +1,9 @@
 name: Attendance V4 Preview Runtime Audit
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - test/attendance-v4-preview-technical-uat
 
 permissions:
   contents: read
@@ -9,6 +11,7 @@ permissions:
 jobs:
   preview-runtime-audit:
     runs-on: ubuntu-latest
+    environment: production-sms-v3-staging
     timeout-minutes: 10
     env:
       EXPECTED_TEAM_ID: team_nemCExHbZ8EAhSgsvefHPAEz
