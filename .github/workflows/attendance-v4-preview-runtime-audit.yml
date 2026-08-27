@@ -1,0 +1,148 @@
+name: Attendance V4 Preview Runtime Audit
+
+on:
+  push:
+    branches:
+      - test/attendance-v4-preview-technical-uat
+
+permissions:
+  contents: read
+
+jobs:
+  preview-runtime-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_TEAM_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+      EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+      SOURCE_BRANCH: feat/attendance-ux-v4-prod-clean
+      PREVIEW_PROJECT_REF: ezxanpfagitckpfsnflp
+      PRODUCTION_PROJECT_REF: jkexwnlxnxbemwavsebv
+      PREVIEW_DEPLOYMENT_URL: https://sms-v3-staging-mam3hpwrh-godzillazz.vercel.app
+      PREVIEW_BRANCH_URL: https://sms-v3-staging-git-feat-attendance-ux-v4-prod-clean-godzillazz.vercel.app
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Audit resolved Preview runtime without exposing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN"
+          tmp="$(mktemp)"
+          trap 'rm -f "$tmp"' EXIT
+          curl --silent --show-error --fail --proto '=https' --tlsv1.2 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --get \
+            --data-urlencode "teamId=$EXPECTED_TEAM_ID" \
+            --data-urlencode "decrypt=true" \
+            "https://api.vercel.com/v10/projects/$EXPECTED_PROJECT_ID/env" > "$tmp"
+
+          node - "$tmp" <<'NODE'
+          const fs = require('node:fs');
+
+          const file = process.argv[2];
+          const body = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const envs = Array.isArray(body.envs) ? body.envs : [];
+          const branch = process.env.SOURCE_BRANCH;
+          const previewRef = process.env.PREVIEW_PROJECT_REF;
+          const productionRef = process.env.PRODUCTION_PROJECT_REF;
+
+          function targetsPreview(row) {
+            const target = Array.isArray(row.target) ? row.target : [row.target].filter(Boolean);
+            return target.includes('preview');
+          }
+
+          function resolved(key) {
+            const rows = envs.filter((row) => row.key === key && targetsPreview(row));
+            const exact = rows.filter((row) => row.gitBranch === branch);
+            const generic = rows.filter((row) => !row.gitBranch);
+            const candidates = exact.length ? exact : generic;
+            if (candidates.length !== 1) {
+              throw new Error(`PREVIEW_ENV_${key}_RESOLUTION_UNPROVEN exact=${exact.length} generic=${generic.length}`);
+            }
+            const row = candidates[0];
+            if (typeof row.value !== 'string' || !row.value) throw new Error(`PREVIEW_ENV_${key}_VALUE_UNAVAILABLE`);
+            return { key, value: row.value, scope: exact.length ? 'BRANCH' : 'PREVIEW' };
+          }
+
+          const db = resolved('DATABASE_URL');
+          const direct = resolved('DIRECT_URL');
+          const supabase = resolved('SUPABASE_URL');
+          const service = resolved('SUPABASE_SERVICE_ROLE_KEY');
+          const bucket = resolved('LICENSE_DOCUMENTS_BUCKET');
+          const jwt = resolved('JWT_SECRET');
+          const attendance = resolved('ATTENDANCE_API_PREVIEW_ENABLED');
+          const faceEnabled = resolved('FACE_VERIFICATION_SELF_HOSTED_API_ENABLED');
+          const faceUrl = resolved('FACE_VERIFIER_URL');
+          const faceToken = resolved('FACE_VERIFIER_SHARED_TOKEN');
+          const cors = resolved('CORS_ORIGIN');
+
+          for (const item of [db, direct, supabase]) {
+            if (!item.value.includes(previewRef) || item.value.includes(productionRef)) {
+              throw new Error(`PREVIEW_ENV_${item.key}_PROJECT_REF_MISMATCH`);
+            }
+          }
+          if (jwt.value.length < 32) throw new Error('PREVIEW_ENV_JWT_SECRET_TOO_SHORT');
+          if (attendance.value !== 'true') throw new Error('PREVIEW_ATTENDANCE_API_NOT_ENABLED');
+          if (faceEnabled.value !== 'true') throw new Error('PREVIEW_FACE_RUNTIME_NOT_ENABLED');
+          if (!/^https:\/\//i.test(faceUrl.value)) throw new Error('PREVIEW_FACE_VERIFIER_URL_INVALID');
+          if (faceToken.value.length < 16) throw new Error('PREVIEW_FACE_VERIFIER_TOKEN_INVALID');
+
+          const corsOrigins = cors.value.split(',').map((value) => value.trim()).filter(Boolean);
+          if (!corsOrigins.includes(process.env.PREVIEW_DEPLOYMENT_URL) && !corsOrigins.includes(process.env.PREVIEW_BRANCH_URL)) {
+            throw new Error('PREVIEW_CORS_ORIGIN_MISSING_CANDIDATE');
+          }
+
+          const supabaseUrl = supabase.value.replace(/\/$/, '');
+          const headers = { apikey: service.value, authorization: `Bearer ${service.value}` };
+
+          async function verify() {
+            const authResponse = await fetch(`${supabaseUrl}/auth/v1/settings`, { headers });
+            if (!authResponse.ok) throw new Error(`PREVIEW_SUPABASE_SERVICE_KEY_REJECTED status=${authResponse.status}`);
+
+            const bucketResponse = await fetch(`${supabaseUrl}/storage/v1/bucket/${encodeURIComponent(bucket.value)}`, { headers });
+            if (!bucketResponse.ok) throw new Error(`PREVIEW_LICENSE_BUCKET_UNAVAILABLE status=${bucketResponse.status}`);
+            const bucketMeta = await bucketResponse.json();
+            if (bucketMeta.public !== false) throw new Error('PREVIEW_LICENSE_BUCKET_MUST_BE_PRIVATE');
+
+            const summary = {
+              database: db.scope,
+              directDatabase: direct.scope,
+              supabaseUrl: supabase.scope,
+              serviceCredentialAcceptedByPreviewProject: true,
+              licenseBucket: bucket.scope,
+              licenseBucketPrivate: true,
+              jwt: jwt.scope,
+              attendanceApi: 'ENABLED',
+              faceRuntime: 'CONFIGURED',
+              cors: cors.scope,
+              productionProjectRefObservedInDatabaseBindings: false
+            };
+            console.log('PREVIEW_RUNTIME_AUDIT=' + JSON.stringify(summary));
+          }
+
+          verify().catch((error) => {
+            console.error(error.message);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Record safe audit result
+        if: success()
+        run: |
+          {
+            echo '### Attendance V4 Preview Runtime Audit'
+            echo '- Preview database ref: verified'
+            echo '- Production database ref in DB bindings: not observed'
+            echo '- Supabase service credential: accepted by Preview project'
+            echo '- License bucket: exists and private'
+            echo '- Attendance Preview API: enabled'
+            echo '- Face verifier: configured'
+            echo '- CORS: candidate or stable branch URL allowed'
+            echo '- Secrets/connection strings printed: 0'
+          } >> "$GITHUB_STEP_SUMMARY"
