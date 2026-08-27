@@ -216,22 +216,6 @@ export const api = {
     const query = params.toString();
     return call(`/dashboard${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
   },
-  attendanceSupervisorDaily: (token: string, filters: { date?: string; department?: string; siteId?: string; shiftTypeId?: string; employeeId?: string; status?: string } = {}) => {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, String(value)); });
-    const query = params.toString();
-    return call(`/attendance/supervisor/daily${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
-  },
-  attendanceSupervisorHistory: (token: string, filters: { from?: string; to?: string; department?: string; siteId?: string; shiftTypeId?: string; employeeId?: string; status?: string; page?: number; pageSize?: number } = {}) => {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
-    });
-    const query = params.toString();
-    return call(`/attendance/supervisor/history${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
-  },
-  attendanceSupervisorDetail: (token: string, assignmentId: string) =>
-    call(`/attendance/supervisor/assignments/${encodeURIComponent(assignmentId)}/detail`, { headers: { Authorization: `Bearer ${token}` } }),
   executiveReport: (token: string, filters: { year?: number; month?: number; department?: string } = {}) => {
     const params = new URLSearchParams();
     if (filters.year) params.set('year', String(filters.year));
