@@ -15,10 +15,11 @@ describe('G06 Attendance frontend UX skeleton', () => {
   it('exposes a dedicated self-service Attendance page separate from Personal Device setup', () => {
     expect(main).toContain("'attendance'");
     expect(main).toContain("{ id: 'attendance', icon: 'attendance', label: 'ลงเวลา' }");
-    expect(main).toContain('<AttendancePage token={auth.token}');
+    expect(main).toContain('<AttendancePage');
     expect(page).toContain('attendance-v2-hero');
+    expect(page).toContain('className="attendance-v4"');
     expect(main).toContain('displayName={auth.user?.displayName}');
-    expect(page.match(/<button\b/g)?.length).toBe(1);
+    expect(main).toContain('employeeV4={pwaShell}');
     expect(page).not.toContain('onOpenDeviceSetup');
   });
 
@@ -74,7 +75,10 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).toContain('attendance/events');
     expect(client).toMatch(/body: JSON.stringify\(\{\s*receipt: input\.receipt,\s*attendanceContext: input\.attendanceContext\s*\}\)/);
     expect(page).toContain('accepted.attendanceAccepted !== true');
-    expect(page).toContain('setAttendanceAccepted({ intent: acceptedIntent, acceptedAt: new Date() })');
+    expect(page).toContain("typeof accepted.event?.effectiveEventAt === 'string'");
+    expect(page).toContain("typeof accepted.event?.receivedAt === 'string'");
+    expect(page).toContain('eventId: typeof accepted.event?.id');
+    expect(page).not.toContain('setAttendanceAccepted({ intent: acceptedIntent, acceptedAt: new Date() })');
     expect(client).not.toContain('padPassed: input.');
     expect(client).not.toContain('faceMatchPassed');
     expect(client).not.toContain('padPassed');
@@ -242,19 +246,17 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain('activeCaptureIdRef.current = null');
   });
 
-  it('clears transient Attendance evidence when the PWA is backgrounded or page lifecycle hides it', () => {
+  it('clears transient evidence on lifecycle exit except a denied-location recovery attempt', () => {
     expect(page).toContain('const clearTransientAttemptForLifecycle = () => {');
-    expect(page).toMatch(/const clearTransientAttemptForLifecycle = \(\) => \{[\s\S]*?asyncEvidenceEpochRef\.current \+= 1;[\s\S]*?setScannerOpen\(false\);[\s\S]*?setQrToken\(''\);[\s\S]*?setLocation\(null\);[\s\S]*?setLocationBusy\(false\);[\s\S]*?setChecking\(false\);[\s\S]*?resetServerState\(\);/);
-    expect(page).toContain("if (document.visibilityState === 'hidden') clearTransientAttemptForLifecycle();");
-    expect(page).toContain('const handlePageHide = () => clearTransientAttemptForLifecycle();');
-    expect(page).toContain('const handlePageShow = (event: PageTransitionEvent) => {');
-    expect(page).toContain('if (event.persisted) clearTransientAttemptForLifecycle();');
+    expect(page).toMatch(/const clearTransientAttemptForLifecycle = \(\) => \{[\s\S]*?asyncEvidenceEpochRef\.current \+= 1;[\s\S]*?setScannerOpen\(false\);[\s\S]*?setQrToken\(''\);[\s\S]*?setLocation\(null\);[\s\S]*?resetServerState\(\);/);
+    expect(page).toContain("document.visibilityState === 'hidden' && !locationRecoveryPendingRef.current");
+    expect(page).toContain('if (!locationRecoveryPendingRef.current) clearTransientAttemptForLifecycle();');
+    expect(page).toContain("navigator.permissions.query({ name: 'geolocation' as PermissionName })");
+    expect(page).toContain("permission === 'granted' || permission === 'unknown'");
+    expect(page).toContain('retryLocationForActiveAttempt');
     expect(page).toContain("document.addEventListener('visibilitychange', handleVisibilityChange)");
     expect(page).toContain("window.addEventListener('pagehide', handlePageHide)");
     expect(page).toContain("window.addEventListener('pageshow', handlePageShow)");
-    expect(page).toContain("document.removeEventListener('visibilitychange', handleVisibilityChange)");
-    expect(page).toContain("window.removeEventListener('pagehide', handlePageHide)");
-    expect(page).toContain("window.removeEventListener('pageshow', handlePageShow)");
   });
 
   it('has responsive mobile layouts for the four-step flow and evidence cards', () => {
