@@ -50,13 +50,13 @@ describe('Attendance UX V4 visual acceptance contract', () => {
     expect(page).not.toContain('คลินิกฟัน รักษ์ยิ้ม');
   });
 
-  it('uses the approved retro robot artwork instead of the legacy SMS square marks', () => {
+  it('uses the Owner-restored SMS header logo while keeping the retro robot mascot in the action orb', () => {
     const v4 = page.slice(page.indexOf("if (employeeV4)"));
-    expect(v4.match(/\/attendance-retro-robot\.svg/g)?.length).toBe(2);
-    expect(v4).not.toContain('/pwa-icon-192.png');
+    expect(v4.match(/\/attendance-retro-robot\.svg/g)?.length).toBe(1);
+    expect(v4).toContain('/pwa-icon-192.png');
+    expect(v4).toContain('alt="SMS"');
     expect(css).toContain('.attendance-v4__brand img');
     expect(css).toContain('.attendance-v4__action-logo');
-    expect(css).toContain('drop-shadow');
   });
 
   it('creates a distinct Success Receipt using server-authoritative AttendanceEvent time and today-history CTA', () => {
