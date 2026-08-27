@@ -71,6 +71,22 @@ describe('Attendance UX V4 visual acceptance contract', () => {
     expect(client).toContain('correctionEventTypes?: string[]');
   });
 
+  it('shows expected and actual Site context plus operational flags in employee history', () => {
+    expect(history).toContain('Expected Site');
+    expect(history).toContain('Actual Site');
+    expect(history).toContain('WRONG_SHIFT');
+    expect(history).toContain('ASSIST_OTHER_SITE');
+    expect(history).toContain('OUTSIDE_ALL_SITES');
+  });
+
+  it('highlights today and the next approved shift in the employee schedule', () => {
+    expect(schedule).toContain('กะวันนี้');
+    expect(schedule).toContain('กะถัดไป');
+    expect(schedule).toContain('currentBangkokDate');
+    expect(schedule).toContain('row.date > today');
+    expect(schedule).toContain('expectedSite?.name');
+  });
+
   it('creates a distinct Success Receipt using server-authoritative AttendanceEvent time and today-history CTA', () => {
     expect(page).toContain('attendance-v4__receipt');
     expect(page).toContain("typeof accepted.event?.effectiveEventAt === 'string'");
