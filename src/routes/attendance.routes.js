@@ -8,6 +8,7 @@ const { createAttendanceApiContractService } = require('../services/attendance-a
 const { MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE } = require('../services/attendance-face-verification.service');
 const { ACTIVE_FACE_CHALLENGE_FRAME_COUNT } = require('../services/active-face-challenge.service');
 const { createAttendanceFaceChallengeUatService } = require('../services/attendance-face-challenge-uat.service');
+const { createAttendanceSelfService } = require('../services/attendance-self.service');
 
 const uuid = z.string().uuid();
 const decimal = z.union([z.number().finite(), z.string().trim().regex(/^-?\d+(?:\.\d+)?$/).max(32)]);
@@ -28,6 +29,11 @@ const attendanceContextInput = z.object({
 }).strict();
 const acceptInput = z.object({ receipt: z.string().trim().min(32).max(512), attendanceContext: attendanceContextInput }).strict();
 const deviceProofInput = z.object({ challengeId: uuid, challenge: z.string().min(16).max(512), signatureBase64: z.string().min(16).max(4096) }).strict();
+const selfHistoryQuery = z.object({
+  from: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional(),
+  to: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional()
+}).strict();
+const selfScheduleQuery = z.object({ month: z.string().regex(/^\\d{4}-\\d{2}$/).optional() }).strict();
 const livePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fields: 0, parts: 2 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fileSize: MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE } }).fields([
   { name: 'photo', maxCount: 1 },
   { name: 'challengeFrame', maxCount: ACTIVE_FACE_CHALLENGE_FRAME_COUNT }
@@ -66,10 +72,11 @@ function defaultAuthenticate(req, res, next) {
   return require('../middlewares/authenticate').authenticate(req, res, next);
 }
 
-function createAttendanceRoutes({ environment = process.env, authenticateMiddleware = defaultAuthenticate, contractService = null, faceChallengeUatService = null } = {}) {
+function createAttendanceRoutes({ environment = process.env, authenticateMiddleware = defaultAuthenticate, contractService = null, faceChallengeUatService = null, selfService = null } = {}) {
   const router = express.Router();
   const service = contractService || createAttendanceApiContractService({ isBiometricRuntimeEnabled: () => attendanceBiometricRuntimeEnabled(environment) });
   const uatService = faceChallengeUatService || createAttendanceFaceChallengeUatService();
+  const employeeSelf = selfService || createAttendanceSelfService();
 
   function requirePreviewAttendance(_req, _res, next) {
     return attendanceApiEnabled(environment) ? next() : next(new HttpError(404, 'Not found.'));
@@ -94,6 +101,24 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
   });
 
   router.use(requirePreviewAttendance, authenticateMiddleware);
+
+  router.get('/me/today', async (req, res, next) => {
+    try { res.json({ data: await employeeSelf.today({ actor: req.user }) }); } catch (error) { next(error); }
+  });
+
+  router.get('/me/history', async (req, res, next) => {
+    try {
+      const query = selfHistoryQuery.parse({ from: req.query.from, to: req.query.to });
+      res.json({ data: await employeeSelf.history({ actor: req.user, ...query }) });
+    } catch (error) { next(error); }
+  });
+
+  router.get('/me/schedule', async (req, res, next) => {
+    try {
+      const query = selfScheduleQuery.parse({ month: req.query.month });
+      res.json({ data: await employeeSelf.schedule({ actor: req.user, ...query }) });
+    } catch (error) { next(error); }
+  });
 
   router.post('/readiness', async (req, res, next) => {
     try { const input = prepareInput.parse(req.body); res.json({ data: await service.assessReadiness({ actor: req.user, ...input }) }); } catch (error) { next(error); }
@@ -135,5 +160,7 @@ module.exports = {
   createAttendanceRoutes,
   prepareInput,
   deviceProofInput,
-  acceptInput
+  acceptInput,
+  selfHistoryQuery,
+  selfScheduleQuery
 };
