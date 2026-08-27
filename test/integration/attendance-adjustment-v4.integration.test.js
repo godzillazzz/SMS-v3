@@ -19,7 +19,10 @@ if (!configured) {
 } else {
   const { PrismaClient } = require('@prisma/client');
   const { createAttendanceAdjustmentService } = require('../../src/services/attendance-adjustment.service');
-  const { currentCorrectionsForAssignments } = require('../../src/services/attendance-correction.service');
+  const {
+    currentCorrectionsForAssignments,
+    createAttendanceCorrectionService
+  } = require('../../src/services/attendance-correction.service');
 
   const prisma = new PrismaClient();
   const marker = crypto.randomUUID().slice(0, 8);
@@ -35,6 +38,7 @@ if (!configured) {
   const workDate = new Date('2099-04-10T00:00:00.000Z');
   const clock = () => new Date('2099-04-10T02:00:00.000Z');
   const service = createAttendanceAdjustmentService({ prisma, clock });
+  const legacyCorrection = createAttendanceCorrectionService({ prisma, clock });
   const manager = { sub: ids.manager, role: 'MANAGER', department };
   const admin = { sub: ids.admin, role: 'ADMIN' };
 
@@ -238,5 +242,45 @@ if (!configured) {
       WHERE source_adjustment_request_id = ${draft.id}::uuid
     `);
     assert.equal(Number(rows[0].total), 0);
+  });
+
+  test('stale Attendance base returns 409 and creates no correction from the stale request', async () => {
+    const draft = await service.createDraft({
+      actor: manager,
+      assignmentId: ids.assignment,
+      requestType: 'ADJUST_WORK_TIME',
+      proposal: { checkOutAt: '2099-04-10T11:55:00.000Z' },
+      reason: 'Request prepared before later authority change'
+    });
+    await service.submit({ actor: manager, id: draft.id });
+
+    await legacyCorrection.correct({
+      actor: admin,
+      assignmentId: ids.assignment,
+      eventType: 'CHECK_IN',
+      correctedEffectiveEventAt: '2099-04-10T00:10:00.000Z',
+      reason: 'Simulated authority change after request submission'
+    });
+
+    await assert.rejects(
+      () => service.approve({ actor: admin, id: draft.id }),
+      (error) => error.statusCode === 409 && error.details?.code === 'STALE_ATTENDANCE_BASE'
+    );
+
+    const generated = await prisma.$queryRaw(Prisma.sql`
+      SELECT COUNT(*)::int AS total
+      FROM attendance_corrections
+      WHERE source_adjustment_request_id = ${draft.id}::uuid
+    `);
+    assert.equal(Number(generated[0].total), 0);
+
+    const row = await prisma.$queryRaw(Prisma.sql`
+      SELECT status, approver_user_id AS "approverUserId", approved_at AS "approvedAt"
+      FROM attendance_adjustment_requests
+      WHERE id = ${draft.id}::uuid
+    `);
+    assert.equal(row[0].status, 'PENDING_APPROVAL');
+    assert.equal(row[0].approverUserId, null);
+    assert.equal(row[0].approvedAt, null);
   });
 }
