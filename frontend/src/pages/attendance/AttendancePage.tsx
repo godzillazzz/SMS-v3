@@ -829,7 +829,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
 
       <header className="attendance-v4__topbar">
         <div className="attendance-v4__brand">
-          <img src="/pwa-icon-192.png" alt="SMS" />
+          <img src="/attendance-sms-logo.svg" alt="SMS" />
           <strong>SMS Time Attendance</strong>
         </div>
         <button type="button" className="attendance-v4__settings" aria-label="เปิดโปรไฟล์และการตั้งค่า" onClick={onOpenSettings}>
