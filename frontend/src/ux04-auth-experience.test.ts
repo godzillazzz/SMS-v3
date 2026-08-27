@@ -135,6 +135,13 @@ describe('G04.2 UX-04 auth experience contract', () => {
     expect(apiSha256).toBe('1eeeb2738d6571c1aebd3b3ff6e3cf2a0bb3920107b821f4771e94041dea389f');
   });
 
+  it('fails closed before central API retry while View As is active without modifying the locked API client', () => {
+    expect(main).toContain('const viewAsRef = useRef<typeof viewAs>(undefined)');
+    expect(main).toContain('viewAsRef.current = viewAs');
+    expect(main).toContain("if (viewAsRef.current) throw new Error('Session context changed. Retry from the primary account.')");
+    expect(apiSha256).toBe('1eeeb2738d6571c1aebd3b3ff6e3cf2a0bb3920107b821f4771e94041dea389f');
+  });
+
   it('keeps theme changes frontend-only and prevents theme controls from submitting or resetting auth form state', () => {
     expect(login).toContain('<ThemeControl compact />');
     expect(themeControl).toContain('type="button"');

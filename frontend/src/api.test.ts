@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiRequestError, api, normalizeRequestId } from './api';
+import { ApiRequestError, api, normalizeRequestId, setTokenRefreshHandler } from './api';
 import { sanitizeLicenseDocumentError } from './components/license-document-utils';
 import { PDFDocument } from 'pdf-lib';
 
 const success = () => ({ status: 200, ok: true, json: async () => ({ accessToken: 'test-access-token', user: {} }) });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  setTokenRefreshHandler(null);
+  vi.unstubAllGlobals();
+});
 
 describe('API client', () => {
   it('exposes the browser authentication operations', () => {
@@ -36,6 +39,28 @@ describe('API client', () => {
     expect(requests[1].path).toBe('/api/v1/auth/refresh');
     expect(requests[2].path).toBe('/api/v1/admin/security-sites');
     expect((requests[2].options.headers as Headers).get('authorization')).toBe('Bearer refreshed-token');
+  });
+  it('fails closed before retry when the refresh handler rejects an identity transition', async () => {
+    const response = (status: number, body: unknown) => ({ status, ok: status >= 200 && status < 300, headers: new Headers(), json: async () => body });
+    const responses = [
+      response(401, { error: 'expired' }),
+      response(200, { accessToken: 'primary-refreshed-token', user: { role: 'ADMIN' } })
+    ];
+    const requests: Array<{ path: string; options: RequestInit }> = [];
+    vi.stubGlobal('document', { cookie: 'smsv3_csrf=csrf-value' });
+    vi.stubGlobal('fetch', vi.fn((path: string, options: RequestInit) => {
+      requests.push({ path, options: { ...options, headers: new Headers(options.headers) } });
+      return Promise.resolve(responses[requests.length - 1]);
+    }));
+    setTokenRefreshHandler(() => {
+      throw new Error('Session context changed.');
+    });
+
+    await expect(api.getSecuritySites('delegated-token')).rejects.toThrow('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0].path).toBe('/api/v1/admin/security-sites');
+    expect(requests[1].path).toBe('/api/v1/auth/refresh');
   });
   it('exposes typed Security Site lifecycle methods', () => {
     for (const operation of ['getSecuritySites', 'getSecuritySiteDepartments', 'createSecuritySite', 'updateSecuritySite', 'updateSecuritySiteDepartmentMapping', 'rotateSecuritySiteQr', 'revokeSecuritySiteQr'] as const) {
