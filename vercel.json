@@ -48,6 +48,8 @@
   ],
   "env": {
     "ATTENDANCE_API_PREVIEW_ENABLED": "true",
-    "ATTENDANCE_FACE_EVIDENCE_BUCKET": "attendance-face-evidence"
+    "ATTENDANCE_FACE_EVIDENCE_BUCKET": "attendance-face-evidence",
+    "ATTENDANCE_API_PRODUCTION_ENABLED": "true",
+    "FACE_VERIFICATION_IN_PROCESS_ENABLED": "true"
   }
 }

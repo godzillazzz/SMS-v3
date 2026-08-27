@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
-const { attendanceApiEnabled } = require('../src/routes/attendance.routes');
+const { attendanceApiEnabled, attendanceBiometricRuntimeEnabled } = require('../src/routes/attendance.routes');
 
 function loadEnvironment(overrides = {}) {
   const childEnvironment = { ...process.env };
@@ -107,10 +107,17 @@ test('In-process face environment contract is Production-capable but strictly bo
 });
 
 
-test('repository config enables Attendance only for Preview while Production still requires its separate explicit flag', () => {
+test('repository config explicitly activates Attendance + in-process face runtime for Production cutover', () => {
   const vercelConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'vercel.json'), 'utf8'));
   assert.equal(vercelConfig.env?.ATTENDANCE_API_PREVIEW_ENABLED, 'true');
+  assert.equal(vercelConfig.env?.ATTENDANCE_API_PRODUCTION_ENABLED, 'true');
+  assert.equal(vercelConfig.env?.FACE_VERIFICATION_IN_PROCESS_ENABLED, 'true');
+  assert.equal(vercelConfig.env?.ATTENDANCE_FACE_EVIDENCE_BUCKET, 'attendance-face-evidence');
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), true);
-  assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), false);
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true' }), true);
+  assert.equal(attendanceBiometricRuntimeEnabled({
+    VERCEL_ENV: 'production',
+    ATTENDANCE_API_PRODUCTION_ENABLED: 'true',
+    FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true'
+  }), true);
 });
