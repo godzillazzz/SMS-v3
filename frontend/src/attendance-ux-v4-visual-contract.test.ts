@@ -77,10 +77,22 @@ describe('Attendance UX V4 visual acceptance contract', () => {
   it('keeps visual quality responsive for phone widths and safe-area PWA chrome', () => {
     expect(css).toContain('@media (max-width: 620px)');
     expect(css).toContain('@media (max-width: 420px)');
+    expect(css).toContain('@media (max-width: 430px) and (max-height: 760px)');
     expect(css).toContain('@media (max-width: 360px)');
+    expect(css).toContain('grid-template-columns: minmax(0,1fr) 1px minmax(0,1fr);');
     const shell = read('./styles/pwa-shell.css');
     expect(shell).toContain('env(safe-area-inset-top)');
     expect(shell).toContain('env(safe-area-inset-bottom)');
+    expect(shell).toContain('padding-bottom: calc(112px + env(safe-area-inset-bottom));');
     expect(shell).toContain('.pwa-page-attendance');
+  });
+
+  it('fails closed visually when no approved shift exists instead of showing a green ready claim', () => {
+    expect(page).toContain("const scheduleReady = Boolean(todayData?.scheduleReady && assignment)");
+    expect(page).toContain("'SHIFT NOT READY'");
+    expect(page).toContain("'รอตารางงานที่อนุมัติ'");
+    expect(page).toContain("'is-pending'");
+    expect(css).toContain('.attendance-v4__status-pill.is-pending strong');
+    expect(css).toContain('background: #94a3b8;');
   });
 });
