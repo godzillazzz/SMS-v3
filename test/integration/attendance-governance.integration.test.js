@@ -172,13 +172,26 @@ if (!configured) {
     assert.equal(blockedRow.originalCheckOutAt, null);
     assert.equal(blockedRow.checkInAt, null);
     assert.equal(blockedRow.checkOutAt, null);
+    assert.ok(blockedRow.flags.includes('ABSENT'));
     assert.ok(!blockedRow.flags.includes('CORRECTED'));
-    assert.ok(blockedPreview.blockerCount >= 1);
+    assert.equal(blockedPreview.blockerCount, 0, 'pending request must not alter or block monthly authority');
+
+    const absentCertification = await governance.certify({ actor, month: '2099-02' });
+    assert.equal(absentCertification.status, 'CERTIFIED');
+    assert.equal(absentCertification.revision, 1);
 
     await assert.rejects(
-      () => governance.certify({ actor, month: '2099-02' }),
-      (error) => error.details?.code === 'ATTENDANCE_MONTH_HAS_BLOCKERS'
+      () => adjustments.approve({ actor, id: draft.id }),
+      (error) => error.details?.code === 'ATTENDANCE_MONTH_CERTIFIED'
     );
+
+    const stillPendingBeforeUnlock = await adjustments.get({ actor, id: draft.id });
+    assert.equal(stillPendingBeforeUnlock.status, 'PENDING_APPROVAL');
+    assert.equal(stillPendingBeforeUnlock.approverUserId, null);
+
+    const firstUnlock = await governance.unlock({ actor, month: '2099-02', reason: 'Reopen to review pending Attendance evidence' });
+    assert.equal(firstUnlock.status, 'UNLOCKED');
+    assert.equal(firstUnlock.revision, 1);
 
     const approved = await adjustments.approve({ actor, id: draft.id });
     assert.equal(approved.status, 'APPROVED');
@@ -196,10 +209,10 @@ if (!configured) {
     assert.ok(readyRow.flags.includes('CORRECTED'));
     assert.equal(readyPreview.blockerCount, 0);
 
-    const first = await governance.certify({ actor, month: '2099-02' });
-    assert.equal(first.status, 'CERTIFIED');
-    assert.equal(first.revision, 1);
-    assert.match(first.summaryDigest, /^[0-9a-f]{64}$/);
+    const correctedCertification = await governance.certify({ actor, month: '2099-02' });
+    assert.equal(correctedCertification.status, 'CERTIFIED');
+    assert.equal(correctedCertification.revision, 2);
+    assert.match(correctedCertification.summaryDigest, /^[0-9a-f]{64}$/);
 
     const laterDraft = await adjustments.createDraft({
       actor,
@@ -221,17 +234,17 @@ if (!configured) {
 
     const unlocked = await governance.unlock({ actor, month: '2099-02', reason: 'Reopen for verified correction' });
     assert.equal(unlocked.status, 'UNLOCKED');
-    assert.equal(unlocked.revision, 1);
+    assert.equal(unlocked.revision, 2);
 
     const laterApproved = await adjustments.approve({ actor, id: laterDraft.id });
     assert.equal(laterApproved.status, 'APPROVED');
 
-    const second = await governance.certify({ actor, month: '2099-02' });
-    assert.equal(second.revision, 2);
-    assert.equal(second.status, 'CERTIFIED');
+    const finalCertification = await governance.certify({ actor, month: '2099-02' });
+    assert.equal(finalCertification.revision, 3);
+    assert.equal(finalCertification.status, 'CERTIFIED');
 
     const history = await governance.certificationHistory('2099-02');
-    assert.deepEqual(history.map((item) => [item.revision, item.status]), [[2, 'CERTIFIED'], [1, 'UNLOCKED']]);
+    assert.deepEqual(history.map((item) => [item.revision, item.status]), [[3, 'CERTIFIED'], [2, 'UNLOCKED'], [1, 'UNLOCKED']]);
 
     const correctionHistory = await corrections.list({ actor, assignmentId: ids.assignment });
     assert.equal(correctionHistory.length, 3);
