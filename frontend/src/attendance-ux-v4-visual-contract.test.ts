@@ -59,6 +59,18 @@ describe('Attendance UX V4 visual acceptance contract', () => {
     expect(css).toContain('.attendance-v4__action-logo');
   });
 
+  it('shows approved correction provenance in employee history without hiding immutable originals', () => {
+    expect(history).toContain('row.corrected');
+    expect(history).toContain('ปรับแล้ว');
+    expect(history).toContain('ดูเวลาเดิมและเวลาที่มีผล');
+    expect(history).toContain('row.originalCheckInAt');
+    expect(history).toContain('row.originalCheckOutAt');
+    expect(history).toContain('Raw AttendanceEvent เดิมไม่ถูกแก้ไข');
+    expect(client).toContain('originalCheckInAt?: string | null');
+    expect(client).toContain('originalCheckOutAt?: string | null');
+    expect(client).toContain('correctionEventTypes?: string[]');
+  });
+
   it('creates a distinct Success Receipt using server-authoritative AttendanceEvent time and today-history CTA', () => {
     expect(page).toContain('attendance-v4__receipt');
     expect(page).toContain("typeof accepted.event?.effectiveEventAt === 'string'");
