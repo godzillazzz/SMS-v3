@@ -824,7 +824,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
 
       <header className="attendance-v4__topbar">
         <div className="attendance-v4__brand">
-          <img src="/pwa-icon-192.png" alt="" />
+          <img src="/attendance-retro-robot.svg" alt="" />
           <strong>SMS Time Attendance</strong>
         </div>
         <button type="button" className="attendance-v4__settings" aria-label="เปิดโปรไฟล์และการตั้งค่า" onClick={onOpenSettings}>
@@ -868,7 +868,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         <div className="attendance-v4__hero-wrap">
           <button type="button" className={`attendance-v4__action ${flowBusy ? 'is-busy' : ''}`} disabled={!actionEnabled} onClick={() => void handleStartAttendance()}>
             <span className="attendance-v4__action-content">
-              <img className="attendance-v4__action-logo" src="/pwa-icon-192.png" alt="" />
+              <img className="attendance-v4__action-logo" src="/attendance-retro-robot.svg" alt="" />
               <strong>{actionText}</strong>
               <small>{actionThai}</small>
             </span>
