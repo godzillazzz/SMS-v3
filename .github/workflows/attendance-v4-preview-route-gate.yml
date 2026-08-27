@@ -1,0 +1,55 @@
+name: Attendance V4 Preview Route Gate Probe
+
+on:
+  push:
+    branches:
+      - test/attendance-v4-preview-technical-uat
+
+permissions:
+  contents: read
+
+jobs:
+  route-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      TARGET_URL: https://sms-v3-staging-mam3hpwrh-godzillazz.vercel.app
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - name: Prove Attendance Preview routes are mounted behind authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
+
+          probe() {
+            local path="$1"
+            local expected="$2"
+            local code
+            code="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --proto '=https' --tlsv1.2 \
+              --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+              "$TARGET_URL$path")"
+            if [[ "$code" != "$expected" ]]; then
+              echo "ROUTE_GATE_FAILED path=$path expected=$expected actual=$code"
+              exit 1
+            fi
+            echo "ROUTE_GATE_PASS path=$path status=$code"
+          }
+
+          probe "/api/v1/attendance/me/today" "401"
+          probe "/api/v1/attendance/supervisor/daily?date=2026-08-27" "401"
+          probe "/api/v1/attendance/adjustment-requests" "401"
+          probe "/api/v1/attendance/governance/months/2026-08/preview" "401"
+
+      - name: Record safe route-gate result
+        run: |
+          {
+            echo '### Attendance V4 Preview Route Gate Probe'
+            echo '- Employee self route: mounted, auth required'
+            echo '- Supervisor route: mounted, auth required'
+            echo '- Adjustment workflow route: mounted, auth required'
+            echo '- Governance route: mounted, auth required'
+            echo '- Preview Attendance API gate: enabled'
+            echo '- Mutating requests executed: 0'
+          } >> "$GITHUB_STEP_SUMMARY"

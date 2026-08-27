@@ -1,9 +1,7 @@
 name: Attendance V4 Preview Runtime Audit
 
 on:
-  push:
-    branches:
-      - test/attendance-v4-preview-technical-uat
+  workflow_dispatch:
 
 permissions:
   contents: read
