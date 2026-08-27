@@ -18,6 +18,7 @@ if (!configured) {
 } else {
   const { PrismaClient } = require('@prisma/client');
   const { createAttendanceCorrectionService } = require('../../src/services/attendance-correction.service');
+  const { createAttendanceAdjustmentService } = require('../../src/services/attendance-adjustment.service');
   const { createAttendanceMonthGovernanceService } = require('../../src/services/attendance-month-governance.service');
 
   const prisma = new PrismaClient();
@@ -35,11 +36,25 @@ if (!configured) {
   const now = new Date('2099-03-05T03:00:00.000Z');
   const actor = { sub: ids.admin, role: 'ADMIN' };
   const corrections = createAttendanceCorrectionService({ prisma, clock: () => now });
+  const adjustments = createAttendanceAdjustmentService({ prisma, clock: () => now });
   const governance = createAttendanceMonthGovernanceService({ prisma, clock: () => now });
 
   async function cleanup() {
     await prisma.$executeRaw(Prisma.sql`DELETE FROM attendance_month_certifications WHERE month = ${monthStart}::date`).catch(() => {});
     await prisma.$executeRaw(Prisma.sql`DELETE FROM attendance_corrections WHERE shift_assignment_id = ${ids.assignment}::uuid`).catch(() => {});
+    await prisma.$executeRaw(Prisma.sql`
+      DELETE FROM attendance_adjustment_events
+      WHERE request_id IN (
+        SELECT id FROM attendance_adjustment_requests WHERE shift_assignment_id = ${ids.assignment}::uuid
+      )
+    `).catch(() => {});
+    await prisma.$executeRaw(Prisma.sql`
+      DELETE FROM attendance_adjustment_revisions
+      WHERE request_id IN (
+        SELECT id FROM attendance_adjustment_requests WHERE shift_assignment_id = ${ids.assignment}::uuid
+      )
+    `).catch(() => {});
+    await prisma.$executeRaw(Prisma.sql`DELETE FROM attendance_adjustment_requests WHERE shift_assignment_id = ${ids.assignment}::uuid`).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorUserId: ids.admin } }).catch(() => {});
     await prisma.scheduleApproval.deleteMany({ where: { month: monthStart } }).catch(() => {});
     await prisma.shiftAssignment.deleteMany({ where: { id: ids.assignment } }).catch(() => {});
@@ -121,92 +136,115 @@ if (!configured) {
     await prisma.$disconnect();
   });
 
-  test('governed corrections can recover missing events without fabricating an AttendanceSession', async () => {
+  test('only explicit ADMIN-approved adjustment requests affect monthly governance and certification', async () => {
     await assert.rejects(
-      () => corrections.correct({
+      () => adjustments.createDraft({
         actor: { sub: crypto.randomUUID(), role: 'MANAGER', department: 'OTHER-DEPARTMENT' },
         assignmentId: ids.assignment,
-        eventType: 'CHECK_IN',
-        correctedEffectiveEventAt: '2099-02-10T00:00:00.000Z',
+        requestType: 'CONFIRM_WORK_PERFORMED',
+        proposal: {
+          checkInAt: '2099-02-10T00:00:00.000Z',
+          checkOutAt: '2099-02-10T12:00:00.000Z'
+        },
         reason: 'Cross department must fail'
       }),
-      (error) => error.details?.code === 'ATTENDANCE_CORRECTION_SCOPE_FORBIDDEN'
+      (error) => error.details?.code === 'ATTENDANCE_ADJUSTMENT_SCOPE_FORBIDDEN'
     );
 
-    const checkIn = await corrections.correct({
+    const draft = await adjustments.createDraft({
       actor,
       assignmentId: ids.assignment,
-      eventType: 'CHECK_IN',
-      correctedEffectiveEventAt: '2099-02-10T00:00:00.000Z',
-      reason: 'Verified missing check-in from governed source'
+      requestType: 'CONFIRM_WORK_PERFORMED',
+      proposal: {
+        checkInAt: '2099-02-10T00:00:00.000Z',
+        checkOutAt: '2099-02-10T12:00:00.000Z'
+      },
+      reason: 'Verified work performed from governed source'
     });
-    assert.equal(checkIn.shiftAssignmentId, ids.assignment);
-    assert.equal(checkIn.attendanceSessionId, null);
-    assert.equal(checkIn.originalEventId, null);
+    assert.equal(draft.status, 'DRAFT');
 
-    const session = await prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: ids.assignment } });
-    assert.equal(session, null);
+    const pending = await adjustments.submit({ actor, id: draft.id });
+    assert.equal(pending.status, 'PENDING_APPROVAL');
 
     const blockedPreview = await governance.preview('2099-02');
-    const row = blockedPreview.rows.find((item) => item.assignmentId === ids.assignment);
-    assert.ok(row.flags.includes('CORRECTED'));
-    assert.ok(row.flags.includes('MISSING_CHECK_OUT'));
-    assert.equal(row.originalCheckInAt, null);
-    assert.equal(new Date(row.checkInAt).toISOString(), '2099-02-10T00:00:00.000Z');
-    assert.ok(blockedPreview.blockerCount >= 1);
+    const blockedRow = blockedPreview.rows.find((item) => item.assignmentId === ids.assignment);
+    assert.equal(blockedRow.originalCheckInAt, null);
+    assert.equal(blockedRow.originalCheckOutAt, null);
+    assert.equal(blockedRow.checkInAt, null);
+    assert.equal(blockedRow.checkOutAt, null);
+    assert.ok(blockedRow.flags.includes('ABSENT'));
+    assert.ok(!blockedRow.flags.includes('CORRECTED'));
+    assert.equal(blockedPreview.blockerCount, 0, 'pending request must not alter or block monthly authority');
+
+    const absentCertification = await governance.certify({ actor, month: '2099-02' });
+    assert.equal(absentCertification.status, 'CERTIFIED');
+    assert.equal(absentCertification.revision, 1);
 
     await assert.rejects(
-      () => governance.certify({ actor, month: '2099-02' }),
-      (error) => error.details?.code === 'ATTENDANCE_MONTH_HAS_BLOCKERS'
+      () => adjustments.approve({ actor, id: draft.id }),
+      (error) => error.details?.code === 'ATTENDANCE_MONTH_CERTIFIED'
     );
 
-    await corrections.correct({
-      actor,
-      assignmentId: ids.assignment,
-      eventType: 'CHECK_OUT',
-      correctedEffectiveEventAt: '2099-02-10T12:00:00.000Z',
-      reason: 'Verified missing check-out from governed source'
-    });
+    const stillPendingBeforeUnlock = await adjustments.get({ actor, id: draft.id });
+    assert.equal(stillPendingBeforeUnlock.status, 'PENDING_APPROVAL');
+    assert.equal(stillPendingBeforeUnlock.approverUserId, null);
+
+    const firstUnlock = await governance.unlock({ actor, month: '2099-02', reason: 'Reopen to review pending Attendance evidence' });
+    assert.equal(firstUnlock.status, 'UNLOCKED');
+    assert.equal(firstUnlock.revision, 1);
+
+    const approved = await adjustments.approve({ actor, id: draft.id });
+    assert.equal(approved.status, 'APPROVED');
+    assert.equal(approved.approverUserId, ids.admin);
+
+    const session = await prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: ids.assignment } });
+    assert.equal(session, null, 'approved governance overlay must not fabricate immutable raw Attendance evidence');
 
     const readyPreview = await governance.preview('2099-02');
     const readyRow = readyPreview.rows.find((item) => item.assignmentId === ids.assignment);
     assert.equal(readyRow.status, 'COMPLETE');
     assert.equal(readyRow.workedMinutes, 720);
+    assert.equal(new Date(readyRow.checkInAt).toISOString(), '2099-02-10T00:00:00.000Z');
+    assert.equal(new Date(readyRow.checkOutAt).toISOString(), '2099-02-10T12:00:00.000Z');
+    assert.ok(readyRow.flags.includes('CORRECTED'));
     assert.equal(readyPreview.blockerCount, 0);
 
-    const first = await governance.certify({ actor, month: '2099-02' });
-    assert.equal(first.status, 'CERTIFIED');
-    assert.equal(first.revision, 1);
-    assert.match(first.summaryDigest, /^[0-9a-f]{64}$/);
+    const correctedCertification = await governance.certify({ actor, month: '2099-02' });
+    assert.equal(correctedCertification.status, 'CERTIFIED');
+    assert.equal(correctedCertification.revision, 2);
+    assert.match(correctedCertification.summaryDigest, /^[0-9a-f]{64}$/);
+
+    const laterDraft = await adjustments.createDraft({
+      actor,
+      assignmentId: ids.assignment,
+      requestType: 'ADJUST_WORK_TIME',
+      proposal: { checkOutAt: '2099-02-10T11:59:00.000Z' },
+      reason: 'Verified final checkout adjustment'
+    });
+    await adjustments.submit({ actor, id: laterDraft.id });
 
     await assert.rejects(
-      () => corrections.correct({
-        actor,
-        assignmentId: ids.assignment,
-        eventType: 'CHECK_OUT',
-        correctedEffectiveEventAt: '2099-02-10T11:59:00.000Z',
-        reason: 'Certified month must be locked'
-      }),
+      () => adjustments.approve({ actor, id: laterDraft.id }),
       (error) => error.details?.code === 'ATTENDANCE_MONTH_CERTIFIED'
     );
 
+    const stillPending = await adjustments.get({ actor, id: laterDraft.id });
+    assert.equal(stillPending.status, 'PENDING_APPROVAL');
+    assert.equal(stillPending.approverUserId, null);
+
     const unlocked = await governance.unlock({ actor, month: '2099-02', reason: 'Reopen for verified correction' });
     assert.equal(unlocked.status, 'UNLOCKED');
-    assert.equal(unlocked.revision, 1);
+    assert.equal(unlocked.revision, 2);
 
-    await corrections.correct({
-      actor,
-      assignmentId: ids.assignment,
-      eventType: 'CHECK_OUT',
-      correctedEffectiveEventAt: '2099-02-10T11:59:00.000Z',
-      reason: 'Verified final checkout adjustment'
-    });
-    const second = await governance.certify({ actor, month: '2099-02' });
-    assert.equal(second.revision, 2);
-    assert.equal(second.status, 'CERTIFIED');
+    const laterApproved = await adjustments.approve({ actor, id: laterDraft.id });
+    assert.equal(laterApproved.status, 'APPROVED');
+
+    const finalCertification = await governance.certify({ actor, month: '2099-02' });
+    assert.equal(finalCertification.revision, 3);
+    assert.equal(finalCertification.status, 'CERTIFIED');
 
     const history = await governance.certificationHistory('2099-02');
-    assert.deepEqual(history.map((item) => [item.revision, item.status]), [[2, 'CERTIFIED'], [1, 'UNLOCKED']]);
+    assert.deepEqual(history.map((item) => [item.revision, item.status]), [[3, 'CERTIFIED'], [2, 'UNLOCKED'], [1, 'UNLOCKED']]);
 
     const correctionHistory = await corrections.list({ actor, assignmentId: ids.assignment });
     assert.equal(correctionHistory.length, 3);
@@ -214,8 +252,11 @@ if (!configured) {
     assert.equal(correctionHistory.filter((item) => !item.isCurrent).length, 1);
 
     const auditRows = await prisma.auditLog.findMany({
-      where: { actorUserId: ids.admin, entityType: { in: ['AttendanceCorrection', 'AttendanceMonthCertification'] } }
+      where: {
+        actorUserId: ids.admin,
+        entityType: { in: ['AttendanceAdjustmentRequest', 'AttendanceCorrection', 'AttendanceMonthCertification'] }
+      }
     });
-    assert.ok(auditRows.length >= 6);
+    assert.ok(auditRows.length >= 8);
   });
 }

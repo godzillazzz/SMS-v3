@@ -8,8 +8,10 @@ const {
   attendanceResultText,
   buildAttendanceWorkbook,
   loadCertifiedAttendanceMonth,
-  reportId
+  reportId,
+  reportRowProjection
 } = require('../src/services/attendance-report.service');
+const { snapshotDigest } = require('../src/services/attendance-month-governance.service');
 
 function certification() {
   return {
@@ -126,6 +128,25 @@ test('human-readable Attendance result preserves abnormal and assist-site wordin
   assert.equal(attendanceResultText({ flags: ['LATE', 'EARLY_OUT'] }), 'มาสาย / ออกก่อนเวลา');
 });
 
+test('official Attendance JSON projection excludes correction actors, reasons and raw evidence while preserving governed result fields', () => {
+  const projected = reportRowProjection({
+    ...certification().snapshot.rows[0],
+    corrections: [{ id: 'correction-secret', reason: 'private reviewer reason', actorUserId: 'private-actor-id' }],
+    originalCheckInAt: '2026-08-25T00:01:00.000Z',
+    originalCheckOutAt: '2026-08-25T11:59:00.000Z'
+  });
+
+  assert.equal(projected.employeeCode, 'EMP-001');
+  assert.deepEqual(projected.flags, ['LATE', 'ASSIST_OTHER_SITE']);
+  assert.equal(projected.checkInAt, '2026-08-25T00:05:00.000Z');
+  assert.equal(projected.actualSite.name, 'Site B');
+  assert.equal('corrections' in projected, false);
+  assert.equal('originalCheckInAt' in projected, false);
+  assert.equal('originalCheckOutAt' in projected, false);
+  assert.equal('locationEvidence' in projected, false);
+  assert.equal('verificationSnapshot' in projected, false);
+});
+
 test('official report load fails closed when month is not certified', async () => {
   const client = { $queryRaw: async () => [] };
   await assert.rejects(
@@ -143,7 +164,7 @@ test('official report load accepts only a structurally valid certified snapshot'
       revision: current.revision,
       status: current.status,
       summarySnapshot: current.snapshot,
-      summaryDigest: current.summaryDigest,
+      summaryDigest: snapshotDigest(current.snapshot),
       certifiedByUserId: current.certifiedByUserId,
       certifiedAt: current.certifiedAt
     }]
@@ -152,4 +173,42 @@ test('official report load accepts only a structurally valid certified snapshot'
   assert.equal(loaded.revision, 3);
   assert.equal(loaded.snapshot.month, '2026-08');
   assert.equal(loaded.snapshot.rows.length, 2);
+});
+
+test('official report load fails closed when certified snapshot digest or metadata is inconsistent', async () => {
+  const current = certification();
+  const badDigestClient = {
+    $queryRaw: async () => [{
+      id: current.id,
+      month: current.month,
+      revision: current.revision,
+      status: current.status,
+      summarySnapshot: current.snapshot,
+      summaryDigest: '0'.repeat(64),
+      certifiedByUserId: current.certifiedByUserId,
+      certifiedAt: current.certifiedAt
+    }]
+  };
+  await assert.rejects(
+    () => loadCertifiedAttendanceMonth('2026-08', badDigestClient),
+    (error) => error?.details?.code === 'ATTENDANCE_CERTIFICATION_DIGEST_MISMATCH'
+  );
+
+  const wrongMonthSnapshot = { ...current.snapshot, month: '2026-07' };
+  const wrongMonthClient = {
+    $queryRaw: async () => [{
+      id: current.id,
+      month: current.month,
+      revision: current.revision,
+      status: current.status,
+      summarySnapshot: wrongMonthSnapshot,
+      summaryDigest: snapshotDigest(wrongMonthSnapshot),
+      certifiedByUserId: current.certifiedByUserId,
+      certifiedAt: current.certifiedAt
+    }]
+  };
+  await assert.rejects(
+    () => loadCertifiedAttendanceMonth('2026-08', wrongMonthClient),
+    (error) => error?.details?.code === 'ATTENDANCE_CERTIFICATION_SNAPSHOT_INVALID'
+  );
 });

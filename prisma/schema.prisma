@@ -431,6 +431,7 @@ model Employee {
   faceVerificationSessions    FaceVerificationSession[]
   faceVerificationReceipts    FaceVerificationReceipt[]
   attendanceSessions          AttendanceSession[]
+  attendanceEvidence          AttendanceEvidence[]
 
   @@index([isActive, deletedAt])
   @@index([department])
@@ -472,6 +473,7 @@ model EmployeeReferencePhoto {
   reviewedBy                 User?                        @relation("EmployeeReferencePhotoReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
   faceVerificationSessions   FaceVerificationSession[]
   faceVerificationReceipts   FaceVerificationReceipt[]
+  attendanceEvidence         AttendanceEvidence[]
 
   @@index([employeeId, status, createdAt])
   @@index([status, storageDeletionRequestedAt, storageDeletedAt])
@@ -514,12 +516,43 @@ model FaceVerificationSession {
   deviceChallenge             AttendanceDeviceChallenge     @relation(fields: [deviceChallengeId], references: [id], onDelete: Restrict)
   receipt                     FaceVerificationReceipt?
   attendanceEvent             AttendanceEvent?
+  attendanceEvidence          AttendanceEvidence?
 
   @@index([employeeId, purpose, status, expiresAt])
   @@index([deviceEnrollmentId, purpose, status, expiresAt])
   @@index([referencePhotoId, status, createdAt])
   @@index([userId, createdAt])
   @@map("face_verification_sessions")
+}
+
+model AttendanceEvidence {
+  id                        String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  faceVerificationSessionId String                  @unique @map("face_verification_session_id") @db.Uuid
+  employeeId                String                  @map("employee_id") @db.Uuid
+  referencePhotoId          String                  @map("reference_photo_id") @db.Uuid
+  storageProvider           String                  @map("storage_provider") @db.VarChar(50)
+  storageBucket             String                  @map("storage_bucket") @db.VarChar(255)
+  storageObjectKey          String                  @unique @map("storage_object_key") @db.VarChar(500)
+  mimeType                  String                  @map("mime_type") @db.VarChar(100)
+  sizeBytes                 Int                     @map("size_bytes")
+  checksum                  String                  @db.Char(64)
+  capturedAt                DateTime                @map("captured_at")
+  retentionUntil            DateTime                @map("retention_until")
+  purgeRequestedAt          DateTime?               @map("purge_requested_at")
+  purgedAt                  DateTime?               @map("purged_at")
+  purgeAttempts             Int                     @default(0) @map("purge_attempts")
+  purgeLastErrorAt          DateTime?               @map("purge_last_error_at")
+  purgeLastErrorCode        String?                 @map("purge_last_error_code") @db.VarChar(80)
+  createdAt                 DateTime                @default(now()) @map("created_at")
+  updatedAt                 DateTime                @updatedAt @map("updated_at")
+  faceVerificationSession   FaceVerificationSession @relation(fields: [faceVerificationSessionId], references: [id], onDelete: Restrict)
+  employee                  Employee                @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  referencePhoto            EmployeeReferencePhoto  @relation(fields: [referencePhotoId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, capturedAt])
+  @@index([retentionUntil, purgedAt])
+  @@index([referencePhotoId, capturedAt])
+  @@map("attendance_evidence")
 }
 
 model FaceVerificationReceipt {

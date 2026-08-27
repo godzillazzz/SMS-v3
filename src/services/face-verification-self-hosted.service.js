@@ -15,7 +15,7 @@ const {
   createSelfHostedFaceMatchProvider
 } = require('./self-hosted-face-match.provider');
 const {
-  createNoopAttendanceFaceEvidenceStorage,
+  createSupabaseAttendanceFaceEvidenceStorage,
   assertAttendanceFaceEvidenceStorage
 } = require('./attendance-face-evidence-storage.service');
 
@@ -63,11 +63,12 @@ function safeEvidenceResult(result) {
 }
 
 function createSelfHostedFaceVerificationService({
+  environment = process.env,
   prisma = prismaDefault,
   sessionService = createFaceVerificationSessionService({ prisma }),
   provider = createSelfHostedFaceMatchProvider(),
   referenceStorage = createSupabaseEmployeeReferencePhotoStorage(),
-  evidenceStorage = createNoopAttendanceFaceEvidenceStorage(),
+  evidenceStorage = createSupabaseAttendanceFaceEvidenceStorage({ environment, prisma }),
   randomUUID = crypto.randomUUID
 } = {}) {
   const attendanceEvidenceStorage = assertAttendanceFaceEvidenceStorage(evidenceStorage);
@@ -146,18 +147,9 @@ function createSelfHostedFaceVerificationService({
         throw error;
       }
 
-      const accepted = await sessionService.recordTrustedFaceMatchOnlyResult({
-        sessionId,
-        providerSessionRef,
-        activeChallengePassed: evaluation.activeChallengePassed,
-        faceMatchPassed: evaluation.faceMatchPassed,
-        resultCode: evaluation.resultCode,
-        policyProfileId: evaluation.policyProfileId || POLICY_PROFILE_ID,
-        engineVersion: evaluation.engineVersion
-      });
-
       let evidenceResult = { storageStatus: 'NOT_STORED' };
-      if (evaluation.activeChallengePassed === true && evaluation.faceMatchPassed === true && accepted.receipt) {
+      const evidenceRequired = evaluation.activeChallengePassed === true && evaluation.faceMatchPassed === true;
+      if (evidenceRequired) {
         try {
           evidenceResult = await attendanceEvidenceStorage.store({
             sessionId,
@@ -168,9 +160,36 @@ function createSelfHostedFaceVerificationService({
             capturedAt: new Date(),
             verificationPassed: true
           });
-        } catch {
-          evidenceResult = { storageStatus: 'NOT_STORED' };
+          if (evidenceResult?.storageStatus !== 'STORED') {
+            throw http(503, 'ATTENDANCE_EVIDENCE_STORAGE_REQUIRED', 'Private Attendance evidence must be stored before verification can be accepted.');
+          }
+        } catch (error) {
+          await sessionService.failSession(sessionId, 'ATTENDANCE_EVIDENCE_STORAGE_FAILED').catch(() => {});
+          throw error?.details?.code ? error : http(503, 'ATTENDANCE_EVIDENCE_STORAGE_FAILED', 'Private Attendance evidence could not be stored.');
         }
+      }
+
+      let accepted;
+      try {
+        accepted = await sessionService.recordTrustedFaceMatchOnlyResult({
+          sessionId,
+          providerSessionRef,
+          activeChallengePassed: evaluation.activeChallengePassed,
+          faceMatchPassed: evaluation.faceMatchPassed,
+          resultCode: evaluation.resultCode,
+          policyProfileId: evaluation.policyProfileId || POLICY_PROFILE_ID,
+          engineVersion: evaluation.engineVersion
+        });
+      } catch (error) {
+        if (evidenceResult?.storageStatus === 'STORED') {
+          await attendanceEvidenceStorage.remove({ evidenceId: evidenceResult.id, faceVerificationSessionId: sessionId, reason: 'VERIFICATION_ACCEPTANCE_ABORTED' }).catch(() => {});
+        }
+        throw error;
+      }
+      if (evidenceRequired && !accepted.receipt) {
+        await attendanceEvidenceStorage.remove({ evidenceId: evidenceResult.id, faceVerificationSessionId: sessionId, reason: 'VERIFICATION_RECEIPT_NOT_ISSUED' }).catch(() => {});
+        await sessionService.failSession(sessionId, 'ATTENDANCE_EVIDENCE_RECEIPT_MISMATCH').catch(() => {});
+        throw http(409, 'ATTENDANCE_EVIDENCE_RECEIPT_MISMATCH', 'Face verification did not produce an actionable Attendance receipt.');
       }
 
       return {

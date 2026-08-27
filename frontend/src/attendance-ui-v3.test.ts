@@ -15,7 +15,8 @@ describe('Attendance UI V3 mockup-aligned employee surface', () => {
     expect(page).toContain('TAP TO CHECK IN');
     expect(page).toContain('TAP TO CHECK OUT');
     expect(page).toContain('Server ตัดสิน IN / OUT');
-    expect(page.match(/<button\b/g)?.length).toBe(1);
+    const legacy = page.slice(page.indexOf('return <section className="view-pane attendance-page attendance-v2"'));
+    expect(legacy.match(/<button\b/g)?.length).toBe(1);
     expect(page).toContain('disabled={!canStartAttendance}');
     expect(page).toContain('onClick={() => void handleStartAttendance()}');
   });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { attendanceReportPresentation } from './pages/reports/AttendanceOfficialReport';
 import type { AttendanceReportRow } from './pages/reports/attendance-report-client';
 
@@ -22,6 +23,14 @@ const row = (overrides: Partial<AttendanceReportRow> = {}): AttendanceReportRow 
 });
 
 describe('Official Attendance report presentation', () => {
+  it('uses the shared Attendance auth-continuity helper for certified JSON/XLSX requests', () => {
+    const client = readFileSync(new URL('./pages/reports/attendance-report-client.ts', import.meta.url), 'utf8');
+    expect(client).toContain("import { attendanceAuthenticatedRequest } from '../../attendance-auth-request'");
+    expect(client).toContain('attendanceAuthenticatedRequest(path, token)');
+    expect(client).not.toContain('api.refresh()');
+    expect(client).not.toContain('await fetch(');
+  });
+
   it('groups one monthly print page per employee and sorts daily rows', () => {
     const grouped = attendanceReportPresentation.groupByEmployee([
       row({ assignmentId: 'a2', workDate: '2026-08-26' }),

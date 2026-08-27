@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'sms-pwa-shell-v1';
+const CACHE_NAME = 'sms-pwa-shell-v2';
 const SHELL_URLS = ['/', '/manifest.webmanifest', '/pwa-icon-192.png', '/pwa-icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -38,8 +38,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Manifest metadata must be network-first so installed PWAs receive new shortcuts/theme
+  // even when a future release changes the manifest without changing application assets.
+  if (url.pathname === '/manifest.webmanifest') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || Response.error()))
+    );
+    return;
+  }
+
   const cacheableStatic = url.pathname.startsWith('/assets/')
-    || url.pathname === '/manifest.webmanifest'
     || url.pathname === '/pwa-icon-192.png'
     || url.pathname === '/pwa-icon-512.png'
     || url.pathname === '/apple-touch-icon.png';

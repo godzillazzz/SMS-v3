@@ -14,6 +14,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
+import { setAttendanceTokenRefreshGuard, setAttendanceTokenRefreshHandler } from './attendance-auth-request';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from './request-error';
 import { acquireDocumentScrollLock } from './document-scroll-lock';
 import { LEAVE_QUOTA_DEFAULTS, buildLeaveQuotaProvisioningPayload, canProvisionLeaveQuota, currentBangkokQuotaYear, hasUnmatchedLegacyQuota, quotaProvisioningEmployeeOptions, thaiQuotaYearLabel } from './leave-quota-provisioning';
@@ -33,9 +34,12 @@ import { DataQualityCenterPage, type DataQualityFilters, type DataQualityIssue }
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
 import { AttendanceDevicePage } from './pages/attendance-device/AttendanceDevicePage';
 import { PwaProfilePage } from './pages/pwa-profile/PwaProfilePage';
+import { AttendanceHistoryPwaPage } from './pages/pwa-attendance/AttendanceHistoryPwaPage';
+import { AttendanceSchedulePwaPage } from './pages/pwa-attendance/AttendanceSchedulePwaPage';
 import { initialSmsPwaPage, isSmsPwaPage, isSmsPwaShellMode, type SmsPwaPage } from './pwa-mode';
 import { registerSmsPwa } from './pwa';
 import { AttendancePage } from './pages/attendance/AttendancePage';
+import { AttendanceSupervisorPage } from './pages/attendance-supervisor/AttendanceSupervisorPage';
 import { RegistrationReviewPanel } from './pages/access-management/RegistrationReviewPanel';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
 import type { DashboardFilters } from './components/dashboard/types';
@@ -67,7 +71,7 @@ import './styles/pwa-shell.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
-type Page = 'dashboard' | 'employees' | 'licenses' | 'attendance' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
+type Page = 'dashboard' | 'employees' | 'licenses' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
@@ -115,6 +119,10 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string>();
   const [user, setUser] = useState<User>();
   const [viewAs, setViewAs] = useState<{ token: string; user: User }>();
+  const primaryTokenRef = useRef<string>();
+  const viewAsTokenRef = useRef<string>();
+  primaryTokenRef.current = token;
+  viewAsTokenRef.current = viewAs?.token;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
@@ -126,12 +134,23 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    setTokenRefreshHandler((newToken, newUser) => {
+    const applyRefreshedToken = (newToken: string, newUser: any) => {
       setToken(newToken);
       if (newUser) setUser(newUser);
+      if (viewAsTokenRef.current) throw new Error('Session context changed. Retry from the primary account.');
+    };
+    setTokenRefreshHandler(applyRefreshedToken);
+    setAttendanceTokenRefreshHandler(applyRefreshedToken);
+    setAttendanceTokenRefreshGuard((requestToken) => {
+      if (viewAsTokenRef.current && requestToken === viewAsTokenRef.current) return false;
+      return Boolean(primaryTokenRef.current && requestToken === primaryTokenRef.current);
     });
     refresh().catch(() => undefined).finally(() => setLoading(false));
-    return () => setTokenRefreshHandler(null);
+    return () => {
+      setTokenRefreshHandler(null);
+      setAttendanceTokenRefreshHandler(null);
+      setAttendanceTokenRefreshGuard(null);
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -720,7 +739,7 @@ function EmployeeMagicWandModal({
   );
 }
 
-type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'attendance' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
+type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
 
 const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
@@ -1445,12 +1464,14 @@ function Dashboard() {
     if (pwaShell && !isSmsPwaPage(activePage)) setActivePage('attendance');
   }, [activePage, pwaShell]);
 
-  const selectPwaPage = (page: SmsPwaPage) => {
+  const selectPwaPage = (page: SmsPwaPage, options: { today?: boolean } = {}) => {
     setActivePage(page);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.set('pwa', '1');
       url.searchParams.set('page', page);
+      if (page === 'attendanceHistory' && options.today) url.searchParams.set('today', '1');
+      else url.searchParams.delete('today');
       window.history.replaceState(window.history.state, '', url);
     }
   };
@@ -1629,9 +1650,9 @@ function Dashboard() {
   }, [activePage, auth.token, operationRefresh]);
 
   useEffect(() => {
-    if (!auth.token || !['ADMIN', 'MANAGER'].includes(auth.user?.role || '')) { setPendingLeaveCount(0); return; }
+    if (pwaShell || !auth.token || !['ADMIN', 'MANAGER'].includes(auth.user?.role || '')) { setPendingLeaveCount(0); return; }
     api.leaveRequests(auth.token, 1).then((result) => setPendingLeaveCount((Array.isArray(result.data) ? result.data : []).filter((row: DataRow) => row.status === 'PENDING').length)).catch(() => setPendingLeaveCount(0));
-  }, [auth.token, auth.user?.role, operationRefresh]);
+  }, [auth.token, auth.user?.role, operationRefresh, pwaShell]);
 
   useEffect(() => {
     if (!auth.token || activePage !== 'rules') return;
@@ -1657,14 +1678,14 @@ function Dashboard() {
   }, [activePage, auth.token, operationPage, dataQualityPageSize, dataQualityFilters, operationRefresh]);
 
   useEffect(() => {
-    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'attendance' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
+    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'attendance' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
     if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
       setOperationLoading(false);
       setOperationError(undefined);
       setOperationResponse({ data: [] });
       return;
     }
-    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'attendance' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
+    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
       users: api.users, audit: api.auditEvents, settings: api.systemSettings
@@ -1711,12 +1732,14 @@ function Dashboard() {
 
   const parentPage: Partial<Record<Page, Page>> = { executiveReport: 'reportCenter', reports: 'reportCenter' };
   const navigationPage = parentPage[activePage] || activePage;
-  const pageTitle = activePage === 'profile' ? 'โปรไฟล์' : navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || 'Dashboard';
+  const pageTitle = activePage === 'profile' ? 'โปรไฟล์' : activePage === 'attendanceHistory' ? 'ประวัติการลงเวลา' : activePage === 'employeeSchedule' ? 'ตารางงาน' : navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || 'Dashboard';
   const pageSubtitle: Record<Page, string> = {
     dashboard: 'ภาพรวม KPI และสถานะการปฏิบัติงาน',
     employees: 'ข้อมูลพนักงานและใบอนุญาตปฏิบัติงาน',
     licenses: 'ทะเบียนใบอนุญาตของพนักงาน',
     attendance: 'ลงเวลาเข้า/ออกด้วย QR, GPS และ Server authority',
+    attendanceHistory: 'ประวัติ Attendance ของบัญชีพนักงานที่เข้าสู่ระบบ',
+    employeeSchedule: 'ตารางงานที่อนุมัติและล็อกแล้วของพนักงาน',
     attendanceDevice: 'ลงทะเบียนและตรวจสอบอุปกรณ์หลักสำหรับ Attendance/Patrol',
     profile: 'ข้อมูลบัญชีและความปลอดภัย',
     shiftSetup: 'กำหนดประเภทกะและเวลาปฏิบัติงาน',
@@ -2541,7 +2564,25 @@ function Dashboard() {
       </section>;
     }
     if (activePage === 'attendance' && auth.token) {
-      return <AttendancePage token={auth.token} displayName={auth.user?.displayName} department={auth.user?.department} readOnly={auth.isViewingAs} online={!pwaShell || pwaOnline} />;
+      if (!pwaShell && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')) {
+        return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} userId={auth.user?.id} />;
+      }
+      return <AttendancePage
+        token={auth.token}
+        displayName={auth.user?.displayName}
+        department={auth.user?.department}
+        readOnly={auth.isViewingAs}
+        online={!pwaShell || pwaOnline}
+        employeeV4={pwaShell}
+        onTodayHistory={() => selectPwaPage('attendanceHistory', { today: true })}
+        onOpenSettings={() => selectPwaPage('profile')}
+      />;
+    }
+    if (activePage === 'attendanceHistory' && auth.token && pwaShell) {
+      return <AttendanceHistoryPwaPage token={auth.token} online={pwaOnline} />;
+    }
+    if (activePage === 'employeeSchedule' && auth.token && pwaShell) {
+      return <AttendanceSchedulePwaPage token={auth.token} online={pwaOnline} />;
     }
     if (activePage === 'profile' && auth.token) {
       return <PwaProfilePage user={auth.user} online={pwaOnline} readOnly={auth.isViewingAs} onOpenPasskeys={() => setPasskeyPanelOpen(true)} onLogout={() => auth.logout()} />;
@@ -2606,7 +2647,7 @@ function Dashboard() {
 
   return (
     <>
-      <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? 'pwa-shell' : ''}`}>
+      <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}>
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} />}
       {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <EmployeeChangeReviewModal token={auth.token} onClose={() => setEmployeeChangeReviewOpen(false)} onChanged={() => setEmployeeRefresh((value) => value + 1)} />}
@@ -2627,7 +2668,7 @@ function Dashboard() {
         </div>
       </aside>
       <main className="main-area">
-        {pwaShell && <header className="pwa-mobile-header"><span className="pwa-mobile-brand"><Logo /><span><strong>SMS</strong><small>{pageTitle}</small></span></span><span className={`pwa-online-state ${pwaOnline ? '' : 'offline'}`}>{pwaOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span></header>}
+        {pwaShell && activePage !== 'attendance' && <header className="pwa-mobile-header"><span className="pwa-mobile-brand"><Logo /><span><strong>SMS</strong><small>{pageTitle}</small></span></span><span className={`pwa-online-state ${pwaOnline ? '' : 'offline'}`}>{pwaOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span></header>}
         {pwaShell && !pwaOnline && <div className="pwa-offline-banner">ออฟไลน์ — เปิดดู shell ได้ แต่การลงเวลาและการส่งคำขอลาต้องรอการเชื่อมต่อ Server</div>}
         <header className="topbar">
           <div className="topbar-left">
@@ -2656,6 +2697,8 @@ function Dashboard() {
         <div className="content-area">{content()}</div>
         {pwaShell && <nav className="pwa-bottom-nav" aria-label="เมนู PWA">
           <button type="button" className={activePage === 'attendance' ? 'active' : ''} onClick={() => selectPwaPage('attendance')}><SmsIcon name="clock" size={20} /><span>ลงเวลา</span></button>
+          <button type="button" className={activePage === 'attendanceHistory' ? 'active' : ''} onClick={() => selectPwaPage('attendanceHistory')}><SmsIcon name="history" size={20} /><span>ประวัติ</span></button>
+          <button type="button" className={activePage === 'employeeSchedule' ? 'active' : ''} onClick={() => selectPwaPage('employeeSchedule')}><SmsIcon name="calendar" size={20} /><span>ตารางงาน</span></button>
           <button type="button" className={activePage === 'leave' ? 'active' : ''} onClick={() => selectPwaPage('leave')}><SmsIcon name="leave" size={20} /><span>ลา</span></button>
           <button type="button" className={activePage === 'profile' ? 'active' : ''} onClick={() => selectPwaPage('profile')}><SmsIcon name="users" size={20} /><span>โปรไฟล์</span></button>
         </nav>}

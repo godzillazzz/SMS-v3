@@ -4,7 +4,7 @@ const { Prisma } = require('@prisma/client');
 const { zipSync, strToU8 } = require('fflate');
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
-const { parseMonth } = require('./attendance-month-governance.service');
+const { parseMonth, snapshotDigest } = require('./attendance-month-governance.service');
 
 function http(statusCode, code, message) {
   return new HttpError(statusCode, message, { code });
@@ -86,6 +86,29 @@ function reportId(certification) {
   return `ATT-${month}-R${revision}-${shortId}`;
 }
 
+function reportRowProjection(row = {}) {
+  return {
+    assignmentId: row.assignmentId,
+    employeeId: row.employeeId,
+    employeeCode: row.employeeCode ?? null,
+    employeeName: row.employeeName,
+    department: row.department ?? null,
+    workDate: row.workDate,
+    shift: row.shift ?? null,
+    expectedSite: row.expectedSite ?? null,
+    actualSite: row.actualSite ?? null,
+    expectedStartAt: row.expectedStartAt ?? null,
+    expectedEndAt: row.expectedEndAt ?? null,
+    checkInAt: row.checkInAt ?? null,
+    checkOutAt: row.checkOutAt ?? null,
+    workedMinutes: row.workedMinutes ?? null,
+    lateMinutes: row.lateMinutes ?? null,
+    earlyOutMinutes: row.earlyOutMinutes ?? null,
+    status: row.status,
+    flags: Array.isArray(row.flags) ? row.flags : []
+  };
+}
+
 function normalizedCertification(row) {
   const snapshot = row?.summarySnapshot;
   if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot) || !Array.isArray(snapshot.rows)) {
@@ -121,7 +144,14 @@ async function loadCertifiedAttendanceMonth(month, client = prismaDefault) {
     LIMIT 1
   `);
   if (!rows.length) throw http(409, 'ATTENDANCE_MONTH_NOT_CERTIFIED', 'Attendance month must be certified before official report export.');
-  return normalizedCertification(rows[0]);
+  const certification = normalizedCertification(rows[0]);
+  if (certification.snapshot.version !== 'ATTENDANCE_MONTH_OFFICIAL_V1' || certification.snapshot.month !== period.text) {
+    throw http(409, 'ATTENDANCE_CERTIFICATION_SNAPSHOT_INVALID', 'Certified Attendance snapshot metadata is invalid.');
+  }
+  if (snapshotDigest(certification.snapshot) !== certification.summaryDigest) {
+    throw http(409, 'ATTENDANCE_CERTIFICATION_DIGEST_MISMATCH', 'Certified Attendance snapshot digest does not match the stored certification digest.');
+  }
+  return certification;
 }
 
 function attendanceSheetXml(certification) {
@@ -265,7 +295,7 @@ function createAttendanceReportService({ prisma = prismaDefault, clock = () => n
       generatedAt,
       generatedBy: user?.displayName || user?.email || actor?.sub || '-',
       summary: certification.snapshot.summary || {},
-      rows: certification.snapshot.rows
+      rows: certification.snapshot.rows.map(reportRowProjection)
     };
   }
 
@@ -291,6 +321,7 @@ module.exports = {
   bangkokDateTime,
   durationText,
   reportId,
+  reportRowProjection,
   normalizedCertification,
   loadCertifiedAttendanceMonth,
   buildAttendanceWorkbook,

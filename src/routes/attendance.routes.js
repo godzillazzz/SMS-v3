@@ -11,6 +11,9 @@ const { createAttendanceFaceChallengeUatService } = require('../services/attenda
 const { createAttendanceFaceEngineUatService } = require('../services/attendance-face-engine-uat.service');
 const { inProcessFaceConfig } = require('../services/in-process-face-match.provider');
 const { validateAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
+const { createAttendanceSelfService } = require('../services/attendance-self.service');
+const { createSupabaseAttendanceFaceEvidenceStorage } = require('../services/attendance-face-evidence-storage.service');
+const { authorize } = require('../middlewares/authenticate');
 
 const uuid = z.string().uuid();
 const decimal = z.union([z.number().finite(), z.string().trim().regex(/^-?\d+(?:\.\d+)?$/).max(32)]);
@@ -31,6 +34,11 @@ const attendanceContextInput = z.object({
 }).strict();
 const acceptInput = z.object({ receipt: z.string().trim().min(32).max(512), attendanceContext: attendanceContextInput }).strict();
 const deviceProofInput = z.object({ challengeId: uuid, challenge: z.string().min(16).max(512), signatureBase64: z.string().min(16).max(4096) }).strict();
+const selfHistoryQuery = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+}).strict();
+const selfScheduleQuery = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }).strict();
 const livePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fields: 0, parts: 2 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fileSize: ATTACHMENT_PROFILES.ATTENDANCE_FACE.imageHardLimitBytes } }).fields([
   { name: 'photo', maxCount: 1 },
   { name: 'challengeFrame', maxCount: ACTIVE_FACE_CHALLENGE_FRAME_COUNT }
@@ -85,14 +93,16 @@ function defaultAuthenticate(req, res, next) {
   return require('../middlewares/authenticate').authenticate(req, res, next);
 }
 
-function createAttendanceRoutes({ environment = process.env, authenticateMiddleware = defaultAuthenticate, contractService = null, faceChallengeUatService = null, faceEngineUatService = null } = {}) {
+function createAttendanceRoutes({ environment = process.env, authenticateMiddleware = defaultAuthenticate, contractService = null, faceChallengeUatService = null, faceEngineUatService = null, selfService = null, evidenceStorage = null } = {}) {
   const router = express.Router();
+  const privateEvidence = evidenceStorage || createSupabaseAttendanceFaceEvidenceStorage({ environment });
   const service = contractService || createAttendanceApiContractService({
-    faceVerificationService: createAttendanceFaceVerificationService({ environment }),
+    faceVerificationService: createAttendanceFaceVerificationService({ environment, evidenceStorage: privateEvidence }),
     isBiometricRuntimeEnabled: () => attendanceBiometricRuntimeEnabled(environment)
   });
   const uatService = faceChallengeUatService || createAttendanceFaceChallengeUatService();
   const engineUatService = faceEngineUatService || createAttendanceFaceEngineUatService({ environment });
+  const employeeSelf = selfService || createAttendanceSelfService();
 
   function requirePreviewAttendance(_req, _res, next) {
     return attendanceApiEnabled(environment) ? next() : next(new HttpError(404, 'Not found.'));
@@ -131,6 +141,32 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
   });
 
   router.use(requirePreviewAttendance, authenticateMiddleware);
+
+  router.get('/me/today', async (req, res, next) => {
+    try { res.json({ data: await employeeSelf.today({ actor: req.user }) }); } catch (error) { next(error); }
+  });
+
+  router.get('/me/history', async (req, res, next) => {
+    try {
+      const query = selfHistoryQuery.parse(req.query);
+      res.json({ data: await employeeSelf.history({ actor: req.user, ...query }) });
+    } catch (error) { next(error); }
+  });
+
+  router.get('/me/schedule', async (req, res, next) => {
+    try {
+      const query = selfScheduleQuery.parse(req.query);
+      res.json({ data: await employeeSelf.schedule({ actor: req.user, ...query }) });
+    } catch (error) { next(error); }
+  });
+
+  router.get('/evidence/:id/view', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+    try { res.json({ data: await privateEvidence.view({ id: uuid.parse(req.params.id), actor: req.user }) }); } catch (error) { next(error); }
+  });
+
+  router.post('/evidence/purge-expired', authorize('ADMIN'), async (req, res, next) => {
+    try { res.json({ data: await privateEvidence.purgeExpired({ actorUserId: req.user.sub }) }); } catch (error) { next(error); }
+  });
 
   router.post('/readiness', async (req, res, next) => {
     try { const input = prepareInput.parse(req.body); res.json({ data: await service.assessReadiness({ actor: req.user, ...input }) }); } catch (error) { next(error); }
@@ -174,5 +210,7 @@ module.exports = {
   createAttendanceRoutes,
   prepareInput,
   deviceProofInput,
-  acceptInput
+  acceptInput,
+  selfHistoryQuery,
+  selfScheduleQuery
 };

@@ -1,6 +1,5 @@
-import { api, ApiRequestError, normalizeRequestId } from '../../api';
-
-const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+import { ApiRequestError, normalizeRequestId } from '../../api';
+import { attendanceAuthenticatedRequest } from '../../attendance-auth-request';
 
 export type AttendanceReportSite = { id: string; code: string; name: string };
 export type AttendanceReportRow = {
@@ -50,20 +49,8 @@ function requestId(response: Response, payload?: unknown) {
   return undefined;
 }
 
-async function refreshToken() {
-  const refreshed = await api.refresh();
-  return String(refreshed?.accessToken || '');
-}
-
-async function reportRequest<T>(path: string, token: string, binary: boolean, retry = true): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (response.status === 401 && retry) {
-    const nextToken = await refreshToken();
-    if (nextToken) return reportRequest<T>(path, nextToken, binary, false);
-  }
+async function reportRequest<T>(path: string, token: string, binary: boolean): Promise<T> {
+  const response = await attendanceAuthenticatedRequest(path, token);
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     throw new ApiRequestError(

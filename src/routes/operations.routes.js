@@ -26,6 +26,7 @@ const { createSupabaseLicenseDocumentStorage } = require('../services/license-do
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
 const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../services/license-document-retention.service');
+const { createSupabaseAttendanceFaceEvidenceStorage } = require('../services/attendance-face-evidence-storage.service');
 const { normalizeLicenseNumber } = require('../services/license-document.service');
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
 const { getDashboardSummary } = require('../services/dashboard.service');
@@ -138,6 +139,7 @@ const isSupervisorPosition = (employee) => /supervisor|หัวหน้า|ซ
 const isManagerPosition = (employee) => /manager|ผู้จัดการ/.test(positionText(employee));
 const licenseStorage = createSupabaseLicenseDocumentStorage();
 const licenseDocuments = createLicenseDocumentService({ prisma, storage: licenseStorage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
+const attendanceEvidenceStorage = createSupabaseAttendanceFaceEvidenceStorage({ prisma, audit });
 const getTodayBangkokUTC = () => {
   const now = new Date();
   const bangkokTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
@@ -274,6 +276,13 @@ const sortByEmployeeCode = (left, right) => {
   if (codeCompare !== 0) return codeCompare;
   return new Date(left.expiryDate).getTime() - new Date(right.expiryDate).getTime();
 };
+
+router.get('/internal/attendance-evidence-retention', async (req, res, next) => {
+  try {
+    if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
+    res.json({ data: await attendanceEvidenceStorage.purgeExpired() });
+  } catch (error) { next(error); }
+});
 
 router.get('/internal/annual-leave-quota-provisioning', async (req, res, next) => {
   try {

@@ -5,7 +5,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createInProcessFaceVerificationService } = require('../src/services/face-verification-in-process.service');
 const { deriveActiveFaceChallenge } = require('../src/services/active-face-challenge.service');
-const { createNoopAttendanceFaceEvidenceStorage } = require('../src/services/attendance-face-evidence-storage.service');
 
 const sessionId = '33333333-3333-4333-8333-333333333333';
 
@@ -16,7 +15,7 @@ function jpeg(size = 256, fill = 7) {
 }
 function sha256(buffer) { return crypto.createHash('sha256').update(buffer).digest('hex'); }
 
-function context({ providerFails = false, activeChallengePassed = true, faceMatchPassed = true, evidenceStorage = null } = {}) {
+function context({ providerFails = false, activeChallengePassed = true, faceMatchPassed = true, evidenceStorage = null, recordFails = false } = {}) {
   const referenceBytes = jpeg(320, 9);
   const liveBytes = jpeg(256, 5);
   const challengeFrames = [jpeg(180, 1), jpeg(181, 2), jpeg(182, 3), jpeg(183, 4)];
@@ -44,6 +43,7 @@ function context({ providerFails = false, activeChallengePassed = true, faceMatc
     async bindProviderSession(input) { calls.push(['bind', input]); return { id: input.sessionId }; },
     async recordTrustedFaceMatchOnlyResult(input) {
       calls.push(['record', input]);
+      if (recordFails) throw new Error('record failed');
       const passed = input.activeChallengePassed === true && input.faceMatchPassed === true;
       return { session: { id: input.sessionId, status: passed ? 'VERIFIED' : 'FAILED', failureCode: passed ? null : input.activeChallengePassed ? 'FACE_MATCH_FAILED' : 'ACTIVE_CHALLENGE_FAILED' }, receipt: passed ? 'opaque-receipt' : null, receiptExpiresAt: passed ? new Date('2099-01-01T00:00:00Z') : null };
     },
@@ -63,12 +63,16 @@ function context({ providerFails = false, activeChallengePassed = true, faceMatc
     }
   };
   const referenceStorage = { async getBytes() { return referenceBytes; } };
+  const defaultEvidenceStorage = {
+    async store(input) { calls.push(['evidence-store', input]); return { id: 'evidence-1', storageStatus: 'STORED', stored: true }; },
+    async remove(input) { calls.push(['evidence-remove', input]); return { purged: true }; }
+  };
   const service = createInProcessFaceVerificationService({
     prisma,
     sessionService,
     provider,
     referenceStorage,
-    evidenceStorage: evidenceStorage || createNoopAttendanceFaceEvidenceStorage(),
+    evidenceStorage: evidenceStorage || defaultEvidenceStorage,
     randomUUID: () => 'provider-session-ref-1'
   });
   const files = challengeFrames.map((buffer) => ({ buffer, mimetype: 'image/jpeg' }));
@@ -84,12 +88,12 @@ async function verify(c) {
   });
 }
 
-test('in-process orchestration derives the server challenge, requires trusted challenge + face match, and stores no live image by default', async () => {
+test('in-process orchestration requires private evidence before issuing an Attendance receipt', async () => {
   const c = context();
   const result = await verify(c);
   assert.equal(result.verificationMode, 'FACE_MATCH_ONLY');
-  assert.equal(result.evidence.storageStatus, 'NOT_STORED');
-  assert.equal(result.evidence.stored, false);
+  assert.equal(result.evidence.storageStatus, 'STORED');
+  assert.equal(result.evidence.stored, true);
   assert.equal(result.receipt, 'opaque-receipt');
   assert.equal('faceMatchPassed' in result, false, 'provider booleans must not escape this service response');
   const providerCall = c.calls.find(([name]) => name === 'provider')[1];
@@ -129,6 +133,21 @@ test('face mismatch remains distinct after active challenge passes and is not st
   assert.equal(result.receipt, null);
   assert.equal(result.session.failureCode, 'FACE_MATCH_FAILED');
   assert.equal(storeCalls, 0);
+});
+
+test('successful face evaluation fails closed when mandatory private evidence cannot be stored', async () => {
+  const c = context({ evidenceStorage: { async store() { throw new Error('storage unavailable'); }, async remove() {} } });
+  await assert.rejects(() => verify(c), (error) => error?.details?.code === 'ATTENDANCE_EVIDENCE_STORAGE_FAILED');
+  assert.equal(c.calls.some(([name]) => name === 'record'), false);
+  assert.ok(c.calls.some(([name, input]) => name === 'fail' && input.code === 'ATTENDANCE_EVIDENCE_STORAGE_FAILED'));
+});
+
+test('stored evidence is compensating-purged when final receipt authority fails', async () => {
+  const c = context({ recordFails: true });
+  await assert.rejects(() => verify(c), /record failed/);
+  const removed = c.calls.find(([name]) => name === 'evidence-remove');
+  assert.equal(removed[1].evidenceId, 'evidence-1');
+  assert.equal(removed[1].reason, 'VERIFICATION_ACCEPTANCE_ABORTED');
 });
 
 test('provider failure fails the verification session and still purges every transient image buffer', async () => {

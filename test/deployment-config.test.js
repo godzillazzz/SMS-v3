@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const { attendanceApiEnabled } = require('../src/routes/attendance.routes');
 
 function loadEnvironment(overrides = {}) {
   const childEnvironment = { ...process.env };
@@ -101,4 +104,13 @@ test('In-process face environment contract is Production-capable but strictly bo
     FACE_CHALLENGE_NEUTRAL_MAX_RADIANS: '0.30'
   });
   assert.equal(validProduction.status, 0, `${validProduction.stdout}${validProduction.stderr}`);
+});
+
+
+test('repository config enables Attendance only for Preview while Production still requires its separate explicit flag', () => {
+  const vercelConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'vercel.json'), 'utf8'));
+  assert.equal(vercelConfig.env?.ATTENDANCE_API_PREVIEW_ENABLED, 'true');
+  assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), true);
+  assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), false);
+  assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true' }), true);
 });

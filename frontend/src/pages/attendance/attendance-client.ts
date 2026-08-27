@@ -1,3 +1,5 @@
+import { attendanceAuthenticatedRequest } from '../../attendance-auth-request';
+
 export type AttendanceEventIntent = 'CHECK_IN' | 'CHECK_OUT';
 
 export type AttendanceLocationEvidence = {
@@ -93,6 +95,85 @@ export type AttendanceFaceChallengeUatStartData = {
   retained: false;
 };
 
+export type AttendanceSelfEmployee = {
+  id: string;
+  employeeCode: string;
+  displayName: string;
+  firstName?: string;
+  lastName?: string;
+  department?: string | null;
+  jobTitle?: string | null;
+};
+
+export type AttendanceSelfSite = { id: string; code?: string | null; name: string };
+export type AttendanceSelfShift = {
+  id: string;
+  code?: string | null;
+  name?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+};
+
+export type AttendanceSelfRow = {
+  date: string;
+  assignmentId: string;
+  sessionId?: string | null;
+  employee: AttendanceSelfEmployee;
+  shift: AttendanceSelfShift;
+  expectedSite?: AttendanceSelfSite | null;
+  actualSite?: AttendanceSelfSite | null;
+  expectedStartAt?: string | null;
+  expectedEndAt?: string | null;
+  originalCheckInAt?: string | null;
+  originalCheckOutAt?: string | null;
+  checkInAt?: string | null;
+  checkOutAt?: string | null;
+  checkInEventId?: string | null;
+  checkOutEventId?: string | null;
+  workedMinutes?: number | null;
+  lateMinutes?: number | null;
+  earlyOutMinutes?: number | null;
+  status: string;
+  flags: string[];
+  corrected?: boolean;
+  correctionEventTypes?: string[];
+  authority?: string;
+};
+
+export type AttendanceSelfTodayData = {
+  generatedAt: string;
+  employee: AttendanceSelfEmployee;
+  assignment: AttendanceSelfRow | null;
+  scheduleReady: boolean;
+  scheduleRevision?: number;
+  reason?: string;
+};
+
+export type AttendanceSelfHistoryData = {
+  generatedAt: string;
+  employee: AttendanceSelfEmployee;
+  from: string;
+  to: string;
+  rows: AttendanceSelfRow[];
+};
+
+export type AttendanceSelfScheduleRow = {
+  date: string;
+  assignmentId: string;
+  shift: AttendanceSelfShift;
+  expectedSite?: AttendanceSelfSite | null;
+  remark?: string | null;
+};
+
+export type AttendanceSelfScheduleData = {
+  generatedAt: string;
+  employee: AttendanceSelfEmployee;
+  month: string;
+  approved: boolean;
+  revision?: number | null;
+  rows: AttendanceSelfScheduleRow[];
+};
+
 export type AttendanceFaceChallengeUatCaptureData = {
   ok: true;
   uatOnly: true;
@@ -105,7 +186,6 @@ export type AttendanceFaceChallengeUatCaptureData = {
   retained: false;
 };
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 function csrfToken() {
   const encoded = document.cookie
@@ -134,6 +214,17 @@ function publicError(payload: Record<string, unknown>, status: number, fallback:
   if (typeof payload?.error === 'string') return payload.error;
   if (status === 401) return 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง';
   return fallback;
+}
+
+function publicCode(payload: Record<string, any>) {
+  const value = typeof payload?.code === 'string'
+    ? payload.code
+    : typeof payload?.details?.code === 'string'
+      ? payload.details.code
+      : undefined;
+  if (!value) return undefined;
+  const normalized = value.trim();
+  return normalized && normalized.length <= 120 && /^[A-Z0-9_]+$/.test(normalized) ? normalized : undefined;
 }
 
 export class AttendanceReadinessError extends Error {
@@ -171,7 +262,7 @@ export async function attendanceReadiness(token: string, input: {
   qrToken?: string;
   location: AttendanceLocationEvidence;
 }): Promise<AttendanceReadinessResult> {
-  const response = await fetch(`${baseUrl}/attendance/readiness`, {
+  const response = await attendanceAuthenticatedRequest(`/attendance/readiness`, token, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(token, true),
@@ -196,7 +287,7 @@ export async function attendanceVerificationStart(token: string, input: {
   qrToken?: string;
   location: AttendanceLocationEvidence;
 }): Promise<AttendanceVerificationStartResult> {
-  const response = await fetch(`${baseUrl}/attendance/verification/start`, {
+  const response = await attendanceAuthenticatedRequest(`/attendance/verification/start`, token, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(token, true),
@@ -216,7 +307,7 @@ export async function attendanceVerificationStart(token: string, input: {
 }
 
 export async function attendanceDeviceState(token: string): Promise<AttendanceDeviceState> {
-  const response = await fetch(`${baseUrl}/attendance/devices/me`, {
+  const response = await attendanceAuthenticatedRequest(`/attendance/devices/me`, token, {
     method: 'GET',
     credentials: 'include',
     headers: authHeaders(token)
@@ -232,7 +323,7 @@ export async function verifyAttendanceDeviceProof(token: string, sessionId: stri
   challenge: string;
   signatureBase64: string;
 }) {
-  const response = await fetch(`${baseUrl}/attendance/verification/${encodeURIComponent(sessionId)}/device-proof`, {
+  const response = await attendanceAuthenticatedRequest(`/attendance/verification/${encodeURIComponent(sessionId)}/device-proof`, token, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(token, true),
@@ -260,7 +351,7 @@ export async function attendanceFaceMatch(token: string, sessionId: string, phot
   const form = new FormData();
   form.append('photo', photo, 'attendance-live-face.jpg');
   challengeFrames.forEach((frame, index) => form.append('challengeFrame', frame, `attendance-challenge-${index + 1}.jpg`));
-  const response = await fetch(`${baseUrl}/attendance/verification/${encodeURIComponent(sessionId)}/face-match`, {
+  const response = await attendanceAuthenticatedRequest(`/attendance/verification/${encodeURIComponent(sessionId)}/face-match`, token, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(token),
@@ -278,7 +369,7 @@ export async function attendanceFaceMatch(token: string, sessionId: string, phot
 }
 
 export async function attendanceFaceChallengeUatStart(token: string): Promise<AttendanceFaceChallengeUatStartData> {
-  const response = await fetch(`${baseUrl}/attendance/uat/face-challenge/start`, {
+  const response = await attendanceAuthenticatedRequest(`/attendance/uat/face-challenge/start`, token, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(token, true),
@@ -299,7 +390,7 @@ export async function attendanceFaceChallengeUatCapture(token: string, attemptId
   const form = new FormData();
   form.append('photo', photo, 'uat-live-face.jpg');
   challengeFrames.forEach((frame, index) => form.append('challengeFrame', frame, `uat-challenge-${index + 1}.jpg`));
-  const response = await fetch(`${baseUrl}/attendance/uat/face-challenge/${encodeURIComponent(attemptId)}/capture`, {
+  const response = await attendanceAuthenticatedRequest(`/attendance/uat/face-challenge/${encodeURIComponent(attemptId)}/capture`, token, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(token),
@@ -311,11 +402,52 @@ export async function attendanceFaceChallengeUatCapture(token: string, attemptId
   return payload.data as AttendanceFaceChallengeUatCaptureData;
 }
 
+export async function attendanceSelfToday(token: string): Promise<AttendanceSelfTodayData> {
+  const response = await attendanceAuthenticatedRequest(`/attendance/me/today`, token, {
+    method: 'GET',
+    credentials: 'include',
+    headers: authHeaders(token)
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถอ่านข้อมูลลงเวลาวันนี้ได้'), response.status, requestId);
+  return payload.data as AttendanceSelfTodayData;
+}
+
+export async function attendanceSelfHistory(token: string, input: { from?: string; to?: string } = {}): Promise<AttendanceSelfHistoryData> {
+  const params = new URLSearchParams();
+  if (input.from) params.set('from', input.from);
+  if (input.to) params.set('to', input.to);
+  const response = await attendanceAuthenticatedRequest(`/attendance/me/history${params.size ? `?${params.toString()}` : ''}`, token, {
+    method: 'GET',
+    credentials: 'include',
+    headers: authHeaders(token)
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถอ่านประวัติการลงเวลาได้'), response.status, requestId);
+  return payload.data as AttendanceSelfHistoryData;
+}
+
+export async function attendanceSelfSchedule(token: string, month?: string): Promise<AttendanceSelfScheduleData> {
+  const params = new URLSearchParams();
+  if (month) params.set('month', month);
+  const response = await attendanceAuthenticatedRequest(`/attendance/me/schedule${params.size ? `?${params.toString()}` : ''}`, token, {
+    method: 'GET',
+    credentials: 'include',
+    headers: authHeaders(token)
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถอ่านตารางงานได้'), response.status, requestId);
+  return payload.data as AttendanceSelfScheduleData;
+}
+
 export async function attendanceAcceptVerifiedEvent(token: string, input: {
   receipt: string;
   attendanceContext: AttendanceContextRef;
 }): Promise<AttendanceAcceptedData> {
-  const response = await fetch(`${baseUrl}/attendance/events`, {
+  const response = await attendanceAuthenticatedRequest(`/attendance/events`, token, {
     method: 'POST',
     credentials: 'include',
     headers: authHeaders(token, true),
@@ -326,6 +458,11 @@ export async function attendanceAcceptVerifiedEvent(token: string, input: {
   });
   const requestId = safeRequestId(response.headers.get('x-request-id'));
   const payload = await jsonPayload(response);
-  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'Server ไม่สามารถบันทึก AttendanceEvent ได้'), response.status, requestId);
+  if (!response.ok) throw new AttendanceFlowError(
+    publicError(payload, response.status, 'Server ไม่สามารถบันทึก AttendanceEvent ได้'),
+    response.status,
+    requestId,
+    publicCode(payload)
+  );
   return payload.data as AttendanceAcceptedData;
 }

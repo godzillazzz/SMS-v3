@@ -72,10 +72,18 @@ async function currentCorrectionsForAssignments(client, assignmentIds) {
       reason,
       actor_user_id AS "actorUserId",
       actor_role_snapshot AS "actorRoleSnapshot",
+      source_adjustment_request_id AS "sourceAdjustmentRequestId",
+      source_adjustment_revision AS "sourceAdjustmentRevision",
+      approved_by_user_id AS "approvedByUserId",
+      approved_at AS "approvedAt",
       created_at AS "createdAt"
     FROM attendance_corrections
     WHERE shift_assignment_id IN (${Prisma.join(assignmentIds.map((id) => Prisma.sql`${id}::uuid`))})
       AND is_current = TRUE
+      AND source_adjustment_request_id IS NOT NULL
+      AND source_adjustment_revision IS NOT NULL
+      AND approved_by_user_id IS NOT NULL
+      AND approved_at IS NOT NULL
     ORDER BY shift_assignment_id, event_type
   `);
 }
@@ -94,10 +102,18 @@ async function currentCorrectionsForSessions(client, sessionIds) {
       reason,
       actor_user_id AS "actorUserId",
       actor_role_snapshot AS "actorRoleSnapshot",
+      source_adjustment_request_id AS "sourceAdjustmentRequestId",
+      source_adjustment_revision AS "sourceAdjustmentRevision",
+      approved_by_user_id AS "approvedByUserId",
+      approved_at AS "approvedAt",
       created_at AS "createdAt"
     FROM attendance_corrections
     WHERE attendance_session_id IN (${Prisma.join(sessionIds.map((id) => Prisma.sql`${id}::uuid`))})
       AND is_current = TRUE
+      AND source_adjustment_request_id IS NOT NULL
+      AND source_adjustment_revision IS NOT NULL
+      AND approved_by_user_id IS NOT NULL
+      AND approved_at IS NOT NULL
     ORDER BY attendance_session_id, event_type
   `);
 }
@@ -123,6 +139,10 @@ function applyCurrentCorrections(events = [], corrections = []) {
         reason: correction.reason,
         actorUserId: correction.actorUserId,
         actorRoleSnapshot: correction.actorRoleSnapshot,
+        sourceAdjustmentRequestId: correction.sourceAdjustmentRequestId || null,
+        sourceAdjustmentRevision: correction.sourceAdjustmentRevision == null ? null : Number(correction.sourceAdjustmentRevision),
+        approvedByUserId: correction.approvedByUserId || null,
+        approvedAt: correction.approvedAt || null,
         createdAt: correction.createdAt
       }
     };
@@ -166,74 +186,12 @@ function createAttendanceCorrectionService({ prisma = prismaDefault, audit = aud
     `);
   }
 
-  async function correct({ actor, assignmentId, eventType, correctedEffectiveEventAt, reason } = {}) {
-    const type = normalizedEventType(eventType);
-    const correctedAt = correctedTime(correctedEffectiveEventAt);
-    const normalizedReason = correctionReason(reason);
-    const now = clock();
-
-    return prisma.$transaction(async (tx) => {
-      const assignment = await loadAssignment(tx, assignmentId);
-      const role = assertCorrectionActor(actor, assignment);
-      const certification = await currentMonthCertification(tx, assignment.workDate);
-      if (certification) throw http(409, 'ATTENDANCE_MONTH_CERTIFIED', 'Certified Attendance month must be unlocked before correction.');
-
-      const session = assignment.attendanceSession || null;
-      const original = session?.events?.find((row) => row.eventType === type) || null;
-      await tx.$executeRaw(Prisma.sql`
-        UPDATE attendance_corrections
-        SET is_current = FALSE, superseded_at = ${now}
-        WHERE shift_assignment_id = ${assignment.id}::uuid
-          AND event_type = ${type}::"AttendanceEventType"
-          AND is_current = TRUE
-      `);
-      const rows = await tx.$queryRaw(Prisma.sql`
-        INSERT INTO attendance_corrections (
-          shift_assignment_id, attendance_session_id, event_type, original_event_id, original_effective_event_at,
-          corrected_effective_event_at, reason, actor_user_id, actor_role_snapshot
-        ) VALUES (
-          ${assignment.id}::uuid,
-          ${session?.id || null}::uuid,
-          ${type}::"AttendanceEventType",
-          ${original?.id || null}::uuid,
-          ${original?.effectiveEventAt || null},
-          ${correctedAt},
-          ${normalizedReason},
-          ${actor.sub}::uuid,
-          ${role}
-        )
-        RETURNING
-          id,
-          shift_assignment_id AS "shiftAssignmentId",
-          attendance_session_id AS "attendanceSessionId",
-          event_type::text AS "eventType",
-          original_event_id AS "originalEventId",
-          original_effective_event_at AS "originalEffectiveEventAt",
-          corrected_effective_event_at AS "correctedEffectiveEventAt",
-          reason,
-          actor_user_id AS "actorUserId",
-          actor_role_snapshot AS "actorRoleSnapshot",
-          created_at AS "createdAt"
-      `);
-      const correction = rows[0];
-      await audit.log({
-        actorUserId: actor.sub,
-        action: 'UPDATE',
-        entityType: 'AttendanceCorrection',
-        entityId: correction.id,
-        metadata: {
-          shiftAssignmentId: assignment.id,
-          attendanceSessionId: session?.id || null,
-          eventType: type,
-          originalEventId: original?.id || null,
-          originalEffectiveEventAt: original?.effectiveEventAt || null,
-          correctedEffectiveEventAt: correctedAt,
-          reason: normalizedReason,
-          actorRoleSnapshot: role
-        }
-      }, tx);
-      return correction;
-    });
+  async function correct() {
+    throw http(
+      409,
+      'ATTENDANCE_CORRECTION_DIRECT_WRITE_DISABLED',
+      'Direct Attendance correction writes are disabled. Use an Attendance adjustment request and explicit ADMIN approval.'
+    );
   }
 
   return { list, correct };
