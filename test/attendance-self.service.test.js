@@ -95,6 +95,7 @@ function basePrisma(overrides = {}) {
     siteFindUnique: []
   };
   const prisma = {
+    async $queryRaw() { return []; },
     user: {
       async findUnique(input) {
         calls.userFindUnique.push(input);
@@ -245,6 +246,74 @@ test('history classifies only immutable raw AttendanceEvent rows and labels the 
   assert.equal(result.rows[0].authority, 'RAW_ATTENDANCE_EVENT');
   assert.equal(result.rows[0].expectedSite.name, 'Main Site');
   assert.equal(result.rows[0].actualSite.name, 'Main Site');
+});
+
+
+
+test('history applies only current effective correction overlays while preserving original immutable times', async () => {
+  const raw = [
+    {
+      id: 'event-in',
+      eventType: 'CHECK_IN',
+      effectiveEventAt: new Date('2026-08-27T00:00:00.000Z'),
+      receivedAt: new Date('2026-08-27T00:00:00.000Z'),
+      locationEvidence: { actualSiteId: 'site-1' }
+    },
+    {
+      id: 'event-out',
+      eventType: 'CHECK_OUT',
+      effectiveEventAt: new Date('2026-08-27T12:00:00.000Z'),
+      receivedAt: new Date('2026-08-27T12:00:00.000Z'),
+      locationEvidence: { actualSiteId: 'site-1' }
+    }
+  ];
+  const row = assignment({ events: raw });
+  const { prisma, calls } = basePrisma({
+    shiftAssignment: {
+      async findMany(input) {
+        calls.assignmentFindMany.push(input);
+        return [row];
+      }
+    }
+  });
+  const service = createAttendanceSelfService({
+    prisma,
+    clock: () => new Date('2026-08-27T13:00:00.000Z'),
+    correctionsForAssignments: async (_client, assignmentIds) => {
+      assert.deepEqual(assignmentIds, ['assignment-1']);
+      return [{
+        id: 'correction-in',
+        shiftAssignmentId: 'assignment-1',
+        eventType: 'CHECK_IN',
+        originalEventId: 'event-in',
+        originalEffectiveEventAt: new Date('2026-08-27T00:00:00.000Z'),
+        correctedEffectiveEventAt: new Date('2026-08-27T00:05:00.000Z'),
+        reason: 'Approved governed correction',
+        actorUserId: 'manager-1',
+        actorRoleSnapshot: 'MANAGER',
+        createdAt: new Date('2026-08-27T13:00:00.000Z')
+      }];
+    }
+  });
+
+  const result = await service.history({
+    actor: { sub: 'user-1', role: 'VIEWER' },
+    from: '2026-08-27',
+    to: '2026-08-27'
+  });
+
+  assert.equal(result.rows.length, 1);
+  const effective = result.rows[0];
+  assert.equal(new Date(effective.originalCheckInAt).toISOString(), '2026-08-27T00:00:00.000Z');
+  assert.equal(new Date(effective.originalCheckOutAt).toISOString(), '2026-08-27T12:00:00.000Z');
+  assert.equal(new Date(effective.checkInAt).toISOString(), '2026-08-27T00:05:00.000Z');
+  assert.equal(new Date(effective.checkOutAt).toISOString(), '2026-08-27T12:00:00.000Z');
+  assert.equal(effective.workedMinutes, 715);
+  assert.equal(effective.corrected, true);
+  assert.deepEqual(effective.correctionEventTypes, ['CHECK_IN']);
+  assert.equal(effective.authority, 'EFFECTIVE_ATTENDANCE_CORRECTION');
+  assert.equal(effective.checkInEventId, 'event-in');
+  assert.equal(effective.checkOutEventId, 'event-out');
 });
 
 test('today preserves overnight work-date authority and prefers the prior overnight assignment before its end time', async () => {
