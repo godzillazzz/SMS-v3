@@ -1,0 +1,121 @@
+name: Attendance V4 Preview Technical UAT
+
+on:
+  push:
+    branches:
+      - test/attendance-v4-preview-technical-uat
+
+permissions:
+  contents: read
+
+concurrency:
+  group: attendance-v4-preview-technical-uat
+  cancel-in-progress: true
+
+jobs:
+  technical-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      UAT_BASE_URL: https://sms-v3-staging-mam3hpwrh-godzillazz.vercel.app
+      UAT_SOURCE_SHA: 5cad34e1abbc7158eb73ee8d7180b19f0cb591a9
+      UAT_EXPECTED_DEPLOYMENT_ID: dpl_Ec1kvwohXYwnZrjE7tVLrgUkpqx4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5cad34e1abbc7158eb73ee8d7180b19f0cb591a9
+          fetch-depth: 0
+
+      - name: Verify exact candidate identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "5cad34e1abbc7158eb73ee8d7180b19f0cb591a9"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run non-destructive technical smoke
+        id: uat
+        uses: actions/github-script@v7
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+            const { spawnSync } = require('node:child_process');
+            const { artifactContainsSecret, isProtectedCandidateUrl } = require('./e2e/helpers/technical-smoke');
+
+            const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
+            if (isProtectedCandidateUrl(process.env.UAT_BASE_URL) && !secret) {
+              core.setFailed('VERCEL_AUTOMATION_BYPASS_SECRET_MISSING');
+              core.setOutput('artifact_leak', 'not-scanned');
+              return;
+            }
+            if (secret) core.setSecret(secret);
+
+            const result = spawnSync('npm', ['run', 'test:uat'], {
+              env: { ...process.env, CI: 'true' },
+              stdio: 'inherit'
+            });
+
+            let leakCount = 0;
+            if (secret) {
+              for (const root of ['playwright-report', 'test-results']) {
+                if (!fs.existsSync(root)) continue;
+                const stack = [root];
+                while (stack.length) {
+                  const current = stack.pop();
+                  const stat = fs.statSync(current);
+                  if (stat.isDirectory()) {
+                    stack.push(...fs.readdirSync(current).map((entry) => path.join(current, entry)));
+                  } else if (artifactContainsSecret(fs.readFileSync(current), secret)) {
+                    leakCount += 1;
+                  }
+                }
+              }
+            }
+
+            core.setOutput('artifact_leak', String(leakCount));
+            if (leakCount > 0) {
+              core.setFailed('VERCEL_BYPASS_ARTIFACT_LEAK');
+            } else if (result.error) {
+              throw result.error;
+            } else if (result.status !== 0) {
+              core.setFailed('Technical smoke failed');
+            }
+
+      - name: Publish summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Attendance V4 Preview Technical UAT'
+            echo "- Candidate SHA: $UAT_SOURCE_SHA"
+            echo "- Deployment: $UAT_EXPECTED_DEPLOYMENT_ID"
+            echo "- Target: $UAT_BASE_URL"
+            echo "- Result: ${{ steps.uat.outcome }}"
+            echo "- VERCEL_BYPASS_ARTIFACT_LEAK: ${{ steps.uat.outputs.artifact_leak || 'not-scanned' }}"
+            if [[ "${{ steps.uat.outputs.artifact_leak }}" == "0" && -f test-results/uat-summary.md ]]; then
+              cat test-results/uat-summary.md
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload safe UAT artifacts
+        if: always() && steps.uat.outputs.artifact_leak == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: attendance-v4-preview-technical-uat-${{ github.run_id }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: warn
+          retention-days: 7
