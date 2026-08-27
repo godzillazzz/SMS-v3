@@ -115,6 +115,8 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string>();
   const [user, setUser] = useState<User>();
   const [viewAs, setViewAs] = useState<{ token: string; user: User }>();
+  const viewAsRef = useRef<typeof viewAs>(undefined);
+  viewAsRef.current = viewAs;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
@@ -129,6 +131,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     setTokenRefreshHandler((newToken, newUser) => {
       setToken(newToken);
       if (newUser) setUser(newUser);
+      if (viewAsRef.current) throw new Error('Session context changed. Retry from the primary account.');
     });
     refresh().catch(() => undefined).finally(() => setLoading(false));
     return () => setTokenRefreshHandler(null);
