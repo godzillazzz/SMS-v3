@@ -33,10 +33,10 @@ const attendanceContextInput = z.object({
 const acceptInput = z.object({ receipt: z.string().trim().min(32).max(512), attendanceContext: attendanceContextInput }).strict();
 const deviceProofInput = z.object({ challengeId: uuid, challenge: z.string().min(16).max(512), signatureBase64: z.string().min(16).max(4096) }).strict();
 const selfHistoryQuery = z.object({
-  from: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional(),
-  to: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).optional()
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
 }).strict();
-const selfScheduleQuery = z.object({ month: z.string().regex(/^\\d{4}-\\d{2}$/).optional() }).strict();
+const selfScheduleQuery = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }).strict();
 const livePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fields: 0, parts: 2 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fileSize: ATTACHMENT_PROFILES.ATTENDANCE_FACE.imageHardLimitBytes } }).fields([
   { name: 'photo', maxCount: 1 },
   { name: 'challengeFrame', maxCount: ACTIVE_FACE_CHALLENGE_FRAME_COUNT }
