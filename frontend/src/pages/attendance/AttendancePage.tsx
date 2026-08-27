@@ -500,6 +500,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       setLocationIssue(reason);
       setError(reason.message);
       locationRecoveryPendingRef.current = reason.code === 'LOCATION_PERMISSION_DENIED';
+      if (employeeV4 && reason.code === 'LOCATION_PERMISSION_DENIED') setLocationHelpOpen(true);
       return;
     }
     locationRecoveryPendingRef.current = false;
@@ -704,6 +705,207 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       if (operationEpoch === asyncEvidenceEpochRef.current) setVerificationBusy(false);
     }
   };
+
+  if (employeeV4) {
+    const assignment = todayData?.assignment || null;
+    const shiftCode = assignment?.shift.code || assignment?.shift.name || '—';
+    const shiftTime = assignment ? `${assignment.shift.startTime || '—'}–${assignment.shift.endTime || '—'}` : '—';
+    const siteName = assignment?.expectedSite?.name || 'รอข้อมูล Site';
+    const employeeName = todayData?.employee.displayName || displayName || 'ผู้ใช้งาน SMS';
+    const employeeCode = todayData?.employee.employeeCode || '';
+    const nextIntent: AttendanceEventIntent = eventIntent || (assignment?.checkInAt && !assignment?.checkOutAt ? 'CHECK_OUT' : 'CHECK_IN');
+    const attendanceComplete = Boolean(assignment?.checkInAt && assignment?.checkOutAt) && !attendanceAccepted;
+    const actionText = flowBusy
+      ? 'PROCESSING'
+      : attendanceComplete
+        ? 'ATTENDANCE COMPLETE'
+        : nextIntent === 'CHECK_OUT'
+          ? 'TAP TO CHECK OUT'
+          : 'TAP TO CHECK IN';
+    const actionThai = flowBusy ? 'กำลังตรวจสอบ…' : attendanceComplete ? 'ลงเวลาครบแล้ว' : nextIntent === 'CHECK_OUT' ? 'พร้อมเช็กเอาต์' : 'พร้อมเช็กอิน';
+    const flags = assignment?.flags || [];
+    const statusTone = flags.includes('TIME_ABNORMAL') || flags.includes('ABSENT') ? 'is-danger' : flags.includes('LATE') || flags.includes('EARLY_OUT') ? 'is-warning' : '';
+    const statusLabel = flags.includes('TIME_ABNORMAL') ? 'ABNORMAL' : flags.includes('ABSENT') ? 'ABSENT' : flags.includes('LATE') ? 'LATE' : todayData?.scheduleReady ? 'ON TIME' : 'NOT READY';
+    const dateLabel = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Bangkok',
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    }).format(now);
+    const platform = platformKind();
+    const platformName = platform === 'ios' ? 'iPhone / iPad' : platform === 'android' ? 'Android' : 'อุปกรณ์นี้';
+    const locationSteps = platform === 'ios'
+      ? [
+          'เปิด Settings → Privacy & Security → Location Services และเปิด Location Services',
+          'เลือก Safari Websites หรือเบราว์เซอร์ที่ใช้งาน → เลือก While Using และเปิด Precise Location',
+          'หากใช้ Safari ให้ตรวจ Website Settings → Location ของเว็บไซต์ SMS เป็น Allow แล้วกลับมาที่ SMS'
+        ]
+      : platform === 'android'
+        ? [
+            'เปิด Settings → Location → App permissions → เลือก Chrome หรือเบราว์เซอร์ที่ใช้งาน',
+            'ตั้ง Location เป็น Allow only while using the app และเปิด Precise location หากมีตัวเลือก',
+            'ใน Chrome ตรวจ Site settings → Location → เว็บไซต์ SMS ต้องเป็น Allow แล้วกลับมาที่ SMS'
+          ]
+        : [
+            'เปิดการตั้งค่าความเป็นส่วนตัว/ตำแหน่งของระบบและอนุญาต Location ให้เบราว์เซอร์',
+            'เปิด Site permissions ของเว็บไซต์ SMS และตั้ง Location เป็น Allow',
+            'กลับมาที่ SMS ระบบจะตรวจสิทธิ์และลองอ่าน GPS ใหม่'
+          ];
+    const qrV4Ready = qrReady || Boolean(readiness && !qrStepUpRequired && readiness.state === 'READY_TO_START_VERIFICATION');
+    const faceV4Ready = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
+    const deviceV4Ready = deviceEnrolled || Boolean(attendanceAccepted) || Boolean(verificationSession);
+    const actionEnabled = canStartAttendance && !attendanceComplete && Boolean(todayData?.scheduleReady);
+
+    return <section className="attendance-v4" aria-label="SMS Time Attendance">
+      <AttendanceQrScanner
+        open={scannerOpen && !interactionDisabled}
+        autoFlow
+        onDetected={(value) => { void handleQrDetected(value); }}
+        onFailure={(message) => { setError(message); setVerificationStage('ยืนยันพื้นที่ไม่สำเร็จ · กดลงเวลาเพื่อลองใหม่'); setQrStepUpRequired(false); activeCaptureIdRef.current = null; }}
+        onClose={() => setScannerOpen(false)}
+      />
+      <AttendanceFaceCapture
+        open={faceCaptureOpen && !interactionDisabled}
+        busy={verificationBusy}
+        challenge={verificationSession?.activeChallenge || null}
+        autoFlow
+        onConfirm={handleFacePhotoConfirmed}
+        onFailure={(message) => { setError(message); setVerificationStage('ยืนยันตัวตนไม่สำเร็จ · กดลงเวลาเพื่อลองใหม่'); setVerificationSession(null); }}
+        onClose={() => setFaceCaptureOpen(false)}
+      />
+
+      {locationHelpOpen && <div className="attendance-v4__location-help" role="dialog" aria-modal="true" aria-label="วิธีเปิดสิทธิ์ตำแหน่ง">
+        <section className="attendance-v4__location-sheet">
+          <div className="attendance-v4__location-sheet-head">
+            <span><SmsIcon name="location" size={22} /></span>
+            <div>
+              <strong>เปิดสิทธิ์ตำแหน่งบน {platformName}</strong>
+              <p>SMS ใช้ตำแหน่งเฉพาะตอนลงเวลาและไม่มีการติดตามต่อเนื่อง ระบบ Web/PWA ไม่สามารถบังคับเปิดหน้า Settings ของทุกเบราว์เซอร์ได้ จึงแสดงขั้นตอนที่ตรงกับอุปกรณ์ให้อัตโนมัติ</p>
+            </div>
+          </div>
+          <ol className="attendance-v4__location-steps">
+            {locationSteps.map((step, index) => <li key={step}><b>{index + 1}</b><span>{step}</span></li>)}
+          </ol>
+          <div className="attendance-v4__location-actions">
+            <button type="button" onClick={() => setLocationHelpOpen(false)}>ปิดคำแนะนำ</button>
+            <button type="button" onClick={() => void retryLocationForActiveAttempt()}>ตรวจสิทธิ์อีกครั้ง</button>
+          </div>
+        </section>
+      </div>}
+
+      <header className="attendance-v4__topbar">
+        <div className="attendance-v4__brand">
+          <img src="/pwa-icon-192.png" alt="" />
+          <strong>SMS Time Attendance</strong>
+        </div>
+        <button type="button" className="attendance-v4__settings" aria-label="เปิดโปรไฟล์และการตั้งค่า" onClick={onOpenSettings}>
+          <SmsIcon name="settings" size={24} />
+        </button>
+      </header>
+
+      <article className="attendance-v4__employee">
+        <p className="attendance-v4__employee-site">{siteName}</p>
+        <h1>{employeeCode ? `${employeeCode} ` : ''}{employeeName}</h1>
+        <div className="attendance-v4__employee-meta">
+          <div className="attendance-v4__meta-item">
+            <SmsIcon name="clock" size={22} />
+            <div><span>Shift: {shiftCode}</span><strong>{shiftTime}</strong></div>
+          </div>
+          <i />
+          <div className="attendance-v4__meta-item">
+            <SmsIcon name="location" size={22} />
+            <div><span>Expected Site</span><strong>{siteName}</strong></div>
+          </div>
+        </div>
+      </article>
+
+      {attendanceAccepted ? <article className="attendance-v4__receipt" aria-live="polite">
+        <div className="attendance-v4__receipt-head">
+          <span className="attendance-v4__receipt-check"><SmsIcon name="check" size={24} /></span>
+          <div><strong>บันทึกเวลาเรียบร้อย</strong><span>{intentLabel(attendanceAccepted.intent)} สำเร็จ</span></div>
+        </div>
+        <div className="attendance-v4__receipt-time">
+          <strong>{new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(attendanceAccepted.acceptedAt))}</strong>
+          <span>{thaiTime(attendanceAccepted.acceptedAt)}</span>
+        </div>
+        <dl>
+          <div><dt>Site</dt><dd>{siteName}</dd></div>
+          <div><dt>Shift</dt><dd>{shiftCode} {shiftTime}</dd></div>
+          <div><dt>Receipt / Event ID</dt><dd>{attendanceAccepted.eventId || 'Server accepted'}</dd></div>
+        </dl>
+        <small>เวลาบนใบรับรองมาจาก AttendanceEvent ฝั่ง Server (SERVER_RECEIVED) ไม่ใช่เวลาจากโทรศัพท์</small>
+        <button type="button" className="attendance-v4__today-link" onClick={onTodayHistory}><SmsIcon name="history" size={17} />ดูประวัติวันนี้</button>
+      </article> : <>
+        <div className="attendance-v4__hero-wrap">
+          <button type="button" className={`attendance-v4__action ${flowBusy ? 'is-busy' : ''}`} disabled={!actionEnabled} onClick={() => void handleStartAttendance()}>
+            <span className="attendance-v4__action-content">
+              <img className="attendance-v4__action-logo" src="/pwa-icon-192.png" alt="" />
+              <strong>{actionText}</strong>
+              <small>{actionThai}</small>
+            </span>
+          </button>
+          <div className={`attendance-v4__status-pill ${statusTone}`}>
+            <strong>{statusLabel}</strong>
+            <span>{shiftCode === '—' ? 'SHIFT' : `${shiftCode} SHIFT`}</span>
+          </div>
+        </div>
+
+        <section className="attendance-v4__readiness" aria-label="ความพร้อมสำหรับลงเวลา">
+          <article className={`attendance-v4__ready-card ${gpsReady ? 'is-ready' : ''}`}>
+            <span className="attendance-v4__ready-icon"><SmsIcon name="location" size={21} /></span>
+            <div><strong>GPS</strong><small>{gpsReady ? `Ready ±${Math.round(location?.accuracyMeters || 0)}m` : 'On tap'}</small></div>
+            {gpsReady && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
+          </article>
+          <article className={`attendance-v4__ready-card ${qrV4Ready ? 'is-ready' : ''}`}>
+            <span className="attendance-v4__ready-icon"><SmsIcon name="qr" size={21} /></span>
+            <div><strong>QR</strong><small>{qrStepUpRequired ? 'Required' : qrV4Ready ? 'Ready' : 'Auto'}</small></div>
+            {qrV4Ready && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
+          </article>
+          <article className={`attendance-v4__ready-card ${faceV4Ready ? 'is-ready' : ''}`}>
+            <span className="attendance-v4__ready-icon"><SmsIcon name="face" size={21} /></span>
+            <div><strong>Face</strong><small>{faceV4Ready ? 'Ready' : 'Auto'}</small></div>
+            {faceV4Ready && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
+          </article>
+          <article className={`attendance-v4__ready-card ${deviceV4Ready ? 'is-ready' : ''}`}>
+            <span className="attendance-v4__ready-icon"><SmsIcon name="device" size={21} /></span>
+            <div><strong>Device</strong><small>{deviceV4Ready ? 'OK' : 'Check'}</small></div>
+            {deviceV4Ready && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
+          </article>
+        </section>
+
+        <article className="attendance-v4__clock" aria-label={`เวลาปัจจุบัน ${thaiClock(now)} นาฬิกา`}>
+          <strong>{thaiClock(now)}</strong>
+          <span>{dateLabel}</span>
+          <small>เวลาหน้าจอสำหรับอ้างอิง · เวลา Attendance จริงยืนยันโดย Server</small>
+        </article>
+
+        <div className="attendance-v4__ready-line" role="status">
+          <SmsIcon name={flowBusy ? 'refresh' : 'check'} size={18} />
+          <span>{todayLoading ? 'กำลังอ่านตารางงาน…' : todayData?.scheduleReady ? <>Ready for <b>{nextIntent === 'CHECK_OUT' ? 'CHECK OUT' : 'CHECK IN'}</b></> : 'ยังไม่พร้อมลงเวลา'}</span>
+        </div>
+      </>}
+
+      {readOnly && <div className="attendance-v4__notice is-warning"><strong>View As · อ่านอย่างเดียว</strong><span>ไม่อนุญาตให้ ADMIN/MANAGER ลงเวลาแทนพนักงานจากหน้าจอนี้</span></div>}
+      {!online && <div className="attendance-v4__notice is-warning"><strong>ออฟไลน์</strong><span>Attendance ต้องเชื่อมต่อ Server จึงจะลงเวลาได้</span></div>}
+      {routeUnavailable && <div className="attendance-v4__notice is-warning"><strong>Attendance runtime ยังไม่เปิด</strong><span>Server gate ปิดอยู่ จึงไม่มี AttendanceEvent ถูกสร้าง</span></div>}
+      {locationIssue?.code === 'LOCATION_PERMISSION_DENIED' && <div className="attendance-v4__notice is-danger" role="alert">
+        <strong>ต้องเปิดสิทธิ์ตำแหน่งก่อนลงเวลา</strong>
+        <span>SMS ใช้ตำแหน่งเฉพาะตอนลงเวลา ไม่ติดตามตำแหน่งต่อเนื่อง เมื่อเปิดสิทธิ์แล้วระบบจะตรวจและลอง GPS ใหม่โดยคง attempt เดิมไว้</span>
+        <button type="button" className="attendance-v4__today-link" onClick={() => setLocationHelpOpen(true)}>เปิดการตั้งค่าตำแหน่ง</button>
+      </div>}
+      {error && locationIssue?.code !== 'LOCATION_PERMISSION_DENIED' && <div className="attendance-v4__notice is-danger" role="alert">
+        <strong>ลงเวลายังไม่สำเร็จ</strong><span>{error}</span>{requestId && <span>Request ID: {requestId}</span>}
+      </div>}
+
+      {!attendanceAccepted && <button type="button" className="attendance-v4__today-link" onClick={onTodayHistory}><SmsIcon name="history" size={17} />ดูประวัติวันนี้</button>}
+
+      <footer className="attendance-v4__footer">
+        <span>Platform Version: SMS Time 4.0 Preview</span>
+        <span>© 2020 SMS Security Management System Co., Ltd. All rights reserved.</span>
+      </footer>
+    </section>;
+  }
 
   return <section className="view-pane attendance-page attendance-v2">
     <AttendanceQrScanner
