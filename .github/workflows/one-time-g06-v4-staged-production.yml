@@ -1,4 +1,4 @@
-name: ONE-TIME G06 V4 CLEAN FINAL Staged Production
+name: ONE-TIME G06 V4 EXACT f097 Staged Production
 
 on:
   push:
@@ -11,11 +11,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: sms-v3-staging-production-fac8
+  group: sms-v3-staging-production-f097
   cancel-in-progress: false
 
 env:
-  TARGET_SHA: fac8bfad14f6ba9a989173ae851b6239951654e0
+  TARGET_SHA: f097b6eb2569576885e23800084516421f679268
+  EXPECTED_TREE: 544da81b946effb224a9ff5f39c820ee69177347
   EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
   EXPECTED_PROJECT_NAME: sms-v3-staging
@@ -59,9 +60,10 @@ jobs:
           test -z "$(git status --porcelain)"
           test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
           test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
-          git fetch --no-tags origin fix/serverless-database-reliability
-          git merge-base --is-ancestor "$TARGET_SHA" origin/fix/serverless-database-reliability
+          test "$(git rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          git cat-file -e "$TARGET_SHA^{commit}"
           echo "STAGED_SOURCE_SHA=$TARGET_SHA"
+          echo "STAGED_SOURCE_TREE=$EXPECTED_TREE"
 
       - name: Install dependencies and verify Production migration ledger is current
         shell: bash
@@ -157,11 +159,12 @@ jobs:
           if (staged.target !== 'production') throw new Error('staged target is not production');
           if (staged.readyState !== 'READY') throw new Error('staged deployment is not READY');
           const stagedSha = staged.meta?.githubCommitSha || staged.gitSource?.sha || null;
-          if (stagedSha && stagedSha !== process.env.TARGET_SHA) throw new Error(`staged SHA mismatch: ${stagedSha}`);
+          if (!stagedSha) throw new Error('staged SHA metadata missing');
+          if (stagedSha !== process.env.TARGET_SHA) throw new Error(`staged SHA mismatch: ${stagedSha}`);
           if (canonical.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT_ID) throw new Error('Canonical changed before promotion');
           console.log(`STAGED_DEPLOYMENT_ID=${staged.id}`);
           console.log(`STAGED_DEPLOYMENT_URL=https://${staged.url}`);
-          console.log(`STAGED_SHA=${stagedSha || process.env.TARGET_SHA}`);
+          console.log(`STAGED_SHA=${stagedSha}`);
           console.log(`CANONICAL_UNCHANGED=${canonical.id}`);
           NODE
           rm -f "$staged_json" "$canonical_json"
