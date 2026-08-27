@@ -9,23 +9,30 @@ import {
   attendanceReadiness,
   attendanceVerificationStart,
   attendanceFaceMatch,
+  attendanceSelfToday,
   verifyAttendanceDeviceProof,
   type AttendanceActiveChallenge,
   type AttendanceContextRef,
   type AttendanceEventIntent,
   type AttendanceLocationEvidence,
-  type AttendanceReadinessState
+  type AttendanceReadinessState,
+  type AttendanceSelfTodayData
 } from './attendance-client';
 import { signAttendanceDeviceChallenge } from '../../lib/attendance-device-key';
 import { AttendanceFaceCapture } from './AttendanceFaceCapture';
 import { AttendanceFaceChallengeUatPanel } from './AttendanceFaceChallengeUatPanel';
 import { AttendanceQrScanner } from './AttendanceQrScanner';
 import './attendance.css';
+import './attendance-v4.css';
 
 type Props = {
   token: string;
   readOnly?: boolean;
   online?: boolean;
+  variant?: 'legacy' | 'employeeV4';
+  user?: { displayName?: string; email?: string; department?: string };
+  onTodayHistory?: () => void;
+  onOpenSettings?: () => void;
 };
 
 type Copy = { title: string; detail: string; tone: 'ready' | 'warning' | 'blocked' | 'neutral' };
@@ -123,10 +130,22 @@ const readinessCopy: Record<string, Copy> = {
   }
 };
 
+type AttendanceLocationIssueCode = 'LOCATION_PERMISSION_DENIED' | 'LOCATION_TIMEOUT' | 'LOCATION_UNAVAILABLE' | 'LOCATION_NOT_SUPPORTED';
+
+class AttendanceLocationError extends Error {
+  code: AttendanceLocationIssueCode;
+
+  constructor(code: AttendanceLocationIssueCode, message: string) {
+    super(message);
+    this.name = 'AttendanceLocationError';
+    this.code = code;
+  }
+}
+
 function positionOnce(): Promise<AttendanceLocationEvidence> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error('เบราว์เซอร์นี้ไม่รองรับการอ่านตำแหน่ง GPS'));
+      reject(new AttendanceLocationError('LOCATION_NOT_SUPPORTED', 'เบราว์เซอร์นี้ไม่รองรับการอ่านตำแหน่ง GPS'));
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -137,13 +156,42 @@ function positionOnce(): Promise<AttendanceLocationEvidence> {
         capturedAt: new Date(position.timestamp || Date.now()).toISOString()
       }),
       (error) => {
-        if (error.code === error.PERMISSION_DENIED) reject(new Error('ไม่ได้รับสิทธิ์ตำแหน่ง กรุณาอนุญาต Location สำหรับเว็บไซต์นี้'));
-        else if (error.code === error.TIMEOUT) reject(new Error('อ่านตำแหน่งไม่ทันเวลา กรุณาลองใหม่ในจุดที่รับสัญญาณได้ดีขึ้น'));
-        else reject(new Error('ไม่สามารถอ่านตำแหน่งปัจจุบันได้ กรุณาลองใหม่'));
+        if (error.code === error.PERMISSION_DENIED) reject(new AttendanceLocationError('LOCATION_PERMISSION_DENIED', 'ต้องเปิดสิทธิ์ตำแหน่งก่อนลงเวลา'));
+        else if (error.code === error.TIMEOUT) reject(new AttendanceLocationError('LOCATION_TIMEOUT', 'อ่านตำแหน่งไม่ทันเวลา กรุณาลองใหม่ในจุดที่รับสัญญาณได้ดีขึ้น'));
+        else reject(new AttendanceLocationError('LOCATION_UNAVAILABLE', 'ไม่สามารถอ่านตำแหน่งปัจจุบันได้ กรุณาลองใหม่'));
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   });
+}
+
+function platformKind() {
+  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/i.test(ua) || (/Macintosh/i.test(ua) && 'ontouchend' in document)) return 'ios' as const;
+  if (/Android/i.test(ua)) return 'android' as const;
+  return 'other' as const;
+}
+
+async function geolocationPermissionState(): Promise<PermissionState | 'unknown'> {
+  if (!navigator.permissions?.query) return 'unknown';
+  try {
+    return (await navigator.permissions.query({ name: 'geolocation' as PermissionName })).state;
+  } catch {
+    return 'unknown';
+  }
+}
+
+function bangkokClockParts(value: Date) {
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hourCycle: 'h23'
+  }).format(value);
+  const date = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Bangkok',
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  }).format(value);
+  return { time, date };
 }
 
 function thaiTime(value?: string | Date | null) {
@@ -174,7 +222,7 @@ function fallbackCopy(state?: AttendanceReadinessState | null): Copy {
   };
 }
 
-export function AttendancePage({ token, readOnly = false, online = true }: Props) {
+export function AttendancePage({ token, readOnly = false, online = true, variant = 'legacy', user, onTodayHistory, onOpenSettings }: Props) {
   const [qrToken, setQrToken] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [location, setLocation] = useState<AttendanceLocationEvidence | null>(null);
@@ -190,12 +238,39 @@ export function AttendancePage({ token, readOnly = false, online = true }: Props
   const [verificationBusy, setVerificationBusy] = useState(false);
   const [verificationStage, setVerificationStage] = useState<string>();
   const [verificationSession, setVerificationSession] = useState<{ sessionId: string; attendanceContext: AttendanceContextRef; activeChallenge: AttendanceActiveChallenge } | null>(null);
-  const [attendanceAccepted, setAttendanceAccepted] = useState<{ intent: AttendanceEventIntent | null; acceptedAt: Date } | null>(null);
+  const [attendanceAccepted, setAttendanceAccepted] = useState<{ intent: AttendanceEventIntent | null; acceptedAt: string; eventId?: string | null; sessionId?: string | null } | null>(null);
+  const [todayData, setTodayData] = useState<AttendanceSelfTodayData>();
+  const [todayLoading, setTodayLoading] = useState(false);
+  const [deviceReady, setDeviceReady] = useState(false);
+  const [locationIssue, setLocationIssue] = useState<AttendanceLocationError | null>(null);
+  const [locationHelpOpen, setLocationHelpOpen] = useState(false);
+  const [liveNow, setLiveNow] = useState(() => new Date());
   const [qrStepUpRequired, setQrStepUpRequired] = useState(false);
   const asyncEvidenceEpochRef = useRef(0);
   const activeCaptureIdRef = useRef<string | null>(null);
+  const locationRecoveryPendingRef = useRef(false);
 
   const copy = useMemo(() => fallbackCopy(readiness), [readiness]);
+
+  useEffect(() => {
+    if (variant !== 'employeeV4') return;
+    const timer = window.setInterval(() => setLiveNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, [variant]);
+
+  useEffect(() => {
+    if (variant !== 'employeeV4' || !online) return;
+    let active = true;
+    setTodayLoading(true);
+    attendanceSelfToday(token)
+      .then((result) => { if (active) setTodayData(result); })
+      .catch(() => { if (active) setTodayData(undefined); })
+      .finally(() => { if (active) setTodayLoading(false); });
+    attendanceDeviceState(token)
+      .then((result) => { if (active) setDeviceReady(result.activeDevice?.status === 'ACTIVE'); })
+      .catch(() => { if (active) setDeviceReady(false); });
+    return () => { active = false; };
+  }, [online, token, variant]);
   const qrLength = qrToken.trim().length;
   const qrReady = qrLength >= 24 && qrLength <= 512;
   const gpsReady = Boolean(location);
