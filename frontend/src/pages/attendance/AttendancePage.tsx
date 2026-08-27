@@ -352,11 +352,13 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       resetServerState();
     };
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') clearTransientAttemptForLifecycle();
+      if (document.visibilityState === 'hidden' && !locationRecoveryPendingRef.current) clearTransientAttemptForLifecycle();
     };
-    const handlePageHide = () => clearTransientAttemptForLifecycle();
+    const handlePageHide = () => {
+      if (!locationRecoveryPendingRef.current) clearTransientAttemptForLifecycle();
+    };
     const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) clearTransientAttemptForLifecycle();
+      if (event.persisted && !locationRecoveryPendingRef.current) clearTransientAttemptForLifecycle();
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('pagehide', handlePageHide);
@@ -492,6 +494,63 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     }
   };
 
+  const handleLocationFailure = (reason: unknown) => {
+    setLocation(null);
+    if (reason instanceof AttendanceLocationError) {
+      setLocationIssue(reason);
+      setError(reason.message);
+      locationRecoveryPendingRef.current = reason.code === 'LOCATION_PERMISSION_DENIED';
+      return;
+    }
+    locationRecoveryPendingRef.current = false;
+    setLocationIssue(null);
+    setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
+  };
+
+  const retryLocationForActiveAttempt = async () => {
+    const captureId = activeCaptureIdRef.current;
+    if (!captureId || interactionDisabledRef.current) return;
+    asyncEvidenceEpochRef.current += 1;
+    const operationEpoch = asyncEvidenceEpochRef.current;
+    setLocationBusy(true);
+    setChecking(false);
+    setError(undefined);
+    setLocationIssue(null);
+    try {
+      const nextLocation = await positionOnce();
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      locationRecoveryPendingRef.current = false;
+      setLocationHelpOpen(false);
+      setLocation(nextLocation);
+      setLocationBusy(false);
+      await checkReadinessWithEvidence(captureId, qrToken.trim() || undefined, nextLocation, operationEpoch);
+    } catch (reason) {
+      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      handleLocationFailure(reason);
+    } finally {
+      if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!employeeV4) return;
+    const resumeLocationAttempt = async () => {
+      if (!locationRecoveryPendingRef.current || interactionDisabledRef.current || !activeCaptureIdRef.current) return;
+      const permission = await geolocationPermissionState();
+      if (permission === 'granted' || permission === 'unknown') await retryLocationForActiveAttempt();
+    };
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') void resumeLocationAttempt();
+    };
+    const handlePageShowForLocation = () => { void resumeLocationAttempt(); };
+    document.addEventListener('visibilitychange', handleVisible);
+    window.addEventListener('pageshow', handlePageShowForLocation);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisible);
+      window.removeEventListener('pageshow', handlePageShowForLocation);
+    };
+  }, [employeeV4, qrToken]);
+
   const handleQrDetected = async (value: string) => {
     if (interactionDisabledRef.current) return;
     const captureId = activeCaptureIdRef.current;
@@ -524,8 +583,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       await checkReadinessWithEvidence(captureId, nextQrToken, nextLocation, operationEpoch);
     } catch (reason) {
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
-      setLocation(null);
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
+      handleLocationFailure(reason);
     } finally {
       if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
     }
@@ -545,6 +603,9 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     setQrToken('');
     setQrStepUpRequired(false);
     setLocation(null);
+    setLocationIssue(null);
+    setLocationHelpOpen(false);
+    locationRecoveryPendingRef.current = false;
     setLocationBusy(true);
     setChecking(false);
     resetServerState();
@@ -557,8 +618,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       await checkReadinessWithEvidence(captureId, undefined, nextLocation, operationEpoch);
     } catch (reason) {
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
-      setLocation(null);
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
+      handleLocationFailure(reason);
     } finally {
       if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
     }
