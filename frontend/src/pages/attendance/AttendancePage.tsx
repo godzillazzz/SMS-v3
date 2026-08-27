@@ -241,6 +241,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   const [eventIntent, setEventIntent] = useState<AttendanceEventIntent | null>(null);
   const [error, setError] = useState<string>();
   const [requestId, setRequestId] = useState<string>();
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null);
   const [faceCaptureOpen, setFaceCaptureOpen] = useState(false);
   const [verificationBusy, setVerificationBusy] = useState(false);
   const [verificationStage, setVerificationStage] = useState<string>();
@@ -324,6 +325,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     setEventIntent(null);
     setRouteUnavailable(false);
     setRequestId(undefined);
+    setCheckedAt(null);
     setError(undefined);
     resetVerificationState();
   };
@@ -468,6 +470,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       });
       if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
       setRequestId(result.requestId);
+      setCheckedAt(new Date());
       if (!result.routeAvailable) {
         setRouteUnavailable(true);
         return;
