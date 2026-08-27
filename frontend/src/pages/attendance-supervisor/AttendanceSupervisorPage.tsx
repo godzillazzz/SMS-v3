@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, type SecuritySite } from '../../api';
-import { SmsIcon } from '../../components/SmsIcon';
+import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import './attendance-supervisor-v4.css';
 
 type Props = {
@@ -164,7 +164,7 @@ function statusTone(status: string) {
   return 'neutral';
 }
 
-function KPI({ label, value, icon, tone = 'neutral' }: { label: string; value: number; icon: Parameters<typeof SmsIcon>[0]['name']; tone?: string }) {
+function KPI({ label, value, icon, tone = 'neutral' }: { label: string; value: number; icon: SmsIconName; tone?: string }) {
   return <article className={`attendance-supervisor-v4__kpi is-${tone}`}>
     <span><SmsIcon name={icon} size={20} /></span>
     <div><strong>{value}</strong><small>{label}</small></div>
@@ -314,11 +314,11 @@ export function AttendanceSupervisorPage({ token, role, department }: Props) {
       <KPI label="Not checked in" value={summary.notCheckedInYet} icon="clock" />
       <KPI label="Late" value={summary.late} icon="clock" tone="warning" />
       <KPI label="Early out" value={summary.earlyOut} icon="history" tone="warning" />
-      <KPI label="Wrong shift" value={summary.wrongShift} icon="alert" tone="warning" />
+      <KPI label="Wrong shift" value={summary.wrongShift} icon="quality" tone="warning" />
       <KPI label="Assist other Site" value={summary.assistingOtherSite} icon="location" />
       <KPI label="Outside Site" value={summary.outsideAllSites} icon="location" tone="danger" />
       <KPI label="Leave" value={summary.leave} icon="leave" />
-      <KPI label="Absent" value={summary.absent} icon="alert" tone="danger" />
+      <KPI label="Absent" value={summary.absent} icon="quality" tone="danger" />
       <KPI label="Time abnormal" value={summary.timeAbnormal} icon="quality" tone="danger" />
     </section>}
 
