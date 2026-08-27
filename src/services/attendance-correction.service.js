@@ -187,6 +187,7 @@ function createAttendanceCorrectionService({ prisma = prismaDefault, audit = aud
   }
 
   async function correct({ actor, assignmentId, eventType, correctedEffectiveEventAt, reason } = {}) {
+    throw http(409, 'ATTENDANCE_CORRECTION_DIRECT_WRITE_DISABLED', 'Direct Attendance correction writes are disabled. Use an Attendance adjustment request and explicit ADMIN approval.');
     const type = normalizedEventType(eventType);
     const correctedAt = correctedTime(correctedEffectiveEventAt);
     const normalizedReason = correctionReason(reason);
