@@ -19,6 +19,7 @@ if (!configured) {
 } else {
   const { PrismaClient } = require('@prisma/client');
   const { createAttendanceAdjustmentService } = require('../../src/services/attendance-adjustment.service');
+  const { createAttendanceSelfService } = require('../../src/services/attendance-self.service');
   const {
     currentCorrectionsForAssignments,
     createAttendanceCorrectionService
@@ -30,6 +31,7 @@ if (!configured) {
     employee: crypto.randomUUID(),
     manager: crypto.randomUUID(),
     admin: crypto.randomUUID(),
+    viewer: crypto.randomUUID(),
     site: crypto.randomUUID(),
     shiftType: crypto.randomUUID(),
     assignment: crypto.randomUUID()
@@ -38,9 +40,11 @@ if (!configured) {
   const workDate = new Date('2099-04-10T00:00:00.000Z');
   const clock = () => new Date('2099-04-10T02:00:00.000Z');
   const service = createAttendanceAdjustmentService({ prisma, clock });
+  const selfService = createAttendanceSelfService({ prisma, clock });
   const legacyCorrection = createAttendanceCorrectionService({ prisma, clock });
   const manager = { sub: ids.manager, role: 'MANAGER', department };
   const admin = { sub: ids.admin, role: 'ADMIN' };
+  const viewer = { sub: ids.viewer, role: 'VIEWER' };
 
   async function cleanup() {
     await prisma.$executeRaw(Prisma.sql`
@@ -70,7 +74,8 @@ if (!configured) {
     await prisma.shiftAssignment.deleteMany({ where: { id: ids.assignment } }).catch(() => {});
     await prisma.shiftType.deleteMany({ where: { id: ids.shiftType } }).catch(() => {});
     await prisma.securitySite.deleteMany({ where: { id: ids.site } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [ids.manager, ids.admin] } } }).catch(() => {});
+    await prisma.scheduleApproval.deleteMany({ where: { month: new Date('2099-04-01T00:00:00.000Z') } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { id: { in: [ids.manager, ids.admin, ids.viewer] } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { id: ids.employee } }).catch(() => {});
   }
 
@@ -102,6 +107,15 @@ if (!configured) {
           passwordHash: 'test-only',
           displayName: 'Attendance Adjustment Admin',
           role: 'ADMIN'
+        },
+        {
+          id: ids.viewer,
+          email: `attendance-adjustment-viewer-${marker}@example.test`,
+          passwordHash: 'test-only',
+          displayName: 'Attendance Adjustment Employee',
+          role: 'VIEWER',
+          employeeId: ids.employee,
+          department
         }
       ]
     });
@@ -141,6 +155,14 @@ if (!configured) {
         locked: true
       }
     });
+    await prisma.scheduleApproval.create({
+      data: {
+        month: new Date('2099-04-01T00:00:00.000Z'),
+        status: 'APPROVED',
+        revision: 1,
+        approvedAt: new Date('2099-04-01T00:00:00.000Z')
+      }
+    });
   });
 
   test.after(async () => {
@@ -171,6 +193,17 @@ if (!configured) {
 
     corrections = await currentCorrectionsForAssignments(prisma, [ids.assignment]);
     assert.equal(corrections.length, 0, 'pending request must not change authoritative Attendance');
+
+    const pendingHistory = await selfService.history({
+      actor: viewer,
+      from: '2099-04-10',
+      to: '2099-04-10'
+    });
+    assert.equal(pendingHistory.rows.length, 1);
+    assert.equal(pendingHistory.rows[0].checkInAt, null);
+    assert.equal(pendingHistory.rows[0].checkOutAt, null);
+    assert.equal(pendingHistory.rows[0].corrected, false);
+    assert.equal(pendingHistory.rows[0].authority, 'RAW_ATTENDANCE_EVENT');
 
     await assert.rejects(
       () => service.approve({ actor: manager, id: draft.id }),
@@ -209,6 +242,17 @@ if (!configured) {
       assert.equal(row.isCurrent, true);
       assert.ok(row.approvedAt);
     }
+
+    const approvedHistory = await selfService.history({
+      actor: viewer,
+      from: '2099-04-10',
+      to: '2099-04-10'
+    });
+    assert.equal(new Date(approvedHistory.rows[0].checkInAt).toISOString(), '2099-04-10T00:00:00.000Z');
+    assert.equal(new Date(approvedHistory.rows[0].checkOutAt).toISOString(), '2099-04-10T12:00:00.000Z');
+    assert.equal(approvedHistory.rows[0].workedMinutes, 720);
+    assert.equal(approvedHistory.rows[0].corrected, true);
+    assert.equal(approvedHistory.rows[0].authority, 'EFFECTIVE_ATTENDANCE_CORRECTION');
 
     const session = await prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: ids.assignment } });
     assert.equal(session, null, 'governed adjustment must not fabricate raw AttendanceSession evidence');
