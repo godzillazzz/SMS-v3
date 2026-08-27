@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, type SecuritySite } from '../../api';
+import {
+  attendanceSupervisorDaily,
+  attendanceSupervisorHistory,
+  attendanceSupervisorDetail
+} from './attendance-supervisor-client';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import './attendance-supervisor-v4.css';
 
@@ -241,8 +246,8 @@ export function AttendanceSupervisorPage({ token, role, department }: Props) {
     };
 
     const request = mode === 'daily'
-      ? api.attendanceSupervisorDaily(token, { date, ...filters })
-      : api.attendanceSupervisorHistory(token, { from, to, page, pageSize: 50, ...filters });
+      ? attendanceSupervisorDaily(token, { date, ...filters })
+      : attendanceSupervisorHistory(token, { from, to, page, pageSize: 50, ...filters });
 
     request
       .then((response) => {
@@ -269,7 +274,7 @@ export function AttendanceSupervisorPage({ token, role, department }: Props) {
     setDetailLoading(true);
     setError(undefined);
     try {
-      const response = await api.attendanceSupervisorDetail(token, assignmentId);
+      const response = await attendanceSupervisorDetail(token, assignmentId);
       setDetail(response.data as DetailData);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านรายละเอียด Attendance ได้');
