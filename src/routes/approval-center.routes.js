@@ -10,7 +10,7 @@ const service = createApprovalCenterService();
 const query = z.object({ limit: z.coerce.number().int().min(1).max(100).default(100) }).strict();
 
 router.use(authenticate);
-router.use(authorize('ADMIN'));
+router.use(authorize('ADMIN', 'MANAGER'));
 router.get('/', async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
