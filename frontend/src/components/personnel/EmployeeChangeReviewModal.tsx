@@ -10,7 +10,7 @@ import '../../styles/employee-governed-edit.css';
 type Revision = { revision: number; beforeSnapshot: Record<string, unknown>; afterSnapshot: Record<string, unknown>; changedFields: string[]; effectiveMode: 'IMMEDIATE' | 'FUTURE_EFFECTIVE'; effectiveDate?: string | null; reason?: string | null; submittedAt: string; submittedBy?: { displayName?: string; role?: string } };
 type Event = { action: string; metadata?: { impacts?: Record<string, number>; warningCodes?: string[] } | null };
 type RequestRow = { id: string; status: string; currentRevision: number; employeeId: string; requestOwnerRoleSnapshot?: string; employee?: { employeeCode?: string; firstName?: string; lastName?: string; department?: string; jobTitle?: string }; requestOwner?: { displayName?: string; role?: string }; revisions?: Revision[]; events?: Event[]; createdAt?: string };
-type Props = { token: string; onClose(): void; onChanged(): void };
+type Props = { token: string; initialRequestId?: string; onClose(): void; onChanged(): void };
 const labels: Record<string, string> = { employeeCode: 'รหัสพนักงาน', firstName: 'ชื่อ', lastName: 'นามสกุล', department: 'หน่วยงาน', jobTitle: 'ตำแหน่ง', isActive: 'สถานะการทำงาน' };
 const show = (field: string, value: unknown) => field === 'isActive' ? (value === true ? 'ACTIVE' : 'TERMINATED') : value === null || value === undefined || value === '' ? '—' : String(value);
 const codeOf = (error: unknown) => error instanceof ApiRequestError && error.details && typeof error.details === 'object' && 'code' in error.details ? String((error.details as { code?: unknown }).code || '') : '';
@@ -18,7 +18,7 @@ const approveAction = approvalActionPresentation('APPROVE');
 const returnAction = approvalActionPresentation('RETURN_FOR_CORRECTION');
 const rejectAction = approvalActionPresentation('REJECT');
 
-export function EmployeeChangeReviewModal({ token, onClose, onChanged }: Props) {
+export function EmployeeChangeReviewModal({ token, initialRequestId, onClose, onChanged }: Props) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -44,11 +44,11 @@ export function EmployeeChangeReviewModal({ token, onClose, onChanged }: Props) 
 
   const load = async () => {
     setLoading(true); setError(undefined);
-    try { const result = await api.employeeChangeRequestQueue(token); const data = Array.isArray(result?.data) ? result.data as RequestRow[] : []; setRows(data); setSelectedId((current) => data.some((row) => row.id === current) ? current : data[0]?.id || ''); }
+    try { const result = await api.employeeChangeRequestQueue(token); const data = Array.isArray(result?.data) ? result.data as RequestRow[] : []; setRows(data); setSelectedId((current) => data.some((row) => row.id === current) ? current : data.some((row) => row.id === initialRequestId) ? String(initialRequestId) : data[0]?.id || ''); }
     catch (cause) { setError(toRequestErrorState(cause, 'ไม่สามารถโหลดคิวคำขอแก้ไข Employee Master ได้')); }
     finally { setLoading(false); }
   };
-  useEffect(() => { void load(); }, [token]);
+  useEffect(() => { void load(); }, [token, initialRequestId]);
 
   const act = async (action: 'approve' | 'return' | 'reject') => {
     if (!selected) return;
