@@ -5,7 +5,7 @@ import path from 'node:path';
 const root = path.resolve(__dirname);
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 const main = read('main.tsx');
-const api = read('api.ts');
+const client = read('approval-center-client.ts');
 const page = read('pages/approvals/ApprovalCenterPage.tsx');
 const dashboard = read('pages/dashboard/DashboardPage.tsx');
 const review = read('components/personnel/EmployeeChangeReviewModal.tsx');
@@ -21,7 +21,7 @@ describe('Approval Center V1 frontend contracts', () => {
   });
 
   it('polls the aggregated queue and refreshes when the tab becomes visible', () => {
-    expect(api).toContain('approvalCenter:');
+    expect(client).toContain("fetch(baseUrl + '/approval-center?limit=100'");
     expect(main).toContain('window.setInterval(refreshApprovalCount, 60000)');
     expect(main).toContain("document.addEventListener('visibilitychange'");
   });

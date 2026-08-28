@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
+import { getApprovalCenter } from '../../approval-center-client';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
 import '../../styles/approval-center.css';
@@ -50,7 +51,7 @@ export function ApprovalCenterPage({ token, refreshKey = 0, onChanged, onOpenEmp
     setLoading(true);
     setError(undefined);
     try {
-      const result = await api.approvalCenter(token);
+      const result = await getApprovalCenter(token);
       const next = Array.isArray(result?.data) ? result.data as ApprovalItem[] : [];
       setItems(next);
       setSummary({ total: Number(result?.summary?.total || 0), employeeMasterChanges: Number(result?.summary?.employeeMasterChanges || 0), referencePhotos: Number(result?.summary?.referencePhotos || 0), dueSoon24h: Number(result?.summary?.dueSoon24h || 0), overdue48h: Number(result?.summary?.overdue48h || 0), truncated: Boolean(result?.summary?.truncated) });

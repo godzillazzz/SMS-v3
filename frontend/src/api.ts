@@ -266,7 +266,6 @@ export const api = {
   cancelEmployeeReferencePhoto: (token: string, id: string) => call(`/employee-reference-photos/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}', headers: { Authorization: `Bearer ${token}` } }),
   preflightEmployeeMasterEdit: (token: string, employeeId: string, data: unknown) => call(`/employees/${encodeURIComponent(employeeId)}/master-edit/preflight`, { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   createEmployeeChangeDraft: (token: string, employeeId: string, data: unknown) => call(`/employees/${encodeURIComponent(employeeId)}/change-requests`, { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
-  approvalCenter: (token: string) => call('/approval-center?limit=100', { headers: { Authorization: `Bearer ${token}` } }),
   employeeChangeRequestQueue: (token: string, status?: string) => call(`/employee-change-requests?page=1&pageSize=50${status ? `&status=${encodeURIComponent(status)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
   employeeChangeRequest: (token: string, id: string) => call(`/employee-change-requests/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } }),
   saveEmployeeChangeDraft: (token: string, id: string, data: unknown) => call(`/employee-change-requests/${encodeURIComponent(id)}/draft`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),

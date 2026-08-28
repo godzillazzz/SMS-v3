@@ -6,7 +6,7 @@ const root = path.resolve(__dirname);
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const expectedNavigationIds = [
-  'dashboard', 'employees', 'licenses', 'attendance', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave', 'leavePending',
+  'dashboard', 'employees', 'approvalCenter', 'licenses', 'attendance', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave', 'leavePending',
   'leaveHistory', 'quota', 'rules', 'audit', 'dataQuality', 'users', 'reportCenter', 'settings'
 ];
 
@@ -116,10 +116,13 @@ describe('G04.2 UX-02 application shell contract', () => {
     expect(dashboard).not.toMatch(/\.sidebar\s*\{/);
   });
 
-  it('does not surface fake notification functionality', () => {
+  it('surfaces the authorized Approval Center notification instead of a fake bell', () => {
+    expect(main).toContain("id: 'approvalCenter'");
+    expect(main).toContain('topbar-notification-button');
+    expect(main).toContain('title="คำขอที่รอการอนุมัติ"');
+    expect(main).toContain('<SmsIcon name="bell" size={19} />');
+    expect(main).toContain('getApprovalCenter(auth.token!)');
     expect(main).not.toContain('aria-label="การแจ้งเตือน"');
-    expect(main).not.toContain('title="การแจ้งเตือน"');
-    expect(main).not.toContain('<SmsIcon name="bell"');
     expect(main).not.toContain('topbar-icon');
   });
 

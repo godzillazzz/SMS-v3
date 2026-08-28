@@ -14,6 +14,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
+import { getApprovalCenter } from './approval-center-client';
 import { setAttendanceTokenRefreshGuard, setAttendanceTokenRefreshHandler } from './attendance-auth-request';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from './request-error';
 import { acquireDocumentScrollLock } from './document-scroll-lock';
@@ -1663,7 +1664,7 @@ function Dashboard() {
   useEffect(() => {
     if (pwaShell || !auth.token || auth.user?.role !== 'ADMIN' || auth.isViewingAs) { setPendingApprovalCount(0); return; }
     let active = true;
-    const refreshApprovalCount = () => api.approvalCenter(auth.token!).then((result) => { if (active) setPendingApprovalCount(Number(result?.summary?.total || 0)); }).catch(() => undefined);
+    const refreshApprovalCount = () => getApprovalCenter(auth.token!).then((result) => { if (active) setPendingApprovalCount(Number(result?.summary?.total || 0)); }).catch(() => undefined);
     void refreshApprovalCount();
     const timer = window.setInterval(refreshApprovalCount, 60000);
     const onVisibility = () => { if (document.visibilityState === 'visible') void refreshApprovalCount(); };
