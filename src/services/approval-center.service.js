@@ -57,9 +57,23 @@ function monthValue(value) {
   return parsed ? parsed.toISOString().slice(0, 7) : null;
 }
 
-function managerCanApproveLeave(row, actorProfile) {
+function isRetroactiveLeaveStart(dateInput, now = new Date()) {
+  if (!dateInput) return false;
+  const date = new Date(dateInput);
+  if (Number.isNaN(date.getTime())) return false;
+  const bangkokNow = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+  const todayUtc = new Date(Date.UTC(bangkokNow.getUTCFullYear(), bangkokNow.getUTCMonth(), bangkokNow.getUTCDate()));
+  const bangkokDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+  const targetUtc = new Date(Date.UTC(bangkokDate.getUTCFullYear(), bangkokDate.getUTCMonth(), bangkokDate.getUTCDate()));
+  return targetUtc < todayUtc;
+}
+
+function managerCanApproveLeave(row, actorProfile, now = new Date()) {
   if (!row?.employee) return true;
   if (actorProfile?.employeeId && row.employeeId === actorProfile.employeeId) return false;
+  // Keep the queue aligned with ensureLeaveApprovalAllowed in operations.routes.js:
+  // retroactive leave bypasses position escalation; non-retroactive Supervisor leave is Admin-only.
+  if (isRetroactiveLeaveStart(row.startDate, now)) return true;
   const employeePosition = String(row.employee.jobTitle || '').toLowerCase();
   if (/supervisor|หัวหน้า|ซุปเปอร์ไวเซอร์/.test(employeePosition)) return false;
   if (/manager|ผู้จัดการ/.test(employeePosition)) {
@@ -239,7 +253,7 @@ function createApprovalCenterService({
     ]);
 
     const leaves = role === 'MANAGER'
-      ? rawLeaves.filter((row) => managerCanApproveLeave(row, actorProfile))
+      ? rawLeaves.filter((row) => managerCanApproveLeave(row, actorProfile, now))
       : rawLeaves;
     const leaveTotal = role === 'MANAGER' ? Math.min(rawLeaveTotal, leaves.length) : rawLeaveTotal;
 
@@ -466,4 +480,4 @@ function createApprovalCenterService({
   return { list };
 }
 
-module.exports = { createApprovalCenterService, approvalUrgency, managerCanApproveLeave };
+module.exports = { createApprovalCenterService, approvalUrgency, isRetroactiveLeaveStart, managerCanApproveLeave };
