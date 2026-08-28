@@ -46,7 +46,8 @@ function assignment({
   shiftCode = 'DAY',
   events = [],
   siteId = 'site-1',
-  siteName = 'Main Site'
+  siteName = 'Main Site',
+  locked = true
 } = {}) {
   return {
     id,
@@ -60,7 +61,7 @@ function assignment({
     endTime,
     hours: 12,
     remark: null,
-    locked: true,
+    locked,
     shiftType: {
       id: 'shift-1',
       code: shiftCode,
@@ -150,6 +151,29 @@ test('today is strictly actor-scoped and returns NO_ASSIGNMENT without accepting
   assert.deepEqual(Object.keys(calls.assignmentFindMany[0].where).sort(), ['employeeId', 'workDate']);
 });
 
+test('approved auto-schedule assignment is Attendance-ready even when the row is not manually locked', async () => {
+  const auto = assignment({ locked: false });
+  const { prisma, calls } = basePrisma({
+    shiftAssignment: {
+      async findMany(input) {
+        calls.assignmentFindMany.push(input);
+        return [auto];
+      }
+    }
+  });
+  const service = createAttendanceSelfService({
+    prisma,
+    clock: () => new Date('2026-08-27T02:00:00.000Z')
+  });
+
+  const result = await service.today({ actor: { sub: 'user-1', role: 'VIEWER' } });
+
+  assert.equal(result.scheduleReady, true);
+  assert.equal(result.assignment.assignmentId, 'assignment-1');
+  assert.equal(result.scheduleRevision, 3);
+  assert.equal(calls.assignmentFindMany[0].where.locked, undefined);
+});
+
 test('history enforces a bounded date range before querying Attendance assignments', async () => {
   const { prisma, calls } = basePrisma();
   const service = createAttendanceSelfService({
@@ -171,6 +195,29 @@ test('history enforces a bounded date range before querying Attendance assignmen
   );
 
   assert.equal(calls.assignmentFindMany.length, 0);
+});
+
+test('approved monthly schedule exposes auto-generated rows without requiring manual row lock', async () => {
+  const auto = assignment({ locked: false });
+  const { prisma, calls } = basePrisma({
+    shiftAssignment: {
+      async findMany(input) {
+        calls.assignmentFindMany.push(input);
+        return [auto];
+      }
+    }
+  });
+  const service = createAttendanceSelfService({
+    prisma,
+    clock: () => new Date('2026-08-27T02:00:00.000Z')
+  });
+
+  const result = await service.schedule({ actor: { sub: 'user-1', role: 'VIEWER' }, month: '2026-08' });
+
+  assert.equal(result.approved, true);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].assignmentId, 'assignment-1');
+  assert.equal(calls.assignmentFindMany[0].where.locked, undefined);
 });
 
 test('schedule exposes no rows when the latest monthly authority is not APPROVED', async () => {

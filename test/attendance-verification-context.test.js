@@ -42,7 +42,7 @@ function digest(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
-function assignment({ id = ids.assignmentToday, workDate = '2026-08-24', startTime = '07:00', endTime = '19:00', code = 'D', securitySiteId = ids.site } = {}) {
+function assignment({ id = ids.assignmentToday, workDate = '2026-08-24', startTime = '07:00', endTime = '19:00', code = 'D', securitySiteId = ids.site, locked = true } = {}) {
   return {
     id,
     employeeId: ids.employee,
@@ -52,7 +52,7 @@ function assignment({ id = ids.assignmentToday, workDate = '2026-08-24', startTi
     startTime,
     endTime,
     hours: 12,
-    locked: true,
+    locked,
     shiftType: { id: ids.shift, code, name: code, startTime, endTime, hours: 12 },
     securitySite: securitySiteId ? { id: securitySiteId, isActive: true } : null
   };
@@ -182,6 +182,13 @@ test('Bangkok time and overnight detection preserve the prior-day shift tail', (
 
 test('server resolves CHECK_IN when the authoritative current shift has no AttendanceSession', async () => {
   const { db, clock } = fakeDb();
+  const service = createAttendanceVerificationContextService({ prisma: db, faceSessionService: fakeFace(), siteEvidenceService: fakeSiteEvidence(), clock });
+  const resolved = await service.resolveEventIntent({ actor: { sub: ids.user } });
+  assert.deepEqual(resolved, { eventIntent: 'CHECK_IN', shiftAssignmentId: ids.assignmentToday, workDate: '2026-08-24' });
+});
+
+test('approved auto-schedule row is actionable even when it is not manually locked', async () => {
+  const { db, clock } = fakeDb({ rows: [assignment({ locked: false })] });
   const service = createAttendanceVerificationContextService({ prisma: db, faceSessionService: fakeFace(), siteEvidenceService: fakeSiteEvidence(), clock });
   const resolved = await service.resolveEventIntent({ actor: { sub: ids.user } });
   assert.deepEqual(resolved, { eventIntent: 'CHECK_IN', shiftAssignmentId: ids.assignmentToday, workDate: '2026-08-24' });
