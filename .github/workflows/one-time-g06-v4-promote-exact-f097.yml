@@ -1,0 +1,148 @@
+name: ONE-TIME G06 V4 EXACT f097 CANONICAL PROMOTION
+
+on:
+  push:
+    branches:
+      - fix/serverless-database-reliability
+    paths:
+      - .github/workflows/one-time-g06-v4-promote-exact-f097.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-staging-production
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_PRE_PROMOTION_CANONICAL_ID: dpl_HKjuqzLEfA8tj8WKpSp1JSnugeUB
+  EXPECTED_STAGED_DEPLOYMENT_ID: dpl_2QU3VFRvem5KcpmMdaQhNYuNR6Ev
+  EXPECTED_SHA: f097b6eb2569576885e23800084516421f679268
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  promote-exact-f097:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Verify Environment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+
+      - name: Validate exact staged promotion target
+        shell: bash
+        run: |
+          set -euo pipefail
+          staged_json=$(mktemp)
+          curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/$EXPECTED_STAGED_DEPLOYMENT_ID?teamId=$EXPECTED_ORG_ID" > "$staged_json"
+          node - "$staged_json" <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const projectId = data.project?.id || data.projectId || null;
+          const projectName = data.project?.name || data.name || null;
+          const sha = data.meta?.githubCommitSha || data.gitSource?.sha || null;
+          const fail = (message) => { console.error(message); process.exit(1); };
+          if (data.id !== process.env.EXPECTED_STAGED_DEPLOYMENT_ID) fail('deployment id mismatch');
+          if (projectId !== process.env.EXPECTED_PROJECT_ID) fail('project id mismatch');
+          if (projectName !== process.env.EXPECTED_PROJECT_NAME) fail('project name mismatch');
+          if (data.target !== 'production') fail('target is not production');
+          if ((data.readyState || data.state) !== 'READY') fail('deployment is not READY');
+          if (sha !== process.env.EXPECTED_SHA) fail(`SHA mismatch: ${sha}`);
+          console.log(`PROMOTION_TARGET=${data.id}`);
+          console.log(`PROMOTION_SHA=${sha}`);
+          NODE
+          rm -f "$staged_json"
+
+      - name: Prove Canonical unchanged immediately before promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_log=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" > "$canonical_log"
+          node - "$canonical_log" <<'NODE'
+          const fs = require('node:fs');
+          const raw = fs.readFileSync(process.argv[2], 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('canonical inspect JSON missing');
+          const data = JSON.parse(match[0]);
+          if (data.id !== process.env.EXPECTED_PRE_PROMOTION_CANONICAL_ID) throw new Error(`Canonical changed unexpectedly: ${data.id}`);
+          console.log(`PRE_PROMOTION_CANONICAL=${data.id}`);
+          NODE
+          rm -f "$canonical_log"
+
+      - name: Promote exact existing staged deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@"$VERCEL_CLI_VERSION" promote "$EXPECTED_STAGED_DEPLOYMENT_ID" --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" --yes
+
+      - name: Verify Canonical exact deployment identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_log=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" > "$canonical_log"
+          node - "$canonical_log" <<'NODE'
+          const fs = require('node:fs');
+          const raw = fs.readFileSync(process.argv[2], 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('canonical inspect JSON missing');
+          const data = JSON.parse(match[0]);
+          if (data.id !== process.env.EXPECTED_STAGED_DEPLOYMENT_ID) throw new Error(`Canonical deployment mismatch: ${data.id}`);
+          console.log(`CANONICAL_DEPLOYMENT=${data.id}`);
+          NODE
+          rm -f "$canonical_log"
+
+      - name: Verify Canonical health readiness and database
+        shell: bash
+        run: |
+          set -euo pipefail
+          health=$(curl -fsS "$EXPECTED_CANONICAL_URL/api/v1/health")
+          ready=$(curl -fsS "$EXPECTED_CANONICAL_URL/api/v1/ready")
+          node - "$health" "$ready" <<'NODE'
+          const [healthRaw, readyRaw] = process.argv.slice(2);
+          const health = JSON.parse(healthRaw);
+          const ready = JSON.parse(readyRaw);
+          if (health.status !== 'ok') throw new Error('canonical health failed');
+          if (ready.status !== 'ready' || ready.database !== 'ok') throw new Error('canonical readiness/database failed');
+          console.log('CANONICAL_HEALTH=PASS');
+          console.log('CANONICAL_READY_DATABASE=PASS');
+          NODE
+
+      - name: Non-destructive Canonical smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          body=$(mktemp)
+          curl -fsS "$EXPECTED_CANONICAL_URL/" > "$body"
+          test -s "$body"
+          grep -Eiq '<!doctype html|<html' "$body"
+          rm -f "$body"
+          echo 'CANONICAL_NON_DESTRUCTIVE_SMOKE=PASS'
+
+      - name: Publish promotion checkpoint
+        run: |
+          {
+            echo '### G06 V4 exact canonical promotion'
+            echo "Deployment: $EXPECTED_STAGED_DEPLOYMENT_ID"
+            echo "Exact Application SHA: $EXPECTED_SHA"
+            echo "Canonical: $EXPECTED_CANONICAL_URL"
+            echo 'Health/readiness/database: PASS'
+            echo 'Non-destructive smoke: PASS'
+            echo 'Database migration during promotion: NOT PERFORMED'
+          } >> "$GITHUB_STEP_SUMMARY"
