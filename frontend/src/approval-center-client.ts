@@ -7,7 +7,7 @@ function csrf() {
 }
 
 export async function getApprovalCenter(token: string) {
-  const headers = new Headers({ Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' });
+  const headers = new Headers({ Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', Accept: 'application/json' });
   const csrfToken = csrf();
   if (csrfToken) headers.set('X-CSRF-Token', decodeURIComponent(csrfToken));
   const response = await fetch(baseUrl + '/approval-center?limit=100', { credentials: 'include', headers, cache: 'no-store' });
