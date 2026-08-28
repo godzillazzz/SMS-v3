@@ -1,0 +1,169 @@
+name: ONE-TIME Approval Center V1 existing staged validation
+
+on:
+  push:
+    branches:
+      - fix/serverless-database-reliability
+    paths:
+      - .github/workflows/one-time-approval-center-v1-existing-staged-validation.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-approval-center-v1-existing-staged-validation
+  cancel-in-progress: false
+
+env:
+  TARGET_SHA: 832aafec960467e4c023e9f9f386a6e0e07cbf94
+  EXPECTED_TREE: d77cdb5b47c66143cd0dbfc93c84e9bd14f1f401
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_CANONICAL_DEPLOYMENT_ID: dpl_2QU3VFRvem5KcpmMdaQhNYuNR6Ev
+  STAGED_DEPLOYMENT_ID: dpl_AQqnLHg7R97BAEsAzLjYVwRhZfo9
+  STAGED_DEPLOYMENT_URL: https://sms-v3-staging-4qiz0g5l8-godzillazz.vercel.app
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  validate-existing-staged:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Verify Environment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+
+      - name: Checkout exact Candidate SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+
+      - name: Validate exact Candidate source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          test -z "$(git status --porcelain)"
+
+      - name: Inspect exact existing staged deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          staged_json=$(mktemp)
+          curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/$STAGED_DEPLOYMENT_ID?teamId=$EXPECTED_ORG_ID" > "$staged_json"
+          node - "$staged_json" <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const projectId = data.project?.id || data.projectId || null;
+          const projectName = data.project?.name || data.name || null;
+          const sha = data.meta?.githubCommitSha || data.gitSource?.sha || null;
+          if (data.id !== process.env.STAGED_DEPLOYMENT_ID) throw new Error('deployment id mismatch');
+          if (projectId !== process.env.EXPECTED_PROJECT_ID) throw new Error('project id mismatch');
+          if (projectName !== process.env.EXPECTED_PROJECT_NAME) throw new Error('project name mismatch');
+          if (data.target !== 'production') throw new Error('target is not production');
+          if ((data.readyState || data.state) !== 'READY') throw new Error('deployment is not READY');
+          if (sha !== process.env.TARGET_SHA) throw new Error(`staged SHA mismatch: ${sha}`);
+          if (Array.isArray(data.alias) && data.alias.length !== 0) throw new Error('staged deployment unexpectedly has aliases');
+          console.log(`STAGED_DEPLOYMENT_ID=${data.id}`);
+          console.log(`STAGED_SHA=${sha}`);
+          console.log('STAGED_IDENTITY=PASS');
+          NODE
+          rm -f "$staged_json"
+
+      - name: Prove Canonical unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_json=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" > "$canonical_json"
+          node - "$canonical_json" <<'NODE'
+          const fs = require('node:fs');
+          const raw = fs.readFileSync(process.argv[2], 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('canonical inspect JSON missing');
+          const data = JSON.parse(match[0]);
+          if (data.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT_ID) throw new Error(`Canonical changed: ${data.id}`);
+          console.log(`CANONICAL_UNCHANGED=${data.id}`);
+          NODE
+          rm -f "$canonical_json"
+
+      - name: Staged health and readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /api/v1/health /api/v1/ready; do
+            out=$(mktemp)
+            npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$path" --deployment "$STAGED_DEPLOYMENT_URL" > "$out"
+            node - "$out" "$path" <<'NODE'
+          const fs = require('node:fs');
+          const [file, path] = process.argv.slice(2);
+          const body = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (path.endsWith('/health') && body.status !== 'ok') throw new Error('health failed');
+          if (path.endsWith('/ready') && (body.status !== 'ready' || body.database !== 'ok')) throw new Error('readiness failed');
+          console.log(`STAGED_${path.endsWith('/ready') ? 'READY_DATABASE' : 'HEALTH'}=PASS`);
+          NODE
+            rm -f "$out"
+          done
+
+      - name: Approval Center unauthenticated boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl "/api/v1/approval-center" --deployment "$STAGED_DEPLOYMENT_URL" > "$out"
+          node - "$out" <<'NODE'
+          const fs = require('node:fs');
+          const raw = fs.readFileSync(process.argv[2], 'utf8');
+          let body;
+          try { body = JSON.parse(raw); } catch { throw new Error('approval-center unauth response is not JSON'); }
+          if (body?.error !== 'Authentication required.') {
+            throw new Error(`unexpected Approval Center unauth response: ${raw.slice(0, 300)}`);
+          }
+          if (body?.data || body?.summary) throw new Error('Approval Center leaked protected queue data');
+          console.log('APPROVAL_CENTER_UNAUTH_BOUNDARY=PASS');
+          NODE
+          rm -f "$out"
+
+      - name: Non-destructive staged root smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl "/" --deployment "$STAGED_DEPLOYMENT_URL" > "$out"
+          test -s "$out"
+          grep -Eiq '<!doctype html|<html' "$out"
+          rm -f "$out"
+          echo 'STAGED_NON_DESTRUCTIVE_SMOKE=PASS'
+
+      - name: Publish validation checkpoint
+        run: |
+          {
+            echo '### Approval Center V1 existing staged validation'
+            echo "Exact Candidate SHA: $TARGET_SHA"
+            echo "Exact Candidate tree: $EXPECTED_TREE"
+            echo "Staged deployment: $STAGED_DEPLOYMENT_ID"
+            echo "Staged URL: $STAGED_DEPLOYMENT_URL"
+            echo 'Target: production'
+            echo 'Domain aliases: none'
+            echo "Canonical remains: $EXPECTED_CANONICAL_DEPLOYMENT_ID"
+            echo 'Health/readiness/database: PASS'
+            echo 'Approval Center unauth boundary: PASS'
+            echo 'Non-destructive smoke: PASS'
+            echo 'Database migration: NOT PERFORMED'
+            echo 'Promotion: NOT PERFORMED'
+          } >> "$GITHUB_STEP_SUMMARY"
