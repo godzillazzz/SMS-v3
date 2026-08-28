@@ -6,13 +6,24 @@ import { SmsIcon } from '../../components/SmsIcon';
 import '../../styles/approval-center.css';
 
 type ApprovalUrgency = 'NEW' | 'DUE_SOON' | 'OVERDUE';
-type ApprovalType = 'EMPLOYEE_MASTER_CHANGE' | 'EMPLOYEE_REFERENCE_PHOTO';
+type ApprovalType =
+  | 'EMPLOYEE_MASTER_CHANGE'
+  | 'EMPLOYEE_REFERENCE_PHOTO'
+  | 'LICENSE_DOCUMENT'
+  | 'SCHEDULE_APPROVAL'
+  | 'ATTENDANCE_DEVICE_REQUEST'
+  | 'ATTENDANCE_ADJUSTMENT_REQUEST'
+  | 'REGISTRATION_REQUEST'
+  | 'USER_ACCESS'
+  | 'LEAVE_REQUEST';
+type ApprovalSourcePage = 'employees' | 'licenses' | 'schedule' | 'attendanceDevice' | 'attendance' | 'users' | 'leavePending';
 type ApprovalItem = {
   id: string;
   requestId: string;
   type: ApprovalType;
   title: string;
   status: string;
+  sourcePage: ApprovalSourcePage;
   submittedAt: string;
   ageHours: number;
   urgency: ApprovalUrgency;
@@ -21,23 +32,75 @@ type ApprovalItem = {
   employee?: { id?: string; employeeCode?: string; firstName?: string; lastName?: string; displayName?: string; department?: string; jobTitle?: string } | null;
   requestedBy?: { id?: string | null; displayName?: string | null; role?: string | null };
   photo?: { fileName?: string; mimeType?: string; fileSize?: number; imageWidth?: number; imageHeight?: number };
+  metadata?: Record<string, unknown>;
 };
-type Summary = { total: number; employeeMasterChanges: number; referencePhotos: number; dueSoon24h: number; overdue48h: number; truncated?: boolean };
-type Props = { token: string; refreshKey?: number; onChanged(): void; onOpenEmployeeChange(requestId: string): void };
+type Summary = {
+  total: number;
+  byType?: Partial<Record<ApprovalType, number>>;
+  dueSoon24h: number;
+  overdue48h: number;
+  truncated?: boolean;
+};
+type Props = {
+  token: string;
+  role: string;
+  refreshKey?: number;
+  onChanged(): void;
+  onOpenEmployeeChange(requestId: string): void;
+  onNavigate(item: ApprovalItem): void;
+};
 
 const typeLabel: Record<ApprovalType, string> = {
   EMPLOYEE_MASTER_CHANGE: 'แก้ไขข้อมูลพนักงาน',
-  EMPLOYEE_REFERENCE_PHOTO: 'รูปอ้างอิงพนักงาน'
+  EMPLOYEE_REFERENCE_PHOTO: 'รูปอ้างอิงพนักงาน',
+  LICENSE_DOCUMENT: 'เอกสารใบอนุญาต',
+  SCHEDULE_APPROVAL: 'ตารางกะ',
+  ATTENDANCE_DEVICE_REQUEST: 'อุปกรณ์ลงเวลา',
+  ATTENDANCE_ADJUSTMENT_REQUEST: 'ปรับปรุงเวลา Attendance',
+  REGISTRATION_REQUEST: 'ลงทะเบียนบัญชี',
+  USER_ACCESS: 'เปิดสิทธิ์ผู้ใช้',
+  LEAVE_REQUEST: 'คำขอลา'
 };
 const urgencyLabel: Record<ApprovalUrgency, string> = { NEW: 'ใหม่', DUE_SOON: 'ครบ 24 ชม.', OVERDUE: 'เกิน 48 ชม.' };
 const changedFieldLabels: Record<string, string> = { employeeCode: 'รหัสพนักงาน', firstName: 'ชื่อ', lastName: 'นามสกุล', department: 'หน่วยงาน', jobTitle: 'ตำแหน่ง', isActive: 'สถานะการทำงาน' };
 const fmt = (value: string) => new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value));
-const employeeName = (item?: ApprovalItem) => item?.employee?.displayName || [item?.employee?.firstName, item?.employee?.lastName].filter(Boolean).join(' ') || 'ไม่พบชื่อพนักงาน';
+const dateOnly = (value: unknown) => {
+  if (!value) return '—';
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? String(value) : new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeZone: 'Asia/Bangkok' }).format(parsed);
+};
+const employeeName = (item?: ApprovalItem) => item?.employee?.displayName || [item?.employee?.firstName, item?.employee?.lastName].filter(Boolean).join(' ') || item?.requestedBy?.displayName || item?.title || 'รายการคำขอ';
 const bytes = (value?: number) => !value ? '—' : value < 1024 * 1024 ? Math.max(1, Math.round(value / 1024)) + ' KB' : (value / 1024 / 1024).toFixed(1) + ' MB';
+const text = (value: unknown) => value === undefined || value === null || value === '' ? '—' : String(value);
+const metadataLabels: Record<string, string> = {
+  email: 'อีเมล',
+  department: 'หน่วยงาน',
+  departmentHint: 'หน่วยงานที่ระบุ',
+  leaveType: 'ประเภทการลา',
+  startDate: 'วันที่เริ่ม',
+  endDate: 'วันที่สิ้นสุด',
+  dayCount: 'จำนวนวัน',
+  licenseType: 'ประเภทใบอนุญาต',
+  currentLicenseNumber: 'เลขใบอนุญาตเดิม',
+  proposedLicenseNumber: 'เลขใบอนุญาตที่เสนอ',
+  proposedStartDate: 'วันเริ่มที่เสนอ',
+  proposedExpiryDate: 'วันหมดอายุที่เสนอ',
+  version: 'Version',
+  fileName: 'ไฟล์',
+  month: 'เดือน',
+  revision: 'Revision',
+  changeType: 'ประเภทการเปลี่ยน',
+  requestType: 'ประเภทคำขอ',
+  reason: 'เหตุผล',
+  deviceName: 'อุปกรณ์',
+  platformHint: 'แพลตฟอร์ม',
+  workDate: 'วันที่ปฏิบัติงาน'
+};
+const dateMetadata = new Set(['startDate', 'endDate', 'proposedStartDate', 'proposedExpiryDate', 'workDate']);
 
-export function ApprovalCenterPage({ token, refreshKey = 0, onChanged, onOpenEmployeeChange }: Props) {
+export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onOpenEmployeeChange, onNavigate }: Props) {
   const [items, setItems] = useState<ApprovalItem[]>([]);
-  const [summary, setSummary] = useState<Summary>({ total: 0, employeeMasterChanges: 0, referencePhotos: 0, dueSoon24h: 0, overdue48h: 0 });
+  const [summary, setSummary] = useState<Summary>({ total: 0, byType: {}, dueSoon24h: 0, overdue48h: 0 });
   const [selectedId, setSelectedId] = useState('');
   const [filter, setFilter] = useState<'ALL' | ApprovalType>('ALL');
   const [loading, setLoading] = useState(true);
@@ -54,10 +117,16 @@ export function ApprovalCenterPage({ token, refreshKey = 0, onChanged, onOpenEmp
       const result = await getApprovalCenter(token);
       const next = Array.isArray(result?.data) ? result.data as ApprovalItem[] : [];
       setItems(next);
-      setSummary({ total: Number(result?.summary?.total || 0), employeeMasterChanges: Number(result?.summary?.employeeMasterChanges || 0), referencePhotos: Number(result?.summary?.referencePhotos || 0), dueSoon24h: Number(result?.summary?.dueSoon24h || 0), overdue48h: Number(result?.summary?.overdue48h || 0), truncated: Boolean(result?.summary?.truncated) });
+      setSummary({
+        total: Number(result?.summary?.total || 0),
+        byType: result?.summary?.byType || {},
+        dueSoon24h: Number(result?.summary?.dueSoon24h || 0),
+        overdue48h: Number(result?.summary?.overdue48h || 0),
+        truncated: Boolean(result?.summary?.truncated)
+      });
       setSelectedId((current) => next.some((item) => item.id === current) ? current : next[0]?.id || '');
     } catch (cause) {
-      setError(toRequestErrorState(cause, 'ไม่สามารถโหลดศูนย์คำขออนุมัติได้'));
+      setError(toRequestErrorState(cause, 'ไม่สามารถโหลด Approval Center ได้'));
     } finally {
       setLoading(false);
     }
@@ -67,6 +136,7 @@ export function ApprovalCenterPage({ token, refreshKey = 0, onChanged, onOpenEmp
 
   const visible = useMemo(() => filter === 'ALL' ? items : items.filter((item) => item.type === filter), [items, filter]);
   const selected = items.find((item) => item.id === selectedId);
+  const availableTypes = useMemo(() => (Object.keys(typeLabel) as ApprovalType[]).filter((type) => Number(summary.byType?.[type] || 0) > 0), [summary.byType]);
 
   useEffect(() => {
     setPhotoUrl('');
@@ -80,7 +150,7 @@ export function ApprovalCenterPage({ token, refreshKey = 0, onChanged, onOpenEmp
   }, [selectedId, token]);
 
   const completePhotoAction = async (action: 'approve' | 'reject') => {
-    if (!selected || selected.type !== 'EMPLOYEE_REFERENCE_PHOTO') return;
+    if (!selected || selected.type !== 'EMPLOYEE_REFERENCE_PHOTO' || role !== 'ADMIN') return;
     if (action === 'reject' && rejectReason.trim().length < 3) { setError('กรุณาระบุเหตุผลที่ไม่อนุมัติอย่างน้อย 3 ตัวอักษร'); return; }
     setBusy(true); setError(undefined); setNotice('');
     try {
@@ -96,9 +166,11 @@ export function ApprovalCenterPage({ token, refreshKey = 0, onChanged, onOpenEmp
     }
   };
 
+  const metadataRows = selected ? Object.entries(selected.metadata || {}).filter(([, value]) => value !== null && value !== undefined && value !== '') : [];
+
   return <section className="approval-center-page data-surface-page" aria-label="Approval Center">
     <header className="approval-center-header">
-      <div><p className="eyebrow">ADMIN WORK QUEUE</p><h1>ศูนย์คำขออนุมัติ</h1><p>รวมคำขอแก้ไขข้อมูลและรูปพนักงานที่รอการตัดสินใจไว้ในจุดเดียว</p></div>
+      <div><p className="eyebrow">ACTION INBOX · {role}</p><h1>Approval Center</h1><p>รวมคำขอที่คุณมีสิทธิ์ต้องตรวจสอบหรืออนุมัติจากทุกโมดูลไว้ในจุดเดียว</p></div>
       <button type="button" className="btn-neutral small-action" disabled={loading} onClick={() => void load()}><SmsIcon name="refresh" size={16} />รีเฟรช</button>
     </header>
 
@@ -106,35 +178,34 @@ export function ApprovalCenterPage({ token, refreshKey = 0, onChanged, onOpenEmp
     {notice && <div className="approval-center-alert approval-center-alert--success">{notice}</div>}
 
     <div className="approval-center-metrics">
-      <article><span>รออนุมัติทั้งหมด</span><strong>{summary.total}</strong><small>รายการ</small></article>
-      <article><span>แก้ไขข้อมูล</span><strong>{summary.employeeMasterChanges}</strong><small>Employee Master</small></article>
-      <article><span>รูปพนักงาน</span><strong>{summary.referencePhotos}</strong><small>Reference Photo</small></article>
-      <article className={summary.overdue48h > 0 ? 'is-overdue' : ''}><span>เกิน 48 ชั่วโมง</span><strong>{summary.overdue48h}</strong><small>{summary.dueSoon24h} รายการครบ 24 ชม.</small></article>
+      <article><span>งานที่รอดำเนินการ</span><strong>{summary.total}</strong><small>ตามสิทธิ์ {role}</small></article>
+      <article><span>ประเภทงาน</span><strong>{availableTypes.length}</strong><small>จากทุกโมดูล</small></article>
+      <article><span>ครบ 24 ชั่วโมง</span><strong>{summary.dueSoon24h}</strong><small>ควรเร่งตรวจสอบ</small></article>
+      <article className={summary.overdue48h > 0 ? 'is-overdue' : ''}><span>เกิน 48 ชั่วโมง</span><strong>{summary.overdue48h}</strong><small>รายการค้างนาน</small></article>
     </div>
 
     <div className="approval-center-filter" role="group" aria-label="ตัวกรองประเภทคำขอ">
-      <button type="button" className={filter === 'ALL' ? 'active' : ''} onClick={() => setFilter('ALL')}>ทั้งหมด</button>
-      <button type="button" className={filter === 'EMPLOYEE_MASTER_CHANGE' ? 'active' : ''} onClick={() => setFilter('EMPLOYEE_MASTER_CHANGE')}>แก้ไขข้อมูล</button>
-      <button type="button" className={filter === 'EMPLOYEE_REFERENCE_PHOTO' ? 'active' : ''} onClick={() => setFilter('EMPLOYEE_REFERENCE_PHOTO')}>รูปพนักงาน</button>
+      <button type="button" className={filter === 'ALL' ? 'active' : ''} onClick={() => setFilter('ALL')}>ทั้งหมด <b>{summary.total}</b></button>
+      {availableTypes.map((type) => <button type="button" key={type} className={filter === type ? 'active' : ''} onClick={() => setFilter(type)}>{typeLabel[type]} <b>{summary.byType?.[type] || 0}</b></button>)}
     </div>
 
     <div className="approval-center-layout">
-      <aside className="approval-center-queue" aria-label="รายการรออนุมัติ">
-        <div className="approval-center-queue__title"><strong>รอตรวจสอบ</strong><span>{visible.length} รายการ</span></div>
+      <aside className="approval-center-queue" aria-label="รายการรอดำเนินการ">
+        <div className="approval-center-queue__title"><strong>งานที่รอฉันดำเนินการ</strong><span>{visible.length} รายการ</span></div>
         {loading ? <div className="approval-center-empty">กำลังโหลดคำขอ…</div> : visible.length ? visible.map((item) =>
           <button type="button" key={item.id} className={selected?.id === item.id ? 'is-selected' : ''} onClick={() => setSelectedId(item.id)}>
             <div><strong>{employeeName(item)}</strong><span className={'approval-urgency approval-urgency--' + item.urgency.toLowerCase()}>{urgencyLabel[item.urgency]}</span></div>
-            <span>{typeLabel[item.type]} · {item.employee?.employeeCode || '—'}</span>
-            <small>โดย {item.requestedBy?.displayName || 'Manager'} · {fmt(item.submittedAt)}</small>
+            <span>{typeLabel[item.type]} · {item.employee?.employeeCode || item.status}</span>
+            <small>โดย {item.requestedBy?.displayName || 'ระบบ'} · {fmt(item.submittedAt)}</small>
           </button>
-        ) : <div className="approval-center-empty"><SmsIcon name="check" size={28} /><strong>ไม่มีคำขอค้างอนุมัติ</strong><span>รายการใหม่จากหัวหน้างานจะแสดงที่นี่อัตโนมัติ</span></div>}
+        ) : <div className="approval-center-empty"><SmsIcon name="check" size={28} /><strong>ไม่มีงานค้าง</strong><span>ขณะนี้ไม่มีคำขอที่ต้องดำเนินการในขอบเขตสิทธิ์ของคุณ</span></div>}
       </aside>
 
       <section className="approval-center-detail" aria-live="polite">
         {selected ? <>
-          <header><div><p>{typeLabel[selected.type]}</p><h2>{employeeName(selected)}</h2><span>{selected.employee?.employeeCode || '—'} · {selected.employee?.department || 'ไม่ระบุหน่วยงาน'}</span></div><span className={'approval-urgency approval-urgency--' + selected.urgency.toLowerCase()}>{urgencyLabel[selected.urgency]}</span></header>
+          <header><div><p>{typeLabel[selected.type]}</p><h2>{employeeName(selected)}</h2><span>{selected.employee?.employeeCode || selected.status} · {selected.employee?.department || text(selected.metadata?.department)}</span></div><span className={'approval-urgency approval-urgency--' + selected.urgency.toLowerCase()}>{urgencyLabel[selected.urgency]}</span></header>
           <dl className="approval-center-meta">
-            <div><dt>ผู้ส่งคำขอ</dt><dd>{selected.requestedBy?.displayName || 'Manager'} ({selected.requestedBy?.role || 'MANAGER'})</dd></div>
+            <div><dt>ผู้ส่งคำขอ</dt><dd>{selected.requestedBy?.displayName || 'ระบบ'}{selected.requestedBy?.role ? ' (' + selected.requestedBy.role + ')' : ''}</dd></div>
             <div><dt>ส่งเมื่อ</dt><dd>{fmt(selected.submittedAt)}</dd></div>
             <div><dt>เวลาที่รอ</dt><dd>{selected.ageHours < 1 ? 'ไม่ถึง 1 ชั่วโมง' : selected.ageHours + ' ชั่วโมง'}</dd></div>
           </dl>
@@ -144,19 +215,24 @@ export function ApprovalCenterPage({ token, refreshKey = 0, onChanged, onOpenEmp
             <div className="approval-center-fields">{(selected.changedFields || []).map((field) => <span key={field}>{changedFieldLabels[field] || field}</span>)}</div>
             <p>Revision {selected.revision || 1} · เปิดรายละเอียดเพื่อดู BEFORE → AFTER และผลกระทบก่อนตัดสินใจ</p>
             <button type="button" className="btn-primary compact" onClick={() => onOpenEmployeeChange(selected.requestId)}>เปิดคำขอและพิจารณา</button>
-          </div> : <div className="approval-center-photo-review">
+          </div> : selected.type === 'EMPLOYEE_REFERENCE_PHOTO' ? <div className="approval-center-photo-review">
             <h3>รูปที่เสนอ</h3>
             <div className="approval-center-photo-frame">{photoUrl ? <img src={photoUrl} alt={'รูปที่รออนุมัติของ ' + employeeName(selected)} /> : <div><SmsIcon name="eye" size={28} /><span>ไม่สามารถเปิดรูปชั่วคราว</span></div>}</div>
             <div className="approval-center-photo-meta"><span>{selected.photo?.fileName || 'รูปอ้างอิง'}</span><span>{selected.photo?.imageWidth || '—'}×{selected.photo?.imageHeight || '—'} · {bytes(selected.photo?.fileSize)}</span></div>
-            <div className="approval-center-photo-actions">
+            {role === 'ADMIN' && <div className="approval-center-photo-actions">
               <button type="button" className="btn-primary compact" disabled={busy} onClick={() => void completePhotoAction('approve')}><SmsIcon name="check" size={16} />อนุมัติและเปิดใช้</button>
               <label><span>เหตุผลที่ไม่อนุมัติ</span><textarea rows={3} maxLength={1000} value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} placeholder="ระบุอย่างน้อย 3 ตัวอักษร" /></label>
               <button type="button" className="btn-danger-outline" disabled={busy || rejectReason.trim().length < 3} onClick={() => void completePhotoAction('reject')}>ไม่อนุมัติ</button>
-            </div>
+            </div>}
+          </div> : <div className="approval-center-master approval-center-source-review">
+            <h3>รายละเอียดคำขอ</h3>
+            {metadataRows.length ? <dl className="approval-center-source-meta">{metadataRows.map(([key, value]) => <div key={key}><dt>{metadataLabels[key] || key}</dt><dd>{dateMetadata.has(key) ? dateOnly(value) : text(value)}</dd></div>)}</dl> : <p>เปิดโมดูลต้นทางเพื่อดูรายละเอียดและดำเนินการตาม workflow เดิมของระบบ</p>}
+            <p>การอนุมัติ/ไม่อนุมัติจะดำเนินการที่โมดูลต้นทาง เพื่อรักษากฎสิทธิ์ การตรวจสอบ และ Audit เดิม</p>
+            <button type="button" className="btn-primary compact" onClick={() => onNavigate(selected)}>เปิดหน้าดำเนินการ</button>
           </div>}
         </> : <div className="approval-center-empty approval-center-empty--detail"><SmsIcon name="bell" size={30} /><strong>เลือกคำขอเพื่อดูรายละเอียด</strong></div>}
       </section>
     </div>
-    {summary.truncated && <p className="approval-center-footnote">มีคำขอมากกว่า 100 รายการ กรุณาดำเนินการรายการเก่าก่อนเพื่อให้คิวล่าสุดแสดงครบ</p>}
+    {summary.truncated && <p className="approval-center-footnote">มีงานมากกว่าจำนวนที่แสดงในคิว กรุณาดำเนินการรายการเก่าก่อนแล้วรีเฟรช</p>}
   </section>;
 }
