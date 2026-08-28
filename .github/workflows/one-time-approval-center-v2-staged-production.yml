@@ -3,7 +3,7 @@ name: ONE-TIME Approval Center V2 exact staged Production
 on:
   push:
     branches:
-      - ci/approval-center-v2-staged-production-20260828
+      - fix/serverless-database-reliability
     paths:
       - .github/workflows/one-time-approval-center-v2-staged-production.yml
 
