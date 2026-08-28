@@ -44,6 +44,7 @@ export function ApprovalCenterPage({ token, refreshKey = 0, onChanged, onOpenEmp
   const [error, setError] = useState<RequestErrorInput>();
   const [notice, setNotice] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [photoLoading, setPhotoLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
   const load = async () => {
@@ -65,18 +66,31 @@ export function ApprovalCenterPage({ token, refreshKey = 0, onChanged, onOpenEmp
   useEffect(() => { void load(); }, [token, refreshKey]);
 
   const visible = useMemo(() => filter === 'ALL' ? items : items.filter((item) => item.type === filter), [items, filter]);
-  const selected = items.find((item) => item.id === selectedId);
+  const selected = visible.find((item) => item.id === selectedId) || visible[0];
 
   useEffect(() => {
     setPhotoUrl('');
+    setPhotoLoading(false);
     setRejectReason('');
     if (!selected || selected.type !== 'EMPLOYEE_REFERENCE_PHOTO') return;
     let active = true;
+    setPhotoLoading(true);
+    setError(undefined);
     api.viewEmployeeReferencePhoto(token, selected.requestId)
-      .then((result) => { if (active) setPhotoUrl(String(result?.data?.url || '')); })
-      .catch(() => { if (active) setPhotoUrl(''); });
+      .then((result) => {
+        if (!active) return;
+        const url = String(result?.data?.url || '');
+        setPhotoUrl(url);
+        if (!url) setError('ไม่สามารถเปิดรูปอ้างอิงที่รออนุมัติได้ กรุณารีเฟรชและตรวจสอบก่อนอนุมัติ');
+      })
+      .catch((cause) => {
+        if (!active) return;
+        setPhotoUrl('');
+        setError(toRequestErrorState(cause, 'ไม่สามารถเปิดรูปอ้างอิงที่รออนุมัติได้ กรุณารีเฟรชและตรวจสอบก่อนอนุมัติ'));
+      })
+      .finally(() => { if (active) setPhotoLoading(false); });
     return () => { active = false; };
-  }, [selectedId, token]);
+  }, [selected?.requestId, selected?.type, token]);
 
   const completePhotoAction = async (action: 'approve' | 'reject') => {
     if (!selected || selected.type !== 'EMPLOYEE_REFERENCE_PHOTO') return;
@@ -145,10 +159,10 @@ export function ApprovalCenterPage({ token, refreshKey = 0, onChanged, onOpenEmp
             <button type="button" className="btn-primary compact" onClick={() => onOpenEmployeeChange(selected.requestId)}>เปิดคำขอและพิจารณา</button>
           </div> : <div className="approval-center-photo-review">
             <h3>รูปที่เสนอ</h3>
-            <div className="approval-center-photo-frame">{photoUrl ? <img src={photoUrl} alt={'รูปที่รออนุมัติของ ' + employeeName(selected)} /> : <div><SmsIcon name="eye" size={28} /><span>ไม่สามารถเปิดรูปชั่วคราว</span></div>}</div>
+            <div className="approval-center-photo-frame">{photoUrl ? <img src={photoUrl} alt={'รูปที่รออนุมัติของ ' + employeeName(selected)} /> : <div><SmsIcon name="eye" size={28} /><span>{photoLoading ? 'กำลังเปิดรูป Private Evidence…' : 'ยังไม่สามารถเปิดรูปเพื่อพิจารณาได้'}</span></div>}</div>
             <div className="approval-center-photo-meta"><span>{selected.photo?.fileName || 'รูปอ้างอิง'}</span><span>{selected.photo?.imageWidth || '—'}×{selected.photo?.imageHeight || '—'} · {bytes(selected.photo?.fileSize)}</span></div>
             <div className="approval-center-photo-actions">
-              <button type="button" className="btn-primary compact" disabled={busy} onClick={() => void completePhotoAction('approve')}><SmsIcon name="check" size={16} />อนุมัติและเปิดใช้</button>
+              <button type="button" className="btn-primary compact" disabled={busy || photoLoading || !photoUrl} onClick={() => void completePhotoAction('approve')}><SmsIcon name="check" size={16} />อนุมัติและเปิดใช้</button>
               <label><span>เหตุผลที่ไม่อนุมัติ</span><textarea rows={3} maxLength={1000} value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} placeholder="ระบุอย่างน้อย 3 ตัวอักษร" /></label>
               <button type="button" className="btn-danger-outline" disabled={busy || rejectReason.trim().length < 3} onClick={() => void completePhotoAction('reject')}>ไม่อนุมัติ</button>
             </div>

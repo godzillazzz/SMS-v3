@@ -35,6 +35,13 @@ describe('Approval Center V1 frontend contracts', () => {
     expect(page).toContain('onOpenEmployeeChange(selected.requestId)');
   });
 
+  it('fails closed when private Reference Photo evidence cannot be opened', () => {
+    expect(page).toContain('const [photoLoading, setPhotoLoading] = useState(false)');
+    expect(page).toContain("setError(toRequestErrorState(cause, 'ไม่สามารถเปิดรูปอ้างอิงที่รออนุมัติได้ กรุณารีเฟรชและตรวจสอบก่อนอนุมัติ'))");
+    expect(page).toContain('disabled={busy || photoLoading || !photoUrl}');
+    expect(page).toContain("const selected = visible.find((item) => item.id === selectedId) || visible[0]");
+  });
+
   it('deep-links Employee Master work into the existing BEFORE to AFTER review modal', () => {
     expect(main).toContain('employeeChangeReviewInitialId');
     expect(review).toContain('initialRequestId');
