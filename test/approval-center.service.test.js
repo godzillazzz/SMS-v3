@@ -29,10 +29,6 @@ function adminPrisma() {
       proposedLicenseNumber: 'LIC-NEW', version: 2, safeDisplayFileName: 'license.pdf', employee: employee('e3', 'E003'),
       uploadedBy: { id: 'm3', displayName: 'Manager 3', role: 'MANAGER' }, license: { licenseType: 'รปภ.', licenseNumber: 'LIC-OLD' }
     }]),
-    scheduleApproval: model([{
-      id: 'schedule-1', month: new Date('2026-09-01T00:00:00.000Z'), status: 'PENDING', revision: 3,
-      changedAt: new Date('2026-08-27T20:00:00.000Z'), changeType: 'UPDATE_SHIFT', createdAt: new Date('2026-08-20T00:00:00.000Z')
-    }]),
     attendanceDeviceChangeRequest: model([{
       id: 'device-1', status: 'PENDING_APPROVAL', requestType: 'REPLACEMENT', reason: 'replace phone',
       createdAt: new Date('2026-08-27T22:00:00.000Z'), employee: employee('e4', 'E004'),
@@ -40,7 +36,7 @@ function adminPrisma() {
       candidateDevice: { displayName: 'Phone', platformHint: 'Android' }
     }]),
     registrationRequest: model([{
-      id: 'reg-1', submittedName: 'สมัคร ใหม่', email: 'new@example.com', departmentHint: 'PN', status: 'MATCHED',
+      id: 'reg-1', submittedName: 'สมัคร ใหม่', email: 'new@example.com', departmentHint: 'PN', status: 'MATCHED', emailVerifiedAt: new Date('2026-08-27T22:50:00.000Z'),
       createdAt: new Date('2026-08-27T23:00:00.000Z'), reviewedAt: null, matchedEmployee: employee('e5', 'E005')
     }]),
     user: {
@@ -53,7 +49,7 @@ function adminPrisma() {
     },
     leaveRequest: model([{
       id: 'leave-1', employeeId: 'e6', status: 'PENDING', requestedAt: new Date('2026-08-27T18:00:00.000Z'),
-      createdAt: new Date('2026-08-27T18:00:00.000Z'), leaveType: 'SICK', startDate: new Date('2026-08-30T00:00:00.000Z'),
+      employeeNameSnapshot: 'E006 Snapshot Name', createdAt: new Date('2026-08-27T18:00:00.000Z'), leaveType: 'SICK', startDate: new Date('2026-08-30T00:00:00.000Z'),
       endDate: new Date('2026-08-30T00:00:00.000Z'), dayCount: 1, departmentSnapshot: 'PN', createdByUserId: 'u6',
       employee: employee('e6', 'E006'), createdByUser: { id: 'u6', displayName: 'E006 Test', role: 'VIEWER' }
     }])
@@ -82,15 +78,48 @@ test('Approval Center aggregates every actionable Admin queue without changing s
   });
   const result = await service.list({ actor: { role: 'ADMIN', sub: 'admin-1' }, limit: 100 });
 
-  assert.equal(result.summary.total, 9);
+  assert.equal(result.summary.total, 8);
   assert.deepEqual(new Set(result.data.map((item) => item.type)), new Set([
-    'EMPLOYEE_MASTER_CHANGE', 'EMPLOYEE_REFERENCE_PHOTO', 'LICENSE_DOCUMENT', 'SCHEDULE_APPROVAL',
+    'EMPLOYEE_MASTER_CHANGE', 'EMPLOYEE_REFERENCE_PHOTO', 'LICENSE_DOCUMENT',
     'ATTENDANCE_DEVICE_REQUEST', 'ATTENDANCE_ADJUSTMENT_REQUEST', 'REGISTRATION_REQUEST', 'USER_ACCESS', 'LEAVE_REQUEST'
   ]));
   assert.equal(result.summary.byType.LEAVE_REQUEST, 1);
   assert.equal(result.summary.byType.ATTENDANCE_ADJUSTMENT_REQUEST, 1);
-  assert.equal(result.data.find((item) => item.type === 'SCHEDULE_APPROVAL').sourcePage, 'schedule');
+  assert.equal(result.summary.scheduleApprovals, 0);
+  assert.equal(result.summary.byType.SCHEDULE_APPROVAL, 0);
   assert.equal(result.data.find((item) => item.type === 'LICENSE_DOCUMENT').sourcePage, 'licenses');
+  const registration = result.data.find((item) => item.type === 'REGISTRATION_REQUEST');
+  assert.equal(registration.requestedBy.displayName, 'สมัคร ใหม่');
+  assert.equal(registration.metadata.matchedEmployeeCode, 'E005');
+  assert.equal(registration.metadata.matchedEmployeeName, 'E005 Test');
+  const leave = result.data.find((item) => item.type === 'LEAVE_REQUEST');
+  assert.equal(leave.employee.displayName, 'E006 Snapshot Name');
+  assert.equal(leave.employee.department, 'PN');
+});
+
+test('Approval Center excludes unverified registrations by using the source workflow reviewable predicate', async () => {
+  const prisma = adminPrisma();
+  let countWhere;
+  let listWhere;
+  prisma.registrationRequest = {
+    count: async (args) => { countWhere = args.where; return 0; },
+    findMany: async (args) => { listWhere = args.where; return []; }
+  };
+  prisma.user.count = async () => 0;
+  prisma.user.findMany = async () => [];
+  prisma.leaveRequest = model([]);
+  prisma.employeeChangeRequest = model([]);
+  prisma.employeeReferencePhoto = model([]);
+  prisma.employeeLicenseDocument = model([]);
+  prisma.attendanceDeviceChangeRequest = model([]);
+  const service = createApprovalCenterService({ prisma, clock: () => now, attendanceAdjustmentList: async () => ({ data: [], meta: { total: 0 } }) });
+
+  const result = await service.list({ actor: { role: 'ADMIN', sub: 'admin-1' } });
+
+  assert.deepEqual(countWhere, { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } });
+  assert.deepEqual(listWhere, { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } });
+  assert.equal(result.summary.byType.REGISTRATION_REQUEST, 0);
+  assert.equal(result.data.some((item) => item.type === 'REGISTRATION_REQUEST'), false);
 });
 
 test('Manager Approval Center contains only workflows Manager can act on', async () => {

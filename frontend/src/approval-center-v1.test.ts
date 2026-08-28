@@ -13,7 +13,8 @@ const css = read('styles/approval-center.css');
 
 describe('Approval Center V2 unified frontend contracts', () => {
   it('moves Approval Center into the review navigation group for Admin and Manager', () => {
-    expect(main).toContain("{ label: 'ตรวจสอบ', items: [\n    { id: 'approvalCenter', icon: 'bell', label: 'Approval Center' }");
+    expect(main).toContain("{ label: 'ตรวจสอบ', items: [");
+    expect(main).toContain("{ id: 'approvalCenter', icon: 'bell', label: 'Approval Center' }");
     expect(main).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
     expect(main).toContain("!['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
     expect(main).toContain("['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type=\"button\" className=\"topbar-notification-button\"");
@@ -30,7 +31,6 @@ describe('Approval Center V2 unified frontend contracts', () => {
       'EMPLOYEE_MASTER_CHANGE',
       'EMPLOYEE_REFERENCE_PHOTO',
       'LICENSE_DOCUMENT',
-      'SCHEDULE_APPROVAL',
       'ATTENDANCE_DEVICE_REQUEST',
       'ATTENDANCE_ADJUSTMENT_REQUEST',
       'REGISTRATION_REQUEST',
@@ -40,6 +40,9 @@ describe('Approval Center V2 unified frontend contracts', () => {
     expect(page).toContain('งานที่รอฉันดำเนินการ');
     expect(page).toContain('เปิดหน้าดำเนินการ');
     expect(page).toContain('onNavigate(selected)');
+    expect(page).toContain("item?.type === 'REGISTRATION_REQUEST'");
+    expect(page).toContain('matchedEmployeeCode');
+    expect(page).toContain('matchedEmployeeName');
   });
 
   it('keeps authoritative complex review workflows in their existing modules', () => {
@@ -48,7 +51,8 @@ describe('Approval Center V2 unified frontend contracts', () => {
     expect(page).toContain('api.approveEmployeeReferencePhoto');
     expect(page).toContain('api.rejectEmployeeReferencePhoto');
     expect(page).toContain('การอนุมัติ/ไม่อนุมัติจะดำเนินการที่โมดูลต้นทาง');
-    expect(main).toContain("if (item.type === 'SCHEDULE_APPROVAL' && item.metadata?.month) setScheduleMonth");
+    expect(page).not.toContain('SCHEDULE_APPROVAL');
+    expect(main).not.toContain("item.type === 'SCHEDULE_APPROVAL'");
     expect(review).toContain('revision.beforeSnapshot[field]');
     expect(review).toContain('revision.afterSnapshot[field]');
   });
