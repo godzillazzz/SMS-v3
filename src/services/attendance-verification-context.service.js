@@ -101,7 +101,7 @@ function isOvernightAssignment(assignment) {
 function actionableAssignment(assignment) {
   const code = String(assignment?.shiftType?.code || '').trim().toUpperCase();
   const { startTime, endTime } = assignmentTimes(assignment || {});
-  return Boolean(assignment && assignment.locked === true && !['OFF', 'AL'].includes(code) && timeMinutes(startTime) !== null && timeMinutes(endTime) !== null);
+  return Boolean(assignment && !['OFF', 'AL'].includes(code) && timeMinutes(startTime) !== null && timeMinutes(endTime) !== null);
 }
 
 function scheduleMonth(workDate) {

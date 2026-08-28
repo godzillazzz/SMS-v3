@@ -167,7 +167,7 @@ function createAttendanceEventService({
       where: { id: resolved.authority.shiftAssignmentId },
       include: { shiftType: true, securitySite: true }
     });
-    if (!assignment || assignment.employeeId !== resolved.authority.employeeId || assignment.locked !== true) {
+    if (!assignment || assignment.employeeId !== resolved.authority.employeeId) {
       throw http(409, 'ATTENDANCE_SCHEDULE_STALE', 'Attendance Shift Assignment changed before event acceptance.');
     }
     if (!assignment.shiftType) throw http(409, 'ATTENDANCE_SCHEDULE_STALE', 'Attendance Shift Type changed before event acceptance.');

@@ -216,6 +216,19 @@ test('CHECK_IN creates one OPEN AttendanceSession and one ONLINE server-time eve
   assert.equal(JSON.stringify(audit.calls[0].entry).includes('receipt-secret'), false);
 });
 
+test('approved auto-schedule row remains valid at event acceptance when it is not manually locked', async () => {
+  const { db, state } = fakeDb({ assignmentRow: assignment({ locked: false }) });
+  const verification = fakeVerification();
+  const service = createAttendanceEventService({ prisma: db, audit: auditFake(), verificationContextService: verification, clock: () => now });
+
+  const result = await service.acceptVerifiedEvent({ actor: { sub: ids.user }, receipt: 'receipt-secret', attendanceContext: contextRef(ids.captureIn, 'CHECK_IN') });
+
+  assert.equal(result.event.eventType, 'CHECK_IN');
+  assert.equal(result.session.state, 'OPEN');
+  assert.equal(state.events.length, 1);
+  assert.equal(verification.calls.consume.length, 1);
+});
+
 test('CHECK_OUT without committed CHECK_IN fails before receipt consumption', async () => {
   const session = sessionFromExpectation();
   const { db } = fakeDb({ initialSession: session });

@@ -245,7 +245,7 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
       };
     }
     const approval = await latestApprovalForWorkDate(assignment.workDate, client);
-    if (!approval || approval.status !== 'APPROVED' || assignment.locked !== true) {
+    if (!approval || approval.status !== 'APPROVED') {
       return {
         generatedAt: now,
         employee: employeeSummary(resolved.employee),
@@ -274,8 +274,7 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
     const assignments = await client.shiftAssignment.findMany({
       where: {
         employeeId: resolved.employee.id,
-        workDate: { gte: start, lt: endExclusive },
-        locked: true
+        workDate: { gte: start, lt: endExclusive }
       },
       include: assignmentInclude(),
       orderBy: { workDate: 'desc' }
@@ -326,8 +325,7 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
     const assignments = await client.shiftAssignment.findMany({
       where: {
         employeeId: resolved.employee.id,
-        workDate: { gte: start, lt: end },
-        locked: true
+        workDate: { gte: start, lt: end }
       },
       include: { shiftType: true, securitySite: { select: { id: true, code: true, name: true } }, attendanceSession: { include: { expectedSite: { select: { id: true, code: true, name: true } } } } },
       orderBy: { workDate: 'asc' }
