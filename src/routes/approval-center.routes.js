@@ -13,6 +13,7 @@ router.use(authenticate);
 router.use(authorize('ADMIN'));
 router.get('/', async (req, res, next) => {
   try {
+    res.set('Cache-Control', 'no-store');
     res.json(await service.list({ actor: req.user, ...query.parse(req.query) }));
   } catch (error) {
     next(error);
