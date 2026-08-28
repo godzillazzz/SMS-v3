@@ -10,9 +10,9 @@
 .reference-photo-card > header > div { display: grid; gap: 3px; min-width: 0; }
 .reference-photo-card > header strong { color: var(--color-text); font-size: 13px; }
 .reference-photo-card > header span:not(.status-badge) { color: var(--color-text-muted); font-size: 10px; }
-.reference-photo-frame { overflow: hidden; display: grid; min-height: 220px; place-items: center; border: 1px solid var(--color-border); border-radius: 12px; background: color-mix(in srgb, var(--color-surface-muted) 72%, var(--color-surface)); aspect-ratio: 4 / 3; }
+.reference-photo-frame { overflow: hidden; display: grid; width: 100%; min-height: 0; place-items: center; border: 1px solid var(--color-border); border-radius: 12px; background: color-mix(in srgb, var(--color-surface-muted) 72%, var(--color-surface)); aspect-ratio: 3 / 4; }
 .reference-photo-frame--candidate { border-color: color-mix(in srgb, var(--color-warning) 28%, var(--color-border)); }
-.reference-photo-frame img { width: 100%; height: 100%; object-fit: contain; background: var(--color-surface); }
+.reference-photo-frame img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; object-position: center center; background: var(--color-surface); }
 .reference-photo-placeholder { display: grid; gap: 8px; place-items: center; color: var(--color-text-muted); font-size: 11px; text-align: center; }
 .reference-photo-card dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin: 0; }
 .reference-photo-card dl > div { display: grid; gap: 3px; border: 1px solid var(--color-border); border-radius: 9px; padding: 8px; }
@@ -26,4 +26,4 @@
 .reference-photo-delete-ack input { margin-top: 2px; }
 .reference-photo-upload > .btn-primary, .reference-photo-review > button, .reference-photo-card > .btn-danger-outline { display: inline-flex; justify-content: center; align-items: center; gap: 6px; width: 100%; }
 .reference-photo-footnote { margin: 0; border-left: 3px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border)); padding-left: 9px; color: var(--color-text-muted); font-size: 10px; line-height: 1.55; }
-@media (max-width: 760px) { .reference-photo-layout { grid-template-columns: 1fr; } .reference-photo-frame { min-height: 180px; } .reference-photo-card dl { grid-template-columns: 1fr; } .reference-photo-heading { flex-direction: column; } }
+@media (max-width: 760px) { .reference-photo-layout { grid-template-columns: 1fr; } .reference-photo-frame { min-height: 0; aspect-ratio: 3 / 4; } .reference-photo-card dl { grid-template-columns: 1fr; } .reference-photo-heading { flex-direction: column; } }
