@@ -43,7 +43,7 @@ env:
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
   EXPECTED_PROJECT_NAME: sms-v3-staging
   EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
-  EXPECTED_CANONICAL_SOURCE_SHA: 84df92c186ff320668775320ded21838dd8c05c8
+  EXPECTED_CANONICAL_SOURCE_SHA: ccf406fea58e956e07e24abce1baa0c55ac7eb47
   VERCEL_CLI_VERSION: 56.4.1
 
 jobs:
@@ -253,7 +253,7 @@ jobs:
           inspect_stderr=$(mktemp)
           inspection_output=$(mktemp)
           trap 'rm -f "$deploy_stdout" "$deploy_stderr" "$deployment_output" "$inspect_stdout" "$inspect_stderr" "$inspection_output"' EXIT
-          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --prod --yes --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json >"$deploy_stdout" 2>"$deploy_stderr"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --prod --skip-domain --yes --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json >"$deploy_stdout" 2>"$deploy_stderr"
           node scripts/ci/vercel-deployment.js "$deploy_stdout" "$EXPECTED_PROJECT_ID" "${{ inputs.rollback_deployment_id }}" >"$deployment_output"
           while IFS='=' read -r key value; do
             case "$key" in
