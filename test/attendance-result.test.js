@@ -36,6 +36,18 @@ test('NIGHT boundaries end on the next Bangkok calendar day', () => {
   assert.equal(window.overnight, true);
 });
 
+test('legacy schedule clock forms normalize before Attendance boundary evaluation', () => {
+  const day = assignmentWindow(assignment({ startTime: '7:00', endTime: '19.00' }));
+  assert.equal(day.startAt.toISOString(), '2026-08-25T00:00:00.000Z');
+  assert.equal(day.endAt.toISOString(), '2026-08-25T12:00:00.000Z');
+  assert.equal(day.overnight, false);
+
+  const night = assignmentWindow(assignment({ code: 'NIGHT', startTime: '19.00', endTime: '7:00' }));
+  assert.equal(night.startAt.toISOString(), '2026-08-25T12:00:00.000Z');
+  assert.equal(night.endAt.toISOString(), '2026-08-26T00:00:00.000Z');
+  assert.equal(night.overnight, true);
+});
+
 test('no grace period: exact start is ON_TIME and one second late is LATE with one late minute', () => {
   const exact = classifyAttendanceDay({
     assignment: assignment(),

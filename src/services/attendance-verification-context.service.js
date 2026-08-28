@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
+const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createAttendanceSiteEvidenceService } = require('./attendance-site-evidence.service');
 const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
@@ -78,16 +79,15 @@ function workDateText(value) {
 }
 
 function timeMinutes(value) {
-  const text = String(value || '');
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(text);
-  if (!match) return null;
-  return Number(match[1]) * 60 + Number(match[2]);
+  const normalized = normalizeScheduleTime(value);
+  if (!normalized) return null;
+  return Number(normalized.slice(0, 2)) * 60 + Number(normalized.slice(3, 5));
 }
 
 function assignmentTimes(assignment) {
   return {
-    startTime: assignment.startTime || assignment.shiftType?.startTime || null,
-    endTime: assignment.endTime || assignment.shiftType?.endTime || null
+    startTime: normalizeScheduleTime(assignment.startTime || assignment.shiftType?.startTime || null),
+    endTime: normalizeScheduleTime(assignment.endTime || assignment.shiftType?.endTime || null)
   };
 }
 

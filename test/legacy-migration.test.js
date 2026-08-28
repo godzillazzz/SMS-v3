@@ -49,6 +49,19 @@ test('migration plan preserves roles/statuses but excludes legacy password hashe
   assert.equal(Object.hasOwn(plan.users[0], 'passwordHash'), false);
 });
 
+test('legacy migration normalizes shift and assignment clock formats to HH:mm', () => {
+  const source = sampleSource();
+  source.shiftTypes[0]['Start Time'] = '7.00';
+  source.shiftTypes[0]['End Time'] = '19.00';
+  source.schedule[0]['Start Time'] = '7:00';
+  source.schedule[0]['End Time'] = '19.00';
+  const plan = buildMigrationPlan(source);
+  assert.equal(plan.shiftTypes[0].startTime, '07:00');
+  assert.equal(plan.shiftTypes[0].endTime, '19:00');
+  assert.equal(plan.shiftAssignments[0].startTime, '07:00');
+  assert.equal(plan.shiftAssignments[0].endTime, '19:00');
+});
+
 test('migration plan rejects duplicate employee/date schedule assignments', () => {
   const source = sampleSource();
   source.schedule.push({ ...source.schedule[0] });

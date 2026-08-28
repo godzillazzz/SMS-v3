@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { normalizeScheduleTime } = require('../../utils/schedule-time');
 
 const clean = (value) => String(value ?? '').trim();
 const nullable = (value) => clean(value) || null;
@@ -14,6 +15,14 @@ function bounded(value, max, dataset, rowNumber, field, { required: isRequired =
   const result = isRequired ? required(value, dataset, rowNumber, field) : nullable(value);
   if (result && result.length > max) throw new Error(`${dataset} row ${rowNumber}: field ${field} exceeds ${max} characters.`);
   return result;
+}
+
+function legacyScheduleTime(value, dataset, rowNumber, field) {
+  const raw = bounded(value, 20, dataset, rowNumber, field);
+  if (raw === null) return null;
+  const normalized = normalizeScheduleTime(raw);
+  if (!normalized) throw new Error(`${dataset} row ${rowNumber}: field ${field} has unsupported time format.`);
+  return normalized;
 }
 
 function validDateParts(year, month, day, hour = 0, minute = 0, second = 0) {
@@ -184,8 +193,8 @@ function buildMigrationPlan(source) {
     return {
       code: bounded(row['Shift Code'], 50, 'Shift Types', rowNumber, 'Shift Code', { required: true }),
       name: bounded(row['Shift Name'], 150, 'Shift Types', rowNumber, 'Shift Name', { required: true }),
-      startTime: bounded(row['Start Time'], 20, 'Shift Types', rowNumber, 'Start Time'),
-      endTime: bounded(row['End Time'], 20, 'Shift Types', rowNumber, 'End Time'),
+      startTime: legacyScheduleTime(row['Start Time'], 'Shift Types', rowNumber, 'Start Time'),
+      endTime: legacyScheduleTime(row['End Time'], 'Shift Types', rowNumber, 'End Time'),
       hours: decimal(row.Hours, 'Shift Types', rowNumber, 'Hours'),
       color: bounded(row.Color, 50, 'Shift Types', rowNumber, 'Color')
     };
@@ -209,8 +218,8 @@ function buildMigrationPlan(source) {
       workDate,
       employeeNameSnapshot: bounded(row['Employee Name'], 255, 'Schedule', rowNumber, 'Employee Name', { required: true }),
       departmentSnapshot: bounded(row.Department, 100, 'Schedule', rowNumber, 'Department'),
-      startTime: bounded(row['Start Time'], 20, 'Schedule', rowNumber, 'Start Time'),
-      endTime: bounded(row['End Time'], 20, 'Schedule', rowNumber, 'End Time'),
+      startTime: legacyScheduleTime(row['Start Time'], 'Schedule', rowNumber, 'Start Time'),
+      endTime: legacyScheduleTime(row['End Time'], 'Schedule', rowNumber, 'End Time'),
       hours: decimal(row.Hours, 'Schedule', rowNumber, 'Hours'),
       remark: bounded(row.Remark, 2000, 'Schedule', rowNumber, 'Remark'),
       source: bounded(row.Source, 100, 'Schedule', rowNumber, 'Source'),

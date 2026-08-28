@@ -29,6 +29,7 @@ const { cleanupDueLicenseDocuments, expireDueLicenseDocuments } = require('../se
 const { createSupabaseAttendanceFaceEvidenceStorage } = require('../services/attendance-face-evidence-storage.service');
 const { normalizeLicenseNumber } = require('../services/license-document.service');
 const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filter');
+const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { getDashboardSummary } = require('../services/dashboard.service');
 const { getAuditLogPage } = require('../services/audit-log-viewer.service');
 const { getExecutiveReport } = require('../services/executive-report.service');
@@ -44,6 +45,9 @@ const paging = z.object({
 });
 const uuid = z.string().uuid();
 const nullableText = (max) => z.string().trim().max(max).nullable().optional();
+const scheduleTimeInput = nullableText(20)
+  .refine((value) => value === undefined || value === null || normalizeScheduleTime(value) !== null, { message: 'Shift time must use HH:mm.' })
+  .transform((value) => value === undefined || value === null ? value : normalizeScheduleTime(value));
 const licenseInputBase = z.object({ employeeId: uuid, licenseType: z.string().trim().min(1).max(150), licenseNumber: z.string().trim().min(1).max(255), issueDate: z.coerce.date(), expiryDate: z.coerce.date(), status: z.enum(['Active', 'Suspended', 'Revoked', 'Inactive']).default('Active'), documentUrl: z.string().url().max(2000).nullable().optional(), remark: nullableText(2000) });
 const validLicenseDates = (value) => !value.issueDate || !value.expiryDate || value.issueDate <= value.expiryDate;
 const licenseInput = licenseInputBase.refine(validLicenseDates, { message: 'Issue date must not be after expiry date.', path: ['expiryDate'] });
@@ -52,14 +56,14 @@ const licenseListQuery = paging.extend({ employeeStatus: z.enum(['ACTIVE', 'INAC
 const shiftTypeInput = z.object({
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,12}$/),
   name: z.string().trim().min(1).max(150),
-  startTime: nullableText(20), endTime: nullableText(20),
+  startTime: scheduleTimeInput, endTime: scheduleTimeInput,
   hours: z.coerce.number().min(0).max(24),
   color: z.string().trim().toUpperCase().regex(/^#[0-9A-F]{6}$/).default('#2F80FF')
 }).superRefine((value, context) => {
   if (value.hours > 0 && (!value.startTime || !value.endTime)) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Working shifts require start and end times.' });
 });
 const booleanCoerce = z.union([z.boolean(), z.string().transform((val) => val === 'true' || val === '1'), z.number().transform((val) => val === 1)]).optional();
-const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.coerce.date(), startTime: nullableText(20), endTime: nullableText(20), hours: z.coerce.number().min(0).max(24).optional(), remark: nullableText(2000), locked: booleanCoerce, licenseOverride: booleanCoerce, overrideReason: nullableText(2000) });
+const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.coerce.date(), startTime: scheduleTimeInput, endTime: scheduleTimeInput, hours: z.coerce.number().min(0).max(24).optional(), remark: nullableText(2000), locked: booleanCoerce, licenseOverride: booleanCoerce, overrideReason: nullableText(2000) });
 const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), substitute: z.string().trim().min(1).max(255), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
 const leaveListQuery = paging.extend({ status: z.string().trim().min(1).max(100).optional(), employeeId: uuid.optional(), department: z.string().trim().max(100).optional(), search: z.string().trim().max(255).optional(), year: z.coerce.number().int().optional(), month: z.coerce.number().int().optional() });
 const leaveCorrectionInput = z.object({
