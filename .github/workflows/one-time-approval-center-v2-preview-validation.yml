@@ -1,0 +1,200 @@
+name: ONE-TIME Approval Center V2 exact Preview validation
+
+on:
+  push:
+    branches:
+      - ci/approval-center-v2-preview-validation-20260828
+
+permissions:
+  contents: read
+
+jobs:
+  preview-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UAT_BASE_URL: https://sms-v3-staging-9w19th8yh-godzillazz.vercel.app
+      UAT_SOURCE_SHA: 74d394ea125b322635f488d511609ebdf7b9b40d
+      UAT_EXPECTED_DEPLOYMENT_ID: dpl_CyQeFQwX8aPHqRhEyTsQfdgZVrvy
+      EXPECTED_TREE: 94c68390d5c7771c776bd231f2971147f2fbb292
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+      UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+      UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
+      UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+      UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
+      UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
+
+    steps:
+      - name: Checkout exact integrated Application SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.UAT_SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Validate exact source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$UAT_SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$EXPECTED_TREE"
+          git fetch --no-tags origin fix/serverless-database-reliability
+          test "$(git rev-parse origin/fix/serverless-database-reliability)" = "$UAT_SOURCE_SHA"
+          echo "APP_SHA=$UAT_SOURCE_SHA"
+          echo "APP_TREE=$EXPECTED_TREE"
+          echo "PREVIEW_DEPLOYMENT=$UAT_EXPECTED_DEPLOYMENT_ID"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Add bounded Approval Center V2 Preview acceptance spec
+        shell: bash
+        run: |
+          cat > e2e/smoke/approval-center-v2.preview.spec.js <<'EOF'
+          const { test, expect } = require('../helpers/uat-test');
+          const { loginAs } = require('../helpers/uat-auth');
+          const { hasRoleCredentials } = require('../helpers/uat-config');
+          const { automationRequestOptions } = require('../helpers/technical-smoke');
+
+          for (const role of ['ADMIN', 'MANAGER']) {
+            test.describe(`Approval Center V2 ${role} Preview acceptance`, () => {
+              test.skip(!hasRoleCredentials(role), `${role} Preview acceptance skipped: credentials unavailable.`);
+              test(`${role}: Approval Center is visible and queue endpoint is role-accessible`, async ({ page }) => {
+                const { accessToken } = await loginAs(page, role);
+                const nav = page.getByRole('button', { name: /Approval Center/ });
+                await expect(nav).toBeVisible();
+
+                const responsePromise = page.waitForResponse((response) => {
+                  const url = new URL(response.url());
+                  return url.pathname === '/api/v1/approval-center' && response.request().method() === 'GET';
+                });
+                await nav.click();
+                const response = await responsePromise;
+                expect(response.status()).toBe(200);
+                await expect(page.getByRole('heading', { name: 'Approval Center' })).toBeVisible();
+                await expect(page.getByText('งานที่รอฉันดำเนินการ', { exact: false })).toBeVisible();
+                await expect(page.getByText(new RegExp(`ACTION INBOX\\s*·\\s*${role}`, 'i'))).toBeVisible();
+
+                const api = await page.request.get(
+                  '/api/v1/approval-center',
+                  automationRequestOptions(
+                    { headers: { Authorization: `Bearer ${accessToken}` } },
+                    process.env,
+                    process.env.UAT_BASE_URL,
+                    '/api/v1/approval-center'
+                  )
+                );
+                expect(api.status()).toBe(200);
+              });
+            });
+          }
+
+          test.describe('Approval Center V2 VIEWER Preview boundary', () => {
+            test.skip(!hasRoleCredentials('VIEWER'), 'VIEWER Preview boundary skipped: credentials unavailable.');
+            test('VIEWER: Approval Center stays hidden and direct API access is denied', async ({ page }) => {
+              const { accessToken } = await loginAs(page, 'VIEWER');
+              await expect(page.getByRole('button', { name: /Approval Center/ })).toHaveCount(0);
+              const api = await page.request.get(
+                '/api/v1/approval-center',
+                automationRequestOptions(
+                  { headers: { Authorization: `Bearer ${accessToken}` } },
+                  process.env,
+                  process.env.UAT_BASE_URL,
+                  '/api/v1/approval-center'
+                )
+              );
+              expect(api.status()).toBe(403);
+            });
+          });
+          EOF
+
+      - name: Report credential availability without exposing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          for role in ADMIN MANAGER VIEWER; do
+            email_var="UAT_${role}_EMAIL"
+            pass_var="UAT_${role}_PASSWORD"
+            if [[ -n "${!email_var:-}" && -n "${!pass_var:-}" ]]; then
+              echo "${role}_CREDENTIALS=CONFIGURED"
+            else
+              echo "${role}_CREDENTIALS=NOT_CONFIGURED"
+            fi
+          done
+
+      - name: Run non-destructive technical and role Preview smoke
+        id: smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
+            echo "VERCEL_AUTOMATION_BYPASS_SECRET_MISSING"
+            exit 1
+          fi
+          npm run test:uat
+
+      - name: Scan artifacts for Vercel bypass secret
+        if: always()
+        id: scan
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
+          let leaks = 0;
+          if (secret) {
+            for (const root of ['playwright-report', 'test-results']) {
+              if (!fs.existsSync(root)) continue;
+              const stack = [root];
+              while (stack.length) {
+                const current = stack.pop();
+                const stat = fs.statSync(current);
+                if (stat.isDirectory()) {
+                  stack.push(...fs.readdirSync(current).map((entry) => path.join(current, entry)));
+                } else if (fs.readFileSync(current).includes(Buffer.from(secret))) {
+                  leaks += 1;
+                }
+              }
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `leak_count=${leaks}\n`);
+          if (leaks) process.exitCode = 1;
+          console.log(`VERCEL_BYPASS_ARTIFACT_LEAK=${leaks}`);
+          NODE
+
+      - name: Publish Preview validation checkpoint
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Approval Center V2 exact Preview validation'
+            echo "- Application SHA: $UAT_SOURCE_SHA"
+            echo "- Application tree: $EXPECTED_TREE"
+            echo "- Preview deployment: $UAT_EXPECTED_DEPLOYMENT_ID"
+            echo "- Preview URL: $UAT_BASE_URL"
+            echo "- Smoke outcome: ${{ steps.smoke.outcome }}"
+            echo "- Bypass artifact leak: ${{ steps.scan.outputs.leak_count || 'not-scanned' }}"
+            if [[ -f test-results/uat-summary.md ]]; then
+              cat test-results/uat-summary.md
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sanitized Preview validation artifacts
+        if: always() && steps.scan.outputs.leak_count == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: approval-center-v2-preview-${{ github.run_id }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: warn
+          retention-days: 7
