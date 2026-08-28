@@ -2,15 +2,20 @@ const express = require('express');
 const { z } = require('zod');
 const shiftService = require('../services/shift.service');
 const { authenticate, authorize } = require('../middlewares/authenticate');
+const { normalizeScheduleTime } = require('../utils/schedule-time');
 
 const router = express.Router();
 router.use(authenticate);
 
+const scheduleTimeInput = z.string().trim().max(20).nullable().optional()
+  .refine((value) => value === undefined || value === null || normalizeScheduleTime(value) !== null, { message: 'Shift time must use HH:mm.' })
+  .transform((value) => value === undefined || value === null ? value : normalizeScheduleTime(value));
+
 const shiftSchema = z.object({
   code: z.string().trim().min(1).max(20),
   name: z.string().trim().min(1).max(100),
-  startTime: z.string().trim().max(20).nullable().optional(),
-  endTime: z.string().trim().max(20).nullable().optional(),
+  startTime: scheduleTimeInput,
+  endTime: scheduleTimeInput,
   hours: z.coerce.number().min(0).max(24).default(8.0),
   color: z.string().trim().default('#3b82f6')
 });

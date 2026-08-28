@@ -11,6 +11,7 @@ const {
   buildAttendanceContextDigest,
   bangkokParts,
   isOvernightAssignment,
+  actionableAssignment,
   createAttendanceVerificationContextService
 } = require('../src/services/attendance-verification-context.service');
 
@@ -57,6 +58,11 @@ function assignment({ id = ids.assignmentToday, workDate = '2026-08-24', startTi
     securitySite: securitySiteId ? { id: securitySiteId, isActive: true } : null
   };
 }
+
+test('legacy clock variants remain actionable and preserve overnight classification', () => {
+  assert.equal(actionableAssignment(assignment({ startTime: '7.00', endTime: '19.00' })), true);
+  assert.equal(isOvernightAssignment(assignment({ startTime: '19.00', endTime: '7:00', code: 'N' })), true);
+});
 
 function fakeDb({ now = new Date('2026-08-24T03:00:00.000Z'), rows = [assignment()], approvalStatus = 'APPROVED', sessionRow = null, attendanceEvents = [] } = {}) {
   const state = { rows, approvalStatus, sessionRow, attendanceEvents };

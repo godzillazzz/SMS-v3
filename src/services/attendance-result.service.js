@@ -2,6 +2,7 @@
 
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
+const { normalizeScheduleTime } = require('../utils/schedule-time');
 
 const BANGKOK_OFFSET = '+07:00';
 const ATTENDANCE_RESULT_FLAGS = Object.freeze({
@@ -32,8 +33,9 @@ function workDateText(value) {
 }
 
 function timeMinutes(value) {
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value || '').trim());
-  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+  const normalized = normalizeScheduleTime(value);
+  if (!normalized) return null;
+  return Number(normalized.slice(0, 2)) * 60 + Number(normalized.slice(3, 5));
 }
 
 function shiftDate(dateText, offsetDays) {
@@ -49,11 +51,13 @@ function scheduleBoundary(dateText, timeText) {
 }
 
 function assignmentWindow(assignment) {
-  const startTime = assignment?.startTime || assignment?.shiftType?.startTime || null;
-  const endTime = assignment?.endTime || assignment?.shiftType?.endTime || null;
+  const rawStartTime = assignment?.startTime || assignment?.shiftType?.startTime || null;
+  const rawEndTime = assignment?.endTime || assignment?.shiftType?.endTime || null;
+  const startTime = normalizeScheduleTime(rawStartTime);
+  const endTime = normalizeScheduleTime(rawEndTime);
   const startMinutes = timeMinutes(startTime);
   const endMinutes = timeMinutes(endTime);
-  if (startMinutes === null || endMinutes === null) {
+  if (!startTime || !endTime || startMinutes === null || endMinutes === null) {
     throw http(409, 'ATTENDANCE_RESULT_SCHEDULE_INVALID', 'Attendance Shift start/end time is invalid.');
   }
   const dateText = workDateText(assignment.workDate);

@@ -5,6 +5,7 @@ const HttpError = require('../utils/http-error');
 const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
 const { classifyAttendanceDay } = require('./attendance-result.service');
 const { bangkokParts, isOvernightAssignment } = require('./attendance-verification-context.service');
+const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { currentCorrectionsForAssignments, applyCurrentCorrections } = require('./attendance-correction.service');
 
 const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
@@ -77,8 +78,8 @@ function shiftSummary(assignment) {
     id: assignment.shiftTypeId,
     code: assignment.shiftType?.code || null,
     name: assignment.shiftType?.name || null,
-    startTime: assignment.startTime || assignment.shiftType?.startTime || null,
-    endTime: assignment.endTime || assignment.shiftType?.endTime || null
+    startTime: normalizeScheduleTime(assignment.startTime || assignment.shiftType?.startTime || null),
+    endTime: normalizeScheduleTime(assignment.endTime || assignment.shiftType?.endTime || null)
   };
 }
 
@@ -223,8 +224,8 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
     const previous = byDate.get(yesterday);
     const today = byDate.get(local.date);
     if (previous && isOvernightAssignment(previous)) {
-      const endText = previous.endTime || previous.shiftType?.endTime || '00:00';
-      const [hour, minute] = String(endText).split(':').map(Number);
+      const endText = normalizeScheduleTime(previous.endTime || previous.shiftType?.endTime || null) || '00:00';
+      const [hour, minute] = endText.split(':').map(Number);
       const endMinutes = Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : 0;
       if (local.minutes < endMinutes) return previous;
     }
