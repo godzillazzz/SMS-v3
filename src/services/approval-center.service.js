@@ -10,7 +10,6 @@ const ADMIN_ONLY_TYPES = new Set([
   'EMPLOYEE_MASTER_CHANGE',
   'EMPLOYEE_REFERENCE_PHOTO',
   'LICENSE_DOCUMENT',
-  'SCHEDULE_APPROVAL',
   'ATTENDANCE_DEVICE_REQUEST',
   'ATTENDANCE_ADJUSTMENT_REQUEST'
 ]);
@@ -50,11 +49,6 @@ function dateValue(value) {
   if (!value) return null;
   const parsed = value instanceof Date ? value : new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function monthValue(value) {
-  const parsed = dateValue(value);
-  return parsed ? parsed.toISOString().slice(0, 7) : null;
 }
 
 function isRetroactiveLeaveStart(dateInput, now = new Date()) {
@@ -158,16 +152,6 @@ function createApprovalCenterService({
       })
     ]) : Promise.resolve([0, []]);
 
-    const scheduleApprovalsPromise = admin ? Promise.all([
-      prisma.scheduleApproval.count({ where: { status: 'PENDING' } }),
-      prisma.scheduleApproval.findMany({
-        where: { status: 'PENDING' },
-        select: { id: true, month: true, status: true, revision: true, changedAt: true, changeType: true, createdAt: true },
-        orderBy: [{ month: 'asc' }, { revision: 'asc' }],
-        take: 100
-      })
-    ]) : Promise.resolve([0, []]);
-
     const attendanceDevicesPromise = admin ? Promise.all([
       prisma.attendanceDeviceChangeRequest.count({ where: { status: 'PENDING_APPROVAL' } }),
       prisma.attendanceDeviceChangeRequest.findMany({
@@ -184,9 +168,9 @@ function createApprovalCenterService({
     ]) : Promise.resolve([0, []]);
 
     const registrationPromise = Promise.all([
-      prisma.registrationRequest.count({ where: { status: { in: ['PENDING', 'MATCHED'] } } }),
+      prisma.registrationRequest.count({ where: { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } } }),
       prisma.registrationRequest.findMany({
-        where: { status: { in: ['PENDING', 'MATCHED'] } },
+        where: { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } },
         select: {
           id: true, submittedName: true, email: true, departmentHint: true, status: true,
           createdAt: true, reviewedAt: true,
@@ -217,7 +201,7 @@ function createApprovalCenterService({
         where: leaveWhere,
         select: {
           id: true, employeeId: true, status: true, requestedAt: true, createdAt: true, leaveType: true,
-          startDate: true, endDate: true, dayCount: true, departmentSnapshot: true, createdByUserId: true,
+          startDate: true, endDate: true, dayCount: true, employeeNameSnapshot: true, departmentSnapshot: true, createdByUserId: true,
           employee: { select: commonEmployeeSelect },
           createdByUser: { select: { id: true, displayName: true, role: true } }
         },
@@ -234,7 +218,6 @@ function createApprovalCenterService({
       [employeeChangeTotal, employeeChanges],
       [referencePhotoTotal, referencePhotos],
       [licenseDocumentTotal, licenseDocuments],
-      [scheduleApprovalTotal, scheduleApprovals],
       [attendanceDeviceTotal, attendanceDevices],
       [registrationTotal, registrations],
       [userAccessTotal, users],
@@ -244,7 +227,6 @@ function createApprovalCenterService({
       employeeChangesPromise,
       referencePhotosPromise,
       licenseDocumentsPromise,
-      scheduleApprovalsPromise,
       attendanceDevicesPromise,
       registrationPromise,
       userAccessPromise,
@@ -321,21 +303,6 @@ function createApprovalCenterService({
       }, now));
     }
 
-    for (const row of scheduleApprovals) {
-      items.push(withAge({
-        id: 'schedule-approval:' + row.id,
-        requestId: row.id,
-        type: 'SCHEDULE_APPROVAL',
-        title: 'อนุมัติตารางกะ',
-        status: row.status,
-        sourcePage: 'schedule',
-        employee: null,
-        requestedBy: actorSummary(null, 'MANAGER'),
-        submittedAt: row.changedAt || row.createdAt,
-        metadata: { month: monthValue(row.month), revision: row.revision, changeType: row.changeType || null }
-      }, now));
-    }
-
     for (const row of attendanceDevices) {
       items.push(withAge({
         id: 'attendance-device:' + row.id,
@@ -367,7 +334,14 @@ function createApprovalCenterService({
         employee: employeeSummary(row.matchedEmployee),
         requestedBy: { id: null, displayName: row.submittedName, role: 'REQUESTER' },
         submittedAt: row.createdAt,
-        metadata: { email: row.email, departmentHint: row.departmentHint || null }
+        metadata: {
+          email: row.email,
+          departmentHint: row.departmentHint || null,
+          matchedEmployeeCode: row.matchedEmployee?.employeeCode || null,
+          matchedEmployeeName: row.matchedEmployee
+            ? (row.matchedEmployee.displayName || [row.matchedEmployee.firstName, row.matchedEmployee.lastName].filter(Boolean).join(' ') || null)
+            : null
+        }
       }, now));
     }
 
@@ -394,7 +368,11 @@ function createApprovalCenterService({
         title: 'คำขอลา',
         status: row.status,
         sourcePage: 'leavePending',
-        employee: employeeSummary(row.employee),
+        employee: {
+          ...employeeSummary(row.employee),
+          displayName: row.employeeNameSnapshot || employeeSummary(row.employee)?.displayName || null,
+          department: row.departmentSnapshot || row.employee?.department || null
+        },
         requestedBy: actorSummary(row.createdByUser, null),
         submittedAt: row.requestedAt || row.createdAt,
         metadata: {
@@ -442,7 +420,7 @@ function createApprovalCenterService({
       EMPLOYEE_MASTER_CHANGE: employeeChangeTotal,
       EMPLOYEE_REFERENCE_PHOTO: referencePhotoTotal,
       LICENSE_DOCUMENT: licenseDocumentTotal,
-      SCHEDULE_APPROVAL: scheduleApprovalTotal,
+      SCHEDULE_APPROVAL: 0,
       ATTENDANCE_DEVICE_REQUEST: attendanceDeviceTotal,
       ATTENDANCE_ADJUSTMENT_REQUEST: Number(attendanceAdjustments?.meta?.total || 0),
       REGISTRATION_REQUEST: registrationTotal,
@@ -466,7 +444,7 @@ function createApprovalCenterService({
         registrationRequests: byType.REGISTRATION_REQUEST,
         userAccessRequests: byType.USER_ACCESS,
         licenseDocuments: byType.LICENSE_DOCUMENT,
-        scheduleApprovals: byType.SCHEDULE_APPROVAL,
+        scheduleApprovals: 0,
         attendanceDeviceRequests: byType.ATTENDANCE_DEVICE_REQUEST,
         attendanceAdjustmentRequests: byType.ATTENDANCE_ADJUSTMENT_REQUEST,
         dueSoon24h: items.filter((item) => item.urgency === 'DUE_SOON').length,

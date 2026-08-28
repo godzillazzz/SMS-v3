@@ -10,13 +10,12 @@ type ApprovalType =
   | 'EMPLOYEE_MASTER_CHANGE'
   | 'EMPLOYEE_REFERENCE_PHOTO'
   | 'LICENSE_DOCUMENT'
-  | 'SCHEDULE_APPROVAL'
   | 'ATTENDANCE_DEVICE_REQUEST'
   | 'ATTENDANCE_ADJUSTMENT_REQUEST'
   | 'REGISTRATION_REQUEST'
   | 'USER_ACCESS'
   | 'LEAVE_REQUEST';
-type ApprovalSourcePage = 'employees' | 'licenses' | 'schedule' | 'attendanceDevice' | 'attendance' | 'users' | 'leavePending';
+type ApprovalSourcePage = 'employees' | 'licenses' | 'attendanceDevice' | 'attendance' | 'users' | 'leavePending';
 type ApprovalItem = {
   id: string;
   requestId: string;
@@ -54,7 +53,6 @@ const typeLabel: Record<ApprovalType, string> = {
   EMPLOYEE_MASTER_CHANGE: 'แก้ไขข้อมูลพนักงาน',
   EMPLOYEE_REFERENCE_PHOTO: 'รูปอ้างอิงพนักงาน',
   LICENSE_DOCUMENT: 'เอกสารใบอนุญาต',
-  SCHEDULE_APPROVAL: 'ตารางกะ',
   ATTENDANCE_DEVICE_REQUEST: 'อุปกรณ์ลงเวลา',
   ATTENDANCE_ADJUSTMENT_REQUEST: 'ปรับปรุงเวลา Attendance',
   REGISTRATION_REQUEST: 'ลงทะเบียนบัญชี',
@@ -70,12 +68,20 @@ const dateOnly = (value: unknown) => {
   return Number.isNaN(parsed.getTime()) ? String(value) : new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeZone: 'Asia/Bangkok' }).format(parsed);
 };
 const employeeName = (item?: ApprovalItem) => item?.employee?.displayName || [item?.employee?.firstName, item?.employee?.lastName].filter(Boolean).join(' ') || item?.requestedBy?.displayName || item?.title || 'รายการคำขอ';
+const requestSubject = (item?: ApprovalItem) => item?.type === 'REGISTRATION_REQUEST'
+  ? (item.requestedBy?.displayName || item.title || 'คำขอลงทะเบียน')
+  : employeeName(item);
+const requestContext = (item: ApprovalItem) => item.type === 'REGISTRATION_REQUEST'
+  ? (item.status === 'MATCHED' ? 'จับคู่ Employee Master แล้ว' : 'รอจับคู่ Employee Master')
+  : (item.employee?.employeeCode || item.status);
 const bytes = (value?: number) => !value ? '—' : value < 1024 * 1024 ? Math.max(1, Math.round(value / 1024)) + ' KB' : (value / 1024 / 1024).toFixed(1) + ' MB';
 const text = (value: unknown) => value === undefined || value === null || value === '' ? '—' : String(value);
 const metadataLabels: Record<string, string> = {
   email: 'อีเมล',
   department: 'หน่วยงาน',
-  departmentHint: 'หน่วยงานที่ระบุ',
+  departmentHint: 'หน่วยงานที่ผู้สมัครระบุ',
+  matchedEmployeeCode: 'รหัสพนักงานที่จับคู่',
+  matchedEmployeeName: 'พนักงานที่จับคู่',
   leaveType: 'ประเภทการลา',
   startDate: 'วันที่เริ่ม',
   endDate: 'วันที่สิ้นสุด',
@@ -87,9 +93,7 @@ const metadataLabels: Record<string, string> = {
   proposedExpiryDate: 'วันหมดอายุที่เสนอ',
   version: 'Version',
   fileName: 'ไฟล์',
-  month: 'เดือน',
   revision: 'Revision',
-  changeType: 'ประเภทการเปลี่ยน',
   requestType: 'ประเภทคำขอ',
   reason: 'เหตุผล',
   deviceName: 'อุปกรณ์',
@@ -194,8 +198,8 @@ export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onO
         <div className="approval-center-queue__title"><strong>งานที่รอฉันดำเนินการ</strong><span>{visible.length} รายการ</span></div>
         {loading ? <div className="approval-center-empty">กำลังโหลดคำขอ…</div> : visible.length ? visible.map((item) =>
           <button type="button" key={item.id} className={selected?.id === item.id ? 'is-selected' : ''} onClick={() => setSelectedId(item.id)}>
-            <div><strong>{employeeName(item)}</strong><span className={'approval-urgency approval-urgency--' + item.urgency.toLowerCase()}>{urgencyLabel[item.urgency]}</span></div>
-            <span>{typeLabel[item.type]} · {item.employee?.employeeCode || item.status}</span>
+            <div><strong>{requestSubject(item)}</strong><span className={'approval-urgency approval-urgency--' + item.urgency.toLowerCase()}>{urgencyLabel[item.urgency]}</span></div>
+            <span>{typeLabel[item.type]} · {requestContext(item)}</span>
             <small>โดย {item.requestedBy?.displayName || 'ระบบ'} · {fmt(item.submittedAt)}</small>
           </button>
         ) : <div className="approval-center-empty"><SmsIcon name="check" size={28} /><strong>ไม่มีงานค้าง</strong><span>ขณะนี้ไม่มีคำขอที่ต้องดำเนินการในขอบเขตสิทธิ์ของคุณ</span></div>}
@@ -203,7 +207,7 @@ export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onO
 
       <section className="approval-center-detail" aria-live="polite">
         {selected ? <>
-          <header><div><p>{typeLabel[selected.type]}</p><h2>{employeeName(selected)}</h2><span>{selected.employee?.employeeCode || selected.status} · {selected.employee?.department || text(selected.metadata?.department)}</span></div><span className={'approval-urgency approval-urgency--' + selected.urgency.toLowerCase()}>{urgencyLabel[selected.urgency]}</span></header>
+          <header><div><p>{typeLabel[selected.type]}</p><h2>{requestSubject(selected)}</h2><span>{requestContext(selected)} · {selected.type === 'REGISTRATION_REQUEST' ? text(selected.metadata?.email) : (selected.employee?.department || text(selected.metadata?.department))}</span></div><span className={'approval-urgency approval-urgency--' + selected.urgency.toLowerCase()}>{urgencyLabel[selected.urgency]}</span></header>
           <dl className="approval-center-meta">
             <div><dt>ผู้ส่งคำขอ</dt><dd>{selected.requestedBy?.displayName || 'ระบบ'}{selected.requestedBy?.role ? ' (' + selected.requestedBy.role + ')' : ''}</dd></div>
             <div><dt>ส่งเมื่อ</dt><dd>{fmt(selected.submittedAt)}</dd></div>
