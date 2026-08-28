@@ -14,6 +14,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
+import { getApprovalCenter } from './approval-center-client';
 import { setAttendanceTokenRefreshGuard, setAttendanceTokenRefreshHandler } from './attendance-auth-request';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from './request-error';
 import { acquireDocumentScrollLock } from './document-scroll-lock';
@@ -28,6 +29,7 @@ import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage';
 import { EmployeeGovernedEditModal } from './components/personnel/EmployeeGovernedEditModal';
 import { EmployeeChangeReviewModal } from './components/personnel/EmployeeChangeReviewModal';
+import { ApprovalCenterPage } from './pages/approvals/ApprovalCenterPage';
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import { DataQualityCenterPage, type DataQualityFilters, type DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
@@ -71,7 +73,7 @@ import './styles/pwa-shell.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
-type Page = 'dashboard' | 'employees' | 'licenses' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
+type Page = 'dashboard' | 'employees' | 'approvalCenter' | 'licenses' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
@@ -106,6 +108,7 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
     { id: 'quota', icon: 'quota', label: 'โควต้าวันลา' }
   ] },
   { label: 'ตรวจสอบ', items: [
+    { id: 'approvalCenter', icon: 'bell', label: 'Approval Center' },
     { id: 'rules', icon: 'shield', label: 'กฎการทำงาน' },
     { id: 'audit', icon: 'audit', label: 'บันทึกการใช้งานระบบ' },
     { id: 'dataQuality', icon: 'quality', label: 'คุณภาพข้อมูล' }
@@ -739,7 +742,7 @@ function EmployeeMagicWandModal({
   );
 }
 
-type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
+type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
 
 const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
@@ -1503,13 +1506,16 @@ function Dashboard() {
   useEffect(() => {
     setMobileMenuOpen(false);
     setMobileUtilityOpen(false);
-    if (activePage !== 'employees') {
-      setEmployeeGovernedEditTarget(undefined);
+    if (activePage !== 'employees') setEmployeeGovernedEditTarget(undefined);
+    if (!['employees', 'approvalCenter'].includes(activePage)) {
       setEmployeeChangeReviewOpen(false);
+      setEmployeeChangeReviewInitialId(undefined);
     }
   }, [activePage]);
   const [operationRefresh, setOperationRefresh] = useState(0);
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [approvalCenterRefresh, setApprovalCenterRefresh] = useState(0);
   const [employeeRefresh, setEmployeeRefresh] = useState(0);
   const [shiftTypes, setShiftTypes] = useState<DataRow[]>([]);
   const [editor, setEditor] = useState<Editor>();
@@ -1517,6 +1523,7 @@ function Dashboard() {
   const [editorError, setEditorError] = useState<RequestErrorInput>();
   const [employeeGovernedEditTarget, setEmployeeGovernedEditTarget] = useState<Employee>();
   const [employeeChangeReviewOpen, setEmployeeChangeReviewOpen] = useState(false);
+  const [employeeChangeReviewInitialId, setEmployeeChangeReviewInitialId] = useState<string>();
   const [licenseEditTarget, setLicenseEditTarget] = useState<DataRow>();
   const [dashboardSummary, setDashboardSummary] = useState<DataRow>({});
   const [dashboardLoading, setDashboardLoading] = useState(false);
@@ -1655,6 +1662,17 @@ function Dashboard() {
   }, [auth.token, auth.user?.role, operationRefresh, pwaShell]);
 
   useEffect(() => {
+    if (pwaShell || !auth.token || !['ADMIN', 'MANAGER'].includes(auth.user?.role || '') || auth.isViewingAs) { setPendingApprovalCount(0); return; }
+    let active = true;
+    const refreshApprovalCount = () => getApprovalCenter(auth.token!).then((result) => { if (active) setPendingApprovalCount(Number(result?.summary?.total || 0)); }).catch(() => undefined);
+    void refreshApprovalCount();
+    const timer = window.setInterval(refreshApprovalCount, 60000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') void refreshApprovalCount(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { active = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisibility); };
+  }, [auth.token, auth.user?.role, auth.isViewingAs, pwaShell, operationRefresh, employeeRefresh, approvalCenterRefresh]);
+
+  useEffect(() => {
     if (!auth.token || activePage !== 'rules') return;
     api.ruleChecks(auth.token, scheduleMonth).then((result) => setRuleCheckResponse(result?.data || {})).catch((reason) => setOperationError(toRequestErrorState(reason, 'ไม่สามารถตรวจสอบกฎได้')));
   }, [activePage, auth.token, operationRefresh, scheduleMonth]);
@@ -1678,14 +1696,14 @@ function Dashboard() {
   }, [activePage, auth.token, operationPage, dataQualityPageSize, dataQualityFilters, operationRefresh]);
 
   useEffect(() => {
-    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'attendance' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
+    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'approvalCenter' || activePage === 'attendance' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
     if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
       setOperationLoading(false);
       setOperationError(undefined);
       setOperationResponse({ data: [] });
       return;
     }
-    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
+    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
       users: api.users, audit: api.auditEvents, settings: api.systemSettings
@@ -1736,6 +1754,7 @@ function Dashboard() {
   const pageSubtitle: Record<Page, string> = {
     dashboard: 'ภาพรวม KPI และสถานะการปฏิบัติงาน',
     employees: 'ข้อมูลพนักงานและใบอนุญาตปฏิบัติงาน',
+    approvalCenter: 'รวมงานอนุมัติและตรวจสอบที่คุณต้องดำเนินการจากทุกโมดูล',
     licenses: 'ทะเบียนใบอนุญาตของพนักงาน',
     attendance: 'ลงเวลาเข้า/ออกด้วย QR, GPS และ Server authority',
     attendanceHistory: 'ประวัติ Attendance ของบัญชีพนักงานที่เข้าสู่ระบบ',
@@ -1761,6 +1780,7 @@ function Dashboard() {
   const initials = auth.user?.displayName?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'SM';
   const canManage = !auth.isViewingAs && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
   const canViewPage = (page: Page) => {
+    if (page === 'approvalCenter') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs;
     if (page === 'leavePending') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
     if (page === 'audit') return auth.user?.role === 'ADMIN';
     if (page === 'dataQuality') return auth.user?.role === 'ADMIN';
@@ -2049,7 +2069,7 @@ function Dashboard() {
     finally { setOperationLoading(false); }  };
 
   const content = () => {
-    if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} filters={dashboardFilters} onFiltersChange={(next) => setDashboardFilters((current) => ({ ...current, ...next }))} onNavigate={setActivePage} />;
+    if (activePage === 'dashboard') return <DashboardPage summary={dashboardSummary} loading={dashboardLoading} error={dashboardError} user={auth.user} canManage={canManage} filters={dashboardFilters} pendingApprovalCount={pendingApprovalCount} onOpenApprovalCenter={() => setActivePage('approvalCenter')} onFiltersChange={(next) => setDashboardFilters((current) => ({ ...current, ...next }))} onNavigate={setActivePage} />;
     // The former inline dashboard is intentionally disabled. DashboardPage above
     // is the only runtime dashboard presentation.
     if (false) {
@@ -2229,7 +2249,8 @@ function Dashboard() {
         </section>
       );
     }
-    if (activePage === 'employees') return <PersonnelDirectoryPage employees={employees} totalCount={totalCount} loading={empLoading} error={typeof fetchError === 'string' ? fetchError : fetchError?.message} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) setEmployeeChangeReviewOpen(true); }} onEdit={openEmployeeEditor} onRefresh={() => setEmployeeRefresh((value) => value + 1)} />;
+    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { if (item.type === 'SCHEDULE_APPROVAL' && item.metadata?.month) setScheduleMonth(String(item.metadata.month)); setActivePage(item.sourcePage); }} />;
+    if (activePage === 'employees') return <PersonnelDirectoryPage employees={employees} totalCount={totalCount} loading={empLoading} error={typeof fetchError === 'string' ? fetchError : fetchError?.message} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} onRefresh={() => setEmployeeRefresh((value) => value + 1)} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       return <AuditCompliancePage rows={auditRows} total={operationResponse.meta?.total ?? auditRows.length} page={operationResponse.meta?.page || operationPage} totalPages={operationResponse.meta?.totalPages || 1} pageSize={auditPageSize} loading={operationLoading} error={typeof operationError === 'string' ? operationError : operationError?.message} permissionDenied={auth.user?.role !== 'ADMIN'} filters={auditFilters} onFiltersChange={(filters) => { setAuditFilters(filters); setOperationPage(1); }} onRefresh={() => setOperationRefresh((value) => value + 1)} onPageChange={setOperationPage} onPageSize={(value) => { setAuditPageSize(value); setOperationPage(1); }} onExport={(rows) => downloadCsv(rows as DataRow[], 'audit-events')} onPrint={() => window.print()} />;
@@ -2650,7 +2671,7 @@ function Dashboard() {
       <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}>
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} />}
-      {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <EmployeeChangeReviewModal token={auth.token} onClose={() => setEmployeeChangeReviewOpen(false)} onChanged={() => setEmployeeRefresh((value) => value + 1)} />}
+      {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <EmployeeChangeReviewModal token={auth.token} initialRequestId={employeeChangeReviewInitialId} onClose={() => { setEmployeeChangeReviewOpen(false); setEmployeeChangeReviewInitialId(undefined); }} onChanged={() => { setEmployeeRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />}
       {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({auth.user?.role}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนูหลัก" aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(false)} />}
       <aside id="app-navigation-drawer" className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} aria-label="เมนูหลัก">
@@ -2660,7 +2681,7 @@ function Dashboard() {
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
-          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}</span></button>)}</div>
+          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}{item.id === 'approvalCenter' && pendingApprovalCount > 0 && <b className="nav-count-badge">{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</b>}</span></button>)}</div>
         ))}</nav>
         <div className="sidebar-footer">
           <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></div>
@@ -2679,6 +2700,7 @@ function Dashboard() {
           <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
           <div className="topbar-actions">
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
+            {['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type="button" className="topbar-notification-button" aria-label={'คำขออนุมัติ ' + pendingApprovalCount + ' รายการ'} title="คำขอที่รอการอนุมัติ" onClick={() => setActivePage('approvalCenter')}><SmsIcon name="bell" size={19} />{pendingApprovalCount > 0 && <span className="topbar-notification-badge">{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
             <ThemeControl compact />
             <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></button>
             <button ref={mobileUtilityTriggerRef} type="button" className="mobile-utility-button" aria-label="เปิดเมนูบัญชีและธีม" aria-expanded={mobileUtilityOpen} aria-controls="mobile-utility-panel" onClick={() => setMobileUtilityOpen((value) => !value)}><SmsIcon name="more" size={20} /></button>

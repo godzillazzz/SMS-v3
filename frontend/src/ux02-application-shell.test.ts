@@ -7,7 +7,7 @@ const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'u
 
 const expectedNavigationIds = [
   'dashboard', 'employees', 'licenses', 'attendance', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave', 'leavePending',
-  'leaveHistory', 'quota', 'rules', 'audit', 'dataQuality', 'users', 'reportCenter', 'settings'
+  'leaveHistory', 'quota', 'approvalCenter', 'rules', 'audit', 'dataQuality', 'users', 'reportCenter', 'settings'
 ];
 
 describe('G04.2 UX-02 application shell contract', () => {
@@ -22,12 +22,13 @@ describe('G04.2 UX-02 application shell contract', () => {
   const themeControl = read('components/ThemeControl.tsx');
   const navigationBlock = main.slice(main.indexOf('const navigation:'), main.indexOf('function AuthProvider'));
 
-  it('keeps the existing navigation page IDs and adds only the authorized G06 Attendance pages', () => {
+  it('keeps authorized navigation IDs with Approval Center in the review group', () => {
     const ids = Array.from(navigationBlock.matchAll(/id: '([^']+)'/g), (match) => match[1]);
     expect(ids).toEqual(expectedNavigationIds);
   });
 
-  it('keeps navigation role filtering unchanged', () => {
+  it('keeps role filtering explicit, including Manager access to Approval Center', () => {
+    expect(main).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(main).toContain("if (page === 'leavePending') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
     expect(main).toContain("if (page === 'audit') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (page === 'dataQuality') return auth.user?.role === 'ADMIN'");
@@ -116,10 +117,13 @@ describe('G04.2 UX-02 application shell contract', () => {
     expect(dashboard).not.toMatch(/\.sidebar\s*\{/);
   });
 
-  it('does not surface fake notification functionality', () => {
+  it('surfaces the authorized Approval Center notification instead of a fake bell', () => {
+    expect(main).toContain("id: 'approvalCenter'");
+    expect(main).toContain('topbar-notification-button');
+    expect(main).toContain('title="คำขอที่รอการอนุมัติ"');
+    expect(main).toContain('<SmsIcon name="bell" size={19} />');
+    expect(main).toContain('getApprovalCenter(auth.token!)');
     expect(main).not.toContain('aria-label="การแจ้งเตือน"');
-    expect(main).not.toContain('title="การแจ้งเตือน"');
-    expect(main).not.toContain('<SmsIcon name="bell"');
     expect(main).not.toContain('topbar-icon');
   });
 

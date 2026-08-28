@@ -11,11 +11,12 @@ import { LeaveSummaryCard } from '../../components/dashboard/LeaveSummaryCard';
 import { LicenseSummaryCard } from '../../components/dashboard/LicenseSummaryCard';
 import { asNumber, type DashboardAction, type DashboardActivity, type DashboardExpiringLicense, type DashboardFilters, type DashboardNavigate, type DashboardSummary, type DashboardUser } from '../../components/dashboard/types';
 import { RequestErrorReference, type RequestErrorInput } from '../../request-error';
+import { SmsIcon } from '../../components/SmsIcon';
 import '../../styles/dashboard.css';
 
-type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: RequestErrorInput; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
+type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: RequestErrorInput; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; pendingApprovalCount?: number; onOpenApprovalCenter?(): void; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
 
-export function DashboardPage({ summary, loading, error, user, canManage, filters, onFiltersChange, onNavigate }: DashboardPageProps) {
+export function DashboardPage({ summary, loading, error, user, canManage, filters, pendingApprovalCount = 0, onOpenApprovalCenter, onFiltersChange, onNavigate }: DashboardPageProps) {
   const totalEmployees = asNumber(summary.totalEmployees);
   const activeEmployees = asNumber(summary.activeEmployees);
   const scheduledToday = asNumber(summary.workingToday);
@@ -47,6 +48,7 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
     </div>
     {error && <div className="dashboard-data-error" role="alert"><b>ไม่สามารถโหลดข้อมูล Dashboard ได้</b><span>แสดงสถานะที่มีอยู่ล่าสุด โดยไม่มีการสร้างข้อมูลแทน</span><RequestErrorReference requestId={typeof error === 'string' ? undefined : error?.requestId} /></div>}
     {!error && partialErrors.length > 0 && <div className="dashboard-data-warning" role="status"><b>ข้อมูลบางส่วนยังไม่พร้อม</b><span>ส่วนที่พร้อมใช้งานยังแสดงตามสิทธิ์ของคุณ และระบบจะลองโหลดใหม่เมื่อมีการรีเฟรช</span></div>}
+    {canAdmin && pendingApprovalCount > 0 && <section className="dashboard-approval-alert" aria-label="คำขอที่รอการอนุมัติ"><span className="dashboard-approval-alert__icon"><SmsIcon name="bell" size={20} /></span><div><strong>มี {pendingApprovalCount} รายการรอการอนุมัติ</strong><small>มีคำขอแก้ไขข้อมูลหรือรูปพนักงานที่ต้องตรวจสอบ</small></div><button type="button" onClick={onOpenApprovalCenter}>ตรวจสอบคำขอ</button></section>}
     <MetricsGrid totalEmployees={totalEmployees} activeEmployees={activeEmployees} workingToday={onDutyToday} leaveToday={leaveToday} pendingLeaves={pendingLeaves} attentionCount={attentionCount} expiringLicenses={expiringLicenses} pendingLicenseDocuments={pendingLicenseDocuments} notScheduledToday={notScheduledToday} loading={loading} onNavigate={onNavigate} />
     <section className="dashboard-focus-band" aria-labelledby="dashboard-focus-title"><div className="dashboard-focus-heading"><div><span>วันนี้</span><h2 id="dashboard-focus-title">งานที่ต้องจัดการ</h2></div><p>รายการที่ต้องตัดสินใจหรือติดตามจะแสดงก่อนข้อมูลวิเคราะห์</p></div><div className="dashboard-command-grid dashboard-primary-grid"><AttentionNeededCard rows={actionRows} expiringLicenses={expiringLicenseDetails} loading={loading} onNavigate={onNavigate} /><TodayOperationsCard operations={todayOperations} totalEmployees={totalEmployees} activeEmployees={activeEmployees} loading={loading} onNavigate={onNavigate} /></div></section>
     <QuickActionsCard canManage={canManage} onNavigate={onNavigate} />
