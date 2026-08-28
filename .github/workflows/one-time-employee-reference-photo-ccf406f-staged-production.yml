@@ -151,18 +151,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq '.reference-photo-frame{' frontend/dist/assets/*.css
-          if ! grep -Fq 'aspect-ratio:3/4' frontend/dist/assets/*.css && ! grep -Fq 'aspect-ratio:.75' frontend/dist/assets/*.css; then
-            echo 'Portrait Employee Reference Photo ratio missing from built CSS'
-            exit 1
-          fi
-          grep -Fq 'object-fit:contain' frontend/dist/assets/*.css
-          if grep -Fq 'aspect-ratio:4/3' frontend/dist/assets/*.css; then
-            echo 'Old landscape Employee Reference Photo ratio found in built CSS'
-            exit 1
-          fi
-          echo 'EMPLOYEE_REFERENCE_PHOTO_CSS_ARTIFACT=PASS'
-
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const dir = path.join('frontend', 'dist', 'assets');
+          const css = fs.readdirSync(dir)
+            .filter((name) => name.endsWith('.css'))
+            .map((name) => fs.readFileSync(path.join(dir, name), 'utf8'))
+            .join('\n');
+          const frameMatch = css.match(/\.reference-photo-frame\{([^}]*)\}/);
+          if (!frameMatch) throw new Error('Employee Reference Photo frame rule missing from built CSS');
+          const frameRule = frameMatch[1];
+          if (!/(?:^|;)aspect-ratio:(?:3\/4|\.75)(?:;|$)/.test(frameRule)) {
+            throw new Error('Employee Reference Photo portrait ratio missing');
+          }
+          if (/(?:^|;)aspect-ratio:4\/3(?:;|$)/.test(frameRule)) {
+            throw new Error('Employee Reference Photo frame still uses landscape ratio');
+          }
+          const imageMatch = css.match(/\.reference-photo-frame img\{([^}]*)\}/);
+          if (!imageMatch) throw new Error('Employee Reference Photo image rule missing from built CSS');
+          if (!/(?:^|;)object-fit:contain(?:;|$)/.test(imageMatch[1])) {
+            throw new Error('Employee Reference Photo object-fit is not contain');
+          }
+          console.log('EMPLOYEE_REFERENCE_PHOTO_CSS_ARTIFACT=PASS');
+          NODE
       - name: Restore exact source identity before deployment
         shell: bash
         run: |
