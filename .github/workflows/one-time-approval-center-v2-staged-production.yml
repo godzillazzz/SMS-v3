@@ -69,7 +69,16 @@ jobs:
           git fetch --no-tags origin "$EXPECTED_INTEGRATION_BRANCH"
           integration_head="$(git rev-parse "origin/$EXPECTED_INTEGRATION_BRANCH")"
           git merge-base --is-ancestor "$TARGET_SHA" "$integration_head"
-          unexpected_diff="$(git diff --name-only "$TARGET_SHA..$integration_head" | grep -v '^.github/workflows/one-time-approval-center-v2-staged-production.yml
+          changed_files="$(git diff --name-only "$TARGET_SHA..$integration_head")"
+          if [[ -n "$changed_files" && "$changed_files" != ".github/workflows/one-time-approval-center-v2-staged-production.yml" ]]; then
+            echo "Unexpected application diff after approved Candidate:"
+            printf '%s\n' "$changed_files"
+            exit 1
+          fi
+          echo "CANDIDATE_SHA=$TARGET_SHA"
+          echo "CANDIDATE_TREE=$EXPECTED_TREE"
+          echo "INTEGRATION_HEAD=$integration_head"
+          echo "INTEGRATION_APP_DIFF_FROM_CANDIDATE=NONE"
 
       - name: Set up Node
         uses: actions/setup-node@v4
