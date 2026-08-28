@@ -11,42 +11,53 @@ const dashboard = read('pages/dashboard/DashboardPage.tsx');
 const review = read('components/personnel/EmployeeChangeReviewModal.tsx');
 const css = read('styles/approval-center.css');
 
-describe('Approval Center V1 frontend contracts', () => {
-  it('surfaces pending approvals in sidebar and topbar bell for Admin', () => {
-    expect(main).toContain("id: 'approvalCenter'");
-    expect(main).toContain('topbar-notification-button');
-    expect(main).toContain('pendingApprovalCount');
-    expect(main).toContain("page === 'approvalCenter'");
-    expect(main).toContain("auth.user?.role === 'ADMIN'");
+describe('Approval Center V2 unified frontend contracts', () => {
+  it('moves Approval Center into the review navigation group for Admin and Manager', () => {
+    expect(main).toContain("{ label: 'ตรวจสอบ', items: [\n    { id: 'approvalCenter', icon: 'bell', label: 'Approval Center' }");
+    expect(main).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
+    expect(main).toContain("!['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
+    expect(main).toContain("['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type=\"button\" className=\"topbar-notification-button\"");
   });
 
-  it('polls the aggregated queue and refreshes when the tab becomes visible', () => {
+  it('polls the role-scoped aggregated queue and refreshes when the tab becomes visible', () => {
     expect(client).toContain("fetch(baseUrl + '/approval-center?limit=100'");
     expect(main).toContain('window.setInterval(refreshApprovalCount, 60000)');
     expect(main).toContain("document.addEventListener('visibilitychange'");
   });
 
-  it('Approval Center combines Employee Master and Reference Photo reviews', () => {
-    expect(page).toContain('EMPLOYEE_MASTER_CHANGE');
-    expect(page).toContain('EMPLOYEE_REFERENCE_PHOTO');
+  it('renders every supported actionable workflow in one queue', () => {
+    for (const type of [
+      'EMPLOYEE_MASTER_CHANGE',
+      'EMPLOYEE_REFERENCE_PHOTO',
+      'LICENSE_DOCUMENT',
+      'SCHEDULE_APPROVAL',
+      'ATTENDANCE_DEVICE_REQUEST',
+      'ATTENDANCE_ADJUSTMENT_REQUEST',
+      'REGISTRATION_REQUEST',
+      'USER_ACCESS',
+      'LEAVE_REQUEST'
+    ]) expect(page).toContain(type);
+    expect(page).toContain('งานที่รอฉันดำเนินการ');
+    expect(page).toContain('เปิดหน้าดำเนินการ');
+    expect(page).toContain('onNavigate(selected)');
+  });
+
+  it('keeps authoritative complex review workflows in their existing modules', () => {
+    expect(page).toContain('onOpenEmployeeChange(selected.requestId)');
     expect(page).toContain('api.viewEmployeeReferencePhoto');
     expect(page).toContain('api.approveEmployeeReferencePhoto');
     expect(page).toContain('api.rejectEmployeeReferencePhoto');
-    expect(page).toContain('onOpenEmployeeChange(selected.requestId)');
-  });
-
-  it('deep-links Employee Master work into the existing BEFORE to AFTER review modal', () => {
-    expect(main).toContain('employeeChangeReviewInitialId');
-    expect(review).toContain('initialRequestId');
+    expect(page).toContain('การอนุมัติ/ไม่อนุมัติจะดำเนินการที่โมดูลต้นทาง');
+    expect(main).toContain("if (item.type === 'SCHEDULE_APPROVAL' && item.metadata?.month) setScheduleMonth");
     expect(review).toContain('revision.beforeSnapshot[field]');
     expect(review).toContain('revision.afterSnapshot[field]');
   });
 
-  it('shows 24h and 48h reminder states and a dashboard warning card', () => {
+  it('shows 24h and 48h reminder states and unified detail styling', () => {
     expect(page).toContain("DUE_SOON: 'ครบ 24 ชม.'");
     expect(page).toContain("OVERDUE: 'เกิน 48 ชม.'");
     expect(dashboard).toContain('dashboard-approval-alert');
-    expect(dashboard).toContain('pendingApprovalCount > 0');
     expect(css).toContain('.approval-urgency--overdue');
+    expect(css).toContain('.approval-center-source-meta');
   });
 });
