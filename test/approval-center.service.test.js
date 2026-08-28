@@ -113,6 +113,27 @@ test('Manager Approval Center contains only workflows Manager can act on', async
   assert.equal(result.summary.byType.ATTENDANCE_ADJUSTMENT_REQUEST, 0);
 });
 
+
+test('Manager queue includes retroactive Supervisor leave because source authority permits Manager review', async () => {
+  const prisma = adminPrisma();
+  prisma.user.findUnique = async () => ({ id: 'manager-1', employeeId: 'self-e', employee: { jobTitle: 'Guard Manager' } });
+  prisma.leaveRequest.count = async () => 1;
+  prisma.leaveRequest.findMany = async () => [{
+    id: 'retro-supervisor-leave', employeeId: 'sup-e', status: 'PENDING',
+    requestedAt: new Date('2026-08-27T18:00:00.000Z'), createdAt: new Date('2026-08-27T18:00:00.000Z'),
+    leaveType: 'SICK', startDate: new Date('2026-08-26T00:00:00.000Z'), endDate: new Date('2026-08-26T00:00:00.000Z'),
+    dayCount: 1, employee: employee('sup-e', 'SUP', 'Supervisor'), createdByUser: null
+  }];
+  prisma.registrationRequest = model([]);
+  prisma.user.count = async () => 0;
+  prisma.user.findMany = async () => [];
+
+  const service = createApprovalCenterService({ prisma, clock: () => now });
+  const result = await service.list({ actor: { role: 'MANAGER', sub: 'manager-1' } });
+  assert.equal(result.summary.byType.LEAVE_REQUEST, 1);
+  assert.equal(result.data.find((item) => item.type === 'LEAVE_REQUEST').employee.employeeCode, 'SUP');
+});
+
 test('Manager queue excludes leave requests that require Admin authority or self approval', async () => {
   const prisma = adminPrisma();
   prisma.user.findUnique = async () => ({ id: 'manager-1', employeeId: 'self-e', employee: { jobTitle: 'Guard Manager' } });
