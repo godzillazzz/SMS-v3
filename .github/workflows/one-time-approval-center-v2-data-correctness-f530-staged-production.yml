@@ -1,0 +1,299 @@
+name: ONE-TIME Approval Center V2 data correctness f530 exact staged Production
+
+on:
+  push:
+    branches:
+      - fix/serverless-database-reliability
+    paths:
+      - .github/workflows/one-time-approval-center-v2-data-correctness-f530-staged-production.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-approval-center-v2-data-correctness-f530-staged-production
+  cancel-in-progress: false
+
+env:
+  TARGET_SHA: f530efa7a913dea5fa47d95a3e148e78651912a8
+  EXPECTED_TREE: 5d6bb625454d644e06345af771787a8418b9d0e9
+  EXPECTED_INTEGRATION_BRANCH: fix/serverless-database-reliability
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_CANONICAL_DEPLOYMENT_ID: dpl_3tx9ugTjFmAwvzW83drvGWVj2Laj
+  EXPECTED_CANONICAL_SHA: 74d394ea125b322635f488d511609ebdf7b9b40d
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  stage-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      NODE_ENV: production
+      VERCEL_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    steps:
+      - name: Verify Environment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN"
+          test -n "$DATABASE_URL"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          echo "ENVIRONMENT_CREDENTIAL_GATE=PASS"
+
+      - name: Checkout exact merged Approval Center V2 data-correctness SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+
+      - name: Validate exact Candidate and integration identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          test -z "$(git status --porcelain)"
+          echo "CANDIDATE_SHA=$TARGET_SHA"
+          echo "CANDIDATE_TREE=$EXPECTED_TREE"
+          echo "INTEGRATION_BRANCH_GUARD=NOT_REQUIRED_FOR_EXACT_IMMUTABLE_SHA"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify Production migration ledger without applying migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx prisma generate
+          node scripts/ci/prisma-migration.js status
+          echo "PRODUCTION_MIGRATION_APPLY=NOT_PERFORMED"
+
+      - name: Verify current Canonical exact baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_alias_json=$(mktemp)
+          canonical_deploy_json=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" > "$canonical_alias_json"
+          curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/$EXPECTED_CANONICAL_DEPLOYMENT_ID?teamId=$EXPECTED_ORG_ID" > "$canonical_deploy_json"
+          node - "$canonical_alias_json" "$canonical_deploy_json" <<'NODE'
+          const fs = require('node:fs');
+          const rawAlias = fs.readFileSync(process.argv[2], 'utf8');
+          const match = rawAlias.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('Canonical alias inspect JSON missing');
+          const alias = JSON.parse(match[0]);
+          const deploy = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+          const projectId = deploy.project?.id || deploy.projectId || null;
+          const sha = deploy.meta?.githubCommitSha || deploy.gitSource?.sha || null;
+          const state = deploy.readyState || deploy.state;
+          if (alias.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT_ID) throw new Error(`Canonical alias drift: ${alias.id}`);
+          if (deploy.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT_ID) throw new Error('Canonical deployment ID mismatch');
+          if (projectId !== process.env.EXPECTED_PROJECT_ID) throw new Error('Canonical project mismatch');
+          if (deploy.target !== 'production') throw new Error('Canonical target mismatch');
+          if (state !== 'READY') throw new Error('Canonical deployment not READY');
+          if (sha !== process.env.EXPECTED_CANONICAL_SHA) throw new Error(`Canonical SHA mismatch: ${sha}`);
+          console.log(`PRE_STAGE_CANONICAL=${deploy.id}`);
+          console.log(`PRE_STAGE_CANONICAL_SHA=${sha}`);
+          console.log('PRE_STAGE_CANONICAL_GATE=PASS');
+          NODE
+          rm -f "$canonical_alias_json" "$canonical_deploy_json"
+
+      - name: Pull exact Production configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=production --project "$EXPECTED_PROJECT_ID" --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/vercel-pull.log 2>&1
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
+          if (project.projectId !== process.env.EXPECTED_PROJECT_ID || project.orgId !== process.env.EXPECTED_ORG_ID) {
+            throw new Error('Vercel project linkage mismatch');
+          }
+          console.log('VERCEL_PROJECT_LINKAGE=PASS');
+          NODE
+
+      - name: Build exact prebuilt Production artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_log=$(mktemp)
+          CI_MIGRATION_COMPLETED=true npx --yes vercel@"$VERCEL_CLI_VERSION" build --prod --token "$VERCEL_TOKEN" >"$build_log" 2>&1
+          grep -Fq 'Vercel build is build-only' "$build_log"
+          grep -Fq 'Prisma generate passed' "$build_log"
+          grep -Fq 'Application build passed' "$build_log"
+          if grep -Eiq 'prisma migrate deploy|Prisma migrate deploy started|Prisma migrate deploy passed' "$build_log"; then
+            echo 'Unexpected migration during Vercel build'
+            exit 1
+          fi
+          test -f frontend/dist/index.html
+          test -f .vercel/output/config.json
+          rm -f "$build_log"
+          echo "PREBUILT_PRODUCTION_ARTIFACT=PASS"
+
+      - name: Restore exact source identity before deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD --staged --worktree -- .
+          git clean -fd
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          test -z "$(git status --porcelain)"
+          test -f frontend/dist/index.html
+          test -f .vercel/output/config.json
+          echo "PRE_DEPLOY_SOURCE_IDENTITY=PASS"
+
+      - name: Create exact Production-target STAGED deployment
+        id: staged
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_json=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --prod --skip-domain --yes --project "$EXPECTED_PROJECT_ID" --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" --meta "githubCommitSha=$TARGET_SHA" --format=json > "$deploy_json"
+          node - "$deploy_json" <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('node:fs');
+          const raw = fs.readFileSync(process.argv[2], 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('Deployment JSON missing');
+          const data = JSON.parse(match[0]);
+          const id = data.id || data.deploymentId;
+          const url = data.url || data.deploymentUrl;
+          if (!/^dpl_[A-Za-z0-9]+$/.test(id || '')) throw new Error('Deployment id invalid');
+          if (!/^https:\/\/sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app\/?$/.test(url || '')) throw new Error('Deployment URL invalid');
+          process.stdout.write(`deployment_id=${id}\ndeployment_url=${url}\n`);
+          NODE
+          rm -f "$deploy_json"
+
+      - name: Verify staged identity and prove Canonical unchanged
+        shell: bash
+        env:
+          DEPLOYMENT_ID: ${{ steps.staged.outputs.deployment_id }}
+        run: |
+          set -euo pipefail
+          staged_json=$(mktemp)
+          canonical_json=$(mktemp)
+          curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/$DEPLOYMENT_ID?teamId=$EXPECTED_ORG_ID" > "$staged_json"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" > "$canonical_json"
+          node - "$staged_json" "$canonical_json" <<'NODE'
+          const fs = require('node:fs');
+          const staged = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rawCanonical = fs.readFileSync(process.argv[3], 'utf8');
+          const match = rawCanonical.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('Canonical inspect JSON missing');
+          const canonical = JSON.parse(match[0]);
+          const projectId = staged.project?.id || staged.projectId || null;
+          const projectName = staged.project?.name || staged.name || null;
+          const sha = staged.meta?.githubCommitSha || staged.gitSource?.sha || null;
+          const state = staged.readyState || staged.state;
+          if (staged.id !== process.env.DEPLOYMENT_ID) throw new Error('staged deployment ID mismatch');
+          if (projectId !== process.env.EXPECTED_PROJECT_ID) throw new Error('staged project ID mismatch');
+          if (projectName !== process.env.EXPECTED_PROJECT_NAME) throw new Error('staged project name mismatch');
+          if (staged.target !== 'production') throw new Error('staged target is not production');
+          if (state !== 'READY') throw new Error('staged deployment is not READY');
+          if (sha !== process.env.TARGET_SHA) throw new Error(`staged SHA mismatch: ${sha}`);
+          if (Array.isArray(staged.alias) && staged.alias.length !== 0) throw new Error('staged deployment unexpectedly has aliases');
+          if (canonical.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT_ID) throw new Error(`Canonical changed unexpectedly: ${canonical.id}`);
+          console.log(`STAGED_DEPLOYMENT_ID=${staged.id}`);
+          console.log(`STAGED_SHA=${sha}`);
+          console.log(`CANONICAL_UNCHANGED=${canonical.id}`);
+          console.log('STAGED_IDENTITY_GATE=PASS');
+          NODE
+          rm -f "$staged_json" "$canonical_json"
+
+      - name: Staged health readiness and protected Approval Center boundary
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.staged.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          health=$(mktemp)
+          ready=$(mktemp)
+          approval=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/health --deployment "$DEPLOYMENT_URL" --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" > "$health"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/ready --deployment "$DEPLOYMENT_URL" --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" > "$ready"
+          approval_status=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/approval-center --deployment "$DEPLOYMENT_URL" --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" -- --silent --output "$approval" --write-out '%{http_code}')
+          test "$approval_status" = "401"
+          node - "$health" "$ready" "$approval" <<'NODE'
+          const fs = require('node:fs');
+          const [healthFile, readyFile, approvalFile] = process.argv.slice(2);
+          const health = JSON.parse(fs.readFileSync(healthFile, 'utf8'));
+          const ready = JSON.parse(fs.readFileSync(readyFile, 'utf8'));
+          const approvalRaw = fs.readFileSync(approvalFile, 'utf8');
+          let approval = {};
+          try { approval = JSON.parse(approvalRaw); } catch {}
+          if (health.status !== 'ok') throw new Error('staged health failed');
+          if (ready.status !== 'ready' || ready.database !== 'ok') throw new Error('staged readiness/database failed');
+          const text = JSON.stringify(approval).toLowerCase();
+          if (!text.includes('auth')) throw new Error('Approval Center 401 body did not identify authentication boundary');
+          console.log('STAGED_HEALTH=PASS');
+          console.log('STAGED_READY_DATABASE=PASS');
+          console.log('APPROVAL_CENTER_UNAUTH_HTTP_401=PASS');
+          NODE
+          rm -f "$health" "$ready" "$approval"
+
+      - name: Non-destructive staged root smoke
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.staged.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          body=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl / --deployment "$DEPLOYMENT_URL" --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" > "$body"
+          test -s "$body"
+          grep -Eiq '<!doctype html|<html' "$body"
+          rm -f "$body"
+          echo 'STAGED_ROOT_SMOKE=PASS'
+
+      - name: Final Canonical unchanged check
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_json=$(mktemp)
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" > "$canonical_json"
+          node - "$canonical_json" <<'NODE'
+          const fs = require('node:fs');
+          const raw = fs.readFileSync(process.argv[2], 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('Canonical inspect JSON missing');
+          const canonical = JSON.parse(match[0]);
+          if (canonical.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT_ID) throw new Error(`Canonical changed unexpectedly: ${canonical.id}`);
+          console.log(`FINAL_CANONICAL_UNCHANGED=${canonical.id}`);
+          NODE
+          rm -f "$canonical_json"
+
+      - name: Publish staged validation checkpoint
+        env:
+          DEPLOYMENT_ID: ${{ steps.staged.outputs.deployment_id }}
+          DEPLOYMENT_URL: ${{ steps.staged.outputs.deployment_url }}
+        run: |
+          {
+            echo '### Approval Center V2 data-correctness f530 exact staged Production'
+            echo "Exact Candidate SHA: $TARGET_SHA"
+            echo "Exact Candidate tree: $EXPECTED_TREE"
+            echo "Staged deployment: $DEPLOYMENT_ID"
+            echo "Staged URL: $DEPLOYMENT_URL"
+            echo 'Target: production'
+            echo 'Domain assignment: SKIPPED'
+            echo "Canonical remains: $EXPECTED_CANONICAL_DEPLOYMENT_ID"
+            echo 'Health/readiness/database: PASS'
+            echo 'Approval Center unauth boundary: PASS'
+            echo 'Database migration during stage: NOT PERFORMED'
+            echo 'Promotion: NOT PERFORMED'
+          } >> "$GITHUB_STEP_SUMMARY"
