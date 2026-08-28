@@ -108,7 +108,7 @@ jobs:
           set -euo pipefail
           for path in /api/v1/health /api/v1/ready; do
             out=$(mktemp)
-            npx --yes vercel@"$VERCEL_CLI_VERSION" --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" curl "$path" --deployment "$STAGED_DEPLOYMENT_URL" > "$out"
+            npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$path" --deployment "$STAGED_DEPLOYMENT_URL" > "$out"
             node - "$out" "$path" <<'NODE'
           const fs = require('node:fs');
           const [file, path] = process.argv.slice(2);
@@ -125,7 +125,7 @@ jobs:
         run: |
           set -euo pipefail
           out=$(mktemp)
-          npx --yes vercel@"$VERCEL_CLI_VERSION" --scope "$EXPECTED_ORG_ID" --token "$VERCEL_TOKEN" curl "/" --deployment "$STAGED_DEPLOYMENT_URL" > "$out"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl "/" --deployment "$STAGED_DEPLOYMENT_URL" > "$out"
           test -s "$out"
           grep -Eiq '<!doctype html|<html' "$out"
           rm -f "$out"
