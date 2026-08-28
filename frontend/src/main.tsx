@@ -93,7 +93,6 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   { label: 'ภาพรวม', items: [{ id: 'dashboard', icon: 'dashboard', label: 'Dashboard' }] },
   { label: 'พนักงาน', items: [
     { id: 'employees', icon: 'employees', label: 'ข้อมูลพนักงาน' },
-    { id: 'approvalCenter', icon: 'bell', label: 'คำขออนุมัติ' },
     { id: 'licenses', icon: 'license', label: 'ใบอนุญาต รปภ.' },
     { id: 'attendance', icon: 'attendance', label: 'ลงเวลา' },
     { id: 'attendanceDevice', icon: 'key', label: 'อุปกรณ์ลงเวลา' }
@@ -109,6 +108,7 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
     { id: 'quota', icon: 'quota', label: 'โควต้าวันลา' }
   ] },
   { label: 'ตรวจสอบ', items: [
+    { id: 'approvalCenter', icon: 'bell', label: 'Approval Center' },
     { id: 'rules', icon: 'shield', label: 'กฎการทำงาน' },
     { id: 'audit', icon: 'audit', label: 'บันทึกการใช้งานระบบ' },
     { id: 'dataQuality', icon: 'quality', label: 'คุณภาพข้อมูล' }
@@ -1662,7 +1662,7 @@ function Dashboard() {
   }, [auth.token, auth.user?.role, operationRefresh, pwaShell]);
 
   useEffect(() => {
-    if (pwaShell || !auth.token || auth.user?.role !== 'ADMIN' || auth.isViewingAs) { setPendingApprovalCount(0); return; }
+    if (pwaShell || !auth.token || !['ADMIN', 'MANAGER'].includes(auth.user?.role || '') || auth.isViewingAs) { setPendingApprovalCount(0); return; }
     let active = true;
     const refreshApprovalCount = () => getApprovalCenter(auth.token!).then((result) => { if (active) setPendingApprovalCount(Number(result?.summary?.total || 0)); }).catch(() => undefined);
     void refreshApprovalCount();
@@ -1754,7 +1754,7 @@ function Dashboard() {
   const pageSubtitle: Record<Page, string> = {
     dashboard: 'ภาพรวม KPI และสถานะการปฏิบัติงาน',
     employees: 'ข้อมูลพนักงานและใบอนุญาตปฏิบัติงาน',
-    approvalCenter: 'รวมคำขอแก้ไขข้อมูลและรูปพนักงานที่รอ Admin พิจารณา',
+    approvalCenter: 'รวมงานอนุมัติและตรวจสอบที่คุณต้องดำเนินการจากทุกโมดูล',
     licenses: 'ทะเบียนใบอนุญาตของพนักงาน',
     attendance: 'ลงเวลาเข้า/ออกด้วย QR, GPS และ Server authority',
     attendanceHistory: 'ประวัติ Attendance ของบัญชีพนักงานที่เข้าสู่ระบบ',
@@ -1780,7 +1780,7 @@ function Dashboard() {
   const initials = auth.user?.displayName?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'SM';
   const canManage = !auth.isViewingAs && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
   const canViewPage = (page: Page) => {
-    if (page === 'approvalCenter') return auth.user?.role === 'ADMIN' && !auth.isViewingAs;
+    if (page === 'approvalCenter') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs;
     if (page === 'leavePending') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
     if (page === 'audit') return auth.user?.role === 'ADMIN';
     if (page === 'dataQuality') return auth.user?.role === 'ADMIN';
@@ -2249,7 +2249,7 @@ function Dashboard() {
         </section>
       );
     }
-    if (activePage === 'approvalCenter' && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} />;
+    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { if (item.type === 'SCHEDULE_APPROVAL' && item.metadata?.month) setScheduleMonth(String(item.metadata.month)); setActivePage(item.sourcePage); }} />;
     if (activePage === 'employees') return <PersonnelDirectoryPage employees={employees} totalCount={totalCount} loading={empLoading} error={typeof fetchError === 'string' ? fetchError : fetchError?.message} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} onRefresh={() => setEmployeeRefresh((value) => value + 1)} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
@@ -2700,7 +2700,7 @@ function Dashboard() {
           <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
           <div className="topbar-actions">
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
-            {auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button type="button" className="topbar-notification-button" aria-label={'คำขออนุมัติ ' + pendingApprovalCount + ' รายการ'} title="คำขอที่รอการอนุมัติ" onClick={() => setActivePage('approvalCenter')}><SmsIcon name="bell" size={19} />{pendingApprovalCount > 0 && <span className="topbar-notification-badge">{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
+            {['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type="button" className="topbar-notification-button" aria-label={'คำขออนุมัติ ' + pendingApprovalCount + ' รายการ'} title="คำขอที่รอการอนุมัติ" onClick={() => setActivePage('approvalCenter')}><SmsIcon name="bell" size={19} />{pendingApprovalCount > 0 && <span className="topbar-notification-badge">{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
             <ThemeControl compact />
             <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></button>
             <button ref={mobileUtilityTriggerRef} type="button" className="mobile-utility-button" aria-label="เปิดเมนูบัญชีและธีม" aria-expanded={mobileUtilityOpen} aria-controls="mobile-utility-panel" onClick={() => setMobileUtilityOpen((value) => !value)}><SmsIcon name="more" size={20} /></button>
