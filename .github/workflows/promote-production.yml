@@ -24,6 +24,8 @@ env:
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
   EXPECTED_PROJECT_NAME: sms-v3-staging
   EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_SHA: f097b6eb2569576885e23800084516421f679268
+  EXPECTED_STAGED_DEPLOYMENT_ID: dpl_2QU3VFRvem5KcpmMdaQhNYuNR6Ev
   VERCEL_CLI_VERSION: 56.4.1
 
 jobs:
@@ -42,88 +44,70 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Validate promotion target
+      - name: Validate exact promotion target
         shell: bash
         run: |
           set -euo pipefail
           test "${{ inputs.confirmation }}" = "PROMOTE_SMS_V3_STAGING"
+          test "${{ inputs.deployment_id }}" = "$EXPECTED_STAGED_DEPLOYMENT_ID"
           test -n "$VERCEL_TOKEN"
           test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
           test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
-          [[ "${{ inputs.deployment_id }}" =~ ^dpl_[A-Za-z0-9]+$ ]]
-          inspect_log=$(mktemp)
-          trap 'rm -f "$inspect_log"' EXIT
-          if ! npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "${{ inputs.deployment_id }}" --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$inspect_log" 2>&1; then
-            echo 'PROMOTION_GUARD=INSPECT_COMMAND_FAILED' >&2
-            exit 1
-          fi
-          node - "$inspect_log" "${{ inputs.deployment_id }}" <<'NODE'
+          staged_json=$(mktemp)
+          trap 'rm -f "$staged_json"' EXIT
+          curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/${{ inputs.deployment_id }}?teamId=$EXPECTED_ORG_ID" > "$staged_json"
+          node - "$staged_json" "${{ inputs.deployment_id }}" <<'NODE'
           const fs = require('node:fs');
-
           const [file, expectedId] = process.argv.slice(2);
-          const fail = (category) => {
-            console.error(`PROMOTION_GUARD=${category}`);
-            process.exit(1);
-          };
-
-          const raw = fs.readFileSync(file, 'utf8');
-          const match = raw.match(/\{[\s\S]*\}/);
-          if (!match) fail('INSPECT_JSON_MISSING');
-
-          let data;
-          try {
-            data = JSON.parse(match[0]);
-          } catch {
-            fail('INSPECT_JSON_INVALID');
-          }
-
+          const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const projectId = data.project?.id || data.projectId || null;
+          const projectName = data.project?.name || data.name || null;
+          const sha = data.meta?.githubCommitSha || data.gitSource?.sha || null;
+          const fail = (category) => { console.error(`PROMOTION_GUARD=${category}`); process.exit(1); };
           if (data.id !== expectedId) fail('DEPLOYMENT_ID_MISMATCH');
-          if (data.name !== process.env.EXPECTED_PROJECT_NAME) fail('PROJECT_NAME_MISMATCH');
+          if (projectId !== process.env.EXPECTED_PROJECT_ID) fail('PROJECT_ID_MISMATCH');
+          if (projectName !== process.env.EXPECTED_PROJECT_NAME) fail('PROJECT_NAME_MISMATCH');
           if (data.target !== 'production') fail('TARGET_NOT_PRODUCTION');
-          if (data.readyState !== 'READY') fail('DEPLOYMENT_NOT_READY');
-          if (typeof data.url !== 'string' || !/^sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app$/.test(data.url)) {
-            fail('DEPLOYMENT_URL_MISMATCH');
-          }
+          if ((data.readyState || data.state) !== 'READY') fail('DEPLOYMENT_NOT_READY');
+          if (sha !== process.env.EXPECTED_SHA) fail('SHA_MISMATCH');
+          console.log(`PROMOTION_TARGET=${data.id}`);
+          console.log(`PROMOTION_SHA=${sha}`);
           NODE
       - name: Promote existing application deployment
         shell: bash
         run: |
           set -euo pipefail
           npx --yes vercel@"$VERCEL_CLI_VERSION" promote "${{ inputs.deployment_id }}" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --yes >/tmp/vercel-promote.log 2>&1
-      - name: Verify canonical deployment identity
+      - name: Verify canonical deployment identity and SHA
         shell: bash
         run: |
           set -euo pipefail
+          canonical_json=$(mktemp)
+          trap 'rm -f "$canonical_json"' EXIT
+          curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/$EXPECTED_CANONICAL_URL?teamId=$EXPECTED_ORG_ID" > "$canonical_json" || true
           canonical_log=$(mktemp)
-          trap 'rm -f "$canonical_log"' EXIT
-          if ! npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical_log" 2>&1; then
-            echo 'PROMOTION_GUARD=CANONICAL_INSPECT_COMMAND_FAILED' >&2
-            exit 1
-          fi
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical_log" 2>&1
           node - "$canonical_log" "${{ inputs.deployment_id }}" <<'NODE'
           const fs = require('node:fs');
-
           const [file, expectedId] = process.argv.slice(2);
           const raw = fs.readFileSync(file, 'utf8');
           const match = raw.match(/\{[\s\S]*\}/);
-          if (!match) {
-            console.error('PROMOTION_GUARD=CANONICAL_INSPECT_JSON_MISSING');
-            process.exit(1);
-          }
-
-          let data;
-          try {
-            data = JSON.parse(match[0]);
-          } catch {
-            console.error('PROMOTION_GUARD=CANONICAL_INSPECT_JSON_INVALID');
-            process.exit(1);
-          }
-
-          if (data.id !== expectedId) {
-            console.error('PROMOTION_GUARD=CANONICAL_DEPLOYMENT_ID_MISMATCH');
-            process.exit(1);
-          }
+          if (!match) process.exit(1);
+          const data = JSON.parse(match[0]);
+          if (data.id !== expectedId) process.exit(1);
+          console.log(`CANONICAL_DEPLOYMENT=${data.id}`);
           NODE
+          rm -f "$canonical_log"
+          verify_json=$(mktemp)
+          curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v13/deployments/${{ inputs.deployment_id }}?teamId=$EXPECTED_ORG_ID" > "$verify_json"
+          node - "$verify_json" <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const sha = data.meta?.githubCommitSha || data.gitSource?.sha || null;
+          if (sha !== process.env.EXPECTED_SHA) process.exit(1);
+          console.log(`CANONICAL_SHA=${sha}`);
+          NODE
+          rm -f "$verify_json"
       - name: Verify canonical application health
         env:
           DEPLOYMENT_URL: https://sms-v3-staging-ten.vercel.app
@@ -135,6 +119,7 @@ jobs:
             echo '### Application promotion'
             echo '- Project: sms-v3-staging'
             echo '- Deployment promoted: ${{ inputs.deployment_id }}'
+            echo "- Exact SHA: $EXPECTED_SHA"
             echo '- Canonical health: verified'
             echo '- Database migration: not performed'
           } >> "$GITHUB_STEP_SUMMARY"
