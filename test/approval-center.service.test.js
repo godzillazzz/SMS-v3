@@ -2,51 +2,137 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createApprovalCenterService, approvalUrgency } = require('../src/services/approval-center.service');
 
+const now = new Date('2026-08-28T02:00:00.000Z');
+const employee = (id, code, jobTitle = 'Guard') => ({
+  id, employeeCode: code, firstName: code, lastName: 'Test', displayName: code + ' Test', department: 'PN', jobTitle
+});
+const model = (rows) => ({
+  count: async () => rows.length,
+  findMany: async () => rows
+});
+
+function adminPrisma() {
+  return {
+    employeeChangeRequest: model([{
+      id: 'change-1', employeeId: 'e1', status: 'PENDING_APPROVAL', currentRevision: 2, createdAt: new Date('2026-08-27T01:00:00.000Z'),
+      employee: employee('e1', 'E001'), requestOwner: { id: 'm1', displayName: 'Manager 1', role: 'MANAGER' },
+      revisions: [{ revision: 2, changedFields: ['department'], submittedAt: new Date('2026-08-27T01:00:00.000Z') }]
+    }]),
+    employeeReferencePhoto: model([{
+      id: 'photo-1', employeeId: 'e2', status: 'PENDING_APPROVAL', safeDisplayFileName: 'photo.jpg', mimeType: 'image/jpeg',
+      fileSize: 1000, imageWidth: 800, imageHeight: 800, uploadedByRoleSnapshot: 'MANAGER', uploadedAt: new Date('2026-08-26T01:00:00.000Z'),
+      employee: employee('e2', 'E002'), uploadedBy: { id: 'm2', displayName: 'Manager 2', role: 'MANAGER' }
+    }]),
+    employeeLicenseDocument: model([{
+      id: 'license-doc-1', employeeId: 'e3', licenseId: 'license-1', status: 'PENDING', uploadedAt: new Date('2026-08-28T00:00:00.000Z'),
+      resubmittedAt: null, proposedStartDate: new Date('2026-09-01T00:00:00.000Z'), proposedExpiryDate: new Date('2027-08-31T00:00:00.000Z'),
+      proposedLicenseNumber: 'LIC-NEW', version: 2, safeDisplayFileName: 'license.pdf', employee: employee('e3', 'E003'),
+      uploadedBy: { id: 'm3', displayName: 'Manager 3', role: 'MANAGER' }, license: { licenseType: 'รปภ.', licenseNumber: 'LIC-OLD' }
+    }]),
+    scheduleApproval: model([{
+      id: 'schedule-1', month: new Date('2026-09-01T00:00:00.000Z'), status: 'PENDING', revision: 3,
+      changedAt: new Date('2026-08-27T20:00:00.000Z'), changeType: 'UPDATE_SHIFT', createdAt: new Date('2026-08-20T00:00:00.000Z')
+    }]),
+    attendanceDeviceChangeRequest: model([{
+      id: 'device-1', status: 'PENDING_APPROVAL', requestType: 'REPLACEMENT', reason: 'replace phone',
+      createdAt: new Date('2026-08-27T22:00:00.000Z'), employee: employee('e4', 'E004'),
+      requestedBy: { id: 'u4', displayName: 'Employee 4', role: 'VIEWER' },
+      candidateDevice: { displayName: 'Phone', platformHint: 'Android' }
+    }]),
+    registrationRequest: model([{
+      id: 'reg-1', submittedName: 'สมัคร ใหม่', email: 'new@example.com', departmentHint: 'PN', status: 'MATCHED',
+      createdAt: new Date('2026-08-27T23:00:00.000Z'), reviewedAt: null, matchedEmployee: employee('e5', 'E005')
+    }]),
+    user: {
+      count: async () => 1,
+      findMany: async () => [{
+        id: 'user-1', displayName: 'Legacy Pending', email: 'legacy@example.com', role: 'VIEWER', department: 'PN',
+        accountStatus: 'PENDING', requestedAt: new Date('2026-08-27T21:00:00.000Z'), createdAt: new Date('2026-08-27T21:00:00.000Z')
+      }],
+      findUnique: async () => null
+    },
+    leaveRequest: model([{
+      id: 'leave-1', employeeId: 'e6', status: 'PENDING', requestedAt: new Date('2026-08-27T18:00:00.000Z'),
+      createdAt: new Date('2026-08-27T18:00:00.000Z'), leaveType: 'SICK', startDate: new Date('2026-08-30T00:00:00.000Z'),
+      endDate: new Date('2026-08-30T00:00:00.000Z'), dayCount: 1, departmentSnapshot: 'PN', createdByUserId: 'u6',
+      employee: employee('e6', 'E006'), createdByUser: { id: 'u6', displayName: 'E006 Test', role: 'VIEWER' }
+    }])
+  };
+}
+
 test('approval urgency promotes pending work at 24h and 48h boundaries', () => {
-  const now = new Date('2026-08-28T02:00:00.000Z');
   assert.deepEqual(approvalUrgency('2026-08-28T01:30:00.000Z', now), { ageHours: 0, urgency: 'NEW' });
   assert.deepEqual(approvalUrgency('2026-08-27T02:00:00.000Z', now), { ageHours: 24, urgency: 'DUE_SOON' });
   assert.deepEqual(approvalUrgency('2026-08-26T02:00:00.000Z', now), { ageHours: 48, urgency: 'OVERDUE' });
 });
 
-test('Approval Center aggregates Employee Master and Reference Photo pending queues for Admin', async () => {
-  const prisma = {
-    employeeChangeRequest: {
-      count: async () => 1,
-      findMany: async () => [{
-        id: 'change-1', employeeId: 'employee-1', status: 'PENDING_APPROVAL', currentRevision: 2,
-        createdAt: new Date('2026-08-27T01:00:00.000Z'),
-        employee: { id: 'employee-1', employeeCode: 'E001', firstName: 'Somchai', lastName: 'Test', displayName: 'Somchai Test', department: 'PN', jobTitle: 'Guard' },
-        requestOwner: { id: 'manager-1', displayName: 'Manager PN', role: 'MANAGER' },
-        revisions: [{ revision: 2, changedFields: ['department'], submittedAt: new Date('2026-08-27T01:00:00.000Z') }]
-      }]
-    },
-    employeeReferencePhoto: {
-      count: async () => 1,
-      findMany: async () => [{
-        id: 'photo-1', employeeId: 'employee-2', status: 'PENDING_APPROVAL', safeDisplayFileName: 'employee.jpg',
-        mimeType: 'image/jpeg', fileSize: 500000, imageWidth: 800, imageHeight: 800,
-        uploadedByRoleSnapshot: 'MANAGER', uploadedAt: new Date('2026-08-26T01:00:00.000Z'),
-        employee: { id: 'employee-2', employeeCode: 'E002', firstName: 'Suda', lastName: 'Test', displayName: 'Suda Test', department: 'PS', jobTitle: 'Guard' },
-        uploadedBy: { id: 'manager-2', displayName: 'Manager PS', role: 'MANAGER' }
-      }]
-    }
-  };
-  const service = createApprovalCenterService({ prisma, clock: () => new Date('2026-08-28T02:00:00.000Z') });
+test('Approval Center aggregates every actionable Admin queue without changing source workflow authority', async () => {
+  const service = createApprovalCenterService({
+    prisma: adminPrisma(),
+    clock: () => now,
+    attendanceAdjustmentList: async () => ({
+      data: [{
+        id: 'adjust-1', status: 'PENDING_APPROVAL', employeeId: 'e7', employeeCode: 'E007', employeeName: 'E007 Test',
+        department: 'PN', makerUserId: 'm7', makerDisplayName: 'Manager 7', makerRoleSnapshot: 'MANAGER',
+        requestType: 'ADJUST_WORK_TIME', currentRevision: 1, workDate: '2026-08-27', reason: 'correct time',
+        createdAt: new Date('2026-08-27T20:00:00.000Z'), updatedAt: new Date('2026-08-27T20:00:00.000Z')
+      }],
+      meta: { total: 1 }
+    })
+  });
   const result = await service.list({ actor: { role: 'ADMIN', sub: 'admin-1' }, limit: 100 });
 
-  assert.equal(result.summary.total, 2);
-  assert.equal(result.summary.employeeMasterChanges, 1);
-  assert.equal(result.summary.referencePhotos, 1);
-  assert.equal(result.summary.overdue48h, 1);
-  assert.equal(result.summary.dueSoon24h, 1);
-  assert.equal(result.data[0].type, 'EMPLOYEE_REFERENCE_PHOTO');
-  assert.equal(result.data[0].urgency, 'OVERDUE');
-  assert.equal(result.data[1].type, 'EMPLOYEE_MASTER_CHANGE');
-  assert.deepEqual(result.data[1].changedFields, ['department']);
+  assert.equal(result.summary.total, 9);
+  assert.deepEqual(new Set(result.data.map((item) => item.type)), new Set([
+    'EMPLOYEE_MASTER_CHANGE', 'EMPLOYEE_REFERENCE_PHOTO', 'LICENSE_DOCUMENT', 'SCHEDULE_APPROVAL',
+    'ATTENDANCE_DEVICE_REQUEST', 'ATTENDANCE_ADJUSTMENT_REQUEST', 'REGISTRATION_REQUEST', 'USER_ACCESS', 'LEAVE_REQUEST'
+  ]));
+  assert.equal(result.summary.byType.LEAVE_REQUEST, 1);
+  assert.equal(result.summary.byType.ATTENDANCE_ADJUSTMENT_REQUEST, 1);
+  assert.equal(result.data.find((item) => item.type === 'SCHEDULE_APPROVAL').sourcePage, 'schedule');
+  assert.equal(result.data.find((item) => item.type === 'LICENSE_DOCUMENT').sourcePage, 'licenses');
 });
 
-test('Approval Center is Admin-only even when the route guard is bypassed', async () => {
+test('Manager Approval Center contains only workflows Manager can act on', async () => {
+  const prisma = adminPrisma();
+  prisma.user.findUnique = async () => ({ id: 'manager-1', employeeId: 'manager-employee', employee: { jobTitle: 'Manager' } });
+  const service = createApprovalCenterService({
+    prisma,
+    clock: () => now,
+    attendanceAdjustmentList: async () => { throw new Error('Manager must not load Admin-only attendance adjustments'); }
+  });
+  const result = await service.list({ actor: { role: 'MANAGER', sub: 'manager-1' }, limit: 100 });
+
+  assert.equal(result.summary.total, 3);
+  assert.deepEqual(new Set(result.data.map((item) => item.type)), new Set(['REGISTRATION_REQUEST', 'USER_ACCESS', 'LEAVE_REQUEST']));
+  assert.equal(result.summary.byType.EMPLOYEE_MASTER_CHANGE, 0);
+  assert.equal(result.summary.byType.EMPLOYEE_REFERENCE_PHOTO, 0);
+  assert.equal(result.summary.byType.LICENSE_DOCUMENT, 0);
+  assert.equal(result.summary.byType.SCHEDULE_APPROVAL, 0);
+  assert.equal(result.summary.byType.ATTENDANCE_DEVICE_REQUEST, 0);
+  assert.equal(result.summary.byType.ATTENDANCE_ADJUSTMENT_REQUEST, 0);
+});
+
+test('Manager queue excludes leave requests that require Admin authority or self approval', async () => {
+  const prisma = adminPrisma();
+  prisma.user.findUnique = async () => ({ id: 'manager-1', employeeId: 'self-e', employee: { jobTitle: 'Guard Manager' } });
+  prisma.leaveRequest.count = async () => 2;
+  prisma.leaveRequest.findMany = async () => [
+    { id: 'supervisor-leave', employeeId: 'sup-e', status: 'PENDING', requestedAt: now, createdAt: now, leaveType: 'SICK', startDate: now, endDate: now, dayCount: 1, employee: employee('sup-e', 'SUP', 'Supervisor'), createdByUser: null },
+    { id: 'guard-leave', employeeId: 'guard-e', status: 'PENDING', requestedAt: now, createdAt: now, leaveType: 'SICK', startDate: now, endDate: now, dayCount: 1, employee: employee('guard-e', 'GUARD', 'Guard'), createdByUser: null }
+  ];
+  prisma.registrationRequest = model([]);
+  prisma.user.count = async () => 0;
+  prisma.user.findMany = async () => [];
+
+  const service = createApprovalCenterService({ prisma, clock: () => now });
+  const result = await service.list({ actor: { role: 'MANAGER', sub: 'manager-1' } });
+  assert.equal(result.summary.byType.LEAVE_REQUEST, 1);
+  assert.equal(result.data.filter((item) => item.type === 'LEAVE_REQUEST').length, 1);
+  assert.equal(result.data.find((item) => item.type === 'LEAVE_REQUEST').employee.employeeCode, 'GUARD');
+});
+
+test('Approval Center rejects Viewer even when the route guard is bypassed', async () => {
   const service = createApprovalCenterService({ prisma: {} });
-  await assert.rejects(() => service.list({ actor: { role: 'MANAGER' } }), (error) => error?.statusCode === 403 || error?.status === 403);
+  await assert.rejects(() => service.list({ actor: { role: 'VIEWER' } }), (error) => error?.statusCode === 403 || error?.status === 403);
 });
