@@ -83,6 +83,19 @@ describe('Attendance Supervisor UX V4', () => {
     expect(adjustmentClient).not.toContain('/attendance/governance/assignments/');
   });
 
+  it('adds a direct per-employee on-behalf keying action without requiring the detail drawer', () => {
+    expect(page).toContain('ลงเวลาแทน');
+    expect(page).toContain('attendance-supervisor-v4__onbehalf-btn');
+    expect(page).toContain('onClick={() => openRowAdjustment(row)}');
+    expect(page).toContain("type: 'CONFIRM_WORK_PERFORMED'");
+    expect(page).toContain("checkInAt: bangkokInput(row.checkInAt || row.originalCheckInAt || '')");
+    expect(page).toContain("checkOutAt: bangkokInput(row.checkOutAt || row.originalCheckOutAt || '')");
+    expect(page).not.toContain("bangkokInput(row.expectedStartAt");
+    expect(page).not.toContain("bangkokInput(row.expectedEndAt");
+    expect(css).toContain('.attendance-supervisor-v4__row-actions');
+    expect(css).toContain('.attendance-supervisor-v4__onbehalf-btn');
+  });
+
   it('adds a dedicated approval queue with explicit ADMIN approve return and reject actions', () => {
     expect(page).toContain("type Mode = 'daily' | 'history' | 'requests'");
     expect(page).toContain('คำขอแก้ไข');
