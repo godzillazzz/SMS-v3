@@ -2597,6 +2597,7 @@ function Dashboard() {
         employeeV4={pwaShell}
         onTodayHistory={() => selectPwaPage('attendanceHistory', { today: true })}
         onOpenSettings={() => selectPwaPage('profile')}
+        onOpenAttendanceDevice={() => selectPwaPage('attendanceDevice')}
       />;
     }
     if (activePage === 'attendanceHistory' && auth.token && pwaShell) {
