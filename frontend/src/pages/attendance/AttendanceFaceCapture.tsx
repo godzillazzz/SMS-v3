@@ -22,7 +22,7 @@ type Props = {
 
 const MAX_CAPTURE_EDGE = ATTACHMENT_POLICIES.ATTENDANCE_FACE.maxEdge;
 const PREPARE_DELAY_MS = 1800;
-const MOVEMENT_START_DELAY_MS = 300;
+const MOVEMENT_START_DELAY_MS = 900;
 const MOVEMENT_FRAME_INTERVAL_MS = 420;
 const RETURN_TO_CENTER_DELAY_MS = 1200;
 
@@ -176,7 +176,7 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
     };
   }, [open]);
 
-  const captureFrame = async (): Promise<Blob> => {
+  const captureFrame = async (mirrorHorizontally = false): Promise<Blob> => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || !video.videoWidth || !video.videoHeight) throw new Error('ภาพจากกล้องหน้ายังไม่พร้อม กรุณารอสักครู่แล้วลองใหม่');
@@ -188,7 +188,19 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
       purgeCanvas();
       throw new Error('ไม่สามารถเตรียมภาพสดสำหรับตรวจใบหน้าได้');
     }
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    context.save();
+    try {
+      // The employee sees a mirrored front-camera preview. Mirror only challenge
+      // frames so TURN_LEFT/TURN_RIGHT evidence follows the same semantics.
+      // Keep the final face still raw for the 1:1 Reference Photo match.
+      if (mirrorHorizontally) {
+        context.translate(canvas.width, 0);
+        context.scale(-1, 1);
+      }
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    } finally {
+      context.restore();
+    }
     const blob = await canvasToOptimizedJpeg(canvas, 'ATTENDANCE_FACE');
     purgeCanvas();
     if (!blob || blob.size < 64) throw new Error('ถ่ายภาพสดไม่สำเร็จ กรุณาลองใหม่');
@@ -215,7 +227,7 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
       for (let index = 0; index < challenge.frameCount; index += 1) {
         await sleep(index === 0 ? MOVEMENT_START_DELAY_MS : MOVEMENT_FRAME_INTERVAL_MS);
         if (sequenceEpoch !== captureSequenceEpochRef.current) return;
-        const frame = await captureFrame();
+        const frame = await captureFrame(true);
         if (sequenceEpoch !== captureSequenceEpochRef.current) return;
         frames.push(frame);
         setCaptureProgress(index + 1);

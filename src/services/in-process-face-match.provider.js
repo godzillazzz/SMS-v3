@@ -84,15 +84,29 @@ function validPose(pose) {
     && Number.isFinite(pose.roll);
 }
 
-function evaluateActiveChallenge(code, framePoses, finalPose, config) {
+function evaluateActiveChallengeResult(code, framePoses, finalPose, config) {
   const rule = challengeRule(code);
   if (!rule || !Array.isArray(framePoses) || framePoses.length !== ACTIVE_FACE_CHALLENGE_FRAME_COUNT || !validPose(finalPose) || framePoses.some((pose) => !validPose(pose))) {
-    return false;
+    return Object.freeze({ passed: false, resultCode: 'ACTIVE_CHALLENGE_POSE_INVALID' });
   }
-  if (Math.abs(finalPose.yaw) > config.neutralMaxRadians || Math.abs(finalPose.pitch) > config.neutralMaxRadians) return false;
+  if (Math.abs(finalPose.yaw) > config.neutralMaxRadians || Math.abs(finalPose.pitch) > config.neutralMaxRadians) {
+    return Object.freeze({ passed: false, resultCode: 'ACTIVE_CHALLENGE_FINAL_NOT_NEUTRAL' });
+  }
   const finalAxis = finalPose[rule.axis];
   const directionalMovement = framePoses.map((pose) => rule.sign * (pose[rule.axis] - finalAxis));
-  return directionalMovement.filter((value) => value >= config.challengeMovementRadians).length >= REQUIRED_MOVEMENT_FRAMES;
+  const requestedDirectionFrames = directionalMovement.filter((value) => value >= config.challengeMovementRadians).length;
+  if (requestedDirectionFrames >= REQUIRED_MOVEMENT_FRAMES) {
+    return Object.freeze({ passed: true, resultCode: 'ACTIVE_CHALLENGE_PASSED' });
+  }
+  const oppositeDirectionFrames = directionalMovement.filter((value) => value <= -config.challengeMovementRadians).length;
+  if (oppositeDirectionFrames >= REQUIRED_MOVEMENT_FRAMES) {
+    return Object.freeze({ passed: false, resultCode: 'ACTIVE_CHALLENGE_WRONG_DIRECTION' });
+  }
+  return Object.freeze({ passed: false, resultCode: 'ACTIVE_CHALLENGE_INSUFFICIENT_MOVEMENT' });
+}
+
+function evaluateActiveChallenge(code, framePoses, finalPose, config) {
+  return evaluateActiveChallengeResult(code, framePoses, finalPose, config).passed;
 }
 
 function isWithin(root, candidate) {
@@ -294,17 +308,17 @@ function createInProcessFaceMatchProvider({ environment = process.env, runtime =
         });
       }
 
-      const challengePassed = evaluateActiveChallenge(
+      const challengeResult = evaluateActiveChallengeResult(
         activeChallenge.code,
         frameObservations.map((observation) => observation.pose),
         liveObservation.pose,
         config
       );
-      if (!challengePassed) {
+      if (!challengeResult.passed) {
         return Object.freeze({
           activeChallengePassed: false,
           faceMatchPassed: false,
-          resultCode: 'ACTIVE_CHALLENGE_FAILED',
+          resultCode: challengeResult.resultCode,
           policyProfileId: POLICY_PROFILE_ID,
           engineVersion: ENGINE_VERSION,
           providerSessionRef: sessionRef
@@ -353,6 +367,7 @@ module.exports = {
   inProcessFaceConfig,
   validateActiveChallenge,
   evaluateActiveChallenge,
+  evaluateActiveChallengeResult,
   createInProcessFaceMatchProvider,
   SAFE_RUNTIME_STAGES
 };

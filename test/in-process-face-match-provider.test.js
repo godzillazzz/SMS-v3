@@ -8,6 +8,7 @@ const {
   DEFAULT_SIMILARITY_THRESHOLD,
   inProcessFaceConfig,
   evaluateActiveChallenge,
+  evaluateActiveChallengeResult,
   createInProcessFaceMatchProvider
 } = require('../src/services/in-process-face-match.provider');
 
@@ -60,6 +61,22 @@ test('active challenge requires directional movement and a neutral final still',
   assert.equal(evaluateActiveChallenge('LOOK_DOWN', [pose({ pitch: 0.23 }), pose({ pitch: 0.19 }), pose(), pose()], pose(), config), true);
   assert.equal(evaluateActiveChallenge('TURN_LEFT', [pose({ yaw: 0.05 }), pose({ yaw: 0.04 }), pose(), pose()], pose(), config), false);
   assert.equal(evaluateActiveChallenge('TURN_LEFT', [pose({ yaw: 0.5 }), pose({ yaw: 0.45 }), pose({ yaw: 0.4 }), pose({ yaw: 0.35 })], pose({ yaw: 0.35 }), config), false);
+});
+
+test('active challenge result codes remain categorical and preserve directional enforcement', () => {
+  const config = inProcessFaceConfig(enabled);
+  assert.equal(
+    evaluateActiveChallengeResult('TURN_LEFT', [pose({ yaw: -0.25 }), pose({ yaw: -0.22 }), pose({ yaw: -0.20 }), pose()], pose(), config).resultCode,
+    'ACTIVE_CHALLENGE_WRONG_DIRECTION'
+  );
+  assert.equal(
+    evaluateActiveChallengeResult('TURN_LEFT', [pose({ yaw: 0.25 }), pose({ yaw: 0.22 }), pose(), pose()], pose({ yaw: 0.36 }), config).resultCode,
+    'ACTIVE_CHALLENGE_FINAL_NOT_NEUTRAL'
+  );
+  assert.equal(
+    evaluateActiveChallengeResult('TURN_LEFT', [pose({ yaw: 0.05 }), pose({ yaw: 0.04 }), pose(), pose()], pose(), config).resultCode,
+    'ACTIVE_CHALLENGE_INSUFFICIENT_MOVEMENT'
+  );
 });
 
 test('provider fails closed when disabled and never accepts browser biometric claims', async () => {
@@ -152,6 +169,6 @@ test('provider does not evaluate Reference Photo when Active Challenge fails', a
   });
   assert.equal(result.activeChallengePassed, false);
   assert.equal(result.faceMatchPassed, false);
-  assert.equal(result.resultCode, 'ACTIVE_CHALLENGE_FAILED');
+  assert.equal(result.resultCode, 'ACTIVE_CHALLENGE_INSUFFICIENT_MOVEMENT');
   assert.equal(runtime.calls(), 5);
 });
