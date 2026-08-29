@@ -1,6 +1,6 @@
-export type SmsPwaPage = 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'leave' | 'profile';
+export type SmsPwaPage = 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'leave' | 'profile';
 
-export const SMS_PWA_PAGES: SmsPwaPage[] = ['attendance', 'attendanceHistory', 'employeeSchedule', 'leave', 'profile'];
+export const SMS_PWA_PAGES: SmsPwaPage[] = ['attendance', 'attendanceHistory', 'employeeSchedule', 'attendanceDevice', 'leave', 'profile'];
 
 function queryValue(name: string) {
   if (typeof window === 'undefined') return null;

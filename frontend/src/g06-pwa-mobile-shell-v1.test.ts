@@ -15,14 +15,15 @@ const sw = read('../public/sw.js');
 const index = read('../index.html');
 
 describe('Attendance UX V4 Employee Mobile/PWA shell', () => {
-  it('limits the installed employee product surface to the approved five self-service pages', () => {
-    expect(mode).toContain("export const SMS_PWA_PAGES: SmsPwaPage[] = ['attendance', 'attendanceHistory', 'employeeSchedule', 'leave', 'profile']");
+  it('keeps five primary self-service tabs while allowing the device-remediation route inside the PWA shell', () => {
+    expect(mode).toContain("export const SMS_PWA_PAGES: SmsPwaPage[] = ['attendance', 'attendanceHistory', 'employeeSchedule', 'attendanceDevice', 'leave', 'profile']");
+    expect(mode).toContain("'attendanceDevice'");
     const nav = main.slice(main.indexOf('className="pwa-bottom-nav"'), main.indexOf('</nav>}', main.indexOf('className="pwa-bottom-nav"')));
     for (const label of ['ลงเวลา', 'ประวัติ', 'ตารางงาน', 'ลา', 'โปรไฟล์']) expect(nav).toContain(label);
     for (const adminLabel of ['Dashboard', 'พนักงาน', 'ผู้ใช้งาน']) expect(nav).not.toContain(adminLabel);
   });
 
-  it('starts standalone PWA on Attendance and fail-closes navigation outside the five-page shell', () => {
+  it('starts standalone PWA on Attendance and fail-closes navigation outside the approved PWA routes', () => {
     expect(mode).toContain("return SMS_PWA_PAGES.includes(requested as SmsPwaPage) ? requested as SmsPwaPage : 'attendance'");
     expect(mode).toContain("window.matchMedia('(display-mode: standalone)').matches");
     expect(mode).toContain("queryValue('pwa') === '1'");

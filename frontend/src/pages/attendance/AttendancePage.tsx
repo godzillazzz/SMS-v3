@@ -33,6 +33,7 @@ type Props = {
   employeeV4?: boolean;
   onTodayHistory?: () => void;
   onOpenSettings?: () => void;
+  onOpenAttendanceDevice?: () => void;
 };
 
 type Copy = { title: string; detail: string; tone: 'ready' | 'warning' | 'blocked' | 'neutral' };
@@ -229,7 +230,7 @@ function fallbackCopy(state?: AttendanceReadinessState | null): Copy {
   };
 }
 
-export function AttendancePage({ token, displayName, department, readOnly = false, online = true, employeeV4 = false, onTodayHistory, onOpenSettings }: Props) {
+export function AttendancePage({ token, displayName, department, readOnly = false, online = true, employeeV4 = false, onTodayHistory, onOpenSettings, onOpenAttendanceDevice }: Props) {
   const [qrToken, setQrToken] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [location, setLocation] = useState<AttendanceLocationEvidence | null>(null);
@@ -250,6 +251,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   const [todayData, setTodayData] = useState<AttendanceSelfTodayData>();
   const [todayLoading, setTodayLoading] = useState(false);
   const [deviceEnrolled, setDeviceEnrolled] = useState(false);
+  const [deviceStateKnown, setDeviceStateKnown] = useState(false);
   const [locationIssue, setLocationIssue] = useState<AttendanceLocationError | null>(null);
   const [locationHelpOpen, setLocationHelpOpen] = useState(false);
   const asyncEvidenceEpochRef = useRef(0);
@@ -298,16 +300,28 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   }, []);
 
   useEffect(() => {
-    if (!employeeV4 || !online) return;
+    if (!employeeV4 || !online) {
+      setDeviceStateKnown(false);
+      return;
+    }
     let active = true;
     setTodayLoading(true);
+    setDeviceStateKnown(false);
     attendanceSelfToday(token)
       .then((result) => { if (active) setTodayData(result); })
       .catch(() => { if (active) setTodayData(undefined); })
       .finally(() => { if (active) setTodayLoading(false); });
     attendanceDeviceState(token)
-      .then((result) => { if (active) setDeviceEnrolled(result.activeDevice?.status === 'ACTIVE'); })
-      .catch(() => { if (active) setDeviceEnrolled(false); });
+      .then((result) => {
+        if (!active) return;
+        setDeviceEnrolled(result.activeDevice?.status === 'ACTIVE');
+        setDeviceStateKnown(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setDeviceEnrolled(false);
+        setDeviceStateKnown(false);
+      });
     return () => { active = false; };
   }, [employeeV4, online, token]);
 
@@ -513,7 +527,11 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       setQrStepUpRequired(false);
       if (result.data.readiness.state === 'READY_TO_START_VERIFICATION') {
         await beginFaceVerificationWithEvidence(captureId, nextQrToken, nextLocation, operationEpoch);
+        return;
       }
+      const blockedCopy = fallbackCopy(result.data.readiness);
+      setVerificationStage(blockedCopy.title);
+      setError(blockedCopy.detail);
     } catch (reason) {
       if (shouldStopOperation(operationEpoch)) return;
       if (reason instanceof AttendanceReadinessError) {
@@ -818,8 +836,6 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       scheduleReady,
       intent: nextIntent
     });
-    const actionText = primaryActionState.actionText;
-    const actionThai = primaryActionState.actionThai;
     const flags = assignment?.flags || [];
     const statusTone = !scheduleReady ? 'is-pending' : flags.includes('TIME_ABNORMAL') || flags.includes('ABSENT') ? 'is-danger' : flags.includes('LATE') || flags.includes('EARLY_OUT') ? 'is-warning' : '';
     const statusLabel = todayLoading
@@ -862,7 +878,26 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     const qrV4Ready = qrReady || Boolean(readiness && !qrStepUpRequired && readiness.state === 'READY_TO_START_VERIFICATION');
     const faceV4Ready = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
     const deviceV4Ready = deviceEnrolled || Boolean(attendanceAccepted) || Boolean(verificationSession);
+    const serverDeviceBlocked = readiness?.state === 'DEVICE_SETUP_REQUIRED' || readiness?.state === 'DEVICE_REVIEW_REQUIRED';
+    const devicePrerequisiteBlocked = deviceStateKnown && !deviceEnrolled && !attendanceAccepted && !verificationSession;
+    const deviceBlocked = serverDeviceBlocked || devicePrerequisiteBlocked;
+    const nonRetryableReadinessBlocked = Boolean(readiness?.blocking && readiness.retryable === false && !serverDeviceBlocked);
+    const actionText = deviceBlocked ? 'SET UP DEVICE' : primaryActionState.actionText;
+    const actionThai = deviceBlocked ? 'ตั้งค่าอุปกรณ์ลงเวลา' : primaryActionState.actionThai;
     const handleEmployeePrimaryAction = () => {
+      if (deviceBlocked) {
+        const deviceCopy = readiness && serverDeviceBlocked ? fallbackCopy(readiness) : null;
+        setVerificationStage(deviceCopy?.title || 'ต้องตั้งค่าอุปกรณ์ลงเวลาก่อน');
+        setError(deviceCopy?.detail || 'อุปกรณ์นี้ยังไม่มีสถานะ ACTIVE สำหรับ Attendance กรุณาลงทะเบียนหรือเปิดดูสถานะคำขออุปกรณ์ก่อนลงเวลา');
+        onOpenAttendanceDevice?.();
+        return;
+      }
+      if (nonRetryableReadinessBlocked && readiness) {
+        const blockedCopy = fallbackCopy(readiness);
+        setVerificationStage(blockedCopy.title);
+        setError(blockedCopy.detail);
+        return;
+      }
       if (!primaryActionState.enabled) {
         setVerificationStage('ยังไม่สามารถเริ่มลงเวลาได้');
         setError(primaryActionState.detail);
@@ -997,7 +1032,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
           </article>
           <article className={`attendance-v4__ready-card ${deviceV4Ready ? 'is-ready' : ''}`}>
             <span className="attendance-v4__ready-icon"><SmsIcon name="device" size={21} /></span>
-            <div><strong>Device</strong><small>{deviceV4Ready ? 'OK' : 'Check'}</small></div>
+            <div><strong>Device</strong><small>{deviceV4Ready ? 'OK' : deviceBlocked ? 'Required' : 'Check'}</small></div>
             {deviceV4Ready && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
           </article>
         </section>
@@ -1010,13 +1045,22 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
 
         <div className="attendance-v4__ready-line" role="status">
           <SmsIcon name={flowBusy ? 'refresh' : 'check'} size={18} />
-          <span>{primaryActionState.code === 'READY' ? <>Ready for <b>{nextIntent === 'CHECK_OUT' ? 'CHECK OUT' : 'CHECK IN'}</b></> : primaryActionState.readyLine}</span>
+          <span>{deviceBlocked
+            ? <>ต้องตั้งค่า <b>DEVICE</b> ก่อน {nextIntent === 'CHECK_OUT' ? 'CHECK OUT' : 'CHECK IN'}</>
+            : primaryActionState.code === 'READY'
+              ? <>Ready for <b>{nextIntent === 'CHECK_OUT' ? 'CHECK OUT' : 'CHECK IN'}</b></>
+              : primaryActionState.readyLine}</span>
         </div>
       </>}
 
       {readOnly && <div className="attendance-v4__notice is-warning"><strong>View As · อ่านอย่างเดียว</strong><span>ไม่อนุญาตให้ ADMIN/MANAGER ลงเวลาแทนพนักงานจากหน้าจอนี้</span></div>}
       {!online && <div className="attendance-v4__notice is-warning"><strong>ออฟไลน์</strong><span>Attendance ต้องเชื่อมต่อ Server จึงจะลงเวลาได้</span></div>}
       {routeUnavailable && <div className="attendance-v4__notice is-warning"><strong>Attendance runtime ยังไม่เปิด</strong><span>Server gate ปิดอยู่ จึงไม่มี AttendanceEvent ถูกสร้าง</span></div>}
+      {deviceBlocked && <div className="attendance-v4__notice is-warning" role="alert">
+        <strong>ต้องตั้งค่าอุปกรณ์ลงเวลาก่อน</strong>
+        <span>Attendance ต้องมีอุปกรณ์สถานะ ACTIVE ที่ผูกกับพนักงาน คีย์ต้องสร้างบนอุปกรณ์จริงและผ่านขั้นตอนอนุมัติก่อนใช้งาน</span>
+        {onOpenAttendanceDevice && <button type="button" className="attendance-v4__today-link" onClick={onOpenAttendanceDevice}>เปิดหน้าอุปกรณ์ลงเวลา</button>}
+      </div>}
       {locationIssue?.code === 'LOCATION_PERMISSION_DENIED' && <div className="attendance-v4__notice is-danger" role="alert">
         <strong>ต้องเปิดสิทธิ์ตำแหน่งก่อนลงเวลา</strong>
         <span>SMS ใช้ตำแหน่งเฉพาะตอนลงเวลา ไม่ติดตามตำแหน่งต่อเนื่อง เมื่อเปิดสิทธิ์แล้วระบบจะตรวจและลอง GPS ใหม่โดยคง attempt เดิมไว้</span>
