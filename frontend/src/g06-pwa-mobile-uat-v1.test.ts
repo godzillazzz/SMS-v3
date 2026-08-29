@@ -6,6 +6,7 @@ import { initialSmsPwaPage, isSmsPwaPage, isSmsPwaShellMode } from './pwa-mode';
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const main = read('./main.tsx');
 const attendance = read('./pages/attendance/AttendancePage.tsx');
+const actionState = read('./pages/attendance/attendance-action-state.ts');
 const profile = read('./pages/pwa-profile/PwaProfilePage.tsx');
 
 function browser(search = '', { standalone = false, iosStandalone = false } = {}) {
@@ -60,7 +61,9 @@ describe('G06 Employee PWA mobile UAT/hardening', () => {
     expect(main).toContain('online={!pwaShell || pwaOnline}');
     expect(attendance).toContain('const interactionDisabled = readOnly || !online');
     expect(attendance).toContain('const canStartAttendance = !interactionDisabled');
-    expect(attendance).toContain('disabled={!canStartAttendance}');
+    expect(actionState).toContain("code: 'OFFLINE'");
+    expect(actionState).toContain('อุปกรณ์ออฟไลน์อยู่ กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนลงเวลา');
+    expect(attendance).toContain('setError(blockedMessage)');
     expect(attendance).toContain('open={scannerOpen && !interactionDisabled}');
     expect(attendance).toContain('open={faceCaptureOpen && !interactionDisabled}');
     expect(attendance).toContain('if (!interactionDisabled) return;');

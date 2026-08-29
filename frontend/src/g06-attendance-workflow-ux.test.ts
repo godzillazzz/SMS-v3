@@ -10,6 +10,7 @@ const scanner = read('./pages/attendance/AttendanceQrScanner.tsx');
 const faceCapture = read('./pages/attendance/AttendanceFaceCapture.tsx');
 const faceUat = read('./pages/attendance/AttendanceFaceChallengeUatPanel.tsx');
 const css = read('./pages/attendance/attendance.css');
+const actionState = read('./pages/attendance/attendance-action-state.ts');
 
 describe('G06 Attendance frontend UX skeleton', () => {
   it('exposes a dedicated self-service Attendance page separate from Personal Device setup', () => {
@@ -241,7 +242,10 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain("setScannerOpen(false)");
     expect(page).toContain("setQrToken('')");
     expect(page).toContain('setLocation(null)');
-    expect(page).toContain('disabled={!canStartAttendance}');
+    expect(actionState).toContain("code: 'VIEW_ONLY'");
+    expect(actionState).toContain('โหมด View As เป็นแบบอ่านอย่างเดียว');
+    expect(page).toContain("setError(blockedMessage)");
+    expect(page).toContain('disabled={flowBusy}')
     expect(page).not.toContain('ไปหน้าอุปกรณ์ลงเวลา');
   });
 

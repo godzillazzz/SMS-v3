@@ -154,6 +154,7 @@
     0 20px 40px rgba(20, 89, 193, .23),
     inset 0 0 0 4px rgba(255,255,255,.85);
   cursor: pointer;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -165,9 +166,16 @@
   background: linear-gradient(145deg, #fff, #f8fbff);
   box-shadow: inset 0 -10px 24px rgba(52,121,219,.07);
   content: "";
+  pointer-events: none;
 }
 
 .attendance-v4__action:disabled {
+  cursor: not-allowed;
+  filter: grayscale(.12);
+  opacity: .72;
+}
+
+.attendance-v4__action.is-blocked {
   cursor: not-allowed;
   filter: grayscale(.12);
   opacity: .72;
@@ -181,6 +189,7 @@
   display: grid;
   justify-items: center;
   gap: 7px;
+  pointer-events: none;
 }
 
 .attendance-v4__action-logo {
@@ -225,6 +234,7 @@
   padding: 12px 15px;
   background: rgba(255,255,255,.96);
   box-shadow: 0 12px 28px rgba(35,75,128,.12);
+  pointer-events: none;
 }
 
 .attendance-v4__status-pill strong {

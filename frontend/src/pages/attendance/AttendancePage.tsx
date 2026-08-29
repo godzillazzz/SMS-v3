@@ -20,6 +20,7 @@ import {
 import { signAttendanceDeviceChallenge } from '../../lib/attendance-device-key';
 import { AttendanceFaceCapture } from './AttendanceFaceCapture';
 import { AttendanceQrScanner } from './AttendanceQrScanner';
+import { attendancePrimaryActionState, createAttendanceActivationGuard } from './attendance-action-state';
 import './attendance.css';
 import './attendance-v4.css';
 
@@ -254,6 +255,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   const asyncEvidenceEpochRef = useRef(0);
   const activeCaptureIdRef = useRef<string | null>(null);
   const locationRecoveryPendingRef = useRef(false);
+  const attendanceActivationGuardRef = useRef(createAttendanceActivationGuard());
 
   const copy = useMemo(() => fallbackCopy(readiness), [readiness]);
   const gpsReady = Boolean(location);
@@ -591,38 +593,50 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   };
 
   const handleStartAttendance = async () => {
-    if (!canStartAttendance) return;
-    if (!globalThis.crypto?.randomUUID) {
-      setError('เบราว์เซอร์นี้ไม่รองรับ secure attempt identifier ที่ระบบต้องใช้');
-      return;
-    }
-    asyncEvidenceEpochRef.current += 1;
-    const operationEpoch = asyncEvidenceEpochRef.current;
-    const captureId = globalThis.crypto.randomUUID();
-    activeCaptureIdRef.current = captureId;
-    setScannerOpen(false);
-    setQrToken('');
-    setQrStepUpRequired(false);
-    setLocation(null);
-    setLocationIssue(null);
-    setLocationHelpOpen(false);
-    locationRecoveryPendingRef.current = false;
-    setLocationBusy(true);
-    setChecking(false);
-    resetServerState();
-    setVerificationStage('กำลังอ่าน GPS และให้ Server ประเมิน Site…');
-    try {
-      const nextLocation = await positionOnce();
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
-      setLocation(nextLocation);
-      setLocationBusy(false);
-      await checkReadinessWithEvidence(captureId, undefined, nextLocation, operationEpoch);
-    } catch (reason) {
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
-      handleLocationFailure(reason);
-    } finally {
-      if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
-    }
+    await attendanceActivationGuardRef.current.runExclusive(async () => {
+      if (!canStartAttendance) {
+        const blockedMessage = readOnly
+          ? 'โหมด View As เป็นแบบอ่านอย่างเดียว จึงไม่อนุญาตให้ลงเวลาแทนพนักงาน'
+          : !online
+            ? 'อุปกรณ์ออฟไลน์อยู่ กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนลงเวลา'
+            : 'ระบบกำลังดำเนินการลงเวลาครั้งก่อน กรุณารอให้ขั้นตอนปัจจุบันเสร็จสิ้น';
+        setVerificationStage('ยังไม่สามารถเริ่มลงเวลาได้');
+        setError(blockedMessage);
+        return;
+      }
+      if (!globalThis.crypto?.randomUUID) {
+        setVerificationStage('เบราว์เซอร์ไม่รองรับ secure attempt identifier');
+        setError('เบราว์เซอร์นี้ไม่รองรับ secure attempt identifier ที่ระบบต้องใช้');
+        return;
+      }
+      asyncEvidenceEpochRef.current += 1;
+      const operationEpoch = asyncEvidenceEpochRef.current;
+      const captureId = globalThis.crypto.randomUUID();
+      activeCaptureIdRef.current = captureId;
+      setScannerOpen(false);
+      setQrToken('');
+      setQrStepUpRequired(false);
+      setLocation(null);
+      setLocationIssue(null);
+      setLocationHelpOpen(false);
+      locationRecoveryPendingRef.current = false;
+      setLocationBusy(true);
+      setChecking(false);
+      resetServerState();
+      setVerificationStage('กำลังอ่าน GPS และให้ Server ประเมิน Site…');
+      try {
+        const nextLocation = await positionOnce();
+        if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+        setLocation(nextLocation);
+        setLocationBusy(false);
+        await checkReadinessWithEvidence(captureId, undefined, nextLocation, operationEpoch);
+      } catch (reason) {
+        if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+        handleLocationFailure(reason);
+      } finally {
+        if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
+      }
+    });
   };
 
   const handleFacePhotoConfirmed = async ({ photo, challengeFrames }: { photo: Blob; challengeFrames: Blob[] }) => {
@@ -753,28 +767,17 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     const employeeCode = todayData?.employee.employeeCode || '';
     const nextIntent: AttendanceEventIntent = eventIntent || (assignment?.checkInAt && !assignment?.checkOutAt ? 'CHECK_OUT' : 'CHECK_IN');
     const attendanceComplete = Boolean(assignment?.checkInAt && assignment?.checkOutAt) && !attendanceAccepted;
-    const actionText = flowBusy
-      ? 'PROCESSING'
-      : attendanceComplete
-        ? 'ATTENDANCE COMPLETE'
-        : todayLoading
-          ? 'LOADING SHIFT'
-          : !scheduleReady
-            ? 'SHIFT NOT READY'
-            : nextIntent === 'CHECK_OUT'
-              ? 'TAP TO CHECK OUT'
-              : 'TAP TO CHECK IN';
-    const actionThai = flowBusy
-      ? 'กำลังตรวจสอบ…'
-      : attendanceComplete
-        ? 'ลงเวลาครบแล้ว'
-        : todayLoading
-          ? 'กำลังอ่านตารางงาน…'
-          : !scheduleReady
-            ? 'รอตารางงานที่อนุมัติ'
-            : nextIntent === 'CHECK_OUT'
-              ? 'พร้อมเช็กเอาต์'
-              : 'พร้อมเช็กอิน';
+    const primaryActionState = attendancePrimaryActionState({
+      readOnly,
+      online,
+      busy: flowBusy,
+      attendanceComplete,
+      loading: todayLoading,
+      scheduleReady,
+      intent: nextIntent
+    });
+    const actionText = primaryActionState.actionText;
+    const actionThai = primaryActionState.actionThai;
     const flags = assignment?.flags || [];
     const statusTone = !scheduleReady ? 'is-pending' : flags.includes('TIME_ABNORMAL') || flags.includes('ABSENT') ? 'is-danger' : flags.includes('LATE') || flags.includes('EARLY_OUT') ? 'is-warning' : '';
     const statusLabel = todayLoading
@@ -817,7 +820,14 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     const qrV4Ready = qrReady || Boolean(readiness && !qrStepUpRequired && readiness.state === 'READY_TO_START_VERIFICATION');
     const faceV4Ready = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
     const deviceV4Ready = deviceEnrolled || Boolean(attendanceAccepted) || Boolean(verificationSession);
-    const actionEnabled = canStartAttendance && !attendanceComplete && scheduleReady;
+    const handleEmployeePrimaryAction = () => {
+      if (!primaryActionState.enabled) {
+        setVerificationStage('ยังไม่สามารถเริ่มลงเวลาได้');
+        setError(primaryActionState.detail);
+        return;
+      }
+      void handleStartAttendance();
+    };
 
     return <section className="attendance-v4" aria-label="SMS Time Attendance">
       <AttendanceQrScanner
@@ -902,7 +912,19 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         <button type="button" className="attendance-v4__today-link" onClick={onTodayHistory}><SmsIcon name="history" size={17} />ดูประวัติวันนี้</button>
       </article> : <>
         <div className="attendance-v4__hero-wrap">
-          <button type="button" className={`attendance-v4__action ${flowBusy ? 'is-busy' : ''}`} disabled={!actionEnabled} onClick={() => void handleStartAttendance()}>
+          <button
+            type="button"
+            className={`attendance-v4__action ${flowBusy ? 'is-busy' : ''} ${!primaryActionState.enabled && !flowBusy ? 'is-blocked' : ''}`}
+            disabled={flowBusy || attendanceComplete}
+            onPointerUp={(event) => {
+              if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+              attendanceActivationGuardRef.current.notePointerActivation(Date.now());
+              handleEmployeePrimaryAction();
+            }}
+            onClick={() => {
+              if (attendanceActivationGuardRef.current.shouldIgnoreSyntheticClick(Date.now())) return;
+              handleEmployeePrimaryAction();
+            }}>
             <span className="attendance-v4__action-content">
               <img className="attendance-v4__action-logo" src="/attendance-retro-robot.svg" alt="" />
               <strong>{actionText}</strong>
@@ -946,7 +968,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
 
         <div className="attendance-v4__ready-line" role="status">
           <SmsIcon name={flowBusy ? 'refresh' : 'check'} size={18} />
-          <span>{todayLoading ? 'กำลังอ่านตารางงาน…' : scheduleReady ? <>Ready for <b>{nextIntent === 'CHECK_OUT' ? 'CHECK OUT' : 'CHECK IN'}</b></> : 'ยังไม่พร้อมลงเวลา · ต้องมีตารางที่อนุมัติ'}</span>
+          <span>{primaryActionState.code === 'READY' ? <>Ready for <b>{nextIntent === 'CHECK_OUT' ? 'CHECK OUT' : 'CHECK IN'}</b></> : primaryActionState.readyLine}</span>
         </div>
       </>}
 
@@ -1020,7 +1042,19 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         </div>
 
         <div className="attendance-v3-orb-wrap">
-          <button type="button" className="btn-primary attendance-v2-primary attendance-v3-orb-button" disabled={!canStartAttendance} onClick={() => void handleStartAttendance()}>
+          <button
+            type="button"
+            className="btn-primary attendance-v2-primary attendance-v3-orb-button"
+            disabled={flowBusy}
+            onPointerUp={(event) => {
+              if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+              attendanceActivationGuardRef.current.notePointerActivation(Date.now());
+              void handleStartAttendance();
+            }}
+            onClick={() => {
+              if (attendanceActivationGuardRef.current.shouldIgnoreSyntheticClick(Date.now())) return;
+              void handleStartAttendance();
+            }}>
             <span className="attendance-v3-orb-icon"><SmsIcon name={flowBusy ? 'refresh' : 'attendance'} size={42} /></span>
             <strong>{tapActionLabel}</strong>
             <small>{primaryActionLabel}</small>
