@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const page = read('./pages/attendance/AttendancePage.tsx');
 const css = read('./pages/attendance/attendance-v4.css');
+const actionState = read('./pages/attendance/attendance-action-state.ts');
 const main = read('./main.tsx');
 const client = read('./pages/attendance/attendance-client.ts');
 const authRequest = read('./attendance-auth-request.ts');
@@ -143,8 +144,9 @@ describe('Attendance UX V4 visual acceptance contract', () => {
 
   it('fails closed visually when no approved shift exists instead of showing a green ready claim', () => {
     expect(page).toContain("const scheduleReady = Boolean(todayData?.scheduleReady && assignment)");
-    expect(page).toContain("'SHIFT NOT READY'");
-    expect(page).toContain("'รอตารางงานที่อนุมัติ'");
+    expect(actionState).toContain("actionText: 'SHIFT NOT READY'");
+    expect(actionState).toContain("actionThai: 'รอตารางงานที่อนุมัติ'");
+    expect(actionState).toContain("code: 'SCHEDULE_NOT_READY'");
     expect(page).toContain("'is-pending'");
     expect(css).toContain('.attendance-v4__status-pill.is-pending strong');
     expect(css).toContain('background: #94a3b8;');

@@ -17,8 +17,9 @@ describe('Attendance UI V3 mockup-aligned employee surface', () => {
     expect(page).toContain('Server ตัดสิน IN / OUT');
     const legacy = page.slice(page.indexOf('return <section className="view-pane attendance-page attendance-v2"'));
     expect(legacy.match(/<button\b/g)?.length).toBe(1);
-    expect(page).toContain('disabled={!canStartAttendance}');
-    expect(page).toContain('onClick={() => void handleStartAttendance()}');
+    expect(page).toContain('disabled={flowBusy}');
+    expect(page).toContain('attendanceActivationGuardRef.current.shouldIgnoreSyntheticClick(Date.now())');
+    expect(page).toContain('void handleStartAttendance()');
   });
 
   it('shows only real account context and authority-safe schedule/site placeholders instead of mockup sample data', () => {
