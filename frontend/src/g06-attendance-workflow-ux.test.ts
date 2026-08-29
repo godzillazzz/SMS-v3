@@ -173,7 +173,16 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain('const captureSequenceEpochRef = useRef(0)');
     expect(faceCapture).toContain('if (sequenceEpoch !== captureSequenceEpochRef.current) return');
     expect(faceCapture).toContain('challenge.frameCount !== 4');
-    expect(faceCapture).toContain('กำลังยืนยัน {captureProgress}/{challenge?.frameCount || 4}');
+    expect(faceCapture).toContain('const PREPARE_DELAY_MS = 1800');
+    expect(faceCapture).toContain('const MOVEMENT_START_DELAY_MS = 300');
+    expect(faceCapture).toContain('const MOVEMENT_FRAME_INTERVAL_MS = 420');
+    expect(faceCapture).toContain('const RETURN_TO_CENTER_DELAY_MS = 1200');
+    expect(faceCapture).toContain("type CapturePhase = 'idle' | 'prepare' | 'movement' | 'neutral'");
+    expect(faceCapture).toContain("setCapturePhase('prepare')");
+    expect(faceCapture).toContain("setCapturePhase('movement')");
+    expect(faceCapture).toContain("setCapturePhase('neutral')");
+    expect(faceCapture).toContain('ค้างท่าตามคำสั่ง');
+    expect(faceCapture).toContain('กลับมามองตรงที่กล้องและค้างไว้');
     expect(faceCapture).toContain('ยืนยันใบหน้า');
     expect(faceCapture).toContain('ทำตามคำสั่งบนหน้าจอ');
     expect(faceCapture).toContain('เริ่ม Active Challenge');

@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
+const { logger } = require('../utils/logger');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createSupabaseEmployeeReferencePhotoStorage, detectedType } = require('./employee-reference-photo-storage.service');
 const { deriveActiveFaceChallenge, ACTIVE_FACE_CHALLENGE_FRAME_COUNT } = require('./active-face-challenge.service');
@@ -145,6 +146,14 @@ function createInProcessFaceVerificationService({
       } catch (error) {
         await sessionService.failSession(sessionId, error?.details?.code || 'VERIFICATION_PROVIDER_UNAVAILABLE').catch(() => {});
         throw error;
+      }
+
+      if (evaluation.activeChallengePassed !== true || evaluation.faceMatchPassed !== true) {
+        logger.warn('attendance_face_verification_retry', {
+          sessionId,
+          challengeCode: activeChallenge.code,
+          resultCode: evaluation.resultCode || 'UNKNOWN'
+        });
       }
 
       let evidenceResult = { storageStatus: 'NOT_STORED' };

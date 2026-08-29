@@ -37,6 +37,30 @@
   font-size: 12px;
 }
 
+.attendance-supervisor-v4__hero-controls {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.attendance-supervisor-v4__manual-btn {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #1f67c7;
+  border-radius: 12px;
+  padding: 9px 14px;
+  color: #fff;
+  background: linear-gradient(135deg, #2479df, #0b58c7);
+  box-shadow: 0 8px 18px rgba(24, 91, 183, .18);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .attendance-supervisor-v4__tabs {
   display: inline-grid;
   grid-template-columns: repeat(3, minmax(112px, 1fr));
@@ -1055,6 +1079,7 @@
 }
 
 .attendance-supervisor-v4__workflow-fields input,
+.attendance-supervisor-v4__workflow-fields select,
 .attendance-supervisor-v4__workflow-fields textarea,
 .attendance-supervisor-v4__review-comment textarea {
   width: 100%;
@@ -1068,7 +1093,8 @@
   outline: 0;
 }
 
-.attendance-supervisor-v4__workflow-fields input {
+.attendance-supervisor-v4__workflow-fields input,
+.attendance-supervisor-v4__workflow-fields select {
   min-height: 40px;
 }
 
@@ -1203,6 +1229,15 @@
   .attendance-supervisor-v4__hero {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .attendance-supervisor-v4__hero-controls {
+    width: 100%;
+    justify-items: stretch;
+  }
+
+  .attendance-supervisor-v4__manual-btn {
+    width: 100%;
   }
 
   .attendance-supervisor-v4__tabs {

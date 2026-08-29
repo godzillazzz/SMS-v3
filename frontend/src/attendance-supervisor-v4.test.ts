@@ -96,6 +96,23 @@ describe('Attendance Supervisor UX V4', () => {
     expect(css).toContain('.attendance-supervisor-v4__onbehalf-btn');
   });
 
+  it('supports retrospective manual Attendance confirmation by Employee and Work Date', () => {
+    expect(page).toContain('type ManualConfirmationDialog');
+    expect(page).toContain('คีย์ยืนยันมาปฏิบัติงานย้อนหลัง');
+    expect(page).toContain('openManualConfirmation');
+    expect(page).toContain('saveManualConfirmation');
+    expect(page).toContain('date: manualDialog.workDate');
+    expect(page).toContain('employeeId: manualDialog.employeeId');
+    expect(page).toContain("requestType: 'CONFIRM_WORK_PERFORMED'");
+    expect(page).toContain("manualDialog.workDate > today");
+    expect(page).toContain('shiftDate(manualDialog.workDate, 1)');
+    expect(page).toContain('ไม่พบตารางงานของพนักงานในวันที่เลือก');
+    expect(page).toContain('รอ ADMIN อนุมัติเป็นขั้นสุดท้าย');
+    expect(page).toContain('await approveAttendanceAdjustment(token, requestId)');
+    expect(page).toContain('บันทึกและอนุมัติ');
+    expect(css).toContain('.attendance-supervisor-v4__manual-btn');
+  });
+
   it('adds a dedicated approval queue with explicit ADMIN approve return and reject actions', () => {
     expect(page).toContain("type Mode = 'daily' | 'history' | 'requests'");
     expect(page).toContain('คำขอแก้ไข');
@@ -108,11 +125,13 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain('admin && request.status === \'PENDING_APPROVAL\'');
   });
 
-  it('keeps Admin keying and approval as separate explicit actions', () => {
+  it('keeps ordinary adjustment review explicit while allowing Admin to finalize manual retrospective confirmation', () => {
     expect(page).toContain('await createAttendanceAdjustment');
     expect(page).toContain('await submitAttendanceAdjustment');
-    expect(page).not.toMatch(/createAttendanceAdjustment[\s\S]{0,500}approveAttendanceAdjustment/);
     expect(page).toContain('ยังไม่มีผลต่อ Attendance จนกว่าจะกดอนุมัติแยกต่างหาก');
+    expect(page).toContain('if (admin)');
+    expect(page).toContain('await approveAttendanceAdjustment(token, requestId)');
+    expect(page).toContain("setRequestStatus('APPROVED')");
   });
 
   it('exposes private Attendance evidence only through the authenticated scoped viewer path', () => {
