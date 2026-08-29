@@ -67,19 +67,24 @@ if (!configured) {
     await seed(material);
     const service = createFaceVerificationSessionService({ prisma, audit });
 
+    const abandoned = await service.createSession({ actor, purpose: 'ATTENDANCE_EVENT', contextDigest });
+    assert.equal(abandoned.session.status, 'CREATED');
+    assert.equal(abandoned.session.deviceEnrollmentId, ids.device);
+    assert.equal(abandoned.session.referencePhotoId, ids.reference);
+    assert.equal(Object.prototype.hasOwnProperty.call(abandoned.session, 'deviceCredentialFingerprint'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(abandoned.session, 'referencePhotoChecksum'), false);
+    const abandonedSessionRow = await prisma.faceVerificationSession.findUniqueOrThrow({ where: { id: abandoned.session.id } });
+    assert.equal(abandonedSessionRow.deviceCredentialFingerprint, crypto.createHash('sha256').update(material.spki).digest('hex'));
+    assert.equal(abandonedSessionRow.referencePhotoChecksum, 'a'.repeat(64));
+    const abandonedChallengeRow = await prisma.attendanceDeviceChallenge.findUniqueOrThrow({ where: { id: abandoned.challengeId } });
+    assert.notEqual(abandonedChallengeRow.challengeHash, abandoned.challenge);
+    assert.equal(abandonedChallengeRow.challengeHash.length, 64);
+
     const first = await service.createSession({ actor, purpose: 'ATTENDANCE_EVENT', contextDigest });
+    const superseded = await prisma.faceVerificationSession.findUniqueOrThrow({ where: { id: abandoned.session.id } });
+    assert.equal(superseded.status, 'FAILED');
+    assert.equal(superseded.failureCode, 'VERIFICATION_SUPERSEDED');
     assert.equal(first.session.status, 'CREATED');
-    assert.equal(first.session.deviceEnrollmentId, ids.device);
-    assert.equal(first.session.referencePhotoId, ids.reference);
-    assert.equal(Object.prototype.hasOwnProperty.call(first.session, 'deviceCredentialFingerprint'), false);
-    assert.equal(Object.prototype.hasOwnProperty.call(first.session, 'referencePhotoChecksum'), false);
-    const firstSessionRow = await prisma.faceVerificationSession.findUniqueOrThrow({ where: { id: first.session.id } });
-    assert.equal(firstSessionRow.deviceCredentialFingerprint, crypto.createHash('sha256').update(material.spki).digest('hex'));
-    assert.equal(firstSessionRow.referencePhotoChecksum, 'a'.repeat(64));
-    const challengeRow = await prisma.attendanceDeviceChallenge.findUniqueOrThrow({ where: { id: first.challengeId } });
-    assert.notEqual(challengeRow.challengeHash, first.challenge);
-    assert.equal(challengeRow.challengeHash.length, 64);
-    await assert.rejects(() => service.createSession({ actor, purpose: 'ATTENDANCE_EVENT', contextDigest }), (error) => error.details?.code === 'FACE_VERIFICATION_SESSION_ALREADY_ACTIVE');
 
     const duplicateChallenge = await prisma.attendanceDeviceChallenge.create({ data: { employeeId: ids.employee, deviceEnrollmentId: ids.device, purpose: 'PATROL_EVENT', challengeHash: crypto.createHash('sha256').update('dup-' + marker).digest('hex'), expiresAt: new Date(Date.now() + 300000) } });
     const duplicateSessionData = { employeeId: ids.employee, userId: ids.user, deviceEnrollmentId: ids.device, deviceCredentialFingerprint: crypto.createHash('sha256').update(material.spki).digest('hex'), referencePhotoId: ids.reference, referencePhotoChecksum: 'a'.repeat(64), deviceChallengeId: duplicateChallenge.id, purpose: 'ATTENDANCE_EVENT', contextDigest, expiresAt: new Date(Date.now() + 300000) };

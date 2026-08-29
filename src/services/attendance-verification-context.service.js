@@ -181,14 +181,8 @@ function createAttendanceVerificationContextService({
     throw http(409, 'ATTENDANCE_ASSIGNMENT_REQUIRED', 'No authoritative Shift Assignment is available for Attendance verification.');
   }
 
-  async function resolveEventIntent({ actor }, client = prisma) {
-    const identity = await resolveIdentity(client, actor);
-    const assignment = await resolveCurrentAssignment(client, identity.employeeId, clock());
-    await requireApprovedSchedule(client, assignment);
-    const session = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
-    if (!session) {
-      return { eventIntent: 'CHECK_IN', shiftAssignmentId: assignment.id, workDate: workDateText(assignment.workDate) };
-    }
+  async function resolveEventIntentFromSession(client, identity, assignment, session) {
+    if (!session) return 'CHECK_IN';
     if (session.employeeId !== identity.employeeId || session.shiftAssignmentId !== assignment.id) {
       throw http(409, 'ATTENDANCE_SESSION_STALE', 'Attendance session no longer matches the authoritative Shift Assignment.');
     }
@@ -201,7 +195,18 @@ function createAttendanceVerificationContextService({
     if (hasCheckOut) throw http(409, 'ATTENDANCE_ALREADY_CHECKED_OUT', 'Attendance is already complete for the current Shift Assignment.');
     if (session.state === 'CLOSED' || session.closedAt) throw http(409, 'ATTENDANCE_SESSION_INCONSISTENT', 'Attendance session state is inconsistent.');
     if (!hasCheckIn) throw http(409, 'ATTENDANCE_SESSION_INCONSISTENT', 'Attendance session is missing its committed CHECK_IN event.');
-    return { eventIntent: 'CHECK_OUT', shiftAssignmentId: assignment.id, workDate: workDateText(assignment.workDate) };
+    return 'CHECK_OUT';
+  }
+
+  async function resolveEventIntent({ actor }, client = prisma) {
+    const identity = await resolveIdentity(client, actor);
+    const assignment = await resolveCurrentAssignment(client, identity.employeeId, clock());
+    const [, session] = await Promise.all([
+      requireApprovedSchedule(client, assignment),
+      client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } })
+    ]);
+    const eventIntent = await resolveEventIntentFromSession(client, identity, assignment, session);
+    return { eventIntent, shiftAssignmentId: assignment.id, workDate: workDateText(assignment.workDate) };
   }
 
   async function loadExactAssignment(client, employeeId, shiftAssignmentId) {
@@ -264,10 +269,14 @@ function createAttendanceVerificationContextService({
     const action = String(eventIntent || '').trim().toUpperCase();
     if (!EVENT_INTENTS.has(action)) throw http(400, 'ATTENDANCE_EVENT_INTENT_INVALID', 'Attendance event intent must be CHECK_IN or CHECK_OUT.');
     const identity = await resolveIdentity(client, actor);
-    const binding = await resolveBiometricAuthority(client, identity.employeeId);
-    const assignment = await resolveCurrentAssignment(client, identity.employeeId, clock());
-    const approval = await requireApprovedSchedule(client, assignment);
-    const existingSession = await client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
+    const [binding, assignment] = await Promise.all([
+      resolveBiometricAuthority(client, identity.employeeId),
+      resolveCurrentAssignment(client, identity.employeeId, clock())
+    ]);
+    const [approval, existingSession] = await Promise.all([
+      requireApprovedSchedule(client, assignment),
+      client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } })
+    ]);
     const { authority: site, validated } = await validatedSiteEvidence(client, assignment, attendanceEvidence, existingSession);
     const evidence = { siteBindingDigest: validated.siteBindingDigest, qrBindingDigest: validated.qrBindingDigest, locationBindingDigest: validated.locationBindingDigest };
     const payload = contextPayload({ identity, binding, assignment, approval, captureId: normalizedCaptureId, eventIntent: action, evidence });
@@ -315,20 +324,35 @@ function createAttendanceVerificationContextService({
     };
   }
 
-  async function prepareVerification(input) {
-    const prepared = await prepareContext(input);
-    const created = await face.createSession({ actor: input.actor, purpose: 'ATTENDANCE_EVENT', contextDigest: prepared.contextDigest });
+  async function prepareVerification({ actor, captureId, attendanceEvidence }) {
+    const normalizedCaptureId = normalizedUuid(captureId, 'ATTENDANCE_CAPTURE_ID_INVALID');
+    const identity = await resolveIdentity(prisma, actor);
+    const [binding, assignment] = await Promise.all([
+      resolveBiometricAuthority(prisma, identity.employeeId),
+      resolveCurrentAssignment(prisma, identity.employeeId, clock())
+    ]);
+    const [approval, existingSession] = await Promise.all([
+      requireApprovedSchedule(prisma, assignment),
+      prisma.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } })
+    ]);
+    const eventIntent = await resolveEventIntentFromSession(prisma, identity, assignment, existingSession);
+    const { validated } = await validatedSiteEvidence(prisma, assignment, attendanceEvidence, existingSession);
+    const evidence = { siteBindingDigest: validated.siteBindingDigest, qrBindingDigest: validated.qrBindingDigest, locationBindingDigest: validated.locationBindingDigest };
+    const payload = contextPayload({ identity, binding, assignment, approval, captureId: normalizedCaptureId, eventIntent, evidence });
+    const contextDigest = buildAttendanceContextDigest(payload);
+    const attendanceContext = contextRef({ captureId: normalizedCaptureId, eventIntent, assignment, evidenceRef: validated.evidenceRef });
+    const created = await face.createSession({ actor, purpose: 'ATTENDANCE_EVENT', contextDigest });
     const session = created.session;
-    const matches = session.userId === prepared.authority.userId
-      && session.employeeId === prepared.authority.employeeId
-      && session.deviceEnrollmentId === prepared.authority.deviceEnrollmentId
-      && session.referencePhotoId === prepared.authority.referencePhotoId
-      && session.contextDigest === prepared.contextDigest;
+    const matches = session.userId === identity.userId
+      && session.employeeId === identity.employeeId
+      && session.deviceEnrollmentId === binding.device.id
+      && session.referencePhotoId === binding.referencePhoto.id
+      && session.contextDigest === contextDigest;
     if (!matches) {
       await face.failSession(session.id, 'ATTENDANCE_CONTEXT_STALE').catch(() => {});
       throw http(409, 'ATTENDANCE_CONTEXT_STALE', 'Attendance authority changed while preparing face verification.');
     }
-    return { ...created, attendanceContext: prepared.contextRef };
+    return { ...created, eventIntent, attendanceContext };
   }
 
   function expectedReceipt(resolved) {

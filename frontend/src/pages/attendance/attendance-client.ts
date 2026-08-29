@@ -41,6 +41,7 @@ export type AttendanceActiveChallenge = {
 
 export type AttendanceVerificationStart = {
   sessionId: string | null;
+  deviceEnrollmentId: string | null;
   status: string | null;
   expiresAt: string | null;
   challengeId: string | null;

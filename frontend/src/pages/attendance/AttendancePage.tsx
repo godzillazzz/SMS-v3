@@ -2,10 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
 import {
   AttendanceFlowError,
-  AttendanceReadinessError,
   attendanceAcceptVerifiedEvent,
   attendanceDeviceState,
-  attendanceReadiness,
   attendanceVerificationStart,
   attendanceFaceMatch,
   attendanceSelfToday,
@@ -68,6 +66,11 @@ const readinessCopy: Record<string, Copy> = {
   DEVICE_PROOF_RETRY: {
     title: 'ต้องยืนยันคีย์ของอุปกรณ์อีกครั้ง',
     detail: 'กรุณาติดต่อ Admin เพื่อตรวจสอบอุปกรณ์หลักและสิทธิ์การลงเวลา แล้วกด “ลงเวลา” ใหม่',
+    tone: 'warning'
+  },
+  VERIFICATION_RESTART_REQUIRED: {
+    title: 'มีการยืนยันตัวตนครั้งก่อนกำลังดำเนินการ',
+    detail: 'ระบบยังเก็บ session ที่กำลังประมวลผลไว้เพื่อป้องกันการซ้ำ กรุณารอสักครู่แล้วกด “ลงเวลา” ใหม่',
     tone: 'warning'
   },
   REFERENCE_PHOTO_REQUIRED: {
@@ -450,20 +453,19 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         return;
       }
       if (!started.data.ok || started.data.readiness.state !== 'READY_TO_START_VERIFICATION' || !verification) {
-        setVerificationStage('Server ยังไม่อนุญาตให้เริ่ม Face Verification');
+        const blockedCopy = fallbackCopy(started.data.readiness);
+        setFailurePresentation('VERIFICATION');
+        setVerificationStage(blockedCopy.title);
+        setError(blockedCopy.detail);
         return;
       }
       setQrStepUpRequired(false);
-      if (!verification.sessionId || !verification.challengeId || !verification.challenge || !verification.attendanceContext || !verification.activeChallenge) {
-        throw new Error('Server ไม่ได้ออก Verification session และ Active Challenge ที่สมบูรณ์');
+      if (!verification.sessionId || !verification.deviceEnrollmentId || !verification.challengeId || !verification.challenge || !verification.attendanceContext || !verification.activeChallenge) {
+        throw new Error('Server ไม่ได้ออก Verification session, Device binding และ Active Challenge ที่สมบูรณ์');
       }
 
       setVerificationStage('กำลังยืนยันคีย์ของอุปกรณ์หลัก…');
-      const deviceState = await attendanceDeviceState(token);
-      if (shouldStopOperation(operationEpoch)) return;
-      const activeDeviceId = deviceState.activeDevice?.status === 'ACTIVE' ? deviceState.activeDevice.id : null;
-      if (!activeDeviceId) throw new Error('ไม่พบอุปกรณ์หลัก ACTIVE สำหรับลงเวลา กรุณาตรวจสอบหน้าอุปกรณ์ลงเวลา');
-      const signatureBase64 = await signAttendanceDeviceChallenge(activeDeviceId, verification.challenge);
+      const signatureBase64 = await signAttendanceDeviceChallenge(verification.deviceEnrollmentId, verification.challenge);
       if (shouldStopOperation(operationEpoch)) return;
       await verifyAttendanceDeviceProof(token, verification.sessionId, {
         challengeId: verification.challengeId,
@@ -509,40 +511,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     setRequestId(undefined);
     resetVerificationState();
     try {
-      const result = await attendanceReadiness(token, {
-        captureId,
-        qrToken: nextQrToken?.trim() || undefined,
-        location: nextLocation
-      });
-      if (shouldStopOperation(operationEpoch)) return;
-      setRequestId(result.requestId);
-      if (!result.routeAvailable) {
-        setRouteUnavailable(true);
-        return;
-      }
-      setReadiness(result.data.readiness);
-      setEventIntent(result.data.eventIntent);
-      if (result.data.readiness.state === 'QR_STEP_UP_REQUIRED' || result.data.readiness.state === 'QR_RESCAN_REQUIRED') {
-        setQrStepUpRequired(true);
-        setScannerOpen(true);
-        return;
-      }
-      setQrStepUpRequired(false);
-      if (result.data.readiness.state === 'READY_TO_START_VERIFICATION') {
-        await beginFaceVerificationWithEvidence(captureId, nextQrToken, nextLocation, operationEpoch);
-        return;
-      }
-      const blockedCopy = fallbackCopy(result.data.readiness);
-      setVerificationStage(blockedCopy.title);
-      setError(blockedCopy.detail);
-    } catch (reason) {
-      if (shouldStopOperation(operationEpoch)) return;
-      if (reason instanceof AttendanceReadinessError) {
-        setRequestId(reason.requestId);
-        setError(reason.message);
-      } else {
-        setError(reason instanceof Error ? reason.message : 'ไม่สามารถตรวจสอบความพร้อมได้');
-      }
+      await beginFaceVerificationWithEvidence(captureId, nextQrToken, nextLocation, operationEpoch);
     } finally {
       if (operationEpoch === asyncEvidenceEpochRef.current) setChecking(false);
     }

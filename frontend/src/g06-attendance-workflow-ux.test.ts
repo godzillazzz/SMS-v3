@@ -35,14 +35,16 @@ describe('G06 Attendance frontend UX skeleton', () => {
   });
 
   it('sends captureId + GPS first, with QR optional only when Server requests step-up, and never sends client event intent', () => {
+    expect(client).toContain("attendanceAuthenticatedRequest(`/attendance/verification/start`, token");
     expect(client).toContain("attendanceAuthenticatedRequest(`/attendance/readiness`, token");
+    expect(page).not.toContain('attendanceReadiness(token');
     expect(client).toContain('captureId: input.captureId');
     expect(client).toContain('...(input.qrToken ? { qrToken: input.qrToken } : {})');
     expect(client).toContain('location: input.location');
     expect(client).toContain('qrToken?: string');
     expect(page).toContain('ระบบเป็นผู้ตัดสินเวลาเข้า/ออก');
-    expect(page).toContain("result.data.readiness.state === 'QR_STEP_UP_REQUIRED'");
-    expect(page).toContain("result.data.readiness.state === 'QR_RESCAN_REQUIRED'");
+    expect(page).toContain("started.data.readiness.state === 'QR_STEP_UP_REQUIRED'");
+    expect(page).toContain("started.data.readiness.state === 'QR_RESCAN_REQUIRED'");
     expect(page).toContain('QR จะเปิดเฉพาะเมื่อจำเป็น');
   });
 
@@ -61,9 +63,9 @@ describe('G06 Attendance frontend UX skeleton', () => {
 
   it('orchestrates Face Match only through server-issued context, device proof, opaque receipt, and server Attendance acceptance', () => {
     expect(client).toContain('attendance/verification/start');
-    expect(page).toContain("result.data.readiness.state === 'READY_TO_START_VERIFICATION'");
+    expect(page).toContain("started.data.readiness.state !== 'READY_TO_START_VERIFICATION'");
     expect(page).toContain('attendanceVerificationStart(token');
-    expect(page).toContain('signAttendanceDeviceChallenge(activeDeviceId, verification.challenge)');
+    expect(page).toContain('signAttendanceDeviceChallenge(verification.deviceEnrollmentId, verification.challenge)');
     expect(client).toContain('/attendance/verification/${encodeURIComponent(sessionId)}/device-proof');
     expect(client).not.toContain('face-verification-self-hosted');
     expect(page).toMatch(/attendanceVerificationStart[\s\S]*?signAttendanceDeviceChallenge[\s\S]*?verifyAttendanceDeviceProof[\s\S]*?setFaceCaptureOpen\(true\)/);
@@ -176,10 +178,10 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain('const captureSequenceEpochRef = useRef(0)');
     expect(faceCapture).toContain('if (sequenceEpoch !== captureSequenceEpochRef.current) return');
     expect(faceCapture).toContain('challenge.frameCount !== 4');
-    expect(faceCapture).toContain('const PREPARE_DELAY_MS = 1200');
-    expect(faceCapture).toContain('const MOVEMENT_START_DELAY_MS = 1100');
-    expect(faceCapture).toContain('const MOVEMENT_FRAME_INTERVAL_MS = 500');
-    expect(faceCapture).toContain('const RETURN_TO_CENTER_DELAY_MS = 1200');
+    expect(faceCapture).toContain('const PREPARE_DELAY_MS = 1400');
+    expect(faceCapture).toContain('const MOVEMENT_START_DELAY_MS = 1800');
+    expect(faceCapture).toContain('const MOVEMENT_FRAME_INTERVAL_MS = 650');
+    expect(faceCapture).toContain('const RETURN_TO_CENTER_DELAY_MS = 1600');
     expect(faceCapture).toContain('const captureFrame = async (mirrorHorizontally = false)');
     expect(faceCapture).toContain('context.scale(-1, 1)');
     expect(faceCapture).toContain('const frame = await captureFrame(true)');
@@ -250,7 +252,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).toContain("if (response.status === 404) return { routeAvailable: false");
     expect(page).toContain('ระบบลงเวลายังไม่เปิดใช้งาน');
     expect(page).toContain('ขณะนี้ระบบป้องกันการบันทึกเวลาไว้');
-    expect(page).toContain("result.data.readiness.state === 'READY_TO_START_VERIFICATION'");
+    expect(page).toContain("started.data.readiness.state !== 'READY_TO_START_VERIFICATION'");
   });
 
   it('keeps View As read-only and offers device remediation without impersonated Attendance evidence', () => {

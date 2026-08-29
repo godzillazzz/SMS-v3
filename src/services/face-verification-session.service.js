@@ -9,6 +9,7 @@ const { deriveActiveFaceChallenge } = require('./active-face-challenge.service')
 const PURPOSES = new Set(['ATTENDANCE_EVENT', 'PATROL_EVENT']);
 const VERIFICATION_MODES = new Set(['FACE_MATCH_ONLY', 'FACE_MATCH_WITH_LIVENESS']);
 const ACTIVE_SESSION_STATUSES = ['CREATED', 'DEVICE_PROOF_VERIFIED', 'PROVIDER_PENDING', 'VERIFIED'];
+const RESTARTABLE_SESSION_STATUSES = ['CREATED', 'DEVICE_PROOF_VERIFIED'];
 const SESSION_TTL_MS = 5 * 60 * 1000;
 const RECEIPT_TTL_MS = 2 * 60 * 1000;
 
@@ -76,8 +77,17 @@ function createFaceVerificationSessionService({ prisma = prismaDefault, audit = 
         const identity = await linkedEmployee(tx, actor);
         const binding = await exactActiveBinding(tx, identity.employeeId);
         await tx.faceVerificationSession.updateMany({ where: { employeeId: identity.employeeId, deviceEnrollmentId: binding.device.id, purpose, status: { in: ACTIVE_SESSION_STATUSES }, expiresAt: { lte: now } }, data: { status: 'EXPIRED', failedAt: now, failureCode: 'VERIFICATION_EXPIRED' } });
-        const existing = await tx.faceVerificationSession.findFirst({ where: { employeeId: identity.employeeId, deviceEnrollmentId: binding.device.id, purpose, status: { in: ACTIVE_SESSION_STATUSES }, expiresAt: { gt: now } }, select: { id: true } });
-        if (existing) throw http(409, 'FACE_VERIFICATION_SESSION_ALREADY_ACTIVE', 'A face verification session is already active.');
+        const existing = await tx.faceVerificationSession.findFirst({ where: { employeeId: identity.employeeId, deviceEnrollmentId: binding.device.id, purpose, status: { in: ACTIVE_SESSION_STATUSES }, expiresAt: { gt: now } }, select: { id: true, status: true } });
+        if (existing && RESTARTABLE_SESSION_STATUSES.includes(existing.status)) {
+          const superseded = await tx.faceVerificationSession.updateMany({
+            where: { id: existing.id, status: { in: RESTARTABLE_SESSION_STATUSES }, expiresAt: { gt: now } },
+            data: { status: 'FAILED', failedAt: now, failureCode: 'VERIFICATION_SUPERSEDED' }
+          });
+          if (superseded.count !== 1) throw http(409, 'FACE_VERIFICATION_STATE_CONFLICT', 'Face verification state changed.');
+          await audit.log({ actorUserId: identity.userId, action: 'UPDATE', entityType: 'FaceVerificationSession', entityId: existing.id, metadata: { event: 'VERIFICATION_SUPERSEDED', purpose } }, tx);
+        } else if (existing) {
+          throw http(409, 'FACE_VERIFICATION_SESSION_ALREADY_ACTIVE', 'A face verification session is already active.');
+        }
         await tx.attendanceDeviceChallenge.updateMany({ where: { employeeId: identity.employeeId, deviceEnrollmentId: binding.device.id, purpose, consumedAt: null }, data: { consumedAt: now } });
         const deviceChallenge = await tx.attendanceDeviceChallenge.create({ data: { employeeId: identity.employeeId, deviceEnrollmentId: binding.device.id, purpose, challengeHash: challengeHash(challenge), expiresAt } });
         const session = await tx.faceVerificationSession.create({ data: { employeeId: identity.employeeId, userId: identity.userId, deviceEnrollmentId: binding.device.id, deviceCredentialFingerprint: binding.device.credentialFingerprint, referencePhotoId: binding.referencePhoto.id, referencePhotoChecksum: binding.referencePhoto.checksum, deviceChallengeId: deviceChallenge.id, purpose, contextDigest: context, expiresAt } });

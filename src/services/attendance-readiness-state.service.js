@@ -22,6 +22,7 @@ const STATES = Object.freeze({
   OUTSIDE_SITE_GEOFENCE: Object.freeze({ state: 'OUTSIDE_SITE_GEOFENCE', blocking: true, retryable: true, action: 'MOVE_INSIDE_ASSIGNED_SITE', messageKey: 'attendance.outside_site_geofence' }),
   BIOMETRIC_TEMPORARILY_UNAVAILABLE: Object.freeze({ state: 'BIOMETRIC_TEMPORARILY_UNAVAILABLE', blocking: true, retryable: true, action: 'RETRY_LATER', messageKey: 'attendance.biometric_temporarily_unavailable' }),
   VERIFICATION_EXPIRED: Object.freeze({ state: 'VERIFICATION_EXPIRED', blocking: true, retryable: true, action: 'RESTART_VERIFICATION', messageKey: 'attendance.verification_expired' }),
+  VERIFICATION_RESTART_REQUIRED: Object.freeze({ state: 'VERIFICATION_RESTART_REQUIRED', blocking: true, retryable: true, action: 'RESTART_VERIFICATION', messageKey: 'attendance.verification_restart_required' }),
   VERIFICATION_REPLAY_BLOCKED: Object.freeze({ state: 'VERIFICATION_REPLAY_BLOCKED', blocking: true, retryable: false, action: 'START_NEW_ATTENDANCE_ATTEMPT', messageKey: 'attendance.verification_replay_blocked' }),
   CONTEXT_CHANGED_RESTART: Object.freeze({ state: 'CONTEXT_CHANGED_RESTART', blocking: true, retryable: true, action: 'RESTART_ATTENDANCE', messageKey: 'attendance.context_changed_restart' }),
   LIVENESS_NOT_VERIFIED: Object.freeze({ state: 'LIVENESS_NOT_VERIFIED', blocking: true, retryable: true, action: 'RETRY_FACE_VERIFICATION', messageKey: 'attendance.liveness_not_verified' }),
@@ -87,6 +88,7 @@ mapCodes('BIOMETRIC_TEMPORARILY_UNAVAILABLE', [
   'ATTENDANCE_RECEIPT_CONSUMER_UNAVAILABLE'
 ]);
 mapCodes('VERIFICATION_EXPIRED', ['VERIFICATION_EXPIRED']);
+mapCodes('VERIFICATION_RESTART_REQUIRED', ['FACE_VERIFICATION_SESSION_ALREADY_ACTIVE']);
 mapCodes('VERIFICATION_REPLAY_BLOCKED', [
   'VERIFICATION_REPLAYED',
   'ATTENDANCE_CAPTURE_ID_CONFLICT'

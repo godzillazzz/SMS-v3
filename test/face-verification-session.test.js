@@ -54,6 +54,16 @@ test('verification and receipt lifetimes are short-lived by contract', () => {
   assert.ok(RECEIPT_TTL_MS < SESSION_TTL_MS);
 });
 
+test('a fresh retry may supersede only pre-provider verification sessions while provider-pending and verified sessions stay protected', () => {
+  const service = read('src/services/face-verification-session.service.js');
+  assert.match(service, /RESTARTABLE_SESSION_STATUSES = \['CREATED', 'DEVICE_PROOF_VERIFIED'\]/);
+  assert.match(service, /failureCode: 'VERIFICATION_SUPERSEDED'/);
+  assert.match(service, /event: 'VERIFICATION_SUPERSEDED'/);
+  assert.match(service, /else if \(existing\)[\s\S]*FACE_VERIFICATION_SESSION_ALREADY_ACTIVE/);
+  const restartableLine = service.match(/RESTARTABLE_SESSION_STATUSES = \[([^\]]+)\]/)?.[1] || '';
+  assert.doesNotMatch(restartableLine, /'PROVIDER_PENDING'|'VERIFIED'/);
+});
+
 test('service binds account employee active device current Reference Photo challenge and context before provider work', () => {
   const service = read('src/services/face-verification-session.service.js');
   assert.match(service, /linkedEmployee/);
