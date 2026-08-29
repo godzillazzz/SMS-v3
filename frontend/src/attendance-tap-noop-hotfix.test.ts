@@ -53,10 +53,12 @@ describe('Attendance primary action state', () => {
 });
 
 describe('Attendance activation and cancellation hotfix', () => {
-  it('starts GPS first, then readiness, then the server-managed verification sequence', () => {
+  it('starts GPS first, then the authoritative verification start without a duplicate readiness round trip', () => {
     expect(page).toMatch(/handleStartAttendance[\s\S]*?positionOnce\(\)[\s\S]*?checkReadinessWithEvidence\(captureId, undefined, nextLocation, operationEpoch\)/);
-    expect(page).toMatch(/checkReadinessWithEvidence[\s\S]*?attendanceReadiness\(token[\s\S]*?beginFaceVerificationWithEvidence/);
-    expect(page).toMatch(/beginFaceVerificationWithEvidence[\s\S]*?attendanceVerificationStart\(token[\s\S]*?attendanceDeviceState\(token\)[\s\S]*?verifyAttendanceDeviceProof[\s\S]*?setFaceCaptureOpen\(true\)/);
+    expect(page).toMatch(/checkReadinessWithEvidence[\s\S]*?beginFaceVerificationWithEvidence/);
+    expect(page).not.toContain('attendanceReadiness(token');
+    expect(page).toMatch(/beginFaceVerificationWithEvidence[\s\S]*?attendanceVerificationStart\(token[\s\S]*?signAttendanceDeviceChallenge[\s\S]*?verifyAttendanceDeviceProof[\s\S]*?setFaceCaptureOpen\(true\)/);
+    expect(page).toContain('signAttendanceDeviceChallenge(verification.deviceEnrollmentId, verification.challenge)');
   });
 
   it('surfaces user-visible reasons when an active attempt is blocked or cancelled', () => {

@@ -24,11 +24,13 @@ function fakeDependencies() {
     prepareVerification: async (input) => {
       calls.prepareVerification.push(input);
       return {
+        eventIntent: 'CHECK_IN',
         session: {
           id: '33333333-3333-4333-8333-333333333333',
           status: 'CREATED',
           expiresAt: new Date('2026-08-24T03:05:00.000Z'),
           employeeId: '44444444-4444-4444-8444-444444444444',
+          deviceEnrollmentId: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
           deviceCredentialFingerprint: 'secret-fingerprint',
           referencePhotoChecksum: 'secret-checksum',
           providerSessionRefHash: 'secret-provider-ref-hash'
@@ -118,11 +120,10 @@ test('beginVerification passes only raw Attendance evidence inputs and returns a
   assert.equal(result.ok, true);
   assert.equal(result.readiness.attendanceAccepted, false);
   assert.equal(result.eventIntent, 'CHECK_IN');
-  assert.equal(calls.resolveIntent.length, 1);
+  assert.equal(calls.resolveIntent.length, 0);
   assert.equal(calls.prepareVerification.length, 1);
-  assert.deepEqual(Object.keys(calls.prepareVerification[0]).sort(), ['actor', 'attendanceEvidence', 'captureId', 'eventIntent']);
-  assert.equal(calls.prepareVerification[0].eventIntent, 'CHECK_IN');
-  assert.deepEqual(Object.keys(result.verification).sort(), ['activeChallenge', 'attendanceContext', 'challenge', 'challengeId', 'expiresAt', 'sessionId', 'status']);
+  assert.deepEqual(Object.keys(calls.prepareVerification[0]).sort(), ['actor', 'attendanceEvidence', 'captureId']);
+  assert.deepEqual(Object.keys(result.verification).sort(), ['activeChallenge', 'attendanceContext', 'challenge', 'challengeId', 'deviceEnrollmentId', 'expiresAt', 'sessionId', 'status']);
   const serialized = JSON.stringify(result);
   assert.equal(serialized.includes('secret-fingerprint'), false);
   assert.equal(serialized.includes('secret-checksum'), false);
@@ -206,13 +207,13 @@ test('runtime gate exceptions fail closed without downstream verification work',
 
 test('safe verification projection does not expose biometric/provider/internal authority fields', () => {
   const projected = safeVerificationStart({
-    session: { id: 's', status: 'CREATED', expiresAt: 'soon', employeeId: 'e', deviceCredentialFingerprint: 'fp', referencePhotoChecksum: 'sum', providerSessionRefHash: 'provider' },
+    session: { id: 's', deviceEnrollmentId: 'device', status: 'CREATED', expiresAt: 'soon', employeeId: 'e', deviceCredentialFingerprint: 'fp', referencePhotoChecksum: 'sum', providerSessionRefHash: 'provider' },
     challengeId: 'c',
     challenge: 'challenge',
     attendanceContext: { captureId: 'cap' },
     receipt: 'must-never-be-here'
   });
-  assert.deepEqual(projected, { sessionId: 's', status: 'CREATED', expiresAt: 'soon', challengeId: 'c', challenge: 'challenge', attendanceContext: { captureId: 'cap' }, activeChallenge: null });
+  assert.deepEqual(projected, { sessionId: 's', deviceEnrollmentId: 'device', status: 'CREATED', expiresAt: 'soon', challengeId: 'c', challenge: 'challenge', attendanceContext: { captureId: 'cap' }, activeChallenge: null });
 });
 
 test('Attendance API contract remains provider-neutral after gated route skeleton mount', () => {

@@ -12,6 +12,7 @@ function safeVerificationStart(result) {
   const session = result?.session || {};
   return {
     sessionId: session.id || null,
+    deviceEnrollmentId: session.deviceEnrollmentId || null,
     status: session.status || null,
     expiresAt: session.expiresAt || null,
     challengeId: result?.challengeId || null,
@@ -70,11 +71,10 @@ function createAttendanceApiContractService({
       return { ok: false, eventIntent: null, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }), verification: null };
     }
     try {
-      const resolvedIntent = await resolveServerIntent(actor);
-      const result = await verification.prepareVerification({ actor, captureId, eventIntent: resolvedIntent.eventIntent, attendanceEvidence });
+      const result = await verification.prepareVerification({ actor, captureId, attendanceEvidence });
       return {
         ok: true,
-        eventIntent: resolvedIntent.eventIntent,
+        eventIntent: result.eventIntent || null,
         readiness: serverRuntimeReadiness({ serverRuntimeEnabled: true }),
         verification: safeVerificationStart(result)
       };

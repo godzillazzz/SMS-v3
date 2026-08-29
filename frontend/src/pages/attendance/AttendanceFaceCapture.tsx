@@ -21,10 +21,10 @@ type Props = {
 };
 
 const MAX_CAPTURE_EDGE = ATTACHMENT_POLICIES.ATTENDANCE_FACE.maxEdge;
-const PREPARE_DELAY_MS = 1200;
-const MOVEMENT_START_DELAY_MS = 1100;
-const MOVEMENT_FRAME_INTERVAL_MS = 500;
-const RETURN_TO_CENTER_DELAY_MS = 1200;
+const PREPARE_DELAY_MS = 1400;
+const MOVEMENT_START_DELAY_MS = 1800;
+const MOVEMENT_FRAME_INTERVAL_MS = 650;
+const RETURN_TO_CENTER_DELAY_MS = 1600;
 
 type CapturePhase = 'idle' | 'prepare' | 'baseline' | 'movement' | 'neutral';
 
