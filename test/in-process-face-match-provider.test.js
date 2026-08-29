@@ -119,6 +119,25 @@ test('provider rejects a different Reference Photo without exposing similarity o
   assert.equal(Object.prototype.hasOwnProperty.call(result, 'similarity'), false);
 });
 
+test('provider distinguishes challenge frame evaluation failure from movement failure without exposing biometric details', async () => {
+  const runtime = {
+    async observe() { throw new Error('synthetic frame decode failure'); },
+    similarity() { return 1; }
+  };
+  const result = await createInProcessFaceMatchProvider({ environment: enabled, runtime }).evaluate({
+    providerSessionRef: 'opaque-server-session-ref',
+    activeChallenge: activeChallenge('TURN_LEFT'),
+    challengeFrameBytes: Array.from({ length: 4 }, () => imageBytes()),
+    livePhotoBytes: imageBytes(),
+    referencePhotoBytes: imageBytes()
+  });
+  assert.equal(result.activeChallengePassed, false);
+  assert.equal(result.faceMatchPassed, false);
+  assert.equal(result.resultCode, 'ACTIVE_CHALLENGE_FRAME_EVALUATION_FAILED');
+  assert.equal(Object.prototype.hasOwnProperty.call(result, 'pose'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(result, 'embedding'), false);
+});
+
 test('provider does not evaluate Reference Photo when Active Challenge fails', async () => {
   const runtime = engineWith({
     poses: [pose({ yaw: 0.03 }), pose({ yaw: 0.02 }), pose(), pose(), pose()],

@@ -21,14 +21,18 @@ type Props = {
 };
 
 const MAX_CAPTURE_EDGE = ATTACHMENT_POLICIES.ATTENDANCE_FACE.maxEdge;
-const FRAME_INTERVAL_MS = 650;
-const FINAL_STILL_DELAY_MS = 650;
+const PREPARE_DELAY_MS = 1800;
+const MOVEMENT_START_DELAY_MS = 300;
+const MOVEMENT_FRAME_INTERVAL_MS = 420;
+const RETURN_TO_CENTER_DELAY_MS = 1200;
+
+type CapturePhase = 'idle' | 'prepare' | 'movement' | 'neutral';
 
 const challengeCopy: Record<string, { title: string; detail: string }> = {
-  TURN_LEFT: { title: 'หันหน้าไปทางซ้าย', detail: 'ค่อย ๆ หันหน้าไปทางซ้าย แล้วกลับมามองตรงที่กล้อง' },
-  TURN_RIGHT: { title: 'หันหน้าไปทางขวา', detail: 'ค่อย ๆ หันหน้าไปทางขวา แล้วกลับมามองตรงที่กล้อง' },
-  LOOK_UP: { title: 'เงยหน้าขึ้นเล็กน้อย', detail: 'เงยหน้าขึ้นเล็กน้อย แล้วกลับมามองตรงที่กล้อง' },
-  LOOK_DOWN: { title: 'ก้มหน้าลงเล็กน้อย', detail: 'ก้มหน้าลงเล็กน้อย แล้วกลับมามองตรงที่กล้อง' }
+  TURN_LEFT: { title: 'หันหน้าไปทางซ้าย', detail: 'หันหน้าไปทางซ้ายและค้างไว้จนระบบเก็บภาพครบ จากนั้นกลับมามองตรงเมื่อมีข้อความแจ้ง' },
+  TURN_RIGHT: { title: 'หันหน้าไปทางขวา', detail: 'หันหน้าไปทางขวาและค้างไว้จนระบบเก็บภาพครบ จากนั้นกลับมามองตรงเมื่อมีข้อความแจ้ง' },
+  LOOK_UP: { title: 'เงยหน้าขึ้นเล็กน้อย', detail: 'เงยหน้าขึ้นและค้างไว้จนระบบเก็บภาพครบ จากนั้นกลับมามองตรงเมื่อมีข้อความแจ้ง' },
+  LOOK_DOWN: { title: 'ก้มหน้าลงเล็กน้อย', detail: 'ก้มหน้าลงและค้างไว้จนระบบเก็บภาพครบ จากนั้นกลับมามองตรงเมื่อมีข้อความแจ้ง' }
 };
 
 function cameraErrorMessage(reason: unknown) {
@@ -54,6 +58,7 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
   const onCloseRef = useRef(onClose);
   const [starting, setStarting] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [capturePhase, setCapturePhase] = useState<CapturePhase>('idle');
   const [captureProgress, setCaptureProgress] = useState(0);
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [challengeFrames, setChallengeFrames] = useState<Blob[]>([]);
@@ -80,12 +85,14 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
     setPhoto(null);
     setChallengeFrames([]);
     setCaptureProgress(0);
+    setCapturePhase('idle');
     purgeCanvas();
   };
 
   const invalidateCaptureSequence = () => {
     captureSequenceEpochRef.current += 1;
     setCapturing(false);
+    setCapturePhase('idle');
   };
 
   const startCamera = async () => {
@@ -199,17 +206,22 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
     clearCapturedEvidence();
     setError(undefined);
     setCapturing(true);
+    setCapturePhase('prepare');
     const frames: Blob[] = [];
     try {
+      await sleep(PREPARE_DELAY_MS);
+      if (sequenceEpoch !== captureSequenceEpochRef.current) return;
+      setCapturePhase('movement');
       for (let index = 0; index < challenge.frameCount; index += 1) {
-        await sleep(index === 0 ? 500 : FRAME_INTERVAL_MS);
+        await sleep(index === 0 ? MOVEMENT_START_DELAY_MS : MOVEMENT_FRAME_INTERVAL_MS);
         if (sequenceEpoch !== captureSequenceEpochRef.current) return;
         const frame = await captureFrame();
         if (sequenceEpoch !== captureSequenceEpochRef.current) return;
         frames.push(frame);
         setCaptureProgress(index + 1);
       }
-      await sleep(FINAL_STILL_DELAY_MS);
+      setCapturePhase('neutral');
+      await sleep(RETURN_TO_CENTER_DELAY_MS);
       if (sequenceEpoch !== captureSequenceEpochRef.current) return;
       const finalPhoto = await captureFrame();
       if (sequenceEpoch !== captureSequenceEpochRef.current) return;
@@ -241,7 +253,10 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
       clearCapturedEvidence();
       if (autoFlow) { onFailure?.(message); onCloseRef.current(); }
     } finally {
-      if (sequenceEpoch === captureSequenceEpochRef.current) setCapturing(false);
+      if (sequenceEpoch === captureSequenceEpochRef.current) {
+        setCapturing(false);
+        setCapturePhase('idle');
+      }
     }
   };
 
@@ -283,6 +298,13 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
 
   if (!open) return null;
   const activeCopy = challenge ? challengeCopy[challenge.code] : null;
+  const captureStatus = capturePhase === 'prepare'
+    ? `เตรียมทำท่า: ${activeCopy?.title || 'รอคำสั่ง'} · มีเวลาเตรียมตัวก่อนเริ่มเก็บภาพ`
+    : capturePhase === 'movement'
+      ? `ค้างท่าตามคำสั่ง · กำลังเก็บภาพ ${captureProgress}/${challenge?.frameCount || 4}`
+      : capturePhase === 'neutral'
+        ? 'กลับมามองตรงที่กล้องและค้างไว้ · กำลังเตรียมภาพยืนยันสุดท้าย'
+        : 'กำลังเตรียม Active Challenge';
 
   return createPortal(<div className="attendance-face-backdrop" role="presentation">
     <section className="attendance-face-dialog" role="dialog" aria-modal="true" aria-labelledby="attendance-face-title">
@@ -303,7 +325,7 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
         <canvas ref={canvasRef} className="attendance-face-canvas" aria-hidden="true" />
         {!previewUrl && <div className="attendance-face-guide" aria-hidden="true"><span /></div>}
         {starting && <div className="attendance-face-status"><SmsIcon name="clock" size={22} /><span>กำลังเปิดกล้องหน้า…</span></div>}
-        {capturing && <div className="attendance-face-status"><SmsIcon name="clock" size={22} /><span>กำลังยืนยัน {captureProgress}/{challenge?.frameCount || 4} · ทำท่าตามคำสั่งแล้วกลับมามองตรง</span></div>}
+        {capturing && <div className="attendance-face-status" aria-live="polite"><SmsIcon name="clock" size={22} /><span>{captureStatus}</span></div>}
       </div>
 
       {error && <div className="alert alert-error attendance-face-error" role="alert">{error}</div>}

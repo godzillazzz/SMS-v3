@@ -287,7 +287,7 @@ function createInProcessFaceMatchProvider({ environment = process.env, runtime =
         return Object.freeze({
           activeChallengePassed: false,
           faceMatchPassed: false,
-          resultCode: 'ACTIVE_CHALLENGE_FAILED',
+          resultCode: 'ACTIVE_CHALLENGE_FRAME_EVALUATION_FAILED',
           policyProfileId: POLICY_PROFILE_ID,
           engineVersion: ENGINE_VERSION,
           providerSessionRef: sessionRef
