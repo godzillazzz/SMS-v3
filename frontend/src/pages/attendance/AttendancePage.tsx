@@ -328,8 +328,27 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     resetVerificationState();
   };
 
+  const interactionBlockedMessage = () => readOnly
+    ? 'โหมด View As เป็นแบบอ่านอย่างเดียว จึงไม่อนุญาตให้ลงเวลาแทนพนักงาน'
+    : !online
+      ? 'อุปกรณ์ออฟไลน์อยู่ กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนลงเวลา'
+      : 'ขั้นตอนลงเวลาถูกบล็อก กรุณากดลงเวลาใหม่';
+
+  const reportInteractionBlocked = () => {
+    setVerificationStage('ขั้นตอนลงเวลาถูกยกเลิก');
+    setError(interactionBlockedMessage());
+  };
+
+  const shouldStopOperation = (operationEpoch: number) => {
+    if (operationEpoch !== asyncEvidenceEpochRef.current) return true;
+    if (!interactionDisabledRef.current) return false;
+    reportInteractionBlocked();
+    return true;
+  };
+
   useEffect(() => {
     if (!interactionDisabled) return;
+    const hadActiveAttempt = Boolean(activeCaptureIdRef.current);
     asyncEvidenceEpochRef.current += 1;
     setScannerOpen(false);
     setQrToken('');
@@ -339,10 +358,12 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     setQrStepUpRequired(false);
     activeCaptureIdRef.current = null;
     resetServerState();
-  }, [interactionDisabled]);
+    if (hadActiveAttempt) reportInteractionBlocked();
+  }, [interactionDisabled, online, readOnly]);
 
   useEffect(() => {
     const clearTransientAttemptForLifecycle = () => {
+      const hadActiveAttempt = Boolean(activeCaptureIdRef.current);
       asyncEvidenceEpochRef.current += 1;
       setScannerOpen(false);
       setQrToken('');
@@ -352,6 +373,10 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       setQrStepUpRequired(false);
       activeCaptureIdRef.current = null;
       resetServerState();
+      if (hadActiveAttempt) {
+        setVerificationStage('ขั้นตอนลงเวลาถูกยกเลิก');
+        setError('ขั้นตอนลงเวลาถูกยกเลิกเพราะแอปหรือแท็บถูกพัก กรุณากดลงเวลาใหม่');
+      }
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && !locationRecoveryPendingRef.current) clearTransientAttemptForLifecycle();
@@ -378,7 +403,10 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     nextLocation: AttendanceLocationEvidence,
     operationEpoch: number
   ) => {
-    if (interactionDisabledRef.current) return;
+    if (interactionDisabledRef.current) {
+      reportInteractionBlocked();
+      return;
+    }
     setVerificationBusy(true);
     setVerificationStage('กำลังขอ Verification session จาก Server…');
     setError(undefined);
@@ -388,7 +416,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         qrToken: nextQrToken?.trim() || undefined,
         location: nextLocation
       });
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       setRequestId(started.requestId);
       if (!started.routeAvailable) {
         setRouteUnavailable(true);
@@ -415,23 +443,23 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
 
       setVerificationStage('กำลังยืนยันคีย์ของอุปกรณ์หลัก…');
       const deviceState = await attendanceDeviceState(token);
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       const activeDeviceId = deviceState.activeDevice?.status === 'ACTIVE' ? deviceState.activeDevice.id : null;
       if (!activeDeviceId) throw new Error('ไม่พบอุปกรณ์หลัก ACTIVE สำหรับลงเวลา กรุณาตรวจสอบหน้าอุปกรณ์ลงเวลา');
       const signatureBase64 = await signAttendanceDeviceChallenge(activeDeviceId, verification.challenge);
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       await verifyAttendanceDeviceProof(token, verification.sessionId, {
         challengeId: verification.challengeId,
         challenge: verification.challenge,
         signatureBase64
       });
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
 
       setVerificationSession({ sessionId: verification.sessionId, attendanceContext: verification.attendanceContext, activeChallenge: verification.activeChallenge });
       setVerificationStage('Device proof ผ่านแล้ว · พร้อมทำ Simple Active Challenge');
       setFaceCaptureOpen(true);
     } catch (reason) {
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       setVerificationSession(null);
       if (reason instanceof AttendanceFlowError) {
         setRequestId(reason.requestId);
@@ -452,7 +480,10 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     nextLocation: AttendanceLocationEvidence,
     operationEpoch: number
   ) => {
-    if (interactionDisabledRef.current) return;
+    if (interactionDisabledRef.current) {
+      reportInteractionBlocked();
+      return;
+    }
     setChecking(true);
     setError(undefined);
     setRouteUnavailable(false);
@@ -466,7 +497,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         qrToken: nextQrToken?.trim() || undefined,
         location: nextLocation
       });
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       setRequestId(result.requestId);
       if (!result.routeAvailable) {
         setRouteUnavailable(true);
@@ -484,7 +515,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         await beginFaceVerificationWithEvidence(captureId, nextQrToken, nextLocation, operationEpoch);
       }
     } catch (reason) {
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       if (reason instanceof AttendanceReadinessError) {
         setRequestId(reason.requestId);
         setError(reason.message);
@@ -512,7 +543,15 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
 
   const retryLocationForActiveAttempt = async () => {
     const captureId = activeCaptureIdRef.current;
-    if (!captureId || interactionDisabledRef.current) return;
+    if (!captureId) {
+      setVerificationStage('Attempt ไม่พร้อม');
+      setError('Attempt นี้หมดอายุแล้ว กรุณากดลงเวลาใหม่');
+      return;
+    }
+    if (interactionDisabledRef.current) {
+      reportInteractionBlocked();
+      return;
+    }
     asyncEvidenceEpochRef.current += 1;
     const operationEpoch = asyncEvidenceEpochRef.current;
     setLocationBusy(true);
@@ -521,14 +560,14 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     setLocationIssue(null);
     try {
       const nextLocation = await positionOnce();
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       locationRecoveryPendingRef.current = false;
       setLocationHelpOpen(false);
       setLocation(nextLocation);
       setLocationBusy(false);
       await checkReadinessWithEvidence(captureId, qrToken.trim() || undefined, nextLocation, operationEpoch);
     } catch (reason) {
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       handleLocationFailure(reason);
     } finally {
       if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
@@ -555,7 +594,10 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   }, [employeeV4, qrToken]);
 
   const handleQrDetected = async (value: string) => {
-    if (interactionDisabledRef.current) return;
+    if (interactionDisabledRef.current) {
+      reportInteractionBlocked();
+      return;
+    }
     const captureId = activeCaptureIdRef.current;
     if (!captureId) {
       setScannerOpen(false);
@@ -580,12 +622,12 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     setLocationBusy(true);
     try {
       const nextLocation = await positionOnce();
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       setLocation(nextLocation);
       setLocationBusy(false);
       await checkReadinessWithEvidence(captureId, nextQrToken, nextLocation, operationEpoch);
     } catch (reason) {
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       handleLocationFailure(reason);
     } finally {
       if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
@@ -626,12 +668,12 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       setVerificationStage('กำลังอ่าน GPS และให้ Server ประเมิน Site…');
       try {
         const nextLocation = await positionOnce();
-        if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+        if (shouldStopOperation(operationEpoch)) return;
         setLocation(nextLocation);
         setLocationBusy(false);
         await checkReadinessWithEvidence(captureId, undefined, nextLocation, operationEpoch);
       } catch (reason) {
-        if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+        if (shouldStopOperation(operationEpoch)) return;
         handleLocationFailure(reason);
       } finally {
         if (operationEpoch === asyncEvidenceEpochRef.current) setLocationBusy(false);
@@ -684,7 +726,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       if (!employeeV4 || !eventAcceptanceAttempted) return false;
       try {
         const latest = await attendanceSelfToday(token);
-        if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return false;
+        if (shouldStopOperation(operationEpoch)) return false;
         const assignment = latest.assignment;
         const acceptedAt = acceptedIntent === 'CHECK_IN' ? assignment?.checkInAt : assignment?.checkOutAt;
         const eventId = acceptedIntent === 'CHECK_IN' ? assignment?.checkInEventId : assignment?.checkOutEventId;
@@ -701,7 +743,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     setError(undefined);
     try {
       const matched = await attendanceFaceMatch(token, activeVerification.sessionId, photo, challengeFrames);
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       if (matched.verificationAccepted !== true || !matched.receipt) {
         setFaceCaptureOpen(false);
         setVerificationSession(null);
@@ -719,7 +761,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         receipt: matched.receipt,
         attendanceContext: activeVerification.attendanceContext
       });
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       if (accepted.attendanceAccepted !== true) {
         if (await recoverAcceptedEventFromServer()) return;
         setFaceCaptureOpen(false);
@@ -740,7 +782,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         typeof accepted.session?.id === 'string' ? accepted.session.id : null
       );
     } catch (reason) {
-      if (operationEpoch !== asyncEvidenceEpochRef.current || interactionDisabledRef.current) return;
+      if (shouldStopOperation(operationEpoch)) return;
       if (await recoverAcceptedEventFromServer()) return;
       if (reason instanceof AttendanceFlowError) {
         setRequestId(reason.requestId);
