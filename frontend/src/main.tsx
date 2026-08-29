@@ -1469,8 +1469,10 @@ function Dashboard() {
   }, [pwaShell]);
 
   useEffect(() => {
-    if (pwaShell && !isSmsPwaPage(activePage)) setActivePage('attendance');
-  }, [activePage, pwaShell]);
+    if (!pwaShell) return;
+    const supervisorAllowed = activePage === 'attendanceSupervisor' && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs;
+    if (!isSmsPwaPage(activePage) && !supervisorAllowed) setActivePage('attendance');
+  }, [activePage, auth.isViewingAs, auth.user?.role, pwaShell]);
 
   const selectPwaPage = (page: SmsPwaPage, options: { today?: boolean } = {}) => {
     setActivePage(page);
@@ -1480,6 +1482,17 @@ function Dashboard() {
       url.searchParams.set('page', page);
       if (page === 'attendanceHistory' && options.today) url.searchParams.set('today', '1');
       else url.searchParams.delete('today');
+      window.history.replaceState(window.history.state, '', url);
+    }
+  };
+  const openPwaAttendanceSupervisor = () => {
+    if (!['ADMIN', 'MANAGER'].includes(auth.user?.role || '') || auth.isViewingAs) return;
+    setActivePage('attendanceSupervisor');
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('pwa', '1');
+      url.searchParams.set('page', 'attendanceSupervisor');
+      url.searchParams.delete('today');
       window.history.replaceState(window.history.state, '', url);
     }
   };
@@ -2605,10 +2618,11 @@ function Dashboard() {
         onTodayHistory={() => selectPwaPage('attendanceHistory', { today: true })}
         onOpenSettings={() => selectPwaPage('profile')}
         onOpenAttendanceDevice={() => selectPwaPage('attendanceDevice')}
+        onOpenSupervisor={pwaShell && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs ? openPwaAttendanceSupervisor : undefined}
       />;
     }
-    if (activePage === 'attendanceSupervisor' && auth.token && !pwaShell) {
-      return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} userId={auth.user?.id} onOpenAttendanceReport={auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined} />;
+    if (activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs) {
+      return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} userId={auth.user?.id} onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined} />;
     }
     if (activePage === 'attendanceHistory' && auth.token && pwaShell) {
       return <AttendanceHistoryPwaPage token={auth.token} online={pwaOnline} />;
