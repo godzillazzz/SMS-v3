@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiRequestError, api } from '../api';
+import { SecuritySiteMapPicker } from './SecuritySiteMapPicker';
 import '../styles/security-site-management.css';
 import {
   createSecuritySiteQrDataUrl,
@@ -321,8 +322,18 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
       </article>
 
       <article className="security-site-admin__card">
-        <div className="security-site-admin__card-title"><div><h3>Geofence / overlap preview</h3><small>เตือนวง Geofence ของ Site ที่ Active และซ้อนกัน</small></div></div>
-        <SitePreview site={selectedSite} />
+        <div className="security-site-admin__card-title"><div><h3>OpenStreetMap / Geofence</h3><small>คลิกบนแผนที่หรือลากหมุดเพื่อเลือกตำแหน่ง Site · วง Geofence แสดงตามรัศมีจริง</small></div></div>
+        <SecuritySiteMapPicker
+          latitude={numberOrNull(form.latitude)}
+          longitude={numberOrNull(form.longitude)}
+          radiusMeters={numberOrNull(form.geofenceRadiusMeters)}
+          siteLabel={[form.code.trim(), form.name.trim()].filter(Boolean).join(' · ') || 'Security Site'}
+          onPositionChange={({ latitude, longitude }) => setForm((current) => ({
+            ...current,
+            latitude: latitude.toFixed(7),
+            longitude: longitude.toFixed(7)
+          }))}
+        />
         <div className="security-site-overlap-list">{selectedOverlaps.length ? selectedOverlaps.map((warning) => <div key={`${warning.siteId}-${warning.otherSiteId}`} className="security-site-overlap-warning"><strong>⚠ {warning.siteCode} ↔ {warning.otherSiteCode}</strong><span>ศูนย์กลางห่าง {warning.distanceMeters} ม. · วงซ้อนประมาณ {warning.overlapMeters} ม.</span></div>) : <div className="security-site-no-warning">ไม่พบ Geofence overlap ในชุดที่เลือก</div>}</div>
       </article>
 
