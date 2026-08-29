@@ -174,9 +174,13 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain('if (sequenceEpoch !== captureSequenceEpochRef.current) return');
     expect(faceCapture).toContain('challenge.frameCount !== 4');
     expect(faceCapture).toContain('const PREPARE_DELAY_MS = 1800');
-    expect(faceCapture).toContain('const MOVEMENT_START_DELAY_MS = 300');
+    expect(faceCapture).toContain('const MOVEMENT_START_DELAY_MS = 900');
     expect(faceCapture).toContain('const MOVEMENT_FRAME_INTERVAL_MS = 420');
     expect(faceCapture).toContain('const RETURN_TO_CENTER_DELAY_MS = 1200');
+    expect(faceCapture).toContain('const captureFrame = async (mirrorHorizontally = false)');
+    expect(faceCapture).toContain('context.scale(-1, 1)');
+    expect(faceCapture).toContain('const frame = await captureFrame(true)');
+    expect(faceCapture).toContain('const finalPhoto = await captureFrame()');
     expect(faceCapture).toContain("type CapturePhase = 'idle' | 'prepare' | 'movement' | 'neutral'");
     expect(faceCapture).toContain("setCapturePhase('prepare')");
     expect(faceCapture).toContain("setCapturePhase('movement')");
