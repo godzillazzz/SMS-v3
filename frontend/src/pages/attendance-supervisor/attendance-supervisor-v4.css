@@ -317,6 +317,14 @@
   white-space: nowrap;
 }
 
+.attendance-supervisor-v4__row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.attendance-supervisor-v4__onbehalf-btn,
 .attendance-supervisor-v4__detail-btn {
   min-height: 30px;
   border: 1px solid #9fc3f4;
@@ -328,6 +336,16 @@
   font-size: 8px;
   font-weight: 750;
   cursor: pointer;
+}
+
+.attendance-supervisor-v4__onbehalf-btn {
+  border-color: #1e67cc;
+  color: #fff;
+  background: #1765cf;
+}
+
+.attendance-supervisor-v4__onbehalf-btn:hover {
+  background: #0f56b7;
 }
 
 .attendance-supervisor-v4__detail-btn:hover {

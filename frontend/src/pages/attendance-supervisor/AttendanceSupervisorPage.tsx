@@ -520,6 +520,18 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
     }
   };
 
+  const openRowAdjustment = (row: AttendanceRow) => {
+    setWorkflowError(undefined);
+    setAdjustmentDialog({
+      assignmentId: row.assignmentId,
+      employeeName: row.employeeName,
+      type: 'CONFIRM_WORK_PERFORMED',
+      checkInAt: bangkokInput(row.checkInAt || row.originalCheckInAt || ''),
+      checkOutAt: bangkokInput(row.checkOutAt || row.originalCheckOutAt || ''),
+      reason: ''
+    });
+  };
+
   const openNewAdjustment = (type: AdjustmentType) => {
     if (!detail) return;
     setWorkflowError(undefined);
@@ -801,13 +813,22 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
                     </div>
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="attendance-supervisor-v4__detail-btn"
-                      onClick={() => void openDetail(row.assignmentId)}
-                    >
-                      ดูรายละเอียด
-                    </button>
+                    <div className="attendance-supervisor-v4__row-actions">
+                      <button
+                        type="button"
+                        className="attendance-supervisor-v4__onbehalf-btn"
+                        onClick={() => openRowAdjustment(row)}
+                      >
+                        ลงเวลาแทน
+                      </button>
+                      <button
+                        type="button"
+                        className="attendance-supervisor-v4__detail-btn"
+                        onClick={() => void openDetail(row.assignmentId)}
+                      >
+                        ดูรายละเอียด
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
