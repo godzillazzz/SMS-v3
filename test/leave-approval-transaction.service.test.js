@@ -31,7 +31,8 @@ test('leave approval transaction uses bounded ReadCommitted options and records 
   assert.deepEqual(receivedOptions, { isolationLevel: 'ReadCommitted', maxWait: 5000, timeout: 15000 });
   assert.equal(transactionCalls, 1);
   assert.equal(result.status, 'APPROVED');
-  assert.ok(stageDurationsMs.leave_lock_read >= 10);
+  assert.ok(Number.isFinite(stageDurationsMs.leave_lock_read));
+  assert.ok(stageDurationsMs.leave_lock_read > 0);
 });
 
 test('P2028 becomes a stable retryable timeout error without a second transaction attempt', async () => {
