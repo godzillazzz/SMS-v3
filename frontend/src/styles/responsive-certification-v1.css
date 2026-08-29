@@ -1,0 +1,213 @@
+/* Responsive Certification V1
+   Cross-device hardening for iPhone, Android, iPad/tablet and desktop.
+   Intentional horizontal scrolling remains scoped to data/schedule surfaces. */
+
+html,
+body,
+#root,
+.app-shell,
+.main-area,
+.content-area,
+.view-pane {
+  min-width: 0;
+}
+
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
+}
+
+.page-heading,
+.heading-actions,
+.signature-page-header,
+.signature-page-actions,
+.security-site-admin__header,
+.security-site-admin__card-title {
+  min-width: 0;
+}
+
+.page-heading h1,
+.page-heading p,
+.security-site-admin__header h2,
+.security-site-admin__header p,
+.security-site-admin__card-title h3,
+.security-site-admin__card-title small {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1024px) {
+  .content-area {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .page-heading,
+  .signature-page-header {
+    gap: 12px;
+  }
+
+  .heading-actions,
+  .signature-page-actions {
+    flex-wrap: wrap;
+  }
+
+  .security-site-map-picker__canvas {
+    height: clamp(300px, 42vw, 390px);
+  }
+}
+
+@media (max-width: 760px) {
+  .content-area,
+  .view-pane,
+  .data-surface-page,
+  .settings-page,
+  .schedule-calendar-page,
+  .security-site-admin {
+    max-width: 100%;
+  }
+
+  .content-area {
+    overflow-x: clip;
+  }
+
+  .page-heading,
+  .signature-page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .heading-actions,
+  .signature-page-actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .heading-actions > button,
+  .heading-actions > a,
+  .signature-page-actions > button,
+  .signature-page-actions > a {
+    min-height: 44px;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    max-width: 100%;
+  }
+
+  .security-site-admin {
+    margin-top: 18px;
+    padding: 14px;
+    border-radius: 15px;
+  }
+
+  .security-site-admin__card {
+    padding: 14px;
+  }
+
+  .security-site-map-picker__canvas {
+    height: 320px;
+    min-height: 260px;
+  }
+
+  .security-site-map-picker__help {
+    padding: 10px 12px;
+  }
+
+  .security-site-admin button,
+  .security-site-admin input,
+  .security-site-admin select {
+    min-height: 44px;
+  }
+
+  .attendance-v4 {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 430px) {
+  .content-area {
+    padding-inline: max(10px, env(safe-area-inset-left, 0px));
+  }
+
+  .security-site-map-picker__canvas {
+    height: 280px;
+    min-height: 240px;
+  }
+
+  .security-site-admin__card-title {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .security-site-actions > button {
+    flex: 1 1 100%;
+  }
+
+  .attendance-v4__employee-meta {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .content-area {
+    padding-inline: max(8px, env(safe-area-inset-left, 0px));
+  }
+
+  .attendance-v4__readiness {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .attendance-v4__ready-card {
+    min-height: 68px;
+  }
+
+  .attendance-v4__hero-wrap {
+    padding-right: 0;
+    padding-bottom: 54px;
+  }
+
+  .security-site-map-picker__canvas {
+    height: 250px;
+    min-height: 220px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 900px) {
+  .security-site-map-picker__canvas {
+    height: 230px;
+    min-height: 210px;
+  }
+
+  .attendance-v4 {
+    gap: 9px;
+  }
+
+  .attendance-v4__hero-wrap {
+    min-height: 190px;
+  }
+
+  .attendance-v4__action {
+    width: 180px;
+    height: 180px;
+  }
+
+  .attendance-v4__action-logo {
+    width: 50px;
+    height: 60px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .content-area {
+    width: 100%;
+  }
+
+  .security-site-map-picker__canvas {
+    height: 420px;
+  }
+}

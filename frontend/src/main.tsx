@@ -71,6 +71,7 @@ import './styles/signature-experience-v1-2.css';
 import './styles/production-mobile-responsive-v1.css';
 import './styles/attendance-device.css';
 import './styles/pwa-shell.css';
+import './styles/responsive-certification-v1.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
