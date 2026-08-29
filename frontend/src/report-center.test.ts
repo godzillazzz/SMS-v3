@@ -55,7 +55,9 @@ describe('Unified Report Center V1 source contract', () => {
     expect(app).toContain("if (['licenses', 'reportCenter', 'reports', 'executiveReport'].includes(page)) return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');");
     expect(app).toContain("executiveReport: 'reportCenter'");
     expect(app).toContain("reports: 'reportCenter'");
-    expect(app).toContain("const initialTab = activePage === 'reports' ? 'details' : 'executive';");
+    expect(app).toContain("attendanceReport: 'reportCenter'");
+    expect(app).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
+    expect(app).toContain("const initialTab = activePage === 'attendanceReport' ? 'export' : activePage === 'reports' ? 'details' : 'executive';");
   });
 
   it('contains loading, error, empty, keyboard-focus, tablet and mobile states', () => {

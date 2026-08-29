@@ -6,8 +6,8 @@ const root = path.resolve(__dirname);
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const expectedNavigationIds = [
-  'dashboard', 'employees', 'licenses', 'attendance', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave', 'leavePending',
-  'leaveHistory', 'quota', 'approvalCenter', 'rules', 'audit', 'dataQuality', 'users', 'reportCenter', 'settings'
+  'dashboard', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave', 'leavePending',
+  'leaveHistory', 'quota', 'approvalCenter', 'rules', 'audit', 'dataQuality', 'users', 'reportCenter', 'securitySite', 'settings'
 ];
 
 describe('G04.2 UX-02 application shell contract', () => {
@@ -29,9 +29,11 @@ describe('G04.2 UX-02 application shell contract', () => {
 
   it('keeps role filtering explicit, including Manager access to Approval Center', () => {
     expect(main).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs");
-    expect(main).toContain("if (page === 'leavePending') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
+    expect(main).toContain("if (page === 'leavePending' || page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
+    expect(main).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (page === 'audit') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (page === 'dataQuality') return auth.user?.role === 'ADMIN'");
+    expect(main).toContain("if (page === 'securitySite') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (page === 'settings') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (page === 'users') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
     expect(main).toContain("if (page === 'quota') return auth.user?.role === 'ADMIN'");
@@ -92,7 +94,7 @@ describe('G04.2 UX-02 application shell contract', () => {
   });
 
   it('preserves business page routing and search navigation behavior', () => {
-    expect(main).toContain("const parentPage: Partial<Record<Page, Page>> = { executiveReport: 'reportCenter', reports: 'reportCenter' }");
+    expect(main).toContain("const parentPage: Partial<Record<Page, Page>> = { executiveReport: 'reportCenter', reports: 'reportCenter', attendanceReport: 'reportCenter' }");
     expect(main).toContain("if (event.target.value && activePage !== 'employees') setActivePage('employees')");
     expect(main).not.toContain('Ctrl+K');
     expect(main).not.toContain('Meta+K');

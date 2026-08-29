@@ -35,6 +35,7 @@ import { defaultAuditFilters, type AuditFilters } from './components/audit/audit
 import { DataQualityCenterPage, type DataQualityFilters, type DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
 import { AttendanceDevicePage } from './pages/attendance-device/AttendanceDevicePage';
+import { SecuritySiteManagementPanel } from './components/SecuritySiteManagementPanel';
 import { PwaProfilePage } from './pages/pwa-profile/PwaProfilePage';
 import { AttendanceHistoryPwaPage } from './pages/pwa-attendance/AttendanceHistoryPwaPage';
 import { AttendanceSchedulePwaPage } from './pages/pwa-attendance/AttendanceSchedulePwaPage';
@@ -73,7 +74,7 @@ import './styles/pwa-shell.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
-type Page = 'dashboard' | 'employees' | 'approvalCenter' | 'licenses' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'settings';
+type Page = 'dashboard' | 'employees' | 'approvalCenter' | 'licenses' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'approvals' | 'rules' | 'leave' | 'leavePending' | 'leaveHistory' | 'quota' | 'users' | 'audit' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'securitySite' | 'settings';
 type Auth = { token?: string; user?: User; originalUser?: User; loading: boolean; error?: string; isViewingAs: boolean; login(email: string, password: string): Promise<void>; passkeyLogin(): Promise<void>; logout(): Promise<void>; beginViewAs(userId: string): Promise<void>; endViewAs(): void };
 type DataRow = Record<string, unknown>;
 type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; critical?: number; warning?: number; info?: number }; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number; statusCounts?: Record<string, number>; unmatchedLegacyCount?: number } };
@@ -95,6 +96,7 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
     { id: 'employees', icon: 'employees', label: 'ข้อมูลพนักงาน' },
     { id: 'licenses', icon: 'license', label: 'ใบอนุญาต รปภ.' },
     { id: 'attendance', icon: 'attendance', label: 'ลงเวลา' },
+    { id: 'attendanceSupervisor', icon: 'dashboard', label: 'ลงเวลาแทนพนักงาน' },
     { id: 'attendanceDevice', icon: 'key', label: 'อุปกรณ์ลงเวลา' }
   ] },
   { label: 'ตารางกะ', items: [
@@ -115,7 +117,10 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
   ] },
   { label: 'ผู้ใช้และสิทธิ์', items: [{ id: 'users', icon: 'users', label: 'ผู้ใช้และสิทธิ์' }] },
   { label: 'รายงาน', items: [{ id: 'reportCenter', icon: 'report', label: 'รายงานและวิเคราะห์' }] },
-  { label: 'ตั้งค่า', items: [{ id: 'settings', icon: 'settings', label: 'ตั้งค่าระบบ' }] }
+  { label: 'ตั้งค่า', items: [
+    { id: 'securitySite', icon: 'location', label: 'Security Site & QR' },
+    { id: 'settings', icon: 'settings', label: 'ตั้งค่าระบบ' }
+  ] }
 ];
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -742,7 +747,7 @@ function EmployeeMagicWandModal({
   );
 }
 
-type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'shiftSetup' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
+type OperationalPage = Exclude<Page, 'dashboard' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'shiftSetup' | 'securitySite' | 'settings' | 'leavePending' | 'leaveHistory' | 'dataQuality'>;
 
 const tablePages: Record<OperationalPage, { title: string; eyebrow: string; description: string; columns: Array<{ label: string; value: (row: DataRow) => React.ReactNode }> }> = {
   licenses: { title: 'ใบอนุญาตพนักงาน', eyebrow: 'จัดการบุคลากร', description: 'ตรวจสอบประเภท เลขที่ สถานะ และวันหมดอายุใบอนุญาต', columns: [
@@ -1696,14 +1701,14 @@ function Dashboard() {
   }, [activePage, auth.token, operationPage, dataQualityPageSize, dataQualityFilters, operationRefresh]);
 
   useEffect(() => {
-    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'approvalCenter' || activePage === 'attendance' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport') return;
+    if (!auth.token || activePage === 'dashboard' || activePage === 'employees' || activePage === 'approvalCenter' || activePage === 'attendance' || activePage === 'attendanceSupervisor' || activePage === 'attendanceHistory' || activePage === 'employeeSchedule' || activePage === 'attendanceDevice' || activePage === 'profile' || activePage === 'shiftSetup' || activePage === 'schedule' || activePage === 'audit' || activePage === 'dataQuality' || activePage === 'reportCenter' || activePage === 'reports' || activePage === 'executiveReport' || activePage === 'attendanceReport' || activePage === 'securitySite') return;
     if (activePage === 'users' && !canLoadAccessManagement(auth.user?.role || 'VIEWER')) {
       setOperationLoading(false);
       setOperationError(undefined);
       setOperationResponse({ data: [] });
       return;
     }
-    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport'>, (token: string, page: number) => Promise<DataResponse>> = {
+    const loaders: Record<Exclude<Page, 'dashboard' | 'employees' | 'approvalCenter' | 'attendance' | 'attendanceSupervisor' | 'attendanceHistory' | 'employeeSchedule' | 'attendanceDevice' | 'profile' | 'shiftSetup' | 'schedule' | 'dataQuality' | 'reportCenter' | 'reports' | 'executiveReport' | 'attendanceReport' | 'securitySite'>, (token: string, page: number) => Promise<DataResponse>> = {
       licenses: api.licenses, approvals: api.scheduleApprovals,
       rules: api.schedulingRules, leave: api.leaveRequests, leavePending: api.leaveRequests, leaveHistory: api.leaveRequests, quota: api.leaveQuotas,
       users: api.users, audit: api.auditEvents, settings: api.systemSettings
@@ -1748,7 +1753,7 @@ function Dashboard() {
   useEffect(() => { setOperationPage(1); }, [scheduleDepartment, scheduleMonth]);
   useEffect(() => { setAutoSchedulePreview(undefined); }, [scheduleMonth]);
 
-  const parentPage: Partial<Record<Page, Page>> = { executiveReport: 'reportCenter', reports: 'reportCenter' };
+  const parentPage: Partial<Record<Page, Page>> = { executiveReport: 'reportCenter', reports: 'reportCenter', attendanceReport: 'reportCenter' };
   const navigationPage = parentPage[activePage] || activePage;
   const pageTitle = activePage === 'profile' ? 'โปรไฟล์' : activePage === 'attendanceHistory' ? 'ประวัติการลงเวลา' : activePage === 'employeeSchedule' ? 'ตารางงาน' : navigation.flatMap((section) => section.items).find((item) => item.id === navigationPage)?.label || tablePages[activePage as keyof typeof tablePages]?.title || 'Dashboard';
   const pageSubtitle: Record<Page, string> = {
@@ -1757,6 +1762,7 @@ function Dashboard() {
     approvalCenter: 'รวมงานอนุมัติและตรวจสอบที่คุณต้องดำเนินการจากทุกโมดูล',
     licenses: 'ทะเบียนใบอนุญาตของพนักงาน',
     attendance: 'ลงเวลาเข้า/ออกด้วย QR, GPS และ Server authority',
+    attendanceSupervisor: 'ลงเวลาแทนพนักงานผ่าน Governed Attendance Request และรอ ADMIN อนุมัติก่อนมีผล',
     attendanceHistory: 'ประวัติ Attendance ของบัญชีพนักงานที่เข้าสู่ระบบ',
     employeeSchedule: 'ตารางงานที่อนุมัติและล็อกแล้วของพนักงาน',
     attendanceDevice: 'ลงทะเบียนและตรวจสอบอุปกรณ์หลักสำหรับ Attendance/Patrol',
@@ -1773,7 +1779,9 @@ function Dashboard() {
     reportCenter: 'ศูนย์รายงานและวิเคราะห์สำหรับผู้บริหารและงานปฏิบัติการ',
     reports: 'รายงานสรุปข้อมูลการปฏิบัติงาน',
     executiveReport: 'สรุปข้อมูลสำคัญสำหรับการติดตามและบริหารงาน',
+    attendanceReport: 'รายงานการลงเวลาประจำเดือนที่รับรองแล้ว พร้อม PDF และ Excel',
     users: 'กำหนด Role และแผนกก่อนอนุมัติบัญชี',
+    securitySite: 'กำหนด Security Site, Geofence, Department mapping และ Attendance QR lifecycle',
     settings: 'การตั้งค่าระบบและข้อมูลความปลอดภัย',
     audit: 'ประวัติการใช้งานและการเปลี่ยนแปลงข้อมูล',
   };
@@ -1781,9 +1789,11 @@ function Dashboard() {
   const canManage = !auth.isViewingAs && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
   const canViewPage = (page: Page) => {
     if (page === 'approvalCenter') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs;
-    if (page === 'leavePending') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
+    if (page === 'leavePending' || page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
+    if (page === 'attendanceReport') return auth.user?.role === 'ADMIN';
     if (page === 'audit') return auth.user?.role === 'ADMIN';
     if (page === 'dataQuality') return auth.user?.role === 'ADMIN';
+    if (page === 'securitySite') return auth.user?.role === 'ADMIN';
     if (page === 'settings') return auth.user?.role === 'ADMIN';
     if (page === 'users') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');
     if (page === 'quota') return auth.user?.role === 'ADMIN';
@@ -2585,9 +2595,6 @@ function Dashboard() {
       </section>;
     }
     if (activePage === 'attendance' && auth.token) {
-      if (!pwaShell && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')) {
-        return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} userId={auth.user?.id} />;
-      }
       return <AttendancePage
         token={auth.token}
         displayName={auth.user?.displayName}
@@ -2599,6 +2606,9 @@ function Dashboard() {
         onOpenSettings={() => selectPwaPage('profile')}
         onOpenAttendanceDevice={() => selectPwaPage('attendanceDevice')}
       />;
+    }
+    if (activePage === 'attendanceSupervisor' && auth.token && !pwaShell) {
+      return <AttendanceSupervisorPage token={auth.token} role={auth.user?.role || 'VIEWER'} department={auth.user?.department} userId={auth.user?.id} onOpenAttendanceReport={auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined} />;
     }
     if (activePage === 'attendanceHistory' && auth.token && pwaShell) {
       return <AttendanceHistoryPwaPage token={auth.token} online={pwaOnline} />;
@@ -2630,12 +2640,15 @@ function Dashboard() {
         <RegistrationReviewPanel token={auth.token!} role={auth.user?.role || 'VIEWER'} refreshSignal={operationRefresh} onChanged={() => setOperationRefresh((value) => value + 1)} onOpenEmployeeMaster={() => setActivePage('employees')} />
       </div>;
     }
+    if (activePage === 'securitySite' && auth.token) {
+      return <SecuritySiteManagementPanel token={auth.token} />;
+    }
     if (activePage === 'settings') {
       const settings = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       return <SettingsPage settings={settings} loading={operationLoading} error={operationError} onRefresh={() => setOperationRefresh((value) => value + 1)} onAudit={() => setActivePage('audit')} onSaveTemplates={async (newLeave, leaveStatus) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_NEW_LEAVE', { value: newLeave, description: 'เทมเพลตข้อความคำขอลาใหม่ (รูปแบบเดิม)' }), api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_LEAVE_STATUS', { value: leaveStatus, description: 'เทมเพลตข้อความอัปเดตสถานะการลา (รูปแบบเดิม)' })]); setOperationRefresh((value) => value + 1); }} onSaveAttendancePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, attendancePolicyKeys.qrPolicy, { value: policy.qrPolicy, description: 'Attendance QR policy: ADAPTIVE / REQUIRED / DISABLED' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAccuracyMeters, { value: String(policy.maxAccuracyMeters), description: 'GPS accuracy สูงสุดที่ Attendance ยอมรับ (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAgeSeconds, { value: String(policy.maxAgeSeconds), description: 'อายุ GPS sample สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.futureSkewSeconds, { value: String(policy.futureSkewSeconds), description: 'GPS future clock skew สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.autoPassAccuracyMeters, { value: String(policy.autoPassAccuracyMeters), description: 'GPS accuracy สำหรับข้าม QR ใน Adaptive mode (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.innerMarginMeters, { value: String(policy.innerMarginMeters), description: 'ระยะจากขอบ geofence ที่ใช้ตัดสิน QR Step-up (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.stepUpOnSiteOverlap, { value: String(policy.stepUpOnSiteOverlap), description: 'ขอ QR Step-up เมื่อ GPS อยู่ในหลาย Site พร้อมกัน' })]); setOperationRefresh((value) => value + 1); }} />;
     }
-    if ((activePage === 'reportCenter' || activePage === 'executiveReport' || activePage === 'reports') && auth.token) {
-      const initialTab = activePage === 'reports' ? 'details' : 'executive';
+    if ((activePage === 'reportCenter' || activePage === 'executiveReport' || activePage === 'reports' || activePage === 'attendanceReport') && auth.token) {
+      const initialTab = activePage === 'attendanceReport' ? 'export' : activePage === 'reports' ? 'details' : 'executive';
       return <ReportCenterPage key={activePage} token={auth.token} role={auth.user?.role || 'VIEWER'} initialTab={initialTab} onNavigate={(page) => setActivePage(page as Page)} />;
     }
     if (activePage === 'quota') return <><div className="page-heading"><div><p className="eyebrow">การลา · Annual Entitlement</p><h1>โควตาวันลา {showLegacyQuotas ? 'ข้อมูลเดิม' : thaiQuotaYearLabel(quotaYear)}</h1><p>{showLegacyQuotas ? 'ข้อมูลเดิม — ยังไม่ระบุปี ต้องจัดประเภทก่อนใช้งานรายปี' : 'สิทธิ์รายปีแยกตาม Employee + Year'}</p></div><div className="heading-actions"><label className="month-filter"><span>ปีสิทธิ์</span><select aria-label="ปีสิทธิ์โควตาวันลา" disabled={showLegacyQuotas} value={quotaYear} onChange={(event) => setQuotaYear(Number(event.target.value))}>{quotaYearOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button className="btn-neutral small-action" type="button" onClick={() => setShowLegacyQuotas((value) => !value)}>{showLegacyQuotas ? 'กลับรายการรายปี' : 'ดูข้อมูลเดิมที่ยังไม่ระบุปี'}</button></div></div><OperationalTable page={activePage as OperationalPage} response={operationResponse} loading={operationLoading} error={operationError} onPageChange={setOperationPage} onAction={handleOperationAction} onCreate={openCreateOperation} onNavigate={setActivePage} role={auth.user?.role || 'VIEWER'} token={auth.token} refreshSignal={operationRefresh} onLicenseDocumentChanged={() => setOperationRefresh((value) => value + 1)} /></>;

@@ -26,6 +26,7 @@ type Props = {
   role: string;
   department?: string;
   userId?: string;
+  onOpenAttendanceReport?: () => void;
 };
 
 type Site = { id: string; code?: string | null; name: string };
@@ -313,7 +314,7 @@ function KPI({
   </article>;
 }
 
-export function AttendanceSupervisorPage({ token, role, department, userId }: Props) {
+export function AttendanceSupervisorPage({ token, role, department, userId, onOpenAttendanceReport }: Props) {
   const today = bangkokDateText();
   const manager = role === 'MANAGER';
   const admin = role === 'ADMIN';
@@ -646,6 +647,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId }: Pr
         <p>{manager ? `ขอบเขต Manager: ${department || 'ไม่ระบุ Department'}` : 'Admin มองเห็นทุก Department ตามสิทธิ์'}</p>
       </div>
       <div className="attendance-supervisor-v4__tabs" role="tablist" aria-label="Attendance dashboard views">
+        {admin && onOpenAttendanceReport && <button type="button" onClick={onOpenAttendanceReport} title="เปิดรายงานการลงเวลาประจำเดือน"><SmsIcon name="report" size={17} />Export Report</button>}
         <button type="button" className={mode === 'daily' ? 'active' : ''} onClick={() => setMode('daily')}>
           <SmsIcon name="dashboard" size={17} />วันนี้
         </button>
