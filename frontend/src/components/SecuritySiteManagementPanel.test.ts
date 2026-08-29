@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { securitySiteTokenRole } from './security-site-management-auth';
 
 const panelSource = fs.readFileSync(new URL('./SecuritySiteManagementPanel.tsx', import.meta.url), 'utf8');
+const mapPickerSource = fs.readFileSync(new URL('./SecuritySiteMapPicker.tsx', import.meta.url), 'utf8');
 const qrStyleSource = fs.readFileSync(new URL('../styles/security-site-management.css', import.meta.url), 'utf8');
 
 describe('Security Site Admin token role gate', () => {
@@ -21,6 +22,19 @@ describe('Security Site Admin token role gate', () => {
     expect(panelSource).toContain('api.rotateSecuritySiteQr(token, site.id)');
     expect(panelSource).not.toContain('async function adminRequest');
     expect(panelSource).not.toContain('fetch(`/api/v1');
+  });
+
+  it('uses OpenStreetMap with click and draggable marker site selection', () => {
+    expect(panelSource).toContain("import { SecuritySiteMapPicker } from './SecuritySiteMapPicker';");
+    expect(panelSource).toContain('<SecuritySiteMapPicker');
+    expect(panelSource).toContain('latitude: latitude.toFixed(7)');
+    expect(panelSource).toContain('longitude: longitude.toFixed(7)');
+    expect(mapPickerSource).toContain("L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'");
+    expect(mapPickerSource).toContain("attribution: '&copy; OpenStreetMap contributors'");
+    expect(mapPickerSource).toContain("map.on('click'");
+    expect(mapPickerSource).toContain('draggable: true');
+    expect(mapPickerSource).toContain("markerRef.current.on('dragend'");
+    expect(mapPickerSource).toContain('L.circle(position');
   });
 
   it('keeps QR token ephemeral and provides local render/print/download actions', () => {
