@@ -21,18 +21,18 @@ type Props = {
 };
 
 const MAX_CAPTURE_EDGE = ATTACHMENT_POLICIES.ATTENDANCE_FACE.maxEdge;
-const PREPARE_DELAY_MS = 1800;
-const MOVEMENT_START_DELAY_MS = 900;
-const MOVEMENT_FRAME_INTERVAL_MS = 420;
+const PREPARE_DELAY_MS = 1200;
+const MOVEMENT_START_DELAY_MS = 1100;
+const MOVEMENT_FRAME_INTERVAL_MS = 500;
 const RETURN_TO_CENTER_DELAY_MS = 1200;
 
-type CapturePhase = 'idle' | 'prepare' | 'movement' | 'neutral';
+type CapturePhase = 'idle' | 'prepare' | 'baseline' | 'movement' | 'neutral';
 
 const challengeCopy: Record<string, { title: string; detail: string }> = {
-  TURN_LEFT: { title: 'หันหน้าไปทางซ้าย', detail: 'หันหน้าไปทางซ้ายและค้างไว้จนระบบเก็บภาพครบ จากนั้นกลับมามองตรงเมื่อมีข้อความแจ้ง' },
-  TURN_RIGHT: { title: 'หันหน้าไปทางขวา', detail: 'หันหน้าไปทางขวาและค้างไว้จนระบบเก็บภาพครบ จากนั้นกลับมามองตรงเมื่อมีข้อความแจ้ง' },
-  LOOK_UP: { title: 'เงยหน้าขึ้นเล็กน้อย', detail: 'เงยหน้าขึ้นและค้างไว้จนระบบเก็บภาพครบ จากนั้นกลับมามองตรงเมื่อมีข้อความแจ้ง' },
-  LOOK_DOWN: { title: 'ก้มหน้าลงเล็กน้อย', detail: 'ก้มหน้าลงและค้างไว้จนระบบเก็บภาพครบ จากนั้นกลับมามองตรงเมื่อมีข้อความแจ้ง' }
+  TURN_LEFT: { title: 'หันหน้าไปทางซ้ายให้ชัดเจน', detail: 'เริ่มจากมองตรงจนระบบเก็บภาพตั้งต้น แล้วจึงหันหน้าไปทางซ้ายและค้างไว้จนเก็บภาพครบ จากนั้นกลับมามองตรง' },
+  TURN_RIGHT: { title: 'หันหน้าไปทางขวาให้ชัดเจน', detail: 'เริ่มจากมองตรงจนระบบเก็บภาพตั้งต้น แล้วจึงหันหน้าไปทางขวาและค้างไว้จนเก็บภาพครบ จากนั้นกลับมามองตรง' },
+  LOOK_UP: { title: 'เงยหน้าขึ้นให้ชัดเจน', detail: 'เริ่มจากมองตรงจนระบบเก็บภาพตั้งต้น แล้วจึงเงยหน้าขึ้นและค้างไว้จนเก็บภาพครบ จากนั้นกลับมามองตรง' },
+  LOOK_DOWN: { title: 'ก้มหน้าลงให้ชัดเจน', detail: 'เริ่มจากมองตรงจนระบบเก็บภาพตั้งต้น แล้วจึงก้มหน้าลงและค้างไว้จนเก็บภาพครบ จากนั้นกลับมามองตรง' }
 };
 
 function cameraErrorMessage(reason: unknown) {
@@ -223,9 +223,15 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
     try {
       await sleep(PREPARE_DELAY_MS);
       if (sequenceEpoch !== captureSequenceEpochRef.current) return;
+      setCapturePhase('baseline');
+      const baselineFrame = await captureFrame(true);
+      if (sequenceEpoch !== captureSequenceEpochRef.current) return;
+      frames.push(baselineFrame);
+      setCaptureProgress(1);
+
       setCapturePhase('movement');
-      for (let index = 0; index < challenge.frameCount; index += 1) {
-        await sleep(index === 0 ? MOVEMENT_START_DELAY_MS : MOVEMENT_FRAME_INTERVAL_MS);
+      for (let index = 1; index < challenge.frameCount; index += 1) {
+        await sleep(index === 1 ? MOVEMENT_START_DELAY_MS : MOVEMENT_FRAME_INTERVAL_MS);
         if (sequenceEpoch !== captureSequenceEpochRef.current) return;
         const frame = await captureFrame(true);
         if (sequenceEpoch !== captureSequenceEpochRef.current) return;
@@ -311,12 +317,14 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
   if (!open) return null;
   const activeCopy = challenge ? challengeCopy[challenge.code] : null;
   const captureStatus = capturePhase === 'prepare'
-    ? `เตรียมทำท่า: ${activeCopy?.title || 'รอคำสั่ง'} · มีเวลาเตรียมตัวก่อนเริ่มเก็บภาพ`
-    : capturePhase === 'movement'
-      ? `ค้างท่าตามคำสั่ง · กำลังเก็บภาพ ${captureProgress}/${challenge?.frameCount || 4}`
-      : capturePhase === 'neutral'
-        ? 'กลับมามองตรงที่กล้องและค้างไว้ · กำลังเตรียมภาพยืนยันสุดท้าย'
-        : 'กำลังเตรียม Active Challenge';
+    ? 'มองตรงที่กล้องก่อน · ยังไม่ต้องทำท่า'
+    : capturePhase === 'baseline'
+      ? 'มองตรงค้างไว้ · กำลังเก็บภาพตั้งต้น'
+      : capturePhase === 'movement'
+        ? `เริ่มทำท่าตามคำสั่งและค้างไว้ · กำลังเก็บภาพ ${captureProgress}/${challenge?.frameCount || 4}`
+        : capturePhase === 'neutral'
+          ? 'กลับมามองตรงที่กล้องและค้างไว้ · กำลังเตรียมภาพยืนยันสุดท้าย'
+          : 'กำลังเตรียม Active Challenge';
 
   return createPortal(<div className="attendance-face-backdrop" role="presentation">
     <section className="attendance-face-dialog" role="dialog" aria-modal="true" aria-labelledby="attendance-face-title">

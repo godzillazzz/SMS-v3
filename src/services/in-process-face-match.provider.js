@@ -89,11 +89,16 @@ function evaluateActiveChallengeResult(code, framePoses, finalPose, config) {
   if (!rule || !Array.isArray(framePoses) || framePoses.length !== ACTIVE_FACE_CHALLENGE_FRAME_COUNT || !validPose(finalPose) || framePoses.some((pose) => !validPose(pose))) {
     return Object.freeze({ passed: false, resultCode: 'ACTIVE_CHALLENGE_POSE_INVALID' });
   }
+  const baselinePose = framePoses[0];
+  if (Math.abs(baselinePose.yaw) > config.neutralMaxRadians || Math.abs(baselinePose.pitch) > config.neutralMaxRadians) {
+    return Object.freeze({ passed: false, resultCode: 'ACTIVE_CHALLENGE_BASELINE_NOT_NEUTRAL' });
+  }
   if (Math.abs(finalPose.yaw) > config.neutralMaxRadians || Math.abs(finalPose.pitch) > config.neutralMaxRadians) {
     return Object.freeze({ passed: false, resultCode: 'ACTIVE_CHALLENGE_FINAL_NOT_NEUTRAL' });
   }
-  const finalAxis = finalPose[rule.axis];
-  const directionalMovement = framePoses.map((pose) => rule.sign * (pose[rule.axis] - finalAxis));
+  const baselineAxis = baselinePose[rule.axis];
+  const movementPoses = framePoses.slice(1);
+  const directionalMovement = movementPoses.map((pose) => rule.sign * (pose[rule.axis] - baselineAxis));
   const requestedDirectionFrames = directionalMovement.filter((value) => value >= config.challengeMovementRadians).length;
   if (requestedDirectionFrames >= REQUIRED_MOVEMENT_FRAMES) {
     return Object.freeze({ passed: true, resultCode: 'ACTIVE_CHALLENGE_PASSED' });
