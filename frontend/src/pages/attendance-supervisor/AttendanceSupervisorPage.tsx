@@ -138,6 +138,14 @@ type ReviewDialog = {
   comment: string;
 };
 
+type ManualConfirmationDialog = {
+  employeeId: string;
+  workDate: string;
+  checkInAt: string;
+  checkOutAt: string;
+  reason: string;
+};
+
 const STATUS_OPTIONS = [
   ['', 'ทุกสถานะ'],
   ['CURRENTLY_WORKING', 'กำลังปฏิบัติงาน'],
@@ -356,6 +364,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
   const [requestError, setRequestError] = useState<string>();
   const [requestNotice, setRequestNotice] = useState<string>();
   const [adjustmentDialog, setAdjustmentDialog] = useState<AdjustmentDialog>();
+  const [manualDialog, setManualDialog] = useState<ManualConfirmationDialog>();
   const [reviewDialog, setReviewDialog] = useState<ReviewDialog>();
   const [workflowBusy, setWorkflowBusy] = useState(false);
   const [workflowError, setWorkflowError] = useState<string>();
@@ -520,6 +529,105 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
     }
   };
 
+  const openManualConfirmation = () => {
+    setWorkflowError(undefined);
+    setManualDialog({
+      employeeId: employeeId || '',
+      workDate: date || today,
+      checkInAt: '',
+      checkOutAt: '',
+      reason: ''
+    });
+  };
+
+  const saveManualConfirmation = async () => {
+    if (!manualDialog || workflowBusy) return;
+    setWorkflowError(undefined);
+
+    const selectedEmployee = filteredEmployees.find((employee) => employee.id === manualDialog.employeeId);
+    if (!selectedEmployee) {
+      setWorkflowError('กรุณาเลือกพนักงาน');
+      return;
+    }
+    if (!manualDialog.workDate) {
+      setWorkflowError('กรุณาเลือกวันที่ปฏิบัติงาน');
+      return;
+    }
+    if (manualDialog.workDate > today) {
+      setWorkflowError('ไม่สามารถยืนยันการปฏิบัติงานล่วงหน้าได้');
+      return;
+    }
+
+    const checkInAt = bangkokInputToIso(manualDialog.checkInAt);
+    const checkOutAt = bangkokInputToIso(manualDialog.checkOutAt);
+    if (!checkInAt || !checkOutAt) {
+      setWorkflowError('กรุณาระบุเวลาเข้าและเวลาออกให้ครบ');
+      return;
+    }
+    if (!manualDialog.checkInAt.startsWith(`${manualDialog.workDate}T`)) {
+      setWorkflowError('เวลาเข้าต้องอยู่ในวันที่ปฏิบัติงานที่เลือก');
+      return;
+    }
+    const checkOutDate = manualDialog.checkOutAt.slice(0, 10);
+    if (![manualDialog.workDate, shiftDate(manualDialog.workDate, 1)].includes(checkOutDate)) {
+      setWorkflowError('เวลาออกต้องอยู่ในวันเดียวกันหรือวันถัดไปสำหรับกะข้ามคืน');
+      return;
+    }
+    if (new Date(checkOutAt) <= new Date(checkInAt)) {
+      setWorkflowError('เวลาออกต้องอยู่หลังเวลาเข้า');
+      return;
+    }
+    if (manualDialog.reason.trim().length < 5) {
+      setWorkflowError('กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร');
+      return;
+    }
+
+    setWorkflowBusy(true);
+    try {
+      const dailyResult = await attendanceSupervisorDaily(token, {
+        date: manualDialog.workDate,
+        employeeId: manualDialog.employeeId
+      });
+      const target = (dailyResult.data as DailyData)?.rows?.find((row) => row.employeeId === manualDialog.employeeId);
+      if (!target) throw new Error('ไม่พบตารางงานของพนักงานในวันที่เลือก จึงไม่สามารถยืนยัน Attendance ย้อนหลังได้');
+
+      const created = await createAttendanceAdjustment(token, {
+        assignmentId: target.assignmentId,
+        requestType: 'CONFIRM_WORK_PERFORMED',
+        proposal: { checkInAt, checkOutAt },
+        reason: manualDialog.reason.trim()
+      });
+      const requestId = created.data.id as string;
+      await submitAttendanceAdjustment(token, requestId);
+
+      if (admin) {
+        try {
+          await approveAttendanceAdjustment(token, requestId);
+          setRequestNotice(`บันทึกยืนยันปฏิบัติงานย้อนหลังของ ${target.employeeName} วันที่ ${manualDialog.workDate} และอนุมัติแล้ว`);
+          setMode('requests');
+          setRequestStatus('APPROVED');
+        } catch (approvalReason) {
+          setRequestNotice(`สร้างคำขอแล้ว แต่การอนุมัติอัตโนมัติไม่สำเร็จ: ${approvalReason instanceof Error ? approvalReason.message : 'กรุณาตรวจคิวอนุมัติ'}`);
+          setMode('requests');
+          setRequestStatus('PENDING_APPROVAL');
+        }
+      } else {
+        setRequestNotice(`ส่งคำขอยืนยันปฏิบัติงานย้อนหลังของ ${target.employeeName} แล้ว · รอ ADMIN อนุมัติเป็นขั้นสุดท้าย`);
+        setMode('requests');
+        setRequestStatus('PENDING_APPROVAL');
+      }
+
+      setDate(manualDialog.workDate);
+      setEmployeeId(manualDialog.employeeId);
+      setManualDialog(undefined);
+      refresh();
+    } catch (reason) {
+      setWorkflowError(reason instanceof Error ? reason.message : 'บันทึกยืนยันปฏิบัติงานย้อนหลังไม่สำเร็จ');
+    } finally {
+      setWorkflowBusy(false);
+    }
+  };
+
   const openRowAdjustment = (row: AttendanceRow) => {
     setWorkflowError(undefined);
     setAdjustmentDialog({
@@ -658,17 +766,22 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
         <h2>Attendance Dashboard</h2>
         <p>{manager ? `ขอบเขต Manager: ${department || 'ไม่ระบุ Department'}` : 'Admin มองเห็นทุก Department ตามสิทธิ์'}</p>
       </div>
-      <div className="attendance-supervisor-v4__tabs" role="tablist" aria-label="Attendance dashboard views">
-        {admin && onOpenAttendanceReport && <button type="button" onClick={onOpenAttendanceReport} title="เปิดรายงานการลงเวลาประจำเดือน"><SmsIcon name="report" size={17} />Export Report</button>}
-        <button type="button" className={mode === 'daily' ? 'active' : ''} onClick={() => setMode('daily')}>
-          <SmsIcon name="dashboard" size={17} />วันนี้
+      <div className="attendance-supervisor-v4__hero-controls">
+        <button type="button" className="attendance-supervisor-v4__manual-btn" onClick={openManualConfirmation}>
+          <SmsIcon name="attendance" size={17} />คีย์ยืนยันมาปฏิบัติงานย้อนหลัง
         </button>
-        <button type="button" className={mode === 'history' ? 'active' : ''} onClick={() => setMode('history')}>
-          <SmsIcon name="history" size={17} />ประวัติ
-        </button>
-        <button type="button" className={mode === 'requests' ? 'active' : ''} onClick={() => setMode('requests')}>
-          <SmsIcon name="approval" size={17} />คำขอแก้ไข
-        </button>
+        <div className="attendance-supervisor-v4__tabs" role="tablist" aria-label="Attendance dashboard views">
+          {admin && onOpenAttendanceReport && <button type="button" onClick={onOpenAttendanceReport} title="เปิดรายงานการลงเวลาประจำเดือน"><SmsIcon name="report" size={17} />Export Report</button>}
+          <button type="button" className={mode === 'daily' ? 'active' : ''} onClick={() => setMode('daily')}>
+            <SmsIcon name="dashboard" size={17} />วันนี้
+          </button>
+          <button type="button" className={mode === 'history' ? 'active' : ''} onClick={() => setMode('history')}>
+            <SmsIcon name="history" size={17} />ประวัติ
+          </button>
+          <button type="button" className={mode === 'requests' ? 'active' : ''} onClick={() => setMode('requests')}>
+            <SmsIcon name="approval" size={17} />คำขอแก้ไข
+          </button>
+        </div>
       </div>
     </header>
 
@@ -1086,6 +1199,91 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
             </section>
           </>}
         </aside>
+      </div>
+    )}
+
+    {manualDialog && (
+      <div className="attendance-supervisor-v4__modal-backdrop">
+        <section className="attendance-supervisor-v4__workflow-modal" role="dialog" aria-modal="true" aria-label="Manual Attendance confirmation">
+          <header>
+            <div>
+              <span>MANUAL ATTENDANCE</span>
+              <h3>คีย์ยืนยันมาปฏิบัติงานย้อนหลัง</h3>
+              <p>{manager ? 'Manager ส่งคำขอ · ADMIN อนุมัติเป็นขั้นสุดท้าย' : 'Admin ยืนยันและอนุมัติผ่าน Audit workflow เดิม'}</p>
+            </div>
+            <button type="button" aria-label="ปิด" disabled={workflowBusy} onClick={() => setManualDialog(undefined)}>×</button>
+          </header>
+
+          <div className="attendance-supervisor-v4__workflow-principle">
+            <SmsIcon name="shield" size={19} />
+            <div>
+              <strong>ใช้สำหรับพนักงานที่มาปฏิบัติงานจริงแต่ไม่สามารถลงเวลาปกติได้</strong>
+              <span>เลือกพนักงานและวันที่จริง ระบบจะตรวจว่ามี ShiftAssignment ในวันนั้นก่อนสร้างคำขอ และไม่สร้าง Check-in อัตโนมัติ</span>
+            </div>
+          </div>
+
+          <div className="attendance-supervisor-v4__workflow-fields">
+            <label className="is-wide">
+              <span>พนักงาน *</span>
+              <select
+                value={manualDialog.employeeId}
+                disabled={workflowBusy || filtersLoading}
+                onChange={(event) => setManualDialog((current) => current ? { ...current, employeeId: event.target.value } : current)}
+              >
+                <option value="">เลือกพนักงาน</option>
+                {filteredEmployees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.employeeCode || '—'} · {employee.displayName || `${employee.firstName || ''} ${employee.lastName || ''}`.trim()}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>วันที่ปฏิบัติงาน *</span>
+              <input
+                type="date"
+                max={today}
+                value={manualDialog.workDate}
+                onChange={(event) => setManualDialog((current) => current ? { ...current, workDate: event.target.value, checkInAt: '', checkOutAt: '' } : current)}
+              />
+            </label>
+            <label>
+              <span>เวลาเข้า *</span>
+              <input
+                type="datetime-local"
+                value={manualDialog.checkInAt}
+                onChange={(event) => setManualDialog((current) => current ? { ...current, checkInAt: event.target.value } : current)}
+              />
+            </label>
+            <label>
+              <span>เวลาออก *</span>
+              <input
+                type="datetime-local"
+                value={manualDialog.checkOutAt}
+                onChange={(event) => setManualDialog((current) => current ? { ...current, checkOutAt: event.target.value } : current)}
+              />
+            </label>
+            <label className="is-wide">
+              <span>เหตุผล / คำสั่งงาน / หลักฐานอ้างอิง *</span>
+              <textarea
+                rows={4}
+                maxLength={1000}
+                value={manualDialog.reason}
+                placeholder="เช่น ได้รับคำสั่งไปปฏิบัติงานนอกสถานที่และไม่สามารถลงเวลาผ่านมือถือได้"
+                onChange={(event) => setManualDialog((current) => current ? { ...current, reason: event.target.value } : current)}
+              />
+            </label>
+          </div>
+
+          {workflowError && <div className="attendance-supervisor-v4__workflow-error" role="alert">{workflowError}</div>}
+
+          <footer>
+            <button type="button" className="is-secondary" disabled={workflowBusy} onClick={() => setManualDialog(undefined)}>ยกเลิก</button>
+            <button type="button" className="is-primary" disabled={workflowBusy} onClick={() => void saveManualConfirmation()}>
+              {workflowBusy ? 'กำลังบันทึก…' : admin ? 'บันทึกและอนุมัติ' : 'ส่งให้ ADMIN อนุมัติ'}
+            </button>
+          </footer>
+        </section>
       </div>
     )}
 
