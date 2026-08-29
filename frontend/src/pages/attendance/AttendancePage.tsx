@@ -34,6 +34,7 @@ type Props = {
   onTodayHistory?: () => void;
   onOpenSettings?: () => void;
   onOpenAttendanceDevice?: () => void;
+  onOpenSupervisor?: () => void;
 };
 
 type Copy = { title: string; detail: string; tone: 'ready' | 'warning' | 'blocked' | 'neutral' };
@@ -230,7 +231,7 @@ function fallbackCopy(state?: AttendanceReadinessState | null): Copy {
   };
 }
 
-export function AttendancePage({ token, displayName, department, readOnly = false, online = true, employeeV4 = false, onTodayHistory, onOpenSettings, onOpenAttendanceDevice }: Props) {
+export function AttendancePage({ token, displayName, department, readOnly = false, online = true, employeeV4 = false, onTodayHistory, onOpenSettings, onOpenAttendanceDevice, onOpenSupervisor }: Props) {
   const [qrToken, setQrToken] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [location, setLocation] = useState<AttendanceLocationEvidence | null>(null);
@@ -952,6 +953,11 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
           <SmsIcon name="settings" size={24} />
         </button>
       </header>
+
+      {onOpenSupervisor && <button type="button" className="attendance-v4__supervisor-shortcut" onClick={onOpenSupervisor}>
+        <SmsIcon name="dashboard" size={19} />
+        <span><strong>ลงเวลาแทนพนักงาน</strong><small>Manager / Admin · Governed request</small></span>
+      </button>}
 
       <article className={`attendance-v4__employee ${assignment ? '' : 'is-empty'}`}>
         <p className="attendance-v4__employee-site">{siteName}</p>

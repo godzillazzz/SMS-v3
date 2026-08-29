@@ -35,6 +35,9 @@ describe('Attendance UX V4 visual acceptance contract', () => {
     for (const text of ['SMS Time Attendance', 'Expected Site', 'TAP TO CHECK IN', 'GPS', 'QR', 'Face', 'Device', 'ดูประวัติวันนี้']) {
       expect(page).toContain(text);
     }
+    expect(page).toContain('attendance-v4__supervisor-shortcut');
+    expect(page).toContain('ลงเวลาแทนพนักงาน');
+    expect(page).toContain('onOpenSupervisor');
     const nav = main.slice(main.indexOf('className="pwa-bottom-nav"'), main.indexOf('</nav>}', main.indexOf('className="pwa-bottom-nav"')));
     for (const label of ['ลงเวลา', 'ประวัติ', 'ตารางงาน', 'ลา', 'โปรไฟล์']) expect(nav).toContain(label);
   });

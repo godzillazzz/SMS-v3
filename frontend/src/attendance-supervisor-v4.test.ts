@@ -14,7 +14,7 @@ describe('Attendance Supervisor UX V4', () => {
   it('restores a dedicated governed on-behalf Attendance destination for Manager/Admin', () => {
     expect(main).toContain("{ id: 'attendanceSupervisor', icon: 'dashboard', label: 'ลงเวลาแทนพนักงาน' }");
     expect(main).toContain("if (page === 'leavePending' || page === 'attendanceSupervisor')");
-    expect(main).toContain("activePage === 'attendanceSupervisor' && auth.token && !pwaShell");
+    expect(main).toContain("activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(main).toContain('<AttendanceSupervisorPage');
     expect(main).toContain("activePage === 'attendance' && auth.token");
     expect(main).not.toContain("if (!pwaShell && ['ADMIN', 'MANAGER'].includes(auth.user?.role || ''))");
@@ -23,7 +23,7 @@ describe('Attendance Supervisor UX V4', () => {
   it('keeps Official monthly Attendance export Admin-only while restoring a direct Supervisor entry point', () => {
     expect(page).toContain('onOpenAttendanceReport?: () => void');
     expect(page).toContain('Export Report');
-    expect(main).toContain("onOpenAttendanceReport={auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined}");
+    expect(main).toContain("onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined}");
     expect(main).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("activePage === 'attendanceReport' ? 'export'");
   });

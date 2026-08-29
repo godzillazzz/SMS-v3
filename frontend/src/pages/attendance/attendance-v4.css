@@ -64,6 +64,27 @@
   white-space: nowrap;
 }
 
+.attendance-v4__supervisor-shortcut {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #c9dcf5;
+  border-radius: 16px;
+  padding: 9px 13px;
+  color: #0b4fb7;
+  background: linear-gradient(135deg, rgba(237,246,255,.98), rgba(255,255,255,.98));
+  box-shadow: 0 8px 22px rgba(24, 76, 150, .10);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.attendance-v4__supervisor-shortcut > span { display: grid; gap: 1px; min-width: 0; }
+.attendance-v4__supervisor-shortcut strong { font-size: 12px; font-weight: 800; }
+.attendance-v4__supervisor-shortcut small { color: #687997; font-size: 9px; font-weight: 650; }
+
 .attendance-v4__settings {
   display: grid;
   width: 46px;
