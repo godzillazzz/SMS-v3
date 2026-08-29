@@ -133,6 +133,7 @@ const readinessCopy: Record<string, Copy> = {
 };
 
 type AttendanceLocationIssueCode = 'LOCATION_PERMISSION_DENIED' | 'LOCATION_TIMEOUT' | 'LOCATION_UNAVAILABLE' | 'LOCATION_NOT_SUPPORTED';
+type AttendanceFailurePresentation = 'ATTENDANCE' | 'VERIFICATION' | 'ACTIVE_CHALLENGE';
 
 class AttendanceLocationError extends Error {
   code: AttendanceLocationIssueCode;
@@ -241,6 +242,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   const [readiness, setReadiness] = useState<AttendanceReadinessState | null>(null);
   const [eventIntent, setEventIntent] = useState<AttendanceEventIntent | null>(null);
   const [error, setError] = useState<string>();
+  const [failurePresentation, setFailurePresentation] = useState<AttendanceFailurePresentation>('ATTENDANCE');
   const [requestId, setRequestId] = useState<string>();
   const [faceCaptureOpen, setFaceCaptureOpen] = useState(false);
   const [verificationBusy, setVerificationBusy] = useState(false);
@@ -681,6 +683,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       setLocationIssue(null);
       setLocationHelpOpen(false);
       locationRecoveryPendingRef.current = false;
+      setFailurePresentation('ATTENDANCE');
       setLocationBusy(true);
       setChecking(false);
       resetServerState();
@@ -768,10 +771,12 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         setVerificationSession(null);
         if (matched.readiness) setReadiness(matched.readiness);
         const activeChallengeFailed = matched.readiness?.state === 'ACTIVE_CHALLENGE_RETRY';
-        setVerificationStage(activeChallengeFailed ? 'Simple Active Challenge ยังไม่ผ่าน' : 'ใบหน้าไม่ตรงกับ Reference Photo');
-        throw new Error(activeChallengeFailed
-          ? 'Server ยังยืนยันการเคลื่อนไหวตามคำสั่งไม่ได้ กรุณาเริ่ม Active Challenge ใหม่'
-          : 'Server ตรวจแล้วใบหน้าไม่ตรงกับ Reference Photo กรุณาเริ่ม attempt ใหม่');
+        setFailurePresentation(activeChallengeFailed ? 'ACTIVE_CHALLENGE' : 'VERIFICATION');
+        setVerificationStage(activeChallengeFailed ? 'Active Challenge ยังไม่ผ่าน · กรุณาทำใหม่' : 'ใบหน้าไม่ตรงกับ Reference Photo');
+        setError(activeChallengeFailed
+          ? 'การเคลื่อนไหวยังไม่ตรงตามคำสั่ง กรุณาทำ Active Challenge ใหม่อีกครั้ง'
+          : 'Server ตรวจแล้วใบหน้าไม่ตรงกับ Reference Photo กรุณาเริ่มการยืนยันตัวตนใหม่');
+        return;
       }
 
       setVerificationStage('ใบหน้าตรงแล้ว · กำลังให้ Server บันทึก AttendanceEvent…');
@@ -921,7 +926,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         challenge={verificationSession?.activeChallenge || null}
         autoFlow
         onConfirm={handleFacePhotoConfirmed}
-        onFailure={(message) => { setError(message); setVerificationStage('ยืนยันตัวตนไม่สำเร็จ · กดลงเวลาเพื่อลองใหม่'); setVerificationSession(null); }}
+        onFailure={(message) => { setFailurePresentation('VERIFICATION'); setError(message); setVerificationStage('ยืนยันตัวตนยังไม่สำเร็จ · กรุณาลองใหม่'); setVerificationSession(null); }}
         onClose={() => setFaceCaptureOpen(false)}
       />
 
@@ -1073,7 +1078,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         <button type="button" className="attendance-v4__today-link" onClick={() => setLocationHelpOpen(true)}>เปิดการตั้งค่าตำแหน่ง</button>
       </div>}
       {error && locationIssue?.code !== 'LOCATION_PERMISSION_DENIED' && <div className="attendance-v4__notice is-danger" role="alert">
-        <strong>ลงเวลายังไม่สำเร็จ</strong><span>{error}</span>{requestId && <span>Request ID: {requestId}</span>}
+        <strong>{failurePresentation === 'ACTIVE_CHALLENGE' ? 'Active Challenge ยังไม่ผ่าน' : failurePresentation === 'VERIFICATION' ? 'ยืนยันตัวตนยังไม่สำเร็จ' : 'ลงเวลายังไม่สำเร็จ'}</strong><span>{error}</span>{requestId && <span>Request ID: {requestId}</span>}
       </div>}
 
       {!attendanceAccepted && <button type="button" className="attendance-v4__today-link" onClick={onTodayHistory}><SmsIcon name="history" size={17} />ดูประวัติวันนี้</button>}
@@ -1099,7 +1104,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       challenge={verificationSession?.activeChallenge || null}
       autoFlow
       onConfirm={handleFacePhotoConfirmed}
-      onFailure={(message) => { setError(message); setVerificationStage('ยืนยันตัวตนไม่สำเร็จ · กดลงเวลาเพื่อลองใหม่'); setVerificationSession(null); }}
+      onFailure={(message) => { setFailurePresentation('VERIFICATION'); setError(message); setVerificationStage('ยืนยันตัวตนยังไม่สำเร็จ · กรุณาลองใหม่'); setVerificationSession(null); }}
       onClose={() => setFaceCaptureOpen(false)}
     />
 

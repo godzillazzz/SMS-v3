@@ -53,28 +53,32 @@ test('in-process face config is explicit, bounded, and defaults conservatively',
   assert.throws(() => inProcessFaceConfig({ ...enabled, FACE_CHALLENGE_MOVEMENT_RADIANS: 'NaN' }), /configuration is invalid/i);
 });
 
-test('active challenge requires directional movement and a neutral final still', () => {
+test('active challenge uses a neutral baseline, directional movement frames, and a neutral final still', () => {
   const config = inProcessFaceConfig(enabled);
-  assert.equal(evaluateActiveChallenge('TURN_LEFT', [pose({ yaw: 0.24 }), pose({ yaw: 0.22 }), pose({ yaw: 0.04 }), pose()], pose(), config), true);
-  assert.equal(evaluateActiveChallenge('TURN_RIGHT', [pose({ yaw: -0.25 }), pose({ yaw: -0.20 }), pose({ yaw: -0.02 }), pose()], pose(), config), true);
-  assert.equal(evaluateActiveChallenge('LOOK_UP', [pose({ pitch: -0.23 }), pose({ pitch: -0.19 }), pose(), pose()], pose(), config), true);
-  assert.equal(evaluateActiveChallenge('LOOK_DOWN', [pose({ pitch: 0.23 }), pose({ pitch: 0.19 }), pose(), pose()], pose(), config), true);
-  assert.equal(evaluateActiveChallenge('TURN_LEFT', [pose({ yaw: 0.05 }), pose({ yaw: 0.04 }), pose(), pose()], pose(), config), false);
-  assert.equal(evaluateActiveChallenge('TURN_LEFT', [pose({ yaw: 0.5 }), pose({ yaw: 0.45 }), pose({ yaw: 0.4 }), pose({ yaw: 0.35 })], pose({ yaw: 0.35 }), config), false);
+  assert.equal(evaluateActiveChallenge('TURN_LEFT', [pose(), pose({ yaw: 0.24 }), pose({ yaw: 0.22 }), pose({ yaw: 0.04 })], pose(), config), true);
+  assert.equal(evaluateActiveChallenge('TURN_RIGHT', [pose(), pose({ yaw: -0.25 }), pose({ yaw: -0.20 }), pose({ yaw: -0.02 })], pose(), config), true);
+  assert.equal(evaluateActiveChallenge('LOOK_UP', [pose(), pose({ pitch: -0.23 }), pose({ pitch: -0.19 }), pose()], pose(), config), true);
+  assert.equal(evaluateActiveChallenge('LOOK_DOWN', [pose(), pose({ pitch: 0.23 }), pose({ pitch: 0.19 }), pose()], pose(), config), true);
+  assert.equal(evaluateActiveChallenge('TURN_LEFT', [pose(), pose({ yaw: 0.05 }), pose({ yaw: 0.04 }), pose()], pose(), config), false);
+  assert.equal(evaluateActiveChallenge('TURN_LEFT', [pose({ yaw: 0.35 }), pose({ yaw: 0.5 }), pose({ yaw: 0.45 }), pose({ yaw: 0.4 })], pose(), config), false);
 });
 
-test('active challenge result codes remain categorical and preserve directional enforcement', () => {
+test('active challenge result codes remain categorical and preserve baseline, direction, and return-to-neutral enforcement', () => {
   const config = inProcessFaceConfig(enabled);
   assert.equal(
-    evaluateActiveChallengeResult('TURN_LEFT', [pose({ yaw: -0.25 }), pose({ yaw: -0.22 }), pose({ yaw: -0.20 }), pose()], pose(), config).resultCode,
+    evaluateActiveChallengeResult('TURN_LEFT', [pose({ yaw: 0.35 }), pose({ yaw: 0.5 }), pose({ yaw: 0.48 }), pose({ yaw: 0.46 })], pose(), config).resultCode,
+    'ACTIVE_CHALLENGE_BASELINE_NOT_NEUTRAL'
+  );
+  assert.equal(
+    evaluateActiveChallengeResult('TURN_LEFT', [pose(), pose({ yaw: -0.25 }), pose({ yaw: -0.22 }), pose({ yaw: -0.20 })], pose(), config).resultCode,
     'ACTIVE_CHALLENGE_WRONG_DIRECTION'
   );
   assert.equal(
-    evaluateActiveChallengeResult('TURN_LEFT', [pose({ yaw: 0.25 }), pose({ yaw: 0.22 }), pose(), pose()], pose({ yaw: 0.36 }), config).resultCode,
+    evaluateActiveChallengeResult('TURN_LEFT', [pose(), pose({ yaw: 0.25 }), pose({ yaw: 0.22 }), pose()], pose({ yaw: 0.36 }), config).resultCode,
     'ACTIVE_CHALLENGE_FINAL_NOT_NEUTRAL'
   );
   assert.equal(
-    evaluateActiveChallengeResult('TURN_LEFT', [pose({ yaw: 0.05 }), pose({ yaw: 0.04 }), pose(), pose()], pose(), config).resultCode,
+    evaluateActiveChallengeResult('TURN_LEFT', [pose(), pose({ yaw: 0.05 }), pose({ yaw: 0.04 }), pose()], pose(), config).resultCode,
     'ACTIVE_CHALLENGE_INSUFFICIENT_MOVEMENT'
   );
 });
@@ -97,7 +101,7 @@ test('provider fails closed when disabled and never accepts browser biometric cl
 
 test('provider mints only a narrow server-side PASS result after challenge and 1:1 similarity pass', async () => {
   const runtime = engineWith({
-    poses: [pose({ yaw: 0.25 }), pose({ yaw: 0.22 }), pose(), pose(), pose(), pose()],
+    poses: [pose(), pose({ yaw: 0.25 }), pose({ yaw: 0.22 }), pose(), pose(), pose()],
     similarity: 0.81
   });
   const provider = createInProcessFaceMatchProvider({ environment: enabled, runtime });
@@ -120,7 +124,7 @@ test('provider mints only a narrow server-side PASS result after challenge and 1
 
 test('provider rejects a different Reference Photo without exposing similarity or embeddings', async () => {
   const runtime = engineWith({
-    poses: [pose({ yaw: 0.25 }), pose({ yaw: 0.22 }), pose(), pose(), pose(), pose()],
+    poses: [pose(), pose({ yaw: 0.25 }), pose({ yaw: 0.22 }), pose(), pose(), pose()],
     similarity: 0.41
   });
   const result = await createInProcessFaceMatchProvider({ environment: enabled, runtime }).evaluate({
@@ -157,7 +161,7 @@ test('provider distinguishes challenge frame evaluation failure from movement fa
 
 test('provider does not evaluate Reference Photo when Active Challenge fails', async () => {
   const runtime = engineWith({
-    poses: [pose({ yaw: 0.03 }), pose({ yaw: 0.02 }), pose(), pose(), pose()],
+    poses: [pose(), pose({ yaw: 0.03 }), pose({ yaw: 0.02 }), pose(), pose()],
     similarity: 1
   });
   const result = await createInProcessFaceMatchProvider({ environment: enabled, runtime }).evaluate({

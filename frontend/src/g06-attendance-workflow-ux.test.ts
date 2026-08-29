@@ -85,6 +85,9 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).not.toContain('padPassed');
     expect(client).not.toContain('activeChallengePassed');
     expect(page).not.toContain('attendanceAccepted = true');
+    expect(page).toContain("setFailurePresentation(activeChallengeFailed ? 'ACTIVE_CHALLENGE' : 'VERIFICATION')");
+    expect(page).toContain("'Active Challenge ยังไม่ผ่าน'");
+    expect(page).toContain('กรุณาทำ Active Challenge ใหม่อีกครั้ง');
   });
 
   it('reconciles a lost Attendance acceptance response from server read state instead of blindly retrying the event POST', () => {
@@ -173,19 +176,21 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain('const captureSequenceEpochRef = useRef(0)');
     expect(faceCapture).toContain('if (sequenceEpoch !== captureSequenceEpochRef.current) return');
     expect(faceCapture).toContain('challenge.frameCount !== 4');
-    expect(faceCapture).toContain('const PREPARE_DELAY_MS = 1800');
-    expect(faceCapture).toContain('const MOVEMENT_START_DELAY_MS = 900');
-    expect(faceCapture).toContain('const MOVEMENT_FRAME_INTERVAL_MS = 420');
+    expect(faceCapture).toContain('const PREPARE_DELAY_MS = 1200');
+    expect(faceCapture).toContain('const MOVEMENT_START_DELAY_MS = 1100');
+    expect(faceCapture).toContain('const MOVEMENT_FRAME_INTERVAL_MS = 500');
     expect(faceCapture).toContain('const RETURN_TO_CENTER_DELAY_MS = 1200');
     expect(faceCapture).toContain('const captureFrame = async (mirrorHorizontally = false)');
     expect(faceCapture).toContain('context.scale(-1, 1)');
     expect(faceCapture).toContain('const frame = await captureFrame(true)');
     expect(faceCapture).toContain('const finalPhoto = await captureFrame()');
-    expect(faceCapture).toContain("type CapturePhase = 'idle' | 'prepare' | 'movement' | 'neutral'");
+    expect(faceCapture).toContain("type CapturePhase = 'idle' | 'prepare' | 'baseline' | 'movement' | 'neutral'");
     expect(faceCapture).toContain("setCapturePhase('prepare')");
+    expect(faceCapture).toContain("setCapturePhase('baseline')");
     expect(faceCapture).toContain("setCapturePhase('movement')");
     expect(faceCapture).toContain("setCapturePhase('neutral')");
-    expect(faceCapture).toContain('ค้างท่าตามคำสั่ง');
+    expect(faceCapture).toContain('มองตรงค้างไว้ · กำลังเก็บภาพตั้งต้น');
+    expect(faceCapture).toContain('เริ่มทำท่าตามคำสั่งและค้างไว้');
     expect(faceCapture).toContain('กลับมามองตรงที่กล้องและค้างไว้');
     expect(faceCapture).toContain('ยืนยันใบหน้า');
     expect(faceCapture).toContain('ทำตามคำสั่งบนหน้าจอ');
