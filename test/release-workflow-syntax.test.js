@@ -53,19 +53,16 @@ test(
   },
 );
 
-test("protected immutable candidate check avoids raw curl status plumbing", () => {
+test("Production verifier avoids Vercel beta curl and keeps authoritative canonical checks", () => {
   const workflow = fs.readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n");
   const script = extractRunBlock(
     workflow,
     "Verify immutable candidate, explicitly promote, then verify canonical Production",
   );
-  const protectedStart = script.indexOf("verify_protected_candidate()");
-  const protectedEnd = script.indexOf("\n}\n", protectedStart);
-  assert.notEqual(protectedStart, -1);
-  assert.notEqual(protectedEnd, -1);
-  const protectedBlock = script.slice(protectedStart, protectedEnd + 3);
-  assert.equal(protectedBlock.includes("--write-out"), false);
-  assert.equal(protectedBlock.includes("approval_status="), false);
+  assert.equal(script.includes('vercel@"$VERCEL_CLI_VERSION" curl'), false);
+  assert.match(script, /IMMUTABLE_CANDIDATE_INSPECT=PASS/);
+  assert.match(script, /inspect \"\$DEPLOYMENT_ID\" --format=json/);
+  assert.match(script, /promote \"\$DEPLOYMENT_ID\"/);
   assert.match(
     script,
     /verify_public_runtime \"\$EXPECTED_CANONICAL_URL\" CANONICAL_PRODUCTION/,
