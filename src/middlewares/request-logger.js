@@ -1,4 +1,5 @@
 const { logger: defaultLogger } = require('../utils/logger');
+const { recordHttpRequest: defaultRecordHttpRequest } = require('../services/runtime-telemetry.service');
 
 function routeTemplate(req) {
   if (!req.route?.path) {
@@ -16,18 +17,29 @@ function routeTemplate(req) {
   return `${base}${route}`.replace(/\/+/g, '/') || '/';
 }
 
-function createRequestLogger(logger = defaultLogger, clock = () => process.hrtime.bigint()) {
+function createRequestLogger(logger = defaultLogger, clock = () => process.hrtime.bigint(), recordHttpRequest = defaultRecordHttpRequest) {
   return function requestLogger(req, res, next) {
     const startedAt = clock();
     res.on('finish', () => {
       const elapsed = Number(clock() - startedAt) / 1e6;
-      logger.info('http_request', {
+      const record = {
         requestId: req.requestId,
         route: routeTemplate(req),
         method: req.method,
         status: res.statusCode,
         durationMs: Math.max(0, Math.round(elapsed * 100) / 100)
-      });
+      };
+      logger.info('http_request', record);
+      try {
+        recordHttpRequest?.({
+          route: record.route,
+          method: record.method,
+          status: record.status,
+          durationMs: record.durationMs
+        });
+      } catch {
+        // Runtime telemetry is observational only and must never affect request completion.
+      }
     });
     next();
   };

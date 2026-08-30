@@ -18,6 +18,7 @@ const approvalCenterRoutes = require('./approval-center.routes');
 const { router: faceVerificationRoutes } = require('./face-verification.routes');
 const { router: selfHostedFaceVerificationRoutes } = require('./face-verification-self-hosted.routes');
 const securitySitesRoutes = require('./security-sites.routes');
+const systemHealthRoutes = require('./system-health.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -35,6 +36,7 @@ router.use('/approval-center', approvalCenterRoutes);
 router.use('/face-verification', faceVerificationRoutes);
 router.use('/face-verification-self-hosted', selfHostedFaceVerificationRoutes);
 router.use('/admin/security-sites', securitySitesRoutes);
+router.use('/admin/system-health', systemHealthRoutes);
 router.use('/shift-types', shiftsRoutes);
 router.use('/schedules', schedulesRoutes);
 router.use('/schedule-calendar', schedulesRoutes);
