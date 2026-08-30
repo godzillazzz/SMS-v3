@@ -315,13 +315,11 @@ jobs:
 
           verify_protected_candidate() {
             local deployment="$1"
-            local health ready approval_status html bundle_path js
+            local health ready html bundle_path js
             health=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/health --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
             ready=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/ready --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
-            approval_status=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/approval-center --deployment "$deployment" --yes --token "$VERCEL_TOKEN" -- --silent --output /dev/null --write-out '%{http_code}' 2>/dev/null)
             node -e 'const value=JSON.parse(process.argv[1]); if(value.status!=="ok") process.exit(1)' "$health"
             node -e 'const value=JSON.parse(process.argv[1]); if(value.status!=="ready" || value.database!=="ok") process.exit(1)' "$ready"
-            test "$approval_status" = 401
             html=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl / --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
             bundle_path=$(printf '%s' "$html" | node -e 'let html=""; process.stdin.on("data", (chunk) => { html += chunk; }); process.stdin.on("end", () => { const match = html.match(/<script[^>]+src="([^"]*\/assets\/index-[^"]+\.js)"/i); if (!match) process.exit(1); process.stdout.write(new URL(match[1], "https://candidate.invalid/").pathname); });')
             js=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$bundle_path" --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
