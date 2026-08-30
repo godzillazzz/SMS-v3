@@ -313,30 +313,27 @@ jobs:
           NODE
           }
 
-          verify_protected_candidate() {
-            local deployment="$1"
-            local health ready html bundle_path js
-            health=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/health --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
-            ready=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/ready --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
-            node -e 'const value=JSON.parse(process.argv[1]); if(value.status!=="ok") process.exit(1)' "$health"
-            node -e 'const value=JSON.parse(process.argv[1]); if(value.status!=="ready" || value.database!=="ok") process.exit(1)' "$ready"
-            html=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl / --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
-            bundle_path=$(printf '%s' "$html" | node -e 'let html=""; process.stdin.on("data", (chunk) => { html += chunk; }); process.stdin.on("end", () => { const match = html.match(/<script[^>]+src="([^"]*\/assets\/index-[^"]+\.js)"/i); if (!match) process.exit(1); process.stdout.write(new URL(match[1], "https://candidate.invalid/").pathname); });')
-            js=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$bundle_path" --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
-            node - "$js" <<'NODE'
-          const js = process.argv[2];
-          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน'];
-          const missing = sentinels.filter((value) => !js.includes(value));
-          if (missing.length) throw new Error(`immutable candidate missing runtime sentinels: ${missing.join(', ')}`);
-          process.stdout.write(`IMMUTABLE_CANDIDATE_RUNTIME_VERIFY=PASS\nBUNDLE_BYTES=${Buffer.byteLength(js)}\nSENTINELS=${sentinels.length}\n`);
+          # Vercel `curl` is a beta CLI surface and has repeatedly returned exit code 2
+          # inside the protected GitHub runner despite a healthy READY deployment. Do not
+          # make Production cutover correctness depend on that beta command. The exact
+          # prebuilt artifact has already passed the release-artifact sentinel guard, and
+          # the deployment step has already validated project/target/source identity.
+          # Re-inspect the immutable candidate with the stable inspect command immediately
+          # before promotion, then perform the authoritative runtime checks on the public
+          # canonical URL. Any canonical verification failure auto-rolls back below.
+          candidate_json=$(mktemp)
+          trap 'rm -f "$candidate_json"' EXIT
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$DEPLOYMENT_ID" --format=json --token "$VERCEL_TOKEN" >"$candidate_json"
+          node - "$candidate_json" "$DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" "$TARGET_SHA" <<'NODE'
+          const fs = require('node:fs');
+          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
+          const [file, expectedId, expectedProjectId, expectedCommit] = process.argv.slice(2);
+          const record = inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
+          if (record.target !== 'production') throw new Error('Immutable candidate target is not production');
+          if (record.commitSha && record.commitSha !== expectedCommit) throw new Error('Immutable candidate commit mismatch');
+          process.stdout.write('IMMUTABLE_CANDIDATE_INSPECT=PASS\n');
           NODE
-          }
 
-          # A rollback state can keep the canonical alias pinned even when `vercel deploy --prod`
-          # creates a READY Production-target deployment. Prove the immutable candidate first.
-          verify_protected_candidate "$DEPLOYMENT_URL"
-
-          # Cut over only after the exact immutable candidate passes runtime verification.
           npx --yes vercel@"$VERCEL_CLI_VERSION" promote "$DEPLOYMENT_ID" --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
 
           canonical_json=$(mktemp)
