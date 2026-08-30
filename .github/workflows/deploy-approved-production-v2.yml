@@ -45,6 +45,9 @@ jobs:
       canonical_url: ${{ steps.manifest.outputs.canonical_url }}
       source_branch: ${{ steps.manifest.outputs.source_branch }}
       run_migrations: ${{ steps.manifest.outputs.run_migrations }}
+      database_change_policy: ${{ steps.manifest.outputs.database_change_policy }}
+      pre_applied_migration_manifest_path: ${{ steps.manifest.outputs.pre_applied_migration_manifest_path }}
+      pre_applied_migration_evidence_run_id: ${{ steps.manifest.outputs.pre_applied_migration_evidence_run_id }}
       manifest_sha256: ${{ steps.hash.outputs.manifest_sha256 }}
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +65,7 @@ jobs:
           grep -Fxq 'RELEASE_MANIFEST_GUARD=PASS' "$manifest_output"
           while IFS='=' read -r key value; do
             case "$key" in
-              release_id|commit_sha|tree_sha|current_production_source_sha|rollback_deployment_id|target_project_name|target_project_id|target_org_id|target_environment|canonical_url|source_branch|run_migrations)
+              release_id|commit_sha|tree_sha|current_production_source_sha|rollback_deployment_id|target_project_name|target_project_id|target_org_id|target_environment|canonical_url|source_branch|run_migrations|database_change_policy|pre_applied_migration_manifest_path|pre_applied_migration_evidence_run_id)
                 echo "$key=$value" >> "$GITHUB_OUTPUT"
                 ;;
             esac
@@ -76,6 +79,10 @@ jobs:
           CURRENT_PRODUCTION_SOURCE_SHA: ${{ steps.manifest.outputs.current_production_source_sha }}
           SOURCE_BRANCH: ${{ steps.manifest.outputs.source_branch }}
           RUN_MIGRATIONS: ${{ steps.manifest.outputs.run_migrations }}
+          DATABASE_CHANGE_POLICY: ${{ steps.manifest.outputs.database_change_policy }}
+          PRE_APPLIED_MIGRATION_MANIFEST_PATH: ${{ steps.manifest.outputs.pre_applied_migration_manifest_path }}
+          PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID: ${{ steps.manifest.outputs.pre_applied_migration_evidence_run_id }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
@@ -87,12 +94,104 @@ jobs:
           git cat-file -e "${CURRENT_PRODUCTION_SOURCE_SHA}^{commit}"
           git merge-base --is-ancestor "$TARGET_SHA" "origin/$SOURCE_BRANCH"
           test "$(git rev-parse "${TARGET_SHA}^{tree}")" = "$TARGET_TREE"
-          if [[ "$RUN_MIGRATIONS" == "false" ]]; then
-            git diff --quiet "$CURRENT_PRODUCTION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
-          else
-            echo 'Migration-aware approved release manifests are not enabled in V2.'
+          if [[ "$RUN_MIGRATIONS" != "false" ]]; then
+            echo 'Production release workflow never executes migrations.'
             exit 1
           fi
+
+          case "$DATABASE_CHANGE_POLICY" in
+            NO_DATABASE_CHANGES)
+              test -z "$PRE_APPLIED_MIGRATION_MANIFEST_PATH"
+              test -z "$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID"
+              git diff --quiet "$CURRENT_PRODUCTION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+              ;;
+            PRE_APPLIED_APPROVED_MIGRATION)
+              test -n "$PRE_APPLIED_MIGRATION_MANIFEST_PATH"
+              [[ "$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID" =~ ^[0-9]+$ ]]
+              test -f "$PRE_APPLIED_MIGRATION_MANIFEST_PATH"
+
+              migration_meta=$(node - "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" "$CURRENT_PRODUCTION_SOURCE_SHA" "$ROLLBACK_DEPLOYMENT_ID" <<'NODE'
+          const fs = require('node:fs');
+          const [file, currentProductionSourceSha, rollbackDeploymentId] = process.argv.slice(2);
+          const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const required = {
+            schema_version: 1,
+            migration_id: 'PERF-05',
+            manifest_state: 'APPROVED_FOR_OWNER_PRODUCTION_MIGRATION_DECISION',
+            current_production_application_sha: currentProductionSourceSha,
+            current_production_deployment_id: rollbackDeploymentId,
+            target_environment: 'production',
+            target_project_name: 'sms-v3-staging',
+            target_project_id: 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s',
+            canonical_url: 'https://sms-v3-staging-ten.vercel.app',
+            owner_action: 'APPROVE_PRODUCTION_MIGRATION_ONLY',
+            application_deploy: false,
+            destructive_rollback: false
+          };
+          for (const [key, value] of Object.entries(required)) {
+            if (manifest[key] !== value) throw new Error(`pre-applied migration manifest mismatch: ${key}`);
+          }
+          if (!/^[0-9a-f]{40}$/.test(manifest.source_commit_sha || '')) throw new Error('invalid migration source SHA');
+          if (!/^[0-9a-f]{40}$/.test(manifest.source_tree_sha || '')) throw new Error('invalid migration source tree');
+          if (manifest.migration_path !== 'prisma/migrations/202608300001_perf05_hot_path_indexes/migration.sql') throw new Error('unexpected migration path');
+          process.stdout.write(`source_sha=${manifest.source_commit_sha}\nsource_tree=${manifest.source_tree_sha}\nmigration_path=${manifest.migration_path}\n`);
+          NODE
+              )
+              MIGRATION_SOURCE_SHA=$(printf '%s\n' "$migration_meta" | sed -n 's/^source_sha=//p')
+              MIGRATION_SOURCE_TREE=$(printf '%s\n' "$migration_meta" | sed -n 's/^source_tree=//p')
+              MIGRATION_PATH=$(printf '%s\n' "$migration_meta" | sed -n 's/^migration_path=//p')
+              [[ "$MIGRATION_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+              [[ "$MIGRATION_SOURCE_TREE" =~ ^[0-9a-f]{40}$ ]]
+              test -n "$MIGRATION_PATH"
+
+              git cat-file -e "${MIGRATION_SOURCE_SHA}^{commit}"
+              test "$(git rev-parse "${MIGRATION_SOURCE_SHA}^{tree}")" = "$MIGRATION_SOURCE_TREE"
+              git merge-base --is-ancestor "$CURRENT_PRODUCTION_SOURCE_SHA" "$MIGRATION_SOURCE_SHA"
+              git merge-base --is-ancestor "$MIGRATION_SOURCE_SHA" "$TARGET_SHA"
+              git diff --quiet "$MIGRATION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+
+              changed_prisma=$(git diff --name-only "$CURRENT_PRODUCTION_SOURCE_SHA" "$MIGRATION_SOURCE_SHA" -- prisma/schema.prisma prisma/migrations | sort)
+              expected_prisma=$(printf '%s\n%s\n' "$MIGRATION_PATH" 'prisma/schema.prisma' | sort)
+              test "$changed_prisma" = "$expected_prisma"
+
+              git show "${MIGRATION_SOURCE_SHA}:${MIGRATION_PATH}" >/tmp/pre-applied-migration.sql
+              test "$(grep -Ec '^CREATE INDEX ' /tmp/pre-applied-migration.sql)" -eq 5
+              ! grep -Eiq 'DROP[[:space:]]+(INDEX|TABLE|COLUMN)|ALTER[[:space:]]+TABLE|DELETE[[:space:]]+FROM|TRUNCATE' /tmp/pre-applied-migration.sql
+
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID" >/tmp/pre-applied-run.json
+              EVIDENCE_HEAD=$(node - /tmp/pre-applied-run.json <<'NODE'
+          const fs = require('node:fs');
+          const run = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (run.name !== 'Apply Approved PERF-05 Production Migration') throw new Error('unexpected migration evidence workflow');
+          if (run.status !== 'completed' || run.conclusion !== 'success') throw new Error('migration evidence workflow did not succeed');
+          if (run.event !== 'push') throw new Error('migration evidence workflow event mismatch');
+          if (run.head_branch !== 'fix/serverless-database-reliability') throw new Error('migration evidence branch mismatch');
+          if (!/^[0-9a-f]{40}$/.test(run.head_sha || '')) throw new Error('migration evidence head SHA missing');
+          process.stdout.write(run.head_sha);
+          NODE
+              )
+              git cat-file -e "${EVIDENCE_HEAD}^{commit}"
+              git merge-base --is-ancestor "$MIGRATION_SOURCE_SHA" "$EVIDENCE_HEAD"
+              git merge-base --is-ancestor "$EVIDENCE_HEAD" "$TARGET_SHA"
+              git cat-file -e "${GITHUB_SHA}^{commit}"
+              git diff --quiet "$EVIDENCE_HEAD" "$GITHUB_SHA" -- "$PRE_APPLIED_MIGRATION_MANIFEST_PATH"
+
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID/jobs?per_page=100" >/tmp/pre-applied-jobs.json
+              node - /tmp/pre-applied-jobs.json <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const approval = (data.jobs || []).find((job) => job.name === 'Approve Production Migration');
+          if (!approval || approval.status !== 'completed' || approval.conclusion !== 'success') {
+            throw new Error('approved Production migration job evidence not found');
+          }
+          process.stdout.write('PRE_APPLIED_PRODUCTION_MIGRATION_EVIDENCE=PASS\n');
+          NODE
+              ;;
+            *)
+              echo 'Unsupported database change policy.'
+              exit 1
+              ;;
+          esac
           test -z "$(git status --porcelain)"
 
       - name: Require successful exact-SHA CI evidence
@@ -142,6 +241,7 @@ jobs:
             echo "- Project: ${{ steps.manifest.outputs.target_project_name }}"
             echo "- Environment: ${{ steps.manifest.outputs.target_environment }}"
             echo "- Run migrations: ${{ steps.manifest.outputs.run_migrations }}"
+            echo "- Database change policy: ${{ steps.manifest.outputs.database_change_policy }}"
             echo "- Manifest SHA-256: ${{ steps.hash.outputs.manifest_sha256 }}"
             echo '- Owner action: Approve Production only'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -163,6 +263,9 @@ jobs:
       CURRENT_PRODUCTION_SOURCE_SHA: ${{ needs.prepare.outputs.current_production_source_sha }}
       ROLLBACK_DEPLOYMENT_ID: ${{ needs.prepare.outputs.rollback_deployment_id }}
       MANIFEST_SHA256: ${{ needs.prepare.outputs.manifest_sha256 }}
+      DATABASE_CHANGE_POLICY: ${{ needs.prepare.outputs.database_change_policy }}
+      PRE_APPLIED_MIGRATION_MANIFEST_PATH: ${{ needs.prepare.outputs.pre_applied_migration_manifest_path }}
+      PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID: ${{ needs.prepare.outputs.pre_applied_migration_evidence_run_id }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -183,12 +286,44 @@ jobs:
           test "$(git rev-parse HEAD)" = "$TARGET_SHA"
           test "$(git rev-parse HEAD^{tree})" = "$TARGET_TREE"
           git cat-file -e "${CURRENT_PRODUCTION_SOURCE_SHA}^{commit}"
-          git diff --quiet "$CURRENT_PRODUCTION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+          case "$DATABASE_CHANGE_POLICY" in
+            NO_DATABASE_CHANGES)
+              git diff --quiet "$CURRENT_PRODUCTION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+              ;;
+            PRE_APPLIED_APPROVED_MIGRATION)
+              test -f "$PRE_APPLIED_MIGRATION_MANIFEST_PATH"
+              MIGRATION_SOURCE_SHA=$(node -p "require('./$PRE_APPLIED_MIGRATION_MANIFEST_PATH').source_commit_sha")
+              [[ "$MIGRATION_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+              git cat-file -e "${MIGRATION_SOURCE_SHA}^{commit}"
+              git merge-base --is-ancestor "$CURRENT_PRODUCTION_SOURCE_SHA" "$MIGRATION_SOURCE_SHA"
+              git diff --quiet "$MIGRATION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
           test -z "$(git status --porcelain)"
           test -n "$VERCEL_TOKEN"
           [[ "$ROLLBACK_DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
 
       - run: npm ci
+
+      - name: Revalidate pre-applied Production database state
+        if: ${{ needs.prepare.outputs.database_change_policy == 'PRE_APPLIED_APPROVED_MIGRATION' }}
+        env:
+          NODE_ENV: production
+          VERCEL_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx prisma generate
+          node scripts/ci/verify-deployment-target.js --verify
+          node scripts/ci/prisma-migration.js status
+          node scripts/ci/verify-perf05-indexes.js
+          echo 'PRE_APPLIED_PRODUCTION_DATABASE_STATE=PASS'
 
       - name: Verify Vercel project linkage
         shell: bash
@@ -200,6 +335,22 @@ jobs:
           const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
           if (project.projectId !== process.env.EXPECTED_PROJECT_ID || project.orgId !== process.env.EXPECTED_ORG_ID) throw new Error('Vercel project linkage mismatch');
           process.stdout.write('VERCEL_LINKAGE=PASS\n');
+          NODE
+
+      - name: Verify rollback checkpoint is still current Production
+        shell: bash
+        run: |
+          set -euo pipefail
+          rollback_current_json=$(mktemp)
+          trap 'rm -f "$rollback_current_json"' EXIT
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$rollback_current_json"
+          node - "$rollback_current_json" "$ROLLBACK_DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" <<'NODE'
+          const fs = require('node:fs');
+          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
+          const [file, expectedId, expectedProjectId] = process.argv.slice(2);
+          const record = inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
+          if (record.target !== 'production') throw new Error('Rollback checkpoint is not a Production deployment');
+          process.stdout.write('ROLLBACK_CHECKPOINT_CURRENT=PASS\n');
           NODE
 
       - name: Build exact prebuilt Production artifact and enforce feature sentinels

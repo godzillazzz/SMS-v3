@@ -12,9 +12,15 @@ const EXPECTED = Object.freeze({
   sourceBranch: 'fix/serverless-database-reliability',
 });
 
+const DATABASE_CHANGE_POLICIES = Object.freeze([
+  'NO_DATABASE_CHANGES',
+  'PRE_APPLIED_APPROVED_MIGRATION',
+]);
+
 const shaPattern = /^[0-9a-f]{40}$/;
 const deploymentPattern = /^dpl_[A-Za-z0-9]+$/;
 const releaseIdPattern = /^sms-v3-prod-[0-9a-f]{7,12}-[0-9]{8}$/;
+const migrationManifestPattern = /^\.github\/releases\/approved-[a-z0-9-]+-production-migration\.json$/;
 
 function assert(condition, message) {
   if (!condition) throw new Error(`release manifest guard: ${message}`);
@@ -38,6 +44,16 @@ function validateReleaseManifest(input) {
   assert(input.run_migrations === false, 'run_migrations must be false until the migration-aware manifest policy is implemented');
   assert(input.owner_action === 'APPROVE_PRODUCTION_ONLY', 'owner_action must be APPROVE_PRODUCTION_ONLY');
   assert(input.rollback_policy === 'AUTO_ROLLBACK_ON_POST_DEPLOY_VERIFY_FAILURE', 'rollback_policy mismatch');
+  assert(DATABASE_CHANGE_POLICIES.includes(input.database_change_policy), 'unsupported database_change_policy');
+
+  const preApplied = input.database_change_policy === 'PRE_APPLIED_APPROVED_MIGRATION';
+  if (preApplied) {
+    assert(migrationManifestPattern.test(input.pre_applied_migration_manifest_path || ''), 'invalid pre_applied_migration_manifest_path');
+    assert(Number.isSafeInteger(input.pre_applied_migration_evidence_run_id) && input.pre_applied_migration_evidence_run_id > 0, 'invalid pre_applied_migration_evidence_run_id');
+  } else {
+    assert(input.pre_applied_migration_manifest_path == null, 'pre_applied_migration_manifest_path is only valid for PRE_APPLIED_APPROVED_MIGRATION');
+    assert(input.pre_applied_migration_evidence_run_id == null, 'pre_applied_migration_evidence_run_id is only valid for PRE_APPLIED_APPROVED_MIGRATION');
+  }
 
   return Object.freeze({
     schemaVersion: input.schema_version,
@@ -55,6 +71,9 @@ function validateReleaseManifest(input) {
     runMigrations: input.run_migrations,
     ownerAction: input.owner_action,
     rollbackPolicy: input.rollback_policy,
+    databaseChangePolicy: input.database_change_policy,
+    preAppliedMigrationManifestPath: input.pre_applied_migration_manifest_path || '',
+    preAppliedMigrationEvidenceRunId: input.pre_applied_migration_evidence_run_id || '',
   });
 }
 
@@ -75,6 +94,9 @@ function outputLines(manifest) {
     `run_migrations=${manifest.runMigrations}`,
     `owner_action=${manifest.ownerAction}`,
     `rollback_policy=${manifest.rollbackPolicy}`,
+    `database_change_policy=${manifest.databaseChangePolicy}`,
+    `pre_applied_migration_manifest_path=${manifest.preAppliedMigrationManifestPath}`,
+    `pre_applied_migration_evidence_run_id=${manifest.preAppliedMigrationEvidenceRunId}`,
   ];
 }
 
@@ -88,4 +110,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { EXPECTED, outputLines, validateReleaseManifest };
+module.exports = { DATABASE_CHANGE_POLICIES, EXPECTED, outputLines, validateReleaseManifest };
