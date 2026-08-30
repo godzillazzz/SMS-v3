@@ -55,6 +55,7 @@ import { SmsIcon, type SmsIconName } from './components/SmsIcon';
 import { ThemeControl } from './components/ThemeControl';
 import { PasskeySecurityPanel } from './components/PasskeySecurityPanel';
 import { AttendancePolicySettingsCard, attendancePolicyKeys, type AttendancePolicyForm } from './components/AttendancePolicySettingsCard';
+import { ConfigurationRegistryPanel } from './components/ConfigurationRegistryPanel';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/license-table.css';
@@ -74,6 +75,7 @@ import './styles/attendance-device.css';
 import './styles/pwa-shell.css';
 import './styles/responsive-certification-v1.css';
 import './styles/system-health.css';
+import './styles/configuration-center.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
@@ -915,8 +917,17 @@ function SettingsPage({ settings, loading, error, onRefresh, onSaveTemplates, on
     setNewLeaveTemplate(readSetting('LINE_TEMPLATE_NEW_LEAVE', defaultNewLeaveTemplate));
     setLeaveStatusTemplate(readSetting('LINE_TEMPLATE_LEAVE_STATUS', defaultLeaveStatusTemplate));
   }, [settings]);
-  const attendanceSettingKeys = new Set<string>(Object.values(attendancePolicyKeys));
-  const visibleSettings = settings.filter((setting) => !['LINE_TEMPLATE_NEW_LEAVE', 'LINE_TEMPLATE_LEAVE_STATUS'].includes(String(setting.key)) && !attendanceSettingKeys.has(String(setting.key)));
+  const exportableSettings = settings
+    .filter((setting) => setting.registryStatus === 'REGISTERED' && Boolean(setting.configured))
+    .map((setting) => ({
+      key: setting.key,
+      value: setting.value,
+      group: setting.group,
+      valueType: setting.valueType,
+      configured: setting.configured,
+      description: setting.description,
+      updatedAt: setting.updatedAt
+    }));
   const saveTemplates = async () => {
     setSaving(true); setNotice(undefined);
     try { await onSaveTemplates(newLeaveTemplate, leaveStatusTemplate); setNotice('บันทึกเทมเพลตการแจ้งเตือนสำเร็จแล้ว'); }
@@ -924,9 +935,9 @@ function SettingsPage({ settings, loading, error, onRefresh, onSaveTemplates, on
     finally { setSaving(false); }
   };
   return <section className="view-pane settings-page">
-    <div className="page-heading settings-heading"><div><h1>Settings</h1><p>ตั้งค่าระบบและการแจ้งเตือน โดยไม่เก็บ token หรือความลับไว้ในฐานข้อมูล</p></div><div className="heading-actions"><button className="btn-neutral small-action" disabled={!visibleSettings.length} onClick={() => downloadCsv(visibleSettings, 'smsv3-settings')}>⇧ Export</button><button className="btn-neutral small-action" onClick={onAudit}>Audit Log</button><button className="btn-primary compact" disabled title="SMS ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก">↻ Google Sheets ถูกยกเลิก</button></div></div>
+    <div className="page-heading settings-heading"><div><p className="eyebrow">ADMIN · GOVERNED CONFIGURATION</p><h1>Configuration Center</h1><p>จัดการค่าที่ระบบ register และ validate ไว้แล้ว โดยแยก secret/operational authority ออกจาก SystemSetting อย่างชัดเจน</p></div><div className="heading-actions"><button className="btn-neutral small-action" disabled={!exportableSettings.length} onClick={() => downloadCsv(exportableSettings, 'smsv3-governed-settings')}>⇧ Export governed values</button><button className="btn-neutral small-action" onClick={onAudit}>Audit Log</button><button className="btn-primary compact" disabled title="SMS ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก">↻ Google Sheets ถูกยกเลิก</button></div></div>
     {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
-    <div className="table-card settings-table-card">{loading ? <div className="loading-row">กำลังอ่านข้อมูล Settings…</div> : <div className="table-scroll"><table className="data-table settings-table"><thead><tr><th>Key</th><th>Value</th><th>Description</th></tr></thead><tbody>{visibleSettings.length ? visibleSettings.map((setting) => <tr key={text(setting.key)}><td><code>{text(setting.key)}</code></td><td>{setting.configured === undefined ? text(setting.value) : <span className={setting.configured ? 'status-badge active' : 'status-badge inactive'}>{setting.configured ? 'Configured' : 'Not configured'}</span>}</td><td>{text(setting.description)}</td></tr>) : <tr><td colSpan={3} className="no-rows">ยังไม่มีข้อมูล Settings ที่นำเข้าจากระบบเดิม</td></tr>}</tbody></table></div>}</div>
+    {loading ? <div className="loading-row">กำลังอ่าน Configuration Registry…</div> : <ConfigurationRegistryPanel settings={settings} />}
     <AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />
     <section className="line-settings-card">
       <div className="line-settings-title"><span>💬</span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
@@ -1800,7 +1811,7 @@ function Dashboard() {
     attendanceReport: 'รายงานการลงเวลาประจำเดือนที่รับรองแล้ว พร้อม PDF และ Excel',
     users: 'กำหนด Role และแผนกก่อนอนุมัติบัญชี',
     securitySite: 'กำหนด Security Site, Geofence, Department mapping และ Attendance QR lifecycle',
-    settings: 'การตั้งค่าระบบและข้อมูลความปลอดภัย',
+    settings: 'Configuration Center สำหรับค่าที่ผ่าน governance, validation และ audit',
     audit: 'ประวัติการใช้งานและการเปลี่ยนแปลงข้อมูล',
   };
   const initials = auth.user?.displayName?.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'SM';

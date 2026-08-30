@@ -39,13 +39,15 @@ test('leave attachment and Excel routes never expose binary content in JSON', ()
 test('Settings retains the legacy LINE template layout without persisting notification credentials', () => {
   const frontend = read('frontend/src/main.tsx');
   const routes = read('src/routes/operations.routes.js');
+  const registry = read('src/services/system-setting-registry.service.js');
 
   assert.match(frontend, /LINE Notification Settings \(ตั้งค่าแจ้งเตือน LINE\)/);
   assert.match(frontend, /LINE_TEMPLATE_NEW_LEAVE/);
   assert.match(frontend, /LINE_TEMPLATE_LEAVE_STATUS/);
   assert.match(frontend, /Vercel Environment Variables/);
   assert.match(frontend, /Google Sheets ถูกยกเลิก/);
-  assert.match(routes, /secret\|token\|password\|credential/);
+  assert.match(routes, /isSensitiveSystemSettingKey\(key\)/);
+  assert.match(registry, /secret\|token\|password\|credential/);
 });
 
 test('legacy schedule and leave controls remain available to Admin and Manager', () => {
