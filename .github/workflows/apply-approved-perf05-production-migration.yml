@@ -2,6 +2,12 @@ name: Apply Approved PERF-05 Production Migration
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/serverless-database-reliability
+    paths:
+      - .github/workflows/apply-approved-perf05-production-migration.yml
+      - .github/releases/approved-perf05-production-migration.json
 
 permissions:
   contents: read
