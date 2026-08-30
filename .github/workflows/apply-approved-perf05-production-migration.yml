@@ -146,7 +146,7 @@ jobs:
           node scripts/ci/prisma-migration.js status
           git fetch --no-tags origin "$GITHUB_SHA"
           git show "$GITHUB_SHA:scripts/ci/verify-perf05-indexes.js" >/tmp/verify-perf05-indexes.js
-          node /tmp/verify-perf05-indexes.js
+          NODE_PATH="$PWD/node_modules" node /tmp/verify-perf05-indexes.js
       - name: Verify canonical application remains healthy
         shell: bash
         run: |
