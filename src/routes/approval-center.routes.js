@@ -11,6 +11,15 @@ const query = z.object({ limit: z.coerce.number().int().min(1).max(100).default(
 
 router.use(authenticate);
 router.use(authorize('ADMIN', 'MANAGER'));
+router.get('/summary', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json(await service.summary({ actor: req.user }));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/', async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');

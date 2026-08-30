@@ -124,7 +124,7 @@ describe('G04.2 UX-02 application shell contract', () => {
     expect(main).toContain('topbar-notification-button');
     expect(main).toContain('title="คำขอที่รอการอนุมัติ"');
     expect(main).toContain('<SmsIcon name="bell" size={19} />');
-    expect(main).toContain('getApprovalCenter(auth.token!)');
+    expect(main).toContain('getApprovalCenterSummary(auth.token!)');
     expect(main).not.toContain('aria-label="การแจ้งเตือน"');
     expect(main).not.toContain('topbar-icon');
   });

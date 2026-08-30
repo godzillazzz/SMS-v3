@@ -752,6 +752,14 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
   } catch (error) { next(error); }
 });
 
+router.get('/leave-requests/pending-count', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const count = await prisma.leaveRequest.count({ where: { status: 'PENDING' } });
+    res.json({ data: { count } });
+  } catch (error) { next(error); }
+});
+
 router.get('/leave-requests', async (req, res, next) => {
   try {
     const currentUser = await prisma.user.findUniqueOrThrow({
@@ -782,39 +790,39 @@ router.get('/leave-requests', async (req, res, next) => {
     };
 
     const where = baseWhere;
-    const response = await paged(prisma.leaveRequest, req.query, {
-      where,
-      select: {
-        id: true, employeeId: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true,
-        leaveType: true, startDate: true, endDate: true, dayCount: true, reason: true,
-        attachmentUrl: true, attachmentMigrationStatus: true, status: true, approvedAt: true, approvedByLegacyRef: true,
-        createdByUserId: true,
-        attachment: { select: { fileName: true, mimeType: true, sizeBytes: true } }
-      },
-      orderBy: { requestedAt: 'desc' }
-    });
-    const statusCounts = await prisma.leaveRequest.groupBy({ by: ['status'], where, _count: { _all: true } });
+    const [response, statusCounts] = await Promise.all([
+      paged(prisma.leaveRequest, req.query, {
+        where,
+        select: {
+          id: true, employeeId: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true,
+          leaveType: true, startDate: true, endDate: true, dayCount: true, reason: true,
+          attachmentUrl: true, attachmentMigrationStatus: true, status: true, approvedAt: true, approvedByLegacyRef: true,
+          createdByUserId: true,
+          attachment: { select: { fileName: true, mimeType: true, sizeBytes: true } }
+        },
+        orderBy: { requestedAt: 'desc' }
+      }),
+      monthFilter
+        ? prisma.leaveRequest.groupBy({ by: ['status'], where, _count: { _all: true } })
+        : Promise.resolve([])
+    ]);
     response.meta.statusCounts = Object.fromEntries(statusCounts.map((row) => [row.status, row._count._all]));
     const approverIds = [...new Set(response.data.map((row) => row.approvedByLegacyRef).filter((value) => uuid.safeParse(value).success))];
-    const approvers = approverIds.length ? await prisma.user.findMany({ where: { id: { in: approverIds } }, select: { id: true, displayName: true, role: true } }) : [];
-    const approverById = new Map(approvers.map((user) => [user.id, user]));
-
     const leaveIds = response.data.map((row) => row.id);
-    const [createAuditLogs, workflowAuditLogs] = leaveIds.length ? await Promise.all([
-      prisma.auditLog.findMany({
-        where: { entityType: 'LeaveRequest', entityId: { in: leaveIds }, action: 'CREATE' },
-        select: { entityId: true, actorUserId: true, metadata: true }
-      }),
-      prisma.auditLog.findMany({
-        where: { entityType: 'LeaveRequest', entityId: { in: leaveIds }, action: 'UPDATE' },
-        select: { entityId: true, actorUserId: true, metadata: true, createdAt: true, actor: { select: { displayName: true, role: true } } },
+    const [approvers, auditLogs] = await Promise.all([
+      approverIds.length ? prisma.user.findMany({ where: { id: { in: approverIds } }, select: { id: true, displayName: true, role: true } }) : [],
+      leaveIds.length ? prisma.auditLog.findMany({
+        where: { entityType: 'LeaveRequest', entityId: { in: leaveIds }, action: { in: ['CREATE', 'UPDATE'] } },
+        select: { entityId: true, action: true, actorUserId: true, metadata: true, createdAt: true, actor: { select: { displayName: true, role: true } } },
         orderBy: { createdAt: 'desc' }
-      })
-    ]) : [[], []];
-    const createAuditMap = new Map(createAuditLogs.map((log) => [log.entityId, log]));
+      }) : []
+    ]);
+    const approverById = new Map(approvers.map((user) => [user.id, user]));
+    const createAuditMap = new Map();
     const returnAuditMap = new Map();
-    for (const log of workflowAuditLogs) {
-      if (log.metadata?.workflowAction === 'RETURN_FOR_CORRECTION' && !returnAuditMap.has(log.entityId)) returnAuditMap.set(log.entityId, log);
+    for (const log of auditLogs) {
+      if (log.action === 'CREATE' && !createAuditMap.has(log.entityId)) createAuditMap.set(log.entityId, log);
+      if (log.action === 'UPDATE' && log.metadata?.workflowAction === 'RETURN_FOR_CORRECTION' && !returnAuditMap.has(log.entityId)) returnAuditMap.set(log.entityId, log);
     }
 
     res.json({ ...response, data: response.data.map((row) => {

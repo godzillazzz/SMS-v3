@@ -14,7 +14,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
-import { getApprovalCenter } from './approval-center-client';
+import { getApprovalCenterSummary } from './approval-center-client';
 import { setAttendanceTokenRefreshGuard, setAttendanceTokenRefreshHandler } from './attendance-auth-request';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from './request-error';
 import { acquireDocumentScrollLock } from './document-scroll-lock';
@@ -1677,13 +1677,13 @@ function Dashboard() {
 
   useEffect(() => {
     if (pwaShell || !auth.token || !['ADMIN', 'MANAGER'].includes(auth.user?.role || '')) { setPendingLeaveCount(0); return; }
-    api.leaveRequests(auth.token, 1).then((result) => setPendingLeaveCount((Array.isArray(result.data) ? result.data : []).filter((row: DataRow) => row.status === 'PENDING').length)).catch(() => setPendingLeaveCount(0));
+    api.leavePendingCount(auth.token).then((result) => setPendingLeaveCount(Number(result?.data?.count || 0))).catch(() => setPendingLeaveCount(0));
   }, [auth.token, auth.user?.role, operationRefresh, pwaShell]);
 
   useEffect(() => {
     if (pwaShell || !auth.token || !['ADMIN', 'MANAGER'].includes(auth.user?.role || '') || auth.isViewingAs) { setPendingApprovalCount(0); return; }
     let active = true;
-    const refreshApprovalCount = () => getApprovalCenter(auth.token!).then((result) => { if (active) setPendingApprovalCount(Number(result?.summary?.total || 0)); }).catch(() => undefined);
+    const refreshApprovalCount = () => getApprovalCenterSummary(auth.token!).then((result) => { if (active) setPendingApprovalCount(Number(result?.summary?.total || 0)); }).catch(() => undefined);
     void refreshApprovalCount();
     const timer = window.setInterval(refreshApprovalCount, 60000);
     const onVisibility = () => { if (document.visibilityState === 'visible') void refreshApprovalCount(); };

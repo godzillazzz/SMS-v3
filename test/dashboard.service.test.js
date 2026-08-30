@@ -307,7 +307,7 @@ test('dashboard keeps the partial warning signal when license overview aggregati
   assert.equal(summary.activeEmployees, 0); assert.deepEqual(summary.partialErrors, ['licenseOverview']);
 });
 
-test('dashboard consolidated normal path uses 14 operations with bounded overlap', async () => {
+test('dashboard consolidated normal path uses 13 operations with bounded overlap', async () => {
   let calls = 0; let active = 0; let peak = 0;
   const tracked = async (value) => { calls += 1; active += 1; peak = Math.max(peak, active); await Promise.resolve(); active -= 1; return value; };
   const client = {
@@ -318,5 +318,5 @@ test('dashboard consolidated normal path uses 14 operations with bounded overlap
     leaveQuota: { count: async () => tracked(0) }, auditLog: { findMany: async () => tracked([]) }
   };
   const summary = await getDashboardSummary({ prismaClient: client, requestUser: { role: 'ADMIN', employeeId: null, department: null } });
-  assert.equal(calls, 14); assert.ok(peak > 1); assert.ok(peak <= 4); assert.equal(summary.totalEmployees, 5); assert.equal(summary.activeEmployees, 4); assert.deepEqual(summary.partialErrors, []);
+  assert.equal(calls, 13); assert.ok(peak > 1); assert.ok(peak <= 2); assert.equal(summary.totalEmployees, 5); assert.equal(summary.activeEmployees, 4); assert.deepEqual(summary.partialErrors, []);
 });

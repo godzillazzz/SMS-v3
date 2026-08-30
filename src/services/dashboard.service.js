@@ -132,7 +132,9 @@ function settledValue(results, index, fallback, label, errors) {
   return result?.value ?? fallback;
 }
 
-const DASHBOARD_QUERY_CONCURRENCY = 4;
+// Keep per-request DB concurrency aligned with the conservative Prisma/Supabase Pooler floor.
+// Higher fan-out only queues behind connection_limit=2 and increases cross-request contention.
+const DASHBOARD_QUERY_CONCURRENCY = 2;
 
 async function settleDashboardQueries(tasks, context = {}) {
   const results = new Array(tasks.length);
@@ -285,7 +287,7 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
     { stage: 'DASH_WORKFORCE', run: () => client.employee.findMany({ where: departmentWhere, select: { department: true }, distinct: ['department'] }) },
     { stage: 'DASH_TODAY_OPERATIONS', run: () => client.shiftAssignment.findMany({ where: { ...shiftWhere, workDate: { gte: todayStart, lt: tomorrowStart } }, select: { employeeId: true, shiftType: { select: { code: true, name: true, color: true } } }, distinct: ['employeeId'] }) },
     { stage: 'DASH_TODAY_OPERATIONS', run: () => client.shiftAssignment.count({ where: { ...shiftWhere, workDate: { gte: monthStart, lt: nextMonth } } }) },
-    { stage: 'DASH_LEAVE', run: () => client.leaveRequest.count({ where: { ...leaveWhere, status: { in: ACTIVE_LEAVE_STATUSES }, startDate: { lte: todayStart }, endDate: { gte: todayStart } } }) },
+    { stage: 'DASH_LEAVE', run: () => typeof client.leaveRequest?.findMany === 'function' ? Promise.resolve(null) : client.leaveRequest.count({ where: { ...leaveWhere, status: { in: ACTIVE_LEAVE_STATUSES }, startDate: { lte: todayStart }, endDate: { gte: todayStart } } }) },
     { stage: 'DASH_TODAY_OPERATIONS', run: () => findManyIfAvailable(client.leaveRequest, { where: { ...leaveWhere, status: { in: ACTIVE_LEAVE_STATUSES }, startDate: { lte: todayStart }, endDate: { gte: todayStart } }, select: { employeeId: true }, distinct: ['employeeId'] }) },
     { stage: 'DASH_LEAVE', run: () => monthlyLeaveAggregate(client, leaveWhere, monthStart, nextMonth) },
     { stage: 'DASH_LEAVE', run: () => client.leaveRequest.count({ where: { ...leaveWhere, status: 'PENDING' } }) },
@@ -308,8 +310,9 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   const organizationalUnits = settledValue(queryResults, 1, [], 'workforce', queryErrors);
   const todayAssignments = settledValue(queryResults, 2, [], 'todayOperations', queryErrors);
   const monthShifts = settledValue(queryResults, 3, 0, 'todayOperations', queryErrors);
-  const leaveToday = settledValue(queryResults, 4, 0, 'leaveOverview', queryErrors);
+  const leaveTodayFallback = settledValue(queryResults, 4, 0, 'leaveOverview', queryErrors);
   const leaveTodayEmployeeRows = settledValue(queryResults, 5, null, 'todayOperations', queryErrors);
+  const leaveToday = Array.isArray(leaveTodayEmployeeRows) ? leaveTodayEmployeeRows.length : Number(leaveTodayFallback || 0);
   const monthlyLeave = settledValue(queryResults, 6, { total: 0, rows: [], partialError: true }, 'leaveOverview', queryErrors);
   if (monthlyLeave.partialError) queryErrors.push('leaveOverview');
   const leaveMonth = Number(monthlyLeave.total || 0);

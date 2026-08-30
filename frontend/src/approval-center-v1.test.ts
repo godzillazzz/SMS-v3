@@ -20,8 +20,10 @@ describe('Approval Center V2 unified frontend contracts', () => {
     expect(main).toContain("['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type=\"button\" className=\"topbar-notification-button\"");
   });
 
-  it('polls the role-scoped aggregated queue and refreshes when the tab becomes visible', () => {
-    expect(client).toContain("fetch(baseUrl + '/approval-center?limit=100'");
+  it('polls a lightweight role-scoped summary and refreshes when the tab becomes visible', () => {
+    expect(client).toContain("approvalCenterRequest(token, '/approval-center/summary')");
+    expect(client).toContain("approvalCenterRequest(token, '/approval-center?limit=100')");
+    expect(main).toContain('getApprovalCenterSummary(auth.token!)');
     expect(main).toContain('window.setInterval(refreshApprovalCount, 60000)');
     expect(main).toContain("document.addEventListener('visibilitychange'");
   });
