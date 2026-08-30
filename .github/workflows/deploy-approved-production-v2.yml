@@ -82,6 +82,7 @@ jobs:
           DATABASE_CHANGE_POLICY: ${{ steps.manifest.outputs.database_change_policy }}
           PRE_APPLIED_MIGRATION_MANIFEST_PATH: ${{ steps.manifest.outputs.pre_applied_migration_manifest_path }}
           PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID: ${{ steps.manifest.outputs.pre_applied_migration_evidence_run_id }}
+          ROLLBACK_DEPLOYMENT_ID: ${{ steps.manifest.outputs.rollback_deployment_id }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
