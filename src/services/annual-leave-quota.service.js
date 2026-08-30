@@ -5,8 +5,9 @@ const prisma = require('../config/prisma');
 const audit = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { assertAnnualQuotaCreationAllowed } = require('./g03-1-multi-year-activation.service');
+const { DEFAULT_LEAVE_POLICY, createLeavePolicyService, defaultEntitlementFromPolicy } = require('./leave-policy.service');
 
-const ANNUAL_LEAVE_ENTITLEMENT = Object.freeze({ sickLeave: 30, personalLeave: 3, vacationLeave: 6 });
+const ANNUAL_LEAVE_ENTITLEMENT = defaultEntitlementFromPolicy(DEFAULT_LEAVE_POLICY);
 const MIN_QUOTA_YEAR = 2000;
 const MAX_QUOTA_YEAR = 2200;
 const LEAVE_QUOTA_ALREADY_EXISTS = 'LEAVE_QUOTA_ALREADY_EXISTS';
@@ -50,7 +51,7 @@ async function ensureEmployeeEligible(tx, employeeId) {
   return employee;
 }
 
-async function ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear, source = 'ON_DEMAND', auditService = audit }) {
+async function ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear, source = 'ON_DEMAND', auditService = audit, leavePolicySnapshot }) {
   const year = validateQuotaYear(quotaYear);
   const employee = await ensureEmployeeEligible(tx, employeeId);
   const state = await resolveAnnualQuotaState(tx, employeeId, year);
@@ -62,6 +63,8 @@ async function ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear, sourc
     });
   }
   await assertAnnualQuotaCreationAllowed(tx, year);
+  const resolvedPolicy = leavePolicySnapshot || await createLeavePolicyService({ prisma: tx }).getPolicy(tx);
+  const entitlement = defaultEntitlementFromPolicy(resolvedPolicy);
   const employeeNameSnapshot = String(employee.displayName || `${employee.firstName} ${employee.lastName}`).trim();
   const sourceFingerprint = annualFingerprint(employeeId, year);
   const inserted = await tx.leaveQuota.createMany({
@@ -70,9 +73,9 @@ async function ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear, sourc
       employeeId,
       quotaYear: year,
       employeeNameSnapshot,
-      sickLeave: ANNUAL_LEAVE_ENTITLEMENT.sickLeave,
-      personalLeave: ANNUAL_LEAVE_ENTITLEMENT.personalLeave,
-      vacationLeave: ANNUAL_LEAVE_ENTITLEMENT.vacationLeave,
+      sickLeave: entitlement.sickLeave,
+      personalLeave: entitlement.personalLeave,
+      vacationLeave: entitlement.vacationLeave,
       matchStatus: 'MATCHED'
     }],
     skipDuplicates: true
@@ -90,16 +93,17 @@ async function ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear, sourc
       employeeId,
       quotaYear: year,
       source,
-      entitlement: { ...ANNUAL_LEAVE_ENTITLEMENT }
+      entitlement: { ...entitlement },
+      policySource: leavePolicySnapshot ? 'BATCH_SNAPSHOT' : 'CURRENT_SYSTEM_SETTING'
     }
   }, tx);
   return { quota, created: true };
 }
 
-async function ensureAnnualQuota({ employeeId, quotaYear, source = 'ON_DEMAND', prismaClient = prisma, auditService = audit }) {
+async function ensureAnnualQuota({ employeeId, quotaYear, source = 'ON_DEMAND', prismaClient = prisma, auditService = audit, leavePolicySnapshot }) {
   const year = validateQuotaYear(quotaYear);
   const run = () => prismaClient.$transaction(
-    (tx) => ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear: year, source, auditService }),
+    (tx) => ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear: year, source, auditService, leavePolicySnapshot }),
     { isolationLevel: 'Serializable' }
   );
   const rereadWinner = () => prismaClient.leaveQuota.findUnique({ where: { employeeId_quotaYear: { employeeId, quotaYear: year } } });

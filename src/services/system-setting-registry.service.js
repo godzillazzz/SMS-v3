@@ -1,13 +1,15 @@
 'use strict';
 
 const { ATTENDANCE_POLICY_KEYS, ATTENDANCE_QR_POLICIES, validateAttendancePolicySetting } = require('./attendance-policy.service');
+const { LEAVE_POLICY_KEYS, validateLeavePolicySetting } = require('./leave-policy.service');
 const { isReservedOperationalSettingKey } = require('./g03-1-multi-year-activation.service');
 
 const SENSITIVE_SETTING_KEY_PATTERN = /secret|token|password|credential|database|smtp|webhook|channel|access[_-]?key/i;
 
 const GROUPS = Object.freeze({
   ATTENDANCE: Object.freeze({ id: 'ATTENDANCE', label: 'Attendance & Location', order: 10 }),
-  NOTIFICATIONS: Object.freeze({ id: 'NOTIFICATIONS', label: 'Notifications', order: 20 }),
+  LEAVE: Object.freeze({ id: 'LEAVE', label: 'Leave Policy', order: 20 }),
+  NOTIFICATIONS: Object.freeze({ id: 'NOTIFICATIONS', label: 'Notifications', order: 30 }),
   LEGACY: Object.freeze({ id: 'LEGACY', label: 'Legacy / Read only', order: 90 }),
   PROTECTED: Object.freeze({ id: 'PROTECTED', label: 'Protected Operations', order: 99 })
 });
@@ -93,6 +95,66 @@ const DEFINITIONS = Object.freeze([
     description: 'ขอ QR Step-up เมื่อ GPS อยู่ในหลาย Site พร้อมกัน'
   }),
   frozenDefinition({
+    key: LEAVE_POLICY_KEYS.defaultSickDays,
+    group: GROUPS.LEAVE.id,
+    groupLabel: GROUPS.LEAVE.label,
+    groupOrder: GROUPS.LEAVE.order,
+    label: 'Default sick leave entitlement',
+    valueType: 'NUMBER',
+    description: 'สิทธิ์ลาป่วยเริ่มต้นสำหรับโควตารายปีที่สร้างใหม่',
+    constraints: { min: 0, max: 999, unit: 'days' }
+  }),
+  frozenDefinition({
+    key: LEAVE_POLICY_KEYS.defaultPersonalDays,
+    group: GROUPS.LEAVE.id,
+    groupLabel: GROUPS.LEAVE.label,
+    groupOrder: GROUPS.LEAVE.order,
+    label: 'Default personal leave entitlement',
+    valueType: 'NUMBER',
+    description: 'สิทธิ์ลากิจเริ่มต้นสำหรับโควตารายปีที่สร้างใหม่',
+    constraints: { min: 0, max: 999, unit: 'days' }
+  }),
+  frozenDefinition({
+    key: LEAVE_POLICY_KEYS.defaultVacationDays,
+    group: GROUPS.LEAVE.id,
+    groupLabel: GROUPS.LEAVE.label,
+    groupOrder: GROUPS.LEAVE.order,
+    label: 'Default vacation leave entitlement',
+    valueType: 'NUMBER',
+    description: 'สิทธิ์ลาพักร้อนเริ่มต้นสำหรับโควตารายปีที่สร้างใหม่',
+    constraints: { min: 0, max: 999, unit: 'days' }
+  }),
+  frozenDefinition({
+    key: LEAVE_POLICY_KEYS.sickAttachmentRequiredAfterDays,
+    group: GROUPS.LEAVE.id,
+    groupLabel: GROUPS.LEAVE.label,
+    groupOrder: GROUPS.LEAVE.order,
+    label: 'Sick leave attachment threshold',
+    valueType: 'NUMBER',
+    description: 'บังคับแนบเอกสารเมื่อลาป่วยเกินจำนวนวันที่กำหนด',
+    constraints: { min: 0, max: 30, unit: 'days' }
+  }),
+  frozenDefinition({
+    key: LEAVE_POLICY_KEYS.managerRetroactiveOnBehalfEnabled,
+    group: GROUPS.LEAVE.id,
+    groupLabel: GROUPS.LEAVE.label,
+    groupOrder: GROUPS.LEAVE.order,
+    label: 'Manager retroactive on-behalf entry',
+    valueType: 'BOOLEAN',
+    description: 'อนุญาต Manager บันทึกการลาย้อนหลังแทนพนักงานอื่น',
+    constraints: {}
+  }),
+  frozenDefinition({
+    key: LEAVE_POLICY_KEYS.managerRetroactiveMaxDaysBack,
+    group: GROUPS.LEAVE.id,
+    groupLabel: GROUPS.LEAVE.label,
+    groupOrder: GROUPS.LEAVE.order,
+    label: 'Manager retroactive lookback limit',
+    valueType: 'NUMBER',
+    description: 'จำนวนวันย้อนหลังสูงสุดสำหรับ Manager; 0 หมายถึงไม่จำกัด',
+    constraints: { min: 0, max: 3650, unit: 'days', zeroMeans: 'unlimited' }
+  }),
+  frozenDefinition({
     key: 'LINE_TEMPLATE_NEW_LEAVE',
     group: GROUPS.NOTIFICATIONS.id,
     groupLabel: GROUPS.NOTIFICATIONS.label,
@@ -136,6 +198,16 @@ function normalizeRegisteredSystemSettingValue(key, value) {
     const normalized = validateAttendancePolicySetting(definition.key, value);
     if (normalized == null) {
       const error = new Error('Attendance policy setting is invalid.');
+      error.code = 'SYSTEM_SETTING_VALUE_INVALID';
+      throw error;
+    }
+    return normalized;
+  }
+
+  if (definition.group === GROUPS.LEAVE.id) {
+    const normalized = validateLeavePolicySetting(definition.key, value);
+    if (normalized == null) {
+      const error = new Error('Leave policy setting is invalid.');
       error.code = 'SYSTEM_SETTING_VALUE_INVALID';
       throw error;
     }
@@ -221,7 +293,7 @@ function presentSystemSettings(rows = []) {
 }
 
 function registeredSystemSettingGroups() {
-  return [GROUPS.ATTENDANCE, GROUPS.NOTIFICATIONS].map((group) => ({ ...group }));
+  return [GROUPS.ATTENDANCE, GROUPS.LEAVE, GROUPS.NOTIFICATIONS].map((group) => ({ ...group }));
 }
 
 module.exports = {

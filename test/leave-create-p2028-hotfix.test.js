@@ -114,6 +114,7 @@ function createFakePrisma(config = {}) {
       const draft = structuredClone(state);
       const employee = { id: '10000000-0000-4000-8000-000000000100', firstName: 'Test', lastName: 'Employee', displayName: 'Test Employee', department: 'OPS', deletedAt: null, isActive: true };
       const tx = {
+        systemSetting: { findMany: async () => [] },
         user: { findUniqueOrThrow: async () => ({ role: 'ADMIN', employeeId: employee.id }) },
         employee: {
           findUniqueOrThrow: async () => employee,

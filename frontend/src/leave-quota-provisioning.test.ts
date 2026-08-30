@@ -5,6 +5,7 @@ import {
   canProvisionLeaveQuota,
   currentBangkokQuotaYear,
   hasUnmatchedLegacyQuota,
+  leaveQuotaDefaultsFromPolicy,
   quotaProvisioningEmployeeOptions,
   thaiQuotaYearLabel
 } from './leave-quota-provisioning';
@@ -15,6 +16,11 @@ describe('G03.1 annual leave quota UI contract', () => {
     expect(canProvisionLeaveQuota('MANAGER')).toBe(false);
     expect(canProvisionLeaveQuota('VIEWER')).toBe(false);
     expect(LEAVE_QUOTA_DEFAULTS).toEqual({ sickLeave: '30', personalLeave: '3', vacationLeave: '6' });
+  });
+
+  it('derives governed quota defaults from resolved Leave Policy with safe fallback', () => {
+    expect(leaveQuotaDefaultsFromPolicy({ defaultSickDays: 31, defaultPersonalDays: 4, defaultVacationDays: 7 })).toEqual({ sickLeave: '31', personalLeave: '4', vacationLeave: '7' });
+    expect(leaveQuotaDefaultsFromPolicy({ defaultSickDays: -1, defaultPersonalDays: 'bad', defaultVacationDays: 1000 })).toEqual(LEAVE_QUOTA_DEFAULTS);
   });
 
   it('derives the Gregorian business year in Bangkok and displays Buddhist year', () => {

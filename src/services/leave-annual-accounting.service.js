@@ -89,10 +89,10 @@ function quotaFieldForLeaveType(leaveType) {
   throw new HttpError(400, 'Unsupported leave type.');
 }
 
-async function ensureQuotaRows(tx, { employeeId, quotaYears, source }) {
+async function ensureQuotaRows(tx, { employeeId, quotaYears, source, leavePolicySnapshot }) {
   const result = new Map();
   for (const quotaYear of [...new Set(quotaYears)].sort((a, b) => a - b)) {
-    const ensured = await ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear, source });
+    const ensured = await ensureAnnualQuotaInTransaction(tx, { employeeId, quotaYear, source, leavePolicySnapshot });
     result.set(quotaYear, ensured.quota);
   }
   return result;
@@ -105,11 +105,12 @@ async function validateAnnualLeaveAvailability(tx, {
   excludeId,
   source = 'ON_DEMAND',
   lock = false,
-  stageTimer = async (_stage, operation) => operation()
+  stageTimer = async (_stage, operation) => operation(),
+  leavePolicySnapshot
 }) {
   const quotaYears = Object.keys(requestedUsageByYear).map(Number).sort((a, b) => a - b);
   if (!quotaYears.length) throw new HttpError(400, 'Leave request has no chargeable days.');
-  const quotas = await stageTimer('quota_ensure', () => ensureQuotaRows(tx, { employeeId, quotaYears, source }));
+  const quotas = await stageTimer('quota_ensure', () => ensureQuotaRows(tx, { employeeId, quotaYears, source, leavePolicySnapshot }));
   if (lock) await stageTimer('quota_lock', () => lockAnnualQuotas(tx, employeeId, quotaYears));
   const used = await stageTimer('approved_usage_lookup', () => approvedUsageByYear(tx, { employeeId, leaveType, quotaYears, excludeId }));
   const field = quotaFieldForLeaveType(leaveType);

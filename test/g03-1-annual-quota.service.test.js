@@ -10,7 +10,7 @@ function fixture({ employee = { id: 'e1', firstName: 'A', lastName: 'B', display
   const state = { audits: [], creates: [] };
   const tx = {
     employee: { findFirst: async () => employee },
-    systemSetting: { findUnique: async () => activationExists ? { value: activationValue } : null },
+    systemSetting: { findUnique: async () => activationExists ? { value: activationValue } : null, findMany: async () => [] },
     leaveQuota: {
       findUnique: async () => annual || (state.creates[0] ?? null),
       findMany: async () => legacy,

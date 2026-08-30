@@ -22,6 +22,7 @@ const { createLeaveStageDurations, measureLeaveTransactionStage, runLeaveTransac
 const { provisionAnnualLeaveQuotas } = require('../services/annual-leave-quota-cron.service');
 const { isReservedOperationalSettingKey } = require('../services/g03-1-multi-year-activation.service');
 const { getSystemSettingDefinition, isSensitiveSystemSettingKey, normalizeRegisteredSystemSettingValue, presentRegisteredSystemSetting, presentSystemSettings, registeredSystemSettingGroups } = require('../services/system-setting-registry.service');
+const { createLeavePolicyService, isRetroactiveLeaveStart, retroactiveDaysBack } = require('../services/leave-policy.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
@@ -144,21 +145,40 @@ const isManagerPosition = (employee) => /manager|ผู้จัดการ/.te
 const licenseStorage = createSupabaseLicenseDocumentStorage();
 const licenseDocuments = createLicenseDocumentService({ prisma, storage: licenseStorage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
 const attendanceEvidenceStorage = createSupabaseAttendanceFaceEvidenceStorage({ prisma, audit });
-const getTodayBangkokUTC = () => {
-  const now = new Date();
-  const bangkokTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
-  const year = bangkokTime.getUTCFullYear();
-  const month = bangkokTime.getUTCMonth();
-  const day = bangkokTime.getUTCDate();
-  return new Date(Date.UTC(year, month, day));
-};
-const checkIsRetroactive = (dateInput) => {
-  if (!dateInput) return false;
-  const d = new Date(dateInput);
-  if (isNaN(d.getTime())) return false;
-  const bkkDate = new Date(d.getTime() + (7 * 60 * 60 * 1000));
-  const targetUTC = new Date(Date.UTC(bkkDate.getUTCFullYear(), bkkDate.getUTCMonth(), bkkDate.getUTCDate()));
-  return targetUTC < getTodayBangkokUTC();
+const leavePolicyService = createLeavePolicyService({ prisma });
+const checkIsRetroactive = (dateInput) => isRetroactiveLeaveStart(dateInput);
+const assertRetroactiveLeaveEntryAllowed = ({ policy, actorRole, actorEmployeeId, employeeId, startDate, correction = false }) => {
+  const isRetroactive = checkIsRetroactive(startDate);
+  if (!isRetroactive) return false;
+
+  const codePrefix = correction ? 'LEAVE_CORRECTION_' : 'LEAVE_';
+  if (actorRole === 'VIEWER') {
+    throw new HttpError(400, correction ? 'พนักงานทั่วไปไม่สามารถแก้ไขเป็นการลาย้อนหลังได้' : 'พนักงานทั่วไปไม่สามารถบันทึกการลาย้อนหลังได้', {
+      code: `${codePrefix}RETROACTIVE_NOT_ALLOWED`
+    });
+  }
+  if (actorRole === 'MANAGER' && employeeId === actorEmployeeId) {
+    throw new HttpError(400, correction ? 'ผู้จัดการไม่สามารถแก้ไขการลาย้อนหลังให้ตนเองได้' : 'ผู้จัดการไม่สามารถบันทึกการลาย้อนหลังให้ตนเองได้', {
+      code: `${codePrefix}MANAGER_RETROACTIVE_SELF_NOT_ALLOWED`
+    });
+  }
+  if (actorRole === 'MANAGER') {
+    if (!policy.managerRetroactiveOnBehalfEnabled) {
+      throw new HttpError(403, 'นโยบายปัจจุบันไม่อนุญาตให้ Manager บันทึกการลาย้อนหลังแทนพนักงาน', {
+        code: `${codePrefix}MANAGER_RETROACTIVE_DISABLED`
+      });
+    }
+    const daysBack = retroactiveDaysBack(startDate);
+    const maxDaysBack = Number(policy.managerRetroactiveMaxDaysBack || 0);
+    if (maxDaysBack > 0 && daysBack > maxDaysBack) {
+      throw new HttpError(400, `Manager บันทึกการลาย้อนหลังได้สูงสุด ${maxDaysBack} วัน`, {
+        code: `${codePrefix}MANAGER_RETROACTIVE_LIMIT_EXCEEDED`,
+        daysBack,
+        maxDaysBack
+      });
+    }
+  }
+  return true;
 };
 const hasSupervisorApprovalLevel = (user) => user.role === 'ADMIN' || isSupervisorPosition(user.employee) || isManagerPosition(user.employee);
 const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser, options = {}) => {
@@ -182,7 +202,8 @@ const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedUsageByY
   excludeId,
   source: options.source || 'ON_DEMAND',
   lock: Boolean(options.lock),
-  stageTimer: options.stageTimer
+  stageTimer: options.stageTimer,
+  leavePolicySnapshot: options.leavePolicySnapshot
 });
 const runLeaveTransaction = (callback, options) => runLeaveTransactionWithClient(prisma, callback, options);
 const licenseStateForShift = async (tx, { employeeId, workDate, shiftCode, override, overrideReason, actorRole }) => {
@@ -206,17 +227,14 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute, opti
   const leaveType = normalizeLeaveType(input.leaveType);
   const requestedUsageByYear = nativeUsageByQuotaYear(input.startDate, input.endDate);
   const dayCount = Object.values(requestedUsageByYear).reduce((sum, value) => sum + Number(value), 0);
-
-  const isRetroactive = checkIsRetroactive(input.startDate);
-
-  if (isRetroactive) {
-    if (currentUser.role === 'VIEWER') {
-      throw new HttpError(400, 'พนักงานทั่วไปไม่สามารถบันทึกการลาย้อนหลังได้');
-    }
-    if (currentUser.role === 'MANAGER' && employeeId === currentUser.employeeId) {
-      throw new HttpError(400, 'ผู้จัดการไม่สามารถบันทึกการลาย้อนหลังให้ตนเองได้');
-    }
-  }
+  const leavePolicySnapshot = await stageTimer('leave_policy_lookup', () => leavePolicyService.getPolicy(tx));
+  const isRetroactive = assertRetroactiveLeaveEntryAllowed({
+    policy: leavePolicySnapshot,
+    actorRole: currentUser.role,
+    actorEmployeeId: currentUser.employeeId,
+    employeeId,
+    startDate: input.startDate
+  });
 
   const onBehalfOf = employeeId !== currentUser.employeeId;
   // MANAGER global scope: department check is removed for on-behalf creation.
@@ -227,9 +245,10 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute, opti
 
   const overlap = await stageTimer('overlap_lookup', () => tx.leaveRequest.findFirst({ where: { employeeId, status: { in: LEAVE_OVERLAP_ACTIVE_STATUSES }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } }));
   if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.');
-  await ensureLeaveAvailable(tx, employeeId, leaveType, requestedUsageByYear, undefined, { stageTimer });
+  await ensureLeaveAvailable(tx, employeeId, leaveType, requestedUsageByYear, undefined, { stageTimer, leavePolicySnapshot });
   if (file && !allowedAttachmentTypes.has(file.mimetype)) throw new HttpError(415, 'Attachment must be PDF, JPEG, or PNG.');
-  if (leaveType === 'SICK' && dayCount > 3 && !file) throw new HttpError(400, 'Sick leave longer than 3 days requires an attachment.');
+  const attachmentThresholdDays = Number(leavePolicySnapshot.sickAttachmentRequiredAfterDays);
+  if (leaveType === 'SICK' && dayCount > attachmentThresholdDays && !file) throw new HttpError(400, `Sick leave longer than ${attachmentThresholdDays} day(s) requires an attachment.`, { code: 'LEAVE_SICK_ATTACHMENT_REQUIRED', thresholdDays: attachmentThresholdDays });
   const safeFileName = file?.originalname.replace(/[\\/\0]/g, '_').slice(0, 255);
   const substituteText = String(substitute ?? input.substitute ?? '').trim();
   if (!substituteText) throw new HttpError(400, 'Substitute is required.');
@@ -248,7 +267,7 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute, opti
       await tx.leaveRequest.update({ where: { id: leave.id }, data: { attachmentUrl: `/api/v1/leave-requests/${leave.id}/attachment` } });
     });
   }
-  await stageTimer('audit', () => audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']), attachment: file ? { present: true, mimeType: file.mimetype, sizeBytes: file.size } : { present: false }, isRetroactive, onBehalfOf } }, tx));
+  await stageTimer('audit', () => audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']), attachment: file ? { present: true, mimeType: file.mimetype, sizeBytes: file.size } : { present: false }, isRetroactive, onBehalfOf, policySnapshot: { sickAttachmentRequiredAfterDays: attachmentThresholdDays, managerRetroactiveOnBehalfEnabled: leavePolicySnapshot.managerRetroactiveOnBehalfEnabled, managerRetroactiveMaxDaysBack: leavePolicySnapshot.managerRetroactiveMaxDaysBack } } }, tx));
   return {
     id: leave.id, employeeId: leave.employeeId, requestedAt: leave.requestedAt,
     employeeNameSnapshot: leave.employeeNameSnapshot, departmentSnapshot: leave.departmentSnapshot,
@@ -773,6 +792,25 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
   } catch (error) { next(error); }
 });
 
+router.get('/leave-policy', async (_req, res, next) => {
+  try {
+    const policy = await leavePolicyService.getPolicy(prisma);
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      data: policy,
+      meta: {
+        source: 'RESOLVED_GOVERNED_POLICY',
+        invariants: {
+          viewerRetroactiveAllowed: false,
+          managerSelfRetroactiveAllowed: false,
+          retroactiveReasonRequired: true,
+          selfApprovalAllowed: false
+        }
+      }
+    });
+  } catch (error) { next(error); }
+});
+
 router.get('/leave-requests/pending-count', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
@@ -1008,9 +1046,15 @@ router.put('/leave-requests/:id/correction', async (req, res, next) => {
       if (before.status !== 'RETURNED_FOR_CORRECTION') throw new HttpError(409, 'Only returned leave requests can be edited.', { code: 'LEAVE_CORRECTION_INVALID_STATE' });
       const actor = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { id: true, role: true, employeeId: true } });
       assertReturnedLeaveOwner(before, actor);
-      const isRetroactive = checkIsRetroactive(input.startDate);
-      if (isRetroactive && actor.role === 'VIEWER') throw new HttpError(400, 'พนักงานทั่วไปไม่สามารถแก้ไขเป็นการลาย้อนหลังได้', { code: 'LEAVE_CORRECTION_RETROACTIVE_NOT_ALLOWED' });
-      if (isRetroactive && actor.role === 'MANAGER' && before.employeeId === actor.employeeId) throw new HttpError(400, 'ผู้จัดการไม่สามารถแก้ไขการลาย้อนหลังให้ตนเองได้', { code: 'LEAVE_CORRECTION_MANAGER_RETROACTIVE_SELF_NOT_ALLOWED' });
+      const leavePolicySnapshot = await leavePolicyService.getPolicy(tx);
+      const isRetroactive = assertRetroactiveLeaveEntryAllowed({
+        policy: leavePolicySnapshot,
+        actorRole: actor.role,
+        actorEmployeeId: actor.employeeId,
+        employeeId: before.employeeId,
+        startDate: input.startDate,
+        correction: true
+      });
       if (actor.role === 'MANAGER' && before.employeeId !== actor.employeeId) await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive });
       const leaveType = normalizeLeaveType(input.leaveType);
       const requestedUsageByYear = nativeUsageByQuotaYear(input.startDate, input.endDate);
@@ -1026,8 +1070,9 @@ router.put('/leave-requests/:id/correction', async (req, res, next) => {
         select: { id: true }
       });
       if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.', { code: 'LEAVE_CORRECTION_OVERLAP' });
-      await ensureLeaveAvailable(tx, before.employeeId, leaveType, requestedUsageByYear, id, { lock: true });
-      if (leaveType === 'SICK' && dayCount > 3 && !before.attachmentUrl) throw new HttpError(400, 'Sick leave longer than 3 days requires an attachment.');
+      await ensureLeaveAvailable(tx, before.employeeId, leaveType, requestedUsageByYear, id, { lock: true, leavePolicySnapshot });
+      const attachmentThresholdDays = Number(leavePolicySnapshot.sickAttachmentRequiredAfterDays);
+      if (leaveType === 'SICK' && dayCount > attachmentThresholdDays && !before.attachmentUrl) throw new HttpError(400, `Sick leave longer than ${attachmentThresholdDays} day(s) requires an attachment.`, { code: 'LEAVE_SICK_ATTACHMENT_REQUIRED', thresholdDays: attachmentThresholdDays });
       const after = await tx.leaveRequest.update({
         where: { id },
         data: {
@@ -1049,7 +1094,12 @@ router.put('/leave-requests/:id/correction', async (req, res, next) => {
           toStatus: after.status,
           before: safeRecord(before, ['leaveType', 'startDate', 'endDate', 'dayCount', 'reason']),
           after: safeRecord(after, ['leaveType', 'startDate', 'endDate', 'dayCount', 'reason']),
-          actorRole: actor.role
+          actorRole: actor.role,
+          policySnapshot: {
+            sickAttachmentRequiredAfterDays: attachmentThresholdDays,
+            managerRetroactiveOnBehalfEnabled: leavePolicySnapshot.managerRetroactiveOnBehalfEnabled,
+            managerRetroactiveMaxDaysBack: leavePolicySnapshot.managerRetroactiveMaxDaysBack
+          }
         }
       }, tx);
       return after;
