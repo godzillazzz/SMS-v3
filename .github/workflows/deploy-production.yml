@@ -7,6 +7,10 @@ on:
         description: Exact commit SHA already present on fix/serverless-database-reliability
         required: true
         type: string
+      tree_sha:
+        description: Exact Git tree SHA for the approved release source
+        required: true
+        type: string
       confirm_project_name:
         description: Type sms-v3-staging to confirm the target project
         required: true
@@ -65,11 +69,14 @@ jobs:
           test "${{ inputs.confirm_project_name }}" = "$EXPECTED_PROJECT_NAME"
           test "${{ inputs.confirm_environment }}" = "production"
           TARGET_SHA="${{ inputs.commit_sha }}"
+          TARGET_TREE="${{ inputs.tree_sha }}"
           [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TARGET_TREE" =~ ^[0-9a-f]{40}$ ]]
           git fetch --no-tags origin fix/serverless-database-reliability
           git cat-file -e "${TARGET_SHA}^{commit}"
           git merge-base --is-ancestor "$TARGET_SHA" origin/fix/serverless-database-reliability
           test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$TARGET_TREE"
           if [[ "${{ inputs.run_migrations }}" == "false" ]]; then
             git diff --quiet "$EXPECTED_CANONICAL_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
           fi
@@ -232,6 +239,7 @@ jobs:
             echo 'Vercel build log secret scan failed'
             exit 1
           fi
+          node scripts/ci/verify-release-artifact.js frontend/dist .vercel/output/static
       - name: Restore exact source and verify git-clean prebuilt deploy
         shell: bash
         run: |
