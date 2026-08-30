@@ -217,6 +217,7 @@ model User {
   faceVerificationSessions          FaceVerificationSession[]         @relation("FaceVerificationSessionUser")
   faceVerificationReceipts          FaceVerificationReceipt[]         @relation("FaceVerificationReceiptUser")
 
+  @@index([accountStatus, requestedAt, createdAt])
   @@map("users")
 }
 
@@ -373,6 +374,7 @@ model AttendanceDeviceChangeRequest {
   currentDevice               AttendanceDeviceEnrollment?         @relation("CurrentAttendanceDevice", fields: [currentDeviceEnrollmentId], references: [id], onDelete: Restrict)
 
   @@index([employeeId, status, createdAt])
+  @@index([status, createdAt])
   @@index([requestedByUserId, status])
   @@index([reviewedByUserId, reviewedAt])
   @@map("attendance_device_change_requests")
@@ -476,6 +478,7 @@ model EmployeeReferencePhoto {
   attendanceEvidence         AttendanceEvidence[]
 
   @@index([employeeId, status, createdAt])
+  @@index([status, uploadedAt])
   @@index([status, storageDeletionRequestedAt, storageDeletedAt])
   @@index([uploadedByUserId, createdAt])
   @@map("employee_reference_photos")
@@ -914,6 +917,7 @@ model EmployeeLicenseDocument {
 
   @@unique([licenseId, version])
   @@index([employeeId, status])
+  @@index([status, uploadedAt])
   @@index([licenseId, isCurrent])
   @@index([proposedExpiryDate])
   @@index([status, isCurrent, expirationProcessedAt])
@@ -975,6 +979,7 @@ model LeaveRequest {
 
   @@index([employeeId, startDate])
   @@index([status])
+  @@index([status, requestedAt])
   @@index([createdByUserId])
   @@map("leave_requests")
 }
