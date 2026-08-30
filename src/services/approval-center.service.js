@@ -246,7 +246,7 @@ function createApprovalCenterService({
     const leaveListArgs = {
       where: leaveWhere,
       select: {
-        id: true, employeeId: true, status: true, requestedAt: true, createdAt: true, leaveType: true,
+        id: true, employeeId: true, status: true, requestedAt: true, createdAt: true, leaveType: true, leaveTypeNameSnapshot: true,
         startDate: true, endDate: true, dayCount: true, employeeNameSnapshot: true, departmentSnapshot: true, createdByUserId: true,
         employee: { select: commonEmployeeSelect },
         createdByUser: { select: { id: true, displayName: true, role: true } }
@@ -426,7 +426,8 @@ function createApprovalCenterService({
         requestedBy: actorSummary(row.createdByUser, null),
         submittedAt: row.requestedAt || row.createdAt,
         metadata: {
-          leaveType: row.leaveType,
+          leaveType: row.leaveTypeNameSnapshot || row.leaveType,
+          leaveTypeCode: row.leaveType,
           startDate: row.startDate,
           endDate: row.endDate,
           dayCount: row.dayCount == null ? null : String(row.dayCount),

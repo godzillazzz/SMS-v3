@@ -172,14 +172,14 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
   const activeEmployees = workforceRows.reduce((sum, row) => sum + row.active, 0);
   const assignmentCount = await timedExecutiveStage(requestId, 'EXEC_SCHEDULE', 1, () => prismaClient.shiftAssignment.count({ where: { workDate: { gte: period.startDate, lt: period.nextMonthStart }, ...(scope.department && { departmentSnapshot: scope.department }), ...(scope.employeeId && { employeeId: scope.employeeId }) } }));
   const leaveByStatusRows = await timedExecutiveStage(requestId, 'EXEC_LEAVE', 1, () => prismaClient.leaveRequest.groupBy({ by: ['status'], where: leaveWhere, _count: { _all: true } }));
-  const leaveByTypeRows = await timedExecutiveStage(requestId, 'EXEC_LEAVE', 1, () => prismaClient.leaveRequest.groupBy({ by: ['leaveType'], where: leaveWhere, _count: { _all: true }, orderBy: { leaveType: 'asc' } }));
+  const leaveByTypeRows = await timedExecutiveStage(requestId, 'EXEC_LEAVE', 1, () => prismaClient.leaveRequest.groupBy({ by: ['leaveType', 'leaveTypeNameSnapshot'], where: leaveWhere, _count: { _all: true }, orderBy: { leaveType: 'asc' } }));
   const actionablePendingCount = await timedExecutiveStage(requestId, 'EXEC_LEAVE', 1, () => prismaClient.leaveRequest.count({ where: { status: 'PENDING', ...operationalLeaveWhere } }));
   const quality = await timedExecutiveStage(requestId, 'EXEC_DATA_QUALITY', 4, () => getDataQualitySummary({ prismaClient, filters: { department: scope.department || undefined, employeeId: scope.employeeId || undefined }, now: asOfDate }));
   const validBeyond30Days = await timedExecutiveStage(requestId, 'EXEC_LICENSE', 1, () => prismaClient.employeeLicenseDocument.count({ where: { ...LICENSE_APPROVED, ...operationalDocumentScope, proposedExpiryDate: { gt: expiry30 } } }));
   const pendingReview = await timedExecutiveStage(requestId, 'EXEC_LICENSE', 1, () => prismaClient.employeeLicenseDocument.count({ where: { status: 'PENDING', isCurrent: true, ...operationalDocumentScope } }));
 
   const statusCounts = numberFromGroup(leaveByStatusRows, 'status', ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']);
-  const byType = leaveByTypeRows.map((row) => ({ label: row.leaveType, count: row._count?._all || 0 }));
+  const byType = leaveByTypeRows.map((row) => ({ label: row.leaveTypeNameSnapshot || row.leaveType, code: row.leaveType, count: row._count?._all || 0 }));
   const workforceByDepartment = workforceRows.filter((row) => row.active > 0).map((row) => ({ label: row.department || 'ไม่ระบุหน่วยงาน', count: row.active }));
   const qualityCategory = (rule) => quality.categories.find((item) => item.rule === rule)?.count || 0;
   const license = {

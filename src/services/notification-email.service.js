@@ -375,7 +375,7 @@ async function notifyLeaveProcessed({ leave, status, approverName }) {
     const startText = leave.startDate ? new Date(leave.startDate).toISOString().slice(0, 10) : '';
     const endText = leave.endDate ? new Date(leave.endDate).toISOString().slice(0, 10) : '';
 
-    const subject = `SMS v3: ผลการอนุมัติคำขอลา (${leave.employeeNameSnapshot} - ${leave.leaveType}: ${isApproved ? 'อนุมัติ' : 'ไม่อนุมัติ'})`;
+    const subject = `SMS v3: ผลการอนุมัติคำขอลา (${leave.employeeNameSnapshot} - ${leave.leaveTypeNameSnapshot || leave.leaveType}: ${isApproved ? 'อนุมัติ' : 'ไม่อนุมัติ'})`;
     const html = `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">
         <h2 style="color: ${statusColor}; margin-top: 0;">ผลการอนุมัติคำขอลา: ${statusText}</h2>
@@ -383,7 +383,7 @@ async function notifyLeaveProcessed({ leave, status, approverName }) {
         <p>คำขอลาได้รับการพิจารณาเรียบร้อยแล้ว:</p>
         <table style="border-collapse: collapse; margin: 15px 0; width: 100%; background: #f8fafc; border-radius: 8px;">
           <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 140px;">พนักงาน:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${leave.employeeNameSnapshot} (${leave.departmentSnapshot || '-'})</td></tr>
-          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">ประเภทการลา:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${leave.leaveType}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">ประเภทการลา:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${leave.leaveTypeNameSnapshot || leave.leaveType}</td></tr>
           <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">วันที่ลา:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${startText} ถึง ${endText} (${leave.dayCount} วัน)</td></tr>
           <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">สถานะ:</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: ${statusColor};">${statusText}</td></tr>
           <tr><td style="padding: 10px; font-weight: bold;">ผู้ดำเนินการ:</td><td style="padding: 10px;">${approverName || 'Admin/Manager'}</td></tr>
@@ -604,7 +604,7 @@ const subject = eventType === 'LEAVE_RESUBMITTED'
       }
       const linkHtml = (appUrl && isValidHttpsUrl) ? `<p>ท่านสามารถเข้าสู่ระบบเพื่อตรวจสอบและอนุมัติใบลาได้ที่: <a href="${appUrl}/operations/leaves">${appUrl}/operations/leaves</a></p>` : '';
 
-      const escapedLeaveType = escapeHtml(leaveRequest.leaveType);
+      const escapedLeaveType = escapeHtml(leaveRequest.leaveTypeNameSnapshot || leaveRequest.leaveType);
       const escapedReason = escapeHtml(leaveRequest.reason || '-');
       const escapedManagerName = escapeHtml(reviewer.displayName || (reviewer.role === 'ADMIN' ? 'ผู้ดูแลระบบ' : 'ผู้จัดการ'));
       const escapedEmployeeDept = escapeHtml(employeeDept);
@@ -793,7 +793,7 @@ async function notifyEmployeeLeaveStatusChange(leaveRequest, eventType, actorUse
 
   const escapedEmployeeName = escapeHtml(employeeName);
   const escapedEmployeeDept = escapeHtml(employeeDept);
-  const escapedLeaveType = escapeHtml(leaveRequest.leaveType);
+  const escapedLeaveType = escapeHtml(leaveRequest.leaveTypeNameSnapshot || leaveRequest.leaveType);
   const escapedReason = escapeHtml(leaveRequest.reason || '-');
   const escapedActorName = escapeHtml(actorName);
   const escapedStartText = escapeHtml(startText);

@@ -8,7 +8,7 @@ router.use(authenticate);
 
 const leaveSubmitSchema = z.object({
   employeeId: z.string().uuid(),
-  leaveType: z.enum(['SICK', 'PERSONAL', 'VACATION']),
+  leaveType: z.string().trim().min(1).max(100),
   startDate: z.string(),
   endDate: z.string(),
   reason: z.string().trim().min(1).max(500)
