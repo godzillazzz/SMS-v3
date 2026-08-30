@@ -21,7 +21,31 @@ function keyMaterial() {
 }
 function clone(value) { return structuredClone(value); }
 
-function harness({ activeDevice = null, inactive = false, failCandidateActivation = false } = {}) {
+function harness({ activeDevice = null, inactive = false, failCandidateActivation = false, delayIndependentReads = false, cancelAfterChallengeConsume = false } = {}) {
+  const metrics = {
+    userFindUnique: 0,
+    attendanceRequestFindFirst: 0,
+    enrollmentFindFirst: 0,
+    attendanceRequestFindUnique: 0,
+    challengeFindUnique: 0,
+    enrollmentUpdateMany: 0,
+    activeIndependentReads: 0,
+    maxIndependentReads: 0
+  };
+  let independentReadsStarted = 0;
+  let releaseIndependentReads;
+  const independentReadGate = new Promise((resolve) => { releaseIndependentReads = resolve; });
+  async function trackIndependentRead(run) {
+    metrics.activeIndependentReads += 1;
+    metrics.maxIndependentReads = Math.max(metrics.maxIndependentReads, metrics.activeIndependentReads);
+    independentReadsStarted += 1;
+    if (delayIndependentReads) {
+      if (independentReadsStarted >= 2) releaseIndependentReads();
+      await independentReadGate;
+    }
+    try { return run(); }
+    finally { metrics.activeIndependentReads -= 1; }
+  }
   const state = {
     employee: { id: ids.employee, isActive: !inactive, deletedAt: null },
     users: new Map([[ids.employeeUser, { id: ids.employeeUser, employeeId: ids.employee, employee: null }], [ids.admin, { id: ids.admin, employeeId: null, employee: null }], [ids.manager, { id: ids.manager, employeeId: null, employee: null }]]),
@@ -32,24 +56,68 @@ function harness({ activeDevice = null, inactive = false, failCandidateActivatio
   function enrollmentById(id) { return state.enrollments.find((row) => row.id === id); }
   function requestById(id) { return state.requests.find((row) => row.id === id); }
   const tx = {
-    user: { findUnique: async ({ where }) => state.users.get(where.id) ? clone(state.users.get(where.id)) : null },
+    user: { findUnique: async ({ where }) => { metrics.userFindUnique += 1; return state.users.get(where.id) ? clone(state.users.get(where.id)) : null; } },
     attendanceDeviceEnrollment: {
-      findFirst: async ({ where }) => clone(state.enrollments.filter((row) => row.employeeId === where.employeeId && row.status === where.status).sort((a,b) => new Date(b.activatedAt || 0) - new Date(a.activatedAt || 0))[0] || null),
+      findFirst: async ({ where }) => {
+        metrics.enrollmentFindFirst += 1;
+        return trackIndependentRead(() => clone(state.enrollments.filter((row) => row.employeeId === where.employeeId && row.status === where.status).sort((a,b) => new Date(b.activatedAt || 0) - new Date(a.activatedAt || 0))[0] || null));
+      },
       create: async ({ data }) => { const row = { id: enrollmentSeq++ ? crypto.randomUUID() : ids.candidate, proofVerifiedAt: null, enrolledAt: now, activatedAt: null, revokedAt: null, revokedReason: null, createdAt: now, updatedAt: now, ...data }; state.enrollments.push(row); return clone(row); },
-      update: async ({ where, data }) => { const row = enrollmentById(where.id); if (!row) throw new Error('missing enrollment'); if (failCandidateActivation && where.id === ids.candidate && data.status === 'ACTIVE') throw new Error('candidate activation failure'); Object.assign(row, data, { updatedAt: now }); return clone(row); }
+      update: async ({ where, data }) => { const row = enrollmentById(where.id); if (!row) throw new Error('missing enrollment'); if (failCandidateActivation && where.id === ids.candidate && data.status === 'ACTIVE') throw new Error('candidate activation failure'); Object.assign(row, data, { updatedAt: now }); return clone(row); },
+      updateMany: async ({ where, data }) => {
+        metrics.enrollmentUpdateMany += 1;
+        let count = 0;
+        for (const row of state.enrollments) {
+          const request = state.requests.find((candidateRequest) => candidateRequest.candidateDeviceEnrollmentId === row.id);
+          const relation = where.candidateForRequest?.is;
+          const relationMatches = !relation || (
+            request
+            && (!relation.id || request.id === relation.id)
+            && (!relation.employeeId || request.employeeId === relation.employeeId)
+            && (!relation.requestedByUserId || request.requestedByUserId === relation.requestedByUserId)
+            && (!relation.status?.in || relation.status.in.includes(request.status))
+          );
+          const matches = (!where.id || row.id === where.id)
+            && (!where.employeeId || row.employeeId === where.employeeId)
+            && (!where.status || row.status === where.status)
+            && relationMatches;
+          if (matches) { Object.assign(row, data, { updatedAt: now }); count += 1; }
+        }
+        return { count };
+      }
     },
     attendanceDeviceChangeRequest: {
-      findFirst: async ({ where }) => clone(state.requests.find((row) => row.employeeId === where.employeeId && (!where.status?.in || where.status.in.includes(row.status))) || null),
+      findFirst: async ({ where }) => {
+        metrics.attendanceRequestFindFirst += 1;
+        return trackIndependentRead(() => clone(state.requests.find((row) => row.employeeId === where.employeeId && (!where.status?.in || where.status.in.includes(row.status))) || null));
+      },
       create: async ({ data, include }) => { const row = { id: requestSeq++ ? crypto.randomUUID() : ids.request, status: 'PENDING_APPROVAL', reviewerComment: null, reviewedByUserId: null, reviewedAt: null, returnedAt: null, cancelledAt: null, createdAt: now, updatedAt: now, ...data }; state.requests.push(row); return include?.candidateDevice ? { ...clone(row), candidateDevice: clone(enrollmentById(row.candidateDeviceEnrollmentId)) } : clone(row); },
-      findUnique: async ({ where, include }) => { const row = requestById(where.id); if (!row) return null; const out = clone(row); if (include?.candidateDevice) out.candidateDevice = clone(enrollmentById(row.candidateDeviceEnrollmentId)); if (include?.employee) out.employee = clone(state.employee); return out; },
+      findUnique: async ({ where, include }) => { metrics.attendanceRequestFindUnique += 1; const row = requestById(where.id); if (!row) return null; const out = clone(row); if (include?.candidateDevice) out.candidateDevice = clone(enrollmentById(row.candidateDeviceEnrollmentId)); if (include?.employee) out.employee = clone(state.employee); return out; },
       update: async ({ where, data, include }) => { const row = requestById(where.id); Object.assign(row, data, { updatedAt: now }); const out = clone(row); if (include?.candidateDevice) out.candidateDevice = clone(enrollmentById(row.candidateDeviceEnrollmentId)); return out; },
       updateMany: async ({ where, data }) => { let count = 0; for (const row of state.requests) { const statusMatch = !where.status || (typeof where.status === 'string' ? row.status === where.status : where.status.in?.includes(row.status)); const matches = (!where.id || row.id === where.id) && (!where.requestedByUserId || row.requestedByUserId === where.requestedByUserId) && statusMatch; if (matches) { Object.assign(row, data, { updatedAt: now }); count++; } } return { count }; },
       findMany: async ({ where }) => state.requests.filter((row) => !where.status || row.status === where.status).map((row) => ({ ...clone(row), candidateDevice: clone(enrollmentById(row.candidateDeviceEnrollmentId)) }))
     },
     attendanceDeviceChallenge: {
-      updateMany: async ({ where, data }) => { let count=0; for (const row of state.challenges) { const matches = (!where.id || row.id === where.id) && (!where.employeeId || row.employeeId === where.employeeId) && (!where.deviceEnrollmentId || row.deviceEnrollmentId === where.deviceEnrollmentId) && (!where.purpose || row.purpose === where.purpose) && (where.consumedAt !== null || row.consumedAt === null) && (!where.expiresAt?.gt || row.expiresAt > where.expiresAt.gt); if (matches) { Object.assign(row,data); count++; } } return { count }; },
+      updateMany: async ({ where, data }) => {
+        let count = 0;
+        for (const row of state.challenges) {
+          const matches = (!where.id || row.id === where.id)
+            && (!where.employeeId || row.employeeId === where.employeeId)
+            && (!where.deviceEnrollmentId || row.deviceEnrollmentId === where.deviceEnrollmentId)
+            && (!where.purpose || row.purpose === where.purpose)
+            && (where.consumedAt !== null || row.consumedAt === null)
+            && (!where.expiresAt?.gt || row.expiresAt > where.expiresAt.gt);
+          if (matches) { Object.assign(row, data); count += 1; }
+        }
+        if (count === 1 && where.id && cancelAfterChallengeConsume && data.consumedAt) {
+          const challenge = state.challenges.find((row) => row.id === where.id);
+          const request = state.requests.find((row) => row.candidateDeviceEnrollmentId === challenge?.deviceEnrollmentId);
+          if (request) request.status = 'CANCELLED';
+        }
+        return { count };
+      },
       create: async ({ data }) => { const row = { id: challengeSeq++ ? crypto.randomUUID() : ids.challenge, consumedAt: null, createdAt: now, ...data }; state.challenges.push(row); return clone(row); },
-      findUnique: async ({ where }) => clone(state.challenges.find((row) => row.id === where.id) || null)
+      findUnique: async ({ where }) => { metrics.challengeFindUnique += 1; return clone(state.challenges.find((row) => row.id === where.id) || null); }
     }
   };
   const prisma = { ...tx, $transaction: async (fn) => {
@@ -58,7 +126,7 @@ function harness({ activeDevice = null, inactive = false, failCandidateActivatio
   } };
   const audit = { log: async (entry) => { state.audits.push(clone(entry)); return entry; } };
   const service = createAttendanceDeviceService({ prisma, audit, clock: () => now, randomBytes: () => Buffer.alloc(32, 7) });
-  return { state, service };
+  return { state, service, metrics };
 }
 
 async function createCandidate(service, material, actor = employeeActor) {
@@ -81,6 +149,9 @@ test('route contract authenticates every device endpoint and keeps review/final 
   assert.ok(route.includes("router.post('/requests/:id/reject', authorize('ADMIN')"));
   assert.ok(index.includes("router.use('/attendance/devices', attendanceDeviceRoutes);"));
   assert.equal(route.includes('employeeCode'), false);
+  const authenticate = require('fs').readFileSync('src/middlewares/authenticate.js', 'utf8');
+  assert.match(authenticate, /employee:\s*\{\s*select:\s*\{\s*id:\s*true,\s*isActive:\s*true,\s*deletedAt:\s*true\s*\}\s*\}/);
+  assert.match(authenticate, /employeeAuthority:\s*user\.employee/);
 });
 
 test('migration/schema lock dedicated device identity without reusing employeeCode or WebAuthnCredential', () => {
@@ -162,4 +233,98 @@ test('return/resubmit/cancel preserve Admin review and request-owner boundaries'
   await assert.rejects(() => service.resubmit({ actor: managerActor, requestId: ids.request }), (e) => e.statusCode === 404);
   await service.resubmit({ actor: employeeActor, requestId: ids.request, reason: 'แก้ไขแล้ว' }); assert.equal(state.requests[0].status, 'PENDING_APPROVAL');
   await service.cancel({ actor: employeeActor, requestId: ids.request, reason: 'ไม่ใช้เครื่องนี้แล้ว' }); assert.equal(state.requests[0].status, 'CANCELLED'); assert.equal(state.enrollments[0].status, 'CANCELLED');
+});
+
+
+test('PERF-07 reuses authenticated employee authority without a duplicate User lookup', async () => {
+  const material = keyMaterial();
+  const actor = {
+    ...employeeActor,
+    employeeAuthority: { id: ids.employee, isActive: true, deletedAt: null }
+  };
+  const { service, metrics } = harness();
+  const request = await createCandidate(service, material, actor);
+  assert.equal(request.employeeId, ids.employee);
+  assert.equal(metrics.userFindUnique, 0);
+
+  const state = await service.getMyState({ actor });
+  assert.equal(state.employeeId, ids.employee);
+  assert.equal(metrics.userFindUnique, 0);
+});
+
+test('PERF-07 authenticated employee authority still fails closed for inactive or unlinked employees', async () => {
+  const material = keyMaterial();
+  const inactive = harness();
+  await assert.rejects(
+    () => createCandidate(inactive.service, material, {
+      ...employeeActor,
+      employeeAuthority: { id: ids.employee, isActive: false, deletedAt: null }
+    }),
+    (error) => error.statusCode === 409 && error.details.code === 'INACTIVE_EMPLOYEE_OPERATION'
+  );
+  assert.equal(inactive.metrics.userFindUnique, 0);
+
+  const unlinked = harness();
+  await assert.rejects(
+    () => createCandidate(unlinked.service, material, { ...employeeActor, employeeAuthority: null }),
+    (error) => error.statusCode === 403 && error.details.code === 'ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED'
+  );
+  assert.equal(unlinked.metrics.userFindUnique, 0);
+});
+
+test('PERF-07 create request runs actionable-request and active-device reads concurrently', async () => {
+  const material = keyMaterial();
+  const { service, metrics } = harness({ delayIndependentReads: true });
+  const request = await createCandidate(service, material);
+  assert.equal(request.requestType, 'INITIAL');
+  assert.equal(metrics.attendanceRequestFindFirst, 1);
+  assert.equal(metrics.enrollmentFindFirst, 1);
+  assert.equal(metrics.maxIndependentReads, 2);
+});
+
+test('PERF-07 proof verification avoids the post-signature request reread and uses one atomic candidate mark', async () => {
+  const material = keyMaterial();
+  const { service, metrics } = harness();
+  await createCandidate(service, material);
+  const options = await service.createProofChallenge({ actor: employeeActor, requestId: ids.request });
+  const signature = crypto.sign('sha256', Buffer.from(options.challenge, 'base64url'), { key: material.privateKey, dsaEncoding: 'ieee-p1363' });
+
+  metrics.attendanceRequestFindUnique = 0;
+  metrics.challengeFindUnique = 0;
+  metrics.enrollmentUpdateMany = 0;
+
+  const verified = await service.verifyProof({
+    actor: employeeActor,
+    requestId: ids.request,
+    challengeId: options.challengeId,
+    challenge: options.challenge,
+    signatureBase64: signature.toString('base64')
+  });
+
+  assert.equal(verified.proofVerifiedAt.toISOString(), now.toISOString());
+  assert.equal(metrics.attendanceRequestFindUnique, 1, 'proof verification must load the request only once before signature verification');
+  assert.equal(metrics.challengeFindUnique, 1);
+  assert.equal(metrics.enrollmentUpdateMany, 1, 'post-signature state must be marked by one conditional update');
+});
+
+test('PERF-07 proof mark fails closed if request becomes non-actionable after challenge consumption', async () => {
+  const material = keyMaterial();
+  const { state, service } = harness({ cancelAfterChallengeConsume: true });
+  await createCandidate(service, material);
+  const options = await service.createProofChallenge({ actor: employeeActor, requestId: ids.request });
+  const signature = crypto.sign('sha256', Buffer.from(options.challenge, 'base64url'), { key: material.privateKey, dsaEncoding: 'ieee-p1363' });
+
+  await assert.rejects(
+    () => service.verifyProof({
+      actor: employeeActor,
+      requestId: ids.request,
+      challengeId: options.challengeId,
+      challenge: options.challenge,
+      signatureBase64: signature.toString('base64')
+    }),
+    (error) => error.statusCode === 409 && error.details.code === 'ATTENDANCE_DEVICE_REQUEST_NOT_ACTIONABLE'
+  );
+  assert.equal(state.challenges[0].consumedAt.toISOString(), now.toISOString());
+  assert.equal(state.requests[0].status, 'CANCELLED');
+  assert.equal(state.enrollments[0].proofVerifiedAt, null);
 });
