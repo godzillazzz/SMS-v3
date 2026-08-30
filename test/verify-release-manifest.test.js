@@ -84,13 +84,13 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
 });
 
 
-test('current approved Production manifest resolves exact CFG-01 target with no database changes', () => {
+test('current approved Production manifest resolves exact CFG-02 target with no database changes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.commitSha, 'e85ee57a124513af4669ccb31166f66890dfcfa4');
-  assert.equal(result.treeSha, '6a720c6be099b8eaf452f74cb594fec84847da53');
-  assert.equal(result.currentProductionSourceSha, '03adfd357a7472fb3f78fd7335a8a988c9dda8a1');
-  assert.equal(result.rollbackDeploymentId, 'dpl_HkXXLsL9mKhgf5SnJui2doGbLC8x');
+  assert.equal(result.commitSha, '4a98548b1c3962e1e7f7095fd968ddc3e6a555f9');
+  assert.equal(result.treeSha, '7964c1cf5850ae71903f66c2856fa80dab94dec4');
+  assert.equal(result.currentProductionSourceSha, 'e85ee57a124513af4669ccb31166f66890dfcfa4');
+  assert.equal(result.rollbackDeploymentId, 'dpl_6ta9ynG3BfdXPUwzez5xJeB9ZpKB');
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
   assert.equal(result.preAppliedMigrationEvidenceRunId, '');
