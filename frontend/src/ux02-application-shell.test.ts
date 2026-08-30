@@ -7,7 +7,7 @@ const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'u
 
 const expectedNavigationIds = [
   'dashboard', 'employees', 'licenses', 'attendance', 'attendanceSupervisor', 'attendanceDevice', 'schedule', 'shiftSetup', 'leave', 'leavePending',
-  'leaveHistory', 'quota', 'approvalCenter', 'rules', 'audit', 'dataQuality', 'users', 'reportCenter', 'securitySite', 'settings'
+  'leaveHistory', 'quota', 'approvalCenter', 'rules', 'audit', 'dataQuality', 'systemHealth', 'users', 'reportCenter', 'securitySite', 'settings'
 ];
 
 describe('G04.2 UX-02 application shell contract', () => {
@@ -33,6 +33,7 @@ describe('G04.2 UX-02 application shell contract', () => {
     expect(main).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (page === 'audit') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (page === 'dataQuality') return auth.user?.role === 'ADMIN'");
+    expect(main).toContain("if (page === 'systemHealth') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (page === 'securitySite') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (page === 'settings') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (page === 'users') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
