@@ -70,11 +70,14 @@ test('policy service reads only known Attendance policy keys from SystemSetting'
   assert.deepEqual(new Set(calls[0].where.key.in), new Set(Object.values(ATTENDANCE_POLICY_KEYS)));
   assert.deepEqual(calls[0].select, { key: true, value: true });
 });
-test('existing SystemSetting write route keeps Attendance policy Admin-only, validated and audited', () => {
+test('SystemSetting write route keeps Attendance policy Admin-only under registered typed governance and audit', () => {
   const source = fs.readFileSync(require('node:path').join(__dirname, '..', 'src', 'routes', 'operations.routes.js'), 'utf8');
+  const registry = fs.readFileSync(require('node:path').join(__dirname, '..', 'src', 'services', 'system-setting-registry.service.js'), 'utf8');
   assert.ok(source.includes("router.put('/system-settings/:key', authorize('ADMIN')"));
-  assert.ok(source.includes('Object.values(ATTENDANCE_POLICY_KEYS).includes(key)'));
-  assert.ok(source.includes('validateAttendancePolicySetting(key, input.value)'));
-  assert.ok(source.includes('ATTENDANCE_POLICY_SETTING_INVALID'));
+  assert.ok(source.includes('getSystemSettingDefinition(key)'));
+  assert.ok(source.includes('normalizeRegisteredSystemSettingValue(key, input.value)'));
+  assert.ok(source.includes('SYSTEM_SETTING_NOT_REGISTERED'));
   assert.ok(source.includes('audit.log('));
+  assert.ok(registry.includes('validateAttendancePolicySetting(definition.key, value)'));
+  assert.ok(registry.includes('ATTENDANCE_POLICY_KEYS.qrPolicy'));
 });

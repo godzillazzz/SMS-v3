@@ -21,7 +21,7 @@ const { measureLeaveApprovalStage, runLeaveApprovalTransaction } = require('../s
 const { createLeaveStageDurations, measureLeaveTransactionStage, runLeaveTransaction: runLeaveTransactionWithClient } = require('../services/leave-transaction.service');
 const { provisionAnnualLeaveQuotas } = require('../services/annual-leave-quota-cron.service');
 const { isReservedOperationalSettingKey } = require('../services/g03-1-multi-year-activation.service');
-const { ATTENDANCE_POLICY_KEYS, validateAttendancePolicySetting } = require('../services/attendance-policy.service');
+const { getSystemSettingDefinition, isSensitiveSystemSettingKey, normalizeRegisteredSystemSettingValue, presentRegisteredSystemSetting, presentSystemSettings, registeredSystemSettingGroups } = require('../services/system-setting-registry.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
@@ -726,28 +726,49 @@ router.put('/scheduling-rules/:id', authorize('ADMIN', 'MANAGER'), async (req, r
 
 router.get('/system-settings', authorize('ADMIN'), async (_req, res, next) => {
   try {
-    const sensitive = /secret|token|password|credential|database|smtp|webhook|channel|access[_-]?key/i;
     const settings = await prisma.systemSetting.findMany({ orderBy: { key: 'asc' }, select: { key: true, value: true, description: true, updatedAt: true } });
-    res.json({ data: settings.map((setting) => ({ key: setting.key, value: sensitive.test(setting.key) ? undefined : setting.value, configured: sensitive.test(setting.key) ? Boolean(setting.value) : undefined, description: setting.description, updatedAt: setting.updatedAt })) });
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: presentSystemSettings(settings), meta: { groups: registeredSystemSettingGroups() } });
   } catch (error) { next(error); }
 });
 router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) => {
   try {
     const key = z.string().trim().regex(/^[A-Z0-9_.-]{1,150}$/).parse(req.params.key);
     if (isReservedOperationalSettingKey(key)) throw new HttpError(403, 'This operational setting is managed through protected release operations.', { code: 'OPERATIONAL_SETTING_RESERVED' });
-    if (/secret|token|password|credential|database|smtp|webhook|channel|access[_-]?key/i.test(key)) throw new HttpError(400, 'Sensitive settings must be configured through the approved environment-variable workflow.');
+    if (isSensitiveSystemSettingKey(key)) throw new HttpError(400, 'Sensitive settings must be configured through the approved environment-variable workflow.', { code: 'SENSITIVE_SETTING_ENVIRONMENT_ONLY' });
+    const definition = getSystemSettingDefinition(key);
+    if (!definition?.editable) throw new HttpError(403, 'This SystemSetting key is not registered for Admin configuration.', { code: 'SYSTEM_SETTING_NOT_REGISTERED' });
     const input = z.object({ value: z.string().max(2000), description: nullableText(2000) }).parse(req.body);
-    let normalizedInput = input;
-    if (Object.values(ATTENDANCE_POLICY_KEYS).includes(key)) {
-      try { normalizedInput = { ...input, value: validateAttendancePolicySetting(key, input.value) }; }
-      catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'Attendance policy setting is invalid.', { code: 'ATTENDANCE_POLICY_SETTING_INVALID' }); }
+    let normalizedValue;
+    try { normalizedValue = normalizeRegisteredSystemSettingValue(key, input.value); }
+    catch (error) {
+      throw new HttpError(400, error instanceof Error ? error.message : 'System setting value is invalid.', { code: error?.code || 'SYSTEM_SETTING_VALUE_INVALID' });
     }
+
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.systemSetting.findUnique({ where: { key } });
-      const after = await tx.systemSetting.upsert({ where: { key }, update: normalizedInput, create: { key, ...normalizedInput } });
-      await audit.log({ actorUserId: req.user.sub, action: before ? 'UPDATE' : 'CREATE', entityType: 'SystemSetting', entityId: key, metadata: { key, configured: Boolean(after.value) } }, tx);
-      return { key: after.key, value: after.value, description: after.description, updatedAt: after.updatedAt };
+      const after = await tx.systemSetting.upsert({
+        where: { key },
+        update: { value: normalizedValue, description: definition.description },
+        create: { key, value: normalizedValue, description: definition.description }
+      });
+      await audit.log({
+        actorUserId: req.user.sub,
+        action: before ? 'UPDATE' : 'CREATE',
+        entityType: 'SystemSetting',
+        entityId: key,
+        metadata: {
+          key,
+          group: definition.group,
+          valueType: definition.valueType,
+          beforeConfigured: Boolean(before),
+          afterConfigured: true,
+          valueChanged: before?.value !== after.value
+        }
+      }, tx);
+      return presentRegisteredSystemSetting(after);
     });
+    res.set('Cache-Control', 'no-store');
     res.json({ data: result });
   } catch (error) { next(error); }
 });
