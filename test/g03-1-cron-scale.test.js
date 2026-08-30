@@ -9,8 +9,9 @@ function fakePrisma(employeeCount = 250, activationValue = 'true') {
   const audits = [];
   let pageReads = 0;
   let transactions = 0;
+  let policyReads = 0;
   const root = {
-    systemSetting: { findUnique: async () => activationValue === null ? null : ({ value: activationValue }) },
+    systemSetting: { findUnique: async () => activationValue === null ? null : ({ value: activationValue }), findMany: async () => { policyReads += 1; return []; } },
     employee: {
       findMany: async ({ take, cursor }) => {
         pageReads += 1;
@@ -24,7 +25,7 @@ function fakePrisma(employeeCount = 250, activationValue = 'true') {
     $transaction: async (callback) => {
       transactions += 1;
       const tx = {
-        systemSetting: { findUnique: async () => activationValue === null ? null : ({ value: activationValue }) },
+        systemSetting: { findUnique: async () => activationValue === null ? null : ({ value: activationValue }), findMany: async () => { throw new Error('leave policy must be batch-loaded before employee transactions'); } },
         employee: {
           findFirst: async ({ where }) => employees.find((row) => row.id === where.id) || null
         },
@@ -46,7 +47,7 @@ function fakePrisma(employeeCount = 250, activationValue = 'true') {
       return callback(tx);
     }
   };
-  return { root, quotas, audits, stats: () => ({ pageReads, transactions }) };
+  return { root, quotas, audits, stats: () => ({ pageReads, transactions, policyReads }) };
 }
 
 test('inactive annual cron returns disabled before employee scan or transactions', async () => {
@@ -55,7 +56,7 @@ test('inactive annual cron returns disabled before employee scan or transactions
   assert.deepEqual(result, { status: 'disabled', activation: 'inactive', eligible: 0, created: 0, existing: 0, ambiguous: 0, failed: 0, quotaYear: 2027 });
   assert.equal(fixture.quotas.size, 0);
   assert.equal(fixture.audits.length, 0);
-  assert.deepEqual(fixture.stats(), { pageReads: 0, transactions: 0 });
+  assert.deepEqual(fixture.stats(), { pageReads: 0, transactions: 0, policyReads: 0 });
 });
 
 test('annual cron provisions 250 employees in bounded pages and reruns without resetting rows', async () => {
@@ -67,6 +68,7 @@ test('annual cron provisions 250 employees in bounded pages and reruns without r
   assert.equal(fixture.audits.length, 250);
   assert.equal(fixture.stats().pageReads, 6);
   assert.equal(fixture.stats().transactions, 250);
+  assert.equal(fixture.stats().policyReads, 1, 'leave policy is loaded once per cron run, not once per employee');
 
   const customKey = 'employee-0001:2027';
   fixture.quotas.get(customKey).vacationLeave = 10;
@@ -75,4 +77,5 @@ test('annual cron provisions 250 employees in bounded pages and reruns without r
   assert.equal(fixture.quotas.get(customKey).vacationLeave, 10);
   assert.equal(fixture.audits.length, 250, 'rerun emits no duplicate create audits');
   assert.equal(fixture.stats().transactions, 500);
+  assert.equal(fixture.stats().policyReads, 2, 'each rerun loads one fresh governed policy snapshot');
 });

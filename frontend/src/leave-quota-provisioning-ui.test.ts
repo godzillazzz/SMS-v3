@@ -13,9 +13,9 @@ describe('G03.1 annual quota page wiring', () => {
     expect(main).toContain('buildLeaveQuotaProvisioningPayload({ ...form, quotaYear })');
   });
 
-  it('uses 30/3/6 defaults and does not expose a free-text year in the create modal', () => {
+  it('uses resolved governed defaults and does not expose a free-text year in the create modal', () => {
     const quotaCreate = main.slice(main.indexOf("if (activePage === 'quota' && auth.user?.role === 'ADMIN')"), main.indexOf("if (activePage === 'licenses')"));
-    expect(quotaCreate).toContain('values: { ...LEAVE_QUOTA_DEFAULTS, quotaYear: String(quotaYear) }');
+    expect(quotaCreate).toContain('values: { ...leaveQuotaDefaultsFromPolicy(leavePolicy), quotaYear: String(quotaYear) }');
     expect(quotaCreate).not.toContain("name: 'quotaYear'");
     expect(quotaCreate).toContain('กำหนดโควตาวันลา ปี');
   });

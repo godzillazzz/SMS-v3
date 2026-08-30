@@ -13,6 +13,7 @@ const LEAVE_TRANSACTION_TIMEOUT_MESSAGE = 'การบันทึกคำข�
 const LEAVE_CREATE_TIMING_STAGES = Object.freeze([
   'current_user_lookup',
   'employee_lookup',
+  'leave_policy_lookup',
   'overlap_lookup',
   'quota_ensure',
   'approved_usage_lookup',

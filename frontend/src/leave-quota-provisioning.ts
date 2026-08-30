@@ -4,6 +4,18 @@ export const LEAVE_QUOTA_DEFAULTS = Object.freeze({
   vacationLeave: '6'
 });
 
+export function leaveQuotaDefaultsFromPolicy(policy: Record<string, unknown> = {}) {
+  const safe = (value: unknown, fallback: string) => {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 && number <= 999 ? String(number) : fallback;
+  };
+  return Object.freeze({
+    sickLeave: safe(policy.defaultSickDays, LEAVE_QUOTA_DEFAULTS.sickLeave),
+    personalLeave: safe(policy.defaultPersonalDays, LEAVE_QUOTA_DEFAULTS.personalLeave),
+    vacationLeave: safe(policy.defaultVacationDays, LEAVE_QUOTA_DEFAULTS.vacationLeave)
+  });
+}
+
 export type QuotaEmployee = {
   id: string;
   employeeCode: string;

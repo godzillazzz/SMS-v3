@@ -3,6 +3,7 @@
 const prisma = require('../config/prisma');
 const { bangkokQuotaYear, ensureAnnualQuota, LEAVE_QUOTA_LEGACY_AMBIGUOUS } = require('./annual-leave-quota.service');
 const { isMultiYearWriteActivated } = require('./g03-1-multi-year-activation.service');
+const { createLeavePolicyService } = require('./leave-policy.service');
 
 async function provisionAnnualLeaveQuotas({ prismaClient = prisma, now = new Date(), batchSize = 100 } = {}) {
   const quotaYear = bangkokQuotaYear(now);
@@ -10,6 +11,7 @@ async function provisionAnnualLeaveQuotas({ prismaClient = prisma, now = new Dat
   if (!activated) {
     return { status: 'disabled', activation: 'inactive', eligible: 0, created: 0, existing: 0, ambiguous: 0, failed: 0, quotaYear };
   }
+  const leavePolicySnapshot = await createLeavePolicyService({ prisma: prismaClient }).getPolicy(prismaClient);
   let cursor;
   const totals = { eligible: 0, created: 0, existing: 0, ambiguous: 0, failed: 0, quotaYear };
   while (true) {
@@ -24,7 +26,7 @@ async function provisionAnnualLeaveQuotas({ prismaClient = prisma, now = new Dat
     totals.eligible += employees.length;
     for (const employee of employees) {
       try {
-        const result = await ensureAnnualQuota({ employeeId: employee.id, quotaYear, source: 'CRON', prismaClient });
+        const result = await ensureAnnualQuota({ employeeId: employee.id, quotaYear, source: 'CRON', prismaClient, leavePolicySnapshot });
         if (result.created) totals.created += 1;
         else totals.existing += 1;
       } catch (error) {
