@@ -15,7 +15,8 @@ const userSelect = {
   isActive: true,
   accountStatus: true,
   passwordResetRequired: true,
-  tokenVersion: true
+  tokenVersion: true,
+  employee: { select: { id: true, isActive: true, deletedAt: true } }
 };
 
 async function loadSynchronizedUser(userId) {
@@ -41,7 +42,17 @@ async function authenticate(req, _res, next) {
       if (!impersonator || impersonator.role !== 'ADMIN' || !impersonator.isActive || impersonator.accountStatus !== 'ACTIVE' || impersonator.passwordResetRequired || impersonator.tokenVersion !== claims.impersonatorTokenVersion) throw new Error('View As token no longer valid.');
     }
     if (claims.impersonation && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next(new HttpError(403, 'View As mode is read-only.'));
-    req.user = { sub: user.id, email: user.email, role: user.role, tokenVersion: user.tokenVersion, impersonation: Boolean(claims.impersonation), impersonatorSub: claims.impersonatorSub };
+    req.user = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      tokenVersion: user.tokenVersion,
+      impersonation: Boolean(claims.impersonation),
+      impersonatorSub: claims.impersonatorSub,
+      employeeAuthority: user.employee
+        ? { id: user.employee.id, isActive: user.employee.isActive, deletedAt: user.employee.deletedAt }
+        : null
+    };
     return next();
   } catch {
     return next(new HttpError(401, 'Invalid or expired access token.'));
