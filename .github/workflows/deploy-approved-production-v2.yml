@@ -323,13 +323,7 @@ jobs:
             node -e 'const value=JSON.parse(process.argv[1]); if(value.status!=="ready" || value.database!=="ok") process.exit(1)' "$ready"
             test "$approval_status" = 401
             html=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl / --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
-            bundle_path=$(node - "$html" <<'NODE'
-            const html = process.argv[2];
-            const match = html.match(/<script[^>]+src=["']([^"']*\/assets\/index-[^"']+\.js)["']/i);
-            if (!match) process.exit(1);
-            process.stdout.write(new URL(match[1], 'https://candidate.invalid/').pathname);
-            NODE
-            )
+            bundle_path=$(printf '%s' "$html" | node -e 'let html=""; process.stdin.on("data", (chunk) => { html += chunk; }); process.stdin.on("end", () => { const match = html.match(/<script[^>]+src="([^"]*\/assets\/index-[^"]+\.js)"/i); if (!match) process.exit(1); process.stdout.write(new URL(match[1], "https://candidate.invalid/").pathname); });')
             js=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$bundle_path" --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
             node - "$js" <<'NODE'
           const js = process.argv[2];
