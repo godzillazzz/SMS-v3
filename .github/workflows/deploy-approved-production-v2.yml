@@ -267,14 +267,80 @@ jobs:
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
 
-      - name: Verify canonical Production identity, health, readiness, auth gate, and critical UI sentinels
+      - name: Verify immutable candidate, explicitly promote, then verify canonical Production
         id: verify
         continue-on-error: true
         shell: bash
         env:
           DEPLOYMENT_ID: ${{ steps.deploy.outputs.deployment_id }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
         run: |
           set -euo pipefail
+
+          verify_public_runtime() {
+            local base_url="$1"
+            local label="$2"
+            node - "$base_url" "$label" <<'NODE'
+          const base = process.argv[2].replace(/\/$/, '');
+          const label = process.argv[3];
+          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน'];
+          async function request(path) { return fetch(`${base}${path}`, { redirect: 'follow' }); }
+          async function main() {
+            const health = await request('/api/v1/health');
+            if (health.status !== 200) throw new Error(`${label} health status ${health.status}`);
+            const healthJson = await health.json();
+            if (healthJson.status !== 'ok') throw new Error(`${label} health payload mismatch`);
+            const ready = await request('/api/v1/ready');
+            if (ready.status !== 200) throw new Error(`${label} ready status ${ready.status}`);
+            const readyJson = await ready.json();
+            if (readyJson.status !== 'ready' || readyJson.database !== 'ok') throw new Error(`${label} ready payload mismatch`);
+            const approval = await request('/api/v1/approval-center');
+            if (approval.status !== 401) throw new Error(`${label} approval-center unauth status ${approval.status}`);
+            const root = await request('/');
+            if (root.status !== 200) throw new Error(`${label} root status ${root.status}`);
+            const html = await root.text();
+            const match = html.match(/<script[^>]+src=["']([^"']*\/assets\/index-[^"']+\.js)["']/i);
+            if (!match) throw new Error(`${label} main frontend bundle not found`);
+            const bundleUrl = new URL(match[1], `${base}/`).toString();
+            const bundle = await fetch(bundleUrl, { redirect: 'follow' });
+            if (bundle.status !== 200) throw new Error(`${label} bundle status ${bundle.status}`);
+            const js = await bundle.text();
+            const missing = sentinels.filter((value) => !js.includes(value));
+            if (missing.length) throw new Error(`${label} missing runtime sentinels: ${missing.join(', ')}`);
+            process.stdout.write(`${label}_RUNTIME_VERIFY=PASS\nBUNDLE_BYTES=${Buffer.byteLength(js)}\nSENTINELS=${sentinels.length}\n`);
+          }
+          main().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+          }
+
+          verify_protected_candidate() {
+            local deployment="$1"
+            local health ready approval_status html bundle_path js
+            health=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/health --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
+            ready=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/ready --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
+            approval_status=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/approval-center --deployment "$deployment" --yes --token "$VERCEL_TOKEN" -- --silent --output /dev/null --write-out '%{http_code}' 2>/dev/null)
+            node -e 'const value=JSON.parse(process.argv[1]); if(value.status!=="ok") process.exit(1)' "$health"
+            node -e 'const value=JSON.parse(process.argv[1]); if(value.status!=="ready" || value.database!=="ok") process.exit(1)' "$ready"
+            test "$approval_status" = 401
+            html=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl / --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
+            bundle_path=$(node -e 'const m=process.argv[1].match(/<script[^>]+src=["'"']([^"'"']*\/assets\/index-[^"'"']+\.js)["'"']/i); if(!m) process.exit(1); process.stdout.write(new URL(m[1], "https://candidate.invalid/").pathname)' "$html")
+            js=$(npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$bundle_path" --deployment "$deployment" --yes --token "$VERCEL_TOKEN" 2>/dev/null)
+            node - "$js" <<'NODE'
+          const js = process.argv[2];
+          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน'];
+          const missing = sentinels.filter((value) => !js.includes(value));
+          if (missing.length) throw new Error(`immutable candidate missing runtime sentinels: ${missing.join(', ')}`);
+          process.stdout.write(`IMMUTABLE_CANDIDATE_RUNTIME_VERIFY=PASS\nBUNDLE_BYTES=${Buffer.byteLength(js)}\nSENTINELS=${sentinels.length}\n`);
+          NODE
+          }
+
+          # A rollback state can keep the canonical alias pinned even when `vercel deploy --prod`
+          # creates a READY Production-target deployment. Prove the immutable candidate first.
+          verify_protected_candidate "$DEPLOYMENT_URL"
+
+          # Cut over only after the exact immutable candidate passes runtime verification.
+          npx --yes vercel@"$VERCEL_CLI_VERSION" promote "$DEPLOYMENT_ID" --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
+
           canonical_json=$(mktemp)
           trap 'rm -f "$canonical_json"' EXIT
           matched=false
@@ -294,43 +360,7 @@ jobs:
             sleep 5
           done
           test "$matched" = true
-
-          node - "$EXPECTED_CANONICAL_URL" <<'NODE'
-          const base = process.argv[2].replace(/\/$/, '');
-          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน'];
-          async function request(path) {
-            const response = await fetch(`${base}${path}`, { redirect: 'follow' });
-            return response;
-          }
-          async function main() {
-            const health = await request('/api/v1/health');
-            if (health.status !== 200) throw new Error(`health status ${health.status}`);
-            const healthJson = await health.json();
-            if (healthJson.status !== 'ok') throw new Error('health payload mismatch');
-
-            const ready = await request('/api/v1/ready');
-            if (ready.status !== 200) throw new Error(`ready status ${ready.status}`);
-            const readyJson = await ready.json();
-            if (readyJson.status !== 'ready' || readyJson.database !== 'ok') throw new Error('ready payload mismatch');
-
-            const approval = await request('/api/v1/approval-center');
-            if (approval.status !== 401) throw new Error(`approval-center unauth status ${approval.status}`);
-
-            const root = await request('/');
-            if (root.status !== 200) throw new Error(`root status ${root.status}`);
-            const html = await root.text();
-            const match = html.match(/<script[^>]+src=["']([^"']*\/assets\/index-[^"']+\.js)["']/i);
-            if (!match) throw new Error('main frontend bundle not found');
-            const bundleUrl = new URL(match[1], `${base}/`).toString();
-            const bundle = await fetch(bundleUrl, { redirect: 'follow' });
-            if (bundle.status !== 200) throw new Error(`bundle status ${bundle.status}`);
-            const js = await bundle.text();
-            const missing = sentinels.filter((value) => !js.includes(value));
-            if (missing.length) throw new Error(`missing runtime sentinels: ${missing.join(', ')}`);
-            process.stdout.write(`PRODUCTION_RUNTIME_VERIFY=PASS\nBUNDLE_BYTES=${Buffer.byteLength(js)}\nSENTINELS=${sentinels.length}\n`);
-          }
-          main().catch((error) => { console.error(error); process.exit(1); });
-          NODE
+          verify_public_runtime "$EXPECTED_CANONICAL_URL" CANONICAL_PRODUCTION
 
       - name: Auto-rollback to manifest checkpoint if post-deploy verification fails
         id: rollback
@@ -338,9 +368,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes vercel@"$VERCEL_CLI_VERSION" rollback "$ROLLBACK_DEPLOYMENT_ID" --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
           rollback_json=$(mktemp)
           trap 'rm -f "$rollback_json"' EXIT
+
+          canonical_is_rollback=false
+          if npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$rollback_json" 2>/dev/null; then
+            if node - "$rollback_json" "$ROLLBACK_DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" <<'NODE'
+          const fs = require('node:fs');
+          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
+          const [file, expectedId, expectedProjectId] = process.argv.slice(2);
+          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
+          NODE
+            then
+              canonical_is_rollback=true
+            fi
+          fi
+
+          if [[ "$canonical_is_rollback" != true ]]; then
+            npx --yes vercel@"$VERCEL_CLI_VERSION" rollback "$ROLLBACK_DEPLOYMENT_ID" --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
+          else
+            echo 'Rollback checkpoint is already current Production; treating rollback as an idempotent no-op.'
+          fi
+
           restored=false
           for attempt in $(seq 1 18); do
             if npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$rollback_json" 2>/dev/null; then
