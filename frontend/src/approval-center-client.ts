@@ -6,11 +6,11 @@ function csrf() {
   return document.cookie.split('; ').find((item) => item.startsWith('smsv3_csrf='))?.split('=')[1];
 }
 
-export async function getApprovalCenter(token: string) {
+async function approvalCenterRequest(token: string, path: string) {
   const headers = new Headers({ Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', Accept: 'application/json' });
   const csrfToken = csrf();
   if (csrfToken) headers.set('X-CSRF-Token', decodeURIComponent(csrfToken));
-  const response = await fetch(baseUrl + '/approval-center?limit=100', { credentials: 'include', headers, cache: 'no-store' });
+  const response = await fetch(baseUrl + path, { credentials: 'include', headers, cache: 'no-store' });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const requestId = normalizeRequestId(response.headers.get('x-request-id')) || normalizeRequestId(payload?.requestId);
@@ -18,4 +18,12 @@ export async function getApprovalCenter(token: string) {
     throw new ApiRequestError(message, response.status, requestId, payload?.details);
   }
   return payload;
+}
+
+export async function getApprovalCenterSummary(token: string) {
+  return approvalCenterRequest(token, '/approval-center/summary');
+}
+
+export async function getApprovalCenter(token: string) {
+  return approvalCenterRequest(token, '/approval-center?limit=100');
 }

@@ -97,6 +97,49 @@ test('Approval Center aggregates every actionable Admin queue without changing s
   assert.equal(leave.employee.department, 'PN');
 });
 
+test('Approval Center summary uses count-only queries for Admin badge polling', async () => {
+  const prisma = adminPrisma();
+  for (const key of ['employeeChangeRequest', 'employeeReferencePhoto', 'employeeLicenseDocument', 'attendanceDeviceChangeRequest', 'registrationRequest', 'leaveRequest']) {
+    prisma[key].findMany = async () => { throw new Error('summary must not load detailed rows'); };
+  }
+  prisma.user.findMany = async () => { throw new Error('summary must not load detailed users'); };
+  const service = createApprovalCenterService({
+    prisma,
+    clock: () => now,
+    attendanceAdjustmentList: async ({ pageSize }) => {
+      assert.equal(pageSize, 1);
+      return { data: [], meta: { total: 1 } };
+    }
+  });
+
+  const result = await service.summary({ actor: { role: 'ADMIN', sub: 'admin-1' } });
+  assert.equal(result.summary.total, 8);
+  assert.equal(result.summary.byType.ATTENDANCE_ADJUSTMENT_REQUEST, 1);
+  assert.equal(result.summary.byType.LEAVE_REQUEST, 1);
+});
+
+test('Approval Center summary preserves Manager leave authority while using only minimal leave rows', async () => {
+  const prisma = adminPrisma();
+  prisma.user.findUnique = async () => ({ id: 'manager-1', employeeId: 'self-e', employee: { jobTitle: 'Guard Manager' } });
+  prisma.registrationRequest.count = async () => 0;
+  prisma.user.count = async () => 0;
+  let leaveSelect;
+  prisma.leaveRequest = {
+    count: async () => { throw new Error('Manager summary must not use a raw leave count that ignores approval authority'); },
+    findMany: async (args) => {
+      leaveSelect = args.select;
+      return [
+        { employeeId: 'sup-e', startDate: now, employee: { jobTitle: 'Supervisor' } },
+        { employeeId: 'guard-e', startDate: now, employee: { jobTitle: 'Guard' } }
+      ];
+    }
+  };
+  const service = createApprovalCenterService({ prisma, clock: () => now });
+  const result = await service.summary({ actor: { role: 'MANAGER', sub: 'manager-1' } });
+  assert.equal(result.summary.byType.LEAVE_REQUEST, 1);
+  assert.deepEqual(leaveSelect, { employeeId: true, startDate: true, employee: { select: { jobTitle: true } } });
+});
+
 test('Approval Center excludes unverified registrations by using the source workflow reviewable predicate', async () => {
   const prisma = adminPrisma();
   let countWhere;
@@ -116,7 +159,7 @@ test('Approval Center excludes unverified registrations by using the source work
 
   const result = await service.list({ actor: { role: 'ADMIN', sub: 'admin-1' } });
 
-  assert.deepEqual(countWhere, { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } });
+  assert.equal(countWhere, undefined, 'small queues should not pay for a redundant count query');
   assert.deepEqual(listWhere, { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } });
   assert.equal(result.summary.byType.REGISTRATION_REQUEST, 0);
   assert.equal(result.data.some((item) => item.type === 'REGISTRATION_REQUEST'), false);

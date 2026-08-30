@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { DASHBOARD_QUERY_CONCURRENCY, settleDashboardQueries } = require('../src/services/dashboard.service');
 
 test('dashboard query settling is bounded, concurrent, ordered, and partial-error safe', async () => {
-  assert.equal(DASHBOARD_QUERY_CONCURRENCY, 4);
+  assert.equal(DASHBOARD_QUERY_CONCURRENCY, 2);
   let active = 0;
   let maxActive = 0;
   let started = 0;

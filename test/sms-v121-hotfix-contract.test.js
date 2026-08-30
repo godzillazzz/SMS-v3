@@ -31,7 +31,7 @@ test('inactive License mutations fail with a domain code while reads and G05 rem
 test('Dashboard and data quality active scopes preserve unlinked operational work', () => {
   assert.match(dashboard, /isActive: true, deletedAt: null/);
   assert.match(dashboard, /\{ employeeId: null \}/);
-  assert.match(dashboard, /DASHBOARD_QUERY_CONCURRENCY = 4/);
+  assert.match(dashboard, /DASHBOARD_QUERY_CONCURRENCY = 2/);
   assert.match(dataQuality, /const where = \{ isActive: true, deletedAt: null \};/);
   assert.match(dataQuality, /\{ employeeId: null \},/);
 });
