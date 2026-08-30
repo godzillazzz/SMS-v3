@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "release_id": "sms-v3-prod-86a495a-20260830",
+  "release_id": "sms-v3-prod-be278e8-20260830",
   "manifest_state": "APPROVED_FOR_OWNER_PRODUCTION_DECISION",
-  "commit_sha": "86a495a60e989ff25e08cf5d204ba5ad6e7e064c",
-  "tree_sha": "ccf7e9858b5a52dcd2be61a05f5bc2d4bcfaf6e1",
-  "current_production_source_sha": "7b9757facdea9934b63417fe955cbec418151d05",
-  "rollback_deployment_id": "dpl_DzkK9oq8s2VmURATc2HLDMWRUSS5",
+  "commit_sha": "be278e8ff941333e69410a64fcee129c495032ca",
+  "tree_sha": "c1be95ea0ea23f287201208b437c561d3caab127",
+  "current_production_source_sha": "86a495a60e989ff25e08cf5d204ba5ad6e7e064c",
+  "rollback_deployment_id": "dpl_4RRXwevsFa66T7vi2AU4X2dZ1y7v",
   "target_project_name": "sms-v3-staging",
   "target_project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
   "target_org_id": "team_nemCExHbZ8EAhSgsvefHPAEz",
@@ -14,5 +14,8 @@
   "source_branch": "fix/serverless-database-reliability",
   "run_migrations": false,
   "owner_action": "APPROVE_PRODUCTION_ONLY",
-  "rollback_policy": "AUTO_ROLLBACK_ON_POST_DEPLOY_VERIFY_FAILURE"
+  "rollback_policy": "AUTO_ROLLBACK_ON_POST_DEPLOY_VERIFY_FAILURE",
+  "database_change_policy": "PRE_APPLIED_APPROVED_MIGRATION",
+  "pre_applied_migration_manifest_path": ".github/releases/approved-perf05-production-migration.json",
+  "pre_applied_migration_evidence_run_id": 33314281801
 }

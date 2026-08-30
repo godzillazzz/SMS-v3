@@ -69,3 +69,34 @@ test("Production verifier avoids Vercel beta curl and keeps authoritative canoni
   );
   assert.match(script, /approval\.status !== 401/);
 });
+
+
+test("pre-applied migration release guard requires exact prior Production migration evidence and stays read-only", () => {
+  const workflow = fs.readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n");
+  const sourceGuard = extractRunBlock(
+    workflow,
+    "Validate exact source identity, branch ancestry, migration policy, and clean tree",
+  );
+  const productionGuard = extractRunBlock(
+    workflow,
+    "Revalidate pre-applied Production database state",
+  );
+  const rollbackGuard = extractRunBlock(
+    workflow,
+    "Verify rollback checkpoint is still current Production",
+  );
+
+  assert.match(sourceGuard, /PRE_APPLIED_APPROVED_MIGRATION/);
+  assert.match(sourceGuard, /Apply Approved PERF-05 Production Migration/);
+  assert.match(sourceGuard, /Approve Production Migration/);
+  assert.match(sourceGuard, /git diff --quiet "\$MIGRATION_SOURCE_SHA" "\$TARGET_SHA" -- prisma\/schema\.prisma prisma\/migrations/);
+  assert.match(sourceGuard, /current_production_deployment_id: rollbackDeploymentId/);
+  assert.match(sourceGuard, /git diff --quiet "\$EVIDENCE_HEAD" "\$GITHUB_SHA" -- "\$PRE_APPLIED_MIGRATION_MANIFEST_PATH"/);
+  assert.match(productionGuard, /verify-deployment-target\.js --verify/);
+  assert.match(productionGuard, /prisma-migration\.js status/);
+  assert.match(productionGuard, /verify-perf05-indexes\.js/);
+  assert.doesNotMatch(productionGuard, /prisma-migration\.js deploy|prisma migrate deploy/);
+  assert.match(rollbackGuard, /inspect "\$EXPECTED_CANONICAL_URL" --format=json/);
+  assert.match(rollbackGuard, /ROLLBACK_CHECKPOINT_CURRENT=PASS/);
+  assert.match(rollbackGuard, /expectedId, expectedProjectId/);
+});

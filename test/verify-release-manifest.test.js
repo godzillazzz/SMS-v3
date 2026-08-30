@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const { validateReleaseManifest } = require('../scripts/ci/verify-release-manifest');
 
@@ -21,6 +23,7 @@ function validManifest() {
     run_migrations: false,
     owner_action: 'APPROVE_PRODUCTION_ONLY',
     rollback_policy: 'AUTO_ROLLBACK_ON_POST_DEPLOY_VERIFY_FAILURE',
+    database_change_policy: 'NO_DATABASE_CHANGES',
   };
 }
 
@@ -28,6 +31,18 @@ test('accepts the exact approved production release manifest shape', () => {
   const result = validateReleaseManifest(validManifest());
   assert.equal(result.commitSha, '86a495a60e989ff25e08cf5d204ba5ad6e7e064c');
   assert.equal(result.runMigrations, false);
+  assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
+});
+
+test('accepts a pre-applied approved migration evidence reference without authorizing migration execution', () => {
+  const manifest = validManifest();
+  manifest.database_change_policy = 'PRE_APPLIED_APPROVED_MIGRATION';
+  manifest.pre_applied_migration_manifest_path = '.github/releases/approved-perf05-production-migration.json';
+  manifest.pre_applied_migration_evidence_run_id = 33314281801;
+  const result = validateReleaseManifest(manifest);
+  assert.equal(result.runMigrations, false);
+  assert.equal(result.preAppliedMigrationManifestPath, '.github/releases/approved-perf05-production-migration.json');
+  assert.equal(result.preAppliedMigrationEvidenceRunId, 33314281801);
 });
 
 test('fails closed when exact tree identity is malformed', () => {
@@ -52,4 +67,30 @@ test('fails closed when rollback safety policy is weakened', () => {
   const manifest = validManifest();
   manifest.rollback_policy = 'MANUAL';
   assert.throws(() => validateReleaseManifest(manifest), /rollback_policy mismatch/);
+});
+
+test('fails closed when a pre-applied migration lacks exact workflow evidence', () => {
+  const manifest = validManifest();
+  manifest.database_change_policy = 'PRE_APPLIED_APPROVED_MIGRATION';
+  manifest.pre_applied_migration_manifest_path = '.github/releases/approved-perf05-production-migration.json';
+  assert.throws(() => validateReleaseManifest(manifest), /invalid pre_applied_migration_evidence_run_id/);
+});
+
+test('fails closed when pre-applied evidence fields are attached to a no-database-change release', () => {
+  const manifest = validManifest();
+  manifest.pre_applied_migration_manifest_path = '.github/releases/approved-perf05-production-migration.json';
+  manifest.pre_applied_migration_evidence_run_id = 33314281801;
+  assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
+});
+
+
+test('current approved Production manifest resolves exact PERF-06 target and prior migration evidence', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
+  const result = validateReleaseManifest(manifest);
+  assert.equal(result.commitSha, 'be278e8ff941333e69410a64fcee129c495032ca');
+  assert.equal(result.treeSha, 'c1be95ea0ea23f287201208b437c561d3caab127');
+  assert.equal(result.currentProductionSourceSha, '86a495a60e989ff25e08cf5d204ba5ad6e7e064c');
+  assert.equal(result.rollbackDeploymentId, 'dpl_4RRXwevsFa66T7vi2AU4X2dZ1y7v');
+  assert.equal(result.databaseChangePolicy, 'PRE_APPLIED_APPROVED_MIGRATION');
+  assert.equal(result.preAppliedMigrationEvidenceRunId, 33314281801);
 });
