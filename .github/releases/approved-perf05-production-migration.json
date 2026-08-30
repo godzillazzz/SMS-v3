@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "migration_id": "PERF-05",
+  "manifest_state": "APPROVED_FOR_OWNER_PRODUCTION_MIGRATION_DECISION",
+  "source_commit_sha": "764a656d8fde668d1ebac5618531877b18e83f71",
+  "source_tree_sha": "e46057105632b8ca34189135b7c7033c9b695947",
+  "migration_path": "prisma/migrations/202608300001_perf05_hot_path_indexes/migration.sql",
+  "current_production_deployment_id": "dpl_4RRXwevsFa66T7vi2AU4X2dZ1y7v",
+  "current_production_application_sha": "86a495a60e989ff25e08cf5d204ba5ad6e7e064c",
+  "target_environment": "production",
+  "target_project_name": "sms-v3-staging",
+  "target_project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+  "canonical_url": "https://sms-v3-staging-ten.vercel.app",
+  "owner_action": "APPROVE_PRODUCTION_MIGRATION_ONLY",
+  "application_deploy": false,
+  "destructive_rollback": false
+}

@@ -1,0 +1,161 @@
+name: Apply Approved PERF-05 Production Migration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: sms-v3-staging-production-migration-perf05
+  cancel-in-progress: false
+
+env:
+  MANIFEST_PATH: .github/releases/approved-perf05-production-migration.json
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+
+jobs:
+  prepare:
+    name: Prepare exact approved PERF-05 migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      source_sha: ${{ steps.manifest.outputs.source_sha }}
+      source_tree: ${{ steps.manifest.outputs.source_tree }}
+      migration_path: ${{ steps.manifest.outputs.migration_path }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate approved migration manifest and exact source identity
+        id: manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node - "$MANIFEST_PATH" <<'NODE'
+          const fs = require('node:fs');
+          const manifest = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const required = {
+            schema_version: 1,
+            migration_id: 'PERF-05',
+            manifest_state: 'APPROVED_FOR_OWNER_PRODUCTION_MIGRATION_DECISION',
+            target_environment: 'production',
+            target_project_name: 'sms-v3-staging',
+            target_project_id: 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s',
+            canonical_url: 'https://sms-v3-staging-ten.vercel.app',
+            owner_action: 'APPROVE_PRODUCTION_MIGRATION_ONLY',
+            application_deploy: false,
+            destructive_rollback: false
+          };
+          for (const [key, value] of Object.entries(required)) {
+            if (manifest[key] !== value) throw new Error(`Manifest mismatch: ${key}`);
+          }
+          for (const key of ['source_commit_sha', 'source_tree_sha']) {
+            if (!/^[0-9a-f]{40}$/.test(manifest[key])) throw new Error(`Invalid ${key}`);
+          }
+          if (manifest.migration_path !== 'prisma/migrations/202608300001_perf05_hot_path_indexes/migration.sql') {
+            throw new Error('Unexpected PERF-05 migration path');
+          }
+          NODE
+          SOURCE_SHA=$(node -p "require('./$MANIFEST_PATH').source_commit_sha")
+          SOURCE_TREE=$(node -p "require('./$MANIFEST_PATH').source_tree_sha")
+          MIGRATION_PATH=$(node -p "require('./$MANIFEST_PATH').migration_path")
+          git fetch --no-tags origin fix/serverless-database-reliability
+          git cat-file -e "${SOURCE_SHA}^{commit}"
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/fix/serverless-database-reliability
+          test "$(git rev-parse "${SOURCE_SHA}^{tree}")" = "$SOURCE_TREE"
+          git show "${SOURCE_SHA}:${MIGRATION_PATH}" >/tmp/perf05-migration.sql
+          test "$(grep -Ec '^CREATE INDEX ' /tmp/perf05-migration.sql)" -eq 5
+          ! grep -Eiq 'DROP[[:space:]]+(INDEX|TABLE|COLUMN)|ALTER[[:space:]]+TABLE|DELETE[[:space:]]+FROM|TRUNCATE' /tmp/perf05-migration.sql
+          CI_SUCCESS=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow CI --commit "$SOURCE_SHA" --limit 10 --json status,conclusion --jq '[.[] | select(.status=="completed" and .conclusion=="success")] | length')
+          test "$CI_SUCCESS" -ge 1
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "source_tree=$SOURCE_TREE" >> "$GITHUB_OUTPUT"
+          echo "migration_path=$MIGRATION_PATH" >> "$GITHUB_OUTPUT"
+          {
+            echo '### PERF-05 migration prepared'
+            echo "- Exact source SHA: $SOURCE_SHA"
+            echo "- Exact tree SHA: $SOURCE_TREE"
+            echo "- Migration: $MIGRATION_PATH"
+            echo '- Application deployment: disabled'
+            echo '- Destructive rollback: disabled'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  migrate:
+    name: Approve Production Migration
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      NODE_ENV: production
+      VERCEL_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Revalidate exact migration source after Owner approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ needs.prepare.outputs.source_sha }}"
+          test "$(git rev-parse HEAD^{tree})" = "${{ needs.prepare.outputs.source_tree }}"
+          test -z "$(git status --porcelain)"
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Verify Production database target guard
+        run: node scripts/ci/verify-deployment-target.js --verify
+      - name: Verify migration is additive before execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          MIGRATION_PATH="${{ needs.prepare.outputs.migration_path }}"
+          test "$(grep -Ec '^CREATE INDEX ' "$MIGRATION_PATH")" -eq 5
+          ! grep -Eiq 'DROP[[:space:]]+(INDEX|TABLE|COLUMN)|ALTER[[:space:]]+TABLE|DELETE[[:space:]]+FROM|TRUNCATE' "$MIGRATION_PATH"
+          node scripts/ci/prisma-migration.js status --allow-pending
+      - name: Apply approved PERF-05 migration only
+        run: node scripts/ci/prisma-migration.js deploy
+      - name: Verify migration and exact indexes
+        run: |
+          node scripts/ci/prisma-migration.js status
+          node scripts/ci/verify-perf05-indexes.js
+      - name: Verify canonical application remains healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          health=$(curl --fail --silent --show-error "$EXPECTED_CANONICAL_URL/api/v1/health")
+          ready=$(curl --fail --silent --show-error "$EXPECTED_CANONICAL_URL/api/v1/ready")
+          node - "$health" "$ready" <<'NODE'
+          const health = JSON.parse(process.argv[2]);
+          const ready = JSON.parse(process.argv[3]);
+          if (health.status !== 'ok') throw new Error('Canonical health failed');
+          if (ready.status !== 'ready' || ready.database !== 'ok') throw new Error('Canonical readiness failed');
+          NODE
+      - name: Migration summary
+        run: |
+          {
+            echo '### PERF-05 Production migration'
+            echo '- Migration status: PASS'
+            echo '- Exact five indexes: VERIFIED'
+            echo '- Canonical application health/readiness: PASS'
+            echo '- Application deployment performed: NO'
+            echo '- Destructive rollback performed: NO'
+          } >> "$GITHUB_STEP_SUMMARY"
