@@ -87,6 +87,10 @@ test("pre-applied migration release guard requires exact prior Production migrat
   );
 
   assert.match(sourceGuard, /PRE_APPLIED_APPROVED_MIGRATION/);
+  assert.match(
+    workflow,
+    /PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID: \$\{\{ steps\.manifest\.outputs\.pre_applied_migration_evidence_run_id \}\}\r?\n\s+ROLLBACK_DEPLOYMENT_ID: \$\{\{ steps\.manifest\.outputs\.rollback_deployment_id \}\}/,
+  );
   assert.match(sourceGuard, /Apply Approved PERF-05 Production Migration/);
   assert.match(sourceGuard, /Approve Production Migration/);
   assert.match(sourceGuard, /git diff --quiet "\$MIGRATION_SOURCE_SHA" "\$TARGET_SHA" -- prisma\/schema\.prisma prisma\/migrations/);
