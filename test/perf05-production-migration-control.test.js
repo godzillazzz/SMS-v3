@@ -48,7 +48,8 @@ test("PERF-05 workflow has one protected migration gate and no Vercel deployment
   assert.match(workflow, /name: Approve Production Migration/);
   assert.match(workflow, /environment:\s*\n\s*name: production-sms-v3-staging/);
   assert.match(workflow, /node scripts\/ci\/prisma-migration\.js deploy/);
-  assert.match(workflow, /node scripts\/ci\/verify-perf05-indexes\.js/);
+  assert.match(workflow, /git show \"\$GITHUB_SHA:scripts\/ci\/verify-perf05-indexes\.js\"/);
+  assert.match(workflow, /node \/tmp\/verify-perf05-indexes\.js/);
   assert.doesNotMatch(
     workflow,
     /vercel(?:@[^\s]+)?\s+deploy|vercel\s+promote|vercel\s+rollback/i,

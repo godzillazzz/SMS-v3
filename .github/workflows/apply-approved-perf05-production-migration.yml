@@ -140,9 +140,13 @@ jobs:
       - name: Apply approved PERF-05 migration only
         run: node scripts/ci/prisma-migration.js deploy
       - name: Verify migration and exact indexes
+        shell: bash
         run: |
+          set -euo pipefail
           node scripts/ci/prisma-migration.js status
-          node scripts/ci/verify-perf05-indexes.js
+          git fetch --no-tags origin "$GITHUB_SHA"
+          git show "$GITHUB_SHA:scripts/ci/verify-perf05-indexes.js" >/tmp/verify-perf05-indexes.js
+          node /tmp/verify-perf05-indexes.js
       - name: Verify canonical application remains healthy
         shell: bash
         run: |
