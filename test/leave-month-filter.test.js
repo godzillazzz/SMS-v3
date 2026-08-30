@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { parseLeaveMonth, leaveMonthWhere } = require('../src/utils/leave-month-filter');
 
 test('leave month filter builds UTC date-only overlap boundaries', () => {
@@ -31,4 +33,10 @@ test('leave month filter rejects invalid or incomplete values', () => {
     assert.throws(() => parseLeaveMonth(query), /provided together|Invalid year or month/);
   }
   assert.equal(parseLeaveMonth({}), undefined);
+});
+
+test('leave status aggregation is reserved for month-filtered history requests', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/routes/operations.routes.js'), 'utf8');
+  assert.match(source, /monthFilter\s*\?\s*prisma\.leaveRequest\.groupBy\(/);
+  assert.match(source, /:\s*Promise\.resolve\(\[\]\)/);
 });

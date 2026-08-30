@@ -802,7 +802,9 @@ router.get('/leave-requests', async (req, res, next) => {
         },
         orderBy: { requestedAt: 'desc' }
       }),
-      prisma.leaveRequest.groupBy({ by: ['status'], where, _count: { _all: true } })
+      monthFilter
+        ? prisma.leaveRequest.groupBy({ by: ['status'], where, _count: { _all: true } })
+        : Promise.resolve([])
     ]);
     response.meta.statusCounts = Object.fromEntries(statusCounts.map((row) => [row.status, row._count._all]));
     const approverIds = [...new Set(response.data.map((row) => row.approvedByLegacyRef).filter((value) => uuid.safeParse(value).success))];
