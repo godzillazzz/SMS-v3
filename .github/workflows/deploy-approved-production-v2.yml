@@ -1,0 +1,387 @@
+name: Deploy Approved Production Manifest V2
+
+on:
+  push:
+    branches:
+      - fix/serverless-database-reliability
+    paths:
+      - .github/releases/approved-production.json
+      - .github/workflows/deploy-approved-production-v2.yml
+      - scripts/ci/verify-release-manifest.js
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: sms-v3-staging-production-v2
+  cancel-in-progress: false
+
+env:
+  RELEASE_MANIFEST_PATH: .github/releases/approved-production.json
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_SOURCE_BRANCH: fix/serverless-database-reliability
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  prepare:
+    name: Prepare exact approved release manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      release_id: ${{ steps.manifest.outputs.release_id }}
+      commit_sha: ${{ steps.manifest.outputs.commit_sha }}
+      tree_sha: ${{ steps.manifest.outputs.tree_sha }}
+      current_production_source_sha: ${{ steps.manifest.outputs.current_production_source_sha }}
+      rollback_deployment_id: ${{ steps.manifest.outputs.rollback_deployment_id }}
+      target_project_name: ${{ steps.manifest.outputs.target_project_name }}
+      target_project_id: ${{ steps.manifest.outputs.target_project_id }}
+      target_org_id: ${{ steps.manifest.outputs.target_org_id }}
+      target_environment: ${{ steps.manifest.outputs.target_environment }}
+      canonical_url: ${{ steps.manifest.outputs.canonical_url }}
+      source_branch: ${{ steps.manifest.outputs.source_branch }}
+      run_migrations: ${{ steps.manifest.outputs.run_migrations }}
+      manifest_sha256: ${{ steps.hash.outputs.manifest_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate approved release manifest schema and fixed target identity
+        id: manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest_output=$(mktemp)
+          trap 'rm -f "$manifest_output"' EXIT
+          node scripts/ci/verify-release-manifest.js "$RELEASE_MANIFEST_PATH" >"$manifest_output"
+          grep -Fxq 'RELEASE_MANIFEST_GUARD=PASS' "$manifest_output"
+          while IFS='=' read -r key value; do
+            case "$key" in
+              release_id|commit_sha|tree_sha|current_production_source_sha|rollback_deployment_id|target_project_name|target_project_id|target_org_id|target_environment|canonical_url|source_branch|run_migrations)
+                echo "$key=$value" >> "$GITHUB_OUTPUT"
+                ;;
+            esac
+          done <"$manifest_output"
+
+      - name: Validate exact source identity, branch ancestry, migration policy, and clean tree
+        shell: bash
+        env:
+          TARGET_SHA: ${{ steps.manifest.outputs.commit_sha }}
+          TARGET_TREE: ${{ steps.manifest.outputs.tree_sha }}
+          CURRENT_PRODUCTION_SOURCE_SHA: ${{ steps.manifest.outputs.current_production_source_sha }}
+          SOURCE_BRANCH: ${{ steps.manifest.outputs.source_branch }}
+          RUN_MIGRATIONS: ${{ steps.manifest.outputs.run_migrations }}
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TARGET_TREE" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CURRENT_PRODUCTION_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$SOURCE_BRANCH" = "$EXPECTED_SOURCE_BRANCH"
+          git fetch --no-tags origin "$SOURCE_BRANCH"
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          git cat-file -e "${CURRENT_PRODUCTION_SOURCE_SHA}^{commit}"
+          git merge-base --is-ancestor "$TARGET_SHA" "origin/$SOURCE_BRANCH"
+          test "$(git rev-parse "${TARGET_SHA}^{tree}")" = "$TARGET_TREE"
+          if [[ "$RUN_MIGRATIONS" == "false" ]]; then
+            git diff --quiet "$CURRENT_PRODUCTION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+          else
+            echo 'Migration-aware approved release manifests are not enabled in V2.'
+            exit 1
+          fi
+          test -z "$(git status --porcelain)"
+
+      - name: Require successful exact-SHA CI evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ steps.manifest.outputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          ci_json=$(mktemp)
+          trap 'rm -f "$ci_json"' EXIT
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&status=success&per_page=100" >"$ci_json"
+          node - "$ci_json" <<'NODE'
+          const fs = require('node:fs');
+          const file = process.argv[2];
+          const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const pass = (data.workflow_runs || []).some((run) => run.name === 'CI' && run.head_sha === process.env.TARGET_SHA && run.conclusion === 'success');
+          if (!pass) throw new Error('exact-SHA successful CI evidence not found');
+          process.stdout.write('EXACT_SHA_CI=PASS\n');
+          NODE
+
+      - name: Hash immutable release manifest evidence
+        id: hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest_sha256=$(sha256sum "$RELEASE_MANIFEST_PATH" | awk '{print $1}')
+          [[ "$manifest_sha256" =~ ^[0-9a-f]{64}$ ]]
+          echo "manifest_sha256=$manifest_sha256" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: approved-production-release-manifest
+          path: .github/releases/approved-production.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Owner decision summary
+        shell: bash
+        run: |
+          {
+            echo '### Approved Production Release Manifest'
+            echo "- Release: ${{ steps.manifest.outputs.release_id }}"
+            echo "- Exact commit: ${{ steps.manifest.outputs.commit_sha }}"
+            echo "- Exact tree: ${{ steps.manifest.outputs.tree_sha }}"
+            echo "- Rollback deployment: ${{ steps.manifest.outputs.rollback_deployment_id }}"
+            echo "- Project: ${{ steps.manifest.outputs.target_project_name }}"
+            echo "- Environment: ${{ steps.manifest.outputs.target_environment }}"
+            echo "- Run migrations: ${{ steps.manifest.outputs.run_migrations }}"
+            echo "- Manifest SHA-256: ${{ steps.hash.outputs.manifest_sha256 }}"
+            echo '- Owner action: Approve Production only'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  production:
+    name: Approve Production
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      TARGET_SHA: ${{ needs.prepare.outputs.commit_sha }}
+      TARGET_TREE: ${{ needs.prepare.outputs.tree_sha }}
+      CURRENT_PRODUCTION_SOURCE_SHA: ${{ needs.prepare.outputs.current_production_source_sha }}
+      ROLLBACK_DEPLOYMENT_ID: ${{ needs.prepare.outputs.rollback_deployment_id }}
+      MANIFEST_SHA256: ${{ needs.prepare.outputs.manifest_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Revalidate exact source after Owner approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$TARGET_TREE"
+          git cat-file -e "${CURRENT_PRODUCTION_SOURCE_SHA}^{commit}"
+          git diff --quiet "$CURRENT_PRODUCTION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+          test -z "$(git status --porcelain)"
+          test -n "$VERCEL_TOKEN"
+          [[ "$ROLLBACK_DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
+
+      - run: npm ci
+
+      - name: Verify Vercel project linkage
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=production --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/vercel-pull.log 2>&1
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
+          if (project.projectId !== process.env.EXPECTED_PROJECT_ID || project.orgId !== process.env.EXPECTED_ORG_ID) throw new Error('Vercel project linkage mismatch');
+          process.stdout.write('VERCEL_LINKAGE=PASS\n');
+          NODE
+
+      - name: Build exact prebuilt Production artifact and enforce feature sentinels
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_log=$(mktemp)
+          trap 'rm -f "$build_log"' EXIT
+          CI_MIGRATION_COMPLETED=true npx --yes vercel@"$VERCEL_CLI_VERSION" build --prod --token "$VERCEL_TOKEN" >"$build_log" 2>&1
+          grep -Fq 'Vercel build is build-only' "$build_log"
+          grep -Fq 'Prisma generate passed' "$build_log"
+          grep -Fq 'Application build passed' "$build_log"
+          if grep -Eiq 'prisma migrate deploy|Prisma migrate deploy started|Prisma migrate deploy passed' "$build_log"; then
+            echo 'Vercel build unexpectedly invoked Prisma migration'
+            exit 1
+          fi
+          test -f frontend/dist/index.html
+          compgen -G 'frontend/dist/assets/index-*.js' >/dev/null
+          test -f .vercel/output/config.json
+          node scripts/ci/verify-release-artifact.js frontend/dist .vercel/output/static
+
+      - name: Restore exact source identity before prebuilt deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD --staged --worktree -- .
+          git clean -fd
+          test -f frontend/dist/index.html
+          test -f .vercel/output/config.json
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$TARGET_TREE"
+          test -z "$(git status --porcelain)"
+
+      - name: Deploy exact prebuilt artifact
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_json=$(mktemp)
+          deployment_output=$(mktemp)
+          inspect_json=$(mktemp)
+          trap 'rm -f "$deploy_json" "$deployment_output" "$inspect_json"' EXIT
+          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --prod --yes --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json >"$deploy_json"
+          node scripts/ci/vercel-deployment.js "$deploy_json" "$EXPECTED_PROJECT_ID" "$ROLLBACK_DEPLOYMENT_ID" >"$deployment_output"
+          while IFS='=' read -r key value; do
+            case "$key" in
+              deployment_id) deployment_id="$value" ;;
+              deployment_url) deployment_url="$value" ;;
+            esac
+          done <"$deployment_output"
+          test -n "${deployment_id:-}"
+          test -n "${deployment_url:-}"
+          [[ "$deployment_id" =~ ^dpl_[A-Za-z0-9]+$ ]]
+          [[ "$deployment_url" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ ]]
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$deployment_id" --format=json --token "$VERCEL_TOKEN" >"$inspect_json"
+          node - "$inspect_json" "$deployment_id" "$EXPECTED_PROJECT_ID" "$TARGET_SHA" <<'NODE'
+          const fs = require('node:fs');
+          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
+          const [file, expectedId, expectedProjectId, expectedCommit] = process.argv.slice(2);
+          const record = inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
+          if (record.target !== 'production') throw new Error('Vercel deployment target is not production');
+          if (record.commitSha && record.commitSha !== expectedCommit) throw new Error('Vercel deployment commit mismatch');
+          process.stdout.write('DEPLOYMENT_INSPECT=PASS\n');
+          NODE
+          echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
+          echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
+
+      - name: Verify canonical Production identity, health, readiness, auth gate, and critical UI sentinels
+        id: verify
+        continue-on-error: true
+        shell: bash
+        env:
+          DEPLOYMENT_ID: ${{ steps.deploy.outputs.deployment_id }}
+        run: |
+          set -euo pipefail
+          canonical_json=$(mktemp)
+          trap 'rm -f "$canonical_json"' EXIT
+          matched=false
+          for attempt in $(seq 1 18); do
+            if npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$canonical_json" 2>/dev/null; then
+              if node - "$canonical_json" "$DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" <<'NODE'
+          const fs = require('node:fs');
+          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
+          const [file, expectedId, expectedProjectId] = process.argv.slice(2);
+          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
+          NODE
+              then
+                matched=true
+                break
+              fi
+            fi
+            sleep 5
+          done
+          test "$matched" = true
+
+          node - "$EXPECTED_CANONICAL_URL" <<'NODE'
+          const base = process.argv[2].replace(/\/$/, '');
+          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน'];
+          async function request(path) {
+            const response = await fetch(`${base}${path}`, { redirect: 'follow' });
+            return response;
+          }
+          async function main() {
+            const health = await request('/api/v1/health');
+            if (health.status !== 200) throw new Error(`health status ${health.status}`);
+            const healthJson = await health.json();
+            if (healthJson.status !== 'ok') throw new Error('health payload mismatch');
+
+            const ready = await request('/api/v1/ready');
+            if (ready.status !== 200) throw new Error(`ready status ${ready.status}`);
+            const readyJson = await ready.json();
+            if (readyJson.status !== 'ready' || readyJson.database !== 'ok') throw new Error('ready payload mismatch');
+
+            const approval = await request('/api/v1/approval-center');
+            if (approval.status !== 401) throw new Error(`approval-center unauth status ${approval.status}`);
+
+            const root = await request('/');
+            if (root.status !== 200) throw new Error(`root status ${root.status}`);
+            const html = await root.text();
+            const match = html.match(/<script[^>]+src=["']([^"']*\/assets\/index-[^"']+\.js)["']/i);
+            if (!match) throw new Error('main frontend bundle not found');
+            const bundleUrl = new URL(match[1], `${base}/`).toString();
+            const bundle = await fetch(bundleUrl, { redirect: 'follow' });
+            if (bundle.status !== 200) throw new Error(`bundle status ${bundle.status}`);
+            const js = await bundle.text();
+            const missing = sentinels.filter((value) => !js.includes(value));
+            if (missing.length) throw new Error(`missing runtime sentinels: ${missing.join(', ')}`);
+            process.stdout.write(`PRODUCTION_RUNTIME_VERIFY=PASS\nBUNDLE_BYTES=${Buffer.byteLength(js)}\nSENTINELS=${sentinels.length}\n`);
+          }
+          main().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+
+      - name: Auto-rollback to manifest checkpoint if post-deploy verification fails
+        id: rollback
+        if: ${{ steps.verify.outcome == 'failure' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@"$VERCEL_CLI_VERSION" rollback "$ROLLBACK_DEPLOYMENT_ID" --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
+          rollback_json=$(mktemp)
+          trap 'rm -f "$rollback_json"' EXIT
+          restored=false
+          for attempt in $(seq 1 18); do
+            if npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$rollback_json" 2>/dev/null; then
+              if node - "$rollback_json" "$ROLLBACK_DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" <<'NODE'
+          const fs = require('node:fs');
+          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
+          const [file, expectedId, expectedProjectId] = process.argv.slice(2);
+          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
+          NODE
+              then
+                restored=true
+                break
+              fi
+            fi
+            sleep 5
+          done
+          test "$restored" = true
+          node scripts/ci/verify-health.js
+          echo 'AUTO_ROLLBACK=PASS'
+
+      - name: Fail closed after verified automatic rollback
+        if: ${{ steps.verify.outcome == 'failure' }}
+        shell: bash
+        run: |
+          echo 'Production verification failed; rollback checkpoint was restored.'
+          exit 1
+
+      - name: Publish verified Production release summary
+        if: ${{ steps.verify.outcome == 'success' }}
+        shell: bash
+        run: |
+          {
+            echo '### Production Release Verified'
+            echo "- Release: ${{ needs.prepare.outputs.release_id }}"
+            echo "- Exact commit: $TARGET_SHA"
+            echo "- Exact tree: $TARGET_TREE"
+            echo "- Deployment ID: ${{ steps.deploy.outputs.deployment_id }}"
+            echo "- Deployment URL: ${{ steps.deploy.outputs.deployment_url }}"
+            echo "- Canonical URL: $EXPECTED_CANONICAL_URL"
+            echo "- Rollback checkpoint: $ROLLBACK_DEPLOYMENT_ID"
+            echo "- Manifest SHA-256: $MANIFEST_SHA256"
+            echo '- Post-deploy verification: PASS'
+            echo '- Critical UI sentinels: PASS (5/5)'
+          } >> "$GITHUB_STEP_SUMMARY"
