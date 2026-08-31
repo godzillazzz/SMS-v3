@@ -9,6 +9,8 @@ const DEFAULT_SENTINELS = [
   'อุปกรณ์ลงเวลา',
   'Security Site',
   'ลงเวลาแทนพนักงาน',
+  'Approval Authority Matrix / SLA',
+  'การเปลี่ยนแปลงสำคัญ',
 ];
 
 function collectFiles(targets) {

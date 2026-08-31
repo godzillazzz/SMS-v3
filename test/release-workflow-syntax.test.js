@@ -31,25 +31,28 @@ function extractRunBlock(workflow, stepName) {
 }
 
 test(
-  "protected Production verifier shell is syntactically valid on bash runners",
+  "Production release guard shell blocks are syntactically valid on bash runners",
   { skip: process.platform === "win32" },
   () => {
     const workflow = fs
       .readFileSync(workflowPath, "utf8")
       .replace(/\r\n/g, "\n");
-    const script = extractRunBlock(
-      workflow,
+    for (const stepName of [
+      "Validate exact source identity, branch ancestry, migration policy, and clean tree",
+      "Revalidate exact source after Owner approval",
       "Verify immutable candidate, explicitly promote, then verify canonical Production",
-    );
-    const result = spawnSync("bash", ["-n"], {
-      input: script,
-      encoding: "utf8",
-    });
-    assert.equal(
-      result.status,
-      0,
-      result.stderr || result.stdout || "bash -n failed",
-    );
+    ]) {
+      const script = extractRunBlock(workflow, stepName);
+      const result = spawnSync("bash", ["-n"], {
+        input: script,
+        encoding: "utf8",
+      });
+      assert.equal(
+        result.status,
+        0,
+        result.stderr || result.stdout || `bash -n failed: ${stepName}`,
+      );
+    }
   },
 );
 
@@ -68,6 +71,9 @@ test("Production verifier avoids Vercel beta curl and keeps authoritative canoni
     /verify_public_runtime \"\$EXPECTED_CANONICAL_URL\" CANONICAL_PRODUCTION/,
   );
   assert.match(script, /approval\.status !== 401/);
+  assert.match(script, /Approval Authority Matrix \/ SLA/);
+  assert.match(script, /การเปลี่ยนแปลงสำคัญ/);
+  assert.match(workflow, /Critical UI sentinels: PASS \(7\/7\)/);
 });
 
 
@@ -94,7 +100,10 @@ test("pre-applied migration release guard requires exact prior Production migrat
   assert.match(sourceGuard, /Apply Approved Production Migration V2/);
   assert.match(sourceGuard, /Approve Production Migration/);
   assert.match(sourceGuard, /verify-approved-production-migration\.js/);
-  assert.match(sourceGuard, /test "\$MIGRATION_ID" = "CFG-05"/);
+  assert.match(sourceGuard, /PRISMA_SCHEMA_CHANGED=\$\(sed -n 's\/\^prisma_schema_changed=\/\/p'/);
+  assert.match(sourceGuard, /case "\$PRISMA_SCHEMA_CHANGED" in/);
+  assert.match(sourceGuard, /expected_prisma=\$\(printf '%s\\n%s\\n' "\$MIGRATION_PATH" 'prisma\/schema\.prisma'/);
+  assert.match(sourceGuard, /expected_prisma=\$\(printf '%s\\n' "\$MIGRATION_PATH"/);
   assert.match(sourceGuard, /test "\$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = "\$ROLLBACK_DEPLOYMENT_ID"/);
   assert.match(sourceGuard, /test "\$MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA" = "\$CURRENT_PRODUCTION_SOURCE_SHA"/);
   assert.match(sourceGuard, /git diff --quiet "\$MIGRATION_SOURCE_SHA" "\$TARGET_SHA" -- prisma\/schema\.prisma prisma\/migrations/);
@@ -112,7 +121,7 @@ test("pre-applied migration release guard requires exact prior Production migrat
 });
 
 
-test("revalidates the CFG-05 pre-applied migration from release-control evidence after Owner approval", () => {
+test("revalidates the approved pre-applied migration from release-control evidence after Owner approval", () => {
   const workflow = fs.readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n");
   const revalidate = extractRunBlock(
     workflow,

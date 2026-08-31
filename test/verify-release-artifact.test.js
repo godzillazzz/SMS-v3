@@ -6,6 +6,11 @@ const path = require('node:path');
 
 const { DEFAULT_SENTINELS, verifyArtifact } = require('../scripts/ci/verify-release-artifact');
 
+test('release sentinels include CFG-06 authority UI and Employee Critical Changes', () => {
+  assert.ok(DEFAULT_SENTINELS.includes('Approval Authority Matrix / SLA'));
+  assert.ok(DEFAULT_SENTINELS.includes('การเปลี่ยนแปลงสำคัญ'));
+});
+
 test('passes when all required feature sentinels are present in built assets', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-release-artifact-'));
   try {
