@@ -110,60 +110,42 @@ jobs:
               test -n "$PRE_APPLIED_MIGRATION_MANIFEST_PATH"
               [[ "$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID" =~ ^[0-9]+$ ]]
               test -f "$PRE_APPLIED_MIGRATION_MANIFEST_PATH"
+              test -f scripts/ci/verify-approved-production-migration.js
 
-              migration_meta=$(node - "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" "$CURRENT_PRODUCTION_SOURCE_SHA" "$ROLLBACK_DEPLOYMENT_ID" <<'NODE'
-          const fs = require('node:fs');
-          const [file, currentProductionSourceSha, rollbackDeploymentId] = process.argv.slice(2);
-          const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
-          const required = {
-            schema_version: 1,
-            migration_id: 'PERF-05',
-            manifest_state: 'APPROVED_FOR_OWNER_PRODUCTION_MIGRATION_DECISION',
-            current_production_application_sha: currentProductionSourceSha,
-            current_production_deployment_id: rollbackDeploymentId,
-            target_environment: 'production',
-            target_project_name: 'sms-v3-staging',
-            target_project_id: 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s',
-            canonical_url: 'https://sms-v3-staging-ten.vercel.app',
-            owner_action: 'APPROVE_PRODUCTION_MIGRATION_ONLY',
-            application_deploy: false,
-            destructive_rollback: false
-          };
-          for (const [key, value] of Object.entries(required)) {
-            if (manifest[key] !== value) throw new Error(`pre-applied migration manifest mismatch: ${key}`);
-          }
-          if (!/^[0-9a-f]{40}$/.test(manifest.source_commit_sha || '')) throw new Error('invalid migration source SHA');
-          if (!/^[0-9a-f]{40}$/.test(manifest.source_tree_sha || '')) throw new Error('invalid migration source tree');
-          if (manifest.migration_path !== 'prisma/migrations/202608300001_perf05_hot_path_indexes/migration.sql') throw new Error('unexpected migration path');
-          process.stdout.write(`source_sha=${manifest.source_commit_sha}\nsource_tree=${manifest.source_tree_sha}\nmigration_path=${manifest.migration_path}\n`);
-          NODE
-              )
-              MIGRATION_SOURCE_SHA=$(printf '%s\n' "$migration_meta" | sed -n 's/^source_sha=//p')
-              MIGRATION_SOURCE_TREE=$(printf '%s\n' "$migration_meta" | sed -n 's/^source_tree=//p')
-              MIGRATION_PATH=$(printf '%s\n' "$migration_meta" | sed -n 's/^migration_path=//p')
+              migration_guard=$(mktemp)
+              node scripts/ci/verify-approved-production-migration.js "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" >"$migration_guard"
+              grep -Fxq 'PRODUCTION_MIGRATION_MANIFEST_GUARD=PASS' "$migration_guard"
+              MIGRATION_ID=$(sed -n 's/^migration_id=//p' "$migration_guard")
+              MIGRATION_SOURCE_SHA=$(sed -n 's/^source_commit_sha=//p' "$migration_guard")
+              MIGRATION_SOURCE_TREE=$(sed -n 's/^source_tree_sha=//p' "$migration_guard")
+              MIGRATION_PATH=$(sed -n 's/^migration_path=//p' "$migration_guard")
+              POST_VERIFY_SCRIPT=$(sed -n 's/^post_verify_script=//p' "$migration_guard")
+              MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID=$(sed -n 's/^current_production_deployment_id=//p' "$migration_guard")
+              MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA=$(sed -n 's/^current_production_application_sha=//p' "$migration_guard")
+              test "$MIGRATION_ID" = "CFG-03"
+              test "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = "$ROLLBACK_DEPLOYMENT_ID"
+              test "$MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA" = "$CURRENT_PRODUCTION_SOURCE_SHA"
               [[ "$MIGRATION_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
               [[ "$MIGRATION_SOURCE_TREE" =~ ^[0-9a-f]{40}$ ]]
               test -n "$MIGRATION_PATH"
+              test -n "$POST_VERIFY_SCRIPT"
 
               git cat-file -e "${MIGRATION_SOURCE_SHA}^{commit}"
               test "$(git rev-parse "${MIGRATION_SOURCE_SHA}^{tree}")" = "$MIGRATION_SOURCE_TREE"
               git merge-base --is-ancestor "$CURRENT_PRODUCTION_SOURCE_SHA" "$MIGRATION_SOURCE_SHA"
               git merge-base --is-ancestor "$MIGRATION_SOURCE_SHA" "$TARGET_SHA"
               git diff --quiet "$MIGRATION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+              git diff --quiet "$MIGRATION_SOURCE_SHA" "$GITHUB_SHA" -- prisma/schema.prisma "$MIGRATION_PATH"
 
               changed_prisma=$(git diff --name-only "$CURRENT_PRODUCTION_SOURCE_SHA" "$MIGRATION_SOURCE_SHA" -- prisma/schema.prisma prisma/migrations | sort)
               expected_prisma=$(printf '%s\n%s\n' "$MIGRATION_PATH" 'prisma/schema.prisma' | sort)
               test "$changed_prisma" = "$expected_prisma"
 
-              git show "${MIGRATION_SOURCE_SHA}:${MIGRATION_PATH}" >/tmp/pre-applied-migration.sql
-              test "$(grep -Ec '^CREATE INDEX ' /tmp/pre-applied-migration.sql)" -eq 5
-              ! grep -Eiq 'DROP[[:space:]]+(INDEX|TABLE|COLUMN)|ALTER[[:space:]]+TABLE|DELETE[[:space:]]+FROM|TRUNCATE' /tmp/pre-applied-migration.sql
-
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID" >/tmp/pre-applied-run.json
               EVIDENCE_HEAD=$(node - /tmp/pre-applied-run.json <<'NODE'
           const fs = require('node:fs');
           const run = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          if (run.name !== 'Apply Approved PERF-05 Production Migration') throw new Error('unexpected migration evidence workflow');
+          if (run.name !== 'Apply Approved Production Migration V2') throw new Error('unexpected migration evidence workflow');
           if (run.status !== 'completed' || run.conclusion !== 'success') throw new Error('migration evidence workflow did not succeed');
           if (run.event !== 'push') throw new Error('migration evidence workflow event mismatch');
           if (run.head_branch !== 'fix/serverless-database-reliability') throw new Error('migration evidence branch mismatch');
@@ -173,9 +155,12 @@ jobs:
               )
               git cat-file -e "${EVIDENCE_HEAD}^{commit}"
               git merge-base --is-ancestor "$MIGRATION_SOURCE_SHA" "$EVIDENCE_HEAD"
-              git merge-base --is-ancestor "$EVIDENCE_HEAD" "$TARGET_SHA"
-              git cat-file -e "${GITHUB_SHA}^{commit}"
-              git diff --quiet "$EVIDENCE_HEAD" "$GITHUB_SHA" -- "$PRE_APPLIED_MIGRATION_MANIFEST_PATH"
+              git merge-base --is-ancestor "$EVIDENCE_HEAD" "$GITHUB_SHA"
+              git diff --quiet "$EVIDENCE_HEAD" "$GITHUB_SHA" -- \
+                "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" \
+                .github/workflows/apply-approved-production-migration-v2.yml \
+                scripts/ci/verify-approved-production-migration.js \
+                "$POST_VERIFY_SCRIPT"
 
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID/jobs?per_page=100" >/tmp/pre-applied-jobs.json
               node - /tmp/pre-applied-jobs.json <<'NODE'
@@ -292,12 +277,40 @@ jobs:
               git diff --quiet "$CURRENT_PRODUCTION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
               ;;
             PRE_APPLIED_APPROVED_MIGRATION)
-              test -f "$PRE_APPLIED_MIGRATION_MANIFEST_PATH"
-              MIGRATION_SOURCE_SHA=$(node -p "require('./$PRE_APPLIED_MIGRATION_MANIFEST_PATH').source_commit_sha")
+              git fetch --no-tags origin "$GITHUB_SHA"
+              git show "$GITHUB_SHA:$PRE_APPLIED_MIGRATION_MANIFEST_PATH" >/tmp/pre-applied-production-migration.json
+              git show "$GITHUB_SHA:scripts/ci/verify-approved-production-migration.js" >/tmp/verify-approved-production-migration.js
+
+              migration_meta=$(node - /tmp/pre-applied-production-migration.json <<'NODE'
+          const fs = require('node:fs');
+          const verifier = require('/tmp/verify-approved-production-migration.js');
+          const manifest = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const result = verifier.validateMigrationManifest(manifest, { root: process.cwd(), verifySql: false });
+          const sql = fs.readFileSync(result.migrationPath, 'utf8');
+          verifier.validateCfg03Sql(sql);
+          process.stdout.write([
+            `source_sha=${result.sourceCommitSha}`,
+            `source_tree=${result.sourceTreeSha}`,
+            `post_verify_script=${result.postVerifyScript}`,
+            `current_production_deployment_id=${result.currentProductionDeploymentId}`,
+            `current_production_application_sha=${result.currentProductionApplicationSha}`
+          ].join('\n'));
+          NODE
+              )
+              MIGRATION_SOURCE_SHA=$(printf '%s\n' "$migration_meta" | sed -n 's/^source_sha=//p')
+              MIGRATION_SOURCE_TREE=$(printf '%s\n' "$migration_meta" | sed -n 's/^source_tree=//p')
+              POST_VERIFY_SCRIPT=$(printf '%s\n' "$migration_meta" | sed -n 's/^post_verify_script=//p')
+              MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID=$(printf '%s\n' "$migration_meta" | sed -n 's/^current_production_deployment_id=//p')
+              MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA=$(printf '%s\n' "$migration_meta" | sed -n 's/^current_production_application_sha=//p')
+              test "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = "$ROLLBACK_DEPLOYMENT_ID"
+              test "$MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA" = "$CURRENT_PRODUCTION_SOURCE_SHA"
               [[ "$MIGRATION_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+              test "$(git rev-parse "${MIGRATION_SOURCE_SHA}^{tree}")" = "$MIGRATION_SOURCE_TREE"
               git cat-file -e "${MIGRATION_SOURCE_SHA}^{commit}"
               git merge-base --is-ancestor "$CURRENT_PRODUCTION_SOURCE_SHA" "$MIGRATION_SOURCE_SHA"
+              git merge-base --is-ancestor "$MIGRATION_SOURCE_SHA" "$TARGET_SHA"
               git diff --quiet "$MIGRATION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+              git show "$GITHUB_SHA:$POST_VERIFY_SCRIPT" >/tmp/pre-applied-post-verify.js
               ;;
             *)
               exit 1
@@ -323,7 +336,8 @@ jobs:
           npx prisma generate
           node scripts/ci/verify-deployment-target.js --verify
           node scripts/ci/prisma-migration.js status
-          node scripts/ci/verify-perf05-indexes.js
+          test -f /tmp/pre-applied-post-verify.js
+          NODE_PATH="$PWD/node_modules" node /tmp/pre-applied-post-verify.js
           echo 'PRE_APPLIED_PRODUCTION_DATABASE_STATE=PASS'
 
       - name: Verify Vercel project linkage
