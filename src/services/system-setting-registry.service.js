@@ -5,6 +5,7 @@ const { LEAVE_POLICY_KEYS, validateLeavePolicySetting } = require('./leave-polic
 const { isReservedOperationalSettingKey } = require('./g03-1-multi-year-activation.service');
 const { policySettingDefinitions } = require('./approval-policy.service');
 const { POLICY_KEYS: RETENTION_POLICY_KEYS, RETENTION_TIMEZONE } = require('./data-retention.service');
+const { guardrailMetadata } = require('./system-setting-guardrail.service');
 
 const SENSITIVE_SETTING_KEY_PATTERN = /secret|token|password|credential|database|smtp|webhook|channel|access[_-]?key/i;
 
