@@ -3,6 +3,7 @@ const prisma = require('../config/prisma');
 const env = require('../config/env');
 const { leaveTypeDisplayName } = require('./leave-type.service');
 const { logger, errorCategory } = require('../utils/logger');
+const { emailEventEnabled } = require('./notification-center.service');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -164,6 +165,7 @@ async function getApprovedScheduleRecipients(month) {
  * 1. Admin approves monthly schedule -> Notify affected active employees
  */
 async function notifyScheduleApproved({ month, approvedBy, revision }) {
+  if (!(await emailEventEnabled(prisma, 'SCHEDULE_APPROVED'))) { logger.info('Schedule approval email skipped by governed event policy', { month, revision }); return; }
   try {
     if (env.emailNotificationsEnabled !== true) {
       logger.info('Schedule approval email skipped (system disabled)', { month, revision });
@@ -223,6 +225,7 @@ async function notifyScheduleApproved({ month, approvedBy, revision }) {
  * 2. New user registration verified -> Notify Admin & Manager group
  */
 async function notifyNewRegistration({ displayName, email, department }) {
+  if (!(await emailEventEnabled(prisma, 'REGISTRATION_NEW'))) { logger.info('New registration email skipped by governed event policy'); return; }
   try {
     const adminManagerEmails = await getAdminAndManagerEmails();
     if (!adminManagerEmails.length) return;
@@ -446,6 +449,7 @@ function mapSmtpError(err) {
 }
 
 async function broadcastLeaveRequestEmail(leaveRequest, requestUser, eventType = 'LEAVE_CREATED') {
+  if (!(await emailEventEnabled(prisma, eventType))) { logger.info('Leave reviewer email skipped by governed event policy', { leaveRequestId: leaveRequest?.id, eventType }); return; }
   if (env.emailNotificationsEnabled !== true) {
     logger.info('Email notification broadcast skipped (system disabled)', { leaveRequestId: leaveRequest.id });
     return;
@@ -674,6 +678,7 @@ const subject = eventType === 'LEAVE_RESUBMITTED'
 }
 
 async function notifyEmployeeLeaveStatusChange(leaveRequest, eventType, actorUser, extraData) {
+  if (!(await emailEventEnabled(prisma, eventType))) { logger.info('Employee leave email skipped by governed event policy', { leaveRequestId: leaveRequest?.id, eventType }); return; }
   const validEvents = ['LEAVE_CREATED', 'LEAVE_RESUBMITTED', 'LEAVE_RETURNED_FOR_CORRECTION', 'LEAVE_APPROVED', 'LEAVE_REJECTED', 'LEAVE_CANCELLED'];
   if (!validEvents.includes(eventType)) {
     logger.info('notifyEmployeeLeaveStatusChange skipped: unsupported event type', { eventType });

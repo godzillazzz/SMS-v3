@@ -42,6 +42,7 @@ const { ensureEmployeeOperationalForShift, projectedScheduleConflictIds } = requ
 const shiftService = require('../services/shift.service');
 const HttpError = require('../utils/http-error');
 const { logger } = require('../utils/logger');
+const { listMatrix, updateEmailEvent, providerReadiness } = require('../services/notification-center.service');
 
 const router = express.Router();
 const paging = z.object({
@@ -876,6 +877,34 @@ router.get('/retention-cleanup/runs', authorize('ADMIN'), async (req, res, next)
     const limit = z.coerce.number().int().min(1).max(50).optional().default(10).parse(req.query.limit);
     res.set('Cache-Control', 'no-store');
     res.json({ data: await dataRetentionService.recentRuns({ actor: req.user, limit }) });
+  } catch (error) { next(error); }
+});
+
+router.get('/notification-center', authorize('ADMIN'), async (req, res, next) => {
+  try { res.set('Cache-Control','no-store'); res.json({ data: await listMatrix(prisma) }); } catch (error) { next(error); }
+});
+router.put('/notification-center/events/:eventType/email', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const eventType = z.string().trim().regex(/^[A-Z_]{3,80}$/).parse(req.params.eventType);
+    const { enabled } = z.object({ enabled: z.boolean() }).strict().parse(req.body);
+    res.set('Cache-Control','no-store');
+    res.json({ data: await updateEmailEvent({ prisma, audit, actor:req.user, eventType, enabled }) });
+  } catch (error) { next(error); }
+});
+router.post('/notification-center/test-email', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const readiness = providerReadiness();
+    if (!readiness.email.enabled || !readiness.email.configured) throw new HttpError(409,'Email provider is not enabled/configured.',{code:'NOTIFICATION_EMAIL_PROVIDER_NOT_READY'});
+    const actor = await prisma.user.findUniqueOrThrow({ where:{id:req.user.sub}, select:{email:true,displayName:true} });
+    const recipient = String(actor.email||'').trim().toLowerCase();
+    if (!recipient) throw new HttpError(409,'Admin account has no email address.',{code:'NOTIFICATION_TEST_RECIPIENT_MISSING'});
+    const { createTransporter } = require('../services/notification-email.service');
+    const env = require('../config/env');
+    const transporter = createTransporter(env);
+    if (!transporter) throw new HttpError(409,'Email provider is not ready.',{code:'NOTIFICATION_EMAIL_PROVIDER_NOT_READY'});
+    await transporter.sendMail({ from: env.otpFromEmail || env.smtpUsername, to: recipient, subject:'SMS v3 Notification Center test', text:'This is a governed test email from SMS v3 Notification Center.' });
+    await audit.log({ actorUserId:req.user.sub, action:'CREATE', entityType:'NotificationTestSend', entityId:'EMAIL', metadata:{event:'NOTIFICATION_TEST_EMAIL_SENT',recipientScope:'CURRENT_ADMIN',provider:'EMAIL'} });
+    res.json({ data:{ sent:true, provider:'EMAIL', recipientScope:'CURRENT_ADMIN' } });
   } catch (error) { next(error); }
 });
 
