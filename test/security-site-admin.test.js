@@ -46,7 +46,7 @@ test('QR rotation stores only SHA-256 hash, revokes prior active QR and returns 
   const prisma = { $transaction: async (callback) => callback(tx) };
   const audit = { log: async (payload) => { calls.audit = payload; } };
   const service = createSecuritySiteService({ prisma, audit, randomBytes: () => Buffer.alloc(32, 7) });
-  const result = await service.rotateQr(ids.site, ids.actor);
+  const result = await service.rotateQr(ids.site, ids.actor, 'routine rotation');
   assert.ok(result.qrToken.length >= 24);
   assert.match(calls.create.data.tokenHash, /^[0-9a-f]{64}$/);
   assert.equal(calls.create.data.tokenHash.includes(result.qrToken), false);

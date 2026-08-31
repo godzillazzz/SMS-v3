@@ -10,6 +10,13 @@ function http(statusCode, code, message) {
   return new HttpError(statusCode, message, { code });
 }
 
+function normalizeReason(value, code = 'SECURITY_SITE_REASON_REQUIRED') {
+  const reason = String(value || '').trim();
+  if (reason.length < 3) throw http(400, code, 'Reason must be at least 3 characters.');
+  if (reason.length > 1000) throw http(400, 'SECURITY_SITE_REASON_INVALID', 'Reason is too long.');
+  return reason;
+}
+
 function normalizeDepartmentName(value) {
   const normalized = String(value || '').trim();
   if (!normalized) throw http(400, 'DEPARTMENT_REQUIRED', 'Department name is required.');
@@ -162,6 +169,22 @@ function createSecuritySiteService({
     });
   }
 
+  async function duplicate(id, data, actorUserId) {
+    return prisma.$transaction(async (tx) => {
+      const source = await tx.securitySite.findUnique({ where: { id } });
+      if (!source) throw http(404, 'SECURITY_SITE_NOT_FOUND', 'Security Site not found.');
+      let created;
+      try {
+        created = await tx.securitySite.create({ data: { code: String(data.code || '').trim().toUpperCase(), name: String(data.name || (source.name + ' Copy')).trim(), latitude: source.latitude, longitude: source.longitude, geofenceRadiusMeters: source.geofenceRadiusMeters, isActive: false } });
+      } catch (error) {
+        if (error?.code === 'P2002') throw http(409, 'SECURITY_SITE_CODE_CONFLICT', 'Security Site code already exists.');
+        throw error;
+      }
+      await audit.log({ actorUserId, action: 'CREATE', entityType: 'SecuritySite', entityId: created.id, metadata: { action: 'DUPLICATE', sourceSecuritySiteId: id, after: siteSafe(created) } }, tx);
+      return siteSafe(created);
+    });
+  }
+
   async function update(id, data, actorUserId) {
     return prisma.$transaction(async (tx) => {
       const before = await tx.securitySite.findUnique({ where: { id } });
@@ -251,7 +274,8 @@ function createSecuritySiteService({
     });
   }
 
-  async function rotateQr(siteId, actorUserId) {
+  async function rotateQr(siteId, actorUserId, rawReason) {
+    const reason = normalizeReason(rawReason, 'SECURITY_SITE_QR_ROTATE_REASON_REQUIRED');
     const rawToken = randomBytes(32).toString('base64url');
     const hash = crypto.createHash('sha256').update(Buffer.from(rawToken, 'utf8')).digest('hex');
     return prisma.$transaction(async (tx) => {
@@ -269,13 +293,14 @@ function createSecuritySiteService({
         action: 'UPDATE',
         entityType: 'SecuritySiteQrCredential',
         entityId: credential.id,
-        metadata: { securitySiteId: siteId, version: credential.version, action: 'ROTATE' }
+        metadata: { securitySiteId: siteId, version: credential.version, action: 'ROTATE', reason }
       }, tx);
       return { credential: safeQr(credential), qrToken: rawToken };
     });
   }
 
-  async function revokeQr(siteId, credentialId, actorUserId) {
+  async function revokeQr(siteId, credentialId, actorUserId, rawReason) {
+    const reason = normalizeReason(rawReason, 'SECURITY_SITE_QR_REVOKE_REASON_REQUIRED');
     return prisma.$transaction(async (tx) => {
       const credential = await tx.securitySiteQrCredential.findUnique({ where: { id: credentialId } });
       if (!credential || credential.securitySiteId !== siteId) throw http(404, 'SECURITY_SITE_QR_NOT_FOUND', 'Security Site QR credential not found.');
@@ -287,16 +312,17 @@ function createSecuritySiteService({
         action: 'UPDATE',
         entityType: 'SecuritySiteQrCredential',
         entityId: credentialId,
-        metadata: { securitySiteId: siteId, version: credential.version, action: 'REVOKE' }
+        metadata: { securitySiteId: siteId, version: credential.version, action: 'REVOKE', reason }
       }, tx);
       return safeQr(revoked);
     });
   }
 
-  return { list, listDepartments, create, update, replaceDepartmentMapping, rotateQr, revokeQr };
+  return { list, listDepartments, create, duplicate, update, replaceDepartmentMapping, rotateQr, revokeQr };
 }
 
 module.exports = {
+  normalizeReason,
   normalizeDepartmentName,
   overlapWarnings,
   createSecuritySiteService

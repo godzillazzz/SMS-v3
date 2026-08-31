@@ -15,8 +15,8 @@ describe('Admin Security Site menu hotfix', () => {
     expect(main).toContain("import { SecuritySiteManagementPanel } from './components/SecuritySiteManagementPanel'");
     expect(main).toContain("if (activePage === 'securitySite' && auth.token)");
     expect(main).toContain("<SecuritySiteManagementPanel token={auth.token} />");
-    expect(panel).toContain('api.rotateSecuritySiteQr(token, site.id)');
-    expect(panel).toContain('api.revokeSecuritySiteQr(token, selectedSite.id, selectedSite.currentQrCredential.id)');
+    expect(panel).toContain('securitySiteOperations.rotateQr(token, site.id, qrReason.trim())');
+    expect(panel).toContain('securitySiteOperations.revokeQr(token, selectedSite.id, selectedSite.currentQrCredential.id, qrReason.trim())');
   });
 
   it('does not run a generic operational loader for the dedicated Security Site page', () => {
