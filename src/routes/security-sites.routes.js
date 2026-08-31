@@ -20,6 +20,8 @@ const siteCreateSchema = z.object({
   isActive: z.boolean().optional().default(true)
 });
 const siteUpdateSchema = siteCreateSchema.partial().refine((value) => Object.keys(value).length > 0, { message: 'At least one field is required.' });
+const duplicateSchema = z.object({ code: z.string().trim().min(1).max(50), name: z.string().trim().min(1).max(150).optional() }).strict();
+const reasonSchema = z.object({ reason: z.string().trim().min(3).max(1000) }).strict();
 const mappingSchema = z.object({
   departmentName: z.string().trim().min(1).max(100),
   siteIds: z.array(uuid).max(100).default([]),
@@ -51,6 +53,12 @@ router.put('/department-mapping', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.post('/:id/duplicate', async (req, res, next) => {
+  try {
+    res.status(201).json({ data: await service.duplicate(uuid.parse(req.params.id), duplicateSchema.parse(req.body), req.user.sub) });
+  } catch (error) { next(error); }
+});
+
 router.put('/:id', async (req, res, next) => {
   try {
     res.json({ data: await service.update(uuid.parse(req.params.id), siteUpdateSchema.parse(req.body), req.user.sub) });
@@ -59,13 +67,13 @@ router.put('/:id', async (req, res, next) => {
 
 router.post('/:id/qr/rotate', async (req, res, next) => {
   try {
-    res.json({ data: await service.rotateQr(uuid.parse(req.params.id), req.user.sub) });
+    res.json({ data: await service.rotateQr(uuid.parse(req.params.id), req.user.sub, reasonSchema.parse(req.body).reason) });
   } catch (error) { next(error); }
 });
 
 router.post('/:id/qr/:credentialId/revoke', async (req, res, next) => {
   try {
-    res.json({ data: await service.revokeQr(uuid.parse(req.params.id), uuid.parse(req.params.credentialId), req.user.sub) });
+    res.json({ data: await service.revokeQr(uuid.parse(req.params.id), uuid.parse(req.params.credentialId), req.user.sub, reasonSchema.parse(req.body).reason) });
   } catch (error) { next(error); }
 });
 

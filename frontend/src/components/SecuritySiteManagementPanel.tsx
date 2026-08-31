@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiRequestError, api } from '../api';
+import { securitySiteOperations } from './security-site-operations-client';
 import { SecuritySiteMapPicker } from './SecuritySiteMapPicker';
 import '../styles/security-site-management.css';
 import {
@@ -94,6 +95,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [qrReason, setQrReason] = useState('');
 
   const selectedSite = sites.find((site) => site.id === selectedSiteId) || null;
   const activeSites = sites.filter((site) => site.isActive);
@@ -131,8 +133,8 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     setError(undefined);
     try {
       const [{ data: siteData }, { data: departmentData }] = await Promise.all([
-        api.getSecuritySites(token),
-        api.getSecuritySiteDepartments(token)
+        securitySiteOperations.list(token).then((data) => ({ data })),
+        securitySiteOperations.departments(token).then((data) => ({ data }))
       ]);
       setSites(siteData.sites || []);
       setOverlaps(siteData.overlapWarnings || []);
@@ -174,8 +176,8 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
         geofenceRadiusMeters: Math.round(radius)
       };
       const { data: saved } = selectedSite
-        ? await api.updateSecuritySite(token, selectedSite.id, payload)
-        : await api.createSecuritySite(token, payload);
+        ? { data: await securitySiteOperations.update(token, selectedSite.id, payload) }
+        : { data: await securitySiteOperations.create(token, payload) };
       setNotice(selectedSite ? 'บันทึก Security Site แล้ว' : 'เพิ่ม Security Site แล้ว');
       await reload(saved.id, selectedDepartment);
     } catch (reason) {
@@ -187,7 +189,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     if (!selectedSite) return;
     setSaving(true); setError(undefined); setNotice(undefined);
     try {
-      await api.updateSecuritySite(token, selectedSite.id, { isActive: !selectedSite.isActive });
+      await securitySiteOperations.update(token, selectedSite.id, { isActive: !selectedSite.isActive });
       setNotice(selectedSite.isActive ? 'ปิดใช้งาน Site แล้ว' : 'เปิดใช้งาน Site แล้ว');
       await reload(selectedSite.id, selectedDepartment);
     } catch (reason) {
@@ -221,7 +223,8 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     if (!site) return;
     setSaving(true); setError(undefined); setNotice(undefined); setRawQrToken(''); setGeneratedQr(null);
     try {
-      const { data: result } = await api.rotateSecuritySiteQr(token, site.id);
+      if (qrReason.trim().length < 3) { setError('กรุณาระบุเหตุผลการ Rotate QR อย่างน้อย 3 ตัวอักษร'); setSaving(false); return; }
+      const result = await securitySiteOperations.rotateQr(token, site.id, qrReason.trim());
       setRawQrToken(result.qrToken);
       const nextQr: GeneratedQr = {
         dataUrl: await createSecuritySiteQrDataUrl(result.qrToken),
@@ -243,12 +246,26 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     if (!selectedSite?.currentQrCredential) return;
     setSaving(true); setError(undefined); setNotice(undefined); setRawQrToken(''); setGeneratedQr(null);
     try {
-      await api.revokeSecuritySiteQr(token, selectedSite.id, selectedSite.currentQrCredential.id);
+      if (qrReason.trim().length < 3) { setError('กรุณาระบุเหตุผลการ Revoke QR อย่างน้อย 3 ตัวอักษร'); setSaving(false); return; }
+      await securitySiteOperations.revokeQr(token, selectedSite.id, selectedSite.currentQrCredential.id, qrReason.trim());
       setNotice('ยกเลิก QR credential ปัจจุบันแล้ว');
       await reload(selectedSite.id, selectedDepartment);
     } catch (reason) {
       setError(requestErrorMessage(reason, 'Revoke QR ไม่สำเร็จ'));
     } finally { setSaving(false); }
+  };
+
+  const duplicateSite = async () => {
+    if (!selectedSite) return;
+    const code = window.prompt('Site code สำหรับสำเนาใหม่', selectedSite.code + '-COPY')?.trim();
+    if (!code) return;
+    setSaving(true); setError(undefined); setNotice(undefined);
+    try {
+      const created = await securitySiteOperations.duplicate(token, selectedSite.id, { code, name: selectedSite.name + ' Copy' });
+      setNotice('สร้างสำเนา Site แบบ INACTIVE แล้ว กรุณาตรวจพิกัด/รัศมีก่อนเปิดใช้งาน');
+      await reload(created.id, selectedDepartment);
+    } catch (reason) { setError(requestErrorMessage(reason, 'Duplicate Site ไม่สำเร็จ')); }
+    finally { setSaving(false); }
   };
 
   const copyQrToken = async () => {
@@ -318,7 +335,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
           <label className="field-group"><span>Longitude</span><input type="number" step="0.0000001" min={-180} max={180} value={form.longitude} onChange={(event) => setForm((current) => ({ ...current, longitude: event.target.value }))} /></label>
           <label className="field-group"><span>Geofence radius (เมตร)</span><input type="number" min={1} max={100000} value={form.geofenceRadiusMeters} onChange={(event) => setForm((current) => ({ ...current, geofenceRadiusMeters: event.target.value }))} /></label>
         </div>
-        <div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving} onClick={() => void saveSite()}>{saving ? 'กำลังบันทึก…' : selectedSite ? 'บันทึกการแก้ไข' : 'เพิ่ม Security Site'}</button>{selectedSite && <button type="button" className={selectedSite.isActive ? 'danger-action' : 'btn-success'} disabled={saving} onClick={() => void toggleSiteActive()}>{selectedSite.isActive ? 'Deactivate' : 'Reactivate'}</button>}</div>
+        <div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving} onClick={() => void saveSite()}>{saving ? 'กำลังบันทึก…' : selectedSite ? 'บันทึกการแก้ไข' : 'เพิ่ม Security Site'}</button>{selectedSite && <button type="button" className="btn-neutral" disabled={saving} onClick={() => void duplicateSite()}>Duplicate Site</button>}{selectedSite && <button type="button" className={selectedSite.isActive ? 'danger-action' : 'btn-success'} disabled={saving} onClick={() => void toggleSiteActive()}>{selectedSite.isActive ? 'Deactivate' : 'Reactivate'}</button>}</div>
       </article>
 
       <article className="security-site-admin__card">
@@ -351,7 +368,8 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
         <div className="security-site-admin__card-title"><div><h3>Attendance QR lifecycle</h3><small>Server เก็บ SHA-256 hash เท่านั้น · QR token จริงแสดงเฉพาะผล Rotate ครั้งนี้</small></div></div>
         {selectedSite ? <>
           <div className="security-site-qr-state"><span>Site</span><strong>{selectedSite.code} · {selectedSite.name}</strong><span>QR ปัจจุบัน</span><strong>{selectedSite.currentQrCredential ? `Version ${selectedSite.currentQrCredential.version} · ${displayDate(selectedSite.currentQrCredential.validFrom)}` : 'ยังไม่มี Active QR'}</strong></div>
-          <div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving || !selectedSite.isActive} onClick={() => void rotateQr()}>Generate / Rotate QR</button>{selectedSite.currentQrCredential && <button type="button" className="danger-action" disabled={saving} onClick={() => void revokeQr()}>Revoke current QR</button>}</div>
+          <label className="field-group"><span>เหตุผล Rotate / Revoke QR</span><input value={qrReason} maxLength={1000} onChange={(event) => setQrReason(event.target.value)} placeholder="เช่น เปลี่ยนป้าย QR ประจำจุด" /><small>บังคับอย่างน้อย 3 ตัวอักษร และบันทึกใน Audit</small></label><div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving || !selectedSite.isActive} onClick={() => void rotateQr()}>Generate / Rotate QR</button>{selectedSite.currentQrCredential && <button type="button" className="danger-action" disabled={saving} onClick={() => void revokeQr()}>Revoke current QR</button>}</div>
+          <div className="security-site-qr-history"><strong>QR history</strong>{selectedSite.qrCredentials.length ? selectedSite.qrCredentials.map((credential) => <div key={credential.id} className="security-site-qr-history__row"><span>Version {credential.version}</span><span>{credential.revokedAt ? `REVOKED · ${displayDate(credential.revokedAt)}` : 'CURRENT / ACTIVE'}</span><span>ออกเมื่อ {displayDate(credential.createdAt)}</span></div>) : <small>ยังไม่มี QR history</small>}</div>
           {(rawQrToken || generatedQr) && <div className="security-site-qr-once"><strong>⚠ QR TOKEN — แสดง/สร้างได้จากผลการออกครั้งนี้เท่านั้น</strong><p>Server เก็บ SHA-256 hash เท่านั้น; QR Token จริงมีให้จากผล Rotate ครั้งนี้และไม่สามารถอ่านกลับจากฐานข้อมูลได้</p>{rawQrToken && <code>{rawQrToken}</code>}
             {generatedQr && <>
               <div className="security-site-qr-result" aria-label="QR generated">

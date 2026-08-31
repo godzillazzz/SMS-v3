@@ -175,7 +175,7 @@ if (!configured) {
     assert.equal(scheduled.source, SITE_AUTHORITY_SOURCES.SCHEDULE);
     assert.equal(scheduled.pinnedBySession, false);
 
-    const firstQr = await service.rotateQr(ids.siteB, ids.admin);
+    const firstQr = await service.rotateQr(ids.siteB, ids.admin, 'integration rotation');
     assert.ok(firstQr.qrToken.length >= 24);
     const firstCredential = await prisma.securitySiteQrCredential.findUnique({
       where: { id: firstQr.credential.id }
