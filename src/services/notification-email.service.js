@@ -256,6 +256,10 @@ async function notifyNewRegistration({ displayName, email, department }) {
 
 async function notifyRegistrationDecision({ request, eventType }) {
   if (!['REGISTRATION_APPROVED', 'REGISTRATION_REJECTED'].includes(eventType)) return;
+  if (!(await emailEventEnabled(prisma, eventType))) {
+    logger.info('Registration decision email skipped by governed event policy', { registrationRequestId: request?.id, eventType });
+    return;
+  }
   if (env.emailNotificationsEnabled !== true) {
     logger.info('Registration decision email skipped (system disabled)', { registrationRequestId: request?.id, eventType });
     return;
@@ -321,6 +325,10 @@ async function notifyRegistrationDecision({ request, eventType }) {
  * use broadcastLeaveRequestEmail from operations.routes.js.
  */
 async function notifyLeaveSubmitted({ employeeName, leaveType, startDate, endDate, dayCount, reason, substitute, department }) {
+  if (!(await emailEventEnabled(prisma, 'LEAVE_CREATED'))) {
+    logger.info('Legacy leave submission email skipped by governed event policy');
+    return;
+  }
   try {
     const adminManagerEmails = await getAdminAndManagerEmails();
     if (!adminManagerEmails.length) return;
@@ -357,6 +365,15 @@ async function notifyLeaveSubmitted({ employeeName, leaveType, startDate, endDat
  * operations.routes.js.
  */
 async function notifyLeaveProcessed({ leave, status, approverName }) {
+  const eventType = status === 'APPROVED' ? 'LEAVE_APPROVED' : status === 'REJECTED' ? 'LEAVE_REJECTED' : null;
+  if (!eventType) {
+    logger.info('Legacy leave status email skipped: unsupported status', { status });
+    return;
+  }
+  if (!(await emailEventEnabled(prisma, eventType))) {
+    logger.info('Legacy leave status email skipped by governed event policy', { leaveRequestId: leave?.id, eventType });
+    return;
+  }
   try {
     const adminManagerEmails = await getAdminAndManagerEmails();
 
