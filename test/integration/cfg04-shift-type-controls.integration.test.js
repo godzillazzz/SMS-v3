@@ -47,6 +47,11 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     await prisma.employee.create({
       data: { id: ids.employee, employeeCode: 'CFG04-EMP', firstName: 'CFG04', lastName: 'Employee', displayName: 'CFG04 Employee', isActive: true }
     });
+    await prisma.shiftType.upsert({
+      where: { code: 'D' },
+      update: { isActive: true },
+      create: { code: 'D', name: 'Day', startTime: '07:00', endTime: '19:00', hours: 12, color: '#2F80FF', isActive: true }
+    });
 
     const adminToken = await tokenFor(ids.admin);
     const managerToken = await tokenFor(ids.manager);
