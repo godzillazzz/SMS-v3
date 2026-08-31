@@ -4,6 +4,7 @@ const { ATTENDANCE_POLICY_KEYS, ATTENDANCE_QR_POLICIES, validateAttendancePolicy
 const { LEAVE_POLICY_KEYS, validateLeavePolicySetting } = require('./leave-policy.service');
 const { isReservedOperationalSettingKey } = require('./g03-1-multi-year-activation.service');
 const { policySettingDefinitions } = require('./approval-policy.service');
+const { POLICY_KEYS: RETENTION_POLICY_KEYS, RETENTION_TIMEZONE } = require('./data-retention.service');
 
 const SENSITIVE_SETTING_KEY_PATTERN = /secret|token|password|credential|database|smtp|webhook|channel|access[_-]?key/i;
 
@@ -11,6 +12,7 @@ const GROUPS = Object.freeze({
   ATTENDANCE: Object.freeze({ id: 'ATTENDANCE', label: 'Attendance & Location', order: 10 }),
   LEAVE: Object.freeze({ id: 'LEAVE', label: 'Leave Policy', order: 20 }),
   APPROVAL: Object.freeze({ id: 'APPROVAL', label: 'Approval Authority & SLA', order: 25 }),
+  RETENTION: Object.freeze({ id: 'RETENTION', label: 'Data Retention', order: 27 }),
   NOTIFICATIONS: Object.freeze({ id: 'NOTIFICATIONS', label: 'Notifications', order: 30 }),
   LEGACY: Object.freeze({ id: 'LEGACY', label: 'Legacy / Read only', order: 90 }),
   PROTECTED: Object.freeze({ id: 'PROTECTED', label: 'Protected Operations', order: 99 })
@@ -158,6 +160,54 @@ const DEFINITIONS = Object.freeze([
   }),
   ...policySettingDefinitions().map(frozenDefinition),
   frozenDefinition({
+    key: RETENTION_POLICY_KEYS.operationalUsageMonths,
+    group: GROUPS.RETENTION.id,
+    groupLabel: GROUPS.RETENTION.label,
+    groupOrder: GROUPS.RETENTION.order,
+    label: 'Operational / usage retention',
+    valueType: 'NUMBER',
+    description: 'Operational/usage transient-state retention ceiling in complete Asia/Bangkok calendar months.',
+    editable: false,
+    authority: 'ADMIN_GOVERNED_VIA_RETENTION_API',
+    constraints: { min: 1, max: 120, unit: 'months' }
+  }),
+  frozenDefinition({
+    key: RETENTION_POLICY_KEYS.attendanceRawMonths,
+    group: GROUPS.RETENTION.id,
+    groupLabel: GROUPS.RETENTION.label,
+    groupOrder: GROUPS.RETENTION.order,
+    label: 'Attendance raw retention',
+    valueType: 'NUMBER',
+    description: 'Attendance raw event retention in complete Asia/Bangkok calendar months.',
+    editable: false,
+    authority: 'ADMIN_GOVERNED_VIA_RETENTION_API',
+    constraints: { min: 1, max: 120, unit: 'months' }
+  }),
+  frozenDefinition({
+    key: RETENTION_POLICY_KEYS.patrolRawMonths,
+    group: GROUPS.RETENTION.id,
+    groupLabel: GROUPS.RETENTION.label,
+    groupOrder: GROUPS.RETENTION.order,
+    label: 'Patrol / checkpoint raw retention',
+    valueType: 'NUMBER',
+    description: 'Patrol/checkpoint raw scan retention in complete Asia/Bangkok calendar months; adapter remains fail-closed until Patrol exists.',
+    editable: false,
+    authority: 'ADMIN_GOVERNED_VIA_RETENTION_API',
+    constraints: { min: 1, max: 120, unit: 'months' }
+  }),
+  frozenDefinition({
+    key: RETENTION_POLICY_KEYS.timezone,
+    group: GROUPS.RETENTION.id,
+    groupLabel: GROUPS.RETENTION.label,
+    groupOrder: GROUPS.RETENTION.order,
+    label: 'Retention timezone',
+    valueType: 'PROTECTED',
+    description: 'Protected retention timezone authority.',
+    editable: false,
+    authority: 'PROTECTED_RETENTION_INVARIANT',
+    constraints: { allowedValues: [RETENTION_TIMEZONE] }
+  }),
+  frozenDefinition({
     key: 'LINE_TEMPLATE_NEW_LEAVE',
     group: GROUPS.NOTIFICATIONS.id,
     groupLabel: GROUPS.NOTIFICATIONS.label,
@@ -245,7 +295,7 @@ function registryRow(definition, stored) {
     groupOrder: definition.groupOrder,
     label: definition.label,
     valueType: definition.valueType,
-    editable: true,
+    editable: definition.editable !== false,
     authority: definition.authority,
     source: definition.source,
     registryStatus: 'REGISTERED',
@@ -296,7 +346,7 @@ function presentSystemSettings(rows = []) {
 }
 
 function registeredSystemSettingGroups() {
-  return [GROUPS.ATTENDANCE, GROUPS.LEAVE, GROUPS.APPROVAL, GROUPS.NOTIFICATIONS].map((group) => ({ ...group }));
+  return [GROUPS.ATTENDANCE, GROUPS.LEAVE, GROUPS.APPROVAL, GROUPS.RETENTION, GROUPS.NOTIFICATIONS].map((group) => ({ ...group }));
 }
 
 module.exports = {

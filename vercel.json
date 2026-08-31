@@ -20,6 +20,10 @@
     {
       "path": "/api/v1/internal/attendance-evidence-retention",
       "schedule": "35 18 * * *"
+    },
+    {
+      "path": "/api/v1/internal/data-retention-cleanup",
+      "schedule": "50 18 * * *"
     }
   ],
   "headers": [

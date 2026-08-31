@@ -20,10 +20,13 @@ test('CFG-01 registry has unique governed keys and no secret-bearing setting def
   assert.equal(new Set(DEFINITIONS.map((definition) => definition.key)).size, DEFINITIONS.length);
   for (const definition of DEFINITIONS) {
     assert.equal(isSensitiveSystemSettingKey(definition.key), false, definition.key);
-    assert.ok(['ATTENDANCE', 'LEAVE', 'APPROVAL', 'NOTIFICATIONS'].includes(definition.group), definition.key);
+    assert.ok(['ATTENDANCE', 'LEAVE', 'APPROVAL', 'RETENTION', 'NOTIFICATIONS'].includes(definition.group), definition.key);
     if (definition.group === 'APPROVAL') {
       assert.equal(definition.editable, false);
       assert.equal(definition.authority, 'ADMIN_GOVERNED_VIA_APPROVAL_POLICY_API');
+    } else if (definition.group === 'RETENTION') {
+      assert.equal(definition.editable, false);
+      assert.ok(['ADMIN_GOVERNED_VIA_RETENTION_API', 'PROTECTED_RETENTION_INVARIANT'].includes(definition.authority));
     } else {
       assert.equal(definition.editable, true);
       assert.equal(definition.authority, 'ADMIN_GOVERNED');
@@ -99,4 +102,17 @@ test('CFG-01 route uses registered governance before SystemSetting upsert and ne
   assert.match(source, /valueType: definition\.valueType/);
   assert.match(source, /res\.set\('Cache-Control', 'no-store'\)/);
   assert.doesNotMatch(source.slice(put, source.indexOf("router.get('/leave-requests/pending-count'", put)), /update:\s*normalizedInput/);
+});
+
+
+test('CFG-07 retention settings are registered for display but generic SystemSetting edits are disabled', () => {
+  const retention = DEFINITIONS.filter((definition) => definition.group === 'RETENTION');
+  assert.equal(retention.length, 4);
+  for (const definition of retention) assert.equal(definition.editable, false);
+  const presented = presentSystemSettings(retention.map((definition) => ({
+    key: definition.key,
+    value: definition.key === 'RETENTION.TIMEZONE' ? 'Asia/Bangkok' : '6',
+    updatedAt: new Date('2026-08-31T00:00:00Z')
+  })));
+  for (const row of presented.filter((item) => item.group === 'RETENTION')) assert.equal(row.editable, false);
 });
