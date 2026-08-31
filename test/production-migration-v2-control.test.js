@@ -9,6 +9,7 @@ const {
   validateCfg03Sql,
   validateCfg04Sql,
   validateCfg05Sql,
+  validateCfg06Sql,
   validateMigrationManifest
 } = require('../scripts/ci/verify-approved-production-migration');
 
@@ -16,17 +17,21 @@ const root = path.join(__dirname, '..');
 const cfg03ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg03-production-migration.json');
 const cfg04ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg04-production-migration.json');
 const cfg05ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg05-production-migration.json');
+const cfg06ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg06-production-migration.json');
 const workflowPath = path.join(root, '.github', 'workflows', 'apply-approved-production-migration-v2.yml');
 const cfg03PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg03-production-migration.js');
 const cfg04PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg04-production-migration.js');
 const cfg05PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg05-production-migration.js');
+const cfg06PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg06-production-migration.js');
 const cfg03Manifest = JSON.parse(fs.readFileSync(cfg03ManifestPath, 'utf8'));
 const cfg04Manifest = JSON.parse(fs.readFileSync(cfg04ManifestPath, 'utf8'));
 const cfg05Manifest = JSON.parse(fs.readFileSync(cfg05ManifestPath, 'utf8'));
+const cfg06Manifest = JSON.parse(fs.readFileSync(cfg06ManifestPath, 'utf8'));
 const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
 const cfg03PostVerify = fs.readFileSync(cfg03PostVerifyPath, 'utf8');
 const cfg04PostVerify = fs.readFileSync(cfg04PostVerifyPath, 'utf8');
 const cfg05PostVerify = fs.readFileSync(cfg05PostVerifyPath, 'utf8');
+const cfg06PostVerify = fs.readFileSync(cfg06PostVerifyPath, 'utf8');
 
 test('CFG-03 historical Production migration manifest remains valid', () => {
   const result = validateMigrationManifest(cfg03Manifest, { root });
@@ -100,15 +105,51 @@ test('CFG-05 SQL policy accepts only the additive Pattern Master schema and gove
   }
 });
 
+test('CFG-06 Production migration manifest is exact-source pinned and migration-only', () => {
+  const result = validateMigrationManifest(cfg06Manifest, { root });
+  assert.equal(result.migrationId, 'CFG-06');
+  assert.equal(result.sourceCommitSha, 'ca3e4dee868ce88aa2e296312abebd75f25fe240');
+  assert.equal(result.sourceTreeSha, '04fc1bcf3b6ce25a1a952f6f629290232bd0d04d');
+  assert.equal(result.currentProductionDeploymentId, 'dpl_7ceocSnc9FbhniknqdxWQDRqsjGj');
+  assert.equal(result.currentProductionApplicationSha, 'cf75ba61c97ba81084999eea9e68f4dcdcc6178e');
+  assert.equal(result.migrationName, '202608310004_cfg06_approval_authority_policy');
+  assert.equal(result.migrationPolicy, 'GOVERNED_SYSTEM_SETTING_SEED_ONLY_NO_SCHEMA_CHANGE');
+  assert.equal(result.dataBackfill, false);
+  assert.equal(result.schemaChanged, false);
+  assert.equal(result.statementCount, 1);
+  assert.equal(result.controlledUpdateCount, 0);
+  assert.equal(cfg06Manifest.application_deploy, false);
+  assert.equal(cfg06Manifest.destructive_rollback, false);
+  assert.equal(cfg06Manifest.owner_action, 'APPROVE_PRODUCTION_MIGRATION_ONLY');
+});
+
+test('CFG-06 SQL policy accepts only governed SystemSetting defaults and rejects schema/data mutation', () => {
+  const sql = fs.readFileSync(path.join(root, ...cfg06Manifest.migration_path.split('/')), 'utf8');
+  assert.doesNotThrow(() => validateCfg06Sql(sql));
+  for (const unsafe of [
+    sql + '\nUPDATE system_settings SET value = \'0\';',
+    sql + '\nALTER TABLE system_settings ADD COLUMN unsafe TEXT;',
+    sql + '\nDROP TABLE system_settings;',
+    sql + '\nDELETE FROM system_settings;',
+    sql + '\nTRUNCATE system_settings;',
+    sql.replace('[\"ADMIN\"]', '[\"MANAGER\"]'),
+    sql.replace("'24'", "'72'"),
+    sql.replace('ON CONFLICT ("key") DO NOTHING', 'ON CONFLICT ("key") DO UPDATE SET value = EXCLUDED.value')
+  ]) {
+    assert.throws(() => validateCfg06Sql(unsafe), /forbidden|requires exactly one|must seed|requires ON CONFLICT|mismatch|missing|26 governed/);
+  }
+});
+
 test('CFG-03 SQL guard still rejects destructive or unbounded mutations', () => {
   const sql = fs.readFileSync(path.join(root, ...cfg03Manifest.migration_path.split('/')), 'utf8');
   assert.doesNotThrow(() => validateCfg03Sql(sql));
   assert.throws(() => validateCfg03Sql(sql + '\nDROP TABLE leave_requests;'), /forbidden|unsupported/);
 });
 
-test('Production Migration V2 targets CFG-05 with one protected Owner gate and no application deployment command', () => {
+test('Production Migration V2 targets CFG-06 with one protected Owner gate and no application deployment command', () => {
   assert.match(workflow, /^name: Apply Approved Production Migration V2$/m);
-  assert.match(workflow, /MANIFEST_PATH: \.github\/releases\/approved-cfg05-production-migration\.json/);
+  assert.match(workflow, /MANIFEST_PATH: \.github\/releases\/approved-cfg06-production-migration\.json/);
+  assert.match(workflow, /prisma_schema_changed: \$\{\{ steps\.manifest\.outputs\.prisma_schema_changed \}\}/);
   assert.match(workflow, /name: Approve Production Migration/);
   assert.match(workflow, /environment:\n\s+name: production-sms-v3-staging/);
   assert.match(workflow, /node scripts\/ci\/verify-deployment-target\.js --verify/);
@@ -126,7 +167,9 @@ test('Production Migration V2 targets CFG-05 with one protected Owner gate and n
 
 test('Production Migration V2 requires exact Prisma delta and successful exact-SHA CI before Owner gate', () => {
   assert.match(workflow, /git diff --name-only "\$CURRENT_PRODUCTION_APPLICATION_SHA" "\$SOURCE_SHA" -- prisma\/schema\.prisma prisma\/migrations/);
+  assert.match(workflow, /if test "\$\{\{ steps\.manifest\.outputs\.prisma_schema_changed \}\}" = "true"/);
   assert.match(workflow, /expected_prisma=\$\(printf '%s\\n%s\\n' "\$MIGRATION_PATH" 'prisma\/schema\.prisma'/);
+  assert.match(workflow, /expected_prisma=\$\(printf '%s\\n' "\$MIGRATION_PATH"/);
   assert.match(workflow, /gh run list --repo "\$GITHUB_REPOSITORY" --workflow CI --commit "\$SOURCE_SHA"/);
   assert.match(workflow, /git merge-base --is-ancestor "\$CURRENT_PRODUCTION_APPLICATION_SHA" "\$SOURCE_SHA"/);
 });
@@ -148,6 +191,16 @@ test('CFG-05 post-migration verifier checks schema/core seeds without emitting r
   assert.match(cfg05PostVerify, /AUTO_SCHEDULE_PATTERN_AL_REFERENCES=0/);
   assert.match(cfg05PostVerify, /RAW_AUTO_SCHEDULE_PATTERN_DATA_EMITTED=false/);
   assert.doesNotMatch(cfg05PostVerify, /console\.log\([^)]*steps|SELECT \* FROM auto_schedule_patterns/i);
+});
+
+test('CFG-06 post-migration verifier checks governed keys without emitting policy values', () => {
+  assert.match(cfg06PostVerify, /CFG06_PRODUCTION_MIGRATION_VERIFY=PASS/);
+  assert.match(cfg06PostVerify, /APPROVAL_POLICY_KEY_COUNT=26/);
+  assert.match(cfg06PostVerify, /APPROVAL_POLICY_REQUEST_TYPE_COUNT=8/);
+  assert.match(cfg06PostVerify, /APPROVAL_POLICY_ADMIN_ONLY_TYPE_COUNT=5/);
+  assert.match(cfg06PostVerify, /APPROVAL_POLICY_FLEXIBLE_TYPE_COUNT=3/);
+  assert.match(cfg06PostVerify, /APPROVAL_POLICY_RAW_VALUES_EMITTED=false/);
+  assert.doesNotMatch(cfg06PostVerify, /console\.log\([^)]*row|console\.log\([^)]*value/i);
 });
 
 test('CFG-03 post-migration verifier remains available for prior evidence validation', () => {
