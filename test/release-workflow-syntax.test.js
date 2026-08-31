@@ -76,7 +76,9 @@ test("Production verifier avoids Vercel beta curl and keeps authoritative canoni
   assert.match(script, /เปลี่ยนชื่อ/);
   assert.match(script, /ย้ายหน่วยงาน \/ แผนก/);
   assert.match(script, /เปลี่ยนตำแหน่ง/);
-  assert.match(workflow, /Critical UI sentinels: PASS \(10\/10\)/);
+  assert.match(script, /Data Retention Center \/ การเก็บรักษาข้อมูล/);
+  assert.match(script, /รัน Cleanup รอบถัดไป/);
+  assert.match(workflow, /Critical UI sentinels: PASS \(12\/12\)/);
 });
 
 
