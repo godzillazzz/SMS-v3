@@ -458,7 +458,7 @@ jobs:
             node - "$base_url" "$label" <<'NODE'
           const base = process.argv[2].replace(/\/$/, '');
           const label = process.argv[3];
-          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน', 'Approval Authority Matrix / SLA', 'การเปลี่ยนแปลงสำคัญ'];
+          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน', 'Approval Authority Matrix / SLA', 'การเปลี่ยนแปลงสำคัญ', 'เปลี่ยนชื่อ', 'ย้ายหน่วยงาน / แผนก', 'เปลี่ยนตำแหน่ง'];
           async function request(path) { return fetch(`${base}${path}`, { redirect: 'follow' }); }
           async function main() {
             const health = await request('/api/v1/health');
@@ -602,5 +602,5 @@ jobs:
             echo "- Rollback checkpoint: $ROLLBACK_DEPLOYMENT_ID"
             echo "- Manifest SHA-256: $MANIFEST_SHA256"
             echo '- Post-deploy verification: PASS'
-            echo '- Critical UI sentinels: PASS (7/7)'
+            echo '- Critical UI sentinels: PASS (10/10)'
           } >> "$GITHUB_STEP_SUMMARY"
