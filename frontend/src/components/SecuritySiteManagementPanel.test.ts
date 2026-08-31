@@ -18,8 +18,8 @@ describe('Security Site Admin token role gate', () => {
 
   it('uses the shared authenticated API client instead of component fetch logic', () => {
     expect(panelSource).toContain("import { ApiRequestError, api } from '../api';");
-    expect(panelSource).toContain('api.getSecuritySites(token)');
-    expect(panelSource).toContain('api.rotateSecuritySiteQr(token, site.id)');
+    expect(panelSource).toContain('securitySiteOperations.list(token)');
+    expect(panelSource).toContain('securitySiteOperations.rotateQr(token, site.id, qrReason.trim())');
     expect(panelSource).not.toContain('async function adminRequest');
     expect(panelSource).not.toContain('fetch(`/api/v1');
   });
@@ -42,7 +42,7 @@ describe('Security Site Admin token role gate', () => {
     expect(panelSource).toContain('printSecuritySiteQrDocument');
     expect(panelSource).toContain('onClick={printQr}');
     expect(panelSource).toContain('onClick={saveQr}');
-    expect(panelSource.match(/api\.rotateSecuritySiteQr/g)?.length).toBe(1);
+    expect(panelSource.match(/securitySiteOperations\.rotateQr/g)?.length).toBe(1);
     expect(panelSource).not.toMatch(/localStorage|sessionStorage|indexedDB/i);
     expect(panelSource).not.toContain('rawQrToken}-');
   });

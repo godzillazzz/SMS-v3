@@ -243,3 +243,7 @@
   .security-site-qr-result__screen { grid-template-columns: 1fr; }
   .security-site-qr-image { width: min(100%, 320px); height: auto; justify-self: center; }
 }
+
+.security-site-qr-history { display: grid; gap: 8px; margin-top: 14px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+.security-site-qr-history__row { display: grid; grid-template-columns: 120px minmax(150px, 1fr) minmax(180px, 1fr); gap: 10px; padding: 8px 10px; border-radius: 8px; background: #fff; font-size: 12px; color: #334155; }
+@media (max-width: 760px) { .security-site-qr-history__row { grid-template-columns: 1fr; } }
