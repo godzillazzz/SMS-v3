@@ -63,6 +63,7 @@ import { LeavePolicySettingsCard, leavePolicyKeys, type LeavePolicyForm } from '
 import { LeaveTypeMasterPanel } from './components/LeaveTypeMasterPanel';
 import { AutoSchedulePatternPanel } from './components/AutoSchedulePatternPanel';
 import { ApprovalAuthorityMatrixPanel } from './components/ApprovalAuthorityMatrixPanel';
+import { DataRetentionCenterPanel } from './components/DataRetentionCenterPanel';
 import { ConfigurationRegistryPanel } from './components/ConfigurationRegistryPanel';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
@@ -998,6 +999,7 @@ function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading,
     <LeaveTypeMasterPanel items={leaveTypes} loading={leaveTypesLoading} onCreate={onCreateLeaveType} onUpdate={onUpdateLeaveType} onRefresh={onRefresh} />
     <AutoSchedulePatternPanel token={token} />
     <ApprovalAuthorityMatrixPanel token={token} />
+    <DataRetentionCenterPanel token={token} />
     <section className="line-settings-card">
       <div className="line-settings-title"><span>💬</span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
       <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><input type="password" value="••••••••••••••••" disabled aria-label="LINE access token is managed securely" /><small>ไม่แสดงและไม่บันทึก token ในหน้าจอนี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>

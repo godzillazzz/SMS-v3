@@ -1122,6 +1122,43 @@ model SystemSetting {
   @@map("system_settings")
 }
 
+model RetentionPolicyChange {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status            String    @db.VarChar(20)
+  beforePolicy      Json      @map("before_policy")
+  proposedPolicy    Json      @map("proposed_policy")
+  previewSnapshot   Json      @map("preview_snapshot")
+  previewDigest     String    @map("preview_digest") @db.Char(64)
+  reason            String    @db.VarChar(1000)
+  requestedByUserId String    @map("requested_by_user_id") @db.Uuid
+  requestedAt       DateTime  @default(now()) @map("requested_at")
+  effectiveAt       DateTime  @map("effective_at")
+  appliedAt         DateTime? @map("applied_at")
+  cancelledAt       DateTime? @map("cancelled_at")
+  cancelReason      String?   @map("cancel_reason") @db.VarChar(1000)
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, effectiveAt])
+  @@index([requestedByUserId, requestedAt])
+  @@map("retention_policy_changes")
+}
+
+model RetentionCleanupRun {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trigger        String    @db.VarChar(10)
+  status         String    @db.VarChar(20)
+  policySnapshot Json      @map("policy_snapshot")
+  resultSnapshot Json?     @map("result_snapshot")
+  actorUserId    String?   @map("actor_user_id") @db.Uuid
+  startedAt      DateTime  @default(now()) @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  errorCode      String?   @map("error_code") @db.VarChar(80)
+
+  @@index([startedAt, status])
+  @@index([actorUserId, startedAt])
+  @@map("retention_cleanup_runs")
+}
+
 model LegacyUserAuditEvent {
   id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   sourceFingerprint    String   @unique @map("source_fingerprint") @db.VarChar(64)

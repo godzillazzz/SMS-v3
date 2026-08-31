@@ -26,6 +26,7 @@ const { createLeavePolicyService, isRetroactiveLeaveStart, retroactiveDaysBack }
 const { createLeaveTypeService, resolveLeaveTypeForRequest, leaveTypeSnapshot } = require('../services/leave-type.service');
 const { createAutoSchedulePatternService } = require('../services/auto-schedule-pattern.service');
 const { createApprovalPolicyService, positionClass } = require('../services/approval-policy.service');
+const { createDataRetentionService } = require('../services/data-retention.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
@@ -185,6 +186,7 @@ const leavePolicyService = createLeavePolicyService({ prisma });
 const leaveTypeService = createLeaveTypeService({ prisma, audit });
 const autoSchedulePatternService = createAutoSchedulePatternService({ prisma, audit });
 const approvalPolicyService = createApprovalPolicyService({ prismaClient: prisma, auditService: audit });
+const dataRetentionService = createDataRetentionService({ prisma, audit });
 const checkIsRetroactive = (dateInput) => isRetroactiveLeaveStart(dateInput);
 const assertRetroactiveLeaveEntryAllowed = ({ policy, actorRole, actorEmployeeId, employeeId, startDate, correction = false }) => {
   const isRetroactive = checkIsRetroactive(startDate);
@@ -347,6 +349,14 @@ router.get('/internal/attendance-evidence-retention', async (req, res, next) => 
   try {
     if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
     res.json({ data: await attendanceEvidenceStorage.purgeExpired() });
+  } catch (error) { next(error); }
+});
+
+router.get('/internal/data-retention-cleanup', async (req, res, next) => {
+  try {
+    if (!authorizedLicenseReconciliationCron(req)) throw new HttpError(401, 'Unauthorized.');
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await dataRetentionService.runCleanup({ trigger: 'CRON' }) });
   } catch (error) { next(error); }
 });
 
@@ -808,6 +818,64 @@ router.put('/approval-policies/:requestType', authorize('ADMIN'), async (req, re
     const result = await approvalPolicyService.update({ requestType, input, actor: req.user });
     res.set('Cache-Control', 'no-store');
     res.json({ data: result });
+  } catch (error) { next(error); }
+});
+
+const retentionPolicyInput = z.object({
+  operationalUsageMonths: z.coerce.number().int().min(1).max(120),
+  attendanceRawMonths: z.coerce.number().int().min(1).max(120),
+  patrolRawMonths: z.coerce.number().int().min(1).max(120)
+}).strict();
+const retentionChangeInput = z.object({
+  proposedPolicy: retentionPolicyInput,
+  expectedPreviewDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  acknowledgeImpact: z.boolean().optional().default(false),
+  reason: z.string().trim().min(5).max(1000)
+}).strict();
+const retentionCancelInput = z.object({ reason: z.string().trim().min(5).max(1000) }).strict();
+const retentionCleanupInput = z.object({
+  acknowledgeCleanup: z.literal(true),
+  batchSize: z.coerce.number().int().min(1).max(200).optional().default(200),
+  maxBatches: z.coerce.number().int().min(1).max(5).optional().default(5)
+}).strict();
+
+router.get('/retention-policies', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await dataRetentionService.current({ actor: req.user }) });
+  } catch (error) { next(error); }
+});
+router.post('/retention-policies/preview', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const proposedPolicy = retentionPolicyInput.parse(req.body?.proposedPolicy);
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await dataRetentionService.preview({ actor: req.user, proposedPolicy }) });
+  } catch (error) { next(error); }
+});
+router.post('/retention-policies/changes', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const input = retentionChangeInput.parse(req.body);
+    res.status(201).json({ data: await dataRetentionService.createChange({ actor: req.user, ...input }) });
+  } catch (error) { next(error); }
+});
+router.post('/retention-policies/changes/:id/cancel', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const input = retentionCancelInput.parse(req.body);
+    res.json({ data: await dataRetentionService.cancelChange({ actor: req.user, id, reason: input.reason }) });
+  } catch (error) { next(error); }
+});
+router.post('/retention-cleanup/run', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const input = retentionCleanupInput.parse(req.body || {});
+    res.json({ data: await dataRetentionService.runCleanup({ trigger: 'ADMIN', actorUserId: req.user.sub, batchSize: input.batchSize, maxBatches: input.maxBatches }) });
+  } catch (error) { next(error); }
+});
+router.get('/retention-cleanup/runs', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const limit = z.coerce.number().int().min(1).max(50).optional().default(10).parse(req.query.limit);
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await dataRetentionService.recentRuns({ actor: req.user, limit }) });
   } catch (error) { next(error); }
 });
 
