@@ -19,19 +19,29 @@ const MIGRATIONS = Object.freeze({
     migrationName: '202608310001_cfg03_leave_type_master',
     migrationPolicy: 'ADDITIVE_SCHEMA_WITH_CONTROLLED_BACKFILL',
     postVerifyScript: 'scripts/ci/verify-cfg03-production-migration.js',
-    dataBackfill: true
+    dataBackfill: true,
+    schemaChanged: true
   }),
   'CFG-04': Object.freeze({
     migrationName: '202608310002_cfg04_shift_type_active_state',
     migrationPolicy: 'ADDITIVE_SCHEMA_ONLY_NO_BACKFILL',
     postVerifyScript: 'scripts/ci/verify-cfg04-production-migration.js',
-    dataBackfill: false
+    dataBackfill: false,
+    schemaChanged: true
   }),
   'CFG-05': Object.freeze({
     migrationName: '202608310003_cfg05_auto_schedule_pattern_master',
     migrationPolicy: 'ADDITIVE_SCHEMA_WITH_GOVERNED_SEED_NO_BACKFILL',
     postVerifyScript: 'scripts/ci/verify-cfg05-production-migration.js',
-    dataBackfill: false
+    dataBackfill: false,
+    schemaChanged: true
+  }),
+  'CFG-06': Object.freeze({
+    migrationName: '202608310004_cfg06_approval_authority_policy',
+    migrationPolicy: 'GOVERNED_SYSTEM_SETTING_SEED_ONLY_NO_SCHEMA_CHANGE',
+    postVerifyScript: 'scripts/ci/verify-cfg06-production-migration.js',
+    dataBackfill: false,
+    schemaChanged: false
   })
 });
 
@@ -158,10 +168,56 @@ function validateCfg05Sql(sql) {
   return { statementCount: statements.length, controlledUpdateCount: 0 };
 }
 
+function validateCfg06Sql(sql) {
+  rejectDestructiveSql(sql);
+  assert(!/\bUPDATE\b/i.test(sql), 'CFG-06 UPDATE is forbidden');
+  assert(!/\bALTER\s+TABLE\b/i.test(sql), 'CFG-06 ALTER TABLE is forbidden');
+  const statements = splitStatements(sql);
+  assert(statements.length === 1, 'CFG-06 requires exactly one governed seed statement');
+  const normalized = statements[0].replace(/\s+/g, ' ').trim();
+  assert(/^INSERT INTO "system_settings"/i.test(normalized), 'CFG-06 must seed system_settings only');
+  assert(/ON CONFLICT \("key"\) DO NOTHING$/i.test(normalized), 'CFG-06 requires ON CONFLICT ("key") DO NOTHING');
+
+  const requestTypes = [
+    'EMPLOYEE_MASTER_CHANGE',
+    'EMPLOYEE_REFERENCE_PHOTO',
+    'LICENSE_DOCUMENT',
+    'ATTENDANCE_DEVICE_REQUEST',
+    'ATTENDANCE_ADJUSTMENT_REQUEST',
+    'REGISTRATION_REQUEST',
+    'USER_ACCESS',
+    'LEAVE_REQUEST'
+  ];
+  const adminOnly = new Set([
+    'EMPLOYEE_MASTER_CHANGE',
+    'EMPLOYEE_REFERENCE_PHOTO',
+    'LICENSE_DOCUMENT',
+    'ATTENDANCE_DEVICE_REQUEST',
+    'ATTENDANCE_ADJUSTMENT_REQUEST'
+  ]);
+  for (const type of requestTypes) {
+    for (const suffix of ['REVIEWER_ROLES', 'DUE_SOON_HOURS', 'OVERDUE_HOURS']) {
+      assert(new RegExp(`APPROVAL_POLICY\\.${type}\\.${suffix}`, 'i').test(sql), `CFG-06 missing ${type} ${suffix}`);
+    }
+    const expectedRoles = adminOnly.has(type) ? '\\["ADMIN"\\]' : '\\["ADMIN","MANAGER"\\]';
+    assert(new RegExp(`APPROVAL_POLICY\\.${type}\\.REVIEWER_ROLES'\\s*,\\s*'${expectedRoles}`, 'i').test(sql), `CFG-06 reviewer roles mismatch for ${type}`);
+    assert(new RegExp(`APPROVAL_POLICY\\.${type}\\.DUE_SOON_HOURS'\\s*,\\s*'24'`, 'i').test(sql), `CFG-06 due-soon default mismatch for ${type}`);
+    assert(new RegExp(`APPROVAL_POLICY\\.${type}\\.OVERDUE_HOURS'\\s*,\\s*'48'`, 'i').test(sql), `CFG-06 overdue default mismatch for ${type}`);
+  }
+  for (const suffix of ['ADDITIONAL_SUPERVISOR_ALIASES', 'ADDITIONAL_MANAGER_ALIASES']) {
+    assert(new RegExp(`APPROVAL_POLICY\\.LEAVE_REQUEST\\.${suffix}'\\s*,\\s*'\\[\\]'`, 'i').test(sql), `CFG-06 ${suffix} default mismatch`);
+  }
+  const keyMatches = sql.match(/APPROVAL_POLICY\.[A-Z_]+\.(?:REVIEWER_ROLES|DUE_SOON_HOURS|OVERDUE_HOURS|ADDITIONAL_SUPERVISOR_ALIASES|ADDITIONAL_MANAGER_ALIASES)/g) || [];
+  assert(keyMatches.length === 26, 'CFG-06 requires exactly 26 governed policy keys');
+  assert(new Set(keyMatches).size === 26, 'CFG-06 policy keys must be unique');
+  return { statementCount: 1, controlledUpdateCount: 0 };
+}
+
 function validateSqlForMigration(migrationId, sql) {
   if (migrationId === 'CFG-03') return validateCfg03Sql(sql);
   if (migrationId === 'CFG-04') return validateCfg04Sql(sql);
   if (migrationId === 'CFG-05') return validateCfg05Sql(sql);
+  if (migrationId === 'CFG-06') return validateCfg06Sql(sql);
   throw new Error(`production migration guard: unsupported migration_id: ${migrationId}`);
 }
 
@@ -215,6 +271,7 @@ function validateMigrationManifest(input, { root = process.cwd(), verifySql = tr
     targetOrgId: input.target_org_id,
     canonicalUrl: input.canonical_url,
     dataBackfill: input.data_backfill,
+    schemaChanged: profile.schemaChanged,
     statementCount: sqlStats.statementCount,
     controlledUpdateCount: sqlStats.controlledUpdateCount
   });
@@ -237,6 +294,7 @@ function outputLines(result) {
     `target_org_id=${result.targetOrgId}`,
     `canonical_url=${result.canonicalUrl}`,
     `data_backfill=${result.dataBackfill}`,
+    `prisma_schema_changed=${result.schemaChanged}`,
     `sql_statement_count=${result.statementCount}`,
     `controlled_update_count=${result.controlledUpdateCount}`
   ];
@@ -259,6 +317,7 @@ module.exports = {
   validateCfg03Sql,
   validateCfg04Sql,
   validateCfg05Sql,
+  validateCfg06Sql,
   validateSqlForMigration,
   validateMigrationManifest
 };
