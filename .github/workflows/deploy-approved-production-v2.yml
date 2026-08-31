@@ -122,7 +122,7 @@ jobs:
               POST_VERIFY_SCRIPT=$(sed -n 's/^post_verify_script=//p' "$migration_guard")
               MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID=$(sed -n 's/^current_production_deployment_id=//p' "$migration_guard")
               MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA=$(sed -n 's/^current_production_application_sha=//p' "$migration_guard")
-              test "$MIGRATION_ID" = "CFG-04"
+              test "$MIGRATION_ID" = "CFG-05"
               test "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = "$ROLLBACK_DEPLOYMENT_ID"
               test "$MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA" = "$CURRENT_PRODUCTION_SOURCE_SHA"
               [[ "$MIGRATION_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
