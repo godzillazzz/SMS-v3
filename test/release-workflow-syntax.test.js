@@ -91,16 +91,39 @@ test("pre-applied migration release guard requires exact prior Production migrat
     workflow,
     /PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID: \$\{\{ steps\.manifest\.outputs\.pre_applied_migration_evidence_run_id \}\}\r?\n\s+ROLLBACK_DEPLOYMENT_ID: \$\{\{ steps\.manifest\.outputs\.rollback_deployment_id \}\}/,
   );
-  assert.match(sourceGuard, /Apply Approved PERF-05 Production Migration/);
+  assert.match(sourceGuard, /Apply Approved Production Migration V2/);
   assert.match(sourceGuard, /Approve Production Migration/);
+  assert.match(sourceGuard, /verify-approved-production-migration\.js/);
+  assert.match(sourceGuard, /test "\$MIGRATION_ID" = "CFG-03"/);
+  assert.match(sourceGuard, /test "\$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = "\$ROLLBACK_DEPLOYMENT_ID"/);
+  assert.match(sourceGuard, /test "\$MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA" = "\$CURRENT_PRODUCTION_SOURCE_SHA"/);
   assert.match(sourceGuard, /git diff --quiet "\$MIGRATION_SOURCE_SHA" "\$TARGET_SHA" -- prisma\/schema\.prisma prisma\/migrations/);
-  assert.match(sourceGuard, /current_production_deployment_id: rollbackDeploymentId/);
-  assert.match(sourceGuard, /git diff --quiet "\$EVIDENCE_HEAD" "\$GITHUB_SHA" -- "\$PRE_APPLIED_MIGRATION_MANIFEST_PATH"/);
+  assert.match(sourceGuard, /git merge-base --is-ancestor "\$EVIDENCE_HEAD" "\$GITHUB_SHA"/);
+  assert.match(sourceGuard, /apply-approved-production-migration-v2\.yml/);
+  assert.match(sourceGuard, /verify-cfg03-production-migration\.js|\$POST_VERIFY_SCRIPT/);
   assert.match(productionGuard, /verify-deployment-target\.js --verify/);
   assert.match(productionGuard, /prisma-migration\.js status/);
-  assert.match(productionGuard, /verify-perf05-indexes\.js/);
+  assert.match(productionGuard, /\/tmp\/pre-applied-post-verify\.js/);
+  assert.doesNotMatch(productionGuard, /verify-perf05-indexes\.js/);
   assert.doesNotMatch(productionGuard, /prisma-migration\.js deploy|prisma migrate deploy/);
   assert.match(rollbackGuard, /inspect "\$EXPECTED_CANONICAL_URL" --format=json/);
   assert.match(rollbackGuard, /ROLLBACK_CHECKPOINT_CURRENT=PASS/);
   assert.match(rollbackGuard, /expectedId, expectedProjectId/);
+});
+
+
+test("revalidates the CFG-03 pre-applied migration from release-control evidence after Owner approval", () => {
+  const workflow = fs.readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n");
+  const revalidate = extractRunBlock(
+    workflow,
+    "Revalidate exact source after Owner approval",
+  );
+
+  assert.match(revalidate, /git fetch --no-tags origin "\$GITHUB_SHA"/);
+  assert.match(revalidate, /git show "\$GITHUB_SHA:\$PRE_APPLIED_MIGRATION_MANIFEST_PATH"/);
+  assert.match(revalidate, /verify-approved-production-migration\.js/);
+  assert.match(revalidate, /validateCfg03Sql/);
+  assert.match(revalidate, /git merge-base --is-ancestor "\$MIGRATION_SOURCE_SHA" "\$TARGET_SHA"/);
+  assert.match(revalidate, /git show "\$GITHUB_SHA:\$POST_VERIFY_SCRIPT" >\/tmp\/pre-applied-post-verify\.js/);
+  assert.doesNotMatch(revalidate, /prisma-migration\.js deploy|prisma migrate deploy/);
 });
