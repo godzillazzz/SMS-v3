@@ -126,7 +126,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const response = await request(app)
       .put('/api/v1/system-settings/' + ATTENDANCE_POLICY_KEYS.qrPolicy)
       .set('Authorization', 'Bearer ' + token.admin)
-      .send({ value: 'required', description: 'client must not control canonical description' });
+      .send({ value: 'required', description: 'client must not control canonical description', confirmation: 'CONFIRM_HIGH_IMPACT_CHANGE', reason: 'CFG-12 governed high-impact policy regression test' });
     assert.equal(response.status, 200);
     assert.equal(response.body.data.value, 'REQUIRED');
     assert.equal(response.body.data.registryStatus, 'REGISTERED');
