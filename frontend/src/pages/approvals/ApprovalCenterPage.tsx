@@ -26,6 +26,7 @@ type ApprovalItem = {
   submittedAt: string;
   ageHours: number;
   urgency: ApprovalUrgency;
+  sla?: { dueSoonHours: number; overdueHours: number };
   revision?: number;
   changedFields?: string[];
   employee?: { id?: string; employeeCode?: string; firstName?: string; lastName?: string; displayName?: string; department?: string; jobTitle?: string } | null;
@@ -36,8 +37,8 @@ type ApprovalItem = {
 type Summary = {
   total: number;
   byType?: Partial<Record<ApprovalType, number>>;
-  dueSoon24h: number;
-  overdue48h: number;
+  dueSoon: number;
+  overdue: number;
   truncated?: boolean;
 };
 type Props = {
@@ -59,7 +60,11 @@ const typeLabel: Record<ApprovalType, string> = {
   USER_ACCESS: 'เปิดสิทธิ์ผู้ใช้',
   LEAVE_REQUEST: 'คำขอลา'
 };
-const urgencyLabel: Record<ApprovalUrgency, string> = { NEW: 'ใหม่', DUE_SOON: 'ครบ 24 ชม.', OVERDUE: 'เกิน 48 ชม.' };
+const urgencyLabel = (item: ApprovalItem) => {
+  if (item.urgency === 'NEW') return 'ใหม่';
+  if (item.urgency === 'DUE_SOON') return `ใกล้ SLA · ${item.sla?.dueSoonHours ?? '—'} ชม.`;
+  return `เกิน SLA · ${item.sla?.overdueHours ?? '—'} ชม.`;
+};
 const changedFieldLabels: Record<string, string> = { employeeCode: 'รหัสพนักงาน', firstName: 'ชื่อ', lastName: 'นามสกุล', department: 'หน่วยงาน', jobTitle: 'ตำแหน่ง', isActive: 'สถานะการทำงาน' };
 const fmt = (value: string) => new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value));
 const dateOnly = (value: unknown) => {
@@ -104,7 +109,7 @@ const dateMetadata = new Set(['startDate', 'endDate', 'proposedStartDate', 'prop
 
 export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onOpenEmployeeChange, onNavigate }: Props) {
   const [items, setItems] = useState<ApprovalItem[]>([]);
-  const [summary, setSummary] = useState<Summary>({ total: 0, byType: {}, dueSoon24h: 0, overdue48h: 0 });
+  const [summary, setSummary] = useState<Summary>({ total: 0, byType: {}, dueSoon: 0, overdue: 0 });
   const [selectedId, setSelectedId] = useState('');
   const [filter, setFilter] = useState<'ALL' | ApprovalType>('ALL');
   const [loading, setLoading] = useState(true);
@@ -124,8 +129,8 @@ export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onO
       setSummary({
         total: Number(result?.summary?.total || 0),
         byType: result?.summary?.byType || {},
-        dueSoon24h: Number(result?.summary?.dueSoon24h || 0),
-        overdue48h: Number(result?.summary?.overdue48h || 0),
+        dueSoon: Number(result?.summary?.dueSoon || 0),
+        overdue: Number(result?.summary?.overdue || 0),
         truncated: Boolean(result?.summary?.truncated)
       });
       setSelectedId((current) => next.some((item) => item.id === current) ? current : next[0]?.id || '');
@@ -184,8 +189,8 @@ export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onO
     <div className="approval-center-metrics">
       <article><span>งานที่รอดำเนินการ</span><strong>{summary.total}</strong><small>ตามสิทธิ์ {role}</small></article>
       <article><span>ประเภทงาน</span><strong>{availableTypes.length}</strong><small>จากทุกโมดูล</small></article>
-      <article><span>ครบ 24 ชั่วโมง</span><strong>{summary.dueSoon24h}</strong><small>ควรเร่งตรวจสอบ</small></article>
-      <article className={summary.overdue48h > 0 ? 'is-overdue' : ''}><span>เกิน 48 ชั่วโมง</span><strong>{summary.overdue48h}</strong><small>รายการค้างนาน</small></article>
+      <article><span>ใกล้ SLA</span><strong>{summary.dueSoon}</strong><small>ตามเกณฑ์ของแต่ละประเภทคำขอ</small></article>
+      <article className={summary.overdue > 0 ? 'is-overdue' : ''}><span>เกิน SLA</span><strong>{summary.overdue}</strong><small>เกินเกณฑ์ที่ Admin กำหนด</small></article>
     </div>
 
     <div className="approval-center-filter" role="group" aria-label="ตัวกรองประเภทคำขอ">
@@ -198,7 +203,7 @@ export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onO
         <div className="approval-center-queue__title"><strong>งานที่รอฉันดำเนินการ</strong><span>{visible.length} รายการ</span></div>
         {loading ? <div className="approval-center-empty">กำลังโหลดคำขอ…</div> : visible.length ? visible.map((item) =>
           <button type="button" key={item.id} className={selected?.id === item.id ? 'is-selected' : ''} onClick={() => setSelectedId(item.id)}>
-            <div><strong>{requestSubject(item)}</strong><span className={'approval-urgency approval-urgency--' + item.urgency.toLowerCase()}>{urgencyLabel[item.urgency]}</span></div>
+            <div><strong>{requestSubject(item)}</strong><span className={'approval-urgency approval-urgency--' + item.urgency.toLowerCase()}>{urgencyLabel(item)}</span></div>
             <span>{typeLabel[item.type]} · {requestContext(item)}</span>
             <small>โดย {item.requestedBy?.displayName || 'ระบบ'} · {fmt(item.submittedAt)}</small>
           </button>
@@ -207,7 +212,7 @@ export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onO
 
       <section className="approval-center-detail" aria-live="polite">
         {selected ? <>
-          <header><div><p>{typeLabel[selected.type]}</p><h2>{requestSubject(selected)}</h2><span>{requestContext(selected)} · {selected.type === 'REGISTRATION_REQUEST' ? text(selected.metadata?.email) : (selected.employee?.department || text(selected.metadata?.department))}</span></div><span className={'approval-urgency approval-urgency--' + selected.urgency.toLowerCase()}>{urgencyLabel[selected.urgency]}</span></header>
+          <header><div><p>{typeLabel[selected.type]}</p><h2>{requestSubject(selected)}</h2><span>{requestContext(selected)} · {selected.type === 'REGISTRATION_REQUEST' ? text(selected.metadata?.email) : (selected.employee?.department || text(selected.metadata?.department))}</span></div><span className={'approval-urgency approval-urgency--' + selected.urgency.toLowerCase()}>{urgencyLabel(selected)}</span></header>
           <dl className="approval-center-meta">
             <div><dt>ผู้ส่งคำขอ</dt><dd>{selected.requestedBy?.displayName || 'ระบบ'}{selected.requestedBy?.role ? ' (' + selected.requestedBy.role + ')' : ''}</dd></div>
             <div><dt>ส่งเมื่อ</dt><dd>{fmt(selected.submittedAt)}</dd></div>

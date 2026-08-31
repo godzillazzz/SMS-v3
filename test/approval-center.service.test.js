@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createApprovalCenterService, approvalUrgency } = require('../src/services/approval-center.service');
+const { REQUEST_TYPE_DEFINITIONS, defaultPolicyFor, policyKey } = require('../src/services/approval-policy.service');
 
 const now = new Date('2026-08-28T02:00:00.000Z');
 const employee = (id, code, jobTitle = 'Guard') => ({
@@ -11,8 +12,27 @@ const model = (rows) => ({
   findMany: async () => rows
 });
 
+function approvalPolicyRows(overrides = {}) {
+  const rows = [];
+  for (const definition of REQUEST_TYPE_DEFINITIONS) {
+    const policy = defaultPolicyFor(definition);
+    const values = {
+      REVIEWER_ROLES: JSON.stringify(overrides[definition.type]?.reviewerRoles || policy.reviewerRoles),
+      DUE_SOON_HOURS: String(overrides[definition.type]?.dueSoonHours || policy.dueSoonHours),
+      OVERDUE_HOURS: String(overrides[definition.type]?.overdueHours || policy.overdueHours)
+    };
+    if (definition.supportsPositionAliases) {
+      values.ADDITIONAL_SUPERVISOR_ALIASES = JSON.stringify(overrides[definition.type]?.additionalSupervisorAliases || []);
+      values.ADDITIONAL_MANAGER_ALIASES = JSON.stringify(overrides[definition.type]?.additionalManagerAliases || []);
+    }
+    for (const [suffix, value] of Object.entries(values)) rows.push({ key: policyKey(definition.type, suffix), value });
+  }
+  return rows;
+}
+
 function adminPrisma() {
   return {
+    systemSetting: { findMany: async () => approvalPolicyRows() },
     employeeChangeRequest: model([{
       id: 'change-1', employeeId: 'e1', status: 'PENDING_APPROVAL', currentRevision: 2, createdAt: new Date('2026-08-27T01:00:00.000Z'),
       employee: employee('e1', 'E001'), requestOwner: { id: 'm1', displayName: 'Manager 1', role: 'MANAGER' },
@@ -56,10 +76,10 @@ function adminPrisma() {
   };
 }
 
-test('approval urgency promotes pending work at 24h and 48h boundaries', () => {
+test('approval urgency uses governed due-soon and overdue thresholds', () => {
   assert.deepEqual(approvalUrgency('2026-08-28T01:30:00.000Z', now), { ageHours: 0, urgency: 'NEW' });
-  assert.deepEqual(approvalUrgency('2026-08-27T02:00:00.000Z', now), { ageHours: 24, urgency: 'DUE_SOON' });
-  assert.deepEqual(approvalUrgency('2026-08-26T02:00:00.000Z', now), { ageHours: 48, urgency: 'OVERDUE' });
+  assert.deepEqual(approvalUrgency('2026-08-27T14:00:00.000Z', now, { dueSoonHours: 12, overdueHours: 36 }), { ageHours: 12, urgency: 'DUE_SOON' });
+  assert.deepEqual(approvalUrgency('2026-08-26T14:00:00.000Z', now, { dueSoonHours: 12, overdueHours: 36 }), { ageHours: 36, urgency: 'OVERDUE' });
 });
 
 test('Approval Center aggregates every actionable Admin queue without changing source workflow authority', async () => {
@@ -223,6 +243,23 @@ test('Manager queue excludes leave requests that require Admin authority or self
   assert.equal(result.summary.byType.LEAVE_REQUEST, 1);
   assert.equal(result.data.filter((item) => item.type === 'LEAVE_REQUEST').length, 1);
   assert.equal(result.data.find((item) => item.type === 'LEAVE_REQUEST').employee.employeeCode, 'GUARD');
+});
+
+test('Manager Approval Center obeys governed reviewer-role narrowing without querying blocked workflows', async () => {
+  const prisma = adminPrisma();
+  prisma.systemSetting.findMany = async () => approvalPolicyRows({
+    REGISTRATION_REQUEST: { reviewerRoles: ['ADMIN'] },
+    USER_ACCESS: { reviewerRoles: ['ADMIN'] },
+    LEAVE_REQUEST: { reviewerRoles: ['ADMIN'] }
+  });
+  prisma.user.findUnique = async () => { throw new Error('blocked Manager leave policy must not load actor profile'); };
+  prisma.registrationRequest.findMany = async () => { throw new Error('blocked registration policy must not query queue'); };
+  prisma.user.findMany = async () => { throw new Error('blocked user access policy must not query queue'); };
+  prisma.leaveRequest.findMany = async () => { throw new Error('blocked leave policy must not query queue'); };
+  const service = createApprovalCenterService({ prisma, clock: () => now });
+  const result = await service.list({ actor: { role: 'MANAGER', sub: 'manager-1' } });
+  assert.equal(result.summary.total, 0);
+  assert.equal(result.data.length, 0);
 });
 
 test('Approval Center rejects Viewer even when the route guard is bypassed', async () => {

@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const audit = require('./audit.service');
 const HttpError = require('../utils/http-error');
+const { createApprovalPolicyService } = require('./approval-policy.service');
 
 const USER_MUTATION_LOCK = 746281903;
 const SELF_ACCESS_MUTATION_FORBIDDEN = 'SELF_ACCESS_MUTATION_FORBIDDEN';
@@ -37,7 +38,8 @@ async function recordRejectedAttempt(auditService, { actorUserId, actorRole, tar
   }
 }
 
-function createUserAccessService({ prismaClient = prisma, auditService = audit } = {}) {
+function createUserAccessService({ prismaClient = prisma, auditService = audit, approvalPolicyService } = {}) {
+  const policyService = approvalPolicyService || createApprovalPolicyService({ prismaClient, auditService });
   async function updateUserAccount({ id, input, actorUserId, actorRole }) {
     let outcome;
     try {
@@ -49,11 +51,15 @@ function createUserAccessService({ prismaClient = prisma, auditService = audit }
 
         if (actorRole === 'MANAGER') {
           if (before.accountStatus !== 'PENDING') throw new HttpError(403, 'Managers may approve pending accounts only.');
+          await policyService.assertReviewer('USER_ACCESS', { role: actorRole, sub: actorUserId }, tx);
           if (effectiveInput.role && effectiveInput.role !== 'VIEWER') throw new HttpError(403, 'Managers may assign the Viewer role only.');
           if (effectiveInput.accountStatus && effectiveInput.accountStatus !== 'ACTIVE') throw new HttpError(403, 'Managers may only approve pending accounts.');
           effectiveInput.role = 'VIEWER';
           effectiveInput.accountStatus = 'ACTIVE';
           effectiveInput.isActive = true;
+        }
+        if (actorRole === 'ADMIN' && before.accountStatus === 'PENDING' && effectiveInput.accountStatus === 'ACTIVE') {
+          await policyService.assertReviewer('USER_ACCESS', { role: actorRole, sub: actorUserId }, tx);
         }
 
         const attemptedProtectedFields = changedProtectedFields(before, effectiveInput);

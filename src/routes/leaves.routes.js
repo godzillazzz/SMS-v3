@@ -2,8 +2,11 @@ const express = require('express');
 const { z } = require('zod');
 const leaveService = require('../services/leave.service');
 const { authenticate, authorize } = require('../middlewares/authenticate');
+const { createApprovalPolicyService } = require('../services/approval-policy.service');
 
 const router = express.Router();
+const approvalPolicy = createApprovalPolicyService();
+const requireLeaveReviewer = async (req, _res, next) => { try { await approvalPolicy.assertReviewer('LEAVE_REQUEST', req.user); next(); } catch (error) { next(error); } };
 router.use(authenticate);
 
 const leaveSubmitSchema = z.object({
@@ -46,7 +49,7 @@ router.get('/summary', async (req, res, next) => {
   }
 });
 
-router.post('/:id/approve', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/:id/approve', authorize('ADMIN', 'MANAGER'), requireLeaveReviewer, async (req, res, next) => {
   try {
     res.json({ data: await leaveService.approveRequest(req.params.id, req.user.sub) });
   } catch (error) {
@@ -54,7 +57,7 @@ router.post('/:id/approve', authorize('ADMIN', 'MANAGER'), async (req, res, next
   }
 });
 
-router.post('/:id/reject', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/:id/reject', authorize('ADMIN', 'MANAGER'), requireLeaveReviewer, async (req, res, next) => {
   try {
     const body = rejectSchema.parse(req.body || {});
     res.json({ data: await leaveService.rejectRequest(req.params.id, body.reason, req.user.sub) });
