@@ -175,3 +175,60 @@
 .notification-provider-status{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.notification-provider-status span{padding:6px 10px;border-radius:999px;background:var(--color-surface);font-size:12px;font-weight:700}
 .notification-event-table{display:grid;gap:6px}.notification-event-row{display:grid;grid-template-columns:minmax(220px,2fr) minmax(160px,1fr) 110px;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--color-border);border-radius:10px;background:var(--color-surface)}.notification-event-row small{display:block;color:var(--color-text-secondary);margin-top:2px}.notification-event-header{background:transparent;border-style:dashed}.notification-toggle{display:flex;align-items:center;gap:8px;font-weight:700}.notification-toggle input{width:18px;height:18px}
 @media(max-width:760px){.notification-center-head{flex-direction:column}.notification-event-row{grid-template-columns:1fr}.notification-event-header{display:none}}
+
+
+/* CFG typography readability tuning: scoped to Configuration Center only. */
+.settings-page .configuration-registry__intro h2,
+.settings-page .configuration-history-card h2,
+.settings-page .attendance-policy-settings-card h2{font-size:20px;line-height:1.3}
+.settings-page .configuration-registry__intro p:last-child,
+.settings-page .configuration-history-card>div>p:last-child,
+.settings-page .attendance-policy-settings-card .line-settings-title p{font-size:14px;line-height:1.6}
+.settings-page .configuration-registry__metrics span,
+.settings-page .configuration-registry__metrics small{font-size:12px;line-height:1.4}
+.settings-page .configuration-domain-chip strong{font-size:13px}
+.settings-page .configuration-domain-chip span{font-size:12px}
+.settings-page .configuration-registry__table .data-table{font-size:13px}
+.settings-page .configuration-registry__table .data-table th{font-size:12px;line-height:1.4}
+.settings-page .configuration-registry__table .data-table td{font-size:13px;line-height:1.5}
+.settings-page .configuration-registry__table .data-table td strong{font-size:14px}
+.settings-page .configuration-setting-description{font-size:13px;line-height:1.55}
+.settings-page .configuration-registry__table code{font-size:12px;line-height:1.45}
+.settings-page .configuration-registry__table .status-badge{font-size:12px}
+.settings-page .configuration-registry__footnote{font-size:13px;line-height:1.6}
+.settings-page .configuration-history-card{display:grid;gap:14px}
+.settings-page .configuration-history-card .field-group>span,
+.settings-page .attendance-policy-settings-card .field-group>span{font-size:14px;font-weight:600;line-height:1.45}
+.settings-page .configuration-history-card .field-group select,
+.settings-page .attendance-policy-settings-card input,
+.settings-page .attendance-policy-settings-card select{font-size:14px}
+.settings-page .configuration-history-card .field-group small,
+.settings-page .attendance-policy-settings-card .field-group small{font-size:13px;line-height:1.55}
+.settings-page .configuration-history-list{display:grid;gap:10px}
+.settings-page .configuration-history-item{display:grid;gap:10px;padding:14px;border:1px solid var(--color-border);border-radius:12px;background:var(--color-surface)}
+.settings-page .configuration-history-item strong{font-size:14px}
+.settings-page .configuration-history-item small,
+.settings-page .configuration-history-item p{font-size:13px;line-height:1.5}
+.settings-page .configuration-history-values{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.settings-page .configuration-history-values span{display:grid;gap:5px}
+.settings-page .configuration-history-values b{font-size:12px}
+.settings-page .configuration-history-values code{overflow-wrap:anywhere;font-size:12px;line-height:1.5}
+.settings-page .attendance-policy-settings-card .line-settings-footnote,
+.settings-page .attendance-policy-settings-card .settings-notice{font-size:13px;line-height:1.55}
+.settings-page .eyebrow{font-size:11px!important;line-height:1.4}
+@media(max-width:760px){
+  .settings-page .configuration-registry__intro h2,
+  .settings-page .configuration-history-card h2,
+  .settings-page .attendance-policy-settings-card h2{font-size:19px}
+  .settings-page .configuration-registry__table .data-table{font-size:13px}
+  .settings-page .configuration-registry__table .data-table th{font-size:12px}
+  .settings-page .configuration-registry__table code{font-size:12px}
+  .settings-page .configuration-history-values{grid-template-columns:1fr}
+  .settings-page .configuration-registry__metrics span,
+  .settings-page .configuration-registry__metrics small,
+  .settings-page .configuration-domain-chip span,
+  .settings-page .configuration-registry__footnote,
+  .settings-page .configuration-history-item small,
+  .settings-page .configuration-history-item p,
+  .settings-page .attendance-policy-settings-card .field-group small{font-size:12px}
+}
