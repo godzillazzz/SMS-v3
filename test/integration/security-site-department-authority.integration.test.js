@@ -184,7 +184,7 @@ if (!configured) {
     assert.equal(firstCredential.tokenHash, expectedHash);
     assert.notEqual(firstCredential.tokenHash, firstQr.qrToken);
 
-    const secondQr = await service.rotateQr(ids.siteB, ids.admin);
+    const secondQr = await service.rotateQr(ids.siteB, ids.admin, 'integration rotation');
     assert.equal(secondQr.credential.version, firstQr.credential.version + 1);
     const revokedFirst = await prisma.securitySiteQrCredential.findUnique({
       where: { id: firstQr.credential.id }
