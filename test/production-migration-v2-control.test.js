@@ -10,6 +10,7 @@ const {
   validateCfg04Sql,
   validateCfg05Sql,
   validateCfg06Sql,
+  validateCfg07Sql,
   validateMigrationManifest
 } = require('../scripts/ci/verify-approved-production-migration');
 
@@ -18,20 +19,24 @@ const cfg03ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg03
 const cfg04ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg04-production-migration.json');
 const cfg05ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg05-production-migration.json');
 const cfg06ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg06-production-migration.json');
+const cfg07ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg07-production-migration.json');
 const workflowPath = path.join(root, '.github', 'workflows', 'apply-approved-production-migration-v2.yml');
 const cfg03PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg03-production-migration.js');
 const cfg04PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg04-production-migration.js');
 const cfg05PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg05-production-migration.js');
 const cfg06PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg06-production-migration.js');
+const cfg07PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg07-production-migration.js');
 const cfg03Manifest = JSON.parse(fs.readFileSync(cfg03ManifestPath, 'utf8'));
 const cfg04Manifest = JSON.parse(fs.readFileSync(cfg04ManifestPath, 'utf8'));
 const cfg05Manifest = JSON.parse(fs.readFileSync(cfg05ManifestPath, 'utf8'));
 const cfg06Manifest = JSON.parse(fs.readFileSync(cfg06ManifestPath, 'utf8'));
+const cfg07Manifest = JSON.parse(fs.readFileSync(cfg07ManifestPath, 'utf8'));
 const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
 const cfg03PostVerify = fs.readFileSync(cfg03PostVerifyPath, 'utf8');
 const cfg04PostVerify = fs.readFileSync(cfg04PostVerifyPath, 'utf8');
 const cfg05PostVerify = fs.readFileSync(cfg05PostVerifyPath, 'utf8');
 const cfg06PostVerify = fs.readFileSync(cfg06PostVerifyPath, 'utf8');
+const cfg07PostVerify = fs.readFileSync(cfg07PostVerifyPath, 'utf8');
 
 test('CFG-03 historical Production migration manifest remains valid', () => {
   const result = validateMigrationManifest(cfg03Manifest, { root });
@@ -140,15 +145,51 @@ test('CFG-06 SQL policy accepts only governed SystemSetting defaults and rejects
   }
 });
 
+test('CFG-07 Production migration manifest is exact-source pinned and migration-only', () => {
+  const result = validateMigrationManifest(cfg07Manifest, { root });
+  assert.equal(result.migrationId, 'CFG-07');
+  assert.equal(result.sourceCommitSha, '247d9e2c5dc6e115cfbc6b46d84c6ff695bceda3');
+  assert.equal(result.sourceTreeSha, '8b48848af3400339bd27ad0da09d381a4582983c');
+  assert.equal(result.currentProductionDeploymentId, 'dpl_Ekpvk6qfmYpM2gD3D1DAmvDQZLWB');
+  assert.equal(result.currentProductionApplicationSha, 'd78f5df0e2562d26fa066aa65cfa0b01221d0fde');
+  assert.equal(result.migrationName, '202608310005_cfg07_data_retention_center');
+  assert.equal(result.migrationPolicy, 'ADDITIVE_RETENTION_GOVERNANCE_SCHEMA_WITH_GOVERNED_SEEDS_NO_BACKFILL');
+  assert.equal(result.dataBackfill, false);
+  assert.equal(result.schemaChanged, true);
+  assert.equal(result.statementCount, 9);
+  assert.equal(result.controlledUpdateCount, 0);
+  assert.equal(cfg07Manifest.application_deploy, false);
+  assert.equal(cfg07Manifest.destructive_rollback, false);
+  assert.equal(cfg07Manifest.owner_action, 'APPROVE_PRODUCTION_MIGRATION_ONLY');
+});
+
+test('CFG-07 SQL policy accepts only additive retention governance schema, governed seeds, and RLS block', () => {
+  const sql = fs.readFileSync(path.join(root, ...cfg07Manifest.migration_path.split('/')), 'utf8');
+  assert.doesNotThrow(() => validateCfg07Sql(sql));
+  for (const unsafe of [
+    sql + '\nUPDATE system_settings SET value = \'1\';',
+    sql + '\nCREATE TABLE "unsafe_cfg07" ("id" UUID);',
+    sql + '\nDROP TABLE retention_cleanup_runs;',
+    sql + '\nDELETE FROM system_settings;',
+    sql + '\nTRUNCATE retention_policy_changes;',
+    sql + '\nINSERT INTO "system_settings" ("key", "value") VALUES (\'RETENTION.EXTRA\', \'1\');',
+    sql.replace("('RETENTION.OPERATIONAL_USAGE.MONTHS', '6',", "('RETENTION.OPERATIONAL_USAGE.MONTHS', '5',"),
+    sql.replace("ARRAY['retention_policy_changes', 'retention_cleanup_runs']", "ARRAY['retention_policy_changes']"),
+    sql.replace('CREATE UNIQUE INDEX "retention_policy_changes_one_scheduled_key"', 'CREATE INDEX "retention_policy_changes_one_scheduled_key"')
+  ]) {
+    assert.throws(() => validateCfg07Sql(unsafe), /forbidden|requires exactly|mismatch|missing|must seed|governed seed|unique|RLS|index/i);
+  }
+});
+
 test('CFG-03 SQL guard still rejects destructive or unbounded mutations', () => {
   const sql = fs.readFileSync(path.join(root, ...cfg03Manifest.migration_path.split('/')), 'utf8');
   assert.doesNotThrow(() => validateCfg03Sql(sql));
   assert.throws(() => validateCfg03Sql(sql + '\nDROP TABLE leave_requests;'), /forbidden|unsupported/);
 });
 
-test('Production Migration V2 targets CFG-06 with one protected Owner gate and no application deployment command', () => {
+test('Production Migration V2 targets CFG-07 with one protected Owner gate and no application deployment command', () => {
   assert.match(workflow, /^name: Apply Approved Production Migration V2$/m);
-  assert.match(workflow, /MANIFEST_PATH: \.github\/releases\/approved-cfg06-production-migration\.json/);
+  assert.match(workflow, /MANIFEST_PATH: \.github\/releases\/approved-cfg07-production-migration\.json/);
   assert.match(workflow, /prisma_schema_changed: \$\{\{ steps\.manifest\.outputs\.prisma_schema_changed \}\}/);
   assert.match(workflow, /name: Approve Production Migration/);
   assert.match(workflow, /environment:\n\s+name: production-sms-v3-staging/);
@@ -201,6 +242,17 @@ test('CFG-06 post-migration verifier checks governed keys without emitting polic
   assert.match(cfg06PostVerify, /APPROVAL_POLICY_FLEXIBLE_TYPE_COUNT=3/);
   assert.match(cfg06PostVerify, /APPROVAL_POLICY_RAW_VALUES_EMITTED=false/);
   assert.doesNotMatch(cfg06PostVerify, /console\.log\([^)]*row|console\.log\([^)]*value/i);
+});
+
+test('CFG-07 post-migration verifier checks retention governance invariants without emitting raw values', () => {
+  assert.match(cfg07PostVerify, /CFG07_PRODUCTION_MIGRATION_VERIFY=PASS/);
+  assert.match(cfg07PostVerify, /RETENTION_POLICY_KEY_COUNT=4/);
+  assert.match(cfg07PostVerify, /RETENTION_GOVERNANCE_TABLE_COUNT=2/);
+  assert.match(cfg07PostVerify, /RETENTION_GOVERNANCE_INDEX_COUNT=5/);
+  assert.match(cfg07PostVerify, /RETENTION_RLS_TABLE_COUNT=2/);
+  assert.match(cfg07PostVerify, /RETENTION_POLICY_DEFAULTS_VERIFIED=true/);
+  assert.match(cfg07PostVerify, /RETENTION_RAW_VALUES_EMITTED=false/);
+  assert.doesNotMatch(cfg07PostVerify, /console\.log\([^)]*row|console\.log\([^)]*value|SELECT \* FROM retention_/i);
 });
 
 test('CFG-03 post-migration verifier remains available for prior evidence validation', () => {

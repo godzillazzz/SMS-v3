@@ -42,6 +42,13 @@ const MIGRATIONS = Object.freeze({
     postVerifyScript: 'scripts/ci/verify-cfg06-production-migration.js',
     dataBackfill: false,
     schemaChanged: false
+  }),
+  'CFG-07': Object.freeze({
+    migrationName: '202608310005_cfg07_data_retention_center',
+    migrationPolicy: 'ADDITIVE_RETENTION_GOVERNANCE_SCHEMA_WITH_GOVERNED_SEEDS_NO_BACKFILL',
+    postVerifyScript: 'scripts/ci/verify-cfg07-production-migration.js',
+    dataBackfill: false,
+    schemaChanged: true
   })
 });
 
@@ -213,11 +220,75 @@ function validateCfg06Sql(sql) {
   return { statementCount: 1, controlledUpdateCount: 0 };
 }
 
+
+function validateCfg07Sql(sql) {
+  const source = String(sql || '');
+  rejectDestructiveSql(source);
+  assert(!/^\s*UPDATE\b/im.test(source) && !/;\s*UPDATE\b/i.test(source), 'CFG-07 UPDATE/backfill is forbidden');
+  assert(!/^\s*ALTER\s+TABLE\b/im.test(source), 'CFG-07 top-level ALTER TABLE is forbidden');
+
+  const createTables = [...source.matchAll(/CREATE TABLE "([^"]+)"/gi)].map((match) => match[1]);
+  assert(createTables.length === 2, 'CFG-07 requires exactly two governance tables');
+  assert(createTables[0] === 'retention_policy_changes' && createTables[1] === 'retention_cleanup_runs', 'CFG-07 governance table targets mismatch');
+
+  const expectedIndexes = [
+    'retention_policy_changes_one_scheduled_key',
+    'retention_policy_changes_status_effective_idx',
+    'retention_policy_changes_requester_requested_idx',
+    'retention_cleanup_runs_started_status_idx',
+    'retention_cleanup_runs_actor_started_idx'
+  ];
+  const indexMatches = [...source.matchAll(/CREATE (?:UNIQUE )?INDEX "([^"]+)"/gi)].map((match) => match[1]);
+  assert(indexMatches.length === expectedIndexes.length, 'CFG-07 requires exactly five explicit governance indexes');
+  assert(expectedIndexes.every((name) => indexMatches.includes(name)), 'CFG-07 governance index set mismatch');
+  assert(/CREATE UNIQUE INDEX "retention_policy_changes_one_scheduled_key"[\s\S]*WHERE "status" = 'SCHEDULED'/i.test(source), 'CFG-07 scheduled-change uniqueness guard missing');
+
+  for (const [table, columns] of [
+    ['retention_policy_changes', ['id', 'status', 'before_policy', 'proposed_policy', 'preview_snapshot', 'preview_digest', 'reason', 'requested_by_user_id', 'requested_at', 'effective_at', 'applied_at', 'cancelled_at', 'cancel_reason', 'updated_at']],
+    ['retention_cleanup_runs', ['id', 'trigger', 'status', 'policy_snapshot', 'result_snapshot', 'actor_user_id', 'started_at', 'completed_at', 'error_code']]
+  ]) {
+    const start = source.indexOf(`CREATE TABLE "${table}"`);
+    const end = source.indexOf(');', start);
+    assert(start >= 0 && end > start, `CFG-07 table definition missing: ${table}`);
+    const definition = source.slice(start, end + 2);
+    for (const column of columns) assert(definition.includes(`"${column}"`), `CFG-07 missing ${table}.${column}`);
+  }
+  assert(/retention_policy_changes_requester_fkey[\s\S]*REFERENCES "users"\("id"\) ON DELETE RESTRICT ON UPDATE CASCADE/i.test(source), 'CFG-07 requester FK invariant mismatch');
+  assert(/retention_cleanup_runs_actor_fkey[\s\S]*REFERENCES "users"\("id"\) ON DELETE SET NULL ON UPDATE CASCADE/i.test(source), 'CFG-07 cleanup actor FK invariant mismatch');
+  assert(/CHECK \("status" IN \('SCHEDULED', 'APPLIED', 'CANCELLED'\)\)/i.test(source), 'CFG-07 policy-change status check missing');
+  assert(/CHECK \("trigger" IN \('CRON', 'ADMIN'\)\)/i.test(source), 'CFG-07 cleanup trigger check missing');
+  assert(/CHECK \("status" IN \('RUNNING', 'SUCCESS', 'PARTIAL', 'FAILED'\)\)/i.test(source), 'CFG-07 cleanup status check missing');
+
+  const inserts = source.match(/INSERT INTO\s+"[^"]+"/gi) || [];
+  assert(inserts.length === 1 && /^INSERT INTO\s+"system_settings"$/i.test(inserts[0]), 'CFG-07 must seed system_settings exactly once');
+  const expectedSeeds = [
+    ["RETENTION.OPERATIONAL_USAGE.MONTHS", "6"],
+    ["RETENTION.ATTENDANCE_RAW.MONTHS", "12"],
+    ["RETENTION.PATROL_RAW.MONTHS", "3"],
+    ["RETENTION.TIMEZONE", "Asia/Bangkok"]
+  ];
+  for (const [key, value] of expectedSeeds) {
+    assert(source.includes(`('${key}', '${value}',`), `CFG-07 governed seed mismatch: ${key}`);
+  }
+  const retentionKeys = source.match(/RETENTION\.(?:OPERATIONAL_USAGE\.MONTHS|ATTENDANCE_RAW\.MONTHS|PATROL_RAW\.MONTHS|TIMEZONE)/g) || [];
+  assert(retentionKeys.length === 4 && new Set(retentionKeys).size === 4, 'CFG-07 requires exactly four unique retention keys');
+  assert(/ON CONFLICT \("key"\) DO NOTHING/i.test(source), 'CFG-07 seed requires ON CONFLICT DO NOTHING');
+
+  assert(/target_tables text\[\] := ARRAY\['retention_policy_changes', 'retention_cleanup_runs'\]/i.test(source), 'CFG-07 RLS target table list mismatch');
+  assert(/EXECUTE format\('ALTER TABLE public\.%I ENABLE ROW LEVEL SECURITY', table_name\)/i.test(source), 'CFG-07 RLS enable block missing');
+  assert(/REVOKE ALL ON TABLE public\.%I FROM anon/i.test(source), 'CFG-07 anon revoke missing');
+  assert(/REVOKE ALL ON TABLE public\.%I FROM authenticated/i.test(source), 'CFG-07 authenticated revoke missing');
+  assert((source.match(/\bDO\s+\$\$/gi) || []).length === 1, 'CFG-07 requires exactly one controlled RLS DO block');
+
+  return { statementCount: 9, controlledUpdateCount: 0 };
+}
+
 function validateSqlForMigration(migrationId, sql) {
   if (migrationId === 'CFG-03') return validateCfg03Sql(sql);
   if (migrationId === 'CFG-04') return validateCfg04Sql(sql);
   if (migrationId === 'CFG-05') return validateCfg05Sql(sql);
   if (migrationId === 'CFG-06') return validateCfg06Sql(sql);
+  if (migrationId === 'CFG-07') return validateCfg07Sql(sql);
   throw new Error(`production migration guard: unsupported migration_id: ${migrationId}`);
 }
 
@@ -318,6 +389,7 @@ module.exports = {
   validateCfg04Sql,
   validateCfg05Sql,
   validateCfg06Sql,
+  validateCfg07Sql,
   validateSqlForMigration,
   validateMigrationManifest
 };
