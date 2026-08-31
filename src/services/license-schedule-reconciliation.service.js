@@ -9,10 +9,10 @@ function buildLicenseScheduleReconciliation({ licenses, assignments, shiftTypes 
   const shiftsByCode = new Map(shiftTypes.map((shift) => [String(shift.code).toUpperCase(), shift]));
   const shiftsById = new Map(shiftTypes.map((shift) => [shift.id, shift]));
   const off = shiftsByCode.get('OFF');
-  if (!off) throw new Error('OFF shift type is required for license reconciliation.');
+  if (!off || off.isActive === false) throw new Error('Active OFF shift type is required for license reconciliation.');
 
   const updates = [];
-  const summary = { blocked: 0, restored: 0, validated: 0, preservedOverrides: 0, skippedLeave: 0 };
+  const summary = { blocked: 0, restored: 0, validated: 0, preservedOverrides: 0, skippedLeave: 0, skippedInactiveRestore: 0 };
   for (const assignment of assignments) {
     const code = String(assignment.shiftType?.code || '').toUpperCase();
     if (code === 'AL') { summary.skippedLeave += 1; continue; }
@@ -40,6 +40,7 @@ function buildLicenseScheduleReconciliation({ licenses, assignments, shiftTypes 
     const legacyShift = !originalShift ? shiftsByCode.get(legacyBlockedCode(assignment.remark)) : null;
     const restore = originalShift || legacyShift;
     if (!restore) continue;
+    if (restore.isActive === false) { summary.skippedInactiveRestore += 1; continue; }
     if (state.valid) {
       updates.push({
         id: assignment.id, workDate: assignment.workDate, kind: 'restored',
@@ -64,7 +65,7 @@ async function reconcileEmployeeLicenseSchedules(tx, employeeId, actorUserId) {
   const [licenses, assignments, shiftTypes] = await Promise.all([
     tx.employeeLicense.findMany({ where: { employeeId }, select: { status: true, issueDate: true, expiryDate: true } }),
     tx.shiftAssignment.findMany({ where: { employeeId }, include: { shiftType: { select: { code: true } } } }),
-    tx.shiftType.findMany({ select: { id: true, code: true, startTime: true, endTime: true, hours: true } })
+    tx.shiftType.findMany({ select: { id: true, code: true, startTime: true, endTime: true, hours: true, isActive: true } })
   ]);
   const plan = buildLicenseScheduleReconciliation({ licenses, assignments, shiftTypes });
   if (!plan.updates.length) return plan.summary;

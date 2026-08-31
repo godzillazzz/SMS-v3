@@ -17,6 +17,7 @@ import { api, setTokenRefreshHandler } from './api';
 import { getApprovalCenterSummary } from './approval-center-client';
 import { getLeavePolicy } from './leave-policy-client';
 import { createLeaveType, getLeaveTypes, updateLeaveType, type LeaveTypeMaster } from './leave-type-client';
+import { getShiftTypes } from './shift-type-client';
 import { setAttendanceTokenRefreshGuard, setAttendanceTokenRefreshHandler } from './attendance-auth-request';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from './request-error';
 import { acquireDocumentScrollLock } from './document-scroll-lock';
@@ -1060,7 +1061,12 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
 
   const titleStr = shift ? `แก้กะ: ${empName} · ${formattedTitleDate}` : `เพิ่มกะ: ${empName} · ${formattedTitleDate}`;
 
-  const selectedType = shiftTypes.find((t) => String(t.id) === shiftTypeId);
+  const historicalShiftType = nested(shift?.shiftType);
+  const historicalShiftTypeId = String(historicalShiftType.id || shift?.shiftTypeId || '');
+  const selectableShiftTypes = historicalShiftTypeId && !shiftTypes.some((item) => String(item.id) === historicalShiftTypeId)
+    ? [{ ...historicalShiftType, id: historicalShiftTypeId, isActive: false }, ...shiftTypes]
+    : shiftTypes;
+  const selectedType = selectableShiftTypes.find((t) => String(t.id) === shiftTypeId);
   const shiftCode = String(selectedType?.code || '').toUpperCase();
   const isWorkingShift = !['OFF', 'AL'].includes(shiftCode);
 
@@ -1177,7 +1183,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
                 onChange={(e) => setShiftTypeId(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff', color: '#0f172a', fontWeight: 600 }}
               >
-                {shiftTypes.map((t) => (
+                {selectableShiftTypes.map((t) => (
                   <option key={String(t.id)} value={String(t.id)}>
                     {String(t.code || '')} · {String(t.name || '')}
                   </option>
@@ -1592,6 +1598,7 @@ function Dashboard() {
   const [approvalCenterRefresh, setApprovalCenterRefresh] = useState(0);
   const [employeeRefresh, setEmployeeRefresh] = useState(0);
   const [shiftTypes, setShiftTypes] = useState<DataRow[]>([]);
+  const activeShiftTypes = shiftTypes.filter((item) => item.isActive !== false);
   const [editor, setEditor] = useState<Editor>();
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorError, setEditorError] = useState<RequestErrorInput>();
@@ -1656,7 +1663,7 @@ function Dashboard() {
     if (!auth.token || !Object.keys(scheduleDrafts).length) return;
     setBatchSaveBusy(true); setOperationError(undefined);
     try {
-      const defaultType = shiftTypes.find((t) => String(t.code).toUpperCase() === 'D') || shiftTypes[0];
+      const defaultType = activeShiftTypes.find((t) => String(t.code).toUpperCase() === 'D') || activeShiftTypes[0];
       const validDefaultTypeId = String(defaultType?.id || '');
 
       const changes = Object.values(scheduleDrafts)
@@ -1715,8 +1722,8 @@ function Dashboard() {
 
   useEffect(() => {
     if (!auth.token || !['schedule', 'shiftSetup'].includes(activePage)) return;
-    api.shiftTypes(auth.token).then((result) => setShiftTypes(result?.data || [])).catch(() => setShiftTypes([]));
-  }, [activePage, auth.token, operationRefresh]);
+    getShiftTypes(auth.token, { includeInactive: auth.user?.role === 'ADMIN' }).then((result) => setShiftTypes(result?.data || [])).catch(() => setShiftTypes([]));
+  }, [activePage, auth.token, auth.user?.role, operationRefresh]);
 
   useEffect(() => {
     if (!auth.token || activePage !== 'dashboard') return;
@@ -1903,7 +1910,7 @@ function Dashboard() {
   const quotaEmployeeOptions = quotaProvisioningEmployeeOptions(employees, [...quotaRows, ...legacyQuotaRows], quotaYear);
   const showQuotaLegacyWarning = Number(operationResponse.meta?.unmatchedLegacyCount || 0) > 0 || hasUnmatchedLegacyQuota([...quotaRows, ...legacyQuotaRows]);
   const quotaYearOptions: Array<{ value: string; label: string }> = Array.from({ length: 7 }, (_, index) => currentBangkokQuotaYear() - 2 + index).map((year) => ({ value: String(year), label: thaiQuotaYearLabel(year) }));
-  const shiftTypeOptions = shiftTypes.map((shiftType) => ({ value: String(shiftType.id), label: `${text(shiftType.code)} · ${text(shiftType.name)}` }));
+  const shiftTypeOptions = activeShiftTypes.map((shiftType) => ({ value: String(shiftType.id), label: `${text(shiftType.code)} · ${text(shiftType.name)}` }));
 
   const runEditor = (definition: Omit<Editor, 'submit'>, action: (values: Record<string, string>, files: Record<string, File>) => Promise<unknown>, refresh: 'employees' | 'operations' = 'operations') => {
     setEditorError(undefined);
@@ -1995,7 +2002,7 @@ function Dashboard() {
     runEditor({ title: shift ? 'แก้ไขตารางกะ (ใส่ในร่าง)' : 'เพิ่มตารางกะ (ใส่ในร่าง)', submitLabel: shift ? 'ใส่ตารางกะ (ฉบับร่าง)' : 'บันทึกเข้าฉบับร่าง', fields, values }, (form) => {
       if (activePage === 'schedule') {
         const key = `${form.employeeId}_${form.workDate}`;
-        const selectedType = shiftTypes.find((t) => String(t.id) === form.shiftTypeId);
+        const selectedType = activeShiftTypes.find((t) => String(t.id) === form.shiftTypeId);
         const payload: Record<string, unknown> = formPayload(form, ['remark', 'overrideReason']);
         payload.licenseOverride = form.licenseOverride === 'true';
         setScheduleDrafts((prev) => ({
@@ -2057,31 +2064,63 @@ function Dashboard() {
     { name: 'startTime', label: 'เวลาเริ่ม' },
     { name: 'endTime', label: 'เวลาเลิก' },
     { name: 'hours', label: 'ชั่วโมง', type: 'number', required: true, min: 0, max: 24 },
-    { name: 'color', label: 'สี HEX', required: true }
+    { name: 'color', label: 'สี HEX', required: true },
+    { name: 'isActive', label: 'สถานะใช้งาน', type: 'select', required: true, options: [{ value: 'true', label: 'ใช้งาน' }, { value: 'false', label: 'ปิดใช้งาน' }] }
   ];
+
+  const shiftTypeMutationPayload = (form: Record<string, string>, options: { includeCode: boolean; includeActive: boolean }) => {
+    const payload: Record<string, unknown> = {
+      name: form.name,
+      startTime: form.startTime || null,
+      endTime: form.endTime || null,
+      hours: form.hours,
+      color: form.color
+    };
+    if (options.includeCode) payload.code = form.code;
+    if (options.includeActive) payload.isActive = form.isActive !== 'false';
+    return payload;
+  };
 
   const openShiftTypeCreator = () => runEditor({
     title: 'เพิ่มรหัสกะ', submitLabel: 'บันทึกรหัสกะ',
     fields: shiftTypeEditorFields,
-    values: { color: '#2F80FF', hours: '8' }
-  }, (form) => api.createShiftType(auth.token!, formPayload(form, ['startTime', 'endTime'])));
+    values: { color: '#2F80FF', hours: '8', isActive: 'true' }
+  }, (form) => api.createShiftType(auth.token!, shiftTypeMutationPayload(form, { includeCode: true, includeActive: true })));
 
   const openShiftTypeEditor = (shiftType: DataRow) => {
     const isCoreShiftType = ['D', 'N', 'OFF', 'AL'].includes(String(shiftType.code || '').toUpperCase());
     return runEditor({
       title: `แก้ไขรหัสกะ ${text(shiftType.code)}`,
       submitLabel: 'บันทึกการแก้ไข',
-      notice: isCoreShiftType ? 'รหัสกะหลัก D / N / OFF / AL ถูกใช้เป็นกฎหลักของระบบ จึงแก้ Shift Code ไม่ได้ แต่ยังแก้ชื่อ เวลา ชั่วโมง และสีได้' : undefined,
-      fields: isCoreShiftType ? shiftTypeEditorFields.filter((field) => field.name !== 'code') : shiftTypeEditorFields,
+      notice: isCoreShiftType
+        ? 'Shift Code และสถานะของกะหลัก D / N / OFF / AL เป็นกฎหลักของระบบและแก้ไม่ได้ การแก้ชื่อ เวลา ชั่วโมง หรือสีจะมีผลกับการจัดกะใหม่เท่านั้น ตารางเดิมยังเก็บเวลา/ชั่วโมง snapshot เดิม'
+        : 'Shift Code เป็นรหัสอ้างอิงถาวรและแก้ไม่ได้หลังสร้าง การปิดใช้งานจะกันไม่ให้นำกะนี้ไปจัดตารางใหม่ แต่ไม่ลบหรือแก้ไขตารางเดิม',
+      fields: shiftTypeEditorFields.filter((field) => field.name !== 'code' && (!isCoreShiftType || field.name !== 'isActive')),
       values: {
         code: String(shiftType.code || ''),
         name: String(shiftType.name || ''),
         startTime: String(shiftType.startTime || ''),
         endTime: String(shiftType.endTime || ''),
         hours: String(shiftType.hours ?? ''),
-        color: String(shiftType.color || '#2F80FF')
+        color: String(shiftType.color || '#2F80FF'),
+        isActive: shiftType.isActive === false ? 'false' : 'true'
       }
-    }, (form) => api.updateShiftType(auth.token!, String(shiftType.id), formPayload(form, ['startTime', 'endTime'])));
+    }, (form) => api.updateShiftType(auth.token!, String(shiftType.id), shiftTypeMutationPayload(form, { includeCode: false, includeActive: !isCoreShiftType })));
+  };
+
+  const toggleShiftTypeActive = async (shiftType: DataRow) => {
+    if (!auth.token) return;
+    const code = String(shiftType.code || '').toUpperCase();
+    if (['D', 'N', 'OFF', 'AL'].includes(code)) return;
+    const nextActive = shiftType.isActive === false;
+    const actionLabel = nextActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
+    if (!window.confirm(`ยืนยัน${actionLabel}กะ ${text(shiftType.code)}? ตารางเดิมจะไม่ถูกแก้ไข`)) return;
+    try {
+      await api.updateShiftType(auth.token, String(shiftType.id), { isActive: nextActive });
+      setOperationRefresh((value) => value + 1);
+    } catch (reason) {
+      setOperationError(toRequestErrorState(reason, `${actionLabel}กะไม่สำเร็จ`));
+    }
   };
 
   const handleOperationAction = async (row: DataRow, action: string) => {
@@ -2367,9 +2406,9 @@ function Dashboard() {
     if (activePage === 'systemHealth' && auth.token) return <SystemHealthPage token={auth.token} />;
     if (activePage === 'shiftSetup') return (
       <section className="view-pane">
-        <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Shift Setup</h1><p>กำหนดรหัสกะ และเวลาปฏิบัติงานที่ใช้ใน ตารางกะรายเดือน</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && <button className="btn-primary compact" onClick={openShiftTypeCreator}>+ เพิ่มรหัสกะ</button>}<span className="record-chip">ทั้งหมด {shiftTypes.length} รหัสกะ</span></div></div>
+        <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Shift Setup</h1><p>บริหารชื่อ เวลา ชั่วโมง สี และสถานะใช้งานของกะ โดยไม่เขียนทับ snapshot ตารางเดิม</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && <button className="btn-primary compact" onClick={openShiftTypeCreator}>+ เพิ่มรหัสกะ</button>}<span className="record-chip">ใช้งาน {activeShiftTypes.length} / ทั้งหมด {shiftTypes.length}</span></div></div>
         <ErrorAlert message={operationError} />
-        <div className="table-card"><div className="table-scroll"><table className="data-table"><thead><tr><th>Shift Code</th><th>ชื่อกะ</th><th>เวลาเริ่ม</th><th>เวลาเลิก</th><th>ชั่วโมง</th><th>สี</th>{auth.user?.role === 'ADMIN' && <th>จัดการ</th>}</tr></thead><tbody>{shiftTypes.length ? shiftTypes.map((shiftType) => <tr key={text(shiftType.id)}><td><code>{text(shiftType.code)}</code></td><td className="employee-name">{text(shiftType.name)}</td><td>{text(shiftType.startTime)}</td><td>{text(shiftType.endTime)}</td><td>{text(shiftType.hours)}</td><td><span className="shift-color" style={{ backgroundColor: String(shiftType.color || '#2F80FF') }} /> {text(shiftType.color)}</td>{auth.user?.role === 'ADMIN' && <td className="row-actions data-row-actions"><button className="btn-secondary compact" onClick={() => openShiftTypeEditor(shiftType)}>แก้ไข</button><button className="danger-action" disabled={['D', 'N', 'OFF', 'AL'].includes(String(shiftType.code))} onClick={async () => { if (!auth.token || !window.confirm(`ยืนยันการลบรหัสกะ ${text(shiftType.code)}?`)) return; try { await api.deleteShiftType(auth.token, String(shiftType.id)); setOperationRefresh((value) => value + 1); } catch (reason) { setOperationError(toRequestErrorState(reason, 'ลบรหัสกะไม่สำเร็จ')); } }}>ลบ</button></td>}</tr>) : <tr><td colSpan={auth.user?.role === 'ADMIN' ? 7 : 6} className="no-rows">ยังไม่มีข้อมูลรหัสกะ</td></tr>}</tbody></table></div></div>
+        <div className="table-card"><div className="table-scroll"><table className="data-table"><thead><tr><th>Shift Code</th><th>ชื่อกะ</th><th>เวลาเริ่ม</th><th>เวลาเลิก</th><th>ชั่วโมง</th><th>สี</th><th>สถานะ</th>{auth.user?.role === 'ADMIN' && <th>จัดการ</th>}</tr></thead><tbody>{shiftTypes.length ? shiftTypes.map((shiftType) => { const code = String(shiftType.code || '').toUpperCase(); const isCore = ['D', 'N', 'OFF', 'AL'].includes(code); const isActive = shiftType.isActive !== false; return <tr key={text(shiftType.id)}><td><code>{text(shiftType.code)}</code>{isCore && <small className="cell-note">Core</small>}</td><td className="employee-name">{text(shiftType.name)}</td><td>{text(shiftType.startTime)}</td><td>{text(shiftType.endTime)}</td><td>{text(shiftType.hours)}</td><td><span className="shift-color" style={{ backgroundColor: String(shiftType.color || '#2F80FF') }} /> {text(shiftType.color)}</td><td><span className={`status-badge ${isActive ? 'status-badge--success' : 'status-badge--neutral'}`}>{isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}</span></td>{auth.user?.role === 'ADMIN' && <td className="row-actions data-row-actions"><button className="btn-secondary compact" onClick={() => openShiftTypeEditor(shiftType)}>แก้ไข</button>{isCore ? <span className="muted-text">ล็อกสถานะ</span> : <button className={isActive ? 'btn-warning compact' : 'btn-success compact'} onClick={() => toggleShiftTypeActive(shiftType)}>{isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}</button>}</td>}</tr>; }) : <tr><td colSpan={auth.user?.role === 'ADMIN' ? 8 : 7} className="no-rows">ยังไม่มีข้อมูลรหัสกะ</td></tr>}</tbody></table></div></div>
       </section>
     );
     if (activePage === 'schedule') {
@@ -2404,9 +2443,9 @@ function Dashboard() {
           if (!empId || !workDateStr) continue;
           const key = `${empId}_${workDateStr}`;
           const codeStr = String(row.code || 'OFF').toUpperCase();
-          const selectedType = shiftTypes.find((t) => String(t.code).toUpperCase() === codeStr)
-            || shiftTypes.find((t) => String(t.id) === row.shiftTypeId)
-            || shiftTypes[0];
+          const selectedType = activeShiftTypes.find((t) => String(t.code).toUpperCase() === codeStr)
+            || activeShiftTypes.find((t) => String(t.id) === row.shiftTypeId)
+            || activeShiftTypes[0];
           const validShiftTypeId = String(selectedType?.id || '');
           if (!validShiftTypeId || validShiftTypeId.length < 10) continue;
 
@@ -2610,13 +2649,13 @@ function Dashboard() {
             shift={shiftEditorTarget.shift}
             defaults={shiftEditorTarget.defaults}
             employees={calendarEmployees.length ? calendarEmployees : (Array.isArray(operationResponse.data) ? operationResponse.data as DataRow[] : [])}
-            shiftTypes={shiftTypes}
+            shiftTypes={activeShiftTypes}
             licenses={licensesData}
             isAdmin={auth.user?.role === 'ADMIN'}
             onClose={() => setShiftEditorTarget(null)}
             onSubmit={(data) => {
               const key = `${data.employeeId}_${data.workDate}`;
-              const selectedType = shiftTypes.find((t) => String(t.id) === data.shiftTypeId);
+              const selectedType = activeShiftTypes.find((t) => String(t.id) === data.shiftTypeId);
               const payload: Record<string, unknown> = {
                 employeeId: data.employeeId,
                 shiftTypeId: data.shiftTypeId,

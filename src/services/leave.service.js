@@ -86,9 +86,10 @@ async function approveRequest(id, actorUserId) {
 
   // Find or create LEAVE shift type
   let leaveShift = await prisma.shiftType.findFirst({ where: { code: 'LEAVE' } });
+  if (leaveShift?.isActive === false) throw new HttpError(409, 'LEAVE shift type is inactive. Reactivate it before approving leave through this legacy workflow.');
   if (!leaveShift) {
     leaveShift = await prisma.shiftType.create({
-      data: { code: 'LEAVE', name: 'Leave', hours: 0, color: '#ef4444' }
+      data: { code: 'LEAVE', name: 'Leave', hours: 0, color: '#EF4444', isActive: true }
     });
   }
 

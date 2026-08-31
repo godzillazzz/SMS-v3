@@ -3,10 +3,18 @@ const HttpError = require('../utils/http-error');
 const audit = require('./audit.service');
 const { normalizeScheduleTime } = require('../utils/schedule-time');
 
-const auditFields = ['code', 'name', 'startTime', 'endTime', 'hours', 'color'];
+const CORE_SHIFT_CODES = Object.freeze(['D', 'N', 'OFF', 'AL']);
+const auditFields = ['code', 'name', 'startTime', 'endTime', 'hours', 'color', 'isActive'];
 const safeRecord = (record) => Object.fromEntries(auditFields.map((field) => [field, record[field]]));
-const canonicalizeTimes = (data) => {
+
+const canonicalize = (data) => {
   const next = { ...data };
+  if (Object.hasOwn(next, 'code') && next.code !== undefined && next.code !== null) {
+    next.code = String(next.code).trim().toUpperCase();
+  }
+  if (Object.hasOwn(next, 'color') && next.color !== undefined && next.color !== null) {
+    next.color = String(next.color).trim().toUpperCase();
+  }
   for (const field of ['startTime', 'endTime']) {
     if (!Object.hasOwn(next, field) || next[field] === null || next[field] === undefined) continue;
     const normalized = normalizeScheduleTime(next[field]);
@@ -16,8 +24,19 @@ const canonicalizeTimes = (data) => {
   return next;
 };
 
-async function list() {
+const validateDefinition = (record) => {
+  const hours = Number(record.hours || 0);
+  if (hours > 0 && (!record.startTime || !record.endTime)) {
+    throw new HttpError(400, 'Working shifts require start and end times.');
+  }
+  if (CORE_SHIFT_CODES.includes(String(record.code || '').toUpperCase()) && record.isActive === false) {
+    throw new HttpError(400, `Core shift ${String(record.code).toUpperCase()} cannot be deactivated.`);
+  }
+};
+
+async function list({ includeInactive = false } = {}) {
   return prisma.shiftType.findMany({
+    where: includeInactive ? undefined : { isActive: true },
     orderBy: { code: 'asc' }
   });
 }
@@ -29,7 +48,8 @@ async function getById(id) {
 }
 
 async function create(data, actorUserId) {
-  const canonical = canonicalizeTimes(data);
+  const canonical = canonicalize({ ...data, isActive: data.isActive !== false });
+  validateDefinition(canonical);
   return prisma.$transaction(async (tx) => {
     const existing = await tx.shiftType.findUnique({ where: { code: canonical.code } });
     if (existing) throw new HttpError(400, 'Shift code already exists.');
@@ -40,13 +60,22 @@ async function create(data, actorUserId) {
 }
 
 async function update(id, data, actorUserId) {
-  const canonical = canonicalizeTimes(data);
+  const canonical = canonicalize(data);
   return prisma.$transaction(async (tx) => {
     const existing = await tx.shiftType.findUnique({ where: { id } });
     if (!existing) throw new HttpError(404, 'Shift type not found.');
+
     const existingCode = String(existing.code || '').toUpperCase();
-    const nextCode = canonical.code === undefined ? existingCode : String(canonical.code || '').toUpperCase();
-    if (['D', 'N', 'OFF', 'AL'].includes(existingCode) && nextCode !== existingCode) throw new HttpError(400, `Core shift ${existingCode} code cannot be changed.`);
+    if (canonical.code !== undefined && String(canonical.code).toUpperCase() !== existingCode) {
+      throw new HttpError(400, CORE_SHIFT_CODES.includes(existingCode)
+        ? `Core shift ${existingCode} code cannot be changed.`
+        : 'Shift code is immutable after creation.');
+    }
+    delete canonical.code;
+
+    const next = { ...existing, ...canonical };
+    validateDefinition(next);
+
     const updated = await tx.shiftType.update({ where: { id }, data: canonical });
     await audit.log({ actorUserId, action: 'UPDATE', entityType: 'ShiftType', entityId: id, metadata: { before: safeRecord(existing), after: safeRecord(updated) } }, tx);
     return updated;
@@ -57,11 +86,22 @@ async function remove(id, actorUserId) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.shiftType.findUnique({ where: { id } });
     if (!existing) throw new HttpError(404, 'Shift type not found.');
-    if (['D', 'N', 'OFF', 'AL'].includes(existing.code.toUpperCase())) throw new HttpError(400, `Core shift ${existing.code} cannot be deleted.`);
+    if (['D', 'N', 'OFF', 'AL'].includes(existing.code.toUpperCase())) {
+      throw new HttpError(400, `Core shift ${existing.code} cannot be deleted.`);
+    }
+
+    const [assignmentCount, attendanceCount] = await Promise.all([
+      tx.shiftAssignment.count({ where: { shiftTypeId: id } }),
+      tx.attendanceSession.count({ where: { expectedShiftTypeId: id } })
+    ]);
+    if (assignmentCount > 0 || attendanceCount > 0) {
+      throw new HttpError(409, 'Shift type is referenced by historical schedule or attendance records. Deactivate it instead.');
+    }
+
     const deleted = await tx.shiftType.delete({ where: { id } });
     await audit.log({ actorUserId, action: 'DELETE', entityType: 'ShiftType', entityId: id, metadata: { before: safeRecord(existing) } }, tx);
     return deleted;
   });
 }
 
-module.exports = { list, getById, create, update, remove };
+module.exports = { CORE_SHIFT_CODES, list, getById, create, update, remove };
