@@ -94,7 +94,7 @@ test("pre-applied migration release guard requires exact prior Production migrat
   assert.match(sourceGuard, /Apply Approved Production Migration V2/);
   assert.match(sourceGuard, /Approve Production Migration/);
   assert.match(sourceGuard, /verify-approved-production-migration\.js/);
-  assert.match(sourceGuard, /test "\$MIGRATION_ID" = "CFG-04"/);
+  assert.match(sourceGuard, /test "\$MIGRATION_ID" = "CFG-05"/);
   assert.match(sourceGuard, /test "\$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = "\$ROLLBACK_DEPLOYMENT_ID"/);
   assert.match(sourceGuard, /test "\$MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA" = "\$CURRENT_PRODUCTION_SOURCE_SHA"/);
   assert.match(sourceGuard, /git diff --quiet "\$MIGRATION_SOURCE_SHA" "\$TARGET_SHA" -- prisma\/schema\.prisma prisma\/migrations/);
@@ -112,7 +112,7 @@ test("pre-applied migration release guard requires exact prior Production migrat
 });
 
 
-test("revalidates the CFG-04 pre-applied migration from release-control evidence after Owner approval", () => {
+test("revalidates the CFG-05 pre-applied migration from release-control evidence after Owner approval", () => {
   const workflow = fs.readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n");
   const revalidate = extractRunBlock(
     workflow,
