@@ -73,7 +73,10 @@ test("Production verifier avoids Vercel beta curl and keeps authoritative canoni
   assert.match(script, /approval\.status !== 401/);
   assert.match(script, /Approval Authority Matrix \/ SLA/);
   assert.match(script, /การเปลี่ยนแปลงสำคัญ/);
-  assert.match(workflow, /Critical UI sentinels: PASS \(7\/7\)/);
+  assert.match(script, /เปลี่ยนชื่อ/);
+  assert.match(script, /ย้ายหน่วยงาน \/ แผนก/);
+  assert.match(script, /เปลี่ยนตำแหน่ง/);
+  assert.match(workflow, /Critical UI sentinels: PASS \(10\/10\)/);
 });
 
 
