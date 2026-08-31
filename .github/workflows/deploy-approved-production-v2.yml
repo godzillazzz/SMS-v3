@@ -122,7 +122,12 @@ jobs:
               POST_VERIFY_SCRIPT=$(sed -n 's/^post_verify_script=//p' "$migration_guard")
               MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID=$(sed -n 's/^current_production_deployment_id=//p' "$migration_guard")
               MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA=$(sed -n 's/^current_production_application_sha=//p' "$migration_guard")
-              test "$MIGRATION_ID" = "CFG-05"
+              PRISMA_SCHEMA_CHANGED=$(sed -n 's/^prisma_schema_changed=//p' "$migration_guard")
+              test -n "$MIGRATION_ID"
+              case "$PRISMA_SCHEMA_CHANGED" in
+                true|false) ;;
+                *) echo 'Invalid prisma_schema_changed migration metadata.'; exit 1 ;;
+              esac
               test "$MIGRATION_CURRENT_PRODUCTION_DEPLOYMENT_ID" = "$ROLLBACK_DEPLOYMENT_ID"
               test "$MIGRATION_CURRENT_PRODUCTION_APPLICATION_SHA" = "$CURRENT_PRODUCTION_SOURCE_SHA"
               [[ "$MIGRATION_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
@@ -138,7 +143,11 @@ jobs:
               git diff --quiet "$MIGRATION_SOURCE_SHA" "$GITHUB_SHA" -- prisma/schema.prisma "$MIGRATION_PATH"
 
               changed_prisma=$(git diff --name-only "$CURRENT_PRODUCTION_SOURCE_SHA" "$MIGRATION_SOURCE_SHA" -- prisma/schema.prisma prisma/migrations | sort)
-              expected_prisma=$(printf '%s\n%s\n' "$MIGRATION_PATH" 'prisma/schema.prisma' | sort)
+              if [[ "$PRISMA_SCHEMA_CHANGED" = "true" ]]; then
+                expected_prisma=$(printf '%s\n%s\n' "$MIGRATION_PATH" 'prisma/schema.prisma' | sort)
+              else
+                expected_prisma=$(printf '%s\n' "$MIGRATION_PATH" | sort)
+              fi
               test "$changed_prisma" = "$expected_prisma"
 
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID" >/tmp/pre-applied-run.json
@@ -449,7 +458,7 @@ jobs:
             node - "$base_url" "$label" <<'NODE'
           const base = process.argv[2].replace(/\/$/, '');
           const label = process.argv[3];
-          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน'];
+          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน', 'Approval Authority Matrix / SLA', 'การเปลี่ยนแปลงสำคัญ'];
           async function request(path) { return fetch(`${base}${path}`, { redirect: 'follow' }); }
           async function main() {
             const health = await request('/api/v1/health');
@@ -593,5 +602,5 @@ jobs:
             echo "- Rollback checkpoint: $ROLLBACK_DEPLOYMENT_ID"
             echo "- Manifest SHA-256: $MANIFEST_SHA256"
             echo '- Post-deploy verification: PASS'
-            echo '- Critical UI sentinels: PASS (5/5)'
+            echo '- Critical UI sentinels: PASS (7/7)'
           } >> "$GITHUB_STEP_SUMMARY"
