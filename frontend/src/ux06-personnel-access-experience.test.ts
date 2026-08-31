@@ -10,9 +10,9 @@ const personnelPage = read('pages/personnel/PersonnelDirectoryPage.tsx');
 const personnelHeader = read('components/personnel/PersonnelDirectoryHeader.tsx');
 const personnelTable = read('components/personnel/PersonnelTable.tsx');
 const personnelDrawer = read('components/personnel/PersonnelDetailDrawer.tsx');
-const lifecycle = read('components/personnel/EmployeeLifecycleModal.tsx');
+const governedEditor = read('components/personnel/EmployeeGovernedEditModal.tsx');
 const personnelCss = read('styles/personnel-directory.css');
-const lifecycleCss = read('styles/employee-lifecycle.css');
+const governedEditCss = read('styles/employee-governed-edit.css');
 const accessPage = read('pages/access-management/AccessManagementPage.tsx');
 const accessUtils = read('components/access-management/access-management-utils.ts');
 const accessCss = read('styles/access-management.css');
@@ -41,17 +41,18 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(personnelPage).not.toContain('รอตรวจสอบ');
   });
 
-  it('keeps governed Personnel edit while restoring an ADMIN-only critical-change entry point', () => {
+  it('keeps a single governed Personnel Edit entry point with no duplicate lifecycle action', () => {
     expect(personnelHeader).toContain('{canManage &&');
     expect(personnelTable).toContain('{canManage &&');
-    expect(personnelTable).toContain('canLifecycle && onLifecycle');
-    expect(personnelDrawer).toContain('canLifecycle && onLifecycle');
-    expect(personnelTable).toContain('การเปลี่ยนแปลงสำคัญ');
-    expect(personnelDrawer).toContain('การเปลี่ยนแปลงสำคัญ');
-    expect(personnelPage).toContain("const canLifecycle = role === 'ADMIN' && Boolean(onLifecycle);");
-    expect(main).toContain('setEmployeeLifecycleTarget');
-    expect(main).toContain("employeeLifecycleTarget && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs");
+    expect(personnelTable).toContain('แก้ไขข้อมูล');
+    expect(personnelDrawer).toContain('แก้ไขข้อมูล');
+    expect(personnelTable).not.toContain('onLifecycle');
+    expect(personnelDrawer).not.toContain('onLifecycle');
+    expect(personnelPage).not.toContain('onLifecycle');
+    expect(main).not.toContain('setEmployeeLifecycleTarget');
+    expect(main).not.toContain('EmployeeLifecycleModal');
     expect(main).toContain('EmployeeGovernedEditModal');
+    expect(governedEditor).toContain('3. การเปลี่ยนแปลง');
   });
 
   it('keeps Personnel drawer selection and focus restoration while presenting only real Employee Master fields', () => {
@@ -73,17 +74,18 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(main).not.toContain("api.updateEmployee(auth.token!, employee.id, formPayload(form, ['email', 'phone', 'hiredAt']))");
   });
 
-  it('keeps Employee lifecycle preflight, idempotency, termination confirmation, and mutation APIs unchanged', () => {
-    expect(lifecycle).toContain('api.employeeLifecycleHistory(token, employee.id)');
-    expect(lifecycle).toContain('api.preflightEmployeeLifecycle(token, employee.id, { type, effectiveDate, changes: payloadChanges() })');
-    expect(lifecycle).toContain('api.createEmployeeLifecycleEvent(token, employee.id, {');
-    expect(lifecycle).toContain('expectedEmployeeUpdatedAt: preflight.expectedEmployeeUpdatedAt');
-    expect(lifecycle).toContain('expectedLifecycleSequence: preflight.latestLifecycleSequence');
-    expect(lifecycle).toContain('idempotencyKey');
-    expect(lifecycle).toContain("type === 'EMPLOYMENT_TERMINATION' && confirmation !== employee.employeeCode");
+  it('keeps Employee changes behind governed preflight, concurrency, effective-date and approval authority', () => {
+    expect(governedEditor).toContain('api.preflightEmployeeMasterEdit(token, employee.id');
+    expect(governedEditor).toContain('api.updateEmployee(token, employee.id');
+    expect(governedEditor).toContain('expectedEmployeeUpdatedAt: preflight.expectedEmployeeUpdatedAt');
+    expect(governedEditor).toContain('expectedLifecycleSequence: preflight.latestLifecycleSequence');
+    expect(governedEditor).toContain('acknowledgeWarnings');
+    expect(governedEditor).toContain("effectiveMode === 'FUTURE_EFFECTIVE'");
+    expect(governedEditor).toContain('api.submitEmployeeChangeRequest');
+    expect(governedEditor).toContain('ส่งคำขอแก้ไขให้ Admin ตรวจสอบแล้ว');
   });
 
-  it('adds accessible Personnel editor/drawer/lifecycle overlay behavior without changing business callbacks', () => {
+  it('keeps accessible Personnel editor and drawer overlay behavior without changing business callbacks', () => {
     expect(main).toContain("experience?: 'personnel'");
     expect(main).toContain("experience: 'personnel'");
     expect(main).toContain("event.key === 'Escape' && !busyRef.current");
@@ -92,9 +94,8 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(personnelDrawer).toContain('role="dialog" aria-modal="true"');
     expect(personnelDrawer).toContain("event.key === 'Escape'");
     expect(personnelDrawer).toContain("event.key !== 'Tab'");
-    expect(lifecycle).toContain('role="dialog" aria-modal="true"');
-    expect(lifecycle).toContain("event.key === 'Escape' && !busyRef.current");
-    expect(lifecycle).toContain("event.key !== 'Tab'");
+    expect(governedEditor).toContain('role="dialog" aria-modal="true"');
+    expect(governedEditor).toContain('acquireDocumentScrollLock()');
   });
 
   it('keeps Access state, summary, status logic, and visibleAccountActions as exact authorities', () => {
@@ -173,7 +174,7 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
   });
 
   it('uses semantic Light/Dark-capable styles with readable text and 40px-plus touched controls', () => {
-    for (const css of [personnelCss, accessCss, lifecycleCss]) {
+    for (const css of [personnelCss, accessCss]) {
       expect(css).toContain('var(--color-surface');
       expect(css).toContain('var(--color-text');
       expect(css).not.toMatch(/#[0-9a-f]{3,8}\b/i);
@@ -181,7 +182,8 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     }
     expect(personnelCss).toContain('width:40px;height:40px');
     expect(accessCss).toContain('min-height:40px');
-    expect(lifecycleCss).toContain('width:40px;height:40px');
+    expect(governedEditCss).toContain('width:40px;height:40px');
+    expect(governedEditCss).toContain('@media(max-width:760px)');
   });
 
   it('uses internal SVG controls for new UX-06 actions instead of newly introduced Unicode control glyphs', () => {
