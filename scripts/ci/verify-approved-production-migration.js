@@ -26,6 +26,12 @@ const MIGRATIONS = Object.freeze({
     migrationPolicy: 'ADDITIVE_SCHEMA_ONLY_NO_BACKFILL',
     postVerifyScript: 'scripts/ci/verify-cfg04-production-migration.js',
     dataBackfill: false
+  }),
+  'CFG-05': Object.freeze({
+    migrationName: '202608310003_cfg05_auto_schedule_pattern_master',
+    migrationPolicy: 'ADDITIVE_SCHEMA_WITH_GOVERNED_SEED_NO_BACKFILL',
+    postVerifyScript: 'scripts/ci/verify-cfg05-production-migration.js',
+    dataBackfill: false
   })
 });
 
@@ -105,9 +111,57 @@ function validateCfg04Sql(sql) {
   return { statementCount: 1, controlledUpdateCount: 0 };
 }
 
+function validateCfg05Sql(sql) {
+  rejectDestructiveSql(sql);
+  assert(!/\bUPDATE\b/i.test(sql), 'CFG-05 UPDATE is forbidden');
+  assert(!/\bALTER\s+TABLE\b/i.test(sql), 'CFG-05 ALTER TABLE is forbidden');
+  const statements = splitStatements(sql);
+  assert(statements.length === 5, 'CFG-05 requires exactly five create/index/seed statements');
+
+  let tableCount = 0;
+  let indexCount = 0;
+  let insertCount = 0;
+  for (const statement of statements) {
+    const normalized = statement.replace(/\s+/g, ' ').trim();
+    if (/^CREATE TABLE "auto_schedule_patterns"/i.test(normalized)) {
+      tableCount += 1;
+      for (const column of ['id', 'code', 'name', 'mode', 'steps', 'is_active', 'is_system', 'target_group', 'sort_order', 'created_at', 'updated_at']) {
+        assert(new RegExp(`"${column}"`, 'i').test(normalized), `CFG-05 missing ${column}`);
+      }
+      assert(/"steps" JSONB NOT NULL/i.test(normalized), 'CFG-05 steps must be JSONB NOT NULL');
+      assert(/"is_active" BOOLEAN NOT NULL DEFAULT true/i.test(normalized), 'CFG-05 is_active invariant mismatch');
+      assert(/"is_system" BOOLEAN NOT NULL DEFAULT false/i.test(normalized), 'CFG-05 is_system invariant mismatch');
+      continue;
+    }
+    if (/^CREATE (?:UNIQUE )?INDEX /i.test(normalized)) {
+      indexCount += 1;
+      assert(/ ON "auto_schedule_patterns"/i.test(normalized), 'CFG-05 index targets unexpected table');
+      continue;
+    }
+    if (/^INSERT INTO "auto_schedule_patterns"/i.test(normalized)) {
+      insertCount += 1;
+      assert(/'SUPERVISOR'/i.test(normalized), 'CFG-05 SUPERVISOR seed missing');
+      assert(/'ROTATE'/i.test(normalized), 'CFG-05 ROTATE seed missing');
+      assert(/'WEEKLY'/i.test(normalized), 'CFG-05 WEEKLY mode missing');
+      assert(/'CYCLE'/i.test(normalized), 'CFG-05 CYCLE mode missing');
+      assert(/'GENERAL'/i.test(normalized), 'CFG-05 GENERAL target missing');
+      assert(/::jsonb/i.test(normalized), 'CFG-05 steps must seed JSONB');
+      assert(!/"shiftCode":"AL"/i.test(normalized), 'CFG-05 core seed must not embed AL');
+      continue;
+    }
+    throw new Error(`production migration guard: unsupported CFG-05 SQL statement: ${normalized.slice(0, 80)}`);
+  }
+
+  assert(tableCount === 1, 'CFG-05 requires one table create');
+  assert(indexCount === 3, 'CFG-05 requires exactly three explicit indexes');
+  assert(insertCount === 1, 'CFG-05 requires one governed core seed insert');
+  return { statementCount: statements.length, controlledUpdateCount: 0 };
+}
+
 function validateSqlForMigration(migrationId, sql) {
   if (migrationId === 'CFG-03') return validateCfg03Sql(sql);
   if (migrationId === 'CFG-04') return validateCfg04Sql(sql);
+  if (migrationId === 'CFG-05') return validateCfg05Sql(sql);
   throw new Error(`production migration guard: unsupported migration_id: ${migrationId}`);
 }
 
@@ -204,6 +258,7 @@ module.exports = {
   splitStatements,
   validateCfg03Sql,
   validateCfg04Sql,
+  validateCfg05Sql,
   validateSqlForMigration,
   validateMigrationManifest
 };
