@@ -8,20 +8,25 @@ const assert = require('node:assert/strict');
 const {
   validateCfg03Sql,
   validateCfg04Sql,
+  validateCfg05Sql,
   validateMigrationManifest
 } = require('../scripts/ci/verify-approved-production-migration');
 
 const root = path.join(__dirname, '..');
 const cfg03ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg03-production-migration.json');
 const cfg04ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg04-production-migration.json');
+const cfg05ManifestPath = path.join(root, '.github', 'releases', 'approved-cfg05-production-migration.json');
 const workflowPath = path.join(root, '.github', 'workflows', 'apply-approved-production-migration-v2.yml');
 const cfg03PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg03-production-migration.js');
 const cfg04PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg04-production-migration.js');
+const cfg05PostVerifyPath = path.join(root, 'scripts', 'ci', 'verify-cfg05-production-migration.js');
 const cfg03Manifest = JSON.parse(fs.readFileSync(cfg03ManifestPath, 'utf8'));
 const cfg04Manifest = JSON.parse(fs.readFileSync(cfg04ManifestPath, 'utf8'));
+const cfg05Manifest = JSON.parse(fs.readFileSync(cfg05ManifestPath, 'utf8'));
 const workflow = fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
 const cfg03PostVerify = fs.readFileSync(cfg03PostVerifyPath, 'utf8');
 const cfg04PostVerify = fs.readFileSync(cfg04PostVerifyPath, 'utf8');
+const cfg05PostVerify = fs.readFileSync(cfg05PostVerifyPath, 'utf8');
 
 test('CFG-03 historical Production migration manifest remains valid', () => {
   const result = validateMigrationManifest(cfg03Manifest, { root });
@@ -63,15 +68,47 @@ test('CFG-04 SQL policy accepts exact additive schema and rejects mutations or e
   }
 });
 
+test('CFG-05 Production migration manifest is exact-source pinned and migration-only', () => {
+  const result = validateMigrationManifest(cfg05Manifest, { root });
+  assert.equal(result.migrationId, 'CFG-05');
+  assert.equal(result.sourceCommitSha, 'cf75ba61c97ba81084999eea9e68f4dcdcc6178e');
+  assert.equal(result.sourceTreeSha, 'b9ae82fd18e2fa55bf5712fe11d56c8c0baf25b6');
+  assert.equal(result.currentProductionDeploymentId, 'dpl_99jRWjfLfhZm5X3VrL9RpYeJX59u');
+  assert.equal(result.currentProductionApplicationSha, '9ff3e32a38440cedef4953f9ac74e46d288cfc25');
+  assert.equal(result.migrationName, '202608310003_cfg05_auto_schedule_pattern_master');
+  assert.equal(result.migrationPolicy, 'ADDITIVE_SCHEMA_WITH_GOVERNED_SEED_NO_BACKFILL');
+  assert.equal(result.dataBackfill, false);
+  assert.equal(result.statementCount, 5);
+  assert.equal(result.controlledUpdateCount, 0);
+  assert.equal(cfg05Manifest.application_deploy, false);
+  assert.equal(cfg05Manifest.destructive_rollback, false);
+  assert.equal(cfg05Manifest.owner_action, 'APPROVE_PRODUCTION_MIGRATION_ONLY');
+});
+
+test('CFG-05 SQL policy accepts only the additive Pattern Master schema and governed core seed', () => {
+  const sql = fs.readFileSync(path.join(root, ...cfg05Manifest.migration_path.split('/')), 'utf8');
+  assert.doesNotThrow(() => validateCfg05Sql(sql));
+  for (const unsafe of [
+    sql + '\nUPDATE auto_schedule_patterns SET is_active = false;',
+    sql + '\nALTER TABLE auto_schedule_patterns ADD COLUMN unsafe TEXT;',
+    sql + '\nDROP TABLE auto_schedule_patterns;',
+    sql + '\nDELETE FROM auto_schedule_patterns;',
+    sql + '\nTRUNCATE auto_schedule_patterns;',
+    sql.replace('"shiftCode":"D"', '"shiftCode":"AL"')
+  ]) {
+    assert.throws(() => validateCfg05Sql(unsafe), /forbidden|requires exactly five|must not embed AL|unsupported/);
+  }
+});
+
 test('CFG-03 SQL guard still rejects destructive or unbounded mutations', () => {
   const sql = fs.readFileSync(path.join(root, ...cfg03Manifest.migration_path.split('/')), 'utf8');
   assert.doesNotThrow(() => validateCfg03Sql(sql));
   assert.throws(() => validateCfg03Sql(sql + '\nDROP TABLE leave_requests;'), /forbidden|unsupported/);
 });
 
-test('Production Migration V2 targets CFG-04 with one protected Owner gate and no application deployment command', () => {
+test('Production Migration V2 targets CFG-05 with one protected Owner gate and no application deployment command', () => {
   assert.match(workflow, /^name: Apply Approved Production Migration V2$/m);
-  assert.match(workflow, /MANIFEST_PATH: \.github\/releases\/approved-cfg04-production-migration\.json/);
+  assert.match(workflow, /MANIFEST_PATH: \.github\/releases\/approved-cfg05-production-migration\.json/);
   assert.match(workflow, /name: Approve Production Migration/);
   assert.match(workflow, /environment:\n\s+name: production-sms-v3-staging/);
   assert.match(workflow, /node scripts\/ci\/verify-deployment-target\.js --verify/);
@@ -102,6 +139,15 @@ test('CFG-04 post-migration verifier checks only schema invariants and emits no 
   assert.match(cfg04PostVerify, /WHERE is_active IS NULL/);
   assert.match(cfg04PostVerify, /RAW_SHIFT_DATA_EMITTED=false/);
   assert.doesNotMatch(cfg04PostVerify, /SELECT \* FROM shift_types|console\.log\([^)]*row/i);
+});
+
+test('CFG-05 post-migration verifier checks schema/core seeds without emitting raw Pattern data', () => {
+  assert.match(cfg05PostVerify, /table_name='auto_schedule_patterns'/);
+  assert.match(cfg05PostVerify, /autoSchedulePattern\.findMany/);
+  assert.match(cfg05PostVerify, /AUTO_SCHEDULE_PATTERN_CORE_SEEDS=2/);
+  assert.match(cfg05PostVerify, /AUTO_SCHEDULE_PATTERN_AL_REFERENCES=0/);
+  assert.match(cfg05PostVerify, /RAW_AUTO_SCHEDULE_PATTERN_DATA_EMITTED=false/);
+  assert.doesNotMatch(cfg05PostVerify, /console\.log\([^)]*steps|SELECT \* FROM auto_schedule_patterns/i);
 });
 
 test('CFG-03 post-migration verifier remains available for prior evidence validation', () => {

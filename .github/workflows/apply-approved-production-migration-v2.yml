@@ -7,9 +7,9 @@ on:
       - fix/serverless-database-reliability
     paths:
       - .github/workflows/apply-approved-production-migration-v2.yml
-      - .github/releases/approved-cfg04-production-migration.json
+      - .github/releases/approved-cfg05-production-migration.json
       - scripts/ci/verify-approved-production-migration.js
-      - scripts/ci/verify-cfg04-production-migration.js
+      - scripts/ci/verify-cfg05-production-migration.js
 
 permissions:
   contents: read
@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MANIFEST_PATH: .github/releases/approved-cfg04-production-migration.json
+  MANIFEST_PATH: .github/releases/approved-cfg05-production-migration.json
   EXPECTED_SOURCE_BRANCH: fix/serverless-database-reliability
   EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
 
@@ -92,11 +92,11 @@ jobs:
         shell: bash
         run: |
           {
-            echo '### CFG-04 Production migration prepared'
+            echo '### CFG-05 Production migration prepared'
             echo "- Exact application source SHA: ${{ steps.manifest.outputs.source_commit_sha }}"
             echo "- Exact application tree: ${{ steps.manifest.outputs.source_tree_sha }}"
             echo "- Migration: ${{ steps.manifest.outputs.migration_name }}"
-            echo '- Policy: additive schema only; no data backfill'
+            echo '- Policy: additive schema + governed core seed; no data backfill'
             echo '- Historical data backfill: NO'
             echo '- Application deployment: NO'
             echo '- Destructive rollback: NO'
@@ -162,7 +162,7 @@ jobs:
       - name: Verify Production database target guard
         run: node scripts/ci/verify-deployment-target.js --verify
 
-      - name: Require exactly the approved CFG-04 migration to be pending
+      - name: Require exactly the approved CFG-05 migration to be pending
         shell: bash
         run: |
           set -euo pipefail
@@ -185,7 +185,7 @@ jobs:
       - name: Apply exact approved Production migration
         run: node scripts/ci/prisma-migration.js deploy
 
-      - name: Verify migration status and CFG-04 database invariants
+      - name: Verify migration status and CFG-05 database invariants
         shell: bash
         run: |
           set -euo pipefail
@@ -210,11 +210,11 @@ jobs:
         shell: bash
         run: |
           {
-            echo '### CFG-04 Production migration'
+            echo '### CFG-05 Production migration'
             echo '- Migration status: PASS'
-            echo '- Shift Type active-state schema: VERIFIED'
+            echo '- Auto Schedule Pattern schema/core seeds: VERIFIED'
             echo '- Historical data backfill: NOT PERFORMED'
-            echo '- Existing Shift Type rows retain data; is_active defaults true'
+            echo '- Core SUPERVISOR / ROTATE seed invariants: VERIFIED'
             echo '- Canonical application health/readiness: PASS'
             echo '- Application deployment performed: NO'
             echo '- Destructive rollback performed: NO'
