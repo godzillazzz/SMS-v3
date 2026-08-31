@@ -59,7 +59,7 @@ function yearBounds(quotaYears) {
   };
 }
 
-async function approvedUsageByYear(tx, { employeeId, leaveType, quotaYears, excludeId }) {
+async function approvedUsageByYear(tx, { employeeId, leaveType, leaveQuotaBucketSnapshot, quotaYears, excludeId }) {
   const bounds = yearBounds(quotaYears);
   const rows = await tx.leaveRequest.findMany({
     where: {
@@ -69,24 +69,31 @@ async function approvedUsageByYear(tx, { employeeId, leaveType, quotaYears, excl
       endDate: { gte: bounds.start },
       ...(excludeId && { id: { not: excludeId } })
     },
-    select: { id: true, leaveType: true, startDate: true, endDate: true, dayCount: true }
+    select: { id: true, leaveType: true, leaveQuotaBucketSnapshot: true, startDate: true, endDate: true, dayCount: true }
   });
   const usage = Object.fromEntries(bounds.years.map((year) => [year, 0]));
-  const targetField = quotaFieldForLeaveType(leaveType);
+  const targetField = quotaFieldForLeaveType(leaveType, leaveQuotaBucketSnapshot);
+  if (!targetField) return usage;
   for (const row of rows) {
-    if (quotaFieldForLeaveType(row.leaveType) !== targetField) continue;
+    if (quotaFieldForLeaveType(row.leaveType, row.leaveQuotaBucketSnapshot) !== targetField) continue;
     const allocated = persistedUsageByQuotaYear(row);
     for (const year of bounds.years) usage[year] += Number(allocated[year] || 0);
   }
   return usage;
 }
 
-function quotaFieldForLeaveType(leaveType) {
+function quotaFieldForLeaveType(leaveType, leaveQuotaBucketSnapshot) {
+  const snapshot = String(leaveQuotaBucketSnapshot || '').trim().toUpperCase();
+  if (snapshot === 'NONE') return null;
+  if (snapshot === 'SICK') return 'sickLeave';
+  if (snapshot === 'PERSONAL') return 'personalLeave';
+  if (snapshot === 'VACATION') return 'vacationLeave';
+
   const value = String(leaveType || '').trim().toLowerCase();
   if (value.includes('ป่วย') || value.includes('sick')) return 'sickLeave';
   if (value.includes('กิจ') || value.includes('personal')) return 'personalLeave';
   if (value.includes('พักร้อน') || value.includes('vacation')) return 'vacationLeave';
-  throw new HttpError(400, 'Unsupported leave type.');
+  throw new HttpError(400, 'Unsupported leave type.', { code: 'LEAVE_QUOTA_BUCKET_UNKNOWN' });
 }
 
 async function ensureQuotaRows(tx, { employeeId, quotaYears, source, leavePolicySnapshot }) {
@@ -101,6 +108,7 @@ async function ensureQuotaRows(tx, { employeeId, quotaYears, source, leavePolicy
 async function validateAnnualLeaveAvailability(tx, {
   employeeId,
   leaveType,
+  leaveQuotaBucketSnapshot,
   requestedUsageByYear,
   excludeId,
   source = 'ON_DEMAND',
@@ -110,10 +118,11 @@ async function validateAnnualLeaveAvailability(tx, {
 }) {
   const quotaYears = Object.keys(requestedUsageByYear).map(Number).sort((a, b) => a - b);
   if (!quotaYears.length) throw new HttpError(400, 'Leave request has no chargeable days.');
+  const field = quotaFieldForLeaveType(leaveType, leaveQuotaBucketSnapshot);
+  if (!field) return { quotas: new Map(), used: Object.fromEntries(quotaYears.map((year) => [year, 0])), balances: {}, quotaField: null };
   const quotas = await stageTimer('quota_ensure', () => ensureQuotaRows(tx, { employeeId, quotaYears, source, leavePolicySnapshot }));
   if (lock) await stageTimer('quota_lock', () => lockAnnualQuotas(tx, employeeId, quotaYears));
-  const used = await stageTimer('approved_usage_lookup', () => approvedUsageByYear(tx, { employeeId, leaveType, quotaYears, excludeId }));
-  const field = quotaFieldForLeaveType(leaveType);
+  const used = await stageTimer('approved_usage_lookup', () => approvedUsageByYear(tx, { employeeId, leaveType, leaveQuotaBucketSnapshot, quotaYears, excludeId }));
   const balances = {};
   for (const quotaYear of quotaYears) {
     const entitlement = Number(quotas.get(quotaYear)?.[field]);
@@ -147,7 +156,7 @@ async function annualSummary(tx, { employeeId, quotaYear }) {
   };
   const used = { sickLeave: 0, personalLeave: 0, vacationLeave: 0 };
   for (const [leaveType, field] of [['SICK', 'sickLeave'], ['PERSONAL', 'personalLeave'], ['VACATION', 'vacationLeave']]) {
-    const usage = await approvedUsageByYear(tx, { employeeId, leaveType, quotaYears: [year] });
+    const usage = await approvedUsageByYear(tx, { employeeId, leaveType, leaveQuotaBucketSnapshot: leaveType, quotaYears: [year] });
     used[field] = Number(usage[year] || 0);
   }
   return {

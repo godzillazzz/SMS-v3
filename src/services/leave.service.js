@@ -2,12 +2,16 @@ const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const crypto = require('crypto');
 const { notifyLeaveSubmitted, notifyLeaveProcessed } = require('./notification-email.service');
+const { resolveLeaveTypeForRequest, leaveTypeSnapshot } = require('./leave-type.service');
+const { quotaFieldForLeaveType } = require('./leave-annual-accounting.service');
 
 async function submitRequest(data) {
   const { employeeId, leaveType, startDate, endDate, reason, substitute } = data;
 
   const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
   if (!emp) throw new HttpError(404, 'Employee not found.');
+  const leaveTypeMaster = await resolveLeaveTypeForRequest(prisma, leaveType);
+  const leaveTypeState = leaveTypeSnapshot(leaveTypeMaster);
 
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -22,7 +26,10 @@ async function submitRequest(data) {
   const created = await prisma.leaveRequest.create({
     data: {
       employeeId,
-      leaveType,
+      leaveType: leaveTypeState.leaveType,
+      leaveTypeId: leaveTypeState.leaveTypeId,
+      leaveTypeNameSnapshot: leaveTypeState.leaveTypeNameSnapshot,
+      leaveQuotaBucketSnapshot: leaveTypeState.leaveQuotaBucketSnapshot,
       startDate: start,
       endDate: end,
       dayCount,
@@ -36,7 +43,7 @@ async function submitRequest(data) {
 
   notifyLeaveSubmitted({
     employeeName: `${emp.firstName} ${emp.lastName}`,
-    leaveType,
+    leaveType: leaveTypeState.leaveTypeNameSnapshot,
     startDate: start,
     endDate: end,
     dayCount,
@@ -194,9 +201,14 @@ async function getSummary(employeeId) {
     }
   });
 
-  const usedSick = approvedLeaves.filter((l) => l.leaveType === 'SICK').reduce((sum, l) => sum + Number(l.dayCount), 0);
-  const usedPersonal = approvedLeaves.filter((l) => l.leaveType === 'PERSONAL').reduce((sum, l) => sum + Number(l.dayCount), 0);
-  const usedVacation = approvedLeaves.filter((l) => l.leaveType === 'VACATION').reduce((sum, l) => sum + Number(l.dayCount), 0);
+  const usedByField = approvedLeaves.reduce((totals, leave) => {
+    const field = quotaFieldForLeaveType(leave.leaveType, leave.leaveQuotaBucketSnapshot);
+    if (field) totals[field] += Number(leave.dayCount);
+    return totals;
+  }, { sickLeave: 0, personalLeave: 0, vacationLeave: 0 });
+  const usedSick = usedByField.sickLeave;
+  const usedPersonal = usedByField.personalLeave;
+  const usedVacation = usedByField.vacationLeave;
 
   return {
     quota: {

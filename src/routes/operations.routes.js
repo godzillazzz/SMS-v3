@@ -23,6 +23,7 @@ const { provisionAnnualLeaveQuotas } = require('../services/annual-leave-quota-c
 const { isReservedOperationalSettingKey } = require('../services/g03-1-multi-year-activation.service');
 const { getSystemSettingDefinition, isSensitiveSystemSettingKey, normalizeRegisteredSystemSettingValue, presentRegisteredSystemSetting, presentSystemSettings, registeredSystemSettingGroups } = require('../services/system-setting-registry.service');
 const { createLeavePolicyService, isRetroactiveLeaveStart, retroactiveDaysBack } = require('../services/leave-policy.service');
+const { createLeaveTypeService, resolveLeaveTypeForRequest, leaveTypeSnapshot } = require('../services/leave-type.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
@@ -65,6 +66,19 @@ const shiftTypeInput = z.object({
 });
 const booleanCoerce = z.union([z.boolean(), z.string().transform((val) => val === 'true' || val === '1'), z.number().transform((val) => val === 1)]).optional();
 const shiftInput = z.object({ employeeId: uuid, shiftTypeId: uuid, workDate: z.coerce.date(), startTime: scheduleTimeInput, endTime: scheduleTimeInput, hours: z.coerce.number().min(0).max(24).optional(), remark: nullableText(2000), locked: booleanCoerce, licenseOverride: booleanCoerce, overrideReason: nullableText(2000) });
+const leaveTypeCreateInput = z.object({
+  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,40}$/),
+  name: z.string().trim().min(1).max(150),
+  quotaBucket: z.enum(['SICK', 'PERSONAL', 'VACATION', 'NONE']),
+  isActive: z.boolean().optional().default(true),
+  sortOrder: z.coerce.number().int().min(0).max(9999).optional().default(100)
+});
+const leaveTypeUpdateInput = z.object({
+  name: z.string().trim().min(1).max(150).optional(),
+  quotaBucket: z.enum(['SICK', 'PERSONAL', 'VACATION', 'NONE']).optional(),
+  isActive: z.boolean().optional(),
+  sortOrder: z.coerce.number().int().min(0).max(9999).optional()
+}).refine((value) => Object.keys(value).length > 0, { message: 'At least one Leave Type field is required.' });
 const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), substitute: z.string().trim().min(1).max(255), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
 const leaveListQuery = paging.extend({ status: z.string().trim().min(1).max(100).optional(), employeeId: uuid.optional(), department: z.string().trim().max(100).optional(), search: z.string().trim().max(255).optional(), year: z.coerce.number().int().optional(), month: z.coerce.number().int().optional() });
 const leaveCorrectionInput = z.object({
@@ -132,13 +146,6 @@ const ensureOperationalEmployee = async (client, employeeId) => {
   if (!employee.isActive || employee.deletedAt) throw new HttpError(409, 'Inactive employees cannot receive operational license changes.', { code: 'INACTIVE_EMPLOYEE_OPERATION' });
   return employee;
 };
-const normalizeLeaveType = (leaveType) => {
-  const value = String(leaveType).trim().toLowerCase();
-  if (value.includes('ป่วย') || value.includes('sick')) return 'SICK';
-  if (value.includes('กิจ') || value.includes('personal')) return 'PERSONAL';
-  if (value.includes('พักร้อน') || value.includes('vacation')) return 'VACATION';
-  throw new HttpError(400, 'Unsupported leave type.');
-};
 const positionText = (employee) => String(employee?.jobTitle || '').toLowerCase();
 const isSupervisorPosition = (employee) => /supervisor|หัวหน้า|ซุปเปอร์ไวเซอร์/.test(positionText(employee));
 const isManagerPosition = (employee) => /manager|ผู้จัดการ/.test(positionText(employee));
@@ -146,6 +153,7 @@ const licenseStorage = createSupabaseLicenseDocumentStorage();
 const licenseDocuments = createLicenseDocumentService({ prisma, storage: licenseStorage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
 const attendanceEvidenceStorage = createSupabaseAttendanceFaceEvidenceStorage({ prisma, audit });
 const leavePolicyService = createLeavePolicyService({ prisma });
+const leaveTypeService = createLeaveTypeService({ prisma, audit });
 const checkIsRetroactive = (dateInput) => isRetroactiveLeaveStart(dateInput);
 const assertRetroactiveLeaveEntryAllowed = ({ policy, actorRole, actorEmployeeId, employeeId, startDate, correction = false }) => {
   const isRetroactive = checkIsRetroactive(startDate);
@@ -198,6 +206,7 @@ const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser, options =
 const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedUsageByYear, excludeId, options = {}) => validateAnnualLeaveAvailability(tx, {
   employeeId,
   leaveType,
+  leaveQuotaBucketSnapshot: options.leaveQuotaBucketSnapshot,
   requestedUsageByYear,
   excludeId,
   source: options.source || 'ON_DEMAND',
@@ -224,7 +233,9 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute, opti
   const employeeId = currentUser.role === 'VIEWER' ? currentUser.employeeId : input.employeeId;
   if (!employeeId) throw new HttpError(400, 'Employee is required.');
   const employee = await stageTimer('employee_lookup', () => tx.employee.findUniqueOrThrow({ where: { id: employeeId } }));
-  const leaveType = normalizeLeaveType(input.leaveType);
+  const leaveTypeMaster = await stageTimer('leave_type_lookup', () => resolveLeaveTypeForRequest(tx, input.leaveType));
+  const leaveTypeState = leaveTypeSnapshot(leaveTypeMaster);
+  const leaveType = leaveTypeState.leaveType;
   const requestedUsageByYear = nativeUsageByQuotaYear(input.startDate, input.endDate);
   const dayCount = Object.values(requestedUsageByYear).reduce((sum, value) => sum + Number(value), 0);
   const leavePolicySnapshot = await stageTimer('leave_policy_lookup', () => leavePolicyService.getPolicy(tx));
@@ -245,10 +256,10 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute, opti
 
   const overlap = await stageTimer('overlap_lookup', () => tx.leaveRequest.findFirst({ where: { employeeId, status: { in: LEAVE_OVERLAP_ACTIVE_STATUSES }, startDate: { lte: input.endDate }, endDate: { gte: input.startDate } } }));
   if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.');
-  await ensureLeaveAvailable(tx, employeeId, leaveType, requestedUsageByYear, undefined, { stageTimer, leavePolicySnapshot });
+  await ensureLeaveAvailable(tx, employeeId, leaveType, requestedUsageByYear, undefined, { stageTimer, leavePolicySnapshot, leaveQuotaBucketSnapshot: leaveTypeState.leaveQuotaBucketSnapshot });
   if (file && !allowedAttachmentTypes.has(file.mimetype)) throw new HttpError(415, 'Attachment must be PDF, JPEG, or PNG.');
   const attachmentThresholdDays = Number(leavePolicySnapshot.sickAttachmentRequiredAfterDays);
-  if (leaveType === 'SICK' && dayCount > attachmentThresholdDays && !file) throw new HttpError(400, `Sick leave longer than ${attachmentThresholdDays} day(s) requires an attachment.`, { code: 'LEAVE_SICK_ATTACHMENT_REQUIRED', thresholdDays: attachmentThresholdDays });
+  if (leaveTypeState.leaveQuotaBucketSnapshot === 'SICK' && dayCount > attachmentThresholdDays && !file) throw new HttpError(400, `ลาป่วยเกิน ${attachmentThresholdDays} วัน ต้องแนบเอกสารประกอบ`, { code: 'LEAVE_SICK_ATTACHMENT_REQUIRED', thresholdDays: attachmentThresholdDays });
   const safeFileName = file?.originalname.replace(/[\\/\0]/g, '_').slice(0, 255);
   const substituteText = String(substitute ?? input.substitute ?? '').trim();
   if (!substituteText) throw new HttpError(400, 'Substitute is required.');
@@ -260,18 +271,18 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute, opti
   const prefix = onBehalfOf ? `[บันทึกแทนโดย: ${currentUser.role}] ` : '';
   const reason = `${prefix}[แทน: ${substituteText.slice(0, 255)}] ${reasonText || '-'}`;
 
-  const leave = await stageTimer('leave_create', () => tx.leaveRequest.create({ data: { employeeId, createdByUserId: requestUser.sub, leaveType, startDate: input.startDate, endDate: input.endDate, reason, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: file ? 'STORED' : 'NONE', status: 'PENDING' } }));
+  const leave = await stageTimer('leave_create', () => tx.leaveRequest.create({ data: { employeeId, createdByUserId: requestUser.sub, leaveType, leaveTypeId: leaveTypeState.leaveTypeId, leaveTypeNameSnapshot: leaveTypeState.leaveTypeNameSnapshot, leaveQuotaBucketSnapshot: leaveTypeState.leaveQuotaBucketSnapshot, startDate: input.startDate, endDate: input.endDate, reason, dayCount, sourceFingerprint: crypto.createHash('sha256').update(`v3:${crypto.randomUUID()}`).digest('hex'), requestedAt: new Date(), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, attachmentMigrationStatus: file ? 'STORED' : 'NONE', status: 'PENDING' } }));
   if (file) {
     await stageTimer('attachment_create', async () => {
       await tx.leaveAttachment.create({ data: { leaveRequestId: leave.id, fileName: safeFileName || 'attachment', mimeType: file.mimetype, sizeBytes: file.size, sha256: crypto.createHash('sha256').update(file.buffer).digest('hex'), content: file.buffer, uploadedByLegacyRef: requestUser.sub } });
       await tx.leaveRequest.update({ where: { id: leave.id }, data: { attachmentUrl: `/api/v1/leave-requests/${leave.id}/attachment` } });
     });
   }
-  await stageTimer('audit', () => audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']), attachment: file ? { present: true, mimeType: file.mimetype, sizeBytes: file.size } : { present: false }, isRetroactive, onBehalfOf, policySnapshot: { sickAttachmentRequiredAfterDays: attachmentThresholdDays, managerRetroactiveOnBehalfEnabled: leavePolicySnapshot.managerRetroactiveOnBehalfEnabled, managerRetroactiveMaxDaysBack: leavePolicySnapshot.managerRetroactiveMaxDaysBack } } }, tx));
+  await stageTimer('audit', () => audit.log({ actorUserId: requestUser.sub, action: 'CREATE', entityType: 'LeaveRequest', entityId: leave.id, metadata: { after: safeRecord(leave, ['employeeId', 'leaveType', 'startDate', 'endDate', 'dayCount', 'status']), attachment: file ? { present: true, mimeType: file.mimetype, sizeBytes: file.size } : { present: false }, isRetroactive, onBehalfOf, leaveTypeSnapshot: { id: leaveTypeState.leaveTypeId, code: leaveTypeState.leaveType, name: leaveTypeState.leaveTypeNameSnapshot, quotaBucket: leaveTypeState.leaveQuotaBucketSnapshot }, policySnapshot: { sickAttachmentRequiredAfterDays: attachmentThresholdDays, managerRetroactiveOnBehalfEnabled: leavePolicySnapshot.managerRetroactiveOnBehalfEnabled, managerRetroactiveMaxDaysBack: leavePolicySnapshot.managerRetroactiveMaxDaysBack } } }, tx));
   return {
     id: leave.id, employeeId: leave.employeeId, requestedAt: leave.requestedAt,
     employeeNameSnapshot: leave.employeeNameSnapshot, departmentSnapshot: leave.departmentSnapshot,
-    leaveType: leave.leaveType, startDate: leave.startDate, endDate: leave.endDate,
+    leaveType: leave.leaveType, leaveTypeNameSnapshot: leave.leaveTypeNameSnapshot, leaveQuotaBucketSnapshot: leave.leaveQuotaBucketSnapshot, startDate: leave.startDate, endDate: leave.endDate,
     dayCount: leave.dayCount, reason: leave.reason, status: leave.status,
     attachmentUrl: file ? `/api/v1/leave-requests/${leave.id}/attachment` : null,
     attachment: file ? { fileName: safeFileName, mimeType: file.mimetype, sizeBytes: file.size } : null
@@ -792,6 +803,29 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
   } catch (error) { next(error); }
 });
 
+router.get('/leave-types', async (req, res, next) => {
+  try {
+    const includeInactive = req.user.role === 'ADMIN' && ['1', 'true'].includes(String(req.query.includeInactive || '').toLowerCase());
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await leaveTypeService.list({ includeInactive }) });
+  } catch (error) { next(error); }
+});
+
+router.post('/leave-types', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const input = leaveTypeCreateInput.parse(req.body || {});
+    res.status(201).json({ data: await leaveTypeService.create(input, req.user.sub) });
+  } catch (error) { next(error); }
+});
+
+router.put('/leave-types/:id', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const input = leaveTypeUpdateInput.parse(req.body || {});
+    res.json({ data: await leaveTypeService.update(id, input, req.user.sub) });
+  } catch (error) { next(error); }
+});
+
 router.get('/leave-policy', async (_req, res, next) => {
   try {
     const policy = await leavePolicyService.getPolicy(prisma);
@@ -835,7 +869,7 @@ router.get('/leave-requests', async (req, res, next) => {
     try { monthFilter = parseLeaveMonth(filters); } catch (error) { throw new HttpError(400, error.message); }
     const viewerWhere = currentUser.role === 'VIEWER' ? { employeeId: currentUser.employeeId } : {};
     const requestedEmployeeWhere = currentUser.role === 'VIEWER' ? {} : (filters.employeeId ? { employeeId: filters.employeeId } : {});
-    const searchWhere = filters.search ? { OR: [{ employeeNameSnapshot: { contains: filters.search, mode: 'insensitive' } }, { departmentSnapshot: { contains: filters.search, mode: 'insensitive' } }, { reason: { contains: filters.search, mode: 'insensitive' } }] } : {};
+    const searchWhere = filters.search ? { OR: [{ employeeNameSnapshot: { contains: filters.search, mode: 'insensitive' } }, { departmentSnapshot: { contains: filters.search, mode: 'insensitive' } }, { leaveTypeNameSnapshot: { contains: filters.search, mode: 'insensitive' } }, { leaveType: { contains: filters.search, mode: 'insensitive' } }, { reason: { contains: filters.search, mode: 'insensitive' } }] } : {};
     
     // MANAGER global scope: no department filter — MANAGER sees all leave requests.
     // VIEWER is scoped to their own employee record (viewerWhere above).
@@ -854,7 +888,7 @@ router.get('/leave-requests', async (req, res, next) => {
         where,
         select: {
           id: true, employeeId: true, requestedAt: true, employeeNameSnapshot: true, departmentSnapshot: true,
-          leaveType: true, startDate: true, endDate: true, dayCount: true, reason: true,
+          leaveType: true, leaveTypeId: true, leaveTypeNameSnapshot: true, leaveQuotaBucketSnapshot: true, startDate: true, endDate: true, dayCount: true, reason: true,
           attachmentUrl: true, attachmentMigrationStatus: true, status: true, approvedAt: true, approvedByLegacyRef: true,
           createdByUserId: true,
           attachment: { select: { fileName: true, mimeType: true, sizeBytes: true } }
@@ -1056,7 +1090,9 @@ router.put('/leave-requests/:id/correction', async (req, res, next) => {
         correction: true
       });
       if (actor.role === 'MANAGER' && before.employeeId !== actor.employeeId) await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive });
-      const leaveType = normalizeLeaveType(input.leaveType);
+      const leaveTypeMaster = await resolveLeaveTypeForRequest(tx, input.leaveType, { allowInactiveId: before.leaveTypeId || undefined });
+      const leaveTypeState = leaveTypeSnapshot(leaveTypeMaster);
+      const leaveType = leaveTypeState.leaveType;
       const requestedUsageByYear = nativeUsageByQuotaYear(input.startDate, input.endDate);
       const dayCount = Object.values(requestedUsageByYear).reduce((sum, value) => sum + Number(value), 0);
       const overlap = await tx.leaveRequest.findFirst({
@@ -1070,13 +1106,16 @@ router.put('/leave-requests/:id/correction', async (req, res, next) => {
         select: { id: true }
       });
       if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.', { code: 'LEAVE_CORRECTION_OVERLAP' });
-      await ensureLeaveAvailable(tx, before.employeeId, leaveType, requestedUsageByYear, id, { lock: true, leavePolicySnapshot });
+      await ensureLeaveAvailable(tx, before.employeeId, leaveType, requestedUsageByYear, id, { lock: true, leavePolicySnapshot, leaveQuotaBucketSnapshot: leaveTypeState.leaveQuotaBucketSnapshot });
       const attachmentThresholdDays = Number(leavePolicySnapshot.sickAttachmentRequiredAfterDays);
-      if (leaveType === 'SICK' && dayCount > attachmentThresholdDays && !before.attachmentUrl) throw new HttpError(400, `Sick leave longer than ${attachmentThresholdDays} day(s) requires an attachment.`, { code: 'LEAVE_SICK_ATTACHMENT_REQUIRED', thresholdDays: attachmentThresholdDays });
+      if (leaveTypeState.leaveQuotaBucketSnapshot === 'SICK' && dayCount > attachmentThresholdDays && !before.attachmentUrl) throw new HttpError(400, `ลาป่วยเกิน ${attachmentThresholdDays} วัน ต้องแนบเอกสารประกอบ`, { code: 'LEAVE_SICK_ATTACHMENT_REQUIRED', thresholdDays: attachmentThresholdDays });
       const after = await tx.leaveRequest.update({
         where: { id },
         data: {
           leaveType,
+          leaveTypeId: leaveTypeState.leaveTypeId,
+          leaveTypeNameSnapshot: leaveTypeState.leaveTypeNameSnapshot,
+          leaveQuotaBucketSnapshot: leaveTypeState.leaveQuotaBucketSnapshot,
           startDate: input.startDate,
           endDate: input.endDate,
           dayCount,

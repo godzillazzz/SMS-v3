@@ -961,6 +961,9 @@ model LeaveRequest {
   employeeNameSnapshot      String           @map("employee_name_snapshot") @db.VarChar(255)
   departmentSnapshot        String?          @map("department_snapshot") @db.VarChar(100)
   leaveType                 String           @map("leave_type") @db.VarChar(100)
+  leaveTypeId               String?          @map("leave_type_id") @db.Uuid
+  leaveTypeNameSnapshot     String?          @map("leave_type_name_snapshot") @db.VarChar(150)
+  leaveQuotaBucketSnapshot  String?          @map("leave_quota_bucket_snapshot") @db.VarChar(20)
   startDate                 DateTime         @map("start_date") @db.Date
   endDate                   DateTime         @map("end_date") @db.Date
   dayCount                  Decimal          @map("day_count") @db.Decimal(6, 2)
@@ -975,13 +978,31 @@ model LeaveRequest {
   createdByUserId           String?          @map("created_by_user_id") @db.Uuid
   employee                  Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   createdByUser             User?            @relation("LeaveRequestCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  leaveTypeMaster           LeaveTypeMaster? @relation(fields: [leaveTypeId], references: [id], onDelete: SetNull)
   attachment                LeaveAttachment?
 
   @@index([employeeId, startDate])
   @@index([status])
   @@index([status, requestedAt])
   @@index([createdByUserId])
+  @@index([leaveTypeId])
   @@map("leave_requests")
+}
+
+model LeaveTypeMaster {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String         @unique @db.VarChar(40)
+  name          String         @db.VarChar(150)
+  quotaBucket   String         @map("quota_bucket") @db.VarChar(20)
+  isActive      Boolean        @default(true) @map("is_active")
+  isSystem      Boolean        @default(false) @map("is_system")
+  sortOrder     Int            @default(100) @map("sort_order")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  leaveRequests LeaveRequest[]
+
+  @@index([isActive, sortOrder])
+  @@map("leave_type_master")
 }
 
 model LeaveAttachment {
