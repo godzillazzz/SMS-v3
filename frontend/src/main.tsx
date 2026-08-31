@@ -65,6 +65,7 @@ import { AutoSchedulePatternPanel } from './components/AutoSchedulePatternPanel'
 import { ApprovalAuthorityMatrixPanel } from './components/ApprovalAuthorityMatrixPanel';
 import { DataRetentionCenterPanel } from './components/DataRetentionCenterPanel';
 import { ConfigurationRegistryPanel } from './components/ConfigurationRegistryPanel';
+import { SystemSettingHistoryPanel } from './components/SystemSettingHistoryPanel';
 import { NotificationCenterPanel } from './components/NotificationCenterPanel';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';

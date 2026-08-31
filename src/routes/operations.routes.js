@@ -37,6 +37,7 @@ const { parseLeaveMonth, leaveMonthWhere } = require('../utils/leave-month-filte
 const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { getDashboardSummary } = require('../services/dashboard.service');
 const { getAuditLogPage } = require('../services/audit-log-viewer.service');
+const systemSettingHistoryService = require('../services/system-setting-history.service');
 const { getExecutiveReport } = require('../services/executive-report.service');
 const { ensureEmployeeOperationalForShift, projectedScheduleConflictIds } = require('../services/employee-operational-eligibility.service');
 const shiftService = require('../services/shift.service');
@@ -915,6 +916,22 @@ router.get('/system-settings', authorize('ADMIN'), async (_req, res, next) => {
     res.json({ data: presentSystemSettings(settings), meta: { groups: registeredSystemSettingGroups() } });
   } catch (error) { next(error); }
 });
+router.get('/system-settings/:key/history', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const key = z.string().trim().regex(/^[A-Z0-9_.-]{1,150}$/).parse(req.params.key);
+    res.set('Cache-Control','no-store');
+    res.json({ data: await systemSettingHistoryService.history(prisma, key) });
+  } catch (error) { next(error); }
+});
+router.post('/system-settings/:key/restore', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const key = z.string().trim().regex(/^[A-Z0-9_.-]{1,150}$/).parse(req.params.key);
+    const input = z.object({ auditLogId: uuid, reason: z.string().trim().min(3).max(500) }).strict().parse(req.body);
+    res.set('Cache-Control','no-store');
+    res.json({ data: await systemSettingHistoryService.restore({ prisma, audit, actor:req.user, key, auditLogId:input.auditLogId, reason:input.reason }) });
+  } catch (error) { next(error); }
+});
+
 router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) => {
   try {
     const key = z.string().trim().regex(/^[A-Z0-9_.-]{1,150}$/).parse(req.params.key);
