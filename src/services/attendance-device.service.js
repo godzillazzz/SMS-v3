@@ -25,9 +25,16 @@ function mapConflict(error) {
   if (error?.code === 'P2002') return http(409, 'ATTENDANCE_DEVICE_STATE_CONFLICT', 'Attendance device state changed. Please refresh and try again.');
   return error;
 }
-function safeEnrollment(row) { return row ? { id: row.id, employeeId: row.employeeId, displayName: row.displayName, keyAlgorithm: row.keyAlgorithm, credentialFingerprint: row.credentialFingerprint, platformHint: row.platformHint, status: row.status, proofVerifiedAt: row.proofVerifiedAt, enrolledAt: row.enrolledAt, activatedAt: row.activatedAt, revokedAt: row.revokedAt } : null; }
+function safeEnrollment(row) { return row ? { id: row.id, employeeId: row.employeeId, displayName: row.displayName, keyAlgorithm: row.keyAlgorithm, credentialFingerprint: row.credentialFingerprint, platformHint: row.platformHint, status: row.status, proofVerifiedAt: row.proofVerifiedAt, enrolledAt: row.enrolledAt, activatedAt: row.activatedAt, revokedAt: row.revokedAt, revokedReason: row.revokedReason } : null; }
 function safeEmployee(row) { return row ? { id: row.id, displayName: row.displayName, firstName: row.firstName, lastName: row.lastName, department: row.department } : undefined; }
 function safeRequester(row) { return row ? { id: row.id, displayName: row.displayName } : undefined; }
+function safeAudit(row) {
+  if (!row) return null;
+  const source = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {};
+  const allowed = new Set(['event', 'employeeId', 'requestType', 'deviceEnrollmentId', 'candidateDeviceEnrollmentId', 'previousDeviceEnrollmentId', 'activeDeviceEnrollmentId', 'requestedByUserId', 'proofPreviouslyVerified', 'keyAlgorithm', 'credentialFingerprint', 'reason', 'revokedAt', 'cancelledRequestId']);
+  const metadata = Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key)));
+  return { id: row.id, actorUserId: row.actorUserId, action: row.action, entityType: row.entityType, entityId: row.entityId, metadata, createdAt: row.createdAt, actor: safeRequester(row.actor) };
+}
 function safeRequest(row) { return row ? { id: row.id, employeeId: row.employeeId, requestType: row.requestType, status: row.status, requestedByUserId: row.requestedByUserId, candidateDeviceEnrollmentId: row.candidateDeviceEnrollmentId, currentDeviceEnrollmentId: row.currentDeviceEnrollmentId, reason: row.reason, reviewerComment: row.reviewerComment, reviewedByUserId: row.reviewedByUserId, reviewedAt: row.reviewedAt, returnedAt: row.returnedAt, cancelledAt: row.cancelledAt, createdAt: row.createdAt, updatedAt: row.updatedAt, candidateDevice: row.candidateDevice ? safeEnrollment(row.candidateDevice) : undefined, employee: safeEmployee(row.employee), requestedBy: safeRequester(row.requestedBy) } : null; }
 
 function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date(), randomBytes = crypto.randomBytes } = {}) {
@@ -146,6 +153,62 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
     return rows.map(safeRequest);
   }
 
+  async function listAdminOverview({ actor }) {
+    assertAdmin(actor);
+    const [enrollments, requests, audits] = await Promise.all([
+      prisma.attendanceDeviceEnrollment.findMany({ include: { employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } } }, orderBy: [{ employeeId: 'asc' }, { createdAt: 'desc' }] }),
+      prisma.attendanceDeviceChangeRequest.findMany({ include: { candidateDevice: true, employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } }, requestedBy: { select: { id: true, displayName: true } } }, orderBy: { createdAt: 'desc' } }),
+      prisma.auditLog.findMany({ where: { entityType: { in: ['AttendanceDeviceEnrollment', 'AttendanceDeviceChangeRequest'] } }, include: { actor: { select: { id: true, displayName: true } } }, orderBy: { createdAt: 'desc' }, take: 300 })
+    ]);
+    const groups = new Map();
+    const ensure = (employeeId, employee) => {
+      if (!groups.has(employeeId)) groups.set(employeeId, { employeeId, employee: safeEmployee(employee), history: [], requests: [], recentAudit: [] });
+      else if (employee && !groups.get(employeeId).employee) groups.get(employeeId).employee = safeEmployee(employee);
+      return groups.get(employeeId);
+    };
+    for (const row of enrollments) ensure(row.employeeId, row.employee).history.push(safeEnrollment(row));
+    for (const row of requests) ensure(row.employeeId, row.employee).requests.push(safeRequest(row));
+    for (const row of audits) {
+      const employeeId = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata.employeeId : null;
+      if (typeof employeeId === 'string' && groups.has(employeeId) && groups.get(employeeId).recentAudit.length < 20) groups.get(employeeId).recentAudit.push(safeAudit(row));
+    }
+    return Array.from(groups.values()).map((group) => ({
+      employeeId: group.employeeId,
+      employee: group.employee,
+      activeDevice: group.history.find((row) => row.status === 'ACTIVE') || null,
+      activeRequest: group.requests.find((row) => ACTIVE_REQUEST_STATUSES.includes(row.status)) || null,
+      history: group.history,
+      recentAudit: group.recentAudit
+    })).sort((a, b) => String(a.employee?.displayName || a.employeeId).localeCompare(String(b.employee?.displayName || b.employeeId), 'th'));
+  }
+
+  async function revokeCurrent({ actor, employeeId, deviceEnrollmentId, reason }) {
+    assertAdmin(actor);
+    const text = cleanText(reason);
+    if (!text || text.length < 3) throw http(400, 'ATTENDANCE_DEVICE_REVOKE_REASON_REQUIRED', 'A revoke reason of at least 3 characters is required.');
+    const now = clock();
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const device = await tx.attendanceDeviceEnrollment.findUnique({ where: { id: deviceEnrollmentId } });
+        if (!device || device.employeeId !== employeeId) throw http(404, 'ATTENDANCE_DEVICE_NOT_FOUND', 'Attendance device not found.');
+        if (device.status !== 'ACTIVE') throw http(409, 'ATTENDANCE_DEVICE_NOT_ACTIVE', 'Only the current ACTIVE Attendance device can be revoked.');
+        const pending = await tx.attendanceDeviceChangeRequest.findFirst({ where: { employeeId, status: { in: ACTIVE_REQUEST_STATUSES } }, include: { candidateDevice: true }, orderBy: { createdAt: 'desc' } });
+        const claimed = await tx.attendanceDeviceEnrollment.updateMany({ where: { id: device.id, employeeId, status: 'ACTIVE' }, data: { status: 'REVOKED', revokedAt: now, revokedReason: text } });
+        if (claimed.count !== 1) throw http(409, 'ATTENDANCE_DEVICE_STATE_CONFLICT', 'Attendance device state changed. Please refresh and try again.');
+        let cancelledRequestId = null;
+        if (pending) {
+          const cancelled = await tx.attendanceDeviceChangeRequest.updateMany({ where: { id: pending.id, employeeId, status: { in: ACTIVE_REQUEST_STATUSES } }, data: { status: 'CANCELLED', cancelledAt: now, reviewerComment: text, reviewedByUserId: actor.sub, reviewedAt: now } });
+          if (cancelled.count === 1) {
+            cancelledRequestId = pending.id;
+            if (pending.candidateDeviceEnrollmentId !== device.id) await tx.attendanceDeviceEnrollment.updateMany({ where: { id: pending.candidateDeviceEnrollmentId, employeeId, status: 'PENDING_APPROVAL' }, data: { status: 'CANCELLED', revokedAt: now, revokedReason: text } });
+          }
+        }
+        await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceEnrollment', entityId: device.id, metadata: { event: 'ADMIN_REVOKE_CURRENT', employeeId, deviceEnrollmentId: device.id, reason: text, revokedAt: now, cancelledRequestId } }, tx);
+        return { employeeId, revokedDevice: safeEnrollment({ ...device, status: 'REVOKED', revokedAt: now, revokedReason: text }), cancelledRequestId };
+      });
+    } catch (error) { throw mapConflict(error); }
+  }
+
   async function approve({ actor, requestId, comment = null }) {
     assertAdmin(actor);
     const now = clock();
@@ -228,7 +291,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
     });
   }
 
-  return { getMyState, createRequest, createProofChallenge, verifyProof, listRequests, approve, returnForCorrection, resubmit, reject, cancel };
+  return { getMyState, createRequest, createProofChallenge, verifyProof, listRequests, listAdminOverview, revokeCurrent, approve, returnForCorrection, resubmit, reject, cancel };
 }
 
 module.exports = { ACTIVE_REQUEST_STATUSES, SUPPORTED_KEY_ALGORITHMS, CHALLENGE_TTL_MS, challengeHash, fingerprint, createAttendanceDeviceService };

@@ -20,6 +20,7 @@ const reviewComment = z.object({ comment: z.string().trim().min(3).max(1000) }).
 const rejectInput = z.object({ reason: z.string().trim().min(3).max(1000) }).strict();
 const cancelInput = rejectInput;
 const resubmitInput = z.object({ reason: z.string().trim().max(1000).nullable().optional() }).strict();
+const adminRevokeInput = z.object({ reason: z.string().trim().min(3).max(1000) }).strict();
 const status = z.enum(['PENDING_APPROVAL', 'RETURNED_FOR_CORRECTION', 'APPROVED', 'REJECTED', 'CANCELLED']);
 
 router.use(authenticate);
@@ -29,6 +30,9 @@ router.post('/requests/:id/proof/options', async (req, res, next) => { try { res
 router.post('/requests/:id/proof/verify', async (req, res, next) => { try { res.json({ data: await service.verifyProof({ actor: req.user, requestId: uuid.parse(req.params.id), ...proofVerify.parse(req.body) }) }); } catch (error) { next(error); } });
 router.post('/requests/:id/resubmit', async (req, res, next) => { try { res.json({ data: await service.resubmit({ actor: req.user, requestId: uuid.parse(req.params.id), ...resubmitInput.parse(req.body) }) }); } catch (error) { next(error); } });
 router.post('/requests/:id/cancel', async (req, res, next) => { try { res.json({ data: await service.cancel({ actor: req.user, requestId: uuid.parse(req.params.id), ...cancelInput.parse(req.body) }) }); } catch (error) { next(error); } });
+
+router.get('/admin/overview', authorize('ADMIN'), async (req, res, next) => { try { res.json({ data: await service.listAdminOverview({ actor: req.user }) }); } catch (error) { next(error); } });
+router.post('/admin/employees/:employeeId/current/:deviceId/revoke', authorize('ADMIN'), async (req, res, next) => { try { const input = adminRevokeInput.parse(req.body); res.json({ data: await service.revokeCurrent({ actor: req.user, employeeId: uuid.parse(req.params.employeeId), deviceEnrollmentId: uuid.parse(req.params.deviceId), reason: input.reason }) }); } catch (error) { next(error); } });
 
 router.get('/requests', authorize('ADMIN'), async (req, res, next) => { try { res.json({ data: await service.listRequests({ actor: req.user, status: req.query.status ? status.parse(req.query.status) : 'PENDING_APPROVAL' }) }); } catch (error) { next(error); } });
 router.post('/requests/:id/approve', authorize('ADMIN'), async (req, res, next) => { try { const input = z.object({ comment: z.string().trim().max(1000).nullable().optional() }).strict().parse(req.body); res.json({ data: await service.approve({ actor: req.user, requestId: uuid.parse(req.params.id), ...input }) }); } catch (error) { next(error); } });
