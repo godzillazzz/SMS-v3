@@ -30,7 +30,8 @@ describe('Employee action and bulk auto-schedule hotfix', () => {
     expect(main).toContain('api.previewAutoSchedule(auth.token, scheduleMonth)');
     expect(main).toContain('Shared Pattern Engine เดียวกับไม้กายสิทธิ์รายบุคคล');
     expect(main).toContain('Auto Continue แบบเดียวกับไม้กายสิทธิ์รายบุคคล');
-    expect(main).toContain('พนักงานทั่วไป 6D / OFF / 6N / OFF');
+    expect(main).toContain('ใช้ Pattern Master เดียวกับไม้กายสิทธิ์รายบุคคล');
+    expect(main).toContain('อ่านแพทเทิร์น Supervisor/พนักงานทั่วไปจากค่าที่ Admin จัดการ');
     expect(main).toContain('คง AL และ Admin license override');
   });
 });

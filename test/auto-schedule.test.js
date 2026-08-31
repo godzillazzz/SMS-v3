@@ -2,6 +2,7 @@ process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { buildAutoSchedulePlan, buildEmployeeAutoSchedulePlan, monthBounds, suggestedPhase } = require('../src/services/auto-schedule.service');
+const { CORE_AUTO_SCHEDULE_PATTERNS } = require('../src/services/auto-schedule-pattern.service');
 
 const shiftTypes = [
   { id: 'shift-d', code: 'D', name: 'Day', startTime: '08:00', endTime: '20:00', hours: 12, color: '#10B981' },
@@ -15,14 +16,19 @@ const employees = [
 ];
 const licenses = employees.map((employee) => ({ employeeId: employee.id, issueDate: new Date('2020-01-01T00:00:00Z'), expiryDate: new Date('2030-01-01T00:00:00Z'), status: 'Active' }));
 
-function client({ current = [], history = [], employeeRows = employees, licenseRows = licenses } = {}) {
+function client({ current = [], history = [], employeeRows = employees, licenseRows = licenses, patternRows = CORE_AUTO_SCHEDULE_PATTERNS } = {}) {
   let shiftQuery = 0;
   return {
     schedulingRule: { findMany: async () => [{ ruleId: 'RULE001', value: '72', enabled: true }] },
     employee: { findMany: async () => employeeRows },
     shiftType: { findMany: async () => shiftTypes },
     shiftAssignment: { findMany: async () => (++shiftQuery === 1 ? current : history) },
-    employeeLicense: { findMany: async () => licenseRows }
+    employeeLicense: { findMany: async () => licenseRows },
+    autoSchedulePattern: {
+      findMany: async ({ where } = {}) => patternRows
+        .filter((pattern) => !where?.isActive || pattern.isActive !== false)
+        .map((pattern) => ({ ...pattern, steps: pattern.steps.map((step) => ({ ...step })) }))
+    }
   };
 }
 
@@ -157,7 +163,97 @@ test('the latest magic-wand action replaces prior manual shifts but keeps leave 
 });
 
 test('auto schedule date and history helpers are deterministic', () => {
+  const rotate = CORE_AUTO_SCHEDULE_PATTERNS.find((pattern) => pattern.code === 'ROTATE');
   assert.equal(monthBounds('2026-02').dates.length, 28);
-  assert.equal(suggestedPhase([{ shiftType: { code: 'D' } }, { shiftType: { code: 'D' } }]), 'D3');
-  assert.equal(suggestedPhase([{ shiftType: { code: 'OFF' } }, { shiftType: { code: 'D' } }]), 'N1');
+  assert.equal(suggestedPhase([{ shiftType: { code: 'D' } }, { shiftType: { code: 'D' } }], rotate), 'D3');
+  assert.equal(suggestedPhase([{ shiftType: { code: 'OFF' } }, { shiftType: { code: 'D' } }], rotate), 'N1');
+});
+
+
+test('custom Pattern Master preview uses custom phases while preserving AL and Admin license override', async () => {
+  const custom = {
+    id: 'custom-team-a',
+    code: 'TEAM_A',
+    name: 'Team A Custom',
+    mode: 'CYCLE',
+    steps: [
+      { phaseCode: 'A1', shiftCode: 'N', label: 'Night first' },
+      { phaseCode: 'A2', shiftCode: 'OFF', label: 'Rest' },
+      { phaseCode: 'A3', shiftCode: 'D', label: 'Day third' }
+    ],
+    isActive: true,
+    isSystem: false,
+    targetGroup: 'MANUAL',
+    sortOrder: 100
+  };
+  const current = [
+    { employeeId: 'worker', workDate: new Date('2026-07-02T00:00:00Z'), locked: true, source: 'LEAVE_APPROVAL', remark: 'leave', licenseOverride: false, shiftType: shiftTypes[3] },
+    { employeeId: 'worker', workDate: new Date('2026-07-03T00:00:00Z'), locked: true, source: 'MANUAL', remark: 'admin coverage', licenseStatus: 'OVERRIDDEN', licenseOverride: true, overrideReason: 'Approved coverage', shiftType: shiftTypes[1] }
+  ];
+  const plan = await buildEmployeeAutoSchedulePlan(
+    client({ current, patternRows: [...CORE_AUTO_SCHEDULE_PATTERNS, custom] }),
+    '2026-07',
+    'worker',
+    'A1',
+    'TEAM_A'
+  );
+  assert.deepEqual(plan.rows.slice(0, 4).map((row) => row.code), ['N', 'AL', 'N', 'N']);
+  assert.equal(plan.rows[0].phaseCode, 'A1');
+  assert.equal(plan.rows[1].phaseCode, null);
+  assert.equal(plan.rows[2].phaseCode, null);
+  assert.equal(plan.rows[2].licenseOverride, true);
+  assert.equal(plan.rows[2].overrideReason, 'Approved coverage');
+  assert.equal(plan.pattern.code, 'TEAM_A');
+  assert.equal(plan.effectivePhase, 'A1');
+});
+
+test('custom Pattern Master rejects a phase that does not belong to the selected pattern', async () => {
+  const custom = {
+    id: 'custom-team-a',
+    code: 'TEAM_A',
+    name: 'Team A Custom',
+    mode: 'CYCLE',
+    steps: [
+      { phaseCode: 'A1', shiftCode: 'D', label: 'Day' },
+      { phaseCode: 'A2', shiftCode: 'OFF', label: 'Rest' }
+    ],
+    isActive: true,
+    isSystem: false,
+    targetGroup: 'MANUAL',
+    sortOrder: 100
+  };
+  await assert.rejects(
+    () => buildEmployeeAutoSchedulePlan(
+      client({ patternRows: [...CORE_AUTO_SCHEDULE_PATTERNS, custom] }),
+      '2026-07',
+      'worker',
+      'D1',
+      'TEAM_A'
+    ),
+    (error) => error?.statusCode === 400 && error?.details?.code === 'AUTO_SCHEDULE_PHASE_NOT_FOUND'
+  );
+});
+
+test('inactive custom Pattern Master is excluded from new previews', async () => {
+  const inactive = {
+    id: 'custom-inactive',
+    code: 'INACTIVE_X',
+    name: 'Inactive',
+    mode: 'CYCLE',
+    steps: [{ phaseCode: 'X1', shiftCode: 'D', label: 'Day' }],
+    isActive: false,
+    isSystem: false,
+    targetGroup: 'MANUAL',
+    sortOrder: 100
+  };
+  await assert.rejects(
+    () => buildEmployeeAutoSchedulePlan(
+      client({ patternRows: [...CORE_AUTO_SCHEDULE_PATTERNS, inactive] }),
+      '2026-07',
+      'worker',
+      'X1',
+      'INACTIVE_X'
+    ),
+    (error) => error?.statusCode === 404 && error?.details?.code === 'AUTO_SCHEDULE_PATTERN_NOT_FOUND'
+  );
 });

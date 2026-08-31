@@ -24,6 +24,7 @@ const { isReservedOperationalSettingKey } = require('../services/g03-1-multi-yea
 const { getSystemSettingDefinition, isSensitiveSystemSettingKey, normalizeRegisteredSystemSettingValue, presentRegisteredSystemSetting, presentSystemSettings, registeredSystemSettingGroups } = require('../services/system-setting-registry.service');
 const { createLeavePolicyService, isRetroactiveLeaveStart, retroactiveDaysBack } = require('../services/leave-policy.service');
 const { createLeaveTypeService, resolveLeaveTypeForRequest, leaveTypeSnapshot } = require('../services/leave-type.service');
+const { createAutoSchedulePatternService } = require('../services/auto-schedule-pattern.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
@@ -80,6 +81,34 @@ const leaveTypeUpdateInput = z.object({
   isActive: z.boolean().optional(),
   sortOrder: z.coerce.number().int().min(0).max(9999).optional()
 }).refine((value) => Object.keys(value).length > 0, { message: 'At least one Leave Type field is required.' });
+const autoSchedulePatternStepInput = z.object({
+  phaseCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,20}$/),
+  shiftCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,12}$/).refine((value) => value !== 'AL', { message: 'AL is authoritative approved leave and cannot be embedded in an Auto Schedule pattern.' }),
+  label: z.string().trim().min(1).max(100)
+});
+const autoSchedulePatternCreateInput = z.object({
+  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,40}$/),
+  name: z.string().trim().min(1).max(150),
+  mode: z.enum(['WEEKLY', 'CYCLE']),
+  steps: z.array(autoSchedulePatternStepInput).min(1).max(31),
+  isActive: z.boolean().optional().default(true),
+  targetGroup: z.literal('MANUAL').optional().default('MANUAL'),
+  sortOrder: z.coerce.number().int().min(0).max(9999).optional().default(100)
+});
+const autoSchedulePatternUpdateInput = z.object({
+  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,40}$/).optional(),
+  name: z.string().trim().min(1).max(150).optional(),
+  mode: z.enum(['WEEKLY', 'CYCLE']).optional(),
+  steps: z.array(autoSchedulePatternStepInput).min(1).max(31).optional(),
+  isActive: z.boolean().optional(),
+  targetGroup: z.enum(['SUPERVISOR', 'GENERAL', 'MANUAL']).optional(),
+  sortOrder: z.coerce.number().int().min(0).max(9999).optional()
+}).refine((value) => Object.keys(value).length > 0, { message: 'At least one Auto Schedule Pattern field is required.' });
+const autoSchedulePatternCodeInput = z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,40}$/);
+const autoSchedulePhaseInput = z.union([
+  z.literal('AUTO'),
+  z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,20}$/)
+]);
 const leaveInput = z.object({ employeeId: uuid.optional(), leaveType: z.string().trim().min(1).max(100), startDate: z.coerce.date(), endDate: z.coerce.date(), dayCount: z.coerce.number().positive().max(366).optional(), substitute: z.string().trim().min(1).max(255), reason: nullableText(2000) }).refine((value) => value.startDate <= value.endDate, { message: 'Start date must not be after end date.', path: ['endDate'] });
 const leaveListQuery = paging.extend({ status: z.string().trim().min(1).max(100).optional(), employeeId: uuid.optional(), department: z.string().trim().max(100).optional(), search: z.string().trim().max(255).optional(), year: z.coerce.number().int().optional(), month: z.coerce.number().int().optional() });
 const leaveCorrectionInput = z.object({
@@ -155,6 +184,7 @@ const licenseDocuments = createLicenseDocumentService({ prisma, storage: license
 const attendanceEvidenceStorage = createSupabaseAttendanceFaceEvidenceStorage({ prisma, audit });
 const leavePolicyService = createLeavePolicyService({ prisma });
 const leaveTypeService = createLeaveTypeService({ prisma, audit });
+const autoSchedulePatternService = createAutoSchedulePatternService({ prisma, audit });
 const checkIsRetroactive = (dateInput) => isRetroactiveLeaveStart(dateInput);
 const assertRetroactiveLeaveEntryAllowed = ({ policy, actorRole, actorEmployeeId, employeeId, startDate, correction = false }) => {
   const isRetroactive = checkIsRetroactive(startDate);
@@ -583,13 +613,13 @@ router.post('/schedule/auto-commit', authorize('ADMIN'), async (req, res, next) 
 });
 router.post('/schedule/employee-auto-preview', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { month, employeeId, startPhase, patternType } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid, startPhase: z.enum(['AUTO', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'OFF-D', 'N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'OFF-N']).default('AUTO'), patternType: z.enum(['AUTO', 'SUPERVISOR', 'ROTATE']).default('AUTO') }).parse(req.body);
+    const { month, employeeId, startPhase, patternType } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid, startPhase: autoSchedulePhaseInput.default('AUTO'), patternType: z.union([z.literal('AUTO'), autoSchedulePatternCodeInput]).default('AUTO') }).parse(req.body);
     res.json({ data: await buildEmployeeAutoSchedulePlan(prisma, month, employeeId, startPhase, patternType) });
   } catch (error) { next(error); }
 });
 router.post('/schedule/employee-auto-commit', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { month, employeeId, startPhase, patternType } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid, startPhase: z.enum(['AUTO', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'OFF-D', 'N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'OFF-N']).default('AUTO'), patternType: z.enum(['AUTO', 'SUPERVISOR', 'ROTATE']).default('AUTO') }).parse(req.body);
+    const { month, employeeId, startPhase, patternType } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid, startPhase: autoSchedulePhaseInput.default('AUTO'), patternType: z.union([z.literal('AUTO'), autoSchedulePatternCodeInput]).default('AUTO') }).parse(req.body);
     res.json({ data: await commitEmployeeAutoSchedule(prisma, month, employeeId, req.user.sub, startPhase, patternType) });
   } catch (error) { next(error); }
 });
@@ -802,6 +832,32 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
     });
     res.set('Cache-Control', 'no-store');
     res.json({ data: result });
+  } catch (error) { next(error); }
+});
+
+router.get('/auto-schedule-patterns', async (req, res, next) => {
+  try {
+    const includeInactiveRequested = ['1', 'true'].includes(String(req.query.includeInactive || '').toLowerCase());
+    if (includeInactiveRequested && req.user.role !== 'ADMIN') {
+      throw new HttpError(403, 'Only Admin may include inactive Auto Schedule patterns.', { code: 'AUTO_SCHEDULE_PATTERN_INCLUDE_INACTIVE_ADMIN_ONLY' });
+    }
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await autoSchedulePatternService.list({ includeInactive: includeInactiveRequested }) });
+  } catch (error) { next(error); }
+});
+
+router.post('/auto-schedule-patterns', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const input = autoSchedulePatternCreateInput.parse(req.body || {});
+    res.status(201).json({ data: await autoSchedulePatternService.create(input, req.user.sub) });
+  } catch (error) { next(error); }
+});
+
+router.put('/auto-schedule-patterns/:id', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const id = uuid.parse(req.params.id);
+    const input = autoSchedulePatternUpdateInput.parse(req.body || {});
+    res.json({ data: await autoSchedulePatternService.update(id, input, req.user.sub) });
   } catch (error) { next(error); }
 });
 

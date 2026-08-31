@@ -18,6 +18,7 @@ import { getApprovalCenterSummary } from './approval-center-client';
 import { getLeavePolicy } from './leave-policy-client';
 import { createLeaveType, getLeaveTypes, updateLeaveType, type LeaveTypeMaster } from './leave-type-client';
 import { getShiftTypes } from './shift-type-client';
+import { describePattern, getAutoSchedulePatterns, type AutoSchedulePattern } from './auto-schedule-pattern-client';
 import { setAttendanceTokenRefreshGuard, setAttendanceTokenRefreshHandler } from './attendance-auth-request';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from './request-error';
 import { acquireDocumentScrollLock } from './document-scroll-lock';
@@ -60,6 +61,7 @@ import { PasskeySecurityPanel } from './components/PasskeySecurityPanel';
 import { AttendancePolicySettingsCard, attendancePolicyKeys, type AttendancePolicyForm } from './components/AttendancePolicySettingsCard';
 import { LeavePolicySettingsCard, leavePolicyKeys, type LeavePolicyForm } from './components/LeavePolicySettingsCard';
 import { LeaveTypeMasterPanel } from './components/LeaveTypeMasterPanel';
+import { AutoSchedulePatternPanel } from './components/AutoSchedulePatternPanel';
 import { ConfigurationRegistryPanel } from './components/ConfigurationRegistryPanel';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
@@ -613,11 +615,13 @@ function EmployeeMagicWandModal({
   onSubmit(autoContinue: boolean, startPhase: string, patternType: string): Promise<void>;
 }) {
   const isSupervisorTarget = String(target.jobTitle || '').toLowerCase().includes('supervisor') || String(target.jobTitle || '').includes('หัวหน้า');
-  const [patternType, setPatternType] = useState<'SUPERVISOR' | 'ROTATE'>(isSupervisorTarget ? 'SUPERVISOR' : 'ROTATE');
+  const [patterns, setPatterns] = useState<AutoSchedulePattern[]>([]);
+  const [patternType, setPatternType] = useState('');
+  const [patternLoadError, setPatternLoadError] = useState<string>();
   const [autoContinue, setAutoContinue] = useState(false);
-  const [startPhase, setStartPhase] = useState('D1');
-  const [analysisText, setAnalysisText] = useState('วิเคราะห์จากประวัติ: เริ่มกะเช้าวันที่ 1 (D1)');
-  const [suggestedCode, setSuggestedCode] = useState('D1');
+  const [startPhase, setStartPhase] = useState('');
+  const [analysisText, setAnalysisText] = useState('กำลังอ่านแพทเทิร์นและประวัติกะ…');
+  const [suggestedCode, setSuggestedCode] = useState('');
   const modalRoot = useShiftEditorModalRoot();
   const initialFocusRef = useRef<HTMLInputElement>(null);
   const onCloseRef = useRef(onClose);
@@ -625,20 +629,60 @@ function EmployeeMagicWandModal({
   onCloseRef.current = onClose;
   canCloseRef.current = !busy;
 
+  const selectedPattern = patterns.find((pattern) => pattern.code === patternType);
+  const selectedPhaseOptions = selectedPattern?.mode === 'CYCLE' ? selectedPattern.steps : [];
+
   useEffect(() => {
-    if (!token || !target.id) return;
-    api.previewEmployeeAutoSchedule(token, scheduleMonth, String(target.id), 'AUTO', 'ROTATE')
+    if (!token) return;
+    let active = true;
+    setPatternLoadError(undefined);
+    getAutoSchedulePatterns(token)
+      .then((result) => {
+        if (!active) return;
+        const rows = (Array.isArray(result?.data) ? result.data : []) as AutoSchedulePattern[];
+        const usable = rows.filter((pattern) => pattern.isActive !== false);
+        setPatterns(usable);
+        const targetGroup = isSupervisorTarget ? 'SUPERVISOR' : 'GENERAL';
+        const preferred = usable.find((pattern) => pattern.targetGroup === targetGroup) || usable[0];
+        if (!preferred) {
+          setPatternLoadError('ไม่พบ Auto Schedule Pattern ที่เปิดใช้งาน');
+          setPatternType('');
+          return;
+        }
+        setPatternType(preferred.code);
+        const firstPhase = preferred.mode === 'CYCLE' ? preferred.steps[0]?.phaseCode || '' : '';
+        setStartPhase(firstPhase);
+        setSuggestedCode(firstPhase);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setPatterns([]);
+        setPatternType('');
+        setPatternLoadError(error instanceof Error ? error.message : 'อ่าน Auto Schedule Pattern ไม่สำเร็จ');
+      });
+    return () => { active = false; };
+  }, [token, isSupervisorTarget]);
+
+  useEffect(() => {
+    if (!token || !target.id || !patternType) return;
+    let active = true;
+    api.previewEmployeeAutoSchedule(token, scheduleMonth, String(target.id), 'AUTO', patternType)
       .then((res) => {
+        if (!active) return;
         const analysis = nested(res.data).analysis as DataRow;
         if (analysis?.text) setAnalysisText(text(analysis.text));
-        if (analysis?.code) {
+        if (analysis?.code && selectedPattern?.mode === 'CYCLE') {
           const code = text(analysis.code);
           setSuggestedCode(code);
-          setStartPhase(code);
+          setStartPhase((current) => current || code);
         }
       })
-      .catch(() => {});
-  }, [token, scheduleMonth, target.id]);
+      .catch((error) => {
+        if (!active) return;
+        setAnalysisText(error instanceof Error ? error.message : 'วิเคราะห์ Phase จากประวัติไม่สำเร็จ');
+      });
+    return () => { active = false; };
+  }, [token, scheduleMonth, target.id, patternType, selectedPattern?.mode]);
 
   useEffect(() => {
     const releaseScrollLock = acquireDocumentScrollLock();
@@ -666,9 +710,22 @@ function EmployeeMagicWandModal({
   const empName = text(target.displayName || `${text(target.firstName)} ${text(target.lastName)}`);
   const empCode = text(target.employeeCode);
 
+  const selectPattern = (pattern: AutoSchedulePattern) => {
+    setPatternType(pattern.code);
+    setAutoContinue(false);
+    const firstPhase = pattern.mode === 'CYCLE' ? pattern.steps[0]?.phaseCode || '' : '';
+    setStartPhase(firstPhase);
+    setSuggestedCode(firstPhase);
+    setAnalysisText(pattern.mode === 'CYCLE' ? 'กำลังวิเคราะห์ Phase จากประวัติกะ…' : 'แพทเทิร์นรายสัปดาห์ใช้วันจันทร์-อาทิตย์เป็น Phase อัตโนมัติ');
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(autoContinue, autoContinue ? suggestedCode : startPhase, patternType);
+    if (!selectedPattern) return;
+    const phase = selectedPattern.mode === 'CYCLE'
+      ? (autoContinue ? suggestedCode : startPhase)
+      : 'AUTO';
+    onSubmit(autoContinue && selectedPattern.mode === 'CYCLE', phase || 'AUTO', selectedPattern.code);
   };
 
   const handleBackdropMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -687,41 +744,30 @@ function EmployeeMagicWandModal({
             <div className="wand-emp-badge">
               <span>พนักงาน: <strong>{empName} ({empCode})</strong></span>
             </div>
-            <p className="wand-analysis-blue-text">การจัดครั้งนี้จะใส่เป็นฉบับร่างล่าสุดของพนักงานทั้งเดือน โดยคงเฉพาะวันลา (AL) และ Admin override ไว้ ต้องกดบันทึกการเปลี่ยนแปลงทั้งหมดเพื่อบันทึกจริง</p>
+            <p className="wand-analysis-blue-text">การจัดครั้งนี้จะสร้าง Preview เป็นฉบับร่างจาก Pattern Master ปัจจุบัน โดยคงเฉพาะวันลา (AL) และ Admin override ไว้ ต้องกดบันทึกการเปลี่ยนแปลงทั้งหมดเพื่อบันทึกจริง</p>
 
             <div className="wand-section">
               <h3 className="wand-section-title">1. เลือกรูปแบบแพทเทิร์น (Pattern)</h3>
+              {patternLoadError && <div className="alert alert-error">{patternLoadError}</div>}
               <div className="wand-options-list">
-                <label className={`wand-option-card ${patternType === 'SUPERVISOR' ? 'selected' : ''}`}>
+                {patterns.map((pattern, index) => <label key={pattern.id || pattern.code} className={`wand-option-card ${patternType === pattern.code ? 'selected' : ''}`}>
                   <input
-                    ref={initialFocusRef}
+                    ref={index === 0 ? initialFocusRef : undefined}
                     type="radio"
                     name="pattern-type"
-                    checked={patternType === 'SUPERVISOR'}
-                    onChange={() => setPatternType('SUPERVISOR')}
+                    checked={patternType === pattern.code}
+                    onChange={() => selectPattern(pattern)}
                   />
                   <div className="option-text">
-                    <strong>กะหัวหน้างาน (Supervisor)</strong>
-                    <p>เข้ากะเช้า 6 วัน (จันทร์-เสาร์) และหยุดวันอาทิตย์ (OFF) ทุกสัปดาห์</p>
+                    <strong>{pattern.name}</strong>
+                    <p>{describePattern(pattern)}</p>
+                    <small>{pattern.targetGroup === 'SUPERVISOR' ? 'ค่าเริ่มต้นหัวหน้างาน' : pattern.targetGroup === 'GENERAL' ? 'ค่าเริ่มต้นพนักงานทั่วไป' : 'แพทเทิร์นเลือกเอง'} · {pattern.mode === 'WEEKLY' ? 'รายสัปดาห์' : 'วนตาม Phase'}</small>
                   </div>
-                </label>
-
-                <label className={`wand-option-card ${patternType === 'ROTATE' ? 'selected' : ''}`}>
-                  <input
-                    type="radio"
-                    name="pattern-type"
-                    checked={patternType === 'ROTATE'}
-                    onChange={() => setPatternType('ROTATE')}
-                  />
-                  <div className="option-text">
-                    <strong>กะพนักงานเวียนลูป 1 เดือน</strong>
-                    <p>กะเช้า 6 วัน -&gt; หยุด 1 วัน -&gt; กะดึก 6 วัน -&gt; หยุด 1 วัน (วนลูปต่อเนื่อง)</p>
-                  </div>
-                </label>
+                </label>)}
               </div>
             </div>
 
-            {patternType === 'ROTATE' && (
+            {selectedPattern?.mode === 'CYCLE' && (
               <div className="wand-section">
                 <h3 className="wand-section-title">2. เลือกจุดเริ่มของเดือนนี้ (สำหรับวันที่ {thaiFullDateStr})</h3>
                 <label className="wand-checkbox-label">
@@ -733,11 +779,7 @@ function EmployeeMagicWandModal({
                   <span>🔍 เชื่อมต่อลูปจากเดือนก่อนหน้าอัตโนมัติ</span>
                 </label>
 
-                {autoContinue && (
-                  <div className="wand-analysis-blue-text">
-                    {analysisText}
-                  </div>
-                )}
+                {autoContinue && <div className="wand-analysis-blue-text">{analysisText}</div>}
 
                 <div className="field-group phase-select-box">
                   <select
@@ -746,20 +788,7 @@ function EmployeeMagicWandModal({
                     value={autoContinue ? suggestedCode : startPhase}
                     onChange={(e) => setStartPhase(e.target.value)}
                   >
-                    <option value="D1">กะเช้า วันที่ 1 (D1)</option>
-                    <option value="D2">กะเช้า วันที่ 2 (D2)</option>
-                    <option value="D3">กะเช้า วันที่ 3 (D3)</option>
-                    <option value="D4">กะเช้า วันที่ 4 (D4)</option>
-                    <option value="D5">กะเช้า วันที่ 5 (D5)</option>
-                    <option value="D6">กะเช้า วันที่ 6 (D6)</option>
-                    <option value="OFF-D">วันหยุด (OFF)</option>
-                    <option value="N1">กะดึก วันที่ 1 (N1)</option>
-                    <option value="N2">กะดึก วันที่ 2 (N2)</option>
-                    <option value="N3">กะดึก วันที่ 3 (N3)</option>
-                    <option value="N4">กะดึก วันที่ 4 (N4)</option>
-                    <option value="N5">กะดึก วันที่ 5 (N5)</option>
-                    <option value="N6">กะดึก วันที่ 6 (N6)</option>
-                    <option value="OFF-N">วันหยุด (OFF)</option>
+                    {selectedPhaseOptions.map((step) => <option key={step.phaseCode} value={step.phaseCode}>{step.label}</option>)}
                   </select>
                 </div>
               </div>
@@ -767,7 +796,7 @@ function EmployeeMagicWandModal({
           </div>
           <div className="dialog-actions">
             <button className="btn-secondary" type="button" disabled={busy} onClick={onClose}>ยกเลิก</button>
-            <button className="btn-primary compact wand-submit-btn" type="submit" disabled={busy}>
+            <button className="btn-primary compact wand-submit-btn" type="submit" disabled={busy || !selectedPattern}>
               {busy ? 'กำลังสร้างร่าง…' : '🪄 ใส่ลงในฉบับร่าง'}
             </button>
           </div>
@@ -932,7 +961,7 @@ const defaultLeaveStatusTemplate = `📢 [อัปเดตสถานะใ�
 📅 วันที่: {StartDate} ถึง {EndDate}
 📝 เหตุผล: {Reason}`;
 
-function SettingsPage({ settings, leaveTypes, leaveTypesLoading, loading, error, onRefresh, onSaveTemplates, onSaveAttendancePolicy, onSaveLeavePolicy, onCreateLeaveType, onUpdateLeaveType, onAudit }: { settings: DataRow[]; leaveTypes: LeaveTypeMaster[]; leaveTypesLoading: boolean; loading: boolean; error?: RequestErrorInput; onRefresh(): void; onSaveTemplates(newLeave: string, leaveStatus: string): Promise<void>; onSaveAttendancePolicy(policy: AttendancePolicyForm): Promise<void>; onSaveLeavePolicy(policy: LeavePolicyForm): Promise<void>; onCreateLeaveType(input: Parameters<typeof createLeaveType>[1]): Promise<void>; onUpdateLeaveType(id: string, input: Parameters<typeof updateLeaveType>[2]): Promise<void>; onAudit(): void }) {
+function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading, error, onRefresh, onSaveTemplates, onSaveAttendancePolicy, onSaveLeavePolicy, onCreateLeaveType, onUpdateLeaveType, onAudit }: { token: string; settings: DataRow[]; leaveTypes: LeaveTypeMaster[]; leaveTypesLoading: boolean; loading: boolean; error?: RequestErrorInput; onRefresh(): void; onSaveTemplates(newLeave: string, leaveStatus: string): Promise<void>; onSaveAttendancePolicy(policy: AttendancePolicyForm): Promise<void>; onSaveLeavePolicy(policy: LeavePolicyForm): Promise<void>; onCreateLeaveType(input: Parameters<typeof createLeaveType>[1]): Promise<void>; onUpdateLeaveType(id: string, input: Parameters<typeof updateLeaveType>[2]): Promise<void>; onAudit(): void }) {
   const readSetting = (key: string, fallback: string) => String(settings.find((setting) => setting.key === key)?.value || fallback);
   const [newLeaveTemplate, setNewLeaveTemplate] = useState(defaultNewLeaveTemplate);
   const [leaveStatusTemplate, setLeaveStatusTemplate] = useState(defaultLeaveStatusTemplate);
@@ -966,6 +995,7 @@ function SettingsPage({ settings, leaveTypes, leaveTypesLoading, loading, error,
     <AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />
     <LeavePolicySettingsCard settings={settings} onSave={onSaveLeavePolicy} onRefresh={onRefresh} />
     <LeaveTypeMasterPanel items={leaveTypes} loading={leaveTypesLoading} onCreate={onCreateLeaveType} onUpdate={onUpdateLeaveType} onRefresh={onRefresh} />
+    <AutoSchedulePatternPanel token={token} />
     <section className="line-settings-card">
       <div className="line-settings-title"><span>💬</span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
       <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><input type="password" value="••••••••••••••••" disabled aria-label="LINE access token is managed securely" /><small>ไม่แสดงและไม่บันทึก token ในหน้าจอนี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>
@@ -2560,7 +2590,7 @@ function Dashboard() {
             <span className="toolbar-count" style={{ marginLeft: 'auto' }}>แสดง {calendarEmployees.length} จาก {operationResponse.meta?.total || 0} คน</span>
           </div>
           <div title="ไม้กายสิทธิ์สำหรับ Admin — จัดกะทุกคนด้วย Shared Pattern Engine เดียวกับไม้กายสิทธิ์รายบุคคล" style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>
-            Auto Continue แบบเดียวกับไม้กายสิทธิ์รายบุคคล · Supervisor ทำงาน จ.-ส. / OFF อาทิตย์ · พนักงานทั่วไป 6D / OFF / 6N / OFF · คง AL และ Admin license override
+            Shared Pattern Engine เดียวกับไม้กายสิทธิ์รายบุคคล · Auto Continue แบบเดียวกับไม้กายสิทธิ์รายบุคคล · ใช้ Pattern Master เดียวกับไม้กายสิทธิ์รายบุคคล · อ่านแพทเทิร์น Supervisor/พนักงานทั่วไปจากค่าที่ Admin จัดการ · คง AL และ Admin license override
           </div>
 
           <div className="schedule-draft-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', paddingTop: '12px', borderTop: '1px dashed #bfdbfe' }}>
@@ -2781,7 +2811,7 @@ function Dashboard() {
     }
     if (activePage === 'settings') {
       const settings = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      return <SettingsPage settings={settings} leaveTypes={leaveTypes} leaveTypesLoading={leaveTypesLoading} loading={operationLoading} error={operationError} onRefresh={() => setOperationRefresh((value) => value + 1)} onAudit={() => setActivePage('audit')} onSaveTemplates={async (newLeave, leaveStatus) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_NEW_LEAVE', { value: newLeave, description: 'เทมเพลตข้อความคำขอลาใหม่ (รูปแบบเดิม)' }), api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_LEAVE_STATUS', { value: leaveStatus, description: 'เทมเพลตข้อความอัปเดตสถานะการลา (รูปแบบเดิม)' })]); setOperationRefresh((value) => value + 1); }} onSaveAttendancePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, attendancePolicyKeys.qrPolicy, { value: policy.qrPolicy, description: 'Attendance QR policy: ADAPTIVE / REQUIRED / DISABLED' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAccuracyMeters, { value: String(policy.maxAccuracyMeters), description: 'GPS accuracy สูงสุดที่ Attendance ยอมรับ (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAgeSeconds, { value: String(policy.maxAgeSeconds), description: 'อายุ GPS sample สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.futureSkewSeconds, { value: String(policy.futureSkewSeconds), description: 'GPS future clock skew สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.autoPassAccuracyMeters, { value: String(policy.autoPassAccuracyMeters), description: 'GPS accuracy สำหรับข้าม QR ใน Adaptive mode (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.innerMarginMeters, { value: String(policy.innerMarginMeters), description: 'ระยะจากขอบ geofence ที่ใช้ตัดสิน QR Step-up (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.stepUpOnSiteOverlap, { value: String(policy.stepUpOnSiteOverlap), description: 'ขอ QR Step-up เมื่อ GPS อยู่ในหลาย Site พร้อมกัน' })]); setOperationRefresh((value) => value + 1); }} onSaveLeavePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, leavePolicyKeys.defaultSickDays, { value: String(policy.defaultSickDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.defaultPersonalDays, { value: String(policy.defaultPersonalDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.defaultVacationDays, { value: String(policy.defaultVacationDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.sickAttachmentRequiredAfterDays, { value: String(policy.sickAttachmentRequiredAfterDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.managerRetroactiveOnBehalfEnabled, { value: String(policy.managerRetroactiveOnBehalfEnabled) }), api.updateSystemSetting(auth.token, leavePolicyKeys.managerRetroactiveMaxDaysBack, { value: String(policy.managerRetroactiveMaxDaysBack) })]); setOperationRefresh((value) => value + 1); }} onCreateLeaveType={async (input) => { if (!auth.token) return; await createLeaveType(auth.token, input); setOperationRefresh((value) => value + 1); }} onUpdateLeaveType={async (id, input) => { if (!auth.token) return; await updateLeaveType(auth.token, id, input); setOperationRefresh((value) => value + 1); }} />;
+      return <SettingsPage token={auth.token!} settings={settings} leaveTypes={leaveTypes} leaveTypesLoading={leaveTypesLoading} loading={operationLoading} error={operationError} onRefresh={() => setOperationRefresh((value) => value + 1)} onAudit={() => setActivePage('audit')} onSaveTemplates={async (newLeave, leaveStatus) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_NEW_LEAVE', { value: newLeave, description: 'เทมเพลตข้อความคำขอลาใหม่ (รูปแบบเดิม)' }), api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_LEAVE_STATUS', { value: leaveStatus, description: 'เทมเพลตข้อความอัปเดตสถานะการลา (รูปแบบเดิม)' })]); setOperationRefresh((value) => value + 1); }} onSaveAttendancePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, attendancePolicyKeys.qrPolicy, { value: policy.qrPolicy, description: 'Attendance QR policy: ADAPTIVE / REQUIRED / DISABLED' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAccuracyMeters, { value: String(policy.maxAccuracyMeters), description: 'GPS accuracy สูงสุดที่ Attendance ยอมรับ (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAgeSeconds, { value: String(policy.maxAgeSeconds), description: 'อายุ GPS sample สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.futureSkewSeconds, { value: String(policy.futureSkewSeconds), description: 'GPS future clock skew สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.autoPassAccuracyMeters, { value: String(policy.autoPassAccuracyMeters), description: 'GPS accuracy สำหรับข้าม QR ใน Adaptive mode (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.innerMarginMeters, { value: String(policy.innerMarginMeters), description: 'ระยะจากขอบ geofence ที่ใช้ตัดสิน QR Step-up (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.stepUpOnSiteOverlap, { value: String(policy.stepUpOnSiteOverlap), description: 'ขอ QR Step-up เมื่อ GPS อยู่ในหลาย Site พร้อมกัน' })]); setOperationRefresh((value) => value + 1); }} onSaveLeavePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, leavePolicyKeys.defaultSickDays, { value: String(policy.defaultSickDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.defaultPersonalDays, { value: String(policy.defaultPersonalDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.defaultVacationDays, { value: String(policy.defaultVacationDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.sickAttachmentRequiredAfterDays, { value: String(policy.sickAttachmentRequiredAfterDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.managerRetroactiveOnBehalfEnabled, { value: String(policy.managerRetroactiveOnBehalfEnabled) }), api.updateSystemSetting(auth.token, leavePolicyKeys.managerRetroactiveMaxDaysBack, { value: String(policy.managerRetroactiveMaxDaysBack) })]); setOperationRefresh((value) => value + 1); }} onCreateLeaveType={async (input) => { if (!auth.token) return; await createLeaveType(auth.token, input); setOperationRefresh((value) => value + 1); }} onUpdateLeaveType={async (id, input) => { if (!auth.token) return; await updateLeaveType(auth.token, id, input); setOperationRefresh((value) => value + 1); }} />;
     }
     if ((activePage === 'reportCenter' || activePage === 'executiveReport' || activePage === 'reports' || activePage === 'attendanceReport') && auth.token) {
       const initialTab = activePage === 'attendanceReport' ? 'export' : activePage === 'reports' ? 'details' : 'executive';

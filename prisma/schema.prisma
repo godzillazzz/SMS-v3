@@ -1094,6 +1094,24 @@ model SchedulingRule {
   @@map("scheduling_rules")
 }
 
+model AutoSchedulePattern {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique @db.VarChar(40)
+  name        String   @db.VarChar(150)
+  mode        String   @db.VarChar(20)
+  steps       Json     @db.JsonB
+  isActive    Boolean  @default(true) @map("is_active")
+  isSystem    Boolean  @default(false) @map("is_system")
+  targetGroup String   @default("MANUAL") @map("target_group") @db.VarChar(20)
+  sortOrder   Int      @default(100) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, sortOrder])
+  @@index([targetGroup, isActive])
+  @@map("auto_schedule_patterns")
+}
+
 model SystemSetting {
   key         String   @id @db.VarChar(150)
   value       String   @db.VarChar(2000)
