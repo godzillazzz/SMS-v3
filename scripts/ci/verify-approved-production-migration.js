@@ -11,8 +11,22 @@ const EXPECTED = Object.freeze({
   targetProjectId: 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s',
   targetOrgId: 'team_nemCExHbZ8EAhSgsvefHPAEz',
   canonicalUrl: 'https://sms-v3-staging-ten.vercel.app',
-  ownerAction: 'APPROVE_PRODUCTION_MIGRATION_ONLY',
-  migrationPolicy: 'ADDITIVE_SCHEMA_WITH_CONTROLLED_BACKFILL'
+  ownerAction: 'APPROVE_PRODUCTION_MIGRATION_ONLY'
+});
+
+const MIGRATIONS = Object.freeze({
+  'CFG-03': Object.freeze({
+    migrationName: '202608310001_cfg03_leave_type_master',
+    migrationPolicy: 'ADDITIVE_SCHEMA_WITH_CONTROLLED_BACKFILL',
+    postVerifyScript: 'scripts/ci/verify-cfg03-production-migration.js',
+    dataBackfill: true
+  }),
+  'CFG-04': Object.freeze({
+    migrationName: '202608310002_cfg04_shift_type_active_state',
+    migrationPolicy: 'ADDITIVE_SCHEMA_ONLY_NO_BACKFILL',
+    postVerifyScript: 'scripts/ci/verify-cfg04-production-migration.js',
+    dataBackfill: false
+  })
 });
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -32,11 +46,14 @@ function splitStatements(sql) {
     .filter(Boolean);
 }
 
-function validateCfg03Sql(sql) {
+function rejectDestructiveSql(sql) {
   assert(!/\bDROP\b/i.test(sql), 'DROP is forbidden');
   assert(!/\bDELETE\s+FROM\b/i.test(sql), 'DELETE is forbidden');
   assert(!/\bTRUNCATE\b/i.test(sql), 'TRUNCATE is forbidden');
+}
 
+function validateCfg03Sql(sql) {
+  rejectDestructiveSql(sql);
   const statements = splitStatements(sql);
   assert(statements.length >= 8, 'unexpectedly small migration');
   let updateCount = 0;
@@ -74,19 +91,40 @@ function validateCfg03Sql(sql) {
   return { statementCount: statements.length, controlledUpdateCount: updateCount };
 }
 
+function validateCfg04Sql(sql) {
+  rejectDestructiveSql(sql);
+  assert(!/\bUPDATE\b/i.test(sql), 'CFG-04 UPDATE is forbidden');
+  assert(!/\bINSERT\b/i.test(sql), 'CFG-04 INSERT is forbidden');
+  const statements = splitStatements(sql);
+  assert(statements.length === 1, 'CFG-04 requires exactly one schema statement');
+  const normalized = statements[0].replace(/\s+/g, ' ').trim();
+  assert(
+    /^ALTER TABLE "shift_types" ADD COLUMN "is_active" BOOLEAN NOT NULL DEFAULT true$/i.test(normalized),
+    'CFG-04 migration must only add shift_types.is_active BOOLEAN NOT NULL DEFAULT true'
+  );
+  return { statementCount: 1, controlledUpdateCount: 0 };
+}
+
+function validateSqlForMigration(migrationId, sql) {
+  if (migrationId === 'CFG-03') return validateCfg03Sql(sql);
+  if (migrationId === 'CFG-04') return validateCfg04Sql(sql);
+  throw new Error(`production migration guard: unsupported migration_id: ${migrationId}`);
+}
+
 function validateMigrationManifest(input, { root = process.cwd(), verifySql = true } = {}) {
   assert(input && typeof input === 'object' && !Array.isArray(input), 'manifest must be an object');
   assert(input.schema_version === EXPECTED.schemaVersion, 'unsupported schema_version');
   assert(input.manifest_state === EXPECTED.manifestState, 'manifest_state mismatch');
-  assert(input.migration_id === 'CFG-03', 'unsupported migration_id');
+  const profile = MIGRATIONS[input.migration_id];
+  assert(profile, 'unsupported migration_id');
   assert(SHA.test(input.source_commit_sha || ''), 'invalid source_commit_sha');
   assert(SHA.test(input.source_tree_sha || ''), 'invalid source_tree_sha');
   assert(MIGRATION_NAME.test(input.migration_name || ''), 'invalid migration_name');
-  assert(input.migration_name === '202608310001_cfg03_leave_type_master', 'unexpected migration_name');
+  assert(input.migration_name === profile.migrationName, 'unexpected migration_name');
   assert(input.migration_path === `prisma/migrations/${input.migration_name}/migration.sql`, 'migration_path mismatch');
-  assert(input.migration_policy === EXPECTED.migrationPolicy, 'migration_policy mismatch');
+  assert(input.migration_policy === profile.migrationPolicy, 'migration_policy mismatch');
   assert(SAFE_SCRIPT.test(input.post_verify_script || ''), 'invalid post_verify_script');
-  assert(input.post_verify_script === 'scripts/ci/verify-cfg03-production-migration.js', 'unexpected post_verify_script');
+  assert(input.post_verify_script === profile.postVerifyScript, 'unexpected post_verify_script');
   assert(DEPLOYMENT.test(input.current_production_deployment_id || ''), 'invalid current_production_deployment_id');
   assert(SHA.test(input.current_production_application_sha || ''), 'invalid current_production_application_sha');
   assert(input.target_environment === EXPECTED.targetEnvironment, 'target_environment mismatch');
@@ -95,7 +133,7 @@ function validateMigrationManifest(input, { root = process.cwd(), verifySql = tr
   assert(input.target_org_id === EXPECTED.targetOrgId, 'target_org_id mismatch');
   assert(input.canonical_url === EXPECTED.canonicalUrl, 'canonical_url mismatch');
   assert(input.owner_action === EXPECTED.ownerAction, 'owner_action mismatch');
-  assert(input.data_backfill === true, 'data_backfill must be true');
+  assert(input.data_backfill === profile.dataBackfill, 'data_backfill mismatch');
   assert(input.application_deploy === false, 'application_deploy must be false');
   assert(input.destructive_rollback === false, 'destructive_rollback must be false');
 
@@ -103,7 +141,7 @@ function validateMigrationManifest(input, { root = process.cwd(), verifySql = tr
   if (verifySql) {
     const migrationFile = path.join(root, ...input.migration_path.split('/'));
     assert(fs.existsSync(migrationFile), 'migration SQL file missing');
-    sqlStats = validateCfg03Sql(fs.readFileSync(migrationFile, 'utf8'));
+    sqlStats = validateSqlForMigration(input.migration_id, fs.readFileSync(migrationFile, 'utf8'));
     const verifierFile = path.join(root, ...input.post_verify_script.split('/'));
     assert(fs.existsSync(verifierFile), 'post verify script missing');
   }
@@ -159,4 +197,13 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { EXPECTED, outputLines, splitStatements, validateCfg03Sql, validateMigrationManifest };
+module.exports = {
+  EXPECTED,
+  MIGRATIONS,
+  outputLines,
+  splitStatements,
+  validateCfg03Sql,
+  validateCfg04Sql,
+  validateSqlForMigration,
+  validateMigrationManifest
+};
