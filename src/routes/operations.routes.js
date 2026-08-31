@@ -38,6 +38,7 @@ const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { getDashboardSummary } = require('../services/dashboard.service');
 const { getAuditLogPage } = require('../services/audit-log-viewer.service');
 const systemSettingHistoryService = require('../services/system-setting-history.service');
+const { assertSystemSettingChangeSafe, guardrailMetadata } = require('../services/system-setting-guardrail.service');
 const { getExecutiveReport } = require('../services/executive-report.service');
 const { ensureEmployeeOperationalForShift, projectedScheduleConflictIds } = require('../services/employee-operational-eligibility.service');
 const shiftService = require('../services/shift.service');
@@ -939,7 +940,10 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
     if (isSensitiveSystemSettingKey(key)) throw new HttpError(400, 'Sensitive settings must be configured through the approved environment-variable workflow.', { code: 'SENSITIVE_SETTING_ENVIRONMENT_ONLY' });
     const definition = getSystemSettingDefinition(key);
     if (!definition?.editable) throw new HttpError(403, 'This SystemSetting key is not registered for Admin configuration.', { code: 'SYSTEM_SETTING_NOT_REGISTERED' });
-    const input = z.object({ value: z.string().max(2000), description: nullableText(2000) }).parse(req.body);
+    const guardrail = guardrailMetadata(key);
+    const input = z.object({ value: z.string().max(2000), description: nullableText(2000), confirmation: z.literal('CONFIRM_HIGH_IMPACT_CHANGE').optional(), reason: z.string().trim().min(3).max(500).optional() }).strict().parse(req.body);
+    if (guardrail.confirmationRequired && input.confirmation !== 'CONFIRM_HIGH_IMPACT_CHANGE') throw new HttpError(409, 'High-impact configuration requires explicit confirmation.', { code: 'HIGH_IMPACT_CONFIGURATION_CONFIRMATION_REQUIRED' });
+    if (guardrail.reasonRequired && !input.reason) throw new HttpError(400, 'High-impact configuration requires a reason.', { code: 'HIGH_IMPACT_CONFIGURATION_REASON_REQUIRED' });
     let normalizedValue;
     try { normalizedValue = normalizeRegisteredSystemSettingValue(key, input.value); }
     catch (error) {
