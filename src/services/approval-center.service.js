@@ -4,22 +4,17 @@ const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { leaveTypeDisplayName } = require('./leave-type.service');
 const { createAttendanceAdjustmentService } = require('./attendance-adjustment.service');
+const { canReview, createApprovalPolicyService, positionClass } = require('./approval-policy.service');
 
 const HOUR_MS = 60 * 60 * 1000;
 const PRIORITY = { OVERDUE: 3, DUE_SOON: 2, NEW: 1 };
-const ADMIN_ONLY_TYPES = new Set([
-  'EMPLOYEE_MASTER_CHANGE',
-  'EMPLOYEE_REFERENCE_PHOTO',
-  'LICENSE_DOCUMENT',
-  'ATTENDANCE_DEVICE_REQUEST',
-  'ATTENDANCE_ADJUSTMENT_REQUEST'
-]);
-
-function approvalUrgency(submittedAt, now = new Date()) {
+function approvalUrgency(submittedAt, now = new Date(), thresholds = { dueSoonHours: 24, overdueHours: 48 }) {
   const submitted = new Date(submittedAt);
   const ageHours = Number.isFinite(submitted.getTime()) ? Math.max(0, Math.floor((now.getTime() - submitted.getTime()) / HOUR_MS)) : 0;
-  if (ageHours >= 48) return { ageHours, urgency: 'OVERDUE' };
-  if (ageHours >= 24) return { ageHours, urgency: 'DUE_SOON' };
+  const dueSoonHours = Number(thresholds?.dueSoonHours);
+  const overdueHours = Number(thresholds?.overdueHours);
+  if (ageHours >= overdueHours) return { ageHours, urgency: 'OVERDUE' };
+  if (ageHours >= dueSoonHours) return { ageHours, urgency: 'DUE_SOON' };
   return { ageHours, urgency: 'NEW' };
 }
 
@@ -41,9 +36,14 @@ function actorSummary(actor, fallbackRole) {
     : { id: null, displayName: null, role: fallbackRole || null };
 }
 
-function withAge(item, now) {
-  const age = approvalUrgency(item.submittedAt, now);
-  return { ...item, ageHours: age.ageHours, urgency: age.urgency };
+function withAge(item, now, policy) {
+  const age = approvalUrgency(item.submittedAt, now, policy);
+  return {
+    ...item,
+    ageHours: age.ageHours,
+    urgency: age.urgency,
+    sla: { dueSoonHours: policy.dueSoonHours, overdueHours: policy.overdueHours }
+  };
 }
 
 function dateValue(value) {
@@ -63,17 +63,16 @@ function isRetroactiveLeaveStart(dateInput, now = new Date()) {
   return targetUtc < todayUtc;
 }
 
-function managerCanApproveLeave(row, actorProfile, now = new Date()) {
+function managerCanApproveLeave(row, actorProfile, now = new Date(), policy = {}) {
   if (!row?.employee) return true;
   if (actorProfile?.employeeId && row.employeeId === actorProfile.employeeId) return false;
   // Keep the queue aligned with ensureLeaveApprovalAllowed in operations.routes.js:
   // retroactive leave bypasses position escalation; non-retroactive Supervisor leave is Admin-only.
   if (isRetroactiveLeaveStart(row.startDate, now)) return true;
-  const employeePosition = String(row.employee.jobTitle || '').toLowerCase();
-  if (/supervisor|หัวหน้า|ซุปเปอร์ไวเซอร์/.test(employeePosition)) return false;
-  if (/manager|ผู้จัดการ/.test(employeePosition)) {
-    const approverPosition = String(actorProfile?.employee?.jobTitle || '').toLowerCase();
-    return /supervisor|หัวหน้า|ซุปเปอร์ไวเซอร์|manager|ผู้จัดการ/.test(approverPosition);
+  const employeePosition = positionClass(row.employee.jobTitle, policy);
+  if (employeePosition === 'SUPERVISOR') return false;
+  if (employeePosition === 'MANAGER') {
+    return ['SUPERVISOR', 'MANAGER'].includes(positionClass(actorProfile?.employee?.jobTitle, policy));
   }
   return true;
 }
@@ -81,9 +80,11 @@ function managerCanApproveLeave(row, actorProfile, now = new Date()) {
 function createApprovalCenterService({
   prisma = prismaDefault,
   clock = () => new Date(),
-  attendanceAdjustmentList
+  attendanceAdjustmentList,
+  approvalPolicyService
 } = {}) {
   const listAttendanceAdjustments = attendanceAdjustmentList || ((input) => createAttendanceAdjustmentService({ prisma }).list(input));
+  const policyService = approvalPolicyService || createApprovalPolicyService({ prismaClient: prisma });
 
   async function summary({ actor }) {
     const role = String(actor?.role || '').toUpperCase();
@@ -91,8 +92,9 @@ function createApprovalCenterService({
       throw new HttpError(403, 'Approval Center requires Manager or Admin authority.', { code: 'APPROVAL_CENTER_REVIEWER_REQUIRED' });
     }
 
-    const admin = role === 'ADMIN';
-    const actorProfile = role === 'MANAGER'
+    const policies = await policyService.loadPolicies(prisma);
+    const allowed = (type) => canReview(policies.get(type), role);
+    const actorProfile = role === 'MANAGER' && allowed('LEAVE_REQUEST')
       ? await prisma.user.findUnique({
         where: { id: actor.sub },
         select: { id: true, employeeId: true, employee: { select: { jobTitle: true } } }
@@ -104,14 +106,16 @@ function createApprovalCenterService({
       ...(role === 'MANAGER' && actorProfile?.employeeId ? { employeeId: { not: actorProfile.employeeId } } : {})
     };
 
-    const managerLeavePromise = role === 'MANAGER'
-      ? prisma.leaveRequest.findMany({
-        where: leaveWhere,
-        select: { employeeId: true, startDate: true, employee: { select: { jobTitle: true } } }
-      }).then((rows) => rows.filter((row) => managerCanApproveLeave(row, actorProfile, clock())).length)
-      : prisma.leaveRequest.count({ where: leaveWhere });
+    const managerLeavePromise = !allowed('LEAVE_REQUEST')
+      ? Promise.resolve(0)
+      : role === 'MANAGER'
+        ? prisma.leaveRequest.findMany({
+          where: leaveWhere,
+          select: { employeeId: true, startDate: true, employee: { select: { jobTitle: true } } }
+        }).then((rows) => rows.filter((row) => managerCanApproveLeave(row, actorProfile, clock(), policies.get('LEAVE_REQUEST'))).length)
+        : prisma.leaveRequest.count({ where: leaveWhere });
 
-    const attendanceAdjustmentPromise = admin
+    const attendanceAdjustmentPromise = allowed('ATTENDANCE_ADJUSTMENT_REQUEST')
       ? listAttendanceAdjustments({ actor, status: 'PENDING_APPROVAL', page: 1, pageSize: 1 }).then((result) => Number(result?.meta?.total || 0))
       : Promise.resolve(0);
 
@@ -125,12 +129,12 @@ function createApprovalCenterService({
       leaveRequests,
       attendanceAdjustmentRequests
     ] = await Promise.all([
-      admin ? prisma.employeeChangeRequest.count({ where: { status: 'PENDING_APPROVAL' } }) : 0,
-      admin ? prisma.employeeReferencePhoto.count({ where: { status: 'PENDING_APPROVAL' } }) : 0,
-      admin ? prisma.employeeLicenseDocument.count({ where: { status: 'PENDING' } }) : 0,
-      admin ? prisma.attendanceDeviceChangeRequest.count({ where: { status: 'PENDING_APPROVAL' } }) : 0,
-      prisma.registrationRequest.count({ where: { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } } }),
-      prisma.user.count({ where: { accountStatus: 'PENDING' } }),
+      allowed('EMPLOYEE_MASTER_CHANGE') ? prisma.employeeChangeRequest.count({ where: { status: 'PENDING_APPROVAL' } }) : 0,
+      allowed('EMPLOYEE_REFERENCE_PHOTO') ? prisma.employeeReferencePhoto.count({ where: { status: 'PENDING_APPROVAL' } }) : 0,
+      allowed('LICENSE_DOCUMENT') ? prisma.employeeLicenseDocument.count({ where: { status: 'PENDING' } }) : 0,
+      allowed('ATTENDANCE_DEVICE_REQUEST') ? prisma.attendanceDeviceChangeRequest.count({ where: { status: 'PENDING_APPROVAL' } }) : 0,
+      allowed('REGISTRATION_REQUEST') ? prisma.registrationRequest.count({ where: { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } } }) : 0,
+      allowed('USER_ACCESS') ? prisma.user.count({ where: { accountStatus: 'PENDING' } }) : 0,
       managerLeavePromise,
       attendanceAdjustmentPromise
     ]);
@@ -156,10 +160,11 @@ function createApprovalCenterService({
       throw new HttpError(403, 'Approval Center requires Manager or Admin authority.', { code: 'APPROVAL_CENTER_REVIEWER_REQUIRED' });
     }
 
+    const policies = await policyService.loadPolicies(prisma);
+    const allowed = (type) => canReview(policies.get(type), role);
     const take = Math.max(1, Math.min(Number(limit) || 100, 100));
-    const admin = role === 'ADMIN';
     const now = clock();
-    const actorProfile = role === 'MANAGER'
+    const actorProfile = role === 'MANAGER' && allowed('LEAVE_REQUEST')
       ? await prisma.user.findUnique({
         where: { id: actor.sub },
         select: { id: true, employeeId: true, employee: { select: { jobTitle: true } } }
@@ -178,7 +183,7 @@ function createApprovalCenterService({
       return [total, rows.slice(0, 100)];
     };
 
-    const employeeChangesPromise = admin ? listWithOverflowCount(prisma.employeeChangeRequest, {
+    const employeeChangesPromise = allowed('EMPLOYEE_MASTER_CHANGE') ? listWithOverflowCount(prisma.employeeChangeRequest, {
       where: { status: 'PENDING_APPROVAL' },
       select: {
         id: true, employeeId: true, status: true, currentRevision: true, createdAt: true,
@@ -189,7 +194,7 @@ function createApprovalCenterService({
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
     }) : Promise.resolve([0, []]);
 
-    const referencePhotosPromise = admin ? listWithOverflowCount(prisma.employeeReferencePhoto, {
+    const referencePhotosPromise = allowed('EMPLOYEE_REFERENCE_PHOTO') ? listWithOverflowCount(prisma.employeeReferencePhoto, {
       where: { status: 'PENDING_APPROVAL' },
       select: {
         id: true, employeeId: true, status: true, safeDisplayFileName: true, mimeType: true, fileSize: true,
@@ -200,7 +205,7 @@ function createApprovalCenterService({
       orderBy: [{ uploadedAt: 'asc' }, { id: 'asc' }]
     }) : Promise.resolve([0, []]);
 
-    const licenseDocumentsPromise = admin ? listWithOverflowCount(prisma.employeeLicenseDocument, {
+    const licenseDocumentsPromise = allowed('LICENSE_DOCUMENT') ? listWithOverflowCount(prisma.employeeLicenseDocument, {
       where: { status: 'PENDING' },
       select: {
         id: true, employeeId: true, licenseId: true, status: true, uploadedAt: true, resubmittedAt: true,
@@ -213,7 +218,7 @@ function createApprovalCenterService({
       orderBy: [{ uploadedAt: 'asc' }, { id: 'asc' }]
     }) : Promise.resolve([0, []]);
 
-    const attendanceDevicesPromise = admin ? listWithOverflowCount(prisma.attendanceDeviceChangeRequest, {
+    const attendanceDevicesPromise = allowed('ATTENDANCE_DEVICE_REQUEST') ? listWithOverflowCount(prisma.attendanceDeviceChangeRequest, {
       where: { status: 'PENDING_APPROVAL' },
       select: {
         id: true, status: true, requestType: true, reason: true, createdAt: true,
@@ -224,7 +229,7 @@ function createApprovalCenterService({
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
     }) : Promise.resolve([0, []]);
 
-    const registrationPromise = listWithOverflowCount(prisma.registrationRequest, {
+    const registrationPromise = allowed('REGISTRATION_REQUEST') ? listWithOverflowCount(prisma.registrationRequest, {
       where: { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } },
       select: {
         id: true, submittedName: true, email: true, departmentHint: true, status: true,
@@ -232,13 +237,13 @@ function createApprovalCenterService({
         matchedEmployee: { select: commonEmployeeSelect }
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
-    });
+    }) : Promise.resolve([0, []]);
 
-    const userAccessPromise = listWithOverflowCount(prisma.user, {
+    const userAccessPromise = allowed('USER_ACCESS') ? listWithOverflowCount(prisma.user, {
       where: { accountStatus: 'PENDING' },
       select: { id: true, displayName: true, email: true, role: true, department: true, accountStatus: true, requestedAt: true, createdAt: true },
       orderBy: [{ requestedAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }]
-    });
+    }) : Promise.resolve([0, []]);
 
     const leaveWhere = {
       status: 'PENDING',
@@ -254,14 +259,16 @@ function createApprovalCenterService({
       },
       orderBy: [{ requestedAt: 'asc' }, { id: 'asc' }]
     };
-    const leavePromise = admin
-      ? listWithOverflowCount(prisma.leaveRequest, leaveListArgs)
-      : Promise.all([
-        prisma.leaveRequest.count({ where: leaveWhere }),
-        prisma.leaveRequest.findMany({ ...leaveListArgs, take: 100 })
-      ]);
+    const leavePromise = !allowed('LEAVE_REQUEST')
+      ? Promise.resolve([0, []])
+      : role === 'ADMIN'
+        ? listWithOverflowCount(prisma.leaveRequest, leaveListArgs)
+        : Promise.all([
+          prisma.leaveRequest.count({ where: leaveWhere }),
+          prisma.leaveRequest.findMany({ ...leaveListArgs, take: 100 })
+        ]);
 
-    const attendanceAdjustmentsPromise = admin
+    const attendanceAdjustmentsPromise = allowed('ATTENDANCE_ADJUSTMENT_REQUEST')
       ? listAttendanceAdjustments({ actor, status: 'PENDING_APPROVAL', page: 1, pageSize: 100 })
       : Promise.resolve({ data: [], meta: { total: 0 } });
 
@@ -286,7 +293,7 @@ function createApprovalCenterService({
     ]);
 
     const leaves = role === 'MANAGER'
-      ? rawLeaves.filter((row) => managerCanApproveLeave(row, actorProfile, now))
+      ? rawLeaves.filter((row) => managerCanApproveLeave(row, actorProfile, now, policies.get('LEAVE_REQUEST')))
       : rawLeaves;
     const leaveTotal = role === 'MANAGER' ? Math.min(rawLeaveTotal, leaves.length) : rawLeaveTotal;
 
@@ -306,7 +313,7 @@ function createApprovalCenterService({
         submittedAt: revision?.submittedAt || row.createdAt,
         revision: row.currentRevision,
         changedFields: Array.isArray(revision?.changedFields) ? revision.changedFields : []
-      }, now));
+      }, now, policies.get('EMPLOYEE_MASTER_CHANGE')));
     }
 
     for (const row of referencePhotos) {
@@ -327,7 +334,7 @@ function createApprovalCenterService({
           imageWidth: row.imageWidth,
           imageHeight: row.imageHeight
         }
-      }, now));
+      }, now, policies.get('EMPLOYEE_REFERENCE_PHOTO')));
     }
 
     for (const row of licenseDocuments) {
@@ -351,7 +358,7 @@ function createApprovalCenterService({
           version: row.version,
           fileName: row.safeDisplayFileName
         }
-      }, now));
+      }, now, policies.get('LICENSE_DOCUMENT')));
     }
 
     for (const row of attendanceDevices) {
@@ -371,7 +378,7 @@ function createApprovalCenterService({
           deviceName: row.candidateDevice?.displayName || null,
           platformHint: row.candidateDevice?.platformHint || null
         }
-      }, now));
+      }, now, policies.get('ATTENDANCE_DEVICE_REQUEST')));
     }
 
     for (const row of registrations) {
@@ -393,7 +400,7 @@ function createApprovalCenterService({
             ? (row.matchedEmployee.displayName || [row.matchedEmployee.firstName, row.matchedEmployee.lastName].filter(Boolean).join(' ') || null)
             : null
         }
-      }, now));
+      }, now, policies.get('REGISTRATION_REQUEST')));
     }
 
     for (const row of users) {
@@ -408,7 +415,7 @@ function createApprovalCenterService({
         requestedBy: { id: row.id, displayName: row.displayName, role: row.role || 'VIEWER' },
         submittedAt: row.requestedAt || row.createdAt,
         metadata: { email: row.email, department: row.department || null }
-      }, now));
+      }, now, policies.get('USER_ACCESS')));
     }
 
     for (const row of leaves) {
@@ -434,7 +441,7 @@ function createApprovalCenterService({
           dayCount: row.dayCount == null ? null : String(row.dayCount),
           department: row.departmentSnapshot || row.employee?.department || null
         }
-      }, now));
+      }, now, policies.get('LEAVE_REQUEST')));
     }
 
     for (const row of (attendanceAdjustments?.data || [])) {
@@ -459,7 +466,7 @@ function createApprovalCenterService({
           revision: row.currentRevision,
           reason: row.reason || null
         }
-      }, now));
+      }, now, policies.get('ATTENDANCE_ADJUSTMENT_REQUEST')));
     }
 
     items.sort((a, b) => {
@@ -479,10 +486,6 @@ function createApprovalCenterService({
       USER_ACCESS: userAccessTotal,
       LEAVE_REQUEST: leaveTotal
     };
-    if (!admin) {
-      for (const type of ADMIN_ONLY_TYPES) byType[type] = 0;
-    }
-
     const total = Object.values(byType).reduce((sum, value) => sum + Number(value || 0), 0);
     const visibleItems = items.slice(0, take);
     return {
@@ -499,8 +502,8 @@ function createApprovalCenterService({
         scheduleApprovals: 0,
         attendanceDeviceRequests: byType.ATTENDANCE_DEVICE_REQUEST,
         attendanceAdjustmentRequests: byType.ATTENDANCE_ADJUSTMENT_REQUEST,
-        dueSoon24h: items.filter((item) => item.urgency === 'DUE_SOON').length,
-        overdue48h: items.filter((item) => item.urgency === 'OVERDUE').length,
+        dueSoon: items.filter((item) => item.urgency === 'DUE_SOON').length,
+        overdue: items.filter((item) => item.urgency === 'OVERDUE').length,
         truncated: total > visibleItems.length
       },
       generatedAt: now.toISOString()

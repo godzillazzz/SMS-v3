@@ -16,13 +16,18 @@ const { ATTENDANCE_POLICY_KEYS } = require('../src/services/attendance-policy.se
 const { G03_1_MULTI_YEAR_WRITES_ENABLED } = require('../src/services/g03-1-multi-year-activation.service');
 
 test('CFG-01 registry has unique governed keys and no secret-bearing setting definitions', () => {
-  assert.equal(DEFINITIONS.length, 15);
+  assert.ok(DEFINITIONS.length >= 15);
   assert.equal(new Set(DEFINITIONS.map((definition) => definition.key)).size, DEFINITIONS.length);
-  assert.equal(DEFINITIONS.every((definition) => definition.editable === true), true);
-  assert.equal(DEFINITIONS.every((definition) => definition.authority === 'ADMIN_GOVERNED'), true);
   for (const definition of DEFINITIONS) {
     assert.equal(isSensitiveSystemSettingKey(definition.key), false, definition.key);
-    assert.ok(['ATTENDANCE', 'LEAVE', 'NOTIFICATIONS'].includes(definition.group), definition.key);
+    assert.ok(['ATTENDANCE', 'LEAVE', 'APPROVAL', 'NOTIFICATIONS'].includes(definition.group), definition.key);
+    if (definition.group === 'APPROVAL') {
+      assert.equal(definition.editable, false);
+      assert.equal(definition.authority, 'ADMIN_GOVERNED_VIA_APPROVAL_POLICY_API');
+    } else {
+      assert.equal(definition.editable, true);
+      assert.equal(definition.authority, 'ADMIN_GOVERNED');
+    }
   }
 });
 

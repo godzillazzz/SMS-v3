@@ -4,6 +4,7 @@ const prisma = require('../config/prisma');
 const audit = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { logger } = require('../utils/logger');
+const { createApprovalPolicyService } = require('./approval-policy.service');
 
 const REGISTRATION_REVIEW_LOCK = 746281904;
 const ACTIONABLE_STATUSES = ['PENDING', 'MATCHED'];
@@ -49,7 +50,8 @@ function assertReviewable(request) {
   if (!ACTIONABLE_STATUSES.includes(request.status)) throw conflict('REGISTRATION_REQUEST_NOT_ACTIONABLE', 'Registration request is no longer actionable.');
 }
 
-function createRegistrationRequestService({ prismaClient = prisma, auditService = audit, notificationService = null } = {}) {
+function createRegistrationRequestService({ prismaClient = prisma, auditService = audit, notificationService = null, approvalPolicyService } = {}) {
+  const policyService = approvalPolicyService || createApprovalPolicyService({ prismaClient, auditService });
   async function list({ page = 1, pageSize = 25, status }) {
     const where = {
       emailVerifiedAt: { not: null },
@@ -115,9 +117,10 @@ function createRegistrationRequestService({ prismaClient = prisma, auditService 
     };
   }
 
-  async function match({ id, employeeId, actorUserId }) {
+  async function match({ id, employeeId, actorUserId, actorRole }) {
     return prismaClient.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${REGISTRATION_REVIEW_LOCK})`;
+      await policyService.assertReviewer('REGISTRATION_REQUEST', { role: actorRole, sub: actorUserId }, tx);
       const request = await tx.registrationRequest.findUnique({ where: { id } });
       assertReviewable(request);
       const employee = await tx.employee.findFirst({
@@ -146,10 +149,10 @@ function createRegistrationRequestService({ prismaClient = prisma, auditService 
   }
 
   async function approve({ id, actorUserId, actorRole }) {
-    if (!['ADMIN', 'MANAGER'].includes(actorRole)) throw new HttpError(403, 'Registration approval is not permitted.');
     try {
       const result = await prismaClient.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${REGISTRATION_REVIEW_LOCK})`;
+        await policyService.assertReviewer('REGISTRATION_REQUEST', { role: actorRole, sub: actorUserId }, tx);
         const request = await tx.registrationRequest.findUnique({ where: { id } });
         assertReviewable(request);
         if (request.status !== 'MATCHED' || !request.matchedEmployeeId) throw conflict('REGISTRATION_MATCH_REQUIRED', 'Match an Employee Master record before approval.');
@@ -214,9 +217,10 @@ function createRegistrationRequestService({ prismaClient = prisma, auditService 
     }
   }
 
-  async function reject({ id, reason, actorUserId }) {
+  async function reject({ id, reason, actorUserId, actorRole }) {
     const result = await prismaClient.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${REGISTRATION_REVIEW_LOCK})`;
+      await policyService.assertReviewer('REGISTRATION_REQUEST', { role: actorRole, sub: actorUserId }, tx);
       const request = await tx.registrationRequest.findUnique({ where: { id } });
       assertReviewable(request);
       const after = await tx.registrationRequest.update({

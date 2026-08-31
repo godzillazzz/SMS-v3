@@ -185,7 +185,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   test('double/concurrent approval creates no duplicate User and no partial approval state', async () => {
     const row = await registration();
     const service = createRegistrationRequestService();
-    await service.match({ id: row.id, employeeId: ids.employeeA, actorUserId: ids.admin });
+    await service.match({ id: row.id, employeeId: ids.employeeA, actorUserId: ids.admin, actorRole: 'ADMIN' });
     const [a, b] = await Promise.allSettled([
       service.approve({ id: row.id, actorUserId: ids.admin, actorRole: 'ADMIN' }),
       service.approve({ id: row.id, actorUserId: ids.manager, actorRole: 'MANAGER' })

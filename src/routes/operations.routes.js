@@ -25,6 +25,7 @@ const { getSystemSettingDefinition, isSensitiveSystemSettingKey, normalizeRegist
 const { createLeavePolicyService, isRetroactiveLeaveStart, retroactiveDaysBack } = require('../services/leave-policy.service');
 const { createLeaveTypeService, resolveLeaveTypeForRequest, leaveTypeSnapshot } = require('../services/leave-type.service');
 const { createAutoSchedulePatternService } = require('../services/auto-schedule-pattern.service');
+const { createApprovalPolicyService, positionClass } = require('../services/approval-policy.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
@@ -176,15 +177,14 @@ const ensureOperationalEmployee = async (client, employeeId) => {
   if (!employee.isActive || employee.deletedAt) throw new HttpError(409, 'Inactive employees cannot receive operational license changes.', { code: 'INACTIVE_EMPLOYEE_OPERATION' });
   return employee;
 };
-const positionText = (employee) => String(employee?.jobTitle || '').toLowerCase();
-const isSupervisorPosition = (employee) => /supervisor|หัวหน้า|ซุปเปอร์ไวเซอร์/.test(positionText(employee));
-const isManagerPosition = (employee) => /manager|ผู้จัดการ/.test(positionText(employee));
+const approvalPositionClass = (employee, policy) => positionClass(employee?.jobTitle, policy);
 const licenseStorage = createSupabaseLicenseDocumentStorage();
 const licenseDocuments = createLicenseDocumentService({ prisma, storage: licenseStorage, audit, reconcileSchedules: reconcileEmployeeLicenseSchedules });
 const attendanceEvidenceStorage = createSupabaseAttendanceFaceEvidenceStorage({ prisma, audit });
 const leavePolicyService = createLeavePolicyService({ prisma });
 const leaveTypeService = createLeaveTypeService({ prisma, audit });
 const autoSchedulePatternService = createAutoSchedulePatternService({ prisma, audit });
+const approvalPolicyService = createApprovalPolicyService({ prismaClient: prisma, auditService: audit });
 const checkIsRetroactive = (dateInput) => isRetroactiveLeaveStart(dateInput);
 const assertRetroactiveLeaveEntryAllowed = ({ policy, actorRole, actorEmployeeId, employeeId, startDate, correction = false }) => {
   const isRetroactive = checkIsRetroactive(startDate);
@@ -219,20 +219,21 @@ const assertRetroactiveLeaveEntryAllowed = ({ policy, actorRole, actorEmployeeId
   }
   return true;
 };
-const hasSupervisorApprovalLevel = (user) => user.role === 'ADMIN' || isSupervisorPosition(user.employee) || isManagerPosition(user.employee);
+const hasSupervisorApprovalLevel = (user, policy) => user.role === 'ADMIN' || ['SUPERVISOR', 'MANAGER'].includes(approvalPositionClass(user.employee, policy));
 const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser, options = {}) => {
-  if (requestUser.role === 'ADMIN') return;
+  const policy = await approvalPolicyService.assertReviewer('LEAVE_REQUEST', requestUser, tx);
+  if (requestUser.role === 'ADMIN') return policy;
   // MANAGER has global scope — no department comparison is performed.
-  // Position-level escalation rules (supervisor/manager leaves require higher approval)
-  // are retained for non-retroactive leaves.
+  // Protected self-approval and position escalation rules cannot be disabled by configuration.
   const [leaveEmployee, approver] = await Promise.all([
     tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true, department: true } }),
     tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employee: { select: { jobTitle: true, department: true } } } })
   ]);
   if (!options.isRetroactive) {
-    if (isSupervisorPosition(leaveEmployee)) throw new HttpError(403, 'Supervisor leave requests require Admin approval.');
-    if (isManagerPosition(leaveEmployee) && !hasSupervisorApprovalLevel(approver)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.');
+    if (approvalPositionClass(leaveEmployee, policy) === 'SUPERVISOR') throw new HttpError(403, 'Supervisor leave requests require Admin approval.', { code: 'LEAVE_SUPERVISOR_ADMIN_APPROVAL_REQUIRED' });
+    if (approvalPositionClass(leaveEmployee, policy) === 'MANAGER' && !hasSupervisorApprovalLevel(approver, policy)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.', { code: 'LEAVE_MANAGER_ESCALATION_REQUIRED' });
   }
+  return policy;
 };
 const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedUsageByYear, excludeId, options = {}) => validateAnnualLeaveAvailability(tx, {
   employeeId,
@@ -785,6 +786,30 @@ router.get('/rule-checks', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 router.put('/scheduling-rules/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ value: z.string().trim().min(1).max(1000).optional(), unit: nullableText(100), enabled: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.schedulingRule.findUniqueOrThrow({ where: { id } }); const after = await tx.schedulingRule.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'SchedulingRule', entityId: id, metadata: { before: safeRecord(before, ['value', 'unit', 'enabled']), after: safeRecord(after, ['value', 'unit', 'enabled']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
+
+const approvalPolicyUpdateInput = z.object({
+  reviewerRoles: z.array(z.enum(['ADMIN', 'MANAGER'])).min(1).max(2),
+  dueSoonHours: z.coerce.number().int(),
+  overdueHours: z.coerce.number().int(),
+  additionalSupervisorAliases: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+  additionalManagerAliases: z.array(z.string().trim().min(1).max(80)).max(20).optional()
+}).strict();
+
+router.get('/approval-policies', authorize('ADMIN'), async (_req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await approvalPolicyService.list() });
+  } catch (error) { next(error); }
+});
+router.put('/approval-policies/:requestType', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const requestType = z.string().trim().regex(/^[A-Z_]{3,80}$/).parse(req.params.requestType);
+    const input = approvalPolicyUpdateInput.parse(req.body);
+    const result = await approvalPolicyService.update({ requestType, input, actor: req.user });
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: result });
+  } catch (error) { next(error); }
+});
 
 router.get('/system-settings', authorize('ADMIN'), async (_req, res, next) => {
   try {

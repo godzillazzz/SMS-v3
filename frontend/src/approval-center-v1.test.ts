@@ -59,9 +59,11 @@ describe('Approval Center V2 unified frontend contracts', () => {
     expect(review).toContain('revision.afterSnapshot[field]');
   });
 
-  it('shows 24h and 48h reminder states and unified detail styling', () => {
-    expect(page).toContain("DUE_SOON: 'ครบ 24 ชม.'");
-    expect(page).toContain("OVERDUE: 'เกิน 48 ชม.'");
+  it('shows governed SLA reminder states and unified detail styling', () => {
+    expect(page).toContain("ใกล้ SLA · ${item.sla?.dueSoonHours ?? '—'} ชม.");
+    expect(page).toContain("เกิน SLA · ${item.sla?.overdueHours ?? '—'} ชม.");
+    expect(page).toContain('<span>ใกล้ SLA</span>');
+    expect(page).toContain('<span>เกิน SLA</span>');
     expect(dashboard).toContain('dashboard-approval-alert');
     expect(css).toContain('.approval-urgency--overdue');
     expect(css).toContain('.approval-center-source-meta');

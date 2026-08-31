@@ -72,6 +72,13 @@ test('registration approval notifies only after commit and does not repeat on re
   const service = createRegistrationRequestService({
     prismaClient: fakePrisma,
     auditService: { log: async () => {} },
+    approvalPolicyService: {
+      assertReviewer: async (type, actor) => {
+        assert.equal(type, 'REGISTRATION_REQUEST');
+        assert.equal(actor.role, 'ADMIN');
+        return { reviewerRoles: ['ADMIN', 'MANAGER'] };
+      }
+    },
     notificationService: {
       notifyRegistrationDecision: async ({ request, eventType }) => {
         assert.equal(transactionActive, false);

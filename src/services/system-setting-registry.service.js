@@ -3,12 +3,14 @@
 const { ATTENDANCE_POLICY_KEYS, ATTENDANCE_QR_POLICIES, validateAttendancePolicySetting } = require('./attendance-policy.service');
 const { LEAVE_POLICY_KEYS, validateLeavePolicySetting } = require('./leave-policy.service');
 const { isReservedOperationalSettingKey } = require('./g03-1-multi-year-activation.service');
+const { policySettingDefinitions } = require('./approval-policy.service');
 
 const SENSITIVE_SETTING_KEY_PATTERN = /secret|token|password|credential|database|smtp|webhook|channel|access[_-]?key/i;
 
 const GROUPS = Object.freeze({
   ATTENDANCE: Object.freeze({ id: 'ATTENDANCE', label: 'Attendance & Location', order: 10 }),
   LEAVE: Object.freeze({ id: 'LEAVE', label: 'Leave Policy', order: 20 }),
+  APPROVAL: Object.freeze({ id: 'APPROVAL', label: 'Approval Authority & SLA', order: 25 }),
   NOTIFICATIONS: Object.freeze({ id: 'NOTIFICATIONS', label: 'Notifications', order: 30 }),
   LEGACY: Object.freeze({ id: 'LEGACY', label: 'Legacy / Read only', order: 90 }),
   PROTECTED: Object.freeze({ id: 'PROTECTED', label: 'Protected Operations', order: 99 })
@@ -154,6 +156,7 @@ const DEFINITIONS = Object.freeze([
     description: 'จำนวนวันย้อนหลังสูงสุดสำหรับ Manager; 0 หมายถึงไม่จำกัด',
     constraints: { min: 0, max: 3650, unit: 'days', zeroMeans: 'unlimited' }
   }),
+  ...policySettingDefinitions().map(frozenDefinition),
   frozenDefinition({
     key: 'LINE_TEMPLATE_NEW_LEAVE',
     group: GROUPS.NOTIFICATIONS.id,
@@ -293,7 +296,7 @@ function presentSystemSettings(rows = []) {
 }
 
 function registeredSystemSettingGroups() {
-  return [GROUPS.ATTENDANCE, GROUPS.LEAVE, GROUPS.NOTIFICATIONS].map((group) => ({ ...group }));
+  return [GROUPS.ATTENDANCE, GROUPS.LEAVE, GROUPS.APPROVAL, GROUPS.NOTIFICATIONS].map((group) => ({ ...group }));
 }
 
 module.exports = {

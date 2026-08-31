@@ -15,6 +15,14 @@ const fakeService = {
   reject: async (input) => { calls.push(['reject', input]); return { id: input.id, status: 'REJECTED' }; }
 };
 require.cache[require.resolve('../src/services/registration-request.service')] = { exports: { createRegistrationRequestService: () => fakeService } };
+require.cache[require.resolve('../src/services/approval-policy.service')] = { exports: {
+  createApprovalPolicyService: () => ({
+    assertReviewer: async (_requestType, actor) => {
+      if (!['ADMIN', 'MANAGER'].includes(actor?.role)) throw new HttpError(403, 'Forbidden.');
+      return { requestType: 'REGISTRATION_REQUEST', reviewerRoles: ['ADMIN', 'MANAGER'], dueSoonHours: 24, overdueHours: 48 };
+    }
+  })
+} };
 require.cache[require.resolve('../src/middlewares/authenticate')] = { exports: {
   authenticate: (req, _res, next) => {
     const role = req.get('x-test-role');
