@@ -116,9 +116,10 @@ function sourceRegressionContracts() {
   ], 'EXECUTIVE_REPORT_RESPONSIVE_CONTRACT_FAILED');
 
   requireIncludes(lifecycleModal, [
-    'จัดการวงจรพนักงาน',
+    'การเปลี่ยนแปลงสำคัญของพนักงาน',
     'ผลกระทบและคำเตือน',
-    'ประวัติวงจรพนักงาน',
+    'ประวัติการเปลี่ยนแปลงสำคัญ',
+    'ย้ายหน่วยงาน',
     'อ่านอย่างเดียว',
     'confirmation !== employee.employeeCode'
   ], 'EMPLOYEE_LIFECYCLE_RENDERER_CONTRACT_FAILED');
@@ -212,7 +213,7 @@ function executiveReportFixture() {
 }
 
 function employeeLifecycleFixture() {
-  return `<div class="lifecycle-backdrop"><section class="lifecycle-modal"><header class="lifecycle-header"><div><p>EMPLOYEE LIFECYCLE</p><h2>จัดการวงจรพนักงาน</h2><span>EMP001 · พนักงานทดสอบ ชื่อภาษาไทยยาวเพื่อทดสอบการแสดงผล</span></div><button type="button">×</button></header><div class="lifecycle-layout"><form class="lifecycle-form"><div class="lifecycle-current"><strong>ข้อมูลปัจจุบัน</strong><span>หน่วยงานรักษาความปลอดภัยสำนักงานใหญ่ · เจ้าหน้าที่รักษาความปลอดภัยอาวุโส · ปฏิบัติงาน</span></div><label><span>รายการ</span><select><option>ย้ายแผนก</option></select></label><div class="lifecycle-field-grid"><label><span>วันที่มีผล</span><input type="date" value="2026-09-01"></label><label><span>เหตุผล</span><textarea>ปรับโครงสร้างหน่วยงาน</textarea></label></div><section class="lifecycle-preflight"><h3>ผลกระทบและคำเตือน</h3><div class="lifecycle-issue"><b>ควรตรวจสอบ</b><span>พบรายการจัดเวรตั้งแต่วันที่มีผล</span></div><dl class="lifecycle-impact-grid"><div><dt>เวรในอนาคต</dt><dd>12</dd></div><div><dt>ลารอพิจารณา</dt><dd>2</dd></div><div><dt>โควต้าวันลา</dt><dd>1</dd></div><div><dt>ใบอนุญาตใช้งาน</dt><dd>1</dd></div></dl></section><footer><button>ยกเลิก</button><button class="btn-primary">ยืนยันย้ายแผนก</button></footer></form><aside class="lifecycle-history"><header><h3>ประวัติวงจรพนักงาน</h3><span>อ่านอย่างเดียว</span></header><ol><li><div><b>เปลี่ยนชื่อ</b><span class="lifecycle-status lifecycle-status--applied">มีผลแล้ว</span></div><time>13 ส.ค. 2569</time><strong>ชื่อเดิม → ชื่อใหม่</strong><p>เหตุผล: แก้ไขชื่อตามเอกสารทางราชการ</p><small>โดย UAT Admin (ADMIN) · บันทึก 13 ส.ค. 2569 10:00</small></li></ol></aside></div></section></div>`;
+  return `<div class="lifecycle-backdrop"><section class="lifecycle-modal"><header class="lifecycle-header"><div><p>EMPLOYEE MASTER · CRITICAL CHANGES</p><h2>การเปลี่ยนแปลงสำคัญของพนักงาน</h2><span>EMP001 · พนักงานทดสอบ ชื่อภาษาไทยยาวเพื่อทดสอบการแสดงผล</span></div><button type="button">×</button></header><div class="lifecycle-layout"><form class="lifecycle-form"><div class="lifecycle-current"><strong>ข้อมูลปัจจุบัน</strong><span>หน่วยงานรักษาความปลอดภัยสำนักงานใหญ่ · เจ้าหน้าที่รักษาความปลอดภัยอาวุโส · ปฏิบัติงาน</span></div><label><span>รายการเปลี่ยนแปลง</span><select><option>ย้ายหน่วยงาน</option></select></label><div class="lifecycle-field-grid"><label><span>วันที่มีผล</span><input type="date" value="2026-09-01"></label><label><span>เหตุผล</span><textarea>ปรับโครงสร้างหน่วยงาน</textarea></label></div><section class="lifecycle-preflight"><h3>ผลกระทบและคำเตือน</h3><div class="lifecycle-issue"><b>ควรตรวจสอบ</b><span>พบรายการจัดเวรตั้งแต่วันที่มีผล</span></div><dl class="lifecycle-impact-grid"><div><dt>เวรในอนาคต</dt><dd>12</dd></div><div><dt>ลารอพิจารณา</dt><dd>2</dd></div><div><dt>โควต้าวันลา</dt><dd>1</dd></div><div><dt>ใบอนุญาตใช้งาน</dt><dd>1</dd></div></dl></section><footer><button>ยกเลิก</button><button class="btn-primary">ยืนยันย้ายหน่วยงาน</button></footer></form><aside class="lifecycle-history"><header><h3>ประวัติการเปลี่ยนแปลงสำคัญ</h3><span>อ่านอย่างเดียว</span></header><ol><li><div><b>เปลี่ยนชื่อ</b><span class="lifecycle-status lifecycle-status--applied">มีผลแล้ว</span></div><time>13 ส.ค. 2569</time><strong>ชื่อเดิม → ชื่อใหม่</strong><p>เหตุผล: แก้ไขชื่อตามเอกสารทางราชการ</p><small>โดย UAT Admin (ADMIN) · บันทึก 13 ส.ค. 2569 10:00</small></li></ol></aside></div></section></div>`;
 }
 
 module.exports = {
