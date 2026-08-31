@@ -9,15 +9,16 @@ const drawer = read('components/personnel/PersonnelDetailDrawer.tsx');
 const directory = read('pages/personnel/PersonnelDirectoryPage.tsx');
 
 describe('Employee action and bulk auto-schedule hotfix', () => {
-  it('keeps a single Employee Master edit entry point for lifecycle changes', () => {
+  it('keeps governed edit and restores the ADMIN-only critical Employee change entry point', () => {
     expect(table).toContain('แก้ไขข้อมูล');
     expect(drawer).toContain('แก้ไขข้อมูล');
-    expect(table).not.toContain('จัดการสถานะพนักงาน');
-    expect(drawer).not.toContain('จัดการสถานะพนักงาน');
-    expect(table).not.toContain('onLifecycle');
-    expect(drawer).not.toContain('onLifecycle');
-    expect(directory).not.toContain('onLifecycle');
-    expect(main).not.toContain('EmployeeLifecycleModal');
+    expect(table).toContain('การเปลี่ยนแปลงสำคัญ');
+    expect(drawer).toContain('การเปลี่ยนแปลงสำคัญ');
+    expect(table).toContain('canLifecycle && onLifecycle');
+    expect(directory).toContain("const canLifecycle = role === 'ADMIN' && Boolean(onLifecycle);");
+    expect(main).toContain('EmployeeGovernedEditModal');
+    expect(main).toContain('EmployeeLifecycleModal');
+    expect(main).toContain("auth.user?.role === 'ADMIN' && !auth.isViewingAs");
   });
 
   it('removes the obsolete Schedule Archive action', () => {

@@ -41,14 +41,16 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(personnelPage).not.toContain('รอตรวจสอบ');
   });
 
-  it('keeps the Personnel edit gate while removing the obsolete dedicated lifecycle entry point', () => {
+  it('keeps governed Personnel edit while restoring an ADMIN-only critical-change entry point', () => {
     expect(personnelHeader).toContain('{canManage &&');
     expect(personnelTable).toContain('{canManage &&');
-    expect(personnelTable).not.toContain("{role === 'ADMIN' &&");
-    expect(personnelDrawer).not.toContain("{role === 'ADMIN' &&");
-    expect(personnelTable).not.toContain('จัดการสถานะพนักงาน');
-    expect(personnelDrawer).not.toContain('จัดการสถานะพนักงาน');
-    expect(main).not.toContain('setLifecycleTarget');
+    expect(personnelTable).toContain('canLifecycle && onLifecycle');
+    expect(personnelDrawer).toContain('canLifecycle && onLifecycle');
+    expect(personnelTable).toContain('การเปลี่ยนแปลงสำคัญ');
+    expect(personnelDrawer).toContain('การเปลี่ยนแปลงสำคัญ');
+    expect(personnelPage).toContain("const canLifecycle = role === 'ADMIN' && Boolean(onLifecycle);");
+    expect(main).toContain('setEmployeeLifecycleTarget');
+    expect(main).toContain("employeeLifecycleTarget && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs");
     expect(main).toContain('EmployeeGovernedEditModal');
   });
 

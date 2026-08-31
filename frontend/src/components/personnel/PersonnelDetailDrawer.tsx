@@ -3,9 +3,16 @@ import { SmsIcon } from '../SmsIcon';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import type { PersonnelRecord } from './types';
 
-type Props = { employee?: PersonnelRecord; canManage: boolean; onClose(): void; onEdit(): void };
+type Props = {
+  employee?: PersonnelRecord;
+  canManage: boolean;
+  canLifecycle: boolean;
+  onClose(): void;
+  onEdit(): void;
+  onLifecycle?(): void;
+};
 
-export function PersonnelDetailDrawer({ employee, canManage, onClose, onEdit }: Props) {
+export function PersonnelDetailDrawer({ employee, canManage, canLifecycle, onClose, onEdit, onLifecycle }: Props) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
 
@@ -64,6 +71,7 @@ export function PersonnelDetailDrawer({ employee, canManage, onClose, onEdit }: 
       </div>
       {canManage && <footer className="personnel-drawer-actions">
         <button type="button" className="btn-primary personnel-drawer-primary" onClick={onEdit}><SmsIcon name="edit" size={17} />แก้ไขข้อมูล</button>
+        {canLifecycle && onLifecycle && <button type="button" className="btn-neutral personnel-lifecycle-action" onClick={onLifecycle}><SmsIcon name="approval" size={17} />การเปลี่ยนแปลงสำคัญ</button>}
       </footer>}
     </aside>
   </div>;

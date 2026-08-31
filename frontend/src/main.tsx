@@ -32,6 +32,7 @@ import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage';
 import { EmployeeGovernedEditModal } from './components/personnel/EmployeeGovernedEditModal';
+import { EmployeeLifecycleModal } from './components/personnel/EmployeeLifecycleModal';
 import { EmployeeChangeReviewModal } from './components/personnel/EmployeeChangeReviewModal';
 import { ApprovalCenterPage } from './pages/approvals/ApprovalCenterPage';
 import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
@@ -1618,7 +1619,7 @@ function Dashboard() {
   useEffect(() => {
     setMobileMenuOpen(false);
     setMobileUtilityOpen(false);
-    if (activePage !== 'employees') setEmployeeGovernedEditTarget(undefined);
+    if (activePage !== 'employees') { setEmployeeGovernedEditTarget(undefined); setEmployeeLifecycleTarget(undefined); }
     if (!['employees', 'approvalCenter'].includes(activePage)) {
       setEmployeeChangeReviewOpen(false);
       setEmployeeChangeReviewInitialId(undefined);
@@ -1635,6 +1636,7 @@ function Dashboard() {
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorError, setEditorError] = useState<RequestErrorInput>();
   const [employeeGovernedEditTarget, setEmployeeGovernedEditTarget] = useState<Employee>();
+  const [employeeLifecycleTarget, setEmployeeLifecycleTarget] = useState<Employee>();
   const [employeeChangeReviewOpen, setEmployeeChangeReviewOpen] = useState(false);
   const [employeeChangeReviewInitialId, setEmployeeChangeReviewInitialId] = useState<string>();
   const [licenseEditTarget, setLicenseEditTarget] = useState<DataRow>();
@@ -2426,7 +2428,7 @@ function Dashboard() {
       );
     }
     if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { setActivePage(item.sourcePage); }} />;
-    if (activePage === 'employees') return <PersonnelDirectoryPage employees={employees} totalCount={totalCount} loading={empLoading} error={typeof fetchError === 'string' ? fetchError : fetchError?.message} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} onRefresh={() => setEmployeeRefresh((value) => value + 1)} />;
+    if (activePage === 'employees') return <PersonnelDirectoryPage employees={employees} totalCount={totalCount} loading={empLoading} error={typeof fetchError === 'string' ? fetchError : fetchError?.message} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} onLifecycle={auth.user?.role === 'ADMIN' && !auth.isViewingAs ? (employee) => setEmployeeLifecycleTarget(employee as Employee) : undefined} onRefresh={() => setEmployeeRefresh((value) => value + 1)} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       return <AuditCompliancePage rows={auditRows} total={operationResponse.meta?.total ?? auditRows.length} page={operationResponse.meta?.page || operationPage} totalPages={operationResponse.meta?.totalPages || 1} pageSize={auditPageSize} loading={operationLoading} error={typeof operationError === 'string' ? operationError : operationError?.message} permissionDenied={auth.user?.role !== 'ADMIN'} filters={auditFilters} onFiltersChange={(filters) => { setAuditFilters(filters); setOperationPage(1); }} onRefresh={() => setOperationRefresh((value) => value + 1)} onPageChange={setOperationPage} onPageSize={(value) => { setAuditPageSize(value); setOperationPage(1); }} onExport={(rows) => downloadCsv(rows as DataRow[], 'audit-events')} onPrint={() => window.print()} />;
@@ -2853,6 +2855,7 @@ function Dashboard() {
       <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}>
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} />}
+      {employeeLifecycleTarget && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <EmployeeLifecycleModal token={auth.token} employee={employeeLifecycleTarget} onClose={() => setEmployeeLifecycleTarget(undefined)} onApplied={() => setEmployeeRefresh((value) => value + 1)} />}
       {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <EmployeeChangeReviewModal token={auth.token} initialRequestId={employeeChangeReviewInitialId} onClose={() => { setEmployeeChangeReviewOpen(false); setEmployeeChangeReviewInitialId(undefined); }} onChanged={() => { setEmployeeRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />}
       {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({auth.user?.role}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนูหลัก" aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(false)} />}
