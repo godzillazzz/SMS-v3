@@ -86,7 +86,7 @@ async function remove(id, actorUserId) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.shiftType.findUnique({ where: { id } });
     if (!existing) throw new HttpError(404, 'Shift type not found.');
-    if (CORE_SHIFT_CODES.includes(String(existing.code || '').toUpperCase())) {
+    if (['D', 'N', 'OFF', 'AL'].includes(existing.code.toUpperCase())) {
       throw new HttpError(400, `Core shift ${existing.code} cannot be deleted.`);
     }
 
