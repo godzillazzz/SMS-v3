@@ -319,6 +319,32 @@ export async function attendanceDeviceState(token: string): Promise<AttendanceDe
   return payload.data as AttendanceDeviceState;
 }
 
+export async function attendanceDeviceAdminOverview(token: string) {
+  const response = await attendanceAuthenticatedRequest('/attendance/devices/admin/overview', token, {
+    method: 'GET',
+    credentials: 'include',
+    headers: authHeaders(token)
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถอ่านประวัติอุปกรณ์ลงเวลาได้'), response.status, requestId, publicCode(payload));
+  return payload.data;
+}
+
+export async function revokeAttendanceDeviceCurrent(token: string, employeeId: string, deviceId: string, reason: string) {
+  const path = `/attendance/devices/admin/employees/${encodeURIComponent(employeeId)}/current/${encodeURIComponent(deviceId)}/revoke`;
+  const response = await attendanceAuthenticatedRequest(path, token, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(token, true),
+    body: JSON.stringify({ reason })
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถยกเลิกอุปกรณ์ลงเวลาได้'), response.status, requestId, publicCode(payload));
+  return payload.data;
+}
+
 export async function verifyAttendanceDeviceProof(token: string, sessionId: string, input: {
   challengeId: string;
   challenge: string;
