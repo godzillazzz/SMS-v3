@@ -259,7 +259,7 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute, opti
   await ensureLeaveAvailable(tx, employeeId, leaveType, requestedUsageByYear, undefined, { stageTimer, leavePolicySnapshot, leaveQuotaBucketSnapshot: leaveTypeState.leaveQuotaBucketSnapshot });
   if (file && !allowedAttachmentTypes.has(file.mimetype)) throw new HttpError(415, 'Attachment must be PDF, JPEG, or PNG.');
   const attachmentThresholdDays = Number(leavePolicySnapshot.sickAttachmentRequiredAfterDays);
-  if (leaveTypeState.leaveQuotaBucketSnapshot === 'SICK' && dayCount > attachmentThresholdDays && !file) throw new HttpError(400, `Sick leave longer than ${attachmentThresholdDays} day(s) requires an attachment.`, { code: 'LEAVE_SICK_ATTACHMENT_REQUIRED', thresholdDays: attachmentThresholdDays });
+  if (leaveTypeState.leaveQuotaBucketSnapshot === 'SICK' && dayCount > attachmentThresholdDays && !file) throw new HttpError(400, `ลาป่วยเกิน ${attachmentThresholdDays} วัน ต้องแนบเอกสารประกอบ`, { code: 'LEAVE_SICK_ATTACHMENT_REQUIRED', thresholdDays: attachmentThresholdDays });
   const safeFileName = file?.originalname.replace(/[\\/\0]/g, '_').slice(0, 255);
   const substituteText = String(substitute ?? input.substitute ?? '').trim();
   if (!substituteText) throw new HttpError(400, 'Substitute is required.');
@@ -1108,7 +1108,7 @@ router.put('/leave-requests/:id/correction', async (req, res, next) => {
       if (overlap) throw new HttpError(409, 'An overlapping leave request already exists.', { code: 'LEAVE_CORRECTION_OVERLAP' });
       await ensureLeaveAvailable(tx, before.employeeId, leaveType, requestedUsageByYear, id, { lock: true, leavePolicySnapshot, leaveQuotaBucketSnapshot: leaveTypeState.leaveQuotaBucketSnapshot });
       const attachmentThresholdDays = Number(leavePolicySnapshot.sickAttachmentRequiredAfterDays);
-      if (leaveTypeState.leaveQuotaBucketSnapshot === 'SICK' && dayCount > attachmentThresholdDays && !before.attachmentUrl) throw new HttpError(400, `Sick leave longer than ${attachmentThresholdDays} day(s) requires an attachment.`, { code: 'LEAVE_SICK_ATTACHMENT_REQUIRED', thresholdDays: attachmentThresholdDays });
+      if (leaveTypeState.leaveQuotaBucketSnapshot === 'SICK' && dayCount > attachmentThresholdDays && !before.attachmentUrl) throw new HttpError(400, `ลาป่วยเกิน ${attachmentThresholdDays} วัน ต้องแนบเอกสารประกอบ`, { code: 'LEAVE_SICK_ATTACHMENT_REQUIRED', thresholdDays: attachmentThresholdDays });
       const after = await tx.leaveRequest.update({
         where: { id },
         data: {

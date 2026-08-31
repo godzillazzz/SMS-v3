@@ -468,6 +468,15 @@ function Login() {
   );
 }
 const text = (value: unknown) => value === null || value === undefined || value === '' ? '-' : String(value);
+const leaveTypeDisplayText = (row: DataRow) => {
+  const snapshot = String(row.leaveTypeNameSnapshot || '').trim();
+  if (snapshot) return snapshot;
+  const code = String(row.leaveType || '').trim().toUpperCase();
+  if (code === 'SICK') return 'ลาป่วย';
+  if (code === 'PERSONAL') return 'ลากิจ';
+  if (code === 'VACATION') return 'ลาพักร้อน';
+  return String(row.leaveType || '-');
+};
 
 const semanticStatusTone = (value: unknown) => {
   const status = String(value ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_');
@@ -508,6 +517,17 @@ const quotaMatchStatusText = (value: unknown) => {
   if (status === 'UNMATCHED' || status === 'DUPLICATE_UNMATCHED') return status === 'DUPLICATE_UNMATCHED' ? 'ยังไม่จับคู่ (พบชื่อซ้ำ)' : 'ยังไม่จับคู่';
   return text(value);
 };
+function leaveCsvRows(rows: DataRow[]) {
+  return rows.map((row) => ({
+    พนักงาน: text(row.employeeNameSnapshot),
+    ประเภทการลา: leaveTypeDisplayText(row),
+    วันที่เริ่ม: date(row.startDate),
+    วันที่สิ้นสุด: date(row.endDate),
+    จำนวนวัน: text(row.dayCount),
+    สถานะ: text(row.status)
+  }));
+}
+
 function downloadCsv(rows: DataRow[], filename: string) {
   if (!rows.length) return;
   const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
@@ -782,7 +802,7 @@ const tablePages: Record<OperationalPage, { title: string; eyebrow: string; desc
     { label: 'สถานะ', value: (row) => <span className={`status-badge ${row.enabled ? 'status-badge--success' : 'status-badge--neutral'}`}>{row.enabled ? 'เปิดใช้' : 'ปิดใช้'}</span> }
   ] },
   leave: { title: 'คำขอลา', eyebrow: 'การลา', description: 'ประวัติคำขอลาและสถานะการอนุมัติ', columns: [
-    { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) }, { label: 'ประเภท', value: (row) => text(row.leaveTypeNameSnapshot || row.leaveType) },
+    { label: 'พนักงาน', value: (row) => text(row.employeeNameSnapshot) }, { label: 'ประเภท', value: (row) => leaveTypeDisplayText(row) },
     { label: 'วันที่เริ่ม', value: (row) => date(row.startDate) }, { label: 'วันที่สิ้นสุด', value: (row) => date(row.endDate) },
     { label: 'จำนวนวัน', value: (row) => text(row.dayCount) }, { label: 'สถานะ', value: (row) => <span className={`status-badge status-badge--${semanticStatusTone(row.status)}`}>{text(row.status)}</span> }
   ] },
@@ -885,7 +905,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     if (page === 'licenses' && role === 'ADMIN') secondaryActions.push({ label: 'ลบใบอนุญาต', tone: 'danger', icon: 'close', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'delete'); } });
   }
   return <section className={`view-pane data-surface-page data-surface-page--${page}`}>
-    <div className="page-heading signature-page-header"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions signature-page-actions">{showRelated && <button className="btn-neutral small-action" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</button>}{canCreate && <button className="btn-primary compact" onClick={onCreate}>{createLabel}</button>}<span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><div className="signature-page-utilities"><button className="btn-info small-action" disabled={!visibleRows.length} onClick={() => downloadCsv(visibleRows, page)}>CSV</button><button className="btn-info small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div></div>
+    <div className="page-heading signature-page-header"><div><p className="eyebrow">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="heading-actions signature-page-actions">{showRelated && <button className="btn-neutral small-action" onClick={() => onNavigate(relatedPage.page)}>{relatedPage.label}</button>}{canCreate && <button className="btn-primary compact" onClick={onCreate}>{createLabel}</button>}<span className="record-chip">ทั้งหมด {response.meta?.total ?? rows.length} รายการ</span><div className="signature-page-utilities"><button className="btn-info small-action" disabled={!visibleRows.length} onClick={() => downloadCsv(page === 'leave' ? leaveCsvRows(visibleRows) : visibleRows, page)}>CSV</button><button className="btn-info small-action" onClick={() => window.print()}>พิมพ์ / PDF</button></div></div></div>
     <ErrorAlert message={error} />
     {page === 'licenses' && <div className="toolbar data-toolbar signature-filter-bar"><label className="search-box data-search-control"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาใบอนุญาต" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ" /></label><label className="license-employee-status-filter"><span>สถานะพนักงาน</span><select aria-label="กรองสถานะพนักงาน" value={licenseEmployeeStatus} onChange={(event) => { onLicenseEmployeeStatusChange?.(event.target.value as LicenseEmployeeStatus); onPageChange(1); }}><option value="ACTIVE">ปฏิบัติงาน</option><option value="INACTIVE">พ้นสภาพ</option><option value="ALL">ทั้งหมด</option></select></label><span className="toolbar-count data-result-count">แสดง {visibleRows.length} จาก {rows.length} รายการ</span>{tableSearch && <button className="btn-neutral small-action" type="button" onClick={() => setTableSearch('')}>ล้างคำค้นหา</button>}</div>}
     <div className="table-card data-surface-card signature-data-surface">{loading ? <div className="signature-table-skeleton" role="status" aria-label="กำลังอ่านข้อมูล">{Array.from({ length: 6 }, (_, index) => <span key={index} />)}</div> : <><div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <TableActionHeader label="ดำเนินการ" />}</tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index} className="signature-data-row" data-operational-row={text(row.id)} tabIndex={0} aria-label={`เปิดรายละเอียด ${config.title}`} onClick={() => selectRow(row)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectRow(row); } }}>{config.columns.map((column) => page === 'licenses' ? renderLicenseCell(row, column) : <td key={column.label}>{tableValue(row, column)}</td>)}{showActions && <TableActionCell className="row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>{rowActions(row)}</TableActionCell>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows data-table-empty-cell"><div className="empty-state data-state data-state--empty"><span aria-hidden="true">⌁</span><strong>{noResultsMessage}</strong><p>{page === 'licenses' && tableSearch ? 'ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองแล้วค้นหาอีกครั้ง' : 'ยังไม่มีรายการที่ต้องดำเนินการในขอบเขตนี้'}</p>{canCreate && !(page === 'licenses' && tableSearch) && <button className="btn-neutral small-action" onClick={onCreate}>{createLabel}</button>}</div></td></tr>}</tbody></table></div><div className="signature-mobile-records">{visibleRows.map((row) => <button type="button" key={`mobile-${text(row.id)}`} className="signature-mobile-record" data-operational-row={text(row.id)} onClick={() => selectRow(row)}><span className="signature-mobile-record__eyebrow">{config.eyebrow}</span><strong>{page === 'licenses' ? `${text(nested(row.employee).firstName)} ${text(nested(row.employee).lastName)}` : text(row.employeeNameSnapshot || row.name || row.displayName || row.ruleType || row.id)}</strong><div>{config.columns.slice(0, 3).map((column) => <span key={column.label}><small>{column.label}</small>{tableValue(row, column)}</span>)}</div><em>แตะเพื่อเปิดรายละเอียด</em></button>)}</div></>}</div>
@@ -1341,7 +1361,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
           <thead><tr><th>พนักงาน</th><th>ประเภทลา</th><th>วันที่ลา</th><th>วัน</th><th>แทน / เหตุผล</th><th>เอกสาร</th>{!actions && <th>สถานะ</th>}<th>พิมพ์</th>{(actions || showHistoryActions) && <th>จัดการ</th>}</tr></thead>
           <tbody>{items.length ? items.map((row) => <tr key={text(row.id)}>
             <td className="employee-name">{text(row.employeeNameSnapshot)}<small className="cell-note">{text(row.departmentSnapshot)}</small></td>
-            <td>{text(row.leaveTypeNameSnapshot || row.leaveType)}{row.isRetroactive ? <span className="status-badge status-badge--attention leave-retro-badge">ย้อนหลัง</span> : null}</td>
+            <td>{leaveTypeDisplayText(row)}{row.isRetroactive ? <span className="status-badge status-badge--attention leave-retro-badge">ย้อนหลัง</span> : null}</td>
             <td>{date(row.startDate)} – {date(row.endDate)}</td>
             <td>{text(row.dayCount)}</td>
             <td>{text(row.reasonDetail || row.reason)}{row.status === 'RETURNED_FOR_CORRECTION' && row.returnReason ? <small className="cell-note">ส่งกลับ: {text(row.returnReason)}{row.returnedByDisplayName ? ` · ${text(row.returnedByDisplayName)}` : ''}</small> : null}</td>
@@ -1360,7 +1380,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
         return <article className="leave-history-mobile-card" key={`leave-mobile-${text(row.id)}`}>
           <header><div><small>พนักงาน</small><h3>{text(row.employeeNameSnapshot)}</h3>{employeeContext && <small>{employeeContext}</small>}</div>{status(row)}</header>
           <dl>
-            <div><dt>ประเภทการลา</dt><dd>{text(row.leaveTypeNameSnapshot || row.leaveType)}{row.isRetroactive ? <><br /><span className="status-badge status-badge--attention leave-retro-badge">ย้อนหลัง</span></> : null}</dd></div>
+            <div><dt>ประเภทการลา</dt><dd>{leaveTypeDisplayText(row)}{row.isRetroactive ? <><br /><span className="status-badge status-badge--attention leave-retro-badge">ย้อนหลัง</span></> : null}</dd></div>
             <div><dt>จำนวนวัน</dt><dd>{text(row.dayCount)} วัน</dd></div>
             <div className="leave-history-mobile-wide"><dt>วันที่ลา</dt><dd>{date(row.startDate)} – {date(row.endDate)}</dd></div>
             <div className="leave-history-mobile-wide"><dt>ผู้ปฏิบัติงานแทน</dt><dd>{text(substitute)}</dd></div>
@@ -1384,13 +1404,13 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
           <header><div><span>คิวงาน</span><h2>รออนุมัติ</h2></div><b>{pendingRows.length}</b></header>
           {loading ? <div className="signature-table-skeleton compact-skeleton" role="status" aria-label="กำลังโหลดคำขอลา">{Array.from({ length: 5 }, (_, index) => <span key={index} />)}</div> : pendingRows.length ? <div className="leave-decision-list">{pendingRows.map((row) => {
             const active = selectedPending && String(selectedPending.id) === String(row.id);
-            return <button type="button" key={text(row.id)} className={`leave-decision-item ${active ? 'is-active' : ''}`} aria-pressed={active} onClick={() => setSelectedPendingId(String(row.id))}><span><strong>{text(row.employeeNameSnapshot)}</strong><small>{text(row.departmentSnapshot)}</small></span><span><b>{text(row.leaveTypeNameSnapshot || row.leaveType)}</b><small>{date(row.startDate)} – {date(row.endDate)}</small></span></button>;
+            return <button type="button" key={text(row.id)} className={`leave-decision-item ${active ? 'is-active' : ''}`} aria-pressed={active} onClick={() => setSelectedPendingId(String(row.id))}><span><strong>{text(row.employeeNameSnapshot)}</strong><small>{text(row.departmentSnapshot)}</small></span><span><b>{leaveTypeDisplayText(row)}</b><small>{date(row.startDate)} – {date(row.endDate)}</small></span></button>;
           })}</div> : <div className="data-state data-state--empty"><span aria-hidden="true">✓</span><h2>ไม่มีคำขอที่รออนุมัติ</h2><p>ขณะนี้ไม่มีรายการที่ต้องตัดสินใจในขอบเขตสิทธิ์ของคุณ</p></div>}
         </aside>
         <main className="leave-decision-detail">
           {selectedPending ? <>
-            <header><div><p className="eyebrow">คำขอที่เลือก</p><h2>{text(selectedPending.employeeNameSnapshot)}</h2><span>{text(selectedPending.departmentSnapshot)} · {text(selectedPending.leaveType)}</span></div><span className={`status-badge status-badge--${semanticStatusTone(selectedPending.status)}`}>{text(selectedPending.status)}</span></header>
-            <div className="leave-decision-summary"><div><span>วันที่ลา</span><strong>{date(selectedPending.startDate)} – {date(selectedPending.endDate)}</strong></div><div><span>จำนวนวัน</span><strong>{text(selectedPending.dayCount)} วัน</strong></div><div><span>ประเภท</span><strong>{text(selectedPending.leaveType)}</strong></div><div><span>คำขอย้อนหลัง</span><strong>{selectedPending.isRetroactive ? 'ใช่' : 'ไม่ใช่'}</strong></div></div>
+            <header><div><p className="eyebrow">คำขอที่เลือก</p><h2>{text(selectedPending.employeeNameSnapshot)}</h2><span>{text(selectedPending.departmentSnapshot)} · {leaveTypeDisplayText(selectedPending)}</span></div><span className={`status-badge status-badge--${semanticStatusTone(selectedPending.status)}`}>{text(selectedPending.status)}</span></header>
+            <div className="leave-decision-summary"><div><span>วันที่ลา</span><strong>{date(selectedPending.startDate)} – {date(selectedPending.endDate)}</strong></div><div><span>จำนวนวัน</span><strong>{text(selectedPending.dayCount)} วัน</strong></div><div><span>ประเภท</span><strong>{leaveTypeDisplayText(selectedPending)}</strong></div><div><span>คำขอย้อนหลัง</span><strong>{selectedPending.isRetroactive ? 'ใช่' : 'ไม่ใช่'}</strong></div></div>
             <section className="leave-decision-copy"><div><span>เหตุผล / รายละเอียด</span><p>{text(selectedPending.reason)}</p></div><div><span>ผู้ปฏิบัติงานแทน</span><p>{text(selectedPending.substitute || selectedPending.substituteName || '-')}</p></div></section>
             {selectedPending.attachmentUrl && <button type="button" className="btn-neutral leave-decision-attachment" onClick={() => onAttachment(selectedPending)}>📎 เปิดเอกสารแนบ</button>}
           </> : <div className="data-state data-state--empty"><h2>เลือกรายการเพื่อดูรายละเอียด</h2><p>รายละเอียดคำขอและการตัดสินใจจะแสดงในพื้นที่นี้</p></div>}
@@ -1449,7 +1469,7 @@ function LeavePrintDocument({ row }: { row: DataRow }) {
     <div className="leave-print-topline"><span>{formatApprovalDateTime(new Date())}</span><span>Security Management System — แบบบันทึกการลาพนักงานรักษาความปลอดภัย</span></div>
     <div className="leave-print-heading"><h1>ใบขออนุมัติลางาน</h1><p>พนักงานรักษาความปลอดภัย</p></div>
     <div className="leave-print-person"><strong>ชื่อพนักงาน: {text(row.employeeNameSnapshot)}</strong><strong>วันที่พิมพ์: {date(new Date())}</strong></div>
-    <table className="leave-print-table"><thead><tr><th>วันที่ลางาน</th><th>ประเภทการลา</th><th>จำนวนวัน</th><th>ผู้ปฏิบัติงานแทน / รายละเอียด</th></tr></thead><tbody><tr><td>{leaveDates}</td><td>{text(row.leaveTypeNameSnapshot || row.leaveType)}</td><td>{text(row.dayCount)} วัน</td><td>{text(row.reason)}</td></tr></tbody></table>
+    <table className="leave-print-table"><thead><tr><th>วันที่ลางาน</th><th>ประเภทการลา</th><th>จำนวนวัน</th><th>ผู้ปฏิบัติงานแทน / รายละเอียด</th></tr></thead><tbody><tr><td>{leaveDates}</td><td>{leaveTypeDisplayText(row)}</td><td>{text(row.dayCount)} วัน</td><td>{text(row.reason)}</td></tr></tbody></table>
     <div className="leave-print-signatures">
       <div className="leave-print-signature-block">
         <div className="leave-print-signature-line">
@@ -1877,8 +1897,8 @@ function Dashboard() {
     .filter((section) => section.items.length > 0);
   const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName}` }));
   const activeLeaveTypes = leaveTypes.filter((item) => item.isActive);
-  const leaveTypeOptions = activeLeaveTypes.map((item) => ({ value: item.code, label: `${item.name} (${item.code})` }));
-  const leaveTypeOptionsForRow = (row: DataRow) => leaveTypeOptions.some((option) => option.value === String(row.leaveType || '')) ? leaveTypeOptions : [{ value: String(row.leaveType || ''), label: String(row.leaveTypeNameSnapshot || row.leaveType || '') }, ...leaveTypeOptions].filter((option) => option.value);
+  const leaveTypeOptions = activeLeaveTypes.map((item) => ({ value: item.code, label: item.name }));
+  const leaveTypeOptionsForRow = (row: DataRow) => leaveTypeOptions.some((option) => option.value === String(row.leaveType || '')) ? leaveTypeOptions : [{ value: String(row.leaveType || ''), label: leaveTypeDisplayText(row) }, ...leaveTypeOptions].filter((option) => option.value);
   const quotaRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
   const quotaEmployeeOptions = quotaProvisioningEmployeeOptions(employees, [...quotaRows, ...legacyQuotaRows], quotaYear);
   const showQuotaLegacyWarning = Number(operationResponse.meta?.unmatchedLegacyCount || 0) > 0 || hasUnmatchedLegacyQuota([...quotaRows, ...legacyQuotaRows]);

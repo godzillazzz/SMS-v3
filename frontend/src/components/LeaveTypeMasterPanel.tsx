@@ -12,10 +12,10 @@ type CreateInput = {
 type UpdateInput = Partial<Pick<LeaveTypeMaster, 'name' | 'quotaBucket' | 'isActive' | 'sortOrder'>>;
 
 const bucketLabels: Record<LeaveTypeMaster['quotaBucket'], string> = {
-  SICK: 'Sick quota',
-  PERSONAL: 'Personal quota',
-  VACATION: 'Vacation quota',
-  NONE: 'No annual quota'
+  SICK: 'โควตาลาป่วย',
+  PERSONAL: 'โควตาลากิจ',
+  VACATION: 'โควตาลาพักร้อน',
+  NONE: 'ไม่หักโควตารายปี'
 };
 
 export function LeaveTypeMasterPanel({
@@ -101,19 +101,19 @@ export function LeaveTypeMasterPanel({
     <div className="line-settings-title">
       <span>🗂️</span>
       <div>
-        <h2>Leave Type Master</h2>
-        <p>จัดการรหัสประเภทการลา ชื่อที่แสดง สถานะใช้งาน และ annual quota bucket โดยไม่ลบหรือเขียนทับประวัติเดิม</p>
+        <h2>ประเภทการลา</h2>
+        <p>จัดการรหัสประเภทการลา ชื่อที่แสดง สถานะใช้งาน และกลุ่มโควตารายปี โดยไม่ลบหรือเขียนทับประวัติเดิม</p>
       </div>
     </div>
 
     {loading ? <div className="loading-row">กำลังอ่าน Leave Type Master…</div> : <div className="table-wrap">
       <table className="data-table">
-        <thead><tr><th>Code</th><th>ชื่อ</th><th>Quota bucket</th><th>ลำดับ</th><th>สถานะ</th><th>Authority</th><th>จัดการ</th></tr></thead>
+        <thead><tr><th>ประเภทการลา</th><th>ชื่อ</th><th>กลุ่มโควตา</th><th>ลำดับ</th><th>สถานะ</th><th>ข้อกำหนด</th><th>จัดการ</th></tr></thead>
         <tbody>
           {items.map((row) => {
             const editing = editingId === row.id;
             return <tr key={row.id}>
-              <td><code>{row.code}</code></td>
+              <td title={`รหัสระบบ: ${row.code}`}>{row.code === 'SICK' ? 'ลาป่วย' : row.code === 'PERSONAL' ? 'ลากิจ' : row.code === 'VACATION' ? 'ลาพักร้อน' : row.name}</td>
               <td>{editing
                 ? <input value={String(editForm.name ?? '')} maxLength={150} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} />
                 : row.name}</td>
@@ -131,7 +131,7 @@ export function LeaveTypeMasterPanel({
                     <option value="false">Inactive</option>
                   </select>
                 : row.isActive ? 'Active' : 'Inactive'}</td>
-              <td>{row.isSystem ? 'CORE · code/bucket protected' : 'ADMIN · code immutable'}</td>
+              <td>{row.isSystem ? 'ประเภทหลัก · ป้องกันรหัส/โควตา' : 'ผู้ดูแลระบบ · รหัสคงที่'}</td>
               <td>{editing
                 ? <div className="row-actions">
                     <button className="btn-primary compact" disabled={busy} onClick={() => void submitEdit()}>บันทึก</button>
@@ -146,20 +146,20 @@ export function LeaveTypeMasterPanel({
 
     <div className="line-secure-grid">
       <label className="field-group">
-        <span>Code ใหม่</span>
+        <span>รหัสประเภทการลาใหม่</span>
         <input value={createForm.code} maxLength={40} placeholder="เช่น TRAINING" onChange={(event) => setCreateForm((current) => ({ ...current, code: event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') }))} />
-        <small>Code เป็น stable identity และแก้ไม่ได้หลังสร้าง</small>
+        <small>รหัสเป็นตัวตนถาวรของประเภทการลาและแก้ไม่ได้หลังสร้าง</small>
       </label>
       <label className="field-group">
         <span>ชื่อที่แสดง</span>
         <input value={createForm.name} maxLength={150} placeholder="เช่น ลาฝึกอบรม" onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))} />
       </label>
       <label className="field-group">
-        <span>Annual quota bucket</span>
+        <span>กลุ่มโควตารายปี</span>
         <select value={createForm.quotaBucket} onChange={(event) => setCreateForm((current) => ({ ...current, quotaBucket: event.target.value as LeaveTypeMaster['quotaBucket'] }))}>
           {Object.entries(bucketLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
-        <small>NONE = ไม่สร้าง/หัก annual quota อัตโนมัติ</small>
+        <small>ไม่หักโควตารายปี = ไม่สร้างหรือหักโควตารายปีอัตโนมัติ</small>
       </label>
       <label className="field-group">
         <span>ลำดับแสดงผล</span>

@@ -99,7 +99,7 @@ const DEFINITIONS = Object.freeze([
     group: GROUPS.LEAVE.id,
     groupLabel: GROUPS.LEAVE.label,
     groupOrder: GROUPS.LEAVE.order,
-    label: 'Default sick leave entitlement',
+    label: 'สิทธิ์ลาป่วยเริ่มต้น',
     valueType: 'NUMBER',
     description: 'สิทธิ์ลาป่วยเริ่มต้นสำหรับโควตารายปีที่สร้างใหม่',
     constraints: { min: 0, max: 999, unit: 'days' }
@@ -109,7 +109,7 @@ const DEFINITIONS = Object.freeze([
     group: GROUPS.LEAVE.id,
     groupLabel: GROUPS.LEAVE.label,
     groupOrder: GROUPS.LEAVE.order,
-    label: 'Default personal leave entitlement',
+    label: 'สิทธิ์ลากิจเริ่มต้น',
     valueType: 'NUMBER',
     description: 'สิทธิ์ลากิจเริ่มต้นสำหรับโควตารายปีที่สร้างใหม่',
     constraints: { min: 0, max: 999, unit: 'days' }
@@ -119,7 +119,7 @@ const DEFINITIONS = Object.freeze([
     group: GROUPS.LEAVE.id,
     groupLabel: GROUPS.LEAVE.label,
     groupOrder: GROUPS.LEAVE.order,
-    label: 'Default vacation leave entitlement',
+    label: 'สิทธิ์ลาพักร้อนเริ่มต้น',
     valueType: 'NUMBER',
     description: 'สิทธิ์ลาพักร้อนเริ่มต้นสำหรับโควตารายปีที่สร้างใหม่',
     constraints: { min: 0, max: 999, unit: 'days' }
@@ -129,7 +129,7 @@ const DEFINITIONS = Object.freeze([
     group: GROUPS.LEAVE.id,
     groupLabel: GROUPS.LEAVE.label,
     groupOrder: GROUPS.LEAVE.order,
-    label: 'Sick leave attachment threshold',
+    label: 'เกณฑ์บังคับเอกสารลาป่วย',
     valueType: 'NUMBER',
     description: 'บังคับแนบเอกสารเมื่อลาป่วยเกินจำนวนวันที่กำหนด',
     constraints: { min: 0, max: 30, unit: 'days' }

@@ -2,6 +2,7 @@
 
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
+const { leaveTypeDisplayName } = require('./leave-type.service');
 const { createAttendanceAdjustmentService } = require('./attendance-adjustment.service');
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -426,7 +427,7 @@ function createApprovalCenterService({
         requestedBy: actorSummary(row.createdByUser, null),
         submittedAt: row.requestedAt || row.createdAt,
         metadata: {
-          leaveType: row.leaveTypeNameSnapshot || row.leaveType,
+          leaveType: leaveTypeDisplayName(row.leaveType, row.leaveTypeNameSnapshot),
           leaveTypeCode: row.leaveType,
           startDate: row.startDate,
           endDate: row.endDate,

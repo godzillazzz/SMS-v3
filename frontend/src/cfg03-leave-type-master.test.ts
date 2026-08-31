@@ -22,10 +22,13 @@ describe('CFG-03 Leave Type Master contract', () => {
 
   it('renders Leave Type Master in Configuration Center with immutable codes and no delete control', () => {
     expect(main).toContain('<LeaveTypeMasterPanel');
-    expect(panel).toContain('Code เป็น stable identity และแก้ไม่ได้หลังสร้าง');
+    expect(panel).toContain('รหัสเป็นตัวตนถาวรของประเภทการลาและแก้ไม่ได้หลังสร้าง');
     expect(panel).toContain('ไม่มีคำสั่ง Delete สำหรับ Leave Type Master');
-    expect(panel).toContain('CORE · code/bucket protected');
-    expect(panel).toContain('No annual quota');
+    expect(panel).toContain('ประเภทหลัก · ป้องกันรหัส/โควตา');
+    expect(panel).toContain('ไม่หักโควตารายปี');
+    expect(panel).toContain("SICK: 'โควตาลาป่วย'");
+    expect(panel).toContain("PERSONAL: 'โควตาลากิจ'");
+    expect(panel).toContain("VACATION: 'โควตาลาพักร้อน'");
   });
 
   it('loads active Leave Types for leave workflow and inactive rows only for Admin settings', () => {
@@ -40,11 +43,22 @@ describe('CFG-03 Leave Type Master contract', () => {
     expect(main).toContain('options: leaveTypeOptionsForRow(row)');
     expect(main).not.toContain("options: ['ลาป่วย', 'ลากิจ', 'ลาพักร้อน']");
     expect(main).not.toContain("{ value: 'SICK', label: 'ลาป่วย' }, { value: 'PERSONAL', label: 'ลากิจ' }, { value: 'VACATION', label: 'ลาพักร้อน' }");
-    expect(main).toContain('text(row.leaveTypeNameSnapshot || row.leaveType)');
+    expect(main).toContain('leaveTypeDisplayText(row)');
+    expect(main).toContain("if (code === 'SICK') return 'ลาป่วย'");
+    expect(main).toContain("if (code === 'PERSONAL') return 'ลากิจ'");
+    expect(main).toContain("if (code === 'VACATION') return 'ลาพักร้อน'");
+    expect(main).toContain('label: item.name');
+    expect(main).not.toContain('label: `${item.name} (${item.code})`');
   });
 
   it('uses quota bucket rather than display-name text to trigger sick attachment rules', () => {
     expect(main).toContain("selectedLeaveType?.quotaBucket === 'SICK'");
     expect(main).not.toContain("form.leaveType.includes('ป่วย')");
+  });
+
+  it('prints and CSV-exports Thai leave names instead of internal core codes', () => {
+    expect(main).toContain('<td>{leaveTypeDisplayText(row)}</td>');
+    expect(main).toContain('ประเภทการลา: leaveTypeDisplayText(row)');
+    expect(main).toContain("page === 'leave' ? leaveCsvRows(visibleRows) : visibleRows");
   });
 });

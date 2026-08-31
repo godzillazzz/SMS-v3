@@ -11,6 +11,7 @@ const {
   CORE_LEAVE_TYPES,
   canonicalLeaveTypeCode,
   canonicalQuotaBucket,
+  leaveTypeDisplayName,
   leaveTypeSnapshot,
   listLeaveTypes,
   resolveLeaveTypeForRequest,
@@ -25,6 +26,14 @@ test('CFG-03 core Leave Type definitions preserve current three leave semantics'
     ['VACATION', 'ลาพักร้อน', 'VACATION']
   ]);
   assert.deepEqual(LEAVE_QUOTA_BUCKETS, ['SICK', 'PERSONAL', 'VACATION', 'NONE']);
+});
+
+test('CFG-03 user-facing core Leave Type names are Thai even for legacy rows without snapshots', () => {
+  assert.equal(leaveTypeDisplayName('SICK'), 'ลาป่วย');
+  assert.equal(leaveTypeDisplayName('PERSONAL'), 'ลากิจ');
+  assert.equal(leaveTypeDisplayName('VACATION'), 'ลาพักร้อน');
+  assert.equal(leaveTypeDisplayName('SICK', 'ชื่อที่บันทึกไว้'), 'ชื่อที่บันทึกไว้');
+  assert.equal(leaveTypeDisplayName('TRAINING'), 'TRAINING');
 });
 
 test('CFG-03 canonicalizes legacy Thai/English aliases but permits stable custom codes', () => {
@@ -142,4 +151,17 @@ test('CFG-03 operations route exposes governed master CRUD without DELETE and sn
   assert.match(source, /leaveTypeNameSnapshot: leaveTypeState\.leaveTypeNameSnapshot/);
   assert.match(source, /leaveQuotaBucketSnapshot: leaveTypeState\.leaveQuotaBucketSnapshot/);
   assert.doesNotMatch(source, /const normalizeLeaveType/);
+});
+
+test('CFG-03 reports and user-facing leave errors use Thai core names', () => {
+  const executive = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'executive-report.service.js'), 'utf8');
+  const approval = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'approval-center.service.js'), 'utf8');
+  const notification = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'notification-email.service.js'), 'utf8');
+  const routes = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'operations.routes.js'), 'utf8');
+
+  assert.match(executive, /leaveTypeDisplayName\(row\.leaveType, row\.leaveTypeNameSnapshot\)/);
+  assert.match(approval, /leaveTypeDisplayName\(row\.leaveType, row\.leaveTypeNameSnapshot\)/);
+  assert.match(notification, /leaveTypeDisplayName\(leaveRequest\.leaveType, leaveRequest\.leaveTypeNameSnapshot\)/);
+  assert.match(routes, /ลาป่วยเกิน \$\{attachmentThresholdDays\} วัน ต้องแนบเอกสารประกอบ/);
+  assert.doesNotMatch(routes, /Sick leave longer than/);
 });

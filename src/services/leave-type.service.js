@@ -12,6 +12,18 @@ const CORE_LEAVE_TYPES = Object.freeze([
 ]);
 
 const AUDIT_FIELDS = ['code', 'name', 'quotaBucket', 'isActive', 'isSystem', 'sortOrder'];
+const CORE_LEAVE_TYPE_THAI_NAMES = Object.freeze({
+  SICK: 'ลาป่วย',
+  PERSONAL: 'ลากิจ',
+  VACATION: 'ลาพักร้อน'
+});
+
+function leaveTypeDisplayName(leaveType, leaveTypeNameSnapshot) {
+  const snapshot = String(leaveTypeNameSnapshot || '').trim();
+  if (snapshot) return snapshot;
+  const code = String(leaveType || '').trim().toUpperCase();
+  return CORE_LEAVE_TYPE_THAI_NAMES[code] || String(leaveType || '').trim();
+}
 
 function safeRecord(record) {
   return Object.fromEntries(AUDIT_FIELDS.map((field) => [field, record?.[field]]));
@@ -185,6 +197,7 @@ module.exports = {
   CORE_LEAVE_TYPES,
   canonicalLeaveTypeCode,
   canonicalQuotaBucket,
+  leaveTypeDisplayName,
   leaveTypeSnapshot,
   listLeaveTypes,
   resolveLeaveTypeForRequest,

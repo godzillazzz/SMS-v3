@@ -73,9 +73,9 @@ export function LeavePolicySettingsCard({ settings, onSave, onRefresh }: {
     setNotice(undefined);
     try {
       await onSave(form);
-      setNotice('บันทึก Leave Policy สำเร็จแล้ว');
+      setNotice('บันทึกนโยบายการลาสำเร็จแล้ว');
     } catch (reason) {
-      setNotice(reason instanceof Error ? reason.message : 'บันทึก Leave Policy ไม่สำเร็จ');
+      setNotice(reason instanceof Error ? reason.message : 'บันทึกนโยบายการลาไม่สำเร็จ');
     } finally {
       setSaving(false);
     }
@@ -85,7 +85,7 @@ export function LeavePolicySettingsCard({ settings, onSave, onRefresh }: {
     <div className="line-settings-title">
       <span>🗓️</span>
       <div>
-        <h2>Leave Policy</h2>
+        <h2>นโยบายการลา</h2>
         <p>กำหนดค่าเริ่มต้นสำหรับโควตาใหม่และกฎยื่นลาปัจจุบัน โดยไม่แก้โควตาหรือคำขอลาในอดีตย้อนหลัง</p>
       </div>
     </div>
@@ -132,10 +132,10 @@ export function LeavePolicySettingsCard({ settings, onSave, onRefresh }: {
 
     {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
     <div className="line-settings-actions">
-      <button className="btn-primary compact" disabled={saving} onClick={() => void save()}>💾 {saving ? 'กำลังบันทึก…' : 'บันทึก Leave Policy'}</button>
+      <button className="btn-primary compact" disabled={saving} onClick={() => void save()}>💾 {saving ? 'กำลังบันทึก…' : 'บันทึกนโยบายการลา'}</button>
       <button className="btn-neutral small-action" disabled={saving} onClick={() => { setForm(defaultLeavePolicy); setNotice(undefined); }}>คืนค่าเริ่มต้น</button>
       <button className="btn-neutral small-action" disabled={saving} onClick={onRefresh}>↻ รีเฟรช</button>
     </div>
-    <p className="line-settings-footnote">การเปลี่ยน policy มีผลกับการตัดสินใจ/การสร้างข้อมูลใหม่หลังบันทึกเท่านั้น และทุก SystemSetting mutation ถูก Audit ตาม Configuration Center governance</p>
+    <p className="line-settings-footnote">การเปลี่ยนนโยบายมีผลกับการตัดสินใจและการสร้างข้อมูลใหม่หลังบันทึกเท่านั้น ส่วนข้อมูลย้อนหลังไม่ถูกแก้ไข และทุกการเปลี่ยนแปลงถูกบันทึก Audit ตามกฎของ Configuration Center</p>
   </section>;
 }

@@ -6,6 +6,7 @@ const { logger } = require('../utils/logger');
 const { leaveMonthWhere } = require('../utils/leave-month-filter');
 const { getDataQualitySummary } = require('./data-quality.service');
 const HttpError = require('../utils/http-error');
+const { leaveTypeDisplayName } = require('./leave-type.service');
 
 const EMPTY_ID = '00000000-0000-0000-0000-000000000000';
 const LICENSE_APPROVED = { status: 'APPROVED', isCurrent: true };
@@ -179,7 +180,7 @@ async function getExecutiveReport({ prismaClient, requestUser, filters, now = ne
   const pendingReview = await timedExecutiveStage(requestId, 'EXEC_LICENSE', 1, () => prismaClient.employeeLicenseDocument.count({ where: { status: 'PENDING', isCurrent: true, ...operationalDocumentScope } }));
 
   const statusCounts = numberFromGroup(leaveByStatusRows, 'status', ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']);
-  const byType = leaveByTypeRows.map((row) => ({ label: row.leaveTypeNameSnapshot || row.leaveType, code: row.leaveType, count: row._count?._all || 0 }));
+  const byType = leaveByTypeRows.map((row) => ({ label: leaveTypeDisplayName(row.leaveType, row.leaveTypeNameSnapshot), code: row.leaveType, count: row._count?._all || 0 }));
   const workforceByDepartment = workforceRows.filter((row) => row.active > 0).map((row) => ({ label: row.department || 'ไม่ระบุหน่วยงาน', count: row.active }));
   const qualityCategory = (rule) => quality.categories.find((item) => item.rule === rule)?.count || 0;
   const license = {

@@ -50,6 +50,6 @@ describe('CFG-02 Leave Policy configuration contract', () => {
     expect(card).toContain('ใช้เฉพาะเมื่อระบบสร้างโควตารายปีใหม่');
     expect(card).toContain('โควตาที่มีอยู่แล้วจะไม่ถูกเขียนทับ');
     expect(card).toContain('ไม่แก้โควตาหรือคำขอลาในอดีตย้อนหลัง');
-    expect(card).toContain('มีผลกับการตัดสินใจ/การสร้างข้อมูลใหม่หลังบันทึกเท่านั้น');
+    expect(card).toContain('มีผลกับการตัดสินใจและการสร้างข้อมูลใหม่หลังบันทึกเท่านั้น');
   });
 });
