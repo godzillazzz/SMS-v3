@@ -125,7 +125,7 @@ async function buildAutoSchedulePlan(client, month) {
   const [rules, allEmployees, shiftTypes, currentShifts, historyRows, licenses] = await Promise.all([
     client.schedulingRule.findMany({ select: { ruleId: true, value: true, enabled: true } }),
     client.employee.findMany({ where: { deletedAt: null, isActive: true }, select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true, jobTitle: true }, orderBy: { employeeCode: 'asc' } }),
-    client.shiftType.findMany({ select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } }),
+    client.shiftType.findMany({ where: { isActive: true }, select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } }),
     client.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end } }, include: { shiftType: { select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } } } }),
     client.shiftAssignment.findMany({ where: { workDate: { gte: historyStart, lt: start } }, orderBy: { workDate: 'desc' }, include: { shiftType: { select: { code: true } } } }),
     client.employeeLicense.findMany({ select: { employeeId: true, issueDate: true, expiryDate: true, status: true } })
@@ -221,7 +221,7 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
       orderBy: { workDate: 'desc' },
       include: { shiftType: { select: { code: true } } }
     }),
-    client.shiftType.findMany({ select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } })
+    client.shiftType.findMany({ where: { isActive: true }, select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } })
   ]);
   const shiftTypeMap = new Map(allShiftTypes.map((shift) => [String(shift.code).toUpperCase(), shift]));
   const applied = applyEmployeePattern({ rows, history, shiftTypeMap, startPhase, patternType });

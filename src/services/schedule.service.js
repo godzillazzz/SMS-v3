@@ -31,7 +31,7 @@ async function getMonthlyGrid(yearMonth) {
       where: { deletedAt: null, isActive: true },
       orderBy: [{ employeeCode: 'asc' }]
     }),
-    prisma.shiftType.findMany({ orderBy: { code: 'asc' } }),
+    prisma.shiftType.findMany({ where: { isActive: true }, orderBy: { code: 'asc' } }),
     prisma.shiftAssignment.findMany({
       where: {
         workDate: { gte: startDate, lte: endDate }
@@ -137,6 +137,9 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
 
       const key = `${parsedDate.toISOString().slice(0, 10)}|${ass.employeeId}`;
       const beforeAss = existingAssMap.get(key);
+      if (shift.isActive === false && (!beforeAss || beforeAss.shiftTypeId !== ass.shiftTypeId)) {
+        throw new HttpError(409, 'Shift type is inactive and cannot be assigned to a new schedule.');
+      }
       const codeBefore = beforeAss ? String(beforeAss.shiftType.code || '').toUpperCase() : null;
       const codeAfter = String(shift.code || '').toUpperCase();
 
@@ -429,7 +432,7 @@ async function autoPlanMonth(yearMonth) {
 
   const [employees, shiftTypes] = await Promise.all([
     prisma.employee.findMany({ where: { deletedAt: null, isActive: true } }),
-    prisma.shiftType.findMany()
+    prisma.shiftType.findMany({ where: { isActive: true } })
   ]);
 
   if (employees.length === 0 || shiftTypes.length === 0) {

@@ -60,7 +60,8 @@ const shiftTypeInput = z.object({
   name: z.string().trim().min(1).max(150),
   startTime: scheduleTimeInput, endTime: scheduleTimeInput,
   hours: z.coerce.number().min(0).max(24),
-  color: z.string().trim().toUpperCase().regex(/^#[0-9A-F]{6}$/).default('#2F80FF')
+  color: z.string().trim().toUpperCase().regex(/^#[0-9A-F]{6}$/).default('#2F80FF'),
+  isActive: z.boolean().optional()
 }).superRefine((value, context) => {
   if (value.hours > 0 && (!value.startTime || !value.endTime)) context.addIssue({ code: z.ZodIssueCode.custom, message: 'Working shifts require start and end times.' });
 });
@@ -485,13 +486,11 @@ router.delete('/licenses/:id', authorize('ADMIN'), async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/shift-types', async (_req, res, next) => {
+router.get('/shift-types', async (req, res, next) => {
   try {
-    const data = await prisma.shiftType.findMany({
-      select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true },
-      orderBy: { code: 'asc' }
-    });
-    res.json({ data });
+    const includeInactive = String(req.query.includeInactive || '').toLowerCase() === 'true';
+    if (includeInactive && req.user.role !== 'ADMIN') throw new HttpError(403, 'Only Admin may include inactive shift types.');
+    res.json({ data: await shiftService.list({ includeInactive }) });
   } catch (error) { next(error); }
 });
 router.post('/shift-types', authorize('ADMIN'), async (req, res, next) => {
@@ -644,6 +643,7 @@ router.post('/shifts', authorize('ADMIN', 'MANAGER'), async (req, res, next) => 
     const input = shiftInput.parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
       const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: input.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: input.shiftTypeId } })]);
+      if (shiftType.isActive === false) throw new HttpError(409, 'Shift type is inactive and cannot be assigned to a new schedule.');
       await ensureEmployeeOperationalForShift(tx, { employeeId: input.employeeId, workDate: input.workDate, shiftCode: shiftType.code });
       const licenseState = await licenseStateForShift(tx, { employeeId: input.employeeId, workDate: input.workDate, shiftCode: shiftType.code, override: input.licenseOverride, overrideReason: input.overrideReason, actorRole: req.user.role });
       const shift = await tx.shiftAssignment.create({ data: { ...input, startTime: input.startTime ?? shiftType.startTime, endTime: input.endTime ?? shiftType.endTime, hours: input.hours ?? shiftType.hours, ...licenseState, employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, source: 'SMS_V3' } });
@@ -664,6 +664,8 @@ router.put('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) 
       const shiftTypeId = input.shiftTypeId || before.shiftTypeId;
       const workDate = input.workDate || before.workDate;
       const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: shiftTypeId } })]);
+      const changingShiftType = Boolean(input.shiftTypeId && input.shiftTypeId !== before.shiftTypeId);
+      if (changingShiftType && shiftType.isActive === false) throw new HttpError(409, 'Shift type is inactive and cannot be assigned to a new schedule.');
       await ensureEmployeeOperationalForShift(tx, { employeeId, workDate, shiftCode: shiftType.code });
       const licenseState = await licenseStateForShift(tx, { employeeId, workDate, shiftCode: shiftType.code, override: input.licenseOverride, overrideReason: input.overrideReason, actorRole: req.user.role });
       const shiftTypeChanged = Boolean(input.shiftTypeId && input.shiftTypeId !== before.shiftTypeId);

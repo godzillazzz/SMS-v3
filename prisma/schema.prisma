@@ -788,6 +788,7 @@ model ShiftType {
   endTime            String?             @map("end_time") @db.VarChar(20)
   hours              Decimal             @db.Decimal(6, 2)
   color              String?             @db.VarChar(50)
+  isActive           Boolean             @default(true) @map("is_active")
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
   shiftAssignments   ShiftAssignment[]
