@@ -121,15 +121,19 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
 
   async function submitRequest(employee, proposal = { department: 'Safety' }, options = {}) {
     const service = changes();
-    const draft = await service.createDraft({ employeeId: employee.id, actor: actors.manager, proposal, effectiveMode: options.effectiveMode || 'IMMEDIATE', effectiveDate: options.effectiveDate || null, reason: options.reason || null, idempotencyKey: randomUUID() });
+    const critical = ['firstName', 'lastName', 'department', 'jobTitle', 'isActive'].some((field) => Object.prototype.hasOwnProperty.call(proposal, field));
+    const reason = options.reason ?? (critical ? 'Governed Employee critical change' : null);
+    const draft = await service.createDraft({ employeeId: employee.id, actor: actors.manager, proposal, effectiveMode: options.effectiveMode || 'IMMEDIATE', effectiveDate: options.effectiveDate || null, reason, idempotencyKey: randomUUID() });
     const submitted = await service.submit({ id: draft.id, actor: actors.manager, idempotencyKey: randomUUID() });
     return { service, draft, submitted: submitted.request };
   }
 
   async function adminEdit(employee, proposed, options = {}) {
     const service = master();
-    const analysis = await service.preflight({ employeeId: employee.id, actorRole: 'ADMIN', fieldScope: 'ADMIN', changes: proposed, effectiveMode: options.effectiveMode || 'IMMEDIATE', effectiveDate: options.effectiveDate || null, reason: options.reason || null });
-    const result = await service.mutate({ employeeId: employee.id, actorUserId: ids.admin, actorRole: 'ADMIN', fieldScope: 'ADMIN', changes: proposed, effectiveMode: options.effectiveMode || 'IMMEDIATE', effectiveDate: options.effectiveDate || null, reason: options.reason || null, expectedEmployeeUpdatedAt: analysis.expectedEmployeeUpdatedAt, expectedLifecycleSequence: analysis.latestLifecycleSequence, idempotencyKey: options.idempotencyKey || randomUUID(), acknowledgeWarnings: true });
+    const critical = ['firstName', 'lastName', 'department', 'jobTitle', 'isActive'].some((field) => Object.prototype.hasOwnProperty.call(proposed, field));
+    const reason = options.reason ?? (critical ? 'Governed Employee critical change' : null);
+    const analysis = await service.preflight({ employeeId: employee.id, actorRole: 'ADMIN', fieldScope: 'ADMIN', changes: proposed, effectiveMode: options.effectiveMode || 'IMMEDIATE', effectiveDate: options.effectiveDate || null, reason });
+    const result = await service.mutate({ employeeId: employee.id, actorUserId: ids.admin, actorRole: 'ADMIN', fieldScope: 'ADMIN', changes: proposed, effectiveMode: options.effectiveMode || 'IMMEDIATE', effectiveDate: options.effectiveDate || null, reason, expectedEmployeeUpdatedAt: analysis.expectedEmployeeUpdatedAt, expectedLifecycleSequence: analysis.latestLifecycleSequence, idempotencyKey: options.idempotencyKey || randomUUID(), acknowledgeWarnings: true });
     return { analysis, result };
   }
 
@@ -270,7 +274,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const { service, submitted } = await submitRequest(employee, { department: 'Safety' });
     const before = await prisma.employeeChangeRequestRevision.findUniqueOrThrow({ where: { requestId_revision: { requestId: submitted.id, revision: 1 } } });
     await service.returnForCorrection({ id: submitted.id, actor: actors.admin, comment: 'Please correct', idempotencyKey: randomUUID() });
-    await service.saveDraft({ id: submitted.id, actor: actors.manager, proposal: { department: 'Security' }, idempotencyKey: randomUUID() });
+    await service.saveDraft({ id: submitted.id, actor: actors.manager, proposal: { department: 'Security' }, reason: 'Corrected department', idempotencyKey: randomUUID() });
     const after = await prisma.employeeChangeRequestRevision.findUniqueOrThrow({ where: { requestId_revision: { requestId: submitted.id, revision: 1 } } });
     assert.deepEqual(after.afterSnapshot, before.afterSnapshot);
     assert.equal(after.proposalHash, before.proposalHash);
@@ -280,7 +284,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     const employee = await newEmployee('rev2');
     const { service, submitted } = await submitRequest(employee, { department: 'Safety' });
     await service.returnForCorrection({ id: submitted.id, actor: actors.admin, comment: 'Use correct department', idempotencyKey: randomUUID() });
-    await service.saveDraft({ id: submitted.id, actor: actors.manager, proposal: { department: 'Security' }, idempotencyKey: randomUUID() });
+    await service.saveDraft({ id: submitted.id, actor: actors.manager, proposal: { department: 'Security' }, reason: 'Corrected department', idempotencyKey: randomUUID() });
     const resubmitted = await service.resubmit({ id: submitted.id, actor: actors.manager, idempotencyKey: randomUUID() });
     const revisions = await prisma.employeeChangeRequestRevision.findMany({ where: { requestId: submitted.id }, orderBy: { revision: 'asc' } });
     assert.equal(resubmitted.request.currentRevision, 2);

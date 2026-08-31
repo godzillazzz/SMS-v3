@@ -27,7 +27,7 @@ describe('Employee single-entry governed changes', () => {
       expect(editor).toContain(label);
     }
     expect(editor).toContain('3. การเปลี่ยนแปลง');
-    expect(editor).toContain('จัดการการเปลี่ยนแปลงสำคัญของพนักงานจากหน้าต่าง “แก้ไขข้อมูล” นี้');
+    expect(editor).toContain('เลือกประเภทการเปลี่ยนแปลงสำคัญจากจุดเดียว');
     expect(editor).not.toContain('3. สถานะพนักงาน / วงจรพนักงาน');
   });
 
@@ -35,9 +35,10 @@ describe('Employee single-entry governed changes', () => {
     for (const label of ['ปฏิบัติงาน', 'ลาออก', 'กลับเข้าทำงาน', 'รูปแบบวันที่มีผล', 'มีผลทันที', 'กำหนดวันที่มีผล', 'เหตุผล / หมายเหตุ']) {
       expect(editor).toContain(label);
     }
-    expect(editor).toContain("['ACTIVE', 'RETURN_TO_WORK'].includes(event.target.value)");
+    expect(editor).toContain("selectCriticalAction('EMPLOYMENT_TERMINATION')");
+    expect(editor).toContain("selectCriticalAction('REHIRE')");
     expect(editor).toContain("effectiveMode === 'FUTURE_EFFECTIVE'");
-    expect(editor).toContain('การลาออกหรือกลับเข้าทำงานต้องระบุเหตุผลเพื่อบันทึก Audit');
+    expect(editor).toContain('การเปลี่ยนชื่อ ย้ายหน่วยงาน เปลี่ยนตำแหน่ง ลาออก และกลับเข้าทำงาน ต้องมีเหตุผลเพื่อบันทึก Audit');
   });
 
   it('keeps Admin preflight, impact acknowledgement, optimistic concurrency, and audited mutation', () => {

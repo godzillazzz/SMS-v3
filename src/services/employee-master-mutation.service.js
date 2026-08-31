@@ -9,6 +9,7 @@ const HttpError = require('../utils/http-error');
 const ADMIN_FIELDS = ['employeeCode', 'firstName', 'lastName', 'email', 'phone', 'department', 'jobTitle', 'hiredAt', 'skill', 'isActive'];
 const MANAGER_FIELDS = ['employeeCode', 'firstName', 'lastName', 'department', 'jobTitle', 'isActive'];
 const IMMEDIATE_ONLY_FIELDS = ['employeeCode', 'email', 'phone', 'hiredAt', 'skill'];
+const GOVERNED_REASON_FIELDS = ['firstName', 'lastName', 'department', 'jobTitle', 'isActive'];
 const EFFECTIVE_MODES = ['IMMEDIATE', 'FUTURE_EFFECTIVE'];
 const MASTER_TRANSACTION_OPTIONS = lifecycle.LIFECYCLE_TRANSACTION_OPTIONS;
 
@@ -113,6 +114,11 @@ function safeReason(value, { required = false } = {}) {
   return text || null;
 }
 
+function governedReasonRequired(changes, effectiveMode) {
+  return effectiveMode === 'FUTURE_EFFECTIVE'
+    || Object.keys(changes || {}).some((field) => GOVERNED_REASON_FIELDS.includes(field));
+}
+
 function createEmployeeMasterMutationService({ prismaClient = prisma, auditService = audit, clock = () => new Date() } = {}) {
   const lifecycleService = lifecycle.createEmployeeLifecycleService({ prismaClient, auditService, clock });
 
@@ -136,7 +142,7 @@ function createEmployeeMasterMutationService({ prismaClient = prisma, auditServi
       changes: actual,
       effectiveMode: timing.effectiveMode,
       effectiveDate: timing.effectiveDate,
-      reason: safeReason(reason, { required: timing.effectiveMode === 'FUTURE_EFFECTIVE' || Object.prototype.hasOwnProperty.call(actual, 'isActive') }),
+      reason: safeReason(reason, { required: governedReasonRequired(actual, timing.effectiveMode) }),
       warnings: analysis.warnings || [],
       impacts: analysis.impacts,
       expectedEmployeeUpdatedAt: analysis.expectedEmployeeUpdatedAt,
@@ -174,7 +180,7 @@ function createEmployeeMasterMutationService({ prismaClient = prisma, auditServi
       effectiveDate: effective,
       oldValue: { employee: authoritative.prior.employee, user: authoritative.prior.user },
       newValue: authoritative.next,
-      reason: safeReason(reason, { required: timing.effectiveMode === 'FUTURE_EFFECTIVE' || Object.prototype.hasOwnProperty.call(actual, 'isActive') }) || 'Employee Master edit',
+      reason: safeReason(reason, { required: governedReasonRequired(actual, timing.effectiveMode) }) || 'Employee Master edit',
       changedByUserId: actorUserId,
       idempotencyKey,
       expectedEmployeeUpdatedAt: new Date(expectedEmployeeUpdatedAt),
@@ -217,11 +223,13 @@ module.exports = {
   ADMIN_FIELDS,
   MANAGER_FIELDS,
   IMMEDIATE_ONLY_FIELDS,
+  GOVERNED_REASON_FIELDS,
   EFFECTIVE_MODES,
   MASTER_TRANSACTION_OPTIONS,
   normalizeChanges,
   validateEffectiveTiming,
   proposalHash,
+  governedReasonRequired,
   createEmployeeMasterMutationService,
   preflightEmployeeMasterMutation: createEmployeeMasterMutationService().preflight,
   mutateEmployeeMaster: createEmployeeMasterMutationService().mutate
