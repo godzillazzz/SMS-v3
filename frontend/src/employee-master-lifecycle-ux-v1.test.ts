@@ -4,17 +4,17 @@ import path from 'node:path';
 
 const root = path.resolve(__dirname);
 const editor = fs.readFileSync(path.join(root, 'components/personnel/EmployeeGovernedEditModal.tsx'), 'utf8');
-const lifecycle = fs.readFileSync(path.join(root, 'components/personnel/EmployeeLifecycleModal.tsx'), 'utf8');
 
 describe('Employee Master + Lifecycle UX V1', () => {
-  it('groups Employee editing into the three Owner-locked information groups', () => {
+  it('groups Employee management under the single governed Edit experience', () => {
     expect(editor).toContain('1. ข้อมูลทั่วไป');
     expect(editor).toContain('2. ข้อมูลการปฏิบัติงาน');
-    expect(editor).toContain('3. สถานะพนักงาน / วงจรพนักงาน');
+    expect(editor).toContain('3. การเปลี่ยนแปลง');
     expect(editor).toContain('คำขอ / ประวัติการเปลี่ยนแปลง');
+    expect(editor).not.toContain('สถานะพนักงาน / วงจรพนักงาน');
   });
 
-  it('uses Thai lifecycle choices without exposing raw termination terminology in the governed selector', () => {
+  it('uses Thai employment-state choices inside the same editor', () => {
     expect(editor).toContain('<option value="ACTIVE">ปฏิบัติงาน</option>');
     expect(editor).toContain('<option value="RESIGN">ลาออก</option>');
     expect(editor).toContain('<option value="RESIGNED">ลาออก</option>');
@@ -28,9 +28,9 @@ describe('Employee Master + Lifecycle UX V1', () => {
     expect(editor).toContain('การลาออกหรือกลับเข้าทำงานต้องระบุเหตุผลเพื่อบันทึก Audit');
   });
 
-  it('keeps the existing lifecycle engine for termination and rehire rather than creating a second identity', () => {
-    expect(lifecycle).toContain('EMPLOYMENT_TERMINATION');
-    expect(lifecycle).toContain('REHIRE');
+  it('keeps one Employee identity and uses governed Employee Master mutation', () => {
+    expect(editor).toContain('api.preflightEmployeeMasterEdit');
+    expect(editor).toContain('api.updateEmployee');
     expect(editor).toContain("update('isActive'");
     expect(editor).not.toContain('createEmployee(');
   });

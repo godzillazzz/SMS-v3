@@ -7,11 +7,11 @@ function source(relative: string) {
 }
 
 describe('Request ID visibility representative flow wiring', () => {
-  it('Employee Lifecycle preserves structured API error metadata and renders the shared reference UI', () => {
-    const lifecycle = source('components/personnel/EmployeeLifecycleModal.tsx');
-    expect(lifecycle).toContain("toRequestErrorState(reasonValue, 'บันทึกการเปลี่ยนแปลงไม่สำเร็จ')");
-    expect(lifecycle).toContain('<RequestErrorContent error={error} />');
-    expect(lifecycle).not.toContain("'\\nรหัสอ้างอิง: '");
+  it('Employee governed Edit preserves structured API error metadata and renders the shared reference UI', () => {
+    const editor = source('components/personnel/EmployeeGovernedEditModal.tsx');
+    expect(editor).toContain("toRequestErrorState(cause, 'บันทึกการแก้ไข Employee Master ไม่สำเร็จ')");
+    expect(editor).toContain('<RequestErrorContent error={error} />');
+    expect(editor).not.toContain("'\\nรหัสอ้างอิง: '");
   });
 
   it('License document failures preserve structured request IDs for upload/review/view errors', () => {

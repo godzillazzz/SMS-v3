@@ -4,14 +4,12 @@ import type { PersonnelRecord } from './types';
 type Props = {
   rows: PersonnelRecord[];
   canManage: boolean;
-  canLifecycle: boolean;
   selectedId?: string;
   onSelect(employee: PersonnelRecord): void;
   onEdit(employee: PersonnelRecord): void;
-  onLifecycle?(employee: PersonnelRecord): void;
 };
 
-export function PersonnelTable({ rows, canManage, canLifecycle, selectedId, onSelect, onEdit, onLifecycle }: Props) {
+export function PersonnelTable({ rows, canManage, selectedId, onSelect, onEdit }: Props) {
   return <div className="personnel-table-card data-surface-card">
     <div className="personnel-table-scroll data-table-scroll">
       <table className="personnel-table data-surface-table">
@@ -32,7 +30,6 @@ export function PersonnelTable({ rows, canManage, canLifecycle, selectedId, onSe
           <td><span className={`status-badge ${employee.isActive ? 'active status-badge--success' : 'inactive status-badge--neutral'}`}>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td>
           {canManage && <TableActionCell className="personnel-row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>
             <button type="button" className="data-row-primary-action" aria-label={`แก้ไขข้อมูล ${employee.firstName} ${employee.lastName}`} onClick={() => onEdit(employee)}>แก้ไขข้อมูล</button>
-            {canLifecycle && onLifecycle && <button type="button" className="btn-neutral compact" aria-label={`การเปลี่ยนแปลงสำคัญ ${employee.firstName} ${employee.lastName}`} onClick={() => onLifecycle(employee)}>การเปลี่ยนแปลงสำคัญ</button>}
           </TableActionCell>}
         </tr>) : <tr><td colSpan={canManage ? 6 : 5} className="personnel-no-rows data-table-empty-cell">ไม่พบข้อมูลบุคลากรตามเงื่อนไขที่เลือก</td></tr>}</tbody>
       </table>

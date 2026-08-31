@@ -20,11 +20,10 @@ type Props = {
   onAdd(): void;
   onReviewChanges?(): void;
   onEdit(employee: PersonnelRecord): void;
-  onLifecycle?(employee: PersonnelRecord): void;
   onRefresh(): void;
 };
 
-export function PersonnelDirectoryPage({ employees, totalCount, loading, error, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, onLifecycle, onRefresh }: Props) {
+export function PersonnelDirectoryPage({ employees, totalCount, loading, error, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, onRefresh }: Props) {
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('');
   const [status, setStatus] = useState('');
@@ -49,7 +48,6 @@ export function PersonnelDirectoryPage({ employees, totalCount, loading, error, 
   const clear = () => { setSearch(''); onSearchValueChange?.(''); setDepartment(''); setStatus(''); setPage(1); };
   const incomplete = employees.filter((employee) => !employee.department || !employee.jobTitle).length;
   const permissionDenied = error === 'PERMISSION_DENIED';
-  const canLifecycle = role === 'ADMIN' && Boolean(onLifecycle);
   const closeDrawer = () => { const id = lastSelectedId.current; setSelected(undefined); if (id) requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-personnel-id="${id}"]`)?.focus()); };
 
   return <section className="personnel-directory-page data-surface-page" aria-label="Personnel Directory">
@@ -59,9 +57,9 @@ export function PersonnelDirectoryPage({ employees, totalCount, loading, error, 
     {permissionDenied ? <div className="personnel-empty-state data-state data-state--permission"><span>⛨</span><h2>ไม่มีสิทธิ์เข้าถึงข้อมูล</h2><p>บัญชีนี้ไม่ได้รับอนุญาตให้ดู Personnel Directory</p></div>
       : error ? <div className="personnel-empty-state data-state data-state--error"><span>!</span><h2>ไม่สามารถโหลดข้อมูลบุคลากร</h2><p>ระบบไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่อีกครั้ง</p><button type="button" className="btn-neutral small-action" onClick={onRefresh}>ลองใหม่</button></div>
         : loading ? <div className="personnel-loading data-state data-state--loading" role="status">กำลังอ่านข้อมูลพนักงาน…</div>
-          : <><div className="personnel-result-line data-result-count">แสดง {visible.length} จาก {filtered.length} รายการ{search || department || status ? ' · กรองแล้ว' : ''}</div><PersonnelTable rows={visible} canManage={canManage} canLifecycle={canLifecycle} selectedId={selected?.id} onSelect={(employee) => { lastSelectedId.current = employee.id; setSelected(employee); }} onEdit={onEdit} onLifecycle={onLifecycle} /><PersonnelPagination page={page} totalPages={totalPages} onChange={setPage} /></>}
+          : <><div className="personnel-result-line data-result-count">แสดง {visible.length} จาก {filtered.length} รายการ{search || department || status ? ' · กรองแล้ว' : ''}</div><PersonnelTable rows={visible} canManage={canManage} selectedId={selected?.id} onSelect={(employee) => { lastSelectedId.current = employee.id; setSelected(employee); }} onEdit={onEdit} /><PersonnelPagination page={page} totalPages={totalPages} onChange={setPage} /></>}
     {!loading && !error && employees.length === 0 && <div className="personnel-empty-state data-state data-state--empty"><span>♙</span><h2>ยังไม่พบข้อมูลบุคลากร</h2><p>ระบบยังไม่พบข้อมูลที่สามารถแสดงภายใต้หน่วยงานและสิทธิ์ของบัญชีนี้</p><button type="button" className="btn-neutral small-action" onClick={onRefresh}>รีเฟรช</button></div>}
     {!loading && !error && employees.length > 0 && filtered.length === 0 && <div className="personnel-empty-state personnel-empty-state--search data-state data-state--empty"><span>⌕</span><h2>ไม่พบผลการค้นหา</h2><p>ลองล้างตัวกรองหรือใช้คำค้นหาอื่น</p><button type="button" className="btn-neutral small-action" onClick={clear}>ล้างตัวกรอง</button></div>}
-    <PersonnelDetailDrawer employee={selected} canManage={canManage} canLifecycle={canLifecycle} onClose={closeDrawer} onEdit={() => { if (selected) onEdit(selected); closeDrawer(); }} onLifecycle={() => { if (selected && onLifecycle) onLifecycle(selected); closeDrawer(); }} />
+    <PersonnelDetailDrawer employee={selected} canManage={canManage} onClose={closeDrawer} onEdit={() => { if (selected) onEdit(selected); closeDrawer(); }} />
   </section>;
 }

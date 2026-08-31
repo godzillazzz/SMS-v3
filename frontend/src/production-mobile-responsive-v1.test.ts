@@ -13,7 +13,7 @@ const lockUsers = [
   'components/OperationalRecordDrawer.tsx',
   'components/LicenseDocuments.tsx',
   'components/audit/AuditEventPreview.tsx',
-  'components/personnel/EmployeeLifecycleModal.tsx',
+  'components/personnel/EmployeeGovernedEditModal.tsx',
   'components/personnel/PersonnelDetailDrawer.tsx',
   'pages/access-management/AccessManagementPage.tsx',
   'pages/access-management/RegistrationReviewPanel.tsx'
