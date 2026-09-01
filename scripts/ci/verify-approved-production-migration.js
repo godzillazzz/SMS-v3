@@ -50,6 +50,13 @@ const MIGRATIONS = Object.freeze({
     dataBackfill: false,
     schemaChanged: true
   }),
+  'MDG-01B': Object.freeze({
+    migrationName: '202609010002_mdg_master_codes_department_site_authority',
+    migrationPolicy: 'ADDITIVE_MASTER_CODES_AND_DEPARTMENT_SITE_AUTHORITY_WITH_FAIL_CLOSED_BACKFILL',
+    postVerifyScript: 'scripts/ci/verify-mdg-01b-production-migration.js',
+    dataBackfill: true,
+    schemaChanged: true
+  }),
   'EMP-UX-01': Object.freeze({
     migrationName: '202609010001_emp_ux_department_position_master',
     migrationPolicy: 'ADDITIVE_MASTER_SCHEMA_WITH_CONTROLLED_BOOTSTRAP_BACKFILL',
@@ -310,12 +317,46 @@ function validateEmpUxSql(sql) {
   return { statementCount: 8, controlledUpdateCount: 0 };
 }
 
+function validateMdg01bSql(sql) {
+  const source = String(sql || '');
+  rejectDestructiveSql(source);
+  assert(!/\bINSERT\s+INTO\b/i.test(source), 'MDG-01B INSERT is forbidden');
+  const alterTargets = [...source.matchAll(/ALTER TABLE\s+(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))/gi)].map((match) => match[1] || match[2]);
+  assert(alterTargets.length === 7, 'MDG-01B ALTER statement count mismatch');
+  assert(alterTargets.every((table) => ['department_master', 'position_master', 'security_site_departments'].includes(table)), 'MDG-01B ALTER targets unexpected table');
+  for (const table of ['department_master', 'position_master']) {
+    assert(source.includes(`ALTER TABLE "${table}" ADD COLUMN "code" VARCHAR(50);`), 'MDG-01B missing ' + table + '.code add');
+    assert(source.includes(`ALTER TABLE "${table}" ALTER COLUMN "code" SET NOT NULL;`), 'MDG-01B missing ' + table + '.code NOT NULL');
+  }
+  assert(/UPDATE "department_master" SET "code" = 'DEP-'[\s\S]*WHERE "code" IS NULL/i.test(source), 'MDG-01B Department code backfill mismatch');
+  assert(/UPDATE "position_master" SET "code" = 'POS-'[\s\S]*WHERE "code" IS NULL/i.test(source), 'MDG-01B Position code backfill mismatch');
+  assert(/ALTER TABLE "security_site_departments" ADD COLUMN "department_master_id" UUID/i.test(source), 'MDG-01B Department Master FK column missing');
+  assert(source.includes('UPDATE "security_site_departments" ssd') && source.includes('SET "department_master_id" = dm."id"') && source.includes('lower(btrim(ssd."department_name")) = dm."normalized_name"') && source.includes('ssd."department_master_id" IS NULL'), 'MDG-01B controlled Department mapping backfill mismatch');
+  assert(source.includes('IF EXISTS (SELECT 1 FROM "security_site_departments" WHERE "department_master_id" IS NULL)') && source.includes("RAISE EXCEPTION 'MDG-01B backfill failed:"), 'MDG-01B fail-closed unresolved mapping guard missing');
+  assert(/ALTER TABLE "security_site_departments" ALTER COLUMN "department_master_id" SET NOT NULL/i.test(source), 'MDG-01B authority column must become NOT NULL');
+  assert(source.includes('ADD CONSTRAINT "security_site_departments_department_master_id_fkey" FOREIGN KEY ("department_master_id") REFERENCES "department_master"("id") ON DELETE RESTRICT ON UPDATE CASCADE;'), 'MDG-01B Department Master FK invariant mismatch');
+  const expectedIndexes = [
+    'department_master_code_key',
+    'position_master_code_key',
+    'security_site_departments_department_master_id_idx',
+    'security_site_departments_security_site_id_department_master_id_key',
+    'security_site_departments_one_default_per_department_master_key'
+  ];
+  const indexes = [...source.matchAll(/CREATE (?:UNIQUE )?INDEX "([^"]+)"/gi)].map((match) => match[1]);
+  assert(indexes.length === expectedIndexes.length && expectedIndexes.every((name) => indexes.includes(name)), 'MDG-01B index set mismatch');
+  assert(/CREATE UNIQUE INDEX "security_site_departments_one_default_per_department_master_key"[\s\S]*WHERE "is_default" = TRUE/i.test(source), 'MDG-01B one-default-per-Department guard missing');
+  const updates = source.match(/(^|;)\s*UPDATE\s+/gim) || [];
+  assert(updates.length === 3, 'MDG-01B requires exactly three controlled UPDATE statements');
+  return { statementCount: 15, controlledUpdateCount: 3 };
+}
+
 function validateSqlForMigration(migrationId, sql) {
   if (migrationId === 'CFG-03') return validateCfg03Sql(sql);
   if (migrationId === 'CFG-04') return validateCfg04Sql(sql);
   if (migrationId === 'CFG-05') return validateCfg05Sql(sql);
   if (migrationId === 'CFG-06') return validateCfg06Sql(sql);
   if (migrationId === 'CFG-07') return validateCfg07Sql(sql);
+  if (migrationId === 'MDG-01B') return validateMdg01bSql(sql);
   if (migrationId === 'EMP-UX-01') return validateEmpUxSql(sql);
   throw new Error(`production migration guard: unsupported migration_id: ${migrationId}`);
 }
@@ -419,6 +460,7 @@ module.exports = {
   validateCfg06Sql,
   validateCfg07Sql,
   validateEmpUxSql,
+  validateMdg01bSql,
   validateSqlForMigration,
   validateMigrationManifest
 };
