@@ -32,3 +32,8 @@
 .employee-impact-group--follow-up{border-color:color-mix(in srgb,var(--color-info) 30%,var(--color-border));background:color-mix(in srgb,var(--color-info-soft) 54%,var(--color-surface))}
 .employee-impact-authority-note{display:block;margin-top:10px;color:var(--color-text-secondary);font-size:12px;line-height:1.5}
 @media(max-width:760px){.employee-impact-groups{grid-template-columns:1fr}}
+
+/* EMP-UX sticky action summary */
+.employee-governed-actions{align-items:center;justify-content:space-between;z-index:2}
+.employee-action-summary{display:grid;gap:2px;min-width:0;max-width:52%;text-align:left}.employee-action-summary strong{color:var(--color-text);font-size:13px}.employee-action-summary span,.employee-action-summary small{overflow:hidden;text-overflow:ellipsis;color:var(--color-text-secondary);font-size:12px;white-space:nowrap}.employee-action-buttons{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+@media(max-width:760px){.employee-governed-actions{display:grid;grid-template-columns:1fr;gap:10px}.employee-action-summary{max-width:none}.employee-action-summary span,.employee-action-summary small{white-space:normal}.employee-action-buttons{display:grid;grid-template-columns:1fr}.employee-action-buttons button{width:100%;min-height:44px}}
