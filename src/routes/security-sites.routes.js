@@ -23,7 +23,7 @@ const siteUpdateSchema = siteCreateSchema.partial().refine((value) => Object.key
 const duplicateSchema = z.object({ code: z.string().trim().min(1).max(50), name: z.string().trim().min(1).max(150).optional() }).strict();
 const reasonSchema = z.object({ reason: z.string().trim().min(3).max(1000) }).strict();
 const mappingSchema = z.object({
-  departmentName: z.string().trim().min(1).max(100),
+  departmentMasterId: uuid,
   siteIds: z.array(uuid).max(100).default([]),
   defaultSiteId: uuid.nullable().optional().default(null)
 });

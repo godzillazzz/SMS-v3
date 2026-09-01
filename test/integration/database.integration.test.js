@@ -19,8 +19,8 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   const employee = (suffix = '1') => ({ employeeCode: `TEST-${suffix}`, firstName: 'Test', lastName: `User${suffix}`, department: suffix === '2' ? 'HR' : 'Operations' });
   async function createUser(overrides = {}) { return prisma.user.create({ data: { id: actorId, email: 'gate3@example.test', passwordHash: await bcrypt.hash('test-password', 4), displayName: 'Gate 3 User', role: 'ADMIN', accountStatus: 'ACTIVE', passwordResetRequired: false, ...overrides } }); }
   async function ensurePersonnelMasters() {
-    for (const name of ['Operations', 'HR']) await prisma.departmentMaster.upsert({ where: { normalizedName: name.toLowerCase() }, update: { name, isActive: true }, create: { name, normalizedName: name.toLowerCase(), isActive: true } });
-    for (const name of ['Concurrent Position']) await prisma.positionMaster.upsert({ where: { normalizedName: name.toLowerCase() }, update: { name, isActive: true }, create: { name, normalizedName: name.toLowerCase(), isActive: true } });
+    for (const name of ['Operations', 'HR']) await prisma.departmentMaster.upsert({ where: { normalizedName: name.toLowerCase() }, update: { name, isActive: true }, create: { code: 'DEP-' + name.toUpperCase().replace(/[^A-Z0-9]+/g, '-'), name, normalizedName: name.toLowerCase(), isActive: true } });
+    for (const name of ['Concurrent Position']) await prisma.positionMaster.upsert({ where: { normalizedName: name.toLowerCase() }, update: { name, isActive: true }, create: { code: 'POS-' + name.toUpperCase().replace(/[^A-Z0-9]+/g, '-'), name, normalizedName: name.toLowerCase(), isActive: true } });
   }
   async function cleanupFixtures() {
     await prisma.auditLog.deleteMany({ where: { actorUserId: actorId } });

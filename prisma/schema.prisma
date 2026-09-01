@@ -400,6 +400,7 @@ model RefreshSession {
 
 model DepartmentMaster {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String   @unique @db.VarChar(50)
   name           String   @db.VarChar(100)
   normalizedName String   @unique @map("normalized_name") @db.VarChar(100)
   isActive       Boolean  @default(true) @map("is_active")
@@ -413,6 +414,7 @@ model DepartmentMaster {
 
 model PositionMaster {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String   @unique @db.VarChar(50)
   name           String   @db.VarChar(100)
   normalizedName String   @unique @map("normalized_name") @db.VarChar(100)
   isActive       Boolean  @default(true) @map("is_active")

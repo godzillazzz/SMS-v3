@@ -53,16 +53,19 @@ export type SecuritySite = {
   longitude: string | null;
   geofenceRadiusMeters: number;
   isActive: boolean;
-  departmentLinks: Array<{ securitySiteId: string; departmentName: string; isDefault: boolean }>;
+  departmentLinks: Array<{ securitySiteId: string; departmentMasterId: string | null; departmentCode: string | null; departmentName: string; isDefault: boolean }>;
   currentQrCredential: SecuritySiteQrCredential | null;
   qrCredentials: SecuritySiteQrCredential[];
 };
 
 export type SecuritySiteDepartmentMapping = {
+  departmentMasterId: string;
+  departmentCode: string;
   departmentName: string;
+  isActive: boolean;
   siteIds: string[];
   defaultSiteId: string | null;
-  links: Array<{ securitySiteId: string; departmentName: string; isDefault: boolean }>;
+  links: Array<{ securitySiteId: string; departmentMasterId: string | null; departmentCode: string | null; departmentName: string; isDefault: boolean }>;
 };
 
 export type SecuritySiteOverlapWarning = {
@@ -91,7 +94,7 @@ export type SecuritySiteInput = {
 export type SecuritySiteUpdateInput = Partial<SecuritySiteInput> & { isActive?: boolean };
 
 export type SecuritySiteDepartmentMappingInput = {
-  departmentName: string;
+  departmentMasterId: string;
   siteIds: string[];
   defaultSiteId: string | null;
 };

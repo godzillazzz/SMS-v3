@@ -159,7 +159,7 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
   });
 
   it('locks the authorized API source after Attachment Optimizer V1 and preserves all five Registration Review API signatures', () => {
-    expect(apiSha256).toBe('4e6b4953f72b6cae6dd3ad717fe1bb89df01aca59d68f2e0af3cb2ae8e8c1610');
+    expect(apiSha256).toBe('cf2716135db93c1911b4a296ecdadb5f0ea22fbd6745b4d13f079805ef879b48');
     expect(api).toContain('registrationRequests: (token: string, status?: string)');
     expect(api).toContain('registrationCandidates: (token: string, id: string, search = \'\')');
     expect(api).toContain('matchRegistrationRequest: (token: string, id: string, employeeId: string)');
