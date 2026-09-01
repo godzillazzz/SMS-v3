@@ -102,7 +102,11 @@ test("pre-applied migration release guard requires exact prior Production migrat
     workflow,
     /PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID: \$\{\{ steps\.manifest\.outputs\.pre_applied_migration_evidence_run_id \}\}\r?\n\s+ROLLBACK_DEPLOYMENT_ID: \$\{\{ steps\.manifest\.outputs\.rollback_deployment_id \}\}/,
   );
+  assert.match(sourceGuard, /Apply Approved EMP-UX Production Migration/);
+  assert.match(sourceGuard, /Apply Approved PERF-05 Production Migration/);
   assert.match(sourceGuard, /Apply Approved Production Migration V2/);
+  assert.match(sourceGuard, /EVIDENCE_WORKFLOW_PATH/);
+  assert.match(sourceGuard, /unexpected migration evidence workflow/);
   assert.match(sourceGuard, /Approve Production Migration/);
   assert.match(sourceGuard, /verify-approved-production-migration\.js/);
   assert.match(sourceGuard, /PRISMA_SCHEMA_CHANGED=\$\(sed -n 's\/\^prisma_schema_changed=\/\/p'/);
