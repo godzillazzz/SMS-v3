@@ -49,6 +49,13 @@ const MIGRATIONS = Object.freeze({
     postVerifyScript: 'scripts/ci/verify-cfg07-production-migration.js',
     dataBackfill: false,
     schemaChanged: true
+  }),
+  'EMP-UX-01': Object.freeze({
+    migrationName: '202609010001_emp_ux_department_position_master',
+    migrationPolicy: 'ADDITIVE_MASTER_SCHEMA_WITH_CONTROLLED_BOOTSTRAP_BACKFILL',
+    postVerifyScript: 'scripts/ci/verify-emp-ux-production-migration.js',
+    dataBackfill: true,
+    schemaChanged: true
   })
 });
 
@@ -283,12 +290,33 @@ function validateCfg07Sql(sql) {
   return { statementCount: 9, controlledUpdateCount: 0 };
 }
 
+function validateEmpUxSql(sql) {
+  const source = String(sql || '');
+  rejectDestructiveSql(source);
+  assert(!/\bUPDATE\b/i.test(source), 'EMP-UX UPDATE is forbidden');
+  assert(!/\bALTER\s+TABLE\b/i.test(source), 'EMP-UX ALTER TABLE is forbidden');
+  const statements = splitStatements(source);
+  assert(statements.length === 8, 'EMP-UX requires exactly eight controlled statements');
+  const tables = [...source.matchAll(/CREATE TABLE \"([^\"]+)\"/gi)].map((m) => m[1]);
+  assert(tables.length === 2 && tables.includes('department_master') && tables.includes('position_master'), 'EMP-UX master table set mismatch');
+  const indexes = [...source.matchAll(/CREATE (?:UNIQUE )?INDEX \"([^\"]+)\"/gi)].map((m) => m[1]);
+  const expectedIndexes = ['department_master_normalized_name_key','department_master_is_active_sort_order_name_idx','position_master_normalized_name_key','position_master_is_active_sort_order_name_idx'];
+  assert(indexes.length === 4 && expectedIndexes.every((name) => indexes.includes(name)), 'EMP-UX master index set mismatch');
+  assert((source.match(/INSERT INTO \"department_master\"/gi) || []).length === 1, 'EMP-UX requires one Department bootstrap insert');
+  assert((source.match(/INSERT INTO \"position_master\"/gi) || []).length === 1, 'EMP-UX requires one Position bootstrap insert');
+  assert(/FROM \"employees\"[\s\S]*GROUP BY LOWER\(BTRIM\(\"department\"\)\)[\s\S]*ON CONFLICT \(\"normalized_name\"\) DO NOTHING/i.test(source), 'EMP-UX Department bootstrap policy mismatch');
+  assert(/FROM \"employees\"[\s\S]*GROUP BY LOWER\(BTRIM\(\"job_title\"\)\)[\s\S]*ON CONFLICT \(\"normalized_name\"\) DO NOTHING/i.test(source), 'EMP-UX Position bootstrap policy mismatch');
+  assert(!/INSERT INTO \"(?:employees|users|shift_assignments|leave_requests)\"/i.test(source), 'EMP-UX bootstrap target is forbidden');
+  return { statementCount: 8, controlledUpdateCount: 0 };
+}
+
 function validateSqlForMigration(migrationId, sql) {
   if (migrationId === 'CFG-03') return validateCfg03Sql(sql);
   if (migrationId === 'CFG-04') return validateCfg04Sql(sql);
   if (migrationId === 'CFG-05') return validateCfg05Sql(sql);
   if (migrationId === 'CFG-06') return validateCfg06Sql(sql);
   if (migrationId === 'CFG-07') return validateCfg07Sql(sql);
+  if (migrationId === 'EMP-UX-01') return validateEmpUxSql(sql);
   throw new Error(`production migration guard: unsupported migration_id: ${migrationId}`);
 }
 
@@ -390,6 +418,7 @@ module.exports = {
   validateCfg05Sql,
   validateCfg06Sql,
   validateCfg07Sql,
+  validateEmpUxSql,
   validateSqlForMigration,
   validateMigrationManifest
 };

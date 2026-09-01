@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "migration_id": "EMP-UX-01",
+  "manifest_state": "APPROVED_FOR_OWNER_PRODUCTION_MIGRATION_DECISION",
+  "source_commit_sha": "d1d171c8d3f9ddf744e170d0a2be290ac2663a04",
+  "source_tree_sha": "1e2cff2a0b12c47292e7fd8445dc68ff83ce41fa",
+  "migration_name": "202609010001_emp_ux_department_position_master",
+  "migration_path": "prisma/migrations/202609010001_emp_ux_department_position_master/migration.sql",
+  "migration_policy": "ADDITIVE_MASTER_SCHEMA_WITH_CONTROLLED_BOOTSTRAP_BACKFILL",
+  "post_verify_script": "scripts/ci/verify-emp-ux-production-migration.js",
+  "current_production_deployment_id": "dpl_6oRpdB6jpLdVECC34Tp2NaForRZa",
+  "current_production_application_sha": "9ce6190baafa39056ae90035f2936e7cf8d615fc",
+  "target_environment": "production",
+  "target_project_name": "sms-v3-staging",
+  "target_project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+  "target_org_id": "team_nemCExHbZ8EAhSgsvefHPAEz",
+  "canonical_url": "https://sms-v3-staging-ten.vercel.app",
+  "owner_action": "APPROVE_PRODUCTION_MIGRATION_ONLY",
+  "data_backfill": true,
+  "application_deploy": false,
+  "destructive_rollback": false
+}
