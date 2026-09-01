@@ -268,6 +268,7 @@ export const api = {
   employeeChangeRequests: (token: string, employeeId: string) => call(`/employees/${encodeURIComponent(employeeId)}/change-requests`, { headers: { Authorization: `Bearer ${token}` } }),
   employeeReferencePhotos: (token: string, employeeId: string) => call(`/employee-reference-photos/employee/${encodeURIComponent(employeeId)}`, { headers: { Authorization: `Bearer ${token}` } }),
   employeeOnboardingReadiness: (token: string, employeeId: string) => call(`/employees/${encodeURIComponent(employeeId)}/onboarding-readiness`, { headers: { Authorization: `Bearer ${token}` } }),
+  employeeReadinessCenter: (token: string, search = '', limit = 50) => call(`/employees/readiness/center?limit=${limit}${search ? `&search=${encodeURIComponent(search)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),
   uploadEmployeeReferencePhoto: async (token: string, employeeId: string, photo: File) => { const optimized = await optimizeUploadFile(photo, 'EMPLOYEE_REFERENCE_PHOTO'); const body = new FormData(); body.append('photo', optimized); return callMultipart(`/employee-reference-photos/employee/${encodeURIComponent(employeeId)}`, token, body); },
   viewEmployeeReferencePhoto: (token: string, id: string) => call(`/employee-reference-photos/${encodeURIComponent(id)}/view`, { headers: { Authorization: `Bearer ${token}` } }),
   approveEmployeeReferencePhoto: (token: string, id: string) => call(`/employee-reference-photos/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}', headers: { Authorization: `Bearer ${token}` } }),

@@ -5,6 +5,7 @@ import { PersonnelMetricCard } from '../../components/personnel/PersonnelMetricC
 import { PersonnelPagination } from '../../components/personnel/PersonnelPagination';
 import { PersonnelSearchToolbar } from '../../components/personnel/PersonnelSearchToolbar';
 import { PersonnelTable } from '../../components/personnel/PersonnelTable';
+import { AttendanceReadinessCenter } from '../../components/personnel/AttendanceReadinessCenter';
 import type { PersonnelRecord, PersonnelRole } from '../../components/personnel/types';
 import '../../styles/personnel-directory.css';
 
@@ -53,6 +54,7 @@ export function PersonnelDirectoryPage({ employees, token, totalCount, loading, 
 
   return <section className="personnel-directory-page data-surface-page" aria-label="Personnel Directory">
     <PersonnelDirectoryHeader canManage={canManage} canReviewChanges={role === 'ADMIN'} totalCount={totalCount} onAdd={onAdd} onReviewChanges={onReviewChanges} onRefresh={onRefresh} />
+    <AttendanceReadinessCenter token={token} />
     <PersonnelSearchToolbar search={search} department={department} status={status} departments={departments} onSearch={changeFilter(setSearch)} onDepartment={changeFilter(setDepartment)} onStatus={changeFilter(setStatus)} onClear={clear} />
     <div className="personnel-summary-grid"><PersonnelMetricCard icon="users" label="บุคลากรทั้งหมด" value={totalCount} context="รายการที่เข้าถึงได้" tone="indigo" /><PersonnelMetricCard icon="check" label="บุคลากรที่ใช้งาน" value={employees.filter((employee) => employee.isActive).length} context="กำลังปฏิบัติงาน" tone="green" /><PersonnelMetricCard icon="quality" label="โปรไฟล์ไม่สมบูรณ์" value={incomplete} context={incomplete ? 'ต้องตรวจสอบข้อมูล' : 'ข้อมูลครบถ้วน'} tone="amber" /></div>
     {permissionDenied ? <div className="personnel-empty-state data-state data-state--permission"><span>⛨</span><h2>ไม่มีสิทธิ์เข้าถึงข้อมูล</h2><p>บัญชีนี้ไม่ได้รับอนุญาตให้ดู Personnel Directory</p></div>
