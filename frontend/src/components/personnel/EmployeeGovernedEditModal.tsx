@@ -40,6 +40,8 @@ type Preflight = {
 
 type Props = { token: string; employee: PersonnelRecord; role: PersonnelRole; onClose(): void; onChanged(): void };
 type CriticalChangeAction = 'NAME_CHANGE' | 'DEPARTMENT_TRANSFER' | 'POSITION_CHANGE' | 'EMPLOYMENT_TERMINATION' | 'REHIRE';
+type PersonnelMasterOption = { id: string; name: string; isActive: boolean; sortOrder?: number };
+type PersonnelMasterData = { departments: PersonnelMasterOption[]; positions: PersonnelMasterOption[] };
 
 const criticalActionLabels: Record<CriticalChangeAction, string> = {
   NAME_CHANGE: 'เปลี่ยนชื่อ',
@@ -93,6 +95,9 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
   const [preflight, setPreflight] = useState<Preflight>();
   const [acknowledgeWarnings, setAcknowledgeWarnings] = useState(false);
   const [criticalAction, setCriticalAction] = useState<CriticalChangeAction | null>(null);
+  const [personnelMasters, setPersonnelMasters] = useState<PersonnelMasterData>({ departments: [], positions: [] });
+  const [personnelMastersLoading, setPersonnelMastersLoading] = useState(true);
+  const [personnelMastersError, setPersonnelMastersError] = useState('');
 
   const activeRequest = useMemo(() => requests.find((request) => activeStatuses.has(request.status)), [requests]);
   const latestRequest = requests[0];
@@ -125,6 +130,17 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
     finally { setLoading(false); }
   };
   useEffect(() => { void loadRequests(); }, [employee.id, token]);
+  useEffect(() => {
+    let active = true;
+    setPersonnelMastersLoading(true); setPersonnelMastersError('');
+    api.personnelMasters(token, true).then((result) => {
+      if (!active) return;
+      const data = result?.data as PersonnelMasterData | undefined;
+      setPersonnelMasters({ departments: Array.isArray(data?.departments) ? data!.departments : [], positions: Array.isArray(data?.positions) ? data!.positions : [] });
+    }).catch(() => { if (active) setPersonnelMastersError('ไม่สามารถโหลด Department / Position Master ได้ จึงปิดการเปลี่ยนหน่วยงานและตำแหน่งไว้ชั่วคราว'); })
+      .finally(() => { if (active) setPersonnelMastersLoading(false); });
+    return () => { active = false; };
+  }, [token]);
 
   const changes = useMemo(() => {
     const next: Record<string, unknown> = {};
@@ -264,12 +280,12 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
               <div className="employee-critical-before-after employee-governed-wide"><span>ปัจจุบัน <b>{employee.firstName} {employee.lastName}</b></span><span>หลังเปลี่ยน <b>{String(form.firstName || '')} {String(form.lastName || '')}</b></span></div>
             </div>}
             {criticalAction === 'DEPARTMENT_TRANSFER' && <div className="employee-governed-grid">
-              <label className="employee-governed-wide"><span>หน่วยงานใหม่ <b>*</b></span><input required value={String(form.department || '')} disabled={pendingReadOnly} onChange={(event) => update('department', event.target.value)} placeholder="ระบุหน่วยงานใหม่" /></label>
+              <label className="employee-governed-wide"><span>หน่วยงานใหม่ <b>*</b></span><select required value={String(form.department || '')} disabled={pendingReadOnly || personnelMastersLoading || Boolean(personnelMastersError)} onChange={(event) => update('department', event.target.value)}><option value="">เลือก Department Master</option>{personnelMasters.departments.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select>{personnelMastersError && <small>{personnelMastersError}</small>}</label>
               <div className="employee-critical-before-after employee-governed-wide"><span>หน่วยงานเดิม <b>{employee.department || 'ไม่ระบุ'}</b></span><span>หน่วยงานใหม่ <b>{String(form.department || '') || 'ยังไม่ได้ระบุ'}</b></span></div>
               <small className="employee-governed-wide employee-critical-hint">ระบบจะตรวจเวรในอนาคต, ใบลา, Site/Department authority และบัญชีผู้ใช้ที่เชื่อมโยงก่อนยืนยัน</small>
             </div>}
             {criticalAction === 'POSITION_CHANGE' && <div className="employee-governed-grid">
-              <label className="employee-governed-wide"><span>ตำแหน่งใหม่ <b>*</b></span><input required value={String(form.jobTitle || '')} disabled={pendingReadOnly} onChange={(event) => update('jobTitle', event.target.value)} placeholder="ระบุตำแหน่งใหม่" /></label>
+              <label className="employee-governed-wide"><span>ตำแหน่งใหม่ <b>*</b></span><select required value={String(form.jobTitle || '')} disabled={pendingReadOnly || personnelMastersLoading || Boolean(personnelMastersError)} onChange={(event) => update('jobTitle', event.target.value)}><option value="">เลือก Position Master</option>{personnelMasters.positions.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select>{personnelMastersError && <small>{personnelMastersError}</small>}</label>
               <div className="employee-critical-before-after employee-governed-wide"><span>ตำแหน่งเดิม <b>{employee.jobTitle || 'ไม่ระบุ'}</b></span><span>ตำแหน่งใหม่ <b>{String(form.jobTitle || '') || 'ยังไม่ได้ระบุ'}</b></span></div>
               <small className="employee-governed-wide employee-critical-hint">การเปลี่ยนตำแหน่งอาจมีผลต่อสายอนุมัติและสิทธิ์ปฏิบัติงาน ระบบจะตรวจผลกระทบก่อนบันทึก</small>
             </div>}

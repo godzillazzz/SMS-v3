@@ -3,6 +3,7 @@
 const prismaDefault = require('../config/prisma');
 const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
+const personnelMaster = require('./personnel-master.service');
 
 const CORE_SUPERVISOR_ALIASES = Object.freeze(['supervisor', 'หัวหน้า', 'ซุปเปอร์ไวเซอร์']);
 const CORE_MANAGER_ALIASES = Object.freeze(['manager', 'ผู้จัดการ']);
@@ -272,6 +273,11 @@ function createApprovalPolicyService({ prismaClient = prismaDefault, auditServic
     const desired = normalizePolicyInput(requestType, input);
     return prismaClient.$transaction(async (tx) => {
       const before = await getPolicy(desired.requestType, tx);
+      if (desired.requestType === 'LEAVE_REQUEST') {
+        const previousAliases = new Set([...before.additionalSupervisorAliases, ...before.additionalManagerAliases]);
+        const newAliases = [...desired.additionalSupervisorAliases, ...desired.additionalManagerAliases].filter((value) => !previousAliases.has(value));
+        for (const alias of newAliases) await personnelMaster.assertActiveValue(tx, 'position', alias);
+      }
       const values = serializedValues(desired);
       for (const [key, value] of values) {
         await tx.systemSetting.upsert({

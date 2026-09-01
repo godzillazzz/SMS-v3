@@ -2,6 +2,7 @@
 
 const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
+const personnelMaster = require('./personnel-master.service');
 const audit = require('./audit.service');
 const { logger, errorCategory } = require('../utils/logger');
 
@@ -222,6 +223,9 @@ async function applyEmployeeSnapshot(tx, employee, type, snapshot, effectiveDate
 
 function createEmployeeLifecycleService({ prismaClient = prisma, auditService = audit, clock = () => new Date() } = {}) {
   async function authoritativeMutationState({ employeeId, type, effectiveDate, changes = {} }, client = prismaClient) {
+    let governedChanges = changes;
+    if (['DEPARTMENT_TRANSFER', 'REHIRE'].includes(type) && Object.prototype.hasOwnProperty.call(changes || {}, 'department')) governedChanges = { ...governedChanges, department: await personnelMaster.assertActiveValue(client, 'department', changes.department) };
+    if (['POSITION_CHANGE', 'REHIRE'].includes(type) && Object.prototype.hasOwnProperty.call(changes || {}, 'jobTitle')) governedChanges = { ...governedChanges, jobTitle: await personnelMaster.assertActiveValue(client, 'position', changes.jobTitle) };
     const effective = dateOnly(effectiveDate);
     const employee = await client.employee.findFirst({ where: { id: employeeId, deletedAt: null }, include: { user: true } });
     if (!employee) throw new HttpError(404, 'ไม่พบข้อมูลพนักงาน');
@@ -231,7 +235,7 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
       : null;
     const projected = latestEvent?.newValue || lifecycleSnapshot(employee, employee.user);
     const prior = type === 'MASTER_EDIT' ? masterLifecycleSnapshot(employee, employee.user, projected) : projected;
-    const next = nextSnapshot(type, prior, changes, effective);
+    const next = nextSnapshot(type, prior, governedChanges, effective);
     const blockingIssues = actionValidation(type, prior, next);
     if (latestEvent && new Date(latestEvent.effectiveDate) > effective) {
       blockingIssues.push({ code: 'LIFECYCLE_EVENT_ORDER_CONFLICT', message: 'วันที่มีผลต้องไม่ก่อนเหตุการณ์ล่าสุดในประวัติพนักงาน' });

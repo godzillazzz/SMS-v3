@@ -83,6 +83,18 @@ describe('Employee Master Governed Edit V1 frontend contracts', () => {
     expect(editor).toContain('ใช้ “เปลี่ยนตำแหน่ง”');
   });
 
+  it('Department and Position critical actions use active Master selectors and fail closed', () => {
+    expect(editor).toContain('api.personnelMasters(token, true)');
+    expect(editor).toContain('เลือก Department Master');
+    expect(editor).toContain('เลือก Position Master');
+    expect(editor).toContain('personnelMasters.departments.map');
+    expect(editor).toContain('personnelMasters.positions.map');
+    expect(editor).toContain('Boolean(personnelMastersError)');
+    expect(editor).not.toContain('placeholder="ระบุหน่วยงานใหม่"');
+    expect(editor).not.toContain('placeholder="ระบุตำแหน่งใหม่"');
+    expect(api).toContain('personnelMasters:');
+  });
+
   it('PENDING proposal is read-only while cancellation remains available', () => {
     expect(editor).toContain("activeRequest?.status === 'PENDING_APPROVAL'");
     expect(editor).toContain('disabled={pendingReadOnly}');

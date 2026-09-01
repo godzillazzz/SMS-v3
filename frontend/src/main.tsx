@@ -63,6 +63,7 @@ import { LeavePolicySettingsCard, leavePolicyKeys, type LeavePolicyForm } from '
 import { LeaveTypeMasterPanel } from './components/LeaveTypeMasterPanel';
 import { AutoSchedulePatternPanel } from './components/AutoSchedulePatternPanel';
 import { ApprovalAuthorityMatrixPanel } from './components/ApprovalAuthorityMatrixPanel';
+import { PersonnelMasterPanel } from './components/PersonnelMasterPanel';
 import { DataRetentionCenterPanel } from './components/DataRetentionCenterPanel';
 import { ConfigurationRegistryPanel } from './components/ConfigurationRegistryPanel';
 import { SystemSettingHistoryPanel } from './components/SystemSettingHistoryPanel';
@@ -1000,6 +1001,7 @@ function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading,
     <LeavePolicySettingsCard settings={settings} onSave={onSaveLeavePolicy} onRefresh={onRefresh} />
     <LeaveTypeMasterPanel items={leaveTypes} loading={leaveTypesLoading} onCreate={onCreateLeaveType} onUpdate={onUpdateLeaveType} onRefresh={onRefresh} />
     <AutoSchedulePatternPanel token={token} />
+    <PersonnelMasterPanel token={token} />
     <ApprovalAuthorityMatrixPanel token={token} />
     <DataRetentionCenterPanel token={token} />
     <NotificationCenterPanel token={token} />
@@ -1979,31 +1981,35 @@ function Dashboard() {
   };
   const openLicenseEdit = (row: DataRow) => { if (auth.token) setLicenseEditTarget(row); };
 
-  const employeeFields: FormField[] = [
-    { name: 'employeeCode', label: 'รหัสภายใน', required: true }, { name: 'firstName', label: 'ชื่อ', required: true },
-    { name: 'lastName', label: 'นามสกุล', required: true }, { name: 'email', label: 'อีเมล', type: 'email' },
-    { name: 'phone', label: 'โทรศัพท์' }, { name: 'department', label: 'หน่วยงาน' },
-    { name: 'jobTitle', label: 'ตำแหน่ง' }, { name: 'hiredAt', label: 'วันที่เริ่มงาน', type: 'date' }
-  ];
-  const employeeProfileFields: FormField[] = [
-    { name: 'employeeCode', label: 'รหัสภายใน', required: true },
-    { name: 'email', label: 'อีเมล', type: 'email' },
-    { name: 'phone', label: 'โทรศัพท์' },
-    { name: 'hiredAt', label: 'วันที่เริ่มงาน', type: 'date' }
-  ];
-
-  const openEmployeeEditor = (employee?: Employee) => {
+  const openEmployeeEditor = async (employee?: Employee) => {
     if (!auth.token) return;
     if (employee) {
       setEmployeeGovernedEditTarget(employee);
       return;
     }
-    const fields = employeeFields;
-    runEditor(
-      { title: 'เพิ่มพนักงาน', submitLabel: 'เพิ่มพนักงาน', fields, values: {}, experience: 'personnel' },
-      (form) => api.createEmployee(auth.token!, formPayload(form, ['email', 'phone', 'department', 'jobTitle', 'hiredAt'])),
-      'employees'
-    );
+    try {
+      const result = await api.personnelMasters(auth.token, true);
+      const masters = result?.data as { departments?: Array<{ id: string; name: string }>; positions?: Array<{ id: string; name: string }> } | undefined;
+      const departments = Array.isArray(masters?.departments) ? masters!.departments : [];
+      const positions = Array.isArray(masters?.positions) ? masters!.positions : [];
+      const fields: FormField[] = [
+        { name: 'employeeCode', label: 'รหัสภายใน', required: true },
+        { name: 'firstName', label: 'ชื่อ', required: true },
+        { name: 'lastName', label: 'นามสกุล', required: true },
+        { name: 'email', label: 'อีเมล', type: 'email' },
+        { name: 'phone', label: 'โทรศัพท์' },
+        { name: 'department', label: 'หน่วยงาน', type: 'select', options: [{ value: '', label: 'ไม่ระบุหน่วยงาน' }, ...departments.map((item) => ({ value: item.name, label: item.name }))] },
+        { name: 'jobTitle', label: 'ตำแหน่ง', type: 'select', options: [{ value: '', label: 'ไม่ระบุตำแหน่ง' }, ...positions.map((item) => ({ value: item.name, label: item.name }))] },
+        { name: 'hiredAt', label: 'วันที่เริ่มงาน', type: 'date' }
+      ];
+      runEditor(
+        { title: 'เพิ่มพนักงาน', submitLabel: 'เพิ่มพนักงาน', fields, values: {}, experience: 'personnel' },
+        (form) => api.createEmployee(auth.token!, formPayload(form, ['email', 'phone', 'department', 'jobTitle', 'hiredAt'])),
+        'employees'
+      );
+    } catch (reason) {
+      setOperationError(toRequestErrorState(reason, 'ไม่สามารถโหลด Department / Position Master สำหรับเพิ่มพนักงานได้'));
+    }
   };
 
   const [shiftEditorTarget, setShiftEditorTarget] = useState<{ shift?: DataRow; defaults?: Record<string, string>; clickPos?: { x: number; y: number } } | null>(null);

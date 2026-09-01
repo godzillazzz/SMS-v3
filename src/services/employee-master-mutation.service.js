@@ -5,6 +5,7 @@ const prisma = require('../config/prisma');
 const audit = require('./audit.service');
 const lifecycle = require('./employee-lifecycle.service');
 const HttpError = require('../utils/http-error');
+const personnelMaster = require('./personnel-master.service');
 
 const ADMIN_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'department', 'jobTitle', 'skill', 'isActive'];
 const MANAGER_FIELDS = ['firstName', 'lastName', 'department', 'jobTitle', 'isActive'];
@@ -124,7 +125,9 @@ function createEmployeeMasterMutationService({ prismaClient = prisma, auditServi
 
   async function preflight({ employeeId, actorRole, fieldScope, changes, effectiveMode = 'IMMEDIATE', effectiveDate, reason }) {
     const scope = fieldScope || actorRole || 'ADMIN';
-    const normalized = normalizeChanges(changes, scope === 'MANAGER' ? 'MANAGER' : 'ADMIN');
+    let normalized = normalizeChanges(changes, scope === 'MANAGER' ? 'MANAGER' : 'ADMIN');
+    if (Object.prototype.hasOwnProperty.call(normalized, 'department')) normalized = { ...normalized, department: await personnelMaster.assertActiveValue(prismaClient, 'department', normalized.department) };
+    if (Object.prototype.hasOwnProperty.call(normalized, 'jobTitle')) normalized = { ...normalized, jobTitle: await personnelMaster.assertActiveValue(prismaClient, 'position', normalized.jobTitle) };
     const timing = validateEffectiveTiming(normalized, effectiveMode, effectiveDate, clock());
     let analysis = await lifecycleService.preflight({ employeeId, type: 'MASTER_EDIT', effectiveDate: timing.effectiveDate, changes: normalized });
     const actual = effectiveChanges(normalized, analysis.currentState);
@@ -151,7 +154,9 @@ function createEmployeeMasterMutationService({ prismaClient = prisma, auditServi
   }
 
   async function applyInTransaction(tx, { employeeId, actorUserId, actorRole = 'ADMIN', fieldScope = 'ADMIN', changes, effectiveMode = 'IMMEDIATE', effectiveDate, reason, expectedEmployeeUpdatedAt, expectedLifecycleSequence, idempotencyKey, sourceChangeRequestId = null, sourceChangeRequestRevision = null, staleCode = 'EMPLOYEE_STATE_CONFLICT' }) {
-    const normalized = normalizeChanges(changes, fieldScope === 'MANAGER' ? 'MANAGER' : 'ADMIN');
+    let normalized = normalizeChanges(changes, fieldScope === 'MANAGER' ? 'MANAGER' : 'ADMIN');
+    if (Object.prototype.hasOwnProperty.call(normalized, 'department')) normalized = { ...normalized, department: await personnelMaster.assertActiveValue(tx, 'department', normalized.department) };
+    if (Object.prototype.hasOwnProperty.call(normalized, 'jobTitle')) normalized = { ...normalized, jobTitle: await personnelMaster.assertActiveValue(tx, 'position', normalized.jobTitle) };
     const timing = validateEffectiveTiming(normalized, effectiveMode, effectiveDate, clock());
     const txLifecycle = lifecycle.createEmployeeLifecycleService({ prismaClient: tx, auditService, clock });
     const duplicate = await tx.employeeLifecycleEvent.findUnique({ where: { idempotencyKey } });

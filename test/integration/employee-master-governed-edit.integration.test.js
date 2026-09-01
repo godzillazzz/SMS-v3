@@ -86,6 +86,11 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     ] });
   }
 
+  async function setupPersonnelMasters() {
+    for (const name of ['Operations', 'Safety', 'Security']) await prisma.departmentMaster.upsert({ where: { normalizedName: name.toLowerCase() }, update: { name, isActive: true }, create: { name, normalizedName: name.toLowerCase(), isActive: true } });
+    for (const name of ['Officer', 'Changed elsewhere', 'Admin Override', 'Supervisor']) await prisma.positionMaster.upsert({ where: { normalizedName: name.toLowerCase() }, update: { name, isActive: true }, create: { name, normalizedName: name.toLowerCase(), isActive: true } });
+  }
+
   async function newEmployee(label = 'EMP', overrides = {}) {
     serial += 1;
     const safe = String(label).replace(/[^A-Za-z0-9]/g, '').slice(0, 12) || 'EMP';
@@ -148,7 +153,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     return prisma.shiftAssignment.create({ data: { employeeId: employee.id, shiftTypeId: type.id, workDate: new Date(`${dateText}T00:00:00Z`), employeeNameSnapshot: employee.displayName || `${employee.firstName} ${employee.lastName}`, departmentSnapshot: employee.department, startTime: type.startTime, endTime: type.endTime, hours: type.hours, source: 'GOV_TEST', locked: false, licenseStatus: code === 'OFF' || code === 'AL' ? 'NOT_REQUIRED' : 'VALID', ...overrides } });
   }
 
-  test.beforeEach(async () => { await cleanup(); await setupActors(); });
+  test.beforeEach(async () => { await cleanup(); await setupPersonnelMasters(); await setupActors(); });
   test.after(async () => { await cleanup(); await prisma.$disconnect(); });
 
   test('01 ADMIN direct immediate edit applies exactly once with lifecycle and audit history', async () => {

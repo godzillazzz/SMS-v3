@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { api } from '../api';
 import {
   getApprovalPolicies,
   updateApprovalPolicy,
@@ -17,27 +18,22 @@ function clonePolicy(policy: ApprovalPolicy): ApprovalPolicy {
   };
 }
 
-function aliasesText(values: string[]) {
-  return values.join(', ');
-}
-
-function parseAliases(value: string) {
-  return [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))];
-}
-
 export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
   const [items, setItems] = useState<ApprovalPolicy[]>([]);
   const [drafts, setDrafts] = useState<Record<string, ApprovalPolicy>>({});
   const [loading, setLoading] = useState(true);
   const [busyType, setBusyType] = useState('');
   const [notice, setNotice] = useState<string>();
+  const [positionOptions, setPositionOptions] = useState<Array<{ id: string; name: string }>>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setNotice(undefined);
     try {
-      const result = await getApprovalPolicies(token);
+      const [result, masterResult] = await Promise.all([getApprovalPolicies(token), api.personnelMasters(token, true)]);
       const policies = Array.isArray(result?.data) ? result.data as ApprovalPolicy[] : [];
+      const masterData = masterResult?.data as { positions?: Array<{ id: string; name: string }> } | undefined;
+      setPositionOptions(Array.isArray(masterData?.positions) ? masterData!.positions : []);
       setItems(policies);
       setDrafts(Object.fromEntries(policies.map((policy) => [policy.requestType, clonePolicy(policy)])));
     } catch (error) {
@@ -128,27 +124,16 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
     </div>}
 
     {drafts.LEAVE_REQUEST && <div className="line-secure-grid approval-position-aliases">
-      <label className="field-group">
-        <span>คำเรียกตำแหน่ง Supervisor เพิ่มเติม</span>
-        <input
-          value={aliasesText(drafts.LEAVE_REQUEST.additionalSupervisorAliases)}
-          placeholder="เช่น หัวหน้าชุด, shift supervisor"
-          onChange={(event) => updateDraft('LEAVE_REQUEST', { additionalSupervisorAliases: parseAliases(event.target.value) })}
-        />
-        <small>เพิ่มได้เท่านั้น; คำหลัก Supervisor/หัวหน้า/ซุปเปอร์ไวเซอร์ถูกป้องกันและยังมีผลเสมอ</small>
-      </label>
-      <label className="field-group">
-        <span>คำเรียกตำแหน่ง Manager เพิ่มเติม</span>
-        <input
-          value={aliasesText(drafts.LEAVE_REQUEST.additionalManagerAliases)}
-          placeholder="เช่น section lead"
-          onChange={(event) => updateDraft('LEAVE_REQUEST', { additionalManagerAliases: parseAliases(event.target.value) })}
-        />
-        <small>ใช้เพิ่มการจำแนก escalation โดยไม่สามารถลบ core Manager/ผู้จัดการ ได้</small>
-      </label>
+      {(['additionalSupervisorAliases', 'additionalManagerAliases'] as const).map((field) => {
+        const selected = drafts.LEAVE_REQUEST[field];
+        const known = new Set(positionOptions.map((item) => item.name));
+        const legacy = selected.filter((value) => !known.has(value));
+        const title = field === 'additionalSupervisorAliases' ? 'ตำแหน่ง Supervisor เพิ่มเติม' : 'ตำแหน่ง Manager เพิ่มเติม';
+        return <fieldset className="field-group" key={field}><legend>{title}</legend><div className="approval-position-master-options">{positionOptions.map((item) => <label key={item.id}><input type="checkbox" checked={selected.includes(item.name)} onChange={(event) => { const preservedLegacy = selected.filter((value) => !known.has(value)); const selectedKnown = selected.filter((value) => known.has(value) && value !== item.name); updateDraft('LEAVE_REQUEST', { [field]: [...preservedLegacy, ...selectedKnown, ...(event.target.checked ? [item.name] : [])] }); }} />{item.name}</label>)}</div>{legacy.length > 0 && <small>Legacy aliases ที่คงไว้เพื่อ compatibility: {legacy.join(', ')} · เพิ่มค่าใหม่ได้เฉพาะจาก Position Master</small>}<small>{field === 'additionalSupervisorAliases' ? 'Core Supervisor aliases ยังถูกป้องกันและมีผลเสมอ' : 'Core Manager aliases ยังถูกป้องกันและมีผลเสมอ'}</small></fieldset>;
+      })}
     </div>}
 
-    {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
+        {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
     <div className="line-settings-actions"><button className="btn-neutral small-action" disabled={loading || Boolean(busyType)} onClick={() => void load()}>↻ รีเฟรช</button></div>
   </section>;
 }
