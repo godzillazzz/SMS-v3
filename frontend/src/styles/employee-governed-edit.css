@@ -20,3 +20,15 @@
 .employee-revision-actions{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}.employee-revision-actions span{padding:3px 7px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700}
 @media(max-width:760px){.employee-change-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.employee-critical-editor>header{flex-direction:column}.employee-critical-before-after{grid-template-columns:1fr}}
 @media(max-width:420px){.employee-change-action-grid{grid-template-columns:1fr}}
+
+/* EMP-UX impact preview + pending/future visibility */
+.employee-change-conflict-summary{background:var(--color-surface-subtle)}
+.employee-change-conflict-summary>small{display:block;color:var(--color-text-secondary);font-size:12px;line-height:1.5}
+.employee-impact-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.employee-impact-group{display:grid;align-content:start;gap:5px;min-height:104px;padding:12px;border:1px solid var(--color-border);border-radius:10px;background:var(--color-surface-elevated)}
+.employee-impact-group>strong{font-size:13px;color:var(--color-text)}.employee-impact-group>span{font-size:12px;line-height:1.45;color:var(--color-text-secondary)}
+.employee-impact-group--clear{border-color:color-mix(in srgb,var(--color-success) 28%,var(--color-border));background:color-mix(in srgb,var(--color-success-soft) 54%,var(--color-surface))}
+.employee-impact-group--review{border-color:color-mix(in srgb,var(--color-warning) 32%,var(--color-border));background:color-mix(in srgb,var(--color-warning-soft) 58%,var(--color-surface))}
+.employee-impact-group--follow-up{border-color:color-mix(in srgb,var(--color-info) 30%,var(--color-border));background:color-mix(in srgb,var(--color-info-soft) 54%,var(--color-surface))}
+.employee-impact-authority-note{display:block;margin-top:10px;color:var(--color-text-secondary);font-size:12px;line-height:1.5}
+@media(max-width:760px){.employee-impact-groups{grid-template-columns:1fr}}
