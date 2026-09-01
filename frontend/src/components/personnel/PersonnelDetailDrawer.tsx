@@ -17,6 +17,7 @@ type LifecycleEvent = { id: string; type: string; status: 'PENDING' | 'APPLIED';
 type ReferenceState = { activePhoto?: { id: string; activatedAt?: string | null } | null; pendingPhoto?: { id: string; uploadedAt?: string | null } | null };
 type AccountState = { id: string; employeeId?: string | null; accountStatus?: string; isActive?: boolean; role?: string };
 type LicenseState = { id: string; employeeId?: string | null; licenseType?: string; expiryDate?: string | null; status?: string };
+type OnboardingReadiness = { status: 'READY' | 'NOT_READY'; checks: Record<string, { ready: boolean; [key: string]: unknown }>; blockers: Array<{ code: string; label: string; detail: string }> };
 
 const activeRequestStatuses = new Set(['DRAFT', 'PENDING_APPROVAL', 'RETURNED_FOR_CORRECTION']);
 const requestStatusLabel: Record<string, string> = { DRAFT: 'ฉบับร่าง', PENDING_APPROVAL: 'รอ Admin อนุมัติ', RETURNED_FOR_CORRECTION: 'ส่งกลับให้แก้ไข' };
@@ -44,6 +45,7 @@ export function PersonnelDetailDrawer({ employee, token, canManage, onClose, onE
   const [reference, setReference] = useState<ReferenceState>();
   const [account, setAccount] = useState<AccountState>();
   const [licenses, setLicenses] = useState<LicenseState[]>([]);
+  const [onboardingReadiness, setOnboardingReadiness] = useState<OnboardingReadiness>();
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusUnavailable, setStatusUnavailable] = useState(false);
 
@@ -67,17 +69,18 @@ export function PersonnelDetailDrawer({ employee, token, canManage, onClose, onE
   }, [employee, onClose]);
 
   useEffect(() => {
-    if (!employee || !token) { setRequests([]); setHistory([]); setReference(undefined); setAccount(undefined); setLicenses([]); setStatusUnavailable(false); return; }
+    if (!employee || !token) { setRequests([]); setHistory([]); setReference(undefined); setAccount(undefined); setLicenses([]); setOnboardingReadiness(undefined); setStatusUnavailable(false); return; }
     let active = true;
     setStatusLoading(true); setStatusUnavailable(false);
-    Promise.allSettled([api.employeeChangeRequests(token, employee.id), api.employeeLifecycleHistory(token, employee.id, 1), api.employeeReferencePhotos(token, employee.id), api.users(token), api.licenses(token, 1)]).then((results) => {
+    Promise.allSettled([api.employeeChangeRequests(token, employee.id), api.employeeLifecycleHistory(token, employee.id, 1), api.employeeReferencePhotos(token, employee.id), api.users(token), api.licenses(token, 1), api.employeeOnboardingReadiness(token, employee.id)]).then((results) => {
       if (!active) return;
-      const [requestResult, historyResult, photoResult, userResult, licenseResult] = results;
+      const [requestResult, historyResult, photoResult, userResult, licenseResult, readinessResult] = results;
       if (requestResult.status === 'fulfilled') setRequests(Array.isArray(requestResult.value?.data) ? requestResult.value.data as ChangeRequest[] : []);
       if (historyResult.status === 'fulfilled') setHistory(Array.isArray(historyResult.value?.data) ? historyResult.value.data as LifecycleEvent[] : []);
       if (photoResult.status === 'fulfilled') setReference((photoResult.value?.data || {}) as ReferenceState);
       if (userResult.status === 'fulfilled') { const rows = Array.isArray(userResult.value?.data) ? userResult.value.data as AccountState[] : []; setAccount(rows.find((row) => String(row.employeeId || '') === employee.id)); }
       if (licenseResult.status === 'fulfilled') { const rows = Array.isArray(licenseResult.value?.data) ? licenseResult.value.data as LicenseState[] : []; setLicenses(rows.filter((row) => String(row.employeeId || '') === employee.id)); }
+      if (readinessResult.status === 'fulfilled') setOnboardingReadiness((readinessResult.value?.data || undefined) as OnboardingReadiness | undefined);
       setStatusUnavailable(results.every((result) => result.status === 'rejected'));
     }).finally(() => { if (active) setStatusLoading(false); });
     return () => { active = false; };
@@ -88,12 +91,11 @@ export function PersonnelDetailDrawer({ employee, token, canManage, onClose, onE
   const activeLicenses = useMemo(() => licenses.filter((license) => license.status === 'Active'), [licenses]);
   const expiringLicense = useMemo(() => activeLicenses.filter((license) => { if (!license.expiryDate) return false; const days = (new Date(license.expiryDate).getTime() - Date.now()) / 86400000; return days >= 0 && days <= 30; }).sort((a, b) => String(a.expiryDate).localeCompare(String(b.expiryDate)))[0], [activeLicenses]);
   const readiness = useMemo(() => {
-    if (statusLoading) return { label: 'กำลังตรวจสอบ…', tone: 'neutral', detail: 'กำลังอ่านสถานะจากระบบที่เกี่ยวข้อง' };
-    if (!employee?.isActive) return { label: 'ยังไม่พร้อมลงเวลา', tone: 'warning', detail: 'สถานะพนักงานไม่อยู่ระหว่างปฏิบัติงาน' };
-    if (!reference?.activePhoto) return { label: 'ยังไม่พร้อมลงเวลา', tone: 'warning', detail: 'ยังไม่มี Reference Photo ที่ ACTIVE' };
-    if (!accountReady(account)) return { label: 'ยังไม่พร้อมลงเวลา', tone: 'warning', detail: account ? 'บัญชีผู้ใช้ยังไม่พร้อมใช้งาน' : 'ยังไม่พบบัญชีผู้ใช้ที่เชื่อมกับพนักงาน' };
-    return { label: 'ต้องตรวจสอบเพิ่มเติม', tone: 'info', detail: 'Employee / Account / Reference Photo ผ่านแล้ว แต่ยังต้องยืนยัน Schedule, Site, Shift และ Attendance Device จาก authority ที่เกี่ยวข้อง' };
-  }, [statusLoading, employee?.isActive, reference?.activePhoto, account]);
+    if (statusLoading) return { label: 'กำลังตรวจสอบ…', tone: 'neutral', detail: 'กำลังอ่านสถานะจาก authority ฝั่ง server' };
+    if (!onboardingReadiness) return { label: 'ตรวจสอบไม่ได้', tone: 'warning', detail: 'Onboarding readiness authority ไม่พร้อม จึงไม่คาดเดาสถานะจาก client' };
+    if (onboardingReadiness.status === 'READY') return { label: 'พร้อมลงเวลา', tone: 'success', detail: 'Employee, Account, Reference Photo, Schedule, Shift, Security Site และ cryptographic Attendance Device ผ่าน authority ที่กำหนด' };
+    return { label: 'ยังไม่พร้อมลงเวลา', tone: 'warning', detail: onboardingReadiness.blockers.map((item) => item.detail).join(' · ') || 'มี prerequisite ที่ยังไม่ผ่าน' };
+  }, [statusLoading, onboardingReadiness]);
   if (!employee) return null;
   const fullName = `${employee.firstName} ${employee.lastName}`.trim();
   const initials = fullName.split(/\s+/).filter(Boolean).map((value) => value[0]).join('').slice(0, 2) || 'SM';
@@ -117,7 +119,7 @@ export function PersonnelDetailDrawer({ employee, token, canManage, onClose, onE
         {statusUnavailable && <div className="personnel-360-data-note" role="status">ข้อมูล governance บางส่วนไม่พร้อมใช้งาน จึงไม่คาดเดาสถานะจาก client</div>}
         <section id="employee-360-overview" className="personnel-detail-section" aria-labelledby="personnel-overview-title"><div className="personnel-section-heading"><span className="personnel-section-icon" aria-hidden="true"><SmsIcon name="employees" size={18} /></span><div><h3 id="personnel-overview-title">ภาพรวมและข้อมูลทั่วไป</h3><p>Employee identity เดียวสำหรับข้อมูลย้อนหลังทุกโมดูล</p></div></div><dl className="personnel-detail-grid"><div><dt>รหัสภายใน</dt><dd>{employee.employeeCode}</dd></div><div><dt>ชื่อ-นามสกุล</dt><dd>{fullName || 'ไม่ระบุ'}</dd></div><div><dt>อีเมลติดต่อ</dt><dd>{employee.email || 'ไม่ระบุ'}</dd></div><div><dt>โทรศัพท์</dt><dd>{employee.phone || 'ไม่ระบุ'}</dd></div><div><dt>วันที่เริ่มงาน</dt><dd>{fmtDate(employee.hiredAt)}</dd></div><div><dt>ทักษะ/คุณสมบัติ</dt><dd>{employee.skill || 'ไม่ระบุ'}</dd></div></dl></section>
         <section id="employee-360-structure" className="personnel-detail-section" aria-labelledby="personnel-structure-title"><div className="personnel-section-heading"><span className="personnel-section-icon" aria-hidden="true"><SmsIcon name="shield" size={18} /></span><div><h3 id="personnel-structure-title">การจ้างงานและโครงสร้าง</h3><p>Department / Position ใช้ Master authority สำหรับค่าที่เปลี่ยนใหม่</p></div></div><dl className="personnel-detail-grid"><div><dt>Department ปัจจุบัน</dt><dd>{employee.department || 'ไม่ระบุ'}</dd></div><div><dt>Position ปัจจุบัน</dt><dd>{employee.jobTitle || 'ไม่ระบุ'}</dd></div><div className="personnel-detail-grid__wide"><dt>Site context</dt><dd>อ้างอิงจาก Schedule / Security Site authority เมื่อปฏิบัติงาน ไม่กำหนดจาก Employee โดยเดา</dd></div></dl></section>
-        <section id="employee-360-readiness" className="personnel-detail-section" aria-labelledby="personnel-domain-title"><div className="personnel-section-heading"><span className="personnel-section-icon" aria-hidden="true"><SmsIcon name="quality" size={18} /></span><div><h3 id="personnel-domain-title">ความพร้อมสำหรับการลงเวลา</h3><p>สรุปจาก authority ที่มีอยู่เท่านั้น และไม่ถือว่า READY หากยังขาดข้อมูลบังคับ</p></div></div><div className={`personnel-readiness-summary personnel-readiness-summary--${readiness.tone}`} role="status"><span>สถานะปัจจุบัน</span><strong>{readiness.label}</strong><p>{readiness.detail}</p></div><dl className="personnel-detail-grid"><div><dt>บัญชีผู้ใช้</dt><dd>{accountReady(account) ? 'พร้อมใช้งาน' : account ? 'ยังไม่พร้อมใช้งาน' : 'ยังไม่พบบัญชีเชื่อมโยง'}</dd></div><div><dt>Reference Photo</dt><dd>{reference?.activePhoto ? 'พร้อมใช้งาน' : 'ยังไม่มีรูป ACTIVE'}</dd></div><div><dt>ใบอนุญาต Active</dt><dd>{activeLicenses.length} รายการ</dd></div><div><dt>Schedule / Site / Shift</dt><dd>ต้องตรวจจาก authority การจัดเวร</dd></div><div className="personnel-detail-grid__wide"><dt>Attendance Device</dt><dd>ยังไม่มี employee-target read API สำหรับผู้ดูแล จึงไม่สรุปหรือคาดเดาสถานะอุปกรณ์จาก browser/client</dd></div></dl></section>
+        <section id="employee-360-readiness" className="personnel-detail-section" aria-labelledby="personnel-domain-title"><div className="personnel-section-heading"><span className="personnel-section-icon" aria-hidden="true"><SmsIcon name="quality" size={18} /></span><div><h3 id="personnel-domain-title">ความพร้อมสำหรับการลงเวลา</h3><p>สรุปจาก authority ที่มีอยู่เท่านั้น และไม่ถือว่า READY หากยังขาดข้อมูลบังคับ</p></div></div><div className={`personnel-readiness-summary personnel-readiness-summary--${readiness.tone}`} role="status"><span>สถานะปัจจุบัน</span><strong>{readiness.label}</strong><p>{readiness.detail}</p></div><dl className="personnel-detail-grid"><div><dt>บัญชีผู้ใช้</dt><dd>{onboardingReadiness?.checks.account?.ready ? 'พร้อมใช้งาน' : 'ยังไม่พร้อม'}</dd></div><div><dt>Reference Photo</dt><dd>{onboardingReadiness?.checks.referencePhoto?.ready ? 'ACTIVE' : 'ยังไม่พร้อม'}</dd></div><div><dt>Schedule / Shift</dt><dd>{onboardingReadiness?.checks.schedule?.ready ? 'อนุมัติและพร้อมใช้งาน' : 'ยังไม่พร้อม'}</dd></div><div><dt>Security Site</dt><dd>{onboardingReadiness?.checks.site?.ready ? String(onboardingReadiness.checks.site.name || onboardingReadiness.checks.site.code || 'พร้อมใช้งาน') : 'ยังไม่พร้อม'}</dd></div><div><dt>Attendance Device</dt><dd>{onboardingReadiness?.checks.device?.ready ? 'Active cryptographic device พร้อมใช้งาน' : 'ยังไม่พร้อม'}</dd></div><div><dt>ใบอนุญาต Active</dt><dd>{activeLicenses.length} รายการ</dd></div>{onboardingReadiness?.blockers?.length ? <div className="personnel-detail-grid__wide"><dt>Blocking reasons</dt><dd>{onboardingReadiness.blockers.map((item) => `${item.label}: ${item.detail}`).join(' · ')}</dd></div> : null}</dl></section>
         <section id="employee-360-history" className="personnel-detail-section" aria-labelledby="personnel-change-title"><div className="personnel-section-heading"><span className="personnel-section-icon" aria-hidden="true"><SmsIcon name="history" size={18} /></span><div><h3 id="personnel-change-title">Change History Timeline</h3><p>ประวัติ lifecycle แบบอ่านอย่างเดียว · แสดงล่าสุดไม่เกิน 6 รายการ</p></div></div>{statusLoading && !history.length ? <div className="personnel-360-loading">กำลังโหลดประวัติ…</div> : history.length ? <ol className="personnel-360-timeline">{history.slice(0, 6).map((event) => <li key={event.id}><div><strong>{lifecycleLabel[event.type] || event.type}</strong><span className={`lifecycle-status lifecycle-status--${event.status.toLowerCase()}`}>{event.status === 'PENDING' ? 'รอวันที่มีผล' : 'มีผลแล้ว'}</span></div><time>{fmtDate(event.effectiveDate)}</time><p>{eventChange(event)}</p><small>{event.changedBy?.displayName || 'ผู้ดูแลระบบ'} · {fmtDateTime(event.createdAt)} · เหตุผล: {event.reason || '—'}</small></li>)}</ol> : <div className="personnel-360-empty">ยังไม่มี lifecycle history ที่ยืนยันได้</div>}</section>
       </div>
       {canManage && <footer className="personnel-drawer-actions"><button type="button" className="btn-primary personnel-drawer-primary" onClick={onEdit}><SmsIcon name="edit" size={17} />แก้ไขข้อมูล</button></footer>}
