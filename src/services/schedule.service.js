@@ -4,6 +4,7 @@ const { evaluateRulesForAssignments } = require('./schedule-rules.service');
 const audit = require('./audit.service');
 const { licenseStateForWorkDate } = require('./license-state.service');
 const { ensureEmployeeOperationalForShift } = require('./employee-operational-eligibility.service');
+const { createSchedulePersonnelResolver, enrichScheduleAssignments } = require('./schedule-personnel-history.service');
 
 function parseMonthDates(yearMonth) {
   const [yearStr, monthStr] = yearMonth.split('-');
@@ -26,11 +27,7 @@ async function getMonthlyGrid(yearMonth) {
     dates.push(`${year}-${monthStr}-${dayStr}`);
   }
 
-  const [rawEmployees, shiftTypes, rawAssignments, approval] = await Promise.all([
-    prisma.employee.findMany({
-      where: { deletedAt: null, isActive: true },
-      orderBy: [{ employeeCode: 'asc' }]
-    }),
+  const [shiftTypes, rawAssignments, approval] = await Promise.all([
     prisma.shiftType.findMany({ where: { isActive: true }, orderBy: { code: 'asc' } }),
     prisma.shiftAssignment.findMany({
       where: {
@@ -48,19 +45,26 @@ async function getMonthlyGrid(yearMonth) {
     })
   ]);
 
+  const assignedEmployeeIds = [...new Set(rawAssignments.map((assignment) => assignment.employeeId))];
+  const rawEmployees = await prisma.employee.findMany({
+    where: { OR: [{ deletedAt: null }, ...(assignedEmployeeIds.length ? [{ id: { in: assignedEmployeeIds } }] : [])] },
+    orderBy: [{ employeeCode: 'asc' }]
+  });
+  const resolvePersonnel = await createSchedulePersonnelResolver(prisma, rawEmployees);
+  const historicalAssignments = await enrichScheduleAssignments(prisma, rawAssignments, rawEmployees);
+
   const assignmentsByEmp = new Map();
-  for (const ass of rawAssignments) {
+  for (const ass of historicalAssignments) {
     if (!assignmentsByEmp.has(ass.employeeId)) {
       assignmentsByEmp.set(ass.employeeId, []);
     }
     assignmentsByEmp.get(ass.employeeId).push(ass);
   }
 
-  const employees = rawEmployees.map((emp) => ({
-    ...emp,
-    displayName: `${emp.firstName} ${emp.lastName}`,
-    shifts: assignmentsByEmp.get(emp.id) || []
-  }));
+  const employees = rawEmployees.map((emp) => {
+    const state = resolvePersonnel(emp.id, startDate);
+    return { ...emp, ...(state || {}), shifts: assignmentsByEmp.get(emp.id) || [] };
+  }).filter((emp) => emp.isActive || (assignmentsByEmp.get(emp.id) || []).length > 0);
 
   const rulesViolations = await evaluateRulesForAssignments(rawAssignments);
 
@@ -71,7 +75,7 @@ async function getMonthlyGrid(yearMonth) {
     approval: approval || { status: 'PENDING', month: startDate },
     employees,
     shiftTypes,
-    assignments: rawAssignments,
+    assignments: historicalAssignments,
     violations: rulesViolations
   };
 }
@@ -117,6 +121,7 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
       include: { shiftType: { select: { code: true } } }
     });
     const existingAssMap = new Map(existingAssList.map(a => [`${a.workDate.toISOString().slice(0, 10)}|${a.employeeId}`, a]));
+    const resolvePersonnel = await createSchedulePersonnelResolver(tx, employees);
 
     const monthChangeStats = {};
 
@@ -135,6 +140,8 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
         monthChangeStats[mStr] = { totalChanged: 0, nonAlChanged: 0 };
       }
 
+      const personnelState = resolvePersonnel(ass.employeeId, parsedDate);
+      if (!personnelState) throw new HttpError(400, 'Employee historical state not found for schedule assignment.');
       const key = `${parsedDate.toISOString().slice(0, 10)}|${ass.employeeId}`;
       const beforeAss = existingAssMap.get(key);
       if (shift.isActive === false && (!beforeAss || beforeAss.shiftTypeId !== ass.shiftTypeId)) {
@@ -197,8 +204,8 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
           startTime: shift.startTime,
           endTime: shift.endTime,
           hours: shift.hours,
-          employeeNameSnapshot: emp.displayName || `${emp.firstName} ${emp.lastName}`,
-          departmentSnapshot: emp.department,
+          employeeNameSnapshot: personnelState.displayName,
+          departmentSnapshot: personnelState.department,
           remark: ass.remark || null,
           locked: true,
           licenseStatus,
@@ -214,8 +221,8 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
           startTime: shift.startTime,
           endTime: shift.endTime,
           hours: shift.hours,
-          employeeNameSnapshot: emp.displayName || `${emp.firstName} ${emp.lastName}`,
-          departmentSnapshot: emp.department,
+          employeeNameSnapshot: personnelState.displayName,
+          departmentSnapshot: personnelState.department,
           remark: ass.remark || null,
           locked: true,
           source: 'SMS_V3',

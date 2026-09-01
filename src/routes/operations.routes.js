@@ -13,6 +13,7 @@ const { buildApprovedScheduleWorkbook } = require('../services/schedule-export.s
 const { reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules } = require('../services/license-schedule-reconciliation.service');
 const { licenseStateForWorkDate } = require('../services/license-state.service');
 const { updateScheduleApprovalState, approveMonthlySchedule } = require('../services/schedule.service');
+const { createSchedulePersonnelResolver, enrichScheduleAssignments } = require('../services/schedule-personnel-history.service');
 const { linkLeaveQuota } = require('../services/leave-quota-link.service');
 const { provisionLeaveQuota } = require('../services/leave-quota-provisioning.service');
 const { bangkokQuotaYear, validateQuotaYear } = require('../services/annual-leave-quota.service');
@@ -584,23 +585,23 @@ router.get('/schedule-calendar', async (req, res, next) => {
     const nextMonth = new Date(Date.UTC(year, monthIndex, 1));
     const employeeWhere = {
       deletedAt: null,
-      ...(filters.department && { department: filters.department }),
       ...(filters.search && { OR: [
         { employeeCode: { contains: filters.search, mode: 'insensitive' } },
         { firstName: { contains: filters.search, mode: 'insensitive' } },
         { lastName: { contains: filters.search, mode: 'insensitive' } }
       ] })
     };
-    const [total, employees] = await prisma.$transaction([
-      prisma.employee.count({ where: employeeWhere }),
-      prisma.employee.findMany({
-        where: employeeWhere,
-        select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true },
-        orderBy: [{ employeeCode: 'asc' }],
-        skip: (filters.page - 1) * filters.pageSize,
-        take: filters.pageSize
-      })
-    ]);
+    const employeeCandidates = await prisma.employee.findMany({
+      where: employeeWhere,
+      select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true, isActive: true, deletedAt: true },
+      orderBy: [{ employeeCode: 'asc' }]
+    });
+    const resolvePersonnel = await createSchedulePersonnelResolver(prisma, employeeCandidates);
+    const monthAsOf = monthStart;
+    const historicalEmployees = employeeCandidates.map((employee) => ({ ...employee, ...(resolvePersonnel(employee.id, monthAsOf) || {}) }));
+    const filteredEmployees = filters.department ? historicalEmployees.filter((employee) => employee.department === filters.department) : historicalEmployees;
+    const total = filteredEmployees.length;
+    const employees = filteredEmployees.slice((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize);
     const employeeIds = employees.map((employee) => employee.id);
     const [shifts, approval] = await Promise.all([employeeIds.length ? prisma.shiftAssignment.findMany({
       where: { employeeId: { in: employeeIds }, workDate: { gte: monthStart, lt: nextMonth } },
@@ -645,18 +646,20 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
     if (!approval || approval.status !== 'APPROVED') {
       throw new HttpError(409, 'ตารางกะประจำเดือนนี้ต้องได้รับการอนุมัติ (Approve) จาก Admin ก่อนส่งออกไฟล์ Excel');
     }
-    const available = await prisma.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end } }, distinct: ['departmentSnapshot'], select: { departmentSnapshot: true } });
-    const availableDepartments = available.map((row) => row.departmentSnapshot).filter(Boolean).sort();
-    const selectedDepartments = input.scope === 'all' || !input.departments.length ? availableDepartments : input.departments.filter((department) => availableDepartments.includes(department));
-    if (!selectedDepartments.length) throw new HttpError(404, 'No schedule rows were found for the selected departments.');
-    const shifts = await prisma.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end }, departmentSnapshot: { in: selectedDepartments } }, select: { employeeId: true, employeeNameSnapshot: true, departmentSnapshot: true, workDate: true, hours: true, shiftType: { select: { code: true } } }, orderBy: [{ departmentSnapshot: 'asc' }, { employeeNameSnapshot: 'asc' }, { workDate: 'asc' }] });
-    if (!shifts.length) throw new HttpError(404, 'No schedule rows were found for export.');
-    const employeeIds = [...new Set(shifts.map((shift) => shift.employeeId))];
+    const rawShifts = await prisma.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end } }, select: { employeeId: true, employeeNameSnapshot: true, departmentSnapshot: true, workDate: true, hours: true, shiftType: { select: { code: true } } }, orderBy: [{ workDate: 'asc' }, { employeeNameSnapshot: 'asc' }] });
+    if (!rawShifts.length) throw new HttpError(404, 'No schedule rows were found for export.');
+    const employeeIds = [...new Set(rawShifts.map((shift) => shift.employeeId))];
     const [employees, shiftTypes, actor] = await Promise.all([
-      prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, jobTitle: true } }),
+      prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true, isActive: true, deletedAt: true } }),
       prisma.shiftType.findMany({ select: { code: true, name: true, startTime: true, endTime: true, hours: true }, orderBy: { code: 'asc' } }),
       prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { displayName: true } })
     ]);
+    const historicalShifts = await enrichScheduleAssignments(prisma, rawShifts, employees);
+    const availableDepartments = [...new Set(historicalShifts.map((row) => row.departmentSnapshot).filter(Boolean))].sort();
+    const selectedDepartments = input.scope === 'all' || !input.departments.length ? availableDepartments : input.departments.filter((department) => availableDepartments.includes(department));
+    if (!selectedDepartments.length) throw new HttpError(404, 'No schedule rows were found for the selected departments.');
+    const shifts = historicalShifts.filter((shift) => selectedDepartments.includes(shift.departmentSnapshot));
+    if (!shifts.length) throw new HttpError(404, 'No schedule rows were found for export.');
     const workbook = buildApprovedScheduleWorkbook({ month: input.month, approval, departments: selectedDepartments, shifts, employees, shiftTypes, exportedBy: actor.displayName });
     await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'ScheduleExport', entityId: `${input.month}-r${approval.revision}`, metadata: { month: input.month, revision: approval.revision, departmentCount: selectedDepartments.length, rowCount: shifts.length, format: 'XLSX' } });
     const [year, monthNumber] = input.month.split('-');
