@@ -69,6 +69,20 @@ describe('Employee Master Governed Edit V1 frontend contracts', () => {
     expect(editor).toContain('{isAdmin && <>');
   });
 
+  it('General Information renders governed identity and employment chronology as read-only', () => {
+    expect(editor).toContain(`value={String(employee.employeeCode || '')} readOnly aria-readonly="true"`);
+    expect(editor).toContain(`value={String(employee.firstName || '')} readOnly aria-readonly="true"`);
+    expect(editor).toContain(`value={String(employee.lastName || '')} readOnly aria-readonly="true"`);
+    expect(editor).toContain(`value={String(employee.department || '')} readOnly aria-readonly="true"`);
+    expect(editor).toContain(`value={String(employee.jobTitle || '')} readOnly aria-readonly="true"`);
+    expect(editor).toContain('value={cleanDate(employee.hiredAt)} readOnly aria-readonly="true"');
+    expect(editor).not.toContain("update('employeeCode'");
+    expect(editor).not.toContain("update('hiredAt'");
+    expect(editor).toContain('ใช้ “เปลี่ยนชื่อ”');
+    expect(editor).toContain('ใช้ “ย้ายหน่วยงาน”');
+    expect(editor).toContain('ใช้ “เปลี่ยนตำแหน่ง”');
+  });
+
   it('PENDING proposal is read-only while cancellation remains available', () => {
     expect(editor).toContain("activeRequest?.status === 'PENDING_APPROVAL'");
     expect(editor).toContain('disabled={pendingReadOnly}');
