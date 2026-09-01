@@ -105,6 +105,10 @@ test("pre-applied migration release guard requires exact prior Production migrat
   assert.match(sourceGuard, /Apply Approved EMP-UX Production Migration/);
   assert.match(sourceGuard, /Apply Approved PERF-05 Production Migration/);
   assert.match(sourceGuard, /Apply Approved Production Migration V2/);
+  assert.match(sourceGuard, /Apply Approved MDG-01B Production Migration/);
+  assert.match(sourceGuard, /EVIDENCE_WORKFLOW_EVENT='workflow_dispatch'/);
+  assert.match(sourceGuard, /run\.event !== process\.env\.EVIDENCE_WORKFLOW_EVENT/);
+  assert.match(sourceGuard, /one-time-vercel-production-sync\.yml/);
   assert.match(sourceGuard, /EVIDENCE_WORKFLOW_PATH/);
   assert.match(sourceGuard, /unexpected migration evidence workflow/);
   assert.match(sourceGuard, /Approve Production Migration/);

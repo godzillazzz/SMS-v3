@@ -154,28 +154,36 @@ jobs:
                 .github/releases/approved-emp-ux-production-migration.json)
                   EVIDENCE_WORKFLOW_NAME='Apply Approved EMP-UX Production Migration'
                   EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-emp-ux-production-migration.yml'
+                  EVIDENCE_WORKFLOW_EVENT='push'
                   ;;
                 .github/releases/approved-perf05-production-migration.json)
                   EVIDENCE_WORKFLOW_NAME='Apply Approved PERF-05 Production Migration'
                   EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-perf05-production-migration.yml'
+                  EVIDENCE_WORKFLOW_EVENT='push'
                   ;;
                 .github/releases/approved-cfg07-production-migration.json)
                   EVIDENCE_WORKFLOW_NAME='Apply Approved Production Migration V2'
                   EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-production-migration-v2.yml'
+                  EVIDENCE_WORKFLOW_EVENT='push'
+                  ;;
+                .github/releases/approved-mdg-01b-production-migration.json)
+                  EVIDENCE_WORKFLOW_NAME='Apply Approved MDG-01B Production Migration'
+                  EVIDENCE_WORKFLOW_PATH='.github/workflows/one-time-vercel-production-sync.yml'
+                  EVIDENCE_WORKFLOW_EVENT='workflow_dispatch'
                   ;;
                 *)
                   echo 'Unsupported pre-applied migration evidence manifest.'
                   exit 1
                   ;;
               esac
-              export EVIDENCE_WORKFLOW_NAME
+              export EVIDENCE_WORKFLOW_NAME EVIDENCE_WORKFLOW_EVENT
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID" >/tmp/pre-applied-run.json
               EVIDENCE_HEAD=$(node - /tmp/pre-applied-run.json <<'NODE'
           const fs = require('node:fs');
           const run = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           if (run.name !== process.env.EVIDENCE_WORKFLOW_NAME) throw new Error('unexpected migration evidence workflow');
           if (run.status !== 'completed' || run.conclusion !== 'success') throw new Error('migration evidence workflow did not succeed');
-          if (run.event !== 'push') throw new Error('migration evidence workflow event mismatch');
+          if (run.event !== process.env.EVIDENCE_WORKFLOW_EVENT) throw new Error('migration evidence workflow event mismatch');
           if (run.head_branch !== 'fix/serverless-database-reliability') throw new Error('migration evidence branch mismatch');
           if (!/^[0-9a-f]{40}$/.test(run.head_sha || '')) throw new Error('migration evidence head SHA missing');
           process.stdout.write(run.head_sha);
