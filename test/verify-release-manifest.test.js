@@ -83,11 +83,11 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest resolves exact CFG-11 target with no database changes', () => {
+test('current approved Production manifest resolves exact CFG-12 plus typography target with no database changes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.commitSha, 'ded07f43e452b312031d92254f2b94697d52be31');
-  assert.equal(result.treeSha, '6769f1250d701fc94c6eca46e35bf3a1b1b7649d');
+  assert.equal(result.commitSha, '9ce6190baafa39056ae90035f2936e7cf8d615fc');
+  assert.equal(result.treeSha, 'ff55d888513ae87b6b196a739912cd542fc30d2d');
   assert.equal(result.currentProductionSourceSha, '522c22451d5bdf9288cf9342cc0a5c3e74064625');
   assert.equal(result.rollbackDeploymentId, 'dpl_2mijA3iYEnrDAZ7CJgH4qfN7KrAr');
   assert.equal(result.runMigrations, false);
