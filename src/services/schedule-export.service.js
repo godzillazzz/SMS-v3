@@ -68,7 +68,7 @@ function buildApprovedScheduleWorkbook({ month, approval, departments, shifts, e
     const peopleMap = new Map();
     rows.forEach((shift) => {
       const employee = employeeById.get(shift.employeeId) || {};
-      const person = peopleMap.get(shift.employeeId) || { name: shift.employeeNameSnapshot, position: employee.jobTitle || '', shifts: new Map(), totalHours: 0 };
+      const person = peopleMap.get(shift.employeeId) || { name: shift.employeeNameSnapshot, position: shift.positionSnapshot || employee.jobTitle || '', shifts: new Map(), totalHours: 0 };
       person.shifts.set(new Date(shift.workDate).toISOString().slice(0, 10), { code: shift.shiftType.code, hours: Number(shift.hours || 0) });
       person.totalHours += Number(shift.hours || 0);
       peopleMap.set(shift.employeeId, person);
