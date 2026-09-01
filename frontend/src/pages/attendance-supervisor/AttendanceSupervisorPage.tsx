@@ -64,6 +64,7 @@ type AttendanceRow = {
 };
 
 type Summary = {
+  requiresAttention: number;
   scheduledToday: number;
   checkedIn: number;
   currentlyWorking: number;
@@ -148,6 +149,7 @@ type ManualConfirmationDialog = {
 
 const STATUS_OPTIONS = [
   ['', 'ทุกสถานะ'],
+  ['REQUIRES_ATTENTION', 'ต้องตรวจสอบ'],
   ['CURRENTLY_WORKING', 'กำลังปฏิบัติงาน'],
   ['NOT_CHECKED_IN_YET', 'ยังไม่ลงเวลา'],
   ['LATE', 'มาสาย'],
@@ -309,14 +311,16 @@ function KPI({
   label,
   value,
   icon,
-  tone = 'neutral'
+  tone = 'neutral',
+  onClick
 }: {
   label: string;
   value: number;
   icon: SmsIconName;
   tone?: string;
+  onClick?: () => void;
 }) {
-  return <article className={`attendance-supervisor-v4__kpi is-${tone}`}>
+  return <article className={`attendance-supervisor-v4__kpi is-${tone}${onClick ? ' is-actionable' : ''}`} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={onClick ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(); } } : undefined}>
     <span><SmsIcon name={icon} size={20} /></span>
     <div><strong>{value}</strong><small>{label}</small></div>
   </article>;
@@ -846,18 +850,19 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
       </section>
 
       {summary && <section className="attendance-supervisor-v4__kpis">
+        <KPI label="ต้องตรวจสอบ" value={summary.requiresAttention} icon="quality" tone="danger" onClick={() => setStatus('REQUIRES_ATTENTION')} />
         <KPI label="Scheduled" value={summary.scheduledToday} icon="calendar" />
         <KPI label="Checked in" value={summary.checkedIn} icon="check" tone="good" />
         <KPI label="Working now" value={summary.currentlyWorking} icon="attendance" tone="good" />
-        <KPI label="Not checked in" value={summary.notCheckedInYet} icon="clock" />
-        <KPI label="Late" value={summary.late} icon="clock" tone="warning" />
-        <KPI label="Early out" value={summary.earlyOut} icon="history" tone="warning" />
-        <KPI label="Wrong shift" value={summary.wrongShift} icon="quality" tone="warning" />
-        <KPI label="Assist other Site" value={summary.assistingOtherSite} icon="location" />
-        <KPI label="Outside Site" value={summary.outsideAllSites} icon="location" tone="danger" />
-        <KPI label="Leave" value={summary.leave} icon="leave" />
-        <KPI label="Absent" value={summary.absent} icon="quality" tone="danger" />
-        <KPI label="Time abnormal" value={summary.timeAbnormal} icon="quality" tone="danger" />
+        <KPI label="Not checked in" value={summary.notCheckedInYet} icon="clock" onClick={() => setStatus('NOT_CHECKED_IN_YET')} />
+        <KPI label="Late" value={summary.late} icon="clock" tone="warning" onClick={() => setStatus('LATE')} />
+        <KPI label="Early out" value={summary.earlyOut} icon="history" tone="warning" onClick={() => setStatus('EARLY_OUT')} />
+        <KPI label="Wrong shift" value={summary.wrongShift} icon="quality" tone="warning" onClick={() => setStatus('WRONG_SHIFT')} />
+        <KPI label="Assist other Site" value={summary.assistingOtherSite} icon="location" onClick={() => setStatus('ASSIST_OTHER_SITE')} />
+        <KPI label="Outside Site" value={summary.outsideAllSites} icon="location" tone="danger" onClick={() => setStatus('OUTSIDE_ALL_SITES')} />
+        <KPI label="Leave" value={summary.leave} icon="leave" onClick={() => setStatus('LEAVE')} />
+        <KPI label="Absent" value={summary.absent} icon="quality" tone="danger" onClick={() => setStatus('ABSENT')} />
+        <KPI label="Time abnormal" value={summary.timeAbnormal} icon="quality" tone="danger" onClick={() => setStatus('TIME_ABNORMAL')} />
       </section>}
 
       {error && <div className="attendance-supervisor-v4__error" role="alert">
