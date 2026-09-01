@@ -132,7 +132,7 @@ if (!configured) {
 
     await assert.rejects(
       () => prisma.$executeRawUnsafe(
-        'UPDATE security_site_departments SET is_default = TRUE, updated_at = NOW() WHERE department_master_id = $1::uuid AND security_site_id = $2',
+        'UPDATE security_site_departments SET is_default = TRUE, updated_at = NOW() WHERE department_master_id = $1::uuid AND security_site_id = $2::uuid',
         ids.departmentMaster,
         ids.siteB
       ),
