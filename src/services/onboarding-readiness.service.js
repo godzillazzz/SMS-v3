@@ -60,7 +60,26 @@ function createOnboardingReadinessService({ prisma = prismaDefault, siteAuthorit
     };
     return { employeeId, status: blockers.length ? 'NOT_READY' : 'READY', checkedAt: now, checks, blockers };
   }
-  return { getEmployeeReadiness };
+  async function listEmployeeReadiness({ search = '', limit = 50 } = {}) {
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 50));
+    const term = String(search || '').trim();
+    const employees = await prisma.employee.findMany({
+      where: { deletedAt: null, ...(term ? { OR: [{ employeeCode: { contains: term, mode: 'insensitive' } }, { firstName: { contains: term, mode: 'insensitive' } }, { lastName: { contains: term, mode: 'insensitive' } }] } : {}) },
+      orderBy: [{ employeeCode: 'asc' }],
+      take: safeLimit,
+      select: { id: true, employeeCode: true, firstName: true, lastName: true, department: true, jobTitle: true, isActive: true }
+    });
+    const rows = [];
+    for (const employee of employees) {
+      const readiness = await getEmployeeReadiness({ employeeId: employee.id });
+      rows.push({ employee, status: readiness.status, checks: readiness.checks, blockers: readiness.blockers, checkedAt: readiness.checkedAt });
+    }
+    const ready = rows.filter((row) => row.status === 'READY').length;
+    const blockerCounts = {};
+    for (const row of rows) for (const item of row.blockers) blockerCounts[item.code] = (blockerCounts[item.code] || 0) + 1;
+    return { data: rows, summary: { total: rows.length, ready, notReady: rows.length - ready, blockerCounts }, limitedTo: safeLimit };
+  }
+  return { getEmployeeReadiness, listEmployeeReadiness };
 }
 
 module.exports = { createOnboardingReadinessService };
