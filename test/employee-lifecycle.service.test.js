@@ -20,6 +20,7 @@ function createHarness() {
     quotas: [{ id: 'quota-1', employeeId: EMPLOYEE_ID }],
     licenses: [{ id: 'license-1', employeeId: EMPLOYEE_ID, status: 'Active', expiryDate: new Date('2027-01-01T00:00:00.000Z') }],
     documents: [{ id: 'document-1', employeeId: EMPLOYEE_ID }],
+    devices: [{ id: 'device-1', employeeId: EMPLOYEE_ID, status: 'ACTIVE' }],
     sessions: [{ id: 'session-1', userId: USER_ID, revokedAt: null }],
     audits: []
   };
@@ -76,6 +77,8 @@ function createHarness() {
     leaveQuota: { count: async ({ where }) => { if (inTransaction) transactionImpactQueries += 1; return store.quotas.filter((row) => row.employeeId === where.employeeId).length; } },
     employeeLicense: { count: async ({ where }) => { if (inTransaction) transactionImpactQueries += 1; return store.licenses.filter((row) => row.employeeId === where.employeeId && row.status === where.status && (!row.expiryDate || row.expiryDate >= where.OR[1].expiryDate.gte)).length; } },
     employeeLicenseDocument: { count: async ({ where }) => { if (inTransaction) transactionImpactQueries += 1; return store.documents.filter((row) => row.employeeId === where.employeeId).length; } },
+    attendanceDeviceEnrollment: { count: async ({ where }) => store.devices.filter((row) => row.employeeId === where.employeeId && row.status === where.status).length },
+    systemSetting: { findMany: async () => [{ key: 'APPROVAL_POLICY.LEAVE_REQUEST.ADDITIONAL_SUPERVISOR_ALIASES', value: '["Officer"]' }, { key: 'APPROVAL_POLICY.LEAVE_REQUEST.ADDITIONAL_MANAGER_ALIASES', value: '[]' }] },
     refreshSession: { updateMany: async ({ where, data }) => { let count = 0; store.sessions.forEach((row) => { if (row.userId === where.userId && row.revokedAt === null) { Object.assign(row, data); count += 1; } }); return { count }; } },
     $executeRaw: async () => 1,
     $transaction: async (work, options) => {
@@ -110,6 +113,10 @@ test('lifecycle preflight reports bounded dependency impacts without changing da
   assert.equal(result.impacts.leaveQuotaRecords, 1);
   assert.equal(result.impacts.activeLicenses, 1);
   assert.equal(result.impacts.licenseDocuments, 1);
+  assert.equal(result.impacts.activeAttendanceDevices, 1);
+  assert.equal(result.impacts.approvalAuthorityReferences, 1);
+  assert.equal(result.warnings.some((issue) => issue.code === 'ACTIVE_ATTENDANCE_DEVICE'), true);
+  assert.equal(result.warnings.some((issue) => issue.code === 'APPROVAL_AUTHORITY_REFERENCES'), true);
   assert.equal(result.warnings.some((issue) => issue.code === 'FUTURE_EFFECTIVE_DATE'), true);
   assert.equal(harness.store.events.length, 0);
 });

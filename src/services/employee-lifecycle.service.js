@@ -185,6 +185,23 @@ function actionValidation(type, prior, next) {
   return blockingIssues;
 }
 
+
+const APPROVAL_ALIAS_KEYS = ['APPROVAL_POLICY.LEAVE_REQUEST.ADDITIONAL_SUPERVISOR_ALIASES', 'APPROVAL_POLICY.LEAVE_REQUEST.ADDITIONAL_MANAGER_ALIASES'];
+async function approvalAuthorityReferences(client, jobTitle) {
+  const normalized = personnelMaster.normalizeName(jobTitle);
+  if (!normalized) return 0;
+  if (!client.systemSetting?.findMany) return null;
+  const settings = await client.systemSetting.findMany({ where: { key: { in: APPROVAL_ALIAS_KEYS } }, select: { key: true, value: true } });
+  if (settings.length !== APPROVAL_ALIAS_KEYS.length) return null;
+  let count = 0;
+  for (const setting of settings) {
+    let aliases; try { aliases = JSON.parse(String(setting.value || '[]')); } catch { return null; }
+    if (!Array.isArray(aliases)) return null;
+    count += aliases.filter((alias) => personnelMaster.normalizeName(alias) === normalized).length;
+  }
+  return count;
+}
+
 function warning(code, message, count = null) {
   return { code, message, ...(count !== null && { count }) };
 }
@@ -247,6 +264,7 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
     const state = await authoritativeMutationState({ employeeId, type, effectiveDate, changes }, client);
     const { effective, employee, latestEvent, prior, next, blockingIssues } = state;
 
+    const approvalAuthorityReferenceCount = await approvalAuthorityReferences(client, employee.jobTitle);
     const impacts = {
       futureShiftAssignments: await client.shiftAssignment.count({ where: { employeeId, workDate: { gte: effective } } }),
       pendingLeaveRequests: await client.leaveRequest.count({ where: { employeeId, status: 'PENDING', endDate: { gte: effective } } }),
@@ -254,6 +272,8 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
       leaveQuotaRecords: await client.leaveQuota.count({ where: { employeeId } }),
       activeLicenses: await client.employeeLicense.count({ where: { employeeId, status: 'Active', OR: [{ expiryDate: null }, { expiryDate: { gte: effective } }] } }),
       licenseDocuments: await client.employeeLicenseDocument.count({ where: { employeeId } }),
+      activeAttendanceDevices: await client.attendanceDeviceEnrollment.count({ where: { employeeId, status: 'ACTIVE' } }),
+      approvalAuthorityReferences: approvalAuthorityReferenceCount,
       linkedUser: employee.user ? { present: true, accountStatus: employee.user.accountStatus, isActive: employee.user.isActive } : { present: false }
     };
 
@@ -265,6 +285,9 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
     if ((['DEPARTMENT_TRANSFER', 'EMPLOYMENT_TERMINATION'].includes(type) || masterChanged('department') || masterTerminates) && impacts.pendingLeaveRequests > 0) warnings.push(warning('PENDING_LEAVE_REQUESTS', 'พบคำขอลาที่รอพิจารณา', impacts.pendingLeaveRequests));
     if ((type === 'EMPLOYMENT_TERMINATION' || masterTerminates) && impacts.approvedFutureLeaveRequests > 0) warnings.push(warning('APPROVED_FUTURE_LEAVE', 'พบคำขอลาที่อนุมัติแล้วหลังวันที่มีผล', impacts.approvedFutureLeaveRequests));
     if ((type === 'EMPLOYMENT_TERMINATION' || masterTerminates) && impacts.activeLicenses > 0) warnings.push(warning('ACTIVE_LICENSES', 'พบใบอนุญาตที่ยังมีผลและจะถูกเก็บเป็นประวัติ', impacts.activeLicenses));
+    if ((type === 'EMPLOYMENT_TERMINATION' || masterTerminates) && impacts.activeAttendanceDevices > 0) warnings.push(warning('ACTIVE_ATTENDANCE_DEVICE', 'พบ Attendance Device ที่ยัง Active ต้องตรวจสอบการเพิกถอนหลังการลาออก', impacts.activeAttendanceDevices));
+    if ((['POSITION_CHANGE', 'EMPLOYMENT_TERMINATION'].includes(type) || masterChanged('jobTitle') || masterTerminates) && impacts.approvalAuthorityReferences === null) blockingIssues.push({ code: 'APPROVAL_AUTHORITY_IMPACT_UNAVAILABLE', message: 'ไม่สามารถยืนยันผลกระทบต่อ Approval Authority ได้ จึงไม่อนุญาตให้ดำเนินการ' });
+    else if ((['POSITION_CHANGE', 'EMPLOYMENT_TERMINATION'].includes(type) || masterChanged('jobTitle') || masterTerminates) && impacts.approvalAuthorityReferences > 0) warnings.push(warning('APPROVAL_AUTHORITY_REFERENCES', 'ตำแหน่งปัจจุบันถูกอ้างอิงใน Approval Authority ต้องตรวจสอบผู้อนุมัติทดแทน', impacts.approvalAuthorityReferences));
     if ((['NAME_CHANGE', 'DEPARTMENT_TRANSFER', 'EMPLOYMENT_TERMINATION', 'REHIRE'].includes(type) || masterChanged('firstName') || masterChanged('lastName') || masterChanged('department') || masterChanged('isActive')) && !employee.user) warnings.push(warning('LINKED_USER_MISSING', 'ไม่พบบัญชีผู้ใช้ที่เชื่อมด้วย employeeId ระบบจะไม่คาดเดาจากชื่อ'));
     if (type === 'REHIRE' && employee.user && !employee.user.employmentSuspendedAt) warnings.push(warning('USER_NOT_EMPLOYMENT_SUSPENDED', 'บัญชีผู้ใช้ไม่ได้ถูกระงับโดยเหตุการณ์ลาออก ระบบจะไม่เปิดบัญชีโดยอัตโนมัติ'));
 
