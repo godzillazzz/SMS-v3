@@ -232,6 +232,7 @@ export const api = {
   shiftTypes: (token: string) => call('/shift-types', { headers: { Authorization: `Bearer ${token}` } }),
   createShiftType: (token: string, data: unknown) => call('/shift-types', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateShiftType: (token: string, id: string, data: unknown) => call(`/shift-types/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
+  shiftTypeImpact: (token: string, id: string) => call(`/shift-types/${id}/impact`, { headers: { Authorization: `Bearer ${token}` } }),
   deleteShiftType: (token: string, id: string) => call(`/shift-types/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
   shifts: (token: string, page = 1) => call(`/shifts?page=${page}&pageSize=100`, { headers: { Authorization: `Bearer ${token}` } }),
   scheduleCalendar: (token: string, month: string, page = 1, department = '') => call(`/schedule-calendar?month=${encodeURIComponent(month)}&page=${page}&pageSize=20${department ? `&department=${encodeURIComponent(department)}` : ''}`, { headers: { Authorization: `Bearer ${token}` } }),

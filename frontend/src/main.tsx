@@ -1638,6 +1638,12 @@ function Dashboard() {
   const [employeeRefresh, setEmployeeRefresh] = useState(0);
   const [shiftTypes, setShiftTypes] = useState<DataRow[]>([]);
   const activeShiftTypes = shiftTypes.filter((item) => item.isActive !== false);
+  const [shiftQuery, setShiftQuery] = useState('');
+  const [shiftStatusFilter, setShiftStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [shiftDeactivationTarget, setShiftDeactivationTarget] = useState<DataRow>();
+  const [shiftDeactivationImpact, setShiftDeactivationImpact] = useState<DataRow>();
+  const [shiftDeactivationReason, setShiftDeactivationReason] = useState('');
+  const visibleShiftTypes = useMemo(() => { const q = shiftQuery.trim().toLowerCase(); return shiftTypes.filter((row) => (!q || `${row.code || ''} ${row.name || ''}`.toLowerCase().includes(q)) && (shiftStatusFilter === 'ALL' || (shiftStatusFilter === 'ACTIVE' ? row.isActive !== false : row.isActive === false))); }, [shiftTypes, shiftQuery, shiftStatusFilter]);
   const [editor, setEditor] = useState<Editor>();
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorError, setEditorError] = useState<RequestErrorInput>();
@@ -2156,14 +2162,22 @@ function Dashboard() {
     const code = String(shiftType.code || '').toUpperCase();
     if (['D', 'N', 'OFF', 'AL'].includes(code)) return;
     const nextActive = shiftType.isActive === false;
-    const actionLabel = nextActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
-    if (!window.confirm(`ยืนยัน${actionLabel}กะ ${text(shiftType.code)}? ตารางเดิมจะไม่ถูกแก้ไข`)) return;
-    try {
-      await api.updateShiftType(auth.token, String(shiftType.id), { isActive: nextActive });
-      setOperationRefresh((value) => value + 1);
-    } catch (reason) {
-      setOperationError(toRequestErrorState(reason, `${actionLabel}กะไม่สำเร็จ`));
+    if (nextActive) {
+      try { await api.updateShiftType(auth.token, String(shiftType.id), { isActive: true }); setOperationRefresh((value) => value + 1); }
+      catch (reason) { setOperationError(toRequestErrorState(reason, 'เปิดใช้งานกะไม่สำเร็จ')); }
+      return;
     }
+    try {
+      const result = await api.shiftTypeImpact(auth.token, String(shiftType.id));
+      setShiftDeactivationTarget(shiftType); setShiftDeactivationImpact(result?.data || {}); setShiftDeactivationReason('');
+    } catch (reason) { setOperationError(toRequestErrorState(reason, 'ตรวจสอบผลกระทบของกะไม่สำเร็จ')); }
+  };
+  const confirmShiftDeactivation = async () => {
+    if (!auth.token || !shiftDeactivationTarget?.id || shiftDeactivationReason.trim().length < 3) return;
+    try {
+      await api.updateShiftType(auth.token, String(shiftDeactivationTarget.id), { isActive: false, confirmImpact: true, reason: shiftDeactivationReason.trim() });
+      setShiftDeactivationTarget(undefined); setShiftDeactivationImpact(undefined); setShiftDeactivationReason(''); setOperationRefresh((value) => value + 1);
+    } catch (reason) { setOperationError(toRequestErrorState(reason, 'ปิดใช้งานกะไม่สำเร็จ')); }
   };
 
   const handleOperationAction = async (row: DataRow, action: string) => {
@@ -2451,7 +2465,9 @@ function Dashboard() {
       <section className="view-pane">
         <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Shift Setup</h1><p>บริหารชื่อ เวลา ชั่วโมง สี และสถานะใช้งานของกะ โดยไม่เขียนทับ snapshot ตารางเดิม</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && <button className="btn-primary compact" onClick={openShiftTypeCreator}>+ เพิ่มรหัสกะ</button>}<span className="record-chip">ใช้งาน {activeShiftTypes.length} / ทั้งหมด {shiftTypes.length}</span></div></div>
         <ErrorAlert message={operationError} />
-        <div className="table-card"><div className="table-scroll"><table className="data-table"><thead><tr><th>Shift Code</th><th>ชื่อกะ</th><th>เวลาเริ่ม</th><th>เวลาเลิก</th><th>ชั่วโมง</th><th>สี</th><th>สถานะ</th>{auth.user?.role === 'ADMIN' && <th>จัดการ</th>}</tr></thead><tbody>{shiftTypes.length ? shiftTypes.map((shiftType) => { const code = String(shiftType.code || '').toUpperCase(); const isCore = ['D', 'N', 'OFF', 'AL'].includes(code); const isActive = shiftType.isActive !== false; return <tr key={text(shiftType.id)}><td><code>{text(shiftType.code)}</code>{isCore && <small className="cell-note">Core</small>}</td><td className="employee-name">{text(shiftType.name)}</td><td>{text(shiftType.startTime)}</td><td>{text(shiftType.endTime)}</td><td>{text(shiftType.hours)}</td><td><span className="shift-color" style={{ backgroundColor: String(shiftType.color || '#2F80FF') }} /> {text(shiftType.color)}</td><td><span className={`status-badge ${isActive ? 'status-badge--success' : 'status-badge--neutral'}`}>{isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}</span></td>{auth.user?.role === 'ADMIN' && <td className="row-actions data-row-actions"><button className="btn-secondary compact" onClick={() => openShiftTypeEditor(shiftType)}>แก้ไข</button>{isCore ? <span className="muted-text">ล็อกสถานะ</span> : <button className={isActive ? 'btn-warning compact' : 'btn-success compact'} onClick={() => toggleShiftTypeActive(shiftType)}>{isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}</button>}</td>}</tr>; }) : <tr><td colSpan={auth.user?.role === 'ADMIN' ? 8 : 7} className="no-rows">ยังไม่มีข้อมูลรหัสกะ</td></tr>}</tbody></table></div></div>
+        <div className="shift-governance-toolbar"><label className="field-group"><span>ค้นหากะ</span><input value={shiftQuery} placeholder="Shift code หรือชื่อกะ" onChange={(event) => setShiftQuery(event.target.value)} /></label><label className="field-group"><span>สถานะ</span><select value={shiftStatusFilter} onChange={(event) => setShiftStatusFilter(event.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE')}><option value="ALL">ทั้งหมด</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></label></div>
+        {shiftDeactivationTarget && shiftDeactivationImpact && <section className="shift-impact-preview" aria-label="Shift Impact Preview"><h3>Impact Preview ก่อนปิดใช้งาน</h3><p><strong>{text(shiftDeactivationTarget.code)} · {text(shiftDeactivationTarget.name)}</strong> จะไม่ถูกใช้กับการจัดกะใหม่ ตารางเดิมจะไม่ถูกแก้ไข และ snapshot/ประวัติเดิมยังคงอยู่</p><dl><div><dt>Schedule assignments</dt><dd>{text(shiftDeactivationImpact.assignmentCount)}</dd></div><div><dt>Attendance sessions</dt><dd>{text(shiftDeactivationImpact.attendanceCount)}</dd></div><div><dt>รวมการอ้างอิง</dt><dd>{text(shiftDeactivationImpact.totalReferences)}</dd></div></dl><label className="field-group"><span>เหตุผลในการปิดใช้งาน</span><textarea rows={3} maxLength={1000} value={shiftDeactivationReason} onChange={(event) => setShiftDeactivationReason(event.target.value)} /></label><div className="shift-impact-actions"><button className="btn-neutral small-action" onClick={() => { setShiftDeactivationTarget(undefined); setShiftDeactivationImpact(undefined); setShiftDeactivationReason(''); }}>ยกเลิก</button><button className="btn-danger small-action" disabled={shiftDeactivationReason.trim().length < 3} onClick={() => void confirmShiftDeactivation()}>ยืนยันปิดใช้งาน</button></div></section>}
+        <div className="table-card"><div className="table-scroll"><table className="data-table"><thead><tr><th>Shift Code</th><th>ชื่อกะ</th><th>เวลาเริ่ม</th><th>เวลาเลิก</th><th>ชั่วโมง</th><th>สี</th><th>สถานะ</th>{auth.user?.role === 'ADMIN' && <th>จัดการ</th>}</tr></thead><tbody>{visibleShiftTypes.length ? visibleShiftTypes.map((shiftType) => { const code = String(shiftType.code || '').toUpperCase(); const isCore = ['D', 'N', 'OFF', 'AL'].includes(code); const isActive = shiftType.isActive !== false; return <tr key={text(shiftType.id)}><td><code>{text(shiftType.code)}</code>{isCore && <small className="cell-note">Core</small>}</td><td className="employee-name">{text(shiftType.name)}</td><td>{text(shiftType.startTime)}</td><td>{text(shiftType.endTime)}</td><td>{text(shiftType.hours)}</td><td><span className="shift-color" style={{ backgroundColor: String(shiftType.color || '#2F80FF') }} /> {text(shiftType.color)}</td><td><span className={`status-badge ${isActive ? 'status-badge--success' : 'status-badge--neutral'}`}>{isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}</span></td>{auth.user?.role === 'ADMIN' && <td className="row-actions data-row-actions"><button className="btn-secondary compact" onClick={() => openShiftTypeEditor(shiftType)}>แก้ไข</button>{isCore ? <span className="muted-text">ล็อกสถานะ</span> : <button className={isActive ? 'btn-warning compact' : 'btn-success compact'} onClick={() => toggleShiftTypeActive(shiftType)}>{isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}</button>}</td>}</tr>; }) : <tr><td colSpan={auth.user?.role === 'ADMIN' ? 8 : 7} className="no-rows">ยังไม่มีข้อมูลรหัสกะ</td></tr>}</tbody></table></div></div>
       </section>
     );
     if (activePage === 'schedule') {

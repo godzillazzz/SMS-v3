@@ -50,7 +50,8 @@ test('CFG-04 read API hides inactive by default and only Admin may include inact
 
 test('CFG-04 create and partial update schemas do not apply create defaults during unrelated updates', () => {
   assert.match(shiftsRoute, /const shiftCreateSchema = z\.object/);
-  assert.match(shiftsRoute, /const shiftUpdateSchema = z\.object\(shiftFields\)\.partial\(\)/);
+  assert.match(shiftsRoute, /confirmImpact: z\.boolean\(\)\.optional\(\)/);
+  assert.match(shiftsRoute, /reason: z\.string\(\)\.trim\(\)\.min\(3\)\.max\(1000\)\.optional\(\)/);
   assert.match(shiftsRoute, /hours: shiftFields\.hours\.default\(8\.0\)/);
   assert.match(shiftsRoute, /color: shiftFields\.color\.default\('#3B82F6'\)/);
   assert.match(shiftsRoute, /shiftUpdateSchema\.parse\(req\.body\)/);
@@ -85,4 +86,11 @@ test('CFG-04 closes indirect operational paths over inactive Shift Types', () =>
   assert.match(legacyLeaveService, /leaveShift\?\.isActive === false/);
   assert.match(legacyLeaveService, /Reactivate it before approving leave through this legacy workflow/);
   assert.match(legacyLeaveService, /isActive: true/);
+});
+
+test('CFG-UX Shift deactivation is preflighted, reason-governed and audited', () => {
+  assert.match(service, /async function impact\(id, client = prisma\)/);
+  assert.match(service, /SHIFT_DEACTIVATION_CONFIRM_REQUIRED/);
+  assert.match(service, /reason: governance\.reason, impact: impactSnapshot/);
+  assert.ok(shiftsRoute.includes("router.get('/:id/impact'"));
 });

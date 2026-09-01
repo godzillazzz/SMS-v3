@@ -26,7 +26,7 @@ const shiftCreateSchema = z.object({
   hours: shiftFields.hours.default(8.0),
   color: shiftFields.color.default('#3B82F6')
 });
-const shiftUpdateSchema = z.object(shiftFields).partial();
+const shiftUpdateSchema = z.object({ ...shiftFields, reason: z.string().trim().min(3).max(1000).optional(), confirmImpact: z.boolean().optional() }).partial();
 
 router.get('/', async (req, res, next) => {
   try {
@@ -36,6 +36,10 @@ router.get('/', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+router.get('/:id/impact', authorize('ADMIN'), async (req, res, next) => {
+  try { res.json({ data: await shiftService.impact(req.params.id) }); } catch (error) { next(error); }
 });
 
 router.get('/:id', async (req, res, next) => {

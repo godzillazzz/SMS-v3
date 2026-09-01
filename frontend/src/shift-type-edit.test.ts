@@ -21,7 +21,9 @@ describe('CFG-04 Shift Type governed edit controls', () => {
     expect(main).toContain("const isCoreShiftType = ['D', 'N', 'OFF', 'AL'].includes");
     expect(main).toContain("(!isCoreShiftType || field.name !== 'isActive')");
     expect(main).toContain("const toggleShiftTypeActive = async (shiftType: DataRow)");
-    expect(main).toContain("await api.updateShiftType(auth.token, String(shiftType.id), { isActive: nextActive })");
+    expect(main).toContain("api.shiftTypeImpact(auth.token, String(shiftType.id))");
+    expect(main).toContain("confirmImpact: true");
+    expect(main).toContain("reason: shiftDeactivationReason.trim()");
     expect(main).toContain("ตารางเดิมจะไม่ถูกแก้ไข");
     expect(main).toContain("ล็อกสถานะ");
   });

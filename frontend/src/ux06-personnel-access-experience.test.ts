@@ -212,6 +212,6 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
   });
 
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(apiSha256).toBe('859620df98ea08329750b82b65f82566fdf83919274df8623aa6ffb8f0bb68db');
+    expect(apiSha256).toBe('3c8fe9ebe9a8ad1c46cd70cf92c4bdbd5daf333183fb6b7069696ac7e6274641');
   });
 });
