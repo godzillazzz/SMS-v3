@@ -50,6 +50,8 @@ function createHarness() {
     return true;
   });
   const client = {
+    departmentMaster: { findUnique: async ({ where }) => { const values = new Map([['security a', 'Security A'], ['security b', 'Security B'], ['security c', 'Security C']]); const name = values.get(where.normalizedName); return name ? { name, isActive: true } : null; } },
+    positionMaster: { findUnique: async ({ where }) => { const values = new Map([['officer', 'Officer'], ['senior officer', 'Senior Officer'], ['supervisor', 'Supervisor']]); const name = values.get(where.normalizedName); return name ? { name, isActive: true } : null; } },
     employee: {
       findFirst: async ({ where, include }) => { const row = store.employees.find((employee) => employee.id === where.id && employee.deletedAt === null) || null; return include?.user ? employeeWithUser(row) : row; },
       findUnique: async ({ where, include }) => { const row = store.employees.find((employee) => employee.id === where.id) || null; return include?.user ? employeeWithUser(row) : row; },

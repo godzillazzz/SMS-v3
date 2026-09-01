@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const audit = require('./audit.service');
+const personnelMaster = require('./personnel-master.service');
 const lifecycleControlledFields = ['firstName', 'lastName', 'department', 'jobTitle', 'isActive'];
 
 function publicEmployee(employee) {
@@ -27,7 +28,13 @@ async function list(query, role) {
 async function getById(id, role) { const employee = await prisma.employee.findFirst({ where: { id, deletedAt: null } }); if (!employee) throw new HttpError(404, 'Employee not found.'); return requiresBasicView(role) ? publicEmployee(employee) : requiresManagerView(role) ? managerSafeEmployee(employee) : employee; }
 async function create(data, actorUserId) {
   const displayName = `${data.firstName} ${data.lastName}`.trim();
-  return prisma.$transaction(async (tx) => { const employee = await tx.employee.create({ data: { ...data, displayName } }); await audit.log({ actorUserId, action: 'CREATE', entityType: 'Employee', entityId: employee.id, metadata: { after: auditSnapshot(employee) } }, tx); return employee; });
+  return prisma.$transaction(async (tx) => {
+    const department = Object.prototype.hasOwnProperty.call(data, 'department') ? await personnelMaster.assertActiveValue(tx, 'department', data.department) : undefined;
+    const jobTitle = Object.prototype.hasOwnProperty.call(data, 'jobTitle') ? await personnelMaster.assertActiveValue(tx, 'position', data.jobTitle) : undefined;
+    const employee = await tx.employee.create({ data: { ...data, ...(department !== undefined ? { department } : {}), ...(jobTitle !== undefined ? { jobTitle } : {}), displayName } });
+    await audit.log({ actorUserId, action: 'CREATE', entityType: 'Employee', entityId: employee.id, metadata: { after: auditSnapshot(employee) } }, tx);
+    return employee;
+  });
 }
 async function update(id, data, actorUserId) {
   const controlled = lifecycleControlledFields.filter((field) => Object.prototype.hasOwnProperty.call(data, field));

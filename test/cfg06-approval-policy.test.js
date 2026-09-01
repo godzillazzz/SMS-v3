@@ -108,6 +108,7 @@ test('CFG-06 update is atomic, audited, and preserves protected role ceiling', a
   const store = new Map(rows.map((row) => [row.key, { ...row }]));
   let auditEvent;
   const tx = {
+    positionMaster: { findUnique: async ({ where }) => ['หัวหน้าชุด', 'section lead'].includes(where.normalizedName) ? { name: where.normalizedName, isActive: true } : null },
     systemSetting: {
       findMany: async ({ where }) => where.key.in.map((key) => store.get(key)).filter(Boolean),
       upsert: async ({ where, update, create }) => {
@@ -147,6 +148,20 @@ test('CFG-06 update is atomic, audited, and preserves protected role ceiling', a
   assert.equal(auditEvent.entityId, 'LEAVE_REQUEST');
   assert.deepEqual(auditEvent.metadata.before.reviewerRoles, ['ADMIN', 'MANAGER']);
   assert.deepEqual(auditEvent.metadata.after.reviewerRoles, ['ADMIN']);
+});
+
+test('CFG-06 new approval position aliases must exist in active Position Master', async () => {
+  const rows = rowsFromDefaults();
+  const store = new Map(rows.map((row) => [row.key, { ...row }]));
+  const tx = {
+    positionMaster: { findUnique: async () => null },
+    systemSetting: {
+      findMany: async ({ where }) => where.key.in.map((key) => store.get(key)).filter(Boolean),
+      upsert: async () => { throw new Error('must fail before write'); }
+    }
+  };
+  const service = createApprovalPolicyService({ prismaClient: { systemSetting: tx.systemSetting, $transaction: async (fn) => fn(tx) }, auditService: { log: async () => {} } });
+  await assert.rejects(() => service.update({ requestType: 'LEAVE_REQUEST', input: { reviewerRoles: ['ADMIN', 'MANAGER'], dueSoonHours: 12, overdueHours: 36, additionalSupervisorAliases: ['arbitrary free text'], additionalManagerAliases: [] }, actor: { role: 'ADMIN', sub: 'admin-1' } }), (error) => error.details?.code === 'PERSONNEL_MASTER_ACTIVE_VALUE_REQUIRED');
 });
 
 test('CFG-06 migration seeds only governed approval policy defaults and is non-destructive', () => {

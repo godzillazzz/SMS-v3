@@ -398,6 +398,32 @@ model RefreshSession {
   @@map("refresh_sessions")
 }
 
+model DepartmentMaster {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String   @db.VarChar(100)
+  normalizedName String   @unique @map("normalized_name") @db.VarChar(100)
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, sortOrder, name])
+  @@map("department_master")
+}
+
+model PositionMaster {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String   @db.VarChar(100)
+  normalizedName String   @unique @map("normalized_name") @db.VarChar(100)
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, sortOrder, name])
+  @@map("position_master")
+}
+
 model Employee {
   id                          String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   employeeCode                String                          @unique @map("employee_code") @db.VarChar(50)

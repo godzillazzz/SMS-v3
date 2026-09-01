@@ -41,10 +41,14 @@ describe('CFG-06 Approval Authority Matrix / SLA', () => {
     expect(approvalCenter).not.toContain('overdue48h');
   });
 
-  it('allows only additive leave position aliases and states protected invariants', () => {
-    expect(panel).toContain('คำเรียกตำแหน่ง Supervisor เพิ่มเติม');
-    expect(panel).toContain('คำเรียกตำแหน่ง Manager เพิ่มเติม');
-    expect(panel).toContain('เพิ่มได้เท่านั้น');
+  it('selects additive leave position aliases from Position Master and states protected invariants', () => {
+    expect(panel).toContain('ตำแหน่ง Supervisor เพิ่มเติม');
+    expect(panel).toContain('ตำแหน่ง Manager เพิ่มเติม');
+    expect(panel).toContain('api.personnelMasters(token, true)');
+    expect(panel).toContain('positionOptions.map');
+    expect(panel).toContain('Legacy aliases ที่คงไว้เพื่อ compatibility');
+    expect(panel).not.toContain('placeholder=\"เช่น หัวหน้าชุด');
+    expect(panel).not.toContain('placeholder=\"เช่น section lead');
     expect(panel).toContain('ไม่สามารถลด guard เหล่านี้ได้');
   });
 });
