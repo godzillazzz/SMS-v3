@@ -7,15 +7,18 @@ const HttpError = require('../utils/http-error');
 const normalizeName = (value) => String(value || '').trim().toLocaleLowerCase('en-US');
 const modelFor = (client, kind) => kind === 'department' ? client.departmentMaster : client.positionMaster;
 const entityFor = (kind) => kind === 'department' ? 'DepartmentMaster' : 'PositionMaster';
+const cleanCode = (kind, value) => { const code=String(value||'').trim().toUpperCase(); if(!/^[A-Z0-9][A-Z0-9_-]{1,49}$/.test(code)) throw new HttpError(400,'Code ต้องมี 2-50 ตัวอักษร A-Z, 0-9, _ หรือ -',{code:'PERSONNEL_MASTER_INVALID_CODE',kind}); return code; };
 const fieldFor = (kind) => kind === 'department' ? 'department' : 'jobTitle';
 const approvalAliasKeys = ['APPROVAL_POLICY.LEAVE_REQUEST.ADDITIONAL_SUPERVISOR_ALIASES', 'APPROVAL_POLICY.LEAVE_REQUEST.ADDITIONAL_MANAGER_ALIASES'];
 
-function cleanInput(input = {}) {
+function cleanInput(input = {}, kind = 'department', { requireCode = false } = {}) {
   const name = String(input.name || '').trim();
   if (!name || name.length > 100) throw new HttpError(400, 'ชื่อ Master ต้องมี 1-100 ตัวอักษร', { code: 'PERSONNEL_MASTER_INVALID_NAME' });
   const sortOrder = Number(input.sortOrder || 0);
   if (!Number.isInteger(sortOrder) || sortOrder < -9999 || sortOrder > 9999) throw new HttpError(400, 'sortOrder ไม่ถูกต้อง', { code: 'PERSONNEL_MASTER_INVALID_SORT_ORDER' });
-  return { name, normalizedName: normalizeName(name), isActive: input.isActive !== false, sortOrder };
+  const code = input.code == null || input.code === '' ? null : cleanCode(kind, input.code);
+  if (requireCode && !code) throw new HttpError(400, 'ต้องระบุ Master Code', { code: 'PERSONNEL_MASTER_CODE_REQUIRED', kind });
+  return { ...(code ? { code } : {}), name, normalizedName: normalizeName(name), isActive: input.isActive !== false, sortOrder };
 }
 
 async function list({ prismaClient = prisma, activeOnly = false } = {}) {
@@ -63,11 +66,11 @@ async function impact({ kind, id, prismaClient = prisma } = {}) {
 }
 
 async function create({ kind, input, actorUserId, prismaClient = prisma, auditService = audit }) {
-  const data = cleanInput(input);
+  const data = cleanInput(input, kind, { requireCode: true });
   try {
     return await prismaClient.$transaction(async (tx) => {
       const row = await modelFor(tx, kind).create({ data });
-      await auditService.log({ actorUserId, action: 'CREATE', entityType: entityFor(kind), entityId: row.id, metadata: { name: row.name, isActive: row.isActive, sortOrder: row.sortOrder } }, tx);
+      await auditService.log({ actorUserId, action: 'CREATE', entityType: entityFor(kind), entityId: row.id, metadata: { code: row.code, name: row.name, isActive: row.isActive, sortOrder: row.sortOrder } }, tx);
       return row;
     });
   } catch (error) {
@@ -81,7 +84,8 @@ async function update({ kind, id, input, actorUserId, prismaClient = prisma, aud
     const model = modelFor(tx, kind);
     const before = await model.findUnique({ where: { id } });
     if (!before) throw new HttpError(404, 'ไม่พบ Master ที่ต้องการแก้ไข', { code: 'PERSONNEL_MASTER_NOT_FOUND' });
-    const data = cleanInput({ name: input.name ?? before.name, sortOrder: input.sortOrder ?? before.sortOrder, isActive: input.isActive ?? before.isActive });
+    const data = cleanInput({ name: input.name ?? before.name, sortOrder: input.sortOrder ?? before.sortOrder, isActive: input.isActive ?? before.isActive }, kind);
+    if (input.code !== undefined && cleanCode(kind, input.code) !== before.code) throw new HttpError(409, 'Master Code เปลี่ยนไม่ได้หลังสร้าง', { code: 'PERSONNEL_MASTER_CODE_IMMUTABLE', kind });
     let impactSnapshot = null;
     const isDeactivation = before.isActive && data.isActive === false;
     if (isDeactivation) {
@@ -94,7 +98,7 @@ async function update({ kind, id, input, actorUserId, prismaClient = prisma, aud
     let row;
     try { row = await model.update({ where: { id }, data }); }
     catch (error) { if (error?.code === 'P2002') throw new HttpError(409, 'มี Master ชื่อนี้อยู่แล้ว', { code: 'PERSONNEL_MASTER_DUPLICATE' }); throw error; }
-    await auditService.log({ actorUserId, action: 'UPDATE', entityType: entityFor(kind), entityId: row.id, metadata: { before: { name: before.name, isActive: before.isActive, sortOrder: before.sortOrder }, after: { name: row.name, isActive: row.isActive, sortOrder: row.sortOrder }, reason: isDeactivation ? String(input.reason).trim() : undefined, impact: impactSnapshot } }, tx);
+    await auditService.log({ actorUserId, action: 'UPDATE', entityType: entityFor(kind), entityId: row.id, metadata: { before: { code: before.code, name: before.name, isActive: before.isActive, sortOrder: before.sortOrder }, after: { code: row.code, name: row.name, isActive: row.isActive, sortOrder: row.sortOrder }, reason: isDeactivation ? String(input.reason).trim() : undefined, impact: impactSnapshot } }, tx);
     return row;
   });
 }

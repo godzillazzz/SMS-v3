@@ -6,7 +6,7 @@ const service = require('../services/personnel-master.service');
 const router = express.Router();
 const kind = z.enum(['department', 'position']);
 const uuid = z.string().uuid();
-const input = z.object({ name: z.string().trim().min(1).max(100), isActive: z.boolean().optional(), sortOrder: z.number().int().min(-9999).max(9999).optional() }).strict();
+const input = z.object({ code: z.string().trim().min(2).max(50).regex(/^[A-Za-z0-9][A-Za-z0-9_-]+$/).optional(), name: z.string().trim().min(1).max(100), isActive: z.boolean().optional(), sortOrder: z.number().int().min(-9999).max(9999).optional() }).strict();
 const patch = input.partial().extend({ confirmImpact: z.boolean().optional(), reason: z.string().trim().min(3).max(1000).optional() }).refine((value) => Object.keys(value).length > 0, 'Update body cannot be empty.');
 
 router.use(authenticate);

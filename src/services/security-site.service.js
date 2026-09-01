@@ -39,7 +39,10 @@ function safeQr(row) {
 function mappingRow(row) {
   return {
     securitySiteId: row.securitySiteId,
+    departmentMasterId: row.departmentMasterId || null,
+    departmentCode: row.departmentCode || null,
     departmentName: row.departmentName,
+    departmentNameSnapshot: row.departmentNameSnapshot || row.departmentName,
     isDefault: row.isDefault === true
   };
 }
@@ -91,11 +94,9 @@ function createSecuritySiteService({
   audit = auditDefault,
   randomBytes = crypto.randomBytes
 } = {}) {
-  async function readMappings(client, department = null) {
-    const sql = department
-      ? `SELECT security_site_id AS "securitySiteId", department_name AS "departmentName", is_default AS "isDefault" FROM security_site_departments WHERE department_name = $1 ORDER BY is_default DESC, security_site_id ASC`
-      : `SELECT security_site_id AS "securitySiteId", department_name AS "departmentName", is_default AS "isDefault" FROM security_site_departments ORDER BY department_name ASC, is_default DESC, security_site_id ASC`;
-    return department ? client.$queryRawUnsafe(sql, department) : client.$queryRawUnsafe(sql);
+  async function readMappings(client, departmentMasterId = null) {
+    const sql = `SELECT ssd.security_site_id AS "securitySiteId", ssd.department_master_id AS "departmentMasterId", dm.code AS "departmentCode", dm.name AS "departmentName", ssd.department_name AS "departmentNameSnapshot", ssd.is_default AS "isDefault" FROM security_site_departments ssd JOIN department_master dm ON dm.id = ssd.department_master_id${departmentMasterId ? ' WHERE ssd.department_master_id = $1::uuid' : ''} ORDER BY dm.sort_order ASC, dm.name ASC, ssd.is_default DESC, ssd.security_site_id ASC`;
+    return departmentMasterId ? client.$queryRawUnsafe(sql, departmentMasterId) : client.$queryRawUnsafe(sql);
   }
 
   async function list({ includeInactive = true } = {}) {
@@ -118,27 +119,23 @@ function createSecuritySiteService({
   }
 
   async function listDepartments() {
-    const [employees, mappings] = await Promise.all([
-      prisma.employee.findMany({
-        where: { deletedAt: null, department: { not: null } },
-        select: { department: true },
-        distinct: ['department'],
-        orderBy: { department: 'asc' }
-      }),
+    const [masters, mappings] = await Promise.all([
+      prisma.departmentMaster.findMany({ orderBy: [{ isActive: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }] }),
       readMappings(prisma)
     ]);
-    const names = new Set(employees.map((row) => String(row.department || '').trim()).filter(Boolean));
-    mappings.forEach((row) => names.add(row.departmentName));
     const byDepartment = new Map();
     for (const row of mappings) {
-      const listForDepartment = byDepartment.get(row.departmentName) || [];
+      const listForDepartment = byDepartment.get(String(row.departmentMasterId)) || [];
       listForDepartment.push(mappingRow(row));
-      byDepartment.set(row.departmentName, listForDepartment);
+      byDepartment.set(String(row.departmentMasterId), listForDepartment);
     }
-    return [...names].sort((a, b) => a.localeCompare(b, 'th')).map((name) => {
-      const links = byDepartment.get(name) || [];
+    return masters.map((master) => {
+      const links = byDepartment.get(String(master.id)) || [];
       return {
-        departmentName: name,
+        departmentMasterId: master.id,
+        departmentCode: master.code,
+        departmentName: master.name,
+        isActive: master.isActive,
         siteIds: links.map((row) => row.securitySiteId),
         defaultSiteId: links.find((row) => row.isDefault)?.securitySiteId || null,
         links
@@ -229,48 +226,23 @@ function createSecuritySiteService({
     });
   }
 
-  async function replaceDepartmentMapping({ departmentName: rawDepartment, siteIds = [], defaultSiteId = null }, actorUserId) {
-    const department = normalizeDepartmentName(rawDepartment);
+  async function replaceDepartmentMapping({ departmentMasterId, siteIds = [], defaultSiteId = null }, actorUserId) {
     const uniqueSiteIds = [...new Set(siteIds.map(String))];
-    if (defaultSiteId && !uniqueSiteIds.includes(String(defaultSiteId))) {
-      throw http(400, 'SECURITY_SITE_DEFAULT_NOT_ALLOWED', 'Default Site must also be selected as an allowed Site for the Department.');
-    }
+    if (defaultSiteId && !uniqueSiteIds.includes(String(defaultSiteId))) throw http(400, 'SECURITY_SITE_DEFAULT_NOT_ALLOWED', 'Default Site must also be selected as an allowed Site for the Department.');
     return prisma.$transaction(async (tx) => {
-      const [employeeExists, existing] = await Promise.all([
-        tx.employee.findFirst({ where: { department, deletedAt: null }, select: { id: true } }),
-        readMappings(tx, department)
-      ]);
-      if (!employeeExists && !existing.length) throw http(404, 'DEPARTMENT_NOT_FOUND', 'Department was not found in Employee data.');
-      const sites = uniqueSiteIds.length
-        ? await tx.securitySite.findMany({ where: { id: { in: uniqueSiteIds } } })
-        : [];
+      const master = await tx.departmentMaster.findUnique({ where: { id: departmentMasterId } });
+      if (!master || !master.isActive) throw http(409, 'DEPARTMENT_MASTER_ACTIVE_REQUIRED', 'Department mapping requires an Active Department Master.');
+      const existing = await readMappings(tx, departmentMasterId);
+      const sites = uniqueSiteIds.length ? await tx.securitySite.findMany({ where: { id: { in: uniqueSiteIds } } }) : [];
       if (sites.length !== uniqueSiteIds.length) throw http(400, 'SECURITY_SITE_MAPPING_INVALID', 'One or more Security Sites do not exist.');
       if (sites.some((site) => site.isActive !== true)) throw http(409, 'SECURITY_SITE_MAPPING_INACTIVE', 'Inactive Security Sites cannot be assigned to a Department.');
-
-      await tx.$executeRawUnsafe(`DELETE FROM security_site_departments WHERE department_name = $1`, department);
+      await tx.$executeRawUnsafe(`DELETE FROM security_site_departments WHERE department_master_id = $1::uuid`, departmentMasterId);
       for (const siteId of uniqueSiteIds) {
-        await tx.$executeRawUnsafe(
-          `INSERT INTO security_site_departments (id, security_site_id, department_name, is_default, created_at, updated_at)
-           VALUES (gen_random_uuid(), $1::uuid, $2, $3, NOW(), NOW())`,
-          siteId,
-          department,
-          String(siteId) === String(defaultSiteId || '')
-        );
+        await tx.$executeRawUnsafe(`INSERT INTO security_site_departments (id, security_site_id, department_master_id, department_name, is_default, created_at, updated_at) VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3, $4, NOW(), NOW())`, siteId, departmentMasterId, master.name, String(siteId) === String(defaultSiteId || ''));
       }
-      const after = await readMappings(tx, department);
-      await audit.log({
-        actorUserId,
-        action: 'UPDATE',
-        entityType: 'SecuritySiteDepartment',
-        entityId: department,
-        metadata: { departmentName: department, before: existing.map(mappingRow), after: after.map(mappingRow) }
-      }, tx);
-      return {
-        departmentName: department,
-        siteIds: after.map((row) => row.securitySiteId),
-        defaultSiteId: after.find((row) => row.isDefault)?.securitySiteId || null,
-        links: after.map(mappingRow)
-      };
+      const after = await readMappings(tx, departmentMasterId);
+      await audit.log({ actorUserId, action: 'UPDATE', entityType: 'SecuritySiteDepartment', entityId: departmentMasterId, metadata: { departmentMasterId, departmentCode: master.code, departmentName: master.name, before: existing.map(mappingRow), after: after.map(mappingRow) } }, tx);
+      return { departmentMasterId, departmentCode: master.code, departmentName: master.name, isActive: master.isActive, siteIds: after.map((row) => row.securitySiteId), defaultSiteId: after.find((row) => row.isDefault)?.securitySiteId || null, links: after.map(mappingRow) };
     });
   }
 

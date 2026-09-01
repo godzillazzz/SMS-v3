@@ -87,8 +87,8 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   }
 
   async function setupPersonnelMasters() {
-    for (const name of ['Operations', 'Safety', 'Security']) await prisma.departmentMaster.upsert({ where: { normalizedName: name.toLowerCase() }, update: { name, isActive: true }, create: { name, normalizedName: name.toLowerCase(), isActive: true } });
-    for (const name of ['Officer', 'Changed elsewhere', 'Admin Override', 'Supervisor']) await prisma.positionMaster.upsert({ where: { normalizedName: name.toLowerCase() }, update: { name, isActive: true }, create: { name, normalizedName: name.toLowerCase(), isActive: true } });
+    for (const name of ['Operations', 'Safety', 'Security']) await prisma.departmentMaster.upsert({ where: { normalizedName: name.toLowerCase() }, update: { name, isActive: true }, create: { code: 'DEP-' + name.toUpperCase().replace(/[^A-Z0-9]+/g, '-'), name, normalizedName: name.toLowerCase(), isActive: true } });
+    for (const name of ['Officer', 'Changed elsewhere', 'Admin Override', 'Supervisor']) await prisma.positionMaster.upsert({ where: { normalizedName: name.toLowerCase() }, update: { name, isActive: true }, create: { code: 'POS-' + name.toUpperCase().replace(/[^A-Z0-9]+/g, '-'), name, normalizedName: name.toLowerCase(), isActive: true } });
   }
 
   async function newEmployee(label = 'EMP', overrides = {}) {

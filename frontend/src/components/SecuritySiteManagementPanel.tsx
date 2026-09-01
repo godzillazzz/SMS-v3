@@ -85,7 +85,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   const [departments, setDepartments] = useState<DepartmentMapping[]>([]);
   const [overlaps, setOverlaps] = useState<OverlapWarning[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
   const [form, setForm] = useState<SiteForm>(emptyForm);
   const [mappingSiteIds, setMappingSiteIds] = useState<string[]>([]);
   const [defaultSiteId, setDefaultSiteId] = useState('');
@@ -99,7 +99,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
 
   const selectedSite = sites.find((site) => site.id === selectedSiteId) || null;
   const activeSites = sites.filter((site) => site.isActive);
-  const selectedMapping = departments.find((department) => department.departmentName === selectedDepartment) || null;
+  const selectedMapping = departments.find((department) => department.departmentMasterId === selectedDepartmentId) || null;
   const selectedOverlaps = selectedSite
     ? overlaps.filter((warning) => warning.siteId === selectedSite.id || warning.otherSiteId === selectedSite.id)
     : overlaps;
@@ -120,14 +120,14 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   };
 
   const applyMapping = (mapping: DepartmentMapping | null) => {
-    setSelectedDepartment(mapping?.departmentName || '');
+    setSelectedDepartmentId(mapping?.departmentMasterId || '');
     setMappingSiteIds(mapping?.siteIds || []);
     setDefaultSiteId(mapping?.defaultSiteId || '');
     setError(undefined);
     setNotice(undefined);
   };
 
-  const reload = async (preferredSiteId?: string, preferredDepartment?: string) => {
+  const reload = async (preferredSiteId?: string, preferredDepartmentId?: string) => {
     if (!isAdmin) return;
     setLoading(true);
     setError(undefined);
@@ -143,10 +143,10 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
       const nextSite = siteData.sites.find((site) => site.id === nextSiteId) || null;
       if (nextSite) applySite(nextSite);
       else if (selectedSiteId && !nextSite) applySite(null);
-      const nextDepartmentName = preferredDepartment || selectedDepartment;
-      const nextDepartment = departmentData.find((department) => department.departmentName === nextDepartmentName) || null;
+      const nextDepartmentId = preferredDepartmentId || selectedDepartmentId;
+      const nextDepartment = departmentData.find((department) => department.departmentMasterId === nextDepartmentId) || null;
       if (nextDepartment) applyMapping(nextDepartment);
-      else if (selectedDepartment && !nextDepartment) applyMapping(null);
+      else if (selectedDepartmentId && !nextDepartment) applyMapping(null);
     } catch (reason) {
       setError(requestErrorMessage(reason, 'ไม่สามารถโหลด Security Site configuration ได้'));
     } finally {
@@ -179,7 +179,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
         ? { data: await securitySiteOperations.update(token, selectedSite.id, payload) }
         : { data: await securitySiteOperations.create(token, payload) };
       setNotice(selectedSite ? 'บันทึก Security Site แล้ว' : 'เพิ่ม Security Site แล้ว');
-      await reload(saved.id, selectedDepartment);
+      await reload(saved.id, selectedDepartmentId);
     } catch (reason) {
       setError(requestErrorMessage(reason, 'บันทึก Security Site ไม่สำเร็จ'));
     } finally { setSaving(false); }
@@ -191,23 +191,23 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     try {
       await securitySiteOperations.update(token, selectedSite.id, { isActive: !selectedSite.isActive });
       setNotice(selectedSite.isActive ? 'ปิดใช้งาน Site แล้ว' : 'เปิดใช้งาน Site แล้ว');
-      await reload(selectedSite.id, selectedDepartment);
+      await reload(selectedSite.id, selectedDepartmentId);
     } catch (reason) {
       setError(requestErrorMessage(reason, 'เปลี่ยนสถานะ Site ไม่สำเร็จ'));
     } finally { setSaving(false); }
   };
 
   const saveMapping = async () => {
-    if (!selectedDepartment) return;
+    if (!selectedDepartmentId) return;
     if (defaultSiteId && !mappingSiteIds.includes(defaultSiteId)) {
       setError('Default Site ต้องอยู่ใน Allowed Sites ของ Department เดียวกัน');
       return;
     }
     setSaving(true); setError(undefined); setNotice(undefined);
     try {
-      await api.updateSecuritySiteDepartmentMapping(token, { departmentName: selectedDepartment, siteIds: mappingSiteIds, defaultSiteId: defaultSiteId || null });
-      setNotice(`บันทึก Site authority ของ ${selectedDepartment} แล้ว`);
-      await reload(selectedSiteId, selectedDepartment);
+      await api.updateSecuritySiteDepartmentMapping(token, { departmentMasterId: selectedDepartmentId, siteIds: mappingSiteIds, defaultSiteId: defaultSiteId || null });
+      setNotice(`บันทึก Site authority ของ ${selectedMapping?.departmentName || selectedDepartmentId} แล้ว`);
+      await reload(selectedSiteId, selectedDepartmentId);
     } catch (reason) {
       setError(requestErrorMessage(reason, 'บันทึก Department ↔ Site mapping ไม่สำเร็จ'));
     } finally { setSaving(false); }
@@ -233,7 +233,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
         siteName: site.name
       };
       setGeneratedQr(nextQr);
-      await reload(site.id, selectedDepartment);
+      await reload(site.id, selectedDepartmentId);
       setRawQrToken(result.qrToken);
       setGeneratedQr(nextQr);
       setNotice(`ออก QR credential version ${result.credential.version} แล้ว`);
@@ -249,7 +249,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
       if (qrReason.trim().length < 3) { setError('กรุณาระบุเหตุผลการ Revoke QR อย่างน้อย 3 ตัวอักษร'); setSaving(false); return; }
       await securitySiteOperations.revokeQr(token, selectedSite.id, selectedSite.currentQrCredential.id, qrReason.trim());
       setNotice('ยกเลิก QR credential ปัจจุบันแล้ว');
-      await reload(selectedSite.id, selectedDepartment);
+      await reload(selectedSite.id, selectedDepartmentId);
     } catch (reason) {
       setError(requestErrorMessage(reason, 'Revoke QR ไม่สำเร็จ'));
     } finally { setSaving(false); }
@@ -263,7 +263,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     try {
       const created = await securitySiteOperations.duplicate(token, selectedSite.id, { code, name: selectedSite.name + ' Copy' });
       setNotice('สร้างสำเนา Site แบบ INACTIVE แล้ว กรุณาตรวจพิกัด/รัศมีก่อนเปิดใช้งาน');
-      await reload(created.id, selectedDepartment);
+      await reload(created.id, selectedDepartmentId);
     } catch (reason) { setError(requestErrorMessage(reason, 'Duplicate Site ไม่สำเร็จ')); }
     finally { setSaving(false); }
   };
@@ -356,7 +356,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
 
       <article className="security-site-admin__card security-site-admin__card--wide">
         <div className="security-site-admin__card-title"><div><h3>Department ↔ Security Site</h3><small>Department เลือก Allowed Sites ได้หลายแห่ง แต่ Default/Home Site ได้สูงสุด 1 แห่ง</small></div></div>
-        <label className="field-group"><span>Department</span><select value={selectedDepartment} onChange={(event) => applyMapping(departments.find((department) => department.departmentName === event.target.value) || null)}><option value="">— เลือก Department —</option>{departments.map((department) => <option key={department.departmentName} value={department.departmentName}>{department.departmentName}</option>)}</select></label>
+        <label className="field-group"><span>Department</span><select value={selectedDepartmentId} onChange={(event) => applyMapping(departments.find((department) => department.departmentMasterId === event.target.value) || null)}><option value="">— เลือก Department —</option>{departments.map((department) => <option key={department.departmentMasterId} value={department.departmentMasterId}>{department.departmentCode} · {department.departmentName}{department.isActive ? '' : ' · Inactive'}</option>)}</select></label>
         {selectedMapping ? <>
           <div className="security-site-mapping-grid">{activeSites.map((site) => <label key={site.id} className={`security-site-mapping-option ${mappingSiteIds.includes(site.id) ? 'is-selected' : ''}`}><input type="checkbox" checked={mappingSiteIds.includes(site.id)} onChange={(event) => toggleMappedSite(site.id, event.target.checked)} /><span><strong>{site.code} · {site.name}</strong><small>{site.latitude}, {site.longitude} · {site.geofenceRadiusMeters} ม.</small></span></label>)}</div>
           <label className="field-group"><span>Default / Home Site</span><select value={defaultSiteId} onChange={(event) => setDefaultSiteId(event.target.value)}><option value="">— ไม่มี Default (Attendance จะ BLOCK หาก Schedule ไม่ override) —</option>{activeSites.filter((site) => mappingSiteIds.includes(site.id)).map((site) => <option key={site.id} value={site.id}>{site.code} · {site.name}</option>)}</select><small>ฐานข้อมูลบังคับ unique partial index: 1 Department มี Default ได้ไม่เกิน 1 Site</small></label>
