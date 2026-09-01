@@ -88,8 +88,8 @@ test('current approved Production manifest resolves exact CFG-12 plus typography
   const result = validateReleaseManifest(manifest);
   assert.equal(result.commitSha, '9ce6190baafa39056ae90035f2936e7cf8d615fc');
   assert.equal(result.treeSha, 'ff55d888513ae87b6b196a739912cd542fc30d2d');
-  assert.equal(result.currentProductionSourceSha, '522c22451d5bdf9288cf9342cc0a5c3e74064625');
-  assert.equal(result.rollbackDeploymentId, 'dpl_2mijA3iYEnrDAZ7CJgH4qfN7KrAr');
+  assert.equal(result.currentProductionSourceSha, 'ded07f43e452b312031d92254f2b94697d52be31');
+  assert.equal(result.rollbackDeploymentId, 'dpl_32P6pF6gK9LYFLgDDq9N5udo56kV');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
