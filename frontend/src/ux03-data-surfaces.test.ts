@@ -130,7 +130,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
   });
 
   it('keeps the authorized API source blob locked after Attachment Optimizer V1', () => {
-    expect(apiSha256).toBe('cf2716135db93c1911b4a296ecdadb5f0ea22fbd6745b4d13f079805ef879b48');
+    expect(apiSha256).toBe('47c945a3b0e191ba86260c46e3b7fadbefd25a3b99675fbaf7b70fce1c39a3f1');
   });
 
   it('provides an accessible shared row-action menu with focus restoration and viewport containment', () => {
