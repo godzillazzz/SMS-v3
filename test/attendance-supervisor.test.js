@@ -67,6 +67,16 @@ test('summary distinguishes not checked in yet from absent and counts missing ti
   assert.equal(result.absent, 1);
   assert.equal(result.currentlyWorking, 1);
   assert.equal(result.timeAbnormal, 1);
+  assert.equal(result.requiresAttention, 3);
+});
+
+test('requires-attention summary counts each row once even when multiple abnormal flags coexist', () => {
+  const result = summaryFor([
+    { attendanceStatus: 'TIME_ABNORMAL', checkInAt: null, checkOutAt: null, flags: ['TIME_ABNORMAL', 'MISSING_CHECK_IN', 'MISSING_CHECK_OUT'] },
+    { attendanceStatus: 'WRONG_SHIFT', checkInAt: new Date(), checkOutAt: null, flags: ['WRONG_SHIFT', 'LATE'] },
+    { attendanceStatus: 'COMPLETE', checkInAt: new Date(), checkOutAt: new Date(), flags: [] }
+  ]);
+  assert.equal(result.requiresAttention, 2);
 });
 
 test('daily read model derives server-authoritative today status without writing summary state', async () => {
@@ -93,6 +103,11 @@ test('daily read model derives server-authoritative today status without writing
   assert.equal(result.rows[1].attendanceStatus, 'NOT_CHECKED_IN_YET');
   assert.equal(result.summary.currentlyWorking, 1);
   assert.equal(result.summary.notCheckedInYet, 1);
+  assert.equal(result.summary.requiresAttention, 1);
+
+  const attentionOnly = await service.daily({ actor: { role: 'MANAGER', department: 'OPS' }, filters: { date: '2026-08-25', status: 'REQUIRES_ATTENTION' } });
+  assert.equal(attentionOnly.rows.length, 1);
+  assert.equal(attentionOnly.rows[0].attendanceStatus, 'NOT_CHECKED_IN_YET');
 });
 
 

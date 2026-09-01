@@ -49,9 +49,13 @@ describe('Attendance Supervisor UX V4', () => {
 
   it('implements approved dashboard filters and KPI/read-model fields', () => {
     for (const label of ['Department', 'Site', 'Shift', 'Employee', 'Status']) expect(page).toContain(label);
-    for (const label of ['Scheduled', 'Checked in', 'Working now', 'Not checked in', 'Late', 'Early out', 'Wrong shift', 'Assist other Site', 'Outside Site', 'Leave', 'Absent', 'Time abnormal']) {
+    for (const label of ['ต้องตรวจสอบ', 'Scheduled', 'Checked in', 'Working now', 'Not checked in', 'Late', 'Early out', 'Wrong shift', 'Assist other Site', 'Outside Site', 'Leave', 'Absent', 'Time abnormal']) {
       expect(page).toContain(label);
     }
+    expect(page).toContain("['REQUIRES_ATTENTION', 'ต้องตรวจสอบ']");
+    expect(page).toContain("onClick={() => setStatus('REQUIRES_ATTENTION')}");
+    expect(page).toContain("onClick={() => setStatus('WRONG_SHIFT')}");
+    expect(page).toContain("role={onClick ? 'button' : undefined}");
     for (const column of ['Expected Site', 'Actual Site', 'Worked', 'Flags', 'Action']) expect(page).toContain(column);
   });
 

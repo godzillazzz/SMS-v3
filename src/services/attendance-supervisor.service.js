@@ -108,7 +108,9 @@ function operationalStatus(result, allFlags) {
 
 function summaryFor(rows) {
   const count = (predicate) => rows.reduce((sum, row) => sum + (predicate(row) ? 1 : 0), 0);
+  const attentionStatuses = new Set(['NOT_CHECKED_IN_YET', 'LATE', 'EARLY_OUT', 'WRONG_SHIFT', 'OUTSIDE_ALL_SITES', 'ABSENT', 'TIME_ABNORMAL']);
   return {
+    requiresAttention: count((row) => attentionStatuses.has(row.attendanceStatus) || row.flags.includes('MISSING_CHECK_IN') || row.flags.includes('MISSING_CHECK_OUT')),
     scheduledToday: rows.filter((row) => row.attendanceStatus !== 'NOT_ACTIONABLE').length,
     checkedIn: count((row) => Boolean(row.checkInAt)),
     currentlyWorking: count((row) => row.attendanceStatus === 'CURRENTLY_WORKING' || row.attendanceStatus === 'LATE' || (Boolean(row.checkInAt) && !row.checkOutAt)),
@@ -267,7 +269,10 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
 
     return rows.filter((row) => {
       if (filters.siteId && row.expectedSite?.id !== filters.siteId && row.actualSite?.id !== filters.siteId) return false;
-      if (filters.status && row.attendanceStatus !== filters.status && !row.flags.includes(filters.status)) return false;
+      if (filters.status === 'REQUIRES_ATTENTION') {
+        const attention = new Set(['NOT_CHECKED_IN_YET', 'LATE', 'EARLY_OUT', 'WRONG_SHIFT', 'OUTSIDE_ALL_SITES', 'ABSENT', 'TIME_ABNORMAL']);
+        if (!attention.has(row.attendanceStatus) && !row.flags.includes('MISSING_CHECK_IN') && !row.flags.includes('MISSING_CHECK_OUT')) return false;
+      } else if (filters.status && row.attendanceStatus !== filters.status && !row.flags.includes(filters.status)) return false;
       if (filters.employeeId && row.employeeId !== filters.employeeId) return false;
       return true;
     });
