@@ -10,6 +10,7 @@ import '../../styles/personnel-directory.css';
 
 type Props = {
   employees: PersonnelRecord[];
+  token?: string;
   totalCount: number;
   loading: boolean;
   error?: string;
@@ -23,7 +24,7 @@ type Props = {
   onRefresh(): void;
 };
 
-export function PersonnelDirectoryPage({ employees, totalCount, loading, error, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, onRefresh }: Props) {
+export function PersonnelDirectoryPage({ employees, token, totalCount, loading, error, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit, onRefresh }: Props) {
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('');
   const [status, setStatus] = useState('');
@@ -60,6 +61,6 @@ export function PersonnelDirectoryPage({ employees, totalCount, loading, error, 
           : <><div className="personnel-result-line data-result-count">แสดง {visible.length} จาก {filtered.length} รายการ{search || department || status ? ' · กรองแล้ว' : ''}</div><PersonnelTable rows={visible} canManage={canManage} selectedId={selected?.id} onSelect={(employee) => { lastSelectedId.current = employee.id; setSelected(employee); }} onEdit={onEdit} /><PersonnelPagination page={page} totalPages={totalPages} onChange={setPage} /></>}
     {!loading && !error && employees.length === 0 && <div className="personnel-empty-state data-state data-state--empty"><span>♙</span><h2>ยังไม่พบข้อมูลบุคลากร</h2><p>ระบบยังไม่พบข้อมูลที่สามารถแสดงภายใต้หน่วยงานและสิทธิ์ของบัญชีนี้</p><button type="button" className="btn-neutral small-action" onClick={onRefresh}>รีเฟรช</button></div>}
     {!loading && !error && employees.length > 0 && filtered.length === 0 && <div className="personnel-empty-state personnel-empty-state--search data-state data-state--empty"><span>⌕</span><h2>ไม่พบผลการค้นหา</h2><p>ลองล้างตัวกรองหรือใช้คำค้นหาอื่น</p><button type="button" className="btn-neutral small-action" onClick={clear}>ล้างตัวกรอง</button></div>}
-    <PersonnelDetailDrawer employee={selected} canManage={canManage} onClose={closeDrawer} onEdit={() => { if (selected) onEdit(selected); closeDrawer(); }} />
+    <PersonnelDetailDrawer employee={selected} token={token} canManage={canManage} onClose={closeDrawer} onEdit={() => { if (selected) onEdit(selected); closeDrawer(); }} />
   </section>;
 }
