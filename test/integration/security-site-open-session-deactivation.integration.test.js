@@ -131,7 +131,7 @@ if (!configured) {
 
   test('Security Site referenced by an OPEN AttendanceSession cannot be deactivated', async () => {
     await assert.rejects(
-      () => service.update(ids.site, { isActive: false }, ids.admin),
+      () => service.update(ids.site, { isActive: false, reason: 'Governed deactivation test' }, ids.admin),
       (error) => error.details?.code === 'SECURITY_SITE_OPEN_ATTENDANCE_IN_USE'
     );
 

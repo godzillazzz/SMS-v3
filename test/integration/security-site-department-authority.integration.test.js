@@ -205,7 +205,7 @@ if (!configured) {
     assert.equal(serializedAudits.includes(expectedHash), false);
 
     await assert.rejects(
-      () => service.update(ids.siteB, { isActive: false }, ids.admin),
+      () => service.update(ids.siteB, { isActive: false, reason: 'Governed deactivation test' }, ids.admin),
       (error) => error.details?.code === 'SECURITY_SITE_DEFAULT_IN_USE'
     );
     const stillActive = await prisma.securitySite.findUnique({ where: { id: ids.siteB } });

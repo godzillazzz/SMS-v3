@@ -19,7 +19,7 @@ const siteCreateSchema = z.object({
   geofenceRadiusMeters: z.coerce.number().int().min(1).max(100000),
   isActive: z.boolean().optional().default(true)
 });
-const siteUpdateSchema = siteCreateSchema.partial().refine((value) => Object.keys(value).length > 0, { message: 'At least one field is required.' });
+const siteUpdateSchema = siteCreateSchema.partial().extend({ reason: z.string().trim().min(3).max(1000).optional() }).refine((value) => Object.keys(value).length > 0, { message: 'At least one field is required.' });
 const duplicateSchema = z.object({ code: z.string().trim().min(1).max(50), name: z.string().trim().min(1).max(150).optional() }).strict();
 const reasonSchema = z.object({ reason: z.string().trim().min(3).max(1000) }).strict();
 const mappingSchema = z.object({

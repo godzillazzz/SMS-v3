@@ -71,6 +71,6 @@ describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
     expect(css).toMatch(/\.sidebar-brand \.brand-mark \{[\s\S]*?margin-top: 0;/);
   });
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('a07381114e201646227ca9ed94d315652d4d50b64336c54769147145a6fedfcf');
+    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('859620df98ea08329750b82b65f82566fdf83919274df8623aa6ffb8f0bb68db');
   });
 });
