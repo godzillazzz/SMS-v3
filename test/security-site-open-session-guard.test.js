@@ -29,7 +29,7 @@ test('deactivation is blocked when an OPEN AttendanceSession still pins the Site
   const tx = {
     securitySite: {
       findUnique: async () => site(),
-      update: async () => { updateCalls += 1; return site({ isActive: false }); }
+      update: async () => { updateCalls += 1; return site({ isActive: false, reason: 'Governed deactivation test' }); }
     },
     $queryRawUnsafe: async () => [],
     attendanceSession: {
@@ -45,7 +45,7 @@ test('deactivation is blocked when an OPEN AttendanceSession still pins the Site
   });
 
   await assert.rejects(
-    () => service.update(ids.site, { isActive: false }, ids.actor),
+    () => service.update(ids.site, { isActive: false, reason: 'Governed deactivation test' }, ids.actor),
     (error) => error.details?.code === 'SECURITY_SITE_OPEN_ATTENDANCE_IN_USE'
   );
   assert.equal(updateCalls, 0);
@@ -68,7 +68,7 @@ test('a non-default Site with no OPEN AttendanceSession can be deactivated', asy
     audit: { log: async () => { auditCalls += 1; } }
   });
 
-  const result = await service.update(ids.site, { isActive: false }, ids.actor);
+  const result = await service.update(ids.site, { isActive: false, reason: 'Governed deactivation test' }, ids.actor);
   assert.equal(result.isActive, false);
   assert.equal(mappingCleanupCalls, 1);
   assert.equal(auditCalls, 1);

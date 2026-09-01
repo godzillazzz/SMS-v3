@@ -91,7 +91,7 @@ export type SecuritySiteInput = {
   geofenceRadiusMeters: number;
 };
 
-export type SecuritySiteUpdateInput = Partial<SecuritySiteInput> & { isActive?: boolean };
+export type SecuritySiteUpdateInput = Partial<SecuritySiteInput> & { isActive?: boolean; reason?: string };
 
 export type SecuritySiteDepartmentMappingInput = {
   departmentMasterId: string;

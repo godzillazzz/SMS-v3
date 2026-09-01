@@ -64,7 +64,7 @@ test('deactivation is blocked while a Site is still a Department Default', async
   };
   const service = createSecuritySiteService({ prisma: { $transaction: async (callback) => callback(tx) }, audit: { log: async () => {} } });
   await assert.rejects(
-    () => service.update(ids.site, { isActive: false }, ids.actor),
+    () => service.update(ids.site, { isActive: false, reason: 'Governed deactivation test' }, ids.actor),
     (error) => error.details?.code === 'SECURITY_SITE_DEFAULT_IN_USE'
   );
 });
@@ -87,4 +87,10 @@ test('Admin Security Site routes are ADMIN-only, mounted under admin path and ex
   assert.match(routeSource, /department-mapping/);
   assert.match(routeSource, /qr\/rotate/);
   assert.match(routeSource, /revoke/);
+});
+
+test('Security Site deactivation requires an explicit audit reason', async () => {
+  const tx={securitySite:{findUnique:async()=>({id:'site-1',code:'A',name:'A',latitude:1,longitude:2,geofenceRadiusMeters:100,isActive:true}),update:async()=>{throw new Error('must not update');}},$queryRawUnsafe:async()=>[],attendanceSession:{findFirst:async()=>null}};
+  const service=createSecuritySiteService({prisma:{$transaction:async cb=>cb(tx)},audit:{log:async()=>{}}});
+  await assert.rejects(()=>service.update('site-1',{isActive:false},'actor-1'),(error)=>error.details?.code==='SECURITY_SITE_DEACTIVATION_REASON_REQUIRED');
 });

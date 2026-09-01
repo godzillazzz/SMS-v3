@@ -96,9 +96,13 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [qrReason, setQrReason] = useState('');
+  const [siteQuery, setSiteQuery] = useState('');
+  const [siteStatusFilter, setSiteStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [deactivationReason, setDeactivationReason] = useState('');
 
   const selectedSite = sites.find((site) => site.id === selectedSiteId) || null;
   const activeSites = sites.filter((site) => site.isActive);
+  const visibleSites = useMemo(() => { const q = siteQuery.trim().toLocaleLowerCase('th-TH'); return sites.filter((site) => (!q || `${site.code} ${site.name}`.toLocaleLowerCase('th-TH').includes(q)) && (siteStatusFilter === 'ALL' || (siteStatusFilter === 'ACTIVE' ? site.isActive : !site.isActive))); }, [sites, siteQuery, siteStatusFilter]);
   const selectedMapping = departments.find((department) => department.departmentMasterId === selectedDepartmentId) || null;
   const selectedOverlaps = selectedSite
     ? overlaps.filter((warning) => warning.siteId === selectedSite.id || warning.otherSiteId === selectedSite.id)
@@ -117,6 +121,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     setGeneratedQr(null);
     setError(undefined);
     setNotice(undefined);
+    setDeactivationReason('');
   };
 
   const applyMapping = (mapping: DepartmentMapping | null) => {
@@ -189,8 +194,10 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     if (!selectedSite) return;
     setSaving(true); setError(undefined); setNotice(undefined);
     try {
-      await securitySiteOperations.update(token, selectedSite.id, { isActive: !selectedSite.isActive });
+      if (selectedSite.isActive && deactivationReason.trim().length < 3) { setError('กรุณาระบุเหตุผลการปิดใช้งานอย่างน้อย 3 ตัวอักษร'); setSaving(false); return; }
+      await securitySiteOperations.update(token, selectedSite.id, { isActive: !selectedSite.isActive, ...(selectedSite.isActive ? { reason: deactivationReason.trim() } : {}) });
       setNotice(selectedSite.isActive ? 'ปิดใช้งาน Site แล้ว' : 'เปิดใช้งาน Site แล้ว');
+      setDeactivationReason('');
       await reload(selectedSite.id, selectedDepartmentId);
     } catch (reason) {
       setError(requestErrorMessage(reason, 'เปลี่ยนสถานะ Site ไม่สำเร็จ'));
@@ -327,7 +334,8 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     <div className="security-site-admin__grid">
       <article className="security-site-admin__card">
         <div className="security-site-admin__card-title"><div><h3>Site master</h3><small>เพิ่ม / แก้ไข / deactivate / reactivate · ไม่มี hard delete</small></div><button type="button" className="btn-neutral small-action" onClick={() => applySite(null)}>+ Site ใหม่</button></div>
-        <label className="field-group"><span>เลือก Site</span><select value={selectedSiteId} onChange={(event) => applySite(sites.find((site) => site.id === event.target.value) || null)}><option value="">— Site ใหม่ —</option>{sites.map((site) => <option key={site.id} value={site.id}>{site.code} · {site.name}{site.isActive ? '' : ' · INACTIVE'}</option>)}</select></label>
+        <div className="security-site-governance-toolbar"><label className="field-group"><span>ค้นหา Site</span><input value={siteQuery} placeholder="Code หรือชื่อ Site" onChange={(event) => setSiteQuery(event.target.value)} /></label><label className="field-group"><span>สถานะ</span><select value={siteStatusFilter} onChange={(event) => setSiteStatusFilter(event.target.value as 'ALL' | 'ACTIVE' | 'INACTIVE')}><option value="ALL">ทั้งหมด</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></label></div>
+        <label className="field-group"><span>เลือก Site</span><select value={selectedSiteId} onChange={(event) => applySite(sites.find((site) => site.id === event.target.value) || null)}><option value="">— Site ใหม่ —</option>{visibleSites.map((site) => <option key={site.id} value={site.id}>{site.code} · {site.name}{site.isActive ? '' : ' · INACTIVE'}</option>)}</select></label>
         <div className="security-site-form-grid">
           <label className="field-group"><span>Site code</span><input value={form.code} maxLength={50} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} /></label>
           <label className="field-group"><span>ชื่อ Site</span><input value={form.name} maxLength={150} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></label>
@@ -335,7 +343,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
           <label className="field-group"><span>Longitude</span><input type="number" step="0.0000001" min={-180} max={180} value={form.longitude} onChange={(event) => setForm((current) => ({ ...current, longitude: event.target.value }))} /></label>
           <label className="field-group"><span>Geofence radius (เมตร)</span><input type="number" min={1} max={100000} value={form.geofenceRadiusMeters} onChange={(event) => setForm((current) => ({ ...current, geofenceRadiusMeters: event.target.value }))} /></label>
         </div>
-        <div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving} onClick={() => void saveSite()}>{saving ? 'กำลังบันทึก…' : selectedSite ? 'บันทึกการแก้ไข' : 'เพิ่ม Security Site'}</button>{selectedSite && <button type="button" className="btn-neutral" disabled={saving} onClick={() => void duplicateSite()}>Duplicate Site</button>}{selectedSite && <button type="button" className={selectedSite.isActive ? 'danger-action' : 'btn-success'} disabled={saving} onClick={() => void toggleSiteActive()}>{selectedSite.isActive ? 'Deactivate' : 'Reactivate'}</button>}</div>
+        {selectedSite?.isActive && <label className="field-group security-site-deactivation-reason"><span>เหตุผลก่อนปิดใช้งาน</span><textarea rows={3} maxLength={1000} value={deactivationReason} placeholder="ระบุเหตุผลเพื่อบันทึกใน Audit" onChange={(event) => setDeactivationReason(event.target.value)} /><small>ระบบจะตรวจ Default Site และ open Attendance session อีกครั้งที่ server ก่อนปิดใช้งาน</small></label>}<div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving} onClick={() => void saveSite()}>{saving ? 'กำลังบันทึก…' : selectedSite ? 'บันทึกการแก้ไข' : 'เพิ่ม Security Site'}</button>{selectedSite && <button type="button" className="btn-neutral" disabled={saving} onClick={() => void duplicateSite()}>Duplicate Site</button>}{selectedSite && <button type="button" className={selectedSite.isActive ? 'danger-action' : 'btn-success'} disabled={saving || (selectedSite.isActive && deactivationReason.trim().length < 3)} onClick={() => void toggleSiteActive()}>{selectedSite.isActive ? 'Deactivate' : 'Reactivate'}</button>}</div>
       </article>
 
       <article className="security-site-admin__card">

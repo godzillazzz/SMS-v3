@@ -187,6 +187,8 @@ function createSecuritySiteService({
       const before = await tx.securitySite.findUnique({ where: { id } });
       if (!before) throw http(404, 'SECURITY_SITE_NOT_FOUND', 'Security Site not found.');
       if (data.isActive === false && before.isActive === true) {
+        const reason = String(data.reason || '').trim();
+        if (reason.length < 3 || reason.length > 1000) throw http(409, 'SECURITY_SITE_DEACTIVATION_REASON_REQUIRED', 'A reason is required before deactivating this Security Site.');
         const defaults = await tx.$queryRawUnsafe(
           `SELECT department_name AS "departmentName" FROM security_site_departments WHERE security_site_id = $1::uuid AND is_default = TRUE LIMIT 1`,
           id
@@ -221,7 +223,7 @@ function createSecuritySiteService({
       if (data.isActive === false) {
         await tx.$executeRawUnsafe(`DELETE FROM security_site_departments WHERE security_site_id = $1::uuid`, id);
       }
-      await audit.log({ actorUserId, action: 'UPDATE', entityType: 'SecuritySite', entityId: id, metadata: { before: siteSafe(before), after: siteSafe(updated) } }, tx);
+      await audit.log({ actorUserId, action: 'UPDATE', entityType: 'SecuritySite', entityId: id, metadata: { before: siteSafe(before), after: siteSafe(updated), ...(data.isActive === false && before.isActive === true ? { reason: String(data.reason || '').trim() } : {}) } }, tx);
       return siteSafe(updated);
     });
   }
