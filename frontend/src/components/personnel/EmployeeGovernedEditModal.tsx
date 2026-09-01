@@ -234,7 +234,7 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
         {error && <div className="employee-governed-alert employee-governed-alert--error"><RequestErrorContent error={error} /></div>}
         {notice && <div className="employee-governed-alert employee-governed-alert--success">{notice}</div>}
         <section className="employee-governed-section"><h3>1. ข้อมูลทั่วไป</h3><div className="employee-governed-grid">
-          <label><span>รหัสพนักงาน</span><input value={String(form.employeeCode || '')} disabled={pendingReadOnly} onChange={(event) => update('employeeCode', event.target.value)} /></label>
+          <label><span>รหัสพนักงาน</span><input value={String(employee.employeeCode || '')} readOnly aria-readonly="true" /><small>รหัสพนักงานเป็นข้อมูลอ้างอิงหลัก ไม่แก้ไขตรงจากหน้าข้อมูลทั่วไป</small></label>
           <label><span>ชื่อปัจจุบัน</span><input value={String(employee.firstName || '')} readOnly aria-readonly="true" /><small>หากต้องการแก้ไข ให้ใช้ “เปลี่ยนชื่อ” ในหัวข้อ 3. การเปลี่ยนแปลง</small></label>
           <label><span>นามสกุลปัจจุบัน</span><input value={String(employee.lastName || '')} readOnly aria-readonly="true" /><small>เก็บชื่อเดิมเป็นประวัติ และใช้ Employee ID เดิม</small></label>
           {isAdmin && <><label><span>อีเมลติดต่อ</span><input type="email" value={String(form.email || '')} onChange={(event) => update('email', event.target.value)} /></label><label><span>โทรศัพท์</span><input value={String(form.phone || '')} onChange={(event) => update('phone', event.target.value)} /></label></>}
@@ -242,7 +242,7 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
         <section className="employee-governed-section"><h3>2. ข้อมูลการปฏิบัติงาน</h3><div className="employee-governed-grid">
           <label><span>หน่วยงานปัจจุบัน</span><input value={String(employee.department || '')} readOnly aria-readonly="true" /><small>ใช้ “ย้ายหน่วยงาน” ในหัวข้อ 3 เพื่อเปลี่ยนอย่างมีประวัติ</small></label>
           <label><span>ตำแหน่งปัจจุบัน</span><input value={String(employee.jobTitle || '')} readOnly aria-readonly="true" /><small>ใช้ “เปลี่ยนตำแหน่ง” ในหัวข้อ 3 เพื่อเปลี่ยนอย่างมีประวัติ</small></label>
-          {isAdmin && <><label><span>วันที่เริ่มงาน</span><input type="date" value={String(form.hiredAt || '')} onChange={(event) => update('hiredAt', event.target.value)} /></label><label className="employee-governed-wide"><span>ทักษะ / คุณสมบัติ</span><input value={String(form.skill || '')} onChange={(event) => update('skill', event.target.value)} /></label></>}
+          {isAdmin && <><label><span>วันที่เริ่มงาน</span><input type="date" value={cleanDate(employee.hiredAt)} readOnly aria-readonly="true" /><small>วันที่เริ่มงานเป็นข้อมูลลำดับเหตุการณ์การจ้าง หากต้องแก้ต้องใช้ workflow แก้ไขประวัติที่มีเหตุผลและ Audit</small></label><label className="employee-governed-wide"><span>ทักษะ / คุณสมบัติ</span><input value={String(form.skill || '')} onChange={(event) => update('skill', event.target.value)} /></label></>}
         </div></section>
         <section className="employee-governed-section employee-critical-change-section">
           <h3>3. การเปลี่ยนแปลง</h3>

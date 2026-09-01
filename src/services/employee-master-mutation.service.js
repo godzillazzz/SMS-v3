@@ -6,9 +6,9 @@ const audit = require('./audit.service');
 const lifecycle = require('./employee-lifecycle.service');
 const HttpError = require('../utils/http-error');
 
-const ADMIN_FIELDS = ['employeeCode', 'firstName', 'lastName', 'email', 'phone', 'department', 'jobTitle', 'hiredAt', 'skill', 'isActive'];
-const MANAGER_FIELDS = ['employeeCode', 'firstName', 'lastName', 'department', 'jobTitle', 'isActive'];
-const IMMEDIATE_ONLY_FIELDS = ['employeeCode', 'email', 'phone', 'hiredAt', 'skill'];
+const ADMIN_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'department', 'jobTitle', 'skill', 'isActive'];
+const MANAGER_FIELDS = ['firstName', 'lastName', 'department', 'jobTitle', 'isActive'];
+const IMMEDIATE_ONLY_FIELDS = ['email', 'phone', 'skill'];
 const GOVERNED_REASON_FIELDS = ['firstName', 'lastName', 'department', 'jobTitle', 'isActive'];
 const EFFECTIVE_MODES = ['IMMEDIATE', 'FUTURE_EFFECTIVE'];
 const MASTER_TRANSACTION_OPTIONS = lifecycle.LIFECYCLE_TRANSACTION_OPTIONS;
