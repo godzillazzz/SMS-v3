@@ -260,6 +260,7 @@ export const api = {
   updateEmployee: (token: string, id: string, data: unknown) => call(`/employees/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   personnelMasters: (token: string, activeOnly = true) => call(`/personnel-masters?activeOnly=${activeOnly ? 'true' : 'false'}`, { headers: { Authorization: `Bearer ${token}` } }),
   createPersonnelMaster: (token: string, kind: 'department' | 'position', data: unknown) => call(`/personnel-masters/${kind}`, { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }),
+  personnelMasterImpact: (token: string, kind: 'department' | 'position', id: string) => call(`/personnel-masters/${kind}/${encodeURIComponent(id)}/impact`, { headers: { Authorization: `Bearer ${token}` } }),
   updatePersonnelMaster: (token: string, kind: 'department' | 'position', id: string, data: unknown) => call(`/personnel-masters/${kind}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }),
   employeeChangeRequests: (token: string, employeeId: string) => call(`/employees/${encodeURIComponent(employeeId)}/change-requests`, { headers: { Authorization: `Bearer ${token}` } }),
   employeeReferencePhotos: (token: string, employeeId: string) => call(`/employee-reference-photos/employee/${encodeURIComponent(employeeId)}`, { headers: { Authorization: `Bearer ${token}` } }),
