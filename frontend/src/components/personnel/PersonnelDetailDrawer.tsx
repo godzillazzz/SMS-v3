@@ -1,18 +1,45 @@
-import { useEffect, useRef } from 'react';
-import { SmsIcon } from '../SmsIcon';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '../../api';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
+import { SmsIcon } from '../SmsIcon';
 import type { PersonnelRecord } from './types';
 
 type Props = {
   employee?: PersonnelRecord;
+  token?: string;
   canManage: boolean;
   onClose(): void;
   onEdit(): void;
 };
 
-export function PersonnelDetailDrawer({ employee, canManage, onClose, onEdit }: Props) {
+type ChangeRequest = { id: string; status: string; draftEffectiveMode?: string; draftEffectiveDate?: string | null; draftProposal?: Record<string, unknown> | null; draftReason?: string | null };
+type LifecycleEvent = { id: string; type: string; status: 'PENDING' | 'APPLIED'; effectiveDate: string; reason: string; createdAt: string; oldValue?: { employee?: Record<string, unknown> }; newValue?: { employee?: Record<string, unknown> }; changedBy?: { displayName?: string; role?: string } };
+type ReferenceState = { activePhoto?: { id: string; activatedAt?: string | null } | null; pendingPhoto?: { id: string; uploadedAt?: string | null } | null };
+
+const activeRequestStatuses = new Set(['DRAFT', 'PENDING_APPROVAL', 'RETURNED_FOR_CORRECTION']);
+const requestStatusLabel: Record<string, string> = { DRAFT: 'ฉบับร่าง', PENDING_APPROVAL: 'รอ Admin อนุมัติ', RETURNED_FOR_CORRECTION: 'ส่งกลับให้แก้ไข' };
+const lifecycleLabel: Record<string, string> = { NAME_CHANGE: 'เปลี่ยนชื่อ', DEPARTMENT_TRANSFER: 'ย้ายหน่วยงาน', POSITION_CHANGE: 'เปลี่ยนตำแหน่ง', EMPLOYMENT_TERMINATION: 'ลาออก', REHIRE: 'กลับเข้าทำงาน', MASTER_EDIT: 'แก้ไขข้อมูลพนักงาน' };
+const fieldLabel: Record<string, string> = { firstName: 'ชื่อ', lastName: 'นามสกุล', department: 'หน่วยงาน', jobTitle: 'ตำแหน่ง', isActive: 'สถานะ', email: 'อีเมล', phone: 'โทรศัพท์', hiredAt: 'วันที่เริ่มงาน', skill: 'ทักษะ/คุณสมบัติ' };
+const fmtDate = (value?: string | null) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeZone: 'Asia/Bangkok' }).format(new Date(value)) : '—';
+const fmtDateTime = (value?: string | null) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value)) : '—';
+const valueText = (field: string, value: unknown) => field === 'isActive' ? (value === true ? 'ปฏิบัติงาน' : 'ลาออก') : value === null || value === undefined || value === '' ? '—' : String(value);
+
+function eventChange(event: LifecycleEvent) {
+  const before = event.oldValue?.employee || {};
+  const after = event.newValue?.employee || {};
+  const changed = Object.keys(fieldLabel).filter((field) => String(before[field] ?? '') !== String(after[field] ?? ''));
+  if (!changed.length) return lifecycleLabel[event.type] || event.type;
+  return changed.slice(0, 3).map((field) => `${fieldLabel[field] || field}: ${valueText(field, before[field])} → ${valueText(field, after[field])}`).join(' · ');
+}
+
+export function PersonnelDetailDrawer({ employee, token, canManage, onClose, onEdit }: Props) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
+  const [requests, setRequests] = useState<ChangeRequest[]>([]);
+  const [history, setHistory] = useState<LifecycleEvent[]>([]);
+  const [reference, setReference] = useState<ReferenceState>();
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusUnavailable, setStatusUnavailable] = useState(false);
 
   useEffect(() => {
     if (!employee) return;
@@ -30,46 +57,49 @@ export function PersonnelDetailDrawer({ employee, canManage, onClose, onEdit }: 
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
     window.addEventListener('keydown', handler);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('keydown', handler);
-      releaseScrollLock();
-      previouslyFocused?.focus({ preventScroll: true });
-    };
+    return () => { window.clearTimeout(timer); window.removeEventListener('keydown', handler); releaseScrollLock(); previouslyFocused?.focus({ preventScroll: true }); };
   }, [employee, onClose]);
 
+  useEffect(() => {
+    if (!employee || !token) { setRequests([]); setHistory([]); setReference(undefined); setStatusUnavailable(false); return; }
+    let active = true;
+    setStatusLoading(true); setStatusUnavailable(false);
+    Promise.allSettled([api.employeeChangeRequests(token, employee.id), api.employeeLifecycleHistory(token, employee.id, 1), api.employeeReferencePhotos(token, employee.id)]).then((results) => {
+      if (!active) return;
+      const [requestResult, historyResult, photoResult] = results;
+      if (requestResult.status === 'fulfilled') setRequests(Array.isArray(requestResult.value?.data) ? requestResult.value.data as ChangeRequest[] : []);
+      if (historyResult.status === 'fulfilled') setHistory(Array.isArray(historyResult.value?.data) ? historyResult.value.data as LifecycleEvent[] : []);
+      if (photoResult.status === 'fulfilled') setReference((photoResult.value?.data || {}) as ReferenceState);
+      setStatusUnavailable(results.every((result) => result.status === 'rejected'));
+    }).finally(() => { if (active) setStatusLoading(false); });
+    return () => { active = false; };
+  }, [employee?.id, token]);
+
+  const activeRequest = useMemo(() => requests.find((request) => activeRequestStatuses.has(request.status)), [requests]);
+  const pendingLifecycle = useMemo(() => history.find((event) => event.status === 'PENDING'), [history]);
   if (!employee) return null;
   const fullName = `${employee.firstName} ${employee.lastName}`.trim();
   const initials = fullName.split(/\s+/).filter(Boolean).map((value) => value[0]).join('').slice(0, 2) || 'SM';
 
   return <div className="personnel-drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <aside ref={drawerRef} className="personnel-detail-drawer operational-drawer" role="dialog" aria-modal="true" aria-labelledby="personnel-drawer-title">
-      <header className="personnel-drawer-header">
-        <div className="personnel-drawer-identity">
-          <span className="personnel-drawer-avatar" aria-hidden="true">{initials}</span>
-          <div><p>ข้อมูลพนักงาน</p><h2 id="personnel-drawer-title">{fullName || 'พนักงาน'}</h2><div className="personnel-drawer-context"><span>รหัสภายใน {employee.employeeCode}</span><span className={`status-badge ${employee.isActive ? 'status-badge--success active' : 'status-badge--neutral inactive'}`}>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></div></div>
-        </div>
+    <aside ref={drawerRef} className="personnel-detail-drawer personnel-detail-drawer--360 operational-drawer" role="dialog" aria-modal="true" aria-labelledby="personnel-drawer-title">
+      <header className="personnel-drawer-header personnel-360-header">
+        <div className="personnel-drawer-identity"><span className="personnel-drawer-avatar" aria-hidden="true">{initials}</span><div><p>Employee 360</p><h2 id="personnel-drawer-title">{fullName || 'พนักงาน'}</h2><div className="personnel-drawer-context"><span>รหัส {employee.employeeCode}</span><span>{employee.department || 'ไม่ระบุหน่วยงาน'}</span><span>{employee.jobTitle || 'ไม่ระบุตำแหน่ง'}</span><span className={`status-badge ${employee.isActive ? 'status-badge--success active' : 'status-badge--neutral inactive'}`}>{employee.isActive ? 'ปฏิบัติงาน' : 'ลาออก/ไม่ใช้งาน'}</span></div></div></div>
         <button ref={closeRef} type="button" className="personnel-drawer-close overlay-close" aria-label="ปิดรายละเอียดพนักงาน" onClick={onClose}><SmsIcon name="close" size={20} /></button>
       </header>
       <div className="personnel-drawer-content">
-        <section className="personnel-detail-section" aria-labelledby="personnel-basic-title">
-          <div className="personnel-section-heading"><span className="personnel-section-icon" aria-hidden="true"><SmsIcon name="employees" size={18} /></span><div><h3 id="personnel-basic-title">ข้อมูลบุคลากร</h3><p>ข้อมูลที่มีอยู่ใน Employee Master</p></div></div>
-          <dl className="personnel-detail-grid">
-            <div><dt>รหัสภายใน</dt><dd>{employee.employeeCode}</dd></div>
-            <div><dt>ชื่อ</dt><dd>{employee.firstName || 'ไม่ระบุ'}</dd></div>
-            <div><dt>นามสกุล</dt><dd>{employee.lastName || 'ไม่ระบุ'}</dd></div>
-            <div><dt>หน่วยงาน</dt><dd>{employee.department || 'ไม่ระบุ'}</dd></div>
-            <div className="personnel-detail-grid__wide"><dt>ตำแหน่ง</dt><dd>{employee.jobTitle || 'ไม่ระบุ'}</dd></div>
-          </dl>
+        <section className="personnel-360-state-strip" aria-label="สถานะสำคัญ">
+          <div className={employee.isActive ? 'personnel-state-card personnel-state-card--ok' : 'personnel-state-card personnel-state-card--neutral'}><span>การจ้างงาน</span><strong>{employee.isActive ? 'ปฏิบัติงาน' : 'ไม่ปฏิบัติงาน'}</strong></div>
+          <div className={activeRequest ? 'personnel-state-card personnel-state-card--warning' : 'personnel-state-card'}><span>คำขอเปลี่ยนแปลง</span><strong>{activeRequest ? requestStatusLabel[activeRequest.status] || activeRequest.status : statusLoading ? 'กำลังตรวจสอบ…' : 'ไม่มีรายการค้าง'}</strong>{activeRequest?.draftEffectiveMode === 'FUTURE_EFFECTIVE' && <small>มีผล {fmtDate(activeRequest.draftEffectiveDate)}</small>}</div>
+          <div className={pendingLifecycle ? 'personnel-state-card personnel-state-card--warning' : 'personnel-state-card'}><span>Future-effective</span><strong>{pendingLifecycle ? lifecycleLabel[pendingLifecycle.type] || pendingLifecycle.type : statusLoading ? 'กำลังตรวจสอบ…' : 'ไม่มีรายการรอมีผล'}</strong>{pendingLifecycle && <small>{fmtDate(pendingLifecycle.effectiveDate)}</small>}</div>
+          <div className={reference?.activePhoto ? 'personnel-state-card personnel-state-card--ok' : 'personnel-state-card personnel-state-card--warning'}><span>Reference Photo</span><strong>{reference?.activePhoto ? 'มีรูป ACTIVE' : statusLoading ? 'กำลังตรวจสอบ…' : 'ยังไม่มีรูป ACTIVE'}</strong>{reference?.pendingPhoto && <small>มีรูปใหม่รอพิจารณา</small>}</div>
         </section>
-        <section className="personnel-detail-section" aria-labelledby="personnel-status-title">
-          <div className="personnel-section-heading"><span className="personnel-section-icon" aria-hidden="true"><SmsIcon name="shield" size={18} /></span><div><h3 id="personnel-status-title">สถานะการทำงาน</h3><p>สถานะที่ระบบส่งกลับสำหรับระเบียนนี้</p></div></div>
-          <div className="personnel-employment-state"><span>สถานะปัจจุบัน</span><strong>{employee.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}</strong><small>{employee.isActive ? 'ระเบียนพนักงานเปิดใช้งานอยู่' : 'ระเบียนพนักงานถูกทำเครื่องหมายว่าไม่ใช้งาน'}</small></div>
-        </section>
+        {statusUnavailable && <div className="personnel-360-data-note" role="status">ข้อมูล governance บางส่วนไม่พร้อมใช้งาน จึงไม่คาดเดาสถานะจาก client</div>}
+        <section className="personnel-detail-section" aria-labelledby="personnel-overview-title"><div className="personnel-section-heading"><span className="personnel-section-icon" aria-hidden="true"><SmsIcon name="employees" size={18} /></span><div><h3 id="personnel-overview-title">ภาพรวมและข้อมูลทั่วไป</h3><p>Employee identity เดียวสำหรับข้อมูลย้อนหลังทุกโมดูล</p></div></div><dl className="personnel-detail-grid"><div><dt>รหัสภายใน</dt><dd>{employee.employeeCode}</dd></div><div><dt>ชื่อ-นามสกุล</dt><dd>{fullName || 'ไม่ระบุ'}</dd></div><div><dt>อีเมลติดต่อ</dt><dd>{employee.email || 'ไม่ระบุ'}</dd></div><div><dt>โทรศัพท์</dt><dd>{employee.phone || 'ไม่ระบุ'}</dd></div><div><dt>วันที่เริ่มงาน</dt><dd>{fmtDate(employee.hiredAt)}</dd></div><div><dt>ทักษะ/คุณสมบัติ</dt><dd>{employee.skill || 'ไม่ระบุ'}</dd></div></dl></section>
+        <section className="personnel-detail-section" aria-labelledby="personnel-structure-title"><div className="personnel-section-heading"><span className="personnel-section-icon" aria-hidden="true"><SmsIcon name="shield" size={18} /></span><div><h3 id="personnel-structure-title">การจ้างงานและโครงสร้าง</h3><p>Department / Position ใช้ Master authority สำหรับค่าที่เปลี่ยนใหม่</p></div></div><dl className="personnel-detail-grid"><div><dt>Department ปัจจุบัน</dt><dd>{employee.department || 'ไม่ระบุ'}</dd></div><div><dt>Position ปัจจุบัน</dt><dd>{employee.jobTitle || 'ไม่ระบุ'}</dd></div><div className="personnel-detail-grid__wide"><dt>Site context</dt><dd>อ้างอิงจาก Schedule / Security Site authority เมื่อปฏิบัติงาน ไม่กำหนดจาก Employee โดยเดา</dd></div></dl></section>
+        <section className="personnel-detail-section" aria-labelledby="personnel-change-title"><div className="personnel-section-heading"><span className="personnel-section-icon" aria-hidden="true"><SmsIcon name="history" size={18} /></span><div><h3 id="personnel-change-title">Change History Timeline</h3><p>ประวัติ lifecycle แบบอ่านอย่างเดียว · แสดงล่าสุดไม่เกิน 6 รายการ</p></div></div>{statusLoading && !history.length ? <div className="personnel-360-loading">กำลังโหลดประวัติ…</div> : history.length ? <ol className="personnel-360-timeline">{history.slice(0, 6).map((event) => <li key={event.id}><div><strong>{lifecycleLabel[event.type] || event.type}</strong><span className={`lifecycle-status lifecycle-status--${event.status.toLowerCase()}`}>{event.status === 'PENDING' ? 'รอวันที่มีผล' : 'มีผลแล้ว'}</span></div><time>{fmtDate(event.effectiveDate)}</time><p>{eventChange(event)}</p><small>{event.changedBy?.displayName || 'ผู้ดูแลระบบ'} · {fmtDateTime(event.createdAt)} · เหตุผล: {event.reason || '—'}</small></li>)}</ol> : <div className="personnel-360-empty">ยังไม่มี lifecycle history ที่ยืนยันได้</div>}</section>
       </div>
-      {canManage && <footer className="personnel-drawer-actions">
-        <button type="button" className="btn-primary personnel-drawer-primary" onClick={onEdit}><SmsIcon name="edit" size={17} />แก้ไขข้อมูล</button>
-      </footer>}
+      {canManage && <footer className="personnel-drawer-actions"><button type="button" className="btn-primary personnel-drawer-primary" onClick={onEdit}><SmsIcon name="edit" size={17} />แก้ไขข้อมูล</button></footer>}
     </aside>
   </div>;
 }
