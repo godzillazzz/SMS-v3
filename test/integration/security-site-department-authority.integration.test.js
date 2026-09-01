@@ -29,7 +29,8 @@ if (!configured) {
     admin: crypto.randomUUID(),
     siteA: crypto.randomUUID(),
     siteB: crypto.randomUUID(),
-    assignment: crypto.randomUUID()
+    assignment: crypto.randomUUID(),
+    departmentMaster: crypto.randomUUID()
   };
   const department = `G06-SITE-${marker.toUpperCase()}`;
   const siteIds = [ids.siteA, ids.siteB];
@@ -55,10 +56,12 @@ if (!configured) {
     await prisma.securitySite.deleteMany({ where: { id: { in: siteIds } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: ids.admin } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { id: ids.employee } }).catch(() => {});
+    await prisma.departmentMaster.deleteMany({ where: { id: ids.departmentMaster } }).catch(() => {});
   }
 
   test.before(async () => {
     await cleanup();
+    await prisma.departmentMaster.create({ data: { id: ids.departmentMaster, code: `DEP-${marker.toUpperCase()}`, name: department, normalizedName: department.toLowerCase(), isActive: true } });
     await prisma.employee.create({
       data: {
         id: ids.employee,
@@ -108,7 +111,7 @@ if (!configured) {
 
   test('Department Default, schedule override, historical pin, DB invariant and QR lifecycle hold together', async () => {
     const firstMapping = await service.replaceDepartmentMapping({
-      departmentName: department,
+      departmentMasterId: ids.departmentMaster,
       siteIds,
       defaultSiteId: ids.siteA
     }, ids.admin);
@@ -129,8 +132,8 @@ if (!configured) {
 
     await assert.rejects(
       () => prisma.$executeRawUnsafe(
-        'UPDATE security_site_departments SET is_default = TRUE, updated_at = NOW() WHERE department_name = $1 AND security_site_id = $2',
-        department,
+        'UPDATE security_site_departments SET is_default = TRUE, updated_at = NOW() WHERE department_master_id = $1::uuid AND security_site_id = $2',
+        ids.departmentMaster,
         ids.siteB
       ),
       () => true,
@@ -138,7 +141,7 @@ if (!configured) {
     );
 
     const secondMapping = await service.replaceDepartmentMapping({
-      departmentName: department,
+      departmentMasterId: ids.departmentMaster,
       siteIds,
       defaultSiteId: ids.siteB
     }, ids.admin);
