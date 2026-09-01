@@ -59,8 +59,20 @@ async function create(data, actorUserId) {
   });
 }
 
+async function impact(id, client = prisma) {
+  const existing = await client.shiftType.findUnique({ where: { id } });
+  if (!existing) throw new HttpError(404, 'Shift type not found.');
+  const [assignmentCount, attendanceCount] = await Promise.all([
+    client.shiftAssignment.count({ where: { shiftTypeId: id } }),
+    client.attendanceSession.count({ where: { expectedShiftTypeId: id } })
+  ]);
+  return { id, code: existing.code, name: existing.name, isActive: existing.isActive, isCore: CORE_SHIFT_CODES.includes(String(existing.code || '').toUpperCase()), assignmentCount, attendanceCount, totalReferences: assignmentCount + attendanceCount };
+}
+
 async function update(id, data, actorUserId) {
+  const governance = { reason: String(data.reason || '').trim(), confirmImpact: data.confirmImpact === true };
   const canonical = canonicalize(data);
+  delete canonical.reason; delete canonical.confirmImpact;
   return prisma.$transaction(async (tx) => {
     const existing = await tx.shiftType.findUnique({ where: { id } });
     if (!existing) throw new HttpError(404, 'Shift type not found.');
@@ -75,9 +87,14 @@ async function update(id, data, actorUserId) {
 
     const next = { ...existing, ...canonical };
     validateDefinition(next);
+    let impactSnapshot = null;
+    if (existing.isActive !== false && canonical.isActive === false) {
+      impactSnapshot = await impact(id, tx);
+      if (!governance.confirmImpact || governance.reason.length < 3 || governance.reason.length > 1000) throw new HttpError(409, 'Review Shift Impact Preview, confirm impact, and provide a reason before deactivation.', { code: 'SHIFT_DEACTIVATION_CONFIRM_REQUIRED', impact: impactSnapshot });
+    }
 
     const updated = await tx.shiftType.update({ where: { id }, data: canonical });
-    await audit.log({ actorUserId, action: 'UPDATE', entityType: 'ShiftType', entityId: id, metadata: { before: safeRecord(existing), after: safeRecord(updated) } }, tx);
+    await audit.log({ actorUserId, action: 'UPDATE', entityType: 'ShiftType', entityId: id, metadata: { before: safeRecord(existing), after: safeRecord(updated), ...(impactSnapshot ? { reason: governance.reason, impact: impactSnapshot } : {}) } }, tx);
     return updated;
   });
 }
@@ -104,4 +121,4 @@ async function remove(id, actorUserId) {
   });
 }
 
-module.exports = { CORE_SHIFT_CODES, list, getById, create, update, remove };
+module.exports = { CORE_SHIFT_CODES, list, getById, impact, create, update, remove };

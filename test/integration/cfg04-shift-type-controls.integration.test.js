@@ -86,10 +86,17 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
         .send({ code: 'CFG04Y' });
       assert.equal(changedCode.status, 400);
 
+      const impactPreview = await request(app)
+        .get(`/api/v1/shift-types/${shiftTypeId}/impact`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      assert.equal(impactPreview.status, 200);
+      assert.equal(impactPreview.body.data.assignmentCount, 1);
+      assert.equal(impactPreview.body.data.totalReferences >= 1, true);
+
       const edited = await request(app)
         .put(`/api/v1/shift-types/${shiftTypeId}`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'CFG04 Updated', startTime: '09:00', endTime: '18:00', hours: 9, color: '#654321', isActive: false });
+        .send({ name: 'CFG04 Updated', startTime: '09:00', endTime: '18:00', hours: 9, color: '#654321', isActive: false, confirmImpact: true, reason: 'Retire legacy shift after review' });
       assert.equal(edited.status, 200);
       assert.equal(edited.body.data.code, code);
       assert.equal(edited.body.data.name, 'CFG04 Updated');
@@ -150,10 +157,12 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
 
       const audits = await prisma.auditLog.findMany({
         where: { actorUserId: ids.admin, entityType: 'ShiftType', entityId: shiftTypeId },
-        select: { action: true },
+        select: { action: true, metadata: true },
         orderBy: { createdAt: 'asc' }
       });
       assert.deepEqual(audits.map((event) => event.action), ['CREATE', 'UPDATE']);
+      assert.equal(audits[1].metadata.reason, 'Retire legacy shift after review');
+      assert.equal(audits[1].metadata.impact.assignmentCount, 1);
     } finally {
       await cleanup();
     }
