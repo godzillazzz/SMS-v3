@@ -6,6 +6,10 @@ const { createSecuritySiteAuthorityService } = require('./security-site-authorit
 
 function blocker(code, label, detail) { return { code, label, detail }; }
 function monthStart(value) { const d = new Date(value); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)); }
+function bangkokWorkDate(value) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(value)).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+  return parts.year + '-' + parts.month + '-' + parts.day;
+}
 
 function createOnboardingReadinessService({ prisma = prismaDefault, siteAuthorityService = null, clock = () => new Date() } = {}) {
   const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
@@ -22,7 +26,7 @@ function createOnboardingReadinessService({ prisma = prismaDefault, siteAuthorit
 
     const now = clock();
     const assignment = await prisma.shiftAssignment.findFirst({
-      where: { employeeId, workDate: { gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) } },
+      where: { employeeId, workDate: { gte: new Date(bangkokWorkDate(now) + 'T00:00:00.000Z') } },
       orderBy: [{ workDate: 'asc' }, { createdAt: 'asc' }],
       include: { shiftType: true, securitySite: true }
     });
@@ -82,4 +86,4 @@ function createOnboardingReadinessService({ prisma = prismaDefault, siteAuthorit
   return { getEmployeeReadiness, listEmployeeReadiness };
 }
 
-module.exports = { createOnboardingReadinessService };
+module.exports = { createOnboardingReadinessService, bangkokWorkDate };

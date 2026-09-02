@@ -2,7 +2,7 @@
 'use strict';
 
 const { PrismaClient } = require('@prisma/client');
-const { createOnboardingReadinessService } = require('../../src/services/onboarding-readiness.service');
+const { createOnboardingReadinessService, bangkokWorkDate } = require('../../src/services/onboarding-readiness.service');
 
 const EMPLOYEE_CODE = 'UAT-ST-20260902';
 const prisma = new PrismaClient();
@@ -67,7 +67,7 @@ const isoDate = (v) => v ? new Date(v).toISOString().slice(0, 10) : null;
   const nextAssignment = await prisma.shiftAssignment.findFirst({
     where: {
       employeeId: employee.id,
-      workDate: { gte: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate())) }
+      workDate: { gte: new Date(bangkokWorkDate(new Date()) + 'T00:00:00.000Z') }
     },
     orderBy: [{ workDate: 'asc' }, { createdAt: 'asc' }],
     include: {

@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createOnboardingReadinessService } = require('../src/services/onboarding-readiness.service');
+const { createOnboardingReadinessService, bangkokWorkDate } = require('../src/services/onboarding-readiness.service');
 
 function baseEmployee(overrides = {}) { return { id: 'employee-1', isActive: true, department: 'Operations', jobTitle: 'Officer', user: { id: 'user-1', role: 'EMPLOYEE', isActive: true, accountStatus: 'ACTIVE' }, referencePhotos: [{ id: 'photo-1' }], attendanceDevices: [{ id: 'device-1', status: 'ACTIVE', proofVerifiedAt: new Date('2026-08-31T00:00:00Z') }], ...overrides }; }
 function harness({ employee = baseEmployee(), assignment = { id: 'assignment-1', employeeId: 'employee-1', workDate: new Date('2026-09-02T00:00:00Z'), shiftType: { code: 'DAY', name: 'Day' }, securitySite: null }, approval = { status: 'APPROVED' }, site = { site: { id: 'site-1', code: 'HQ', name: 'HQ' }, source: 'DEPARTMENT_DEFAULT' } } = {}) { const prisma = { employee: { findFirst: async () => employee, findMany: async () => [{ id: employee.id, employeeCode: 'EMP001', firstName: 'Test', lastName: 'Employee', department: employee.department, jobTitle: employee.jobTitle, isActive: employee.isActive }] }, shiftAssignment: { findFirst: async () => assignment }, scheduleApproval: { findFirst: async () => approval } }; const siteAuthorityService = { resolve: async () => site }; return createOnboardingReadinessService({ prisma, siteAuthorityService, clock: () => new Date('2026-09-01T10:00:00Z') }); }
@@ -12,3 +12,29 @@ test('unapproved schedule and unresolved site fail closed', async () => { const 
 test('multiple active devices are an authority conflict, never READY', async () => { const employee = baseEmployee({ attendanceDevices: [{ id: 'd1', proofVerifiedAt: new Date() }, { id: 'd2', proofVerifiedAt: new Date() }] }); const result = await harness({ employee }).getEmployeeReadiness({ employeeId: 'employee-1' }); assert.equal(result.status, 'NOT_READY'); assert.equal(result.checks.device.activeCount, 2); });
 
 test('readiness center aggregates server-authoritative READY and blocker counts', async () => { const result = await harness().listEmployeeReadiness({ limit: 50 }); assert.equal(result.summary.total, 1); assert.equal(result.summary.ready, 1); assert.equal(result.summary.notReady, 0); assert.equal(result.data[0].status, 'READY'); });
+
+
+test('Bangkok work date rolls over before the UTC calendar date', () => {
+  assert.equal(bangkokWorkDate(new Date('2026-09-02T22:30:00.000Z')), '2026-09-03');
+  assert.equal(bangkokWorkDate(new Date('2026-09-02T16:59:59.999Z')), '2026-09-02');
+  assert.equal(bangkokWorkDate(new Date('2026-09-02T17:00:00.000Z')), '2026-09-03');
+});
+
+test('readiness queries assignments from the Bangkok work date, not UTC midnight', async () => {
+  let capturedWhere = null;
+  const employee = baseEmployee();
+  const prisma = {
+    employee: { findFirst: async () => employee },
+    shiftAssignment: { findFirst: async (args) => { capturedWhere = args.where; return null; } },
+    scheduleApproval: { findFirst: async () => null }
+  };
+  const service = createOnboardingReadinessService({
+    prisma,
+    siteAuthorityService: { resolve: async () => null },
+    clock: () => new Date('2026-09-02T22:30:00.000Z')
+  });
+  const result = await service.getEmployeeReadiness({ employeeId: 'employee-1' });
+  assert.equal(capturedWhere.workDate.gte.toISOString(), '2026-09-03T00:00:00.000Z');
+  assert.equal(result.status, 'NOT_READY');
+  assert.ok(result.blockers.some((item) => item.code === 'SCHEDULE_REQUIRED'));
+});
