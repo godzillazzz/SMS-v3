@@ -15,7 +15,6 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DATABASE_URL }}
-      LIC_HIST_REPAIR_CONFIRM: REPAIR_413_EXACT
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,5 +25,5 @@ jobs:
         run: npm ci --include=dev
       - name: Generate Prisma client
         run: npx prisma generate
-      - name: Execute Owner-approved bounded LIC-HIST-01 repair
-        run: node scripts/ci/lic-hist-targeted-repair-413.js
+      - name: LIC-HIST-01 read-only impact preview
+        run: node scripts/ci/lic-hist-impact-preview-readonly.js
