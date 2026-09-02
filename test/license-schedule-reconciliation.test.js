@@ -1,7 +1,7 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { licenseStateForWorkDate } = require('../src/services/license-state.service');
+const { licenseStateForWorkDate, buildLicenseAuthorityByEmployee } = require('../src/services/license-state.service');
 const { buildLicenseScheduleReconciliation, applyReconciliationUpdates, touchApproval } = require('../src/services/license-schedule-reconciliation.service');
 
 const shifts = [
@@ -20,6 +20,63 @@ test('license validity is calculated for the work date across old and renewed li
   assert.equal(licenseStateForWorkDate([oldLicense, renewedLicense], new Date('2026-07-26T00:00:00Z')).valid, true);
 });
 
+
+test('approved license document history preserves work-date validity across a renewal boundary', () => {
+  const employeeId = 'employee-1';
+  const licenseId = 'license-1';
+  const authority = buildLicenseAuthorityByEmployee([
+    { id: licenseId, employeeId, status: 'Active', issueDate: new Date('2026-09-01T00:00:00Z'), expiryDate: new Date('2027-08-31T00:00:00Z') }
+  ], [
+    { employeeId, licenseId, status: 'SUPERSEDED', proposedStartDate: new Date('2025-09-01T00:00:00Z'), proposedExpiryDate: new Date('2026-08-31T00:00:00Z') },
+    { employeeId, licenseId, status: 'APPROVED', proposedStartDate: new Date('2026-09-01T00:00:00Z'), proposedExpiryDate: new Date('2027-08-31T00:00:00Z') }
+  ]).get(employeeId);
+  const august = licenseStateForWorkDate(authority, new Date('2026-08-31T00:00:00Z'));
+  const september = licenseStateForWorkDate(authority, new Date('2026-09-01T00:00:00Z'));
+  assert.equal(august.valid, true);
+  assert.equal(august.expiryDate.toISOString().slice(0, 10), '2026-08-31');
+  assert.equal(september.valid, true);
+  assert.equal(september.expiryDate.toISOString().slice(0, 10), '2027-08-31');
+});
+
+test('approved renewal document remains scheduling authority when a legacy master still says expired', () => {
+  const employeeId = 'employee-legacy';
+  const licenseId = 'license-legacy';
+  const authority = buildLicenseAuthorityByEmployee([
+    { id: licenseId, employeeId, status: 'Expired', issueDate: new Date('2025-01-01T00:00:00Z'), expiryDate: new Date('2026-08-31T00:00:00Z') }
+  ], [
+    { employeeId, licenseId, status: 'APPROVED', proposedStartDate: new Date('2026-09-01T00:00:00Z'), proposedExpiryDate: new Date('2027-08-31T00:00:00Z') }
+  ]).get(employeeId);
+  assert.equal(licenseStateForWorkDate(authority, new Date('2026-09-02T00:00:00Z')).valid, true);
+});
+
+test('historical documents do not bypass an administratively revoked license', () => {
+  const employeeId = 'employee-revoked';
+  const licenseId = 'license-revoked';
+  const authority = buildLicenseAuthorityByEmployee([
+    { id: licenseId, employeeId, status: 'Revoked', issueDate: new Date('2026-01-01T00:00:00Z'), expiryDate: new Date('2027-01-01T00:00:00Z') }
+  ], [
+    { employeeId, licenseId, status: 'APPROVED', proposedStartDate: new Date('2026-01-01T00:00:00Z'), proposedExpiryDate: new Date('2027-01-01T00:00:00Z') }
+  ]).get(employeeId);
+  assert.equal(licenseStateForWorkDate(authority, new Date('2026-09-02T00:00:00Z')).valid, false);
+});
+
+test('reconciliation can restore a historical shift that was incorrectly blocked after license renewal', () => {
+  const employeeId = 'employee-restore';
+  const licenseId = 'license-restore';
+  const authority = buildLicenseAuthorityByEmployee([
+    { id: licenseId, employeeId, status: 'Active', issueDate: new Date('2026-09-01T00:00:00Z'), expiryDate: new Date('2027-08-31T00:00:00Z') }
+  ], [
+    { employeeId, licenseId, status: 'SUPERSEDED', proposedStartDate: new Date('2025-09-01T00:00:00Z'), proposedExpiryDate: new Date('2026-08-31T00:00:00Z') },
+    { employeeId, licenseId, status: 'APPROVED', proposedStartDate: new Date('2026-09-01T00:00:00Z'), proposedExpiryDate: new Date('2027-08-31T00:00:00Z') }
+  ]).get(employeeId);
+  const plan = buildLicenseScheduleReconciliation({ licenses: authority, shiftTypes: shifts, assignments: [
+    { id: 'aug-31', workDate: new Date('2026-08-31T00:00:00Z'), shiftTypeId: 'off', shiftType: { code: 'OFF' }, licenseStatus: 'EXPIRED', licenseOverride: false, remark: 'License Block', licenseBlockedFromShiftTypeId: 'd', licenseBlockedFromRemark: 'historical D shift' }
+  ] });
+  assert.equal(plan.summary.restored, 1);
+  assert.equal(plan.updates[0].data.shiftTypeId, 'd');
+  assert.equal(plan.updates[0].data.remark, 'historical D shift');
+  assert.equal(plan.updates[0].data.licenseStatus, 'VALID');
+});
 test('reconciliation blocks invalid work days, preserves Admin overrides, and restores after renewal', () => {
   const plan = buildLicenseScheduleReconciliation({
     licenses: [oldLicense, renewedLicense], shiftTypes: shifts,

@@ -2,7 +2,7 @@ const prisma = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { evaluateRulesForAssignments } = require('./schedule-rules.service');
 const audit = require('./audit.service');
-const { licenseStateForWorkDate } = require('./license-state.service');
+const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('./license-state.service');
 const { ensureEmployeeOperationalForShift } = require('./employee-operational-eligibility.service');
 const { createSchedulePersonnelResolver, enrichScheduleAssignments } = require('./schedule-personnel-history.service');
 
@@ -88,20 +88,14 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
   const empIds = [...new Set(assignments.map(a => a.employeeId).filter(Boolean))];
   const typeIds = [...new Set(assignments.map(a => a.shiftTypeId).filter(Boolean))];
 
-  const [employees, shiftTypes, licenses] = await Promise.all([
+  const [employees, shiftTypes, licMap] = await Promise.all([
     prisma.employee.findMany({ where: { id: { in: empIds } } }),
     prisma.shiftType.findMany({ where: { id: { in: typeIds } } }),
-    prisma.employeeLicense.findMany({ where: { employeeId: { in: empIds } } })
+    loadLicenseAuthorityByEmployee(prisma, empIds)
   ]);
 
   const empMap = new Map(employees.map(e => [e.id, e]));
   const typeMap = new Map(shiftTypes.map(t => [t.id, t]));
-  const licMap = new Map();
-  licenses.forEach(l => {
-    const list = licMap.get(l.employeeId) || [];
-    list.push(l);
-    licMap.set(l.employeeId, list);
-  });
 
   const results = await prisma.$transaction(async (tx) => {
     const list = [];

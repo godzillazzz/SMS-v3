@@ -11,7 +11,7 @@ const { evaluateScheduleRules } = require('../services/schedule-rules.service');
 const { buildAutoSchedulePlan, buildEmployeeAutoSchedulePlan, commitAutoSchedule, commitEmployeeAutoSchedule, monthBounds } = require('../services/auto-schedule.service');
 const { buildApprovedScheduleWorkbook } = require('../services/schedule-export.service');
 const { reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules } = require('../services/license-schedule-reconciliation.service');
-const { licenseStateForWorkDate } = require('../services/license-state.service');
+const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('../services/license-state.service');
 const { updateScheduleApprovalState, approveMonthlySchedule } = require('../services/schedule.service');
 const { createSchedulePersonnelResolver, enrichScheduleAssignments } = require('../services/schedule-personnel-history.service');
 const { linkLeaveQuota } = require('../services/leave-quota-link.service');
@@ -255,8 +255,8 @@ const ensureLeaveAvailable = async (tx, employeeId, leaveType, requestedUsageByY
 const runLeaveTransaction = (callback, options) => runLeaveTransactionWithClient(prisma, callback, options);
 const licenseStateForShift = async (tx, { employeeId, workDate, shiftCode, override, overrideReason, actorRole }) => {
   if (['OFF', 'AL'].includes(String(shiftCode).toUpperCase())) return { licenseStatus: 'NOT_REQUIRED', licenseExpiryDate: null, licenseOverride: false, overrideReason: null, overrideAt: null };
-  const licenses = await tx.employeeLicense.findMany({ where: { employeeId }, select: { status: true, issueDate: true, expiryDate: true } });
-  const state = licenseStateForWorkDate(licenses, workDate);
+  const authority = await loadLicenseAuthorityByEmployee(tx, [employeeId]);
+  const state = licenseStateForWorkDate(authority.get(employeeId) || [], workDate);
   if (state.valid) return { licenseStatus: 'VALID', licenseExpiryDate: state.expiryDate, licenseOverride: false, overrideReason: null, overrideAt: null };
   if (actorRole === 'ADMIN' && override && String(overrideReason || '').trim().length >= 5) return { licenseStatus: 'OVERRIDDEN', licenseExpiryDate: state.expiryDate, licenseOverride: true, overrideReason: String(overrideReason).trim(), overrideAt: new Date() };
   throw new HttpError(400, actorRole === 'ADMIN' ? 'License Block: employee license is invalid for this date. Select OFF/AL or provide an Admin override reason.' : 'License Block: employee license is invalid for this date. Only an Admin may override this restriction.');

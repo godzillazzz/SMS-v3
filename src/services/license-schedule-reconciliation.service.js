@@ -1,5 +1,5 @@
 const audit = require('./audit.service');
-const { licenseStateForWorkDate } = require('./license-state.service');
+const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('./license-state.service');
 
 const dateText = (value) => new Date(value).toISOString().slice(0, 10);
 const isWorkingCode = (code) => !['OFF', 'AL'].includes(String(code || '').toUpperCase());
@@ -80,12 +80,12 @@ async function applyReconciliationUpdates(tx, updates) {
   }
 }
 async function reconcileEmployeeLicenseSchedules(tx, employeeId, actorUserId) {
-  const [licenses, assignments, shiftTypes] = await Promise.all([
-    tx.employeeLicense.findMany({ where: { employeeId }, select: { status: true, issueDate: true, expiryDate: true } }),
+  const [licenseAuthority, assignments, shiftTypes] = await Promise.all([
+    loadLicenseAuthorityByEmployee(tx, [employeeId]),
     tx.shiftAssignment.findMany({ where: { employeeId }, include: { shiftType: { select: { code: true } } } }),
     tx.shiftType.findMany({ select: { id: true, code: true, startTime: true, endTime: true, hours: true, isActive: true } })
   ]);
-  const plan = buildLicenseScheduleReconciliation({ licenses, assignments, shiftTypes });
+  const plan = buildLicenseScheduleReconciliation({ licenses: licenseAuthority.get(employeeId) || [], assignments, shiftTypes });
   if (!plan.updates.length) return plan.summary;
   await applyReconciliationUpdates(tx, plan.updates);
   const months = [...new Set(plan.updates.map((update) => `${new Date(update.workDate).getUTCFullYear()}-${new Date(update.workDate).getUTCMonth()}`))];
