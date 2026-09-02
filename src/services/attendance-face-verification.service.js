@@ -4,7 +4,6 @@ const { ATTACHMENT_PROFILES } = require('./attachment-optimizer.service');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createSelfHostedFaceVerificationService } = require('./face-verification-self-hosted.service');
 const { createInProcessFaceVerificationService } = require('./face-verification-in-process.service');
-const { createSupabaseAttendanceFaceEvidenceStorage } = require('./attendance-face-evidence-storage.service');
 
 const MAX_ATTENDANCE_LIVE_PHOTO_SIZE = ATTACHMENT_PROFILES.ATTENDANCE_FACE.imageHardLimitBytes;
 const MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE = ATTACHMENT_PROFILES.ATTENDANCE_FACE.imageHardLimitBytes;
@@ -33,15 +32,13 @@ function safeFaceVerification(result) {
 function createAttendanceFaceVerificationService({
   environment = process.env,
   sessionService = null,
-  faceVerificationService = null,
-  evidenceStorage = null
+  faceVerificationService = null
 } = {}) {
   const sessions = sessionService || createFaceVerificationSessionService();
-  const evidence = evidenceStorage || createSupabaseAttendanceFaceEvidenceStorage({ environment });
   const verifier = faceVerificationService
     || (environment.FACE_VERIFICATION_IN_PROCESS_ENABLED === 'true'
-      ? createInProcessFaceVerificationService({ sessionService: sessions, environment, evidenceStorage: evidence })
-      : createSelfHostedFaceVerificationService({ sessionService: sessions, environment, evidenceStorage: evidence }));
+      ? createInProcessFaceVerificationService({ sessionService: sessions, environment })
+      : createSelfHostedFaceVerificationService({ sessionService: sessions, environment }));
 
   async function verifyDeviceProof({ actor, sessionId, challengeId, challenge, signatureBase64 } = {}) {
     const result = await sessions.verifyDeviceProof({ actor, sessionId, challengeId, challenge, signatureBase64 });

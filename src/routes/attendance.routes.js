@@ -97,7 +97,7 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
   const router = express.Router();
   const privateEvidence = evidenceStorage || createSupabaseAttendanceFaceEvidenceStorage({ environment });
   const service = contractService || createAttendanceApiContractService({
-    faceVerificationService: createAttendanceFaceVerificationService({ environment, evidenceStorage: privateEvidence }),
+    faceVerificationService: createAttendanceFaceVerificationService({ environment }),
     isBiometricRuntimeEnabled: () => attendanceBiometricRuntimeEnabled(environment)
   });
   const uatService = faceChallengeUatService || createAttendanceFaceChallengeUatService();

@@ -15,7 +15,7 @@ function jpeg(size = 256, fill = 7) {
 }
 function sha256(buffer) { return crypto.createHash('sha256').update(buffer).digest('hex'); }
 
-function context({ providerFails = false, activeChallengePassed = true, faceMatchPassed = true, evidenceStorage = null, recordFails = false } = {}) {
+function context({ providerFails = false, activeChallengePassed = true, faceMatchPassed = true, evidenceStorage = null, recordFails = false, receiptMissing = false } = {}) {
   const referenceBytes = jpeg(320, 9);
   const liveBytes = jpeg(256, 5);
   const challengeFrames = [jpeg(180, 1), jpeg(181, 2), jpeg(182, 3), jpeg(183, 4)];
@@ -45,7 +45,7 @@ function context({ providerFails = false, activeChallengePassed = true, faceMatc
       calls.push(['record', input]);
       if (recordFails) throw new Error('record failed');
       const passed = input.activeChallengePassed === true && input.faceMatchPassed === true;
-      return { session: { id: input.sessionId, status: passed ? 'VERIFIED' : 'FAILED', failureCode: passed ? null : input.activeChallengePassed ? 'FACE_MATCH_FAILED' : 'ACTIVE_CHALLENGE_FAILED' }, receipt: passed ? 'opaque-receipt' : null, receiptExpiresAt: passed ? new Date('2099-01-01T00:00:00Z') : null };
+      return { session: { id: input.sessionId, status: passed ? 'VERIFIED' : 'FAILED', failureCode: passed ? null : input.activeChallengePassed ? 'FACE_MATCH_FAILED' : 'ACTIVE_CHALLENGE_FAILED' }, receipt: passed && !receiptMissing ? 'opaque-receipt' : null, receiptExpiresAt: passed && !receiptMissing ? new Date('2099-01-01T00:00:00Z') : null };
     },
     async failSession(id, code) { calls.push(['fail', { sessionId: id, code }]); }
   };
@@ -88,12 +88,12 @@ async function verify(c) {
   });
 }
 
-test('in-process orchestration requires private evidence before issuing an Attendance receipt', async () => {
+test('in-process orchestration issues a receipt without retaining routine Attendance face evidence', async () => {
   const c = context();
   const result = await verify(c);
   assert.equal(result.verificationMode, 'FACE_MATCH_ONLY');
-  assert.equal(result.evidence.storageStatus, 'STORED');
-  assert.equal(result.evidence.stored, true);
+  assert.equal(result.evidence.storageStatus, 'NOT_STORED');
+  assert.equal(result.evidence.stored, false);
   assert.equal(result.receipt, 'opaque-receipt');
   assert.equal('faceMatchPassed' in result, false, 'provider booleans must not escape this service response');
   const providerCall = c.calls.find(([name]) => name === 'provider')[1];
@@ -103,12 +103,13 @@ test('in-process orchestration requires private evidence before issuing an Atten
   assert.equal(record.activeChallengePassed, true);
   assert.equal(record.faceMatchPassed, true);
   assert.equal('padPassed' in record, false);
+  assert.equal(c.calls.some(([name]) => name === 'evidence-store'), false, 'routine live photo must remain transient');
   assert.ok(c.liveBytes.every((value) => value === 0));
   assert.ok(c.challengeFrames.every((frame) => frame.every((value) => value === 0)));
   assert.ok(c.referenceBytes.every((value) => value === 0));
 });
 
-test('failed active challenge mints no receipt and is never sent to the future evidence storage hook', async () => {
+test('failed active challenge mints no receipt and never invokes routine evidence storage', async () => {
   let storeCalls = 0;
   const c = context({
     activeChallengePassed: false,
@@ -135,21 +136,46 @@ test('face mismatch remains distinct after active challenge passes and is not st
   assert.equal(storeCalls, 0);
 });
 
-test('successful face evaluation fails closed when mandatory private evidence cannot be stored', async () => {
-  const c = context({ evidenceStorage: { async store() { throw new Error('storage unavailable'); }, async remove() {} } });
-  await assert.rejects(() => verify(c), (error) => error?.details?.code === 'ATTENDANCE_EVIDENCE_STORAGE_FAILED');
-  assert.equal(c.calls.some(([name]) => name === 'record'), false);
-  assert.ok(c.calls.some(([name, input]) => name === 'fail' && input.code === 'ATTENDANCE_EVIDENCE_STORAGE_FAILED'));
+test('successful face evaluation never invokes configured routine evidence storage', async () => {
+  let storeCalls = 0;
+  let removeCalls = 0;
+  const c = context({
+    evidenceStorage: {
+      async store() { storeCalls += 1; throw new Error('must not store routine Attendance face evidence'); },
+      async remove() { removeCalls += 1; }
+    }
+  });
+  const result = await verify(c);
+  assert.equal(result.receipt, 'opaque-receipt');
+  assert.equal(result.evidence.storageStatus, 'NOT_STORED');
+  assert.equal(result.evidence.stored, false);
+  assert.equal(storeCalls, 0);
+  assert.equal(removeCalls, 0);
 });
-
-test('stored evidence is compensating-purged when final receipt authority fails', async () => {
-  const c = context({ recordFails: true });
+test('receipt authority failure does not invoke routine evidence storage or cleanup', async () => {
+  let storeCalls = 0;
+  let removeCalls = 0;
+  const c = context({
+    recordFails: true,
+    evidenceStorage: {
+      async store() { storeCalls += 1; },
+      async remove() { removeCalls += 1; }
+    }
+  });
   await assert.rejects(() => verify(c), /record failed/);
-  const removed = c.calls.find(([name]) => name === 'evidence-remove');
-  assert.equal(removed[1].evidenceId, 'evidence-1');
-  assert.equal(removed[1].reason, 'VERIFICATION_ACCEPTANCE_ABORTED');
+  assert.equal(storeCalls, 0);
+  assert.equal(removeCalls, 0);
 });
-
+test('biometric pass without an issued receipt fails closed without retaining routine evidence', async () => {
+  const c = context({ receiptMissing: true });
+  await assert.rejects(
+    () => verify(c),
+    (error) => error?.details?.code === 'VERIFICATION_RECEIPT_NOT_ISSUED'
+  );
+  assert.ok(c.calls.some(([name, input]) => name === 'fail' && input.code === 'VERIFICATION_RECEIPT_NOT_ISSUED'));
+  assert.equal(c.calls.some(([name]) => name === 'evidence-store'), false);
+  assert.equal(c.calls.some(([name]) => name === 'evidence-remove'), false);
+});
 test('provider failure fails the verification session and still purges every transient image buffer', async () => {
   const c = context({ providerFails: true });
   await assert.rejects(() => verify(c));
