@@ -3,7 +3,7 @@
 const HttpError = require('../utils/http-error');
 const audit = require('./audit.service');
 const { validateScheduleRowsOperational } = require('./employee-operational-eligibility.service');
-const { licenseStateForWorkDate } = require('./license-state.service');
+const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('./license-state.service');
 const {
   canonicalMode,
   canonicalPatternCode,
@@ -231,13 +231,13 @@ const applyEmployeePattern = ({ rows, history, shiftTypeMap, startPhase = 'AUTO'
 async function buildAutoSchedulePlan(client, month) {
   const { start, end, dates } = monthBounds(month);
   const historyStart = new Date(start.getTime() - 366 * DAY_MS);
-  const [rules, allEmployees, shiftTypes, currentShifts, historyRows, licenses, patternRows] = await Promise.all([
+  const [rules, allEmployees, shiftTypes, currentShifts, historyRows, licensesByEmployee, patternRows] = await Promise.all([
     client.schedulingRule.findMany({ select: { ruleId: true, value: true, enabled: true } }),
     client.employee.findMany({ where: { deletedAt: null, isActive: true }, select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true, jobTitle: true }, orderBy: { employeeCode: 'asc' } }),
     client.shiftType.findMany({ where: { isActive: true }, select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } }),
     client.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end } }, include: { shiftType: { select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } } } }),
     client.shiftAssignment.findMany({ where: { workDate: { gte: historyStart, lt: start } }, orderBy: { workDate: 'desc' }, include: { shiftType: { select: { code: true } } } }),
-    client.employeeLicense.findMany({ select: { employeeId: true, issueDate: true, expiryDate: true, status: true } }),
+    loadLicenseAuthorityByEmployee(client),
     listAutoSchedulePatterns(client, { includeInactive: false })
   ]);
 
@@ -266,13 +266,6 @@ async function buildAutoSchedulePlan(client, month) {
     list.push(row);
     histories.set(row.employeeId, list);
   });
-  const licensesByEmployee = new Map();
-  licenses.forEach((license) => {
-    const list = licensesByEmployee.get(license.employeeId) || [];
-    list.push(license);
-    licensesByEmployee.set(license.employeeId, list);
-  });
-
   const makeBaseRow = (employee, date) => {
     const dateText = isoDate(date);
     const preserved = existing.get(`${employee.id}|${dateText}`);

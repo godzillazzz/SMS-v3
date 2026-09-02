@@ -34,6 +34,7 @@ test('batch write uses the same transaction flow for one and several assignments
     employeeFindMany: prisma.employee.findMany,
     shiftTypeFindMany: prisma.shiftType.findMany,
     licenseFindMany: prisma.employeeLicense.findMany,
+    licenseDocumentFindMany: prisma.employeeLicenseDocument.findMany,
     globalAssignmentFindMany: prisma.shiftAssignment.findMany,
     transaction: prisma.$transaction
   };
@@ -61,6 +62,7 @@ test('batch write uses the same transaction flow for one and several assignments
     prisma.employee.findMany = async () => [employee];
     prisma.shiftType.findMany = async () => [shiftType];
     prisma.employeeLicense.findMany = async () => [];
+    prisma.employeeLicenseDocument.findMany = async () => [];
     prisma.shiftAssignment.findMany = async () => { calls.globalFindMany += 1; throw new Error('global client used inside transaction'); };
     prisma.$transaction = async (callback) => {
       try { const result = await callback(tx); calls.commits += 1; return result; }
@@ -81,6 +83,7 @@ test('batch write uses the same transaction flow for one and several assignments
     prisma.employee.findMany = original.employeeFindMany;
     prisma.shiftType.findMany = original.shiftTypeFindMany;
     prisma.employeeLicense.findMany = original.licenseFindMany;
+    prisma.employeeLicenseDocument.findMany = original.licenseDocumentFindMany;
     prisma.shiftAssignment.findMany = original.globalAssignmentFindMany;
     prisma.$transaction = original.transaction;
   }
@@ -97,6 +100,7 @@ test('findMany failure rejects the transaction and is not converted into a succe
     prisma.employee.findMany = async () => [employee];
     prisma.shiftType.findMany = async () => [shiftType];
     prisma.employeeLicense.findMany = async () => [];
+    prisma.employeeLicenseDocument.findMany = async () => [];
     prisma.$transaction = async (callback) => {
       try { return await callback({ shiftAssignment: { findMany: async () => { throw Object.assign(new Error('findMany failed'), { code: 'P2024' }); } } }); }
       catch (error) { rolledBack = true; throw error; }
@@ -107,6 +111,7 @@ test('findMany failure rejects the transaction and is not converted into a succe
     prisma.employee.findMany = original.employeeFindMany;
     prisma.shiftType.findMany = original.shiftTypeFindMany;
     prisma.employeeLicense.findMany = original.licenseFindMany;
+    prisma.employeeLicenseDocument.findMany = original.licenseDocumentFindMany;
     prisma.$transaction = original.transaction;
   }
 });
@@ -123,6 +128,7 @@ test('an unknown employee in a later item rolls back earlier upserts in the same
     prisma.employee.findMany = async () => [knownEmployee];
     prisma.shiftType.findMany = async () => [shiftType];
     prisma.employeeLicense.findMany = async () => [];
+    prisma.employeeLicenseDocument.findMany = async () => [];
     prisma.$transaction = async (callback) => {
       const tx = {
         shiftAssignment: {
@@ -142,6 +148,7 @@ test('an unknown employee in a later item rolls back earlier upserts in the same
     prisma.employee.findMany = original.employeeFindMany;
     prisma.shiftType.findMany = original.shiftTypeFindMany;
     prisma.employeeLicense.findMany = original.licenseFindMany;
+    prisma.employeeLicenseDocument.findMany = original.licenseDocumentFindMany;
     prisma.$transaction = original.transaction;
   }
 });
