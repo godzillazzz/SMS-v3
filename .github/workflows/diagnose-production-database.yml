@@ -14,9 +14,7 @@ jobs:
       name: production-sms-v3-staging
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      DIRECT_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,26 +22,8 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install dependencies
-        run: |
-          npm ci --include=dev
-      - name: Pull Vercel environment variables
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          npx --yes vercel@56.4.1 pull --yes --environment=production --token "$VERCEL_TOKEN"
-      - name: Run Local Authentication Debug
-        run: |
-          node scripts/ci/debug-auth.js
-      - name: Run UAT Verification
-        run: |
-          node scripts/ci/run-uat-with-db.js
-      - name: Fetch Vercel staging logs
-        if: always()
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          npx --yes vercel@56.4.1 logs --project sms-v3-staging --environment production --token "$VERCEL_TOKEN" --limit 50
+        run: npm ci --include=dev
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: LIC-HIST-01 read-only impact preview
+        run: node scripts/ci/lic-hist-impact-preview-readonly.js
