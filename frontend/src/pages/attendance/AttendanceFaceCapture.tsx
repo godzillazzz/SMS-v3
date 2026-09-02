@@ -21,18 +21,28 @@ type Props = {
 };
 
 const MAX_CAPTURE_EDGE = ATTACHMENT_POLICIES.ATTENDANCE_FACE.maxEdge;
-const PREPARE_DELAY_MS = 1400;
-const MOVEMENT_START_DELAY_MS = 1800;
-const MOVEMENT_FRAME_INTERVAL_MS = 650;
-const RETURN_TO_CENTER_DELAY_MS = 1600;
+const PREPARE_DELAY_MS = 2200;
+const MOVEMENT_START_DELAY_MS = 2600;
+const MOVEMENT_FRAME_INTERVAL_MS = 850;
+const RETURN_TO_CENTER_DELAY_MS = 2200;
 
 type CapturePhase = 'idle' | 'prepare' | 'baseline' | 'movement' | 'neutral';
 
 const challengeCopy: Record<string, { title: string; detail: string }> = {
-  TURN_LEFT: { title: 'หันหน้าไปทางซ้ายให้ชัดเจน', detail: 'เริ่มจากมองตรงจนระบบเก็บภาพตั้งต้น แล้วจึงหันหน้าไปทางซ้ายและค้างไว้จนเก็บภาพครบ จากนั้นกลับมามองตรง' },
-  TURN_RIGHT: { title: 'หันหน้าไปทางขวาให้ชัดเจน', detail: 'เริ่มจากมองตรงจนระบบเก็บภาพตั้งต้น แล้วจึงหันหน้าไปทางขวาและค้างไว้จนเก็บภาพครบ จากนั้นกลับมามองตรง' },
-  LOOK_UP: { title: 'เงยหน้าขึ้นให้ชัดเจน', detail: 'เริ่มจากมองตรงจนระบบเก็บภาพตั้งต้น แล้วจึงเงยหน้าขึ้นและค้างไว้จนเก็บภาพครบ จากนั้นกลับมามองตรง' },
-  LOOK_DOWN: { title: 'ก้มหน้าลงให้ชัดเจน', detail: 'เริ่มจากมองตรงจนระบบเก็บภาพตั้งต้น แล้วจึงก้มหน้าลงและค้างไว้จนเก็บภาพครบ จากนั้นกลับมามองตรง' }
+  TURN_LEFT: { title: 'หันหน้าไปทางซ้ายให้ชัดเจน', detail: 'หันหน้าไปทางซ้ายให้เห็นการเปลี่ยนชัดเจน แล้วค้างท่าไว้จนระบบบอกให้กลับมามองตรง' },
+  TURN_RIGHT: { title: 'หันหน้าไปทางขวาให้ชัดเจน', detail: 'หันหน้าไปทางขวาให้เห็นการเปลี่ยนชัดเจน แล้วค้างท่าไว้จนระบบบอกให้กลับมามองตรง' },
+  LOOK_UP: { title: 'เงยหน้าขึ้นให้ชัดเจน', detail: 'เงยหน้าขึ้นให้เห็นการเปลี่ยนชัดเจน แล้วค้างท่าไว้จนระบบบอกให้กลับมามองตรง' },
+  LOOK_DOWN: { title: 'ก้มหน้าลงให้ชัดเจน', detail: 'ก้มหน้าลงให้เห็นการเปลี่ยนชัดเจน แล้วค้างท่าไว้จนระบบบอกให้กลับมามองตรง' }
+};
+
+const baselineCopy = {
+  title: 'มองตรงที่กล้องก่อน',
+  detail: 'ยังไม่ต้องหัน เงย หรือก้ม ระบบกำลังเก็บภาพตั้งต้น กรุณามองตรงและอยู่นิ่งจนคำสั่งเปลี่ยน'
+};
+
+const returnToCenterCopy = {
+  title: 'กลับมามองตรงที่กล้อง',
+  detail: 'หยุดทำท่าแล้วกลับมามองตรง ค้างไว้จนระบบเก็บภาพยืนยันสุดท้ายเสร็จ'
 };
 
 function cameraErrorMessage(reason: unknown) {
@@ -316,14 +326,27 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
 
   if (!open) return null;
   const activeCopy = challenge ? challengeCopy[challenge.code] : null;
+  const preparingBaseline = capturePhase === 'prepare' || capturePhase === 'baseline' || (autoFlow && (starting || capturePhase === 'idle'));
+  const displayedChallengeCopy = preparingBaseline
+    ? baselineCopy
+    : capturePhase === 'neutral'
+      ? returnToCenterCopy
+      : activeCopy;
+  const challengeStepLabel = preparingBaseline
+    ? 'ขั้นที่ 1 · มองตรงเพื่อตั้งต้น'
+    : capturePhase === 'movement'
+      ? 'ขั้นที่ 2 · ทำท่าตอนนี้และค้างไว้'
+      : capturePhase === 'neutral'
+        ? 'ขั้นที่ 3 · กลับมามองตรง'
+        : 'คำสั่ง Active Challenge จาก Server';
   const captureStatus = capturePhase === 'prepare'
     ? 'มองตรงที่กล้องก่อน · ยังไม่ต้องทำท่า'
     : capturePhase === 'baseline'
       ? 'มองตรงค้างไว้ · กำลังเก็บภาพตั้งต้น'
       : capturePhase === 'movement'
-        ? `เริ่มทำท่าตามคำสั่งและค้างไว้ · กำลังเก็บภาพ ${captureProgress}/${challenge?.frameCount || 4}`
+        ? 'ทำท่าตามคำสั่งตอนนี้และค้างไว้จนระบบบอกให้กลับมามองตรง · กำลังเก็บภาพ ' + captureProgress + '/' + (challenge?.frameCount || 4)
         : capturePhase === 'neutral'
-          ? 'กลับมามองตรงที่กล้องและค้างไว้ · กำลังเตรียมภาพยืนยันสุดท้าย'
+          ? 'กลับมามองตรงที่กล้องและค้างไว้ · กำลังเก็บภาพยืนยันสุดท้าย'
           : 'กำลังเตรียม Active Challenge';
 
   return createPortal(<div className="attendance-face-backdrop" role="presentation">
@@ -335,7 +358,7 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
 
       <div className="attendance-face-challenge" role="status">
         <span className="attendance-face-challenge__icon"><SmsIcon name="shield" size={20} /></span>
-        <div><small>ทำตามคำสั่งบนหน้าจอ</small><strong>{activeCopy?.title || 'กำลังรอคำสั่งจาก Server'}</strong><p>{activeCopy?.detail || 'กรุณาเริ่มการลงเวลาใหม่หากคำสั่งไม่พร้อม'}</p></div>
+        <div><small>{challengeStepLabel}</small><strong>{displayedChallengeCopy?.title || 'กำลังรอคำสั่งจาก Server'}</strong><p>{displayedChallengeCopy?.detail || 'กรุณาเริ่มการลงเวลาใหม่หากคำสั่งไม่พร้อม'}</p></div>
       </div>
 
       <div className="attendance-face-camera">
