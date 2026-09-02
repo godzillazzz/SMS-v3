@@ -13,6 +13,7 @@ function buildLicenseScheduleReconciliation({ licenses, assignments, shiftTypes 
 
   const updates = [];
   const summary = { blocked: 0, restored: 0, validated: 0, preservedOverrides: 0, skippedLeave: 0, skippedInactiveRestore: 0 };
+  const reconciliationTimestamp = new Date();
   for (const assignment of assignments) {
     const code = String(assignment.shiftType?.code || '').toUpperCase();
     if (code === 'AL') { summary.skippedLeave += 1; continue; }
@@ -28,7 +29,7 @@ function buildLicenseScheduleReconciliation({ licenses, assignments, shiftTypes 
       } else {
         updates.push({
           id: assignment.id, workDate: assignment.workDate, kind: 'blocked',
-          data: { shiftTypeId: off.id, startTime: off.startTime, endTime: off.endTime, hours: off.hours, remark: 'License Block', licenseStatus: state.status, licenseExpiryDate: state.expiryDate, licenseOverride: false, licenseBlockedFromShiftTypeId: assignment.shiftTypeId, licenseBlockedFromRemark: assignment.remark || null, licenseBlockedAt: new Date(), overrideReason: null, overrideAt: null }
+          data: { shiftTypeId: off.id, startTime: off.startTime, endTime: off.endTime, hours: off.hours, remark: 'License Block', licenseStatus: state.status, licenseExpiryDate: state.expiryDate, licenseOverride: false, licenseBlockedFromShiftTypeId: assignment.shiftTypeId, licenseBlockedFromRemark: assignment.remark || null, licenseBlockedAt: reconciliationTimestamp, overrideReason: null, overrideAt: null }
         });
         summary.blocked += 1;
       }
@@ -61,6 +62,23 @@ async function touchApproval(tx, month, actorUserId) {
   return tx.scheduleApproval.create({ data: { month, status: 'PENDING', revision: latestApproved?.revision || 1, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType: 'LICENSE_RECONCILIATION' } });
 }
 
+function groupReconciliationUpdates(updates) {
+  const groups = new Map();
+  for (const update of updates) {
+    const key = JSON.stringify(update.data);
+    const existing = groups.get(key);
+    if (existing) existing.ids.push(update.id);
+    else groups.set(key, { ids: [update.id], data: update.data });
+  }
+  return [...groups.values()];
+}
+
+async function applyReconciliationUpdates(tx, updates) {
+  for (const group of groupReconciliationUpdates(updates)) {
+    const result = await tx.shiftAssignment.updateMany({ where: { id: { in: group.ids } }, data: group.data });
+    if (Number(result?.count) !== group.ids.length) throw new Error('License reconciliation update count mismatch.');
+  }
+}
 async function reconcileEmployeeLicenseSchedules(tx, employeeId, actorUserId) {
   const [licenses, assignments, shiftTypes] = await Promise.all([
     tx.employeeLicense.findMany({ where: { employeeId }, select: { status: true, issueDate: true, expiryDate: true } }),
@@ -69,7 +87,7 @@ async function reconcileEmployeeLicenseSchedules(tx, employeeId, actorUserId) {
   ]);
   const plan = buildLicenseScheduleReconciliation({ licenses, assignments, shiftTypes });
   if (!plan.updates.length) return plan.summary;
-  for (const update of plan.updates) await tx.shiftAssignment.update({ where: { id: update.id }, data: update.data });
+  await applyReconciliationUpdates(tx, plan.updates);
   const months = [...new Set(plan.updates.map((update) => `${new Date(update.workDate).getUTCFullYear()}-${new Date(update.workDate).getUTCMonth()}`))];
   for (const key of months) {
     const [year, month] = key.split('-').map(Number);
@@ -92,4 +110,4 @@ async function reconcileAllEmployeeLicenseSchedules(prisma) {
   }, { timeout: 30000 });
 }
 
-module.exports = { buildLicenseScheduleReconciliation, reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules };
+module.exports = { buildLicenseScheduleReconciliation, groupReconciliationUpdates, applyReconciliationUpdates, reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules };
