@@ -13,7 +13,7 @@ const TARGET_DEPARTMENT = 'WCS';
 const TARGET_POSITION = 'Security Guard';
 const TARGET_SITE_CODE = 'WCS';
 const SEPTEMBER = new Date('2026-09-01T00:00:00.000Z');
-const IDEMPOTENCY_KEY = 'g06-uat-01-wcs-security-guard-20260902-v1';
+const IDEMPOTENCY_KEY = '60060001-2026-4000-8000-000000000001';
 const REASON = 'Owner-approved G06-UAT-01 Temporary UAT setup: Department WCS and Position Security Guard.';
 const EXPECTED_WARNING_CODES = new Set(['FUTURE_SHIFT_ASSIGNMENTS']);
 
