@@ -2,7 +2,7 @@ process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { licenseStateForWorkDate } = require('../src/services/license-state.service');
-const { buildLicenseScheduleReconciliation, applyReconciliationUpdates } = require('../src/services/license-schedule-reconciliation.service');
+const { buildLicenseScheduleReconciliation, applyReconciliationUpdates, touchApproval } = require('../src/services/license-schedule-reconciliation.service');
 
 const shifts = [
   { id: 'd', code: 'D', startTime: '08:00', endTime: '20:00', hours: 12 },
@@ -65,4 +65,38 @@ test('batched reconciliation fails closed when the database updates fewer assign
     ]),
     /License reconciliation update count mismatch/
   );
+});
+test('license reconciliation creates the next pending schedule revision after an approved month', async () => {
+  const month = new Date('2026-09-01T00:00:00Z');
+  const calls = [];
+  const tx = {
+    scheduleApproval: {
+      findFirst: async ({ where }) => where.status === 'APPROVED' ? { revision: 4 } : null,
+      create: async ({ data }) => { calls.push({ type: 'create', data }); return { id: 'pending-5', ...data }; },
+      update: async ({ where, data }) => { calls.push({ type: 'update', where, data }); return { id: where.id, ...data }; }
+    }
+  };
+  const result = await touchApproval(tx, month, 'admin-1');
+  assert.equal(result.status, 'PENDING');
+  assert.equal(result.revision, 5);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].type, 'create');
+  assert.equal(calls[0].data.changeType, 'LICENSE_RECONCILIATION');
+});
+
+test('license reconciliation reuses an existing pending schedule approval instead of creating a duplicate revision', async () => {
+  const month = new Date('2026-09-01T00:00:00Z');
+  const calls = [];
+  let lookup = 0;
+  const tx = {
+    scheduleApproval: {
+      findFirst: async () => (++lookup === 1 ? { revision: 4 } : { id: 'pending-5' }),
+      create: async ({ data }) => { calls.push({ type: 'create', data }); return data; },
+      update: async ({ where, data }) => { calls.push({ type: 'update', where, data }); return { id: where.id, status: 'PENDING', revision: 5, ...data }; }
+    }
+  };
+  const result = await touchApproval(tx, month, 'admin-1');
+  assert.equal(result.id, 'pending-5');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].type, 'update');
 });

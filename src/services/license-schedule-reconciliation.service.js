@@ -59,7 +59,7 @@ async function touchApproval(tx, month, actorUserId) {
   const latestApproved = await tx.scheduleApproval.findFirst({ where: { month, status: 'APPROVED' }, orderBy: { revision: 'desc' }, select: { revision: true } });
   const pending = await tx.scheduleApproval.findFirst({ where: { month, status: 'PENDING' }, orderBy: { updatedAt: 'desc' }, select: { id: true } });
   if (pending) return tx.scheduleApproval.update({ where: { id: pending.id }, data: { changedByLegacyRef: actorUserId, changedAt: new Date(), changeType: 'LICENSE_RECONCILIATION' } });
-  return tx.scheduleApproval.create({ data: { month, status: 'PENDING', revision: latestApproved?.revision || 1, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType: 'LICENSE_RECONCILIATION' } });
+  return tx.scheduleApproval.create({ data: { month, status: 'PENDING', revision: (latestApproved?.revision || 0) + 1, changedByLegacyRef: actorUserId, changedAt: new Date(), changeType: 'LICENSE_RECONCILIATION' } });
 }
 
 function groupReconciliationUpdates(updates) {
@@ -110,4 +110,4 @@ async function reconcileAllEmployeeLicenseSchedules(prisma) {
   }, { timeout: 30000 });
 }
 
-module.exports = { buildLicenseScheduleReconciliation, groupReconciliationUpdates, applyReconciliationUpdates, reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules };
+module.exports = { buildLicenseScheduleReconciliation, groupReconciliationUpdates, applyReconciliationUpdates, touchApproval, reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules };

@@ -309,7 +309,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
         return approved;
       }, APPROVAL_TRANSACTION_OPTIONS);
     } catch (error) {
-      if (error?.code === 'P2034' || error?.code === 'P2002') throw new HttpError(409, 'This license document was already reviewed.');
+      if (error?.code === 'P2034' || error?.code === 'P2002') throw new HttpError(409, 'License approval state changed. Refresh and try again.', { code: 'LICENSE_APPROVAL_STATE_CONFLICT' });
       throw error;
     }
   }
