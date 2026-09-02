@@ -362,3 +362,16 @@ test('table document summary marks retention-deleted selected files unavailable'
   const result = tableDocumentSummary([{ id: 'approved', licenseId: ids.license, status: 'APPROVED', isCurrent: true, version: 1, uploadedAt: new Date(), storageDeletedAt: new Date(), storageDeleteAfter: null }]);
   assert.equal(result.state, 'CURRENT'); assert.equal(result.selectedDocumentId, 'approved'); assert.equal(result.selectedFileAvailable, false); assert.equal(result.selectedFileDeleted, true);
 });
+
+test('approval maps database concurrency and uniqueness races to a truthful retryable conflict', async () => {
+  for (const databaseCode of ['P2002', 'P2034']) {
+    const prisma = { $transaction: async () => { const error = new Error('database conflict'); error.code = databaseCode; throw error; } };
+    const storage = createFakeLicenseDocumentStorage();
+    const audit = { log: async () => undefined };
+    const service = createLicenseDocumentService({ prisma, storage, audit, reconcileSchedules: async () => undefined });
+    await assert.rejects(
+      () => service.approve({ id: ids.document, requestUser: { sub: ids.admin, role: 'ADMIN' } }),
+      (error) => error.statusCode === 409 && error.message === 'License approval state changed. Refresh and try again.' && error.details?.code === 'LICENSE_APPROVAL_STATE_CONFLICT'
+    );
+  }
+});
