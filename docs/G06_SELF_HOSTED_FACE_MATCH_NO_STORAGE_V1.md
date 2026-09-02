@@ -7,8 +7,8 @@ Status: additive design/implementation checkpoint. Production runtime remains di
 - Do not depend on paid AWS Face/Liveness for the current Attendance V1 direction.
 - Current target is trusted server-side **1:1 face match** against the employee's active Reference Photo, preceded by a Server-issued **Simple Active Face Challenge** anti-spoof risk gate.
 - Do **not** claim PAD/Liveness when only face matching is performed.
-- The live Attendance photo is transient for now: process in memory, verify, then discard.
-- A future private-server photo archive must be pluggable without redesigning Attendance.
+- The routine live Attendance photo is transient: process in memory, verify, then discard.
+- Routine Attendance/Patrol live-event images must not be retained. Any future persistence proposal requires separate Owner authorization.
 
 ## Verification modes
 
@@ -23,19 +23,13 @@ Status: additive design/implementation checkpoint. Production runtime remains di
 
 ## Current no-storage path
 
-`Server challenge -> front-camera transient frame sequence -> final live still -> SMS backend memory -> trusted self-hosted verifier -> ACTIVE_CHALLENGE_PASS + MATCH -> zero buffers`
+Server challenge -> front-camera transient frame sequence -> final live still -> SMS backend memory -> trusted self-hosted verifier -> ACTIVE_CHALLENGE_PASS + MATCH -> zero buffers
 
-Default `AttendanceFaceEvidenceStorage` implementation is `NoopAttendanceFaceEvidenceStorage`.
-It returns `NOT_STORED`, has no object reference, and writes no file to Supabase, Vercel disk, localStorage or sessionStorage.
+Routine verification does not instantiate or call AttendanceFaceEvidenceStorage. A trusted ACTIVE_CHALLENGE_PASS + MATCH may mint the short-lived opaque verification receipt while the live photo and challenge frames remain transient.
 
-## Future private storage hook
+The existing AttendanceEvidence schema/storage adapter and Admin view/purge surface are retained only for compatibility and controlled cleanup of any historical records. They are not a write path for new routine Attendance verification.
 
-The verification orchestrator already depends on an `AttendanceFaceEvidenceStorage` adapter with:
-
-- `store(input)`
-- `remove(input)`
-
-When the private server is ready, add a new adapter implementation. The current orchestration invokes evidence storage only after the trusted 1:1 match has produced an actionable receipt; failed/non-matching attempts remain `NOT_STORED`. Attendance/QR/GPS/session authority does not need to change. A later additive schema can persist opaque `objectRef`, provider, checksum, retention and purge metadata without storing a public URL.
+Any future proposal to retain routine Attendance/Patrol live images is a separate Owner decision and must not be enabled through configuration alone.
 
 ## Simple Active Face Challenge (not certified Liveness/PAD)
 
@@ -47,7 +41,7 @@ When the private server is ready, add a new adapter implementation. The current 
 - The trusted verifier must return both boolean `activeChallengePassed` and boolean `match`. Missing either value fails closed.
 - `ACTIVE_CHALLENGE_FAILED` and `FACE_MATCH_FAILED` remain distinct. Only challenge=true AND match=true may mint an opaque receipt.
 - `padPassed` remains `NULL` for `FACE_MATCH_ONLY`; this control is a lightweight anti-spoof/risk gate and must never be represented as certified Liveness/PAD.
-- Challenge frames, final live photo, and the process copy of the Reference Photo are released/overwritten after verification; failed attempts are never sent to the future evidence-storage hook.
+- Challenge frames, final live photo, and the process copy of the Reference Photo are released/overwritten after verification; routine attempts do not invoke AttendanceEvidence storage.
 
 ## Self-hosted verifier contract
 

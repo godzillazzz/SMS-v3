@@ -35,6 +35,9 @@ Organizational legal/compliance review may impose stricter requirements than rep
 - Similarity threshold is server-side only and bounded by configuration validation.
 - Similarity values, embeddings and pose values are not returned to the browser and are not persisted in PostgreSQL.
 - Routine Attendance live/challenge images are not stored by this gate.
+- Routine verification does not instantiate or call AttendanceFaceEvidenceStorage; a successful 1:1 match may mint the short-lived opaque receipt without persisting the live photo.
+- Existing AttendanceEvidence schema/administrative view-purge support remains only for compatibility and controlled cleanup of any historical records. It is not a write path for new routine Attendance verification.
+- Any future proposal to persist routine Attendance/Patrol live images requires separate Owner authorization and must not be inferred from the dormant storage abstraction.
 - Reference Photo checksum and active authority are revalidated before inference.
 - Live photo, challenge frames and fetched Reference Photo buffers are zeroed after the attempt.
 - Existing device proof, Site/GPS/QR, Schedule, anti-replay, receipt and AttendanceEvent authority remain unchanged.
