@@ -2,7 +2,7 @@ process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { licenseStateForWorkDate } = require('../src/services/license-state.service');
-const { buildLicenseScheduleReconciliation } = require('../src/services/license-schedule-reconciliation.service');
+const { buildLicenseScheduleReconciliation, applyReconciliationUpdates } = require('../src/services/license-schedule-reconciliation.service');
 
 const shifts = [
   { id: 'd', code: 'D', startTime: '08:00', endTime: '20:00', hours: 12 },
@@ -40,4 +40,29 @@ test('reconciliation blocks invalid work days, preserves Admin overrides, and re
   assert.equal(blocked.data.licenseBlockedFromShiftTypeId, 'd');
   assert.equal(plan.updates.find((update) => update.id === 'restore-renewed').data.shiftTypeId, 'n');
   assert.equal(plan.updates.some((update) => update.id === 'admin-override'), false);
+});
+
+test('reconciliation batches identical assignment writes instead of issuing one database update per day', async () => {
+  const calls = [];
+  const tx = { shiftAssignment: { updateMany: async (input) => { calls.push(input); return { count: input.where.id.in.length }; } } };
+  const expiry = new Date('2027-07-25T00:00:00Z');
+  await applyReconciliationUpdates(tx, [
+    { id: 'day-1', data: { licenseStatus: 'VALID', licenseExpiryDate: expiry, licenseBlockedAt: null } },
+    { id: 'day-2', data: { licenseStatus: 'VALID', licenseExpiryDate: new Date(expiry), licenseBlockedAt: null } },
+    { id: 'day-3', data: { licenseStatus: 'EXPIRED', licenseExpiryDate: null, licenseBlockedAt: null } }
+  ]);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0].where.id.in, ['day-1', 'day-2']);
+  assert.deepEqual(calls[1].where.id.in, ['day-3']);
+});
+
+test('batched reconciliation fails closed when the database updates fewer assignments than planned', async () => {
+  const tx = { shiftAssignment: { updateMany: async () => ({ count: 1 }) } };
+  await assert.rejects(
+    () => applyReconciliationUpdates(tx, [
+      { id: 'day-1', data: { licenseStatus: 'VALID' } },
+      { id: 'day-2', data: { licenseStatus: 'VALID' } }
+    ]),
+    /License reconciliation update count mismatch/
+  );
 });
