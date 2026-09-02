@@ -25,5 +25,7 @@ jobs:
         run: npm ci --include=dev
       - name: Generate Prisma client
         run: npx prisma generate
-      - name: LIC-HIST-01 read-only impact preview
+      - name: LIC-HIST-01 read-only post-repair check
         run: node scripts/ci/lic-hist-impact-preview-readonly.js
+      - name: G06-UAT-01 read-only readiness check
+        run: node scripts/ci/g06-uat-readiness-readonly.js
