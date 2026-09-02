@@ -36,7 +36,7 @@ const isoDate = (v) => v ? new Date(v).toISOString().slice(0, 10) : null;
       },
       referencePhotos: {
         where: { status: 'ACTIVE' },
-        select: { id: true, status: true, activatedAt: true },
+        select: { id: true, status: true, mimeType: true, fileSize: true, imageWidth: true, imageHeight: true, uploadedAt: true, reviewedAt: true, activatedAt: true },
         orderBy: { activatedAt: 'desc' }
       },
       attendanceDevices: {
@@ -73,6 +73,27 @@ const isoDate = (v) => v ? new Date(v).toISOString().slice(0, 10) : null;
     include: {
       shiftType: { select: { id: true, code: true, name: true, isActive: true } },
       securitySite: { select: { id: true, code: true, name: true, isActive: true } }
+    }
+  });
+
+  const faceVerificationSessions = await prisma.faceVerificationSession.findMany({
+    where: { employeeId: employee.id },
+    orderBy: { createdAt: 'desc' },
+    take: 5,
+    select: {
+      id: true,
+      purpose: true,
+      verificationMode: true,
+      status: true,
+      provider: true,
+      providerResultCode: true,
+      faceMatchPassed: true,
+      deviceProofVerifiedAt: true,
+      failedAt: true,
+      failureCode: true,
+      createdAt: true,
+      updatedAt: true,
+      referencePhotoId: true
     }
   });
 
@@ -117,8 +138,23 @@ const isoDate = (v) => v ? new Date(v).toISOString().slice(0, 10) : null;
     },
     referencePhoto: {
       activeCount: employee.referencePhotos.length,
-      active: employee.referencePhotos.map((row) => ({ id: row.id, activatedAt: iso(row.activatedAt) }))
+      active: employee.referencePhotos.map((row) => ({ id: row.id, mimeType: row.mimeType, fileSize: row.fileSize, imageWidth: row.imageWidth, imageHeight: row.imageHeight, uploadedAt: iso(row.uploadedAt), reviewedAt: iso(row.reviewedAt), activatedAt: iso(row.activatedAt) }))
     },
+    faceVerificationSessions: faceVerificationSessions.map((row) => ({
+      id: row.id,
+      purpose: row.purpose,
+      verificationMode: row.verificationMode,
+      status: row.status,
+      provider: row.provider,
+      providerResultCode: row.providerResultCode,
+      faceMatchPassed: row.faceMatchPassed,
+      failureCode: row.failureCode,
+      referencePhotoId: row.referencePhotoId,
+      deviceProofVerifiedAt: iso(row.deviceProofVerifiedAt),
+      failedAt: iso(row.failedAt),
+      createdAt: iso(row.createdAt),
+      updatedAt: iso(row.updatedAt)
+    })),
     attendanceDevice: {
       activeCount: employee.attendanceDevices.length,
       proofVerifiedCount: employee.attendanceDevices.filter((row) => Boolean(row.proofVerifiedAt)).length,
