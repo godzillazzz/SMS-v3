@@ -31,5 +31,3 @@ jobs:
         run: node scripts/ci/g06-uat-readiness-readonly.js
       - name: G06-UAT-01 read-only Master candidate check
         run: node scripts/ci/g06-uat-master-candidates-readonly.js
-      - name: G06-UAT-01 Owner-approved WCS + Security Guard governed Production setup
-        run: node scripts/ci/g06-uat-wcs-security-guard-production.js
