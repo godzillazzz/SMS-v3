@@ -1,0 +1,36 @@
+name: One-Time LIC-HIST-01 Targeted Repair 413
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type REPAIR_413_EXACT to run the Owner-approved bounded Production repair
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  targeted-repair:
+    if: ${{ inputs.confirmation == 'REPAIR_413_EXACT' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production-sms-v3-staging
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DATABASE_URL }}
+      LIC_HIST_REPAIR_CONFIRM: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --include=dev
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Execute bounded LIC-HIST-01 repair
+        run: node scripts/ci/lic-hist-targeted-repair-413.js
