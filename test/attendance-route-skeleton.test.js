@@ -37,8 +37,11 @@ const context = {
   shiftAssignmentId,
   evidence: {
     siteId,
+    expectedSiteId: siteId,
+    actualSiteId: siteId,
     qrMode: 'STEP_UP_QR',
     qrCredentialId,
+    riskFlags: [],
     location: {
       latitude: '13.7563000',
       longitude: '100.5018000',
@@ -337,11 +340,37 @@ test('event acceptance accepts only opaque receipt + server-issued Attendance co
   assert.equal(response.body.data.event.id, 'event-1');
   assert.equal(spy.calls[0][0], 'event');
 
+  const assistContext = {
+    ...context,
+    evidence: {
+      ...context.evidence,
+      actualSiteId: '77777777-7777-4777-8777-777777777777',
+      riskFlags: ['ASSIST_OTHER_SITE']
+    }
+  };
+  const assist = await request(app).post('/api/v1/attendance/events')
+    .set('Authorization', 'Bearer route-test')
+    .send({ receipt: 'r'.repeat(43), attendanceContext: assistContext });
+  assert.equal(assist.status, 200);
+  assert.deepEqual(spy.calls[1][1].attendanceContext, assistContext);
+
+  for (const invalidAttendanceContext of [
+    { ...context, evidence: { ...context.evidence, unexpectedAuthority: true } },
+    { ...context, evidence: { ...context.evidence, expectedSiteId: '77777777-7777-4777-8777-777777777777' } },
+    { ...context, evidence: { ...context.evidence, riskFlags: ['ASSIST_OTHER_SITE'] } },
+    { ...context, evidence: { ...context.evidence, riskFlags: ['LOCATION_RISK'] } }
+  ]) {
+    const rejected = await request(app).post('/api/v1/attendance/events')
+      .set('Authorization', 'Bearer route-test')
+      .send({ receipt: 'r'.repeat(43), attendanceContext: invalidAttendanceContext });
+    assert.equal(rejected.status, 400);
+  }
+
   const injected = await request(app).post('/api/v1/attendance/events')
     .set('Authorization', 'Bearer route-test')
     .send({ receipt: 'r'.repeat(43), attendanceContext: context, faceMatchPassed: true });
   assert.equal(injected.status, 400);
-  assert.equal(spy.calls.length, 1);
+  assert.equal(spy.calls.length, 2);
 });
 
 test('runtime gates require explicit environment flags and trusted face configuration', () => {
