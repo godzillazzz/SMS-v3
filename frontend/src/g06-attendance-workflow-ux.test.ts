@@ -104,6 +104,11 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).toContain('function publicCode(payload: Record<string, any>)');
     expect(page).toContain('let eventAcceptanceAttempted = false');
     expect(page).toContain('let eventCommitCandidate: PendingAttendanceCommit | null = null');
+    expect(page).toContain("return readiness?.state === 'ATTENDANCE_UNAVAILABLE' || readiness?.state === 'BIOMETRIC_TEMPORARILY_UNAVAILABLE'");
+    expect(page).toContain('if (!canRetryVerifiedAttendanceCommit(accepted.readiness)) {');
+    expect(page).toContain("const blockedCopy = accepted.readiness ? fallbackCopy(accepted.readiness) : null");
+    expect(page).toContain('eventAcceptanceAttempted && eventCommitCandidate && canRetryVerifiedAttendanceTransportFailure(reason)');
+    expect(page).toContain('return reason.status >= 500 || reason.status === 408 || reason.status === 429');
     expect(page).toContain('const recoverAcceptedEventFromServer = async () => {');
     expect(page).toContain('const latest = await attendanceSelfToday(token)');
     expect(page).toContain('setPendingAttendanceCommit(eventCommitCandidate)');
