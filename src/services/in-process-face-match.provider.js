@@ -23,6 +23,21 @@ const DEFAULT_CHALLENGE_MOVEMENT_RADIANS = 0.17;
 const DEFAULT_NEUTRAL_MAX_RADIANS = 0.30;
 const REQUIRED_MOVEMENT_FRAMES = 2;
 
+const MATCH_DIAGNOSTIC_BANDS = Object.freeze({
+  PASS: 'PASS',
+  NEAR_THRESHOLD: 'NEAR_THRESHOLD',
+  BELOW_THRESHOLD: 'BELOW_THRESHOLD',
+  FAR_BELOW_THRESHOLD: 'FAR_BELOW_THRESHOLD'
+});
+
+function faceMatchDiagnosticBand(similarity, threshold) {
+  if (!Number.isFinite(similarity) || !Number.isFinite(threshold)) return null;
+  if (similarity >= threshold) return MATCH_DIAGNOSTIC_BANDS.PASS;
+  if (similarity >= Math.max(0, threshold - 0.05)) return MATCH_DIAGNOSTIC_BANDS.NEAR_THRESHOLD;
+  if (similarity >= Math.max(0, threshold - 0.15)) return MATCH_DIAGNOSTIC_BANDS.BELOW_THRESHOLD;
+  return MATCH_DIAGNOSTIC_BANDS.FAR_BELOW_THRESHOLD;
+}
+
 let runtimePromise = null;
 let inferenceTail = Promise.resolve();
 let localModelFetchInstalled = false;
@@ -359,10 +374,12 @@ function createInProcessFaceMatchProvider({ environment = process.env, runtime =
 
       const similarity = engine.similarity(liveObservation.embedding, referenceObservation.embedding);
       const matched = similarity >= config.similarityThreshold;
+      const diagnosticMatchBand = faceMatchDiagnosticBand(similarity, config.similarityThreshold);
       return Object.freeze({
         activeChallengePassed: true,
         faceMatchPassed: matched,
         resultCode: matched ? 'MATCH' : 'FACE_MATCH_FAILED',
+        diagnosticMatchBand,
         policyProfileId: POLICY_PROFILE_ID,
         engineVersion: ENGINE_VERSION,
         providerSessionRef: sessionRef
@@ -382,6 +399,8 @@ module.exports = {
   DEFAULT_SIMILARITY_THRESHOLD,
   DEFAULT_CHALLENGE_MOVEMENT_RADIANS,
   DEFAULT_NEUTRAL_MAX_RADIANS,
+  MATCH_DIAGNOSTIC_BANDS,
+  faceMatchDiagnosticBand,
   inProcessFaceConfig,
   validateActiveChallenge,
   evaluateActiveChallenge,

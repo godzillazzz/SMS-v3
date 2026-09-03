@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createInProcessFaceVerificationService } = require('../src/services/face-verification-in-process.service');
+const { createInProcessFaceVerificationService, safeMatchDiagnosticBand } = require('../src/services/face-verification-in-process.service');
 const { deriveActiveFaceChallenge } = require('../src/services/active-face-challenge.service');
 
 const sessionId = '33333333-3333-4333-8333-333333333333';
@@ -87,6 +87,12 @@ async function verify(c) {
     challengeFrameFiles: c.challengeFrameFiles
   });
 }
+
+test('safe match diagnostics are categorical and fail closed for unknown provider values', () => {
+  assert.equal(safeMatchDiagnosticBand({ resultCode: 'FACE_MATCH_FAILED', diagnosticMatchBand: 'NEAR_THRESHOLD' }), 'NEAR_THRESHOLD');
+  assert.equal(safeMatchDiagnosticBand({ resultCode: 'FACE_MATCH_FAILED', diagnosticMatchBand: 'UNTRUSTED_VALUE' }), 'NOT_AVAILABLE');
+  assert.equal(safeMatchDiagnosticBand({ resultCode: 'ACTIVE_CHALLENGE_INSUFFICIENT_MOVEMENT' }), 'NOT_EVALUATED');
+});
 
 test('in-process orchestration issues a receipt without retaining routine Attendance face evidence', async () => {
   const c = context();
