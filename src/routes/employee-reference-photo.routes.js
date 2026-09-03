@@ -8,9 +8,19 @@ const HttpError = require('../utils/http-error');
 const { createSupabaseEmployeeReferencePhotoStorage } = require('../services/employee-reference-photo-storage.service');
 const { createEmployeeReferencePhotoService } = require('../services/employee-reference-photo.service');
 const { ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
+const { createInProcessFaceMatchProvider } = require('../services/in-process-face-match.provider');
 
 const router = express.Router();
-const service = createEmployeeReferencePhotoService({ storage: createSupabaseEmployeeReferencePhotoStorage() });
+let referencePhotoFaceProvider = null;
+async function validateReferencePhotoFaceQuality({ referencePhotoBytes }) {
+  if (process.env.FACE_VERIFICATION_IN_PROCESS_ENABLED !== 'true') return { accepted: true, resultCode: 'FACE_REFERENCE_VALIDATION_SKIPPED' };
+  if (!referencePhotoFaceProvider) referencePhotoFaceProvider = createInProcessFaceMatchProvider({ environment: process.env });
+  return referencePhotoFaceProvider.assessReferencePhoto({ referencePhotoBytes });
+}
+const service = createEmployeeReferencePhotoService({
+  storage: createSupabaseEmployeeReferencePhotoStorage(),
+  referencePhotoQualityValidator: validateReferencePhotoFaceQuality
+});
 const uuid = z.string().uuid();
 const rejectSchema = z.object({ reason: z.string().trim().min(3).max(1000) }).strict();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: ATTACHMENT_PROFILES.EMPLOYEE_REFERENCE_PHOTO.maxInputBytes, files: 1, fields: 4 } }).single('photo');

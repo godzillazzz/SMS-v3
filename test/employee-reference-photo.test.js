@@ -87,6 +87,17 @@ test('service implements post-commit deletion, fail-closed viewing, retry founda
   assert.doesNotMatch(service, /employeeCode/);
 });
 
+test('Reference Photo upload runs server face-quality validation before private storage when in-process verifier is enabled', () => {
+  const service = read('src/services/employee-reference-photo.service.js');
+  const route = read('src/routes/employee-reference-photo.routes.js');
+  assert.match(service, /referencePhotoQualityValidator/);
+  assert.ok(service.includes('assertReferencePhotoFaceQuality(file)'));
+  assert.ok(service.indexOf('await assertReferencePhotoFaceQuality(file)') < service.indexOf('await storage.put(objectKey, file)'));
+  assert.match(service, /REFERENCE_PHOTO_FACE_INVALID/);
+  assert.match(service, /REFERENCE_PHOTO_FACE_NOT_NEUTRAL/);
+  assert.match(route, /FACE_VERIFICATION_IN_PROCESS_ENABLED !== 'true'/);
+  assert.match(route, /assessReferencePhoto/);
+});
 test('Employee Master UI owns Reference Photo governance and preserves V1 event-photo policy', () => {
   const editor = read('frontend/src/components/personnel/EmployeeGovernedEditModal.tsx'); const panel = read('frontend/src/components/personnel/EmployeeReferencePhotoPanel.tsx');
   assert.match(editor, /EmployeeReferencePhotoPanel/);

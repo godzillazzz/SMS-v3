@@ -19,7 +19,7 @@ function safePhoto(row) {
 function storageErrorCode(error) { return String(error?.details?.code || error?.code || 'REFERENCE_PHOTO_STORAGE_DELETE_FAILED').slice(0, 80); }
 function mapConflict(error) { if (error?.code === 'P2002' || error?.code === 'P2034') return http(409, 'REFERENCE_PHOTO_STATE_CONFLICT', 'Reference photo state changed. Please refresh and try again.'); return error; }
 
-function createEmployeeReferencePhotoService({ prisma = prismaDefault, storage, audit = auditDefault, clock = () => new Date(), randomUUID = crypto.randomUUID } = {}) {
+function createEmployeeReferencePhotoService({ prisma = prismaDefault, storage, audit = auditDefault, clock = () => new Date(), randomUUID = crypto.randomUUID, referencePhotoQualityValidator = null } = {}) {
   if (!storage) throw new Error('Employee reference photo storage adapter is required.');
 
   async function assertOperationalEmployee(client, employeeId) {
@@ -29,6 +29,15 @@ function createEmployeeReferencePhotoService({ prisma = prismaDefault, storage, 
     return employee;
   }
 
+  async function assertReferencePhotoFaceQuality(file) {
+    if (typeof referencePhotoQualityValidator !== 'function') return;
+    const result = await referencePhotoQualityValidator({ referencePhotoBytes: file.buffer });
+    if (result?.accepted === true) return;
+    if (result?.resultCode === 'FACE_REFERENCE_NOT_NEUTRAL') {
+      throw http(400, 'REFERENCE_PHOTO_FACE_NOT_NEUTRAL', 'กรุณาใช้รูปหน้าตรง มองกล้อง และไม่หัน เงย หรือก้มมากเกินไป');
+    }
+    throw http(400, 'REFERENCE_PHOTO_FACE_INVALID', 'รูปอ้างอิงต้องมีใบหน้าคนเดียว เห็นใบหน้าชัดเจน ขนาดเหมาะสม และมีแสงเพียงพอ');
+  }
   async function cleanupObject(photo) {
     if (!photo?.storageDeletionRequestedAt || photo.storageDeletedAt) return { deleted: Boolean(photo?.storageDeletedAt), pending: false };
     try {
@@ -55,6 +64,7 @@ function createEmployeeReferencePhotoService({ prisma = prismaDefault, storage, 
     assertReviewer(actor);
     file = (await optimizeAttachment(file, 'EMPLOYEE_REFERENCE_PHOTO')).file;
     const fileInfo = validateReferencePhoto(file);
+    await assertReferencePhotoFaceQuality(file);
     await assertOperationalEmployee(prisma, employeeId);
     const preexistingPending = await prisma.employeeReferencePhoto.findFirst({ where: { employeeId, status: 'PENDING_APPROVAL' }, select: { id: true } });
     if (preexistingPending) throw http(409, 'REFERENCE_PHOTO_PENDING_EXISTS', 'This Employee already has a pending Reference Photo.');
