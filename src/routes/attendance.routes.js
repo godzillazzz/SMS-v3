@@ -26,11 +26,29 @@ const locationInput = z.object({
 const attendanceEvidenceInput = z.object({ qrToken: z.string().trim().min(24).max(512).optional(), location: locationInput }).strict();
 const prepareInput = z.object({ captureId: uuid, attendanceEvidence: attendanceEvidenceInput }).strict();
 const contextLocationInput = z.object({ latitude: decimal, longitude: decimal, accuracyMeters: decimal, capturedAt: z.string().datetime({ offset: true }) }).strict();
+const attendanceContextEvidenceInput = z.object({
+  siteId: uuid,
+  expectedSiteId: uuid,
+  actualSiteId: uuid,
+  qrMode: z.enum(['GPS_ASSURED', 'STEP_UP_QR']),
+  qrCredentialId: uuid.nullable(),
+  riskFlags: z.array(z.literal('ASSIST_OTHER_SITE')).max(1),
+  location: contextLocationInput
+}).strict().superRefine((evidence, context) => {
+  if (evidence.siteId !== evidence.expectedSiteId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['expectedSiteId'], message: 'Expected Site must match the server-issued Site authority.' });
+  }
+  const assistingOtherSite = evidence.expectedSiteId !== evidence.actualSiteId;
+  const hasAssistFlag = evidence.riskFlags.length === 1 && evidence.riskFlags[0] === 'ASSIST_OTHER_SITE';
+  if (assistingOtherSite !== hasAssistFlag) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['riskFlags'], message: 'Attendance Site risk flags do not match the server-issued Site pair.' });
+  }
+});
 const attendanceContextInput = z.object({
   captureId: uuid,
   eventIntent: z.enum(['CHECK_IN', 'CHECK_OUT']),
   shiftAssignmentId: uuid,
-  evidence: z.object({ siteId: uuid, qrMode: z.enum(['GPS_ASSURED', 'STEP_UP_QR']), qrCredentialId: uuid.nullable(), location: contextLocationInput }).strict()
+  evidence: attendanceContextEvidenceInput
 }).strict();
 const acceptInput = z.object({ receipt: z.string().trim().min(32).max(512), attendanceContext: attendanceContextInput }).strict();
 const deviceProofInput = z.object({ challengeId: uuid, challenge: z.string().min(16).max(512), signatureBase64: z.string().min(16).max(4096) }).strict();
