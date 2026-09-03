@@ -286,6 +286,19 @@ function createInProcessFaceMatchProvider({ environment = process.env, runtime =
     publicConfig() {
       return Object.freeze({ provider: PROVIDER_NAME, verificationMode: VERIFICATION_MODE, storesLivePhoto: false, activeChallengeVersion: ACTIVE_FACE_CHALLENGE_VERSION });
     },
+    async assessReferencePhoto({ referencePhotoBytes }) {
+      if (!config.enabled) throw http(503, 'VERIFICATION_PROVIDER_UNAVAILABLE', 'In-process face verifier is not enabled.');
+      const reference = validateImageBytes(referencePhotoBytes, MAX_REFERENCE_PHOTO_SIZE, 'FACE_REFERENCE_INVALID');
+      const engine = runtime || await defaultRuntime();
+      let observation;
+      try { observation = await engine.observe(reference, 'FACE_REFERENCE_INVALID'); }
+      catch (error) {
+        if (error?.details?.code === 'VERIFICATION_PROVIDER_UNAVAILABLE') throw error;
+        return Object.freeze({ accepted: false, resultCode: 'FACE_REFERENCE_INVALID' });
+      }
+      const neutral = Math.abs(observation.pose.yaw) <= config.neutralMaxRadians && Math.abs(observation.pose.pitch) <= config.neutralMaxRadians;
+      return Object.freeze({ accepted: neutral, resultCode: neutral ? 'FACE_REFERENCE_VALID' : 'FACE_REFERENCE_NOT_NEUTRAL' });
+    },
     async evaluate({ providerSessionRef, activeChallenge, challengeFrameBytes, livePhotoBytes, referencePhotoBytes }) {
       if (!config.enabled) throw http(503, 'VERIFICATION_PROVIDER_UNAVAILABLE', 'In-process face verifier is not enabled.');
       const sessionRef = String(providerSessionRef || '').trim();
@@ -337,7 +350,7 @@ function createInProcessFaceMatchProvider({ environment = process.env, runtime =
         return Object.freeze({
           activeChallengePassed: true,
           faceMatchPassed: false,
-          resultCode: 'FACE_MATCH_FAILED',
+          resultCode: 'FACE_REFERENCE_INVALID',
           policyProfileId: POLICY_PROFILE_ID,
           engineVersion: ENGINE_VERSION,
           providerSessionRef: sessionRef

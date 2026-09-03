@@ -97,6 +97,13 @@ test('PAD face match and injection risk all gate receipt issuance fail closed', 
   assert.match(service, /injectionRiskDetected: false/);
 });
 
+test('face-match-only result preserves Reference Photo evaluation failure instead of mislabeling it as mismatch', () => {
+  const service = read('src/services/face-verification-session.service.js');
+  assert.ok(service.includes("referenceFailureCode = ['FACE_REFERENCE_INVALID', 'FACE_REFERENCE_NOT_NEUTRAL']"));
+  assert.ok(service.includes("referenceFailureCode || 'FACE_MATCH_FAILED'"));
+  assert.match(service, /providerResultCode: safeResultCode/);
+});
+
 test('receipt consumption is atomic single-use and re-checks current authority', () => {
   const service = read('src/services/face-verification-session.service.js');
   assert.match(service, /VERIFICATION_REPLAYED/);

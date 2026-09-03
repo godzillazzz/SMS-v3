@@ -29,4 +29,10 @@ describe('Attendance readiness blocked hotfix', () => {
     expect(page).toContain("readiness?.state === 'DEVICE_REVIEW_REQUIRED'");
     expect(page).toContain('const nonRetryableReadinessBlocked = Boolean(readiness?.blocking');
   });
+  it('surfaces unusable Reference Photo as a blocked Admin replacement action instead of Face Match retry', () => {
+    expect(page).toContain("REFERENCE_PHOTO_REPLACEMENT_REQUIRED");
+    expect(page).toMatch(/REFERENCE_PHOTO_REPLACEMENT_REQUIRED:[\s\S]*?tone: 'blocked'/);
+    expect(page).toMatch(/REFERENCE_PHOTO_REPLACEMENT_REQUIRED:[\s\S]*?Reference Photo[\s\S]*?Admin/);
+    expect(page).not.toMatch(/REFERENCE_PHOTO_REPLACEMENT_REQUIRED:[\s\S]{0,500}?RETRY_FACE_VERIFICATION/);
+  });
 });

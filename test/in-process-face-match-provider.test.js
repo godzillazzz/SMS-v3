@@ -122,6 +122,51 @@ test('provider mints only a narrow server-side PASS result after challenge and 1
   assert.equal(Object.prototype.hasOwnProperty.call(result, 'embedding'), false);
 });
 
+test('Reference Photo quality assessment accepts one neutral usable face without exposing biometric data', async () => {
+  const runtime = engineWith({ poses: [pose()], similarity: 1 });
+  const provider = createInProcessFaceMatchProvider({ environment: enabled, runtime });
+  const result = await provider.assessReferencePhoto({ referencePhotoBytes: imageBytes(0x44) });
+  assert.deepEqual(result, { accepted: true, resultCode: 'FACE_REFERENCE_VALID' });
+  assert.equal(runtime.calls(), 1);
+  assert.equal(Object.prototype.hasOwnProperty.call(result, 'embedding'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(result, 'similarity'), false);
+});
+
+test('Reference Photo quality assessment rejects non-neutral pose and engine evaluation failure distinctly', async () => {
+  const nonNeutral = engineWith({ poses: [pose({ yaw: 0.35 })], similarity: 1 });
+  const nonNeutralResult = await createInProcessFaceMatchProvider({ environment: enabled, runtime: nonNeutral }).assessReferencePhoto({ referencePhotoBytes: imageBytes(0x45) });
+  assert.deepEqual(nonNeutralResult, { accepted: false, resultCode: 'FACE_REFERENCE_NOT_NEUTRAL' });
+
+  const failedRuntime = {
+    async observe() { throw new Error('synthetic reference failure'); },
+    similarity() { return 1; }
+  };
+  const invalidResult = await createInProcessFaceMatchProvider({ environment: enabled, runtime: failedRuntime }).assessReferencePhoto({ referencePhotoBytes: imageBytes(0x46) });
+  assert.deepEqual(invalidResult, { accepted: false, resultCode: 'FACE_REFERENCE_INVALID' });
+});
+
+test('provider distinguishes unusable Reference Photo from actual low-similarity mismatch', async () => {
+  let calls = 0;
+  const runtime = {
+    async observe() {
+      calls += 1;
+      if (calls === 6) throw new Error('synthetic reference decode failure');
+      const poses = [pose(), pose({ yaw: 0.25 }), pose({ yaw: 0.22 }), pose(), pose()];
+      return { pose: poses[calls - 1] || pose(), embedding: [1, 0] };
+    },
+    similarity() { return 0.9; }
+  };
+  const result = await createInProcessFaceMatchProvider({ environment: enabled, runtime }).evaluate({
+    providerSessionRef: 'opaque-server-session-ref',
+    activeChallenge: activeChallenge('TURN_LEFT'),
+    challengeFrameBytes: Array.from({ length: 4 }, () => imageBytes()),
+    livePhotoBytes: imageBytes(0x22),
+    referencePhotoBytes: imageBytes(0x33)
+  });
+  assert.equal(result.activeChallengePassed, true);
+  assert.equal(result.faceMatchPassed, false);
+  assert.equal(result.resultCode, 'FACE_REFERENCE_INVALID');
+});
 test('provider rejects a different Reference Photo without exposing similarity or embeddings', async () => {
   const runtime = engineWith({
     poses: [pose(), pose({ yaw: 0.25 }), pose({ yaw: 0.22 }), pose(), pose(), pose()],

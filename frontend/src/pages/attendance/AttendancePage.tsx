@@ -83,6 +83,11 @@ const readinessCopy: Record<string, Copy> = {
     detail: 'ต้องมี Reference Photo สถานะ ACTIVE ก่อนเข้าสู่ Face Verification',
     tone: 'warning'
   },
+  REFERENCE_PHOTO_REPLACEMENT_REQUIRED: {
+    title: 'รูปอ้างอิงไม่เหมาะสำหรับยืนยันใบหน้า',
+    detail: 'Server ไม่สามารถใช้ Reference Photo ปัจจุบันกับ Face Engine ได้อย่างน่าเชื่อถือ กรุณาติดต่อ Admin เพื่ออัปโหลดรูปหน้าตรงที่เห็นใบหน้าชัดเจน แล้วเริ่มลงเวลาใหม่',
+    tone: 'blocked'
+  },
   SCHEDULE_NOT_READY: {
     title: 'ตารางกะยังไม่พร้อม',
     detail: 'ระบบไม่พบกะที่อนุมัติและใช้เป็น authority สำหรับเวลาปัจจุบัน กรุณาติดต่อหัวหน้างาน',

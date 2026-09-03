@@ -14,6 +14,7 @@ const STATES = Object.freeze({
   DEVICE_PROOF_RETRY: Object.freeze({ state: 'DEVICE_PROOF_RETRY', blocking: true, retryable: true, action: 'RESTART_DEVICE_PROOF', messageKey: 'attendance.device_proof_retry' }),
   REFERENCE_PHOTO_REQUIRED: Object.freeze({ state: 'REFERENCE_PHOTO_REQUIRED', blocking: true, retryable: false, action: 'CONTACT_ADMIN', messageKey: 'attendance.reference_photo_required' }),
   REFERENCE_PHOTO_REVIEW_REQUIRED: Object.freeze({ state: 'REFERENCE_PHOTO_REVIEW_REQUIRED', blocking: true, retryable: false, action: 'CONTACT_ADMIN', messageKey: 'attendance.reference_photo_review_required' }),
+  REFERENCE_PHOTO_REPLACEMENT_REQUIRED: Object.freeze({ state: 'REFERENCE_PHOTO_REPLACEMENT_REQUIRED', blocking: true, retryable: false, action: 'CONTACT_ADMIN', messageKey: 'attendance.reference_photo_replacement_required' }),
   SCHEDULE_NOT_READY: Object.freeze({ state: 'SCHEDULE_NOT_READY', blocking: true, retryable: false, action: 'CONTACT_MANAGER', messageKey: 'attendance.schedule_not_ready' }),
   SITE_NOT_READY: Object.freeze({ state: 'SITE_NOT_READY', blocking: true, retryable: false, action: 'CONTACT_MANAGER', messageKey: 'attendance.site_not_ready' }),
   QR_STEP_UP_REQUIRED: Object.freeze({ state: 'QR_STEP_UP_REQUIRED', blocking: true, retryable: true, action: 'SCAN_CURRENT_SITE_QR', messageKey: 'attendance.qr_step_up_required' }),
@@ -54,6 +55,7 @@ mapCodes('DEVICE_PROOF_RETRY', [
 ]);
 mapCodes('REFERENCE_PHOTO_REQUIRED', ['FACE_REFERENCE_REQUIRED']);
 mapCodes('REFERENCE_PHOTO_REVIEW_REQUIRED', ['FACE_REFERENCE_AUTHORITY_CONFLICT', 'FACE_REFERENCE_STALE']);
+mapCodes('REFERENCE_PHOTO_REPLACEMENT_REQUIRED', ['FACE_REFERENCE_INVALID', 'FACE_REFERENCE_NOT_NEUTRAL']);
 mapCodes('SCHEDULE_NOT_READY', [
   'ATTENDANCE_ASSIGNMENT_REQUIRED',
   'ATTENDANCE_SHIFT_NOT_ACTIONABLE',
