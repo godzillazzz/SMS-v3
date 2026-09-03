@@ -83,13 +83,13 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest resolves G06 Attendance commit-recovery hotfix exact target with no database changes', () => {
+test('current approved Production manifest resolves G06 geofence uncertainty engine exact target with no database changes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.commitSha, '7f708f4fac8f46ab3aad7fd7ddb5845ca27f41ea');
-  assert.equal(result.treeSha, 'b5a3dcaba1228abbbf5a4a9f262446d67c9c5a19');
-  assert.equal(result.currentProductionSourceSha, '0e039f311c6270a3f0227a6fbee32846c365da8c');
-  assert.equal(result.rollbackDeploymentId, 'dpl_HtVwrYSKjpxEoMxKa28NAucncBb8');
+  assert.equal(result.commitSha, '8862a33810e0467074b7ea2f4066d0f55d2ea74e');
+  assert.equal(result.treeSha, '82d52cb81b4e730aa0cc5f60a4406895cc7a95ee');
+  assert.equal(result.currentProductionSourceSha, '7f708f4fac8f46ab3aad7fd7ddb5845ca27f41ea');
+  assert.equal(result.rollbackDeploymentId, 'dpl_4d5z3X6YqKTGwkkZoHT7P2734NS3');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
