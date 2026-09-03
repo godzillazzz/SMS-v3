@@ -9,6 +9,16 @@ const prisma = new PrismaClient();
 const iso = (v) => v ? new Date(v).toISOString() : null;
 const isoDate = (v) => v ? new Date(v).toISOString().slice(0, 10) : null;
 
+const PUBLIC_WAT_LAM_PHRAYA_REFERENCE = Object.freeze({ latitude: 14.222538, longitude: 100.777585 });
+function haversineMeters(aLat, aLon, bLat, bLon) {
+  const toRad = (value) => Number(value) * Math.PI / 180;
+  const earthRadiusMeters = 6371000;
+  const dLat = toRad(bLat) - toRad(aLat);
+  const dLon = toRad(bLon) - toRad(aLon);
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(x));
+}
+
 (async () => {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
 
@@ -115,6 +125,29 @@ const isoDate = (v) => v ? new Date(v).toISOString().slice(0, 10) : null;
     });
   }
 
+  const resolvedSiteId = readiness?.checks?.site?.id || null;
+  const resolvedSite = resolvedSiteId
+    ? await prisma.securitySite.findUnique({
+        where: { id: resolvedSiteId },
+        select: { code: true, name: true, latitude: true, longitude: true, geofenceRadiusMeters: true, isActive: true }
+      })
+    : null;
+  const siteGeofenceDiagnostic = resolvedSite
+    ? {
+        code: resolvedSite.code,
+        name: resolvedSite.name,
+        isActive: resolvedSite.isActive,
+        geofenceRadiusMeters: resolvedSite.geofenceRadiusMeters,
+        distanceToPublicWatLamPhrayaMeters: Math.round(haversineMeters(
+          resolvedSite.latitude,
+          resolvedSite.longitude,
+          PUBLIC_WAT_LAM_PHRAYA_REFERENCE.latitude,
+          PUBLIC_WAT_LAM_PHRAYA_REFERENCE.longitude
+        )),
+        exactCoordinatesExposed: false,
+        databaseMutationPerformed: false
+      }
+    : null;
   const output = {
     mode: 'READ_ONLY_G06_UAT_READINESS',
     databaseMutationPerformed: false,
@@ -171,6 +204,7 @@ const isoDate = (v) => v ? new Date(v).toISOString().slice(0, 10) : null;
       securitySiteActive: nextAssignment.securitySite?.isActive ?? null,
       licenseStatus: nextAssignment.licenseStatus || null
     } : null,
+    siteGeofenceDiagnostic,
     readiness: {
       status: readiness.status,
       checks: readiness.checks,
