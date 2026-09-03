@@ -6,6 +6,7 @@ const {
   PROVIDER_NAME,
   VERIFICATION_MODE,
   DEFAULT_SIMILARITY_THRESHOLD,
+  faceMatchDiagnosticBand,
   inProcessFaceConfig,
   evaluateActiveChallenge,
   evaluateActiveChallengeResult,
@@ -43,6 +44,14 @@ function engineWith({ poses, similarity = 0.9, liveEmbedding = [1, 0], reference
 }
 
 const enabled = { FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' };
+
+test('face-match diagnostic band is categorical and never exposes the raw similarity', () => {
+  assert.equal(faceMatchDiagnosticBand(0.62, 0.62), 'PASS');
+  assert.equal(faceMatchDiagnosticBand(0.60, 0.62), 'NEAR_THRESHOLD');
+  assert.equal(faceMatchDiagnosticBand(0.50, 0.62), 'BELOW_THRESHOLD');
+  assert.equal(faceMatchDiagnosticBand(0.40, 0.62), 'FAR_BELOW_THRESHOLD');
+  assert.equal(faceMatchDiagnosticBand(Number.NaN, 0.62), null);
+});
 
 test('in-process face config is explicit, bounded, and defaults conservatively', () => {
   assert.equal(inProcessFaceConfig({}).enabled, false);
@@ -117,6 +126,7 @@ test('provider mints only a narrow server-side PASS result after challenge and 1
   assert.equal(result.activeChallengePassed, true);
   assert.equal(result.faceMatchPassed, true);
   assert.equal(result.resultCode, 'MATCH');
+  assert.equal(result.diagnosticMatchBand, 'PASS');
   assert.equal(runtime.calls(), 6);
   assert.equal(Object.prototype.hasOwnProperty.call(result, 'similarity'), false);
   assert.equal(Object.prototype.hasOwnProperty.call(result, 'embedding'), false);
@@ -182,6 +192,25 @@ test('provider rejects a different Reference Photo without exposing similarity o
   assert.equal(result.activeChallengePassed, true);
   assert.equal(result.faceMatchPassed, false);
   assert.equal(result.resultCode, 'FACE_MATCH_FAILED');
+  assert.equal(result.diagnosticMatchBand, 'FAR_BELOW_THRESHOLD');
+  assert.equal(Object.prototype.hasOwnProperty.call(result, 'similarity'), false);
+});
+
+test('provider reports only a near-threshold category for a close false reject', async () => {
+  const runtime = engineWith({
+    poses: [pose(), pose({ yaw: 0.25 }), pose({ yaw: 0.22 }), pose(), pose(), pose()],
+    similarity: 0.60
+  });
+  const result = await createInProcessFaceMatchProvider({ environment: enabled, runtime }).evaluate({
+    providerSessionRef: 'opaque-server-session-ref',
+    activeChallenge: activeChallenge('TURN_LEFT'),
+    challengeFrameBytes: Array.from({ length: 4 }, () => imageBytes()),
+    livePhotoBytes: imageBytes(0x22),
+    referencePhotoBytes: imageBytes(0x33)
+  });
+  assert.equal(result.faceMatchPassed, false);
+  assert.equal(result.resultCode, 'FACE_MATCH_FAILED');
+  assert.equal(result.diagnosticMatchBand, 'NEAR_THRESHOLD');
   assert.equal(Object.prototype.hasOwnProperty.call(result, 'similarity'), false);
 });
 

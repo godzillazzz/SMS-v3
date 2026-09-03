@@ -59,6 +59,14 @@ function safeEvidenceResult(result) {
   });
 }
 
+const SAFE_MATCH_DIAGNOSTIC_BANDS = new Set(['NEAR_THRESHOLD', 'BELOW_THRESHOLD', 'FAR_BELOW_THRESHOLD']);
+
+function safeMatchDiagnosticBand(evaluation) {
+  if (evaluation?.resultCode !== 'FACE_MATCH_FAILED') return 'NOT_EVALUATED';
+  const band = String(evaluation?.diagnosticMatchBand || '');
+  return SAFE_MATCH_DIAGNOSTIC_BANDS.has(band) ? band : 'NOT_AVAILABLE';
+}
+
 function createInProcessFaceVerificationService({
   environment = process.env,
   prisma = prismaDefault,
@@ -145,7 +153,8 @@ function createInProcessFaceVerificationService({
         logger.warn('attendance_face_verification_retry', {
           sessionId,
           challengeCode: activeChallenge.code,
-          resultCode: evaluation.resultCode || 'UNKNOWN'
+          resultCode: evaluation.resultCode || 'UNKNOWN',
+          matchBand: safeMatchDiagnosticBand(evaluation)
         });
       }
 
@@ -183,5 +192,6 @@ function createInProcessFaceVerificationService({
 module.exports = {
   validateLivePhoto,
   validateChallengeFrames,
+  safeMatchDiagnosticBand,
   createInProcessFaceVerificationService
 };
