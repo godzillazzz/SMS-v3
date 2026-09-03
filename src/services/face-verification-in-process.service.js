@@ -67,6 +67,20 @@ function safeMatchDiagnosticBand(evaluation) {
   return SAFE_MATCH_DIAGNOSTIC_BANDS.has(band) ? band : 'NOT_AVAILABLE';
 }
 
+const ACTIVE_CHALLENGE_RETRY_HINTS = Object.freeze({
+  ACTIVE_CHALLENGE_INSUFFICIENT_MOVEMENT: 'MOVE_MORE',
+  ACTIVE_CHALLENGE_FRAME_EVALUATION_FAILED: 'KEEP_FACE_VISIBLE',
+  ACTIVE_CHALLENGE_POSE_INVALID: 'KEEP_FACE_VISIBLE',
+  ACTIVE_CHALLENGE_WRONG_DIRECTION: 'FOLLOW_DIRECTION',
+  ACTIVE_CHALLENGE_BASELINE_NOT_NEUTRAL: 'START_CENTERED',
+  ACTIVE_CHALLENGE_FINAL_NOT_NEUTRAL: 'RETURN_CENTER'
+});
+
+function safeActiveChallengeRetryHint(evaluation) {
+  const code = String(evaluation?.resultCode || '');
+  return ACTIVE_CHALLENGE_RETRY_HINTS[code] || null;
+}
+
 function createInProcessFaceVerificationService({
   environment = process.env,
   prisma = prismaDefault,
@@ -176,6 +190,7 @@ function createInProcessFaceVerificationService({
         verificationMode: VERIFICATION_MODE,
         evidence: safeEvidenceResult(null),
         session: accepted.session,
+        retryHint: evaluation.activeChallengePassed === true ? null : safeActiveChallengeRetryHint(evaluation),
         receipt: accepted.receipt || null,
         receiptExpiresAt: accepted.receiptExpiresAt || null
       };
@@ -193,5 +208,6 @@ module.exports = {
   validateLivePhoto,
   validateChallengeFrames,
   safeMatchDiagnosticBand,
+  safeActiveChallengeRetryHint,
   createInProcessFaceVerificationService
 };

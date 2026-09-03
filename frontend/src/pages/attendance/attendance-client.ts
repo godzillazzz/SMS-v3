@@ -67,11 +67,14 @@ export type AttendanceDeviceState = {
   activeDevice: { id: string; status: string } | null;
 };
 
+export type AttendanceFaceRetryHint = 'MOVE_MORE' | 'KEEP_FACE_VISIBLE' | 'FOLLOW_DIRECTION' | 'START_CENTERED' | 'RETURN_CENTER';
+
 export type AttendanceFaceVerificationData = {
   ok: boolean;
   verificationAccepted: boolean;
   receipt: string | null;
   receiptExpiresAt?: string | null;
+  retryHint?: AttendanceFaceRetryHint | null;
   evidence?: { storageStatus?: string; stored?: boolean };
   readiness?: AttendanceReadinessState;
 };

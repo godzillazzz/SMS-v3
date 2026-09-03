@@ -22,17 +22,17 @@ type Props = {
 
 const MAX_CAPTURE_EDGE = ATTACHMENT_POLICIES.ATTENDANCE_FACE.maxEdge;
 const PREPARE_DELAY_MS = 2200;
-const MOVEMENT_START_DELAY_MS = 2600;
-const MOVEMENT_FRAME_INTERVAL_MS = 850;
+const MOVEMENT_START_DELAY_MS = 2200;
+const MOVEMENT_FRAME_INTERVAL_MS = 350;
 const RETURN_TO_CENTER_DELAY_MS = 2200;
 
 type CapturePhase = 'idle' | 'prepare' | 'baseline' | 'movement' | 'neutral';
 
 const challengeCopy: Record<string, { title: string; detail: string }> = {
-  TURN_LEFT: { title: 'หันหน้าไปทางซ้ายให้ชัดเจน', detail: 'หันหน้าไปทางซ้ายให้เห็นการเปลี่ยนชัดเจน แล้วค้างท่าไว้จนระบบบอกให้กลับมามองตรง' },
-  TURN_RIGHT: { title: 'หันหน้าไปทางขวาให้ชัดเจน', detail: 'หันหน้าไปทางขวาให้เห็นการเปลี่ยนชัดเจน แล้วค้างท่าไว้จนระบบบอกให้กลับมามองตรง' },
-  LOOK_UP: { title: 'เงยหน้าขึ้นให้ชัดเจน', detail: 'เงยหน้าขึ้นให้เห็นการเปลี่ยนชัดเจน แล้วค้างท่าไว้จนระบบบอกให้กลับมามองตรง' },
-  LOOK_DOWN: { title: 'ก้มหน้าลงให้ชัดเจน', detail: 'ก้มหน้าลงให้เห็นการเปลี่ยนชัดเจน แล้วค้างท่าไว้จนระบบบอกให้กลับมามองตรง' }
+  TURN_LEFT: { title: 'หันหน้าไปทางซ้ายพอประมาณ', detail: 'ค่อย ๆ หันประมาณ 20–30° ไม่ต้องหันจนสุด ให้ใบหน้ายังอยู่ในกรอบ แล้วค้างนิ่งช่วงสั้น ๆ จนระบบบอกให้กลับมามองตรง' },
+  TURN_RIGHT: { title: 'หันหน้าไปทางขวาพอประมาณ', detail: 'ค่อย ๆ หันประมาณ 20–30° ไม่ต้องหันจนสุด ให้ใบหน้ายังอยู่ในกรอบ แล้วค้างนิ่งช่วงสั้น ๆ จนระบบบอกให้กลับมามองตรง' },
+  LOOK_UP: { title: 'เงยหน้าขึ้นพอประมาณ', detail: 'ค่อย ๆ เงยประมาณ 15–25° ไม่ต้องเงยจนสุด ให้ใบหน้ายังอยู่ในกรอบ แล้วค้างนิ่งช่วงสั้น ๆ จนระบบบอกให้กลับมามองตรง' },
+  LOOK_DOWN: { title: 'ก้มหน้าลงพอประมาณ', detail: 'ค่อย ๆ ก้มประมาณ 15–25° ไม่ต้องก้มจนสุด ให้ใบหน้ายังอยู่ในกรอบ แล้วค้างนิ่งช่วงสั้น ๆ จนระบบบอกให้กลับมามองตรง' }
 };
 
 const baselineCopy = {
@@ -344,7 +344,7 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
     : capturePhase === 'baseline'
       ? 'มองตรงค้างไว้ · กำลังเก็บภาพตั้งต้น'
       : capturePhase === 'movement'
-        ? 'ทำท่าตามคำสั่งตอนนี้และค้างไว้จนระบบบอกให้กลับมามองตรง · กำลังเก็บภาพ ' + captureProgress + '/' + (challenge?.frameCount || 4)
+        ? 'ขยับพอประมาณแล้วค้างนิ่ง ไม่ต้องหัน/ก้ม/เงยจนสุด · กำลังเก็บภาพต่อเนื่องช่วงสั้น ๆ ' + captureProgress + '/' + (challenge?.frameCount || 4)
         : capturePhase === 'neutral'
           ? 'กลับมามองตรงที่กล้องและค้างไว้ · กำลังเก็บภาพยืนยันสุดท้าย'
           : 'กำลังเตรียม Active Challenge';

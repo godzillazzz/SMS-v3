@@ -12,6 +12,7 @@ import {
   type AttendanceContextRef,
   type AttendanceEventIntent,
   type AttendanceLocationEvidence,
+  type AttendanceFaceRetryHint,
   type AttendanceReadinessState,
   type AttendanceSelfTodayData
 } from './attendance-client';
@@ -142,6 +143,15 @@ const readinessCopy: Record<string, Copy> = {
 
 type AttendanceLocationIssueCode = 'LOCATION_PERMISSION_DENIED' | 'LOCATION_TIMEOUT' | 'LOCATION_UNAVAILABLE' | 'LOCATION_NOT_SUPPORTED';
 type AttendanceFailurePresentation = 'ATTENDANCE' | 'VERIFICATION' | 'ACTIVE_CHALLENGE';
+
+function activeChallengeRetryMessage(hint?: AttendanceFaceRetryHint | null) {
+  if (hint === 'MOVE_MORE') return 'ขยับตามคำสั่งเพิ่มอีกเล็กน้อย แล้วค้างนิ่งไว้ช่วงสั้น ๆ ให้เห็นการเปลี่ยนชัดเจน';
+  if (hint === 'KEEP_FACE_VISIBLE') return 'อย่าหัน ก้ม หรือเงยจนสุด ให้ใบหน้ายังอยู่ในกรอบ ค่อย ๆ ขยับแล้วค้างนิ่งเพื่อลดภาพเบลอ';
+  if (hint === 'FOLLOW_DIRECTION') return 'ทำท่าตามทิศทางที่ Server แสดงบนหน้าจอ แล้วค้างนิ่งจนระบบบอกให้กลับมามองตรง';
+  if (hint === 'START_CENTERED') return 'ก่อนเริ่มท่าให้มองตรงที่กล้องและอยู่นิ่งจนระบบเก็บภาพตั้งต้นเสร็จ';
+  if (hint === 'RETURN_CENTER') return 'หลังทำท่าให้กลับมามองตรงที่กล้อง แล้วค้างนิ่งจนระบบเก็บภาพสุดท้ายเสร็จ';
+  return 'การเคลื่อนไหวยังไม่ตรงตามคำสั่ง กรุณาทำ Active Challenge ใหม่อีกครั้ง';
+}
 
 class AttendanceLocationError extends Error {
   code: AttendanceLocationIssueCode;
@@ -748,7 +758,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         setFailurePresentation(activeChallengeFailed ? 'ACTIVE_CHALLENGE' : 'VERIFICATION');
         setVerificationStage(activeChallengeFailed ? 'Active Challenge ยังไม่ผ่าน · กรุณาทำใหม่' : 'ใบหน้าไม่ตรงกับ Reference Photo');
         setError(activeChallengeFailed
-          ? 'การเคลื่อนไหวยังไม่ตรงตามคำสั่ง กรุณาทำ Active Challenge ใหม่อีกครั้ง'
+          ? activeChallengeRetryMessage(matched.retryHint)
           : 'Server ตรวจแล้วใบหน้าไม่ตรงกับ Reference Photo กรุณาเริ่มการยืนยันตัวตนใหม่');
         return;
       }
