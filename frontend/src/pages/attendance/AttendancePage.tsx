@@ -151,6 +151,15 @@ type PendingAttendanceCommit = {
   intent: AttendanceEventIntent;
 };
 
+function canRetryVerifiedAttendanceCommit(readiness: { state?: string | null } | null | undefined) {
+  return readiness?.state === 'ATTENDANCE_UNAVAILABLE' || readiness?.state === 'BIOMETRIC_TEMPORARILY_UNAVAILABLE';
+}
+
+function canRetryVerifiedAttendanceTransportFailure(reason: unknown) {
+  if (!(reason instanceof AttendanceFlowError)) return true;
+  return reason.status >= 500 || reason.status === 408 || reason.status === 429;
+}
+
 function activeChallengeRetryMessage(hint?: AttendanceFaceRetryHint | null) {
   if (hint === 'MOVE_MORE') return 'ขยับตามคำสั่งเพิ่มอีกเล็กน้อย แล้วค้างนิ่งไว้ช่วงสั้น ๆ ให้เห็นการเปลี่ยนชัดเจน';
   if (hint === 'KEEP_FACE_VISIBLE') return 'อย่าหัน ก้ม หรือเงยจนสุด ให้ใบหน้ายังอยู่ในกรอบ ค่อย ๆ ขยับแล้วค้างนิ่งเพื่อลดภาพเบลอ';
@@ -793,6 +802,14 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         if (await recoverAcceptedEventFromServer()) return;
         if (accepted.readiness) setReadiness(accepted.readiness);
         setFailurePresentation('ATTENDANCE');
+        if (!canRetryVerifiedAttendanceCommit(accepted.readiness)) {
+          setPendingAttendanceCommit(null);
+          setVerificationSession(null);
+          const blockedCopy = accepted.readiness ? fallbackCopy(accepted.readiness) : null;
+          setVerificationStage(blockedCopy?.title || 'Attendance ยังไม่พร้อม');
+          setError(blockedCopy?.detail || 'Server ปฏิเสธ AttendanceEvent ตามกฎความปลอดภัย กรุณาทำตามคำแนะนำก่อนเริ่มใหม่');
+          return;
+        }
         setVerificationStage('ยืนยันใบหน้าผ่านแล้ว · รอ retry การบันทึก AttendanceEvent');
         setError('Face Verification ผ่านแล้ว แต่ Server ยังบันทึกเวลาไม่สำเร็จ กรุณากด “ลองบันทึกเวลาอีกครั้ง” โดยไม่ต้องตรวจหน้าใหม่');
         return;
@@ -812,7 +829,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     } catch (reason) {
       if (shouldStopOperation(operationEpoch)) return;
       if (await recoverAcceptedEventFromServer()) return;
-      if (eventAcceptanceAttempted && eventCommitCandidate) {
+      if (eventAcceptanceAttempted && eventCommitCandidate && canRetryVerifiedAttendanceTransportFailure(reason)) {
         setFaceCaptureOpen(false);
         setPendingAttendanceCommit(eventCommitCandidate);
         setFailurePresentation('ATTENDANCE');
@@ -820,6 +837,10 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         if (reason instanceof AttendanceFlowError) setRequestId(reason.requestId);
         setError('Face Verification ผ่านแล้ว แต่การบันทึกเวลาเกิดข้อผิดพลาดชั่วคราว กรุณากด “ลองบันทึกเวลาอีกครั้ง” โดยไม่ต้องตรวจหน้าใหม่');
         return;
+      }
+      if (eventAcceptanceAttempted && eventCommitCandidate) {
+        setPendingAttendanceCommit(null);
+        setVerificationSession(null);
       }
       if (reason instanceof AttendanceFlowError) {
         setRequestId(reason.requestId);
@@ -869,6 +890,14 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         return;
       }
       if (accepted.readiness) setReadiness(accepted.readiness);
+      if (!canRetryVerifiedAttendanceCommit(accepted.readiness)) {
+        setPendingAttendanceCommit(null);
+        setVerificationSession(null);
+        const blockedCopy = accepted.readiness ? fallbackCopy(accepted.readiness) : null;
+        setVerificationStage(blockedCopy?.title || 'Attendance ยังไม่พร้อม');
+        setError(blockedCopy?.detail || 'Server ปฏิเสธ AttendanceEvent ตามกฎความปลอดภัย กรุณาทำตามคำแนะนำก่อนเริ่มใหม่');
+        return;
+      }
       const expiresAtMs = pending.receiptExpiresAt ? Date.parse(pending.receiptExpiresAt) : Number.NaN;
       if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
         setPendingAttendanceCommit(null);
