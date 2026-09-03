@@ -32,16 +32,25 @@ const attendanceContextEvidenceInput = z.object({
   actualSiteId: uuid,
   qrMode: z.enum(['GPS_ASSURED', 'STEP_UP_QR']),
   qrCredentialId: uuid.nullable(),
-  riskFlags: z.array(z.literal('ASSIST_OTHER_SITE')).max(1),
+  geofenceClassification: z.enum(['CONFIDENT_INSIDE', 'BORDERLINE']).optional(),
+  riskFlags: z.array(z.enum(['ASSIST_OTHER_SITE', 'LOCATION_RISK'])).max(2),
   location: contextLocationInput
 }).strict().superRefine((evidence, context) => {
   if (evidence.siteId !== evidence.expectedSiteId) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['expectedSiteId'], message: 'Expected Site must match the server-issued Site authority.' });
   }
+  if (new Set(evidence.riskFlags).size !== evidence.riskFlags.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['riskFlags'], message: 'Attendance Site risk flags must be unique.' });
+  }
   const assistingOtherSite = evidence.expectedSiteId !== evidence.actualSiteId;
-  const hasAssistFlag = evidence.riskFlags.length === 1 && evidence.riskFlags[0] === 'ASSIST_OTHER_SITE';
+  const hasAssistFlag = evidence.riskFlags.includes('ASSIST_OTHER_SITE');
   if (assistingOtherSite !== hasAssistFlag) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['riskFlags'], message: 'Attendance Site risk flags do not match the server-issued Site pair.' });
+  }
+  const classification = evidence.geofenceClassification || 'CONFIDENT_INSIDE';
+  const hasLocationRisk = evidence.riskFlags.includes('LOCATION_RISK');
+  if ((classification === 'BORDERLINE') !== hasLocationRisk) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['riskFlags'], message: 'Attendance location risk flag does not match the server-issued geofence classification.' });
   }
 });
 const attendanceContextInput = z.object({

@@ -354,11 +354,23 @@ test('event acceptance accepts only opaque receipt + server-issued Attendance co
   assert.equal(assist.status, 200);
   assert.deepEqual(spy.calls[1][1].attendanceContext, assistContext);
 
+  const borderlineContext = {
+    ...context,
+    evidence: { ...context.evidence, geofenceClassification: 'BORDERLINE', riskFlags: ['LOCATION_RISK'] }
+  };
+  const borderline = await request(app).post('/api/v1/attendance/events')
+    .set('Authorization', 'Bearer route-test')
+    .send({ receipt: 'r'.repeat(43), attendanceContext: borderlineContext });
+  assert.equal(borderline.status, 200);
+  assert.deepEqual(spy.calls[2][1].attendanceContext, borderlineContext);
+
   for (const invalidAttendanceContext of [
     { ...context, evidence: { ...context.evidence, unexpectedAuthority: true } },
     { ...context, evidence: { ...context.evidence, expectedSiteId: '77777777-7777-4777-8777-777777777777' } },
     { ...context, evidence: { ...context.evidence, riskFlags: ['ASSIST_OTHER_SITE'] } },
-    { ...context, evidence: { ...context.evidence, riskFlags: ['LOCATION_RISK'] } }
+    { ...context, evidence: { ...context.evidence, riskFlags: ['LOCATION_RISK'] } },
+    { ...context, evidence: { ...context.evidence, geofenceClassification: 'BORDERLINE', riskFlags: [] } },
+    { ...context, evidence: { ...context.evidence, geofenceClassification: 'CONFIDENT_INSIDE', riskFlags: ['LOCATION_RISK'] } }
   ]) {
     const rejected = await request(app).post('/api/v1/attendance/events')
       .set('Authorization', 'Bearer route-test')
@@ -370,7 +382,7 @@ test('event acceptance accepts only opaque receipt + server-issued Attendance co
     .set('Authorization', 'Bearer route-test')
     .send({ receipt: 'r'.repeat(43), attendanceContext: context, faceMatchPassed: true });
   assert.equal(injected.status, 400);
-  assert.equal(spy.calls.length, 2);
+  assert.equal(spy.calls.length, 3);
 });
 
 test('runtime gates require explicit environment flags and trusted face configuration', () => {

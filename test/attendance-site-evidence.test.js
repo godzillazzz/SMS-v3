@@ -15,6 +15,7 @@ const {
   LOCATION_FUTURE_SKEW_MS,
   QR_STEP_UP_MAX_ACCURACY_METERS,
   QR_STEP_UP_INNER_MARGIN_METERS,
+  GEOFENCE_CLASSIFICATIONS,
   tokenHash,
   haversineMeters,
   createAttendanceSiteEvidenceService
@@ -96,7 +97,12 @@ test('site/QR/location authority contracts are versioned and QR tokens are hashe
   assert.equal(SITE_BINDING_VERSION, 'ATTENDANCE_SITE_AUTHORITY_V1');
   assert.equal(QR_BINDING_VERSION, 'ATTENDANCE_QR_AUTHORITY_V1');
   assert.equal(QR_ASSURANCE_BINDING_VERSION, 'ATTENDANCE_QR_ASSURANCE_V1');
-  assert.equal(LOCATION_BINDING_VERSION, 'ATTENDANCE_LOCATION_AUTHORITY_V1');
+  assert.equal(LOCATION_BINDING_VERSION, 'ATTENDANCE_LOCATION_AUTHORITY_V2');
+  assert.deepEqual(GEOFENCE_CLASSIFICATIONS, {
+    CONFIDENT_INSIDE: 'CONFIDENT_INSIDE',
+    BORDERLINE: 'BORDERLINE',
+    CONFIDENT_OUTSIDE: 'CONFIDENT_OUTSIDE'
+  });
   assert.equal(MAX_LOCATION_ACCURACY_METERS, 50);
   assert.equal(QR_STEP_UP_MAX_ACCURACY_METERS, 20);
   assert.equal(QR_STEP_UP_INNER_MARGIN_METERS, 20);
@@ -158,6 +164,67 @@ test('strong unambiguous GPS may proceed without QR while weak, boundary, or amb
   const steppedUp = await overlapping.validateForAssignment({ assignment: { securitySiteId: ids.site }, qrToken, location: location() });
   assert.equal(steppedUp.evidenceRef.qrMode, 'STEP_UP_QR');
   assert.equal(steppedUp.evidenceRef.qrCredentialId, ids.qr);
+});
+
+
+test('uncertainty-aware geofence requires QR for BORDERLINE and records LOCATION_RISK without allowing confident outside', async () => {
+  const { service } = serviceFor();
+  const borderlineInsidePoint = location({ latitude: 13.72513, longitude: 100.5701, accuracyMeters: 10 });
+
+  await assert.rejects(
+    () => service.validateForAssignment({ assignment: { securitySiteId: ids.site }, location: borderlineInsidePoint }),
+    (error) => error.details?.code === 'ATTENDANCE_QR_STEP_UP_REQUIRED'
+  );
+
+  const steppedUp = await service.validateForAssignment({
+    assignment: { securitySiteId: ids.site },
+    qrToken,
+    location: borderlineInsidePoint
+  });
+  assert.equal(steppedUp.decision.geofenceClassification, 'BORDERLINE');
+  assert.equal(steppedUp.decision.insideGeofence, true);
+  assert.equal(steppedUp.decision.qrRequired, true);
+  assert.ok(steppedUp.decision.qrStepUpReasons.includes('GEOFENCE_UNCERTAINTY'));
+  assert.deepEqual(steppedUp.evidenceRef.riskFlags, ['LOCATION_RISK']);
+  assert.equal(steppedUp.evidenceRef.geofenceClassification, 'BORDERLINE');
+  assert.ok(steppedUp.decision.distanceLowerBoundMeters < 120);
+  assert.ok(steppedUp.decision.distanceUpperBoundMeters > 120);
+
+  const revalidated = await service.revalidateRef({ ref: steppedUp.evidenceRef });
+  assert.equal(revalidated.decision.geofenceClassification, 'BORDERLINE');
+  assert.deepEqual(revalidated.evidenceRef.riskFlags, ['LOCATION_RISK']);
+
+  const borderlineOutsidePoint = location({ latitude: 13.72522, longitude: 100.5701, accuracyMeters: 10 });
+  const outsidePointSteppedUp = await service.validateForAssignment({
+    assignment: { securitySiteId: ids.site },
+    qrToken,
+    location: borderlineOutsidePoint
+  });
+  assert.equal(outsidePointSteppedUp.decision.geofenceClassification, 'BORDERLINE');
+  assert.deepEqual(outsidePointSteppedUp.evidenceRef.riskFlags, ['LOCATION_RISK']);
+
+  await assert.rejects(
+    () => service.validateForAssignment({
+      assignment: { securitySiteId: ids.site },
+      qrToken,
+      location: location({ latitude: 13.7254, longitude: 100.5701, accuracyMeters: 10 })
+    }),
+    (error) => error.details?.code === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE'
+  );
+});
+
+test('CONFIDENT_INSIDE at another active Site outranks expected Site BORDERLINE', async () => {
+  const other = { ...baseSite({ id: ids.otherSite, code: 'HQ-B' }), latitude: 13.72513, longitude: 100.5701, geofenceRadiusMeters: 80 };
+  const { service } = serviceFor({ otherSites: [other], credential: baseCredential({ securitySiteId: ids.otherSite }) });
+  const sample = location({ latitude: 13.72513, longitude: 100.5701, accuracyMeters: 8 });
+  const result = await service.validateForAssignment({
+    assignment: { securitySiteId: ids.site },
+    qrToken,
+    location: sample
+  });
+  assert.equal(result.evidenceRef.actualSiteId, ids.otherSite);
+  assert.equal(result.decision.geofenceClassification, 'CONFIDENT_INSIDE');
+  assert.deepEqual(result.evidenceRef.riskFlags, ['ASSIST_OTHER_SITE']);
 });
 
 test('Admin QR policy changes Server behavior without source changes and never overrides geofence', async () => {
@@ -242,7 +309,7 @@ test('wrong, cross-site, revoked, future and expired QR authority fail closed', 
   );
 });
 
-test('GPS requires useful accuracy, fresh time and conservative full-containment inside geofence', async () => {
+test('GPS requires useful accuracy, fresh time and blocks CONFIDENT_OUTSIDE geofence samples', async () => {
   const { service } = serviceFor();
   await assert.rejects(
     () => service.validateForAssignment({ assignment: { securitySiteId: ids.site }, qrToken, location: location({ accuracyMeters: 55 }) }),
