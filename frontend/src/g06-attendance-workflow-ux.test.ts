@@ -100,18 +100,27 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain('กรุณาทำ Active Challenge ใหม่อีกครั้ง');
   });
 
-  it('reconciles a lost Attendance acceptance response from server read state instead of blindly retrying the event POST', () => {
+  it('reconciles lost responses first and safely retries the same opaque receipt + capture context without a second Face Verification', () => {
     expect(client).toContain('function publicCode(payload: Record<string, any>)');
-    expect(client).toMatch(/AttendanceFlowError\([\s\S]*?Server ไม่สามารถบันทึก AttendanceEvent ได้[\s\S]*?publicCode\(payload\)/);
     expect(page).toContain('let eventAcceptanceAttempted = false');
+    expect(page).toContain('let eventCommitCandidate: PendingAttendanceCommit | null = null');
     expect(page).toContain('const recoverAcceptedEventFromServer = async () => {');
     expect(page).toContain('const latest = await attendanceSelfToday(token)');
-    expect(page).toContain("acceptedIntent === 'CHECK_IN' ? assignment?.checkInAt : assignment?.checkOutAt");
-    expect(page).toContain("acceptedIntent === 'CHECK_IN' ? assignment?.checkInEventId : assignment?.checkOutEventId");
-    expect(page).toContain('if (await recoverAcceptedEventFromServer()) return;');
-    expect(page).toContain('setAttendanceAccepted({ intent: acceptedIntent, acceptedAt, eventId, sessionId, recovered })');
-    expect(page).toContain('ยืนยันสถานะซ้ำจาก Server หลัง response ขาดช่วง');
-    expect(page.match(/attendanceAcceptVerifiedEvent\(token/g)?.length).toBe(1);
+    expect(page).toContain('setPendingAttendanceCommit(eventCommitCandidate)');
+    expect(page).toContain('receiptExpiresAt: matched.receiptExpiresAt || null');
+    expect(page).toContain('const retryPendingAttendanceCommit = async () => {');
+    expect(page).toContain('receipt: pending.receipt');
+    expect(page).toContain('attendanceContext: pending.attendanceContext');
+    expect(page).toContain("pendingAttendanceCommit ? 'RETRY COMMIT'");
+    expect(page).toContain("pendingAttendanceCommit ? 'ลองบันทึกเวลาอีกครั้ง'");
+    expect(page).toContain('if (pendingAttendanceCommit) {');
+    expect(page).toContain('void retryPendingAttendanceCommit()');
+    expect(page).toContain('accepted.idempotent === true');
+    expect(page).toContain('setPendingAttendanceCommit(null)');
+    expect(page).toContain('receipt เดิมหมดอายุแล้ว');
+    expect(page.match(/attendanceAcceptVerifiedEvent\(token/g)?.length).toBe(2);
+    expect(page).not.toContain('localStorage.setItem');
+    expect(page).not.toContain('sessionStorage.setItem');
   });
 
   it('uses a transient camera QR scanner and releases all media tracks without persisting frames', () => {

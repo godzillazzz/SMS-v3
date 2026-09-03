@@ -144,6 +144,13 @@ const readinessCopy: Record<string, Copy> = {
 type AttendanceLocationIssueCode = 'LOCATION_PERMISSION_DENIED' | 'LOCATION_TIMEOUT' | 'LOCATION_UNAVAILABLE' | 'LOCATION_NOT_SUPPORTED';
 type AttendanceFailurePresentation = 'ATTENDANCE' | 'VERIFICATION' | 'ACTIVE_CHALLENGE';
 
+type PendingAttendanceCommit = {
+  receipt: string;
+  receiptExpiresAt: string | null;
+  attendanceContext: AttendanceContextRef;
+  intent: AttendanceEventIntent;
+};
+
 function activeChallengeRetryMessage(hint?: AttendanceFaceRetryHint | null) {
   if (hint === 'MOVE_MORE') return 'ขยับตามคำสั่งเพิ่มอีกเล็กน้อย แล้วค้างนิ่งไว้ช่วงสั้น ๆ ให้เห็นการเปลี่ยนชัดเจน';
   if (hint === 'KEEP_FACE_VISIBLE') return 'อย่าหัน ก้ม หรือเงยจนสุด ให้ใบหน้ายังอยู่ในกรอบ ค่อย ๆ ขยับแล้วค้างนิ่งเพื่อลดภาพเบลอ';
@@ -266,6 +273,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   const [verificationBusy, setVerificationBusy] = useState(false);
   const [verificationStage, setVerificationStage] = useState<string>();
   const [verificationSession, setVerificationSession] = useState<{ sessionId: string; attendanceContext: AttendanceContextRef; activeChallenge: AttendanceActiveChallenge } | null>(null);
+  const [pendingAttendanceCommit, setPendingAttendanceCommit] = useState<PendingAttendanceCommit | null>(null);
   const [attendanceAccepted, setAttendanceAccepted] = useState<{ intent: AttendanceEventIntent | null; acceptedAt: string; eventId?: string | null; sessionId?: string | null; recovered?: boolean } | null>(null);
   const [qrStepUpRequired, setQrStepUpRequired] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -351,6 +359,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     setVerificationBusy(false);
     setVerificationStage(undefined);
     setVerificationSession(null);
+    setPendingAttendanceCommit(null);
     setAttendanceAccepted(null);
   };
 
@@ -694,6 +703,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     const acceptedIntent = activeVerification.attendanceContext.eventIntent || eventIntent;
     if (!acceptedIntent) throw new Error('Server intent ไม่พร้อม กรุณาเริ่มตรวจสอบใหม่');
     let eventAcceptanceAttempted = false;
+    let eventCommitCandidate: PendingAttendanceCommit | null = null;
 
     const applyAcceptedState = (
       acceptedAt: string,
@@ -704,6 +714,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     ) => {
       setFaceCaptureOpen(false);
       setVerificationSession(null);
+      setPendingAttendanceCommit(null);
       setQrToken('');
       setLocation(null);
       setLocationBusy(false);
@@ -763,19 +774,28 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         return;
       }
 
+      eventCommitCandidate = {
+        receipt: matched.receipt,
+        receiptExpiresAt: matched.receiptExpiresAt || null,
+        attendanceContext: activeVerification.attendanceContext,
+        intent: acceptedIntent
+      };
+      setPendingAttendanceCommit(eventCommitCandidate);
+      setFaceCaptureOpen(false);
       setVerificationStage('ใบหน้าตรงแล้ว · กำลังให้ Server บันทึก AttendanceEvent…');
       eventAcceptanceAttempted = true;
       const accepted = await attendanceAcceptVerifiedEvent(token, {
-        receipt: matched.receipt,
-        attendanceContext: activeVerification.attendanceContext
+        receipt: eventCommitCandidate.receipt,
+        attendanceContext: eventCommitCandidate.attendanceContext
       });
       if (shouldStopOperation(operationEpoch)) return;
       if (accepted.attendanceAccepted !== true) {
         if (await recoverAcceptedEventFromServer()) return;
-        setFaceCaptureOpen(false);
-        setVerificationSession(null);
         if (accepted.readiness) setReadiness(accepted.readiness);
-        throw new Error('Server ยังไม่ยอมรับ AttendanceEvent กรุณาเริ่มตรวจสอบใหม่');
+        setFailurePresentation('ATTENDANCE');
+        setVerificationStage('ยืนยันใบหน้าผ่านแล้ว · รอ retry การบันทึก AttendanceEvent');
+        setError('Face Verification ผ่านแล้ว แต่ Server ยังบันทึกเวลาไม่สำเร็จ กรุณากด “ลองบันทึกเวลาอีกครั้ง” โดยไม่ต้องตรวจหน้าใหม่');
+        return;
       }
 
       const acceptedAt = typeof accepted.event?.effectiveEventAt === 'string'
@@ -792,6 +812,15 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     } catch (reason) {
       if (shouldStopOperation(operationEpoch)) return;
       if (await recoverAcceptedEventFromServer()) return;
+      if (eventAcceptanceAttempted && eventCommitCandidate) {
+        setFaceCaptureOpen(false);
+        setPendingAttendanceCommit(eventCommitCandidate);
+        setFailurePresentation('ATTENDANCE');
+        setVerificationStage('ยืนยันใบหน้าผ่านแล้ว · รอ retry การบันทึก AttendanceEvent');
+        if (reason instanceof AttendanceFlowError) setRequestId(reason.requestId);
+        setError('Face Verification ผ่านแล้ว แต่การบันทึกเวลาเกิดข้อผิดพลาดชั่วคราว กรุณากด “ลองบันทึกเวลาอีกครั้ง” โดยไม่ต้องตรวจหน้าใหม่');
+        return;
+      }
       if (reason instanceof AttendanceFlowError) {
         setRequestId(reason.requestId);
         setError(reason.message);
@@ -804,6 +833,68 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     }
   };
 
+  const retryPendingAttendanceCommit = async () => {
+    const pending = pendingAttendanceCommit;
+    if (!pending || verificationBusy || interactionDisabledRef.current) return;
+    setVerificationBusy(true);
+    setFailurePresentation('ATTENDANCE');
+    setVerificationStage('Face Verification ผ่านแล้ว · กำลัง retry การบันทึก AttendanceEvent…');
+    setError(undefined);
+    try {
+      const accepted = await attendanceAcceptVerifiedEvent(token, { receipt: pending.receipt, attendanceContext: pending.attendanceContext });
+      if (accepted.attendanceAccepted === true) {
+        const acceptedAt = typeof accepted.event?.effectiveEventAt === 'string' ? accepted.event.effectiveEventAt : typeof accepted.event?.receivedAt === 'string' ? accepted.event.receivedAt : '';
+        if (!acceptedAt) throw new Error('Server ยอมรับ AttendanceEvent แต่ไม่ส่งเวลาฝั่ง Server กลับมา');
+        setFaceCaptureOpen(false);
+        setVerificationSession(null);
+        setPendingAttendanceCommit(null);
+        setQrToken('');
+        setLocation(null);
+        setLocationBusy(false);
+        setChecking(false);
+        setReadiness(null);
+        setEventIntent(null);
+        setRouteUnavailable(false);
+        setRequestId(undefined);
+        setError(undefined);
+        setAttendanceAccepted({ intent: pending.intent, acceptedAt, eventId: typeof accepted.event?.id === 'string' ? accepted.event.id : null, sessionId: typeof accepted.session?.id === 'string' ? accepted.session.id : null, recovered: accepted.idempotent === true });
+        setQrStepUpRequired(false);
+        activeCaptureIdRef.current = null;
+        locationRecoveryPendingRef.current = false;
+        setLocationIssue(null);
+        setLocationHelpOpen(false);
+        setVerificationStage(accepted.idempotent === true ? 'Server ยืนยัน AttendanceEvent เดิมแบบ idempotent เรียบร้อย' : 'Server บันทึกเวลาเรียบร้อยแล้ว');
+        asyncEvidenceEpochRef.current += 1;
+        if (employeeV4) void attendanceSelfToday(token).then(setTodayData).catch(() => {});
+        return;
+      }
+      if (accepted.readiness) setReadiness(accepted.readiness);
+      const expiresAtMs = pending.receiptExpiresAt ? Date.parse(pending.receiptExpiresAt) : Number.NaN;
+      if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
+        setPendingAttendanceCommit(null);
+        setVerificationSession(null);
+        setVerificationStage('สิทธิ์ยืนยันใบหน้าหมดอายุแล้ว');
+        setError('Server ยังไม่บันทึก AttendanceEvent และ receipt เดิมหมดอายุแล้ว กรุณาเริ่มยืนยันตัวตนใหม่หนึ่งครั้ง');
+        return;
+      }
+      setVerificationStage('Face Verification ผ่านแล้ว · ยังรอการบันทึก AttendanceEvent');
+      setError('Server ยังบันทึกเวลาไม่สำเร็จ แต่ยังเก็บ receipt เดิมไว้ในหน่วยความจำ กรุณากด “ลองบันทึกเวลาอีกครั้ง”');
+    } catch (reason) {
+      if (reason instanceof AttendanceFlowError) setRequestId(reason.requestId);
+      const expiresAtMs = pending.receiptExpiresAt ? Date.parse(pending.receiptExpiresAt) : Number.NaN;
+      if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
+        setPendingAttendanceCommit(null);
+        setVerificationSession(null);
+        setVerificationStage('สิทธิ์ยืนยันใบหน้าหมดอายุแล้ว');
+        setError('การบันทึกเวลายังไม่สำเร็จและ receipt เดิมหมดอายุแล้ว กรุณาเริ่มยืนยันตัวตนใหม่หนึ่งครั้ง');
+      } else {
+        setVerificationStage('Face Verification ผ่านแล้ว · retry การบันทึก AttendanceEvent ได้');
+        setError('การบันทึกเวลาเกิดข้อผิดพลาดชั่วคราว กรุณากด “ลองบันทึกเวลาอีกครั้ง” โดยไม่ต้องตรวจหน้าใหม่');
+      }
+    } finally {
+      setVerificationBusy(false);
+    }
+  };
   if (employeeV4) {
     const assignment = todayData?.assignment || null;
     const scheduleReady = Boolean(todayData?.scheduleReady && assignment);
@@ -872,9 +963,13 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     const devicePrerequisiteBlocked = deviceStateKnown && !deviceEnrolled && !attendanceAccepted && !verificationSession;
     const deviceBlocked = serverDeviceBlocked || devicePrerequisiteBlocked;
     const nonRetryableReadinessBlocked = Boolean(readiness?.blocking && readiness.retryable === false && !serverDeviceBlocked);
-    const actionText = deviceBlocked ? 'SET UP DEVICE' : primaryActionState.actionText;
-    const actionThai = deviceBlocked ? 'ตั้งค่าอุปกรณ์ลงเวลา' : primaryActionState.actionThai;
+    const actionText = pendingAttendanceCommit ? 'RETRY COMMIT' : deviceBlocked ? 'SET UP DEVICE' : primaryActionState.actionText;
+    const actionThai = pendingAttendanceCommit ? 'ลองบันทึกเวลาอีกครั้ง' : deviceBlocked ? 'ตั้งค่าอุปกรณ์ลงเวลา' : primaryActionState.actionThai;
     const handleEmployeePrimaryAction = () => {
+      if (pendingAttendanceCommit) {
+        void retryPendingAttendanceCommit();
+        return;
+      }
       if (deviceBlocked) {
         const deviceCopy = readiness && serverDeviceBlocked ? fallbackCopy(readiness) : null;
         setVerificationStage(deviceCopy?.title || 'ต้องตั้งค่าอุปกรณ์ลงเวลาก่อน');
@@ -986,7 +1081,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         <div className="attendance-v4__hero-wrap">
           <button
             type="button"
-            className={`attendance-v4__action ${flowBusy ? 'is-busy' : ''} ${!primaryActionState.enabled && !flowBusy ? 'is-blocked' : ''}`}
+            className={`attendance-v4__action ${flowBusy ? 'is-busy' : ''} ${!pendingAttendanceCommit && !primaryActionState.enabled && !flowBusy ? 'is-blocked' : ''}`}
             disabled={flowBusy || attendanceComplete}
             onPointerUp={(event) => {
               if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
