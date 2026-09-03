@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createInProcessFaceVerificationService, safeMatchDiagnosticBand } = require('../src/services/face-verification-in-process.service');
+const { createInProcessFaceVerificationService, safeMatchDiagnosticBand, safeActiveChallengeRetryHint } = require('../src/services/face-verification-in-process.service');
 const { deriveActiveFaceChallenge } = require('../src/services/active-face-challenge.service');
 
 const sessionId = '33333333-3333-4333-8333-333333333333';
@@ -15,7 +15,7 @@ function jpeg(size = 256, fill = 7) {
 }
 function sha256(buffer) { return crypto.createHash('sha256').update(buffer).digest('hex'); }
 
-function context({ providerFails = false, activeChallengePassed = true, faceMatchPassed = true, evidenceStorage = null, recordFails = false, receiptMissing = false } = {}) {
+function context({ providerFails = false, activeChallengePassed = true, faceMatchPassed = true, providerResultCode = null, evidenceStorage = null, recordFails = false, receiptMissing = false } = {}) {
   const referenceBytes = jpeg(320, 9);
   const liveBytes = jpeg(256, 5);
   const challengeFrames = [jpeg(180, 1), jpeg(181, 2), jpeg(182, 3), jpeg(183, 4)];
@@ -59,7 +59,7 @@ function context({ providerFails = false, activeChallengePassed = true, faceMatc
         referenceLength: input.referencePhotoBytes.length
       }]);
       if (providerFails) { const error = new Error('upstream failed'); error.details = { code: 'VERIFICATION_PROVIDER_UNAVAILABLE' }; throw error; }
-      return { activeChallengePassed, faceMatchPassed, resultCode: activeChallengePassed ? (faceMatchPassed ? 'MATCH' : 'NO_MATCH') : 'ACTIVE_CHALLENGE_FAILED', policyProfileId: 'FACE_MATCH_ONLY_ACTIVE_CHALLENGE_IN_PROCESS_V1', engineVersion: 'in-process-test-1' };
+      return { activeChallengePassed, faceMatchPassed, resultCode: providerResultCode || (activeChallengePassed ? (faceMatchPassed ? 'MATCH' : 'NO_MATCH') : 'ACTIVE_CHALLENGE_FAILED'), policyProfileId: 'FACE_MATCH_ONLY_ACTIVE_CHALLENGE_IN_PROCESS_V1', engineVersion: 'in-process-test-1' };
     }
   };
   const referenceStorage = { async getBytes() { return referenceBytes; } };
@@ -94,6 +94,17 @@ test('safe match diagnostics are categorical and fail closed for unknown provide
   assert.equal(safeMatchDiagnosticBand({ resultCode: 'ACTIVE_CHALLENGE_INSUFFICIENT_MOVEMENT' }), 'NOT_EVALUATED');
 });
 
+test('active challenge retry hints expose only coarse user guidance', () => {
+  assert.equal(safeActiveChallengeRetryHint({ resultCode: 'ACTIVE_CHALLENGE_INSUFFICIENT_MOVEMENT' }), 'MOVE_MORE');
+  assert.equal(safeActiveChallengeRetryHint({ resultCode: 'ACTIVE_CHALLENGE_FRAME_EVALUATION_FAILED' }), 'KEEP_FACE_VISIBLE');
+  assert.equal(safeActiveChallengeRetryHint({ resultCode: 'ACTIVE_CHALLENGE_POSE_INVALID' }), 'KEEP_FACE_VISIBLE');
+  assert.equal(safeActiveChallengeRetryHint({ resultCode: 'ACTIVE_CHALLENGE_WRONG_DIRECTION' }), 'FOLLOW_DIRECTION');
+  assert.equal(safeActiveChallengeRetryHint({ resultCode: 'ACTIVE_CHALLENGE_BASELINE_NOT_NEUTRAL' }), 'START_CENTERED');
+  assert.equal(safeActiveChallengeRetryHint({ resultCode: 'ACTIVE_CHALLENGE_FINAL_NOT_NEUTRAL' }), 'RETURN_CENTER');
+  assert.equal(safeActiveChallengeRetryHint({ resultCode: 'FACE_MATCH_FAILED' }), null);
+  assert.equal(safeActiveChallengeRetryHint({ resultCode: 'UNTRUSTED_PROVIDER_VALUE' }), null);
+});
+
 test('in-process orchestration issues a receipt without retaining routine Attendance face evidence', async () => {
   const c = context();
   const result = await verify(c);
@@ -120,11 +131,13 @@ test('failed active challenge mints no receipt and never invokes routine evidenc
   const c = context({
     activeChallengePassed: false,
     faceMatchPassed: true,
+    providerResultCode: 'ACTIVE_CHALLENGE_INSUFFICIENT_MOVEMENT',
     evidenceStorage: { async store() { storeCalls += 1; return { storageStatus: 'STORED' }; }, async remove() {} }
   });
   const result = await verify(c);
   assert.equal(result.receipt, null);
   assert.equal(result.session.failureCode, 'ACTIVE_CHALLENGE_FAILED');
+  assert.equal(result.retryHint, 'MOVE_MORE');
   assert.equal(result.evidence.storageStatus, 'NOT_STORED');
   assert.equal(storeCalls, 0);
 });

@@ -6,6 +6,7 @@ const {
   MAX_ATTENDANCE_LIVE_PHOTO_SIZE,
   safeDeviceProof,
   safeFaceVerification,
+  safeRetryHint,
   createAttendanceFaceVerificationService
 } = require('../src/services/attendance-face-verification.service');
 
@@ -29,20 +30,25 @@ test('Attendance face adapter keeps the browser-facing contract provider-neutral
     verificationAccepted: true,
     receipt: 'opaque-receipt',
     receiptExpiresAt: 'soon',
+    retryHint: null,
     evidence: { storageStatus: 'NOT_STORED', stored: false }
   });
+  assert.equal(safeRetryHint('MOVE_MORE'), 'MOVE_MORE');
+  assert.equal(safeRetryHint('UNTRUSTED_VALUE'), null);
 });
 
 test('Attendance face adapter never issues a browser receipt when trusted service did not accept challenge + face verification', () => {
   assert.deepEqual(safeFaceVerification({
     verificationAccepted: false,
     receipt: 'must-not-leak',
+    retryHint: 'KEEP_FACE_VISIBLE',
     evidence: { storageStatus: 'NOT_STORED' },
     session: { failureCode: 'ACTIVE_CHALLENGE_FAILED' }
   }), {
     verificationAccepted: false,
     receipt: null,
     receiptExpiresAt: null,
+    retryHint: 'KEEP_FACE_VISIBLE',
     evidence: { storageStatus: 'NOT_STORED', stored: false }
   });
 });

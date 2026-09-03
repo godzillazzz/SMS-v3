@@ -8,6 +8,19 @@ const { createInProcessFaceVerificationService } = require('./face-verification-
 const MAX_ATTENDANCE_LIVE_PHOTO_SIZE = ATTACHMENT_PROFILES.ATTENDANCE_FACE.imageHardLimitBytes;
 const MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE = ATTACHMENT_PROFILES.ATTENDANCE_FACE.imageHardLimitBytes;
 
+const SAFE_ACTIVE_CHALLENGE_RETRY_HINTS = new Set([
+  'MOVE_MORE',
+  'KEEP_FACE_VISIBLE',
+  'FOLLOW_DIRECTION',
+  'START_CENTERED',
+  'RETURN_CENTER'
+]);
+
+function safeRetryHint(value) {
+  const hint = typeof value === 'string' ? value : '';
+  return SAFE_ACTIVE_CHALLENGE_RETRY_HINTS.has(hint) ? hint : null;
+}
+
 function safeDeviceProof(result, sessionId) {
   return {
     verificationReady: true,
@@ -22,6 +35,7 @@ function safeFaceVerification(result) {
     verificationAccepted: accepted,
     receipt: accepted ? result.receipt : null,
     receiptExpiresAt: accepted ? (result.receiptExpiresAt || null) : null,
+    retryHint: accepted ? null : safeRetryHint(result?.retryHint),
     evidence: {
       storageStatus: result?.evidence?.storageStatus || 'NOT_STORED',
       stored: result?.evidence?.stored === true
@@ -62,5 +76,6 @@ module.exports = {
   MAX_ATTENDANCE_FACE_UPLOAD_PART_SIZE,
   safeDeviceProof,
   safeFaceVerification,
+  safeRetryHint,
   createAttendanceFaceVerificationService
 };

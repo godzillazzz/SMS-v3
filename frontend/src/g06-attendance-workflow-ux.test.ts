@@ -74,6 +74,8 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain('verification.activeChallenge');
     expect(page).toContain('challenge={verificationSession?.activeChallenge || null}');
     expect(client).toContain('/attendance/verification/${encodeURIComponent(sessionId)}/face-match');
+    expect(client).toContain("export type AttendanceFaceRetryHint = 'MOVE_MORE'");
+    expect(client).toContain('retryHint?: AttendanceFaceRetryHint | null');
     expect(page).toContain('matched.verificationAccepted !== true || !matched.receipt');
     expect(client).toContain('attendance/events');
     expect(client).toMatch(/body: JSON.stringify\(\{\s*receipt: input\.receipt,\s*attendanceContext: input\.attendanceContext\s*\}\)/);
@@ -89,6 +91,12 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).not.toContain('attendanceAccepted = true');
     expect(page).toContain("setFailurePresentation(activeChallengeFailed ? 'ACTIVE_CHALLENGE' : 'VERIFICATION')");
     expect(page).toContain("'Active Challenge ยังไม่ผ่าน'");
+    expect(page).toContain('activeChallengeRetryMessage(matched.retryHint)');
+    expect(page).toContain("hint === 'MOVE_MORE'");
+    expect(page).toContain("hint === 'KEEP_FACE_VISIBLE'");
+    expect(page).toContain("hint === 'FOLLOW_DIRECTION'");
+    expect(page).toContain("hint === 'START_CENTERED'");
+    expect(page).toContain("hint === 'RETURN_CENTER'");
     expect(page).toContain('กรุณาทำ Active Challenge ใหม่อีกครั้ง');
   });
 
@@ -179,8 +187,8 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain('if (sequenceEpoch !== captureSequenceEpochRef.current) return');
     expect(faceCapture).toContain('challenge.frameCount !== 4');
     expect(faceCapture).toContain('const PREPARE_DELAY_MS = 2200');
-    expect(faceCapture).toContain('const MOVEMENT_START_DELAY_MS = 2600');
-    expect(faceCapture).toContain('const MOVEMENT_FRAME_INTERVAL_MS = 850');
+    expect(faceCapture).toContain('const MOVEMENT_START_DELAY_MS = 2200');
+    expect(faceCapture).toContain('const MOVEMENT_FRAME_INTERVAL_MS = 350');
     expect(faceCapture).toContain('const RETURN_TO_CENTER_DELAY_MS = 2200');
     expect(faceCapture).toContain('const captureFrame = async (mirrorHorizontally = false)');
     expect(faceCapture).toContain('context.scale(-1, 1)');
@@ -192,14 +200,14 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain("setCapturePhase('movement')");
     expect(faceCapture).toContain("setCapturePhase('neutral')");
     expect(faceCapture).toContain('มองตรงค้างไว้ · กำลังเก็บภาพตั้งต้น');
-    expect(faceCapture).toContain('ทำท่าตามคำสั่งตอนนี้และค้างไว้');
+    expect(faceCapture).toContain('ขยับพอประมาณแล้วค้างนิ่ง');
     expect(faceCapture).toContain('กลับมามองตรงที่กล้องและค้างไว้');
     expect(faceCapture).toContain("title: 'มองตรงที่กล้องก่อน'");
     expect(faceCapture).toContain("'ขั้นที่ 1 · มองตรงเพื่อตั้งต้น'");
     expect(faceCapture).toContain("'ขั้นที่ 2 · ทำท่าตอนนี้และค้างไว้'");
     expect(faceCapture).toContain("'ขั้นที่ 3 · กลับมามองตรง'");
     expect(faceCapture).toContain('const displayedChallengeCopy = preparingBaseline');
-    expect(faceCapture).toContain('ค้างท่าไว้จนระบบบอกให้กลับมามองตรง');
+    expect(faceCapture).toContain('ไม่ต้องหันจนสุด');
     expect(faceCapture).toContain('ยืนยันใบหน้า');
     expect(faceCapture).toContain('ทำตามคำสั่งบนหน้าจอ');
     expect(faceCapture).toContain('เริ่ม Active Challenge');
