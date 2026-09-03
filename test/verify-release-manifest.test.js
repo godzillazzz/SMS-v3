@@ -83,13 +83,13 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest resolves G06 face-match diagnostic exact target with no database changes', () => {
+test('current approved Production manifest resolves G06 Active Challenge usability hotfix exact target with no database changes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.commitSha, '83d8a7eb0152fff84fe39b3218410b047f7fc99d');
-  assert.equal(result.treeSha, '2d793657753a39a267b42889176e3bf30909bd5d');
-  assert.equal(result.currentProductionSourceSha, '791466c77bf266b092f237d68541bf0c6b255b22');
-  assert.equal(result.rollbackDeploymentId, 'dpl_A2Sc7mNADdfmFLMWQR7pBVochmHW');
+  assert.equal(result.commitSha, '0e039f311c6270a3f0227a6fbee32846c365da8c');
+  assert.equal(result.treeSha, '8b10aabbd981296c70e55315c35e65869188ac07');
+  assert.equal(result.currentProductionSourceSha, '83d8a7eb0152fff84fe39b3218410b047f7fc99d');
+  assert.equal(result.rollbackDeploymentId, 'dpl_8NkduKWeuZLVaft5LnhzGw5PNpMi');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
