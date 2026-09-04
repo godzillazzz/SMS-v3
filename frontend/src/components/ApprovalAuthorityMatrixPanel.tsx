@@ -91,7 +91,7 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
     {loading ? <div className="loading-row">กำลังอ่าน Approval policy…</div> : <div className="table-wrap">
       <table className="data-table">
         <thead>
-          <tr><th>ประเภทคำขอ</th><th>ผู้อนุมัติ</th><th>ใกล้ SLA</th><th>เกิน SLA</th><th>ข้อบังคับ</th><th>จัดการ</th></tr>
+          <tr><th scope="col">ประเภทคำขอ</th><th scope="col">ผู้อนุมัติ</th><th scope="col">ใกล้ SLA</th><th scope="col">เกิน SLA</th><th scope="col">ข้อบังคับ</th><th scope="col">จัดการ</th></tr>
         </thead>
         <tbody>{items.map((policy) => {
           const draft = drafts[policy.requestType] || policy;

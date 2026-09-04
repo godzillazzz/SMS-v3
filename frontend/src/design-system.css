@@ -2,6 +2,16 @@
 /* Palette variables are provided by styles/tokens.css. */
 body{background:var(--page);color:var(--text)} button,input,select,textarea{font-size:14px} button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(109,92,231,.2)}
 html, body, button, input, select, textarea, table, dialog, [role="dialog"] { font-family: var(--font-sans); }
+
+/* WAVE 2 semantic roles. Components opt in incrementally; legacy selectors remain unchanged. */
+.ds-page-title { font-size: var(--font-size-page-title); line-height: var(--line-height-tight); }
+.ds-section-title { font-size: var(--font-size-section-title); line-height: var(--line-height-heading); }
+.ds-body-secondary { color: var(--color-text-secondary); font-size: var(--font-size-supporting); line-height: var(--line-height-thai); }
+.ds-metadata { color: var(--color-text-secondary); font-size: var(--font-size-metadata); line-height: var(--line-height-thai); }
+.ds-helper { color: var(--color-text-secondary); font-size: var(--font-size-helper); line-height: var(--line-height-thai); }
+.ds-table-header { font-size: var(--font-size-table-header); line-height: var(--line-height-table); }
+.ds-metric-value { font-size: var(--font-size-metric); line-height: var(--line-height-tight); }
+.ds-status { display: inline-flex; align-items: center; gap: var(--space-status); }
 /* Auth experience ownership moved to styles/auth-experience.css in UX-04. */
 .field-group input,.field-group select,.field-group textarea{min-height:46px;padding:0 13px;border-color:#d9e1ee;background:#fbfcff;font-size:14px}.btn-primary{height:46px;border-radius:8px;background:linear-gradient(100deg,var(--indigo-600),var(--indigo-500));box-shadow:0 8px 18px rgba(87,70,217,.22);font-size:14px}.alert{font-size:13px}
 /* Application frame ownership moved to styles/app-shell.css. */

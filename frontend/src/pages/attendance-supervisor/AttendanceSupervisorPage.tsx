@@ -884,17 +884,17 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           <table>
             <thead>
               <tr>
-                {mode === 'history' && <th>วันที่</th>}
-                <th>Employee</th>
-                <th>Shift</th>
-                <th>Expected Site</th>
-                <th>Actual Site</th>
-                <th>In</th>
-                <th>Out</th>
-                <th>Worked</th>
-                <th>Status</th>
-                <th>Flags</th>
-                <th>Action</th>
+                {mode === 'history' && <th scope="col">วันที่</th>}
+                <th scope="col">Employee</th>
+                <th scope="col">Shift</th>
+                <th scope="col">Expected Site</th>
+                <th scope="col">Actual Site</th>
+                <th scope="col">In</th>
+                <th scope="col">Out</th>
+                <th scope="col">Worked</th>
+                <th scope="col">Status</th>
+                <th scope="col">Flags</th>
+                <th scope="col">Action</th>
               </tr>
             </thead>
             <tbody>

@@ -108,7 +108,7 @@ export function LeaveTypeMasterPanel({
 
     {loading ? <div className="loading-row">กำลังอ่าน Leave Type Master…</div> : <div className="table-wrap">
       <table className="data-table">
-        <thead><tr><th>ประเภทการลา</th><th>ชื่อ</th><th>กลุ่มโควตา</th><th>ลำดับ</th><th>สถานะ</th><th>ข้อกำหนด</th><th>จัดการ</th></tr></thead>
+        <thead><tr><th scope="col">ประเภทการลา</th><th scope="col">ชื่อ</th><th scope="col">กลุ่มโควตา</th><th scope="col">ลำดับ</th><th scope="col">สถานะ</th><th scope="col">ข้อกำหนด</th><th scope="col">จัดการ</th></tr></thead>
         <tbody>
           {items.map((row) => {
             const editing = editingId === row.id;

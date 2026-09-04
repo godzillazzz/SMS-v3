@@ -215,7 +215,7 @@ export function DataRetentionCenterPanel({ token }: { token: string }) {
 
     <div className="retention-runs">
       <strong>Cleanup ล่าสุด</strong>
-      {state.recentRuns.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th>เวลา</th><th>Trigger</th><th>สถานะ</th><th>Error</th></tr></thead><tbody>
+      {state.recentRuns.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th scope="col">เวลา</th><th scope="col">Trigger</th><th scope="col">สถานะ</th><th scope="col">Error</th></tr></thead><tbody>
         {state.recentRuns.slice(0, 8).map((run) => <tr key={run.id}><td>{thaiDateTime(run.startedAt)}</td><td>{run.trigger}</td><td>{run.status}</td><td>{run.errorCode || '—'}</td></tr>)}
       </tbody></table></div> : <small>ยังไม่มี Cleanup run</small>}
     </div>

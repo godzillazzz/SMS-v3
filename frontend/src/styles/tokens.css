@@ -11,6 +11,12 @@
   --font-size-table: 0.8125rem;
   --font-size-secondary: 0.75rem;
   --font-size-micro: 0.6875rem;
+  /* WAVE 2 semantic type roles. Keep the existing scale as the source of truth. */
+  --font-size-supporting: var(--font-size-table);
+  --font-size-metadata: var(--font-size-secondary);
+  --font-size-helper: var(--font-size-table);
+  --font-size-table-header: var(--font-size-secondary);
+  --font-size-metric: 1.75rem;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -18,6 +24,8 @@
   --line-height-tight: 1.25;
   --line-height-body: 1.6;
   --line-height-thai: 1.7;
+  --line-height-heading: 1.35;
+  --line-height-table: 1.5;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -26,6 +34,14 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  /* Semantic aliases make page rhythm explicit without adding a second scale. */
+  --space-page: var(--space-6);
+  --space-section: var(--space-5);
+  --space-card: var(--space-4);
+  --space-toolbar: var(--space-3);
+  --space-field: var(--space-3);
+  --space-table-cell: var(--space-3);
+  --space-status: var(--space-1);
 
   --radius-sm: 8px;
   --radius-md: 12px;
