@@ -103,12 +103,12 @@ export function SystemHealthPage({ token }: { token: string }) {
   return <section className="system-health-page data-surface-page" aria-label="Performance and System Health">
     <div className="page-heading system-health-heading">
       <div>
-        <p className="eyebrow">ADMIN · READ ONLY</p>
-        <h1>Performance &amp; System Health</h1>
-        <p>ตรวจสถานะ runtime, API latency, HTTP errors และ Database readiness โดยไม่เปิดเผย secret หรือสร้างช่องทาง deploy.</p>
+        <p className="eyebrow ds-metadata">ADMIN · READ ONLY</p>
+        <h1 className="ds-page-title">Performance &amp; System Health</h1>
+        <p className="ds-body-secondary">ตรวจสถานะ runtime, API latency, HTTP errors และ Database readiness โดยไม่เปิดเผย secret หรือสร้างช่องทาง deploy.</p>
       </div>
       <div className="heading-actions">
-        <span className={`status-badge ${data?.overallStatus === 'ready' ? 'active' : 'inactive'}`}>
+        <span className={`status-badge ds-status ${data?.overallStatus === 'ready' ? 'active' : 'inactive'}`}>
           {data?.overallStatus === 'ready' ? 'READY' : data ? 'DEGRADED' : 'UNKNOWN'}
         </span>
         <button className="btn-neutral small-action" type="button" disabled={loading} onClick={() => setRefreshKey((value) => value + 1)}>
@@ -117,7 +117,7 @@ export function SystemHealthPage({ token }: { token: string }) {
       </div>
     </div>
 
-    <div className="system-health-scope" role="note">
+    <div className="system-health-scope ds-body-secondary" role="note">
       <strong>ขอบเขตข้อมูล:</strong> {data?.scope.note || 'Latency และ request counts จะแสดงเฉพาะ runtime instance ปัจจุบัน ไม่ใช่ global SLA.'}
     </div>
 
@@ -137,7 +137,7 @@ export function SystemHealthPage({ token }: { token: string }) {
     <div className="system-health-grid">
       <article className="table-card system-health-card">
         <div className="system-health-card-title">
-          <div><p className="eyebrow">CURRENT APPLICATION</p><h2>Application identity</h2></div>
+          <div><p className="eyebrow ds-metadata">CURRENT APPLICATION</p><h2 className="ds-section-title">Application identity</h2></div>
         </div>
         <dl className="system-health-details">
           <div><dt>Environment</dt><dd>{data?.application.environment || '—'}</dd></div>
@@ -151,7 +151,7 @@ export function SystemHealthPage({ token }: { token: string }) {
 
       <article className="table-card system-health-card">
         <div className="system-health-card-title">
-          <div><p className="eyebrow">ACTIONABLE WARNINGS</p><h2>Current warnings</h2></div>
+          <div><p className="eyebrow ds-metadata">ACTIONABLE WARNINGS</p><h2 className="ds-section-title">Current warnings</h2></div>
           <span className="record-chip">{data?.warnings.length ?? 0}</span>
         </div>
         <div className="system-health-warning-list">
@@ -167,11 +167,11 @@ export function SystemHealthPage({ token }: { token: string }) {
 
     <article className="table-card system-health-routes">
       <div className="system-health-card-title">
-        <div><p className="eyebrow">SLOW ROUTES</p><h2>API latency by route template</h2><p>ไม่มี query string, payload, request ID หรือข้อมูลผู้ใช้ในตารางนี้</p></div>
+        <div><p className="eyebrow ds-metadata">SLOW ROUTES</p><h2 className="ds-section-title">API latency by route template</h2><p className="ds-helper">ไม่มี query string, payload, request ID หรือข้อมูลผู้ใช้ในตารางนี้</p></div>
       </div>
       <div className="table-scroll">
         <table className="data-table">
-          <thead><tr><th>Method</th><th>Route template</th><th>Samples</th><th>p50</th><th>p95</th><th>Max</th><th>5xx</th></tr></thead>
+          <thead><tr><th scope="col" className="ds-table-header">Method</th><th scope="col" className="ds-table-header">Route template</th><th scope="col" className="ds-table-header">Samples</th><th scope="col" className="ds-table-header">p50</th><th scope="col" className="ds-table-header">p95</th><th scope="col" className="ds-table-header">Max</th><th scope="col" className="ds-table-header">5xx</th></tr></thead>
           <tbody>
             {requests?.slowRoutes.length ? requests.slowRoutes.map((route) => <tr key={`${route.method}:${route.route}`}>
               <td><code>{route.method}</code></td>

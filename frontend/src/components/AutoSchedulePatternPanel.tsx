@@ -251,7 +251,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
 
     {loading ? <div className="loading-row">กำลังอ่าน Pattern Master…</div> : <div className="table-wrap">
       <table className="data-table">
-        <thead><tr><th>Pattern</th><th>รูปแบบ</th><th>เป้าหมายอัตโนมัติ</th><th>ลำดับกะ</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+        <thead><tr><th scope="col">Pattern</th><th scope="col">รูปแบบ</th><th scope="col">เป้าหมายอัตโนมัติ</th><th scope="col">ลำดับกะ</th><th scope="col">สถานะ</th><th scope="col">จัดการ</th></tr></thead>
         <tbody>{items.map((row) => {
           const editing = editingId === row.id;
           const editMode = (editForm.mode ?? row.mode) as AutoSchedulePattern['mode'];

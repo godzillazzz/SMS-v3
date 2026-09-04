@@ -80,7 +80,7 @@ export function ConfigurationRegistryPanel({ settings }: { settings: SettingRow[
       <div className="table-scroll">
         <table className="data-table">
           <thead>
-            <tr><th>Domain</th><th>Setting</th><th>Key</th><th>Type</th><th>Constraint</th><th>Status</th><th>Authority</th></tr>
+            <tr><th scope="col">Domain</th><th scope="col">Setting</th><th scope="col">Key</th><th scope="col">Type</th><th scope="col">Constraint</th><th scope="col">Status</th><th scope="col">Authority</th></tr>
           </thead>
           <tbody>
             {settings.length ? settings.map((row) => <tr key={text(row.key)}>
