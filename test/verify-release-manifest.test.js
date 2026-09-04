@@ -83,12 +83,12 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest resolves UI P1 release exact target with no database changes', () => {
+test('current approved Production manifest resolves WAVE 2 exact target with no database changes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.commitSha, '39035641c494005feba38b61aa4ffd761245cf6a');
-  assert.equal(result.treeSha, 'f540a47c0db82b096027062e7d3cab5f4d6e03d1');
-  assert.equal(result.currentProductionSourceSha, '8862a33810e0467074b7ea2f4066d0f55d2ea74e');
+  assert.equal(result.commitSha, '70d1113233cea5ebc909eb6db656ec35cde49106');
+  assert.equal(result.treeSha, '2991471ae280e00c0d247e3a243c7157416df15d');
+  assert.equal(result.currentProductionSourceSha, '39035641c494005feba38b61aa4ffd761245cf6a');
   assert.equal(result.rollbackDeploymentId, 'dpl_9z7Da5u8YJnVNZkdWzhe9Fr6XnqJ');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
