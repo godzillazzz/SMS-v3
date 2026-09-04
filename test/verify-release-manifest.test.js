@@ -89,7 +89,7 @@ test('current approved Production manifest resolves WAVE 2 exact target with no 
   assert.equal(result.commitSha, '70d1113233cea5ebc909eb6db656ec35cde49106');
   assert.equal(result.treeSha, '2991471ae280e00c0d247e3a243c7157416df15d');
   assert.equal(result.currentProductionSourceSha, '39035641c494005feba38b61aa4ffd761245cf6a');
-  assert.equal(result.rollbackDeploymentId, 'dpl_9z7Da5u8YJnVNZkdWzhe9Fr6XnqJ');
+  assert.equal(result.rollbackDeploymentId, 'dpl_FBBYLL6oZ9AcwUDtX5eaLJ1stN2R');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
