@@ -9,6 +9,7 @@ const toolbar = read('components/audit/AuditToolbar.tsx');
 const table = read('components/audit/AuditTable.tsx');
 const preview = read('components/audit/AuditEventPreview.tsx');
 const styles = read('styles/audit-compliance.css');
+const dataTable = read('components/ResponsiveDataTable.tsx');
 
 describe('admin audit log viewer contract', () => {
   it('keeps the dedicated page ADMIN-only and uses server-side filter state', () => {
@@ -23,7 +24,7 @@ describe('admin audit log viewer contract', () => {
     for (const label of ['ตั้งแต่วันที่', 'ถึงวันที่', 'ผู้ใช้งาน', 'Module', 'Action', 'ค้นหา', 'ล้างตัวกรอง']) expect(toolbar).toContain(label);
     expect(toolbar).toContain('value={25}');
     expect(toolbar).toContain('value={100}');
-    expect(page).toContain('หน้า {page} จาก {totalPages}');
+    expect(dataTable).toContain('หน้า {page} จาก {totalPages}');
   });
 
   it('keeps details read-only, redacted, and usable on mobile', () => {
@@ -35,7 +36,7 @@ describe('admin audit log viewer contract', () => {
     expect(table).toContain('safeMetadataEntries');
     expect(preview).toContain('ซ่อนข้อมูลที่อ่อนไหว');
     expect(preview).toContain('safeMetadataEntries');
-    expect(page).toContain('ไม่สามารถโหลดบันทึกการใช้งานระบบ');
+    expect(table).toContain('ไม่สามารถโหลดบันทึกการใช้งานระบบ');
     expect(table).toContain('ไม่พบรายการ Audit Log ตามเงื่อนไขที่เลือก');
     expect(table).toContain('audit-skeleton-row');
     expect(table).not.toContain('data-label=');
@@ -43,7 +44,7 @@ describe('admin audit log viewer contract', () => {
 
   it('uses a separate vertical card structure for small screens without changing desktop tables', () => {
     const mobileStyles = read('styles/audit-mobile.css');
-    expect(table).toContain('<table className="audit-table data-surface-table"><thead><tr><th');
+    expect(table).toContain('<table className="audit-table data-surface-table" aria-label="รายการ Audit Log"><thead><tr><th');
     expect(table).toContain('</thead><tbody>');
     expect(table).toContain('<td>{formatAuditTime(row.createdAt)}</td>');
     expect(table).toContain('<article key={safe(row.id, `mobile-event-${index}`)}');
