@@ -65,6 +65,8 @@ type GeneratedQr = {
   siteName: string;
 };
 
+type DestructiveAction = 'DEACTIVATE_SITE' | 'REVOKE_QR';
+
 function SitePreview({ site }: { site: SecuritySite | null }) {
   if (!site) return <div className="security-site-map-empty">เลือก Site เพื่อดู Geofence preview</div>;
   const radius = Math.max(28, Math.min(74, Math.round(Number(site.geofenceRadiusMeters) / 4)));
@@ -99,7 +101,16 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   const [siteQuery, setSiteQuery] = useState('');
   const [siteStatusFilter, setSiteStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [deactivationReason, setDeactivationReason] = useState('');
+  const [pendingDestructiveAction, setPendingDestructiveAction] = useState<DestructiveAction | null>(null);
 
+  useEffect(() => {
+    if (!pendingDestructiveAction) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving) setPendingDestructiveAction(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [pendingDestructiveAction, saving]);
   const selectedSite = sites.find((site) => site.id === selectedSiteId) || null;
   const activeSites = sites.filter((site) => site.isActive);
   const visibleSites = useMemo(() => { const q = siteQuery.trim().toLocaleLowerCase('th-TH'); return sites.filter((site) => (!q || `${site.code} ${site.name}`.toLocaleLowerCase('th-TH').includes(q)) && (siteStatusFilter === 'ALL' || (siteStatusFilter === 'ACTIVE' ? site.isActive : !site.isActive))); }, [sites, siteQuery, siteStatusFilter]);
@@ -262,6 +273,35 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     } finally { setSaving(false); }
   };
 
+  const requestSiteStatusChange = () => {
+    if (!selectedSite) return;
+    if (!selectedSite.isActive) { void toggleSiteActive(); return; }
+    if (deactivationReason.trim().length < 3) {
+      setError('กรุณาระบุเหตุผลการปิดใช้งานอย่างน้อย 3 ตัวอักษร');
+      return;
+    }
+    setError(undefined);
+    setNotice(undefined);
+    setPendingDestructiveAction('DEACTIVATE_SITE');
+  };
+
+  const requestQrRevoke = () => {
+    if (!selectedSite?.currentQrCredential) return;
+    if (qrReason.trim().length < 3) {
+      setError('กรุณาระบุเหตุผลการ Revoke QR อย่างน้อย 3 ตัวอักษร');
+      return;
+    }
+    setError(undefined);
+    setNotice(undefined);
+    setPendingDestructiveAction('REVOKE_QR');
+  };
+
+  const confirmDestructiveAction = async () => {
+    const action = pendingDestructiveAction;
+    setPendingDestructiveAction(null);
+    if (action === 'DEACTIVATE_SITE') await toggleSiteActive();
+    if (action === 'REVOKE_QR') await revokeQr();
+  };
   const duplicateSite = async () => {
     if (!selectedSite) return;
     const code = window.prompt('Site code สำหรับสำเนาใหม่', selectedSite.code + '-COPY')?.trim();
@@ -343,7 +383,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
           <label className="field-group"><span>Longitude</span><input type="number" step="0.0000001" min={-180} max={180} value={form.longitude} onChange={(event) => setForm((current) => ({ ...current, longitude: event.target.value }))} /></label>
           <label className="field-group"><span>Geofence radius (เมตร)</span><input type="number" min={1} max={100000} value={form.geofenceRadiusMeters} onChange={(event) => setForm((current) => ({ ...current, geofenceRadiusMeters: event.target.value }))} /></label>
         </div>
-        {selectedSite?.isActive && <label className="field-group security-site-deactivation-reason"><span>เหตุผลก่อนปิดใช้งาน</span><textarea rows={3} maxLength={1000} value={deactivationReason} placeholder="ระบุเหตุผลเพื่อบันทึกใน Audit" onChange={(event) => setDeactivationReason(event.target.value)} /><small>ระบบจะตรวจ Default Site และ open Attendance session อีกครั้งที่ server ก่อนปิดใช้งาน</small></label>}<div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving} onClick={() => void saveSite()}>{saving ? 'กำลังบันทึก…' : selectedSite ? 'บันทึกการแก้ไข' : 'เพิ่ม Security Site'}</button>{selectedSite && <button type="button" className="btn-neutral" disabled={saving} onClick={() => void duplicateSite()}>Duplicate Site</button>}{selectedSite && <button type="button" className={selectedSite.isActive ? 'danger-action' : 'btn-success'} disabled={saving || (selectedSite.isActive && deactivationReason.trim().length < 3)} onClick={() => void toggleSiteActive()}>{selectedSite.isActive ? 'Deactivate' : 'Reactivate'}</button>}</div>
+        {selectedSite?.isActive && <label className="field-group security-site-deactivation-reason"><span>เหตุผลก่อนปิดใช้งาน</span><textarea rows={3} maxLength={1000} value={deactivationReason} placeholder="ระบุเหตุผลเพื่อบันทึกใน Audit" onChange={(event) => setDeactivationReason(event.target.value)} /><small>ระบบจะตรวจ Default Site และ open Attendance session อีกครั้งที่ server ก่อนปิดใช้งาน</small></label>}<div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving} onClick={() => void saveSite()}>{saving ? 'กำลังบันทึก…' : selectedSite ? 'บันทึกการแก้ไข' : 'เพิ่ม Security Site'}</button>{selectedSite && <button type="button" className="btn-neutral" disabled={saving} onClick={() => void duplicateSite()}>Duplicate Site</button>}{selectedSite && <button type="button" className={selectedSite.isActive ? 'danger-action' : 'btn-success'} disabled={saving || (selectedSite.isActive && deactivationReason.trim().length < 3)} onClick={requestSiteStatusChange}>{selectedSite.isActive ? 'Deactivate' : 'Reactivate'}</button>}</div>
       </article>
 
       <article className="security-site-admin__card">
@@ -376,7 +416,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
         <div className="security-site-admin__card-title"><div><h3>Attendance QR lifecycle</h3><small>Server เก็บ SHA-256 hash เท่านั้น · QR token จริงแสดงเฉพาะผล Rotate ครั้งนี้</small></div></div>
         {selectedSite ? <>
           <div className="security-site-qr-state"><span>Site</span><strong>{selectedSite.code} · {selectedSite.name}</strong><span>QR ปัจจุบัน</span><strong>{selectedSite.currentQrCredential ? `Version ${selectedSite.currentQrCredential.version} · ${displayDate(selectedSite.currentQrCredential.validFrom)}` : 'ยังไม่มี Active QR'}</strong></div>
-          <label className="field-group"><span>เหตุผล Rotate / Revoke QR</span><input value={qrReason} maxLength={1000} onChange={(event) => setQrReason(event.target.value)} placeholder="เช่น เปลี่ยนป้าย QR ประจำจุด" /><small>บังคับอย่างน้อย 3 ตัวอักษร และบันทึกใน Audit</small></label><div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving || !selectedSite.isActive} onClick={() => void rotateQr()}>Generate / Rotate QR</button>{selectedSite.currentQrCredential && <button type="button" className="danger-action" disabled={saving} onClick={() => void revokeQr()}>Revoke current QR</button>}</div>
+          <label className="field-group"><span>เหตุผล Rotate / Revoke QR</span><input value={qrReason} maxLength={1000} onChange={(event) => setQrReason(event.target.value)} placeholder="เช่น เปลี่ยนป้าย QR ประจำจุด" /><small>บังคับอย่างน้อย 3 ตัวอักษร และบันทึกใน Audit</small></label><div className="security-site-actions"><button type="button" className="btn-primary" disabled={saving || !selectedSite.isActive} onClick={() => void rotateQr()}>Generate / Rotate QR</button>{selectedSite.currentQrCredential && <button type="button" className="danger-action" disabled={saving} onClick={requestQrRevoke}>Revoke current QR</button>}</div>
           <div className="security-site-qr-history"><strong>QR history</strong>{selectedSite.qrCredentials.length ? selectedSite.qrCredentials.map((credential) => <div key={credential.id} className="security-site-qr-history__row"><span>Version {credential.version}</span><span>{credential.revokedAt ? `REVOKED · ${displayDate(credential.revokedAt)}` : 'CURRENT / ACTIVE'}</span><span>ออกเมื่อ {displayDate(credential.createdAt)}</span></div>) : <small>ยังไม่มี QR history</small>}</div>
           {(rawQrToken || generatedQr) && <div className="security-site-qr-once"><strong>⚠ QR TOKEN — แสดง/สร้างได้จากผลการออกครั้งนี้เท่านั้น</strong><p>Server เก็บ SHA-256 hash เท่านั้น; QR Token จริงมีให้จากผล Rotate ครั้งนี้และไม่สามารถอ่านกลับจากฐานข้อมูลได้</p>{rawQrToken && <code>{rawQrToken}</code>}
             {generatedQr && <>
@@ -394,6 +434,32 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
       </article>
     </div>
 
+    {pendingDestructiveAction && selectedSite && <div className="security-site-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setPendingDestructiveAction(null); }}>
+      <section className="security-site-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="security-site-confirm-title" aria-describedby="security-site-confirm-detail">
+        <div className="security-site-confirm-dialog__heading">
+          <span className="security-site-confirm-dialog__badge">ต้องยืนยัน</span>
+          <h3 id="security-site-confirm-title">{pendingDestructiveAction === 'DEACTIVATE_SITE' ? 'ยืนยันปิดใช้งาน Security Site' : 'ยืนยัน Revoke QR ปัจจุบัน'}</h3>
+          <p id="security-site-confirm-detail">{pendingDestructiveAction === 'DEACTIVATE_SITE'
+            ? `${selectedSite.code} · ${selectedSite.name} จะถูกเปลี่ยนเป็น Inactive หลัง Server ตรวจเงื่อนไข governance ผ่าน`
+            : `QR Version ${selectedSite.currentQrCredential?.version ?? '—'} ของ ${selectedSite.code} จะหยุดใช้ยืนยันพื้นที่ทันทีเมื่อ Server รับคำสั่ง`}</p>
+        </div>
+        <div className="security-site-confirm-dialog__impact">
+          <strong>ผลกระทบ</strong>
+          <p>{pendingDestructiveAction === 'DEACTIVATE_SITE'
+            ? 'Server จะตรวจ Default Site และ open Attendance session อีกครั้ง และจะปฏิเสธการปิดใช้งานหากเงื่อนไขความปลอดภัยยังไม่ผ่าน'
+            : 'ป้ายหรือไฟล์ QR ที่ใช้ credential version นี้จะใช้ไม่ได้อีก ต้อง Generate / Rotate QR ใหม่ก่อนนำ credential ใหม่ไปใช้งาน'}</p>
+        </div>
+        <dl className="security-site-confirm-dialog__facts">
+          <div><dt>Site</dt><dd>{selectedSite.code} · {selectedSite.name}</dd></div>
+          {pendingDestructiveAction === 'REVOKE_QR' && <div><dt>QR Version</dt><dd>{selectedSite.currentQrCredential?.version ?? '—'}</dd></div>}
+          <div><dt>เหตุผลที่บันทึกใน Audit</dt><dd>{pendingDestructiveAction === 'DEACTIVATE_SITE' ? deactivationReason.trim() : qrReason.trim()}</dd></div>
+        </dl>
+        <div className="security-site-confirm-dialog__actions">
+          <button type="button" className="btn-neutral" disabled={saving} autoFocus onClick={() => setPendingDestructiveAction(null)}>ยกเลิก</button>
+          <button type="button" className="danger-action" disabled={saving} onClick={() => void confirmDestructiveAction()}>{pendingDestructiveAction === 'DEACTIVATE_SITE' ? 'ยืนยันปิดใช้งาน Site' : 'ยืนยัน Revoke QR'}</button>
+        </div>
+      </section>
+    </div>}
     <footer className="security-site-admin__footnote">การแก้ไข Site / Mapping / QR เป็น Admin-only และมี Audit Log; AttendanceSession ที่เปิดหรือบันทึกแล้วคง expectedSiteId เดิม ไม่ rewrite ตาม Default Site ใหม่</footer>
   </section>;
 }

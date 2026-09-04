@@ -160,6 +160,9 @@ describe('G04.2 UX-04 auth experience contract', () => {
     expect(authCss).toContain('height: 48px;');
     expect(authCss).toContain('min-height: 48px;');
     expect(authCss).toContain('font-size: 12px;');
+    const supportRule = authCss.slice(authCss.indexOf('.auth-support-note {'), authCss.indexOf('}', authCss.indexOf('.auth-support-note {')) + 1);
+    expect(supportRule).toContain('color: var(--color-text-secondary);');
+    expect(supportRule).not.toContain('color: var(--color-text-muted);');
     expect(authCss).toContain('.auth-theme-control .theme-control--compact button');
     expect(authCss).toContain('min-width: 40px;');
     expect(authCss).toContain('@media (max-width: 760px)');

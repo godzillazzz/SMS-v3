@@ -602,7 +602,7 @@
   margin: 0;
   border: 0;
   padding: 4px 0 0;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   background: transparent;
   font-size: 12px;
   line-height: 1.6;
