@@ -22,6 +22,7 @@ const auditUtils = read('components/audit/audit-utils.ts');
 const dataQuality = read('pages/data-quality/DataQualityCenterPage.tsx');
 const rowMenu = read('components/DataRowActionMenu.tsx');
 const apiBytes = fs.readFileSync(path.join(root, 'api.ts'), 'utf8').replace(/\r\n/g, '\n');
+const dataTable = read('components/ResponsiveDataTable.tsx');
 
 const apiSha256 = createHash('sha256').update(apiBytes).digest('hex');
 
@@ -77,11 +78,12 @@ describe('G04.2 UX-03 data surfaces contract', () => {
   });
 
   it('keeps Personnel pagination mathematics unchanged while normalizing controls', () => {
-    expect(personnelPagination).toContain('onChange(page - 1)');
-    expect(personnelPagination).toContain('onChange(page + 1)');
-    expect(personnelPagination).toContain('disabled={page === 1}');
-    expect(personnelPagination).toContain('disabled={page === totalPages}');
-    expect(personnelPagination).toContain('data-pagination');
+    expect(personnelPagination).toContain('DataTablePagination');
+    expect(dataTable).toContain('onChange(page - 1)');
+    expect(dataTable).toContain('onChange(page + 1)');
+    expect(dataTable).toContain('page <= 1 || loading');
+    expect(dataTable).toContain('page >= totalPages || loading');
+    expect(dataTable).toContain('data-pagination');
   });
 
   it('keeps Access Management permission/action authority in visibleAccountActions', () => {
