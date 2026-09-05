@@ -44,7 +44,7 @@ describe('G03.1 annual quota page wiring', () => {
     expect(main).toContain('variant="empty"');
     expect(main).toContain('variant="error"');
     expect(main).toContain('aria-label="รายการโควตาวันลา"');
-    expect(main).toContain("ariaLabel={page === 'quota' ? 'แบ่งหน้าโควตาวันลา' : 'แบ่งหน้าใบอนุญาต'}");
+    expect(main).toContain("ariaLabel={page === 'quota' ? 'แบ่งหน้าโควตาวันลา' : page === 'approvals' ? 'แบ่งหน้าประวัติการอนุมัติตารางกะ' : 'แบ่งหน้าใบอนุญาต'}");
     expect(main).toContain('ข้อมูลโควตาเดิม — ยังไม่จับคู่พนักงาน');
     expect(main).toContain("onAction(row, 'edit')");
     expect(main).toContain("onAction(row, 'link')");

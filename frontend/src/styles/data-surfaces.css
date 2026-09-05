@@ -1573,3 +1573,100 @@
 .quota-mobile-skeleton .data-table-skeleton-bar {
   min-height: 13px;
 }
+
+/* WAVE 4B — Schedule Approval History keeps approval/rejection authority in
+   the page handlers while using the shared table/card boundary. */
+.data-surface-page--approvals .data-table-shell {
+  min-width: 0;
+}
+
+.data-surface-page--approvals .signature-data-table {
+  min-width: 860px;
+}
+
+.data-surface-page--approvals .signature-data-row > td {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.approval-mobile-record {
+  gap: 12px;
+}
+
+.approval-mobile-record__open {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+
+.approval-mobile-record__open:focus-visible {
+  outline: none;
+  border-radius: 8px;
+  box-shadow: var(--focus-ring);
+}
+
+.approval-mobile-record__open > strong {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.approval-mobile-record__open > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.approval-mobile-record__open > div span {
+  min-width: 0;
+  color: var(--table-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.approval-mobile-record__open > div small {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--signature-text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.approval-mobile-actions {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.approval-mobile-actions button {
+  min-height: 40px;
+  flex: 1 1 130px;
+}
+
+.approval-mobile-skeleton {
+  display: grid;
+  min-height: 170px;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+
+.approval-mobile-skeleton .data-table-skeleton-bar {
+  min-height: 13px;
+}
+
+@media (max-width: 480px) {
+  .approval-mobile-record__open > div {
+    grid-template-columns: 1fr;
+  }
+}
