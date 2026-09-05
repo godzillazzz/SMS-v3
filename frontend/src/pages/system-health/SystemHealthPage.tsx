@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSystemHealth } from '../../system-health-client';
+import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
 
 type SlowRoute = {
   method: string;
@@ -74,6 +75,28 @@ function shortSha(value: string | null | undefined) {
   return value ? value.slice(0, 12) : 'ไม่พร้อมใช้งาน';
 }
 
+function SystemHealthRouteCards({ routes, loading, error, onRetry }: { routes: SlowRoute[]; loading: boolean; error: boolean; onRetry(): void }) {
+  if (loading) return <div className="system-health-route-cards"><DataTableSkeletonCards count={3} cardClassName="data-mobile-card system-health-route-skeleton" /></div>;
+  if (error) return <DataTableState variant="error" title="ไม่สามารถอ่าน route samples ได้" description="ลองอ่าน snapshot ใหม่ได้โดยไม่เปลี่ยนข้อมูลระบบ" action={{ label: 'ลองใหม่', onClick: onRetry }} />;
+  if (!routes.length) return <DataTableState variant="empty" title="ยังไม่มี request samples ใน runtime นี้" description="route metrics จะแสดงเมื่อ runtime มี request ที่เก็บใน rolling window" />;
+  return <div className="system-health-route-cards">{routes.map((route) => {
+    const hasServerErrors = route.serverErrorCount > 0;
+    return <article className="data-mobile-card system-health-route-card" key={`${route.method}:${route.route}`}>
+      <header>
+        <div><small>Method</small><code>{route.method}</code></div>
+        <span className={`status-badge ${hasServerErrors ? 'status-badge--danger' : 'status-badge--success'}`}>{hasServerErrors ? `${route.serverErrorCount} 5xx` : '0 5xx'}</span>
+      </header>
+      <h3><code>{route.route}</code></h3>
+      <dl>
+        <div><dt>Samples</dt><dd>{route.requestCount}</dd></div>
+        <div><dt>p50</dt><dd>{formatMs(route.p50Ms)}</dd></div>
+        <div><dt>p95</dt><dd>{formatMs(route.p95Ms)}</dd></div>
+        <div><dt>Max</dt><dd>{formatMs(route.maxMs)}</dd></div>
+      </dl>
+    </article>;
+  })}</div>;
+}
+
 export function SystemHealthPage({ token }: { token: string }) {
   const [data, setData] = useState<SystemHealth>();
   const [loading, setLoading] = useState(true);
@@ -99,6 +122,20 @@ export function SystemHealthPage({ token }: { token: string }) {
 
   const requests = data?.requests;
   const serverErrorRate = requests ? `${requests.serverErrorRatePct.toFixed(2)}%` : '—';
+  const routeRows = requests?.slowRoutes ?? [];
+  const retry = () => setRefreshKey((value) => value + 1);
+  const routeDesktop = <div className="data-table-scroll"><table className="data-surface-table system-health-route-table" aria-label="API latency by route template"><thead><tr><th scope="col" className="ds-table-header">Method</th><th scope="col" className="ds-table-header">Route template</th><th scope="col" className="ds-table-header">Samples</th><th scope="col" className="ds-table-header">p50</th><th scope="col" className="ds-table-header">p95</th><th scope="col" className="ds-table-header">Max</th><th scope="col" className="ds-table-header">5xx</th></tr></thead><tbody>
+    {loading ? <DataTableSkeletonRows columnCount={7} rowCount={5} /> : error ? <tr><td colSpan={7} className="data-table-empty-cell"><DataTableState variant="error" title="ไม่สามารถอ่าน route samples ได้" description="ลองอ่าน snapshot ใหม่ได้โดยไม่เปลี่ยนข้อมูลระบบ" action={{ label: 'ลองใหม่', onClick: retry }} announce={false} /></td></tr> : routeRows.length ? routeRows.map((route) => <tr key={`${route.method}:${route.route}`}>
+      <td><code>{route.method}</code></td>
+      <td className="system-health-route-template"><code>{route.route}</code></td>
+      <td>{route.requestCount}</td>
+      <td>{formatMs(route.p50Ms)}</td>
+      <td>{formatMs(route.p95Ms)}</td>
+      <td>{formatMs(route.maxMs)}</td>
+      <td>{route.serverErrorCount}</td>
+    </tr>) : <tr><td colSpan={7} className="data-table-empty-cell"><DataTableState variant="empty" title="ยังไม่มี request samples ใน runtime นี้" description="route metrics จะแสดงเมื่อ runtime มี request ที่เก็บใน rolling window" announce={false} /></td></tr>}
+  </tbody></table></div>;
+  const routeMobile = <SystemHealthRouteCards routes={routeRows} loading={loading} error={Boolean(error)} onRetry={retry} />;
 
   return <section className="system-health-page data-surface-page" aria-label="Performance and System Health">
     <div className="page-heading system-health-heading">
@@ -169,22 +206,7 @@ export function SystemHealthPage({ token }: { token: string }) {
       <div className="system-health-card-title">
         <div><p className="eyebrow ds-metadata">SLOW ROUTES</p><h2 className="ds-section-title">API latency by route template</h2><p className="ds-helper">ไม่มี query string, payload, request ID หรือข้อมูลผู้ใช้ในตารางนี้</p></div>
       </div>
-      <div className="table-scroll">
-        <table className="data-table">
-          <thead><tr><th scope="col" className="ds-table-header">Method</th><th scope="col" className="ds-table-header">Route template</th><th scope="col" className="ds-table-header">Samples</th><th scope="col" className="ds-table-header">p50</th><th scope="col" className="ds-table-header">p95</th><th scope="col" className="ds-table-header">Max</th><th scope="col" className="ds-table-header">5xx</th></tr></thead>
-          <tbody>
-            {requests?.slowRoutes.length ? requests.slowRoutes.map((route) => <tr key={`${route.method}:${route.route}`}>
-              <td><code>{route.method}</code></td>
-              <td><code>{route.route}</code></td>
-              <td>{route.requestCount}</td>
-              <td>{formatMs(route.p50Ms)}</td>
-              <td>{formatMs(route.p95Ms)}</td>
-              <td>{formatMs(route.maxMs)}</td>
-              <td>{route.serverErrorCount}</td>
-            </tr>) : <tr><td colSpan={7} className="no-rows">{loading ? 'กำลังอ่าน runtime samples…' : 'ยังไม่มี request samples ใน runtime นี้'}</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <ResponsiveDataTable ariaLabel="API latency by route template" loading={loading} error={Boolean(error)} loadingLabel="กำลังอ่าน runtime samples…" errorLabel="ไม่สามารถอ่าน route samples ได้" hasRows={routeRows.length > 0} className="system-health-route-surface" desktop={routeDesktop} mobile={routeMobile} />
     </article>
 
     <p className="system-health-generated">Snapshot: {formatDate(data?.generatedAt)} · Endpoint นี้เป็น read-only และไม่มีปุ่ม deploy, migration หรือ environment mutation.</p>
