@@ -1073,6 +1073,130 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* WAVE 4B — Rule Checking keeps KPI summary specialist and gives both
+   read-only result tables an explicit mobile record representation. */
+.rule-checking-desktop-table {
+  overflow: hidden;
+}
+
+.rule-checking-desktop-table .data-surface-table {
+  min-width: 680px;
+}
+
+.rule-checking-desktop-table .rule-checking-description {
+  max-width: 48ch;
+  overflow-wrap: anywhere;
+}
+
+.rule-checking-row-actions {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rule-checking-row-actions button {
+  min-height: 40px;
+}
+
+.rule-checking-mobile-list {
+  display: grid;
+  gap: 10px;
+}
+
+.rule-checking-mobile-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.rule-checking-mobile-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rule-checking-mobile-card header > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.rule-checking-mobile-card header small,
+.rule-checking-mobile-card dt {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.rule-checking-mobile-card code {
+  width: max-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.rule-checking-mobile-card h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 16px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.rule-checking-mobile-card p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.rule-checking-mobile-card dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.rule-checking-mobile-card dl > div {
+  display: grid;
+  grid-template-columns: minmax(62px, 84px) minmax(0, 1fr);
+  gap: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--color-border);
+}
+
+.rule-checking-mobile-card dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.rule-checking-mobile-card .rule-checking-row-actions {
+  justify-content: flex-start;
+}
+
+@media (max-width: 760px) {
+  .rule-checking-responsive-table > .data-table-desktop,
+  .rule-checking-violations-responsive-table > .data-table-desktop {
+    display: none;
+  }
+
+  .rule-checking-responsive-table > .data-table-mobile,
+  .rule-checking-violations-responsive-table > .data-table-mobile {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rule-checking-mobile-card,
+  .rule-checking-row-actions button {
+    transition: none;
+  }
+}
+
 .data-mobile-card h2,
 .data-mobile-card strong {
   color: var(--color-text);
