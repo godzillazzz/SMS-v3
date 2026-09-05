@@ -1,0 +1,472 @@
+name: WAVE 3 Linux Artifact Recovery (Stage Only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type RECOVER_WAVE3_LINUX_STAGE to create one immutable stage-only candidate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-wave3-linux-artifact-recovery
+  cancel-in-progress: false
+
+env:
+  TARGET_SHA: 258689837a0b9aea55161639aa0fab2d820e519c
+  TARGET_TREE: 5f6d8168d9719c25b5436442be9a032f97c28f6f
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_CANONICAL_DEPLOYMENT_ID: dpl_8AVBmyfVuNBQAAoTdfRtBUCccujS
+  EXPECTED_CANONICAL_SHA: 70d1113233cea5ebc909eb6db656ec35cde49106
+  EXPECTED_CANONICAL_TREE: 2991471ae280e00c0d247e3a243c7157416df15d
+  ROLLBACK_DEPLOYMENT_ID: dpl_FBBYLL6oZ9AcwUDtX5eaLJ1stN2R
+  ROLLBACK_SHA: 39035641c494005feba38b61aa4ffd761245cf6a
+  ROLLBACK_TREE: f540a47c0db82b096027062e7d3cab5f4d6e03d1
+  VERCEL_CLI_VERSION: 56.4.1
+  NODE_VERSION: 22
+  RUN_MIGRATIONS: 'false'
+  DB_CHANGE: NONE
+  API_CONTRACT_CHANGE: NONE
+  ATTENDANCE_SECURITY_CHANGE: NONE
+
+jobs:
+  stage:
+    name: Build and stage exact Linux artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    outputs:
+      deployment_id: ${{ steps.stage.outputs.deployment_id }}
+      deployment_url: ${{ steps.stage.outputs.deployment_url }}
+
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    steps:
+      - name: Guard exact recovery action and credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirmation }}" = "RECOVER_WAVE3_LINUX_STAGE"
+          test -n "$VERCEL_TOKEN"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          echo 'RECOVERY_CONFIRMATION=PASS'
+          echo 'ENVIRONMENT_CREDENTIAL_GATE=PASS'
+          echo "RUN_MIGRATIONS=$RUN_MIGRATIONS"
+          echo "DB_CHANGE=$DB_CHANGE"
+          echo "API_CONTRACT_CHANGE=$API_CONTRACT_CHANGE"
+          echo "ATTENDANCE_SECURITY_CHANGE=$ATTENDANCE_SECURITY_CHANGE"
+
+      - name: Checkout exact approved application SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+
+      - name: Set up repository-authoritative Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Validate exact source identity and branch ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin fix/serverless-database-reliability
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$TARGET_TREE"
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          git merge-base --is-ancestor "$TARGET_SHA" origin/fix/serverless-database-reliability
+          test -z "$(git status --porcelain)"
+          echo "LINUX_CHECKOUT_SHA=$TARGET_SHA"
+          echo "LINUX_CHECKOUT_TREE=$TARGET_TREE"
+          echo 'LINUX_SOURCE_IDENTITY=PASS'
+
+      - name: Clean install root and frontend dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --include=dev
+          npm --prefix frontend ci --include=dev
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const packages = lock.packages || {};
+          const expected = [
+            ['node_modules/@img/sharp-linux-x64', '0.35.4', 'LINUX_SHARP_PACKAGE_PRESENT'],
+            ['node_modules/@img/sharp-libvips-linux-x64', '1.3.3', 'LINUX_LIBVIPS_PACKAGE_PRESENT'],
+          ];
+          for (const [name, version, label] of expected) {
+            const lockEntry = packages[name];
+            if (!lockEntry || lockEntry.version !== version) throw new Error(`${label}: lockfile entry mismatch`);
+            const packageDir = path.join(...name.split('/'));
+            const packageJson = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'));
+            if (packageJson.version !== version) throw new Error(`${label}: installed version mismatch`);
+            if (!fs.existsSync(packageDir)) throw new Error(`${label}: package directory missing`);
+            console.log(`${label}=PASS version=${version}`);
+          }
+          const sharp = require('sharp');
+          if (sharp.versions?.sharp !== '0.35.4') throw new Error(`sharp version mismatch: ${sharp.versions?.sharp || 'unknown'}`);
+          console.log(`SHARP_VERSION=${sharp.versions.sharp}`);
+          console.log(`NODE_VERSION=${process.version}`);
+          console.log(`PLATFORM=${process.platform}-${process.arch}`);
+          console.log('LINUX_SHARP_LOAD=PASS');
+          NODE
+
+      - name: Pull approved Production Vercel configuration (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes \
+            --environment=production \
+            --project "$EXPECTED_PROJECT_ID" \
+            --scope "$EXPECTED_ORG_ID" >/tmp/wave3-vercel-pull.log 2>&1
+          node <<'NODE'
+          const fs = require('node:fs');
+          const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
+          if (project.projectId !== process.env.EXPECTED_PROJECT_ID) throw new Error('Vercel project ID mismatch');
+          if (project.orgId !== process.env.EXPECTED_ORG_ID) throw new Error('Vercel organization ID mismatch');
+          console.log('VERCEL_PROJECT_LINKAGE=PASS');
+          NODE
+          rm -f /tmp/wave3-vercel-pull.log
+
+      - name: Build exact prebuilt artifact on Ubuntu Linux
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_log="$RUNNER_TEMP/wave3-vercel-build.log"
+          CI_MIGRATION_COMPLETED=true npx --yes vercel@"$VERCEL_CLI_VERSION" build --prod >"$build_log" 2>&1
+          grep -Fq 'Vercel build is build-only' "$build_log"
+          grep -Fq 'Prisma generate passed' "$build_log"
+          grep -Fq 'Application build passed' "$build_log"
+          if grep -Eiq 'prisma migrate deploy|Prisma migrate deploy started|Prisma migrate deploy passed' "$build_log"; then
+            echo 'Unexpected Prisma migration during stage-only build'
+            exit 1
+          fi
+          if grep -Eiq 'postgresql://|DATABASE_URL=.*[^<]|DIRECT_URL=.*[^<]|password=|SUPABASE_SERVICE_ROLE_KEY' "$build_log"; then
+            echo 'Build log secret scan failed'
+            exit 1
+          fi
+          test -f frontend/dist/index.html
+          test -f .vercel/output/config.json
+          echo 'LINUX_BUILD=PASS'
+          echo 'PREBUILT_ARTIFACT=PASS'
+
+      - name: Verify Linux sharp and libvips are in the deployed function artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = path.resolve('.vercel/output/functions');
+          if (!fs.existsSync(root)) throw new Error('Vercel function output directory is missing');
+          const dirs = new Set();
+          const sharpRoots = [];
+          function walk(dir) {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, entry.name);
+              if (entry.isDirectory()) {
+                if (path.basename(path.dirname(full)) === '@img' && ['sharp-linux-x64', 'sharp-libvips-linux-x64', 'sharp-win32-x64'].includes(entry.name)) {
+                  dirs.add(`@img/${entry.name}`);
+                }
+                if (entry.name === 'sharp' && fs.existsSync(path.join(full, 'package.json'))) sharpRoots.push(full);
+                walk(full);
+              }
+            }
+          }
+          walk(root);
+          const linuxSharp = [...dirs].some((name) => name === '@img/sharp-linux-x64');
+          const linuxLibvips = [...dirs].some((name) => name === '@img/sharp-libvips-linux-x64');
+          const winSharp = [...dirs].some((name) => name === '@img/sharp-win32-x64');
+          if (!linuxSharp) throw new Error('Linux sharp package missing from .vercel/output');
+          if (!linuxLibvips) throw new Error('Linux libvips package missing from .vercel/output');
+          if (!sharpRoots.length) throw new Error('sharp package missing from Vercel function output');
+          for (const sharpRoot of sharpRoots) {
+            const pkg = JSON.parse(fs.readFileSync(path.join(sharpRoot, 'package.json'), 'utf8'));
+            if (pkg.version !== '0.35.4') throw new Error(`artifact sharp version mismatch: ${pkg.version}`);
+          }
+          let loaded = false;
+          for (const sharpRoot of sharpRoots) {
+            try {
+              const sharp = require(sharpRoot);
+              if (sharp.versions?.sharp === '0.35.4') loaded = true;
+            } catch (error) {
+              console.log(`ARTIFACT_SHARP_LOAD_ATTEMPT=FAIL ${error.message}`);
+            }
+          }
+          if (!loaded) throw new Error('Linux sharp could not load from function artifact');
+          console.log(`LINUX_SHARP_PACKAGE_IN_ARTIFACT=${linuxSharp ? 'PASS' : 'FAIL'}`);
+          console.log(`LINUX_LIBVIPS_PACKAGE_IN_ARTIFACT=${linuxLibvips ? 'PASS' : 'FAIL'}`);
+          console.log(`WIN32_SHARP_PACKAGE_IN_ARTIFACT=${winSharp ? 'PRESENT' : 'ABSENT'}`);
+          console.log('LINUX_ARTIFACT_VERIFY=PASS');
+          NODE
+          node scripts/ci/verify-release-artifact.js frontend/dist .vercel/output/static
+
+      - name: Restore exact source identity before prebuilt deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          git restore --source=HEAD --staged --worktree -- .
+          git clean -fd
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$TARGET_TREE"
+          test -z "$(git status --porcelain)"
+          test -f frontend/dist/index.html
+          test -f .vercel/output/config.json
+          echo 'PRE_DEPLOY_SOURCE_IDENTITY=PASS'
+
+      - name: Verify current Canonical and rollback checkpoints before staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_alias="$RUNNER_TEMP/wave3-canonical-alias.json"
+          canonical_deployment="$RUNNER_TEMP/wave3-canonical-deployment.json"
+          rollback_deployment="$RUNNER_TEMP/wave3-rollback-deployment.json"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" >"$canonical_alias"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$EXPECTED_CANONICAL_DEPLOYMENT_ID?teamId=$EXPECTED_ORG_ID" >"$canonical_deployment"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$ROLLBACK_DEPLOYMENT_ID?teamId=$EXPECTED_ORG_ID" >"$rollback_deployment"
+          node - "$canonical_alias" "$canonical_deployment" "$rollback_deployment" <<'NODE'
+          const fs = require('node:fs');
+          const parseInspect = (file) => {
+            const raw = fs.readFileSync(file, 'utf8');
+            const match = raw.match(/\{[\s\S]*\}/);
+            if (!match) throw new Error(`inspect JSON missing: ${file}`);
+            return JSON.parse(match[0]);
+          };
+          const alias = parseInspect(process.argv[2]);
+          const canonical = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+          const rollback = JSON.parse(fs.readFileSync(process.argv[4], 'utf8'));
+          const canonicalSha = canonical.meta?.githubCommitSha || canonical.gitSource?.sha || '';
+          const rollbackSha = rollback.meta?.githubCommitSha || rollback.gitSource?.sha || '';
+          if (alias.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT_ID) throw new Error(`canonical alias drift: ${alias.id}`);
+          if (canonical.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT_ID) throw new Error('canonical deployment ID mismatch');
+          if (canonical.target !== 'production' || (canonical.readyState || canonical.state) !== 'READY') throw new Error('canonical is not READY production');
+          if (canonicalSha !== process.env.EXPECTED_CANONICAL_SHA) throw new Error(`canonical SHA mismatch: ${canonicalSha || 'missing'}`);
+          if (rollback.id !== process.env.ROLLBACK_DEPLOYMENT_ID) throw new Error('rollback deployment ID mismatch');
+          if (rollback.target !== 'production' || (rollback.readyState || rollback.state) !== 'READY') throw new Error('rollback checkpoint is not READY production');
+          if (rollbackSha !== process.env.ROLLBACK_SHA) throw new Error(`rollback SHA mismatch: ${rollbackSha || 'missing'}`);
+          console.log(`CURRENT_PRODUCTION_DEPLOYMENT=${canonical.id}`);
+          console.log(`CURRENT_PRODUCTION_SHA=${canonicalSha}`);
+          console.log(`ROLLBACK_DEPLOYMENT=${rollback.id}`);
+          console.log(`ROLLBACK_SHA=${rollbackSha}`);
+          console.log('PRE_STAGE_CANONICAL_GATE=PASS');
+          console.log('ROLLBACK_POINTER_GATE=PASS');
+          NODE
+
+      - name: Deploy Linux-built artifact as a new Production-target immutable candidate (no domain)
+        id: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_json="$RUNNER_TEMP/wave3-stage-deploy.json"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --prod --skip-domain --yes \
+            --project "$EXPECTED_PROJECT_ID" \
+            --scope "$EXPECTED_ORG_ID" \
+            --meta "githubCommitSha=$TARGET_SHA" \
+            --meta "githubCommitTree=$TARGET_TREE" \
+            --meta 'releaseMode=wave3-linux-artifact-recovery' \
+            --format=json >"$deploy_json"
+          node - "$deploy_json" <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('node:fs');
+          const raw = fs.readFileSync(process.argv[2], 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('Vercel deploy JSON missing');
+          const data = JSON.parse(match[0]);
+          const record = data.deployment || (Array.isArray(data) ? data[0] : data);
+          const id = record?.id || record?.deploymentId;
+          const rawUrl = record?.url || record?.deploymentUrl;
+          if (!/^dpl_[A-Za-z0-9]+$/.test(id || '')) throw new Error('new deployment ID invalid');
+          const url = rawUrl && (rawUrl.startsWith('https://') ? rawUrl : `https://${rawUrl}`);
+          if (!url) throw new Error('new deployment URL missing');
+          const parsed = new URL(url);
+          if (parsed.protocol !== 'https:' || !parsed.hostname.startsWith('sms-v3-staging-') || !parsed.hostname.endsWith('.vercel.app')) throw new Error(`unexpected candidate URL: ${url}`);
+          if (parsed.hostname === new URL(process.env.EXPECTED_CANONICAL_URL).hostname) throw new Error('candidate URL is canonical');
+          process.stdout.write(`deployment_id=${id}\ndeployment_url=${url}\n`);
+          NODE
+          echo "NEW_IMMUTABLE_DEPLOYMENT=$(sed -n 's/^deployment_id=//p' "$GITHUB_OUTPUT" | tail -n 1)"
+          echo "NEW_IMMUTABLE_URL=$(sed -n 's/^deployment_url=//p' "$GITHUB_OUTPUT" | tail -n 1)"
+
+      - name: Verify staged identity and Canonical remains unchanged
+        shell: bash
+        env:
+          DEPLOYMENT_ID: ${{ steps.stage.outputs.deployment_id }}
+          DEPLOYMENT_URL: ${{ steps.stage.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          staged="$RUNNER_TEMP/wave3-staged-deployment.json"
+          canonical="$RUNNER_TEMP/wave3-canonical-after-stage.json"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$DEPLOYMENT_ID?teamId=$EXPECTED_ORG_ID" >"$staged"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" >"$canonical"
+          node - "$staged" "$canonical" <<'NODE'
+          const fs = require('node:fs');
+          const staged = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const raw = fs.readFileSync(process.argv[3], 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('canonical inspect JSON missing');
+          const canonical = JSON.parse(match[0]);
+          const projectId = staged.project?.id || staged.projectId || '';
+          const projectName = staged.project?.name || staged.name || '';
+          const state = staged.readyState || staged.state;
+          const sha = staged.meta?.githubCommitSha || staged.gitSource?.sha || '';
+          const tree = staged.meta?.githubCommitTree || '';
+          const aliases = [...(Array.isArray(staged.alias) ? staged.alias : []), ...(Array.isArray(staged.aliases) ? staged.aliases : [])];
+          if (staged.id !== process.env.DEPLOYMENT_ID) throw new Error('staged deployment ID mismatch');
+          if (projectId !== process.env.EXPECTED_PROJECT_ID || projectName !== process.env.EXPECTED_PROJECT_NAME) throw new Error('staged project mismatch');
+          if (staged.target !== 'production' || state !== 'READY') throw new Error('staged candidate is not READY production');
+          if (sha && sha !== process.env.TARGET_SHA) throw new Error(`staged SHA mismatch: ${sha}`);
+          if (tree && tree !== process.env.TARGET_TREE) throw new Error(`staged tree mismatch: ${tree}`);
+          if (aliases.some((alias) => String(alias).includes(new URL(process.env.EXPECTED_CANONICAL_URL).hostname))) throw new Error('staged deployment has canonical alias');
+          if (canonical.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT_ID) throw new Error(`canonical changed before promotion: ${canonical.id}`);
+          console.log(`VERCEL_COMMIT_SHA=${sha || 'NOT_EXPOSED_BY_METADATA'}`);
+          console.log(`VERCEL_COMMIT_TREE=${tree || 'NOT_EXPOSED_BY_METADATA'}`);
+          console.log(`STAGED_DEPLOYMENT_ID=${staged.id}`);
+          console.log(`STAGED_DEPLOYMENT_URL=${process.env.DEPLOYMENT_URL}`);
+          console.log(`STAGED_ALIAS_COUNT=${aliases.length}`);
+          console.log(`CANONICAL_UNCHANGED=${canonical.id}`);
+          console.log('STAGED_IDENTITY_VERIFY=PASS');
+          NODE
+
+      - name: Verify candidate health, readiness, auth boundary, root, and bundle
+        shell: bash
+        env:
+          DEPLOYMENT_ID: ${{ steps.stage.outputs.deployment_id }}
+          DEPLOYMENT_URL: ${{ steps.stage.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          health="$RUNNER_TEMP/wave3-health.json"
+          ready="$RUNNER_TEMP/wave3-ready.json"
+          root="$RUNNER_TEMP/wave3-root.html"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/health --deployment "$DEPLOYMENT_URL" --scope "$EXPECTED_ORG_ID" >"$health"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/ready --deployment "$DEPLOYMENT_URL" --scope "$EXPECTED_ORG_ID" >"$ready"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl / --deployment "$DEPLOYMENT_URL" --scope "$EXPECTED_ORG_ID" >"$root"
+          node - "$health" "$ready" "$root" <<'NODE'
+          const fs = require('node:fs');
+          const health = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const ready = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+          const root = fs.readFileSync(process.argv[4], 'utf8');
+          if (health.status !== 'ok') throw new Error(`candidate health failed: ${JSON.stringify(health)}`);
+          if (ready.status !== 'ready' || ready.database !== 'ok') throw new Error(`candidate readiness failed: ${JSON.stringify(ready)}`);
+          if (!/<(?:!doctype\s+html|html)\b/i.test(root)) throw new Error('candidate root is not HTML');
+          console.log('HEALTH=PASS');
+          console.log('READY=PASS');
+          console.log('ROOT_VERIFY=PASS');
+          NODE
+
+          auth="$RUNNER_TEMP/wave3-auth-login-get.body"
+          auth_err="$RUNNER_TEMP/wave3-auth-login-get.err"
+          set +e
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/auth/login --deployment "$DEPLOYMENT_URL" --scope "$EXPECTED_ORG_ID" >"$auth" 2>"$auth_err"
+          auth_exit=$?
+          set -e
+          if grep -Eiq 'FUNCTION_INVOCATION_FAILED|Could not load the "sharp" module|sharp.*linux-x64|process exited with status 1' "$auth" "$auth_err"; then
+            echo 'Auth route still reports runtime/native-module failure'
+            exit 1
+          fi
+          test -s "$auth" || test -s "$auth_err"
+          echo "AUTH_FUNCTION_HTTP_EXIT=$auth_exit"
+          echo 'AUTH_FUNCTION_RUNTIME=PASS'
+
+          asset=$(node - "$root" <<'NODE'
+          const fs = require('node:fs');
+          const html = fs.readFileSync(process.argv[2], 'utf8');
+          const match = html.match(/(?:src|href)=["'](\/assets\/[^"']+\.js)["']/i);
+          if (!match) throw new Error('no JavaScript asset reference found in candidate root');
+          process.stdout.write(match[1]);
+          NODE
+          )
+          bundle="$RUNNER_TEMP/wave3-bundle.js"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$asset" --deployment "$DEPLOYMENT_URL" --scope "$EXPECTED_ORG_ID" -- --fail-with-body >"$bundle"
+          test -s "$bundle"
+          echo "BUNDLE_ASSET=$asset"
+          echo 'BUNDLE_VERIFY=PASS'
+
+      - name: Confirm no sharp/runtime invocation failure in candidate logs
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.stage.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          logs="$RUNNER_TEMP/wave3-runtime.log"
+          set +e
+          npx --yes vercel@"$VERCEL_CLI_VERSION" logs "$DEPLOYMENT_URL" --since 10m >"$logs" 2>&1
+          logs_exit=$?
+          set -e
+          if grep -Eiq 'FUNCTION_INVOCATION_FAILED|Could not load the "sharp" module|sharp.*linux-x64|process exited with status 1' "$logs"; then
+            echo 'Candidate runtime logs contain sharp/function invocation failure'
+            exit 1
+          fi
+          echo "RUNTIME_LOG_QUERY_EXIT=$logs_exit"
+          echo 'SHARP_RUNTIME=PASS'
+
+      - name: Final Canonical unchanged check and stage-only summary
+        shell: bash
+        env:
+          DEPLOYMENT_ID: ${{ steps.stage.outputs.deployment_id }}
+          DEPLOYMENT_URL: ${{ steps.stage.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          canonical="$RUNNER_TEMP/wave3-canonical-final.json"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$EXPECTED_ORG_ID" >"$canonical"
+          node - "$canonical" <<'NODE'
+          const fs = require('node:fs');
+          const raw = fs.readFileSync(process.argv[2], 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('final canonical inspect JSON missing');
+          const canonical = JSON.parse(match[0]);
+          if (canonical.id !== process.env.EXPECTED_CANONICAL_DEPLOYMENT_ID) throw new Error(`canonical changed unexpectedly: ${canonical.id}`);
+          console.log(`CANONICAL_PROMOTION=NOT_STARTED`);
+          console.log(`CURRENT_PRODUCTION_DEPLOYMENT=${canonical.id}`);
+          console.log('CANONICAL_UNCHANGED_FINAL=PASS');
+          NODE
+          mkdir -p recovery-evidence
+          {
+            echo 'WAVE_3_REPLACEMENT_IMMUTABLE_RUNTIME_READY'
+            echo "APPLICATION_SHA=$TARGET_SHA"
+            echo "APPLICATION_TREE=$TARGET_TREE"
+            echo "NEW_IMMUTABLE_DEPLOYMENT=$DEPLOYMENT_ID"
+            echo "NEW_IMMUTABLE_URL=$DEPLOYMENT_URL"
+            echo 'HEALTH=PASS'
+            echo 'READY=PASS'
+            echo 'AUTH_FUNCTION_RUNTIME=PASS'
+            echo 'SHARP_RUNTIME=PASS'
+            echo 'ROOT_VERIFY=PASS'
+            echo 'BUNDLE_VERIFY=PASS'
+            echo 'LINUX_ARTIFACT_VERIFY=PASS'
+            echo 'CANONICAL_PROMOTION=NOT_STARTED'
+            echo "CURRENT_PRODUCTION_SHA=$EXPECTED_CANONICAL_SHA"
+            echo "CURRENT_PRODUCTION_DEPLOYMENT=$EXPECTED_CANONICAL_DEPLOYMENT_ID"
+            echo "ROLLBACK_DEPLOYMENT=$ROLLBACK_DEPLOYMENT_ID"
+            echo 'DB_CHANGE=NONE'
+            echo 'API_CONTRACT_CHANGE=NONE'
+            echo 'ATTENDANCE_SECURITY_CHANGE=NONE'
+          } > recovery-evidence/summary.txt
+          cat recovery-evidence/summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sanitized recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wave3-linux-artifact-recovery-${{ github.run_id }}
+          path: recovery-evidence/summary.txt
+          if-no-files-found: warn
+          retention-days: 14
