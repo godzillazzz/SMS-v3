@@ -73,6 +73,9 @@ jobs:
           echo "STAGED_SOURCE_SHA=$TARGET_SHA"
           echo "STAGED_SOURCE_TREE=$EXPECTED_TREE"
 
+      - name: Verify environment governance contract definition
+        run: node scripts/ci/verify-environment-contract.js --contract-only
+
       - name: Clean install dependencies and verify Linux sharp load
         shell: bash
         run: |
@@ -134,6 +137,20 @@ jobs:
           console.log('PREVIEW_CONFIG_SHAPE=PASS');
           NODE
 
+      - name: Verify Preview environment contract before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          env_file=.vercel/.env.preview.local
+          test -f "$env_file"
+          node scripts/ci/verify-environment-contract.js \
+            --environment=preview \
+            --env-file="$env_file" \
+            --require-preview-fingerprint \
+            --run-migrations=false \
+            --source-sha="$TARGET_SHA" \
+            --source-tree="$EXPECTED_TREE"
+
       - name: Build exact prebuilt Preview artifact
         shell: bash
         run: |
@@ -182,6 +199,7 @@ jobs:
           console.log('LINUX_ARTIFACT_VERIFY=PASS');
           NODE
           node scripts/ci/verify-release-artifact.js frontend/dist .vercel/output/static
+          node scripts/ci/verify-linux-artifact.js .vercel/output --require-sharp-load
           rm -f "$build_log"
 
       - name: Restore exact source identity before deploy
