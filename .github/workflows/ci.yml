@@ -60,6 +60,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm --prefix frontend ci
+      - name: Verify environment governance contract definition
+        run: node scripts/ci/verify-environment-contract.js --contract-only
       - run: npm run prisma:format:check
       - run: npx prisma validate
       - run: npx prisma generate

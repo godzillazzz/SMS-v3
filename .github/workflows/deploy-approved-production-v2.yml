@@ -1,13 +1,6 @@
 name: Deploy Approved Production Manifest V2
 
 on:
-  push:
-    branches:
-      - fix/serverless-database-reliability
-    paths:
-      - .github/releases/approved-production.json
-      - .github/workflows/deploy-approved-production-v2.yml
-      - scripts/ci/verify-release-manifest.js
   workflow_dispatch:
 
 permissions:
@@ -53,6 +46,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Verify environment governance contract definition
+        run: node scripts/ci/verify-environment-contract.js --contract-only
 
       - name: Validate approved release manifest schema and fixed target identity
         id: manifest
@@ -277,9 +273,13 @@ jobs:
       name: production-sms-v3-staging
       url: https://sms-v3-staging-ten.vercel.app
     env:
+      NODE_ENV: production
+      VERCEL_ENV: production
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+      RUN_MIGRATIONS: ${{ needs.prepare.outputs.run_migrations }}
       TARGET_SHA: ${{ needs.prepare.outputs.commit_sha }}
       TARGET_TREE: ${{ needs.prepare.outputs.tree_sha }}
       CURRENT_PRODUCTION_SOURCE_SHA: ${{ needs.prepare.outputs.current_production_source_sha }}
@@ -388,6 +388,21 @@ jobs:
           process.stdout.write('VERCEL_LINKAGE=PASS\n');
           NODE
 
+      - name: Verify Production environment contract before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          env_file=.vercel/.env.production.local
+          test -f "$env_file"
+          node scripts/ci/verify-environment-contract.js \
+            --environment=production \
+            --env-file="$env_file" \
+            --require-approved-fingerprint \
+            --approved-fingerprint="$APPROVED_DATABASE_TARGET_FINGERPRINT" \
+            --run-migrations="$RUN_MIGRATIONS" \
+            --source-sha="$TARGET_SHA" \
+            --source-tree="$TARGET_TREE"
+
       - name: Verify rollback checkpoint is still current Production
         shell: bash
         run: |
@@ -422,6 +437,7 @@ jobs:
           compgen -G 'frontend/dist/assets/index-*.js' >/dev/null
           test -f .vercel/output/config.json
           node scripts/ci/verify-release-artifact.js frontend/dist .vercel/output/static
+          node scripts/ci/verify-linux-artifact.js .vercel/output --require-sharp-load
 
       - name: Restore exact source identity before prebuilt deploy
         shell: bash

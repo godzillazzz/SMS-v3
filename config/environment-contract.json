@@ -1,0 +1,249 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "name": "sms-v3-staging",
+    "projectId": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+    "teamId": "team_nemCExHbZ8EAhSgsvefHPAEz",
+    "canonicalProductionOrigin": "https://sms-v3-staging-ten.vercel.app"
+  },
+  "source": {
+    "environmentSchema": "src/config/env.js",
+    "prismaSchema": "prisma/schema.prisma",
+    "corsImplementation": "src/config/env.js",
+    "branchOverridePolicy": "Branch overrides are Preview-only exceptions and are never required by ordinary unbranched Preview deployments."
+  },
+  "environments": {
+    "production": {
+      "vercelEnv": "production",
+      "required": [
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "JWT_SECRET",
+        "CORS_ORIGIN",
+        "SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "LICENSE_DOCUMENTS_BUCKET",
+        "EMPLOYEE_REFERENCE_PHOTOS_BUCKET"
+      ],
+      "requiredGuards": ["APPROVED_DATABASE_TARGET_FINGERPRINT", "RUN_MIGRATIONS"],
+      "database": {
+        "targetClass": "production",
+        "fingerprintVariable": "APPROVED_DATABASE_TARGET_FINGERPRINT",
+        "branchOverrideAllowed": false,
+        "productionFallbackAllowed": false
+      },
+      "cors": {
+        "mode": "explicit",
+        "allowValidatedVercelOrigins": false,
+        "allowWildcard": false,
+        "requiredCanonicalOrigin": "https://sms-v3-staging-ten.vercel.app",
+        "rejectLocalhost": true
+      },
+      "migrationPolicy": "explicit"
+    },
+    "preview": {
+      "vercelEnv": "preview",
+      "required": ["DATABASE_URL", "DIRECT_URL", "JWT_SECRET", "CORS_ORIGIN"],
+      "requiredGuards": ["APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT"],
+      "database": {
+        "targetClass": "isolated-non-production",
+        "fingerprintVariable": "APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT",
+        "branchOverrideAllowed": true,
+        "branchOverrideRequired": false,
+        "productionFallbackAllowed": false
+      },
+      "cors": {
+        "mode": "explicit-plus-own-vercel-origin",
+        "allowValidatedVercelOrigins": true,
+        "allowWildcard": false,
+        "rejectLocalhost": false
+      },
+      "migrationPolicy": "false"
+    },
+    "development": {
+      "vercelEnv": "development",
+      "required": ["DATABASE_URL", "JWT_SECRET"],
+      "requiredGuards": [],
+      "database": {
+        "targetClass": "local-or-explicit-development",
+        "branchOverrideAllowed": false,
+        "productionFallbackAllowed": false
+      },
+      "cors": {
+        "mode": "explicit",
+        "allowValidatedVercelOrigins": false,
+        "allowWildcard": false,
+        "rejectLocalhost": false
+      },
+      "migrationPolicy": "explicit"
+    }
+  },
+  "sourceValidatedKeys": [
+    "NODE_ENV",
+    "VERCEL_ENV",
+    "DATABASE_URL",
+    "JWT_SECRET",
+    "JWT_EXPIRES_IN",
+    "JWT_ALGORITHM",
+    "JWT_ISSUER",
+    "JWT_AUDIENCE",
+    "PORT",
+    "CORS_ORIGIN",
+    "LOGIN_RATE_LIMIT_WINDOW_MS",
+    "LOGIN_RATE_LIMIT_MAX",
+    "RATE_LIMIT_STORE",
+    "RATE_LIMIT_HASH_SECRET",
+    "REFRESH_TOKEN_EXPIRES_DAYS",
+    "AUTH_COOKIE_NAME",
+    "CSRF_COOKIE_NAME",
+    "COOKIE_SAME_SITE",
+    "COOKIE_DOMAIN",
+    "COOKIE_SECURE",
+    "REFRESH_TOKEN_EXPIRES_IN",
+    "DISABLE_EMAIL_NOTIFICATIONS",
+    "OTP_DELIVERY_PROVIDER",
+    "OTP_HASH_SECRET",
+    "OTP_FROM_EMAIL",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_SECURE",
+    "SMTP_USERNAME",
+    "SMTP_PASSWORD",
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "LICENSE_DOCUMENTS_BUCKET",
+    "EMPLOYEE_REFERENCE_PHOTOS_BUCKET",
+    "OTP_CODE_EXPIRES_MINUTES",
+    "OTP_MAX_ATTEMPTS",
+    "OTP_REQUEST_LIMIT_PER_HOUR",
+    "WEBAUTHN_ENABLED",
+    "WEBAUTHN_RP_NAME",
+    "WEBAUTHN_RP_ID",
+    "WEBAUTHN_ORIGIN",
+    "WEBAUTHN_CHALLENGE_TTL_SECONDS",
+    "FACE_VERIFICATION_POC_API_ENABLED",
+    "FACE_VERIFICATION_PROVIDER",
+    "FACE_VERIFICATION_AWS_REGION",
+    "FACE_LIVENESS_CHALLENGE_TYPE",
+    "FACE_LIVENESS_MIN_CONFIDENCE",
+    "FACE_MATCH_MIN_SIMILARITY",
+    "FACE_VERIFICATION_IN_PROCESS_ENABLED",
+    "FACE_MATCH_SIMILARITY_THRESHOLD",
+    "FACE_CHALLENGE_MOVEMENT_RADIANS",
+    "FACE_CHALLENGE_NEUTRAL_MAX_RADIANS",
+    "ALERTING_ENABLED",
+    "ALERTING_PROVIDER",
+    "ALERTING_API_TOKEN",
+    "ALERTING_DESTINATION_ID",
+    "ALERTING_TIMEOUT_MS",
+    "ALERT_COOLDOWN_SECONDS",
+    "ALERT_DEDUP_STORE",
+    "ALERT_DEDUP_HASH_SECRET",
+    "ALERT_DEDUP_RETENTION_SECONDS",
+    "ALERT_LOGIN_FAILURE_THRESHOLD",
+    "ALERT_REFRESH_FAILURE_THRESHOLD",
+    "ALERT_HTTP_429_THRESHOLD",
+    "ALERT_DATABASE_LATENCY_MS",
+    "ALERT_FUNCTION_TIMEOUT_THRESHOLD"
+  ],
+  "variables": {
+    "DATABASE_URL": {
+      "purpose": "Runtime connection for the environment's application database",
+      "masterSource": "Owner-controlled recoverable secret manager or database provider credentials",
+      "sensitive": true,
+      "runtimeRequired": true,
+      "shared": false,
+      "scopes": ["production", "preview", "development"],
+      "branchOverrideAllowed": "preview-exception-only",
+      "ownerNotes": "Project-specific. Preview must be an approved isolated non-Production target; never copy Production credentials."
+    },
+    "DIRECT_URL": {
+      "purpose": "Prisma migration/direct connection target",
+      "masterSource": "Owner-controlled recoverable secret manager or database provider credentials",
+      "sensitive": true,
+      "runtimeRequired": true,
+      "shared": false,
+      "scopes": ["production", "preview", "development"],
+      "branchOverrideAllowed": "preview-exception-only",
+      "ownerNotes": "Must identify the same logical database as DATABASE_URL and use an approved direct/session mode."
+    },
+    "SUPABASE_URL": {
+      "purpose": "Private storage provider endpoint",
+      "masterSource": "Owner-controlled secret manager or Supabase project settings",
+      "sensitive": false,
+      "runtimeRequired": "production",
+      "shared": false,
+      "scopes": ["production", "preview"],
+      "branchOverrideAllowed": false,
+      "ownerNotes": "Project-bound; do not use Shared Environment Variables by default."
+    },
+    "SUPABASE_SERVICE_ROLE_KEY": {
+      "purpose": "Server-only private storage access",
+      "masterSource": "Owner-controlled password manager or Supabase project settings",
+      "sensitive": true,
+      "runtimeRequired": "production",
+      "shared": false,
+      "scopes": ["production", "preview"],
+      "branchOverrideAllowed": false,
+      "ownerNotes": "Never expose to browser, Git, logs, PR text, screenshots, or chat."
+    },
+    "JWT_SECRET": {
+      "purpose": "JWT signing key",
+      "masterSource": "Owner-controlled recoverable secret manager",
+      "sensitive": true,
+      "runtimeRequired": true,
+      "shared": false,
+      "scopes": ["production", "preview", "development"],
+      "branchOverrideAllowed": "preview-exception-only",
+      "ownerNotes": "Use distinct high-entropy values per deployed environment."
+    },
+    "CORS_ORIGIN": {
+      "purpose": "Credentialed browser origin allowlist",
+      "masterSource": "Repository policy plus Owner-approved deployment configuration",
+      "sensitive": false,
+      "runtimeRequired": true,
+      "shared": false,
+      "scopes": ["production", "preview", "development"],
+      "branchOverrideAllowed": "preview-exception-only",
+      "ownerNotes": "No wildcard. Preview may add its validated own Vercel origin; Production remains explicit."
+    },
+    "APPROVED_DATABASE_TARGET_FINGERPRINT": {
+      "purpose": "Non-secret Production logical database identity guard",
+      "masterSource": "Owner-approved release governance record",
+      "sensitive": false,
+      "runtimeRequired": "production-release",
+      "shared": false,
+      "scopes": ["production"],
+      "branchOverrideAllowed": false,
+      "ownerNotes": "SHA-256 logical target fingerprint only; never a credential."
+    },
+    "APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT": {
+      "purpose": "Non-secret isolated Preview logical database identity guard",
+      "masterSource": "Owner-approved Preview environment record",
+      "sensitive": false,
+      "runtimeRequired": "preview-release",
+      "shared": false,
+      "scopes": ["preview"],
+      "branchOverrideAllowed": false,
+      "ownerNotes": "Required for a governed Preview visual witness; must not equal the Production fingerprint."
+    },
+    "RUN_MIGRATIONS": {
+      "purpose": "Explicit release migration policy input",
+      "masterSource": "Approved release manifest/workflow input",
+      "sensitive": false,
+      "runtimeRequired": "release",
+      "shared": false,
+      "scopes": ["production", "preview"],
+      "branchOverrideAllowed": false,
+      "ownerNotes": "Must be explicit. Default release policy is false unless separately governed."
+    }
+  },
+  "policies": {
+    "previewDatabase": "One project-level isolated non-Production target is the normal Preview authority; branch overrides are exceptions.",
+    "productionDatabase": "Production-only target with an approved non-secret fingerprint; no Preview fallback.",
+    "secretMaster": "Vercel Sensitive Environment Variables are deployment destinations, not the sole recoverable master source.",
+    "linuxArtifact": "Any Linux Vercel prebuilt serverless artifact must be built and verified on Linux with matching native packages.",
+    "previewRuntime": "Deployment READY, health, readiness, auth initialization, Preview CORS, and root/bundle checks pass before authenticated QA.",
+    "productionPromotion": "Exact SHA/tree, CI, artifact, environment, rollback, and visual gates pass before explicit Owner promotion."
+  }
+}

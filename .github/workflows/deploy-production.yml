@@ -22,7 +22,7 @@ on:
       rollback_deployment_id:
         description: Known-good rollback target for the summary only
         required: false
-        default: dpl_2fFBpA923SKdf72unemSkvcyCstw
+        default: dpl_FBBYLL6oZ9AcwUDtX5eaLJ1stN2R
         type: string
       diagnostic_only:
         description: Run sanitized Vercel identity/linkage diagnostics without migration or deployment
@@ -32,7 +32,7 @@ on:
       run_migrations:
         description: Run protected Prisma migrations before deployment
         required: false
-        default: true
+        default: false
         type: boolean
 
 permissions:
@@ -47,7 +47,7 @@ env:
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
   EXPECTED_PROJECT_NAME: sms-v3-staging
   EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
-  EXPECTED_CANONICAL_SOURCE_SHA: 84df92c186ff320668775320ded21838dd8c05c8
+  EXPECTED_CANONICAL_SOURCE_SHA: 70d1113233cea5ebc909eb6db656ec35cde49106
   VERCEL_CLI_VERSION: 56.4.1
 
 jobs:
@@ -61,6 +61,8 @@ jobs:
         with:
           ref: ${{ inputs.commit_sha }}
           fetch-depth: 0
+      - name: Verify environment governance contract definition
+        run: node scripts/ci/verify-environment-contract.js --contract-only
       - name: Validate exact branch commit and confirmations
         id: commit
         shell: bash
@@ -190,9 +192,13 @@ jobs:
       deployment_url: ${{ steps.deploy.outputs.deployment_url }}
       deployment_id: ${{ steps.deploy.outputs.deployment_id }}
     env:
+      NODE_ENV: production
+      VERCEL_ENV: production
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+      RUN_MIGRATIONS: ${{ inputs.run_migrations }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -215,6 +221,20 @@ jobs:
           const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
           if (project.projectId !== process.env.EXPECTED_PROJECT_ID || project.orgId !== process.env.EXPECTED_ORG_ID) process.exit(1);
           NODE
+      - name: Verify Production environment contract before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          env_file=.vercel/.env.production.local
+          test -f "$env_file"
+          node scripts/ci/verify-environment-contract.js \
+            --environment=production \
+            --env-file="$env_file" \
+            --require-approved-fingerprint \
+            --approved-fingerprint="$APPROVED_DATABASE_TARGET_FINGERPRINT" \
+            --run-migrations="$RUN_MIGRATIONS" \
+            --source-sha="${{ needs.validate.outputs.commit_sha }}" \
+            --source-tree="$(git rev-parse HEAD^{tree})"
       - name: Build prebuilt artifact after migration gate
         shell: bash
         run: |
@@ -240,6 +260,7 @@ jobs:
             exit 1
           fi
           node scripts/ci/verify-release-artifact.js frontend/dist .vercel/output/static
+          node scripts/ci/verify-linux-artifact.js .vercel/output --require-sharp-load
       - name: Restore exact source and verify git-clean prebuilt deploy
         shell: bash
         run: |
