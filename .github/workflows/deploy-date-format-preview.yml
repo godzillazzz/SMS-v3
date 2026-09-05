@@ -11,10 +11,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TARGET_SHA: 258689837a0b9aea55161639aa0fab2d820e519c
-  EXPECTED_TREE: 5f6d8168d9719c25b5436442be9a032f97c28f6f
-  GOVERNANCE_SHA: a259c34aa026be86ad009a27d96439a8ac6c7a16
-  GOVERNANCE_TREE: c1fc3eb180353557c1ef053353a6efc332b5b9b1
+  TARGET_SHA: 7d4e911aca8c256233849044a1e131dc7710965d
+  EXPECTED_TREE: 2ca95476552c16a8b4b7797817515b1ce5e0dcbe
+  GOVERNANCE_SHA: 7d4e911aca8c256233849044a1e131dc7710965d
+  GOVERNANCE_TREE: 2ca95476552c16a8b4b7797817515b1ce5e0dcbe
   EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
   EXPECTED_PROJECT_NAME: sms-v3-staging
@@ -40,6 +40,7 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
     steps:
       - name: Verify Environment credentials are available
         shell: bash
@@ -48,6 +49,7 @@ jobs:
           test -n "$VERCEL_TOKEN"
           test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
           test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test -n "$APPROVED_DATABASE_TARGET_FINGERPRINT"
           echo "ENVIRONMENT_CREDENTIAL_GATE=PASS"
 
       - name: Checkout approved governance tooling source
@@ -67,6 +69,7 @@ jobs:
           cp config/environment-contract.json "$governance_root/config/environment-contract.json"
           cp scripts/ci/verify-environment-contract.js "$governance_root/scripts/ci/verify-environment-contract.js"
           cp scripts/ci/verify-deployment-target.js "$governance_root/scripts/ci/verify-deployment-target.js"
+          cp scripts/ci/verify-preview-control-plane.js "$governance_root/scripts/ci/verify-preview-control-plane.js"
           cp scripts/ci/verify-linux-artifact.js "$governance_root/scripts/ci/verify-linux-artifact.js"
           git checkout --detach "$TARGET_SHA"
           git clean -fd
@@ -142,6 +145,8 @@ jobs:
             throw new Error('Vercel project linkage mismatch');
           }
           NODE
+          npx --yes vercel@"$VERCEL_CLI_VERSION" env list preview --format json --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$RUNNER_TEMP/preview-env-metadata.json"
+          test -s "$RUNNER_TEMP/preview-env-metadata.json"
 
       - name: Verify Preview configuration shape without exposing values
         shell: bash
@@ -153,26 +158,28 @@ jobs:
           const file = candidates.find((entry) => fs.existsSync(entry));
           if (!file) throw new Error('Preview env file missing after vercel pull');
           const text = fs.readFileSync(file, 'utf8');
-          for (const key of ['DATABASE_URL', 'JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
+          for (const key of ['DATABASE_URL', 'DIRECT_URL', 'JWT_SECRET', 'CORS_ORIGIN', 'APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
             if (!new RegExp('^' + key + '=', 'm').test(text)) throw new Error('Preview configuration missing ' + key);
           }
           console.log('PREVIEW_CONFIG_SHAPE=PASS');
           NODE
 
-      - name: Verify Preview environment contract before build
+      - name: Verify Preview control-plane contract before build
         shell: bash
         run: |
           set -euo pipefail
           env_file=.vercel/.env.preview.local
+          metadata_file="$RUNNER_TEMP/preview-env-metadata.json"
           test -f "$env_file"
-          NODE_PATH="$PWD/node_modules" node "$RUNNER_TEMP/sms-v3-governance/scripts/ci/verify-environment-contract.js" \
-            --environment=preview \
+          test -s "$metadata_file"
+          NODE_PATH="$PWD/node_modules" node "$RUNNER_TEMP/sms-v3-governance/scripts/ci/verify-preview-control-plane.js" \
             --env-file="$env_file" \
-            --require-preview-fingerprint \
-            --run-migrations=false \
+            --metadata-file="$metadata_file" \
             --source-sha="$TARGET_SHA" \
             --source-tree="$EXPECTED_TREE" \
-            --cwd="$PWD"
+            --cwd="$PWD" \
+            --production-fingerprint="$APPROVED_DATABASE_TARGET_FINGERPRINT" \
+            --run-migrations=false
 
       - name: Build exact prebuilt Preview artifact
         shell: bash
