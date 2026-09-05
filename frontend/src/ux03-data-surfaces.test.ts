@@ -113,8 +113,8 @@ describe('G04.2 UX-03 data surfaces contract', () => {
     expect(main).toContain('onHistoryMonthChange={changeLeaveMonth}');
     expect(main).toContain('onHistoryMonthStep(-1)');
     expect(main).toContain('onHistoryMonthStep(1)');
-    expect(main).toContain('onHistoryPageChange((historyPage || 1) - 1)');
-    expect(main).toContain('onHistoryPageChange((historyPage || 1) + 1)');
+    expect(main).toContain('DataTablePagination page={historyPage || 1} totalPages={historyTotalPages} onChange={onHistoryPageChange}');
+    expect(main).toContain('ariaLabel="การแบ่งหน้าประวัติการลา"');
     expect(main).toContain('onApprove(row)');
     expect(main).toContain('onReject(row)');
     expect(main).toContain('canCancelApprovedLeave');
