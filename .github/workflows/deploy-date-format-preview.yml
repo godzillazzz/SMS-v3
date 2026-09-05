@@ -140,7 +140,7 @@ jobs:
           set -euo pipefail
           build_log=$(mktemp)
           CI_MIGRATION_COMPLETED=true npx --yes vercel@"$VERCEL_CLI_VERSION" build --token "$VERCEL_TOKEN" >"$build_log" 2>&1
-          grep -Fq 'Vercel build is build-only' "$build_log"
+          grep -Eq 'Vercel build is build-only|Vercel preview build: production migration skipped|Non-Vercel build: production migration skipped' "$build_log"
           grep -Fq 'Prisma generate passed' "$build_log"
           grep -Fq 'Application build passed' "$build_log"
           if grep -Eiq 'prisma migrate deploy|Prisma migrate deploy started|Prisma migrate deploy passed' "$build_log"; then
