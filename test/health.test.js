@@ -50,3 +50,32 @@ test('readiness success and dependency failure responses are sanitized', async (
     logger.error = originalError;
   }
 });
+
+
+test('preview readiness fails closed before a database query when target authority is missing', async () => {
+  const originalQuery = prisma.$queryRaw;
+  const originalError = logger.error;
+  const originalVercelEnv = process.env.VERCEL_ENV;
+  const originalFingerprint = process.env.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT;
+  const records = [];
+  let queryCount = 0;
+  try {
+    process.env.VERCEL_ENV = 'preview';
+    delete process.env.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT;
+    prisma.$queryRaw = async () => { queryCount += 1; return [{ one: 1 }]; };
+    logger.error = (event, fields) => records.push({ event, fields: sanitize(fields) });
+    const failed = await request(app).get('/api/v1/ready');
+    assert.equal(failed.status, 503);
+    assert.equal(queryCount, 0);
+    assert.deepEqual(failed.body, { status: 'not_ready', database: 'unavailable', requestId: failed.headers['x-request-id'] });
+    assert.equal(records[0].event, 'readiness_failure');
+    assert.equal(records[0].fields.errorCode, 'PREVIEW_DATABASE_TARGET_GUARD_FAILED');
+    assert.equal(records[0].fields.errorMessage, 'Preview database target guard failed.');
+    assert.equal(records[0].fields.errorCategory, 'environment_validation');
+  } finally {
+    prisma.$queryRaw = originalQuery;
+    logger.error = originalError;
+    if (originalVercelEnv === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = originalVercelEnv;
+    if (originalFingerprint === undefined) delete process.env.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT; else process.env.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT = originalFingerprint;
+  }
+});

@@ -9,6 +9,10 @@ const requestContext = require('./middlewares/request-context');
 const requestLogger = require('./middlewares/request-logger');
 const { logger, errorCategory, setOperationalEventSink } = require('./utils/logger');
 const { createConfiguredAlerting } = require('./services/alerting.service');
+const {
+  PREVIEW_DATABASE_TARGET_GUARD_ERROR,
+  verifyPreviewDatabaseTarget
+} = require('./services/runtime-database-target-guard.service');
 
 const app = express();
 const alerting = createConfiguredAlerting(env, {
@@ -34,18 +38,25 @@ app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
 async function readiness(req, res) {
   const startedAt = process.hrtime.bigint();
   try {
+    const databaseTargetGuard = verifyPreviewDatabaseTarget();
     await prisma.$queryRaw`SELECT 1`;
-    logger.info('readiness_check', { requestId: req.requestId, status: 200, durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6 });
+    logger.info('readiness_check', {
+      requestId: req.requestId,
+      status: 200,
+      databaseTargetGuard: databaseTargetGuard.required ? 'pass' : 'not_required',
+      durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6
+    });
     return res.json({ status: 'ready', database: 'ok', requestId: req.requestId });
   } catch (error) {
+    const databaseTargetGuardFailed = error?.code === PREVIEW_DATABASE_TARGET_GUARD_ERROR;
     logger.error('readiness_failure', {
       requestId: req.requestId,
       status: 503,
       operation: 'readiness_check',
       errorName: error?.name,
       errorCode: error?.code,
-      errorMessage: 'Database readiness check failed.',
-      errorCategory: errorCategory(error)
+      errorMessage: databaseTargetGuardFailed ? 'Preview database target guard failed.' : 'Database readiness check failed.',
+      errorCategory: databaseTargetGuardFailed ? 'environment_validation' : errorCategory(error)
     });
     return res.status(503).json({ status: 'not_ready', database: 'unavailable', requestId: req.requestId });
   }

@@ -85,3 +85,17 @@ incident.
 The hardening work does not mutate Vercel variables, databases, or the
 canonical alias. Preview secret re-entry and any deletion/cleanup of old
 environment rows remain separate Owner decisions.
+
+
+## Preview database target verification boundary
+
+Vercel Sensitive Environment Variables are intentionally write-only to the control plane. `DATABASE_URL`, `DIRECT_URL`, and `JWT_SECRET` must remain Sensitive in Preview. A control-plane `vercel env pull` may therefore expose only a `[SENSITIVE]` placeholder and must not be treated as proof that the underlying secret is malformed.
+
+The governed Preview release path separates the checks accordingly:
+
+- Control plane verifies project-level Preview scope, the required variable names, sensitivity classification, readable `CORS_ORIGIN`, readable `APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT`, exact source SHA/tree, no branch dependency, and `RUN_MIGRATIONS=false`.
+- `DATABASE_URL` and `DIRECT_URL` remain Sensitive and are not downgraded to readable configuration for CI convenience.
+- The actual logical database target is verified inside the Preview runtime, where Vercel supplies the real Sensitive values. `/api/v1/ready` computes the same normalized logical target fingerprint in memory and compares it with `APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT` before issuing the database readiness query.
+- A missing, malformed, or mismatched Preview target authority fails readiness with HTTP 503 and a generic environment-validation classification. Raw URLs, hostnames, usernames, passwords, project references, and fingerprint values are not emitted by that failure path.
+- The Preview approved fingerprint remains non-sensitive configuration because it is an identifier/guard, not a credential. It must be Owner-derived from the intended isolated non-Production target and must not equal the Production database fingerprint.
+- Production readiness behavior and Production database authority are unchanged by the Preview runtime guard.
