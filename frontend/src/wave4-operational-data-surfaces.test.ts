@@ -67,12 +67,18 @@ describe('WAVE 4 operational data surfaces contract', () => {
     expect(executive).not.toContain('ResponsiveDataTable');
   });
 
-  it('defers Attendance Supervisor table migration to a separate sensitive sub-gate', () => {
+  it('migrates Attendance Supervisor through a separate sensitive responsive sub-gate', () => {
     const supervisor = read('./pages/attendance-supervisor/AttendanceSupervisorPage.tsx');
     const styles = read('./pages/attendance-supervisor/attendance-supervisor-v4.css');
-    expect(supervisor).toContain('<table>');
-    expect(supervisor).not.toContain('ResponsiveDataTable');
-    expect(styles).toContain('min-width: 1220px;');
+    expect(supervisor).toContain('ResponsiveDataTable');
+    expect(supervisor).toContain('DataTablePagination');
+    expect(supervisor).toContain('DataTableSkeletonRows');
+    expect(supervisor).toContain('DataTableSkeletonCards');
+    expect(supervisor).toContain('attendance-supervisor-v4__mobile-card');
+    expect(supervisor).toContain('originalCheckInAt');
+    expect(supervisor).toContain('await approveAttendanceAdjustment');
+    expect(styles).toContain('min-width: 1080px;');
     expect(styles).toContain('overflow-x: auto;');
+    expect(styles).toContain('@media (max-width: 1024px)');
   });
 });
