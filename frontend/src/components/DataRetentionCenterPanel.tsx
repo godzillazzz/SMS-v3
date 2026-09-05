@@ -9,6 +9,7 @@ import {
   type RetentionPreview,
   type RetentionState
 } from '../data-retention-client';
+import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from './ResponsiveDataTable';
 
 type Draft = Omit<RetentionPolicy, 'timezone'>;
 
@@ -143,6 +144,19 @@ export function DataRetentionCenterPanel({ token }: { token: string }) {
     } finally { setBusy(''); }
   };
 
+  const recentRuns = state?.recentRuns ?? [];
+  const recentRunsDesktop = <div className="data-table-scroll"><table className="data-surface-table retention-runs-data-table" aria-label="ประวัติ Cleanup ล่าสุด"><thead><tr><th scope="col">เวลา</th><th scope="col">Trigger</th><th scope="col">สถานะ</th><th scope="col">Error</th></tr></thead><tbody>
+    {loading ? <DataTableSkeletonRows columnCount={4} rowCount={3} /> : recentRuns.length ? recentRuns.slice(0, 8).map((run) => <tr key={run.id}><td>{thaiDateTime(run.startedAt)}</td><td>{run.trigger}</td><td>{run.status}</td><td>{run.errorCode || '—'}</td></tr>) : <tr><td colSpan={4} className="data-table-empty-cell"><DataTableState variant="empty" title="ยังไม่มี Cleanup run" description="ประวัติจะปรากฏหลังมี controlled cleanup ที่บันทึกโดยระบบ" announce={false} /></td></tr>}
+  </tbody></table></div>;
+  const recentRunsMobile = loading
+    ? <div className="retention-runs-mobile-cards"><DataTableSkeletonCards count={3} cardClassName="data-mobile-card retention-run-mobile-skeleton" /></div>
+    : recentRuns.length
+      ? <div className="retention-runs-mobile-cards">{recentRuns.slice(0, 8).map((run) => <article className="data-mobile-card retention-run-mobile-card" key={run.id}>
+        <header><strong>{thaiDateTime(run.startedAt)}</strong><span className="status-badge status-badge--neutral">{run.status}</span></header>
+        <dl><div><dt>Trigger</dt><dd>{run.trigger}</dd></div><div><dt>Error</dt><dd>{run.errorCode || '—'}</dd></div></dl>
+      </article>)}</div>
+      : <DataTableState variant="empty" title="ยังไม่มี Cleanup run" description="ประวัติจะปรากฏหลังมี controlled cleanup ที่บันทึกโดยระบบ" />;
+
   if (loading && !state) return <section className="line-settings-card retention-center-card"><div className="loading-row">กำลังอ่าน Data Retention policy…</div></section>;
   if (!state || !draft) return <section className="line-settings-card retention-center-card">{notice && <div className="settings-notice error">{notice}</div>}<button className="btn-neutral small-action" onClick={() => void load()}>↻ ลองใหม่</button></section>;
 
@@ -215,9 +229,7 @@ export function DataRetentionCenterPanel({ token }: { token: string }) {
 
     <div className="retention-runs">
       <strong>Cleanup ล่าสุด</strong>
-      {state.recentRuns.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th scope="col">เวลา</th><th scope="col">Trigger</th><th scope="col">สถานะ</th><th scope="col">Error</th></tr></thead><tbody>
-        {state.recentRuns.slice(0, 8).map((run) => <tr key={run.id}><td>{thaiDateTime(run.startedAt)}</td><td>{run.trigger}</td><td>{run.status}</td><td>{run.errorCode || '—'}</td></tr>)}
-      </tbody></table></div> : <small>ยังไม่มี Cleanup run</small>}
+      <ResponsiveDataTable ariaLabel="ประวัติ Cleanup ล่าสุด" loading={loading} loadingLabel="กำลังอ่านประวัติ Cleanup…" hasRows={recentRuns.length > 0} className="retention-runs-responsive-table" desktop={recentRunsDesktop} mobile={recentRunsMobile} />
     </div>
   </section>;
 }
