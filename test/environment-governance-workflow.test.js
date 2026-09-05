@@ -26,27 +26,33 @@ test('manual Production workflow defaults migrations to false and gates environm
   assert.doesNotMatch(workflow, /^\s+(?:push|schedule|repository_dispatch):/m);
 });
 
-test('Preview witness workflow fails before build when the Preview contract is not proven', () => {
+test('Preview witness workflow validates readable guards in the control plane and defers sensitive DB identity to runtime readiness', () => {
   const workflow = readWorkflow('deploy-date-format-preview.yml');
-  assert.match(workflow, /Verify Preview environment contract before build/);
-  assert.match(workflow, /--require-preview-fingerprint/);
-  assert.match(workflow, /--run-migrations=false/);
-  assert.match(workflow, /GOVERNANCE_SHA: a259c34aa026be86ad009a27d96439a8ac6c7a16/);
-  assert.match(workflow, /GOVERNANCE_TREE: c1fc3eb180353557c1ef053353a6efc332b5b9b1/);
+  assert.match(workflow, /TARGET_SHA: 7d4e911aca8c256233849044a1e131dc7710965d/);
+  assert.match(workflow, /EXPECTED_TREE: 2ca95476552c16a8b4b7797817515b1ce5e0dcbe/);
+  assert.match(workflow, /GOVERNANCE_SHA: 7d4e911aca8c256233849044a1e131dc7710965d/);
+  assert.match(workflow, /GOVERNANCE_TREE: 2ca95476552c16a8b4b7797817515b1ce5e0dcbe/);
+  assert.match(workflow, /APPROVED_DATABASE_TARGET_FINGERPRINT: \${\{ vars\.APPROVED_DATABASE_TARGET_FINGERPRINT \}\}/);
   assert.match(workflow, /Checkout approved governance tooling source/);
-  assert.match(workflow, /ref: \$\{\{ env\.GOVERNANCE_SHA \}\}/);
+  assert.match(workflow, /ref: \${\{ env\.GOVERNANCE_SHA \}\}/);
   assert.match(workflow, /Snapshot approved governance tooling and checkout exact Application SHA/);
-  assert.match(workflow, /cp scripts\/ci\/verify-environment-contract\.js "\$governance_root\/scripts\/ci\/verify-environment-contract\.js"/);
+  assert.match(workflow, /cp scripts\/ci\/verify-preview-control-plane\.js "\$governance_root\/scripts\/ci\/verify-preview-control-plane\.js"/);
   assert.match(workflow, /git checkout --detach "\$TARGET_SHA"/);
   assert.match(workflow, /node "\$RUNNER_TEMP\/sms-v3-governance\/scripts\/ci\/verify-environment-contract\.js" --contract-only/);
-  assert.match(workflow, /NODE_PATH="\$PWD\/node_modules" node "\$RUNNER_TEMP\/sms-v3-governance\/scripts\/ci\/verify-environment-contract\.js"/);
+  assert.match(workflow, /env list preview --format json/);
+  assert.match(workflow, /Verify Preview control-plane contract before build/);
+  assert.match(workflow, /verify-preview-control-plane\.js/);
+  assert.match(workflow, /--metadata-file="\$metadata_file"/);
+  assert.match(workflow, /--production-fingerprint="\$APPROVED_DATABASE_TARGET_FINGERPRINT"/);
+  assert.match(workflow, /--run-migrations=false/);
+  assert.match(workflow, /--source-sha="\$TARGET_SHA"/);
+  assert.match(workflow, /--source-tree="\$EXPECTED_TREE"/);
   assert.match(workflow, /--cwd="\$PWD"/);
   assert.match(workflow, /node "\$RUNNER_TEMP\/sms-v3-governance\/scripts\/ci\/verify-linux-artifact\.js" \.vercel\/output --require-sharp-load/);
   assert.match(workflow, /\/api\/v1\/health/);
   assert.match(workflow, /\/api\/v1\/ready/);
   assert.match(workflow, /PREVIEW_CORS_ORIGIN_GATE=PASS/);
 });
-
 test('manifest Production release is explicitly dispatched and includes both hardening gates', () => {
   const workflow = readWorkflow('deploy-approved-production-v2.yml');
   assert.match(workflow, /^on:\n\s+workflow_dispatch:/m);
