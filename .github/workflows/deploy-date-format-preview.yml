@@ -402,7 +402,7 @@ jobs:
           node - "$tmp/preview.html" "$tmp/production.html" <<'NODE' >"$tmp/assets.txt"
           const fs = require('node:fs');
           const read = (file) => fs.readFileSync(file, 'utf8');
-          const assets = (html) => [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g)].map((match) => match[1]).sort();
+          const assets = (html) => [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+\.(?:js|css))"/g)].map((match) => match[1]).sort();
           const preview = assets(read(process.argv[2]));
           const production = assets(read(process.argv[3]));
           if (!preview.length || preview.join('\n') !== production.join('\n')) throw new Error('frontend asset manifest mismatch');
@@ -424,8 +424,16 @@ jobs:
           node - "$tmp/preview.html" "$tmp/production.html" <<'NODE'
           const fs = require('node:fs');
           const normalize = (value) => value.replace(/\s+/g, ' ').trim();
-          const preview = normalize(fs.readFileSync(process.argv[2], 'utf8'));
-          const production = normalize(fs.readFileSync(process.argv[3], 'utf8'));
+          const knownVercelFeedback = /^<script(?=[^>]*\basync\b)(?=[^>]*\bdata-explicit-opt-in="true")(?=[^>]*\bdata-deployment-id="dpl_[A-Za-z0-9]+")(?=[^>]*\bsrc="https:\/\/vercel\.live\/_next-live\/feedback\/feedback\.js")[^>]*><\/script>$/i;
+          const applicationRoot = (value) => {
+            const match = value.match(/^([\s\S]*?<\/html>)([\s\S]*)$/i);
+            if (!match) throw new Error('root application document missing </html>');
+            const suffix = match[2].trim();
+            if (suffix && !knownVercelFeedback.test(suffix)) throw new Error('unexpected root suffix after </html>');
+            return normalize(match[1]);
+          };
+          const preview = applicationRoot(fs.readFileSync(process.argv[2], 'utf8'));
+          const production = applicationRoot(fs.readFileSync(process.argv[3], 'utf8'));
           if (preview !== production) throw new Error('root application sentinel mismatch');
           console.log('ROOT_SENTINEL_EQUIVALENCE=PASS');
           console.log('FRONTEND_JS_EQUIVALENCE=PASS');
