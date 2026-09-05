@@ -235,6 +235,29 @@
   box-shadow: 0 14px 34px rgba(29, 66, 115, .09);
 }
 
+@media (max-width: 1024px) {
+  .attendance-supervisor-v4__table-surface.data-table-shell[data-table-has-mobile="true"] > .data-table-desktop {
+    display: none;
+  }
+
+  .attendance-supervisor-v4__table-surface.data-table-shell[data-table-has-mobile="true"] > .data-table-mobile {
+    display: block;
+  }
+}
+
+.attendance-supervisor-v4__table-surface {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.attendance-supervisor-v4__table-surface > .data-table-desktop,
+.attendance-supervisor-v4__table-surface > .data-table-mobile {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .attendance-supervisor-v4__table-head {
   display: flex;
   min-height: 66px;
@@ -264,10 +287,15 @@
   overflow-x: auto;
 }
 
-.attendance-supervisor-v4 table {
+.attendance-supervisor-v4__table {
   width: 100%;
-  min-width: 1220px;
+  min-width: 1080px;
   border-collapse: collapse;
+}
+
+.attendance-supervisor-v4__table td,
+.attendance-supervisor-v4__table th {
+  overflow-wrap: anywhere;
 }
 
 .attendance-supervisor-v4 th,
@@ -399,22 +427,25 @@
 
 .attendance-supervisor-v4__pager {
   display: flex;
-  min-height: 56px;
+  width: 100%;
+  min-height: 64px;
   align-items: center;
   justify-content: center;
   gap: 12px;
   border-top: 1px solid #edf1f6;
+  box-sizing: border-box;
+  padding: 6px 14px;
 }
 
 .attendance-supervisor-v4__pager button {
-  min-height: 32px;
+  min-height: 44px;
   border: 1px solid #d8e3ef;
   border-radius: 9px;
-  padding: 5px 11px;
+  padding: 7px 13px;
   color: #4e607c;
   background: #fff;
   font: inherit;
-  font-size: 9px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -425,7 +456,136 @@
 
 .attendance-supervisor-v4__pager span {
   color: #6c7890;
-  font-size: 9px;
+  font-size: 12px;
+}
+
+.attendance-supervisor-v4__table-surface button:focus-visible,
+.attendance-supervisor-v4__pager button:focus-visible {
+  outline: 3px solid rgba(23, 101, 207, .38);
+  outline-offset: 2px;
+}
+
+.attendance-supervisor-v4__mobile-cards {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.attendance-supervisor-v4__mobile-card {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  border: 1px solid #dfe8f3;
+  border-radius: 16px;
+  padding: 14px;
+  color: #2a3d5d;
+  background: #fff;
+  box-shadow: 0 5px 14px rgba(26, 78, 151, .08);
+}
+
+.attendance-supervisor-v4__mobile-card > header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.attendance-supervisor-v4__mobile-identity {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.attendance-supervisor-v4__mobile-identity strong {
+  color: #17315e;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.attendance-supervisor-v4__mobile-identity span {
+  color: #2a3d5d;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.attendance-supervisor-v4__mobile-identity small {
+  color: #748198;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.attendance-supervisor-v4__mobile-card .attendance-supervisor-v4__status {
+  flex: 0 0 auto;
+  max-width: 48%;
+  white-space: normal;
+  text-align: right;
+}
+
+.attendance-supervisor-v4__mobile-date {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  color: #748198;
+  font-size: 12px;
+}
+
+.attendance-supervisor-v4__mobile-date strong {
+  color: #2a3d5d;
+  font-weight: 700;
+}
+
+.attendance-supervisor-v4__mobile-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 12px;
+  margin: 0;
+}
+
+.attendance-supervisor-v4__mobile-card dl > div {
+  min-width: 0;
+}
+
+.attendance-supervisor-v4__mobile-card dt,
+.attendance-supervisor-v4__mobile-label {
+  color: #748198;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.attendance-supervisor-v4__mobile-card dd {
+  margin: 2px 0 0;
+  color: #2a3d5d;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.attendance-supervisor-v4__mobile-flags {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.attendance-supervisor-v4__mobile-flags .attendance-supervisor-v4__flags {
+  max-width: none;
+}
+
+.attendance-supervisor-v4__mobile-card > footer.attendance-supervisor-v4__row-actions {
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.attendance-supervisor-v4__mobile-card > footer .attendance-supervisor-v4__onbehalf-btn,
+.attendance-supervisor-v4__mobile-card > footer .attendance-supervisor-v4__detail-btn {
+  flex: 1 1 0;
+  min-height: 44px;
+  font-size: 12px;
 }
 
 .attendance-supervisor-v4__drawer-backdrop {

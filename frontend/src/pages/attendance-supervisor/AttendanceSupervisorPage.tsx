@@ -19,6 +19,7 @@ import {
   type AttendanceAdjustmentRequest,
   type AttendanceAdjustmentStatus
 } from './attendance-adjustment-client';
+import { DataTablePagination, DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
 import './attendance-supervisor-v4.css';
 
 type Props = {
@@ -323,6 +324,68 @@ function KPI({
   return <article className={`attendance-supervisor-v4__kpi is-${tone}${onClick ? ' is-actionable' : ''}`} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={onClick ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(); } } : undefined}>
     <span><SmsIcon name={icon} size={20} /></span>
     <div><strong>{value}</strong><small>{label}</small></div>
+  </article>;
+}
+
+function AttendanceMobileCard({
+  row,
+  mode,
+  onOpenAdjustment,
+  onOpenDetail
+}: {
+  row: AttendanceRow;
+  mode: 'daily' | 'history';
+  onOpenAdjustment(row: AttendanceRow): void;
+  onOpenDetail(assignmentId: string): void;
+}) {
+  return <article className="attendance-supervisor-v4__mobile-card data-mobile-card">
+    <header>
+      <div className="attendance-supervisor-v4__mobile-identity">
+        <strong>{row.employeeCode || '—'}</strong>
+        <span>{row.employeeName}</span>
+        <small>{row.department || 'ไม่ระบุ Department'}</small>
+      </div>
+      <span className={`attendance-supervisor-v4__status is-${statusTone(row.attendanceStatus)}`}>
+        {statusLabel(row.attendanceStatus)}
+      </span>
+    </header>
+
+    {mode === 'history' && <p className="attendance-supervisor-v4__mobile-date"><span>วันที่</span><strong>{row.date}</strong></p>}
+
+    <dl>
+      <div><dt>Shift</dt><dd>{row.shift.code || row.shift.name || '—'}</dd></div>
+      <div><dt>Expected Site</dt><dd>{row.expectedSite?.name || '—'}</dd></div>
+      <div><dt>Actual Site</dt><dd>{row.actualSite?.name || '—'}</dd></div>
+      <div><dt>In</dt><dd>{time(row.checkInAt)}</dd></div>
+      <div><dt>Out</dt><dd>{time(row.checkOutAt)}</dd></div>
+      <div><dt>Worked</dt><dd>{duration(row.workedMinutes)}</dd></div>
+    </dl>
+
+    <div className="attendance-supervisor-v4__mobile-flags">
+      <span className="attendance-supervisor-v4__mobile-label">Flags</span>
+      <div className="attendance-supervisor-v4__flags">
+        {row.flags.length ? row.flags.map((flag) => <span key={flag}>{flag}</span>) : <span>ไม่มี</span>}
+      </div>
+    </div>
+
+    <footer className="attendance-supervisor-v4__row-actions">
+      <button
+        type="button"
+        className="attendance-supervisor-v4__onbehalf-btn"
+        onClick={() => onOpenAdjustment(row)}
+        aria-label={`ลงเวลาแทน ${row.employeeName}`}
+      >
+        ลงเวลาแทน
+      </button>
+      <button
+        type="button"
+        className="attendance-supervisor-v4__detail-btn"
+        onClick={() => onOpenDetail(row.assignmentId)}
+        aria-label={`ดูรายละเอียด Attendance ของ ${row.employeeName}`}
+      >
+        ดูรายละเอียด
+      </button>
+    </footer>
   </article>;
 }
 
@@ -763,6 +826,96 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
     }
   };
 
+  const attendanceColumnCount = mode === 'history' ? 11 : 10;
+  const attendanceTableLabel = mode === 'history' ? 'ประวัติ Attendance' : 'สถานะ Attendance ประจำวัน';
+  const attendanceStateTitle = error ? 'ไม่สามารถแสดงข้อมูล Attendance ได้' : rows.length ? '' : 'ไม่พบข้อมูล Attendance ตามตัวกรอง';
+  const attendanceDesktop = <div className="attendance-supervisor-v4__table-wrap data-table-scroll">
+    <table className="attendance-supervisor-v4__table data-surface-table" aria-label={attendanceTableLabel}>
+      <thead>
+        <tr>
+          {mode === 'history' && <th scope="col">วันที่</th>}
+          <th scope="col">Employee</th>
+          <th scope="col">Shift</th>
+          <th scope="col">Expected Site</th>
+          <th scope="col">Actual Site</th>
+          <th scope="col">In</th>
+          <th scope="col">Out</th>
+          <th scope="col">Worked</th>
+          <th scope="col">Status</th>
+          <th scope="col">Flags</th>
+          <th scope="col">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {loading ? <DataTableSkeletonRows columnCount={attendanceColumnCount} rowCount={5} /> : error ? (
+          <tr><td colSpan={attendanceColumnCount} className="data-table-empty-cell">
+            <DataTableState variant="error" announce={false} title="ไม่สามารถแสดงข้อมูล Attendance ได้" description={error} action={{ label: 'ลองใหม่', onClick: refresh }} />
+          </td></tr>
+        ) : rows.length ? rows.map((row) => (
+          <tr key={row.assignmentId}>
+            {mode === 'history' && <td>{row.date}</td>}
+            <td>
+              <strong>{row.employeeCode || '—'}</strong>
+              <small>{row.employeeName}</small>
+              <small>{row.department || '—'}</small>
+            </td>
+            <td>{row.shift.code || row.shift.name || '—'}</td>
+            <td>{row.expectedSite?.name || '—'}</td>
+            <td>{row.actualSite?.name || '—'}</td>
+            <td>{time(row.checkInAt)}</td>
+            <td>{time(row.checkOutAt)}</td>
+            <td>{duration(row.workedMinutes)}</td>
+            <td>
+              <span className={`attendance-supervisor-v4__status is-${statusTone(row.attendanceStatus)}`}>
+                {statusLabel(row.attendanceStatus)}
+              </span>
+            </td>
+            <td>
+              <div className="attendance-supervisor-v4__flags">
+                {row.flags.slice(0, 3).map((flag) => <span key={flag}>{flag}</span>)}
+                {row.flags.length > 3 && <span>+{row.flags.length - 3}</span>}
+                {!row.flags.length && <span>ไม่มี</span>}
+              </div>
+            </td>
+            <td>
+              <div className="attendance-supervisor-v4__row-actions">
+                <button
+                  type="button"
+                  className="attendance-supervisor-v4__onbehalf-btn"
+                  onClick={() => openRowAdjustment(row)}
+                  aria-label={`ลงเวลาแทน ${row.employeeName}`}
+                >
+                  ลงเวลาแทน
+                </button>
+                <button
+                  type="button"
+                  className="attendance-supervisor-v4__detail-btn"
+                  onClick={() => void openDetail(row.assignmentId)}
+                  aria-label={`ดูรายละเอียด Attendance ของ ${row.employeeName}`}
+                >
+                  ดูรายละเอียด
+                </button>
+              </div>
+            </td>
+          </tr>
+        )) : (
+          <tr><td colSpan={attendanceColumnCount} className="data-table-empty-cell">
+            <DataTableState variant="empty" announce={false} title={attendanceStateTitle} description="ลองปรับตัวกรองเพื่อค้นหารายการเพิ่มเติม" />
+          </td></tr>
+        )}
+      </tbody>
+    </table>
+  </div>;
+  const attendanceMobile = <div className="attendance-supervisor-v4__mobile-cards" aria-label={`${attendanceTableLabel}สำหรับมือถือ`}>
+    {loading ? <DataTableSkeletonCards count={3} cardClassName="attendance-supervisor-v4__mobile-card data-mobile-card" /> : error ? (
+      <DataTableState variant="error" title="ไม่สามารถแสดงข้อมูล Attendance ได้" description={error} action={{ label: 'ลองใหม่', onClick: refresh }} />
+    ) : rows.length ? rows.map((row) => (
+      <AttendanceMobileCard key={row.assignmentId} row={row} mode={mode === 'history' ? 'history' : 'daily'} onOpenAdjustment={openRowAdjustment} onOpenDetail={(assignmentId) => void openDetail(assignmentId)} />
+    )) : (
+      <DataTableState variant="empty" title={attendanceStateTitle} description="ลองปรับตัวกรองเพื่อค้นหารายการเพิ่มเติม" />
+    )}
+  </div>;
+
   return <section className="attendance-supervisor-v4">
     <header className="attendance-supervisor-v4__hero">
       <div>
@@ -865,11 +1018,6 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
         <KPI label="Time abnormal" value={summary.timeAbnormal} icon="quality" tone="danger" onClick={() => setStatus('TIME_ABNORMAL')} />
       </section>}
 
-      {error && <div className="attendance-supervisor-v4__error" role="alert">
-        <strong>ไม่สามารถแสดงข้อมูลได้</strong>
-        <span>{error}</span>
-      </div>}
-
       <section className="attendance-supervisor-v4__table-card">
         <div className="attendance-supervisor-v4__table-head">
           <div>
@@ -880,85 +1028,26 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
             <span>หน้า {history.meta.page}/{history.meta.totalPages} · {history.meta.total} รายการ</span>
           )}
         </div>
-        <div className="attendance-supervisor-v4__table-wrap">
-          <table>
-            <thead>
-              <tr>
-                {mode === 'history' && <th scope="col">วันที่</th>}
-                <th scope="col">Employee</th>
-                <th scope="col">Shift</th>
-                <th scope="col">Expected Site</th>
-                <th scope="col">Actual Site</th>
-                <th scope="col">In</th>
-                <th scope="col">Out</th>
-                <th scope="col">Worked</th>
-                <th scope="col">Status</th>
-                <th scope="col">Flags</th>
-                <th scope="col">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!loading && rows.length === 0 && (
-                <tr>
-                  <td colSpan={mode === 'history' ? 11 : 10} className="attendance-supervisor-v4__empty">
-                    ไม่พบข้อมูล Attendance ตามตัวกรอง
-                  </td>
-                </tr>
-              )}
-              {rows.map((row) => (
-                <tr key={row.assignmentId}>
-                  {mode === 'history' && <td>{row.date}</td>}
-                  <td>
-                    <strong>{row.employeeCode || '—'}</strong>
-                    <small>{row.employeeName}</small>
-                    <small>{row.department || '—'}</small>
-                  </td>
-                  <td>{row.shift.code || row.shift.name || '—'}</td>
-                  <td>{row.expectedSite?.name || '—'}</td>
-                  <td>{row.actualSite?.name || '—'}</td>
-                  <td>{time(row.checkInAt)}</td>
-                  <td>{time(row.checkOutAt)}</td>
-                  <td>{duration(row.workedMinutes)}</td>
-                  <td>
-                    <span className={`attendance-supervisor-v4__status is-${statusTone(row.attendanceStatus)}`}>
-                      {statusLabel(row.attendanceStatus)}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="attendance-supervisor-v4__flags">
-                      {row.flags.slice(0, 3).map((flag) => <span key={flag}>{flag}</span>)}
-                      {row.flags.length > 3 && <span>+{row.flags.length - 3}</span>}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="attendance-supervisor-v4__row-actions">
-                      <button
-                        type="button"
-                        className="attendance-supervisor-v4__onbehalf-btn"
-                        onClick={() => openRowAdjustment(row)}
-                      >
-                        ลงเวลาแทน
-                      </button>
-                      <button
-                        type="button"
-                        className="attendance-supervisor-v4__detail-btn"
-                        onClick={() => void openDetail(row.assignmentId)}
-                      >
-                        ดูรายละเอียด
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {mode === 'history' && history?.meta && history.meta.totalPages > 1 && (
-          <div className="attendance-supervisor-v4__pager">
-            <button type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
-            <span>{page} / {history.meta.totalPages}</span>
-            <button type="button" disabled={page >= history.meta.totalPages} onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
-          </div>
+        <ResponsiveDataTable
+          ariaLabel={attendanceTableLabel}
+          loading={loading && !error}
+          error={Boolean(error)}
+          loadingLabel="กำลังอ่านข้อมูล Attendance…"
+          errorLabel={error || 'ไม่สามารถอ่านข้อมูล Attendance ได้'}
+          hasRows={rows.length > 0}
+          className="attendance-supervisor-v4__table-surface"
+          desktop={attendanceDesktop}
+          mobile={attendanceMobile}
+        />
+        {mode === 'history' && history?.meta && (
+          <DataTablePagination
+            page={page}
+            totalPages={history.meta.totalPages}
+            onChange={setPage}
+            ariaLabel="การแบ่งหน้าประวัติ Attendance"
+            loading={loading}
+            className="attendance-supervisor-v4__pager"
+          />
         )}
       </section>
     </> : (
