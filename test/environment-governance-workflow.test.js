@@ -31,7 +31,17 @@ test('Preview witness workflow fails before build when the Preview contract is n
   assert.match(workflow, /Verify Preview environment contract before build/);
   assert.match(workflow, /--require-preview-fingerprint/);
   assert.match(workflow, /--run-migrations=false/);
-  assert.match(workflow, /node scripts\/ci\/verify-linux-artifact\.js \.vercel\/output --require-sharp-load/);
+  assert.match(workflow, /GOVERNANCE_SHA: a259c34aa026be86ad009a27d96439a8ac6c7a16/);
+  assert.match(workflow, /GOVERNANCE_TREE: c1fc3eb180353557c1ef053353a6efc332b5b9b1/);
+  assert.match(workflow, /Checkout approved governance tooling source/);
+  assert.match(workflow, /ref: \$\{\{ env\.GOVERNANCE_SHA \}\}/);
+  assert.match(workflow, /Snapshot approved governance tooling and checkout exact Application SHA/);
+  assert.match(workflow, /cp scripts\/ci\/verify-environment-contract\.js "\$governance_root\/scripts\/ci\/verify-environment-contract\.js"/);
+  assert.match(workflow, /git checkout --detach "\$TARGET_SHA"/);
+  assert.match(workflow, /node "\$RUNNER_TEMP\/sms-v3-governance\/scripts\/ci\/verify-environment-contract\.js" --contract-only/);
+  assert.match(workflow, /NODE_PATH="\$PWD\/node_modules" node "\$RUNNER_TEMP\/sms-v3-governance\/scripts\/ci\/verify-environment-contract\.js"/);
+  assert.match(workflow, /--cwd="\$PWD"/);
+  assert.match(workflow, /node "\$RUNNER_TEMP\/sms-v3-governance\/scripts\/ci\/verify-linux-artifact\.js" \.vercel\/output --require-sharp-load/);
   assert.match(workflow, /\/api\/v1\/health/);
   assert.match(workflow, /\/api\/v1\/ready/);
   assert.match(workflow, /PREVIEW_CORS_ORIGIN_GATE=PASS/);

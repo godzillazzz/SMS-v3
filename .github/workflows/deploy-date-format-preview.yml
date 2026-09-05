@@ -13,6 +13,8 @@ concurrency:
 env:
   TARGET_SHA: 258689837a0b9aea55161639aa0fab2d820e519c
   EXPECTED_TREE: 5f6d8168d9719c25b5436442be9a032f97c28f6f
+  GOVERNANCE_SHA: a259c34aa026be86ad009a27d96439a8ac6c7a16
+  GOVERNANCE_TREE: c1fc3eb180353557c1ef053353a6efc332b5b9b1
   EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
   EXPECTED_PROJECT_NAME: sms-v3-staging
@@ -48,11 +50,31 @@ jobs:
           test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
           echo "ENVIRONMENT_CREDENTIAL_GATE=PASS"
 
-      - name: Checkout exact approved Application SHA
+      - name: Checkout approved governance tooling source
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.TARGET_SHA }}
+          ref: ${{ env.GOVERNANCE_SHA }}
           fetch-depth: 0
+
+      - name: Snapshot approved governance tooling and checkout exact Application SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GOVERNANCE_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$GOVERNANCE_TREE"
+          governance_root="$RUNNER_TEMP/sms-v3-governance"
+          mkdir -p "$governance_root/config" "$governance_root/scripts/ci"
+          cp config/environment-contract.json "$governance_root/config/environment-contract.json"
+          cp scripts/ci/verify-environment-contract.js "$governance_root/scripts/ci/verify-environment-contract.js"
+          cp scripts/ci/verify-deployment-target.js "$governance_root/scripts/ci/verify-deployment-target.js"
+          cp scripts/ci/verify-linux-artifact.js "$governance_root/scripts/ci/verify-linux-artifact.js"
+          git checkout --detach "$TARGET_SHA"
+          git clean -fd
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          test -z "$(git status --porcelain)"
+          echo "GOVERNANCE_TOOLING_SHA=$GOVERNANCE_SHA"
+          echo "GOVERNANCE_TOOLING_TREE=$GOVERNANCE_TREE"
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -74,7 +96,7 @@ jobs:
           echo "STAGED_SOURCE_TREE=$EXPECTED_TREE"
 
       - name: Verify environment governance contract definition
-        run: node scripts/ci/verify-environment-contract.js --contract-only
+        run: node "$RUNNER_TEMP/sms-v3-governance/scripts/ci/verify-environment-contract.js" --contract-only
 
       - name: Clean install dependencies and verify Linux sharp load
         shell: bash
@@ -143,13 +165,14 @@ jobs:
           set -euo pipefail
           env_file=.vercel/.env.preview.local
           test -f "$env_file"
-          node scripts/ci/verify-environment-contract.js \
+          NODE_PATH="$PWD/node_modules" node "$RUNNER_TEMP/sms-v3-governance/scripts/ci/verify-environment-contract.js" \
             --environment=preview \
             --env-file="$env_file" \
             --require-preview-fingerprint \
             --run-migrations=false \
             --source-sha="$TARGET_SHA" \
-            --source-tree="$EXPECTED_TREE"
+            --source-tree="$EXPECTED_TREE" \
+            --cwd="$PWD"
 
       - name: Build exact prebuilt Preview artifact
         shell: bash
@@ -199,7 +222,7 @@ jobs:
           console.log('LINUX_ARTIFACT_VERIFY=PASS');
           NODE
           node scripts/ci/verify-release-artifact.js frontend/dist .vercel/output/static
-          node scripts/ci/verify-linux-artifact.js .vercel/output --require-sharp-load
+          node "$RUNNER_TEMP/sms-v3-governance/scripts/ci/verify-linux-artifact.js" .vercel/output --require-sharp-load
           rm -f "$build_log"
 
       - name: Restore exact source identity before deploy
