@@ -271,7 +271,7 @@ describe('WAVE 4B responsive licenses contract', () => {
     expect(mainSource).toContain('DataTableSkeletonCards');
     expect(mainSource).toContain('variant="empty"');
     expect(mainSource).toContain('variant="error"');
-    expect(mainSource).toContain('ariaLabel="แบ่งหน้าใบอนุญาต"');
+    expect(mainSource).toContain("ariaLabel={page === 'quota' ? 'แบ่งหน้าโควตาวันลา' : 'แบ่งหน้าใบอนุญาต'}");
     expect(mainSource).toContain('const licenseTableHeader = <tr>{config.columns.map((column) => <th key={column.label} scope="col">');
     expect(mainSource).toContain('aria-label="รายการใบอนุญาตพนักงาน"');
   });
