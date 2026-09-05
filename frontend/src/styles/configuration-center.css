@@ -242,3 +242,173 @@
 
 .settings-page .personnel-master-create--coded{grid-template-columns:minmax(120px,.7fr) minmax(180px,1.3fr) auto}
 @media(max-width:760px){.settings-page .personnel-master-create--coded{grid-template-columns:1fr}.settings-page .personnel-master-create--coded button{width:100%}}
+
+/* WAVE 4B — low-risk Settings metadata/history tables use the shared
+   desktop/mobile boundary; governed editors keep their page-owned controls. */
+.configuration-registry-responsive-table.data-table-shell,
+.leave-type-responsive-table.data-table-shell,
+.retention-runs-responsive-table.data-table-shell {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.configuration-registry-data-table {
+  min-width: 1080px;
+}
+
+.configuration-registry-data-table td,
+.leave-type-data-table td,
+.retention-runs-data-table td {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.configuration-registry-mobile-cards,
+.leave-type-mobile-cards,
+.retention-runs-mobile-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.configuration-registry-mobile-card,
+.leave-type-mobile-card,
+.retention-run-mobile-card {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 14px;
+}
+
+.configuration-registry-mobile-card header,
+.leave-type-mobile-card header,
+.retention-run-mobile-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.configuration-registry-mobile-card header > div,
+.leave-type-mobile-card header > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.configuration-registry-mobile-card header small,
+.leave-type-mobile-card header small,
+.configuration-registry-mobile-card dt,
+.leave-type-mobile-card dt,
+.retention-run-mobile-card dt {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.configuration-registry-mobile-card h3,
+.leave-type-mobile-card h3 {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text);
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.configuration-registry-mobile-card p {
+  margin: 0;
+}
+
+.configuration-registry-mobile-card dl,
+.leave-type-mobile-card dl,
+.retention-run-mobile-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.configuration-registry-mobile-card dl > div,
+.leave-type-mobile-card dl > div,
+.retention-run-mobile-card dl > div {
+  min-width: 0;
+  padding-top: 7px;
+  border-top: 1px solid var(--color-border);
+}
+
+.configuration-registry-mobile-card dd,
+.leave-type-mobile-card dd,
+.retention-run-mobile-card dd {
+  min-width: 0;
+  margin: 3px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.leave-type-mobile-card dd input,
+.leave-type-mobile-card dd select,
+.leave-type-mobile-status select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+}
+
+.leave-type-mobile-status {
+  display: grid;
+  gap: 5px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.configuration-registry-mobile-card footer,
+.leave-type-mobile-card footer,
+.retention-run-mobile-card footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.leave-type-mobile-card footer button {
+  min-height: 44px;
+}
+
+.retention-run-mobile-card header strong {
+  min-width: 0;
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.configuration-registry-mobile-skeleton,
+.leave-type-mobile-skeleton,
+.retention-run-mobile-skeleton {
+  display: grid;
+  min-height: 120px;
+  gap: 9px;
+  padding: 14px;
+}
+
+.configuration-registry-mobile-skeleton .data-table-skeleton-bar,
+.leave-type-mobile-skeleton .data-table-skeleton-bar,
+.retention-run-mobile-skeleton .data-table-skeleton-bar {
+  min-height: 13px;
+}
+
+@media (max-width: 760px) {
+  .configuration-registry-responsive-table > .data-table-desktop,
+  .leave-type-responsive-table > .data-table-desktop,
+  .retention-runs-responsive-table > .data-table-desktop {
+    display: none;
+  }
+
+  .configuration-registry-responsive-table > .data-table-mobile,
+  .leave-type-responsive-table > .data-table-mobile,
+  .retention-runs-responsive-table > .data-table-mobile {
+    display: block;
+  }
+}

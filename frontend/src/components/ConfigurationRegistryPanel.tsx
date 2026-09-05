@@ -1,3 +1,5 @@
+import { DataTableState, ResponsiveDataTable } from './ResponsiveDataTable';
+
 type SettingRow = {
   key?: unknown;
   value?: unknown;
@@ -39,6 +41,23 @@ function constraintLabel(row: SettingRow) {
   return parts.join(' · ') || '—';
 }
 
+function ConfigurationRegistryCards({ settings }: { settings: SettingRow[] }) {
+  if (!settings.length) return <DataTableState variant="empty" title="ยังไม่มี Configuration metadata" description="Registry จะแสดงเฉพาะ metadata ที่ระบบประกาศไว้" />;
+  return <div className="configuration-registry-mobile-cards">{settings.map((row) => <article className="configuration-registry-mobile-card data-mobile-card" key={text(row.key)}>
+    <header>
+      <div><small>{text(row.groupLabel)}</small><h3>{text(row.label, text(row.key))}</h3></div>
+      <span className={`status-badge ${row.registryStatus === 'REGISTERED' ? (row.configured ? 'active' : 'pending') : 'inactive'}`}>{statusLabel(row)}</span>
+    </header>
+    <p className="configuration-setting-description">{text(row.description)}</p>
+    <dl>
+      <div><dt>Key</dt><dd><code>{text(row.key)}</code></dd></div>
+      <div><dt>Type</dt><dd>{text(row.valueType)}</dd></div>
+      <div><dt>Constraint</dt><dd>{constraintLabel(row)}</dd></div>
+      <div><dt>Authority</dt><dd><code>{text(row.authority)}</code></dd></div>
+    </dl>
+  </article>)}</div>;
+}
+
 export function ConfigurationRegistryPanel({ settings }: { settings: SettingRow[] }) {
   const registered = settings.filter((row) => row.registryStatus === 'REGISTERED');
   const configured = registered.filter((row) => Boolean(row.configured));
@@ -77,24 +96,19 @@ export function ConfigurationRegistryPanel({ settings }: { settings: SettingRow[
     </div>
 
     <div className="table-card configuration-registry__table">
-      <div className="table-scroll">
-        <table className="data-table">
-          <thead>
-            <tr><th scope="col">Domain</th><th scope="col">Setting</th><th scope="col">Key</th><th scope="col">Type</th><th scope="col">Constraint</th><th scope="col">Status</th><th scope="col">Authority</th></tr>
-          </thead>
-          <tbody>
-            {settings.length ? settings.map((row) => <tr key={text(row.key)}>
-              <td>{text(row.groupLabel)}</td>
-              <td><strong>{text(row.label, text(row.key))}</strong><small className="configuration-setting-description">{text(row.description)}</small></td>
-              <td><code>{text(row.key)}</code></td>
-              <td>{text(row.valueType)}</td>
-              <td>{constraintLabel(row)}</td>
-              <td><span className={`status-badge ${row.registryStatus === 'REGISTERED' ? (row.configured ? 'active' : 'pending') : 'inactive'}`}>{statusLabel(row)}</span></td>
-              <td><code>{text(row.authority)}</code></td>
-            </tr>) : <tr><td colSpan={7} className="no-rows">ยังไม่มี Configuration metadata</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <ResponsiveDataTable ariaLabel="Governed configuration registry" hasRows={settings.length > 0} className="configuration-registry-responsive-table" desktop={<div className="data-table-scroll"><table className="data-surface-table configuration-registry-data-table" aria-label="Governed configuration registry"><thead>
+        <tr><th scope="col">Domain</th><th scope="col">Setting</th><th scope="col">Key</th><th scope="col">Type</th><th scope="col">Constraint</th><th scope="col">Status</th><th scope="col">Authority</th></tr>
+      </thead><tbody>
+        {settings.length ? settings.map((row) => <tr key={text(row.key)}>
+          <td>{text(row.groupLabel)}</td>
+          <td><strong>{text(row.label, text(row.key))}</strong><small className="configuration-setting-description">{text(row.description)}</small></td>
+          <td><code>{text(row.key)}</code></td>
+          <td>{text(row.valueType)}</td>
+          <td>{constraintLabel(row)}</td>
+          <td><span className={`status-badge ${row.registryStatus === 'REGISTERED' ? (row.configured ? 'active' : 'pending') : 'inactive'}`}>{statusLabel(row)}</span></td>
+          <td><code>{text(row.authority)}</code></td>
+        </tr>) : <tr><td colSpan={7} className="data-table-empty-cell"><DataTableState variant="empty" title="ยังไม่มี Configuration metadata" description="Registry จะแสดงเฉพาะ metadata ที่ระบบประกาศไว้" announce={false} /></td></tr>}
+      </tbody></table></div>} mobile={<ConfigurationRegistryCards settings={settings} />} />
     </div>
 
     <p className="configuration-registry__footnote">Registry นี้ไม่ใช่ secret store และไม่ใช่ deployment control plane; key ที่ยังไม่ได้ register จะไม่สามารถสร้างหรือแก้ผ่าน SystemSetting API ได้</p>
