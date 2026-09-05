@@ -86,6 +86,17 @@ The hardening work does not mutate Vercel variables, databases, or the
 canonical alias. Preview secret re-entry and any deletion/cleanup of old
 environment rows remain separate Owner decisions.
 
+## Production sensitive deployment-destination verification boundary
+
+Production release control must not require Vercel to reveal write-only Sensitive values. The Owner-controlled protected GitHub environment is the recoverable release-time master for `DATABASE_URL` and `DIRECT_URL`; the Vercel project remains the deployment destination.
+
+The governed Production release path separates the checks accordingly:
+
+- Vercel control-plane metadata must contain exactly one project-level Production row for every required Production variable. `DATABASE_URL` and `DIRECT_URL` must remain Vercel Sensitive.
+- The protected GitHub Production `DATABASE_URL` and `DIRECT_URL` are verified in memory against `APPROVED_DATABASE_TARGET_FINGERPRINT`; raw connection values are never printed.
+- A legacy Production `CORS_ORIGIN` row may remain Vercel Sensitive until a separately authorized Production environment cleanup. Release control does not downgrade or rewrite it merely to make the control plane readable.
+- Before build, canonical Production must prove the governed origin receives credentialed CORS and an untrusted origin is rejected. After explicit promotion, the same trusted/denied CORS checks are part of canonical runtime verification; failure triggers the manifest rollback policy.
+- `RUN_MIGRATIONS=false` and `NO_DATABASE_CHANGES` remain mandatory for a no-database-change manifest. This control-plane boundary does not authorize Production environment mutation or database mutation.
 
 ## Preview database target verification boundary
 

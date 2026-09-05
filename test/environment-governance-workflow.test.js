@@ -61,12 +61,27 @@ test('Preview witness workflow validates readable guards in the control plane an
   assert.ok(workflow.includes('vercel\\.live\\/_next-live\\/feedback\\/feedback\\.js'));
   assert.match(workflow, /unexpected root suffix after <\/html>/);
 });
-test('manifest Production release is explicitly dispatched and includes both hardening gates', () => {
+test('manifest Production release is explicitly dispatched and validates sensitive deployment metadata, protected master DB authority, runtime CORS, and Linux artifacts', () => {
   const workflow = readWorkflow('deploy-approved-production-v2.yml');
   assert.match(workflow, /^on:\n\s+workflow_dispatch:/m);
   assert.doesNotMatch(workflow, /^\s+push:/m);
   assert.match(workflow, /Verify environment governance contract definition/);
-  assert.match(workflow, /Verify Production environment contract before build/);
-  assert.match(workflow, /--require-approved-fingerprint/);
+  assert.match(workflow, /Verify Production control-plane contract and master database target before build/);
+  assert.match(workflow, /DATABASE_URL: \${\{ secrets\.DATABASE_URL \}\}/);
+  assert.match(workflow, /DIRECT_URL: \${\{ secrets\.DIRECT_URL \}\}/);
+  assert.match(workflow, /env list production --format json/);
+  assert.match(workflow, /\['DATABASE_URL', 'DIRECT_URL'\]/);
+  assert.match(workflow, /\$\{key\} must remain Vercel Sensitive/);
+  assert.match(workflow, /CORS_VALUE_VALIDATION=DEFERRED_TO_CANONICAL_RUNTIME/);
+  assert.match(workflow, /node scripts\/ci\/verify-deployment-target\.js --verify/);
+  assert.match(workflow, /PRODUCTION_DATABASE_MASTER_TARGET=PASS/);
+  assert.match(workflow, /CURRENT_CANONICAL_CORS_BASELINE=PASS/);
+  assert.match(workflow, /https:\/\/untrusted\.invalid/);
+  assert.match(workflow, /access-control-allow-origin/);
+  assert.match(workflow, /access-control-allow-credentials/);
+  assert.match(workflow, /_CORS_VERIFY=PASS/);
+  assert.match(workflow, /ROLLBACK_CORS_VERIFY=PASS/);
+  assert.doesNotMatch(workflow, /Verify Production environment contract before build/);
+  assert.doesNotMatch(workflow, /--env-file="\$env_file"/);
   assert.match(workflow, /node scripts\/ci\/verify-linux-artifact\.js \.vercel\/output --require-sharp-load/);
 });
