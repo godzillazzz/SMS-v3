@@ -29,14 +29,16 @@ describe('CFG-04 Shift Type governed edit controls', () => {
   });
 
   it('does not offer destructive delete in the normal Shift Setup UI', () => {
-    const tableStart = main.indexOf('<div className="table-card"><div className="table-scroll"><table className="data-table"><thead><tr><th>Shift Code</th>');
-    const tableEnd = main.indexOf('</table></div></div>', tableStart);
-    const shiftTable = main.slice(tableStart, tableEnd);
-    expect(tableStart).toBeGreaterThan(-1);
-    expect(shiftTable).toContain('onClick={() => openShiftTypeEditor(shiftType)}>แก้ไข</button>');
-    expect(shiftTable).toContain('onClick={() => toggleShiftTypeActive(shiftType)}');
-    expect(shiftTable).not.toContain('api.deleteShiftType');
-    expect(shiftTable).not.toContain('>ลบ</button>');
+    const setupStart = main.indexOf("if (activePage === 'shiftSetup') {");
+    const setupEnd = main.indexOf("if (activePage === 'schedule') {", setupStart);
+    const shiftSetup = main.slice(setupStart, setupEnd);
+    expect(setupStart).toBeGreaterThan(-1);
+    expect(shiftSetup).toContain('className="table-card shift-setup-desktop-table"');
+    expect(shiftSetup).toContain('className="shift-setup-mobile-card data-mobile-card"');
+    expect(shiftSetup).toContain('openShiftTypeEditor(shiftType)');
+    expect(shiftSetup).toContain('toggleShiftTypeActive(shiftType)');
+    expect(shiftSetup).not.toContain('api.deleteShiftType');
+    expect(shiftSetup).not.toContain('>ลบ</button>');
   });
 
   it('shows Admin inactive master rows but operational selectors use only active shift types', () => {

@@ -1,5 +1,6 @@
 import '../../styles/data-quality.css';
 import '../../styles/data-quality-responsive.css';
+import { DataTablePagination, DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
 
 export type DataQualityFilters = {
   severity: string;
@@ -95,9 +96,6 @@ function TargetAction({ issue, onNavigate }: { issue: DataQualityIssue; onNaviga
   return <button type="button" className="data-quality-target" onClick={() => onNavigate(issue.targetPage as 'licenses' | 'quota')}>{targetLabel(issue.targetPage)}</button>;
 }
 
-function LoadingRows() {
-  return <><div className="data-quality-loading-row" /><div className="data-quality-loading-row" /><div className="data-quality-loading-row" /></>;
-}
 
 export function DataQualityCenterPage({ rows, summary = {}, total, page, pageSize, totalPages, loading, error, permissionDenied, filters, onFiltersChange, onRefresh, onPageChange, onPageSize, onNavigate }: Props) {
   const cards = [
@@ -112,10 +110,15 @@ export function DataQualityCenterPage({ rows, summary = {}, total, page, pageSiz
       <div className="data-quality-kpis">{cards.map(([tone, title, value]) => <article className={`data-quality-kpi ${tone}`} key={tone}><span aria-hidden="true">{tone === 'critical' ? '!' : tone === 'warning' ? '◒' : tone === 'info' ? 'i' : 'Σ'}</span><div><p>{title}</p><strong>{loading ? '—' : value.toLocaleString('th-TH')}</strong><small>รายการตามตัวกรอง</small></div></article>)}</div>
       <FilterBar filters={filters} onFiltersChange={onFiltersChange} />
       <div className="data-quality-page-size"><label htmlFor="data-quality-page-size">แสดงต่อหน้า</label><select id="data-quality-page-size" value={pageSize} onChange={(event) => onPageSize(Number(event.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select></div>
-      <div className="data-quality-desktop-table data-surface-card"><div className="data-quality-table-scroll data-table-scroll"><table className="data-surface-table"><thead><tr><th scope="col">ระดับ</th><th scope="col">กฎตรวจสอบ</th><th scope="col">Module</th><th scope="col">พนักงาน</th><th scope="col">แผนก</th><th scope="col">ค่าที่ตรวจพบ</th><th scope="col">ไปยังข้อมูล</th></tr></thead><tbody>{loading ? <tr><td colSpan={7}><LoadingRows /></td></tr> : rows.length ? rows.map((issue) => <tr key={issue.id}><td><SeverityBadge value={issue.severity} /></td><td><strong>{label(issue.rule, ruleLabels)}</strong><small>{issue.description}</small></td><td>{label(issue.module, moduleLabels)}</td><td>{issue.employeeName || 'ไม่พบชื่อพนักงาน'}<small>{issue.employeeCode || '—'}</small></td><td>{issue.department || 'ไม่ระบุแผนก'}</td><td>{formatDate(issue.detectedValue)}</td><td><TargetAction issue={issue} onNavigate={onNavigate} /></td></tr>) : <tr><td colSpan={7} className="data-quality-empty data-table-empty-cell">{total ? 'ไม่พบรายการตามตัวกรองที่เลือก' : 'ไม่พบรายการคุณภาพข้อมูล'}</td></tr>}</tbody></table></div></div>
-      <div className="data-quality-mobile-cards" aria-label="รายการคุณภาพข้อมูลสำหรับมือถือ">{loading ? <LoadingRows /> : rows.length ? rows.map((issue) => <article className="data-quality-mobile-card data-mobile-card" key={issue.id}><header><SeverityBadge value={issue.severity} /><span>{label(issue.module, moduleLabels)}</span></header><h2>{label(issue.rule, ruleLabels)}</h2><p>{issue.description}</p><dl><div><dt>พนักงาน</dt><dd>{issue.employeeName || 'ไม่พบชื่อพนักงาน'}<small>{issue.employeeCode || '—'}</small></dd></div><div><dt>แผนก</dt><dd>{issue.department || 'ไม่ระบุแผนก'}</dd></div><div><dt>ค่าที่ตรวจพบ</dt><dd>{formatDate(issue.detectedValue)}</dd></div></dl><footer><TargetAction issue={issue} onNavigate={onNavigate} /></footer></article>)  : <div className="data-quality-empty data-state data-state--empty">{total ? 'ไม่พบรายการตามตัวกรองที่เลือก' : 'ไม่พบรายการคุณภาพข้อมูล'}</div>}</div>
-      {!loading && !rows.length && <p className="data-quality-empty-note">ลองปรับตัวกรองเพื่อค้นหารายการเพิ่มเติม</p>}
-      {totalPages > 1 && <div className="data-quality-pagination data-pagination"><button type="button" aria-label="หน้าก่อนหน้า" disabled={page <= 1 || loading} onClick={() => onPageChange(page - 1)}>‹ ก่อนหน้า</button><span>หน้า {page} จาก {totalPages}</span><button type="button" aria-label="หน้าถัดไป" disabled={page >= totalPages || loading} onClick={() => onPageChange(page + 1)}>หน้าถัดไป ›</button></div>}
+      <ResponsiveDataTable
+        ariaLabel="รายการคุณภาพข้อมูล"
+        loading={loading}
+        hasRows={rows.length > 0}
+        className="data-quality-table-shell"
+        desktop={<div className="data-quality-desktop-table"><div className="data-quality-table-scroll data-table-scroll"><table className="data-surface-table"><thead><tr><th scope="col">ระดับ</th><th scope="col">กฎตรวจสอบ</th><th scope="col">Module</th><th scope="col">พนักงาน</th><th scope="col">แผนก</th><th scope="col">ค่าที่ตรวจพบ</th><th scope="col">ไปยังข้อมูล</th></tr></thead><tbody>{loading ? <DataTableSkeletonRows columnCount={7} rowCount={5} /> : rows.length ? rows.map((issue) => <tr key={issue.id}><td><SeverityBadge value={issue.severity} /></td><td><strong>{label(issue.rule, ruleLabels)}</strong><small>{issue.description}</small></td><td>{label(issue.module, moduleLabels)}</td><td>{issue.employeeName || 'ไม่พบชื่อพนักงาน'}<small>{issue.employeeCode || '—'}</small></td><td>{issue.department || 'ไม่ระบุแผนก'}</td><td>{formatDate(issue.detectedValue)}</td><td><TargetAction issue={issue} onNavigate={onNavigate} /></td></tr>) : <tr><td colSpan={7} className="data-quality-empty data-table-empty-cell"><DataTableState variant="empty" announce={false} title={total ? 'ไม่พบรายการตามตัวกรองที่เลือก' : 'ไม่พบรายการคุณภาพข้อมูล'} description="ลองปรับตัวกรองเพื่อค้นหารายการเพิ่มเติม" /></td></tr>}</tbody></table></div></div>}
+        mobile={<div className="data-quality-mobile-cards" aria-label="รายการคุณภาพข้อมูลสำหรับมือถือ">{loading ? <DataTableSkeletonCards count={3} cardClassName="data-quality-mobile-card data-mobile-card" /> : rows.length ? rows.map((issue) => <article className="data-quality-mobile-card data-mobile-card" key={issue.id}><header><SeverityBadge value={issue.severity} /><span>{label(issue.module, moduleLabels)}</span></header><h2>{label(issue.rule, ruleLabels)}</h2><p>{issue.description}</p><dl><div><dt>พนักงาน</dt><dd>{issue.employeeName || 'ไม่พบชื่อพนักงาน'}<small>{issue.employeeCode || '—'}</small></dd></div><div><dt>แผนก</dt><dd>{issue.department || 'ไม่ระบุแผนก'}</dd></div><div><dt>ค่าที่ตรวจพบ</dt><dd>{formatDate(issue.detectedValue)}</dd></div></dl><footer><TargetAction issue={issue} onNavigate={onNavigate} /></footer></article>) : <DataTableState variant="empty" title={total ? 'ไม่พบรายการตามตัวกรองที่เลือก' : 'ไม่พบรายการคุณภาพข้อมูล'} description="ลองปรับตัวกรองเพื่อค้นหารายการเพิ่มเติม" />}</div>}
+      />
+      <DataTablePagination page={page} totalPages={totalPages} onChange={onPageChange} ariaLabel="การแบ่งหน้ารายการคุณภาพข้อมูล" loading={loading} className="data-quality-pagination" />
     </>}
   </section>;
 }
