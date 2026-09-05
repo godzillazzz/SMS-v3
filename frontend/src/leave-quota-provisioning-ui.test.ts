@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 const main = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
+const dataSurfaceStyles = readFileSync(new URL('./styles/data-surfaces.css', import.meta.url), 'utf8');
 
 describe('G03.1 annual quota page wiring', () => {
   it('keeps create control Admin-only while adding a validated selected-year selector', () => {
@@ -33,5 +34,29 @@ describe('G03.1 annual quota page wiring', () => {
 
   it('keeps Manager/Viewer out of the quota administration page', () => {
     expect(main).toContain("if (page === 'quota') return auth.user?.role === 'ADMIN'");
+  });
+
+  it('uses the shared responsive table contract without changing quota authority', () => {
+    expect(main).toContain('const quotaSurface = <ResponsiveDataTable');
+    expect(main).toContain('const quotaTableHeader = <tr>{config.columns.map((column) => <th key={column.label} scope="col">');
+    expect(main).toContain('DataTableSkeletonRows');
+    expect(main).toContain('DataTableSkeletonCards');
+    expect(main).toContain('variant="empty"');
+    expect(main).toContain('variant="error"');
+    expect(main).toContain('aria-label="รายการโควตาวันลา"');
+    expect(main).toContain("ariaLabel={page === 'quota' ? 'แบ่งหน้าโควตาวันลา' : 'แบ่งหน้าใบอนุญาต'}");
+    expect(main).toContain('ข้อมูลโควตาเดิม — ยังไม่จับคู่พนักงาน');
+    expect(main).toContain("onAction(row, 'edit')");
+    expect(main).toContain("onAction(row, 'link')");
+    expect(main).toContain('api.linkLeaveQuota(auth.token!, id, form.employeeId, Number(form.quotaYear))');
+  });
+
+  it('keeps mobile quota identity, all entitlement fields, and long-text wrapping readable', () => {
+    expect(main).toContain('config.columns.slice(0, 6)');
+    expect(main).toContain('aria-label={`เปิดรายละเอียดโควตา');
+    expect(dataSurfaceStyles).toContain('.data-surface-page--quota .signature-data-table');
+    expect(dataSurfaceStyles).toContain('.data-surface-page--quota .signature-data-row > td');
+    expect(dataSurfaceStyles).toContain('.quota-mobile-skeleton');
+    expect(dataSurfaceStyles).toContain('overflow-wrap: anywhere');
   });
 });

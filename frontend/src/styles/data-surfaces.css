@@ -1539,3 +1539,37 @@
 .license-mobile-skeleton .data-table-skeleton-bar {
   min-height: 13px;
 }
+
+/* WAVE 4B — Leave Quota keeps Employee + Year authority while using the
+   shared desktop/mobile surface boundary. */
+.data-surface-page--quota .data-table-shell {
+  min-width: 0;
+}
+
+.data-surface-page--quota .signature-data-table {
+  min-width: 820px;
+}
+
+.data-surface-page--quota .signature-data-row > td {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.data-surface-page--quota .signature-mobile-record > strong {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.quota-mobile-skeleton {
+  display: grid;
+  min-height: 150px;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+
+.quota-mobile-skeleton .data-table-skeleton-bar {
+  min-height: 13px;
+}
