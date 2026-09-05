@@ -1505,3 +1505,37 @@
     display: none !important;
   }
 }
+
+/* WAVE 4B — Licenses adopts the shared table shell while preserving
+   document governance, row actions, and the existing record drawer. */
+.data-surface-page--licenses .data-table-shell {
+  min-width: 0;
+}
+
+.data-surface-page--licenses .signature-data-table {
+  min-width: 880px;
+}
+
+.data-surface-page--licenses .signature-data-row > td {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.data-surface-page--licenses .signature-mobile-record > strong {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.license-mobile-skeleton {
+  display: grid;
+  min-height: 116px;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+
+.license-mobile-skeleton .data-table-skeleton-bar {
+  min-height: 13px;
+}
