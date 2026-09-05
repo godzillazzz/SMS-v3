@@ -155,3 +155,126 @@
   .system-health-card,
   .system-health-routes { padding: 14px; }
 }
+
+/* WAVE 4B — keep the KPI/application/warning panels specialist while the
+   route list adopts the shared responsive data-surface contract. */
+.system-health-route-surface.data-table-shell {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.system-health-route-table {
+  min-width: 760px;
+}
+
+.system-health-route-table td {
+  overflow-wrap: anywhere;
+}
+
+.system-health-route-template {
+  max-width: 44ch;
+}
+
+.system-health-route-template code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.system-health-route-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.system-health-route-card {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 14px;
+}
+
+.system-health-route-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.system-health-route-card header > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.system-health-route-card header small,
+.system-health-route-card dt {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.system-health-route-card code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.system-health-route-card h3 {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.system-health-route-card h3 code {
+  white-space: normal;
+}
+
+.system-health-route-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.system-health-route-card dl > div {
+  min-width: 0;
+  padding-top: 7px;
+  border-top: 1px solid var(--color-border);
+}
+
+.system-health-route-card dd {
+  min-width: 0;
+  margin: 3px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.system-health-route-skeleton {
+  display: grid;
+  min-height: 150px;
+  gap: 9px;
+  padding: 14px;
+}
+
+.system-health-route-skeleton .data-table-skeleton-bar {
+  min-height: 13px;
+}
+
+@media (max-width: 760px) {
+  .system-health-route-surface > .data-table-desktop {
+    display: none;
+  }
+
+  .system-health-route-surface > .data-table-mobile {
+    display: block;
+  }
+}
+
+@media (max-width: 420px) {
+  .system-health-route-card dl {
+    grid-template-columns: 1fr 1fr;
+  }
+}
