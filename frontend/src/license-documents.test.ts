@@ -17,6 +17,7 @@ import {
 const componentSource = fs.readFileSync(path.join(__dirname, 'components', 'LicenseDocuments.tsx'), 'utf-8');
 const mainSource = fs.readFileSync(path.join(__dirname, 'main.tsx'), 'utf-8');
 const styleSource = fs.readFileSync(path.join(__dirname, 'styles', 'license-documents.css'), 'utf-8');
+const dataSurfaceStyleSource = fs.readFileSync(path.join(__dirname, 'styles', 'data-surfaces.css'), 'utf-8');
 const actionStyleSource = fs.readFileSync(path.join(__dirname, 'styles', 'action-system.css'), 'utf-8');
 
 const documentRow = (overrides: Partial<LicenseDocument> = {}): LicenseDocument => ({
@@ -260,5 +261,31 @@ describe('performance hardening license table contract', () => {
   it('does not fetch document history on LicenseTableDocumentColumns mount', () => {
     const start = componentSource.indexOf('export function LicenseTableDocumentColumns'); const end = componentSource.indexOf('function DocumentFacts', start); const tableBlock = componentSource.slice(start, end);
     expect(tableBlock).not.toContain('useEffect('); expect(tableBlock).toContain('summary?: LicenseTableDocumentSummary'); expect(tableBlock).toContain('const openReview = async () =>'); expect(tableBlock).toContain('services.list(license.id)'); expect(mainSource).toContain('summary={row.documentSummary as never}');
+  });
+});
+
+describe('WAVE 4B responsive licenses contract', () => {
+  it('uses the shared responsive table shell, state primitives, and pagination', () => {
+    expect(mainSource).toContain('const licenseSurface = <ResponsiveDataTable');
+    expect(mainSource).toContain('DataTableSkeletonRows');
+    expect(mainSource).toContain('DataTableSkeletonCards');
+    expect(mainSource).toContain('variant="empty"');
+    expect(mainSource).toContain('variant="error"');
+    expect(mainSource).toContain('ariaLabel="แบ่งหน้าใบอนุญาต"');
+    expect(mainSource).toContain('const licenseTableHeader = <tr>{config.columns.map((column) => <th key={column.label} scope="col">');
+    expect(mainSource).toContain('aria-label="รายการใบอนุญาตพนักงาน"');
+  });
+
+  it('keeps mobile priority information and long-content wrapping without changing document authority', () => {
+    expect(mainSource).toContain("config.columns.filter((column) => column.label !== 'ดูไฟล์').slice(0, 5)");
+    expect(mainSource).toContain('aria-label={`เปิดรายละเอียดใบอนุญาต');
+    expect(mainSource).toContain('LicenseTableDocumentColumns');
+    expect(mainSource).toContain("onAction(row, 'delete')");
+    expect(mainSource).toContain('onEditLicense ? onEditLicense(row) : onAction(row, \'edit\')');
+    expect(mainSource).toContain('licenseDocumentServices');
+    expect(mainSource).not.toContain('api.licenseDocuments(token!, licenseId).then');
+    expect(mainSource).toContain('DataTablePagination page={currentPage}');
+    expect(dataSurfaceStyleSource).toContain('.data-surface-page--licenses .signature-mobile-record > strong');
+    expect(dataSurfaceStyleSource).toContain('overflow-wrap: anywhere');
   });
 });
