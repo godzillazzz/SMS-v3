@@ -347,12 +347,12 @@ jobs:
           set -euo pipefail
           for path in /api/v1/health /api/v1/ready; do
             out=$(mktemp)
-            npx --yes vercel@"$VERCEL_CLI_VERSION" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" curl "$path" --deployment "$DEPLOYMENT_URL" >"$out"
+            npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$path" --deployment "$DEPLOYMENT_URL" >"$out"
             node -e 'const fs=require("fs"); const [file,path]=process.argv.slice(1); const raw=fs.readFileSync(file,"utf8"); let body; try { body=JSON.parse(raw); } catch { throw new Error(path+" response is not JSON"); } if (path.endsWith("/health") && body.status!=="ok") throw new Error("health failed"); if (path.endsWith("/ready") && (body.status!=="ready" || body.database!=="ok")) throw new Error("readiness failed"); console.log("STAGED_"+(path.endsWith("/ready")?"READY":"HEALTH")+"=PASS");' "$out" "$path"
             rm -f "$out"
           done
           root=$(mktemp)
-          npx --yes vercel@"$VERCEL_CLI_VERSION" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" curl / --deployment "$DEPLOYMENT_URL" >"$root"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl / --deployment "$DEPLOYMENT_URL" >"$root"
           node - "$root" <<'NODE'
           const fs = require('node:fs');
           const html = fs.readFileSync(process.argv[2], 'utf8');
@@ -363,7 +363,7 @@ jobs:
           auth=$(mktemp)
           auth_err=$(mktemp)
           set +e
-          npx --yes vercel@"$VERCEL_CLI_VERSION" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" curl /api/v1/auth/login --deployment "$DEPLOYMENT_URL" >"$auth" 2>"$auth_err"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/auth/login --deployment "$DEPLOYMENT_URL" >"$auth" 2>"$auth_err"
           auth_exit=$?
           set -e
           if grep -Eiq 'FUNCTION_INVOCATION_FAILED|Could not load the "sharp" module|sharp.*linux-x64|process exited with status 1' "$auth" "$auth_err"; then
@@ -383,7 +383,7 @@ jobs:
           set -euo pipefail
           origin=$(node -p "new URL(process.env.DEPLOYMENT_URL).origin")
           headers=$(mktemp)
-          npx --yes vercel@"$VERCEL_CLI_VERSION" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" curl /api/v1/auth/login --deployment "$DEPLOYMENT_URL" -- --request OPTIONS --header "Origin: $origin" --header "Access-Control-Request-Method: POST" --include >"$headers"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl /api/v1/auth/login --deployment "$DEPLOYMENT_URL" -- --request OPTIONS --header "Origin: $origin" --header "Access-Control-Request-Method: POST" --include >"$headers"
           grep -Eq '^HTTP/[^ ]+ 2[0-9][0-9]' "$headers"
           grep -Eiq "^access-control-allow-origin:[[:space:]]*$origin[[:space:]]*$" "$headers"
           echo "PREVIEW_CORS_ORIGIN_GATE=PASS"
@@ -397,8 +397,8 @@ jobs:
         run: |
           set -euo pipefail
           tmp=$(mktemp -d)
-          npx --yes vercel@"$VERCEL_CLI_VERSION" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" curl / --deployment "$DEPLOYMENT_URL" >"$tmp/preview.html"
-          npx --yes vercel@"$VERCEL_CLI_VERSION" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" curl / --deployment "$PRODUCTION_TARGET_URL" >"$tmp/production.html"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl / --deployment "$DEPLOYMENT_URL" >"$tmp/preview.html"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" curl / --deployment "$PRODUCTION_TARGET_URL" >"$tmp/production.html"
           node - "$tmp/preview.html" "$tmp/production.html" <<'NODE' >"$tmp/assets.txt"
           const fs = require('node:fs');
           const read = (file) => fs.readFileSync(file, 'utf8');
@@ -412,8 +412,8 @@ jobs:
           while IFS= read -r asset; do
             preview_file="$tmp/preview-$index"
             production_file="$tmp/production-$index"
-            npx --yes vercel@"$VERCEL_CLI_VERSION" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" curl "$asset" --deployment "$DEPLOYMENT_URL" >"$preview_file"
-            npx --yes vercel@"$VERCEL_CLI_VERSION" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" curl "$asset" --deployment "$PRODUCTION_TARGET_URL" >"$production_file"
+            npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$asset" --deployment "$DEPLOYMENT_URL" >"$preview_file"
+            npx --yes vercel@"$VERCEL_CLI_VERSION" curl "$asset" --deployment "$PRODUCTION_TARGET_URL" >"$production_file"
             preview_hash=$(sha256sum "$preview_file" | awk '{print $1}')
             production_hash=$(sha256sum "$production_file" | awk '{print $1}')
             test "$preview_hash" = "$production_hash"
