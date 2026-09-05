@@ -56,6 +56,10 @@ test('Preview witness workflow validates readable guards in the control plane an
   assert.doesNotMatch(workflow, /vercel@"\$VERCEL_CLI_VERSION" --scope "\$VERCEL_ORG_ID" --token "\$VERCEL_TOKEN" curl/);
   const vercelCurlCalls = workflow.match(/npx --yes vercel@"\$VERCEL_CLI_VERSION" curl /g) || [];
   assert.equal(vercelCurlCalls.length, 8);
+  assert.ok(workflow.includes('\\/assets\\/'));
+  assert.match(workflow, /knownVercelFeedback/);
+  assert.ok(workflow.includes('vercel\\.live\\/_next-live\\/feedback\\/feedback\\.js'));
+  assert.match(workflow, /unexpected root suffix after <\/html>/);
 });
 test('manifest Production release is explicitly dispatched and includes both hardening gates', () => {
   const workflow = readWorkflow('deploy-approved-production-v2.yml');
