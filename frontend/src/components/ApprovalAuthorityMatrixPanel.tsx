@@ -83,7 +83,7 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
     }
   };
 
-  return <section className="line-settings-card approval-authority-matrix-card">
+  return <section className="line-settings-card approval-authority-matrix-card" aria-busy={loading || Boolean(busyType)}>
     <div className="line-settings-title">
       <span>✓</span>
       <div>
@@ -130,7 +130,7 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
               <td><small>{policy.protectedInvariants.join(' · ')}</small></td>
               <td><div className="approval-policy-save-cell">{changed && <small className="approval-policy-dirty">มีการแก้ไข</small>}<button className="btn-primary compact" disabled={busyType === policy.requestType || draft.overdueHours <= draft.dueSoonHours} onClick={() => void save(policy.requestType)}>{busyType === policy.requestType ? 'กำลังบันทึก…' : 'บันทึก'}</button></div></td>
             </tr>;
-          }) : <tr><td colSpan={6}><div className="data-state data-state--empty"><strong>ไม่พบ Approval policy ที่กำหนดไว้</strong><span>ระบบยังไม่สามารถแสดงรายการ policy สำหรับบัญชีนี้ได้</span></div></td></tr>}</tbody>
+          }) : <tr><td colSpan={6}><div className="data-state data-state--empty" role="status" aria-live="polite"><strong>ไม่พบ Approval policy ที่กำหนดไว้</strong><span>ระบบยังไม่สามารถแสดงรายการ policy สำหรับบัญชีนี้ได้</span></div></td></tr>}</tbody>
         </table>
       </div>
       <div className="approval-policy-mobile-list" aria-label="Approval policy แบบรายการ">
@@ -171,7 +171,7 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
               <button className="btn-primary" disabled={busyType === policy.requestType || draft.overdueHours <= draft.dueSoonHours} onClick={() => void save(policy.requestType)}>{busyType === policy.requestType ? 'กำลังบันทึก…' : 'บันทึก policy นี้'}</button>
             </footer>
           </article>;
-        }) : <div className="data-state data-state--empty"><strong>ไม่พบ Approval policy ที่กำหนดไว้</strong><span>ระบบยังไม่สามารถแสดงรายการ policy สำหรับบัญชีนี้ได้</span></div>}
+        }) : <div className="data-state data-state--empty" role="status" aria-live="polite"><strong>ไม่พบ Approval policy ที่กำหนดไว้</strong><span>ระบบยังไม่สามารถแสดงรายการ policy สำหรับบัญชีนี้ได้</span></div>}
       </div>
     </>}
 
