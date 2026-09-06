@@ -305,7 +305,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
 
   const noticeIsSuccess = Boolean(notice?.includes('สำเร็จ'));
 
-  return <section className="line-settings-card auto-schedule-pattern-master-card">
+  return <section className="line-settings-card auto-schedule-pattern-master-card" aria-busy={loading || busy}>
     <div className="line-settings-title">
       <span>🪄</span>
       <div>
@@ -358,7 +358,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
     </div>
     {renderSteps(createForm.steps, createForm.mode, 'create')}
 
-    <div className="alert alert-info">Core SUPERVISOR / ROTATE ปิดใช้งาน เปลี่ยนรหัส หรือเปลี่ยนกลุ่มเป้าหมายไม่ได้ · ไม่มีคำสั่ง Delete · การแก้แพทเทิร์นมีผลกับ Preview/การจัดกะครั้งถัดไปเท่านั้น</div>
+    <div className="alert alert-info" role="note">Core SUPERVISOR / ROTATE ปิดใช้งาน เปลี่ยนรหัส หรือเปลี่ยนกลุ่มเป้าหมายไม่ได้ · ไม่มีคำสั่ง Delete · การแก้แพทเทิร์นมีผลกับ Preview/การจัดกะครั้งถัดไปเท่านั้น</div>
     {notice && <div role={noticeIsSuccess ? 'status' : 'alert'} aria-live={noticeIsSuccess ? 'polite' : 'assertive'} className={noticeIsSuccess ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
     <div className="line-settings-actions">
       <button className="btn-primary compact" disabled={busy || !createForm.code.trim() || !createForm.name.trim() || !createForm.steps.length} onClick={() => void submitCreate()}>＋ เพิ่ม Pattern</button>

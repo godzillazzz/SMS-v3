@@ -1475,7 +1475,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
           <td>{row.status === 'APPROVED' ? <button className="btn-info leave-print-button" onClick={() => onPrint(row)}>พิมพ์ A4</button> : <span className="muted-text">–</span>}</td>
           {actions && <td className="row-actions data-row-actions">{String(row.employeeId || '') === String(employeeId || '') ? <span className="muted-text" style={{ fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>ไม่สามารถตรวจสอบใบลาของตนเอง</span> : <><button className="btn-success" disabled={!mutationsEnabled} onClick={() => onApprove(row)}>อนุมัติ</button><button className="btn-warning" disabled={!mutationsEnabled} onClick={() => onReturnForCorrection(row)}>ส่งกลับไปแก้ไข</button><button className="danger-action" disabled={!mutationsEnabled} onClick={() => onReject(row)}>ไม่อนุมัติ</button></>}</td>}
           {showHistoryActions && <td className="row-actions data-row-actions">{renderHistoryActions(row)}</td>}
-        </tr>) : <tr><td colSpan={(actions || showHistoryActions) ? 9 : 8} className="no-rows data-table-empty-cell"><div className="empty-state data-state data-state--empty"><strong>{emptyMessage}</strong></div></td></tr>}</tbody>
+        </tr>) : <tr><td colSpan={(actions || showHistoryActions) ? 9 : 8} className="no-rows data-table-empty-cell"><div className="empty-state data-state data-state--empty" role="status" aria-live="polite"><strong>{emptyMessage}</strong></div></td></tr>}</tbody>
       </table>
     </div>;
     if (!mobileHistory) return desktop;
@@ -1495,23 +1495,23 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
         </dl>
         {hasActions && <footer>{Boolean(row.attachmentUrl) && <button className="attachment-link" onClick={() => onAttachment(row)}>เปิดเอกสาร</button>}{row.status === 'APPROVED' && <button className="btn-info leave-print-button" onClick={() => onPrint(row)}>พิมพ์ A4</button>}{renderHistoryActions(row)}</footer>}
       </article>;
-    }) : <div className="empty-state data-state data-state--empty"><strong>{emptyMessage}</strong></div>}</div>;
+    }) : <div className="empty-state data-state data-state--empty" role="status" aria-live="polite"><strong>{emptyMessage}</strong></div>}</div>;
     return <ResponsiveDataTable ariaLabel={mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด' : 'ประวัติคำขอลาของฉัน'} hasRows={items.length > 0} className="leave-history-responsive-table" desktop={desktop} mobile={mobile} />;
   };
   const quotaCards: Array<[string, string, unknown, string]> = [['🩺', 'ลาป่วยคงเหลือ', remaining.sickLeave, 'green'], ['🏢', 'ลากิจคงเหลือ', remaining.personalLeave, 'blue'], ['🌴', 'ลาพักร้อนคงเหลือ', remaining.vacationLeave, 'amber']];
   const selectedPending = pendingRows.find((row) => String(row.id) === selectedPendingId) || pendingRows[0];
   const selectedPendingIsSelf = Boolean(selectedPending && String(selectedPending.employeeId || '') === String(employeeId || ''));
   if (mode === 'pending') {
-    return <section className="view-pane leave-page leave-mode-pending leave-decision-page data-surface-page" aria-label="Leave Approval Workspace">
+    return <section className="view-pane leave-page leave-mode-pending leave-decision-page data-surface-page" aria-label="Leave Approval Workspace" aria-busy={loading}>
       <div className="leave-hero signature-page-header"><div><div><p className="eyebrow">การลา</p><h1>อนุมัติคำขอลา</h1><p>ตรวจสอบคำขอและตัดสินใจจากพื้นที่ทำงานเดียว โดยยังใช้สิทธิ์และกฎอนุมัติเดิมของระบบ</p></div></div><button type="button" onClick={onRefresh}>↻ รีเฟรช</button></div>
       <ErrorAlert message={error} className="leave-error" />
       <div className="leave-decision-workspace">
         <aside className="leave-decision-queue" aria-label="รายการรออนุมัติ">
           <header><div><span>คิวงาน</span><h2>รออนุมัติ</h2></div><b>{pendingRows.length}</b></header>
-          {loading ? <div className="signature-table-skeleton compact-skeleton" role="status" aria-label="กำลังโหลดคำขอลา">{Array.from({ length: 5 }, (_, index) => <span key={index} />)}</div> : pendingRows.length ? <div className="leave-decision-list">{pendingRows.map((row) => {
+          {loading ? <div className="signature-table-skeleton compact-skeleton" role="status" aria-live="polite" aria-label="กำลังโหลดคำขอลา">{Array.from({ length: 5 }, (_, index) => <span key={index} />)}</div> : pendingRows.length ? <div className="leave-decision-list">{pendingRows.map((row) => {
             const active = selectedPending && String(selectedPending.id) === String(row.id);
             return <button type="button" key={text(row.id)} className={`leave-decision-item ${active ? 'is-active' : ''}`} aria-pressed={active} onClick={() => setSelectedPendingId(String(row.id))}><span><strong>{text(row.employeeNameSnapshot)}</strong><small>{text(row.departmentSnapshot)}</small></span><span><b>{leaveTypeDisplayText(row)}</b><small>{date(row.startDate)} – {date(row.endDate)}</small></span></button>;
-          })}</div> : <div className="data-state data-state--empty"><span aria-hidden="true">✓</span><h2>ไม่มีคำขอที่รออนุมัติ</h2><p>ขณะนี้ไม่มีรายการที่ต้องตัดสินใจในขอบเขตสิทธิ์ของคุณ</p></div>}
+          })}</div> : <div className="data-state data-state--empty" role="status" aria-live="polite"><span aria-hidden="true">✓</span><h2>ไม่มีคำขอที่รออนุมัติ</h2><p>ขณะนี้ไม่มีรายการที่ต้องตัดสินใจในขอบเขตสิทธิ์ของคุณ</p></div>}
         </aside>
         <main className="leave-decision-detail">
           {selectedPending ? <>
@@ -1564,7 +1564,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
       <section className="leave-history-card data-surface-card"><header><span>📋</span><div><h2>{mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด (All Employee Leaves & Print A4)' : 'ประวัติคำขอลาของฉัน (My Leave History)'}</h2><p>{mode === 'history' ? 'สำหรับหัวหน้างานและ Admin ตรวจสอบรายการลาทั้งหมด และพิมพ์ใบลาอนุมัติ' : 'วันที่ลา ประเภทการลา และสถานะคำขอลา'}</p></div>{mode === 'history' && <button className="btn-neutral small-action" onClick={onRefresh}>↻ รีเฟรชข้อมูล</button>}</header>{mode === 'history' && historyMonth && onHistoryMonthChange && onHistoryMonthStep && <div className="leave-history-filter data-toolbar-panel"><div><strong>แสดงข้อมูล: {formatThaiMonth(historyMonth)}</strong><small>รายการลาที่มีช่วงวันทับซ้อนกับเดือนที่เลือก</small></div><div className="leave-history-month-controls"><MonthGridPicker value={historyMonth} onChange={onHistoryMonthChange} /><button className="btn-neutral small-action" onClick={() => onHistoryMonthStep(-1)}>‹ เดือนก่อน</button><button className="btn-neutral small-action" onClick={() => onHistoryMonthStep(1)}>เดือนถัดไป ›</button></div></div>}{mode !== 'history' && <><div className="my-leave-quota-heading">โควต้าคงเหลือ{quotaYear ? ` · ${thaiQuotaYearLabel(quotaYear)}` : ''}</div><div className="my-leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <article className={`leave-quota-card ${tone}`} key={`my-${label}`}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ที่กำหนด (วัน)</small></div><span>{icon}</span></article>)}</div></>}{loading ? <div className="loading-row data-state-inline data-state--loading" role="status">กำลังดึงประวัติการลา…</div> : leaveTable(historyRows, false, mode === 'history' && historyMonth ? `ไม่พบประวัติการลาในเดือน${formatThaiMonth(historyMonth)}` : 'ไม่มีรายการ', true)}{mode === 'history' && historyTotalPages && onHistoryPageChange && <DataTablePagination page={historyPage || 1} totalPages={historyTotalPages} onChange={onHistoryPageChange} ariaLabel="การแบ่งหน้าประวัติการลา" loading={loading} className="pagination-bar" />}{mode === 'history' && <div className="leave-history-total">ทั้งหมด {historyTotal ?? historyRows.length} รายการในเดือนที่เลือก</div>}</section>
     </div>
     <ErrorAlert message={error} className="leave-error" />
-    {canManage && <section className="leave-pending-card data-surface-card"><header><span>⚡</span><div><h2>รายการใบลาที่รออนุมัติ</h2><p>สำหรับหัวหน้างาน (Manager) และผู้ดูแลระบบ (Admin) ในการตรวจสอบสิทธิ์และอนุมัติวันลา</p></div><b>🛡️ สิทธิ์ผู้บริหาร/หัวหน้างาน</b></header>{loading ? <div className="loading-row data-state-inline data-state--loading">กำลังตรวจสอบรายการที่รออนุมัติ…</div> : leaveTable(pendingRows, true)}</section>}
+    {canManage && <section className="leave-pending-card data-surface-card" aria-busy={loading}><header><span>⚡</span><div><h2>รายการใบลาที่รออนุมัติ</h2><p>สำหรับหัวหน้างาน (Manager) และผู้ดูแลระบบ (Admin) ในการตรวจสอบสิทธิ์และอนุมัติวันลา</p></div><b>🛡️ สิทธิ์ผู้บริหาร/หัวหน้างาน</b></header>{loading ? <div className="loading-row data-state-inline data-state--loading" role="status" aria-live="polite">กำลังตรวจสอบรายการที่รออนุมัติ…</div> : leaveTable(pendingRows, true)}</section>}
   </section>;
 }
 
