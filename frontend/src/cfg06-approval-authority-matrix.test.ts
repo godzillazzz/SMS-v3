@@ -41,6 +41,24 @@ describe('CFG-06 Approval Authority Matrix / SLA', () => {
     expect(approvalCenter).not.toContain('overdue48h');
   });
 
+  it('keeps the specialist matrix readable on mobile without dropping policy fields', () => {
+    expect(panel).toContain('approval-policy-mobile-list');
+    expect(panel).toContain('approval-policy-mobile-card');
+    expect(panel).toContain('ผู้มีอำนาจอนุมัติ');
+    expect(panel).toContain('เกณฑ์ SLA');
+    expect(panel).toContain('ข้อบังคับที่ลดไม่ได้');
+    expect(panel).toContain('aria-label="Approval policy แบบรายการ"');
+    expect(panel).toContain('role="alert"');
+  });
+
+  it('announces loading and result states while retaining table semantics', () => {
+    expect(panel).toContain('role="status" aria-live="polite"');
+    expect(panel).toContain('aria-describedby="approval-policy-description"');
+    expect(panel).toContain('caption id="approval-policy-description"');
+    expect(panel).toContain('<th scope="col">ประเภทคำขอ</th>');
+    expect(panel).toContain('aria-live={notice.includes');
+  });
+
   it('selects additive leave position aliases from Position Master and states protected invariants', () => {
     expect(panel).toContain('ตำแหน่ง Supervisor เพิ่มเติม');
     expect(panel).toContain('ตำแหน่ง Manager เพิ่มเติม');

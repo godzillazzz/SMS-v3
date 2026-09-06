@@ -767,6 +767,55 @@ input::placeholder, textarea::placeholder { color: var(--signature-text-muted); 
 .personnel-record-row { cursor: pointer; }
 .personnel-record-row:focus-visible { background: var(--table-row-hover-bg) !important; }
 .personnel-mobile-records { display: none; }
+
+/* Approval Authority Matrix remains a specialist editor: preserve the
+   desktop matrix while presenting each policy as a complete, ordered editor
+   on narrow viewports. */
+.approval-authority-matrix-card { border-color: var(--signature-border); background: var(--signature-surface-raised); color: var(--signature-text); }
+.approval-authority-matrix-card .line-settings-title h2 { color: var(--signature-text); }
+.approval-authority-matrix-card .line-settings-title p { color: var(--signature-text-secondary); }
+.approval-authority-matrix-card .alert-info { color: var(--signature-text-secondary); border-color: color-mix(in srgb, var(--signature-info) 34%, var(--signature-border)); background: color-mix(in srgb, var(--signature-info) 8%, transparent); line-height: 1.6; }
+.approval-policy-desktop-table { overflow-x: auto; }
+.approval-policy-desktop-table .data-table { min-width: 920px; }
+.approval-policy-desktop-table .data-table caption { text-align: left; }
+.approval-policy-desktop-table .data-table th { color: var(--signature-text-secondary); background: var(--signature-surface-soft); }
+.approval-policy-desktop-table .data-table td { color: var(--signature-text); vertical-align: top; }
+.approval-policy-desktop-table .data-table td small { overflow-wrap: anywhere; line-height: 1.5; }
+.approval-policy-desktop-table .field-group.compact-field { gap: 4px; }
+.approval-policy-desktop-table .field-group.compact-field input { width: 92px; min-height: 42px; }
+.approval-policy-save-cell { display: grid; justify-items: start; gap: 5px; }
+.approval-policy-dirty { color: var(--signature-warning); font-size: 11px; font-weight: 700; }
+.approval-policy-mobile-list { display: none; }
+.approval-policy-mobile-card { display: grid; gap: var(--signature-space-4); padding: var(--signature-space-4); border: 1px solid var(--signature-border); border-radius: var(--signature-radius-card); background: var(--signature-surface); box-shadow: var(--signature-shadow); }
+.approval-policy-mobile-card__header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--signature-space-3); padding-bottom: var(--signature-space-3); border-bottom: 1px solid var(--signature-border); }
+.approval-policy-mobile-card__header h3 { margin: 2px 0 2px; color: var(--signature-text); font-size: 18px; line-height: 1.4; overflow-wrap: anywhere; }
+.approval-policy-mobile-card__header code { color: var(--signature-text-muted); font-size: 11px; overflow-wrap: anywhere; }
+.approval-policy-mobile-card__section { display: grid; gap: var(--signature-space-3); }
+.approval-policy-mobile-card__section h4 { margin: 0; color: var(--signature-text); font-size: 14px; }
+.approval-role-controls { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+.approval-role-controls label { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; color: var(--signature-text); font-weight: 650; }
+.approval-role-controls input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--signature-brand); }
+.approval-role-controls small { color: var(--signature-text-muted); font-weight: 500; }
+.approval-policy-lock-note { margin: 0; color: var(--signature-warning); font-size: 12px; line-height: 1.5; }
+.approval-policy-sla-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--signature-space-3); }
+.approval-policy-sla-fields label { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 8px; color: var(--signature-text-secondary); font-size: 12px; font-weight: 650; }
+.approval-policy-sla-fields label > span { grid-column: 1 / -1; color: var(--signature-text); }
+.approval-policy-sla-fields input { width: 100%; min-height: 44px; border-color: var(--signature-border-strong); background: var(--signature-surface-raised); color: var(--signature-text); }
+.approval-policy-sla-fields small { color: var(--signature-text-muted); }
+.approval-policy-validation { margin: 0; color: var(--signature-danger); font-size: 12px; font-weight: 650; line-height: 1.5; }
+.approval-policy-invariants ul { display: grid; gap: 6px; margin: 0; padding-left: 20px; color: var(--signature-text-secondary); line-height: 1.55; }
+.approval-policy-mobile-card__footer { display: grid; gap: 8px; padding-top: var(--signature-space-3); border-top: 1px solid var(--signature-border); }
+.approval-policy-mobile-card__footer > span { color: var(--signature-text-muted); font-size: 12px; }
+.approval-policy-mobile-card__footer button { min-height: 46px; justify-content: center; }
+
+@media (max-width: 900px) {
+  .approval-policy-desktop-table { display: none; }
+  .approval-policy-mobile-list { display: grid; gap: var(--signature-space-3); }
+  .approval-authority-matrix-card .line-settings-title { margin-bottom: var(--signature-space-4); }
+  .approval-authority-matrix-card .line-settings-title h2 { font-size: 20px; }
+  .approval-policy-sla-fields { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 760px) {
   .personnel-table-scroll { display: none; }
   .personnel-mobile-records { display: grid; gap: 8px; padding: 8px; background: var(--table-bg); }
