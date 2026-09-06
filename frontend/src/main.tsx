@@ -71,6 +71,7 @@ import { ConfigurationRegistryPanel } from './components/ConfigurationRegistryPa
 import { SystemSettingHistoryPanel } from './components/SystemSettingHistoryPanel';
 import { NotificationCenterPanel } from './components/NotificationCenterPanel';
 import { RuleCheckingDataSurfaces } from './components/RuleCheckingDataSurfaces';
+import { LeaveDecisionConfirmation, type LeaveDecisionAction, type LeaveDecisionTarget } from './components/LeaveDecisionConfirmation';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/license-table.css';
@@ -101,6 +102,7 @@ type DataResponse = { data?: DataRow[] | DataRow; summary?: { total?: number; cr
 type LicenseEmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'ALL';
 type FormField = { name: string; label: string; type?: 'text' | 'email' | 'password' | 'date' | 'number' | 'select' | 'textarea' | 'file'; required?: boolean; accept?: string; hint?: string; min?: number; max?: number; options?: Array<{ value: string; label: string }> };
 type Editor = { title: string; submitLabel: string; fields: FormField[]; values: Record<string, string>; notice?: string; experience?: 'personnel'; submit(values: Record<string, string>, files: Record<string, File>): Promise<void> };
+type LeaveDecisionRequest = { row: DataRow; action: LeaveDecisionAction; target: LeaveDecisionTarget };
 
 const bangkokDateInput = (value = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(value);
@@ -1611,6 +1613,7 @@ function Dashboard() {
   const [operationLoading, setOperationLoading] = useState(false);
   const [operationError, setOperationError] = useState<RequestErrorInput>();
   const [leavePrintTarget, setLeavePrintTarget] = useState<DataRow>();
+  const [leaveDecision, setLeaveDecision] = useState<LeaveDecisionRequest>();
   const [operationPage, setOperationPage] = useState(1);
   const [licenseEmployeeStatus, setLicenseEmployeeStatus] = useState<LicenseEmployeeStatus>('ACTIVE');
   const [auditPageSize, setAuditPageSize] = useState(25);
@@ -2239,9 +2242,56 @@ function Dashboard() {
     } catch (reason) { setOperationError(toRequestErrorState(reason, 'ปิดใช้งานกะไม่สำเร็จ')); }
   };
 
+  const openLeaveDecision = (row: DataRow, action: LeaveDecisionAction) => {
+    setLeaveDecision({
+      row,
+      action,
+      target: {
+        employeeName: text(row.employeeNameSnapshot),
+        department: text(row.departmentSnapshot),
+        leaveType: leaveTypeDisplayText(row),
+        dateRange: `${date(row.startDate)} – ${date(row.endDate)}`,
+        dayCount: text(row.dayCount),
+        reason: text(row.reasonDetail || row.reason),
+        substitute: text(row.substitute || row.substituteName),
+        status: text(row.status)
+      }
+    });
+    setOperationError(undefined);
+  };
+
+  const executeLeaveDecision = async (request: LeaveDecisionRequest, reason?: string) => {
+    if (!auth.token || !request.row.id) return false;
+    const id = String(request.row.id);
+    setOperationLoading(true);
+    setOperationError(undefined);
+    try {
+      if (request.action === 'return') await api.returnLeaveRequestForCorrection(auth.token, id, reason || '');
+      else if (request.action === 'cancel') await api.cancelLeaveRequest(auth.token, id, reason || '');
+      else await api.updateLeaveRequest(auth.token, id, { status: request.action === 'approve' ? 'APPROVED' : 'REJECTED' });
+      setOperationRefresh((value) => value + 1);
+      return true;
+    } catch (requestError) {
+      setOperationError(toRequestErrorState(requestError, 'ดำเนินการไม่สำเร็จ'));
+      return false;
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
+  const confirmLeaveDecision = async (reason?: string) => {
+    const request = leaveDecision;
+    if (!request) return;
+    if (await executeLeaveDecision(request, reason)) setLeaveDecision(undefined);
+  };
+
   const handleOperationAction = async (row: DataRow, action: string) => {
     if (!auth.token || !row.id) return;
     const id = String(row.id);
+    if (['approve', 'reject', 'return', 'cancel'].includes(action) && ['leave', 'leavePending', 'leaveHistory'].includes(activePage)) {
+      openLeaveDecision(row, action as LeaveDecisionAction);
+      return;
+    }
     if (action === 'link' && activePage === 'quota') {
       runEditor({ title: row.employeeId ? 'จัดประเภทปีให้ข้อมูลโควตาเดิม' : 'จับคู่ข้อมูลเดิมกับพนักงานและปี', submitLabel: 'ยืนยันการจัดประเภท', fields: [{ name: 'employeeId', label: 'พนักงาน (รหัส · ชื่อ · หน่วยงาน)', type: 'select', required: true, options: row.employeeId ? employeeOptions.filter((option) => option.value === String(row.employeeId)) : employeeOptions }, { name: 'quotaYear', label: 'ปีสิทธิ์', type: 'select', required: true, options: quotaYearOptions }], values: { employeeId: String(row.employeeId || ''), quotaYear: String(quotaYear) } }, (form) => api.linkLeaveQuota(auth.token!, id, form.employeeId, Number(form.quotaYear)));
       return;
@@ -2294,19 +2344,6 @@ function Dashboard() {
       }, (form) => api.resetUserPassword(auth.token!, id, form.newPassword));
       return;
     }
-    let workflowReason = '';
-    if (['return', 'cancel'].includes(action) && ['leave', 'leavePending', 'leaveHistory'].includes(activePage)) {
-      const promptLabel = action === 'return'
-        ? 'ระบุเหตุผลที่ส่งกลับไปแก้ไข (จำเป็น)'
-        : row.status === 'APPROVED'
-          ? 'ระบุเหตุผลการยกเลิกใบลาที่อนุมัติแล้ว (จำเป็น)'
-          : 'ระบุเหตุผลการยกเลิกคำขอ (จำเป็น)';
-      workflowReason = String(window.prompt(promptLabel) || '').trim();
-      if (workflowReason.length < 3) {
-        setOperationError({ message: 'กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษร' });
-        return;
-      }
-    }
     const confirmMessage = action === 'return'
       ? 'ยืนยันส่งคำขอนี้กลับไปให้ผู้ขอแก้ไข?'
       : action === 'cancel'
@@ -2318,9 +2355,6 @@ function Dashboard() {
       if (action === 'delete' && activePage === 'licenses') await api.deleteLicense(auth.token, id);
       else if (action === 'delete' && activePage === 'schedule') await api.deleteShift(auth.token, id);
       else if (activePage === 'approvals') await api.updateScheduleApproval(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED' });
-      else if (['leave', 'leavePending', 'leaveHistory'].includes(activePage) && action === 'return') await api.returnLeaveRequestForCorrection(auth.token, id, workflowReason);
-      else if (['leave', 'leavePending', 'leaveHistory'].includes(activePage) && action === 'cancel') await api.cancelLeaveRequest(auth.token, id, workflowReason);
-      else if (['leave', 'leavePending', 'leaveHistory'].includes(activePage)) await api.updateLeaveRequest(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED' });
       else if (activePage === 'rules') await api.updateSchedulingRule(auth.token, id, { enabled: !row.enabled });
       else if (activePage === 'schedule') await api.updateShift(auth.token, id, { locked: !row.locked });
       else if (activePage === 'users') await api.updateUser(auth.token, id, { isActive: !row.isActive, accountStatus: row.isActive ? 'SUSPENDED' : 'ACTIVE' });
@@ -2938,6 +2972,14 @@ function Dashboard() {
 
   return (
     <>
+      {leaveDecision && <LeaveDecisionConfirmation
+        target={leaveDecision.target}
+        action={leaveDecision.action}
+        busy={operationLoading}
+        error={operationError}
+        onClose={() => { if (!operationLoading) setLeaveDecision(undefined); }}
+        onConfirm={confirmLeaveDecision}
+      />}
       <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}>
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} />}
