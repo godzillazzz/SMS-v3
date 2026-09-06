@@ -677,6 +677,71 @@ input::placeholder, textarea::placeholder { color: var(--signature-text-muted); 
 .leave-self-approval-block p { margin: 5px 0 0; }
 .compact-skeleton span { height: 58px; }
 
+/* Leave decisions use a governed confirmation surface rather than native
+   prompt/confirm dialogs so the request context and required reason stay
+   visible and keyboard accessible. */
+.leave-decision-modal-backdrop {
+  z-index: 2147483000 !important;
+  background: var(--drawer-backdrop) !important;
+}
+.leave-decision-dialog {
+  width: min(620px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 0;
+  border-color: var(--signature-border);
+  background: var(--signature-surface-raised);
+  color: var(--signature-text);
+}
+.leave-decision-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--signature-space-4);
+  padding: var(--signature-space-6) var(--signature-space-6) var(--signature-space-4);
+  border-bottom: 1px solid var(--signature-border);
+}
+.leave-decision-dialog__header h2 { margin: 2px 0 0; color: var(--signature-text); font-size: 21px; line-height: 1.35; }
+.leave-decision-dialog__close { min-width: 44px; min-height: 44px; padding: 0; border: 1px solid var(--signature-border); border-radius: var(--signature-radius-control); background: transparent; color: var(--signature-text-secondary); font-size: 24px; line-height: 1; }
+.leave-decision-dialog__body { display: grid; gap: var(--signature-space-4); padding: var(--signature-space-5) var(--signature-space-6); }
+.leave-decision-dialog__identity { display: grid; gap: 3px; }
+.leave-decision-dialog__identity strong { color: var(--signature-text); font-size: 18px; line-height: 1.4; overflow-wrap: anywhere; }
+.leave-decision-dialog__identity span { color: var(--signature-text-secondary); line-height: 1.5; overflow-wrap: anywhere; }
+.leave-decision-dialog__summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; overflow: hidden; border: 1px solid var(--signature-border); border-radius: var(--signature-radius-control); background: var(--signature-border); }
+.leave-decision-dialog__summary > div { display: grid; gap: 4px; min-width: 0; padding: var(--signature-space-3); background: var(--signature-surface-soft); }
+.leave-decision-dialog__summary dt { color: var(--signature-text-muted); font-size: 11px; font-weight: 650; }
+.leave-decision-dialog__summary dd { margin: 0; color: var(--signature-text); line-height: 1.5; overflow-wrap: anywhere; }
+.leave-decision-dialog__request-copy { display: grid; gap: 5px; padding: var(--signature-space-4); border: 1px solid var(--signature-border); border-radius: var(--signature-radius-control); background: var(--signature-surface); }
+.leave-decision-dialog__request-copy > span { color: var(--signature-text-muted); font-size: 11px; font-weight: 650; }
+.leave-decision-dialog__request-copy p { margin: 0; color: var(--signature-text-secondary); line-height: 1.65; overflow-wrap: anywhere; white-space: pre-wrap; }
+.leave-decision-dialog__consequence { margin: 0; padding: var(--signature-space-3) var(--signature-space-4); border: 1px solid var(--signature-border); border-radius: var(--signature-radius-control); color: var(--signature-text); line-height: 1.6; }
+.leave-decision-dialog__consequence--success { border-color: color-mix(in srgb, var(--signature-success) 38%, var(--signature-border)); background: color-mix(in srgb, var(--signature-success) 9%, transparent); }
+.leave-decision-dialog__consequence--warning { border-color: color-mix(in srgb, var(--signature-warning) 38%, var(--signature-border)); background: color-mix(in srgb, var(--signature-warning) 9%, transparent); }
+.leave-decision-dialog__consequence--danger { border-color: color-mix(in srgb, var(--signature-danger) 38%, var(--signature-border)); background: color-mix(in srgb, var(--signature-danger) 8%, transparent); }
+.leave-decision-dialog__error { display: grid; gap: 4px; padding: var(--signature-space-3) var(--signature-space-4); border: 1px solid color-mix(in srgb, var(--signature-danger) 45%, var(--signature-border)); border-radius: var(--signature-radius-control); background: color-mix(in srgb, var(--signature-danger) 9%, transparent); color: var(--signature-text); line-height: 1.55; }
+.leave-decision-dialog__error > strong { color: var(--signature-danger); }
+.leave-decision-dialog__error .request-error-reference { margin-top: 4px; }
+.leave-decision-dialog__reason-field { display: grid; gap: 6px; }
+.leave-decision-dialog__reason-field label { color: var(--signature-text); font-weight: 650; }
+.leave-decision-dialog__reason-field textarea { width: 100%; min-height: 104px; resize: vertical; border-color: var(--signature-border-strong); background: var(--signature-surface-raised); color: var(--signature-text); line-height: 1.6; }
+.leave-decision-dialog__reason-field small { color: var(--signature-text-muted); line-height: 1.5; }
+.leave-decision-dialog__reason-error { color: var(--signature-danger); font-weight: 650; line-height: 1.5; }
+.leave-decision-dialog__actions { display: flex; justify-content: flex-end; gap: var(--signature-space-3); padding: var(--signature-space-4) var(--signature-space-6) var(--signature-space-6); border-top: 1px solid var(--signature-border); }
+.leave-decision-dialog__actions button { min-width: 132px; min-height: 46px; justify-content: center; }
+.leave-decision-dialog__actions .btn-success { background: var(--action-success); border-color: var(--action-success); }
+.leave-decision-dialog__actions .btn-warning { background: var(--action-warning); border-color: var(--action-warning); }
+.leave-decision-dialog__actions .btn-danger { background: var(--action-danger); border-color: var(--action-danger); }
+.leave-decision-dialog__actions .btn-neutral { color: var(--signature-text); background: var(--signature-surface); border-color: var(--signature-border-strong); }
+
+@media (max-width: 760px) {
+  .leave-decision-dialog { width: 100%; max-height: calc(100dvh - 20px); border-radius: var(--signature-radius-card); }
+  .leave-decision-dialog__header { padding: var(--signature-space-5) var(--signature-space-4) var(--signature-space-3); }
+  .leave-decision-dialog__body { padding: var(--signature-space-4); }
+  .leave-decision-dialog__summary { grid-template-columns: 1fr; }
+  .leave-decision-dialog__actions { flex-direction: column-reverse; padding: var(--signature-space-3) var(--signature-space-4) var(--signature-space-4); }
+  .leave-decision-dialog__actions button { width: 100%; }
+}
+
 @media (max-width: 1080px) {
   .leave-decision-workspace { grid-template-columns: minmax(220px,.8fr) minmax(360px,1.5fr); }
   .leave-decision-actions { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--signature-border); flex-direction: row; align-items: center; justify-content: space-between; }

@@ -5,6 +5,7 @@ import path from 'node:path';
 const root = path.resolve(__dirname);
 const main = fs.readFileSync(path.join(root, 'main.tsx'), 'utf8');
 const api = fs.readFileSync(path.join(root, 'api.ts'), 'utf8');
+const decisionModal = fs.readFileSync(path.join(root, 'components', 'LeaveDecisionConfirmation.tsx'), 'utf8');
 
 describe('Leave Return for Correction V1 frontend', () => {
   it('presents three distinct reviewer decisions with semantic action styles', () => {
@@ -33,10 +34,14 @@ describe('Leave Return for Correction V1 frontend', () => {
   });
 
   it('requires a visible reason before return or cancellation', () => {
-    expect(main).toContain("['return', 'cancel'].includes(action)");
-    expect(main).toContain('ระบุเหตุผลที่ส่งกลับไปแก้ไข (จำเป็น)');
-    expect(main).toContain('ระบุเหตุผลการยกเลิกใบลาที่อนุมัติแล้ว (จำเป็น)');
-    expect(main).toContain('กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษร');
+    expect(main).toContain('LeaveDecisionConfirmation');
+    expect(main).toContain('executeLeaveDecision');
+    expect(decisionModal).toContain('ระบุเหตุผลที่ส่งกลับไปแก้ไข (จำเป็น)');
+    expect(decisionModal).toContain('ระบุเหตุผลการยกเลิกใบลาที่อนุมัติแล้ว (จำเป็น)');
+    expect(decisionModal).toContain('กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษร');
+    expect(decisionModal).toContain('role="dialog"');
+    expect(decisionModal).toContain('aria-modal="true"');
+    expect(decisionModal).toContain('onConfirm');
   });
 
   it('distinguishes returned request cancellation from approved Admin cancellation', () => {
