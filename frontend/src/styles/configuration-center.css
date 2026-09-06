@@ -141,10 +141,202 @@
   width: 100%;
 }
 
+.pattern-step-editor__hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
 @media (max-width: 780px) {
   .pattern-step-editor { min-width: 22rem; }
   .pattern-step-row { grid-template-columns: 1fr 1fr; }
   .pattern-step-row input:nth-of-type(2) { grid-column: 1 / -1; }
+}
+
+/* WAVE 5C — the Pattern Manager is a specialist nested editor. Keep the
+   desktop table for comparison, but hand the complete phase editor to cards
+   on tablet/mobile so important controls are not hidden in horizontal scroll. */
+.auto-schedule-pattern-surface,
+.auto-schedule-pattern-table-wrap,
+.auto-schedule-pattern-mobile-list {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.auto-schedule-pattern-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.auto-schedule-pattern-desktop-table {
+  min-width: 900px;
+}
+
+.auto-schedule-pattern-mobile-list {
+  display: none;
+}
+
+.auto-schedule-pattern-mobile-card {
+  display: grid;
+  gap: var(--signature-space-4);
+  min-width: 0;
+  padding: var(--signature-space-4);
+  border: 1px solid var(--signature-border);
+  border-radius: var(--signature-radius-card);
+  background: var(--signature-surface);
+  box-shadow: var(--signature-shadow);
+}
+
+.auto-schedule-pattern-mobile-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--signature-space-3);
+  min-width: 0;
+  padding-bottom: var(--signature-space-3);
+  border-bottom: 1px solid var(--signature-border);
+}
+
+.auto-schedule-pattern-mobile-card__header h3 {
+  margin: 2px 0;
+  color: var(--signature-text);
+  font-size: 18px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.auto-schedule-pattern-mobile-card__header code {
+  color: var(--signature-text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.auto-schedule-pattern-mobile-card__summary {
+  display: grid;
+  gap: var(--signature-space-3);
+  margin: 0;
+}
+
+.auto-schedule-pattern-mobile-card__summary > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.7fr) minmax(0, 1.3fr);
+  gap: var(--signature-space-3);
+  align-items: start;
+  min-width: 0;
+}
+
+.auto-schedule-pattern-mobile-card__summary dt {
+  color: var(--signature-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.auto-schedule-pattern-mobile-card__summary dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--signature-text);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.auto-schedule-pattern-mobile-card__summary dd select {
+  width: 100%;
+  min-width: 0;
+}
+
+.auto-schedule-pattern-mobile-card__summary .pattern-step-editor {
+  min-width: 0;
+  width: 100%;
+}
+
+.auto-schedule-pattern-mobile-card__summary .pattern-step-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.auto-schedule-pattern-mobile-card__summary .pattern-step-row input:nth-of-type(2) {
+  grid-column: 1 / -1;
+}
+
+.auto-schedule-pattern-sequence {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.auto-schedule-pattern-mobile-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--signature-space-2);
+  padding-top: var(--signature-space-3);
+  border-top: 1px solid var(--signature-border);
+}
+
+.auto-schedule-pattern-mobile-card__actions button {
+  min-height: 44px;
+}
+
+.auto-schedule-pattern-loading {
+  min-height: 72px;
+  display: grid;
+  align-items: center;
+}
+
+.auto-schedule-pattern-empty {
+  border: 1px solid var(--color-border);
+  border-radius: var(--signature-radius-card);
+  background: var(--color-surface-subtle);
+}
+
+@media (max-width: 900px) {
+  .auto-schedule-pattern-table-wrap {
+    display: none;
+  }
+
+  .auto-schedule-pattern-mobile-list {
+    display: grid;
+    gap: var(--signature-space-3);
+  }
+
+  .auto-schedule-pattern-master-card .pattern-step-editor {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .auto-schedule-pattern-master-card .pattern-step-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .auto-schedule-pattern-master-card .pattern-step-row input:nth-of-type(2) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .auto-schedule-pattern-mobile-card {
+    padding: var(--signature-space-3);
+  }
+
+  .auto-schedule-pattern-mobile-card__header {
+    flex-direction: column;
+  }
+
+  .auto-schedule-pattern-mobile-card__summary > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .auto-schedule-pattern-mobile-card__actions {
+    flex-direction: column;
+  }
+
+  .auto-schedule-pattern-mobile-card__actions button {
+    width: 100%;
+  }
 }
 
 .retention-center-card{display:grid;gap:16px}
