@@ -83,14 +83,14 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest resolves WAVE 3 governed exact target with no database changes', () => {
+test('current approved Production manifest resolves WAVE 4 governed exact target with no database changes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-7d4e911-20260905');
-  assert.equal(result.commitSha, '7d4e911aca8c256233849044a1e131dc7710965d');
-  assert.equal(result.treeSha, '2ca95476552c16a8b4b7797817515b1ce5e0dcbe');
-  assert.equal(result.currentProductionSourceSha, '70d1113233cea5ebc909eb6db656ec35cde49106');
-  assert.equal(result.rollbackDeploymentId, 'dpl_8AVBmyfVuNBQAAoTdfRtBUCccujS');
+  assert.equal(result.releaseId, 'sms-v3-prod-10441a1-20260906');
+  assert.equal(result.commitSha, '10441a1edd8df85136a1dca0b49199f51839359b');
+  assert.equal(result.treeSha, 'bdac3b2a6a4170b1a2083e2f6301104520a1444a');
+  assert.equal(result.currentProductionSourceSha, '7d4e911aca8c256233849044a1e131dc7710965d');
+  assert.equal(result.rollbackDeploymentId, 'dpl_34raoVyNfa278bgsBST9SocDDQyS');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
