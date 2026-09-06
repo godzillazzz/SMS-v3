@@ -7,6 +7,7 @@ const main = read('main.tsx');
 const client = read('auto-schedule-pattern-client.ts');
 const panel = read('components/AutoSchedulePatternPanel.tsx');
 const api = read('api.ts');
+const panelCss = read('styles/configuration-center.css');
 
 describe('CFG-05 Auto Schedule Pattern Manager', () => {
   it('uses a dedicated governed client while keeping central api.ts unchanged', () => {
@@ -47,5 +48,18 @@ describe('CFG-05 Auto Schedule Pattern Manager', () => {
     expect(main).toContain('ใช้ Pattern Master เดียวกับไม้กายสิทธิ์รายบุคคล');
     expect(main).toContain('อ่านแพทเทิร์น Supervisor/พนักงานทั่วไปจากค่าที่ Admin จัดการ');
     expect(main).not.toContain('พนักงานทั่วไป 6D / OFF / 6N / OFF');
+  });
+
+  it('keeps the nested editor specialist while providing an equivalent mobile representation', () => {
+    expect(panel).toContain('auto-schedule-pattern-mobile-list');
+    expect(panel).toContain('auto-schedule-pattern-mobile-card');
+    expect(panel).toContain('aria-describedby="auto-schedule-pattern-description"');
+    expect(panel).toContain('<caption className="sr-only">ตาราง Auto Schedule Pattern และการจัดการ Phase</caption>');
+    expect(panel).toContain('role="status" aria-live="polite"');
+    expect(panel).toContain("role={noticeIsSuccess ? 'status' : 'alert'}");
+    expect(panel).toContain('targetGroup: row.targetGroup');
+    expect(panelCss).toContain('@media (max-width: 900px)');
+    expect(panelCss).toContain('.auto-schedule-pattern-table-wrap {');
+    expect(panelCss).toContain('.auto-schedule-pattern-mobile-list {');
   });
 });

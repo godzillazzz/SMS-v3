@@ -36,6 +36,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
   const [items, setItems] = useState<AutoSchedulePattern[]>([]);
   const [shiftCodes, setShiftCodes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [editingId, setEditingId] = useState<string>();
@@ -52,6 +53,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     setNotice(undefined);
     try {
       const [patterns, shifts] = await Promise.all([
@@ -65,6 +67,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
         .filter((code: string) => code && code !== 'AL');
       setShiftCodes([...new Set(codes)]);
     } catch (error) {
+      setLoadError(true);
       setNotice(error instanceof Error ? error.message : 'อ่าน Auto Schedule Pattern Master ไม่สำเร็จ');
     } finally {
       setLoading(false);
@@ -210,6 +213,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
     kind: 'create' | 'edit',
     systemLocked = false
   ) => <div className="pattern-step-editor">
+    <p className="pattern-step-editor__hint">Phase · Shift · คำอธิบาย</p>
     {steps.map((step, index) => <div className="pattern-step-row" key={`${step.phaseCode}-${index}`}>
       <input
         aria-label={`Phase ${index + 1}`}
@@ -240,44 +244,111 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
       : null}
   </div>;
 
+  const renderPatternCard = (row: AutoSchedulePattern) => {
+    const editing = editingId === row.id;
+    const editMode = (editForm.mode ?? row.mode) as AutoSchedulePattern['mode'];
+    const editSteps = (editForm.steps as AutoSchedulePatternStep[]) || row.steps;
+    const cardKey = `auto-schedule-pattern-${row.id}`;
+    const targetLabel = row.targetGroup === 'SUPERVISOR' ? 'หัวหน้างาน' : row.targetGroup === 'GENERAL' ? 'พนักงานทั่วไป' : 'เลือกเอง';
+    return <article className="auto-schedule-pattern-mobile-card" key={cardKey} aria-labelledby={`${cardKey}-title`}>
+      <header className="auto-schedule-pattern-mobile-card__header">
+        <div>
+          <p className="eyebrow">Pattern</p>
+          <h3 id={`${cardKey}-title`}>{row.name}</h3>
+          <code>{row.code} · {row.isSystem ? 'Core' : 'Custom'}</code>
+        </div>
+        <span className={`status-badge ${row.isActive ? 'status-badge--success' : 'status-badge--neutral'}`}>
+          {row.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}
+        </span>
+      </header>
+
+      <dl className="auto-schedule-pattern-mobile-card__summary">
+        <div>
+          <dt>รูปแบบ</dt>
+          <dd>{editing && !row.isSystem
+            ? <select aria-label={`รูปแบบ ${row.name}`} value={editMode} onChange={(event) => setEditMode(row, event.target.value as AutoSchedulePattern['mode'])}>
+                <option value="CYCLE">Cycle</option>
+                <option value="WEEKLY">Weekly</option>
+              </select>
+            : row.mode}</dd>
+        </div>
+        <div>
+          <dt>เป้าหมายอัตโนมัติ</dt>
+          <dd>{targetLabel}</dd>
+        </div>
+        <div>
+          <dt>ลำดับกะ / Phase</dt>
+          <dd>{editing ? renderSteps(editSteps, editMode, 'edit', false) : <span className="auto-schedule-pattern-sequence" title={row.steps.map((step) => `${step.phaseCode}: ${step.shiftCode}`).join(' · ')}>{describePattern(row)}</span>}</dd>
+        </div>
+        <div>
+          <dt>สถานะ</dt>
+          <dd>{editing
+            ? <select aria-label={`สถานะ ${row.name}`} disabled={row.isSystem} value={String(Boolean(editForm.isActive ?? row.isActive))} onChange={(event) => setEditForm((current) => ({ ...current, isActive: event.target.value === 'true' }))}>
+                <option value="true">ใช้งาน</option>
+                <option value="false">ปิดใช้งาน</option>
+              </select>
+            : <span className={`status-badge ${row.isActive ? 'status-badge--success' : 'status-badge--neutral'}`} aria-label={`สถานะ ${row.name}: ${row.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}`}>{row.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}</span>}
+          </dd>
+        </div>
+      </dl>
+
+      <footer className="auto-schedule-pattern-mobile-card__actions">
+        {editing
+          ? <>
+              <button type="button" className="btn-primary compact" disabled={busy} onClick={() => void submitEdit(row)}>บันทึก</button>
+              <button type="button" className="btn-neutral small-action" disabled={busy} onClick={() => { setEditingId(undefined); setEditForm({}); }}>ยกเลิก</button>
+            </>
+          : <button type="button" className="btn-neutral small-action" disabled={busy} onClick={() => beginEdit(row)}>แก้ไข Pattern</button>}
+      </footer>
+    </article>;
+  };
+
+  const noticeIsSuccess = Boolean(notice?.includes('สำเร็จ'));
+
   return <section className="line-settings-card auto-schedule-pattern-master-card">
     <div className="line-settings-title">
       <span>🪄</span>
       <div>
         <h2>Auto Schedule Pattern Manager</h2>
-        <p>บริหารแพทเทิร์นและ Phase ที่ไม้กายสิทธิ์ใช้จริง โดย Preview ก่อน Commit และไม่เขียนทับกะ/ชั่วโมงย้อนหลัง</p>
+        <p id="auto-schedule-pattern-description">บริหารแพทเทิร์นและ Phase ที่ไม้กายสิทธิ์ใช้จริง โดย Preview ก่อน Commit และไม่เขียนทับกะ/ชั่วโมงย้อนหลัง</p>
       </div>
     </div>
 
-    {loading ? <div className="loading-row">กำลังอ่าน Pattern Master…</div> : <div className="table-wrap">
-      <table className="data-table">
-        <thead><tr><th scope="col">Pattern</th><th scope="col">รูปแบบ</th><th scope="col">เป้าหมายอัตโนมัติ</th><th scope="col">ลำดับกะ</th><th scope="col">สถานะ</th><th scope="col">จัดการ</th></tr></thead>
-        <tbody>{items.map((row) => {
-          const editing = editingId === row.id;
-          const editMode = (editForm.mode ?? row.mode) as AutoSchedulePattern['mode'];
-          const editSteps = (editForm.steps as AutoSchedulePatternStep[]) || row.steps;
-          return <tr key={row.id}>
-            <td><strong>{row.name}</strong><small className="cell-note">{row.code}{row.isSystem ? ' · Core' : ' · Custom'}</small></td>
-            <td>{editing && !row.isSystem
-              ? <select value={editMode} onChange={(event) => setEditMode(row, event.target.value as AutoSchedulePattern['mode'])}><option value="CYCLE">Cycle</option><option value="WEEKLY">Weekly</option></select>
-              : row.mode}</td>
-            <td>{row.targetGroup === 'SUPERVISOR' ? 'หัวหน้างาน' : row.targetGroup === 'GENERAL' ? 'พนักงานทั่วไป' : 'เลือกเอง'}</td>
-            <td>{editing
-              ? renderSteps(editSteps, editMode, 'edit', false)
-              : <span title={row.steps.map((step) => `${step.phaseCode}: ${step.shiftCode}`).join(' · ')}>{describePattern(row)}</span>}</td>
-            <td>{editing
-              ? <select disabled={row.isSystem} value={String(Boolean(editForm.isActive ?? row.isActive))} onChange={(event) => setEditForm((current) => ({ ...current, isActive: event.target.value === 'true' }))}><option value="true">ใช้งาน</option><option value="false">ปิดใช้งาน</option></select>
-              : <span className={`status-badge ${row.isActive ? 'status-badge--success' : 'status-badge--neutral'}`}>{row.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}</span>}</td>
-            <td>{editing
-              ? <div className="row-actions">
-                  <button className="btn-primary compact" disabled={busy} onClick={() => void submitEdit(row)}>บันทึก</button>
-                  <button className="btn-neutral small-action" disabled={busy} onClick={() => { setEditingId(undefined); setEditForm({}); }}>ยกเลิก</button>
-                </div>
-              : <button className="btn-neutral small-action" disabled={busy} onClick={() => beginEdit(row)}>แก้ไข</button>}</td>
-          </tr>;
-        })}</tbody>
-      </table>
-    </div>}
+    {loading ? <div className="loading-row auto-schedule-pattern-loading" role="status" aria-live="polite">กำลังอ่าน Pattern Master…</div> : items.length ? <div className="auto-schedule-pattern-surface">
+      <div className="table-wrap auto-schedule-pattern-table-wrap">
+        <table className="data-table auto-schedule-pattern-desktop-table" aria-describedby="auto-schedule-pattern-description">
+          <caption className="sr-only">ตาราง Auto Schedule Pattern และการจัดการ Phase</caption>
+          <thead><tr><th scope="col">Pattern</th><th scope="col">รูปแบบ</th><th scope="col">เป้าหมายอัตโนมัติ</th><th scope="col">ลำดับกะ</th><th scope="col">สถานะ</th><th scope="col">จัดการ</th></tr></thead>
+          <tbody>{items.map((row) => {
+            const editing = editingId === row.id;
+            const editMode = (editForm.mode ?? row.mode) as AutoSchedulePattern['mode'];
+            const editSteps = (editForm.steps as AutoSchedulePatternStep[]) || row.steps;
+            return <tr key={row.id}>
+              <td><strong>{row.name}</strong><small className="cell-note">{row.code}{row.isSystem ? ' · Core' : ' · Custom'}</small></td>
+              <td>{editing && !row.isSystem
+                ? <select aria-label={`รูปแบบ ${row.name}`} value={editMode} onChange={(event) => setEditMode(row, event.target.value as AutoSchedulePattern['mode'])}><option value="CYCLE">Cycle</option><option value="WEEKLY">Weekly</option></select>
+                : row.mode}</td>
+              <td>{row.targetGroup === 'SUPERVISOR' ? 'หัวหน้างาน' : row.targetGroup === 'GENERAL' ? 'พนักงานทั่วไป' : 'เลือกเอง'}</td>
+              <td>{editing
+                ? renderSteps(editSteps, editMode, 'edit', false)
+                : <span title={row.steps.map((step) => `${step.phaseCode}: ${step.shiftCode}`).join(' · ')}>{describePattern(row)}</span>}</td>
+              <td>{editing
+                ? <select aria-label={`สถานะ ${row.name}`} disabled={row.isSystem} value={String(Boolean(editForm.isActive ?? row.isActive))} onChange={(event) => setEditForm((current) => ({ ...current, isActive: event.target.value === 'true' }))}><option value="true">ใช้งาน</option><option value="false">ปิดใช้งาน</option></select>
+                : <span className={`status-badge ${row.isActive ? 'status-badge--success' : 'status-badge--neutral'}`}>{row.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}</span>}</td>
+              <td>{editing
+                ? <div className="row-actions">
+                    <button className="btn-primary compact" disabled={busy} onClick={() => void submitEdit(row)}>บันทึก</button>
+                    <button className="btn-neutral small-action" disabled={busy} onClick={() => { setEditingId(undefined); setEditForm({}); }}>ยกเลิก</button>
+                  </div>
+                : <button className="btn-neutral small-action" disabled={busy} onClick={() => beginEdit(row)}>แก้ไข</button>}</td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>
+      <div className="auto-schedule-pattern-mobile-list" aria-label="Auto Schedule Pattern แบบรายการ">
+        {items.map(renderPatternCard)}
+      </div>
+    </div> : !loadError ? <div className="data-table-state data-state data-state--empty auto-schedule-pattern-empty" role="status" aria-live="polite"><span aria-hidden="true">⌁</span><strong>ยังไม่มี Auto Schedule Pattern</strong><p>สร้าง Custom pattern เพื่อให้เลือกใช้กับการ Preview ตารางกะได้</p></div> : null}
 
     <div className="line-secure-grid">
       <label className="field-group"><span>รหัส Pattern ใหม่</span><input value={createForm.code} maxLength={40} placeholder="เช่น TEAM_A_ROTATE" onChange={(event) => setCreateForm((current) => ({ ...current, code: event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') }))} /><small>รหัสแก้ไม่ได้หลังสร้าง และ Custom pattern จะเป็น “เลือกเอง” เท่านั้น</small></label>
@@ -288,7 +359,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
     {renderSteps(createForm.steps, createForm.mode, 'create')}
 
     <div className="alert alert-info">Core SUPERVISOR / ROTATE ปิดใช้งาน เปลี่ยนรหัส หรือเปลี่ยนกลุ่มเป้าหมายไม่ได้ · ไม่มีคำสั่ง Delete · การแก้แพทเทิร์นมีผลกับ Preview/การจัดกะครั้งถัดไปเท่านั้น</div>
-    {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
+    {notice && <div role={noticeIsSuccess ? 'status' : 'alert'} aria-live={noticeIsSuccess ? 'polite' : 'assertive'} className={noticeIsSuccess ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
     <div className="line-settings-actions">
       <button className="btn-primary compact" disabled={busy || !createForm.code.trim() || !createForm.name.trim() || !createForm.steps.length} onClick={() => void submitCreate()}>＋ เพิ่ม Pattern</button>
       <button className="btn-neutral small-action" disabled={busy} onClick={() => void load()}>↻ รีเฟรช</button>
