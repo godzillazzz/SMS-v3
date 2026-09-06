@@ -1,0 +1,160 @@
+name: Migrate Approved Preview Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact application commit SHA on the authoritative release branch
+        required: true
+        type: string
+      source_tree:
+        description: Exact application tree SHA for source_sha
+        required: true
+        type: string
+      expected_migration_head:
+        description: Expected Prisma migration head
+        required: true
+        default: 202609010002_mdg_master_codes_department_site_authority
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-staging-preview-migration
+  cancel-in-progress: false
+
+env:
+  EXPECTED_SOURCE_BRANCH: fix/serverless-database-reliability
+  EXPECTED_MIGRATION_HEAD: 202609010002_mdg_master_codes_department_site_authority
+
+jobs:
+  migrate:
+    name: Migrate approved isolated Preview database
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: 'Preview – sms-v3-staging'
+    env:
+      NODE_ENV: production
+      VERCEL_ENV: preview
+      RUN_MIGRATIONS: 'true'
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+      APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      SOURCE_TREE: ${{ inputs.source_tree }}
+      EXPECTED_MIGRATION_HEAD: ${{ inputs.expected_migration_head }}
+    steps:
+      - name: Require manual dispatch on the authoritative branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REF_NAME" = "$EXPECTED_SOURCE_BRANCH"
+          test "$GITHUB_SHA" = "$SOURCE_SHA"
+          printf '%s\n' "$SOURCE_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
+          printf '%s\n' "$SOURCE_TREE" | grep -Eq '^[0-9a-fA-F]{40}$'
+          test "$EXPECTED_MIGRATION_HEAD" = "202609010002_mdg_master_codes_department_site_authority"
+          echo 'DISPATCH_AUTHORITY=PASS'
+
+      - name: Checkout exact approved source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+
+      - name: Verify exact source identity and migration ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
+          git fetch --no-tags origin "$EXPECTED_SOURCE_BRANCH"
+          test "$(git rev-parse "origin/$EXPECTED_SOURCE_BRANCH")" = "$SOURCE_SHA"
+          git merge-base --is-ancestor "$SOURCE_SHA" "origin/$EXPECTED_SOURCE_BRANCH"
+          test -f "prisma/migrations/$EXPECTED_MIGRATION_HEAD/migration.sql"
+          test -z "$(git status --porcelain)"
+          echo 'SOURCE_IDENTITY=PASS'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install repository dependencies and generate Prisma client
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --include=dev
+          npx prisma generate
+          echo 'PRISMA_TOOLING=PASS'
+
+      - name: Verify protected Preview secrets and non-secret target guards exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${DATABASE_URL:-}"
+          echo 'DATABASE_URL_PRESENT=true'
+          test -n "${DIRECT_URL:-}"
+          echo 'DIRECT_URL_PRESENT=true'
+          test -n "${APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT:-}"
+          echo 'APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT_PRESENT=true'
+          test -n "${APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT:-}"
+          echo 'APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT_PRESENT=true'
+          echo 'PREVIEW_SECRET_GATE=PASS'
+
+      - name: Prove isolated Preview database target without exposing secrets
+        shell: bash
+        run: node scripts/ci/verify-preview-migration-target.js
+
+      - name: Require safe pending migration history before mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_output=$(mktemp)
+          trap 'rm -f "$status_output"' EXIT
+          node scripts/ci/prisma-migration.js status --allow-pending >"$status_output"
+          grep -Fxq 'MIGRATION_STATUS_CLASS=PENDING_MIGRATIONS_ONLY' "$status_output"
+          grep -Fxq 'MIGRATION_HISTORY_MISMATCH=false' "$status_output"
+          grep -Fxq 'SCHEMA_MISMATCH=false' "$status_output"
+          grep -Fxq 'PENDING_MIGRATIONS=true' "$status_output"
+          grep -Fq 'MIGRATION_NAME=' "$status_output"
+          grep -Fq "$EXPECTED_MIGRATION_HEAD" "$status_output"
+          echo 'MIGRATION_HISTORY_SAFE=PASS'
+
+      - name: Apply repository-governed Preview migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/prisma-migration.js deploy
+          echo 'PREVIEW_MIGRATION_EXECUTION=PASS'
+
+      - name: Verify current migration state and Preview compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_output=$(mktemp)
+          trap 'rm -f "$status_output"' EXIT
+          node scripts/ci/prisma-migration.js status >"$status_output"
+          grep -Fxq 'MIGRATION_STATUS_CLASS=UP_TO_DATE' "$status_output"
+          grep -Fxq 'PENDING_MIGRATIONS=false' "$status_output"
+          node scripts/ci/verify-preview-migration-state.js
+
+      - name: Publish safe Preview migration summary
+        shell: bash
+        run: |
+          {
+            echo '### Approved Preview database migration'
+            echo '- Target: isolated sms-v3-preview (fingerprint-guarded)'
+            echo '- Source identity: PASS'
+            echo '- Migration history: PASS'
+            echo '- Prisma migration state: CURRENT'
+            echo '- Schema/reference compatibility checks: PASS'
+            echo '- Production database accessed: NO'
+            echo '- Production changed: NO'
+            echo '- Seed or additional data mutation: NOT PERFORMED'
+            echo '- Raw secrets emitted: NO'
+          } >> "$GITHUB_STEP_SUMMARY"
