@@ -1,4 +1,4 @@
-name: Diagnose Preview Resolve Ledger 202608240003
+name: Diagnose Preview Pending Migration Chain
 
 on:
   workflow_dispatch:
@@ -25,14 +25,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  WORKFLOW_REF: diag/preview-resolve-ledger-readonly
-  EXPECTED_SOURCE_BRANCH: diag/preview-resolve-ledger-readonly
-  RESOLVE_TARGET: 202608240003_g06_security_site_qr_gps_v1
+  WORKFLOW_REF: diag/preview-migration-chain-readonly
+  EXPECTED_SOURCE_BRANCH: diag/preview-migration-chain-readonly
   EXPECTED_MIGRATION_HEAD: 202609010002_mdg_master_codes_department_site_authority
 
 jobs:
   source-preflight:
-    name: Resolve ledger diagnostic source preflight (no database access)
+    name: Preview migration-chain source preflight (no database access)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -58,17 +57,18 @@ jobs:
           test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE"
           git merge-base --is-ancestor "$SOURCE_SHA" HEAD
           changed_files=$(git diff --name-only "$SOURCE_SHA" HEAD)
-          test -z "$(printf '%s\n' "$changed_files" | grep -Ev '^(\.github/workflows/diagnose-preview-resolve-202608240003\.yml|scripts/ci/diagnose-preview-resolve-ledger\.js|test/preview-resolve-ledger-diagnostic\.test\.js)$' || true)"
-          test -f scripts/ci/diagnose-preview-resolve-ledger.js
+          test -z "$(printf '%s\n' "$changed_files" | grep -Ev '^(\.github/workflows/diagnose-preview-resolve-202608240003\.yml|scripts/ci/diagnose-preview-resolve-ledger\.js|scripts/ci/diagnose-preview-migration-chain\.js|test/preview-resolve-ledger-diagnostic\.test\.js)$' || true)"
+          test -f scripts/ci/diagnose-preview-migration-chain.js
+          ! grep -Eiq 'migrate[[:space:]]+(resolve|deploy|reset)|INSERT[[:space:]]+INTO|UPDATE[[:space:]]+|DELETE[[:space:]]+FROM|ALTER[[:space:]]+TABLE' scripts/ci/diagnose-preview-migration-chain.js
           echo 'SOURCE_IDENTITY=PASS'
-          echo 'READ_ONLY_DIAGNOSTIC=PASS'
+          echo 'READ_ONLY_BULK_DIAGNOSTIC=PASS'
 
       - name: Verify target source checksum
         shell: bash
         run: node scripts/ci/verify-preview-resolve-source.js
 
   protected-preview-diagnostic:
-    name: Protected Preview read-only ledger diagnostic
+    name: Protected Preview read-only migration-chain diagnostic
     needs: source-preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -109,7 +109,7 @@ jobs:
           test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE"
           git merge-base --is-ancestor "$SOURCE_SHA" HEAD
           changed_files=$(git diff --name-only "$SOURCE_SHA" HEAD)
-          test -z "$(printf '%s\n' "$changed_files" | grep -Ev '^(\.github/workflows/diagnose-preview-resolve-202608240003\.yml|scripts/ci/diagnose-preview-resolve-ledger\.js|test/preview-resolve-ledger-diagnostic\.test\.js)$' || true)"
+          test -z "$(printf '%s\n' "$changed_files" | grep -Ev '^(\.github/workflows/diagnose-preview-resolve-202608240003\.yml|scripts/ci/diagnose-preview-resolve-ledger\.js|scripts/ci/diagnose-preview-migration-chain\.js|test/preview-resolve-ledger-diagnostic\.test\.js)$' || true)"
           echo 'SOURCE_IDENTITY=PASS'
 
       - name: Set up Node.js 22
@@ -126,11 +126,11 @@ jobs:
           npx --no-install prisma generate
           echo 'PRISMA_TOOLING=PASS'
 
-      - name: Read all target ledger rows and schema equivalence
+      - name: Read all pending migration ledger rows and schema equivalence
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/ci/diagnose-preview-resolve-ledger.js
+          node scripts/ci/diagnose-preview-migration-chain.js
 
       - name: Read Prisma migration status only
         shell: bash
@@ -146,9 +146,9 @@ jobs:
         shell: bash
         run: |
           {
-            echo '### Preview resolve ledger diagnostic'
+            echo '### Preview pending migration-chain diagnostic'
             echo '- Target: sms-v3-preview (fingerprint-guarded)'
-            echo '- Read-only SELECT inspection: PASS'
+            echo '- Read-only SELECT/schema inspection: PASS'
             echo '- Prisma migration status only: PASS'
             echo '- Resolve executed: NO'
             echo '- Migration deploy executed: NO'
