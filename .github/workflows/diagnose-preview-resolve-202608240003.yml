@@ -1,0 +1,39 @@
+name: Diagnose Preview Resolve Ledger 202608240003 (Registration Shim)
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Registration-only input parity with the diagnostic runner
+        required: true
+        type: string
+      source_tree:
+        description: Registration-only input parity with the diagnostic runner
+        required: true
+        type: string
+      expected_migration_head:
+        description: Registration-only input parity with the diagnostic runner
+        required: true
+        default: 202609010002_mdg_master_codes_department_site_authority
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  registration-only:
+    name: Registration-only no database access
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Prove registration-only behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          echo 'WORKFLOW_REGISTRATION_ONLY=PASS'
+          echo 'DATABASE_ACCESSED=NO'
+          echo 'RESOLVE_EXECUTED=NO'
+          echo 'MIGRATION_EXECUTED=NO'
+          echo 'ENVIRONMENT_ATTACHED=NO'
+          echo 'SECRETS_REFERENCED=NO'
+          echo 'DEPLOYMENT_PERFORMED=NO'
