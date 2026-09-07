@@ -1,0 +1,221 @@
+{
+  "schema_version": 1,
+  "work_id": "WAVE5-GOVERNED-BASELINE-RECONSTRUCTION",
+  "repository": "godzillazzz/SMS-v3",
+  "target": "sms-v3-preview",
+  "protected_environment": "Preview – sms-v3-staging",
+  "expected_migration_head": "202609010002_mdg_master_codes_department_site_authority",
+  "source_authority": {
+    "branch": "fix/serverless-database-reliability",
+    "base_sha": "c421e13c82a88f1dc26a5f737712eecce7df8920",
+    "base_tree": "695cfb1e44e08e979fdfbd196ec811b84faf30f7"
+  },
+  "diagnostic_evidence": {
+    "run": "34089859937",
+    "protected_job": "101641006410",
+    "classification": "MIXED_PREEXISTING_AND_PENDING",
+    "total_pending_migrations": 18,
+    "full_schema_diff_statement_count": 85,
+    "rebuild_data_loss_risk": "HIGH"
+  },
+  "migration_order": [
+    "202608240004_g06_attendance_event_workflow_v1",
+    "202608250001_g06_face_match_only_mode_v1",
+    "202608250002_g06_department_security_site_default_v1",
+    "202608250003_attendance_governance_v1",
+    "202608270001_attendance_adjustment_request_v4",
+    "202608270002_attendance_effective_correction_authority_v4",
+    "202608270003_attendance_face_evidence_v1",
+    "202608270004_attendance_face_evidence_rls_v1",
+    "202608270005_g06_server_authority_rls_v1",
+    "202608270005_g06_server_only_rls_v1",
+    "202608300001_perf05_hot_path_indexes",
+    "202608310001_cfg03_leave_type_master",
+    "202608310002_cfg04_shift_type_active_state",
+    "202608310003_cfg05_auto_schedule_pattern_master",
+    "202608310004_cfg06_approval_authority_policy",
+    "202608310005_cfg07_data_retention_center",
+    "202609010001_emp_ux_department_position_master",
+    "202609010002_mdg_master_codes_department_site_authority"
+  ],
+  "baseline_allowlist": [
+    "202608250001_g06_face_match_only_mode_v1",
+    "202608250002_g06_department_security_site_default_v1",
+    "202608250003_attendance_governance_v1",
+    "202608270001_attendance_adjustment_request_v4",
+    "202608270002_attendance_effective_correction_authority_v4",
+    "202608270003_attendance_face_evidence_v1",
+    "202608270004_attendance_face_evidence_rls_v1",
+    "202608270005_g06_server_authority_rls_v1",
+    "202608270005_g06_server_only_rls_v1"
+  ],
+  "candidates": [
+    {
+      "migration_name": "202608240004_g06_attendance_event_workflow_v1",
+      "sha256": "effed21604b8ab3a3fb57b66cf11446ad7317615cd0c1d7b1cdf8ea8e4fcae43",
+      "has_data_statements": false,
+      "evidence_class": "ALREADY_APPLIED_EXACT_EQUIVALENT",
+      "expected_effect_contract": "AttendanceSessionState, AttendanceEventType, AttendanceEventProvenance, AttendanceTimeBasis enums; attendance_sessions and attendance_events with all columns, checks, indexes and foreign keys; 52-object semantic contract.",
+      "diagnostic_evidence_run": "34089859937; prior resolve reconciliation 34080212561",
+      "eligible_for_resolve": false,
+      "reason": "A valid applied ledger row already exists after the separately authorized resolve. Never resolve this migration again. The earlier failed row is retained as history."
+    },
+    {
+      "migration_name": "202608250001_g06_face_match_only_mode_v1",
+      "sha256": "94051667829738c69bed5d92feddf6e5026d2c1ab13d0e9e89ea7ccb14b08eb1",
+      "has_data_statements": false,
+      "evidence_class": "SEMANTIC_EQUIVALENT_FINAL_STATE",
+      "expected_effect_contract": "FaceVerificationMode enum in exact label order; verification_mode columns on face_verification_sessions and face_verification_receipts; verified-state constraint with FACE_MATCH_WITH_LIVENESS and FACE_MATCH_ONLY branches.",
+      "diagnostic_evidence_run": "34089859937",
+      "eligible_for_resolve": true,
+      "reason": "Conditional candidate only. Protected verifier must prove the existing verified-state constraint is equivalent and not weaker; DROP/RECREATE history is recorded separately."
+    },
+    {
+      "migration_name": "202608250002_g06_department_security_site_default_v1",
+      "sha256": "1942f60184fe350232f4c5214d8a8b751e6c09c99afc823aba81a925a869c0e3",
+      "has_data_statements": false,
+      "evidence_class": "SEMANTIC_EQUIVALENT_FINAL_STATE",
+      "expected_effect_contract": "security_site_departments table, exact columns/check/FK, three supporting indexes, and one-default-per-department partial unique index.",
+      "diagnostic_evidence_run": "34089859937",
+      "eligible_for_resolve": true,
+      "reason": "Conditional candidate. Protected verifier must compare PostgreSQL-normalized check, FK, columns and partial-index predicate."
+    },
+    {
+      "migration_name": "202608250003_attendance_governance_v1",
+      "sha256": "3351ac5d74511b7f705d9c0be0efc28c5aeb93ec0efa3f2c167de315cd283a09",
+      "has_data_statements": false,
+      "evidence_class": "SEMANTIC_EQUIVALENT_FINAL_STATE",
+      "expected_effect_contract": "attendance_corrections and attendance_month_certifications tables with exact governance checks, FKs, unique constraints, partial unique indexes and supporting indexes.",
+      "diagnostic_evidence_run": "34089859937",
+      "eligible_for_resolve": true,
+      "reason": "Conditional candidate. Protected verifier must prove all final governance constraints and partial-index predicates."
+    },
+    {
+      "migration_name": "202608270001_attendance_adjustment_request_v4",
+      "sha256": "4f1bfd5a28a1d53becf7757cd3fb47546921e7911949d10060c7371af696e293",
+      "has_data_statements": false,
+      "evidence_class": "SEMANTIC_EQUIVALENT_FINAL_STATE",
+      "expected_effect_contract": "attendance_adjustment_requests, attendance_adjustment_revisions and attendance_adjustment_events; four correction columns, required governance checks/FKs/indexes and partial unique index.",
+      "diagnostic_evidence_run": "34089859937",
+      "eligible_for_resolve": true,
+      "reason": "Conditional candidate. Protected verifier must prove request/revision/event authority shape and correction provenance constraints."
+    },
+    {
+      "migration_name": "202608270002_attendance_effective_correction_authority_v4",
+      "sha256": "5df43d763eac119792da29212c2c3b35bc3c6fc6cfaf4ceff5f102c691b56417",
+      "has_data_statements": false,
+      "evidence_class": "EXACT_EQUIVALENT_NO_DATA",
+      "expected_effect_contract": "attendance_corrections_current_requires_approval CHECK constraint exactly normalized.",
+      "diagnostic_evidence_run": "34089859937",
+      "eligible_for_resolve": true,
+      "reason": "Conditional candidate. Protected verifier must re-prove the exact approval provenance check before any resolve."
+    },
+    {
+      "migration_name": "202608270003_attendance_face_evidence_v1",
+      "sha256": "17cb59dd7976588e9302f299d0b2980b1417ba0ec4e250d5bf8af73675ce026f",
+      "has_data_statements": false,
+      "evidence_class": "EXACT_EQUIVALENT_NO_DATA",
+      "expected_effect_contract": "attendance_evidence table with exact columns, keys, checks, FKs and indexes.",
+      "diagnostic_evidence_run": "34089859937",
+      "eligible_for_resolve": true,
+      "reason": "Conditional candidate. Protected verifier must prove the complete evidence metadata shape."
+    },
+    {
+      "migration_name": "202608270004_attendance_face_evidence_rls_v1",
+      "sha256": "8e67c414bd71d4ad4ca898dfd10850712f39278629cc76ce1f14bb7b1a35c89d",
+      "has_data_statements": false,
+      "evidence_class": "RLS_FINAL_STATE_EQUIVALENT",
+      "expected_effect_contract": "attendance_evidence RLS enabled, not forced, zero policies, and zero anon/authenticated table grants; DO-block role absence is acceptable.",
+      "diagnostic_evidence_run": "34089859937",
+      "eligible_for_resolve": true,
+      "reason": "Conditional candidate. Protected verifier must prove exact RLS/grant final state; parser false-negative is not accepted as proof."
+    },
+    {
+      "migration_name": "202608270005_g06_server_authority_rls_v1",
+      "sha256": "275029fe268af811380c2c2ce7285686aae9784aca9f19d564b2bc3a0bb16739",
+      "has_data_statements": false,
+      "evidence_class": "EXACT_EQUIVALENT_NO_DATA",
+      "expected_effect_contract": "For all 18 protected tables, RLS enabled, force disabled, and no anon/authenticated grants.",
+      "diagnostic_evidence_run": "34089859937",
+      "eligible_for_resolve": true,
+      "reason": "Conditional candidate. Protected verifier must prove every table in the hardcoded 18-table contract."
+    },
+    {
+      "migration_name": "202608270005_g06_server_only_rls_v1",
+      "sha256": "dd177be158d82b37f0d14bd87911ffce2d555290ad037b5c34b1d90846ab02bb",
+      "has_data_statements": false,
+      "evidence_class": "EXACT_EQUIVALENT_NO_DATA",
+      "expected_effect_contract": "For existing members of the same 18-table server-only set, RLS enabled, force disabled, and no anon/authenticated grants.",
+      "diagnostic_evidence_run": "34089859937",
+      "eligible_for_resolve": true,
+      "reason": "Conditional candidate. Protected verifier must prove final state for every source target and preserve exact migration order."
+    }
+  ],
+  "blocked_migrations": [
+    {
+      "migration_name": "202608300001_perf05_hot_path_indexes",
+      "sha256": "704776f7eec268524a3c282c1ca8f50577f729f32c2a26df733c1ef9d8e2711d",
+      "has_data_statements": false,
+      "eligible_for_resolve": false,
+      "reason": "GENUINELY_PENDING; must run through canonical migrate deploy."
+    },
+    {
+      "migration_name": "202608310002_cfg04_shift_type_active_state",
+      "sha256": "2c38ebf45d203491da854002ea6d947049819336e50490dab394db11e0243537",
+      "has_data_statements": false,
+      "eligible_for_resolve": false,
+      "reason": "GENUINELY_PENDING; must run through canonical migrate deploy."
+    },
+    {
+      "migration_name": "202608310001_cfg03_leave_type_master",
+      "sha256": "ebbfb4dcbddeb5885ce8a6b7c031f3768d4b5fd6f68516e67a98930461a09919",
+      "has_data_statements": true,
+      "eligible_for_resolve": false,
+      "reason": "DATA_MIGRATION_REQUIRES_SEPARATE_REVIEW; master rows and leave-request snapshot backfill are required."
+    },
+    {
+      "migration_name": "202608310003_cfg05_auto_schedule_pattern_master",
+      "sha256": "aa53e4ec974f17062283efed248236e5feec0d3c7f8320caf16b502ac34ab540",
+      "has_data_statements": true,
+      "eligible_for_resolve": false,
+      "reason": "DATA_MIGRATION_REQUIRES_SEPARATE_REVIEW; deterministic pattern seed is required by Auto Schedule."
+    },
+    {
+      "migration_name": "202608310004_cfg06_approval_authority_policy",
+      "sha256": "532598a47285bcc841e3520074eb3ff68ba0df7e517acb327457a9a2d317fe99",
+      "has_data_statements": true,
+      "eligible_for_resolve": false,
+      "reason": "DATA_MIGRATION_REQUIRES_SEPARATE_REVIEW; APPROVAL_POLICY.% configuration is required by Approval Matrix."
+    },
+    {
+      "migration_name": "202608310005_cfg07_data_retention_center",
+      "sha256": "eb2a88594159a6f098df8a60043da122cb8c1d977a96b405d55f0d33b6decc5f",
+      "has_data_statements": true,
+      "eligible_for_resolve": false,
+      "reason": "DATA_MIGRATION_REQUIRES_SEPARATE_REVIEW; retention configuration and required data effects must execute."
+    },
+    {
+      "migration_name": "202609010001_emp_ux_department_position_master",
+      "sha256": "355429f177b30bd3e2bb0e3e72b3505b86eab79d0fc83f21dd5e64c4e85a93cf",
+      "has_data_statements": true,
+      "eligible_for_resolve": false,
+      "reason": "DATA_MIGRATION_REQUIRES_SEPARATE_REVIEW; department/position master materialization is required."
+    },
+    {
+      "migration_name": "202609010002_mdg_master_codes_department_site_authority",
+      "sha256": "42339aafbe89fc422cc9b092f292f286cebd56d6cbc00527ba5f38823fc1b5ac",
+      "has_data_statements": true,
+      "eligible_for_resolve": false,
+      "reason": "DATA_MIGRATION_REQUIRES_SEPARATE_REVIEW; master-code and department/site authority backfills are required."
+    }
+  ],
+  "rules": {
+    "semantic_verifier_required_before_any_mutation": true,
+    "all_preflight_checks_complete_before_first_resolve": true,
+    "no_arbitrary_migration_input": true,
+    "no_data_migration_resolve": true,
+    "no_production_target": true,
+    "operation_history_different_is_recorded": true,
+    "resolve_and_canonical_migrate_deploy_are_separate_owner_gates": true
+  }
+}

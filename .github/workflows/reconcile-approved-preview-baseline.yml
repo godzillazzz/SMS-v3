@@ -1,0 +1,177 @@
+name: Reconcile Approved Preview Baseline
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact release-source commit SHA to inspect
+        required: true
+        type: string
+      source_tree:
+        description: Exact tree SHA for source_sha
+        required: true
+        type: string
+      expected_migration_head:
+        description: Expected repository migration head after later canonical deploy
+        required: true
+        default: 202609010002_mdg_master_codes_department_site_authority
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-preview-baseline-reconstruction
+  cancel-in-progress: false
+
+env:
+  EXPECTED_SOURCE_BRANCH: fix/serverless-database-reliability
+  EXPECTED_MIGRATION_HEAD: 202609010002_mdg_master_codes_department_site_authority
+  BASELINE_MANIFEST: governance/preview-baseline-reconstruction-20260907.json
+
+jobs:
+  source-preflight:
+    name: Baseline source preflight (no database access)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact supplied release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+
+      - name: Verify exact source identity and manifest
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_TREE: ${{ inputs.source_tree }}
+          INPUT_MIGRATION_HEAD: ${{ inputs.expected_migration_head }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REF_NAME" = "$EXPECTED_SOURCE_BRANCH"
+          printf '%s\n' "$SOURCE_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
+          printf '%s\n' "$SOURCE_TREE" | grep -Eq '^[0-9a-fA-F]{40}$'
+          test "$INPUT_MIGRATION_HEAD" = "$EXPECTED_MIGRATION_HEAD"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
+          git fetch --no-tags origin "$EXPECTED_SOURCE_BRANCH"
+          test "$(git rev-parse "origin/$EXPECTED_SOURCE_BRANCH")" = "$SOURCE_SHA"
+          test -z "$(git status --porcelain)"
+          node scripts/ci/verify-preview-baseline-manifest.js
+
+  protected-preview-reconcile:
+    name: Protected Preview baseline reconciliation
+    needs: source-preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: 'Preview – sms-v3-staging'
+    env:
+      NODE_ENV: production
+      VERCEL_ENV: preview
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+      APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      SOURCE_TREE: ${{ inputs.source_tree }}
+      INPUT_MIGRATION_HEAD: ${{ inputs.expected_migration_head }}
+    steps:
+      - name: Checkout exact approved release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+
+      - name: Verify exact source identity again
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "$EXPECTED_SOURCE_BRANCH"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
+          test "$INPUT_MIGRATION_HEAD" = "$EXPECTED_MIGRATION_HEAD"
+          node scripts/ci/verify-preview-baseline-manifest.js
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install repository tooling and generate Prisma client
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --include=dev
+          npx --no-install prisma generate
+          echo 'PRISMA_TOOLING=PASS'
+
+      - name: Verify protected Preview target guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${DATABASE_URL:-}"
+          test -n "${DIRECT_URL:-}"
+          test -n "${APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT:-}"
+          test -n "${APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT:-}"
+          node scripts/ci/verify-preview-migration-target.js
+          echo 'PRODUCTION_TARGET_REJECT_GUARD=PASS'
+
+      - name: Verify every allowlisted final effect before mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/verify-preview-baseline-effects.js
+
+      - name: Snapshot ledger and require zero unsafe rows
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/verify-preview-baseline-ledger.js --mode=pre --snapshot "$RUNNER_TEMP/preview-baseline-ledger.json"
+
+      - name: Reconcile hardcoded ordered baseline allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install prisma migrate resolve --applied 202608250001_g06_face_match_only_mode_v1
+          npx --no-install prisma migrate resolve --applied 202608250002_g06_department_security_site_default_v1
+          npx --no-install prisma migrate resolve --applied 202608250003_attendance_governance_v1
+          npx --no-install prisma migrate resolve --applied 202608270001_attendance_adjustment_request_v4
+          npx --no-install prisma migrate resolve --applied 202608270002_attendance_effective_correction_authority_v4
+          npx --no-install prisma migrate resolve --applied 202608270003_attendance_face_evidence_v1
+          npx --no-install prisma migrate resolve --applied 202608270004_attendance_face_evidence_rls_v1
+          npx --no-install prisma migrate resolve --applied 202608270005_g06_server_authority_rls_v1
+          npx --no-install prisma migrate resolve --applied 202608270005_g06_server_only_rls_v1
+          echo 'BASELINE_RECONCILIATION_RESULT=SUCCESS'
+
+      - name: Verify ledger, effects and migration status without further mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/verify-preview-baseline-ledger.js --mode=post --snapshot "$RUNNER_TEMP/preview-baseline-ledger.json"
+          node scripts/ci/verify-preview-baseline-effects.js
+          status_output=$(mktemp)
+          trap 'rm -f "$status_output"' EXIT
+          node scripts/ci/prisma-migration.js status --allow-pending >"$status_output"
+          grep -Fxq 'MIGRATION_STATUS_CLASS=PENDING_MIGRATIONS_ONLY' "$status_output"
+          grep -Fxq 'MIGRATION_HISTORY_MISMATCH=false' "$status_output"
+          echo 'PRISMA_MIGRATION_STATE=BEHIND'
+          echo 'MIGRATION_DEPLOY_EXECUTED=NO'
+          echo 'BASELINE_RECONSTRUCTION_POSTCHECK=PASS'
+
+      - name: Publish safe summary
+        shell: bash
+        run: |
+          {
+            echo '### Governed Preview baseline reconstruction package'
+            echo '- Target: sms-v3-preview (fingerprint guarded)'
+            echo '- Source and semantic preflight: PASS'
+            echo '- Allowlist: hardcoded, ordered, no-data only'
+            echo '- Business data mutation: NO'
+            echo '- Canonical migration deploy: NO'
+            echo '- Production database accessed: NO'
+            echo '- Raw secrets emitted: NO'
+          } >> "$GITHUB_STEP_SUMMARY"
