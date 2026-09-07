@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "work_id": "WAVE5-GOVERNED-BASELINE-RECONSTRUCTION",
   "repository": "godzillazzz/SMS-v3",
   "target": "sms-v3-preview",
@@ -10,6 +10,16 @@
     "base_sha": "c421e13c82a88f1dc26a5f737712eecce7df8920",
     "base_tree": "695cfb1e44e08e979fdfbd196ec811b84faf30f7"
   },
+  "reconciled_predecessors": [
+    {
+      "migration_name": "202608240003_g06_security_site_qr_gps_v1",
+      "resolve_run": "34080212561",
+      "resolve_command_target": "202608240003_g06_security_site_qr_gps_v1",
+      "diagnostic_confirmation_run": "34089859937",
+      "ledger_state": "APPLIED_NOT_PENDING",
+      "note": "Run 34080212561 resolved only 202608240003. It is not resolve provenance for 202608240004."
+    }
+  ],
   "diagnostic_evidence": {
     "run": "34089859937",
     "protected_job": "101641006410",
@@ -39,6 +49,7 @@
     "202609010002_mdg_master_codes_department_site_authority"
   ],
   "baseline_allowlist": [
+    "202608240004_g06_attendance_event_workflow_v1",
     "202608250001_g06_face_match_only_mode_v1",
     "202608250002_g06_department_security_site_default_v1",
     "202608250003_attendance_governance_v1",
@@ -54,11 +65,28 @@
       "migration_name": "202608240004_g06_attendance_event_workflow_v1",
       "sha256": "effed21604b8ab3a3fb57b66cf11446ad7317615cd0c1d7b1cdf8ea8e4fcae43",
       "has_data_statements": false,
-      "evidence_class": "ALREADY_APPLIED_EXACT_EQUIVALENT",
-      "expected_effect_contract": "AttendanceSessionState, AttendanceEventType, AttendanceEventProvenance, AttendanceTimeBasis enums; attendance_sessions and attendance_events with all columns, checks, indexes and foreign keys; 52-object semantic contract.",
-      "diagnostic_evidence_run": "34089859937; prior resolve reconciliation 34080212561",
-      "eligible_for_resolve": false,
-      "reason": "A valid applied ledger row already exists after the separately authorized resolve. Never resolve this migration again. The earlier failed row is retained as history."
+      "evidence_class": "SEMANTIC_EQUIVALENT_FINAL_STATE",
+      "expected_effect_contract": "Complete 52-object Attendance event workflow contract: 4 enums; attendance_sessions and attendance_events tables; 26 columns; 4 CHECK constraints; 10 key/index objects including both primary keys; and 6 foreign keys.",
+      "diagnostic_evidence_run": "34089859937",
+      "ledger_evidence": {
+        "checksum_match_source": true,
+        "finished": false,
+        "rolled_back": false,
+        "applied_steps_count": 0,
+        "state": "FAILED"
+      },
+      "semantic_evidence": {
+        "expected_object_count": 52,
+        "matching_object_count_before_cast_normalization": 50,
+        "differing_object_count_before_cast_normalization": 2,
+        "missing_object_count": 0,
+        "differences": [
+          "attendance_sessions_expectation_digest_format: PostgreSQL-added ::text cast only",
+          "attendance_events_context_digest_format: PostgreSQL-added ::text cast only"
+        ]
+      },
+      "eligible_for_resolve": true,
+      "reason": "Conditional first candidate. The failed ledger row has source-checksum match, finished_at NULL, rolled_back_at NULL, and applied_steps_count 0. Protected verification must re-prove all 52 final objects with PostgreSQL-neutral cast normalization before any resolve. Run 34080212561 is explicitly not provenance for this migration."
     },
     {
       "migration_name": "202608250001_g06_face_match_only_mode_v1",
@@ -68,7 +96,7 @@
       "expected_effect_contract": "FaceVerificationMode enum in exact label order; verification_mode columns on face_verification_sessions and face_verification_receipts; verified-state constraint with FACE_MATCH_WITH_LIVENESS and FACE_MATCH_ONLY branches.",
       "diagnostic_evidence_run": "34089859937",
       "eligible_for_resolve": true,
-      "reason": "Conditional candidate only. Protected verifier must prove the existing verified-state constraint is equivalent and not weaker; DROP/RECREATE history is recorded separately."
+      "reason": "Conditional candidate only. Protected verifier must independently prove the existing verified-state constraint is equivalent and not weaker under PostgreSQL CHECK semantics; DROP/RECREATE operation history remains recorded separately."
     },
     {
       "migration_name": "202608250002_g06_department_security_site_default_v1",
