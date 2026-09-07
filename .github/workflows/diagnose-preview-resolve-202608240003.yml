@@ -57,7 +57,7 @@ jobs:
           test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE"
           git merge-base --is-ancestor "$SOURCE_SHA" HEAD
           changed_files=$(git diff --name-only "$SOURCE_SHA" HEAD)
-          test -z "$(printf '%s\n' "$changed_files" | grep -Ev '^(\.github/workflows/diagnose-preview-resolve-202608240003\.yml|scripts/ci/diagnose-preview-resolve-ledger\.js|scripts/ci/diagnose-preview-migration-chain\.js|test/preview-resolve-ledger-diagnostic\.test\.js)$' || true)"
+          test -z "$(printf '%s\n' "$changed_files" | grep -Ev '^(\.github/workflows/diagnose-preview-resolve-202608240003\.yml|scripts/ci/diagnose-preview-resolve-ledger\.js|scripts/ci/diagnose-preview-migration-chain\.js|scripts/ci/diagnose-preview-migration-deep\.js|test/preview-resolve-ledger-diagnostic\.test\.js)$' || true)"
           test -f scripts/ci/diagnose-preview-migration-chain.js
           ! grep -Eiq 'migrate[[:space:]]+(resolve|deploy|reset)|INSERT[[:space:]]+INTO|UPDATE[[:space:]]+|DELETE[[:space:]]+FROM|ALTER[[:space:]]+TABLE' scripts/ci/diagnose-preview-migration-chain.js
           echo 'SOURCE_IDENTITY=PASS'
@@ -109,7 +109,7 @@ jobs:
           test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE"
           git merge-base --is-ancestor "$SOURCE_SHA" HEAD
           changed_files=$(git diff --name-only "$SOURCE_SHA" HEAD)
-          test -z "$(printf '%s\n' "$changed_files" | grep -Ev '^(\.github/workflows/diagnose-preview-resolve-202608240003\.yml|scripts/ci/diagnose-preview-resolve-ledger\.js|scripts/ci/diagnose-preview-migration-chain\.js|test/preview-resolve-ledger-diagnostic\.test\.js)$' || true)"
+          test -z "$(printf '%s\n' "$changed_files" | grep -Ev '^(\.github/workflows/diagnose-preview-resolve-202608240003\.yml|scripts/ci/diagnose-preview-resolve-ledger\.js|scripts/ci/diagnose-preview-migration-chain\.js|scripts/ci/diagnose-preview-migration-deep\.js|test/preview-resolve-ledger-diagnostic\.test\.js)$' || true)"
           echo 'SOURCE_IDENTITY=PASS'
 
       - name: Set up Node.js 22
@@ -131,6 +131,12 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/ci/diagnose-preview-migration-chain.js
+
+      - name: Deep read-only divergence and data-effect diagnosis
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/diagnose-preview-migration-deep.js
 
       - name: Read Prisma migration status only
         shell: bash

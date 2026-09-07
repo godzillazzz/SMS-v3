@@ -270,6 +270,7 @@ function parseMigration(name, sql) {
 
   return {
     name,
+    sql,
     checksum: crypto.createHash('sha256').update(sql).digest('hex'),
     statements,
     statementCount: statements.length,
@@ -405,9 +406,9 @@ function runSchemaDiff() {
   const stdout = String(result.stdout || '');
   const normalized = stdout.trim();
   const hash = crypto.createHash('sha256').update(stdout).digest('hex');
-  if (result.status !== 0) return { state: 'UNKNOWN', hash, statementCount: 'not_available' };
-  if (!normalized) return { state: 'PASS', hash, statementCount: 0 };
-  return { state: 'FAIL', hash, statementCount: splitStatements(stripSqlComments(stdout)).length };
+  if (result.status !== 0) return { state: 'UNKNOWN', hash, statementCount: 'not_available', output: stdout };
+  if (!normalized) return { state: 'PASS', hash, statementCount: 0, output: stdout };
+  return { state: 'FAIL', hash, statementCount: splitStatements(stripSqlComments(stdout)).length, output: stdout };
 }
 
 function classifyMigration(migration, comparison, fullSchema) {
@@ -542,4 +543,16 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseMigration, splitStatements, classifyMigration, rowState };
+module.exports = {
+  parseMigration,
+  splitStatements,
+  classifyMigration,
+  rowState,
+  normalizeWhitespace,
+  stripSqlComments,
+  readMigrations,
+  queryRaw,
+  loadInventory,
+  compareObject,
+  runSchemaDiff,
+};
