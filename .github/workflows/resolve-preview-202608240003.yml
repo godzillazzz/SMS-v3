@@ -1,0 +1,47 @@
+name: Resolve Preview Migration 202608240003 (Registration Shim)
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact source commit SHA on the authoritative release branch
+        required: true
+        type: string
+      source_tree:
+        description: Exact source tree SHA for source_sha
+        required: true
+        type: string
+      expected_migration_head:
+        description: Expected repository migration head after reconciliation
+        required: true
+        default: 202609010002_mdg_master_codes_department_site_authority
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  registration-only:
+    name: REGISTRATION_ONLY (no database access)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Prove harmless default-branch registration
+        env:
+          SOURCE_SHA_INPUT: ${{ inputs.source_sha }}
+          SOURCE_TREE_INPUT: ${{ inputs.source_tree }}
+          EXPECTED_HEAD_INPUT: ${{ inputs.expected_migration_head }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REF_NAME" = "main"
+          printf '%s\n' "$SOURCE_SHA_INPUT" | grep -Eq '^[0-9a-fA-F]{40}$'
+          printf '%s\n' "$SOURCE_TREE_INPUT" | grep -Eq '^[0-9a-fA-F]{40}$'
+          test "$EXPECTED_HEAD_INPUT" = '202609010002_mdg_master_codes_department_site_authority'
+          echo 'WORKFLOW_REGISTRATION_ONLY=PASS'
+          echo 'DATABASE_ACCESSED=NO'
+          echo 'RESOLVE_EXECUTED=NO'
+          echo 'MIGRATION_EXECUTED=NO'
+          echo 'ENVIRONMENT_ATTACHED=NO'
+          echo 'SECRETS_REFERENCED=NO'
+          echo 'DEPLOYMENT_PERFORMED=NO'
