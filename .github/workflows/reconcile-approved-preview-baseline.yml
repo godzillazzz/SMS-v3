@@ -136,6 +136,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          npx --no-install prisma migrate resolve --applied 202608240004_g06_attendance_event_workflow_v1
           npx --no-install prisma migrate resolve --applied 202608250001_g06_face_match_only_mode_v1
           npx --no-install prisma migrate resolve --applied 202608250002_g06_department_security_site_default_v1
           npx --no-install prisma migrate resolve --applied 202608250003_attendance_governance_v1
@@ -169,7 +170,8 @@ jobs:
             echo '### Governed Preview baseline reconstruction package'
             echo '- Target: sms-v3-preview (fingerprint guarded)'
             echo '- Source and semantic preflight: PASS'
-            echo '- Allowlist: hardcoded, ordered, no-data only'
+            echo '- Allowlist: hardcoded, repository-ordered, no-data only'
+            echo '- First conditional candidate: 202608240004_g06_attendance_event_workflow_v1'
             echo '- Business data mutation: NO'
             echo '- Canonical migration deploy: NO'
             echo '- Production database accessed: NO'
