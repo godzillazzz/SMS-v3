@@ -157,8 +157,10 @@ function normalizeSqlExpression(value) {
   do {
     previous = text;
     text = text
-      .replace(/=\s*any\s*\(\s*\(?\s*array\s*\[([^\]]*)\]\s*\)?\s*\)/gi, ' in ($1)')
-      .replace(/<>\s*all\s*\(\s*\(?\s*array\s*\[([^\]]*)\]\s*\)?\s*\)/gi, ' not in ($1)')
+      .replace(/=\s*any\s*\(\s*\(\s*array\s*\[([^\]]*)\]\s*\)\s*\)/gi, ' in ($1)')
+      .replace(/=\s*any\s*\(\s*array\s*\[([^\]]*)\]\s*\)/gi, ' in ($1)')
+      .replace(/<>\s*all\s*\(\s*\(\s*array\s*\[([^\]]*)\]\s*\)\s*\)/gi, ' not in ($1)')
+      .replace(/<>\s*all\s*\(\s*array\s*\[([^\]]*)\]\s*\)/gi, ' not in ($1)')
       .replace(/\(\s*([a-z_][a-z0-9_]*)\s*\)/gi, '$1')
       .replace(/\s*,\s*/g, ',')
       .replace(/\s*([()=<>~])\s*/g, '$1')
