@@ -1,0 +1,42 @@
+name: Reconcile Approved Preview Baseline (Registration Shim)
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact release-source commit SHA to inspect
+        required: true
+        type: string
+      source_tree:
+        description: Exact tree SHA for source_sha
+        required: true
+        type: string
+      expected_migration_head:
+        description: Expected repository migration head after later canonical deploy
+        required: true
+        default: 202609010002_mdg_master_codes_department_site_authority
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  registration-only:
+    name: Registration-only no-op
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Emit registration evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test -n "${{ inputs.source_sha }}"
+          test -n "${{ inputs.source_tree }}"
+          test -n "${{ inputs.expected_migration_head }}"
+          echo 'WORKFLOW_REGISTRATION_ONLY=PASS'
+          echo 'DATABASE_ACCESSED=NO'
+          echo 'RESOLVE_EXECUTED=NO'
+          echo 'MIGRATION_DEPLOY_EXECUTED=NO'
+          echo 'ENVIRONMENT_ATTACHED=NO'
+          echo 'SECRETS_REFERENCED=NO'
