@@ -59,7 +59,10 @@ function hasDataStatements(sql) {
 }
 
 function fileSha256(filePath) {
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+  // Migration checksums are defined over canonical UTF-8/LF text so the
+  // source authority is identical on Windows and Linux checkouts.
+  const canonical = fs.readFileSync(filePath, 'utf8').replace(/\r\n?/g, '\n');
+  return crypto.createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 
 function gitValue(args, cwd) {
