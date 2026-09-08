@@ -40,9 +40,13 @@ test('active leave runtime contains no old 30/6/10 fallback or employee-only quo
   assert.match(routes, /persistedUsageByQuotaYear/);
 });
 
-test('report summary current quota KPI is scoped to Bangkok current year', () => {
+test('report summary quota KPI is scoped to the selected Bangkok report period', () => {
   const routes = read('src/routes/operations.routes.js');
-  assert.match(routes, /leaveQuota\.count\(\{ where: \{ quotaYear: bangkokQuotaYear\(\) \} \}\)/);
+  const service = read('src/services/report-summary.service.js');
+  assert.match(routes, /router\.get\('\/reports\/summary', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(routes, /getReportSummary\(\{ prismaClient: prisma, requestUser: currentUser, filters: parsedQuery\.data/);
+  assert.match(service, /quotaYear: period\.year/);
+  assert.match(service, /currentBangkokPeriod/);
 });
 
 test('G03.1 preflight command is read-only by source contract', () => {

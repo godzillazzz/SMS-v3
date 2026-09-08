@@ -23,7 +23,7 @@ export type DataQualityIssue = {
   employeeName?: string | null;
   department?: string | null;
   detectedValue?: string | null;
-  targetPage?: 'licenses' | 'quota' | string;
+  targetPage?: 'licenses' | 'quota' | 'leaveHistory' | string;
 };
 
 type Summary = { total?: number; critical?: number; warning?: number; info?: number };
@@ -42,11 +42,14 @@ type Props = {
   onRefresh(): void;
   onPageChange(page: number): void;
   onPageSize(value: number): void;
-  onNavigate(page: 'licenses' | 'quota'): void;
+  onNavigate(page: 'licenses' | 'quota' | 'leaveHistory'): void;
 };
 
 const ruleLabels: Record<string, string> = {
   LEAVE_QUOTA_UNMATCHED: 'โควต้าวันลายังไม่จับคู่',
+  LEAVE_QUOTA_YEAR_UNCLASSIFIED: 'ข้อมูลโควตาเดิมยังไม่ระบุปี',
+  LEAVE_QUOTA_ANNUAL_DUPLICATE: 'พบสิทธิ์วันลารายปีซ้ำ',
+  AMBIGUOUS_LEGACY_CROSS_YEAR_DAY_COUNT: 'ใบลาข้ามปีเดิมแบ่งปีไม่ได้',
   LICENSE_EXPIRED: 'ใบอนุญาตหมดอายุ',
   LICENSE_EXPIRING_WITHIN_30_DAYS: 'ใบอนุญาตใกล้หมดอายุ ≤ 30 วัน',
   LICENSE_EXPIRING_31_TO_90_DAYS: 'ใบอนุญาตใกล้หมดอายุ 31–90 วัน'
@@ -72,7 +75,10 @@ function severityClass(value: string) {
 }
 
 function targetLabel(page?: string) {
-  return page === 'quota' ? 'เปิดโควต้าวันลา' : page === 'licenses' ? 'เปิดใบอนุญาต' : '';
+  if (page === 'quota') return 'เปิดโควต้าวันลา';
+  if (page === 'licenses') return 'เปิดใบอนุญาต';
+  if (page === 'leaveHistory') return 'เปิดประวัติการลา';
+  return '';
 }
 
 function FilterBar({ filters, onFiltersChange }: Pick<Props, 'filters' | 'onFiltersChange'>) {
@@ -91,9 +97,10 @@ function SeverityBadge({ value }: { value: string }) {
   return <span className={`data-quality-severity ${severityClass(value)}`}>{label(value, severityLabels)}</span>;
 }
 
-function TargetAction({ issue, onNavigate }: { issue: DataQualityIssue; onNavigate(page: 'licenses' | 'quota'): void }) {
-  if (issue.targetPage !== 'licenses' && issue.targetPage !== 'quota') return <span className="data-quality-muted">—</span>;
-  return <button type="button" className="data-quality-target" onClick={() => onNavigate(issue.targetPage as 'licenses' | 'quota')}>{targetLabel(issue.targetPage)}</button>;
+function TargetAction({ issue, onNavigate }: { issue: DataQualityIssue; onNavigate(page: 'licenses' | 'quota' | 'leaveHistory'): void }) {
+  if (issue.targetPage !== 'licenses' && issue.targetPage !== 'quota' && issue.targetPage !== 'leaveHistory') return <span className="data-quality-muted">—</span>;
+  const identity = issue.employeeCode || issue.entityId;
+  return <button type="button" className="data-quality-target" aria-label={`${targetLabel(issue.targetPage)} · ${identity}`} onClick={() => onNavigate(issue.targetPage as 'licenses' | 'quota' | 'leaveHistory')}>{targetLabel(issue.targetPage)}</button>;
 }
 
 

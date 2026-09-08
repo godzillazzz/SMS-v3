@@ -259,7 +259,12 @@ export const api = {
   rejectRegistrationRequest: (token: string, id: string, reason: string) => call(`/registration-requests/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify({ reason }), headers: { Authorization: `Bearer ${token}` } }),
   auditEvents: (token: string, page = 1, pageSize = 25, filters: { dateFrom?: string; dateTo?: string; actor?: string; entityType?: string; action?: string; search?: string; category?: string } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) }); Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); }); return call(`/audit-events?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
   dataQualityIssues: (token: string, page = 1, pageSize = 25, filters: { severity?: string; module?: string; rule?: string; department?: string; search?: string } = {}) => { const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) }); Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); }); return call(`/data-quality/issues?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } }); },
-  reportSummary: (token: string) => call('/reports/summary', { headers: { Authorization: `Bearer ${token}` } }),
+  reportSummary: (token: string, filters: { year?: number; month?: number; department?: string } = {}) => {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') params.set(key, String(value)); });
+    const query = params.toString();
+    return call(`/reports/summary${query ? `?${query}` : ''}`, { headers: { Authorization: `Bearer ${token}` } });
+  },
   createEmployee: (token: string, data: unknown) => call('/employees', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateEmployee: (token: string, id: string, data: unknown) => call(`/employees/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   personnelMasters: (token: string, activeOnly = true) => call(`/personnel-masters?activeOnly=${activeOnly ? 'true' : 'false'}`, { headers: { Authorization: `Bearer ${token}` } }),

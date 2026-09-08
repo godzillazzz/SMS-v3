@@ -88,5 +88,8 @@ describe('Data Quality Center V1 contract', () => {
     expect(page).toContain("issue.targetPage !== 'licenses' && issue.targetPage !== 'quota'");
     expect(page).toContain('ไม่พบรายการคุณภาพข้อมูล');
     expect(page).toContain('ลองใหม่');
+    expect(page).toContain('AMBIGUOUS_LEGACY_CROSS_YEAR_DAY_COUNT');
+    expect(page).toContain('เปิดประวัติการลา');
+    expect(page).toContain('aria-label={`${targetLabel(issue.targetPage)} · ${identity}`}');
   });
 });

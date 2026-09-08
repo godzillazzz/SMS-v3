@@ -66,16 +66,22 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
   }, [filters.year, filters.month, filters.department]);
 
   useEffect(() => {
+    setSummary(undefined);
+    setSummaryError(undefined);
+    setSummaryLoaded(false);
+  }, [filters.year, filters.month, filters.department]);
+
+  useEffect(() => {
     if (activeTab !== 'details' || summaryLoaded) return;
     let active = true;
     setSummaryLoading(true);
     setSummaryError(undefined);
-    api.reportSummary(token)
+    api.reportSummary(token, { year: filters.year, month: filters.month, department: filters.department || undefined })
       .then((response) => { if (active) { setSummary((!Array.isArray(response.data) ? response.data : {}) as ReportSummary); setSummaryLoaded(true); } })
       .catch((reason) => { if (active) { setSummaryLoaded(true); setSummaryError(toRequestErrorState(reason, 'ไม่สามารถโหลดรายงานรายละเอียดได้ กรุณาลองใหม่อีกครั้ง')); } })
       .finally(() => { if (active) setSummaryLoading(false); });
     return () => { active = false; };
-  }, [activeTab, token, summaryRefresh, summaryLoaded]);
+  }, [activeTab, token, summaryRefresh, summaryLoaded, filters.year, filters.month, filters.department]);
 
   const exportPdf = () => {
     if (!executiveReport) return;
@@ -95,7 +101,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
         <label><span>ปี</span><select value={filters.year} onChange={(event) => setFilters((value) => ({ ...value, year: Number(event.target.value) }))}>{years.map((item) => <option key={item} value={item}>พ.ศ. {item + 543}</option>)}</select></label>
         {role === 'ADMIN' && <label><span>หน่วยงาน</span><select value={filters.department} onChange={(event) => setFilters((value) => ({ ...value, department: event.target.value }))}><option value="">ทุกหน่วยงาน</option>{departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}
       </div>
-      {activeTab === 'details' && <p className="report-center-filter-note">รายงานรายละเอียดใช้ยอดรวมปัจจุบันจาก API เดิม และไม่ส่งตัวกรองช่วงเวลา/หน่วยงานที่ backend ยังไม่รองรับ</p>}
+      {activeTab === 'details' && <p className="report-center-filter-note">รายงานรายละเอียดใช้ช่วงเดือน/ปีและขอบเขตหน่วยงานเดียวกับตัวกรองด้านบน โดยคำนวณจากข้อมูลฝั่งเซิร์ฟเวอร์</p>}
       {activeTab === 'export' && role === 'ADMIN' && <p className="report-center-filter-note">Official Attendance Report ใช้เดือน/ปีที่เลือกและ Certified Snapshot ทั้งองค์กร ไม่ใช้ตัวกรองหน่วยงานของ Executive Report</p>}
     </section>
 
@@ -113,7 +119,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
       <section className="report-center-section-heading"><div><p className="eyebrow">DETAILED REPORTS</p><h2>รายงานรายละเอียด</h2><p>สรุปข้อมูลปฏิบัติงานจากชุดข้อมูลและ API เดิม โดยไม่เปลี่ยนสูตรคำนวณ</p></div><button type="button" className="btn-neutral small-action" disabled={summaryLoading} onClick={() => { setSummaryLoaded(false); setSummaryRefresh((value) => value + 1); }}>↻ รีเฟรช</button></section>
       {summaryLoading && <div className="report-center-state" role="status">กำลังสรุปข้อมูล…</div>}
       {summaryError && <div className="report-center-state report-center-state--error" role="alert"><strong>ไม่สามารถโหลดรายงานรายละเอียด</strong><RequestErrorContent error={summaryError} /></div>}
-      {!summaryLoading && !summaryError && summary && <div className="metrics-grid report-grid">{summaryCards.map(([label, key]) => <article className="metric-card" key={String(key)}><span className="metric-icon blue">▦</span><div><p>{label}</p><strong>{String(summary[key] ?? 0)}</strong><small>รายการปัจจุบัน</small></div></article>)}</div>}
+      {!summaryLoading && !summaryError && summary && <div className="metrics-grid report-grid">{summaryCards.map(([label, key]) => <article className="metric-card" key={String(key)}><span className="metric-icon blue">▦</span><div><p>{label}</p><strong>{String(summary[key] ?? 0)}</strong><small>ตามช่วงและขอบเขตที่เลือก</small></div></article>)}</div>}
       {!summaryLoading && !summaryError && summary && summaryCards.every(([, key]) => Number(summary[key] || 0) === 0) && <div className="report-center-state"><strong>ยังไม่มีข้อมูลสรุป</strong><span>ไม่พบรายการในชุดข้อมูลรายงานปัจจุบัน</span></div>}
     </div>
 
