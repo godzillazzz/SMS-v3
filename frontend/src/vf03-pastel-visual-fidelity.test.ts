@@ -132,6 +132,6 @@ describe('G04.2 VF-03 colorful pastel + midnight dark visual contract', () => {
   });
 
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(apiSha256).toBe('3c8fe9ebe9a8ad1c46cd70cf92c4bdbd5daf333183fb6b7069696ac7e6274641');
+    expect(apiSha256).toBe('ebcfb2ead712a6a81ee94f87c48eb85d8c0972f735e48b40bdda279d12ad078e');
   });
 });

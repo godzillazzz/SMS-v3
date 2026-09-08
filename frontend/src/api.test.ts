@@ -130,6 +130,13 @@ describe('API client', () => {
     const [path] = fetchMock.mock.calls[0];
     expect(path).toBe('/api/v1/dashboard?date=2026-08-04&month=2026-08&department=Security');
   });
+  it('sends Report Center detail filters to the server-side summary endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: {} }) });
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+    await api.reportSummary('test-access-token', { year: 2026, month: 8, department: 'Security' });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/reports/summary?year=2026&month=8&department=Security');
+  });
   it('sends the selected leave history month with the paginated request', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => ({ data: [], meta: { total: 0 } }) });
     vi.stubGlobal('document', { cookie: '' });

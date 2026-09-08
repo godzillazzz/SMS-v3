@@ -27,20 +27,21 @@ describe('Unified Report Center V1 source contract', () => {
     for (const label of ['ภาพรวมผู้บริหาร', 'รายงานรายละเอียด', 'Export']) expect(page).toContain(label);
   });
 
-  it('keeps shared month/year/department filter state while preserving backend support boundaries', () => {
+  it('passes shared month/year/department filters to the detailed summary API', () => {
     expect(page).toContain('useState<ExecutiveReportFilters>');
     expect(page).toContain('filters={filters} onFiltersChange={setFilters}');
     expect(page).toContain("role === 'ADMIN'");
-    expect(page).toContain('api.reportSummary(token)');
-    expect(page).not.toContain('api.reportSummary(token,');
-    expect(page).toContain('backend ยังไม่รองรับ');
+    expect(page).toContain('api.reportSummary(token, { year: filters.year, month: filters.month, department: filters.department || undefined })');
+    expect(page).toContain('โดยคำนวณจากข้อมูลฝั่งเซิร์ฟเวอร์');
+    expect(page).toContain('ตามช่วงและขอบเขตที่เลือก');
   });
 
-  it('reuses the existing Executive Report and report-summary API contracts without backend changes', () => {
+  it('reuses the existing Executive Report and extends the report-summary API contract', () => {
     expect(page).toContain('<ExecutiveReportCenterPage');
     expect(executive).toContain('api.executiveReport(token, { year, month, department: department || undefined })');
     expect(api).toContain("executiveReport: (token: string, filters: { year?: number; month?: number; department?: string } = {})");
-    expect(api).toContain("reportSummary: (token: string) => call('/reports/summary'");
+    expect(api).toContain("reportSummary: (token: string, filters: { year?: number; month?: number; department?: string } = {})");
+    expect(api).toContain("/reports/summary${query ? `?${query}` : ''}");
   });
 
   it('exposes only the existing PDF export capability and keeps an isolated print document mounted', () => {

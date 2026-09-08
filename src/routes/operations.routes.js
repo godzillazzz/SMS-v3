@@ -41,6 +41,7 @@ const { getAuditLogPage } = require('../services/audit-log-viewer.service');
 const systemSettingHistoryService = require('../services/system-setting-history.service');
 const { assertSystemSettingChangeSafe, guardrailMetadata } = require('../services/system-setting-guardrail.service');
 const { getExecutiveReport } = require('../services/executive-report.service');
+const { getReportSummary, reportSummaryQuery } = require('../services/report-summary.service');
 const { ensureEmployeeOperationalForShift, projectedScheduleConflictIds } = require('../services/employee-operational-eligibility.service');
 const shiftService = require('../services/shift.service');
 const HttpError = require('../utils/http-error');
@@ -1619,15 +1620,12 @@ router.get('/audit-events', authorize('ADMIN'), async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/reports/summary', authorize('ADMIN', 'MANAGER'), async (_req, res, next) => {
+router.get('/reports/summary', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const [employees, activeEmployees, licenses, shifts, leaveRequests, leaveQuotas, users] = await prisma.$transaction([
-      prisma.employee.count({ where: { deletedAt: null } }),
-      prisma.employee.count({ where: { deletedAt: null, isActive: true } }),
-      prisma.employeeLicense.count(), prisma.shiftAssignment.count(), prisma.leaveRequest.count(),
-      prisma.leaveQuota.count({ where: { quotaYear: bangkokQuotaYear() } }), prisma.user.count()
-    ]);
-    res.json({ data: { employees, activeEmployees, licenses, shifts, leaveRequests, leaveQuotas, users } });
+    const parsedQuery = reportSummaryQuery.safeParse(req.query);
+    if (!parsedQuery.success) throw new HttpError(400, 'Report summary filter is invalid.');
+    const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { role: true, employeeId: true, department: true } });
+    res.json({ data: await getReportSummary({ prismaClient: prisma, requestUser: currentUser, filters: parsedQuery.data, requestId: req.requestId }) });
   } catch (error) { next(error); }
 });
 
