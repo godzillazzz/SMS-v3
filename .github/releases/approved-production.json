@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "release_id": "sms-v3-prod-10441a1-20260906",
+  "release_id": "sms-v3-prod-6eea95d-20260908",
   "manifest_state": "APPROVED_FOR_OWNER_PRODUCTION_DECISION",
-  "commit_sha": "10441a1edd8df85136a1dca0b49199f51839359b",
-  "tree_sha": "bdac3b2a6a4170b1a2083e2f6301104520a1444a",
-  "current_production_source_sha": "7d4e911aca8c256233849044a1e131dc7710965d",
-  "rollback_deployment_id": "dpl_34raoVyNfa278bgsBST9SocDDQyS",
+  "commit_sha": "6eea95d23057d448be012f96e4e37785d4603a95",
+  "tree_sha": "fb4aa8fca91045cd37d4a1a59f069b50ee8fa8cf",
+  "current_production_source_sha": "10441a1edd8df85136a1dca0b49199f51839359b",
+  "rollback_deployment_id": "dpl_B9zdfWcKxEpDes1NMkhgHnuHe1kM",
   "target_project_name": "sms-v3-staging",
   "target_project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
   "target_org_id": "team_nemCExHbZ8EAhSgsvefHPAEz",
@@ -15,5 +15,9 @@
   "run_migrations": false,
   "owner_action": "APPROVE_PRODUCTION_ONLY",
   "rollback_policy": "AUTO_ROLLBACK_ON_POST_DEPLOY_VERIFY_FAILURE",
-  "database_change_policy": "NO_DATABASE_CHANGES"
+  "database_change_policy": "NO_DATABASE_CHANGES",
+  "production_environment_change_policy": "NO_ENVIRONMENT_CHANGES",
+  "cors_policy": "EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY",
+  "deployment_method": "GOVERNED_VERCEL_LINUX_PREBUILT_EXPLICIT_PROMOTION",
+  "post_deploy_verification_plan": "IMMUTABLE_AND_CANONICAL_HEALTH_READY_AUTH_CORS_UI_SENTINELS_AUTO_ROLLBACK"
 }
