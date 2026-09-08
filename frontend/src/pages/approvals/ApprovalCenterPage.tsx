@@ -3,6 +3,7 @@ import { api } from '../../api';
 import { getApprovalCenter } from '../../approval-center-client';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
+import type { LeaveDecisionAction } from '../../components/LeaveDecisionConfirmation';
 import '../../styles/approval-center.css';
 
 type ApprovalUrgency = 'NEW' | 'DUE_SOON' | 'OVERDUE';
@@ -16,7 +17,7 @@ type ApprovalType =
   | 'USER_ACCESS'
   | 'LEAVE_REQUEST';
 type ApprovalSourcePage = 'employees' | 'licenses' | 'attendanceDevice' | 'attendance' | 'users' | 'leavePending';
-type ApprovalItem = {
+export type ApprovalCenterItem = {
   id: string;
   requestId: string;
   type: ApprovalType;
@@ -44,10 +45,12 @@ type Summary = {
 type Props = {
   token: string;
   role: string;
+  currentEmployeeId?: string;
   refreshKey?: number;
   onChanged(): void;
   onOpenEmployeeChange(requestId: string): void;
-  onNavigate(item: ApprovalItem): void;
+  onNavigate(item: ApprovalCenterItem): void;
+  onLeaveDecision(item: ApprovalCenterItem, action: LeaveDecisionAction): void;
 };
 
 const typeLabel: Record<ApprovalType, string> = {
@@ -60,7 +63,7 @@ const typeLabel: Record<ApprovalType, string> = {
   USER_ACCESS: 'เปิดสิทธิ์ผู้ใช้',
   LEAVE_REQUEST: 'คำขอลา'
 };
-const urgencyLabel = (item: ApprovalItem) => {
+const urgencyLabel = (item: ApprovalCenterItem) => {
   if (item.urgency === 'NEW') return 'ใหม่';
   if (item.urgency === 'DUE_SOON') return `ใกล้ SLA · ${item.sla?.dueSoonHours ?? '—'} ชม.`;
   return `เกิน SLA · ${item.sla?.overdueHours ?? '—'} ชม.`;
@@ -72,11 +75,11 @@ const dateOnly = (value: unknown) => {
   const parsed = new Date(String(value));
   return Number.isNaN(parsed.getTime()) ? String(value) : new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeZone: 'Asia/Bangkok' }).format(parsed);
 };
-const employeeName = (item?: ApprovalItem) => item?.employee?.displayName || [item?.employee?.firstName, item?.employee?.lastName].filter(Boolean).join(' ') || item?.requestedBy?.displayName || item?.title || 'รายการคำขอ';
-const requestSubject = (item?: ApprovalItem) => item?.type === 'REGISTRATION_REQUEST'
+const employeeName = (item?: ApprovalCenterItem) => item?.employee?.displayName || [item?.employee?.firstName, item?.employee?.lastName].filter(Boolean).join(' ') || item?.requestedBy?.displayName || item?.title || 'รายการคำขอ';
+const requestSubject = (item?: ApprovalCenterItem) => item?.type === 'REGISTRATION_REQUEST'
   ? (item.requestedBy?.displayName || item.title || 'คำขอลงทะเบียน')
   : employeeName(item);
-const requestContext = (item: ApprovalItem) => item.type === 'REGISTRATION_REQUEST'
+const requestContext = (item: ApprovalCenterItem) => item.type === 'REGISTRATION_REQUEST'
   ? (item.status === 'MATCHED' ? 'จับคู่ Employee Master แล้ว' : 'รอจับคู่ Employee Master')
   : (item.employee?.employeeCode || item.status);
 const bytes = (value?: number) => !value ? '—' : value < 1024 * 1024 ? Math.max(1, Math.round(value / 1024)) + ' KB' : (value / 1024 / 1024).toFixed(1) + ' MB';
@@ -107,8 +110,8 @@ const metadataLabels: Record<string, string> = {
 };
 const dateMetadata = new Set(['startDate', 'endDate', 'proposedStartDate', 'proposedExpiryDate', 'workDate']);
 
-export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onOpenEmployeeChange, onNavigate }: Props) {
-  const [items, setItems] = useState<ApprovalItem[]>([]);
+export function ApprovalCenterPage({ token, role, currentEmployeeId, refreshKey = 0, onChanged, onOpenEmployeeChange, onNavigate, onLeaveDecision }: Props) {
+  const [items, setItems] = useState<ApprovalCenterItem[]>([]);
   const [summary, setSummary] = useState<Summary>({ total: 0, byType: {}, dueSoon: 0, overdue: 0 });
   const [selectedId, setSelectedId] = useState('');
   const [filter, setFilter] = useState<'ALL' | ApprovalType>('ALL');
@@ -124,7 +127,7 @@ export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onO
     setError(undefined);
     try {
       const result = await getApprovalCenter(token);
-      const next = Array.isArray(result?.data) ? result.data as ApprovalItem[] : [];
+      const next = Array.isArray(result?.data) ? result.data as ApprovalCenterItem[] : [];
       setItems(next);
       setSummary({
         total: Number(result?.summary?.total || 0),
@@ -145,6 +148,7 @@ export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onO
 
   const visible = useMemo(() => filter === 'ALL' ? items : items.filter((item) => item.type === filter), [items, filter]);
   const selected = items.find((item) => item.id === selectedId);
+  const selectedLeaveIsSelf = selected?.type === 'LEAVE_REQUEST' && Boolean(currentEmployeeId) && selected.employee?.id === currentEmployeeId;
   const availableTypes = useMemo(() => (Object.keys(typeLabel) as ApprovalType[]).filter((type) => Number(summary.byType?.[type] || 0) > 0), [summary.byType]);
 
   useEffect(() => {
@@ -233,6 +237,12 @@ export function ApprovalCenterPage({ token, role, refreshKey = 0, onChanged, onO
               <label><span>เหตุผลที่ไม่อนุมัติ</span><textarea rows={3} maxLength={1000} value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} placeholder="ระบุอย่างน้อย 3 ตัวอักษร" /></label>
               <button type="button" className="btn-danger-outline" disabled={busy || rejectReason.trim().length < 3} onClick={() => void completePhotoAction('reject')}>ไม่อนุมัติ</button>
             </div>}
+          </div> : selected.type === 'LEAVE_REQUEST' ? <div className="approval-center-master approval-center-source-review approval-center-leave-review">
+            <h3>พิจารณาคำขอลา</h3>
+            {metadataRows.length ? <dl className="approval-center-source-meta">{metadataRows.map(([key, value]) => <div key={key}><dt>{metadataLabels[key] || key}</dt><dd>{dateMetadata.has(key) ? dateOnly(value) : text(value)}</dd></div>)}</dl> : null}
+            {selectedLeaveIsSelf ? <div className="approval-center-leave-self-block" role="status"><strong>ไม่สามารถอนุมัติใบลาของตนเอง</strong><span>ระบบซ่อนการตัดสินใจนี้ไว้ และ backend ยังคงตรวจสอบสิทธิ์อีกชั้นหนึ่ง</span></div> : <div className="approval-center-leave-actions" aria-label="การตัดสินใจคำขอลา"><button type="button" className="btn-success compact" disabled={busy} onClick={() => onLeaveDecision(selected, 'approve')}><SmsIcon name="check" size={16} />อนุมัติ</button><button type="button" className="btn-warning compact" disabled={busy} onClick={() => onLeaveDecision(selected, 'return')}>ส่งกลับไปแก้ไข</button><button type="button" className="btn-danger-outline" disabled={busy} onClick={() => onLeaveDecision(selected, 'reject')}>ไม่อนุมัติ</button></div>}
+            <p>การตัดสินใจใช้ confirmation, validation, RBAC และ Audit ของ Leave workflow เดิม แล้วรีเฟรชคิวทันทีเมื่อสำเร็จ</p>
+            <button type="button" className="btn-neutral compact" onClick={() => onNavigate(selected)}>เปิด Leave Workspace แบบเต็ม</button>
           </div> : <div className="approval-center-master approval-center-source-review">
             <h3>รายละเอียดคำขอ</h3>
             {metadataRows.length ? <dl className="approval-center-source-meta">{metadataRows.map(([key, value]) => <div key={key}><dt>{metadataLabels[key] || key}</dt><dd>{dateMetadata.has(key) ? dateOnly(value) : text(value)}</dd></div>)}</dl> : <p>เปิดโมดูลต้นทางเพื่อดูรายละเอียดและดำเนินการตาม workflow เดิมของระบบ</p>}

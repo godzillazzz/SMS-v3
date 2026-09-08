@@ -2270,6 +2270,7 @@ function Dashboard() {
       else if (request.action === 'cancel') await api.cancelLeaveRequest(auth.token, id, reason || '');
       else await api.updateLeaveRequest(auth.token, id, { status: request.action === 'approve' ? 'APPROVED' : 'REJECTED' });
       setOperationRefresh((value) => value + 1);
+      setApprovalCenterRefresh((value) => value + 1);
       return true;
     } catch (requestError) {
       setOperationError(toRequestErrorState(requestError, 'ดำเนินการไม่สำเร็จ'));
@@ -2543,7 +2544,7 @@ function Dashboard() {
         </section>
       );
     }
-    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { setActivePage(item.sourcePage); }} />;
+    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { setActivePage(item.sourcePage); }} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
     if (activePage === 'employees') return <PersonnelDirectoryPage employees={employees} token={auth.token} totalCount={totalCount} loading={empLoading} error={typeof fetchError === 'string' ? fetchError : fetchError?.message} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} onRefresh={() => setEmployeeRefresh((value) => value + 1)} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];

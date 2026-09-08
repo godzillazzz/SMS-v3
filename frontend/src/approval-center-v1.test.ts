@@ -59,6 +59,19 @@ describe('Approval Center V2 unified frontend contracts', () => {
     expect(review).toContain('revision.afterSnapshot[field]');
   });
 
+  it('integrates Leave decisions through the existing governed confirmation path without creating a client authority path', () => {
+    expect(page).toContain("selected.type === 'LEAVE_REQUEST'");
+    expect(page).toContain("onLeaveDecision(selected, 'approve')");
+    expect(page).toContain("onLeaveDecision(selected, 'return')");
+    expect(page).toContain("onLeaveDecision(selected, 'reject')");
+    expect(page).toContain('selectedLeaveIsSelf');
+    expect(page).toContain('backend ยังคงตรวจสอบสิทธิ์อีกชั้นหนึ่ง');
+    expect(main).toContain('onLeaveDecision={(item, action) => openLeaveDecision(');
+    expect(main).toContain('setApprovalCenterRefresh((value) => value + 1);');
+    expect(main).toContain('await api.returnLeaveRequestForCorrection');
+    expect(main).toContain("await api.updateLeaveRequest(auth.token, id, { status: request.action === 'approve' ? 'APPROVED' : 'REJECTED' })");
+  });
+
   it('shows governed SLA reminder states and unified detail styling', () => {
     expect(page).toContain("ใกล้ SLA · ${item.sla?.dueSoonHours ?? '—'} ชม.");
     expect(page).toContain("เกิน SLA · ${item.sla?.overdueHours ?? '—'} ชม.");
