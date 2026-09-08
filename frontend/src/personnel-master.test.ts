@@ -16,6 +16,14 @@ describe('EMP-UX Department / Position Master frontend authority', () => {
     expect(panel).toContain('api.updatePersonnelMaster');
     expect(panel).not.toContain('deletePersonnelMaster');
   });
+  it('wires the existing governed update path for editable name and sort order only', () => {
+    expect(panel).toContain("input: Pick<MasterRow, 'name' | 'sortOrder'>");
+    expect(panel).toContain('api.updatePersonnelMaster(token, kind, row.id, input)');
+    expect(panel).toContain('setEditName(row.name)');
+    expect(panel).toContain('setEditSortOrder(String(row.sortOrder))');
+    expect(panel).toContain('รหัส Master คงที่เพื่อรักษา reference integrity');
+    expect(panel).not.toContain('code: editName');
+  });
   it('new Employee Department and Position fields are Master-backed selects', () => {
     const block = main.slice(main.indexOf('const openEmployeeEditor'), main.indexOf('const [shiftEditorTarget'));
     expect(block).toContain('api.personnelMasters(auth.token, true)');

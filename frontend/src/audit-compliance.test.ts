@@ -27,6 +27,10 @@ describe('admin audit log viewer contract', () => {
     expect(dataTable).toContain('หน้า {page} จาก {totalPages}');
   });
 
+  it('exposes existing governed master and configuration audit entities in the filter', () => {
+    for (const entityType of ['DepartmentMaster', 'PositionMaster', 'SecuritySite', 'SecuritySiteDepartment', 'ApprovalAuthorityPolicy', 'RetentionPolicyChange']) expect(toolbar).toContain(`'${entityType}'`);
+  });
+
   it('keeps details read-only, redacted, and usable on mobile', () => {
     expect(table).toContain('Unknown / Deleted User');
     expect(table).toContain('ดูรายละเอียด');
