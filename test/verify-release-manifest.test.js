@@ -24,6 +24,10 @@ function validManifest() {
     owner_action: 'APPROVE_PRODUCTION_ONLY',
     rollback_policy: 'AUTO_ROLLBACK_ON_POST_DEPLOY_VERIFY_FAILURE',
     database_change_policy: 'NO_DATABASE_CHANGES',
+    production_environment_change_policy: 'NO_ENVIRONMENT_CHANGES',
+    cors_policy: 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY',
+    deployment_method: 'GOVERNED_VERCEL_LINUX_PREBUILT_EXPLICIT_PROMOTION',
+    post_deploy_verification_plan: 'IMMUTABLE_AND_CANONICAL_HEALTH_READY_AUTH_CORS_UI_SENTINELS_AUTO_ROLLBACK',
   };
 }
 
@@ -69,6 +73,22 @@ test('fails closed when rollback safety policy is weakened', () => {
   assert.throws(() => validateReleaseManifest(manifest), /rollback_policy mismatch/);
 });
 
+test('fails closed when the manifest permits a Production environment mutation', () => {
+  const manifest = validManifest();
+  manifest.production_environment_change_policy = 'ENVIRONMENT_CHANGE_ALLOWED';
+  assert.throws(() => validateReleaseManifest(manifest), /production_environment_change_policy mismatch/);
+});
+
+test('fails closed when a CORS policy or deployment verification plan is changed', () => {
+  const manifest = validManifest();
+  manifest.cors_policy = 'WILDCARD';
+  assert.throws(() => validateReleaseManifest(manifest), /cors_policy mismatch/);
+
+  manifest.cors_policy = 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY';
+  manifest.post_deploy_verification_plan = 'SKIP';
+  assert.throws(() => validateReleaseManifest(manifest), /post_deploy_verification_plan mismatch/);
+});
+
 test('fails closed when a pre-applied migration lacks exact workflow evidence', () => {
   const manifest = validManifest();
   manifest.database_change_policy = 'PRE_APPLIED_APPROVED_MIGRATION';
@@ -83,16 +103,19 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest resolves WAVE 4 governed exact target with no database changes', () => {
+test('current approved Production manifest resolves WAVE 5 governed exact target with no database changes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-10441a1-20260906');
-  assert.equal(result.commitSha, '10441a1edd8df85136a1dca0b49199f51839359b');
-  assert.equal(result.treeSha, 'bdac3b2a6a4170b1a2083e2f6301104520a1444a');
-  assert.equal(result.currentProductionSourceSha, '7d4e911aca8c256233849044a1e131dc7710965d');
-  assert.equal(result.rollbackDeploymentId, 'dpl_34raoVyNfa278bgsBST9SocDDQyS');
+  assert.equal(result.releaseId, 'sms-v3-prod-6eea95d-20260908');
+  assert.equal(result.commitSha, '6eea95d23057d448be012f96e4e37785d4603a95');
+  assert.equal(result.treeSha, 'fb4aa8fca91045cd37d4a1a59f069b50ee8fa8cf');
+  assert.equal(result.currentProductionSourceSha, '10441a1edd8df85136a1dca0b49199f51839359b');
+  assert.equal(result.rollbackDeploymentId, 'dpl_B9zdfWcKxEpDes1NMkhgHnuHe1kM');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
+  assert.equal(result.productionEnvironmentChangePolicy, 'NO_ENVIRONMENT_CHANGES');
+  assert.equal(result.corsPolicy, 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY');
+  assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_LINUX_PREBUILT_EXPLICIT_PROMOTION');
   assert.equal(result.preAppliedMigrationManifestPath, '');
   assert.equal(result.preAppliedMigrationEvidenceRunId, '');
 });

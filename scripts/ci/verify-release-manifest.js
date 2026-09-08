@@ -17,6 +17,11 @@ const DATABASE_CHANGE_POLICIES = Object.freeze([
   'PRE_APPLIED_APPROVED_MIGRATION',
 ]);
 
+const PRODUCTION_ENVIRONMENT_CHANGE_POLICY = 'NO_ENVIRONMENT_CHANGES';
+const CORS_POLICY = 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY';
+const DEPLOYMENT_METHOD = 'GOVERNED_VERCEL_LINUX_PREBUILT_EXPLICIT_PROMOTION';
+const POST_DEPLOY_VERIFICATION_PLAN = 'IMMUTABLE_AND_CANONICAL_HEALTH_READY_AUTH_CORS_UI_SENTINELS_AUTO_ROLLBACK';
+
 const shaPattern = /^[0-9a-f]{40}$/;
 const deploymentPattern = /^dpl_[A-Za-z0-9]+$/;
 const releaseIdPattern = /^sms-v3-prod-[0-9a-f]{7,12}-[0-9]{8}$/;
@@ -45,6 +50,10 @@ function validateReleaseManifest(input) {
   assert(input.owner_action === 'APPROVE_PRODUCTION_ONLY', 'owner_action must be APPROVE_PRODUCTION_ONLY');
   assert(input.rollback_policy === 'AUTO_ROLLBACK_ON_POST_DEPLOY_VERIFY_FAILURE', 'rollback_policy mismatch');
   assert(DATABASE_CHANGE_POLICIES.includes(input.database_change_policy), 'unsupported database_change_policy');
+  assert(input.production_environment_change_policy === PRODUCTION_ENVIRONMENT_CHANGE_POLICY, 'production_environment_change_policy mismatch');
+  assert(input.cors_policy === CORS_POLICY, 'cors_policy mismatch');
+  assert(input.deployment_method === DEPLOYMENT_METHOD, 'deployment_method mismatch');
+  assert(input.post_deploy_verification_plan === POST_DEPLOY_VERIFICATION_PLAN, 'post_deploy_verification_plan mismatch');
 
   const preApplied = input.database_change_policy === 'PRE_APPLIED_APPROVED_MIGRATION';
   if (preApplied) {
@@ -72,6 +81,10 @@ function validateReleaseManifest(input) {
     ownerAction: input.owner_action,
     rollbackPolicy: input.rollback_policy,
     databaseChangePolicy: input.database_change_policy,
+    productionEnvironmentChangePolicy: input.production_environment_change_policy,
+    corsPolicy: input.cors_policy,
+    deploymentMethod: input.deployment_method,
+    postDeployVerificationPlan: input.post_deploy_verification_plan,
     preAppliedMigrationManifestPath: input.pre_applied_migration_manifest_path || '',
     preAppliedMigrationEvidenceRunId: input.pre_applied_migration_evidence_run_id || '',
   });
@@ -95,6 +108,10 @@ function outputLines(manifest) {
     `owner_action=${manifest.ownerAction}`,
     `rollback_policy=${manifest.rollbackPolicy}`,
     `database_change_policy=${manifest.databaseChangePolicy}`,
+    `production_environment_change_policy=${manifest.productionEnvironmentChangePolicy}`,
+    `cors_policy=${manifest.corsPolicy}`,
+    `deployment_method=${manifest.deploymentMethod}`,
+    `post_deploy_verification_plan=${manifest.postDeployVerificationPlan}`,
     `pre_applied_migration_manifest_path=${manifest.preAppliedMigrationManifestPath}`,
     `pre_applied_migration_evidence_run_id=${manifest.preAppliedMigrationEvidenceRunId}`,
   ];
