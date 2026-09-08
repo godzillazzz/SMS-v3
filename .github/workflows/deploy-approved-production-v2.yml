@@ -1,0 +1,64 @@
+name: Deploy Approved Production Manifest V2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-staging-production-registration
+  cancel-in-progress: false
+
+env:
+  EXPECTED_REPOSITORY: godzillazzz/SMS-v3
+  EXPECTED_RELEASE_SOURCE_BRANCH: fix/serverless-database-reliability
+  EXPECTED_APPLICATION_SHA: 2fbf2f3cd6287e9173febc3a62ac40214b5382b0
+  EXPECTED_APPLICATION_TREE: d87db5a77092a44992267212881f7e0b2ecc6af8
+  EXPECTED_MANIFEST_SHA256: fb8268fdd155d375c853df5f34446bc96f1d6948516c7b50253e0c48a0ef3701
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_ROLLBACK_DEPLOYMENT_ID: dpl_F3iKi9Sp2hVGfZ1YFkmyR2XPg3Be
+  EXPECTED_RUN_MIGRATIONS: "false"
+  EXPECTED_DATABASE_CHANGE_POLICY: NO_DATABASE_CHANGES
+  EXPECTED_ENVIRONMENT_CHANGE_POLICY: NO_ENVIRONMENT_CHANGES
+
+jobs:
+  registration-only:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    name: REGISTRATION_ONLY (main)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Verify registration-only control-plane guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REPOSITORY" = "$EXPECTED_REPOSITORY"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_REF_NAME" = "main"
+          test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          test "$EXPECTED_APPLICATION_SHA" = "2fbf2f3cd6287e9173febc3a62ac40214b5382b0"
+          test "$EXPECTED_APPLICATION_TREE" = "d87db5a77092a44992267212881f7e0b2ecc6af8"
+          test "$EXPECTED_MANIFEST_SHA256" = "fb8268fdd155d375c853df5f34446bc96f1d6948516c7b50253e0c48a0ef3701"
+          test "$EXPECTED_RELEASE_SOURCE_BRANCH" = "fix/serverless-database-reliability"
+          test "$EXPECTED_PROJECT_ID" = "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s"
+          test "$EXPECTED_ORG_ID" = "team_nemCExHbZ8EAhSgsvefHPAEz"
+          test "$EXPECTED_CANONICAL_URL" = "https://sms-v3-staging-ten.vercel.app"
+          test "$EXPECTED_ROLLBACK_DEPLOYMENT_ID" = "dpl_F3iKi9Sp2hVGfZ1YFkmyR2XPg3Be"
+          test "$EXPECTED_RUN_MIGRATIONS" = "false"
+          test "$EXPECTED_DATABASE_CHANGE_POLICY" = "NO_DATABASE_CHANGES"
+          test "$EXPECTED_ENVIRONMENT_CHANGE_POLICY" = "NO_ENVIRONMENT_CHANGES"
+          test -z "$(git status --porcelain)"
+          echo 'WORKFLOW_REGISTRATION_ONLY=PASS'
+          echo 'DATABASE_ACCESSED=NO'
+          echo 'MIGRATION_EXECUTED=NO'
+          echo 'PRODUCTION_DEPLOYMENT=NO'
+          echo 'ENVIRONMENT_ATTACHED=NO'
+          echo 'SECRETS_REFERENCED=NO'
