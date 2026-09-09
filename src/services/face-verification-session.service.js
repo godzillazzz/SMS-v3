@@ -12,6 +12,11 @@ const ACTIVE_SESSION_STATUSES = ['CREATED', 'DEVICE_PROOF_VERIFIED', 'PROVIDER_P
 const RESTARTABLE_SESSION_STATUSES = ['CREATED', 'DEVICE_PROOF_VERIFIED'];
 const SESSION_TTL_MS = 5 * 60 * 1000;
 const RECEIPT_TTL_MS = 2 * 60 * 1000;
+const FACE_DIAGNOSTIC_SCHEMA_VERSION = 'G06_FACE_DIAGNOSTIC_V1';
+const FACE_DIAGNOSTIC_BANDS = new Set(['PASS', 'NEAR_THRESHOLD', 'BELOW_THRESHOLD', 'FAR_BELOW_THRESHOLD', 'UNAVAILABLE']);
+const FACE_DIAGNOSTIC_DECISIONS = new Set(['MATCH', 'FACE_MATCH_FAILED', 'FACE_MATCH_FAILED_LOW_SIMILARITY', 'UNAVAILABLE']);
+const FACE_DIAGNOSTIC_QUALITY_BANDS = new Set(['SMALL', 'MEDIUM', 'LARGE', 'HIGH', 'LOW', 'NEUTRAL', 'NON_NEUTRAL', 'UNAVAILABLE']);
+const FACE_DIAGNOSTIC_THRESHOLD_SOURCES = new Set(['ENV', 'DEFAULT', 'UNAVAILABLE']);
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
@@ -20,6 +25,54 @@ function receiptHash(value) { return sha256(Buffer.from(String(value || ''), 'ut
 function providerRefHash(value) { return sha256(Buffer.from(String(value || ''), 'utf8')); }
 function digest64(value, code = 'FACE_VERIFICATION_CONTEXT_INVALID') { const text = String(value || '').trim().toLowerCase(); if (!/^[0-9a-f]{64}$/.test(text)) throw http(400, code, 'A SHA-256 context digest is required.'); return text; }
 function clean(value, max) { const text = value == null ? '' : String(value).trim(); return text ? text.slice(0, max) : null; }
+function safeDiagnosticString(value, max = 120) { return clean(value, max) || 'UNAVAILABLE'; }
+function safeDiagnosticBoolean(value) { return value === true || value === false ? value : null; }
+function safeDiagnosticDimension(value) { return Number.isInteger(value) && value >= 0 && value <= 4096 ? value : null; }
+function safeDiagnosticBand(value, allowed) { const band = String(value || ''); return allowed.has(band) ? band : 'UNAVAILABLE'; }
+function safeDiagnosticObservation(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  return {
+    faceCount: Number.isInteger(source.faceCount) && source.faceCount >= 0 && source.faceCount <= 4 ? source.faceCount : null,
+    vectorDimension: safeDiagnosticDimension(source.vectorDimension),
+    vectorFinite: safeDiagnosticBoolean(source.vectorFinite),
+    normValid: safeDiagnosticBoolean(source.normValid),
+    faceSizeBand: safeDiagnosticBand(source.faceSizeBand, FACE_DIAGNOSTIC_QUALITY_BANDS),
+    detectorConfidenceBand: safeDiagnosticBand(source.detectorConfidenceBand, FACE_DIAGNOSTIC_QUALITY_BANDS),
+    poseBand: safeDiagnosticBand(source.poseBand, FACE_DIAGNOSTIC_QUALITY_BANDS),
+    blurBand: safeDiagnosticBand(source.blurBand, FACE_DIAGNOSTIC_QUALITY_BANDS),
+    illuminationBand: safeDiagnosticBand(source.illuminationBand, FACE_DIAGNOSTIC_QUALITY_BANDS)
+  };
+}
+function safeFaceDiagnostic(value, { sessionId, referencePhotoId, referenceChecksumMatch, createdAt } = {}) {
+  if (!value || typeof value !== 'object') return null;
+  const threshold = Number(value.thresholdValue);
+  const source = FACE_DIAGNOSTIC_THRESHOLD_SOURCES.has(String(value.thresholdSource || '')) ? String(value.thresholdSource) : 'UNAVAILABLE';
+  const diagnostic = {
+    diagnosticEvent: 'FACE_DIAGNOSTIC_CAPTURED',
+    diagnosticSchemaVersion: FACE_DIAGNOSTIC_SCHEMA_VERSION,
+    sessionId: safeDiagnosticString(sessionId, 100),
+    referencePhotoId: safeDiagnosticString(value.referencePhotoId || referencePhotoId, 100),
+    referenceChecksumMatch: safeDiagnosticBoolean(value.referenceChecksumMatch ?? referenceChecksumMatch),
+    providerName: safeDiagnosticString(value.providerName, 120),
+    modelName: safeDiagnosticString(value.modelName, 160),
+    engineVersion: safeDiagnosticString(value.engineVersion, 180),
+    thresholdValue: Number.isFinite(threshold) && threshold >= 0.55 && threshold <= 0.90 ? threshold : null,
+    thresholdUnits: value.thresholdUnits === 'PROVIDER_SIMILARITY_SCALE' ? value.thresholdUnits : 'UNAVAILABLE',
+    thresholdSource: source,
+    metric: value.metric === 'PROVIDER_SIMILARITY' ? value.metric : 'UNAVAILABLE',
+    comparator: value.comparator === 'GREATER_THAN_OR_EQUAL' ? value.comparator : 'UNAVAILABLE',
+    scoreBand: safeDiagnosticBand(value.scoreBand, FACE_DIAGNOSTIC_BANDS),
+    providerDecision: safeDiagnosticBand(value.providerDecision, new Set(['MATCH', 'FACE_MATCH_FAILED', 'UNAVAILABLE'])),
+    diagnosticDecision: safeDiagnosticBand(value.diagnosticDecision, FACE_DIAGNOSTIC_DECISIONS),
+    challengeType: safeDiagnosticString(value.challengeType, 40),
+    challengeFrameCount: Number.isInteger(value.challengeFrameCount) && value.challengeFrameCount >= 0 && value.challengeFrameCount <= 4 ? value.challengeFrameCount : null,
+    identityFrameSource: value.identityFrameSource === 'FINAL_NEUTRAL_CAPTURE_RAW' ? value.identityFrameSource : 'UNAVAILABLE',
+    reference: safeDiagnosticObservation(value.reference),
+    live: safeDiagnosticObservation(value.live),
+    diagnosticCreatedAt: createdAt instanceof Date ? createdAt.toISOString() : new Date(createdAt || Date.now()).toISOString()
+  };
+  return Object.freeze(diagnostic);
+}
 function safeSession(row) { return row ? { id: row.id, employeeId: row.employeeId, userId: row.userId, deviceEnrollmentId: row.deviceEnrollmentId, referencePhotoId: row.referencePhotoId, purpose: row.purpose, verificationMode: row.verificationMode, status: row.status, contextDigest: row.contextDigest, provider: row.provider, providerPolicyProfileId: row.providerPolicyProfileId, providerEngineVersion: row.providerEngineVersion, providerResultCode: row.providerResultCode, padPassed: row.padPassed, faceMatchPassed: row.faceMatchPassed, injectionRiskDetected: row.injectionRiskDetected, deviceProofVerifiedAt: row.deviceProofVerifiedAt, verifiedAt: row.verifiedAt, failedAt: row.failedAt, failureCode: row.failureCode, expiresAt: row.expiresAt, createdAt: row.createdAt, updatedAt: row.updatedAt } : null; }
 function mapConflict(error) { if (error?.code === 'P2002') return http(409, 'FACE_VERIFICATION_STATE_CONFLICT', 'Face verification state changed. Please start a new verification.'); return error; }
 
@@ -195,7 +248,7 @@ function createFaceVerificationSessionService({ prisma = prismaDefault, audit = 
     } catch (error) { if (error?.details?.code === 'VERIFICATION_STALE') await failSession(sessionId, 'VERIFICATION_STALE').catch(() => {}); throw mapConflict(error); }
   }
 
-  async function recordTrustedFaceMatchOnlyResult({ sessionId, providerSessionRef, activeChallengePassed, faceMatchPassed, resultCode = null, policyProfileId = null, engineVersion = null }) {
+  async function recordTrustedFaceMatchOnlyResult({ sessionId, providerSessionRef, activeChallengePassed, faceMatchPassed, resultCode = null, policyProfileId = null, engineVersion = null, diagnostic = null }) {
     const now = clock(); const providerRef = clean(providerSessionRef, 1000);
     if (!providerRef) throw http(400, 'VERIFICATION_PROVIDER_SESSION_INVALID', 'Provider session metadata is required.');
     const snapshot = await prisma.faceVerificationSession.findUnique({ where: { id: sessionId } });
@@ -210,11 +263,17 @@ function createFaceVerificationSessionService({ prisma = prismaDefault, audit = 
     const failureCode = activeChallengePassed === true
       ? (faceMatchPassed === true ? null : (referenceFailureCode || 'FACE_MATCH_FAILED'))
       : 'ACTIVE_CHALLENGE_FAILED';
+    const safeDiagnostic = safeFaceDiagnostic(diagnostic, {
+      sessionId,
+      referencePhotoId: snapshot.referencePhotoId,
+      referenceChecksumMatch: diagnostic?.referenceChecksumMatch,
+      createdAt: now
+    });
     if (failureCode) {
       await prisma.$transaction(async (tx) => {
         const claimed = await tx.faceVerificationSession.updateMany({ where: { id: sessionId, status: 'PROVIDER_PENDING', verificationMode: 'FACE_MATCH_ONLY' }, data: { status: 'FAILED', padPassed: null, faceMatchPassed: faceMatchPassed === true, injectionRiskDetected: null, providerResultCode: safeResultCode, providerPolicyProfileId: clean(policyProfileId,120) || snapshot.providerPolicyProfileId, providerEngineVersion: clean(engineVersion,120) || snapshot.providerEngineVersion, failedAt: now, failureCode } });
         if (claimed.count !== 1) throw http(409, 'FACE_VERIFICATION_STATE_CONFLICT', 'Face verification state changed.');
-        await audit.log({ actorUserId: snapshot.userId, action: 'UPDATE', entityType: 'FaceVerificationSession', entityId: sessionId, metadata: { event: 'VERIFICATION_FAILED', failureCode, provider: snapshot.provider, verificationMode: 'FACE_MATCH_ONLY', resultCode: safeResultCode, activeChallengeVersion: activeChallenge.version, activeChallengeCode: activeChallenge.code, activeChallengePassed: activeChallengePassed === true } }, tx);
+        await audit.log({ actorUserId: snapshot.userId, action: 'UPDATE', entityType: 'FaceVerificationSession', entityId: sessionId, metadata: { event: 'VERIFICATION_FAILED', failureCode, provider: snapshot.provider, verificationMode: 'FACE_MATCH_ONLY', resultCode: safeResultCode, activeChallengeVersion: activeChallenge.version, activeChallengeCode: activeChallenge.code, activeChallengePassed: activeChallengePassed === true, ...(safeDiagnostic ? { faceDiagnostic: safeDiagnostic } : {}) } }, tx);
       });
       return { session: safeSession(await prisma.faceVerificationSession.findUnique({ where: { id: sessionId } })), receipt: null };
     }
@@ -233,7 +292,7 @@ function createFaceVerificationSessionService({ prisma = prismaDefault, audit = 
         const claimed = await tx.faceVerificationSession.updateMany({ where: { id: session.id, status: 'PROVIDER_PENDING', verificationMode: 'FACE_MATCH_ONLY', expiresAt: { gt: now } }, data: { status: 'VERIFIED', padPassed: null, faceMatchPassed: true, injectionRiskDetected: null, providerResultCode: clean(resultCode,80), providerPolicyProfileId: clean(policyProfileId,120) || session.providerPolicyProfileId, providerEngineVersion: clean(engineVersion,120) || session.providerEngineVersion, verifiedAt: now } });
         if (claimed.count !== 1) throw http(409, 'FACE_VERIFICATION_STATE_CONFLICT', 'Face verification state changed.');
         await tx.faceVerificationReceipt.create({ data: { sessionId: session.id, employeeId: session.employeeId, userId: session.userId, deviceEnrollmentId: session.deviceEnrollmentId, deviceCredentialFingerprint: session.deviceCredentialFingerprint, referencePhotoId: session.referencePhotoId, referencePhotoChecksum: session.referencePhotoChecksum, purpose: session.purpose, verificationMode: 'FACE_MATCH_ONLY', receiptHash: hash, contextDigest: session.contextDigest, issuedAt: now, expiresAt: receiptExpiresAt } });
-        await audit.log({ actorUserId: session.userId, action: 'UPDATE', entityType: 'FaceVerificationSession', entityId: session.id, metadata: { event: 'VERIFICATION_VERIFIED', employeeId: session.employeeId, deviceEnrollmentId: session.deviceEnrollmentId, referencePhotoId: session.referencePhotoId, purpose: session.purpose, provider: session.provider, verificationMode: 'FACE_MATCH_ONLY', policyProfileId: clean(policyProfileId,120) || session.providerPolicyProfileId, engineVersion: clean(engineVersion,120) || session.providerEngineVersion, activeChallengeVersion: activeChallenge.version, activeChallengeCode: activeChallenge.code, activeChallengePassed: true } }, tx);
+        await audit.log({ actorUserId: session.userId, action: 'UPDATE', entityType: 'FaceVerificationSession', entityId: session.id, metadata: { event: 'VERIFICATION_VERIFIED', employeeId: session.employeeId, deviceEnrollmentId: session.deviceEnrollmentId, referencePhotoId: session.referencePhotoId, purpose: session.purpose, provider: session.provider, verificationMode: 'FACE_MATCH_ONLY', policyProfileId: clean(policyProfileId,120) || session.providerPolicyProfileId, engineVersion: clean(engineVersion,120) || session.providerEngineVersion, activeChallengeVersion: activeChallenge.version, activeChallengeCode: activeChallenge.code, activeChallengePassed: true, ...(safeDiagnostic ? { faceDiagnostic: safeDiagnostic } : {}) } }, tx);
         return { session: safeSession(await tx.faceVerificationSession.findUnique({ where: { id: session.id } })), receipt, receiptExpiresAt };
       });
     } catch (error) { if (error?.details?.code === 'VERIFICATION_STALE') await failSession(sessionId, 'VERIFICATION_STALE').catch(() => {}); throw mapConflict(error); }
@@ -291,4 +350,4 @@ function createFaceVerificationSessionService({ prisma = prismaDefault, audit = 
   return { createSession, verifyDeviceProof, bindProviderSession, recordTrustedProviderResult, recordTrustedFaceMatchOnlyResult, consumeReceipt, consumeReceiptInTransaction, failSession };
 }
 
-module.exports = { PURPOSES, ACTIVE_SESSION_STATUSES, SESSION_TTL_MS, RECEIPT_TTL_MS, challengeHash, receiptHash, providerRefHash, createFaceVerificationSessionService };
+module.exports = { PURPOSES, ACTIVE_SESSION_STATUSES, SESSION_TTL_MS, RECEIPT_TTL_MS, FACE_DIAGNOSTIC_SCHEMA_VERSION, challengeHash, receiptHash, providerRefHash, safeFaceDiagnostic, createFaceVerificationSessionService };

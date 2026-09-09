@@ -179,7 +179,10 @@ function createInProcessFaceVerificationService({
         faceMatchPassed: evaluation.faceMatchPassed,
         resultCode: evaluation.resultCode,
         policyProfileId: evaluation.policyProfileId || POLICY_PROFILE_ID,
-        engineVersion: evaluation.engineVersion
+        engineVersion: evaluation.engineVersion,
+        diagnostic: evaluation.diagnostic
+          ? { ...evaluation.diagnostic, referencePhotoId: reference.id, referenceChecksumMatch: true }
+          : null
       });
       if (evaluation.activeChallengePassed === true && evaluation.faceMatchPassed === true && !accepted.receipt) {
         await sessionService.failSession(sessionId, 'VERIFICATION_RECEIPT_NOT_ISSUED').catch(() => {});

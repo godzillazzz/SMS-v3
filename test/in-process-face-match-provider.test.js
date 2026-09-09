@@ -6,7 +6,9 @@ const {
   PROVIDER_NAME,
   VERIFICATION_MODE,
   DEFAULT_SIMILARITY_THRESHOLD,
+  DIAGNOSTIC_SCHEMA_VERSION,
   faceMatchDiagnosticBand,
+  vectorDiagnostic,
   inProcessFaceConfig,
   evaluateActiveChallenge,
   evaluateActiveChallengeResult,
@@ -51,6 +53,43 @@ test('face-match diagnostic band is categorical and never exposes the raw simila
   assert.equal(faceMatchDiagnosticBand(0.50, 0.62), 'BELOW_THRESHOLD');
   assert.equal(faceMatchDiagnosticBand(0.40, 0.62), 'FAR_BELOW_THRESHOLD');
   assert.equal(faceMatchDiagnosticBand(Number.NaN, 0.62), null);
+});
+
+test('diagnostic aggregates are privacy-safe and do not change the authoritative decision', async () => {
+  const runtime = engineWith({
+    poses: [pose(), pose({ yaw: 0.25 }), pose({ yaw: 0.22 }), pose(), pose(), pose()],
+    similarity: 0.60
+  });
+  const result = await createInProcessFaceMatchProvider({ environment: enabled, runtime }).evaluate({
+    providerSessionRef: 'opaque-server-session-ref',
+    activeChallenge: activeChallenge('TURN_LEFT'),
+    challengeFrameBytes: Array.from({ length: 4 }, () => imageBytes()),
+    livePhotoBytes: imageBytes(0x22),
+    referencePhotoBytes: imageBytes(0x33)
+  });
+  assert.equal(result.faceMatchPassed, false);
+  assert.equal(result.resultCode, 'FACE_MATCH_FAILED');
+  assert.equal(result.diagnostic.diagnosticSchemaVersion, DIAGNOSTIC_SCHEMA_VERSION);
+  assert.equal(result.diagnostic.thresholdValue, DEFAULT_SIMILARITY_THRESHOLD);
+  assert.equal(result.diagnostic.thresholdSource, 'DEFAULT');
+  assert.equal(result.diagnostic.thresholdUnits, 'PROVIDER_SIMILARITY_SCALE');
+  assert.equal(result.diagnostic.comparator, 'GREATER_THAN_OR_EQUAL');
+  assert.equal(result.diagnostic.scoreBand, 'NEAR_THRESHOLD');
+  assert.equal(result.diagnostic.reference.vectorDimension, 2);
+  assert.equal(result.diagnostic.live.vectorDimension, 2);
+  assert.equal(result.diagnostic.reference.vectorFinite, true);
+  assert.equal(result.diagnostic.live.normValid, true);
+  assert.equal(result.diagnostic.identityFrameSource, 'FINAL_NEUTRAL_CAPTURE_RAW');
+  const forbiddenKeys = /embedding|vectorValues|imageBytes|rawImage|signedUrl|token|cookie|authorization/i;
+  const keys = [];
+  const collectKeys = (value) => {
+    if (!value || typeof value !== 'object') return;
+    for (const [key, nested] of Object.entries(value)) { keys.push(key); collectKeys(nested); }
+  };
+  collectKeys(result.diagnostic);
+  assert.equal(keys.some((key) => forbiddenKeys.test(key)), false);
+  assert.deepEqual(vectorDiagnostic([1, 0]), { dimension: 2, finite: true, normValid: true });
+  assert.deepEqual(vectorDiagnostic([Number.NaN, 0]), { dimension: 2, finite: false, normValid: false });
 });
 
 test('in-process face config is explicit, bounded, and defaults conservatively', () => {

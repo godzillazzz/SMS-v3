@@ -22,6 +22,11 @@ const DEFAULT_SIMILARITY_THRESHOLD = 0.62;
 const DEFAULT_CHALLENGE_MOVEMENT_RADIANS = 0.17;
 const DEFAULT_NEUTRAL_MAX_RADIANS = 0.30;
 const REQUIRED_MOVEMENT_FRAMES = 2;
+const DIAGNOSTIC_SCHEMA_VERSION = 'G06_FACE_DIAGNOSTIC_V1';
+const DIAGNOSTIC_THRESHOLD_UNITS = 'PROVIDER_SIMILARITY_SCALE';
+const DIAGNOSTIC_COMPARATOR = 'GREATER_THAN_OR_EQUAL';
+const DIAGNOSTIC_METRIC = 'PROVIDER_SIMILARITY';
+const DIAGNOSTIC_MODEL_NAME = '@vladmandic/human:3.3.6';
 
 const MATCH_DIAGNOSTIC_BANDS = Object.freeze({
   PASS: 'PASS',
@@ -36,6 +41,79 @@ function faceMatchDiagnosticBand(similarity, threshold) {
   if (similarity >= Math.max(0, threshold - 0.05)) return MATCH_DIAGNOSTIC_BANDS.NEAR_THRESHOLD;
   if (similarity >= Math.max(0, threshold - 0.15)) return MATCH_DIAGNOSTIC_BANDS.BELOW_THRESHOLD;
   return MATCH_DIAGNOSTIC_BANDS.FAR_BELOW_THRESHOLD;
+}
+
+function vectorDiagnostic(embedding) {
+  const values = Array.isArray(embedding) ? embedding : [];
+  const finite = values.length > 0 && values.every((value) => Number.isFinite(value));
+  let sumSquares = 0;
+  if (finite) for (const value of values) sumSquares += value * value;
+  const norm = Math.sqrt(sumSquares);
+  return Object.freeze({
+    dimension: values.length || null,
+    finite,
+    normValid: finite && Number.isFinite(norm) && norm > 0
+  });
+}
+
+// These are intentionally coarse bands. The exact face geometry is never
+// retained; the boundaries only distinguish a small/usable/large detected face.
+function faceSizeBand(areaFraction) {
+  if (!Number.isFinite(areaFraction)) return 'UNAVAILABLE';
+  if (areaFraction < 0.08) return 'SMALL';
+  if (areaFraction < 0.30) return 'MEDIUM';
+  return 'LARGE';
+}
+
+function confidenceBand(score) {
+  if (!Number.isFinite(score)) return 'UNAVAILABLE';
+  if (score >= 0.85) return 'HIGH';
+  if (score >= 0.60) return 'MEDIUM';
+  return 'LOW';
+}
+
+function poseBand(pose, neutralMaxRadians) {
+  if (!validPose(pose) || !Number.isFinite(neutralMaxRadians)) return 'UNAVAILABLE';
+  return Math.abs(pose.yaw) <= neutralMaxRadians && Math.abs(pose.pitch) <= neutralMaxRadians
+    ? 'NEUTRAL'
+    : 'NON_NEUTRAL';
+}
+
+function observationDiagnostic(observation, config) {
+  const vector = vectorDiagnostic(observation?.embedding);
+  return Object.freeze({
+    faceCount: Number.isInteger(observation?.faceCount) ? observation.faceCount : 1,
+    vectorDimension: vector.dimension,
+    vectorFinite: vector.finite,
+    normValid: vector.normValid,
+    faceSizeBand: observation?.faceSizeBand || 'UNAVAILABLE',
+    detectorConfidenceBand: observation?.detectorConfidenceBand || 'UNAVAILABLE',
+    poseBand: poseBand(observation?.pose, config.neutralMaxRadians),
+    blurBand: 'UNAVAILABLE',
+    illuminationBand: 'UNAVAILABLE'
+  });
+}
+
+function buildFaceDiagnostic({ activeChallenge, liveObservation, referenceObservation, similarity, matched, config }) {
+  return Object.freeze({
+    diagnosticSchemaVersion: DIAGNOSTIC_SCHEMA_VERSION,
+    providerName: PROVIDER_NAME,
+    modelName: DIAGNOSTIC_MODEL_NAME,
+    engineVersion: ENGINE_VERSION,
+    thresholdValue: config.similarityThreshold,
+    thresholdUnits: DIAGNOSTIC_THRESHOLD_UNITS,
+    thresholdSource: config.similarityThresholdSource,
+    metric: DIAGNOSTIC_METRIC,
+    comparator: DIAGNOSTIC_COMPARATOR,
+    scoreBand: faceMatchDiagnosticBand(similarity, config.similarityThreshold) || 'UNAVAILABLE',
+    providerDecision: matched ? 'MATCH' : 'FACE_MATCH_FAILED',
+    diagnosticDecision: matched ? 'MATCH' : 'FACE_MATCH_FAILED_LOW_SIMILARITY',
+    challengeType: activeChallenge.code,
+    challengeFrameCount: activeChallenge.frameCount,
+    identityFrameSource: 'FINAL_NEUTRAL_CAPTURE_RAW',
+    reference: observationDiagnostic(referenceObservation, config),
+    live: observationDiagnostic(liveObservation, config)
+  });
 }
 
 let runtimePromise = null;
@@ -56,9 +134,12 @@ function finiteNumber(value, fallback, { min, max }) {
 }
 
 function inProcessFaceConfig(environment = process.env) {
+  const thresholdConfigured = environment.FACE_MATCH_SIMILARITY_THRESHOLD != null
+    && String(environment.FACE_MATCH_SIMILARITY_THRESHOLD).trim() !== '';
   return Object.freeze({
     enabled: environment.FACE_VERIFICATION_IN_PROCESS_ENABLED === 'true',
     similarityThreshold: finiteNumber(environment.FACE_MATCH_SIMILARITY_THRESHOLD, DEFAULT_SIMILARITY_THRESHOLD, { min: 0.55, max: 0.90 }),
+    similarityThresholdSource: thresholdConfigured ? 'ENV' : 'DEFAULT',
     challengeMovementRadians: finiteNumber(environment.FACE_CHALLENGE_MOVEMENT_RADIANS, DEFAULT_CHALLENGE_MOVEMENT_RADIANS, { min: 0.10, max: 0.50 }),
     neutralMaxRadians: finiteNumber(environment.FACE_CHALLENGE_NEUTRAL_MAX_RADIANS, DEFAULT_NEUTRAL_MAX_RADIANS, { min: 0.10, max: 0.50 })
   });
@@ -251,9 +332,13 @@ async function buildHumanRuntime() {
       if (!embedding || embedding.length < 256 || !validPose(angle) || !box || box.length < 4) throw new Error('face result is incomplete');
       const areaFraction = Math.max(0, Number(box[2]) * Number(box[3])) / (info.width * info.height);
       if (!Number.isFinite(areaFraction) || areaFraction < 0.035 || areaFraction > 0.92) throw new Error('face size is unsuitable');
+      const normalizedEmbedding = embedding.map((value) => Number(value));
       return Object.freeze({
-        embedding: Object.freeze(embedding.map((value) => Number(value))),
-        pose: Object.freeze({ yaw: Number(angle.yaw), pitch: Number(angle.pitch), roll: Number(angle.roll) })
+        embedding: Object.freeze(normalizedEmbedding),
+        pose: Object.freeze({ yaw: Number(angle.yaw), pitch: Number(angle.pitch), roll: Number(angle.roll) }),
+        faceCount: result.face.length,
+        faceSizeBand: faceSizeBand(areaFraction),
+        detectorConfidenceBand: confidenceBand(Number(face.score))
       });
     } catch {
       throw http(400, code, 'Face verification image could not be evaluated.');
@@ -380,6 +465,7 @@ function createInProcessFaceMatchProvider({ environment = process.env, runtime =
         faceMatchPassed: matched,
         resultCode: matched ? 'MATCH' : 'FACE_MATCH_FAILED',
         diagnosticMatchBand,
+        diagnostic: buildFaceDiagnostic({ activeChallenge, liveObservation, referenceObservation, similarity, matched, config }),
         policyProfileId: POLICY_PROFILE_ID,
         engineVersion: ENGINE_VERSION,
         providerSessionRef: sessionRef
@@ -399,8 +485,19 @@ module.exports = {
   DEFAULT_SIMILARITY_THRESHOLD,
   DEFAULT_CHALLENGE_MOVEMENT_RADIANS,
   DEFAULT_NEUTRAL_MAX_RADIANS,
+  DIAGNOSTIC_SCHEMA_VERSION,
+  DIAGNOSTIC_THRESHOLD_UNITS,
+  DIAGNOSTIC_COMPARATOR,
+  DIAGNOSTIC_METRIC,
+  DIAGNOSTIC_MODEL_NAME,
   MATCH_DIAGNOSTIC_BANDS,
   faceMatchDiagnosticBand,
+  vectorDiagnostic,
+  faceSizeBand,
+  confidenceBand,
+  poseBand,
+  observationDiagnostic,
+  buildFaceDiagnostic,
   inProcessFaceConfig,
   validateActiveChallenge,
   evaluateActiveChallenge,
