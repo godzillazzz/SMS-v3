@@ -3,9 +3,11 @@ const assert = require('node:assert/strict');
 const {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
+  DATA_QUALITY_QUERY_CONCURRENCY,
   buildRuleDefinitions,
   dataQualityQuery,
-  getDataQualityIssues
+  getDataQualityIssues,
+  getDataQualitySummary
 } = require('../src/services/data-quality.service');
 
 function fakeClient(rowsByModel) {
@@ -81,4 +83,47 @@ test('server-side filters are applied to rule definitions and no write methods a
     { displayName: { contains: 'E-1', mode: 'insensitive' } },
     { department: { contains: 'E-1', mode: 'insensitive' } }
   ] } });
+});
+
+test('independent data-quality rule reads use bounded concurrency and preserve rule order', async () => {
+  let active = 0;
+  let maxActive = 0;
+  let calls = 0;
+  const run = async (result) => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    calls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    active -= 1;
+    return result;
+  };
+  const client = {
+    leaveQuota: {
+      count: () => run(1),
+      findMany: () => run([]),
+      groupBy: () => run([])
+    },
+    employeeLicenseDocument: { count: () => run(1) },
+    leaveRequest: { findMany: () => run([]) }
+  };
+
+  const result = await getDataQualitySummary({
+    prismaClient: client,
+    filters: {},
+    now: new Date('2026-08-11T04:00:00.000Z')
+  });
+
+  assert.equal(DATA_QUALITY_QUERY_CONCURRENCY, 2);
+  assert.equal(maxActive, DATA_QUALITY_QUERY_CONCURRENCY);
+  assert.equal(calls, 7);
+  assert.deepEqual(result.summary, { total: 4, critical: 2, warning: 1, info: 1 });
+  assert.deepEqual(result.categories.map((category) => category.rule), [
+    'LEAVE_QUOTA_UNMATCHED',
+    'LICENSE_EXPIRED',
+    'LICENSE_EXPIRING_WITHIN_30_DAYS',
+    'LICENSE_EXPIRING_31_TO_90_DAYS',
+    'LEAVE_QUOTA_YEAR_UNCLASSIFIED',
+    'LEAVE_QUOTA_ANNUAL_DUPLICATE',
+    'AMBIGUOUS_LEGACY_CROSS_YEAR_DAY_COUNT'
+  ]);
 });

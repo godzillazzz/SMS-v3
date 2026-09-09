@@ -6,6 +6,10 @@ const { CUSTOM_RULES } = require('./annual-leave-data-quality.service');
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
+// Keep the independent rule reads bounded to the same small pool-friendly
+// concurrency used by the dashboard service. This avoids serial fan-out
+// without opening a connection per rule on serverless invocations.
+const DATA_QUALITY_QUERY_CONCURRENCY = 2;
 const SEVERITIES = ['CRITICAL', 'WARNING', 'INFO'];
 const MODULES = ['LEAVE_QUOTA', 'LICENSE'];
 const RULE_NAMES = [
@@ -213,6 +217,40 @@ function buildRuleDefinitions(filters, now = new Date()) {
     .filter((rule) => !filters.rule || rule.name === filters.rule);
 }
 
+async function mapWithConcurrency(items, concurrency, worker) {
+  if (items.length === 0) return [];
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+
+  async function runWorker() {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  return results;
+}
+
+async function loadRuleResults({ prismaClient, rules, customRules }) {
+  const jobs = [
+    ...rules.map((rule) => ({ kind: 'count', rule })),
+    ...customRules.map((rule) => ({ kind: 'custom', rule }))
+  ];
+  return mapWithConcurrency(jobs, DATA_QUALITY_QUERY_CONCURRENCY, async (job) => {
+    if (job.kind === 'custom') {
+      const customRows = await job.rule.rows(prismaClient);
+      return { rule: job.rule, count: customRows.length, customRows };
+    }
+    const count = await prismaClient[job.rule.model].count({ where: job.rule.where() });
+    return { rule: job.rule, count, customRows: null };
+  });
+}
+
 async function getDataQualityIssues({ prismaClient = prisma, query = {}, now = new Date() } = {}) {
   const filters = dataQualityQuery.parse(query);
   const rules = buildRuleDefinitions(filters, now);
@@ -220,16 +258,7 @@ async function getDataQualityIssues({ prismaClient = prisma, query = {}, now = n
     .filter((rule) => !filters.severity || rule.severity === filters.severity)
     .filter((rule) => !filters.module || rule.module === filters.module)
     .filter((rule) => !filters.rule || rule.name === filters.rule);
-  const counts = [];
-
-  for (const rule of rules) {
-    const count = await prismaClient[rule.model].count({ where: rule.where() });
-    counts.push({ rule, count, customRows: null });
-  }
-  for (const rule of customRules) {
-    const customRows = await rule.rows(prismaClient);
-    counts.push({ rule, count: customRows.length, customRows });
-  }
+  const counts = await loadRuleResults({ prismaClient, rules, customRules });
 
   const total = counts.reduce((sum, item) => sum + item.count, 0);
   const summary = { total, critical: 0, warning: 0, info: 0 };
@@ -276,14 +305,8 @@ async function getDataQualitySummary({ prismaClient = prisma, filters = {}, now 
   const summary = { total: 0, critical: 0, warning: 0, info: 0 };
   const categories = [];
 
-  for (const rule of rules) {
-    const count = await prismaClient[rule.model].count({ where: rule.where() });
-    summary.total += count;
-    summary[rule.severity.toLowerCase()] += count;
-    categories.push({ rule: rule.name, severity: rule.severity, module: rule.module, title: rule.title, count });
-  }
-  for (const rule of customRules) {
-    const count = (await rule.rows(prismaClient)).length;
+  const counts = await loadRuleResults({ prismaClient, rules, customRules });
+  for (const { rule, count } of counts) {
     summary.total += count;
     summary[rule.severity.toLowerCase()] += count;
     categories.push({ rule: rule.name, severity: rule.severity, module: rule.module, title: rule.title, count });
@@ -295,9 +318,11 @@ async function getDataQualitySummary({ prismaClient = prisma, filters = {}, now 
 module.exports = {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
+  DATA_QUALITY_QUERY_CONCURRENCY,
   RULE_NAMES,
   dataQualityQuery,
   buildRuleDefinitions,
+  mapWithConcurrency,
   getDataQualityIssues,
   getDataQualitySummary
 };
