@@ -103,14 +103,14 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest resolves WAVE 7 governed exact target with no database changes', () => {
+test('current approved Production manifest resolves WAVE 8 governed exact target with no database changes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-d2a1a00-20260909');
-  assert.equal(result.commitSha, 'd2a1a00dee89c1f87fd5c70a4d3d4c25ba024ee4');
-  assert.equal(result.treeSha, 'de97134be34ddddcc02fd55efe2ecfa4c00e0b06');
-  assert.equal(result.currentProductionSourceSha, '2fbf2f3cd6287e9173febc3a62ac40214b5382b0');
-  assert.equal(result.rollbackDeploymentId, 'dpl_9dWGtWubg2euk9UymLnATH75jHeM');
+  assert.equal(result.releaseId, 'sms-v3-prod-8740b3c-20260909');
+  assert.equal(result.commitSha, '8740b3c003424e21d7b21b2d09b7597fb77832df');
+  assert.equal(result.treeSha, '0567028d2eef2801de728a06e7c3df8c544db82d');
+  assert.equal(result.currentProductionSourceSha, 'd2a1a00dee89c1f87fd5c70a4d3d4c25ba024ee4');
+  assert.equal(result.rollbackDeploymentId, 'dpl_ACmUY8bHSfvepjUBYv49wm3asU5y');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.productionEnvironmentChangePolicy, 'NO_ENVIRONMENT_CHANGES');
@@ -118,5 +118,15 @@ test('current approved Production manifest resolves WAVE 7 governed exact target
   assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_LINUX_PREBUILT_EXPLICIT_PROMOTION');
   assert.equal(result.preAppliedMigrationManifestPath, '');
   assert.equal(result.preAppliedMigrationEvidenceRunId, '');
+  assert.equal(manifest.preview_deployment_id, 'dpl_71B5F5sgaW6i9tTQyqVopwhnCtFm');
+  assert.equal(manifest.performance_status, 'PERFORMANCE_IMPROVED_SAMPLE_OBSERVATION');
+  assert.equal(manifest.global_performance_regression, 'NOT_ENOUGH_EVIDENCE');
+  assert.equal(manifest.custom_preview_cors_preflight, 'NOT_REPROVEN');
+  assert.equal(manifest.wave8_responsive_recheck, 'NOT_PERFORMED');
+  assert.equal(manifest.linux_node22_artifact_guard, 'PASS');
+  assert.equal(manifest.serverless_concurrency_guard, 'PASS');
+  assert.equal(manifest.attendance_security_change, 'NONE');
+  assert.equal(manifest.g06_changed, 'NO');
+  assert.equal(manifest.g07, 'EXCLUDED');
 });
 
