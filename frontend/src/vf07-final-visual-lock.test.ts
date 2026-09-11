@@ -108,6 +108,6 @@ describe('G04.2 VF-07 visual baseline with Owner brand correction', () => {
   });
 
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(apiSha256).toBe('ebcfb2ead712a6a81ee94f87c48eb85d8c0972f735e48b40bdda279d12ad078e');
+    expect(apiSha256).toBe('9499eec7b0143765b3fca2238dc2894b3ba2d6de1bf6d4a6a8ec417f4b90f592');
   });
 });

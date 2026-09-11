@@ -39,6 +39,7 @@ import { defaultAuditFilters, type AuditFilters } from './components/audit/audit
 import { DataQualityCenterPage, type DataQualityFilters, type DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
 import { SystemHealthPage } from './pages/system-health/SystemHealthPage';
 import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
+import type { G06UatProvisionResult } from './pages/access-management/G06UatProvisioningPanel';
 import { AttendanceDevicePage } from './pages/attendance-device/AttendanceDevicePage';
 import { SecuritySiteManagementPanel } from './components/SecuritySiteManagementPanel';
 import { PwaProfilePage } from './pages/pwa-profile/PwaProfilePage';
@@ -2927,6 +2928,11 @@ function Dashboard() {
           onResetPassword={async (id, newPassword) => { await api.resetUserPassword(auth.token!, id, newPassword); setOperationRefresh((value) => value + 1); }}
           onViewAs={async (id) => { await auth.beginViewAs(id); setActivePage('dashboard'); }}
           onOpenAudit={() => setActivePage('audit')}
+          onProvisionG06Uat={async () => {
+            const response = await api.provisionG06Uat(auth.token!);
+            setOperationRefresh((value) => value + 1);
+            return (response as { data: G06UatProvisionResult }).data;
+          }}
         />
         <RegistrationReviewPanel token={auth.token!} role={auth.user?.role || 'VIEWER'} refreshSignal={operationRefresh} onChanged={() => setOperationRefresh((value) => value + 1)} onOpenEmployeeMaster={() => setActivePage('employees')} />
       </div>;

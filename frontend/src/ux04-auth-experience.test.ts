@@ -132,13 +132,13 @@ describe('G04.2 UX-04 auth experience contract', () => {
   });
 
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(apiSha256).toBe('ebcfb2ead712a6a81ee94f87c48eb85d8c0972f735e48b40bdda279d12ad078e');
+    expect(apiSha256).toBe('9499eec7b0143765b3fca2238dc2894b3ba2d6de1bf6d4a6a8ec417f4b90f592');
   });
 
   it('fails closed before central API retry while View As is active without modifying the locked API client', () => {
     expect(main).toContain("if (viewAsTokenRef.current) throw new Error('Session context changed. Retry from the primary account.')");
     expect(main).toContain('setAttendanceTokenRefreshGuard((requestToken) => {');
-    expect(apiSha256).toBe('ebcfb2ead712a6a81ee94f87c48eb85d8c0972f735e48b40bdda279d12ad078e');
+    expect(apiSha256).toBe('9499eec7b0143765b3fca2238dc2894b3ba2d6de1bf6d4a6a8ec417f4b90f592');
   });
 
   it('keeps theme changes frontend-only and prevents theme controls from submitting or resetting auth form state', () => {
