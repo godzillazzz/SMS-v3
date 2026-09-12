@@ -1,0 +1,157 @@
+name: Diagnose Preview Resolve Ledger 202608240003
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact approved application source commit to inspect
+        required: true
+        type: string
+      source_tree:
+        description: Exact source tree SHA for source_sha
+        required: true
+        type: string
+      expected_migration_head:
+        description: Expected repository migration head for status reporting
+        required: true
+        default: 202609010002_mdg_master_codes_department_site_authority
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-preview-resolve-ledger-diagnostic
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_REF: diag/preview-resolve-ledger-readonly
+  EXPECTED_SOURCE_BRANCH: diag/preview-resolve-ledger-readonly
+  RESOLVE_TARGET: 202608240003_g06_security_site_qr_gps_v1
+  EXPECTED_MIGRATION_HEAD: 202609010002_mdg_master_codes_department_site_authority
+
+jobs:
+  source-preflight:
+    name: Resolve ledger diagnostic source preflight (no database access)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout diagnostic branch with exact source ancestry
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact source and diagnostic intent
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_TREE: ${{ inputs.source_tree }}
+          INPUT_MIGRATION_HEAD: ${{ inputs.expected_migration_head }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REF_NAME" = "$EXPECTED_SOURCE_BRANCH"
+          printf '%s\n' "$SOURCE_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
+          printf '%s\n' "$SOURCE_TREE" | grep -Eq '^[0-9a-fA-F]{40}$'
+          test "$INPUT_MIGRATION_HEAD" = "$EXPECTED_MIGRATION_HEAD"
+          test "$(git rev-parse "$SOURCE_SHA")" = "$SOURCE_SHA"
+          test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE"
+          git merge-base --is-ancestor "$SOURCE_SHA" HEAD
+          changed_files=$(git diff --name-only "$SOURCE_SHA" HEAD)
+          test -z "$(printf '%s\n' "$changed_files" | grep -Ev '^(\.github/workflows/diagnose-preview-resolve-202608240003\.yml|scripts/ci/diagnose-preview-resolve-ledger\.js|test/preview-resolve-ledger-diagnostic\.test\.js)$' || true)"
+          test -f scripts/ci/diagnose-preview-resolve-ledger.js
+          echo 'SOURCE_IDENTITY=PASS'
+          echo 'READ_ONLY_DIAGNOSTIC=PASS'
+
+      - name: Verify target source checksum
+        shell: bash
+        run: node scripts/ci/verify-preview-resolve-source.js
+
+  protected-preview-diagnostic:
+    name: Protected Preview read-only ledger diagnostic
+    needs: source-preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: 'Preview – sms-v3-staging'
+    env:
+      NODE_ENV: production
+      VERCEL_ENV: preview
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+      APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      SOURCE_TREE: ${{ inputs.source_tree }}
+      INPUT_MIGRATION_HEAD: ${{ inputs.expected_migration_head }}
+    steps:
+      - name: Checkout diagnostic branch with exact source ancestry
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify protected Preview target guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${DATABASE_URL:-}"
+          test -n "${DIRECT_URL:-}"
+          test -n "${APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT:-}"
+          test -n "${APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT:-}"
+          node scripts/ci/verify-preview-migration-target.js
+          echo 'PRODUCTION_TARGET_REJECT_GUARD=PASS'
+
+      - name: Verify exact source ancestry without source mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "$SOURCE_SHA")" = "$SOURCE_SHA"
+          test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE"
+          git merge-base --is-ancestor "$SOURCE_SHA" HEAD
+          changed_files=$(git diff --name-only "$SOURCE_SHA" HEAD)
+          test -z "$(printf '%s\n' "$changed_files" | grep -Ev '^(\.github/workflows/diagnose-preview-resolve-202608240003\.yml|scripts/ci/diagnose-preview-resolve-ledger\.js|test/preview-resolve-ledger-diagnostic\.test\.js)$' || true)"
+          echo 'SOURCE_IDENTITY=PASS'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install read-only diagnostic tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --include=dev
+          npx --no-install prisma generate
+          echo 'PRISMA_TOOLING=PASS'
+
+      - name: Read all target ledger rows and schema equivalence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/diagnose-preview-resolve-ledger.js
+
+      - name: Read Prisma migration status only
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_output=$(mktemp)
+          trap 'rm -f "$status_output"' EXIT
+          node scripts/ci/prisma-migration.js status --allow-pending >"$status_output"
+          grep -E '^(PRISMA_MIGRATE_STATUS|MIGRATION_STATUS_CLASS|PRISMA_ERROR_CODE|MIGRATION_NAME|PENDING_MIGRATIONS|MIGRATION_HISTORY_MISMATCH|SCHEMA_MISMATCH|RAW_DATABASE_OUTPUT_EMITTED)=' "$status_output"
+          echo 'MIGRATION_DEPLOY_EXECUTED=NO'
+
+      - name: Publish read-only diagnostic summary
+        shell: bash
+        run: |
+          {
+            echo '### Preview resolve ledger diagnostic'
+            echo '- Target: sms-v3-preview (fingerprint-guarded)'
+            echo '- Read-only SELECT inspection: PASS'
+            echo '- Prisma migration status only: PASS'
+            echo '- Resolve executed: NO'
+            echo '- Migration deploy executed: NO'
+            echo '- Production database accessed: NO'
+            echo '- Raw secrets emitted: NO'
+          } >> "$GITHUB_STEP_SUMMARY"
