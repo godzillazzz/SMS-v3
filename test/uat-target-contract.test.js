@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
+  resolveExpectedGitRef,
   validateHarnessIdentity,
   validateSourceBranch,
   validateSourceBranchHead,
@@ -72,6 +73,27 @@ test('preview mode accepts an exact READY preview deployment bound to the source
     targetDeployment: previewDeployment,
     expectedDeployment: previewDeployment
   }).valid, true);
+});
+
+test('preview mode requires an exact git ref even when deployment identity is otherwise valid', () => {
+  const previewDeployment = deployment({
+    url: PREVIEW_URL.replace(/^https:\/\//, ''),
+    target: 'preview',
+    meta: { githubCommitSha: APPLICATION_SHA, githubCommitRef: SOURCE_BRANCH }
+  });
+  assert.throws(() => verify({
+    targetMode: 'preview',
+    targetUrl: PREVIEW_URL,
+    targetDeployment: previewDeployment,
+    expectedDeployment: previewDeployment
+  }), { code: 'UAT_PREVIEW_GIT_REF_REQUIRED' });
+});
+
+test('preview mode can recover the exact source ref only from the governed job source-branch input', () => {
+  assert.equal(resolveExpectedGitRef('preview', '', SOURCE_BRANCH), SOURCE_BRANCH);
+  assert.equal(resolveExpectedGitRef('candidate', '', SOURCE_BRANCH), '');
+  assert.throws(() => resolveExpectedGitRef('preview', '', ''), { code: 'UAT_PREVIEW_GIT_REF_REQUIRED' });
+  assert.throws(() => resolveExpectedGitRef('preview', '', 'refs/heads/main'), { code: 'UAT_SOURCE_BRANCH_INVALID' });
 });
 
 test('preview mode rejects a production-target deployment', () => {
