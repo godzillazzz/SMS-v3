@@ -22,7 +22,7 @@ describe('Attendance Supervisor UX V4', () => {
 
   it('keeps Official monthly Attendance export Admin-only while restoring a direct Supervisor entry point', () => {
     expect(page).toContain('onOpenAttendanceReport?: () => void');
-    expect(page).toContain('Export Report');
+    expect(page).toContain('ส่งออกรายงาน');
     expect(main).toContain("onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined}");
     expect(main).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("activePage === 'attendanceReport' ? 'export'");
@@ -48,15 +48,15 @@ describe('Attendance Supervisor UX V4', () => {
   });
 
   it('implements approved dashboard filters and KPI/read-model fields', () => {
-    for (const label of ['Department', 'Site', 'Shift', 'Employee', 'Status']) expect(page).toContain(label);
-    for (const label of ['ต้องตรวจสอบ', 'Scheduled', 'Checked in', 'Working now', 'Not checked in', 'Late', 'Early out', 'Wrong shift', 'Assist other Site', 'Outside Site', 'Leave', 'Absent', 'Time abnormal']) {
+    for (const label of ['หน่วยงาน', 'จุดปฏิบัติงาน', 'กะ', 'พนักงาน', 'สถานะ']) expect(page).toContain(label);
+    for (const label of ['ต้องตรวจสอบ', 'มีตาราง', 'ลงเวลาแล้ว', 'กำลังปฏิบัติงาน', 'ยังไม่ลงเวลา', 'มาสาย', 'ออกก่อนเวลา', 'ผิดกะ', 'ช่วยจุดอื่น', 'นอกพื้นที่', 'ลา', 'ขาด', 'เวลาผิดปกติ']) {
       expect(page).toContain(label);
     }
     expect(page).toContain("['REQUIRES_ATTENTION', 'ต้องตรวจสอบ']");
     expect(page).toContain("onClick={() => setStatus('REQUIRES_ATTENTION')}");
     expect(page).toContain("onClick={() => setStatus('WRONG_SHIFT')}");
     expect(page).toContain("role={onClick ? 'button' : undefined}");
-    for (const column of ['Expected Site', 'Actual Site', 'Worked', 'Flags', 'Action']) expect(page).toContain(column);
+    for (const column of ['จุดตามตาราง', 'จุดที่บันทึก', 'เวลาปฏิบัติงาน', 'ข้อสังเกต', 'การทำงาน']) expect(page).toContain(column);
   });
 
   it('shows original versus effective Attendance and immutable raw events in the detail drawer', () => {

@@ -1,0 +1,176 @@
+/* UXUI-REM-01 — final presentation/accessibility authority.
+   This layer intentionally changes presentation only. Business, API, RBAC and Attendance authority remain unchanged. */
+
+/* Dashboard: converge visible output on the shared semantic theme and readable metadata. */
+.dashboard-page-v2 { color: var(--color-text); }
+.dashboard-hero h1,
+.dashboard-kpi-heading h2,
+.dashboard-panel__header h2,
+.dashboard-metric strong,
+.dashboard-secondary-metric strong,
+.dashboard-today-stat strong,
+.dashboard-mini-stat strong,
+.dashboard-shift-group strong { color: var(--color-text); }
+.dashboard-hero__subtitle,
+.dashboard-kpi-heading small,
+.dashboard-panel__header p,
+.dashboard-metric p,
+.dashboard-metric small,
+.dashboard-secondary-metric span,
+.dashboard-secondary-metric small,
+.dashboard-attention-row small,
+.dashboard-quick-actions__grid small,
+.dashboard-activity-row small,
+.dashboard-status-row small,
+.dashboard-filter-bar__context small,
+.dashboard-filter-bar__controls label span { color: var(--color-text-secondary); }
+.dashboard-panel,
+.dashboard-metric,
+.dashboard-secondary-metric,
+.dashboard-filter-bar,
+.dashboard-today-stat,
+.dashboard-quick-actions__grid button,
+.dashboard-attention-row,
+.dashboard-shift-group,
+.dashboard-mini-stat { border-color: var(--color-border); background: var(--color-surface); box-shadow: var(--shadow-sm); }
+.dashboard-metric { border-left-color: var(--color-border) !important; }
+.dashboard-metric__icon,
+.dashboard-filter-bar__icon,
+.dashboard-quick-actions__grid button>span { color: var(--color-primary); background: var(--color-primary-soft); }
+.dashboard-metric--green .dashboard-metric__icon { color: var(--color-success); background: var(--color-success-soft); }
+.dashboard-metric--teal .dashboard-metric__icon { color: var(--color-info); background: var(--color-info-soft); }
+.dashboard-metric--warning .dashboard-metric__icon { color: var(--color-warning); background: var(--color-warning-soft); }
+.dashboard-metric--urgent .dashboard-metric__icon { color: var(--color-danger); background: var(--color-danger-soft); }
+.dashboard-status-fill--green { background: var(--color-success); }
+.dashboard-status-fill--warning { background: var(--color-warning); }
+.dashboard-status-fill--red { background: var(--color-danger); }
+.dashboard-status-fill--muted { background: var(--color-text-muted); }
+.dashboard-metric p,
+.dashboard-metric small,
+.dashboard-secondary-metric span,
+.dashboard-secondary-metric small,
+.dashboard-kpi-heading small,
+.dashboard-attention-row small,
+.dashboard-expiring-row__person small,
+.dashboard-expiring-row__remaining,
+.dashboard-mini-stat span,
+.dashboard-mini-stat small,
+.dashboard-status-row b,
+.dashboard-status-row small,
+.dashboard-activity-row b,
+.dashboard-activity-row small,
+.dashboard-quick-actions__grid button b,
+.dashboard-quick-actions__grid button small,
+.dashboard-shift-group b,
+.dashboard-shift-group small,
+.dashboard-legend p { font-size: 12px !important; line-height: 1.35; }
+.dashboard-filter-bar__controls input,
+.dashboard-filter-bar__controls select { min-height: 40px; font-size: 13px; }
+.dashboard-metric--interactive:focus-visible,
+.dashboard-secondary-metric:focus-visible,
+.dashboard-quick-actions__grid button:focus-visible,
+.dashboard-attention-row:focus-visible,
+.dashboard-shift-group:focus-visible,
+.dashboard-today-stat:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Remove decorative accent strips from summary cards; meaning remains in icons + labels. */
+.personnel-metric,
+.access-summary-card { border-left-color: var(--color-border) !important; }
+
+/* Attendance: alias its legacy v4 palette to the shared SMS semantic layer. */
+.attendance-v4 {
+  --v4-blue: var(--color-primary);
+  --v4-blue-2: var(--color-info);
+  --v4-deep: var(--color-primary-strong);
+  --v4-ink: var(--color-text);
+  --v4-muted: var(--color-text-secondary);
+  --v4-border: var(--color-border);
+  color: var(--color-text);
+  background: var(--color-bg);
+  font-family: var(--font-sans);
+}
+.attendance-v4__topbar,
+.attendance-v4__employee,
+.attendance-v4__ready-card,
+.attendance-v4__clock,
+.attendance-v4__notice,
+.attendance-v4__location-sheet { border-color: var(--color-border); background: var(--color-surface); color: var(--color-text); }
+.attendance-v4__receipt { border-color: color-mix(in srgb,var(--color-success) 28%,var(--color-border)); background: color-mix(in srgb,var(--color-success-soft) 72%,var(--color-surface)); }
+.attendance-v4__employee-site,
+.attendance-v4__meta-item strong,
+.attendance-v4__status-pill span,
+.attendance-v4__ready-card small,
+.attendance-v4__clock small,
+.attendance-v4__notice span,
+.attendance-v4__receipt-head span,
+.attendance-v4__receipt-time span,
+.attendance-v4__receipt dt,
+.attendance-v4__receipt small,
+.attendance-v4__location-sheet-head p,
+.attendance-v4__footer { color: var(--color-text-secondary); }
+.attendance-v4__meta-item span,
+.attendance-v4__ready-card strong,
+.attendance-v4__clock span,
+.attendance-v4__notice strong { color: var(--color-text); }
+.attendance-v4__meta-item span,
+.attendance-v4__meta-item strong,
+.attendance-v4__supervisor-shortcut small,
+.attendance-v4__status-pill span,
+.attendance-v4__ready-card strong,
+.attendance-v4__ready-card small,
+.attendance-v4__clock small,
+.attendance-v4__notice,
+.attendance-v4__receipt-head span,
+.attendance-v4__receipt-time span,
+.attendance-v4__receipt dt,
+.attendance-v4__receipt dd,
+.attendance-v4__receipt small,
+.attendance-v4__location-sheet-head p,
+.attendance-v4__location-steps,
+.attendance-v4__footer { font-size: 12px !important; line-height: 1.45; }
+.attendance-v4__settings:focus-visible,
+.attendance-v4__supervisor-shortcut:focus-visible,
+.attendance-v4__action:focus-visible,
+.attendance-v4__today-link:focus-visible,
+.attendance-v4__location-actions button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Generic small operational text must remain readable. */
+.access-summary-card small,
+.access-summary-card p,
+.personnel-metric p,
+.personnel-metric small { font-size: 12px; }
+
+@media (max-width: 640px) {
+  .dashboard-hero__subtitle,
+  .dashboard-hero__status--inline,
+  .dashboard-kpi-heading small,
+  .dashboard-metric p,
+  .dashboard-metric small,
+  .dashboard-secondary-metric span,
+  .dashboard-secondary-metric small,
+  .dashboard-today-highlight small,
+  .dashboard-legend p { font-size: 12px !important; }
+  .dashboard-metric { min-height: 106px; }
+  .dashboard-secondary-metric { min-height: 64px; }
+}
+
+@media (max-width: 420px) {
+  .attendance-v4__readiness { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .attendance-v4__ready-card { min-height: 62px; }
+}
+
+/* Public auth visual QA repair: keep brand copy readable and reserve space for the shield. */
+[data-theme="light"] .auth-brand-eyebrow { color: var(--color-primary-active); }
+[data-theme="dark"] .auth-brand-eyebrow { color: var(--color-primary-hover); }
+.auth-security-shield {
+  right: 50%;
+  bottom: 8%;
+  width: min(70%, 300px);
+  transform: translateX(50%) translateZ(0);
+}
+.auth-brand-footnote { z-index: 4; max-width: 66%; }
+
+@media (max-width: 980px) and (min-width: 761px) {
+  .auth-security-shield { bottom: 7%; width: min(68%, 230px); }
+  .auth-brand-footnote { max-width: 76%; }
+}

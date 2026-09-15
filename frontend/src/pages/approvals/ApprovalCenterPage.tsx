@@ -115,6 +115,7 @@ export function ApprovalCenterPage({ token, role, currentEmployeeId, refreshKey 
   const [summary, setSummary] = useState<Summary>({ total: 0, byType: {}, dueSoon: 0, overdue: 0 });
   const [selectedId, setSelectedId] = useState('');
   const [filter, setFilter] = useState<'ALL' | ApprovalType>('ALL');
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<RequestErrorInput>();
@@ -152,6 +153,11 @@ export function ApprovalCenterPage({ token, role, currentEmployeeId, refreshKey 
   const availableTypes = useMemo(() => (Object.keys(typeLabel) as ApprovalType[]).filter((type) => Number(summary.byType?.[type] || 0) > 0), [summary.byType]);
 
   useEffect(() => {
+    if (!visible.some((item) => item.id === selectedId)) setSelectedId(visible[0]?.id || '');
+    setMobileDetailOpen(false);
+  }, [filter, items]);
+
+  useEffect(() => {
     setPhotoUrl('');
     setRejectReason('');
     if (!selected || selected.type !== 'EMPLOYEE_REFERENCE_PHOTO') return;
@@ -183,7 +189,7 @@ export function ApprovalCenterPage({ token, role, currentEmployeeId, refreshKey 
 
   return <section className="approval-center-page data-surface-page" aria-label="Approval Center">
     <header className="approval-center-header">
-      <div><p className="eyebrow">ACTION INBOX · {role}</p><h1>Approval Center</h1><p>รวมคำขอที่คุณมีสิทธิ์ต้องตรวจสอบหรืออนุมัติจากทุกโมดูลไว้ในจุดเดียว</p></div>
+      <div><p className="eyebrow">ACTION INBOX · {role}</p><h1>ศูนย์อนุมัติ</h1><p>รวมคำขอที่คุณมีสิทธิ์ต้องตรวจสอบหรืออนุมัติจากทุกโมดูลไว้ในจุดเดียว</p></div>
       <button type="button" className="btn-neutral small-action" disabled={loading} onClick={() => void load()}><SmsIcon name="refresh" size={16} />รีเฟรช</button>
     </header>
 
@@ -198,15 +204,16 @@ export function ApprovalCenterPage({ token, role, currentEmployeeId, refreshKey 
     </div>
 
     <div className="approval-center-filter" role="group" aria-label="ตัวกรองประเภทคำขอ">
-      <button type="button" className={filter === 'ALL' ? 'active' : ''} onClick={() => setFilter('ALL')}>ทั้งหมด <b>{summary.total}</b></button>
-      {availableTypes.map((type) => <button type="button" key={type} className={filter === type ? 'active' : ''} onClick={() => setFilter(type)}>{typeLabel[type]} <b>{summary.byType?.[type] || 0}</b></button>)}
+      <button type="button" aria-pressed={filter === 'ALL'} className={filter === 'ALL' ? 'active' : ''} onClick={() => setFilter('ALL')}>ทั้งหมด <b>{summary.total}</b></button>
+      {availableTypes.map((type) => <button type="button" key={type} aria-pressed={filter === type} className={filter === type ? 'active' : ''} onClick={() => setFilter(type)}>{typeLabel[type]} <b>{summary.byType?.[type] || 0}</b></button>)}
     </div>
 
-    <div className="approval-center-layout">
+    <p className="sr-only" aria-live="polite">{selected ? `เลือกคำขอ ${requestSubject(selected)} ${typeLabel[selected.type]}` : 'ยังไม่ได้เลือกคำขอ'}</p>
+    <div className={`approval-center-layout ${mobileDetailOpen ? 'is-mobile-detail' : ''}`}>
       <aside className="approval-center-queue" aria-label="รายการรอดำเนินการ">
         <div className="approval-center-queue__title"><strong>งานที่รอฉันดำเนินการ</strong><span>{visible.length} รายการ</span></div>
         {loading ? <div className="approval-center-empty">กำลังโหลดคำขอ…</div> : visible.length ? visible.map((item) =>
-          <button type="button" key={item.id} className={selected?.id === item.id ? 'is-selected' : ''} onClick={() => setSelectedId(item.id)}>
+          <button type="button" key={item.id} aria-pressed={selected?.id === item.id} className={selected?.id === item.id ? 'is-selected' : ''} onClick={() => { setSelectedId(item.id); setMobileDetailOpen(true); }}>
             <div><strong>{requestSubject(item)}</strong><span className={'approval-urgency approval-urgency--' + item.urgency.toLowerCase()}>{urgencyLabel(item)}</span></div>
             <span>{typeLabel[item.type]} · {requestContext(item)}</span>
             <small>โดย {item.requestedBy?.displayName || 'ระบบ'} · {fmt(item.submittedAt)}</small>
@@ -214,9 +221,9 @@ export function ApprovalCenterPage({ token, role, currentEmployeeId, refreshKey 
         ) : <div className="approval-center-empty"><SmsIcon name="check" size={28} /><strong>ไม่มีงานค้าง</strong><span>ขณะนี้ไม่มีคำขอที่ต้องดำเนินการในขอบเขตสิทธิ์ของคุณ</span></div>}
       </aside>
 
-      <section className="approval-center-detail" aria-live="polite">
+      <section className="approval-center-detail">
         {selected ? <>
-          <header><div><p>{typeLabel[selected.type]}</p><h2>{requestSubject(selected)}</h2><span>{requestContext(selected)} · {selected.type === 'REGISTRATION_REQUEST' ? text(selected.metadata?.email) : (selected.employee?.department || text(selected.metadata?.department))}</span></div><span className={'approval-urgency approval-urgency--' + selected.urgency.toLowerCase()}>{urgencyLabel(selected)}</span></header>
+          <header><button type="button" className="approval-center-back" onClick={() => setMobileDetailOpen(false)}><SmsIcon name="history" size={16} />กลับรายการ</button><div><p>{typeLabel[selected.type]}</p><h2>{requestSubject(selected)}</h2><span>{requestContext(selected)} · {selected.type === 'REGISTRATION_REQUEST' ? text(selected.metadata?.email) : (selected.employee?.department || text(selected.metadata?.department))}</span></div><span className={'approval-urgency approval-urgency--' + selected.urgency.toLowerCase()}>{urgencyLabel(selected)}</span></header>
           <dl className="approval-center-meta">
             <div><dt>ผู้ส่งคำขอ</dt><dd>{selected.requestedBy?.displayName || 'ระบบ'}{selected.requestedBy?.role ? ' (' + selected.requestedBy.role + ')' : ''}</dd></div>
             <div><dt>ส่งเมื่อ</dt><dd>{fmt(selected.submittedAt)}</dd></div>

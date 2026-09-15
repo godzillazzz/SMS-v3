@@ -1,5 +1,22 @@
 /* G04.2 UX-04 — authoritative public authentication experience. */
 
+.auth-skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 1000;
+  transform: translateY(-180%);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+.auth-skip-link:focus-visible { transform: translateY(0); box-shadow: var(--focus-ring); }
+.auth-form input::placeholder { color: var(--color-text-muted); opacity: 1; }
+.auth-or-separator { color: var(--color-text-muted); }
+
 .auth-experience-page {
   min-height: 100dvh;
   display: grid;

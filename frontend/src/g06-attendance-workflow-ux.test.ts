@@ -116,7 +116,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain('const retryPendingAttendanceCommit = async () => {');
     expect(page).toContain('receipt: pending.receipt');
     expect(page).toContain('attendanceContext: pending.attendanceContext');
-    expect(page).toContain("pendingAttendanceCommit ? 'RETRY COMMIT'");
+    expect(page).toContain("pendingAttendanceCommit ? 'บันทึกซ้ำ'");
     expect(page).toContain("pendingAttendanceCommit ? 'ลองบันทึกเวลาอีกครั้ง'");
     expect(page).toContain('if (pendingAttendanceCommit) {');
     expect(page).toContain('void retryPendingAttendanceCommit()');

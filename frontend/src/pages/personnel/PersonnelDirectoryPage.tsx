@@ -6,6 +6,7 @@ import { PersonnelPagination } from '../../components/personnel/PersonnelPaginat
 import { PersonnelSearchToolbar } from '../../components/personnel/PersonnelSearchToolbar';
 import { PersonnelTable } from '../../components/personnel/PersonnelTable';
 import { AttendanceReadinessCenter } from '../../components/personnel/AttendanceReadinessCenter';
+import { SmsIcon } from '../../components/SmsIcon';
 import type { PersonnelRecord, PersonnelRole } from '../../components/personnel/types';
 import '../../styles/personnel-directory.css';
 
@@ -50,14 +51,14 @@ export function PersonnelDirectoryPage({ employees, token, totalCount, loading, 
   const clear = () => { setSearch(''); onSearchValueChange?.(''); setDepartment(''); setStatus(''); setPage(1); };
   const incomplete = employees.filter((employee) => !employee.department || !employee.jobTitle).length;
   const permissionDenied = error === 'PERMISSION_DENIED';
-  const closeDrawer = () => { const id = lastSelectedId.current; setSelected(undefined); if (id) requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-personnel-id="${id}"]`)?.focus()); };
+  const closeDrawer = () => { const id = lastSelectedId.current; setSelected(undefined); if (id) requestAnimationFrame(() => { const desktop = document.querySelector<HTMLElement>(`[data-personnel-id="${id}"] .personnel-name-button`); const mobile = document.querySelector<HTMLElement>(`button[data-personnel-id="${id}"]`); (desktop || mobile)?.focus(); }); };
 
   return <section className="personnel-directory-page data-surface-page" aria-label="Personnel Directory">
     <PersonnelDirectoryHeader canManage={canManage} canReviewChanges={role === 'ADMIN'} totalCount={totalCount} onAdd={onAdd} onReviewChanges={onReviewChanges} onRefresh={onRefresh} />
     <AttendanceReadinessCenter token={token} />
     <PersonnelSearchToolbar search={search} department={department} status={status} departments={departments} onSearch={changeFilter(setSearch)} onDepartment={changeFilter(setDepartment)} onStatus={changeFilter(setStatus)} onClear={clear} />
     <div className="personnel-summary-grid"><PersonnelMetricCard icon="users" label="บุคลากรทั้งหมด" value={totalCount} context="รายการที่เข้าถึงได้" tone="indigo" /><PersonnelMetricCard icon="check" label="บุคลากรที่ใช้งาน" value={employees.filter((employee) => employee.isActive).length} context="กำลังปฏิบัติงาน" tone="green" /><PersonnelMetricCard icon="quality" label="โปรไฟล์ไม่สมบูรณ์" value={incomplete} context={incomplete ? 'ต้องตรวจสอบข้อมูล' : 'ข้อมูลครบถ้วน'} tone="amber" /></div>
-    {permissionDenied ? <div className="personnel-empty-state data-state data-state--permission"><span>⛨</span><h2>ไม่มีสิทธิ์เข้าถึงข้อมูล</h2><p>บัญชีนี้ไม่ได้รับอนุญาตให้ดู Personnel Directory</p></div>
+    {permissionDenied ? <div className="personnel-empty-state data-state data-state--permission"><span aria-hidden="true"><SmsIcon name="shield" size={24} /></span><h2>ไม่มีสิทธิ์เข้าถึงข้อมูล</h2><p>บัญชีนี้ไม่ได้รับอนุญาตให้ดู Personnel Directory</p></div>
       : <>{!loading && !error && <div className="personnel-result-line data-result-count">แสดง {visible.length} จาก {filtered.length} รายการ{search || department || status ? ' · กรองแล้ว' : ''}</div>}<PersonnelTable rows={visible} canManage={canManage} selectedId={selected?.id} onSelect={(employee) => { lastSelectedId.current = employee.id; setSelected(employee); }} onEdit={onEdit} loading={loading} error={Boolean(error)} onRetry={onRefresh} hasActiveFilters={Boolean(search || department || status)} emptyAction={employees.length === 0 ? { label: 'รีเฟรช', onClick: onRefresh } : filtered.length === 0 ? { label: 'ล้างตัวกรอง', onClick: clear } : undefined} />{!loading && !error && <PersonnelPagination page={page} totalPages={totalPages} onChange={setPage} />}</>}
     <PersonnelDetailDrawer employee={selected} token={token} canManage={canManage} onClose={closeDrawer} onEdit={() => { if (selected) onEdit(selected); closeDrawer(); }} />
   </section>;

@@ -57,7 +57,10 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
 
   it('keeps Personnel drawer selection and focus restoration while presenting only real Employee Master fields', () => {
     expect(personnelPage).toContain('data-personnel-id');
-    expect(personnelPage).toContain('requestAnimationFrame(() => document.querySelector<HTMLElement>');
+    expect(personnelPage).toContain('requestAnimationFrame(() => {');
+    expect(personnelPage).toContain('.personnel-name-button');
+    expect(personnelPage).toContain('button[data-personnel-id=');
+    expect(personnelPage).toContain('(desktop || mobile)?.focus()');
     for (const realField of ['employee.employeeCode', 'employee.firstName', 'employee.lastName', 'employee.department', 'employee.jobTitle', 'employee.isActive']) expect(personnelDrawer).toContain(realField);
     for (const forbidden of ['salary', 'attendance', 'managerName', 'licenseSummary']) expect(personnelDrawer).not.toContain(forbidden);
     expect(personnelDrawer).toContain('รหัสภายใน');

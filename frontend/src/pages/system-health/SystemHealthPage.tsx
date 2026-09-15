@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getSystemHealth } from '../../system-health-client';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
+import { SmsIcon } from '../../components/SmsIcon';
 
 type SlowRoute = {
   method: string;
@@ -141,7 +142,7 @@ export function SystemHealthPage({ token }: { token: string }) {
     <div className="page-heading system-health-heading">
       <div>
         <p className="eyebrow ds-metadata">ADMIN · READ ONLY</p>
-        <h1 className="ds-page-title">Performance &amp; System Health</h1>
+        <h1 className="ds-page-title">ประสิทธิภาพและสถานะระบบ</h1>
         <p className="ds-body-secondary">ตรวจสถานะ runtime, API latency, HTTP errors และ Database readiness โดยไม่เปิดเผย secret หรือสร้างช่องทาง deploy.</p>
       </div>
       <div className="heading-actions">
@@ -149,7 +150,7 @@ export function SystemHealthPage({ token }: { token: string }) {
           {data?.overallStatus === 'ready' ? 'READY' : data ? 'DEGRADED' : 'UNKNOWN'}
         </span>
         <button className="btn-neutral small-action" type="button" disabled={loading} onClick={() => setRefreshKey((value) => value + 1)}>
-          {loading ? 'กำลังตรวจ…' : '↻ Refresh'}
+          <SmsIcon name="refresh" size={16} />{loading ? 'กำลังตรวจ…' : 'รีเฟรช'}
         </button>
       </div>
     </div>

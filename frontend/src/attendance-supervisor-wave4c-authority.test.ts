@@ -57,10 +57,10 @@ describe('WAVE 4C Attendance Supervisor authority guard', () => {
     expect(page).toContain('<DataTableState variant="error"');
     expect(page).toContain('<DataTableState variant="empty"');
     expect(page).toContain('ariaLabel="การแบ่งหน้าประวัติ Attendance"');
-    for (const field of ['Expected Site', 'Actual Site', 'Worked']) {
+    for (const field of ['จุดตามตาราง', 'จุดที่บันทึก', 'เวลาปฏิบัติงาน']) {
       expect(page).toContain(`<dt>${field}</dt>`);
     }
-    expect(page).toContain('attendance-supervisor-v4__mobile-label">Flags');
+    expect(page).toContain('attendance-supervisor-v4__mobile-label">ข้อสังเกต');
     expect(css).toContain('overflow-wrap: anywhere;');
     expect(page).toContain('aria-label={`ลงเวลาแทน ${row.employeeName}`}');
     expect(page).toContain('aria-label={`ดูรายละเอียด Attendance ของ ${row.employeeName}`}');
