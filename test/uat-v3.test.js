@@ -207,14 +207,19 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(authenticatedSmoke, /Employee Lifecycle management, history, state, and preflight/);
   assert.match(authenticatedSmoke, /Employee Lifecycle history is read-only and mutations are forbidden/);
   assert.match(authenticatedSmoke, /Employee Lifecycle history and mutations are forbidden/);
-  const forbiddenWorkflowSecrets = [
-    ['DATABASE', 'URL'],
-    ['DIRECT', 'URL'],
-    ['JWT', 'SECRET']
-  ].map((parts) => parts.join('_'));
-  for (const name of forbiddenWorkflowSecrets) assert.doesNotMatch(workflow, new RegExp(`\\b${name}\\b`));
+  const personaPreflightStep = authenticatedJob.match(/- name: Verify G03\.1 Auth personas have existing 2026 annual authority[\s\S]*?(?=\r?\n      - name: Install Playwright Chromium)/)?.[0] || '';
+  assert.match(personaPreflightStep, /DATABASE_URL: \$\{\{ secrets\.DATABASE_URL \}\}/);
+  assert.match(personaPreflightStep, /DIRECT_URL: \$\{\{ secrets\.DIRECT_URL \}\}/);
+  assert.match(personaPreflightStep, /APPROVED_DATABASE_TARGET_FINGERPRINT/);
+  const authenticatedWithoutPersonaPreflight = authenticatedJob.replace(personaPreflightStep, '');
+  for (const name of ['DATABASE_URL', 'DIRECT_URL', 'JWT_SECRET']) {
+    assert.doesNotMatch(technicalJob, new RegExp(`\\b${name}\\b`));
+    assert.doesNotMatch(authenticatedWithoutPersonaPreflight, new RegExp(`\\b${name}\\b`));
+  }
+  assert.doesNotMatch(personaPreflightStep, /\bJWT_SECRET\b/);
 
   assert.match(workflow, /target_mode:/);
+  assert.match(workflow, /- preview/);
   assert.match(workflow, /- candidate/);
   assert.match(workflow, /- canonical/);
   assert.match(workflow, /uat-target-contract\.js scope/);
