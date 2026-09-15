@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DataRowActionMenu, type DataRowAction } from '../../components/DataRowActionMenu';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
+import { useAccessibleOverlay } from '../../components/useAccessibleOverlay';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import {
   accessManagementState,
@@ -75,7 +76,7 @@ function AccountTable({ rows, role, originalUserId, loading, onDetails, onEdit, 
   if (!rows.length) return <div className="access-state data-state data-state--empty"><span aria-hidden="true"><SmsIcon name="users" size={24} /></span><h2>ยังไม่มีบัญชีที่แสดงได้</h2><p>เมื่อมีบัญชีอยู่ในขอบเขตสิทธิ์ของคุณ ระบบจะแสดงรายการที่นี่</p></div>;
   return <div className="access-table-card data-surface-card"><div className="access-table-scroll data-table-scroll"><table className="access-table data-surface-table"><thead><tr><th scope="col">ชื่อที่แสดง</th><th scope="col">บทบาท</th><th scope="col">หน่วยงาน</th><th scope="col">สถานะบัญชี</th><th scope="col">สถานะใช้งาน</th><th scope="col">ความปลอดภัย</th><th scope="col">อัปเดตล่าสุด</th><th scope="col"><span className="sr-only">จัดการบัญชี</span></th></tr></thead><tbody>{rows.map((account) => {
     const actions = visibleAccountActions(role, account, originalUserId);
-    return <tr key={account.id} data-account-id={account.id} tabIndex={0} onClick={(event) => onDetails(account, event.currentTarget)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onDetails(account, event.currentTarget); } }}>
+    return <tr key={account.id} data-account-id={account.id}>
       <td><strong>{account.displayName || 'ไม่ระบุชื่อ'}</strong><small>บัญชีผู้ใช้งาน</small></td>
       <td><span className="role-badge">{roleLabel[account.role || ''] || account.role || 'ไม่ระบุ'}</span></td>
       <td>{account.department || 'ไม่ระบุหน่วยงาน'}</td>
@@ -135,23 +136,8 @@ function AccountDrawer({ account, role, originalUserId, suspendEscape = false, o
 }
 
 function Modal({ title, eyebrow, tone = 'default', children, onClose }: { title: string; eyebrow: string; tone?: ModalTone; children: React.ReactNode; onClose(): void }) {
-  const closeRef = useRef<HTMLButtonElement | null>(null);
-  const modalRef = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    const releaseScrollLock = acquireDocumentScrollLock();
-    const timer = window.setTimeout(() => {
-      const firstField = modalRef.current?.querySelector<HTMLElement>('input:not([type="checkbox"]), select, textarea');
-      (firstField || closeRef.current)?.focus({ preventScroll: true });
-    }, 0);
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); onClose(); } };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('keydown', onKey);
-      releaseScrollLock();
-    };
-  }, [onClose]);
-  return <div className="account-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={modalRef} className={`account-modal account-modal--${tone}`} role="dialog" aria-modal="true" aria-labelledby="account-modal-title"><header><div><p>{eyebrow}</p><h2 id="account-modal-title">{title}</h2></div><button ref={closeRef} type="button" className="drawer-close overlay-close" onClick={onClose} aria-label="ปิดหน้าต่าง"><SmsIcon name="close" size={20} /></button></header>{children}</section></div>;
+  const modalRef = useAccessibleOverlay<HTMLElement>(true, onClose, { initialFocusSelector: 'input:not([type="checkbox"]), select, textarea' });
+  return <div className="account-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={modalRef} className={`account-modal account-modal--${tone}`} role="dialog" aria-modal="true" aria-labelledby="account-modal-title" tabIndex={-1}><header><div><p>{eyebrow}</p><h2 id="account-modal-title">{title}</h2></div><button type="button" className="drawer-close overlay-close" onClick={onClose} aria-label="ปิดหน้าต่าง"><SmsIcon name="close" size={20} /></button></header>{children}</section></div>;
 }
 
 export function AccessManagementPage({ rows, loading, error, role, originalUserId, onRefresh, onUpdate, onResetPassword, onViewAs, onOpenAudit, onProvisionG06Uat }: Props) {
@@ -176,7 +162,7 @@ export function AccessManagementPage({ rows, loading, error, role, originalUserI
   const openDetails = (account: AccountRecord, trigger?: HTMLElement) => { triggerRef.current = trigger; setSelected(account); };
   const closeDetails = () => { setSelected(undefined); window.setTimeout(() => triggerRef.current?.focus(), 0); };
   const prepare = (account: AccountRecord, next: Exclude<Dialog, 'confirm'>, trigger?: HTMLElement) => {
-    const fallback = document.querySelector<HTMLElement>(`[data-account-id="${account.id}"]`) || (document.activeElement instanceof HTMLElement ? document.activeElement : undefined);
+    const fallback = document.querySelector<HTMLElement>(`[data-account-id="${account.id}"] button`) || (document.activeElement instanceof HTMLElement ? document.activeElement : undefined);
     dialogTriggerRef.current = trigger || fallback;
     setTarget(account); setDepartment(account.department || ''); setSelectedRole(account.role || 'VIEWER'); setSelectedStatus(account.accountStatus || 'ACTIVE'); setSelectedActive(Boolean(account.isActive)); setPassword(''); setShowPassword(false); setMutationError(undefined); setDialog(next);
   };

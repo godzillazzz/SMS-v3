@@ -8,8 +8,8 @@ describe('Attendance readiness blocked hotfix', () => {
   it('turns a known missing ACTIVE device into an explicit setup action', () => {
     expect(page).toContain('const [deviceStateKnown, setDeviceStateKnown] = useState(false)');
     expect(page).toContain("const devicePrerequisiteBlocked = deviceStateKnown && !deviceEnrolled");
-    expect(page).toContain("const actionText = pendingAttendanceCommit ? 'RETRY COMMIT' : deviceBlocked ? 'SET UP DEVICE'");
-    expect(page).toContain("deviceV4Ready ? 'OK' : deviceBlocked ? 'Required' : 'Check'");
+    expect(page).toContain("const actionText = pendingAttendanceCommit ? 'บันทึกซ้ำ' : deviceBlocked ? 'ตั้งค่าอุปกรณ์'");
+    expect(page).toContain("deviceV4Ready ? 'พร้อม' : deviceBlocked ? 'จำเป็น' : 'ตรวจเมื่อกด'");
     expect(page).toContain('ต้องตั้งค่า <b>DEVICE</b> ก่อน');
   });
 

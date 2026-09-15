@@ -10,7 +10,7 @@
   --font-size-nav: 0.875rem;
   --font-size-table: 0.8125rem;
   --font-size-secondary: 0.75rem;
-  --font-size-micro: 0.6875rem;
+  --font-size-micro: 0.75rem;
   /* WAVE 2 semantic type roles. Keep the existing scale as the source of truth. */
   --font-size-supporting: var(--font-size-table);
   --font-size-metadata: var(--font-size-secondary);
@@ -121,7 +121,7 @@
 
   --color-text: #1c1b2a;
   --color-text-secondary: #5f5b70;
-  --color-text-muted: #817c91;
+  --color-text-muted: #716c80;
   --color-text-inverse: #ffffff;
 
   --color-border: #e6e2ed;

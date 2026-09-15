@@ -113,7 +113,7 @@ describe('Attendance UX V4 visual acceptance contract', () => {
     expect(page).toContain("typeof accepted.event?.effectiveEventAt === 'string'");
     expect(page).toContain("typeof accepted.event?.receivedAt === 'string'");
     expect(page).toContain('SERVER_RECEIVED');
-    expect(page).toContain('Receipt / Event ID');
+    expect(page).toContain('รหัสเหตุการณ์ (Event ID)');
     expect(page).toContain('onTodayHistory');
     expect(main).toContain("selectPwaPage('attendanceHistory', { today: true })");
     expect(page).not.toContain('setAttendanceAccepted({ intent: acceptedIntent, acceptedAt: new Date() })');

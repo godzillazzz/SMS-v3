@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, type SecuritySite } from '../../api';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
+import { useAccessibleOverlay } from '../../components/useAccessibleOverlay';
 import {
   attendanceSupervisorDaily,
   attendanceSupervisorHistory,
@@ -353,16 +354,16 @@ function AttendanceMobileCard({
     {mode === 'history' && <p className="attendance-supervisor-v4__mobile-date"><span>วันที่</span><strong>{row.date}</strong></p>}
 
     <dl>
-      <div><dt>Shift</dt><dd>{row.shift.code || row.shift.name || '—'}</dd></div>
-      <div><dt>Expected Site</dt><dd>{row.expectedSite?.name || '—'}</dd></div>
-      <div><dt>Actual Site</dt><dd>{row.actualSite?.name || '—'}</dd></div>
-      <div><dt>In</dt><dd>{time(row.checkInAt)}</dd></div>
-      <div><dt>Out</dt><dd>{time(row.checkOutAt)}</dd></div>
-      <div><dt>Worked</dt><dd>{duration(row.workedMinutes)}</dd></div>
+      <div><dt>กะ</dt><dd>{row.shift.code || row.shift.name || '—'}</dd></div>
+      <div><dt>จุดตามตาราง</dt><dd>{row.expectedSite?.name || '—'}</dd></div>
+      <div><dt>จุดที่บันทึก</dt><dd>{row.actualSite?.name || '—'}</dd></div>
+      <div><dt>เข้า</dt><dd>{time(row.checkInAt)}</dd></div>
+      <div><dt>ออก</dt><dd>{time(row.checkOutAt)}</dd></div>
+      <div><dt>เวลาปฏิบัติงาน</dt><dd>{duration(row.workedMinutes)}</dd></div>
     </dl>
 
     <div className="attendance-supervisor-v4__mobile-flags">
-      <span className="attendance-supervisor-v4__mobile-label">Flags</span>
+      <span className="attendance-supervisor-v4__mobile-label">ข้อสังเกต</span>
       <div className="attendance-supervisor-v4__flags">
         {row.flags.length ? row.flags.map((flag) => <span key={flag}>{flag}</span>) : <span>ไม่มี</span>}
       </div>
@@ -436,6 +437,10 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
   const [workflowBusy, setWorkflowBusy] = useState(false);
   const [workflowError, setWorkflowError] = useState<string>();
   const [reloadKey, setReloadKey] = useState(0);
+  const detailDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(detailLoading || detail), () => { if (!detailLoading) setDetail(undefined); }, { closeDisabled: detailLoading });
+  const manualDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(manualDialog), () => setManualDialog(undefined), { closeDisabled: workflowBusy, initialFocusSelector: 'select, input, textarea' });
+  const adjustmentDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(adjustmentDialog), () => setAdjustmentDialog(undefined), { closeDisabled: workflowBusy, initialFocusSelector: 'input, textarea' });
+  const reviewDialogRef = useAccessibleOverlay<HTMLElement>(Boolean(reviewDialog), () => setReviewDialog(undefined), { closeDisabled: workflowBusy, initialFocusSelector: 'textarea, button' });
 
   useEffect(() => {
     let active = true;
@@ -834,16 +839,16 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
       <thead>
         <tr>
           {mode === 'history' && <th scope="col">วันที่</th>}
-          <th scope="col">Employee</th>
-          <th scope="col">Shift</th>
-          <th scope="col">Expected Site</th>
-          <th scope="col">Actual Site</th>
-          <th scope="col">In</th>
-          <th scope="col">Out</th>
-          <th scope="col">Worked</th>
-          <th scope="col">Status</th>
-          <th scope="col">Flags</th>
-          <th scope="col">Action</th>
+          <th scope="col">พนักงาน</th>
+          <th scope="col">กะ</th>
+          <th scope="col">จุดตามตาราง</th>
+          <th scope="col">จุดที่บันทึก</th>
+          <th scope="col">เข้า</th>
+          <th scope="col">ออก</th>
+          <th scope="col">เวลาปฏิบัติงาน</th>
+          <th scope="col">สถานะ</th>
+          <th scope="col">ข้อสังเกต</th>
+          <th scope="col">การทำงาน</th>
         </tr>
       </thead>
       <tbody>
@@ -920,22 +925,22 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
     <header className="attendance-supervisor-v4__hero">
       <div>
         <span className="attendance-supervisor-v4__eyebrow">ATTENDANCE CONTROL CENTER</span>
-        <h2>Attendance Dashboard</h2>
+        <h2>ศูนย์ควบคุมการลงเวลา</h2>
         <p>{manager ? `ขอบเขต Manager: ${department || 'ไม่ระบุ Department'}` : 'Admin มองเห็นทุก Department ตามสิทธิ์'}</p>
       </div>
       <div className="attendance-supervisor-v4__hero-controls">
         <button type="button" className="attendance-supervisor-v4__manual-btn" onClick={openManualConfirmation}>
           <SmsIcon name="attendance" size={17} />คีย์ยืนยันมาปฏิบัติงานย้อนหลัง
         </button>
-        <div className="attendance-supervisor-v4__tabs" role="tablist" aria-label="Attendance dashboard views">
-          {admin && onOpenAttendanceReport && <button type="button" onClick={onOpenAttendanceReport} title="เปิดรายงานการลงเวลาประจำเดือน"><SmsIcon name="report" size={17} />Export Report</button>}
-          <button type="button" className={mode === 'daily' ? 'active' : ''} onClick={() => setMode('daily')}>
+        <div className="attendance-supervisor-v4__tabs" role="group" aria-label="มุมมองศูนย์ควบคุมการลงเวลา">
+          {admin && onOpenAttendanceReport && <button type="button" onClick={onOpenAttendanceReport} title="เปิดรายงานการลงเวลาประจำเดือน"><SmsIcon name="report" size={17} />ส่งออกรายงาน</button>}
+          <button type="button" aria-pressed={mode === 'daily'} className={mode === 'daily' ? 'active' : ''} onClick={() => setMode('daily')}>
             <SmsIcon name="dashboard" size={17} />วันนี้
           </button>
-          <button type="button" className={mode === 'history' ? 'active' : ''} onClick={() => setMode('history')}>
+          <button type="button" aria-pressed={mode === 'history'} className={mode === 'history' ? 'active' : ''} onClick={() => setMode('history')}>
             <SmsIcon name="history" size={17} />ประวัติ
           </button>
-          <button type="button" className={mode === 'requests' ? 'active' : ''} onClick={() => setMode('requests')}>
+          <button type="button" aria-pressed={mode === 'requests'} className={mode === 'requests' ? 'active' : ''} onClick={() => setMode('requests')}>
             <SmsIcon name="approval" size={17} />คำขอแก้ไข
           </button>
         </div>
@@ -951,7 +956,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           <label><span>ถึง</span><input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
         </>}
         <label>
-          <span>Department</span>
+          <span>หน่วยงาน</span>
           <select
             value={departmentFilter}
             disabled={manager || filtersLoading}
@@ -966,7 +971,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           </select>
         </label>
         <label>
-          <span>Site</span>
+          <span>จุดปฏิบัติงาน</span>
           <select value={siteId} disabled={filtersLoading} onChange={(event) => setSiteId(event.target.value)}>
             <option value="">ทั้งหมด</option>
             {sites.filter((site) => site.isActive).map((site) => (
@@ -975,7 +980,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           </select>
         </label>
         <label>
-          <span>Shift</span>
+          <span>กะ</span>
           <select value={shiftTypeId} disabled={filtersLoading} onChange={(event) => setShiftTypeId(event.target.value)}>
             <option value="">ทั้งหมด</option>
             {shifts.map((shift) => (
@@ -984,7 +989,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           </select>
         </label>
         <label>
-          <span>Employee</span>
+          <span>พนักงาน</span>
           <select value={employeeId} disabled={filtersLoading} onChange={(event) => setEmployeeId(event.target.value)}>
             <option value="">ทั้งหมด</option>
             {filteredEmployees.map((employee) => (
@@ -995,7 +1000,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           </select>
         </label>
         <label>
-          <span>Status</span>
+          <span>สถานะ</span>
           <select value={status} onChange={(event) => setStatus(event.target.value)}>
             {STATUS_OPTIONS.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}
           </select>
@@ -1004,24 +1009,24 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
 
       {summary && <section className="attendance-supervisor-v4__kpis">
         <KPI label="ต้องตรวจสอบ" value={summary.requiresAttention} icon="quality" tone="danger" onClick={() => setStatus('REQUIRES_ATTENTION')} />
-        <KPI label="Scheduled" value={summary.scheduledToday} icon="calendar" />
-        <KPI label="Checked in" value={summary.checkedIn} icon="check" tone="good" />
-        <KPI label="Working now" value={summary.currentlyWorking} icon="attendance" tone="good" />
-        <KPI label="Not checked in" value={summary.notCheckedInYet} icon="clock" onClick={() => setStatus('NOT_CHECKED_IN_YET')} />
-        <KPI label="Late" value={summary.late} icon="clock" tone="warning" onClick={() => setStatus('LATE')} />
-        <KPI label="Early out" value={summary.earlyOut} icon="history" tone="warning" onClick={() => setStatus('EARLY_OUT')} />
-        <KPI label="Wrong shift" value={summary.wrongShift} icon="quality" tone="warning" onClick={() => setStatus('WRONG_SHIFT')} />
-        <KPI label="Assist other Site" value={summary.assistingOtherSite} icon="location" onClick={() => setStatus('ASSIST_OTHER_SITE')} />
-        <KPI label="Outside Site" value={summary.outsideAllSites} icon="location" tone="danger" onClick={() => setStatus('OUTSIDE_ALL_SITES')} />
-        <KPI label="Leave" value={summary.leave} icon="leave" onClick={() => setStatus('LEAVE')} />
-        <KPI label="Absent" value={summary.absent} icon="quality" tone="danger" onClick={() => setStatus('ABSENT')} />
-        <KPI label="Time abnormal" value={summary.timeAbnormal} icon="quality" tone="danger" onClick={() => setStatus('TIME_ABNORMAL')} />
+        <KPI label="มีตาราง" value={summary.scheduledToday} icon="calendar" />
+        <KPI label="ลงเวลาแล้ว" value={summary.checkedIn} icon="check" tone="good" />
+        <KPI label="กำลังปฏิบัติงาน" value={summary.currentlyWorking} icon="attendance" tone="good" />
+        <KPI label="ยังไม่ลงเวลา" value={summary.notCheckedInYet} icon="clock" onClick={() => setStatus('NOT_CHECKED_IN_YET')} />
+        <KPI label="มาสาย" value={summary.late} icon="clock" tone="warning" onClick={() => setStatus('LATE')} />
+        <KPI label="ออกก่อนเวลา" value={summary.earlyOut} icon="history" tone="warning" onClick={() => setStatus('EARLY_OUT')} />
+        <KPI label="ผิดกะ" value={summary.wrongShift} icon="quality" tone="warning" onClick={() => setStatus('WRONG_SHIFT')} />
+        <KPI label="ช่วยจุดอื่น" value={summary.assistingOtherSite} icon="location" onClick={() => setStatus('ASSIST_OTHER_SITE')} />
+        <KPI label="นอกพื้นที่" value={summary.outsideAllSites} icon="location" tone="danger" onClick={() => setStatus('OUTSIDE_ALL_SITES')} />
+        <KPI label="ลา" value={summary.leave} icon="leave" onClick={() => setStatus('LEAVE')} />
+        <KPI label="ขาด" value={summary.absent} icon="quality" tone="danger" onClick={() => setStatus('ABSENT')} />
+        <KPI label="เวลาผิดปกติ" value={summary.timeAbnormal} icon="quality" tone="danger" onClick={() => setStatus('TIME_ABNORMAL')} />
       </section>}
 
       <section className="attendance-supervisor-v4__table-card">
         <div className="attendance-supervisor-v4__table-head">
           <div>
-            <strong>{mode === 'daily' ? 'สถานะประจำวัน' : 'Attendance History'}</strong>
+            <strong>{mode === 'daily' ? 'สถานะประจำวัน' : 'ประวัติการลงเวลา'}</strong>
             <span>{loading ? 'กำลังโหลด…' : `${rows.length} รายการ`}</span>
           </div>
           {mode === 'history' && history?.meta && (
@@ -1079,7 +1084,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           <div className="attendance-supervisor-v4__notice" role="status">
             <SmsIcon name="check" size={18} />
             <span>{requestNotice}</span>
-            <button type="button" aria-label="ปิดข้อความ" onClick={() => setRequestNotice(undefined)}>×</button>
+            <button type="button" aria-label="ปิดข้อความ" onClick={() => setRequestNotice(undefined)}><SmsIcon name="close" size={17} /></button>
           </div>
         )}
         {requestError && (
@@ -1206,13 +1211,13 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           if (event.currentTarget === event.target) setDetail(undefined);
         }}
       >
-        <aside className="attendance-supervisor-v4__drawer" aria-label="Attendance detail">
+        <aside ref={detailDialogRef} className="attendance-supervisor-v4__drawer" role="dialog" aria-modal="true" aria-label="รายละเอียด Attendance" tabIndex={-1}>
           <header>
             <div>
               <span>ATTENDANCE DETAIL</span>
               <h3>{detail?.employeeName || 'กำลังโหลด…'}</h3>
             </div>
-            <button type="button" aria-label="ปิด" onClick={() => setDetail(undefined)}>×</button>
+            <button type="button" aria-label="ปิด" onClick={() => setDetail(undefined)}><SmsIcon name="close" size={18} /></button>
           </header>
 
           {detailLoading ? (
@@ -1298,14 +1303,14 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
 
     {manualDialog && (
       <div className="attendance-supervisor-v4__modal-backdrop">
-        <section className="attendance-supervisor-v4__workflow-modal" role="dialog" aria-modal="true" aria-label="Manual Attendance confirmation">
+        <section ref={manualDialogRef} className="attendance-supervisor-v4__workflow-modal" role="dialog" aria-modal="true" aria-label="ยืนยันการปฏิบัติงานย้อนหลัง" tabIndex={-1}>
           <header>
             <div>
               <span>MANUAL ATTENDANCE</span>
               <h3>คีย์ยืนยันมาปฏิบัติงานย้อนหลัง</h3>
               <p>{manager ? 'Manager ส่งคำขอ · ADMIN อนุมัติเป็นขั้นสุดท้าย' : 'Admin ยืนยันและอนุมัติผ่าน Audit workflow เดิม'}</p>
             </div>
-            <button type="button" aria-label="ปิด" disabled={workflowBusy} onClick={() => setManualDialog(undefined)}>×</button>
+            <button type="button" aria-label="ปิด" disabled={workflowBusy} onClick={() => setManualDialog(undefined)}><SmsIcon name="close" size={18} /></button>
           </header>
 
           <div className="attendance-supervisor-v4__workflow-principle">
@@ -1383,14 +1388,14 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
 
     {adjustmentDialog && (
       <div className="attendance-supervisor-v4__modal-backdrop">
-        <section className="attendance-supervisor-v4__workflow-modal" role="dialog" aria-modal="true" aria-label="Attendance adjustment request">
+        <section ref={adjustmentDialogRef} className="attendance-supervisor-v4__workflow-modal" role="dialog" aria-modal="true" aria-label="คำขอแก้ไข Attendance" tabIndex={-1}>
           <header>
             <div>
               <span>GOVERNED REQUEST</span>
               <h3>{requestTypeLabel(adjustmentDialog.type)}</h3>
               <p>{adjustmentDialog.employeeName}</p>
             </div>
-            <button type="button" aria-label="ปิด" disabled={workflowBusy} onClick={() => setAdjustmentDialog(undefined)}>×</button>
+            <button type="button" aria-label="ปิด" disabled={workflowBusy} onClick={() => setAdjustmentDialog(undefined)}><SmsIcon name="close" size={18} /></button>
           </header>
 
           {adjustmentDialog.returnedComment && (
@@ -1451,7 +1456,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
 
     {reviewDialog && (
       <div className="attendance-supervisor-v4__modal-backdrop">
-        <section className="attendance-supervisor-v4__workflow-modal is-review" role="dialog" aria-modal="true" aria-label="Attendance approval review">
+        <section ref={reviewDialogRef} className="attendance-supervisor-v4__workflow-modal is-review" role="dialog" aria-modal="true" aria-label="พิจารณาอนุมัติ Attendance" tabIndex={-1}>
           <header>
             <div>
               <span>ADMIN APPROVAL</span>
@@ -1464,7 +1469,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
               </h3>
               <p>{reviewDialog.request.employeeCode || '—'} · {reviewDialog.request.employeeName || '—'}</p>
             </div>
-            <button type="button" aria-label="ปิด" disabled={workflowBusy} onClick={() => setReviewDialog(undefined)}>×</button>
+            <button type="button" aria-label="ปิด" disabled={workflowBusy} onClick={() => setReviewDialog(undefined)}><SmsIcon name="close" size={18} /></button>
           </header>
 
           {(() => {

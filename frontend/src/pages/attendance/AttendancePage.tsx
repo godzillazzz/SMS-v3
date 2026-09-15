@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
+import { useAccessibleOverlay } from '../../components/useAccessibleOverlay';
 import {
   AttendanceFlowError,
   attendanceAcceptVerifiedEvent,
@@ -296,6 +297,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   const activeCaptureIdRef = useRef<string | null>(null);
   const locationRecoveryPendingRef = useRef(false);
   const attendanceActivationGuardRef = useRef(createAttendanceActivationGuard());
+  const locationHelpRef = useAccessibleOverlay<HTMLElement>(locationHelpOpen, () => setLocationHelpOpen(false), { initialFocusSelector: '.attendance-v4__location-actions button' });
 
   const copy = useMemo(() => fallbackCopy(readiness), [readiness]);
   const gpsReady = Boolean(location);
@@ -328,7 +330,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   const deviceReady = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
   const readinessLabel = attendanceAccepted
     ? 'บันทึกเวลาเรียบร้อย'
-    : flowBusy ? 'กำลังตรวจสอบตามลำดับความปลอดภัย' : 'Ready for secure attendance';
+    : flowBusy ? 'กำลังตรวจสอบตามลำดับความปลอดภัย' : 'พร้อมสำหรับการลงเวลาแบบปลอดภัย';
 
   useEffect(() => {
     const refreshClock = () => setNow(new Date());
@@ -949,23 +951,17 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     const flags = assignment?.flags || [];
     const statusTone = !scheduleReady ? 'is-pending' : flags.includes('TIME_ABNORMAL') || flags.includes('ABSENT') ? 'is-danger' : flags.includes('LATE') || flags.includes('EARLY_OUT') ? 'is-warning' : '';
     const statusLabel = todayLoading
-      ? 'LOADING'
+      ? 'กำลังโหลด'
       : !scheduleReady
-        ? 'NOT READY'
+        ? 'ยังไม่พร้อม'
         : flags.includes('TIME_ABNORMAL')
-          ? 'ABNORMAL'
+          ? 'เวลาผิดปกติ'
           : flags.includes('ABSENT')
-            ? 'ABSENT'
+            ? 'ขาด'
             : flags.includes('LATE')
-              ? 'LATE'
-              : 'ON TIME';
-    const dateLabel = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Bangkok',
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
-    }).format(now);
+              ? 'มาสาย'
+              : 'ตรงเวลา';
+    const dateLabel = thaiDateLabel(now);
     const platform = platformKind();
     const platformName = platform === 'ios' ? 'iPhone / iPad' : platform === 'android' ? 'Android' : 'อุปกรณ์นี้';
     const locationSteps = platform === 'ios'
@@ -992,7 +988,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     const devicePrerequisiteBlocked = deviceStateKnown && !deviceEnrolled && !attendanceAccepted && !verificationSession;
     const deviceBlocked = serverDeviceBlocked || devicePrerequisiteBlocked;
     const nonRetryableReadinessBlocked = Boolean(readiness?.blocking && readiness.retryable === false && !serverDeviceBlocked);
-    const actionText = pendingAttendanceCommit ? 'RETRY COMMIT' : deviceBlocked ? 'SET UP DEVICE' : primaryActionState.actionText;
+    const actionText = pendingAttendanceCommit ? 'บันทึกซ้ำ' : deviceBlocked ? 'ตั้งค่าอุปกรณ์' : (nextIntent === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า');
     const actionThai = pendingAttendanceCommit ? 'ลองบันทึกเวลาอีกครั้ง' : deviceBlocked ? 'ตั้งค่าอุปกรณ์ลงเวลา' : primaryActionState.actionThai;
     const handleEmployeePrimaryAction = () => {
       if (pendingAttendanceCommit) {
@@ -1038,8 +1034,8 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         onClose={() => setFaceCaptureOpen(false)}
       />
 
-      {locationHelpOpen && <div className="attendance-v4__location-help" role="dialog" aria-modal="true" aria-label="วิธีเปิดสิทธิ์ตำแหน่ง">
-        <section className="attendance-v4__location-sheet">
+      {locationHelpOpen && <div className="attendance-v4__location-help" role="presentation">
+        <section ref={locationHelpRef} className="attendance-v4__location-sheet" role="dialog" aria-modal="true" aria-label="วิธีเปิดสิทธิ์ตำแหน่ง" tabIndex={-1}>
           <div className="attendance-v4__location-sheet-head">
             <span><SmsIcon name="location" size={22} /></span>
             <div>
@@ -1069,7 +1065,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
 
       {onOpenSupervisor && <button type="button" className="attendance-v4__supervisor-shortcut" onClick={onOpenSupervisor}>
         <SmsIcon name="dashboard" size={19} />
-        <span><strong>ลงเวลาแทนพนักงาน</strong><small>Manager / Admin · Governed request</small></span>
+        <span><strong>ลงเวลาแทนพนักงาน</strong><small>Manager / Admin · คำขอแบบมีการควบคุม</small></span>
       </button>}
 
       <article className={`attendance-v4__employee ${assignment ? '' : 'is-empty'}`}>
@@ -1078,12 +1074,12 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         <div className="attendance-v4__employee-meta">
           <div className="attendance-v4__meta-item">
             <SmsIcon name="clock" size={22} />
-            <div><span>Shift: {shiftCode}</span><strong>{shiftTime}</strong></div>
+            <div><span>กะ: {shiftCode}</span><strong>{shiftTime}</strong></div>
           </div>
           <i />
           <div className="attendance-v4__meta-item">
             <SmsIcon name="location" size={22} />
-            <div><span>Expected Site</span><strong>{siteName}</strong></div>
+            <div><span>จุดปฏิบัติงานตามตาราง</span><strong>{siteName}</strong></div>
           </div>
         </div>
       </article>
@@ -1098,9 +1094,9 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
           <span>{thaiTime(attendanceAccepted.acceptedAt)}</span>
         </div>
         <dl>
-          <div><dt>Site</dt><dd>{siteName}</dd></div>
-          <div><dt>Shift</dt><dd>{shiftCode} {shiftTime}</dd></div>
-          <div><dt>Receipt / Event ID</dt><dd>{attendanceAccepted.eventId || 'Server accepted'}</dd></div>
+          <div><dt>จุดปฏิบัติงาน</dt><dd>{siteName}</dd></div>
+          <div><dt>กะ</dt><dd>{shiftCode} {shiftTime}</dd></div>
+          <div><dt>รหัสเหตุการณ์ (Event ID)</dt><dd>{attendanceAccepted.eventId || 'Server accepted'}</dd></div>
         </dl>
         <small>{attendanceAccepted.recovered
           ? 'ยืนยันสถานะซ้ำจาก Server หลัง response ขาดช่วง · เวลาและ Event ID มาจากข้อมูล Attendance ที่ Server บันทึกแล้ว'
@@ -1129,29 +1125,29 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
           </button>
           <div className={`attendance-v4__status-pill ${statusTone}`}>
             <strong>{statusLabel}</strong>
-            <span>{shiftCode === '—' ? 'SHIFT' : `${shiftCode} SHIFT`}</span>
+            <span>{shiftCode === '—' ? 'กะ' : `กะ ${shiftCode}`}</span>
           </div>
         </div>
 
         <section className="attendance-v4__readiness" aria-label="ความพร้อมสำหรับลงเวลา">
           <article className={`attendance-v4__ready-card ${gpsReady ? 'is-ready' : ''}`}>
             <span className="attendance-v4__ready-icon"><SmsIcon name="location" size={21} /></span>
-            <div><strong>GPS</strong><small>{gpsReady ? `Ready ±${Math.round(location?.accuracyMeters || 0)}m` : 'On tap'}</small></div>
+            <div><strong>GPS</strong><small>{gpsReady ? `พร้อม ±${Math.round(location?.accuracyMeters || 0)}m` : 'ตรวจเมื่อกด'}</small></div>
             {gpsReady && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
           </article>
           <article className={`attendance-v4__ready-card ${qrV4Ready ? 'is-ready' : ''}`}>
             <span className="attendance-v4__ready-icon"><SmsIcon name="qr" size={21} /></span>
-            <div><strong>QR</strong><small>{qrStepUpRequired ? 'Required' : qrV4Ready ? 'Ready' : 'Auto'}</small></div>
+            <div><strong>QR</strong><small>{qrStepUpRequired ? 'จำเป็น' : qrV4Ready ? 'พร้อม' : 'อัตโนมัติ'}</small></div>
             {qrV4Ready && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
           </article>
           <article className={`attendance-v4__ready-card ${faceV4Ready ? 'is-ready' : ''}`}>
             <span className="attendance-v4__ready-icon"><SmsIcon name="face" size={21} /></span>
-            <div><strong>Face</strong><small>{faceV4Ready ? 'Ready' : 'Auto'}</small></div>
+            <div><strong>ใบหน้า</strong><small>{faceV4Ready ? 'พร้อม' : 'อัตโนมัติ'}</small></div>
             {faceV4Ready && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
           </article>
           <article className={`attendance-v4__ready-card ${deviceV4Ready ? 'is-ready' : ''}`}>
             <span className="attendance-v4__ready-icon"><SmsIcon name="device" size={21} /></span>
-            <div><strong>Device</strong><small>{deviceV4Ready ? 'OK' : deviceBlocked ? 'Required' : 'Check'}</small></div>
+            <div><strong>อุปกรณ์</strong><small>{deviceV4Ready ? 'พร้อม' : deviceBlocked ? 'จำเป็น' : 'ตรวจเมื่อกด'}</small></div>
             {deviceV4Ready && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
           </article>
         </section>
@@ -1167,7 +1163,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
           <span>{deviceBlocked
             ? <>ต้องตั้งค่า <b>DEVICE</b> ก่อน {nextIntent === 'CHECK_OUT' ? 'CHECK OUT' : 'CHECK IN'}</>
             : primaryActionState.code === 'READY'
-              ? <>Ready for <b>{nextIntent === 'CHECK_OUT' ? 'CHECK OUT' : 'CHECK IN'}</b></>
+              ? <>พร้อม <b>{nextIntent === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า'}</b></>
               : primaryActionState.readyLine}</span>
         </div>
       </>}
@@ -1192,8 +1188,8 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       {!attendanceAccepted && <button type="button" className="attendance-v4__today-link" onClick={onTodayHistory}><SmsIcon name="history" size={17} />ดูประวัติวันนี้</button>}
 
       <footer className="attendance-v4__footer">
-        <span>Platform Version: SMS Time 4.0 Preview</span>
-        <span>© 2020 SMS Security Management System Co., Ltd. All rights reserved.</span>
+        <span>SMS Time 4.0</span>
+        <span>SMS Security Management System</span>
       </footer>
     </section>;
   }

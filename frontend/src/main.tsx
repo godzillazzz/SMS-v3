@@ -93,6 +93,7 @@ import './styles/pwa-shell.css';
 import './styles/responsive-certification-v1.css';
 import './styles/system-health.css';
 import './styles/configuration-center.css';
+import './styles/ux-ui-remediation.css';
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
@@ -133,16 +134,16 @@ const navigation: Array<{ label: string; items: Array<{ id: Page; icon: SmsIconN
     { id: 'quota', icon: 'quota', label: 'โควต้าวันลา' }
   ] },
   { label: 'ตรวจสอบ', items: [
-    { id: 'approvalCenter', icon: 'bell', label: 'Approval Center' },
+    { id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' },
     { id: 'rules', icon: 'shield', label: 'กฎการทำงาน' },
     { id: 'audit', icon: 'audit', label: 'บันทึกการใช้งานระบบ' },
     { id: 'dataQuality', icon: 'quality', label: 'คุณภาพข้อมูล' },
-    { id: 'systemHealth', icon: 'dashboard', label: 'Performance & System Health' }
+    { id: 'systemHealth', icon: 'dashboard', label: 'ประสิทธิภาพและสถานะระบบ' }
   ] },
   { label: 'ผู้ใช้และสิทธิ์', items: [{ id: 'users', icon: 'users', label: 'ผู้ใช้และสิทธิ์' }] },
   { label: 'รายงาน', items: [{ id: 'reportCenter', icon: 'report', label: 'รายงานและวิเคราะห์' }] },
   { label: 'ตั้งค่า', items: [
-    { id: 'securitySite', icon: 'location', label: 'Security Site & QR' },
+    { id: 'securitySite', icon: 'location', label: 'จุดรักษาความปลอดภัยและ QR' },
     { id: 'settings', icon: 'settings', label: 'ตั้งค่าระบบ' }
   ] }
 ];
@@ -361,6 +362,7 @@ function Login() {
 
   return (
     <main className="login-page auth-experience-page">
+      <a className="auth-skip-link" href="#auth-login-form">ข้ามไปแบบฟอร์มเข้าสู่ระบบ</a>
       <section className="login-shell auth-experience-shell" aria-label="เข้าสู่ระบบ Security Management System">
         <aside className="login-intro auth-brand-panel">
           <div className="intro-brand auth-brand"><Logo /><span><b>SMS</b><strong>Security Management System</strong></span></div>
@@ -430,7 +432,7 @@ function Login() {
         <section className="login-form-panel auth-card-panel">
           <div className="login-theme-control auth-theme-control"><ThemeControl compact /></div>
           <div className="auth-mobile-brand"><Logo /><span><b>SMS</b><strong>Security Management System</strong></span></div>
-          <form className="login-form auth-form" onSubmit={submit} aria-busy={busy}>
+          <form id="auth-login-form" className="login-form auth-form" onSubmit={submit} aria-busy={busy}>
             {resultPresentation ? <section className={`auth-result auth-result--${resultPresentation.tone}`} aria-live="polite" aria-labelledby="registration-result-title">
               <div className="auth-result__verified"><span className="auth-result__verified-icon"><SmsIcon name="approval" size={20} /></span><span><b>ยืนยันอีเมลสำเร็จ</b><small>การยืนยันอีเมลยังไม่ใช่การอนุมัติบัญชี</small></span></div>
               <div className="auth-result__body">

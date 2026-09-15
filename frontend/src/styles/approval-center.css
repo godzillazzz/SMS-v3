@@ -80,3 +80,27 @@
 .approval-center-leave-self-block strong{color:var(--color-text);font-size:12px}
 @media(max-width:760px){.approval-center-source-meta{grid-template-columns:1fr}}
 @media(max-width:760px){.approval-center-leave-actions{display:grid;grid-template-columns:1fr}.approval-center-leave-actions button{width:100%}}
+
+/* UXUI-REM-01 — accessibility/readability/mobile flow. */
+.approval-center-metrics span,.approval-center-metrics small,.approval-center-filter button,.approval-center-queue>button>span,.approval-center-queue>button small,.approval-center-detail>header p,.approval-center-detail>header div>span,.approval-center-master p,.approval-center-fields span,.approval-center-photo-frame>div,.approval-center-photo-meta,.approval-center-photo-actions label,.approval-center-empty,.approval-center-footnote,.dashboard-approval-alert small,.dashboard-approval-alert button,.approval-center-leave-self-block{font-size:12px}
+.approval-center-queue>button strong,.approval-center-meta dd,.approval-center-source-meta dd{font-size:13px}
+.approval-center-meta dt,.approval-center-source-meta dt,.approval-urgency,.approval-center-filter button b{font-size:11px}
+.approval-urgency--due_soon{color:var(--color-warning);background:var(--color-warning-soft)}
+.approval-center-filter button:focus-visible,.approval-center-queue>button:focus-visible,.approval-center-back:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.approval-center-back{display:none;align-items:center;gap:6px;min-height:36px;border:1px solid var(--color-border);border-radius:9px;padding:0 10px;color:var(--color-primary);background:var(--color-surface);font:700 12px var(--font-sans)}
+@media(max-width:900px){
+  .approval-center-layout{display:block;min-height:0;overflow:visible}
+  .approval-center-queue{max-height:none;overflow:visible;border-right:0;border-bottom:0}
+  .approval-center-detail{display:none}
+  .approval-center-layout.is-mobile-detail .approval-center-queue{display:none}
+  .approval-center-layout.is-mobile-detail .approval-center-detail{display:block}
+  .approval-center-back{display:inline-flex;grid-column:1/-1}
+  .approval-center-detail>header{display:grid;grid-template-columns:minmax(0,1fr) auto}
+}
+@media(max-width:520px){
+  .approval-center-metrics{grid-template-columns:1fr 1fr}
+  .approval-center-filter{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px;scrollbar-width:thin}
+  .approval-center-filter button{flex:0 0 auto;min-height:40px}
+  .approval-center-queue>button{min-height:72px;padding:13px}
+  .approval-center-detail{padding:12px}
+}

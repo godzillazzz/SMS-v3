@@ -23,10 +23,6 @@ export function PersonnelTable({ rows, canManage, selectedId, onSelect, onEdit, 
           key={employee.id}
           data-personnel-id={employee.id}
           className={selectedId === employee.id ? 'is-selected personnel-record-row' : 'personnel-record-row'}
-          tabIndex={0}
-          aria-label={`เปิดรายละเอียด ${employee.firstName} ${employee.lastName}`}
-          onClick={() => onSelect(employee)}
-          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(employee); } }}
         >
           <td><button type="button" className="personnel-name-button" onClick={(event) => { event.stopPropagation(); onSelect(employee); }}>{employee.firstName} {employee.lastName}</button></td>
           <td><code>{employee.employeeCode}</code></td>

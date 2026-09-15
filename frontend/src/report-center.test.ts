@@ -24,7 +24,7 @@ describe('Unified Report Center V1 source contract', () => {
     expect(page).toContain('role="tablist"');
     expect(page).toContain('role="tab"');
     expect(page).toContain('aria-selected={activeTab === \'executive\'}');
-    for (const label of ['ภาพรวมผู้บริหาร', 'รายงานรายละเอียด', 'Export']) expect(page).toContain(label);
+    for (const label of ['ภาพรวมผู้บริหาร', 'รายงานรายละเอียด', 'ส่งออก']) expect(page).toContain(label);
   });
 
   it('passes shared month/year/department filters to the detailed summary API', () => {

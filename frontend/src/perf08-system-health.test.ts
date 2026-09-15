@@ -13,7 +13,7 @@ describe('PERF-08 Admin Performance & System Health contract', () => {
 
   it('adds an explicit ADMIN-only Performance & System Health navigation surface', () => {
     expect(main).toContain("'systemHealth'");
-    expect(main).toContain("{ id: 'systemHealth', icon: 'dashboard', label: 'Performance & System Health' }");
+    expect(main).toContain("{ id: 'systemHealth', icon: 'dashboard', label: 'ประสิทธิภาพและสถานะระบบ' }");
     expect(main).toContain("if (page === 'systemHealth') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (activePage === 'systemHealth' && auth.token) return <SystemHealthPage token={auth.token} />");
   });
@@ -29,6 +29,7 @@ describe('PERF-08 Admin Performance & System Health contract', () => {
     expect(page).toContain('CURRENT_RUNTIME_INSTANCE');
     expect(page).toContain('rolling runtime samples');
     expect(page).toContain('ไม่ใช่ global SLA');
+    expect(page).toContain('<SmsIcon name="refresh" size={16} />');
     expect(page).toContain('ไม่มี query string, payload, request ID หรือข้อมูลผู้ใช้');
   });
 
