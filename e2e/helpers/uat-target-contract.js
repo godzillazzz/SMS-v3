@@ -4,7 +4,7 @@ const CANONICAL_HOST = 'sms-v3-staging-ten.vercel.app';
 const CANDIDATE_HOST = /^sms-v3-staging-[a-z0-9]+-[a-z0-9-]+\.vercel\.app$/i;
 const DEPLOYMENT_ID = /^dpl_[A-Za-z0-9]+$/;
 const GIT_SHA = /^[0-9a-f]{40}$/i;
-const TARGET_MODES = new Set(['candidate', 'canonical']);
+const TARGET_MODES = new Set(['candidate', 'canonical', 'preview']);
 const DEPLOYMENT_ORIGINS = Object.freeze({
   GIT_INTEGRATED: 'GIT_INTEGRATED',
   CLEAN_CLI_EXACT_SHA: 'CLEAN_CLI_EXACT_SHA'
@@ -153,6 +153,10 @@ function validateTargetScope(targetMode, targetUrl) {
 
   if (mode === 'canonical') {
     if (host !== CANONICAL_HOST) throw contractError('UAT_CANONICAL_HOST_NOT_APPROVED');
+  } else if (mode === 'preview') {
+    if (host === CANONICAL_HOST || !CANDIDATE_HOST.test(host)) {
+      throw contractError('UAT_PREVIEW_HOST_NOT_APPROVED');
+    }
   } else if (host === CANONICAL_HOST || !CANDIDATE_HOST.test(host)) {
     throw contractError('UAT_CANDIDATE_HOST_NOT_APPROVED');
   }
@@ -202,7 +206,8 @@ function validateDeploymentRecord(deployment, {
   applicationSha,
   expectedProjectId,
   expectedProjectName,
-  expectedGitRef
+  expectedGitRef,
+  expectedTarget = 'production'
 }) {
   if (!deployment || typeof deployment !== 'object') throw contractError('UAT_DEPLOYMENT_RECORD_INVALID');
   if (!DEPLOYMENT_ID.test(String(expectedDeploymentId || ''))) throw contractError('UAT_EXPECTED_DEPLOYMENT_ID_INVALID');
@@ -213,7 +218,11 @@ function validateDeploymentRecord(deployment, {
   if (deployment.name !== expectedProjectName) throw contractError('UAT_DEPLOYMENT_PROJECT_NAME_MISMATCH');
   if (!deployment.projectId) throw contractError('UAT_DEPLOYMENT_PROJECT_ID_MISSING');
   if (deployment.projectId !== expectedProjectId) throw contractError('UAT_DEPLOYMENT_PROJECT_ID_MISMATCH');
-  if (deployment.target !== 'production') throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PRODUCTION');
+  if (!['production', 'preview'].includes(expectedTarget)) throw contractError('UAT_EXPECTED_DEPLOYMENT_TARGET_INVALID');
+  if (deployment.target !== expectedTarget) {
+    if (expectedTarget === 'production') throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PRODUCTION');
+    throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PREVIEW');
+  }
   if (deployment.readyState !== 'READY') throw contractError('UAT_DEPLOYMENT_NOT_READY');
   if (resolveDeploymentApplicationSha(deployment).sha !== expectedSha) {
     throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_MISMATCH');
@@ -240,19 +249,22 @@ function validateTargetIdentity({
   expectedGitRef
 }) {
   const scope = validateTargetScope(targetMode, targetUrl);
+  const expectedTarget = scope.mode === 'preview' ? 'preview' : 'production';
   validateDeploymentRecord(targetDeployment, {
     expectedDeploymentId,
     applicationSha,
     expectedProjectId,
     expectedProjectName,
-    expectedGitRef
+    expectedGitRef,
+    expectedTarget
   });
   validateDeploymentRecord(expectedDeployment, {
     expectedDeploymentId,
     applicationSha,
     expectedProjectId,
     expectedProjectName,
-    expectedGitRef
+    expectedGitRef,
+    expectedTarget
   });
   if (extractDeploymentHostname(targetDeployment) !== scope.host) {
     throw contractError('UAT_TARGET_DEPLOYMENT_HOST_MISMATCH');

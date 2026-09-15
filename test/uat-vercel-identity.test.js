@@ -256,10 +256,18 @@ test('wrong project fails closed', () => {
   );
 });
 
-test('non-production target fails closed', () => {
+test('non-production target fails closed for the default Production contract', () => {
   assert.throws(
     () => validate(identity({ target: 'preview' })),
     { code: 'UAT_DEPLOYMENT_TARGET_NOT_PRODUCTION' }
+  );
+});
+
+test('explicit preview contract accepts preview and rejects production targets', () => {
+  assert.equal(validate(identity({ target: 'preview' }), { expectedTarget: 'preview' }).valid, true);
+  assert.throws(
+    () => validate(identity({ target: 'production' }), { expectedTarget: 'preview' }),
+    { code: 'UAT_DEPLOYMENT_TARGET_NOT_PREVIEW' }
   );
 });
 

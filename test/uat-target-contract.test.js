@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const {
   validateHarnessIdentity,
   validateSourceBranch,
@@ -13,6 +15,7 @@ const DEPLOYMENT_ID = 'dpl_BXdWNdwFr2MzzPAgtWgyXz7faAuS';
 const PROJECT_ID = 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s';
 const PROJECT_NAME = 'sms-v3-staging';
 const CANDIDATE_URL = 'https://sms-v3-staging-cezup20q5-godzillazz.vercel.app';
+const PREVIEW_URL = 'https://sms-v3-staging-git-feat-unified-report-center-v1-godzillazz.vercel.app';
 const CANONICAL_URL = 'https://sms-v3-staging-ten.vercel.app';
 const HARNESS_SHA = '1234567890abcdef1234567890abcdef12345678';
 const SOURCE_BRANCH = 'feat/unified-report-center-v1';
@@ -54,6 +57,35 @@ test('2. wrong Candidate deployment fails closed', () => {
     () => verify({ targetDeployment: deployment({ id: 'dpl_WrongCandidate123' }) }),
     { code: 'UAT_DEPLOYMENT_ID_MISMATCH' }
   );
+});
+
+test('preview mode accepts an exact READY preview deployment bound to the source branch', () => {
+  const previewDeployment = deployment({
+    url: PREVIEW_URL.replace(/^https:\/\//, ''),
+    target: 'preview',
+    meta: { githubCommitSha: APPLICATION_SHA, githubCommitRef: SOURCE_BRANCH }
+  });
+  assert.equal(verify({
+    targetMode: 'preview',
+    targetUrl: PREVIEW_URL,
+    expectedGitRef: SOURCE_BRANCH,
+    targetDeployment: previewDeployment,
+    expectedDeployment: previewDeployment
+  }).valid, true);
+});
+
+test('preview mode rejects a production-target deployment', () => {
+  const productionDeployment = deployment({
+    url: PREVIEW_URL.replace(/^https:\/\//, ''),
+    meta: { githubCommitSha: APPLICATION_SHA, githubCommitRef: SOURCE_BRANCH }
+  });
+  assert.throws(() => verify({
+    targetMode: 'preview',
+    targetUrl: PREVIEW_URL,
+    expectedGitRef: SOURCE_BRANCH,
+    targetDeployment: productionDeployment,
+    expectedDeployment: productionDeployment
+  }), { code: 'UAT_DEPLOYMENT_TARGET_NOT_PREVIEW' });
 });
 
 test('3. correct Canonical URL plus expected promoted deployment passes', () => {
@@ -115,6 +147,14 @@ test('7. unapproved hostname fails closed', () => {
     () => validateTargetScope('canonical', 'https://sms-v3-staging-other.vercel.app'),
     { code: 'UAT_CANONICAL_HOST_NOT_APPROVED' }
   );
+  assert.throws(
+    () => validateTargetScope('preview', CANONICAL_URL),
+    { code: 'UAT_PREVIEW_HOST_NOT_APPROVED' }
+  );
+  assert.throws(
+    () => validateTargetScope('preview', 'https://example.vercel.app'),
+    { code: 'UAT_PREVIEW_HOST_NOT_APPROVED' }
+  );
 });
 
 test('trusted harness is bound to checkout and approved branch head SHA', () => {
@@ -125,10 +165,18 @@ test('trusted harness is bound to checkout and approved branch head SHA', () => 
   }).valid, true);
 });
 
-test('candidate and canonical modes are distinct rather than hostname aliases', () => {
+test('preview, candidate, and canonical modes remain distinct', () => {
+  assert.equal(validateTargetScope('preview', PREVIEW_URL).mode, 'preview');
   assert.equal(validateTargetScope('candidate', CANDIDATE_URL).mode, 'candidate');
   assert.equal(validateTargetScope('canonical', CANONICAL_URL).mode, 'canonical');
   assert.throws(() => validateTargetScope('candidate', CANONICAL_URL), { code: 'UAT_CANDIDATE_HOST_NOT_APPROVED' });
+  assert.throws(() => validateTargetScope('preview', CANONICAL_URL), { code: 'UAT_PREVIEW_HOST_NOT_APPROVED' });
+});
+
+test('workflow exposes preview mode and binds preview identity to source branch in both jobs', () => {
+  const workflow = fs.readFileSync(path.resolve(__dirname, '../.github/workflows/automated-uat-sms-v3-staging.yml'), 'utf8');
+  assert.match(workflow, /options:\r?\n\s+- preview\r?\n\s+- candidate\r?\n\s+- canonical/);
+  assert.equal((workflow.match(/\[\[ \"\$TARGET_MODE\" == candidate \|\| \"\$TARGET_MODE\" == preview \]\]/g) || []).length, 2);
 });
 
 test('declared application branch HEAD and source SHA pass together', () => {
