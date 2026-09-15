@@ -138,6 +138,16 @@ function validateDeploymentGitRef(deployment, expectedGitRef) {
   return identity;
 }
 
+function resolveExpectedGitRef(targetMode, expectedGitRef, sourceBranchFallback = '') {
+  const mode = normalizeTargetMode(targetMode);
+  const explicitRef = String(expectedGitRef || '').trim();
+  if (explicitRef) return validateSourceBranch(explicitRef);
+  if (mode !== 'preview') return '';
+  const fallbackRef = String(sourceBranchFallback || '').trim();
+  if (!fallbackRef) throw contractError('UAT_PREVIEW_GIT_REF_REQUIRED');
+  return validateSourceBranch(fallbackRef);
+}
+
 function classifyUatTarget(targetUrl) {
   const parsed = parseTargetUrl(targetUrl);
   const host = parsed.hostname.toLowerCase();
@@ -249,13 +259,14 @@ function validateTargetIdentity({
   expectedGitRef
 }) {
   const scope = validateTargetScope(targetMode, targetUrl);
+  const effectiveExpectedGitRef = resolveExpectedGitRef(scope.mode, expectedGitRef);
   const expectedTarget = scope.mode === 'preview' ? 'preview' : 'production';
   validateDeploymentRecord(targetDeployment, {
     expectedDeploymentId,
     applicationSha,
     expectedProjectId,
     expectedProjectName,
-    expectedGitRef,
+    expectedGitRef: effectiveExpectedGitRef,
     expectedTarget
   });
   validateDeploymentRecord(expectedDeployment, {
@@ -263,7 +274,7 @@ function validateTargetIdentity({
     applicationSha,
     expectedProjectId,
     expectedProjectName,
-    expectedGitRef,
+    expectedGitRef: effectiveExpectedGitRef,
     expectedTarget
   });
   if (extractDeploymentHostname(targetDeployment) !== scope.host) {
@@ -311,6 +322,7 @@ if (require.main === module) {
       process.stdout.write(`UAT_SOURCE_BRANCH_HEAD=PASS branch=${result.sourceBranch} sha=${result.sourceSha}\n`);
     } else if (command === 'verify') {
       const [targetMode, targetUrl, expectedDeploymentId, applicationSha, targetFile, expectedFile, expectedProjectId, expectedProjectName, expectedGitRef] = args;
+      const effectiveExpectedGitRef = resolveExpectedGitRef(targetMode, expectedGitRef, process.env.UAT_SOURCE_BRANCH);
       const result = validateTargetIdentity({
         targetMode,
         targetUrl,
@@ -320,7 +332,7 @@ if (require.main === module) {
         expectedDeployment: readJson(expectedFile),
         expectedProjectId,
         expectedProjectName,
-        expectedGitRef
+        expectedGitRef: effectiveExpectedGitRef
       });
       process.stdout.write(`UAT_TARGET_IDENTITY=PASS mode=${result.targetMode} deployment=${result.deploymentId} application_sha=${result.applicationSha}\n`);
     } else {
@@ -345,6 +357,7 @@ module.exports = {
   normalizeTargetMode,
   parseTargetUrl,
   resolveDeploymentApplicationSha,
+  resolveExpectedGitRef,
   validateDeploymentRecord,
   validateDeploymentGitRef,
   validateHarnessIdentity,
