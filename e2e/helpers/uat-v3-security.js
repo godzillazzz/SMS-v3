@@ -125,6 +125,18 @@ function sanitizeArtifactPath(filePath, sensitiveValues = []) {
   return value.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[REDACTED_EMAIL]');
 }
 
+function sanitizeArtifactContent(filePath, content, options = {}) {
+  const source = Buffer.isBuffer(content) ? content : Buffer.from(String(content ?? ''));
+  if (!isTextArtifactPath(filePath)) return source;
+  const sensitiveValues = [
+    options.bypassSecret,
+    ...(options.secretValues || []),
+    ...(options.passwordValues || []),
+    ...(options.emailValues || [])
+  ].filter(Boolean);
+  return Buffer.from(sanitizeUatDiagnostic(textContent(source), sensitiveValues), 'utf8');
+}
+
 function scanArtifact(filePath, content, options = {}) {
   const sensitiveValues = [
     options.bypassSecret,
@@ -175,6 +187,7 @@ module.exports = {
   isTextArtifactPath,
   rolePreflightSummary,
   roleSuiteStatus,
+  sanitizeArtifactContent,
   sanitizeArtifactPath,
   sanitizeUatDiagnostic,
   sensitiveUatValues,

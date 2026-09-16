@@ -103,7 +103,7 @@ async function expectUnifiedReportCenter(page, role, testInfo, monitor) {
       'RC10_EXPORT_CONTROL',
       async () => {
         await expect(center.getByRole('heading', { name: 'ส่งออก', exact: true })).toBeVisible();
-        const exportCard = center.locator('.report-center-export-card');
+        const exportCard = center.locator('.report-center-export-card').filter({ hasText: 'รายงานผู้บริหาร PDF' });
         await expect(exportCard).toHaveCount(1);
         await expect(exportCard).toBeVisible();
         await expect(exportCard.getByRole('heading', { name: 'รายงานผู้บริหาร PDF', exact: true })).toBeVisible();

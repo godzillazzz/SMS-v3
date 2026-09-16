@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { getUatConfig, normalizeUatMode } = require('../e2e/helpers/uat-config');
-const { artifactContainsAnySecret, artifactContainsAuthMaterial, artifactLeakReasons, isForbiddenArtifactPath, isTextArtifactPath, roleSuiteStatus, scanArtifact } = require('../e2e/helpers/uat-v3-security');
+const { artifactContainsAnySecret, artifactContainsAuthMaterial, artifactLeakReasons, isForbiddenArtifactPath, isTextArtifactPath, roleSuiteStatus, sanitizeArtifactContent, scanArtifact } = require('../e2e/helpers/uat-v3-security');
 const { getRoleApiMatrix, getRoleNavigation } = require('../e2e/helpers/uat-v3-role-matrix');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -152,6 +152,15 @@ test('V3 artifact safety rejects auth state paths and token-bearing content', ()
   assert.deepEqual(artifactLeakReasons('test-results/uat-summary.md', 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature-value'), ['AUTHORIZATION_HEADER']);
   assert.deepEqual(artifactLeakReasons('test-results/uat-summary.md', 'identity=uat-admin@example.test', { emailValues: ['uat-admin@example.test'] }), ['UAT_EMAIL_VALUE']);
   assert.deepEqual(scanArtifact('test-results/uat-summary.md', 'mode=AUTHENTICATED role=ADMIN status=PASS'), { path: 'test-results/uat-summary.md', categories: [], safe: true });
+  const unsafeText = Buffer.from(`password=${testPassword} identity=admin@example.test`);
+  const sanitizedText = sanitizeArtifactContent('test-results/playwright/error-context.md', unsafeText, { passwordValues: [testPassword], emailValues: ['admin@example.test'] });
+  assert.equal(sanitizedText.includes(Buffer.from(testPassword)), false);
+  assert.equal(sanitizedText.includes(Buffer.from('admin@example.test')), false);
+  assert.deepEqual(scanArtifact('test-results/playwright/error-context.md', sanitizedText, { passwordValues: [testPassword], emailValues: ['admin@example.test'] }), { path: 'test-results/playwright/error-context.md', categories: [], safe: true });
+  const binarySecret = Buffer.from(testPassword);
+  const unsanitizedBinary = sanitizeArtifactContent('test-results/playwright/failure.png', binarySecret, { passwordValues: [testPassword] });
+  assert.equal(unsanitizedBinary.equals(binarySecret), true);
+  assert.equal(scanArtifact('test-results/playwright/failure.png', unsanitizedBinary, { passwordValues: [testPassword] }).safe, false);
 });
 
 test('V3 workflow exposes explicit mode and least-privilege credential contract', () => {
@@ -235,7 +244,13 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   const authenticatedRunStep = workflow.match(/- name: Run authenticated UAT V3[\s\S]*?(?=\r?\n      - name: Publish authenticated UAT summary)/)?.[0] || '';
   const technicalRunStep = workflow.match(/- name: Run technical UAT V3 without credentials[\s\S]*?(?=\r?\n      - name: Publish technical UAT summary)/)?.[0] || '';
   assert.doesNotMatch(authenticatedRunStep, /VERCEL_TOKEN/);
-  assert.doesNotMatch(technicalRunStep, /VERCEL_TOKEN/);});
+  assert.doesNotMatch(technicalRunStep, /VERCEL_TOKEN/);
+  for (const runStep of [technicalRunStep, authenticatedRunStep]) {
+    assert.match(runStep, /sanitizeArtifactContent/);
+    assert.match(runStep, /sanitizedContent\.equals\(content\)/);
+    assert.match(runStep, /scanArtifact\(relativePath, sanitizedContent/);
+  }
+});
 
 test('V3 isolates Report Center diagnostics without changing the global timeout', () => {
   assert.match(authenticatedSmoke, /navigation shell/);
@@ -258,6 +273,7 @@ test('V3 isolates Report Center diagnostics without changing the global timeout'
 test('V3 scopes intentional duplicate Report Center export controls semantically', () => {
   const exportStage = authenticatedSmoke.match(/'RC10_EXPORT_CONTROL'[\s\S]*?(?=const executiveCenter)/)?.[0] || '';
   assert.match(exportStage, /\.report-center-export-card/);
+  assert.match(exportStage, /filter\(\{ hasText: 'รายงานผู้บริหาร PDF' \}\)/);
   assert.match(exportStage, /\.report-center-quick-export/);
   assert.match(exportStage, /รายงานผู้บริหาร PDF/);
   assert.match(exportStage, /exportCardButton\)\.toHaveCount\(1\)/);

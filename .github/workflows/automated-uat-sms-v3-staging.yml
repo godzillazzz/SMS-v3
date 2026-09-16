@@ -213,7 +213,7 @@ jobs:
             const path = require('node:path');
             const { spawnSync } = require('node:child_process');
             const { isProtectedCandidateUrl } = require('./e2e/helpers/technical-smoke');
-            const { scanArtifact, sanitizeArtifactPath } = require('./e2e/helpers/uat-v3-security');
+            const { sanitizeArtifactContent, scanArtifact, sanitizeArtifactPath } = require('./e2e/helpers/uat-v3-security');
 
             const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
             if (isProtectedCandidateUrl(process.env.UAT_BASE_URL) && !bypassSecret) {
@@ -236,7 +236,9 @@ jobs:
                 } else {
                   const content = fs.readFileSync(current);
                   const relativePath = path.relative(process.cwd(), current).replace(/\\/g, '/');
-                  const finding = scanArtifact(relativePath, content, { bypassSecret });
+                  const sanitizedContent = sanitizeArtifactContent(relativePath, content, { bypassSecret });
+                  if (!sanitizedContent.equals(content)) fs.writeFileSync(current, sanitizedContent);
+                  const finding = scanArtifact(relativePath, sanitizedContent, { bypassSecret });
                   if (!finding.safe) flaggedArtifacts.push(finding);
                 }
               }
@@ -506,7 +508,7 @@ jobs:
             const path = require('node:path');
             const { spawnSync } = require('node:child_process');
             const { isProtectedCandidateUrl } = require('./e2e/helpers/technical-smoke');
-            const { scanArtifact, sanitizeArtifactPath } = require('./e2e/helpers/uat-v3-security');
+            const { sanitizeArtifactContent, scanArtifact, sanitizeArtifactPath } = require('./e2e/helpers/uat-v3-security');
 
             const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || '';
             if (isProtectedCandidateUrl(process.env.UAT_BASE_URL) && !bypassSecret) {
@@ -539,7 +541,9 @@ jobs:
                 } else {
                   const content = fs.readFileSync(current);
                   const relativePath = path.relative(process.cwd(), current).replace(/\\/g, '/');
-                  const finding = scanArtifact(relativePath, content, { bypassSecret, passwordValues, emailValues });
+                  const sanitizedContent = sanitizeArtifactContent(relativePath, content, { bypassSecret, passwordValues, emailValues });
+                  if (!sanitizedContent.equals(content)) fs.writeFileSync(current, sanitizedContent);
+                  const finding = scanArtifact(relativePath, sanitizedContent, { bypassSecret, passwordValues, emailValues });
                   if (!finding.safe) flaggedArtifacts.push(finding);
                 }
               }
