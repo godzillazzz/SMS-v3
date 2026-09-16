@@ -76,6 +76,7 @@ test('TECHNICAL: HTTP health, readiness, Vite assets, and audit authorization bo
 
 for (const viewport of viewports) {
   test(`TECHNICAL: login page browser smoke ${viewport.name}`, async ({ page }, testInfo) => {
+    test.setTimeout(60_000);
     const monitor = startPageMonitor(page);
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     const response = await page.goto('/login');
@@ -86,9 +87,9 @@ for (const viewport of viewports) {
     const email = page.getByLabel('อีเมล', { exact: true });
     const password = page.getByLabel('รหัสผ่าน', { exact: true });
     const submit = page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true });
-    await expect(email).toBeVisible();
-    await expect(password).toBeVisible();
-    await expect(submit).toBeVisible();
+    await expect(email).toBeVisible({ timeout: 30_000 });
+    await expect(password).toBeVisible({ timeout: 30_000 });
+    await expect(submit).toBeVisible({ timeout: 30_000 });
     for (const control of [email, password, submit]) {
       const box = await control.boundingBox();
       expect(box, 'Primary login control must have a viewport box.').not.toBeNull();

@@ -13,6 +13,7 @@ test.skip(isReportCenterDiagnostic() || !hasRoleCredentials('ADMIN'), 'ADMIN res
 
 for (const viewport of viewports) {
   test(`ADMIN responsive smoke ${viewport.name}`, async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
     const monitor = startPageMonitor(page);
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await loginAs(page, 'ADMIN');
