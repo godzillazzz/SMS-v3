@@ -183,12 +183,15 @@ jobs:
           npx prisma generate
           echo 'RECOVERY_PRISMA_TOOLING=PASS'
 
-      - name: Pull governed Vercel Preview configuration
+      - name: Pull governed Vercel Preview configuration for exact source branch
         shell: bash
         working-directory: application-under-test
+        env:
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
         run: |
           set -euo pipefail
-          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=preview \
+          test -n "$SOURCE_BRANCH"
+          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=preview --git-branch "$SOURCE_BRANCH" \
             --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/vercel-preview-recovery-pull.log 2>&1
           node - <<'NODE'
           const fs = require('node:fs');
@@ -200,6 +203,7 @@ jobs:
             if (!fs.existsSync(file)) throw new Error('Preview env file missing after Vercel pull');
           }
           console.log('PREVIEW_CONFIG_PULL=PASS');
+          console.log('PREVIEW_CONFIG_BRANCH_BINDING=PASS');
           NODE
           npx --yes vercel@"$VERCEL_CLI_VERSION" env list preview --format json \
             --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$RUNNER_TEMP/preview-uat-recovery-env-metadata.json"
