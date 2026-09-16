@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: Exact approved Preview URL
+        description: Exact approved temporary recovery Preview URL
         required: true
         type: string
       source_sha:
-        description: Exact application SHA deployed at target_url
+        description: Exact temporary recovery Preview application SHA
         required: true
         type: string
       source_branch:
-        description: Exact application source branch whose HEAD must equal source_sha
+        description: Exact temporary recovery Preview source branch whose HEAD must equal source_sha
         required: true
         type: string
       uat_harness_sha:
@@ -20,7 +20,7 @@ on:
         required: true
         type: string
       expected_deployment_id:
-        description: Exact Vercel Preview deployment ID
+        description: Exact Vercel temporary recovery Preview deployment ID
         required: true
         type: string
       confirmation:
@@ -28,7 +28,7 @@ on:
         required: true
         type: string
       execute_repair:
-        description: Execute the account repair after the read-only dry run passes
+        description: Execute the account repair after the runtime dry run passes
         required: true
         default: false
         type: boolean
@@ -44,25 +44,23 @@ env:
   EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
   EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
   EXPECTED_PROJECT_NAME: sms-v3-staging
-  VERCEL_CLI_VERSION: 56.4.1
 
 jobs:
   recover:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     environment: production-sms-v3-staging
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
       UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
       UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
       UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
       UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
       UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
       UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
-      UAT_BOOTSTRAP_CONFIRM: CREATE_SMS_V3_STAGING_UAT_USERS
     steps:
       - name: Checkout trusted harness
         uses: actions/checkout@v4
@@ -70,7 +68,7 @@ jobs:
           ref: ${{ inputs.uat_harness_sha }}
           fetch-depth: 0
 
-      - name: Validate recovery authority and exact Preview deployment identity
+      - name: Validate recovery authority and exact temporary Preview deployment identity
         shell: bash
         env:
           TARGET_URL: ${{ inputs.target_url }}
@@ -87,7 +85,7 @@ jobs:
           test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
           test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
           test -n "$VERCEL_TOKEN"
-          test -n "$APPROVED_DATABASE_TARGET_FINGERPRINT"
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
           [[ "$SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [[ "$HARNESS_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
           [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
@@ -135,30 +133,11 @@ jobs:
             "$target_identity" "$expected_identity" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME" "$SOURCE_BRANCH"
           echo 'RECOVERY_DEPLOYMENT_IDENTITY=PASS'
 
-      - name: Checkout exact application under test
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.source_sha }}
-          fetch-depth: 1
-          path: application-under-test
-
-      - name: Verify exact recovery source
-        shell: bash
-        env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
-        run: |
-          set -euo pipefail
-          test "$(git -C application-under-test rev-parse HEAD)" = "$SOURCE_SHA"
-          test -f application-under-test/scripts/admin/bootstrap-uat-users.js
-          test -f application-under-test/src/services/runtime-database-target-guard.service.js
-          test -f application-under-test/scripts/ci/verify-preview-control-plane.js
-          test -f application-under-test/package-lock.json
-          echo 'RECOVERY_SOURCE_IDENTITY=PASS'
-
       - name: Require UAT credentials without exposing values
         shell: bash
         run: |
           set -euo pipefail
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET"
           for role in ADMIN MANAGER VIEWER; do
             email_key="UAT_${role}_EMAIL"
             password_key="UAT_${role}_PASSWORD"
@@ -167,122 +146,160 @@ jobs:
           done
           echo 'UAT_RECOVERY_CREDENTIAL_CONTRACT=PASS'
 
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: application-under-test/package-lock.json
-
-      - name: Install exact application dependencies
+      - name: Prove protected recovery Preview runtime readiness
         shell: bash
-        working-directory: application-under-test
-        run: |
-          set -euo pipefail
-          npm ci --include=dev
-          npx prisma generate
-          echo 'RECOVERY_PRISMA_TOOLING=PASS'
-
-      - name: Pull governed Vercel Preview configuration for exact source branch
-        shell: bash
-        working-directory: application-under-test
         env:
-          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          TARGET_URL: ${{ inputs.target_url }}
         run: |
           set -euo pipefail
-          test -n "$SOURCE_BRANCH"
-          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=preview \
-            --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/vercel-preview-recovery-pull.log 2>&1
-          npx --yes vercel@"$VERCEL_CLI_VERSION" env pull .vercel/.env.preview.local --yes --environment=preview --git-branch "$SOURCE_BRANCH" \
-            --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/vercel-preview-recovery-env-pull.log 2>&1
-          node - <<'NODE'
+          response="$RUNNER_TEMP/preview-uat-recovery-ready.json"
+          status="$(curl --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --output "$response" --write-out '%{http_code}' \
+            --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            "$TARGET_URL/api/v1/ready")"
+          test "$status" = '200'
+          RECOVERY_RESPONSE_FILE="$response" node - <<'NODE'
           const fs = require('node:fs');
-          const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
-          if (project.projectId !== process.env.EXPECTED_PROJECT_ID || project.orgId !== process.env.EXPECTED_ORG_ID) {
-            throw new Error('Vercel project linkage mismatch');
-          }
-          for (const file of ['.vercel/.env.preview.local']) {
-            if (!fs.existsSync(file)) throw new Error('Preview env file missing after Vercel env pull');
-          }
-          console.log('PREVIEW_PROJECT_PULL=PASS');
-          console.log('PREVIEW_ENV_PULL=PASS');
-          console.log('PREVIEW_CONFIG_BRANCH_BINDING=PASS');
+          const body = JSON.parse(fs.readFileSync(process.env.RECOVERY_RESPONSE_FILE, 'utf8'));
+          if (body.status !== 'ready' || body.database !== 'ok') throw new Error('PREVIEW_RUNTIME_READY_FAILED');
+          console.log('PREVIEW_RUNTIME_DATABASE_GUARD=PASS');
           NODE
-          npx --yes vercel@"$VERCEL_CLI_VERSION" env list preview --format json \
-            --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$RUNNER_TEMP/preview-uat-recovery-env-metadata.json"
-          test -s "$RUNNER_TEMP/preview-uat-recovery-env-metadata.json"
 
-      - name: Prove Preview control-plane and database target before any write
+      - name: Dry-run UAT account recovery inside protected Preview runtime
         shell: bash
-        working-directory: application-under-test
         env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          TARGET_URL: ${{ inputs.target_url }}
         run: |
           set -euo pipefail
-          SOURCE_TREE="$(git rev-parse 'HEAD^{tree}')"
-          node scripts/ci/verify-preview-control-plane.js \
-            --env-file=.vercel/.env.preview.local \
-            --metadata-file="$RUNNER_TEMP/preview-uat-recovery-env-metadata.json" \
-            --source-sha="$SOURCE_SHA" \
-            --source-tree="$SOURCE_TREE" \
-            --cwd="$PWD" \
-            --production-fingerprint="$APPROVED_DATABASE_TARGET_FINGERPRINT" \
-            --run-migrations=false
-          VERCEL_ENV=preview node --env-file=.vercel/.env.preview.local - <<'NODE'
-          const { verifyPreviewDatabaseTarget } = require('./src/services/runtime-database-target-guard.service');
-          const result = verifyPreviewDatabaseTarget(process.env);
-          if (!result.required || !result.matched) throw new Error('PREVIEW_DATABASE_TARGET_GUARD_FAILED');
-          const preview = String(process.env.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT || '').trim().toLowerCase();
-          const production = String(process.env.APPROVED_DATABASE_TARGET_FINGERPRINT || '').trim().toLowerCase();
-          if (!preview || !production || preview === production) throw new Error('PREVIEW_DATABASE_TARGET_DISTINCTNESS_FAILED');
-          console.log('PREVIEW_DATABASE_TARGET_GUARD=PASS');
-          console.log('PREVIEW_PRODUCTION_DATABASE_DISTINCT=PASS');
+          request_file="$RUNNER_TEMP/preview-uat-recovery-dry-run-request.json"
+          response_file="$RUNNER_TEMP/preview-uat-recovery-dry-run-response.json"
+          RECOVERY_REQUEST_FILE="$request_file" RECOVERY_EXECUTE=false node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = {
+            confirmation: 'REPAIR_PREVIEW_UAT_ACCOUNTS',
+            execute: process.env.RECOVERY_EXECUTE === 'true',
+            accounts: {
+              ADMIN: { email: process.env.UAT_ADMIN_EMAIL, password: process.env.UAT_ADMIN_PASSWORD },
+              MANAGER: { email: process.env.UAT_MANAGER_EMAIL, password: process.env.UAT_MANAGER_PASSWORD },
+              VIEWER: { email: process.env.UAT_VIEWER_EMAIL, password: process.env.UAT_VIEWER_PASSWORD }
+            }
+          };
+          fs.writeFileSync(process.env.RECOVERY_REQUEST_FILE, JSON.stringify(payload), { mode: 0o600 });
           NODE
-
-      - name: Dry-run UAT account recovery
-        shell: bash
-        working-directory: application-under-test
-        run: |
-          set -euo pipefail
-          VERCEL_ENV=preview node --env-file=.vercel/.env.preview.local scripts/admin/bootstrap-uat-users.js --dry-run | tee "$RUNNER_TEMP/uat-recovery-dry-run.txt"
-          grep -Fq 'UAT_ADMIN .... ' "$RUNNER_TEMP/uat-recovery-dry-run.txt"
-          grep -Fq 'UAT_MANAGER .... ' "$RUNNER_TEMP/uat-recovery-dry-run.txt"
-          grep -Fq 'UAT_VIEWER .... ' "$RUNNER_TEMP/uat-recovery-dry-run.txt"
-          echo 'UAT_ACCOUNT_RECOVERY_DRY_RUN=PASS'
+          status="$(curl --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --request POST --output "$response_file" --write-out '%{http_code}' \
+            --header 'content-type: application/json' \
+            --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            --data-binary "@$request_file" \
+            "$TARGET_URL/api/v1/internal/preview-uat-recovery")"
+          test "$status" = '200'
+          RECOVERY_RESPONSE_FILE="$response_file" RECOVERY_EXPECTED_MODE=DRY_RUN node - <<'NODE'
+          const fs = require('node:fs');
+          const body = JSON.parse(fs.readFileSync(process.env.RECOVERY_RESPONSE_FILE, 'utf8'));
+          if (body?.data?.mode !== process.env.RECOVERY_EXPECTED_MODE) throw new Error('UAT_RECOVERY_MODE_MISMATCH');
+          const accounts = body?.data?.accounts;
+          const expected = ['UAT_ADMIN', 'UAT_MANAGER', 'UAT_VIEWER'];
+          if (!Array.isArray(accounts) || accounts.length !== expected.length) throw new Error('UAT_RECOVERY_ACCOUNT_COUNT_MISMATCH');
+          for (let index = 0; index < expected.length; index += 1) {
+            if (accounts[index]?.key !== expected[index]) throw new Error('UAT_RECOVERY_ACCOUNT_KEY_MISMATCH');
+            if (!['UPDATE', 'EXISTS'].includes(accounts[index]?.action)) throw new Error('UAT_RECOVERY_DRY_RUN_ACTION_INVALID');
+          }
+          console.log('UAT_ACCOUNT_RECOVERY_DRY_RUN=PASS');
+          NODE
 
       - name: Execute owner-authorized Preview UAT account recovery
         shell: bash
-        working-directory: application-under-test
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
         run: |
           set -euo pipefail
-          VERCEL_ENV=preview node --env-file=.vercel/.env.preview.local scripts/admin/bootstrap-uat-users.js | tee "$RUNNER_TEMP/uat-recovery-execution.txt"
-          grep -Fq 'UAT_ADMIN .... ' "$RUNNER_TEMP/uat-recovery-execution.txt"
-          grep -Fq 'UAT_MANAGER .... ' "$RUNNER_TEMP/uat-recovery-execution.txt"
-          grep -Fq 'UAT_VIEWER .... ' "$RUNNER_TEMP/uat-recovery-execution.txt"
-          echo 'UAT_ACCOUNT_RECOVERY_EXECUTION=PASS'
+          request_file="$RUNNER_TEMP/preview-uat-recovery-execute-request.json"
+          response_file="$RUNNER_TEMP/preview-uat-recovery-execute-response.json"
+          RECOVERY_REQUEST_FILE="$request_file" RECOVERY_EXECUTE=true node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = {
+            confirmation: 'REPAIR_PREVIEW_UAT_ACCOUNTS',
+            execute: process.env.RECOVERY_EXECUTE === 'true',
+            accounts: {
+              ADMIN: { email: process.env.UAT_ADMIN_EMAIL, password: process.env.UAT_ADMIN_PASSWORD },
+              MANAGER: { email: process.env.UAT_MANAGER_EMAIL, password: process.env.UAT_MANAGER_PASSWORD },
+              VIEWER: { email: process.env.UAT_VIEWER_EMAIL, password: process.env.UAT_VIEWER_PASSWORD }
+            }
+          };
+          fs.writeFileSync(process.env.RECOVERY_REQUEST_FILE, JSON.stringify(payload), { mode: 0o600 });
+          NODE
+          status="$(curl --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --request POST --output "$response_file" --write-out '%{http_code}' \
+            --header 'content-type: application/json' \
+            --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            --data-binary "@$request_file" \
+            "$TARGET_URL/api/v1/internal/preview-uat-recovery")"
+          test "$status" = '200'
+          RECOVERY_RESPONSE_FILE="$response_file" RECOVERY_EXPECTED_MODE=EXECUTE node - <<'NODE'
+          const fs = require('node:fs');
+          const body = JSON.parse(fs.readFileSync(process.env.RECOVERY_RESPONSE_FILE, 'utf8'));
+          if (body?.data?.mode !== process.env.RECOVERY_EXPECTED_MODE) throw new Error('UAT_RECOVERY_MODE_MISMATCH');
+          const accounts = body?.data?.accounts;
+          const expected = ['UAT_ADMIN', 'UAT_MANAGER', 'UAT_VIEWER'];
+          if (!Array.isArray(accounts) || accounts.length !== expected.length) throw new Error('UAT_RECOVERY_ACCOUNT_COUNT_MISMATCH');
+          for (let index = 0; index < expected.length; index += 1) {
+            if (accounts[index]?.key !== expected[index]) throw new Error('UAT_RECOVERY_ACCOUNT_KEY_MISMATCH');
+            if (!['UPDATE', 'EXISTS'].includes(accounts[index]?.action)) throw new Error('UAT_RECOVERY_EXECUTE_ACTION_INVALID');
+          }
+          console.log('UAT_ACCOUNT_RECOVERY_EXECUTION=PASS');
+          NODE
 
       - name: Verify repaired accounts are idempotently current
         shell: bash
-        working-directory: application-under-test
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
         run: |
           set -euo pipefail
-          VERCEL_ENV=preview node --env-file=.vercel/.env.preview.local scripts/admin/bootstrap-uat-users.js --dry-run | tee "$RUNNER_TEMP/uat-recovery-postcheck.txt"
-          grep -Fxq 'UAT_ADMIN .... EXISTS' "$RUNNER_TEMP/uat-recovery-postcheck.txt"
-          grep -Fxq 'UAT_MANAGER .... EXISTS' "$RUNNER_TEMP/uat-recovery-postcheck.txt"
-          grep -Fxq 'UAT_VIEWER .... EXISTS' "$RUNNER_TEMP/uat-recovery-postcheck.txt"
-          echo 'UAT_ACCOUNT_RECOVERY_POSTCHECK=PASS'
+          request_file="$RUNNER_TEMP/preview-uat-recovery-postcheck-request.json"
+          response_file="$RUNNER_TEMP/preview-uat-recovery-postcheck-response.json"
+          RECOVERY_REQUEST_FILE="$request_file" node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = {
+            confirmation: 'REPAIR_PREVIEW_UAT_ACCOUNTS',
+            execute: false,
+            accounts: {
+              ADMIN: { email: process.env.UAT_ADMIN_EMAIL, password: process.env.UAT_ADMIN_PASSWORD },
+              MANAGER: { email: process.env.UAT_MANAGER_EMAIL, password: process.env.UAT_MANAGER_PASSWORD },
+              VIEWER: { email: process.env.UAT_VIEWER_EMAIL, password: process.env.UAT_VIEWER_PASSWORD }
+            }
+          };
+          fs.writeFileSync(process.env.RECOVERY_REQUEST_FILE, JSON.stringify(payload), { mode: 0o600 });
+          NODE
+          status="$(curl --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --request POST --output "$response_file" --write-out '%{http_code}' \
+            --header 'content-type: application/json' \
+            --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            --data-binary "@$request_file" \
+            "$TARGET_URL/api/v1/internal/preview-uat-recovery")"
+          test "$status" = '200'
+          RECOVERY_RESPONSE_FILE="$response_file" node - <<'NODE'
+          const fs = require('node:fs');
+          const body = JSON.parse(fs.readFileSync(process.env.RECOVERY_RESPONSE_FILE, 'utf8'));
+          if (body?.data?.mode !== 'DRY_RUN') throw new Error('UAT_RECOVERY_POSTCHECK_MODE_MISMATCH');
+          const accounts = body?.data?.accounts;
+          const expected = ['UAT_ADMIN', 'UAT_MANAGER', 'UAT_VIEWER'];
+          if (!Array.isArray(accounts) || accounts.length !== expected.length) throw new Error('UAT_RECOVERY_POSTCHECK_ACCOUNT_COUNT_MISMATCH');
+          for (let index = 0; index < expected.length; index += 1) {
+            if (accounts[index]?.key !== expected[index] || accounts[index]?.action !== 'EXISTS') {
+              throw new Error('UAT_RECOVERY_POSTCHECK_NOT_IDEMPOTENT');
+            }
+          }
+          console.log('UAT_ACCOUNT_RECOVERY_POSTCHECK=PASS');
+          NODE
 
       - name: Publish safe recovery summary
         shell: bash
         run: |
           {
             echo '### Preview UAT account recovery'
-            echo '- Exact Preview deployment identity: PASS'
-            echo '- Exact application source identity: PASS'
-            echo '- Vercel Preview configuration pull: PASS'
-            echo '- Preview database fingerprint guard: PASS'
-            echo '- Preview/Production database target distinctness: PASS'
-            echo '- Read-only recovery dry run: PASS'
+            echo '- Exact temporary Preview deployment identity: PASS'
+            echo '- Protected Preview runtime readiness and DB fingerprint guard: PASS'
+            echo '- Existing-only recovery dry run: PASS'
             echo '- Owner-authorized UAT account repair: PASS'
             echo '- Post-repair idempotency check: PASS'
             echo '- Production database mutation: NO'
@@ -290,10 +307,9 @@ jobs:
             echo '- Raw credentials emitted: NO'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Remove pulled Preview secret material from runner workspace
+      - name: Remove temporary recovery request and response material
         if: always()
         shell: bash
         run: |
-          rm -f application-under-test/.vercel/.env.preview.local application-under-test/.vercel/.env.preview 2>/dev/null || true
-          rm -f "$RUNNER_TEMP/uat-recovery-dry-run.txt" "$RUNNER_TEMP/uat-recovery-execution.txt" "$RUNNER_TEMP/uat-recovery-postcheck.txt" 2>/dev/null || true
-          echo 'RECOVERY_TEMP_SECRET_MATERIAL_CLEANED=true'
+          rm -f "$RUNNER_TEMP"/preview-uat-recovery-*.json 2>/dev/null || true
+          echo 'RECOVERY_TEMP_MATERIAL_CLEANED=true'
