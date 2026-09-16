@@ -92,6 +92,15 @@ function extractDeploymentHostname(deployment) {
   return parsed.hostname.toLowerCase();
 }
 
+function deploymentMatchesHost(deployment, expectedHost, allowAliases = false) {
+  const primaryHost = extractDeploymentHostname(deployment);
+  if (primaryHost === expectedHost) return true;
+  if (!allowAliases || !Array.isArray(deployment?.aliases)) return false;
+  return deployment.aliases.some((alias) => (
+    typeof alias === 'string' && alias.trim().toLowerCase() === expectedHost
+  ));
+}
+
 function validateDeploymentRef(value) {
   if (typeof value !== 'string' || value.length === 0) {
     throw contractError('UAT_DEPLOYMENT_GIT_REF_INVALID');
@@ -291,10 +300,11 @@ function validateTargetIdentity({
     expectedGitRef: effectiveExpectedGitRef,
     expectedTarget
   });
-  if (extractDeploymentHostname(targetDeployment) !== scope.host) {
+  const allowPreviewAliases = scope.mode === 'preview';
+  if (!deploymentMatchesHost(targetDeployment, scope.host, allowPreviewAliases)) {
     throw contractError('UAT_TARGET_DEPLOYMENT_HOST_MISMATCH');
   }
-  if (extractDeploymentHostname(expectedDeployment) !== scope.host) {
+  if (!deploymentMatchesHost(expectedDeployment, scope.host, allowPreviewAliases)) {
     throw contractError('UAT_EXPECTED_DEPLOYMENT_HOST_MISMATCH');
   }
   if (targetDeployment.id !== expectedDeployment.id) throw contractError('UAT_TARGET_DEPLOYMENT_IDENTITY_MISMATCH');
@@ -366,6 +376,7 @@ module.exports = {
   classifyUatTarget,
   classifyDeploymentIdentity,
   contractError,
+  deploymentMatchesHost,
   extractApplicationSha,
   extractDeploymentHostname,
   normalizeTargetMode,
