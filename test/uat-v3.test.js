@@ -260,7 +260,8 @@ test('V3 scopes intentional duplicate Report Center export controls semantically
   assert.match(exportStage, /\.report-center-export-card/);
   assert.match(exportStage, /\.report-center-quick-export/);
   assert.match(exportStage, /รายงานผู้บริหาร PDF/);
-  assert.match(exportStage, /toHaveCount\(2\)/);
+  assert.match(exportStage, /exportCardButton\)\.toHaveCount\(1\)/);
+  assert.match(exportStage, /quickExportButton\)\.toHaveCount\(1\)/);
   assert.doesNotMatch(exportStage, /center\.getByRole\('button', \{ name: 'ส่งออก PDF', exact: true \}\)\.toBeVisible/);
   assert.match(authenticatedSmoke, /executiveCenter\.locator\('\.report-center-quick-export'\)/);
   assert.doesNotMatch(exportStage, /\.(first|last|nth)\(/);

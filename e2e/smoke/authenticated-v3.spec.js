@@ -117,7 +117,8 @@ async function expectUnifiedReportCenter(page, role, testInfo, monitor) {
         const quickExportButton = quickExport.getByRole('button', { name: 'ส่งออก PDF', exact: true });
         await expect(quickExportButton).toHaveCount(1);
         await expect(quickExportButton).toBeVisible();
-        await expect(center.getByRole('button', { name: 'ส่งออก PDF', exact: true })).toHaveCount(2);
+        await expect(exportCardButton).toHaveCount(1);
+        await expect(quickExportButton).toHaveCount(1);
       },
       { safeApiPath: '/api/v1/reports/summary', safeStatus: detailsResponse.status(), safeErrorCode: 'UAT_UI_EXPORT_RENDER_FAILED' }
     );

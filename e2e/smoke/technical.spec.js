@@ -1,5 +1,6 @@
 const { test, expect } = require('../helpers/uat-test');
 const { isReportCenterDiagnostic } = require('../helpers/uat-config');
+const { scrubLoginCredentialDom } = require('../helpers/uat-auth');
 const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = require('../helpers/uat-observe');
 const {
   assertExpectedStatus,
@@ -95,6 +96,7 @@ for (const viewport of viewports) {
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
     }
     await assertNoHorizontalOverflow(page);
+    await scrubLoginCredentialDom(page);
     await captureScreenshot(page, testInfo, `technical-login-${viewport.name}`, { allowLoginForm: true });
     monitor.assertClean();
   });
