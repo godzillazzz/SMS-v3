@@ -32,6 +32,8 @@ test('Preview UAT recovery workflow proves exact deployment and runtime DB readi
   assert.match(workflow, /x-vercel-protection-bypass: \$VERCEL_AUTOMATION_BYPASS_SECRET/);
   assert.match(workflow, /\$TARGET_URL\/api\/v1\/ready/);
   assert.match(workflow, /\$TARGET_URL\/api\/v1\/internal\/preview-uat-recovery/);
+  assert.match(workflow, /UAT_RECOVERY_DRY_RUN_HTTP=\$status/);
+  assert.match(workflow, /UAT_RECOVERY_DRY_RUN_CODE=\$\{code\}/);
 });
 
 test('Preview UAT recovery workflow requires explicit owner confirmation and existing-only postcheck semantics', () => {
