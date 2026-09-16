@@ -97,10 +97,15 @@ function assertNoConflict(inspections) {
   if (inspections.some((inspection) => inspection.action === 'CONFLICT')) throw safeError('UAT_BOOTSTRAP_ACCOUNT_CONFLICT');
 }
 
+function assertExistingWhenRequired(inspections, requireExisting) {
+  if (requireExisting && inspections.some((inspection) => !inspection.existing)) throw safeError('UAT_BOOTSTRAP_ACCOUNT_MISSING');
+}
+
 async function provisionUatUsers({ prismaClient, config, hashPassword = bcrypt.hash, verifyPassword = bcrypt.compare }) {
   const runner = async (client) => {
     const inspections = await inspectAccounts(client, config.accounts, verifyPassword);
     assertNoConflict(inspections);
+    assertExistingWhenRequired(inspections, config.requireExisting === true);
     if (config.dryRun) return inspections;
 
     const results = [];

@@ -116,3 +116,15 @@ test('existing correct UAT users are idempotent and conflicting identities block
   assert.equal(conflicting.calls.create, 0);
   assert.equal(conflicting.calls.update, 0);
 });
+
+test('existing-only recovery mode rejects missing UAT identities before any create or update', async () => {
+  const prisma = createFakePrisma();
+  const config = { ...readBootstrapConfig(environment), requireExisting: true };
+  await assert.rejects(
+    provisionUatUsers({ prismaClient: prisma, config, hashPassword, verifyPassword }),
+    { code: 'UAT_BOOTSTRAP_ACCOUNT_MISSING' }
+  );
+  assert.equal(prisma.calls.create, 0);
+  assert.equal(prisma.calls.update, 0);
+  assert.equal(prisma.calls.transaction, 1);
+});
