@@ -22,6 +22,32 @@ function pickStrings(source, fields) {
   return Object.keys(picked).length > 0 ? picked : undefined;
 }
 
+function normalizeVercelAlias(value) {
+  if (typeof value !== 'string') return undefined;
+  const host = value.trim().toLowerCase();
+  if (
+    !host
+    || host.length > 253
+    || host.startsWith('.')
+    || host.endsWith('.')
+    || host.includes('..')
+    || !/^[a-z0-9.-]+\.vercel\.app$/.test(host)
+  ) return undefined;
+  return host;
+}
+
+function normalizeDeploymentAliases(raw) {
+  const aliases = [];
+  for (const source of [raw?.alias, raw?.automaticAliases]) {
+    if (!Array.isArray(source)) continue;
+    for (const value of source) {
+      const alias = normalizeVercelAlias(value);
+      if (alias) aliases.push(alias);
+    }
+  }
+  return [...new Set(aliases)].slice(0, 50);
+}
+
 function normalizeDeploymentIdentity(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw identityError('UAT_VERCEL_RESPONSE_INVALID');
@@ -38,6 +64,9 @@ function normalizeDeploymentIdentity(raw) {
 
   const environment = optionalString(raw.environment) || optionalString(raw.oidcTokenClaims?.environment);
   if (environment !== undefined) normalized.environment = environment;
+
+  const aliases = normalizeDeploymentAliases(raw);
+  if (aliases.length > 0) normalized.aliases = aliases;
 
   const readyState = optionalString(raw.readyState) || optionalString(raw.state);
   if (readyState !== undefined) normalized.readyState = readyState;
@@ -98,6 +127,7 @@ module.exports = {
   GIT_SHA,
   assertSuccessfulHttpStatus,
   identityError,
+  normalizeDeploymentAliases,
   normalizeDeploymentIdentity,
   parseDeploymentResponse
 };

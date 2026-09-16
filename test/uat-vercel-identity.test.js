@@ -24,6 +24,7 @@ const OTHER_DEPLOYMENT_ID = 'dpl_OtherDeployment123';
 const PROJECT_ID = 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s';
 const PROJECT_NAME = 'sms-v3-staging';
 const HOST = 'sms-v3-staging-5pef2ffup-godzillazz.vercel.app';
+const PREVIEW_ALIAS = 'sms-v3-staging-git-feat-unified-report-center-v1-godzillazz.vercel.app';
 const SOURCE_BRANCH = 'feat/unified-report-center-v1';
 const SANITIZER_PATH = path.resolve(__dirname, '../e2e/helpers/uat-vercel-identity.js');
 
@@ -94,6 +95,14 @@ test('REST v13 preview target=null keeps only the safe OIDC environment classifi
   assert.equal(normalized.environment, 'preview');
   assert.equal('oidcTokenClaims' in normalized, false);
   assert.equal(validate(normalized, { expectedTarget: 'preview' }).valid, true);
+});
+
+test('REST v13 sanitizer keeps only safe Vercel aliases and deduplicates automatic aliases', () => {
+  const normalized = normalizeDeploymentIdentity(rawRecord({
+    alias: [PREVIEW_ALIAS, PREVIEW_ALIAS.toUpperCase(), 'https://unsafe.vercel.app', 'unsafe.example.com'],
+    automaticAliases: [PREVIEW_ALIAS, 'bad/path.vercel.app']
+  }));
+  assert.deepEqual(normalized.aliases, [PREVIEW_ALIAS]);
 });
 
 test('REST v13 preview target=null without preview environment fails closed', () => {

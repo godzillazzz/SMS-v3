@@ -17,6 +17,7 @@ const PROJECT_ID = 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s';
 const PROJECT_NAME = 'sms-v3-staging';
 const CANDIDATE_URL = 'https://sms-v3-staging-cezup20q5-godzillazz.vercel.app';
 const PREVIEW_URL = 'https://sms-v3-staging-git-feat-unified-report-center-v1-godzillazz.vercel.app';
+const PREVIEW_IMMUTABLE_URL = 'https://sms-v3-staging-9m8jpyjil-godzillazz.vercel.app';
 const CANONICAL_URL = 'https://sms-v3-staging-ten.vercel.app';
 const HARNESS_SHA = '1234567890abcdef1234567890abcdef12345678';
 const SOURCE_BRANCH = 'feat/unified-report-center-v1';
@@ -89,6 +90,51 @@ test('preview mode accepts the proven Vercel REST v13 preview shape with no targ
     targetDeployment: previewDeployment,
     expectedDeployment: previewDeployment
   }).valid, true);
+});
+
+test('preview mode accepts a branch alias only when the exact deployment advertises that alias', () => {
+  const previewDeployment = deployment({
+    url: PREVIEW_IMMUTABLE_URL.replace(/^https:\/\//, ''),
+    aliases: [PREVIEW_URL.replace(/^https:\/\//, '')],
+    target: undefined,
+    environment: 'preview',
+    meta: { githubCommitSha: APPLICATION_SHA, githubCommitRef: SOURCE_BRANCH }
+  });
+  assert.equal(verify({
+    targetMode: 'preview',
+    targetUrl: PREVIEW_URL,
+    expectedGitRef: SOURCE_BRANCH,
+    targetDeployment: previewDeployment,
+    expectedDeployment: previewDeployment
+  }).valid, true);
+});
+
+test('preview mode rejects a branch alias not advertised by the exact deployment', () => {
+  const previewDeployment = deployment({
+    url: PREVIEW_IMMUTABLE_URL.replace(/^https:\/\//, ''),
+    aliases: ['sms-v3-staging-git-other-branch-godzillazz.vercel.app'],
+    target: undefined,
+    environment: 'preview',
+    meta: { githubCommitSha: APPLICATION_SHA, githubCommitRef: SOURCE_BRANCH }
+  });
+  assert.throws(() => verify({
+    targetMode: 'preview',
+    targetUrl: PREVIEW_URL,
+    expectedGitRef: SOURCE_BRANCH,
+    targetDeployment: previewDeployment,
+    expectedDeployment: previewDeployment
+  }), { code: 'UAT_TARGET_DEPLOYMENT_HOST_MISMATCH' });
+});
+
+test('candidate mode does not use aliases to replace its exact deployment hostname contract', () => {
+  const candidateDeployment = deployment({
+    url: PREVIEW_IMMUTABLE_URL.replace(/^https:\/\//, ''),
+    aliases: [CANDIDATE_URL.replace(/^https:\/\//, '')]
+  });
+  assert.throws(() => verify({
+    targetDeployment: candidateDeployment,
+    expectedDeployment: candidateDeployment
+  }), { code: 'UAT_TARGET_DEPLOYMENT_HOST_MISMATCH' });
 });
 
 test('preview mode rejects missing or conflicting Vercel environment evidence', () => {
