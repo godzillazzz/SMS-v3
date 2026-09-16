@@ -146,8 +146,9 @@ test('V3 ADMIN: Report Center exact network contract', async ({ page }, testInfo
 
     await detailsTab.click();
     await expect(detailsTab).toHaveAttribute('aria-selected', 'true');
-    const summaryBeforeRefresh = observer.count('/api/v1/reports/summary');
     const refreshButton = center.locator('.report-center-section-heading').getByRole('button', { name: /รีเฟรช/ });
+    await expect(refreshButton).toBeEnabled({ timeout: 60_000 });
+    const summaryBeforeRefresh = observer.count('/api/v1/reports/summary');
     const refreshedSummary = await performAndWaitForHeavyRequest(page, '/api/v1/reports/summary', () => refreshButton.click());
     const summaryRefreshAdditional = observer.count('/api/v1/reports/summary') - summaryBeforeRefresh;
     expect(summaryRefreshAdditional, 'Explicit Details refresh must add exactly one summary request.').toBe(1);

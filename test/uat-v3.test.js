@@ -13,6 +13,7 @@ const adminSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/admin.s
 const rolesSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/roles.spec.js'), 'utf8');
 const responsiveSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/responsive.spec.js'), 'utf8');
 const technicalSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/technical.spec.js'), 'utf8');
+const performanceSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/performance-validation.spec.js'), 'utf8');
 const regressionSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/regression.spec.js'), 'utf8');
 const authBoundarySmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/auth-boundary-v3.spec.js'), 'utf8');
 const authenticatedRequest = fs.readFileSync(path.resolve(__dirname, '../e2e/helpers/uat-authenticated-request.js'), 'utf8');
@@ -268,6 +269,12 @@ test('V3 isolates Report Center diagnostics without changing the global timeout'
     assert.match(source, /isReportCenterDiagnostic\(\)/);
   }
   assert.match(authenticatedSmoke, /Lifecycle coverage is outside the selected UAT scope/);
+  assert.match(responsiveSmoke, /test\.setTimeout\(120_000\)/);
+  assert.match(technicalSmoke, /test\.setTimeout\(60_000\)/);
+  assert.match(technicalSmoke, /toBeVisible\(\{ timeout: 30_000 \}\)/);
+  const refreshReady = performanceSmoke.indexOf("await expect(refreshButton).toBeEnabled({ timeout: 60_000 });");
+  const refreshBaseline = performanceSmoke.indexOf("const summaryBeforeRefresh = observer.count('/api/v1/reports/summary');");
+  assert.ok(refreshReady >= 0 && refreshReady < refreshBaseline, 'Explicit refresh baseline must be captured after the refresh control is ready.');
 });
 
 test('V3 scopes intentional duplicate Report Center export controls semantically', () => {
