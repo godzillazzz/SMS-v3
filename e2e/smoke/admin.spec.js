@@ -13,10 +13,10 @@ test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) =
   test.slow();
   const monitor = startPageMonitor(page);
   const { accessToken } = await loginAs(page, 'ADMIN');
-  await expect(page.getByRole('region', { name: 'Executive snapshot' })).toBeVisible();
+  await expect(page.locator('section.dashboard-page-v2[aria-label="Operations Dashboard"]')).toBeVisible();
   await expect(page.getByText('ข้อมูลบางส่วนยังไม่พร้อม', { exact: false })).toHaveCount(0);
   await performAndWaitForHeavyRequest(page, '/api/v1/dashboard', () => page.reload({ waitUntil: 'domcontentloaded' }));
-  await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'แดชบอร์ด', exact: true })).toBeVisible();
   const response = await authenticatedRequest('/api/v1/dashboard', { accessToken });
   expect(response.status, 'Dashboard response must succeed after refresh.').toBeGreaterThanOrEqual(200);
   expect(response.status, 'Dashboard response must succeed after refresh.').toBeLessThan(300);

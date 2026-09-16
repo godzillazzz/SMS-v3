@@ -28,12 +28,12 @@ function sourceRegressionContracts() {
   const dashboardPage = readProjectFile('frontend/src/pages/dashboard/DashboardPage.tsx');
   const executiveReportPage = readProjectFile('frontend/src/pages/executive-report/ExecutiveReportCenterPage.tsx');
   const executiveReportStyles = readProjectFile('frontend/src/styles/executive-report.css');
-  const lifecycleModal = readProjectFile('frontend/src/components/personnel/EmployeeLifecycleModal.tsx');
-  const lifecycleStyles = readProjectFile('frontend/src/styles/employee-lifecycle.css');
+  const lifecycleModal = readProjectFile('frontend/src/components/personnel/EmployeeGovernedEditModal.tsx');
+  const lifecycleStyles = readProjectFile('frontend/src/styles/employee-governed-edit.css');
 
   requireIncludes(dataQualityPage, [
     'data-quality-desktop-table',
-    '<table>',
+    '<table className="data-surface-table">',
     '<thead>',
     '<tbody>',
     'data-quality-mobile-cards',
@@ -61,7 +61,7 @@ function sourceRegressionContracts() {
 
   requireIncludes(auditTable, [
     'audit-desktop-table',
-    '<table className="audit-table">',
+    '<table className="audit-table data-surface-table" aria-label="รายการ Audit Log">',
     '<thead>',
     '<tbody>',
     'audit-mobile-cards',
@@ -109,18 +109,22 @@ function sourceRegressionContracts() {
   ], 'EXECUTIVE_REPORT_RESPONSIVE_CONTRACT_FAILED');
 
   requireIncludes(lifecycleModal, [
-    'จัดการวงจรพนักงาน',
-    'ผลกระทบและคำเตือน',
-    'ประวัติวงจรพนักงาน',
-    'อ่านอย่างเดียว',
-    'confirmation !== employee.employeeCode'
+    'แก้ไขข้อมูลพนักงาน',
+    '3. การเปลี่ยนแปลง',
+    'Impact Preview ก่อนบันทึก',
+    '5. คำขอ / ประวัติการเปลี่ยนแปลง',
+    'api.preflightEmployeeMasterEdit',
+    'api.updateEmployee',
+    'api.createEmployeeChangeDraft',
+    'api.submitEmployeeChangeRequest'
   ], 'EMPLOYEE_LIFECYCLE_RENDERER_CONTRACT_FAILED');
   requireIncludes(lifecycleStyles, [
-    'max-height:calc(100dvh - 40px)',
-    '@media(max-width:850px)',
-    '@media(max-width:520px)',
-    'grid-template-columns:1fr',
-    'white-space:nowrap'
+    '.employee-governed-modal,.employee-review-modal{width:min(980px,100%)',
+    'max-height:min(92dvh,920px)',
+    '@media(max-width:760px)',
+    '.employee-change-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}',
+    '.employee-action-buttons{display:grid;grid-template-columns:1fr}',
+    'min-height:44px'
   ], 'EMPLOYEE_LIFECYCLE_RESPONSIVE_CONTRACT_FAILED');
 
   return {
@@ -135,14 +139,14 @@ function sourceRegressionContracts() {
 function employeeLifecycleSourceContract() {
   const lifecycleRoutes = readProjectFile('src/routes/employees.routes.js');
   const lifecycleService = readProjectFile('src/services/employee-lifecycle.service.js');
-  const lifecycleModal = readProjectFile('frontend/src/components/personnel/EmployeeLifecycleModal.tsx');
+  const lifecycleModal = readProjectFile('frontend/src/components/personnel/EmployeeGovernedEditModal.tsx');
 
   requireIncludes(lifecycleRoutes, [
     "router.get('/:id/lifecycle', authorize('ADMIN', 'MANAGER')",
     "router.get('/:id/lifecycle/state', authorize('ADMIN', 'MANAGER')",
     "router.post('/:id/lifecycle/preflight', authorize('ADMIN')",
     "router.post('/:id/lifecycle', authorize('ADMIN')",
-    'LIFECYCLE_ACTION_REQUIRED',
+    'lifecycleActionSchema.parse(req.body)',
     'LIFECYCLE_TERMINATION_REQUIRED'
   ], 'EMPLOYEE_LIFECYCLE_ROUTE_CONTRACT_FAILED');
   requireIncludes(lifecycleService, [
@@ -162,11 +166,15 @@ function employeeLifecycleSourceContract() {
     'linkedUser'
   ], 'EMPLOYEE_LIFECYCLE_SERVICE_CONTRACT_FAILED');
   requireIncludes(lifecycleModal, [
-    'จัดการวงจรพนักงาน',
-    'ประวัติวงจรพนักงาน',
-    'อ่านอย่างเดียว',
-    'ผลกระทบและคำเตือน',
-    'วันที่มีผล'
+    'แก้ไขข้อมูลพนักงาน',
+    'ประเภทการเปลี่ยนแปลงพนักงาน',
+    'เปลี่ยนชื่อ',
+    'ย้ายหน่วยงาน / แผนก',
+    'เปลี่ยนตำแหน่ง',
+    'วันที่มีผล',
+    'ตรวจสอบผลกระทบ',
+    'บันทึกการแก้ไข',
+    'ส่งคำขอแก้ไข'
   ], 'EMPLOYEE_LIFECYCLE_UI_CONTRACT_FAILED');
 
   return { employeeLifecycle: true };
@@ -245,7 +253,7 @@ function executiveReportFixture() {
 }
 
 function employeeLifecycleFixture() {
-  return `<div class="lifecycle-backdrop"><section class="lifecycle-modal"><header class="lifecycle-header"><div><p>EMPLOYEE LIFECYCLE</p><h2>จัดการวงจรพนักงาน</h2><span>EMP001 · พนักงานทดสอบ ชื่อภาษาไทยยาวเพื่อทดสอบการแสดงผล</span></div><button type="button">×</button></header><div class="lifecycle-layout"><form class="lifecycle-form"><div class="lifecycle-current"><strong>ข้อมูลปัจจุบัน</strong><span>หน่วยงานรักษาความปลอดภัยสำนักงานใหญ่ · เจ้าหน้าที่รักษาความปลอดภัยอาวุโส · ปฏิบัติงาน</span></div><label><span>รายการ</span><select><option>ย้ายแผนก</option></select></label><div class="lifecycle-field-grid"><label><span>วันที่มีผล</span><input type="date" value="2026-09-01"></label><label><span>เหตุผล</span><textarea>ปรับโครงสร้างหน่วยงาน</textarea></label></div><section class="lifecycle-preflight"><h3>ผลกระทบและคำเตือน</h3><div class="lifecycle-issue"><b>ควรตรวจสอบ</b><span>พบรายการจัดเวรตั้งแต่วันที่มีผล</span></div><dl class="lifecycle-impact-grid"><div><dt>เวรในอนาคต</dt><dd>12</dd></div><div><dt>ลารอพิจารณา</dt><dd>2</dd></div><div><dt>โควต้าวันลา</dt><dd>1</dd></div><div><dt>ใบอนุญาตใช้งาน</dt><dd>1</dd></div></dl></section><footer><button>ยกเลิก</button><button class="btn-primary">ยืนยันย้ายแผนก</button></footer></form><aside class="lifecycle-history"><header><h3>ประวัติวงจรพนักงาน</h3><span>อ่านอย่างเดียว</span></header><ol><li><div><b>เปลี่ยนชื่อ</b><span class="lifecycle-status lifecycle-status--applied">มีผลแล้ว</span></div><time>13 ส.ค. 2569</time><strong>ชื่อเดิม → ชื่อใหม่</strong><p>เหตุผล: แก้ไขชื่อตามเอกสารทางราชการ</p><small>โดย UAT Admin (ADMIN) · บันทึก 13 ส.ค. 2569 10:00</small></li></ol></aside></div></section></div>`;
+  return `<div class="employee-governed-backdrop"><section class="employee-governed-modal" role="dialog" aria-labelledby="employee-governed-title"><header class="employee-governed-header"><div><p>EMPLOYEE MASTER · GOVERNED EDIT</p><h2 id="employee-governed-title">แก้ไขข้อมูลพนักงาน</h2><span>EMP001 · พนักงานทดสอบ ชื่อภาษาไทยยาวเพื่อทดสอบการแสดงผล</span></div><button type="button">×</button></header><div class="employee-governed-body"><section class="employee-governed-section employee-critical-change-section"><h3>3. การเปลี่ยนแปลง</h3><div class="employee-change-action-grid"><button type="button" class="is-active"><strong>ย้ายหน่วยงาน / แผนก</strong><small>คง Employee ID และบันทึกประวัติ</small></button><button type="button"><strong>เปลี่ยนตำแหน่ง</strong><small>ตรวจผลกระทบก่อนบันทึก</small></button></div><div class="employee-critical-editor"><header><div><strong>ย้ายหน่วยงาน / แผนก</strong><span>การเปลี่ยนแปลงสำคัญ</span></div></header><div class="employee-critical-before-after"><span>หน่วยงานเดิม<b>Security Operations</b></span><span>หน่วยงานใหม่<b>Security Support</b></span></div><div class="employee-governed-grid employee-critical-governance"><label><span>วันที่มีผล</span><input type="date" value="2026-09-16"></label><label class="employee-governed-wide"><span>เหตุผล / หมายเหตุ</span><textarea>ทดสอบ responsive governed edit</textarea></label></div></div></section><section class="employee-governed-section employee-impact"><h3>Impact Preview ก่อนบันทึก</h3><div class="employee-impact-groups"><article class="employee-impact-group employee-impact-group--clear"><strong>ไม่กระทบ</strong><span>บัญชีผู้ใช้</span></article><article class="employee-impact-group employee-impact-group--review"><strong>ต้องตรวจสอบ</strong><span>ตารางกะ</span></article><article class="employee-impact-group employee-impact-group--follow-up"><strong>ต้องติดตาม</strong><span>1 รายการ</span></article></div></section><section class="employee-governed-section"><h3>5. คำขอ / ประวัติการเปลี่ยนแปลง</h3><div class="employee-revision-list"><article><header><strong>Revision 1</strong><span>อนุมัติแล้ว</span></header><small>มีผลทันที</small><p><b>หน่วยงาน</b><span>Security Operations → Security Support</span></p></article></div></section></div><footer class="employee-governed-actions"><div class="employee-action-summary"><strong>กำลังเปลี่ยน 1 รายการ</strong><span>หน่วยงาน</span></div><div class="employee-action-buttons"><button type="button">ปิด</button><button type="button">ตรวจสอบผลกระทบ</button><button type="button" class="btn-primary">บันทึกการแก้ไข</button></div></footer></section></div>`;
 }
 
 module.exports = {

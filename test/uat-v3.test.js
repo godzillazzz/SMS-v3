@@ -102,7 +102,9 @@ test('V3 role matrix covers read-only current backend contracts', () => {
   assert.match(adminSmoke, /\.audit-skeleton-row/);
   assert.match(adminSmoke, /\.audit-desktop-table button\.audit-preview-link:visible/);
   assert.match(authenticatedSmoke, /data-personnel-id/);
-  assert.match(authenticatedSmoke, /button\.lifecycle-action:visible/);
+  assert.match(authenticatedSmoke, /button\.data-row-primary-action:visible/);
+  assert.match(authenticatedSmoke, /แก้ไขข้อมูลพนักงาน/);
+  assert.match(authenticatedSmoke, /บันทึกการแก้ไข/);
   assert.match(authenticatedSmoke, /UAT_API_REQUEST_FAILED/);
   assert.doesNotMatch(authenticatedSmoke, /waitForTimeout\(250\)/);
   assert.match(adminSmoke, /\['Schedule', 'schedule'\]/);

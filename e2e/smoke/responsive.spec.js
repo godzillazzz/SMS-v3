@@ -16,7 +16,7 @@ for (const viewport of viewports) {
     const monitor = startPageMonitor(page);
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await loginAs(page, 'ADMIN');
-    await expect(page.getByRole('region', { name: 'Executive snapshot' })).toBeVisible();
+    await expect(page.locator('section.dashboard-page-v2[aria-label="Operations Dashboard"]')).toBeVisible();
     await assertNoHorizontalOverflow(page);
     await captureScreenshot(page, testInfo, `uat-admin-dashboard-${viewport.name}`);
 

@@ -24,7 +24,7 @@ const auditStyles = [
   readProjectFile('frontend/src/styles/audit-mobile.css')
 ].join('\n');
 const executiveReportStyles = readProjectFile('frontend/src/styles/executive-report.css');
-const employeeLifecycleStyles = readProjectFile('frontend/src/styles/employee-lifecycle.css');
+const employeeLifecycleStyles = readProjectFile('frontend/src/styles/employee-governed-edit.css');
 
 const dataQualityViewports = [
   { name: '390', width: 390, height: 844, mobile: true },
@@ -88,14 +88,14 @@ test('REGRESSION: source contracts cover Data Quality, Audit Log, Dashboard warn
   });
 });
 
-test('REGRESSION: Employee Lifecycle modal stays usable at mobile, tablet, and desktop widths', async ({ page }, testInfo) => {
+test('REGRESSION: Employee governed edit modal stays usable at mobile, tablet, and desktop widths', async ({ page }, testInfo) => {
   const monitor = startPageMonitor(page);
   const summary = {};
   for (const viewport of lifecycleViewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.setContent(buildDocument(employeeLifecycleStyles, employeeLifecycleFixture()));
-    const modal = page.locator('.lifecycle-modal');
-    const action = page.getByRole('button', { name: 'ยืนยันย้ายแผนก', exact: true });
+    const modal = page.locator('.employee-governed-modal');
+    const action = page.getByRole('button', { name: 'บันทึกการแก้ไข', exact: true });
     await expect(modal).toBeVisible();
     await expect(action).toBeVisible();
     const metrics = await modal.evaluate((node) => ({
@@ -108,7 +108,12 @@ test('REGRESSION: Employee Lifecycle modal stays usable at mobile, tablet, and d
     expect(metrics.width).toBeLessThanOrEqual(metrics.viewportWidth);
     expect(metrics.height).toBeLessThanOrEqual(metrics.viewportHeight);
     expect(metrics.pageOverflow).toBe(false);
-    expect(await action.evaluate((node) => getComputedStyle(node).whiteSpace)).toBe('nowrap');
+    expect(metrics.pageOverflow).toBe(false);
+    if (viewport.width <= 760) {
+      const mobileActionMetrics = await action.evaluate((node) => ({ width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height }));
+      expect(mobileActionMetrics.width).toBeGreaterThan(100);
+      expect(mobileActionMetrics.height).toBeGreaterThanOrEqual(44);
+    }
     await assertNoHorizontalOverflow(page);
     summary[viewport.name] = 'PASS';
     await captureScreenshot(page, testInfo, `employee-lifecycle-${viewport.name}`);

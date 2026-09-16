@@ -159,8 +159,8 @@ test('V3 ADMIN: Report Center exact network contract', async ({ page }, testInfo
     await expect(pdfButton).toBeEnabled({ timeout: 60_000 });
     metrics.push(metric('report-center-pdf', 'first-print-page', 0, 'PASS'));
 
-    await attachPerformance(testInfo, { networkContracts: { reportCenter: metrics } });
   } finally {
+    await attachPerformance(testInfo, { networkContracts: { reportCenter: metrics } });
     observer.stop();
   }
 });

@@ -12,7 +12,7 @@ for (const role of ['MANAGER', 'VIEWER']) {
         allowedApiResponses: role === 'VIEWER' ? [{ path: '/api/v1/licenses', method: 'GET', status: 403 }] : []
       });
       await loginAs(page, role);
-      await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'แดชบอร์ด', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: /บันทึกการใช้งานระบบ/ })).toHaveCount(0);
 
       if (role === 'MANAGER') {
