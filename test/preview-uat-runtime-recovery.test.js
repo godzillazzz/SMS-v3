@@ -59,7 +59,7 @@ test('runtime recovery fails closed when Preview database fingerprint guard fail
   assert.equal(calls, 0);
 });
 
-test('dry-run is existing-only, uses fixed UAT identities, and returns no credentials', async () => {
+test('dry-run allows create-or-repair for fixed UAT identities and returns no credentials', async () => {
   let received;
   const app = createApp({
     environment: previewEnvironment,
@@ -72,7 +72,7 @@ test('dry-run is existing-only, uses fixed UAT identities, and returns no creden
   const response = await request(app).post('/api/v1/internal/preview-uat-recovery').send(payload(false));
   assert.equal(response.status, 200);
   assert.equal(received.config.dryRun, true);
-  assert.equal(received.config.requireExisting, true);
+  assert.equal(received.config.requireExisting, false);
   assert.deepEqual(received.config.accounts.map(({ key, displayName, role }) => [key, displayName, role]), [
     ['UAT_ADMIN', 'UAT Automation Admin', 'ADMIN'],
     ['UAT_MANAGER', 'UAT Automation Manager', 'MANAGER'],
@@ -89,7 +89,7 @@ test('dry-run is existing-only, uses fixed UAT identities, and returns no creden
   assert.equal(response.headers['cache-control'], 'no-store');
 });
 
-test('execute mode preserves existing-only constraint and maps account conflicts to 409', async () => {
+test('execute mode allows create-or-repair and maps account conflicts to 409', async () => {
   let received;
   const executeApp = createApp({
     environment: previewEnvironment,
@@ -102,7 +102,7 @@ test('execute mode preserves existing-only constraint and maps account conflicts
   const executeResponse = await request(executeApp).post('/api/v1/internal/preview-uat-recovery').send(payload(true));
   assert.equal(executeResponse.status, 200);
   assert.equal(received.config.dryRun, false);
-  assert.equal(received.config.requireExisting, true);
+  assert.equal(received.config.requireExisting, false);
   assert.equal(executeResponse.body.data.mode, 'EXECUTE');
 
   const conflict = new Error('conflict');

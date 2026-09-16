@@ -35,7 +35,7 @@ function accountConfig(body) {
     error.code = 'UAT_RUNTIME_RECOVERY_INVALID_ACCOUNTS';
     throw error;
   }
-  return { accounts, dryRun: !body.execute, requireExisting: true };
+  return { accounts, dryRun: !body.execute, requireExisting: false };
 }
 
 function createPreviewUatRecoveryRouter({
