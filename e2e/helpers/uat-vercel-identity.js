@@ -36,6 +36,9 @@ function normalizeDeploymentIdentity(raw) {
   }
   if (projectId !== undefined) normalized.projectId = projectId;
 
+  const environment = optionalString(raw.environment) || optionalString(raw.oidcTokenClaims?.environment);
+  if (environment !== undefined) normalized.environment = environment;
+
   const readyState = optionalString(raw.readyState) || optionalString(raw.state);
   if (readyState !== undefined) normalized.readyState = readyState;
 

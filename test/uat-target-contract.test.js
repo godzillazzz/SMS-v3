@@ -75,6 +75,42 @@ test('preview mode accepts an exact READY preview deployment bound to the source
   }).valid, true);
 });
 
+test('preview mode accepts the proven Vercel REST v13 preview shape with no target string', () => {
+  const previewDeployment = deployment({
+    url: PREVIEW_URL.replace(/^https:\/\//, ''),
+    target: undefined,
+    environment: 'preview',
+    meta: { githubCommitSha: APPLICATION_SHA, githubCommitRef: SOURCE_BRANCH }
+  });
+  assert.equal(verify({
+    targetMode: 'preview',
+    targetUrl: PREVIEW_URL,
+    expectedGitRef: SOURCE_BRANCH,
+    targetDeployment: previewDeployment,
+    expectedDeployment: previewDeployment
+  }).valid, true);
+});
+
+test('preview mode rejects missing or conflicting Vercel environment evidence', () => {
+  const basePreview = {
+    url: PREVIEW_URL.replace(/^https:\/\//, ''),
+    meta: { githubCommitSha: APPLICATION_SHA, githubCommitRef: SOURCE_BRANCH }
+  };
+  for (const previewDeployment of [
+    deployment({ ...basePreview, target: undefined }),
+    deployment({ ...basePreview, target: undefined, environment: 'production' }),
+    deployment({ ...basePreview, target: 'preview', environment: 'production' })
+  ]) {
+    assert.throws(() => verify({
+      targetMode: 'preview',
+      targetUrl: PREVIEW_URL,
+      expectedGitRef: SOURCE_BRANCH,
+      targetDeployment: previewDeployment,
+      expectedDeployment: previewDeployment
+    }), { code: 'UAT_DEPLOYMENT_TARGET_NOT_PREVIEW' });
+  }
+});
+
 test('preview mode requires an exact git ref even when deployment identity is otherwise valid', () => {
   const previewDeployment = deployment({
     url: PREVIEW_URL.replace(/^https:\/\//, ''),

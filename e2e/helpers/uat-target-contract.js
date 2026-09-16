@@ -211,6 +211,24 @@ function extractApplicationSha(deployment) {
   return resolveDeploymentApplicationSha(deployment).sha;
 }
 
+function validateDeploymentTarget(deployment, expectedTarget) {
+  if (!['production', 'preview'].includes(expectedTarget)) {
+    throw contractError('UAT_EXPECTED_DEPLOYMENT_TARGET_INVALID');
+  }
+
+  if (expectedTarget === 'production') {
+    if (deployment.target !== 'production') throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PRODUCTION');
+    return 'production';
+  }
+
+  const target = typeof deployment.target === 'string' ? deployment.target : '';
+  const environment = typeof deployment.environment === 'string' ? deployment.environment : '';
+  if (target && target !== 'preview') throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PREVIEW');
+  if (environment && environment !== 'preview') throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PREVIEW');
+  if (target === 'preview' || (!target && environment === 'preview')) return 'preview';
+  throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PREVIEW');
+}
+
 function validateDeploymentRecord(deployment, {
   expectedDeploymentId,
   applicationSha,
@@ -228,11 +246,7 @@ function validateDeploymentRecord(deployment, {
   if (deployment.name !== expectedProjectName) throw contractError('UAT_DEPLOYMENT_PROJECT_NAME_MISMATCH');
   if (!deployment.projectId) throw contractError('UAT_DEPLOYMENT_PROJECT_ID_MISSING');
   if (deployment.projectId !== expectedProjectId) throw contractError('UAT_DEPLOYMENT_PROJECT_ID_MISMATCH');
-  if (!['production', 'preview'].includes(expectedTarget)) throw contractError('UAT_EXPECTED_DEPLOYMENT_TARGET_INVALID');
-  if (deployment.target !== expectedTarget) {
-    if (expectedTarget === 'production') throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PRODUCTION');
-    throw contractError('UAT_DEPLOYMENT_TARGET_NOT_PREVIEW');
-  }
+  validateDeploymentTarget(deployment, expectedTarget);
   if (deployment.readyState !== 'READY') throw contractError('UAT_DEPLOYMENT_NOT_READY');
   if (resolveDeploymentApplicationSha(deployment).sha !== expectedSha) {
     throw contractError('UAT_DEPLOYMENT_APPLICATION_SHA_MISMATCH');
@@ -359,6 +373,7 @@ module.exports = {
   resolveDeploymentApplicationSha,
   resolveExpectedGitRef,
   validateDeploymentRecord,
+  validateDeploymentTarget,
   validateDeploymentGitRef,
   validateHarnessIdentity,
   validateSourceBranch,
