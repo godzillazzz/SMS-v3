@@ -1,0 +1,292 @@
+name: Recover Preview UAT Accounts
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: Exact approved Preview URL
+        required: true
+        type: string
+      source_sha:
+        description: Exact application SHA deployed at target_url
+        required: true
+        type: string
+      source_branch:
+        description: Exact application source branch whose HEAD must equal source_sha
+        required: true
+        type: string
+      uat_harness_sha:
+        description: Exact trusted UAT harness HEAD
+        required: true
+        type: string
+      expected_deployment_id:
+        description: Exact Vercel Preview deployment ID
+        required: true
+        type: string
+      confirmation:
+        description: Type REPAIR_PREVIEW_UAT_ACCOUNTS
+        required: true
+        type: string
+      execute_repair:
+        description: Execute the account repair after the read-only dry run passes
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sms-v3-preview-uat-account-recovery
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production-sms-v3-staging
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+      UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+      UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+      UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
+      UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+      UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
+      UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
+      UAT_BOOTSTRAP_CONFIRM: CREATE_SMS_V3_STAGING_UAT_USERS
+    steps:
+      - name: Checkout trusted harness
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.uat_harness_sha }}
+          fetch-depth: 0
+
+      - name: Validate recovery authority and exact Preview deployment identity
+        shell: bash
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          EXECUTE_REPAIR: ${{ inputs.execute_repair }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = 'REPAIR_PREVIEW_UAT_ACCOUNTS'
+          test "$EXECUTE_REPAIR" = 'true'
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test -n "$VERCEL_TOKEN"
+          test -n "$APPROVED_DATABASE_TARGET_FINGERPRINT"
+          [[ "$SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          [[ "$HARNESS_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]
+          node e2e/helpers/uat-target-contract.js scope preview "$TARGET_URL"
+          node e2e/helpers/uat-target-contract.js source-branch "$SOURCE_BRANCH"
+          if [[ "$SOURCE_BRANCH" == refs/* || "$SOURCE_BRANCH" == -* ]] || ! git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null; then
+            echo 'UAT_SOURCE_BRANCH_INVALID'
+            exit 1
+          fi
+          git fetch --no-tags origin \
+            "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
+            refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated
+          REMOTE_SOURCE_SHA="$(git rev-parse "refs/remotes/origin/$SOURCE_BRANCH")"
+          APPROVED_HARNESS_SHA="$(git rev-parse origin/test/automated-uat-v3-authenticated)"
+          node e2e/helpers/uat-target-contract.js source-head "$SOURCE_BRANCH" "$REMOTE_SOURCE_SHA" "$SOURCE_SHA"
+          node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$APPROVED_HARNESS_SHA"
+
+          identity_tmp_dir="$(mktemp -d)"
+          cleanup_identity() {
+            if [[ -n "${identity_tmp_dir:-}" && "$identity_tmp_dir" != / && -d "$identity_tmp_dir" ]]; then rm -rf -- "$identity_tmp_dir"; fi
+          }
+          trap cleanup_identity EXIT
+          target_response="$identity_tmp_dir/target-response.json"
+          expected_response="$identity_tmp_dir/expected-response.json"
+          target_identity="$identity_tmp_dir/target-identity.json"
+          expected_identity="$identity_tmp_dir/expected-identity.json"
+          TARGET_HOST="${TARGET_URL#https://}"
+          fetch_deployment() {
+            local lookup="$1"
+            local output="$2"
+            curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --get \
+              --data-urlencode "teamId=$EXPECTED_ORG_ID" \
+              --data-urlencode 'withGitRepoInfo=true' \
+              "https://api.vercel.com/v13/deployments/$lookup" >"$output" 2>/dev/null
+            test -s "$output"
+          }
+          fetch_deployment "$TARGET_HOST" "$target_response"
+          fetch_deployment "$DEPLOYMENT_ID" "$expected_response"
+          node e2e/helpers/uat-vercel-identity.js sanitize "$target_response" "$target_identity"
+          node e2e/helpers/uat-vercel-identity.js sanitize "$expected_response" "$expected_identity"
+          node e2e/helpers/uat-target-contract.js verify \
+            preview "$TARGET_URL" "$DEPLOYMENT_ID" "$SOURCE_SHA" \
+            "$target_identity" "$expected_identity" "$EXPECTED_PROJECT_ID" "$EXPECTED_PROJECT_NAME" "$SOURCE_BRANCH"
+          echo 'RECOVERY_DEPLOYMENT_IDENTITY=PASS'
+
+      - name: Checkout exact application under test
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+          path: application-under-test
+
+      - name: Verify exact recovery source
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C application-under-test rev-parse HEAD)" = "$SOURCE_SHA"
+          test -f application-under-test/scripts/admin/bootstrap-uat-users.js
+          test -f application-under-test/src/services/runtime-database-target-guard.service.js
+          test -f application-under-test/scripts/ci/verify-preview-control-plane.js
+          test -f application-under-test/package-lock.json
+          echo 'RECOVERY_SOURCE_IDENTITY=PASS'
+
+      - name: Require UAT credentials without exposing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          for role in ADMIN MANAGER VIEWER; do
+            email_key="UAT_${role}_EMAIL"
+            password_key="UAT_${role}_PASSWORD"
+            test -n "${!email_key-}"
+            test -n "${!password_key-}"
+          done
+          echo 'UAT_RECOVERY_CREDENTIAL_CONTRACT=PASS'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: application-under-test/package-lock.json
+
+      - name: Install exact application dependencies
+        shell: bash
+        working-directory: application-under-test
+        run: |
+          set -euo pipefail
+          npm ci --include=dev
+          npx prisma generate
+          echo 'RECOVERY_PRISMA_TOOLING=PASS'
+
+      - name: Pull governed Vercel Preview configuration
+        shell: bash
+        working-directory: application-under-test
+        run: |
+          set -euo pipefail
+          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=preview \
+            --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/vercel-preview-recovery-pull.log 2>&1
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
+          if (project.projectId !== process.env.EXPECTED_PROJECT_ID || project.orgId !== process.env.EXPECTED_ORG_ID) {
+            throw new Error('Vercel project linkage mismatch');
+          }
+          for (const file of ['.vercel/.env.preview.local']) {
+            if (!fs.existsSync(file)) throw new Error('Preview env file missing after Vercel pull');
+          }
+          console.log('PREVIEW_CONFIG_PULL=PASS');
+          NODE
+          npx --yes vercel@"$VERCEL_CLI_VERSION" env list preview --format json \
+            --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$RUNNER_TEMP/preview-uat-recovery-env-metadata.json"
+          test -s "$RUNNER_TEMP/preview-uat-recovery-env-metadata.json"
+
+      - name: Prove Preview control-plane and database target before any write
+        shell: bash
+        working-directory: application-under-test
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SOURCE_TREE="$(git rev-parse 'HEAD^{tree}')"
+          node scripts/ci/verify-preview-control-plane.js \
+            --env-file=.vercel/.env.preview.local \
+            --metadata-file="$RUNNER_TEMP/preview-uat-recovery-env-metadata.json" \
+            --source-sha="$SOURCE_SHA" \
+            --source-tree="$SOURCE_TREE" \
+            --cwd="$PWD" \
+            --production-fingerprint="$APPROVED_DATABASE_TARGET_FINGERPRINT" \
+            --run-migrations=false
+          VERCEL_ENV=preview node --env-file=.vercel/.env.preview.local - <<'NODE'
+          const { verifyPreviewDatabaseTarget } = require('./src/services/runtime-database-target-guard.service');
+          const result = verifyPreviewDatabaseTarget(process.env);
+          if (!result.required || !result.matched) throw new Error('PREVIEW_DATABASE_TARGET_GUARD_FAILED');
+          const preview = String(process.env.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT || '').trim().toLowerCase();
+          const production = String(process.env.APPROVED_DATABASE_TARGET_FINGERPRINT || '').trim().toLowerCase();
+          if (!preview || !production || preview === production) throw new Error('PREVIEW_DATABASE_TARGET_DISTINCTNESS_FAILED');
+          console.log('PREVIEW_DATABASE_TARGET_GUARD=PASS');
+          console.log('PREVIEW_PRODUCTION_DATABASE_DISTINCT=PASS');
+          NODE
+
+      - name: Dry-run UAT account recovery
+        shell: bash
+        working-directory: application-under-test
+        run: |
+          set -euo pipefail
+          VERCEL_ENV=preview node --env-file=.vercel/.env.preview.local scripts/admin/bootstrap-uat-users.js --dry-run | tee "$RUNNER_TEMP/uat-recovery-dry-run.txt"
+          grep -Fq 'UAT_ADMIN .... ' "$RUNNER_TEMP/uat-recovery-dry-run.txt"
+          grep -Fq 'UAT_MANAGER .... ' "$RUNNER_TEMP/uat-recovery-dry-run.txt"
+          grep -Fq 'UAT_VIEWER .... ' "$RUNNER_TEMP/uat-recovery-dry-run.txt"
+          echo 'UAT_ACCOUNT_RECOVERY_DRY_RUN=PASS'
+
+      - name: Execute owner-authorized Preview UAT account recovery
+        shell: bash
+        working-directory: application-under-test
+        run: |
+          set -euo pipefail
+          VERCEL_ENV=preview node --env-file=.vercel/.env.preview.local scripts/admin/bootstrap-uat-users.js | tee "$RUNNER_TEMP/uat-recovery-execution.txt"
+          grep -Fq 'UAT_ADMIN .... ' "$RUNNER_TEMP/uat-recovery-execution.txt"
+          grep -Fq 'UAT_MANAGER .... ' "$RUNNER_TEMP/uat-recovery-execution.txt"
+          grep -Fq 'UAT_VIEWER .... ' "$RUNNER_TEMP/uat-recovery-execution.txt"
+          echo 'UAT_ACCOUNT_RECOVERY_EXECUTION=PASS'
+
+      - name: Verify repaired accounts are idempotently current
+        shell: bash
+        working-directory: application-under-test
+        run: |
+          set -euo pipefail
+          VERCEL_ENV=preview node --env-file=.vercel/.env.preview.local scripts/admin/bootstrap-uat-users.js --dry-run | tee "$RUNNER_TEMP/uat-recovery-postcheck.txt"
+          grep -Fxq 'UAT_ADMIN .... EXISTS' "$RUNNER_TEMP/uat-recovery-postcheck.txt"
+          grep -Fxq 'UAT_MANAGER .... EXISTS' "$RUNNER_TEMP/uat-recovery-postcheck.txt"
+          grep -Fxq 'UAT_VIEWER .... EXISTS' "$RUNNER_TEMP/uat-recovery-postcheck.txt"
+          echo 'UAT_ACCOUNT_RECOVERY_POSTCHECK=PASS'
+
+      - name: Publish safe recovery summary
+        shell: bash
+        run: |
+          {
+            echo '### Preview UAT account recovery'
+            echo '- Exact Preview deployment identity: PASS'
+            echo '- Exact application source identity: PASS'
+            echo '- Vercel Preview configuration pull: PASS'
+            echo '- Preview database fingerprint guard: PASS'
+            echo '- Preview/Production database target distinctness: PASS'
+            echo '- Read-only recovery dry run: PASS'
+            echo '- Owner-authorized UAT account repair: PASS'
+            echo '- Post-repair idempotency check: PASS'
+            echo '- Production database mutation: NO'
+            echo '- Production deployment/promotion: NO'
+            echo '- Raw credentials emitted: NO'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove pulled Preview secret material from runner workspace
+        if: always()
+        shell: bash
+        run: |
+          rm -f application-under-test/.vercel/.env.preview.local application-under-test/.vercel/.env.preview 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/uat-recovery-dry-run.txt" "$RUNNER_TEMP/uat-recovery-execution.txt" "$RUNNER_TEMP/uat-recovery-postcheck.txt" 2>/dev/null || true
+          echo 'RECOVERY_TEMP_SECRET_MATERIAL_CLEANED=true'
