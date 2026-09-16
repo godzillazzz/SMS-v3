@@ -260,7 +260,7 @@ async function loginAs(page, role) {
   const stateBefore = { cachedRefreshHits: state.cachedRefreshHits };
   await installCachedRefreshRoute(page, session);
   const dashboardResponse = await performAndWaitForHeavyRequest(page, '/api/v1/dashboard', () => page.goto('/'));
-  await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'แดชบอร์ด', exact: true })).toBeVisible();
   return {
     accessToken: session.accessToken,
     authContract: cachedSessionDiagnostic(page, stateBefore, dashboardResponse.status())
@@ -303,8 +303,8 @@ async function loginViaUi(page, role) {
   let payload;
   let loginStatus;
   try {
-    await page.getByLabel('อีเมล').fill(account.email);
-    await page.getByLabel('รหัสผ่าน').fill(account.password);
+    await page.getByLabel('อีเมล', { exact: true }).fill(account.email);
+    await page.getByLabel('รหัสผ่าน', { exact: true }).fill(account.password);
 
     const dashboardResponse = await performAndWaitForHeavyRequest(page, '/api/v1/dashboard', async () => {
       await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click();
@@ -334,7 +334,7 @@ async function loginViaUi(page, role) {
 
     await expect(page.locator('form.login-form')).toHaveCount(0);
     await expect(page.locator('nav.nav-menu').first(), 'Successful real login must establish the authenticated shell.').toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'แดชบอร์ด', exact: true })).toBeVisible();
 
     return {
       accessToken: payload.accessToken,

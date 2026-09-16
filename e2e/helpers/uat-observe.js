@@ -167,7 +167,7 @@ async function navigateTo(page, navigationId) {
 const reportCenterTabLabels = Object.freeze({
   executive: 'ภาพรวมผู้บริหาร',
   details: 'รายงานรายละเอียด',
-  export: 'Export'
+  export: 'ส่งออก'
 });
 
 function reportCenterPage(page) {

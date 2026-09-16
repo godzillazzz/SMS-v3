@@ -90,7 +90,7 @@ test('V3.1 VIEWER Dashboard contract is 200 and protected Dashboard avoids dupli
   const dashEnd = block.indexOf('} else {', dashStart);
   const dashboardBranch = block.slice(dashStart, dashEnd);
   assert.match(dashboardBranch, /loginAs\(page, role\)/);
-  assert.match(dashboardBranch, /Executive Operations Dashboard/);
+  assert.match(dashboardBranch, /แดชบอร์ด/);
   assert.match(dashboardBranch, /v31-auth-contract\.json/);
   assert.doesNotMatch(dashboardBranch, /navigateTo\(page, 'dashboard'\)/);
 });

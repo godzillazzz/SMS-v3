@@ -96,13 +96,13 @@ async function expectUnifiedReportCenter(page, role, testInfo, monitor) {
     );
     await tracker.run(
       'RC09_EXPORT_TAB',
-      () => center.getByRole('tab', { name: 'Export', exact: true }).click(),
+      () => center.getByRole('tab', { name: 'ส่งออก', exact: true }).click(),
       { safeApiPath: '/api/v1/reports/summary', safeStatus: detailsResponse.status() }
     );
     await tracker.run(
       'RC10_EXPORT_CONTROL',
       async () => {
-        await expect(center.getByRole('heading', { name: 'Export', exact: true })).toBeVisible();
+        await expect(center.getByRole('heading', { name: 'ส่งออก', exact: true })).toBeVisible();
         const exportCard = center.locator('.report-center-export-card');
         await expect(exportCard).toHaveCount(1);
         await expect(exportCard).toBeVisible();
@@ -215,7 +215,7 @@ async function requestRoleMatrix(role, token) {
         if (item.id === 'dashboard') {
           const { authContract } = await loginAs(page, role);
           await testInfo.attach('v31-auth-contract.json', { body: JSON.stringify(authContract), contentType: 'application/json' });
-          await expect(page.getByRole('heading', { name: 'Executive Operations Dashboard' }), `${role} Dashboard must remain visible after cached-session login.`).toBeVisible();
+          await expect(page.getByRole('heading', { name: 'แดชบอร์ด', exact: true }), `${role} Dashboard must remain visible after cached-session login.`).toBeVisible();
           const evidence = monitor.safeEvidence();
           await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(evidence), contentType: 'application/json' });
           monitor.assertClean();
@@ -332,14 +332,18 @@ test('V3 ADMIN: Employee Lifecycle management, history, state, and preflight are
     linkedUser: expect.any(Object)
   }));
   await navigateTo(page, 'employees');
-  const employeeRow = page.locator(`[data-personnel-id="${employee.id}"]`);
-  await expect(employeeRow, 'The lifecycle acceptance employee must render in the personnel table.').toBeVisible();
-  const lifecycleButton = employeeRow.locator('button.lifecycle-action:visible');
-  await expect(lifecycleButton).toBeVisible();
-  await lifecycleButton.click();
-  await expect(page.getByRole('dialog', { name: 'จัดการวงจรพนักงาน' })).toBeVisible();
-  await expect(page.getByText('ประวัติวงจรพนักงาน', { exact: true })).toBeVisible();
-  await expect(page.getByText('อ่านอย่างเดียว', { exact: true })).toBeVisible();
+  const employeeRow = page.locator(`[data-personnel-id="${employee.id}"]`).first();
+  await expect(employeeRow, 'The governed-edit acceptance employee must render in the personnel table.').toBeVisible();
+  const editButton = employeeRow.locator('button.data-row-primary-action:visible');
+  await expect(editButton).toBeVisible();
+  await expect(editButton).toHaveAccessibleName(/^แก้ไขข้อมูล\s+/);
+  await editButton.click();
+  const governedDialog = page.getByRole('dialog', { name: 'แก้ไขข้อมูลพนักงาน', exact: true });
+  await expect(governedDialog).toBeVisible();
+  await expect(governedDialog.getByRole('heading', { name: '3. การเปลี่ยนแปลง', exact: true })).toBeVisible();
+  await expect(governedDialog.getByText('5. คำขอ / ประวัติการเปลี่ยนแปลง', { exact: true })).toBeVisible();
+  await expect(governedDialog.getByRole('button', { name: 'ตรวจสอบผลกระทบ', exact: true })).toBeVisible();
+  await expect(governedDialog.getByRole('button', { name: 'บันทึกการแก้ไข', exact: true })).toBeVisible();
 });
 
 test('V3 MANAGER: Employee Lifecycle history is read-only and mutations are forbidden', async ({ page }) => {
@@ -361,7 +365,16 @@ test('V3 MANAGER: Employee Lifecycle history is read-only and mutations are forb
     data: { type: 'NAME_CHANGE', effectiveDate: new Date().toISOString().slice(0, 10), changes: { firstName: employee.firstName, lastName: employee.lastName }, reason: 'authorization boundary only', expectedEmployeeUpdatedAt: new Date().toISOString(), idempotencyKey: '00000000-0000-4000-8000-000000000001', acknowledgeWarnings: true }
   })).status).toBe(403);
   await navigateTo(page, 'employees');
-  await expect(page.getByRole('button', { name: /จัดการวงจรพนักงาน/ })).toHaveCount(0);
+  const employeeRow = page.locator(`[data-personnel-id="${employee.id}"]`).first();
+  await expect(employeeRow).toBeVisible();
+  const editButton = employeeRow.locator('button.data-row-primary-action:visible');
+  await expect(editButton).toBeVisible();
+  await editButton.click();
+  const governedDialog = page.getByRole('dialog', { name: 'แก้ไขข้อมูลพนักงาน', exact: true });
+  await expect(governedDialog).toBeVisible();
+  await expect(governedDialog.getByRole('button', { name: 'ตรวจสอบผลกระทบ', exact: true })).toHaveCount(0);
+  await expect(governedDialog.getByRole('button', { name: 'บันทึกการแก้ไข', exact: true })).toHaveCount(0);
+  await expect(governedDialog.getByRole('heading', { name: '3. การเปลี่ยนแปลง', exact: true })).toBeVisible();
 });
 
 test('V3 VIEWER: Employee Lifecycle history and mutations are forbidden', async ({ page }) => {
@@ -377,5 +390,7 @@ test('V3 VIEWER: Employee Lifecycle history and mutations are forbidden', async 
     data: { type: 'POSITION_CHANGE', effectiveDate: new Date().toISOString().slice(0, 10), changes: { jobTitle: 'authorization-boundary-only' }, reason: 'authorization boundary only', expectedEmployeeUpdatedAt: new Date().toISOString(), idempotencyKey: '00000000-0000-4000-8000-000000000002', acknowledgeWarnings: true }
   })).status).toBe(403);
   await navigateTo(page, 'employees');
-  await expect(page.getByRole('button', { name: /จัดการวงจรพนักงาน/ })).toHaveCount(0);
+  const employeeRow = page.locator(`[data-personnel-id="${employee.id}"]`).first();
+  await expect(employeeRow).toBeVisible();
+  await expect(employeeRow.locator('button.data-row-primary-action:visible')).toHaveCount(0);
 });

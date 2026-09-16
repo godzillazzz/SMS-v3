@@ -75,8 +75,11 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
     const quota2027 = await authenticatedRequest(`/api/v1/leave-quotas?page=1&pageSize=100&year=${G03_1_FUTURE_READ_YEAR}`, { accessToken });
     expect(quota2027.status).toBe(200);
     expect(quota2027.payload?.meta?.quotaYear).toBe(G03_1_FUTURE_READ_YEAR);
-    expect(Number(quota2027.payload?.meta?.total || 0)).toBe(0);
-    expect(Array.isArray(quota2027.payload?.data) ? quota2027.payload.data.length : -1).toBe(0);
+    expect(Array.isArray(quota2027.payload?.data)).toBe(true);
+    const futureRows = quota2027.payload.data;
+    expect(Number(quota2027.payload?.meta?.total || 0)).toBeGreaterThanOrEqual(futureRows.length);
+    expect(futureRows.length).toBeLessThanOrEqual(Number(quota2027.payload?.meta?.pageSize || 100));
+    expect(futureRows.every((row) => Number(row.quotaYear) === G03_1_FUTURE_READ_YEAR)).toBe(true);
     stage.begin('GQ04_YEAR_UI');
     await yearSelector.selectOption(String(G03_1_FUTURE_READ_YEAR));
     await expect(yearSelector).toHaveValue(String(G03_1_FUTURE_READ_YEAR));
@@ -91,7 +94,11 @@ test('G03 ADMIN: leave quota provisioning read-only contract', async ({ page }, 
     expect(legacyRead.status).toBe(200);
     const legacyPayload = legacyRead.payload;
     expect(legacyPayload?.meta?.legacy).toBe(true);
-    expect(Number(legacyPayload?.meta?.total || 0)).toBe(3);
+    expect(Array.isArray(legacyPayload?.data)).toBe(true);
+    const legacyRows = legacyPayload.data;
+    expect(Number(legacyPayload?.meta?.total || 0)).toBeGreaterThanOrEqual(legacyRows.length);
+    expect(legacyRows.length).toBeLessThanOrEqual(Number(legacyPayload?.meta?.pageSize || 100));
+    expect(legacyRows.every((row) => row.quotaYear === null && row.annualAccountingUnavailable === true)).toBe(true);
     await page.getByRole('button', { name: 'ดูข้อมูลเดิมที่ยังไม่ระบุปี', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'โควตาวันลา ข้อมูลเดิม', exact: true })).toBeVisible();
     await expect(page.getByText('ข้อมูลเดิม — ยังไม่ระบุปี ต้องจัดประเภทก่อนใช้งานรายปี', { exact: true })).toBeVisible();

@@ -82,8 +82,8 @@ for (const viewport of viewports) {
     assertExpectedStatus(response.status(), 200, 'LOGIN_HTTP_FAILED');
     extractViteAssets(await page.content());
 
-    const email = page.getByLabel('อีเมล');
-    const password = page.getByLabel('รหัสผ่าน');
+    const email = page.getByLabel('อีเมล', { exact: true });
+    const password = page.getByLabel('รหัสผ่าน', { exact: true });
     const submit = page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true });
     await expect(email).toBeVisible();
     await expect(password).toBeVisible();
