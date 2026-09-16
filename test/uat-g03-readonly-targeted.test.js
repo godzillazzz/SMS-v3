@@ -136,7 +136,7 @@ test('G03 exact Candidate source exposes the expected employee field-group/selec
   assert.match(applicationSource, /name: 'employeeId', label: 'พนักงาน \(รหัส · ชื่อ · หน่วยงาน\)', type: 'select'/);
   assert.match(applicationSource, /aria-label="ปีสิทธิ์โควตาวันลา"/);
   assert.match(applicationSource, /กำหนดโควตาวันลา ปี \$\{thaiQuotaYearLabel\(quotaYear\)\}/);
-  assert.match(applicationSource, /values: \{ \.\.\.LEAVE_QUOTA_DEFAULTS, quotaYear: String\(quotaYear\) \}/);
+  assert.match(applicationSource, /values: \{ \.\.\.leaveQuotaDefaultsFromPolicy\(leavePolicy\), quotaYear: String\(quotaYear\) \}/);
   const routeSource = fs.readFileSync(path.resolve(process.env.UAT_APPLICATION_ROOT, 'src/routes/operations.routes.js'), 'utf8');
   const unlinkedReturn = routeSource.indexOf("if (!currentUser.employeeId) return res.json({ data: { linked: false, employeeId: null } });");
   const annualSummaryCall = routeSource.indexOf('annualSummary(tx, { employeeId: currentUser.employeeId, quotaYear })');
