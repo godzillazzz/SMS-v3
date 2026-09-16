@@ -41,8 +41,9 @@ test('Preview UAT recovery workflow requires explicit owner confirmation and exi
   assert.match(workflow, /test "\$EXECUTE_REPAIR" = 'true'/);
   assert.match(workflow, /confirmation: 'REPAIR_PREVIEW_UAT_ACCOUNTS'/);
   assert.match(workflow, /execute: process\.env\.RECOVERY_EXECUTE === 'true'/);
-  assert.match(workflow, /\['UPDATE', 'EXISTS'\]\.includes\(accounts\[index\]\?\.action\)/);
+  assert.match(workflow, /\['CREATE', 'UPDATE', 'EXISTS'\]\.includes\(accounts\[index\]\?\.action\)/);
   assert.match(workflow, /accounts\[index\]\?\.action !== 'EXISTS'/);
+  assert.match(workflow, /Create-or-repair recovery dry run: PASS/);
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /preview-uat-recovery-\*\.json/);
 });

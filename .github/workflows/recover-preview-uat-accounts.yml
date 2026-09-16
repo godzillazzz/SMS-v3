@@ -214,7 +214,7 @@ jobs:
           if (!Array.isArray(accounts) || accounts.length !== expected.length) throw new Error('UAT_RECOVERY_ACCOUNT_COUNT_MISMATCH');
           for (let index = 0; index < expected.length; index += 1) {
             if (accounts[index]?.key !== expected[index]) throw new Error('UAT_RECOVERY_ACCOUNT_KEY_MISMATCH');
-            if (!['UPDATE', 'EXISTS'].includes(accounts[index]?.action)) throw new Error('UAT_RECOVERY_DRY_RUN_ACTION_INVALID');
+            if (!['CREATE', 'UPDATE', 'EXISTS'].includes(accounts[index]?.action)) throw new Error('UAT_RECOVERY_DRY_RUN_ACTION_INVALID');
           }
           console.log('UAT_ACCOUNT_RECOVERY_DRY_RUN=PASS');
           NODE
@@ -256,7 +256,7 @@ jobs:
           if (!Array.isArray(accounts) || accounts.length !== expected.length) throw new Error('UAT_RECOVERY_ACCOUNT_COUNT_MISMATCH');
           for (let index = 0; index < expected.length; index += 1) {
             if (accounts[index]?.key !== expected[index]) throw new Error('UAT_RECOVERY_ACCOUNT_KEY_MISMATCH');
-            if (!['UPDATE', 'EXISTS'].includes(accounts[index]?.action)) throw new Error('UAT_RECOVERY_EXECUTE_ACTION_INVALID');
+            if (!['CREATE', 'UPDATE', 'EXISTS'].includes(accounts[index]?.action)) throw new Error('UAT_RECOVERY_EXECUTE_ACTION_INVALID');
           }
           console.log('UAT_ACCOUNT_RECOVERY_EXECUTION=PASS');
           NODE
@@ -311,7 +311,7 @@ jobs:
             echo '### Preview UAT account recovery'
             echo '- Exact temporary Preview deployment identity: PASS'
             echo '- Protected Preview runtime readiness and DB fingerprint guard: PASS'
-            echo '- Existing-only recovery dry run: PASS'
+            echo '- Create-or-repair recovery dry run: PASS'
             echo '- Owner-authorized UAT account repair: PASS'
             echo '- Post-repair idempotency check: PASS'
             echo '- Production database mutation: NO'
