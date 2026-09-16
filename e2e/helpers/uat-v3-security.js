@@ -144,8 +144,19 @@ function artifactLeakReasons(filePath, content, options = {}) {
   return artifactLeakFindings(filePath, content, options);
 }
 
+function sanitizeRolePreflightStatus({ ready, status } = {}) {
+  if (ready === true) return 'READY';
+  const value = String(status || '').toUpperCase();
+  if (value === 'TIMEOUT' || value === 'REQUEST_FAILED' || value === 'SKIPPED') return value;
+  if (/^HTTP_[1-5][0-9]{2}$/.test(value)) return value;
+  return 'REQUEST_FAILED';
+}
+
 function rolePreflightSummary(results) {
-  return Object.fromEntries(results.map(({ role, ready }) => [role, ready ? 'YES' : 'NO']));
+  return Object.fromEntries((Array.isArray(results) ? results : []).map(({ role, ready, status }) => [
+    String(role || '').toUpperCase(),
+    sanitizeRolePreflightStatus({ ready, status })
+  ]).filter(([role]) => ['ADMIN', 'MANAGER', 'VIEWER'].includes(role)));
 }
 
 function roleSuiteStatus({ mode, configured, failed }) {
