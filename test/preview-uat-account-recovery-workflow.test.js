@@ -13,7 +13,9 @@ test('Preview UAT recovery workflow never binds GitHub Environment database secr
   assert.doesNotMatch(workflow, /DATABASE_URL: \$\{\{ secrets\.DATABASE_URL \}\}/);
   assert.doesNotMatch(workflow, /DIRECT_URL: \$\{\{ secrets\.DIRECT_URL \}\}/);
   assert.match(workflow, /SOURCE_BRANCH: \$\{\{ inputs\.source_branch \}\}/);
-  assert.match(workflow, /vercel@"\$VERCEL_CLI_VERSION" pull --yes --environment=preview --git-branch "\$SOURCE_BRANCH"/);
+  assert.match(workflow, /vercel@"\$VERCEL_CLI_VERSION" pull --yes --environment=preview/);
+  assert.match(workflow, /vercel@"\$VERCEL_CLI_VERSION" env pull \.vercel\/\.env\.preview\.local --yes --environment=preview --git-branch "\$SOURCE_BRANCH"/);
+  assert.match(workflow, /PREVIEW_ENV_PULL=PASS/);
   assert.match(workflow, /PREVIEW_CONFIG_BRANCH_BINDING=PASS/);
   assert.match(workflow, /--env-file=\.vercel\/\.env\.preview\.local/);
 });

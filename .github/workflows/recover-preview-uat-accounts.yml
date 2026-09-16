@@ -191,8 +191,10 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$SOURCE_BRANCH"
-          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=preview --git-branch "$SOURCE_BRANCH" \
+          npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=preview \
             --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/vercel-preview-recovery-pull.log 2>&1
+          npx --yes vercel@"$VERCEL_CLI_VERSION" env pull .vercel/.env.preview.local --yes --environment=preview --git-branch "$SOURCE_BRANCH" \
+            --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >/tmp/vercel-preview-recovery-env-pull.log 2>&1
           node - <<'NODE'
           const fs = require('node:fs');
           const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
@@ -200,9 +202,10 @@ jobs:
             throw new Error('Vercel project linkage mismatch');
           }
           for (const file of ['.vercel/.env.preview.local']) {
-            if (!fs.existsSync(file)) throw new Error('Preview env file missing after Vercel pull');
+            if (!fs.existsSync(file)) throw new Error('Preview env file missing after Vercel env pull');
           }
-          console.log('PREVIEW_CONFIG_PULL=PASS');
+          console.log('PREVIEW_PROJECT_PULL=PASS');
+          console.log('PREVIEW_ENV_PULL=PASS');
           console.log('PREVIEW_CONFIG_BRANCH_BINDING=PASS');
           NODE
           npx --yes vercel@"$VERCEL_CLI_VERSION" env list preview --format json \
