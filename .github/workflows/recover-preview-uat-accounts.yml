@@ -192,7 +192,19 @@ jobs:
             --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
             --data-binary "@$request_file" \
             "$TARGET_URL/api/v1/internal/preview-uat-recovery")"
-          test "$status" = '200'
+          if [[ "$status" != '200' ]]; then
+            echo "UAT_RECOVERY_DRY_RUN_HTTP=$status"
+            RECOVERY_RESPONSE_FILE="$response_file" node - <<'NODE'
+          const fs = require('node:fs');
+          let code = 'NONE';
+          try {
+            const body = JSON.parse(fs.readFileSync(process.env.RECOVERY_RESPONSE_FILE, 'utf8'));
+            if (typeof body?.code === 'string' && /^[A-Z0-9_]+$/.test(body.code)) code = body.code;
+          } catch {}
+          console.log(`UAT_RECOVERY_DRY_RUN_CODE=${code}`);
+          NODE
+            exit 1
+          fi
           RECOVERY_RESPONSE_FILE="$response_file" RECOVERY_EXPECTED_MODE=DRY_RUN node - <<'NODE'
           const fs = require('node:fs');
           const body = JSON.parse(fs.readFileSync(process.env.RECOVERY_RESPONSE_FILE, 'utf8'));
