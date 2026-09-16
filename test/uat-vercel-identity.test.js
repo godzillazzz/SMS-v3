@@ -81,6 +81,28 @@ test('REST meta.githubCommitSha is normalized and validated', () => {
   assert.equal(validate(normalizeDeploymentIdentity(raw)).valid, true);
 });
 
+test('REST v13 preview target=null keeps only the safe OIDC environment classification', () => {
+  const normalized = normalizeDeploymentIdentity(rawRecord({
+    target: null,
+    oidcTokenClaims: {
+      environment: 'preview',
+      sub: 'owner:example:project:example:environment:preview',
+      aud: 'not-retained'
+    }
+  }));
+  assert.equal(normalized.target, undefined);
+  assert.equal(normalized.environment, 'preview');
+  assert.equal('oidcTokenClaims' in normalized, false);
+  assert.equal(validate(normalized, { expectedTarget: 'preview' }).valid, true);
+});
+
+test('REST v13 preview target=null without preview environment fails closed', () => {
+  assert.throws(
+    () => validate(normalizeDeploymentIdentity(rawRecord({ target: null })), { expectedTarget: 'preview' }),
+    { code: 'UAT_DEPLOYMENT_TARGET_NOT_PREVIEW' }
+  );
+});
+
 test('REST gitSource.sha is accepted when meta SHA is absent', () => {
   const raw = rawRecord({ meta: { githubCommitRef: SOURCE_BRANCH }, gitSource: { sha: APPLICATION_SHA, ref: SOURCE_BRANCH } });
   assert.equal(validate(normalizeDeploymentIdentity(raw)).valid, true);
