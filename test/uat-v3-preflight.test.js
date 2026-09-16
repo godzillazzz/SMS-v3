@@ -13,6 +13,7 @@ const {
 const {
   artifactLeakFindings,
   artifactLeakReasons,
+  rolePreflightSummary,
   scanArtifact
 } = require('../e2e/helpers/uat-v3-security');
 const { getLegacyPageTarget, getNavigationItem, getRoleApiMatrix, getRoleNavigationContract, legacyPageTargets, roles } = require('../e2e/helpers/uat-v3-role-matrix');
@@ -124,6 +125,34 @@ test('UAT_V3_HARNESS_PREFLIGHT: artifact diagnostics expose only path and safe c
   assert.equal(JSON.stringify(finding).includes(email), false);
   assert.equal(JSON.stringify(finding).includes(password), false);
   assert.deepEqual(scanArtifact('test-results/safe.json', '{"role":"ADMIN","login":"PASS"}'), { path: 'test-results/safe.json', categories: [], safe: true });
+});
+
+test('UAT_V3_HARNESS_PREFLIGHT: auth preflight diagnostics expose only coarse allowlisted status', () => {
+  const secretPassword = 'diagnostic-password-value-123';
+  const secretToken = 'diagnostic-token-value-12345678901234567890';
+  const secretEmail = 'diagnostic-admin@example.test';
+  const summary = rolePreflightSummary([
+    { role: 'ADMIN', ready: false, status: 'HTTP_401', email: secretEmail, password: secretPassword },
+    { role: 'MANAGER', ready: false, status: 'TIMEOUT', accessToken: secretToken },
+    { role: 'VIEWER', ready: false, status: 'REQUEST_FAILED', headers: { Authorization: `Bearer ${secretToken}` } },
+    { role: 'UNTRUSTED', ready: false, status: 'HTTP_500' }
+  ]);
+  assert.deepEqual(summary, { ADMIN: 'HTTP_401', MANAGER: 'TIMEOUT', VIEWER: 'REQUEST_FAILED' });
+  const serialized = JSON.stringify(summary);
+  assert.equal(serialized.includes(secretEmail), false);
+  assert.equal(serialized.includes(secretPassword), false);
+  assert.equal(serialized.includes(secretToken), false);
+  assert.deepEqual(artifactLeakFindings('test-results/uat-v3-account-preflight.json', serialized, {
+    emailValues: [secretEmail],
+    passwordValues: [secretPassword],
+    secretValues: [secretToken]
+  }), []);
+  assert.deepEqual(rolePreflightSummary([
+    { role: 'ADMIN', ready: true, status: 'HTTP_500' },
+    { role: 'MANAGER', ready: false, status: 'HTTP_599' },
+    { role: 'VIEWER', ready: false, status: 'HTTP_999' }
+  ]), { ADMIN: 'READY', MANAGER: 'HTTP_599', VIEWER: 'REQUEST_FAILED' });
+  assert.deepEqual(rolePreflightSummary([{ role: 'VIEWER', ready: false, status: 'SKIPPED' }]), { VIEWER: 'SKIPPED' });
 });
 
 test('UAT_V3_HARNESS_PREFLIGHT: safe summary is independent from artifact gate', () => {
