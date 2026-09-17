@@ -243,13 +243,13 @@ async function assertNoHorizontalOverflow(page) {
   expect(hasOverflow, 'Page-level horizontal overflow is not allowed.').toBe(false);
 }
 
-async function captureScreenshot(page, testInfo, name, { allowLoginForm = false } = {}) {
+async function captureScreenshot(page, testInfo, name, { allowLoginForm = false, fullPage = true } = {}) {
   if (!allowLoginForm) {
     await expect(page.locator('form.login-form')).toHaveCount(0);
     await expect(page.locator('input[type="password"]:visible')).toHaveCount(0);
   }
   const path = testInfo.outputPath(`${name}.png`);
-  await page.screenshot({ path, fullPage: true });
+  await page.screenshot({ path, fullPage });
   await testInfo.attach(name, { path, contentType: 'image/png' });
 }
 

@@ -2,6 +2,7 @@ const { test, expect } = require('../helpers/uat-test');
 const { isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { scrubLoginCredentialDom } = require('../helpers/uat-auth');
 const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = require('../helpers/uat-observe');
+const { createStageTracker } = require('../helpers/uat-stage');
 const {
   assertExpectedStatus,
   assertReadiness,
@@ -49,6 +50,9 @@ test('TECHNICAL: HTTP health, readiness, Vite assets, and audit authorization bo
   const login = await page.request.get('/login', automationRequestOptions({ timeout: 20_000 }, process.env, process.env.UAT_BASE_URL, '/login'));
   await readResponseBody(login);
   assertExpectedStatus(login.status(), 200, 'LOGIN_HTTP_FAILED');
+  const refresh = await page.request.post('/api/v1/auth/refresh', automationRequestOptions({ timeout: 20_000 }, process.env, process.env.UAT_BASE_URL, '/api/v1/auth/refresh'));
+  await readResponseBody(refresh);
+  assertExpectedStatus(refresh.status(), 403, 'REFRESH_AUTHORIZATION_BOUNDARY_FAILED');
   const health = await page.request.get('/api/v1/health', automationRequestOptions({ timeout: 20_000 }, process.env, process.env.UAT_BASE_URL, '/api/v1/health'));
   await readJsonResponse(health, 'HEALTH_PAYLOAD_INVALID');
   assertExpectedStatus(health.status(), 200, 'HEALTH_HTTP_FAILED');
@@ -78,27 +82,39 @@ for (const viewport of viewports) {
   test(`TECHNICAL: login page browser smoke ${viewport.name}`, async ({ page }, testInfo) => {
     test.setTimeout(60_000);
     const monitor = startPageMonitor(page);
-    await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    const response = await page.goto('/login');
-    expect(response, 'Login response must exist.').not.toBeNull();
-    assertExpectedStatus(response.status(), 200, 'LOGIN_HTTP_FAILED');
-    extractViteAssets(await page.content());
+    const tracker = createStageTracker({ role: 'TECHNICAL', testCode: `LOGIN_${viewport.name}`, testInfo });
+    await page.route('**/api/v1/auth/refresh**', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'Authentication required' }) });
+    });
+    try {
+      await tracker.run('NAV01_LOGIN', async () => {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        const response = await page.goto('/login');
+        expect(response, 'Login response must exist.').not.toBeNull();
+        assertExpectedStatus(response.status(), 200, 'LOGIN_HTTP_FAILED');
+        extractViteAssets(await page.content());
 
-    const email = page.getByLabel('อีเมล', { exact: true });
-    const password = page.getByLabel('รหัสผ่าน', { exact: true });
-    const submit = page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true });
-    await expect(email).toBeVisible({ timeout: 30_000 });
-    await expect(password).toBeVisible({ timeout: 30_000 });
-    await expect(submit).toBeVisible({ timeout: 30_000 });
-    for (const control of [email, password, submit]) {
-      const box = await control.boundingBox();
-      expect(box, 'Primary login control must have a viewport box.').not.toBeNull();
-      expect(box.x).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+        const email = page.getByLabel('อีเมล', { exact: true });
+        const password = page.getByLabel('รหัสผ่าน', { exact: true });
+        const submit = page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true });
+        await expect(email).toBeVisible({ timeout: 15_000 });
+        await expect(password).toBeVisible({ timeout: 15_000 });
+        await expect(submit).toBeVisible({ timeout: 15_000 });
+        await expect(page.locator('.full-loader')).toHaveCount(0);
+        for (const control of [email, password, submit]) {
+          const box = await control.boundingBox();
+          expect(box, 'Primary login control must have a viewport box.').not.toBeNull();
+          expect(box.x).toBeGreaterThanOrEqual(0);
+          expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+        }
+        await assertNoHorizontalOverflow(page);
+        await scrubLoginCredentialDom(page);
+        await captureScreenshot(page, testInfo, `technical-login-${viewport.name}`, { allowLoginForm: true, fullPage: false });
+      }, { safeApiPath: '/api/v1/auth/refresh', safeStatus: 403, safeErrorCode: 'UAT_UI_LOGIN_RENDER_FAILED' });
+      await tracker.run('RC15_MONITOR', () => monitor.assertClean());
+    } finally {
+      await tracker.attach();
     }
-    await assertNoHorizontalOverflow(page);
-    await scrubLoginCredentialDom(page);
-    await captureScreenshot(page, testInfo, `technical-login-${viewport.name}`, { allowLoginForm: true });
-    monitor.assertClean();
   });
 }
