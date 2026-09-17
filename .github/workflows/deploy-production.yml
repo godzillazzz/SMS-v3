@@ -226,20 +226,83 @@ jobs:
           const project = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
           if (project.projectId !== process.env.EXPECTED_PROJECT_ID || project.orgId !== process.env.EXPECTED_ORG_ID) process.exit(1);
           NODE
-      - name: Verify Production environment contract before build
+      - name: Verify Production control-plane contract and master database target before build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
         shell: bash
         run: |
           set -euo pipefail
           env_file=.vercel/.env.production.local
           test -f "$env_file"
-          node scripts/ci/verify-environment-contract.js \
-            --environment=production \
-            --env-file="$env_file" \
-            --require-approved-fingerprint \
-            --approved-fingerprint="$APPROVED_DATABASE_TARGET_FINGERPRINT" \
-            --run-migrations="$RUN_MIGRATIONS" \
-            --source-sha="${{ needs.validate.outputs.commit_sha }}" \
-            --source-tree="$(git rev-parse HEAD^{tree})"
+          metadata_file=$(mktemp)
+          trap 'rm -f "$metadata_file"' EXIT
+          npx --yes vercel@"$VERCEL_CLI_VERSION" env list production --format json --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$metadata_file"
+          node - "$metadata_file" "$env_file" <<'NODE'
+          const fs = require('node:fs');
+          const dotenv = require('dotenv');
+          const contract = require('./config/environment-contract.json');
+          const { validateCors } = require('./scripts/ci/verify-environment-contract');
+          const [metadataFile, envFile] = process.argv.slice(2);
+          const data = JSON.parse(fs.readFileSync(metadataFile, 'utf8'));
+          const rows = Array.isArray(data.envs) ? data.envs : [];
+          const required = [...new Set([...contract.environments.production.required, 'DIRECT_URL'])];
+          const productionRows = (key) => rows.filter((row) =>
+            row && row.key === key && Array.isArray(row.target) && row.target.includes('production') && !row.gitBranch
+          );
+          for (const key of required) {
+            const matches = productionRows(key);
+            if (matches.length !== 1) throw new Error(`${key} must have exactly one project-level Production row`);
+          }
+          for (const key of ['DATABASE_URL', 'DIRECT_URL']) {
+            const type = String(productionRows(key)[0].type || '').toLowerCase();
+            if (type !== 'sensitive') throw new Error(`${key} must remain Vercel Sensitive`);
+          }
+          const corsType = String(productionRows('CORS_ORIGIN')[0].type || '').toLowerCase();
+          if (corsType !== 'encrypted') throw new Error('CORS_ORIGIN must remain Vercel non-sensitive/encrypted');
+          const pulled = dotenv.parse(fs.readFileSync(envFile, 'utf8'));
+          validateCors('production', pulled, contract);
+          process.stdout.write([
+            'PRODUCTION_CONTROL_PLANE_PREFLIGHT=PASS',
+            'DATABASE_URL_METADATA=SENSITIVE_PRESENT',
+            'DIRECT_URL_METADATA=SENSITIVE_PRESENT',
+            'CORS_ORIGIN_METADATA=ENCRYPTED_PRESENT',
+            'CORS_CONTRACT=PASS'
+          ].join('\n') + '\n');
+          NODE
+          test -n "$DATABASE_URL"
+          test -n "$DIRECT_URL"
+          test "$(git rev-parse HEAD)" = "${{ needs.validate.outputs.commit_sha }}"
+          test "$(git rev-parse HEAD^{tree})" = "${{ inputs.tree_sha }}"
+          node scripts/ci/verify-deployment-target.js --verify
+          echo 'PRODUCTION_DATABASE_MASTER_TARGET=PASS'
+      - name: Verify current canonical Production CORS baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const base = process.env.EXPECTED_CANONICAL_URL.replace(/\/$/, '');
+          const trustedOrigin = new URL(process.env.EXPECTED_CANONICAL_URL).origin;
+          const untrustedOrigin = 'https://untrusted.invalid';
+          async function preflight(origin) {
+            return fetch(`${base}/api/v1/auth/login`, {
+              method: 'OPTIONS',
+              headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' },
+              redirect: 'manual'
+            });
+          }
+          async function main() {
+            const trusted = await preflight(trustedOrigin);
+            if (trusted.status !== 204) throw new Error(`trusted CORS baseline status ${trusted.status}`);
+            if (trusted.headers.get('access-control-allow-origin') !== trustedOrigin) throw new Error('trusted CORS baseline origin mismatch');
+            if (trusted.headers.get('access-control-allow-credentials') !== 'true') throw new Error('trusted CORS baseline credentials mismatch');
+            const denied = await preflight(untrustedOrigin);
+            if (denied.status !== 403) throw new Error(`untrusted CORS baseline status ${denied.status}`);
+            if (denied.headers.get('access-control-allow-origin')) throw new Error('untrusted CORS baseline unexpectedly allowed');
+            process.stdout.write('CURRENT_CANONICAL_CORS_BASELINE=PASS\n');
+          }
+          main().catch((error) => { console.error(error); process.exit(1); });
+          NODE
       - name: Build prebuilt artifact after migration gate
         shell: bash
         run: |
