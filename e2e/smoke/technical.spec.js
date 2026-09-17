@@ -113,6 +113,25 @@ for (const viewport of viewports) {
       }, { safeApiPath: '/api/v1/auth/refresh', safeStatus: 403, safeErrorCode: 'UAT_UI_LOGIN_RENDER_FAILED' });
       await tracker.run('RC15_MONITOR', () => monitor.assertClean());
     } finally {
+      const renderState = await page.evaluate(() => ({
+        readyState: document.readyState,
+        pathname: window.location.pathname,
+        fullLoaderCount: document.querySelectorAll('.full-loader').length,
+        loginFormCount: document.querySelectorAll('form.login-form').length,
+        rootChildCount: document.querySelector('#root')?.childElementCount ?? -1,
+        moduleScriptCount: document.querySelectorAll('script[type="module"][src]').length,
+        resourceScriptCount: performance.getEntriesByType('resource').filter((entry) => entry.initiatorType === 'script').length,
+        refreshBoundaryInstalled: Boolean(window.__uatTechnicalRefreshBoundaryInstalled),
+        refreshBoundaryHits: Number(window.__uatTechnicalRefreshBoundaryHits || 0)
+      })).catch(() => ({ evaluationFailed: true }));
+      await testInfo.attach(`technical-login-render-state-${viewport.name}.json`, {
+        body: JSON.stringify(renderState),
+        contentType: 'application/json'
+      });
+      await testInfo.attach(`technical-login-monitor-${viewport.name}.json`, {
+        body: JSON.stringify(monitor.safeEvidence()),
+        contentType: 'application/json'
+      });
       await tracker.attach();
     }
   });

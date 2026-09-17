@@ -5,6 +5,8 @@ const { createHeavyReadSafetyTracker } = require('./uat-heavy-read-v3');
 
 async function installUnauthenticatedRefreshBoundary(page) {
   await page.addInitScript(() => {
+    window.__uatTechnicalRefreshBoundaryInstalled = true;
+    window.__uatTechnicalRefreshBoundaryHits = 0;
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init = {}) => {
       const rawUrl = typeof input === 'string'
@@ -18,6 +20,7 @@ async function installUnauthenticatedRefreshBoundary(page) {
       if (url?.origin === window.location.origin
         && url.pathname === '/api/v1/auth/refresh'
         && method === 'POST') {
+        window.__uatTechnicalRefreshBoundaryHits += 1;
         return new Response(JSON.stringify({ error: 'Authentication required' }), {
           status: 403,
           headers: { 'Content-Type': 'application/json' }
