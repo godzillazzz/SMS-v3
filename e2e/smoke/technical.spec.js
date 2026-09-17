@@ -1,4 +1,4 @@
-const { test, expect, setUnauthenticatedRefreshBoundary } = require('../helpers/uat-test');
+const { test, expect, installUnauthenticatedRefreshBoundary } = require('../helpers/uat-test');
 const { isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { scrubLoginCredentialDom } = require('../helpers/uat-auth');
 const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = require('../helpers/uat-observe');
@@ -83,7 +83,7 @@ for (const viewport of viewports) {
     test.setTimeout(60_000);
     const monitor = startPageMonitor(page);
     const tracker = createStageTracker({ role: 'TECHNICAL', testCode: `LOGIN_${viewport.name}`, testInfo });
-    setUnauthenticatedRefreshBoundary(page, true);
+    await installUnauthenticatedRefreshBoundary(page);
     try {
       await tracker.run('NAV01_LOGIN', async () => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -92,9 +92,11 @@ for (const viewport of viewports) {
         assertExpectedStatus(response.status(), 200, 'LOGIN_HTTP_FAILED');
         extractViteAssets(await page.content());
 
-        const email = page.getByLabel('อีเมล', { exact: true });
-        const password = page.getByLabel('รหัสผ่าน', { exact: true });
-        const submit = page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true });
+        const form = page.locator('form.login-form');
+        await expect(form).toBeVisible({ timeout: 15_000 });
+        const email = form.getByLabel('อีเมล', { exact: true });
+        const password = form.getByLabel('รหัสผ่าน', { exact: true });
+        const submit = form.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true });
         await expect(email).toBeVisible({ timeout: 15_000 });
         await expect(password).toBeVisible({ timeout: 15_000 });
         await expect(submit).toBeVisible({ timeout: 15_000 });
@@ -111,7 +113,6 @@ for (const viewport of viewports) {
       }, { safeApiPath: '/api/v1/auth/refresh', safeStatus: 403, safeErrorCode: 'UAT_UI_LOGIN_RENDER_FAILED' });
       await tracker.run('RC15_MONITOR', () => monitor.assertClean());
     } finally {
-      setUnauthenticatedRefreshBoundary(page, false);
       await tracker.attach();
     }
   });

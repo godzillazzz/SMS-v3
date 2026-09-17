@@ -3,11 +3,29 @@ const { automationBypassHeaders } = require('./technical-smoke');
 const { sanitizeUatDiagnostic } = require('./uat-v3-security');
 const { createHeavyReadSafetyTracker } = require('./uat-heavy-read-v3');
 
-const unauthenticatedRefreshBoundaryPages = new WeakSet();
-
-function setUnauthenticatedRefreshBoundary(page, enabled = true) {
-  if (enabled) unauthenticatedRefreshBoundaryPages.add(page);
-  else unauthenticatedRefreshBoundaryPages.delete(page);
+async function installUnauthenticatedRefreshBoundary(page) {
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input, init = {}) => {
+      const rawUrl = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input?.url;
+      const method = String(init?.method || (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')).toUpperCase();
+      let url;
+      try { url = new URL(rawUrl, window.location.origin); } catch { url = undefined; }
+      if (url?.origin === window.location.origin
+        && url.pathname === '/api/v1/auth/refresh'
+        && method === 'POST') {
+        return new Response(JSON.stringify({ error: 'Authentication required' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return originalFetch(input, init);
+    };
+  });
 }
 
 function authenticatedMode() {
@@ -28,18 +46,6 @@ const test = base.extend({
     const targetUrl = process.env.UAT_BASE_URL;
     await page.route('**/*', async (route) => {
       const request = route.request();
-      let requestPath = '';
-      try { requestPath = new URL(request.url()).pathname; } catch { requestPath = ''; }
-      if (unauthenticatedRefreshBoundaryPages.has(page)
-        && request.method() === 'POST'
-        && requestPath === '/api/v1/auth/refresh') {
-        await route.fulfill({
-          status: 403,
-          contentType: 'application/json',
-          body: JSON.stringify({ error: 'Authentication required' })
-        });
-        return;
-      }
       const headers = automationBypassHeaders(
         process.env,
         targetUrl,
@@ -93,4 +99,4 @@ test.afterEach(async ({}, testInfo) => {
   sanitizeFailureErrors(testInfo);
 });
 
-module.exports = { expect, setUnauthenticatedRefreshBoundary, test };
+module.exports = { expect, installUnauthenticatedRefreshBoundary, test };
