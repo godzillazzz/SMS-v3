@@ -286,7 +286,13 @@ test('V3 isolates Report Center diagnostics without changing the global timeout'
   assert.match(uatTestFixture, /url\.pathname === '\/api\/v1\/auth\/refresh'/);
   assert.match(uatTestFixture, /return new Response/);
   assert.match(uatTestFixture, /status: 403/);
+  assert.match(uatTestFixture, /__uatTechnicalRefreshBoundaryInstalled/);
+  assert.match(uatTestFixture, /__uatTechnicalRefreshBoundaryHits/);
   assert.doesNotMatch(uatTestFixture, /unauthenticatedRefreshBoundaryPages/);
+  assert.match(technicalSmoke, /technical-login-render-state-/);
+  assert.match(technicalSmoke, /refreshBoundaryInstalled/);
+  assert.match(technicalSmoke, /refreshBoundaryHits/);
+  assert.match(technicalSmoke, /monitor\.safeEvidence\(\)/);
   assert.match(technicalSmoke, /toBeVisible\(\{ timeout: 15_000 \}\)/);
   assert.match(technicalSmoke, /fullPage: false/);
   assert.match(observe, /fullPage = true/);
