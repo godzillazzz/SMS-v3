@@ -281,6 +281,8 @@ test('V3 isolates Report Center diagnostics without changing the global timeout'
   assert.match(technicalSmoke, /REFRESH_AUTHORIZATION_BOUNDARY_FAILED/);
   assert.match(technicalSmoke, /installUnauthenticatedRefreshBoundary\(page\)/);
   assert.match(technicalSmoke, /form\.login-form/);
+  assert.match(technicalSmoke, /form\.locator\('input#password'\)/);
+  assert.doesNotMatch(technicalSmoke, /getByLabel\('รหัสผ่าน', \{ exact: true \}\)/);
   assert.match(uatTestFixture, /page\.addInitScript/);
   assert.match(uatTestFixture, /window\.fetch = async/);
   assert.match(uatTestFixture, /url\.pathname === '\/api\/v1\/auth\/refresh'/);
