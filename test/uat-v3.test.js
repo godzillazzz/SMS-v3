@@ -270,8 +270,15 @@ test('V3 isolates Report Center diagnostics without changing the global timeout'
   }
   assert.match(authenticatedSmoke, /Lifecycle coverage is outside the selected UAT scope/);
   assert.match(responsiveSmoke, /test\.setTimeout\(120_000\)/);
+  assert.match(responsiveSmoke, /createStageTracker/);
+  assert.match(responsiveSmoke, /fullPage: false/);
   assert.match(technicalSmoke, /test\.setTimeout\(60_000\)/);
-  assert.match(technicalSmoke, /toBeVisible\(\{ timeout: 30_000 \}\)/);
+  assert.match(technicalSmoke, /page\.request\.post\('\/api\/v1\/auth\/refresh'/);
+  assert.match(technicalSmoke, /REFRESH_AUTHORIZATION_BOUNDARY_FAILED/);
+  assert.match(technicalSmoke, /route\.fulfill\(\{ status: 403/);
+  assert.match(technicalSmoke, /toBeVisible\(\{ timeout: 15_000 \}\)/);
+  assert.match(technicalSmoke, /fullPage: false/);
+  assert.match(observe, /fullPage = true/);
   const refreshReady = performanceSmoke.indexOf("await expect(refreshButton).toBeEnabled({ timeout: 60_000 });");
   const refreshBaseline = performanceSmoke.indexOf("const summaryBeforeRefresh = observer.count('/api/v1/reports/summary');");
   assert.ok(refreshReady >= 0 && refreshReady < refreshBaseline, 'Explicit refresh baseline must be captured after the refresh control is ready.');
