@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const { test, expect, installUnauthenticatedRefreshBoundary } = require('../helpers/uat-test');
 const { isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { scrubLoginCredentialDom } = require('../helpers/uat-auth');
@@ -18,6 +19,29 @@ const viewports = [
   { name: '768', width: 768, height: 1024 },
   { name: '1440', width: 1440, height: 900 }
 ];
+
+function appendSafeLoginRenderDiagnostic(viewportName, renderState, monitorState) {
+  const diagnosticPath = process.env.UAT_STAGE_DIAGNOSTIC_FILE;
+  if (!diagnosticPath) return;
+  const record = {
+    role: 'TECHNICAL',
+    testCode: `LOGIN_RENDER_${viewportName}`,
+    state: 'DIAGNOSTIC',
+    readyState: ['loading', 'interactive', 'complete'].includes(renderState?.readyState) ? renderState.readyState : 'unknown',
+    pathnameIsLogin: renderState?.pathname === '/login',
+    fullLoaderCount: Number.isInteger(renderState?.fullLoaderCount) ? renderState.fullLoaderCount : -1,
+    loginFormCount: Number.isInteger(renderState?.loginFormCount) ? renderState.loginFormCount : -1,
+    rootChildCount: Number.isInteger(renderState?.rootChildCount) ? renderState.rootChildCount : -1,
+    moduleScriptCount: Number.isInteger(renderState?.moduleScriptCount) ? renderState.moduleScriptCount : -1,
+    resourceScriptCount: Number.isInteger(renderState?.resourceScriptCount) ? renderState.resourceScriptCount : -1,
+    refreshBoundaryInstalled: renderState?.refreshBoundaryInstalled === true,
+    refreshBoundaryHits: Number.isInteger(renderState?.refreshBoundaryHits) ? renderState.refreshBoundaryHits : -1,
+    pageErrorCount: Number.isInteger(monitorState?.pageErrorCount) ? monitorState.pageErrorCount : -1,
+    consoleErrorCount: Number.isInteger(monitorState?.consoleErrorCount) ? monitorState.consoleErrorCount : -1,
+    requestFailureCount: Number.isInteger(monitorState?.requestFailureCount) ? monitorState.requestFailureCount : -1
+  };
+  fs.appendFileSync(diagnosticPath, `${JSON.stringify(record)}\n`, 'utf8');
+}
 
 test.skip(isReportCenterDiagnostic(), 'Technical browser smoke is outside the selected UAT scope.');
 
@@ -128,10 +152,12 @@ for (const viewport of viewports) {
         body: JSON.stringify(renderState),
         contentType: 'application/json'
       });
+      const monitorState = monitor.safeEvidence();
       await testInfo.attach(`technical-login-monitor-${viewport.name}.json`, {
-        body: JSON.stringify(monitor.safeEvidence()),
+        body: JSON.stringify(monitorState),
         contentType: 'application/json'
       });
+      appendSafeLoginRenderDiagnostic(viewport.name, renderState, monitorState);
       await tracker.attach();
     }
   });

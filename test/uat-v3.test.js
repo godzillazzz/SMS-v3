@@ -290,6 +290,9 @@ test('V3 isolates Report Center diagnostics without changing the global timeout'
   assert.match(uatTestFixture, /__uatTechnicalRefreshBoundaryHits/);
   assert.doesNotMatch(uatTestFixture, /unauthenticatedRefreshBoundaryPages/);
   assert.match(technicalSmoke, /technical-login-render-state-/);
+  assert.match(technicalSmoke, /appendSafeLoginRenderDiagnostic/);
+  assert.match(technicalSmoke, /UAT_STAGE_DIAGNOSTIC_FILE/);
+  assert.match(technicalSmoke, /pathnameIsLogin/);
   assert.match(technicalSmoke, /refreshBoundaryInstalled/);
   assert.match(technicalSmoke, /refreshBoundaryHits/);
   assert.match(technicalSmoke, /monitor\.safeEvidence\(\)/);
