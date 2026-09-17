@@ -202,6 +202,16 @@ test('3. correct Canonical URL plus expected promoted deployment passes', () => 
   }).valid, true);
 });
 
+test('canonical mode accepts Vercel REST alias resolution returning the immutable primary hostname', () => {
+  const promotedDeployment = deployment();
+  assert.equal(verify({
+    targetMode: 'canonical',
+    targetUrl: CANONICAL_URL,
+    targetDeployment: promotedDeployment,
+    expectedDeployment: promotedDeployment
+  }).valid, true);
+});
+
 test('4. Canonical resolving to unexpected deployment fails closed', () => {
   assert.throws(
     () => verify({

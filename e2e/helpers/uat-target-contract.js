@@ -300,12 +300,14 @@ function validateTargetIdentity({
     expectedGitRef: effectiveExpectedGitRef,
     expectedTarget
   });
-  const allowPreviewAliases = scope.mode === 'preview';
-  if (!deploymentMatchesHost(targetDeployment, scope.host, allowPreviewAliases)) {
-    throw contractError('UAT_TARGET_DEPLOYMENT_HOST_MISMATCH');
-  }
-  if (!deploymentMatchesHost(expectedDeployment, scope.host, allowPreviewAliases)) {
-    throw contractError('UAT_EXPECTED_DEPLOYMENT_HOST_MISMATCH');
+  if (scope.mode !== 'canonical') {
+    const allowPreviewAliases = scope.mode === 'preview';
+    if (!deploymentMatchesHost(targetDeployment, scope.host, allowPreviewAliases)) {
+      throw contractError('UAT_TARGET_DEPLOYMENT_HOST_MISMATCH');
+    }
+    if (!deploymentMatchesHost(expectedDeployment, scope.host, allowPreviewAliases)) {
+      throw contractError('UAT_EXPECTED_DEPLOYMENT_HOST_MISMATCH');
+    }
   }
   if (targetDeployment.id !== expectedDeployment.id) throw contractError('UAT_TARGET_DEPLOYMENT_IDENTITY_MISMATCH');
   return {
