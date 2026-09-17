@@ -18,9 +18,12 @@ test('CI runs the static environment governance contract without Production secr
 test('manual Production workflow defaults migrations to false and gates environment readiness', () => {
   const workflow = readWorkflow('deploy-production.yml');
   assert.match(workflow, /run_migrations:[\s\S]*default: false/);
-  assert.match(workflow, /Verify Production environment contract before build/);
-  assert.match(workflow, /--require-approved-fingerprint/);
-  assert.match(workflow, /--run-migrations="\$RUN_MIGRATIONS"/);
+  assert.match(workflow, /Verify Production control-plane contract and master database target before build/);
+  assert.match(workflow, /DATABASE_URL: \$\{\{ secrets\.DATABASE_URL \}\}/);
+  assert.match(workflow, /DIRECT_URL: \$\{\{ secrets\.DIRECT_URL \}\}/);
+  assert.match(workflow, /APPROVED_DATABASE_TARGET_FINGERPRINT: \$\{\{ vars\.APPROVED_DATABASE_TARGET_FINGERPRINT \}\}/);
+  assert.match(workflow, /node scripts\/ci\/verify-deployment-target\.js --verify/);
+  assert.match(workflow, /CURRENT_CANONICAL_CORS_BASELINE=PASS/);
   assert.match(workflow, /node scripts\/ci\/verify-linux-artifact\.js \.vercel\/output --require-sharp-load/);
   assert.match(workflow, /^on:\n\s+workflow_dispatch:/m);
   assert.doesNotMatch(workflow, /^\s+(?:push|schedule|repository_dispatch):/m);
