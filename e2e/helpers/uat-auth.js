@@ -304,7 +304,7 @@ async function loginViaUi(page, role) {
   let loginStatus;
   try {
     await page.getByLabel('อีเมล', { exact: true }).fill(account.email);
-    await page.getByLabel('รหัสผ่าน', { exact: true }).fill(account.password);
+    await page.locator('form.login-form').locator('input#password').fill(account.password);
 
     const dashboardResponse = await performAndWaitForHeavyRequest(page, '/api/v1/dashboard', async () => {
       await page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true }).click();

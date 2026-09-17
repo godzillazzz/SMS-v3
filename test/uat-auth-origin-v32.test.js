@@ -71,6 +71,8 @@ test('V3.2 real browser login is canonical-only, real POST login, and never spoo
   assert.match(block, /UAT_REAL_LOGIN_ORIGIN_NOT_CANONICAL/);
   assert.match(block, /pathname === '\/api\/v1\/auth\/login' && request\.method\(\) === 'POST'/);
   assert.match(block, /getByRole\('button', \{ name: 'เข้าสู่ระบบ', exact: true \}\)\.click\(\)/);
+  assert.match(block, /locator\('form\.login-form'\)\.locator\('input#password'\)\.fill\(account\.password\)/);
+  assert.doesNotMatch(block, /getByLabel\('รหัสผ่าน', \{ exact: true \}\)/);
   assert.match(block, /scrubLoginCredentialDom\(page\)/);
   assert.doesNotMatch(block, /installCachedRefreshRoute/);
   assert.doesNotMatch(block, /route\.fulfill/);

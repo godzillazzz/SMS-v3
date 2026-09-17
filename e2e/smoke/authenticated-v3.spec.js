@@ -143,6 +143,8 @@ async function expectUnifiedReportCenter(page, role, testInfo, monitor) {
       () => pdfButton.click({ timeout: 10_000 }),
       { safeApiPath: '/api/v1/executive-report', safeStatus: executiveResponse.status(), safeErrorCode: 'UAT_UI_PDF_CLICK_FAILED' }
     );
+    const reportCenterEvidence = monitor.safeEvidence();
+    await testInfo.attach('v32-page-monitor.json', { body: JSON.stringify(reportCenterEvidence), contentType: 'application/json' });
     await tracker.run('RC15_MONITOR', () => monitor.assertClean());
   } finally {
     await tracker.attach();
