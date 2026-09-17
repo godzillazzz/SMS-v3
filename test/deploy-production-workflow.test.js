@@ -60,7 +60,7 @@ test('deploy job remains migration-gated and bound to the approved Vercel projec
 test('deployment identity comes from deploy JSON and rejects rollback reuse', () => {
   const deploy = jobBlock('deploy');
   const health = jobBlock('health');
-  assert.match(deploy, /deploy --prebuilt --prod .*--project "\$EXPECTED_PROJECT_ID"/);
+  assert.match(deploy, /deploy_args=\(deploy --prebuilt --prod .*--project "\$EXPECTED_PROJECT_ID"/);
   assert.match(deploy, /--format=json/);
   assert.match(deploy, /scripts\/ci\/vercel-deployment\.js/);
   assert.match(deploy, /rollback_deployment_id/);
@@ -75,6 +75,17 @@ test('deployment identity comes from deploy JSON and rejects rollback reuse', ()
   assert.match(health, /DEPLOYMENT_URL: \$\{\{ needs\.deploy\.outputs\.deployment_url \}\}/);
   assert.match(health, /DEPLOYMENT_ID: \$\{\{ needs\.deploy\.outputs\.deployment_id \}\}/);
   assert.match(health, /Validate deployment outputs/);
+});
+
+test('stage-only mode creates a production-target deployment without changing canonical aliases', () => {
+  const deploy = jobBlock('deploy');
+
+  assert.match(workflow, /stage_only:/);
+  assert.match(deploy, /if \[\[ "\$\{\{ inputs\.stage_only \}\}" == "true" \]\]; then/);
+  assert.match(deploy, /deploy_args\+=\(--skip-domain\)/);
+  assert.match(deploy, /expected_previous="\$\{\{ inputs\.rollback_deployment_id \}\}"/);
+  assert.match(deploy, /inspect "\$EXPECTED_CANONICAL_URL"/);
+  assert.match(deploy, /STAGE_ONLY_CANONICAL_UNCHANGED=/);
 });
 
 test('build gate validates build-only behavior and the Vite artifact', () => {
