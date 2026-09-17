@@ -49,12 +49,29 @@ test('deploy job remains migration-gated and bound to the approved Vercel projec
   assert.match(deploy, /VERCEL_TOKEN: \$\{\{ secrets\.VERCEL_TOKEN \}\}/);
   assert.match(deploy, /VERCEL_ORG_ID: \$\{\{ secrets\.VERCEL_ORG_ID \}\}/);
   assert.match(deploy, /VERCEL_PROJECT_ID: \$\{\{ secrets\.VERCEL_PROJECT_ID \}\}/);
+  assert.match(deploy, /DATABASE_URL: \$\{\{ secrets\.DATABASE_URL \}\}/);
+  assert.match(deploy, /DIRECT_URL: \$\{\{ secrets\.DIRECT_URL \}\}/);
   assert.match(workflow, /EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s/);
   assert.match(workflow, /EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz/);
   assert.match(deploy, /test "\$VERCEL_PROJECT_ID" = "\$EXPECTED_PROJECT_ID"/);
   assert.match(deploy, /test "\$VERCEL_ORG_ID" = "\$EXPECTED_ORG_ID"/);
   assert.doesNotMatch(deploy, /vercel\s+(?:project\s+)?(?:add|create)/i);
   assert.doesNotMatch(deploy, /(?:^|[\s"'])sms-v3(?:[\s"']|$)/);
+});
+
+test('Production prebuild uses protected master DB authority while Vercel DB values remain Sensitive', () => {
+  const deploy = jobBlock('deploy');
+
+  assert.match(deploy, /Verify Production control-plane contract and master database target before build/);
+  assert.match(deploy, /DATABASE_URL: \$\{\{ secrets\.DATABASE_URL \}\}/);
+  assert.match(deploy, /DIRECT_URL: \$\{\{ secrets\.DIRECT_URL \}\}/);
+  assert.match(deploy, /if \(type !== 'sensitive'\) throw new Error\(`\$\{key\} must remain Vercel Sensitive`\)/);
+  assert.match(deploy, /CORS_ORIGIN must remain Vercel non-sensitive\/encrypted/);
+  assert.match(deploy, /validateCors\('production', pulled, contract\)/);
+  assert.match(deploy, /node scripts\/ci\/verify-deployment-target\.js --verify/);
+  assert.match(deploy, /PRODUCTION_DATABASE_MASTER_TARGET=PASS/);
+  assert.match(deploy, /CURRENT_CANONICAL_CORS_BASELINE=PASS/);
+  assert.doesNotMatch(deploy, /--env-file="\$env_file"[\s\S]{0,300}--require-approved-fingerprint/);
 });
 
 test('deployment identity comes from deploy JSON and rejects rollback reuse', () => {
