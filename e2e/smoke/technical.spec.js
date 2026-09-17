@@ -119,7 +119,7 @@ for (const viewport of viewports) {
         const form = page.locator('form.login-form');
         await expect(form).toBeVisible({ timeout: 15_000 });
         const email = form.getByLabel('อีเมล', { exact: true });
-        const password = form.getByLabel('รหัสผ่าน', { exact: true });
+        const password = form.locator('input#password');
         const submit = form.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true });
         await expect(email).toBeVisible({ timeout: 15_000 });
         await expect(password).toBeVisible({ timeout: 15_000 });
