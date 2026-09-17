@@ -29,6 +29,11 @@ on:
         required: false
         default: false
         type: boolean
+      stage_only:
+        description: Create a READY production-target deployment without aliasing canonical domains; promote separately
+        required: false
+        default: false
+        type: boolean
       run_migrations:
         description: Run protected Prisma migrations before deployment
         required: false
@@ -282,7 +287,11 @@ jobs:
           inspect_stderr=$(mktemp)
           inspection_output=$(mktemp)
           trap 'rm -f "$deploy_stdout" "$deploy_stderr" "$deployment_output" "$inspect_stdout" "$inspect_stderr" "$inspection_output"' EXIT
-          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --prod --yes --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json >"$deploy_stdout" 2>"$deploy_stderr"
+          deploy_args=(deploy --prebuilt --prod --yes --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json)
+          if [[ "${{ inputs.stage_only }}" == "true" ]]; then
+            deploy_args+=(--skip-domain)
+          fi
+          npx --yes vercel@"$VERCEL_CLI_VERSION" "${deploy_args[@]}" >"$deploy_stdout" 2>"$deploy_stderr"
           node scripts/ci/vercel-deployment.js "$deploy_stdout" "$EXPECTED_PROJECT_ID" "${{ inputs.rollback_deployment_id }}" >"$deployment_output"
           while IFS='=' read -r key value; do
             case "$key" in
@@ -314,6 +323,27 @@ jobs:
               inspection_source) inspection_source="$value" ;;
             esac
           done <"$inspection_output"
+          if [[ "${{ inputs.stage_only }}" == "true" ]]; then
+            expected_previous="${{ inputs.rollback_deployment_id }}"
+            [[ "$expected_previous" =~ ^dpl_[A-Za-z0-9]+$ ]]
+            canonical_log=$(mktemp)
+            npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$canonical_log" 2>&1
+            node - "$canonical_log" "$expected_previous" <<'NODE'
+          const fs = require('node:fs');
+          const [file, expectedId] = process.argv.slice(2);
+          const raw = fs.readFileSync(file, 'utf8');
+          const match = raw.match(/\{[\s\S]*\}/);
+          const fail = (category) => { console.error(`STAGE_GUARD=${category}`); process.exit(1); };
+          if (!match) fail('CANONICAL_INSPECT_JSON_MISSING');
+          let data;
+          try { data = JSON.parse(match[0]); } catch { fail('CANONICAL_INSPECT_JSON_INVALID'); }
+          if (data.id !== expectedId) fail('CANONICAL_CHANGED_DURING_STAGE');
+          if (data.target !== 'production') fail('CANONICAL_TARGET_NOT_PRODUCTION');
+          if ((data.readyState || data.state) !== 'READY') fail('CANONICAL_NOT_READY');
+          console.log(`STAGE_ONLY_CANONICAL_UNCHANGED=${data.id}`);
+          NODE
+            rm -f "$canonical_log"
+          fi
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           {
@@ -326,6 +356,7 @@ jobs:
             echo "- Created at: $inspection_created_at"
             echo "- Ready state: $deployment_ready_state"
             echo "- Rollback target: ${{ inputs.rollback_deployment_id }}"
+            echo "- Stage only: ${{ inputs.stage_only }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
   health:
@@ -361,6 +392,8 @@ jobs:
           {
             echo '### Post-deploy gate'
             echo '- Root/health/readiness: verified by health script'
+            echo '- Stage only: ${{ inputs.stage_only }}'
+            echo '- Rollback/current canonical checkpoint: ${{ inputs.rollback_deployment_id }}'
             echo '- Authenticated ADMIN/MANAGER smoke: pending dedicated non-human account'
             echo '- Automatic rollback: disabled; use rollback-production.yml after approval'
           } >> "$GITHUB_STEP_SUMMARY"
