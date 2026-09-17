@@ -3,6 +3,13 @@ const { automationBypassHeaders } = require('./technical-smoke');
 const { sanitizeUatDiagnostic } = require('./uat-v3-security');
 const { createHeavyReadSafetyTracker } = require('./uat-heavy-read-v3');
 
+const unauthenticatedRefreshBoundaryPages = new WeakSet();
+
+function setUnauthenticatedRefreshBoundary(page, enabled = true) {
+  if (enabled) unauthenticatedRefreshBoundaryPages.add(page);
+  else unauthenticatedRefreshBoundaryPages.delete(page);
+}
+
 function authenticatedMode() {
   return String(process.env.UAT_MODE || 'technical').trim().toLowerCase() === 'authenticated';
 }
@@ -21,6 +28,18 @@ const test = base.extend({
     const targetUrl = process.env.UAT_BASE_URL;
     await page.route('**/*', async (route) => {
       const request = route.request();
+      let requestPath = '';
+      try { requestPath = new URL(request.url()).pathname; } catch { requestPath = ''; }
+      if (unauthenticatedRefreshBoundaryPages.has(page)
+        && request.method() === 'POST'
+        && requestPath === '/api/v1/auth/refresh') {
+        await route.fulfill({
+          status: 403,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'Authentication required' })
+        });
+        return;
+      }
       const headers = automationBypassHeaders(
         process.env,
         targetUrl,
@@ -74,4 +93,4 @@ test.afterEach(async ({}, testInfo) => {
   sanitizeFailureErrors(testInfo);
 });
 
-module.exports = { expect, test };
+module.exports = { expect, setUnauthenticatedRefreshBoundary, test };

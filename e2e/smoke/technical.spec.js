@@ -1,4 +1,4 @@
-const { test, expect } = require('../helpers/uat-test');
+const { test, expect, setUnauthenticatedRefreshBoundary } = require('../helpers/uat-test');
 const { isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { scrubLoginCredentialDom } = require('../helpers/uat-auth');
 const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = require('../helpers/uat-observe');
@@ -83,10 +83,7 @@ for (const viewport of viewports) {
     test.setTimeout(60_000);
     const monitor = startPageMonitor(page);
     const tracker = createStageTracker({ role: 'TECHNICAL', testCode: `LOGIN_${viewport.name}`, testInfo });
-    await page.route('**/api/v1/auth/refresh**', async (route) => {
-      if (route.request().method() !== 'POST') return route.continue();
-      await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'Authentication required' }) });
-    });
+    setUnauthenticatedRefreshBoundary(page, true);
     try {
       await tracker.run('NAV01_LOGIN', async () => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -114,6 +111,7 @@ for (const viewport of viewports) {
       }, { safeApiPath: '/api/v1/auth/refresh', safeStatus: 403, safeErrorCode: 'UAT_UI_LOGIN_RENDER_FAILED' });
       await tracker.run('RC15_MONITOR', () => monitor.assertClean());
     } finally {
+      setUnauthenticatedRefreshBoundary(page, false);
       await tracker.attach();
     }
   });

@@ -144,8 +144,12 @@ function primaryNavigationItemByLabel(page, label) {
 }
 
 async function openPrimaryNavigation(page) {
-  const menuButton = page.getByRole('button', { name: 'เปิดเมนู', exact: true });
-  if (await menuButton.isVisible()) await menuButton.click();
+  const menuButton = page.getByRole('button', { name: 'เปิดเมนูหลัก', exact: true });
+  if (await menuButton.isVisible()) {
+    await menuButton.click();
+    await expect(menuButton).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#app-navigation-drawer')).toHaveClass(/open/);
+  }
   await expect(page.locator('nav.nav-menu').first(), 'Primary navigation must be visible.').toBeVisible();
 }
 

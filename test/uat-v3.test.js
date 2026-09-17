@@ -17,6 +17,7 @@ const performanceSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/p
 const regressionSmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/regression.spec.js'), 'utf8');
 const authBoundarySmoke = fs.readFileSync(path.resolve(__dirname, '../e2e/smoke/auth-boundary-v3.spec.js'), 'utf8');
 const authenticatedRequest = fs.readFileSync(path.resolve(__dirname, '../e2e/helpers/uat-authenticated-request.js'), 'utf8');
+const uatTestFixture = fs.readFileSync(path.resolve(__dirname, '../e2e/helpers/uat-test.js'), 'utf8');
 const testPassword = ['uat', 'test', 'only', 'secret'].join('-');
 
 const baseEnvironment = { UAT_BASE_URL: 'https://candidate.example.test' };
@@ -93,6 +94,9 @@ test('V3 role matrix covers read-only current backend contracts', () => {
   assert.equal(getRoleApiMatrix('VIEWER').find((route) => route.label === 'Leave').expectedStatus, 403);
   assert.match(observe, /nav\.nav-menu/);
   assert.match(observe, /button\.nav-item:visible/);
+  assert.match(observe, /เปิดเมนูหลัก/);
+  assert.doesNotMatch(observe, /name: 'เปิดเมนู', exact: true/);
+  assert.match(observe, /app-navigation-drawer/);
   assert.match(authenticatedSmoke, /getRoleNavigationContract/);
   assert.match(authenticatedSmoke, /test\.setTimeout\(180_000\)/);
   assert.match(authenticatedRequest, /timeout = 60_000/);
@@ -275,7 +279,12 @@ test('V3 isolates Report Center diagnostics without changing the global timeout'
   assert.match(technicalSmoke, /test\.setTimeout\(60_000\)/);
   assert.match(technicalSmoke, /page\.request\.post\('\/api\/v1\/auth\/refresh'/);
   assert.match(technicalSmoke, /REFRESH_AUTHORIZATION_BOUNDARY_FAILED/);
-  assert.match(technicalSmoke, /route\.fulfill\(\{ status: 403/);
+  assert.match(technicalSmoke, /setUnauthenticatedRefreshBoundary\(page, true\)/);
+  assert.match(technicalSmoke, /setUnauthenticatedRefreshBoundary\(page, false\)/);
+  assert.match(uatTestFixture, /unauthenticatedRefreshBoundaryPages = new WeakSet/);
+  assert.match(uatTestFixture, /requestPath === '\/api\/v1\/auth\/refresh'/);
+  assert.match(uatTestFixture, /route\.fulfill\(\{/);
+  assert.match(uatTestFixture, /status: 403/);
   assert.match(technicalSmoke, /toBeVisible\(\{ timeout: 15_000 \}\)/);
   assert.match(technicalSmoke, /fullPage: false/);
   assert.match(observe, /fullPage = true/);
