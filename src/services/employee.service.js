@@ -20,10 +20,26 @@ function auditSnapshot(employee) {
   return { id, employeeCode, firstName, lastName, department, jobTitle, isActive, deletedAt, deletedByUserId };
 }
 async function list(query, role) {
-  const { page, pageSize, search, isActive, department } = query;
-  const where = { deletedAt: null, ...(typeof isActive === 'boolean' && { isActive }), ...(department && { department }), ...(search && { OR: [{ employeeCode: { contains: search, mode: 'insensitive' } }, { firstName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }] }) };
-  const [total, employees] = await prisma.$transaction([prisma.employee.count({ where }), prisma.employee.findMany({ where, orderBy: [{ employeeCode: 'asc' }], skip: (page - 1) * pageSize, take: pageSize })]);
-  return { data: requiresBasicView(role) ? employees.map(publicEmployee) : requiresManagerView(role) ? employees.map(managerSafeEmployee) : employees, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
+  const { page, pageSize, search, isActive, department, directoryMeta = false } = query;
+  const baseWhere = { deletedAt: null };
+  const where = { ...baseWhere, ...(typeof isActive === 'boolean' && { isActive }), ...(department && { department }), ...(search && { OR: [{ employeeCode: { contains: search, mode: 'insensitive' } }, { firstName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }, { displayName: { contains: search, mode: 'insensitive' } }, { department: { contains: search, mode: 'insensitive' } }, { jobTitle: { contains: search, mode: 'insensitive' } }] }) };
+  const baseQueries = [
+    prisma.employee.count({ where }),
+    prisma.employee.findMany({ where, orderBy: [{ employeeCode: 'asc' }], skip: (page - 1) * pageSize, take: pageSize })
+  ];
+  const directoryQueries = directoryMeta ? [
+    prisma.employee.count({ where: baseWhere }),
+    prisma.employee.count({ where: { ...baseWhere, isActive: true } }),
+    prisma.employee.count({ where: { ...baseWhere, OR: [{ department: null }, { department: '' }, { jobTitle: null }, { jobTitle: '' }] } }),
+    prisma.employee.findMany({ where: { ...baseWhere, department: { not: null } }, select: { department: true }, distinct: ['department'], orderBy: [{ department: 'asc' }] })
+  ] : [];
+  const [total, employees, overallTotal, activeTotal, incompleteTotal, departmentRows] = await prisma.$transaction([...baseQueries, ...directoryQueries]);
+  const meta = { page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
+  if (directoryMeta) {
+    meta.summary = { total: overallTotal, active: activeTotal, incomplete: incompleteTotal };
+    meta.departments = (departmentRows || []).map((row) => row.department).filter(Boolean);
+  }
+  return { data: requiresBasicView(role) ? employees.map(publicEmployee) : requiresManagerView(role) ? employees.map(managerSafeEmployee) : employees, meta };
 }
 async function getById(id, role) { const employee = await prisma.employee.findFirst({ where: { id, deletedAt: null } }); if (!employee) throw new HttpError(404, 'Employee not found.'); return requiresBasicView(role) ? publicEmployee(employee) : requiresManagerView(role) ? managerSafeEmployee(employee) : employee; }
 async function create(data, actorUserId) {

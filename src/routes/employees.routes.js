@@ -63,7 +63,7 @@ const employeeChangeDraftSchema = z.object({
 
 router.use(authenticate);
 const uuid = z.string().uuid();
-const listSchema = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20), search: z.string().trim().min(1).max(100).optional(), isActive: z.enum(['true', 'false']).transform((value) => value === 'true').optional(), department: z.string().trim().min(1).max(100).optional() });
+const listSchema = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20), search: z.string().trim().min(1).max(100).optional(), isActive: z.enum(['true', 'false']).transform((value) => value === 'true').optional(), department: z.string().trim().min(1).max(100).optional(), directoryMeta: z.enum(['true', 'false']).transform((value) => value === 'true').default('false') });
 router.get('/', async (req, res, next) => { try { res.json(await employee.list(listSchema.parse(req.query), req.user.role)); } catch (error) { next(error); } });
 router.get('/readiness/center', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const query = z.object({ search: z.string().trim().max(100).optional(), limit: z.coerce.number().int().min(1).max(50).default(50) }).parse(req.query); res.json(await onboardingReadiness.listEmployeeReadiness(query)); } catch (error) { next(error); } });
 router.get('/:id/onboarding-readiness', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { res.json({ data: await onboardingReadiness.getEmployeeReadiness({ employeeId: uuid.parse(req.params.id) }) }); } catch (error) { next(error); } });

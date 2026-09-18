@@ -130,6 +130,6 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
   });
 
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(apiSha256).toBe('9499eec7b0143765b3fca2238dc2894b3ba2d6de1bf6d4a6a8ec417f4b90f592');
+    expect(apiSha256).toBe('088ed2f76851165ca59dab2245542e56946014b70fbca3e86bc4a986714bf9a3');
   });
 });

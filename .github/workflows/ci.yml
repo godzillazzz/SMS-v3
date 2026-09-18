@@ -13,6 +13,7 @@ on:
       - feature/approval-workflow-standard-v1
       - feature/g06-department-security-site-v1
       - feature/q11-production-assurance-dependency-hardening
+      - feature/q12a-data-scale-export-correctness
   pull_request:
     branches: [main, fix/serverless-database-reliability]
 

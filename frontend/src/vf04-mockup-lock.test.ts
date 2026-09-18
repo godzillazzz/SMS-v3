@@ -73,8 +73,8 @@ describe('G04.2 VF-04 mockup lock visual contract', () => {
     expect(css).toMatch(/\[data-theme="dark"\] \.personnel-metric \{[\s\S]*?var\(--vf03-accent\) 25%/);
     expect(css).toMatch(/\[data-theme="light"\] \.personnel-table\.data-surface-table thead th/);
     expect(personnel).toContain('const pageSize = 10;');
-    expect(personnel).toContain('employee.department === department');
-    expect(personnel).toContain("status === 'active' ? employee.isActive : !employee.isActive");
+    expect(personnel).toContain('department: department || undefined');
+    expect(personnel).toContain("isActive: status ? status === 'active' : undefined");
   });
 
   it('adds contextual Registration Review color while preserving select-compare-explicit-match workflow', () => {
@@ -104,6 +104,6 @@ describe('G04.2 VF-04 mockup lock visual contract', () => {
   });
 
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(apiSha256).toBe('9499eec7b0143765b3fca2238dc2894b3ba2d6de1bf6d4a6a8ec417f4b90f592');
+    expect(apiSha256).toBe('088ed2f76851165ca59dab2245542e56946014b70fbca3e86bc4a986714bf9a3');
   });
 });

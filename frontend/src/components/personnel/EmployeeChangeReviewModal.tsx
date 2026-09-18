@@ -5,6 +5,7 @@ import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { approvalActionPresentation } from '../../approval-workflow-semantics';
 import { SmsIcon } from '../SmsIcon';
+import { DataTablePagination } from '../ResponsiveDataTable';
 import '../../styles/employee-governed-edit.css';
 
 type Revision = { revision: number; beforeSnapshot: Record<string, unknown>; afterSnapshot: Record<string, unknown>; changedFields: string[]; effectiveMode: 'IMMEDIATE' | 'FUTURE_EFFECTIVE'; effectiveDate?: string | null; reason?: string | null; submittedAt: string; submittedBy?: { displayName?: string; role?: string } };
@@ -21,6 +22,8 @@ const rejectAction = approvalActionPresentation('REJECT');
 export function EmployeeChangeReviewModal({ token, initialRequestId, onClose, onChanged }: Props) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const [rows, setRows] = useState<RequestRow[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 1 });
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -44,11 +47,24 @@ export function EmployeeChangeReviewModal({ token, initialRequestId, onClose, on
 
   const load = async () => {
     setLoading(true); setError(undefined);
-    try { const result = await api.employeeChangeRequestQueue(token); const data = Array.isArray(result?.data) ? result.data as RequestRow[] : []; setRows(data); setSelectedId((current) => data.some((row) => row.id === current) ? current : data.some((row) => row.id === initialRequestId) ? String(initialRequestId) : data[0]?.id || ''); }
+    try {
+      const result = await api.employeeChangeRequestQueue(token, { page, pageSize: 20, status: 'PENDING_APPROVAL' });
+      let data = Array.isArray(result?.data) ? result.data as RequestRow[] : [];
+      const nextTotalPages = Math.max(1, Number(result?.meta?.totalPages || 1));
+      setPageMeta({ total: Number(result?.meta?.total || 0), totalPages: nextTotalPages });
+      if (page > nextTotalPages) { setPage(nextTotalPages); return; }
+      if (initialRequestId && !data.some((row) => row.id === initialRequestId)) {
+        const detail = await api.employeeChangeRequest(token, initialRequestId).catch(() => undefined);
+        const requested = detail?.data as RequestRow | undefined;
+        if (requested?.status === 'PENDING_APPROVAL') data = [requested, ...data];
+      }
+      setRows(data);
+      setSelectedId((current) => data.some((row) => row.id === current) ? current : data.some((row) => row.id === initialRequestId) ? String(initialRequestId) : data[0]?.id || '');
+    }
     catch (cause) { setError(toRequestErrorState(cause, 'ไม่สามารถโหลดคิวคำขอแก้ไข Employee Master ได้')); }
     finally { setLoading(false); }
   };
-  useEffect(() => { void load(); }, [token, initialRequestId]);
+  useEffect(() => { void load(); }, [token, initialRequestId, page]);
 
   const act = async (action: 'approve' | 'return' | 'reject') => {
     if (!selected) return;
@@ -71,7 +87,7 @@ export function EmployeeChangeReviewModal({ token, initialRequestId, onClose, on
     <section className="employee-review-modal" role="dialog" aria-modal="true" aria-labelledby="employee-review-title">
       <header className="employee-governed-header"><div><p>ADMIN REVIEW · EMPLOYEE MASTER</p><h2 id="employee-review-title">คำขอแก้ไขข้อมูลพนักงาน</h2><span>คิวดำเนินการแสดงเฉพาะ PENDING_APPROVAL</span></div><button ref={closeRef} type="button" aria-label="ปิด" onClick={onClose} disabled={busy}><SmsIcon name="close" size={20} /></button></header>
       <div className="employee-review-layout">
-        <aside className="employee-review-queue"><div className="employee-review-queue-title"><strong>รอตรวจสอบ</strong><span>{rows.length} รายการ</span></div>{loading ? <p>กำลังโหลด…</p> : rows.length ? rows.map((row) => <button type="button" key={row.id} className={selected?.id === row.id ? 'is-selected' : ''} onClick={() => { setSelectedId(row.id); setReviewComment(''); setError(undefined); }}><strong>{row.employee?.firstName} {row.employee?.lastName}</strong><span>{row.employee?.employeeCode} · Revision {row.currentRevision}</span><small>โดย {row.requestOwner?.displayName || 'Manager'}</small></button>) : <div className="employee-governed-empty">ไม่มีคำขอที่รออนุมัติ</div>}</aside>
+        <aside className="employee-review-queue"><div className="employee-review-queue-title"><strong>รอตรวจสอบ</strong><span>{rows.length}/{pageMeta.total} รายการ</span></div>{loading ? <p>กำลังโหลด…</p> : rows.length ? rows.map((row) => <button type="button" key={row.id} className={selected?.id === row.id ? 'is-selected' : ''} onClick={() => { setSelectedId(row.id); setReviewComment(''); setError(undefined); }}><strong>{row.employee?.firstName} {row.employee?.lastName}</strong><span>{row.employee?.employeeCode} · Revision {row.currentRevision}</span><small>โดย {row.requestOwner?.displayName || 'Manager'}</small></button>) : <div className="employee-governed-empty">ไม่มีคำขอที่รออนุมัติ</div>}<DataTablePagination page={page} totalPages={pageMeta.totalPages} onChange={setPage} ariaLabel="แบ่งหน้าคำขอแก้ไข Employee Master" loading={loading} className="employee-review-pagination" /></aside>
         <div className="employee-review-detail">{error && <div className="employee-governed-alert employee-governed-alert--error"><RequestErrorContent error={error} /></div>}{selected && revision ? <>
           <section className="employee-review-summary"><div><small>พนักงาน</small><strong>{selected.employee?.firstName} {selected.employee?.lastName}</strong><span>{selected.employee?.employeeCode} · {selected.employee?.department || 'ไม่ระบุหน่วยงาน'}</span></div><div><small>ผู้ส่งคำขอ</small><strong>{selected.requestOwner?.displayName || 'Manager'}</strong><span>{selected.requestOwnerRoleSnapshot || selected.requestOwner?.role || 'MANAGER'} · Revision {revision.revision}</span><span>{new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(revision.submittedAt))}</span></div><div><small>สถานะ / วันที่มีผล</small><strong>{selected.status}</strong><span>{revision.effectiveMode === 'FUTURE_EFFECTIVE' ? `FUTURE_EFFECTIVE · ${String(revision.effectiveDate || '').slice(0, 10)}` : 'IMMEDIATE · เมื่ออนุมัติสำเร็จ'}</span></div></section>
           <section className="employee-review-diff"><h3>BEFORE → AFTER · เฉพาะข้อมูลที่เปลี่ยน</h3>{revision.changedFields.map((field: string) => <article key={field}><strong>{labels[field] || field}</strong><span>{show(field, revision.beforeSnapshot[field])}</span><i>→</i><span>{show(field, revision.afterSnapshot[field])}</span></article>)}{revision.reason && <p><b>เหตุผล:</b> {revision.reason}</p>}</section>

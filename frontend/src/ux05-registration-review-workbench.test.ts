@@ -12,7 +12,8 @@ const apiSha256 = crypto.createHash('sha256').update(read('api.ts')).digest('hex
 
 describe('G04.2 UX-05 Registration Review workbench contract', () => {
   it('keeps the exact authorized request-list API and selection behavior while adding local mobile detail presentation', () => {
-    expect(panel).toContain('await api.registrationRequests(token)');
+    expect(panel).toContain('await api.registrationRequests(token, { page, pageSize: 20, status: statusFilter || undefined })');
+    expect(panel).toContain('DataTablePagination');
     expect(panel).toContain("setSelectedId((current) => next.some((row) => row.id === current) ? current : next[0]?.id || '')");
     expect(panel).toContain('const selectRequest = (id: string) => { setSelectedId(id); setMobileDetail(true); };');
     expect(panel).toContain('aria-pressed={row.id === selectedId}');
@@ -90,7 +91,7 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
     expect(panel).toContain('สิทธิ์เริ่มต้นหลังอนุมัติ');
     expect(panel).toContain('VIEWER');
     expect(panel).toContain('อนุมัติเป็น VIEWER');
-    expect(panel).not.toContain('<select');
+    expect(panel).toContain('id="registration-review-status"');
     expect(panel).not.toContain('name="role"');
   });
 
@@ -129,11 +130,11 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
     expect(panel).toContain('await load(); onChanged();');
   });
 
-  it('keeps terminal APPROVED/REJECTED rows read-only without adding new queue filters', () => {
+  it('keeps terminal APPROVED/REJECTED rows read-only while adding bounded server queue filters', () => {
     expect(panel).toContain("const terminal = selected && ['APPROVED', 'REJECTED'].includes(selected.status)");
     expect(panel).toContain('รายการนี้เป็นประวัติการตรวจสอบและไม่มีการดำเนินการเพิ่มเติมจากหน้านี้');
-    expect(panel).not.toContain('registrationRequests(token,');
-    expect(panel).not.toContain('statusFilter');
+    expect(panel).toContain('statusFilter');
+    for (const status of ['PENDING', 'MATCHED', 'APPROVED', 'REJECTED']) expect(panel).toContain(`value="${status}"`);
   });
 
   it('uses one semantic-token workbench layer for Light/Dark with readable text and reduced motion', () => {
@@ -159,8 +160,8 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
   });
 
   it('locks the authorized API source after Attachment Optimizer V1 and preserves all five Registration Review API signatures', () => {
-    expect(apiSha256).toBe('9499eec7b0143765b3fca2238dc2894b3ba2d6de1bf6d4a6a8ec417f4b90f592');
-    expect(api).toContain('registrationRequests: (token: string, status?: string)');
+    expect(apiSha256).toBe('088ed2f76851165ca59dab2245542e56946014b70fbca3e86bc4a986714bf9a3');
+    expect(api).toContain('registrationRequests: (token: string, options: string | { page?: number; pageSize?: number; status?: string } = {})');
     expect(api).toContain('registrationCandidates: (token: string, id: string, search = \'\')');
     expect(api).toContain('matchRegistrationRequest: (token: string, id: string, employeeId: string)');
     expect(api).toContain('approveRegistrationRequest: (token: string, id: string)');
@@ -171,7 +172,7 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
     for (const forbidden of ['api.createEmployee', 'api.updateEmployee', 'api.createUser', 'api.updateUser', 'best match', 'confidence score', 'บัญชีทดสอบ', 'demo account']) {
       expect(panel).not.toContain(forbidden);
     }
-    expect(panel).not.toContain('<select');
+    expect(panel).toContain('<select id="registration-review-status"');
     expect(panel).not.toContain('fake status');
   });
 });

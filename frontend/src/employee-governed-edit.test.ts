@@ -115,7 +115,8 @@ describe('Employee Master Governed Edit V1 frontend contracts', () => {
     expect(header).toContain('คำขอแก้ไข');
     expect(page).toContain("canReviewChanges={role === 'ADMIN'}");
     expect(main).toContain('setEmployeeChangeReviewOpen(true)');
-    expect(review).toContain('api.employeeChangeRequestQueue(token)');
+    expect(review).toContain("api.employeeChangeRequestQueue(token, { page, pageSize: 20, status: 'PENDING_APPROVAL' })");
+    expect(review).toContain('DataTablePagination');
     expect(api).toContain('employeeChangeRequestQueue');
     expect(review).toContain('PENDING_APPROVAL');
   });
