@@ -24,7 +24,7 @@ on:
         required: true
         type: string
       uat_harness_sha:
-        description: Exact trusted UAT harness HEAD from test/q11-production-assurance-sentinel
+        description: Exact trusted UAT harness HEAD from test/automated-uat-v3-authenticated
         required: true
         type: string
       expected_deployment_id:
@@ -104,7 +104,7 @@ jobs:
           if ! git fetch --no-tags origin \
             "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
             refs/heads/test/automated-uat-v2-regression-guards:refs/remotes/origin/test/automated-uat-v2-regression-guards \
-            refs/heads/test/q11-production-assurance-sentinel:refs/remotes/origin/test/q11-production-assurance-sentinel; then
+            refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated; then
             echo 'UAT_SOURCE_BRANCH_FETCH_FAILED'
             exit 1
           fi
@@ -112,7 +112,7 @@ jobs:
           node e2e/helpers/uat-target-contract.js source-head "$SOURCE_BRANCH" "$REMOTE_SOURCE_SHA" "$SOURCE_SHA"
           git cat-file -e "${SOURCE_SHA}^{commit}"
           git cat-file -e "${HARNESS_SHA}^{commit}"
-          APPROVED_HARNESS_SHA="$(git rev-parse origin/test/q11-production-assurance-sentinel)"
+          APPROVED_HARNESS_SHA="$(git rev-parse origin/test/automated-uat-v3-authenticated)"
           node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$APPROVED_HARNESS_SHA"
 
           identity_tmp_dir="$(mktemp -d)"
@@ -358,7 +358,7 @@ jobs:
           if ! git fetch --no-tags origin \
             "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
             refs/heads/test/automated-uat-v2-regression-guards:refs/remotes/origin/test/automated-uat-v2-regression-guards \
-            refs/heads/test/q11-production-assurance-sentinel:refs/remotes/origin/test/q11-production-assurance-sentinel; then
+            refs/heads/test/automated-uat-v3-authenticated:refs/remotes/origin/test/automated-uat-v3-authenticated; then
             echo 'UAT_SOURCE_BRANCH_FETCH_FAILED'
             exit 1
           fi
@@ -366,7 +366,7 @@ jobs:
           node e2e/helpers/uat-target-contract.js source-head "$SOURCE_BRANCH" "$REMOTE_SOURCE_SHA" "$SOURCE_SHA"
           git cat-file -e "${SOURCE_SHA}^{commit}"
           git cat-file -e "${HARNESS_SHA}^{commit}"
-          APPROVED_HARNESS_SHA="$(git rev-parse origin/test/q11-production-assurance-sentinel)"
+          APPROVED_HARNESS_SHA="$(git rev-parse origin/test/automated-uat-v3-authenticated)"
           node e2e/helpers/uat-target-contract.js harness "$HARNESS_SHA" "$(git rev-parse HEAD)" "$APPROVED_HARNESS_SHA"
 
           identity_tmp_dir="$(mktemp -d)"
