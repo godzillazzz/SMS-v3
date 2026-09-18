@@ -50,6 +50,8 @@ test('V3.1 explicit real-login path uses real login submit, no cached fake refre
   const block = auth.slice(start, end);
   assert.ok(start >= 0 && end > start);
   assert.match(block, /page\.getByRole\('button', \{ name: 'เข้าสู่ระบบ', exact: true \}\)\.click\(\)/);
+  assert.match(block, /page\.locator\('form\.login-form'\)\.locator\('input#password'\)\.fill\(account\.password\)/);
+  assert.doesNotMatch(block, /getByLabel\('รหัสผ่าน', \{ exact: true \}\)/);
   assert.match(block, /waitForRequest[\s\S]*\/api\/v1\/auth\/login/);
   assert.match(block, /waitForResponse[\s\S]*\/api\/v1\/auth\/login/);
   assert.match(block, /performAndWaitForHeavyRequest\(page, '\/api\/v1\/dashboard'/);
