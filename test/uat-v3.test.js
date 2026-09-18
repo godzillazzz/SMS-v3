@@ -200,7 +200,7 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(workflow, /refs\/heads\/\$SOURCE_BRANCH:refs\/remotes\/origin\/\$SOURCE_BRANCH/);
   assert.match(workflow, /uat-target-contract\.js source-head "\$SOURCE_BRANCH" "\$REMOTE_SOURCE_SHA" "\$SOURCE_SHA"/);
   assert.doesNotMatch(workflow, /fix\/serverless-database-reliability/);
-  assert.match(workflow, /APPROVED_HARNESS_SHA="\$\(git rev-parse origin\/test\/q11-production-assurance-sentinel\)"/);
+  assert.match(workflow, /APPROVED_HARNESS_SHA="\$\(git rev-parse origin\/test\/automated-uat-v3-authenticated\)"/);
   assert.match(workflow, /\[\[ "\$DEPLOYMENT_ID" =~ \^dpl_/);
   assert.match(workflow, /uat_mode:/);
   assert.match(workflow, /uat_scope:/);
@@ -237,7 +237,7 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
     assert.match(authenticatedJob, new RegExp(`\\b${name}\\b`));
   }
   assert.match(authenticatedJob, /VERCEL_AUTOMATION_BYPASS_SECRET/);
-  assert.match(workflow, /test\/q11-production-assurance-sentinel/);
+  assert.match(workflow, /test\/automated-uat-v3-authenticated/);
   assert.match(authenticatedSmoke, /Employee Lifecycle management, history, state, and preflight/);
   assert.match(authenticatedSmoke, /Employee Lifecycle history is read-only and mutations are forbidden/);
   assert.match(authenticatedSmoke, /Employee Lifecycle history and mutations are forbidden/);
