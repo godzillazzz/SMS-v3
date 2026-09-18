@@ -8,6 +8,7 @@ const page = read('pages/reports/ReportCenterPage.tsx');
 const executive = read('pages/executive-report/ExecutiveReportCenterPage.tsx');
 const api = read('api.ts');
 const styles = read('styles/report-center.css');
+const attendanceGovernanceRoute = fs.readFileSync(path.resolve(__dirname, '../../src/routes/attendance-governance.routes.js'), 'utf8').replace(/\r\n/g, '\n');
 
 describe('Unified Report Center V1 source contract', () => {
   it('shows exactly one reporting navigation entry with the new label', () => {
@@ -44,12 +45,16 @@ describe('Unified Report Center V1 source contract', () => {
     expect(api).toContain("/reports/summary${query ? `?${query}` : ''}");
   });
 
-  it('exposes only the existing PDF export capability and keeps an isolated print document mounted', () => {
+  it('exposes only the currently enabled export capability and keeps preview-only Attendance governance fail-closed', () => {
     expect(page).toContain("printDocument('.executive-report-print', pdfFilename)");
     expect(page).toContain('รายงานผู้บริหาร PDF');
     expect(page).toContain('รูปแบบที่รองรับ: PDF');
     expect(page).toContain('<ExecutiveReportPrint report={executiveReport} />');
     expect(page).not.toContain('Export Excel');
+    expect(attendanceGovernanceRoute).toContain("if (environment.VERCEL_ENV === 'production') return false;");
+    expect(page).toContain("const ATTENDANCE_OFFICIAL_REPORT_ENABLED = import.meta.env.VITE_ATTENDANCE_GOVERNANCE_REPORT_ENABLED === 'true';");
+    expect(page).toContain("role === 'ADMIN' && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <AttendanceOfficialReportPanel");
+    expect(page).not.toContain("role === 'ADMIN' && <AttendanceOfficialReportPanel");
   });
 
   it('preserves report RBAC and legacy internal compatibility', () => {
