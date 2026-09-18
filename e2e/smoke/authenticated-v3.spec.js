@@ -166,6 +166,58 @@ async function requestRoleMatrix(role, token) {
   }
 }
 
+function attendanceErrorCode(payload) {
+  return payload?.code || payload?.details?.code || null;
+}
+
+function certifyAttendanceResponse(response, { label, expectedStatus = 200, allowedBusinessBlocks = {} } = {}) {
+  if (response.status === expectedStatus) return { label, status: response.status, code: null };
+  const code = attendanceErrorCode(response.payload);
+  const allowedCodes = allowedBusinessBlocks[response.status] || [];
+  expect(allowedCodes, `${label} returned unexpected HTTP ${response.status} (${code || 'NO_CODE'}).`).toContain(code);
+  return { label, status: response.status, code };
+}
+
+async function requestAttendanceReadOnlyCertification(role, token) {
+  const evidence = [];
+  const selfToday = await authenticatedRequest('/api/v1/attendance/me/today', { accessToken: token });
+  evidence.push(certifyAttendanceResponse(selfToday, {
+    label: 'ATTENDANCE_SELF_TODAY',
+    allowedBusinessBlocks: {
+      403: ['ATTENDANCE_EMPLOYEE_LINK_REQUIRED'],
+      409: ['INACTIVE_EMPLOYEE_OPERATION']
+    }
+  }));
+
+  const deviceState = await authenticatedRequest('/api/v1/attendance/devices/me', { accessToken: token });
+  evidence.push(certifyAttendanceResponse(deviceState, {
+    label: 'ATTENDANCE_DEVICE_ME',
+    allowedBusinessBlocks: {
+      403: ['ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED'],
+      409: ['INACTIVE_EMPLOYEE_OPERATION']
+    }
+  }));
+
+  const supervisorDaily = await authenticatedRequest('/api/v1/attendance/supervisor/daily', { accessToken: token });
+  evidence.push(certifyAttendanceResponse(supervisorDaily, {
+    label: 'ATTENDANCE_SUPERVISOR_DAILY',
+    expectedStatus: ['ADMIN', 'MANAGER'].includes(role) ? 200 : 403
+  }));
+
+  const deviceAdminOverview = await authenticatedRequest('/api/v1/attendance/devices/admin/overview', { accessToken: token });
+  evidence.push(certifyAttendanceResponse(deviceAdminOverview, {
+    label: 'ATTENDANCE_DEVICE_ADMIN_OVERVIEW',
+    expectedStatus: role === 'ADMIN' ? 200 : 403
+  }));
+
+  const governanceReadiness = await authenticatedRequest('/api/v1/attendance/governance/readiness', { accessToken: token });
+  evidence.push(certifyAttendanceResponse(governanceReadiness, {
+    label: 'ATTENDANCE_GOVERNANCE_READINESS_CLOSED',
+    expectedStatus: 404
+  }));
+
+  return evidence;
+}
   for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
   test.describe(`${role} authenticated V3`, () => {
     test(`V3 ${role}: login and role identity`, async ({ page }, testInfo) => {
@@ -196,6 +248,12 @@ async function requestRoleMatrix(role, token) {
       test.setTimeout(180_000);
       const accessToken = roleAccessToken(role);
       await requestRoleMatrix(role, accessToken);
+    });
+    test(`V3 ${role}: Q11 read-only Attendance Production certification`, async ({}, testInfo) => {
+      test.skip(!authenticatedMode() || diagnosticScope(), 'The diagnostic scope excludes Q11 Attendance certification.');
+      test.setTimeout(120_000);
+      const evidence = await requestAttendanceReadOnlyCertification(role, roleAccessToken(role));
+      await testInfo.attach('q11-attendance-readonly.json', { body: JSON.stringify({ role, method: 'GET_ONLY', evidence }), contentType: 'application/json' });
     });
 
     test(`V3 ${role}: navigation shell`, async ({ page }, testInfo) => {
