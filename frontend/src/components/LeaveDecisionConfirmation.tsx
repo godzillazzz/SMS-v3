@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { acquireDocumentScrollLock } from '../document-scroll-lock';
 import { RequestErrorContent, type RequestErrorInput } from '../request-error';
+import { SmsIcon } from './SmsIcon';
 
 export type LeaveDecisionAction = 'approve' | 'reject' | 'return' | 'cancel';
 
@@ -175,7 +176,7 @@ export function LeaveDecisionConfirmation({
             <p className="eyebrow">{presentation.eyebrow}</p>
             <h2 id={`leave-decision-title-${action}`}>{presentation.title}</h2>
           </div>
-          <button type="button" className="leave-decision-dialog__close" aria-label="ปิด" disabled={effectiveBusy} onClick={onClose}>×</button>
+          <button type="button" className="leave-decision-dialog__close" aria-label="ปิด" disabled={effectiveBusy} onClick={onClose}><SmsIcon name="close" size={18} /></button>
         </header>
         <div className="leave-decision-dialog__body">
           <div className="leave-decision-dialog__identity">

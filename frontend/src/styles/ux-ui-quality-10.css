@@ -1,0 +1,103 @@
+/* UXUI-Q10 — final measurable usability/accessibility quality layer.
+   Presentation only: no API, RBAC, Attendance authority or business-state changes. */
+
+.employee-v4-page {
+  --employee-v4-blue: var(--color-primary);
+  --employee-v4-blue-deep: var(--color-primary-strong);
+  --employee-v4-ink: var(--color-text);
+  --employee-v4-muted: var(--color-text-secondary);
+  --employee-v4-line: var(--color-border);
+  --employee-v4-surface: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+.employee-v4-section-header p,
+.employee-v4-history-card__top span,
+.employee-v4-history-times span,
+.employee-v4-history-correction summary,
+.employee-v4-history-correction > div span,
+.employee-v4-history-correction > div strong,
+.employee-v4-history-correction > small,
+.employee-v4-history-sites span,
+.employee-v4-history-sites strong,
+.employee-v4-month-control span,
+.employee-v4-approved,
+.employee-v4-approved b,
+.employee-v4-shift-highlights span,
+.employee-v4-shift-highlights small,
+.employee-v4-shift-highlights p,
+.employee-v4-schedule-date span,
+.employee-v4-schedule-main > span,
+.employee-v4-schedule-main small,
+.employee-v4-schedule-note {
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+
+.employee-v4-correction-badge,
+.employee-v4-status,
+.employee-v4-history-flags span {
+  font-size: 11px !important;
+  line-height: 1.35;
+}
+
+.employee-v4-segmented button[role="tab"]:focus-visible,
+.report-center-tabs button[role="tab"]:focus-visible,
+.license-edit-tabs button[role="tab"]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.pwa-mobile-brand small,
+.pwa-offline-banner,
+.pwa-profile-hero p,
+.pwa-profile-hero div > span,
+.pwa-profile-card p,
+.pwa-profile-card dt,
+.pwa-profile-card dd {
+  font-size: 12px !important;
+  line-height: 1.45;
+}
+
+.app-shell.pwa-shell .pwa-bottom-nav button span {
+  font-size: 11px !important;
+  line-height: 1.2;
+}
+
+.signature-record-drawer__identity p,
+.signature-record-drawer__fields dt,
+.signature-mobile-record__eyebrow,
+.signature-mobile-record > div small,
+.signature-mobile-record > em,
+.dashboard-focus-heading span,
+.leave-decision-queue > header span,
+.leave-decision-item small,
+.leave-decision-summary span,
+.leave-decision-copy span,
+.personnel-mobile-record__meta small,
+.personnel-mobile-record em,
+.system-health-warning > span,
+.data-table th {
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+
+.attendance-supervisor-v4 :is(
+  .attendance-supervisor-v4__eyebrow,
+  .attendance-supervisor-v4__mobile-label,
+  .attendance-supervisor-v4__mobile-date span,
+  .attendance-supervisor-v4__flags span,
+  .attendance-supervisor-v4__table th,
+  .attendance-supervisor-v4__detail-meta span,
+  .attendance-supervisor-v4__detail-meta strong
+) {
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+
+@media (max-width: 420px) {
+  .app-shell.pwa-shell .pwa-bottom-nav button span {
+    font-size: 11px !important;
+  }
+}

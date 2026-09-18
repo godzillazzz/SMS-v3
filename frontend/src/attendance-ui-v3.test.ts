@@ -12,8 +12,8 @@ describe('Attendance UI V3 mockup-aligned employee surface', () => {
     expect(page).toContain('attendance-v3-orb-button');
     expect(page).toContain('attendance-v3-trust-grid');
     expect(page).toContain('attendance-v3-clock-card');
-    expect(page).toContain('TAP TO CHECK IN');
-    expect(page).toContain('TAP TO CHECK OUT');
+    expect(page).toContain('แตะเพื่อเช็กอิน');
+    expect(page).toContain('แตะเพื่อเช็กเอาต์');
     expect(page).toContain('Server ตัดสิน IN / OUT');
     const legacy = page.slice(page.indexOf('return <section className="view-pane attendance-page attendance-v2"'));
     expect(legacy.match(/<button\b/g)?.length).toBe(1);
@@ -27,7 +27,7 @@ describe('Attendance UI V3 mockup-aligned employee surface', () => {
     expect(page).toContain("displayName || 'ผู้ใช้งาน SMS'");
     expect(page).toContain("department || 'หน่วยงานตาม Employee Master'");
     expect(page).toContain('ตามตารางที่อนุมัติ');
-    expect(page).toContain('Server ตรวจอัตโนมัติ');
+    expect(page).toContain('เซิร์ฟเวอร์ตรวจอัตโนมัติ');
     expect(page).not.toContain('540368');
     expect(page).not.toContain('SERMPONG CHAIWATTANAPONG');
     expect(page).not.toContain('คลินิกฟัน รักษ์ยิ้ม');

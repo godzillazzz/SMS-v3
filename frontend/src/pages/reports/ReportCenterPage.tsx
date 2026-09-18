@@ -11,6 +11,7 @@ import {
 } from '../executive-report/ExecutiveReportCenterPage';
 import { AttendanceOfficialReportPanel } from './AttendanceOfficialReport';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
+import { activateTabFromKeyboard } from '../../components/AccessibleTabs';
 import '../../styles/report-center.css';
 
 type ReportTab = 'executive' | 'details' | 'export';
@@ -108,17 +109,17 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
       {activeTab === 'export' && role === 'ADMIN' && ATTENDANCE_OFFICIAL_REPORT_ENABLED && <p className="report-center-filter-note">Official Attendance Report ใช้เดือน/ปีที่เลือกและ Certified Snapshot ทั้งองค์กร ไม่ใช้ตัวกรองหน่วยงานของ Executive Report</p>}
     </section>
 
-    <div className="report-center-tabs" role="tablist" aria-label="ประเภทรายงาน">
-      <button type="button" role="tab" aria-selected={activeTab === 'executive'} className={activeTab === 'executive' ? 'active' : ''} onClick={() => setActiveTab('executive')}>ภาพรวมผู้บริหาร</button>
-      <button type="button" role="tab" aria-selected={activeTab === 'details'} className={activeTab === 'details' ? 'active' : ''} onClick={() => setActiveTab('details')}>รายงานรายละเอียด</button>
-      <button type="button" role="tab" aria-selected={activeTab === 'export'} className={activeTab === 'export' ? 'active' : ''} onClick={() => setActiveTab('export')}>ส่งออก</button>
+    <div className="report-center-tabs" role="tablist" aria-label="ประเภทรายงาน" onKeyDown={activateTabFromKeyboard}>
+      <button id="report-tab-executive" type="button" role="tab" aria-selected={activeTab === 'executive'} aria-controls="report-panel-executive" tabIndex={activeTab === 'executive' ? 0 : -1} className={activeTab === 'executive' ? 'active' : ''} onClick={() => setActiveTab('executive')}>ภาพรวมผู้บริหาร</button>
+      <button id="report-tab-details" type="button" role="tab" aria-selected={activeTab === 'details'} aria-controls="report-panel-details" tabIndex={activeTab === 'details' ? 0 : -1} className={activeTab === 'details' ? 'active' : ''} onClick={() => setActiveTab('details')}>รายงานรายละเอียด</button>
+      <button id="report-tab-export" type="button" role="tab" aria-selected={activeTab === 'export'} aria-controls="report-panel-export" tabIndex={activeTab === 'export' ? 0 : -1} className={activeTab === 'export' ? 'active' : ''} onClick={() => setActiveTab('export')}>ส่งออก</button>
     </div>
 
-    <div role="tabpanel" hidden={activeTab !== 'executive'} className="report-center-tab-panel">
+    <div id="report-panel-executive" role="tabpanel" aria-labelledby="report-tab-executive" hidden={activeTab !== 'executive'} className="report-center-tab-panel">
       <ExecutiveReportCenterPage token={token} role={role} onNavigate={onNavigate} filters={filters} onFiltersChange={setFilters} embedded includePrint={false} onReportChange={setExecutiveReport} fetchEnabled={activeTab === 'executive' || activeTab === 'export'} />
     </div>
 
-    <div role="tabpanel" hidden={activeTab !== 'details'} className="report-center-tab-panel">
+    <div id="report-panel-details" role="tabpanel" aria-labelledby="report-tab-details" hidden={activeTab !== 'details'} className="report-center-tab-panel">
       <section className="report-center-section-heading"><div><p className="eyebrow">DETAILED REPORTS</p><h2>รายงานรายละเอียด</h2><p>สรุปข้อมูลปฏิบัติงานจากชุดข้อมูลและ API เดิม โดยไม่เปลี่ยนสูตรคำนวณ</p></div><button type="button" className="btn-neutral small-action" disabled={summaryLoading} onClick={() => { setSummaryLoaded(false); setSummaryRefresh((value) => value + 1); }}><SmsIcon name="refresh" size={16} />รีเฟรช</button></section>
       {summaryLoading && <div className="report-center-state" role="status">กำลังสรุปข้อมูล…</div>}
       {summaryError && <div className="report-center-state report-center-state--error" role="alert"><strong>ไม่สามารถโหลดรายงานรายละเอียด</strong><RequestErrorContent error={summaryError} /></div>}
@@ -126,7 +127,7 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
       {!summaryLoading && !summaryError && summary && summaryCards.every(([, key]) => Number(summary[key] || 0) === 0) && <div className="report-center-state"><strong>ยังไม่มีข้อมูลสรุป</strong><span>ไม่พบรายการในชุดข้อมูลรายงานปัจจุบัน</span></div>}
     </div>
 
-    <div role="tabpanel" hidden={activeTab !== 'export'} className="report-center-tab-panel">
+    <div id="report-panel-export" role="tabpanel" aria-labelledby="report-tab-export" hidden={activeTab !== 'export'} className="report-center-tab-panel">
       <section className="report-center-section-heading"><div><p className="eyebrow">ADVANCED EXPORT</p><h2>ส่งออก</h2><p>รวมเฉพาะรูปแบบส่งออกที่ระบบรองรับจริงในปัจจุบัน</p></div></section>
       <div className="report-center-export-grid">
         <article className="report-center-export-card"><div className="report-center-export-icon">PDF</div><div><h3>รายงานผู้บริหาร PDF</h3><p>ใช้ข้อมูลและตัวกรองเดียวกับแท็บภาพรวมผู้บริหาร พร้อมรูปแบบเอกสาร A4 ที่มีอยู่เดิม</p><small>รูปแบบที่รองรับ: PDF</small></div><button type="button" className="btn-primary" disabled={!executiveReport} onClick={exportPdf}>ส่งออก PDF</button></article>

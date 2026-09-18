@@ -152,7 +152,7 @@ export function AttendanceOfficialReportPrint({ report, employeePages = groupByE
       return <article className="attendance-report-page" key={first?.employeeId || pageIndex}>
         <header className="attendance-report-print-header">
           <div><p>SECURITY MANAGEMENT SYSTEM</p><h1>ใบสรุปการลงเวลาประจำเดือน</h1></div>
-          <div className="attendance-report-print-meta"><span>Report ID <strong>{report.reportId}</strong></span><span>Period <strong>{report.period}</strong></span><span>Revision <strong>{report.revision}</strong></span></div>
+          <div className="attendance-report-print-meta"><span>รหัสรายงาน <strong>{report.reportId}</strong></span><span>รอบรายงาน <strong>{report.period}</strong></span><span>ฉบับแก้ไข <strong>{report.revision}</strong></span></div>
         </header>
         <section className="attendance-report-employee-meta">
           <div><span>รหัสพนักงาน</span><strong>{first?.employeeCode || '-'}</strong></div>
@@ -161,7 +161,7 @@ export function AttendanceOfficialReportPrint({ report, employeePages = groupByE
           <div><span>สถานะเอกสาร</span><strong>{report.certificationStatus}</strong></div>
         </section>
         <table className="attendance-report-table">
-          <thead><tr><th>วันที่</th><th>กะ</th><th>Expected Site</th><th>Actual Site</th><th>เข้า</th><th>ออก</th><th>ชม.</th><th>สาย</th><th>ก่อน</th><th>ผล</th></tr></thead>
+          <thead><tr><th>วันที่</th><th>กะ</th><th>พื้นที่ตามตาราง</th><th>พื้นที่ที่บันทึกจริง</th><th>เข้า</th><th>ออก</th><th>ชม.</th><th>สาย</th><th>ก่อน</th><th>ผล</th></tr></thead>
           <tbody>{rows.map((row) => <tr key={row.assignmentId}>
             <td>{formatDate(row.workDate)}</td>
             <td>{row.shift?.code || row.shift?.name || '-'}</td>
@@ -179,10 +179,10 @@ export function AttendanceOfficialReportPrint({ report, employeePages = groupByE
           <span>รายการ <strong>{summary.scheduled}</strong></span><span>ครบ <strong>{summary.complete}</strong></span><span>สาย <strong>{summary.late}</strong></span><span>ออกก่อน <strong>{summary.earlyOut}</strong></span><span>ขาด <strong>{summary.absent}</strong></span><span>ลา <strong>{summary.leave}</strong></span><span>ผิดปกติ <strong>{summary.abnormal}</strong></span>
         </section>
         <footer className="attendance-report-footer">
-          <div><span>Certified at</span><strong>{formatDateTime(report.certifiedAt)}</strong></div>
-          <div><span>Generated at / by</span><strong>{formatDateTime(report.generatedAt)} · {report.generatedBy}</strong></div>
+          <div><span>รับรองเมื่อ</span><strong>{formatDateTime(report.certifiedAt)}</strong></div>
+          <div><span>สร้างเมื่อ / โดย</span><strong>{formatDateTime(report.generatedAt)} · {report.generatedBy}</strong></div>
           <div><span>Digest</span><strong>{report.summaryDigest.slice(0, 16)}…</strong></div>
-          <div className="attendance-report-page-number">Page {pageIndex + 1} / {employeePages.length}</div>
+          <div className="attendance-report-page-number">หน้า {pageIndex + 1} / {employeePages.length}</div>
         </footer>
       </article>;
     })}

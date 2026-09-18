@@ -291,7 +291,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain("setQrToken('')");
     expect(page).toContain('setLocation(null)');
     expect(actionState).toContain("code: 'VIEW_ONLY'");
-    expect(actionState).toContain('โหมด View As เป็นแบบอ่านอย่างเดียว');
+    expect(actionState).toContain('โหมดดูข้อมูลเป็นแบบอ่านอย่างเดียว');
     expect(page).toContain("setError(blockedMessage)");
     expect(page).toContain('disabled={flowBusy}')
     expect(page).not.toContain('ไปหน้าอุปกรณ์ลงเวลา');

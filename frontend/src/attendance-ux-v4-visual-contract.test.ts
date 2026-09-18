@@ -32,7 +32,7 @@ describe('Attendance UX V4 visual acceptance contract', () => {
   });
 
   it('locks the owner-approved Clock information hierarchy and five-tab navigation', () => {
-    for (const text of ['SMS Time Attendance', 'Expected Site', 'TAP TO CHECK IN', 'GPS', 'QR', 'Face', 'Device', 'ดูประวัติวันนี้']) {
+    for (const text of ['SMS Time Attendance', 'พื้นที่ตามตาราง', 'แตะเพื่อเช็กอิน', 'GPS', 'QR', 'Face', 'Device', 'ดูประวัติวันนี้']) {
       expect(page).toContain(text);
     }
     expect(page).toContain('attendance-v4__supervisor-shortcut');
@@ -86,15 +86,15 @@ describe('Attendance UX V4 visual acceptance contract', () => {
     expect(history).toContain('ดูเวลาเดิมและเวลาที่มีผล');
     expect(history).toContain('row.originalCheckInAt');
     expect(history).toContain('row.originalCheckOutAt');
-    expect(history).toContain('Raw AttendanceEvent เดิมไม่ถูกแก้ไข');
+    expect(history).toContain('ข้อมูลเหตุการณ์ลงเวลาเดิมไม่ถูกแก้ไข');
     expect(client).toContain('originalCheckInAt?: string | null');
     expect(client).toContain('originalCheckOutAt?: string | null');
     expect(client).toContain('correctionEventTypes?: string[]');
   });
 
-  it('shows expected and actual Site context plus operational flags in employee history', () => {
-    expect(history).toContain('Expected Site');
-    expect(history).toContain('Actual Site');
+  it('shows scheduled and recorded Site context plus operational flags in employee history', () => {
+    expect(history).toContain('พื้นที่ตามตาราง');
+    expect(history).toContain('พื้นที่ที่บันทึกจริง');
     expect(history).toContain('WRONG_SHIFT');
     expect(history).toContain('ASSIST_OTHER_SITE');
     expect(history).toContain('OUTSIDE_ALL_SITES');
@@ -147,7 +147,7 @@ describe('Attendance UX V4 visual acceptance contract', () => {
 
   it('fails closed visually when no approved shift exists instead of showing a green ready claim', () => {
     expect(page).toContain("const scheduleReady = Boolean(todayData?.scheduleReady && assignment)");
-    expect(actionState).toContain("actionText: 'SHIFT NOT READY'");
+    expect(actionState).toContain("actionText: 'ตารางงานยังไม่พร้อม'");
     expect(actionState).toContain("actionThai: 'รอตารางงานที่อนุมัติ'");
     expect(actionState).toContain("code: 'SCHEDULE_NOT_READY'");
     expect(page).toContain("'is-pending'");
