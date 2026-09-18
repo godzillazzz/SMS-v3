@@ -12,6 +12,7 @@ on:
       - fix/production-leave-p2028-transaction-reliability-v1
       - feature/approval-workflow-standard-v1
       - feature/g06-department-security-site-v1
+      - feature/q11-production-assurance-dependency-hardening
   pull_request:
     branches: [main, fix/serverless-database-reliability]
 
@@ -60,6 +61,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm --prefix frontend ci
+      - name: Audit backend dependencies
+        run: npm audit --audit-level=high
+      - name: Audit frontend dependencies
+        run: npm --prefix frontend audit --audit-level=high
       - name: Verify environment governance contract definition
         run: node scripts/ci/verify-environment-contract.js --contract-only
       - run: npm run prisma:format:check
