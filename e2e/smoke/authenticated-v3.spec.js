@@ -201,7 +201,8 @@ async function requestAttendanceReadOnlyCertification(role, token) {
   const supervisorDaily = await authenticatedRequest('/api/v1/attendance/supervisor/daily', { accessToken: token });
   evidence.push(certifyAttendanceResponse(supervisorDaily, {
     label: 'ATTENDANCE_SUPERVISOR_DAILY',
-    expectedStatus: ['ADMIN', 'MANAGER'].includes(role) ? 200 : 403
+    expectedStatus: ['ADMIN', 'MANAGER'].includes(role) ? 200 : 403,
+    allowedBusinessBlocks: role === 'MANAGER' ? { 403: ['ATTENDANCE_SUPERVISOR_SCOPE_REQUIRED'] } : {}
   }));
 
   const deviceAdminOverview = await authenticatedRequest('/api/v1/attendance/devices/admin/overview', { accessToken: token });
