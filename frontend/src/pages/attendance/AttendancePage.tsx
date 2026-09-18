@@ -319,12 +319,12 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     ? (attendanceAccepted.intent === 'CHECK_IN' ? 'กำลังปฏิบัติงาน' : 'ลงเวลาครบแล้ว')
     : online ? 'พร้อมลงเวลา' : 'ออฟไลน์';
   const tapActionLabel = flowBusy
-    ? 'PROCESSING'
+    ? 'กำลังดำเนินการ'
     : eventIntent === 'CHECK_OUT' || attendanceAccepted?.intent === 'CHECK_IN'
-      ? 'TAP TO CHECK OUT'
+      ? 'แตะเพื่อเช็กเอาต์'
       : eventIntent === 'CHECK_IN'
-        ? 'TAP TO CHECK IN'
-        : 'TAP TO CLOCK';
+        ? 'แตะเพื่อเช็กอิน'
+        : 'แตะเพื่อลงเวลา';
   const qrReady = Boolean(qrToken) || (Boolean(readiness) && !qrStepUpRequired && readiness?.state === 'READY_TO_START_VERIFICATION');
   const faceReady = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
   const deviceReady = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
@@ -1229,7 +1229,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
           </div>
           <div>
             <span className="attendance-v3-meta-icon"><SmsIcon name="location" size={18} /></span>
-            <span><small>Expected Site</small><strong>Server ตรวจอัตโนมัติ</strong></span>
+            <span><small>พื้นที่ตามตาราง</small><strong>เซิร์ฟเวอร์ตรวจอัตโนมัติ</strong></span>
           </div>
         </div>
       </section>

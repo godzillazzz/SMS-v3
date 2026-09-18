@@ -17,8 +17,8 @@ describe('Attendance primary action state', () => {
     })).toMatchObject({
       code: 'READY',
       enabled: true,
-      actionText: 'TAP TO CHECK IN',
-      readyLine: 'Ready for CHECK IN'
+      actionText: 'แตะเพื่อเช็กอิน',
+      readyLine: 'พร้อมสำหรับเช็กอิน'
     });
   });
 
@@ -34,7 +34,7 @@ describe('Attendance primary action state', () => {
     });
     expect(offline.enabled).toBe(false);
     expect(offline.code).toBe('OFFLINE');
-    expect(offline.actionText).toBe('OFFLINE');
+    expect(offline.actionText).toBe('ออฟไลน์');
     expect(offline.detail).toContain('ออฟไลน์');
 
     const viewOnly = attendancePrimaryActionState({

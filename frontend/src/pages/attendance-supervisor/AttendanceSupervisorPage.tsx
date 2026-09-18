@@ -506,7 +506,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
         else setHistory(response.data as HistoryData);
       })
       .catch((reason) => {
-        if (active) setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่าน Attendance Dashboard ได้');
+        if (active) setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านแดชบอร์ดการลงเวลาได้');
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -924,7 +924,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
   return <section className="attendance-supervisor-v4">
     <header className="attendance-supervisor-v4__hero">
       <div>
-        <span className="attendance-supervisor-v4__eyebrow">ATTENDANCE CONTROL CENTER</span>
+        <span className="attendance-supervisor-v4__eyebrow">การควบคุมการลงเวลา</span>
         <h2>ศูนย์ควบคุมการลงเวลา</h2>
         <p>{manager ? `ขอบเขต Manager: ${department || 'ไม่ระบุ Department'}` : 'Admin มองเห็นทุก Department ตามสิทธิ์'}</p>
       </div>
@@ -1225,11 +1225,11 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           ) : detail && <>
             <section className="attendance-supervisor-v4__detail-grid">
               <div><span>วันที่</span><strong>{detail.date}</strong></div>
-              <div><span>Employee</span><strong>{detail.employeeCode || '—'}</strong></div>
-              <div><span>Shift</span><strong>{detail.shift.code || detail.shift.name || '—'}</strong></div>
-              <div><span>Expected Site</span><strong>{detail.expectedSite?.name || '—'}</strong></div>
-              <div><span>Actual Site</span><strong>{detail.actualSite?.name || '—'}</strong></div>
-              <div><span>Status</span><strong>{statusLabel(detail.attendanceStatus)}</strong></div>
+              <div><span>พนักงาน</span><strong>{detail.employeeCode || '—'}</strong></div>
+              <div><span>กะ</span><strong>{detail.shift.code || detail.shift.name || '—'}</strong></div>
+              <div><span>พื้นที่ตามตาราง</span><strong>{detail.expectedSite?.name || '—'}</strong></div>
+              <div><span>พื้นที่ที่บันทึกจริง</span><strong>{detail.actualSite?.name || '—'}</strong></div>
+              <div><span>สถานะ</span><strong>{statusLabel(detail.attendanceStatus)}</strong></div>
             </section>
 
             <section className="attendance-supervisor-v4__compare">

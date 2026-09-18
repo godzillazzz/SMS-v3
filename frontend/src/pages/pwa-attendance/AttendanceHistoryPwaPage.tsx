@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
+import { activateTabFromKeyboard } from '../../components/AccessibleTabs';
 import { attendanceSelfHistory, type AttendanceSelfHistoryData, type AttendanceSelfRow } from '../attendance/attendance-client';
 import './employee-attendance-v4.css';
 
@@ -55,13 +56,13 @@ function status(row: AttendanceSelfRow) {
 
 const operationalFlagLabels: Record<string, string> = {
   WRONG_SHIFT: 'ผิดกะ',
-  ASSIST_OTHER_SITE: 'ช่วย Site อื่น',
+  ASSIST_OTHER_SITE: 'ช่วยพื้นที่อื่น',
   OUTSIDE_ALL_SITES: 'นอกพื้นที่',
   MISSING_CHECK_IN: 'ไม่มีเวลาเข้า',
   MISSING_CHECK_OUT: 'ไม่มีเวลาออก',
   TIME_ABNORMAL: 'เวลาผิดปกติ',
-  LOCATION_RISK: 'Location Risk',
-  PHOTO_RISK: 'Photo Risk'
+  LOCATION_RISK: 'ความเสี่ยงตำแหน่ง',
+  PHOTO_RISK: 'ความเสี่ยงรูปภาพ'
 };
 
 export function AttendanceHistoryPwaPage({ token, online }: Props) {
@@ -86,27 +87,28 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
 
   return <section className="employee-v4-page employee-v4-list-page" aria-label="ประวัติการลงเวลา">
     <header className="employee-v4-section-header">
-      <div><p>ATTENDANCE HISTORY</p><h1>ประวัติการลงเวลา</h1><span>ข้อมูลเวลาที่ Server รับและบันทึกจริง</span></div>
+      <div><p>ข้อมูลย้อนหลัง</p><h1>ประวัติการลงเวลา</h1><span>ข้อมูลเวลาที่เซิร์ฟเวอร์รับและบันทึกจริง</span></div>
       <span className="employee-v4-header-icon"><SmsIcon name="history" size={22} /></span>
     </header>
 
-    <div className="employee-v4-segmented" role="tablist" aria-label="ช่วงเวลาประวัติ">
+    <div className="employee-v4-segmented" role="tablist" aria-label="ช่วงเวลาประวัติ" onKeyDown={activateTabFromKeyboard}>
       {([['today', 'วันนี้'], ['week', '7 วัน'], ['month', '31 วัน']] as const).map(([key, label]) =>
-        <button key={key} type="button" className={range === key ? 'active' : ''} onClick={() => setRange(key)}>{label}</button>
+        <button id={`attendance-range-${key}`} key={key} type="button" role="tab" aria-selected={range === key} aria-controls="attendance-history-panel" tabIndex={range === key ? 0 : -1} className={range === key ? 'active' : ''} onClick={() => setRange(key)}>{label}</button>
       )}
     </div>
 
-    {!online && <div className="employee-v4-message is-warning">ออฟไลน์ — ประวัติ Attendance ต้องอ่านจาก Server</div>}
+    <div id="attendance-history-panel" role="tabpanel" aria-labelledby={`attendance-range-${range}`}>
+    {!online && <div className="employee-v4-message is-warning">ออฟไลน์ — ประวัติการลงเวลาต้องอ่านจากเซิร์ฟเวอร์</div>}
     {error && <div className="employee-v4-message is-danger">{error}</div>}
     {loading && <div className="employee-v4-loading"><span /><p>กำลังอ่านประวัติ…</p></div>}
 
     {!loading && online && data && <div className="employee-v4-history-list">
-      {data.rows.length === 0 && <article className="employee-v4-empty"><SmsIcon name="history" size={28} /><strong>ยังไม่มีรายการในช่วงนี้</strong><span>เมื่อมี AttendanceEvent ระบบจะแสดงที่นี่</span></article>}
+      {data.rows.length === 0 && <article className="employee-v4-empty"><SmsIcon name="history" size={28} /><strong>ยังไม่มีรายการในช่วงนี้</strong><span>เมื่อมีรายการลงเวลา ระบบจะแสดงที่นี่</span></article>}
       {data.rows.map((row) => {
         const currentStatus = status(row);
         return <article className="employee-v4-history-card" key={row.assignmentId}>
           <div className="employee-v4-history-card__top">
-            <div><strong>{dateLabel(row.date)}</strong><span>{row.shift.code || row.shift.name || 'SHIFT'} · {row.shift.startTime || '—'}–{row.shift.endTime || '—'}</span></div>
+            <div><strong>{dateLabel(row.date)}</strong><span>{row.shift.code || row.shift.name || 'ไม่ระบุกะ'} · {row.shift.startTime || '—'}–{row.shift.endTime || '—'}</span></div>
             <div className="employee-v4-history-card__badges">
               {row.corrected && <span className="employee-v4-correction-badge"><SmsIcon name="history" size={12} />ปรับแล้ว</span>}
               <span className={`employee-v4-status is-${currentStatus.tone}`}>{currentStatus.label}</span>
@@ -130,11 +132,11 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
             <div>
               <span>เวลาออก</span><strong>{time(row.originalCheckOutAt)}</strong><strong>{time(row.checkOutAt)}</strong>
             </div>
-            <small>แสดงเฉพาะการแก้ไขที่มีผลต่อ Attendance แล้ว · Raw AttendanceEvent เดิมไม่ถูกแก้ไข</small>
+            <small>แสดงเฉพาะการแก้ไขที่มีผลต่อการลงเวลาแล้ว · ข้อมูลเหตุการณ์ลงเวลาเดิมไม่ถูกแก้ไข</small>
           </details>}
           <div className="employee-v4-history-sites">
-            <div><SmsIcon name="quality" size={15} /><span>Expected Site</span><strong>{row.expectedSite?.name || 'ไม่ระบุ'}</strong></div>
-            <div><SmsIcon name="location" size={15} /><span>Actual Site</span><strong>{row.actualSite?.name || '—'}</strong></div>
+            <div><SmsIcon name="quality" size={15} /><span>พื้นที่ตามตาราง</span><strong>{row.expectedSite?.name || 'ไม่ระบุ'}</strong></div>
+            <div><SmsIcon name="location" size={15} /><span>พื้นที่ที่บันทึกจริง</span><strong>{row.actualSite?.name || '—'}</strong></div>
           </div>
           {(() => {
             const flags = row.flags.map((flag) => operationalFlagLabels[flag]).filter(Boolean);
@@ -147,5 +149,6 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
         </article>;
       })}
     </div>}
+    </div>
   </section>;
 }
