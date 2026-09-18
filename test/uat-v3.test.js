@@ -98,6 +98,7 @@ test('V3 role matrix covers read-only current backend contracts', () => {
   assert.equal(getRoleApiMatrix('ADMIN').find((route) => route.label === 'Approval Center').expectedStatus, 200);
   assert.equal(getRoleApiMatrix('MANAGER').find((route) => route.label === 'Personnel masters').expectedStatus, 200);
   assert.equal(getRoleApiMatrix('VIEWER').find((route) => route.label === 'System Health').expectedStatus, 403);
+  for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) assert.equal(getRoleApiMatrix(role).find((route) => route.label === 'System Health').path, '/api/v1/admin/system-health');
   assert.equal(getRoleNavigation('ADMIN').required.length, 21);
   assert.equal(getRoleNavigation('MANAGER').required.length, 15);
   assert.equal(getRoleNavigation('VIEWER').required.length, 9);
@@ -107,11 +108,14 @@ test('V3 role matrix covers read-only current backend contracts', () => {
   assert.match(authenticatedSmoke, /Q11 read-only Attendance Production certification/);
   assert.match(authenticatedSmoke, /ATTENDANCE_SELF_TODAY/);
   assert.match(authenticatedSmoke, /ATTENDANCE_SUPERVISOR_DAILY/);
+  assert.match(authenticatedSmoke, /ATTENDANCE_SUPERVISOR_SCOPE_REQUIRED/);
   assert.match(authenticatedSmoke, /ATTENDANCE_DEVICE_ADMIN_OVERVIEW/);
   assert.match(authenticatedSmoke, /ATTENDANCE_GOVERNANCE_READINESS_CLOSED/);
   assert.match(authenticatedSmoke, /method: 'GET_ONLY'/);
   assert.match(observe, /nav\.nav-menu/);
   assert.match(observe, /button\.nav-item:visible/);
+  assert.match(observe, /99\\\\\+/);
+  assert.match(observe, /\^\\\\s\*/);
   assert.match(observe, /เปิดเมนูหลัก/);
   assert.doesNotMatch(observe, /name: 'เปิดเมนู', exact: true/);
   assert.match(observe, /app-navigation-drawer/);

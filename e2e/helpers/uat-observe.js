@@ -140,7 +140,7 @@ function primaryNavigationItem(page, navigationId) {
 
 function primaryNavigationItemByLabel(page, label) {
   const escapedLabel = escapeRegExp(label);
-  return primaryNavigation(page).filter({ hasText: new RegExp(`${escapedLabel}\\s*\\d*$`) });
+  return primaryNavigation(page).filter({ hasText: new RegExp(`^\\s*${escapedLabel}\\s*(?:\\d+|99\\+)?\\s*$`) });
 }
 
 async function openPrimaryNavigation(page) {
