@@ -94,7 +94,8 @@ describe('SMS Signature Experience V1 regression contract', () => {
   });
 
   it('limits eager reference data fetching to routes that actually need the data', () => {
-    expect(main).toContain("!['employees', 'licenses', 'schedule', 'leave', 'leavePending', 'leaveHistory', 'quota'].includes(activePage)");
+    expect(main).toContain("!['licenses', 'schedule', 'leave', 'leavePending', 'leaveHistory', 'quota'].includes(activePage)");
+    expect(main).toContain("if (activePage === 'employees') return <PersonnelDirectoryPage token={auth.token} refreshKey={employeeRefresh}");
     expect(main).toContain("!['schedule', 'shiftSetup'].includes(activePage)");
   });
 });

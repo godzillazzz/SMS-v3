@@ -34,7 +34,8 @@ describe('G04 private registration UI contract', () => {
     expect(review).toContain('api.matchRegistrationRequest');
     expect(review).toContain('อนุมัติเป็น VIEWER');
     expect(review).toContain('สิทธิ์เริ่มต้นหลังอนุมัติ');
-    expect(review).not.toContain('<select');
+    expect(review).toContain('<select id="registration-review-status"');
+    expect(review).not.toContain('name="role"');
     expect(review).not.toContain('api.updateUser');
     expect(review).not.toContain('api.createEmployee');
   });

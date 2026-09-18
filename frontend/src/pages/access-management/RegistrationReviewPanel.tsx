@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../api';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { SmsIcon } from '../../components/SmsIcon';
+import { DataTablePagination } from '../../components/ResponsiveDataTable';
 import '../../styles/registration-review.css';
 
 type RequestRow = {
@@ -60,6 +61,9 @@ function ReviewProgress({ status, candidateSelected }: { status: RequestRow['sta
 
 export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged, onOpenEmployeeMaster }: Props) {
   const [rows, setRows] = useState<RequestRow[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 1 });
+  const [statusFilter, setStatusFilter] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [search, setSearch] = useState('');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -82,15 +86,18 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
   const load = async () => {
     setLoading(true); setError('');
     try {
-      const result = await api.registrationRequests(token);
+      const result = await api.registrationRequests(token, { page, pageSize: 20, status: statusFilter || undefined });
       const next = Array.isArray(result?.data) ? result.data as RequestRow[] : [];
+      const nextTotalPages = Math.max(1, Number(result?.meta?.totalPages || 1));
+      setPageMeta({ total: Number(result?.meta?.total || 0), totalPages: nextTotalPages });
+      if (page > nextTotalPages) { setPage(nextTotalPages); return; }
       setRows(next);
       setSelectedId((current) => next.some((row) => row.id === current) ? current : next[0]?.id || '');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'โหลดคำขอลงทะเบียนไม่สำเร็จ'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { if (['ADMIN', 'MANAGER'].includes(role)) void load(); }, [token, role, refreshSignal]);
+  useEffect(() => { if (['ADMIN', 'MANAGER'].includes(role)) void load(); }, [token, role, refreshSignal, page, statusFilter]);
 
   const runSearch = async (manual = false) => {
     if (!selected) return;
@@ -172,7 +179,8 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
     {message && <div className="registration-review__feedback registration-review__feedback--success" role="status" aria-live="polite"><SmsIcon name="approval" size={18} /><span>{message}</span></div>}
     <div className={`registration-review__grid ${mobileDetail ? 'is-mobile-detail' : ''}`}>
       <aside className="registration-review__requests" aria-label="รายการคำขอลงทะเบียน">
-        <div className="registration-review__section-heading"><div><h3>รายการคำขอ</h3></div><strong>{loading ? '…' : rows.length}</strong></div>
+        <div className="registration-review__section-heading"><div><h3>รายการคำขอ</h3></div><strong>{loading ? '…' : `${rows.length}/${pageMeta.total}`}</strong></div>
+        <div className="registration-review__queue-controls"><label htmlFor="registration-review-status">สถานะ</label><select id="registration-review-status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); setMobileDetail(false); }}><option value="">ทั้งหมด</option><option value="PENDING">รอตรวจสอบ</option><option value="MATCHED">จับคู่แล้ว</option><option value="APPROVED">อนุมัติแล้ว</option><option value="REJECTED">ไม่อนุมัติ</option></select></div>
         {loading ? <p className="registration-review__loading" role="status">กำลังโหลดคำขอ…</p> : rows.length ? <div className="registration-review__request-list">{rows.map((row) => {
           const createdAt = formatRequestDate(row.createdAt);
           return <button type="button" key={row.id} className={`registration-review__request registration-review__request--${requestTone[row.status] || 'neutral'} ${row.id === selectedId ? 'is-selected' : ''}`} aria-pressed={row.id === selectedId} onClick={() => selectRequest(row.id)}>
@@ -181,6 +189,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
             <small>{row.departmentHint || 'ไม่ระบุหน่วยงาน'}{createdAt ? ` · ${createdAt}` : ''}</small>
           </button>;
         })}</div> : <p className="registration-review__empty">ยังไม่มีคำขอที่ยืนยันอีเมลแล้ว</p>}
+        <DataTablePagination page={page} totalPages={pageMeta.totalPages} onChange={(nextPage) => { setPage(nextPage); setMobileDetail(false); }} ariaLabel="แบ่งหน้าคำขอลงทะเบียน" loading={loading} className="registration-review__pagination" />
       </aside>
 
       <div className="registration-review__detail">

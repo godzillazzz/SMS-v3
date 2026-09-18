@@ -139,6 +139,30 @@
   font-size: 12px;
 }
 
+.registration-review__queue-controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.registration-review__queue-controls label {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.registration-review__queue-controls select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 10px;
+  color: var(--color-text);
+  background: var(--color-surface-elevated);
+  font: inherit;
+}
+
 .registration-review__request-list {
   display: grid;
   gap: 7px;

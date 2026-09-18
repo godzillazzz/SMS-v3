@@ -22,22 +22,23 @@ const apiBytes = fs.readFileSync(path.join(root, 'api.ts'), 'utf8').replace(/\r\
 const apiSha256 = crypto.createHash('sha256').update(apiBytes).digest('hex');
 
 describe('G04.2 UX-06 Personnel + Access experience contract', () => {
-  it('keeps Personnel search, department, status, page size, and pagination mathematics unchanged', () => {
-    expect(personnelPage).toContain('[employee.employeeCode, employee.firstName, employee.lastName, employee.department, employee.jobTitle]');
-    expect(personnelPage).toContain('employee.department === department');
-    expect(personnelPage).toContain("status === 'active' ? employee.isActive : !employee.isActive");
+  it('keeps Personnel search, department, status and page-size UX while paging against the authoritative server result', () => {
+    expect(personnelPage).toContain('api.employees(token, {');
+    expect(personnelPage).toContain('search: debouncedSearch || undefined');
+    expect(personnelPage).toContain('department: department || undefined');
+    expect(personnelPage).toContain("isActive: status ? status === 'active' : undefined");
     expect(personnelPage).toContain('const pageSize = 10;');
-    expect(personnelPage).toContain('Math.ceil(filtered.length / pageSize)');
-    expect(personnelPage).toContain('filtered.slice((page - 1) * pageSize, page * pageSize)');
-    expect(personnelPage).toContain('<PersonnelPagination page={page} totalPages={totalPages} onChange={setPage} />');
+    expect(personnelPage).toContain('meta.totalPages');
+    expect(personnelPage).not.toContain('filtered.slice(');
+    expect(personnelPage).toContain('<PersonnelPagination page={page} totalPages={meta.totalPages} onChange={setPage} />');
   });
 
   it('keeps only real-backed Personnel metrics and does not restore the unavailable review metric', () => {
     expect(personnelPage).toContain('บุคลากรทั้งหมด');
     expect(personnelPage).toContain('บุคลากรที่ใช้งาน');
     expect(personnelPage).toContain('โปรไฟล์ไม่สมบูรณ์');
-    expect(personnelPage).toContain("employees.filter((employee) => employee.isActive).length");
-    expect(personnelPage).toContain("employees.filter((employee) => !employee.department || !employee.jobTitle).length");
+    expect(personnelPage).toContain('const activeCount = Number(meta.summary?.active ?? 0)');
+    expect(personnelPage).toContain('const incompleteCount = Number(meta.summary?.incomplete ?? 0)');
     expect(personnelPage).not.toContain('รอตรวจสอบ');
   });
 
@@ -215,6 +216,6 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
   });
 
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(apiSha256).toBe('9499eec7b0143765b3fca2238dc2894b3ba2d6de1bf6d4a6a8ec417f4b90f592');
+    expect(apiSha256).toBe('088ed2f76851165ca59dab2245542e56946014b70fbca3e86bc4a986714bf9a3');
   });
 });

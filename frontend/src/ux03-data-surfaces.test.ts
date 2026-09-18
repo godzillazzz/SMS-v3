@@ -66,12 +66,14 @@ describe('G04.2 UX-03 data surfaces contract', () => {
     expect(main).toContain('semanticStatusTone(row.status)');
   });
 
-  it('keeps Personnel search, department, status filtering and page size behavior unchanged', () => {
-    expect(personnelPage).toContain("const matchesTerm = !term || [employee.employeeCode, employee.firstName, employee.lastName, employee.department, employee.jobTitle]");
-    expect(personnelPage).toContain('const matchesDepartment = !department || employee.department === department');
-    expect(personnelPage).toContain("const matchesStatus = !status || (status === 'active' ? employee.isActive : !employee.isActive)");
-    expect(personnelPage).toContain('const pageSize = 10');
-    expect(personnelPage).toContain('filtered.slice((page - 1) * pageSize, page * pageSize)');
+  it('keeps Personnel search, department, status and page size behavior while making paging server-authoritative', () => {
+    expect(personnelPage).toContain('api.employees(token, {');
+    expect(personnelPage).toContain('search: debouncedSearch || undefined');
+    expect(personnelPage).toContain('department: department || undefined');
+    expect(personnelPage).toContain("isActive: status ? status === 'active' : undefined");
+    expect(personnelPage).toContain('const pageSize = 10;');
+    expect(personnelPage).toContain('meta.totalPages');
+    expect(personnelPage).not.toContain('filtered.slice(');
     expect(personnelToolbar).toContain('onSearch(event.target.value)');
     expect(personnelToolbar).toContain('onDepartment(event.target.value)');
     expect(personnelToolbar).toContain('onStatus(event.target.value)');
@@ -132,7 +134,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
   });
 
   it('keeps the authorized API source blob locked after Attachment Optimizer V1', () => {
-    expect(apiSha256).toBe('9499eec7b0143765b3fca2238dc2894b3ba2d6de1bf6d4a6a8ec417f4b90f592');
+    expect(apiSha256).toBe('088ed2f76851165ca59dab2245542e56946014b70fbca3e86bc4a986714bf9a3');
   });
 
   it('provides an accessible shared row-action menu with focus restoration and viewport containment', () => {
@@ -165,7 +167,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
     expect(personnelPage).not.toContain('label="รอตรวจสอบ"');
     expect(personnelPage).not.toContain('context="ยังไม่มีข้อมูล" tone="blue"');
     expect(personnelPage).toContain('label="บุคลากรทั้งหมด" value={totalCount}');
-    expect(personnelPage).toContain('label="โปรไฟล์ไม่สมบูรณ์" value={incomplete}');
+    expect(personnelPage).toContain('label="โปรไฟล์ไม่สมบูรณ์" value={incompleteCount}');
   });
 
   it('contains horizontal table scrolling within data surfaces and preserves mobile domain cards', () => {
