@@ -55,19 +55,22 @@ test('authenticated mode requires all three complete role credential pairs', () 
 test('V3 role matrix covers read-only current backend contracts', () => {
   const expectedStatuses = {
     ADMIN: {
-      Dashboard: 200, Employees: 200, Schedule: 200, Leave: 200, 'Leave quota': 200,
-      License: 200, Users: 200, 'Data Quality': 200, Audit: 200, 'Executive Report': 200,
-      'Report summary': 200, 'System settings': 200
+      Dashboard: 200, Employees: 200, 'Shift types': 200, Schedule: 200, Leave: 200, 'Leave pending count': 200,
+      'Leave quota': 200, License: 200, 'Approval Center': 200, 'Scheduling rules': 200, Users: 200,
+      'Personnel masters': 200, 'Data Quality': 200, Audit: 200, 'System Health': 200, 'Security Sites': 200,
+      'Executive Report': 200, 'Report summary': 200, 'System settings': 200
     },
     MANAGER: {
-      Dashboard: 200, Employees: 200, Schedule: 200, Leave: 200, 'Leave quota': 200,
-      License: 200, Users: 200, 'Data Quality': 403, Audit: 403, 'Executive Report': 200,
-      'Report summary': 200, 'System settings': 403
+      Dashboard: 200, Employees: 200, 'Shift types': 200, Schedule: 200, Leave: 200, 'Leave pending count': 200,
+      'Leave quota': 200, License: 200, 'Approval Center': 200, 'Scheduling rules': 200, Users: 200,
+      'Personnel masters': 200, 'Data Quality': 403, Audit: 403, 'System Health': 403, 'Security Sites': 403,
+      'Executive Report': 200, 'Report summary': 200, 'System settings': 403
     },
     VIEWER: {
-      Dashboard: 200, Employees: 200, Schedule: 200, Leave: 403, 'Leave quota': 403,
-      License: 403, Users: 403, 'Data Quality': 403, Audit: 403, 'Executive Report': 403,
-      'Report summary': 403, 'System settings': 403
+      Dashboard: 200, Employees: 200, 'Shift types': 200, Schedule: 200, Leave: 403, 'Leave pending count': 403,
+      'Leave quota': 403, License: 403, 'Approval Center': 403, 'Scheduling rules': 200, Users: 403,
+      'Personnel masters': 403, 'Data Quality': 403, Audit: 403, 'System Health': 403, 'Security Sites': 403,
+      'Executive Report': 403, 'Report summary': 403, 'System settings': 403
     }
   };
   for (const role of ['ADMIN', 'MANAGER', 'VIEWER']) {
@@ -92,6 +95,21 @@ test('V3 role matrix covers read-only current backend contracts', () => {
     assert.equal(getRoleNavigation(role).required.includes('Schedule Calendar'), false);
   }
   assert.equal(getRoleApiMatrix('VIEWER').find((route) => route.label === 'Leave').expectedStatus, 403);
+  assert.equal(getRoleApiMatrix('ADMIN').find((route) => route.label === 'Approval Center').expectedStatus, 200);
+  assert.equal(getRoleApiMatrix('MANAGER').find((route) => route.label === 'Personnel masters').expectedStatus, 200);
+  assert.equal(getRoleApiMatrix('VIEWER').find((route) => route.label === 'System Health').expectedStatus, 403);
+  assert.equal(getRoleNavigation('ADMIN').required.length, 21);
+  assert.equal(getRoleNavigation('MANAGER').required.length, 15);
+  assert.equal(getRoleNavigation('VIEWER').required.length, 9);
+  for (const label of ['ลงเวลา', 'อุปกรณ์ลงเวลา', 'รหัสกะและเวลา', 'ประวัติการลาทั้งหมด', 'กฎการทำงาน']) assert.ok(getRoleNavigation('VIEWER').required.includes(label));
+  for (const label of ['ลงเวลาแทนพนักงาน', 'ศูนย์อนุมัติ', 'ผู้ใช้และสิทธิ์', 'รายงานและวิเคราะห์']) assert.ok(getRoleNavigation('MANAGER').required.includes(label));
+  for (const label of ['ประสิทธิภาพและสถานะระบบ', 'จุดรักษาความปลอดภัยและ QR', 'ตั้งค่าระบบ']) assert.ok(getRoleNavigation('ADMIN').required.includes(label));
+  assert.match(authenticatedSmoke, /Q11 read-only Attendance Production certification/);
+  assert.match(authenticatedSmoke, /ATTENDANCE_SELF_TODAY/);
+  assert.match(authenticatedSmoke, /ATTENDANCE_SUPERVISOR_DAILY/);
+  assert.match(authenticatedSmoke, /ATTENDANCE_DEVICE_ADMIN_OVERVIEW/);
+  assert.match(authenticatedSmoke, /ATTENDANCE_GOVERNANCE_READINESS_CLOSED/);
+  assert.match(authenticatedSmoke, /method: 'GET_ONLY'/);
   assert.match(observe, /nav\.nav-menu/);
   assert.match(observe, /button\.nav-item:visible/);
   assert.match(observe, /เปิดเมนูหลัก/);
@@ -182,7 +200,7 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(workflow, /refs\/heads\/\$SOURCE_BRANCH:refs\/remotes\/origin\/\$SOURCE_BRANCH/);
   assert.match(workflow, /uat-target-contract\.js source-head "\$SOURCE_BRANCH" "\$REMOTE_SOURCE_SHA" "\$SOURCE_SHA"/);
   assert.doesNotMatch(workflow, /fix\/serverless-database-reliability/);
-  assert.match(workflow, /APPROVED_HARNESS_SHA="\$\(git rev-parse origin\/test\/automated-uat-v3-authenticated\)"/);
+  assert.match(workflow, /APPROVED_HARNESS_SHA="\$\(git rev-parse origin\/test\/q11-production-assurance-sentinel\)"/);
   assert.match(workflow, /\[\[ "\$DEPLOYMENT_ID" =~ \^dpl_/);
   assert.match(workflow, /uat_mode:/);
   assert.match(workflow, /uat_scope:/);
@@ -219,7 +237,7 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
     assert.match(authenticatedJob, new RegExp(`\\b${name}\\b`));
   }
   assert.match(authenticatedJob, /VERCEL_AUTOMATION_BYPASS_SECRET/);
-  assert.match(workflow, /test\/automated-uat-v3-authenticated/);
+  assert.match(workflow, /test\/q11-production-assurance-sentinel/);
   assert.match(authenticatedSmoke, /Employee Lifecycle management, history, state, and preflight/);
   assert.match(authenticatedSmoke, /Employee Lifecycle history is read-only and mutations are forbidden/);
   assert.match(authenticatedSmoke, /Employee Lifecycle history and mutations are forbidden/);
