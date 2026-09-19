@@ -15,6 +15,7 @@ on:
       - feature/q11-production-assurance-dependency-hardening
       - feature/q12a-data-scale-export-correctness
       - feature/q12b-performance-code-splitting
+      - feature/q12c-native-dialog-replacement
   pull_request:
     branches: [main, fix/serverless-database-reliability]
 

@@ -37,16 +37,15 @@ import { registerSmsPwa } from './pwa';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
 import type { DashboardFilters } from './components/dashboard/types';
 import { LicenseEditModal, LicenseTableDocumentColumns } from './components/LicenseDocuments';
-import { DataRowActionMenu } from './components/DataRowActionMenu';
-import { TableActionCell, TableActionHeader } from './components/TableActionColumn';
 import { DataTablePagination, ResponsiveDataTable } from './components/ResponsiveDataTable';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState } from './components/ResponsiveDataTable';
-import { OperationalRecordDrawer, type OperationalDrawerAction } from './components/OperationalRecordDrawer';
+import type { OperationalDrawerAction } from './components/OperationalRecordDrawer';
 import { SmsIcon, type SmsIconName } from './components/SmsIcon';
+import { useActionDialog } from './components/useActionDialog';
 import { ThemeControl } from './components/ThemeControl';
 import { attendancePolicyKeys, type AttendancePolicyForm } from './components/attendance-policy-contract';
 import { leavePolicyKeys, type LeavePolicyForm } from './components/leave-policy-contract';
-import { LeaveDecisionConfirmation, type LeaveDecisionAction, type LeaveDecisionTarget } from './components/LeaveDecisionConfirmation';
+import type { LeaveDecisionAction, LeaveDecisionTarget } from './components/LeaveDecisionConfirmation';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
 import './styles/license-table.css';
@@ -98,6 +97,11 @@ const DataRetentionCenterPanel = React.lazy(() => import('./components/DataReten
 const ConfigurationRegistryPanel = React.lazy(() => import('./components/ConfigurationRegistryPanel').then((module) => ({ default: module.ConfigurationRegistryPanel })));
 const NotificationCenterPanel = React.lazy(() => import('./components/NotificationCenterPanel').then((module) => ({ default: module.NotificationCenterPanel })));
 const RuleCheckingDataSurfaces = React.lazy(() => import('./components/RuleCheckingDataSurfaces').then((module) => ({ default: module.RuleCheckingDataSurfaces })));
+const OperationalRecordDrawer = React.lazy(() => import('./components/OperationalRecordDrawer').then((module) => ({ default: module.OperationalRecordDrawer })));
+const DataRowActionMenu = React.lazy(() => import('./components/DataRowActionMenu').then((module) => ({ default: module.DataRowActionMenu })));
+const TableActionCell = React.lazy(() => import('./components/TableActionColumn').then((module) => ({ default: module.TableActionCell })));
+const TableActionHeader = React.lazy(() => import('./components/TableActionColumn').then((module) => ({ default: module.TableActionHeader })));
+const LeaveDecisionConfirmation = React.lazy(() => import('./components/LeaveDecisionConfirmation').then((module) => ({ default: module.LeaveDecisionConfirmation })));
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
@@ -1013,7 +1017,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     {page === 'licenses' && <div className="toolbar data-toolbar signature-filter-bar"><label className="search-box data-search-control"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาใบอนุญาต" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ" /></label><label className="license-employee-status-filter"><span>สถานะพนักงาน</span><select aria-label="กรองสถานะพนักงาน" value={licenseEmployeeStatus} onChange={(event) => { onLicenseEmployeeStatusChange?.(event.target.value as LicenseEmployeeStatus); onPageChange(1); }}><option value="ACTIVE">ปฏิบัติงาน</option><option value="INACTIVE">พ้นสภาพ</option><option value="ALL">ทั้งหมด</option></select></label><span className="toolbar-count data-result-count">แสดง {visibleRows.length} จาก {rows.length} รายการ</span>{tableSearch && <button className="btn-neutral small-action" type="button" onClick={() => setTableSearch('')}>ล้างคำค้นหา</button>}</div>}
     {shouldRenderLicenseSurface() ? licenseSurface : shouldRenderQuotaSurface() ? quotaSurface : shouldRenderApprovalSurface() ? approvalSurface : <div className="table-card data-surface-card signature-data-surface">{loading ? <div className="signature-table-skeleton" role="status" aria-label="กำลังอ่านข้อมูล">{Array.from({ length: 6 }, (_, index) => <span key={index} />)}</div> : <><div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <TableActionHeader label="ดำเนินการ" />}</tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index} className="signature-data-row" data-operational-row={text(row.id)} tabIndex={0} aria-label={`เปิดรายละเอียด ${config.title}`} onClick={() => selectRow(row)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectRow(row); } }}>{config.columns.map((column) => <td key={column.label}>{tableValue(row, column)}</td>)}{showActions && <TableActionCell className="row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>{rowActions(row)}</TableActionCell>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows data-table-empty-cell"><div className="empty-state data-state data-state--empty"><span aria-hidden="true">⌁</span><strong>{noResultsMessage}</strong><p>{page === 'licenses' && tableSearch ? 'ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองแล้วค้นหาอีกครั้ง' : 'ยังไม่มีรายการที่ต้องดำเนินการในขอบเขตนี้'}</p>{canCreate && !(page === 'licenses' && tableSearch) && <button className="btn-neutral small-action" onClick={onCreate}>{createLabel}</button>}</div></td></tr>}</tbody></table></div><div className="signature-mobile-records">{visibleRows.map((row) => <button type="button" key={`mobile-${text(row.id)}`} className="signature-mobile-record" data-operational-row={text(row.id)} onClick={() => selectRow(row)}><span className="signature-mobile-record__eyebrow">{config.eyebrow}</span><strong>{text(row.employeeNameSnapshot || row.name || row.displayName || row.ruleType || row.id)}</strong><div>{config.columns.slice(0, 3).map((column) => <span key={column.label}><small>{column.label}</small>{tableValue(row, column)}</span>)}</div><em>แตะเพื่อเปิดรายละเอียด</em></button>)}</div></>}</div>}
     {(page === 'licenses' || page === 'quota' || page === 'approvals') ? <DataTablePagination page={currentPage} totalPages={totalPages} onChange={onPageChange} ariaLabel={page === 'quota' ? 'แบ่งหน้าโควตาวันลา' : page === 'approvals' ? 'แบ่งหน้าประวัติการอนุมัติตารางกะ' : 'แบ่งหน้าใบอนุญาต'} loading={loading} className="pagination-bar" /> : totalPages > 1 && <div className="pagination-bar data-pagination"><button aria-label="หน้าก่อนหน้า" disabled={currentPage <= 1 || loading} onClick={() => onPageChange(currentPage - 1)}>‹ ก่อนหน้า</button><span>หน้า {currentPage} จาก {totalPages}</span><button aria-label="หน้าถัดไป" disabled={currentPage >= totalPages || loading} onClick={() => onPageChange(currentPage + 1)}>หน้าถัดไป ›</button></div>}
-    <OperationalRecordDrawer open={Boolean(selectedRow)} eyebrow={config.eyebrow} title={drawerTitle || config.title} subtitle={drawerSubtitle} status={selectedRow?.status ? <span className={`status-badge status-badge--${semanticStatusTone(selectedRow.status)}`}>{text(selectedRow.status)}</span> : undefined} fields={drawerFields} primaryAction={primaryAction} secondaryActions={secondaryActions} onClose={closeDrawer} />
+    {selectedRow && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดรายละเอียด…</div>}><OperationalRecordDrawer open={Boolean(selectedRow)} eyebrow={config.eyebrow} title={drawerTitle || config.title} subtitle={drawerSubtitle} status={selectedRow?.status ? <span className={`status-badge status-badge--${semanticStatusTone(selectedRow.status)}`}>{text(selectedRow.status)}</span> : undefined} fields={drawerFields} primaryAction={primaryAction} secondaryActions={secondaryActions} onClose={closeDrawer} /></React.Suspense>}
   </section>;
 }
 const defaultNewLeaveTemplate = `🔔 [คำขอลางานใหม่] รอตรวจรับเอกสาร
@@ -1608,6 +1612,7 @@ function LeavePrintDocument({ row }: { row: DataRow }) {
 
 function Dashboard() {
   const auth = useContext(AuthContext)!;
+  const actionDialog = useActionDialog();
   const pwaShell = useMemo(() => isSmsPwaShellMode(), []);
   const [activePage, setActivePage] = useState<Page>(() => pwaShell ? initialSmsPwaPage() : 'dashboard');
   const [pwaOnline, setPwaOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
@@ -2357,7 +2362,14 @@ function Dashboard() {
       : action === 'cancel'
         ? 'ยืนยันยกเลิกคำขอนี้? การดำเนินการจะถูกบันทึกใน Audit'
         : 'ยืนยันการดำเนินการนี้?';
-    if (!window.confirm(confirmMessage)) return;
+    const confirmed = await actionDialog.confirm({
+      title: action === 'delete' ? 'ยืนยันลบรายการ' : action === 'cancel' ? 'ยืนยันยกเลิกคำขอ' : action === 'return' ? 'ส่งกลับให้แก้ไข' : 'ยืนยันการดำเนินการ',
+      message: confirmMessage,
+      context: `${activePage} · ${id}`,
+      confirmLabel: action === 'delete' ? 'ยืนยันลบ' : action === 'cancel' ? 'ยืนยันยกเลิก' : action === 'return' ? 'ยืนยันส่งกลับ' : 'ยืนยันดำเนินการ',
+      tone: action === 'delete' || action === 'cancel' || action === 'reject' ? 'danger' : action === 'return' ? 'warning' : 'primary'
+    });
+    if (!confirmed) return;
     setOperationLoading(true); setOperationError(undefined);
     try {
       if (action === 'delete' && activePage === 'licenses') await api.deleteLicense(auth.token, id);
@@ -2668,7 +2680,7 @@ function Dashboard() {
       };
       return <section className="view-pane schedule-calendar-page">
         <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>ตารางกะรายเดือน</h1><p>จัดกะรายเดือน (โหมดบันทึกด้วยตนเอง: แก้ไขกะหรือลบกะในตารางได้ต่อเนื่อง แล้วกด 💾 บันทึกการเปลี่ยนแปลง เพื่อบันทึกทีเดียว)</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="btn-info small-action" onClick={() => void printScheduleDocument()}>📄 Export PDF</button></>}</div></div>
-        <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ อนุมัติแล้ว' : '● รออนุมัติ'} · {monthLabel}</strong><small>Revision {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'Admin')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้าง revision ใหม่โดยอัตโนมัติ'}</small></div>{auth.user?.role === 'ADMIN' && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token || !window.confirm(`ยืนยันอนุมัติตารางกะประจำเดือน ${monthLabel}?`)) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); } catch (reason) { setOperationError(toRequestErrorState(reason, 'อนุมัติตารางไม่สำเร็จ')); } }}>อนุมัติ ตารางเดือนนี้</button>}</div>
+        <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ อนุมัติแล้ว' : '● รออนุมัติ'} · {monthLabel}</strong><small>Revision {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'Admin')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้าง revision ใหม่โดยอัตโนมัติ'}</small></div>{auth.user?.role === 'ADMIN' && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token) return; const confirmed = await actionDialog.confirm({ title: 'อนุมัติตารางกะรายเดือน', message: 'การอนุมัติจะเปลี่ยนสถานะตารางเดือนนี้เป็น APPROVED ตาม workflow เดิม และการแก้ไขภายหลังจะสร้าง revision ใหม่โดยอัตโนมัติ', context: monthLabel, confirmLabel: 'ยืนยันอนุมัติตาราง', tone: 'primary' }); if (!confirmed) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); } catch (reason) { setOperationError(toRequestErrorState(reason, 'อนุมัติตารางไม่สำเร็จ')); } }}>อนุมัติ ตารางเดือนนี้</button>}</div>
         <div className="calendar-toolbar-box schedule-workbench" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px 20px', margin: '14px 0 16px 0', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.05)' }}>
           <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af', marginBottom: '8px' }}>
             เลือกเดือนที่จะจัดกะ: {monthLabel} (สูงสุด 1 เดือน)
@@ -2736,7 +2748,7 @@ function Dashboard() {
               className="btn-danger compact"
               style={{ fontSize: '13px', fontWeight: 'bold', padding: '8px 16px', borderRadius: '8px' }}
               disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0}
-              onClick={() => { if (Object.keys(scheduleDrafts).length > 0 && window.confirm('ยกเลิกรายการเปลี่ยนแปลงทั้งหมดที่ยังไม่ได้บันทึกหรือไม่?')) { setScheduleDrafts({}); } }}
+              onClick={async () => { const draftCount = Object.keys(scheduleDrafts).length; if (!draftCount) return; const confirmed = await actionDialog.confirm({ title: 'ทิ้งรายการเปลี่ยนแปลงที่ยังไม่บันทึก', message: 'รายการแก้ไขกะที่ยังไม่ได้บันทึกจะถูกล้างออกจากหน้าจอ และจะไม่มีการส่งข้อมูลไปยัง Server', context: `${draftCount} รายการ`, confirmLabel: 'ยืนยันล้างรายการ', tone: 'danger' }); if (confirmed) setScheduleDrafts({}); }}
             >
               ยกเลิกรายการเปลี่ยนแปลงทั้งหมด
             </button>
@@ -2985,14 +2997,14 @@ function Dashboard() {
 
   return (
     <>
-      {leaveDecision && <LeaveDecisionConfirmation
+      {leaveDecision && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่างยืนยัน…</div>}><LeaveDecisionConfirmation
         target={leaveDecision.target}
         action={leaveDecision.action}
         busy={operationLoading}
         error={operationError}
         onClose={() => { if (!operationLoading) setLeaveDecision(undefined); }}
         onConfirm={confirmLeaveDecision}
-      />}
+      /></React.Suspense>}
       <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}>
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} /></React.Suspense>}
@@ -3185,6 +3197,7 @@ function Dashboard() {
       </div>
     )}
     {leavePrintTarget && <LeavePrintDocument row={leavePrintTarget} />}
+    {actionDialog.dialog}
     </>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ApiRequestError, api } from '../api';
 import { securitySiteOperations } from './security-site-operations-client';
 import { SecuritySiteMapPicker } from './SecuritySiteMapPicker';
+import { useActionDialog } from './useActionDialog';
 import '../styles/security-site-management.css';
 import {
   createSecuritySiteQrDataUrl,
@@ -82,6 +83,7 @@ function SitePreview({ site }: { site: SecuritySite | null }) {
 }
 
 export function SecuritySiteManagementPanel({ token }: { token: string }) {
+  const actionDialog = useActionDialog();
   const isAdmin = useMemo(() => securitySiteTokenRole(token) === 'ADMIN', [token]);
   const [sites, setSites] = useState<SecuritySite[]>([]);
   const [departments, setDepartments] = useState<DepartmentMapping[]>([]);
@@ -304,7 +306,17 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   };
   const duplicateSite = async () => {
     if (!selectedSite) return;
-    const code = window.prompt('Site code สำหรับสำเนาใหม่', selectedSite.code + '-COPY')?.trim();
+    const code = (await actionDialog.prompt({
+      title: 'Duplicate Security Site',
+      message: 'สร้างสำเนา Site แบบ Inactive เพื่อให้ตรวจพิกัด รัศมี และ mapping ก่อนเปิดใช้งานจริง',
+      context: `${selectedSite.code} · ${selectedSite.name}`,
+      fieldLabel: 'Site code สำหรับสำเนาใหม่',
+      initialValue: selectedSite.code + '-COPY',
+      minLength: 1,
+      maxLength: 80,
+      confirmLabel: 'สร้างสำเนา',
+      tone: 'primary'
+    }))?.trim();
     if (!code) return;
     setSaving(true); setError(undefined); setNotice(undefined);
     try {
@@ -361,7 +373,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     }
   };
 
-  return <section className="security-site-admin" aria-label="Admin Security Site Management">
+  return <><section className="security-site-admin" aria-label="Admin Security Site Management">
     <header className="security-site-admin__header">
       <div><p className="eyebrow">ADMIN · ATTENDANCE SITE AUTHORITY</p><h2>Security Site Management</h2><p>กำหนด Site, Geofence, Department ↔ Site และ Default/Home Site โดยไม่ผูก Site ถาวรไว้ที่ Employee</p></div>
       <button type="button" className="btn-neutral" disabled={loading || saving} onClick={() => void reload()}>↻ รีเฟรช</button>
@@ -461,5 +473,5 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
       </section>
     </div>}
     <footer className="security-site-admin__footnote">การแก้ไข Site / Mapping / QR เป็น Admin-only และมี Audit Log; AttendanceSession ที่เปิดหรือบันทึกแล้วคง expectedSiteId เดิม ไม่ rewrite ตาม Default Site ใหม่</footer>
-  </section>;
+  </section>{actionDialog.dialog}</>;
 }

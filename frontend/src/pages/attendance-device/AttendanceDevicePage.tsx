@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
 import { SmsIcon } from '../../components/SmsIcon';
+import { useActionDialog } from '../../components/useActionDialog';
 import { attendanceDeviceAdminOverview, revokeAttendanceDeviceCurrent } from '../attendance/attendance-client';
 import {
   ATTENDANCE_DEVICE_KEY_ALGORITHM,
@@ -116,6 +117,7 @@ function capabilityMessage(reason?: string) {
 }
 
 export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
+  const actionDialog = useActionDialog();
   const capability = useMemo(() => attendanceDeviceCapability(), []);
   const [selfState, setSelfState] = useState<SelfState | null>(null);
   const [selfLoading, setSelfLoading] = useState(true);
@@ -276,7 +278,14 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
   const approve = async (row: AttendanceDeviceRequest) => {
     if (readOnly || role !== 'ADMIN') return;
     if (!row.candidateDevice?.proofVerifiedAt) { setQueueError('ยังอนุมัติไม่ได้: อุปกรณ์นี้ยังไม่ผ่านการพิสูจน์ possession ของ private key'); return; }
-    if (!window.confirm(`ยืนยันอนุมัติ ${employeeName(row)} · ${row.candidateDevice.displayName}?`)) return;
+    const confirmed = await actionDialog.confirm({
+      title: 'อนุมัติอุปกรณ์ลงเวลา',
+      message: 'อุปกรณ์นี้ผ่าน Device Proof แล้ว การอนุมัติจะทำให้อุปกรณ์ candidate กลายเป็นอุปกรณ์ลงเวลาที่ ACTIVE ตามกฎปัจจุบัน',
+      context: `${employeeName(row)} · ${row.candidateDevice.displayName}`,
+      confirmLabel: 'ยืนยันอนุมัติอุปกรณ์',
+      tone: 'primary'
+    });
+    if (!confirmed) return;
     setBusy(true); setQueueError(undefined); setMessage(undefined);
     try { await api.approveAttendanceDeviceRequest(token, row.id); setMessage('อนุมัติอุปกรณ์ลงเวลาแล้ว'); await refresh(); }
     catch (error) { setQueueError(error instanceof Error ? error.message : 'อนุมัติอุปกรณ์ไม่สำเร็จ'); }
@@ -303,7 +312,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
   const isReplacement = Boolean(activeDevice);
   const proofReady = Boolean(request?.candidateDevice?.proofVerifiedAt);
 
-  return <section className="view-pane attendance-device-page">
+  return <><section className="view-pane attendance-device-page">
     <div className="page-heading attendance-device-heading">
       <div><p className="eyebrow">G06 · PERSONAL DEVICE</p><h1>อุปกรณ์ลงเวลา</h1><p>ผูกอุปกรณ์หลักกับ Employee แบบ 1 คน = 1 เครื่อง โดยเครื่องแรกและการเปลี่ยนเครื่องต้อง Admin อนุมัติ</p></div>
       <div className="heading-actions"><button type="button" className="btn-neutral small-action" disabled={busy} onClick={() => void refresh()}><SmsIcon name="refresh" size={17} />รีเฟรช</button></div>
@@ -370,5 +379,5 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
     {revokeTarget?.activeDevice && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setRevokeTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-revoke-title"><header><div><p>ADMIN DEVICE GOVERNANCE</p><h3 id="attendance-device-revoke-title">ยกเลิกอุปกรณ์ปัจจุบัน</h3><span>{adminEmployeeName(revokeTarget)} · {revokeTarget.activeDevice.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setRevokeTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><div className="settings-notice">การยกเลิกมีผลทันที ระบบจะไม่เปิดใช้อุปกรณ์อื่นอัตโนมัติ และคำขอเปลี่ยนอุปกรณ์ที่ค้างอยู่จะถูกยกเลิกเพื่อป้องกัน stale approval</div><label className="attendance-device-field"><span>เหตุผลการยกเลิก (บังคับ)</span><textarea autoFocus value={revokeReason} maxLength={1000} onChange={(event) => setRevokeReason(event.target.value)} placeholder="เช่น อุปกรณ์สูญหาย / เลิกใช้งาน / เปลี่ยนเครื่อง" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setRevokeTarget(null)}>ยกเลิก</button><button type="button" className="btn-danger" disabled={busy || revokeReason.trim().length < 3} onClick={() => void submitRevoke()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันยกเลิกอุปกรณ์'}</button></footer></div></div>}
 
     {reviewTarget && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setReviewTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-review-title"><header><div><p>ADMIN DECISION</p><h3 id="attendance-device-review-title">{reviewTarget.action === 'RETURN' ? 'ส่งกลับให้แก้ไข' : 'ไม่อนุมัติคำขอ'}</h3><span>{employeeName(reviewTarget.row)} · {reviewTarget.row.candidateDevice?.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setReviewTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><label className="attendance-device-field"><span>{reviewTarget.action === 'RETURN' ? 'สิ่งที่ต้องแก้ไข' : 'เหตุผลที่ไม่อนุมัติ'}</span><textarea autoFocus value={reviewReason} maxLength={1000} onChange={(event) => setReviewReason(event.target.value)} placeholder="ระบุเหตุผลอย่างน้อย 3 ตัวอักษร" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setReviewTarget(null)}>ยกเลิก</button><button type="button" className={reviewTarget.action === 'RETURN' ? 'btn-primary' : 'btn-danger'} disabled={busy || reviewReason.trim().length < 3} onClick={() => void submitReview()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันผลพิจารณา'}</button></footer></div></div>}
-  </section>;
+  </section>{actionDialog.dialog}</>;
 }

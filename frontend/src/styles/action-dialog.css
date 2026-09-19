@@ -1,0 +1,119 @@
+.sms-action-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1600;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(4px);
+}
+
+.sms-action-dialog {
+  width: min(520px, 100%);
+  max-height: min(760px, calc(100dvh - 40px));
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-surface-elevated);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24);
+}
+
+.sms-action-dialog--danger { border-top: 4px solid var(--color-danger, #dc2626); }
+.sms-action-dialog--warning { border-top: 4px solid var(--color-warning, #d97706); }
+.sms-action-dialog--primary { border-top: 4px solid var(--color-primary); }
+
+.sms-action-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sms-action-dialog__header p {
+  margin: 0 0 4px;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.sms-action-dialog__header h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.sms-action-dialog__body {
+  display: grid;
+  gap: 14px;
+  padding: 20px 22px;
+}
+
+.sms-action-dialog__message {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.65;
+}
+
+.sms-action-dialog__context {
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--color-primary-soft);
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.sms-action-dialog__field {
+  display: grid;
+  gap: 7px;
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.sms-action-dialog__field input,
+.sms-action-dialog__field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  font: inherit;
+  font-weight: 500;
+  resize: vertical;
+}
+
+.sms-action-dialog__field input:focus,
+.sms-action-dialog__field textarea:focus {
+  outline: 3px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  border-color: var(--color-primary);
+}
+
+.sms-action-dialog__field small {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.sms-action-dialog__validation {
+  color: var(--color-danger, #b91c1c) !important;
+}
+
+.sms-action-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px 20px;
+}
+
+@media (max-width: 640px) {
+  .sms-action-dialog-backdrop { padding: 12px; align-items: end; }
+  .sms-action-dialog { width: 100%; max-height: calc(100dvh - 24px); border-radius: 18px 18px 12px 12px; }
+  .sms-action-dialog__actions { flex-direction: column-reverse; }
+  .sms-action-dialog__actions button { width: 100%; }
+}
