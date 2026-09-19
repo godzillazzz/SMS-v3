@@ -12,7 +12,7 @@ describe('Admin Security Site menu hotfix', () => {
   });
 
   it('mounts the existing governed Security Site panel instead of duplicating QR logic in the app shell', () => {
-    expect(main).toContain("import { SecuritySiteManagementPanel } from './components/SecuritySiteManagementPanel'");
+    expect(main).toContain("const SecuritySiteManagementPanel = React.lazy(() => import('./components/SecuritySiteManagementPanel')");
     expect(main).toContain("if (activePage === 'securitySite' && auth.token)");
     expect(main).toContain("<SecuritySiteManagementPanel token={auth.token} />");
     expect(panel).toContain('securitySiteOperations.rotateQr(token, site.id, qrReason.trim())');

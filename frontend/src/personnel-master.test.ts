@@ -9,7 +9,7 @@ const api = read('api.ts');
 
 describe('EMP-UX Department / Position Master frontend authority', () => {
   it('mounts Admin master management in Configuration Center without delete capability', () => {
-    expect(main).toContain("import { PersonnelMasterPanel }");
+    expect(main).toContain("const PersonnelMasterPanel = React.lazy(() => import('./components/PersonnelMasterPanel')");
     expect(main).toContain('<PersonnelMasterPanel token={token} />');
     expect(panel).toContain('Department / Position Master');
     expect(panel).toContain('api.createPersonnelMaster');

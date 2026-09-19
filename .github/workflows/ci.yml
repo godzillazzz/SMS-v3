@@ -14,6 +14,7 @@ on:
       - feature/g06-department-security-site-v1
       - feature/q11-production-assurance-dependency-hardening
       - feature/q12a-data-scale-export-correctness
+      - feature/q12b-performance-code-splitting
   pull_request:
     branches: [main, fix/serverless-database-reliability]
 

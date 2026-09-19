@@ -24,32 +24,16 @@ import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from
 import { acquireDocumentScrollLock } from './document-scroll-lock';
 import { buildLeaveQuotaProvisioningPayload, canProvisionLeaveQuota, currentBangkokQuotaYear, hasUnmatchedLegacyQuota, leaveQuotaDefaultsFromPolicy, quotaProvisioningEmployeeOptions, thaiQuotaYearLabel } from './leave-quota-provisioning';
 import { printScheduleDocument } from './schedule-print';
-import { ReportCenterPage } from './pages/reports/ReportCenterPage';
 import { currentBangkokMonth, formatThaiMonth, MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
 import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
-import { PersonnelDirectoryPage } from './pages/personnel/PersonnelDirectoryPage';
-import { EmployeeGovernedEditModal } from './components/personnel/EmployeeGovernedEditModal';
-import { EmployeeChangeReviewModal } from './components/personnel/EmployeeChangeReviewModal';
-import { ApprovalCenterPage } from './pages/approvals/ApprovalCenterPage';
-import { AuditCompliancePage } from './pages/audit/AuditCompliancePage';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
-import { DataQualityCenterPage, type DataQualityFilters, type DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
-import { SystemHealthPage } from './pages/system-health/SystemHealthPage';
-import { AccessManagementPage } from './pages/access-management/AccessManagementPage';
+import type { DataQualityFilters, DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
 import type { G06UatProvisionResult } from './pages/access-management/G06UatProvisioningPanel';
-import { AttendanceDevicePage } from './pages/attendance-device/AttendanceDevicePage';
-import { SecuritySiteManagementPanel } from './components/SecuritySiteManagementPanel';
-import { PwaProfilePage } from './pages/pwa-profile/PwaProfilePage';
-import { AttendanceHistoryPwaPage } from './pages/pwa-attendance/AttendanceHistoryPwaPage';
-import { AttendanceSchedulePwaPage } from './pages/pwa-attendance/AttendanceSchedulePwaPage';
 import { initialSmsPwaPage, isSmsPwaPage, isSmsPwaShellMode, type SmsPwaPage } from './pwa-mode';
 import { registerSmsPwa } from './pwa';
-import { AttendancePage } from './pages/attendance/AttendancePage';
-import { AttendanceSupervisorPage } from './pages/attendance-supervisor/AttendanceSupervisorPage';
-import { RegistrationReviewPanel } from './pages/access-management/RegistrationReviewPanel';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
 import type { DashboardFilters } from './components/dashboard/types';
 import { LicenseEditModal, LicenseTableDocumentColumns } from './components/LicenseDocuments';
@@ -60,18 +44,8 @@ import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState } from '.
 import { OperationalRecordDrawer, type OperationalDrawerAction } from './components/OperationalRecordDrawer';
 import { SmsIcon, type SmsIconName } from './components/SmsIcon';
 import { ThemeControl } from './components/ThemeControl';
-import { PasskeySecurityPanel } from './components/PasskeySecurityPanel';
-import { AttendancePolicySettingsCard, attendancePolicyKeys, type AttendancePolicyForm } from './components/AttendancePolicySettingsCard';
-import { LeavePolicySettingsCard, leavePolicyKeys, type LeavePolicyForm } from './components/LeavePolicySettingsCard';
-import { LeaveTypeMasterPanel } from './components/LeaveTypeMasterPanel';
-import { AutoSchedulePatternPanel } from './components/AutoSchedulePatternPanel';
-import { ApprovalAuthorityMatrixPanel } from './components/ApprovalAuthorityMatrixPanel';
-import { PersonnelMasterPanel } from './components/PersonnelMasterPanel';
-import { DataRetentionCenterPanel } from './components/DataRetentionCenterPanel';
-import { ConfigurationRegistryPanel } from './components/ConfigurationRegistryPanel';
-import { SystemSettingHistoryPanel } from './components/SystemSettingHistoryPanel';
-import { NotificationCenterPanel } from './components/NotificationCenterPanel';
-import { RuleCheckingDataSurfaces } from './components/RuleCheckingDataSurfaces';
+import { attendancePolicyKeys, type AttendancePolicyForm } from './components/attendance-policy-contract';
+import { leavePolicyKeys, type LeavePolicyForm } from './components/leave-policy-contract';
 import { LeaveDecisionConfirmation, type LeaveDecisionAction, type LeaveDecisionTarget } from './components/LeaveDecisionConfirmation';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
@@ -95,6 +69,35 @@ import './styles/system-health.css';
 import './styles/configuration-center.css';
 import './styles/ux-ui-remediation.css';
 import './styles/ux-ui-quality-10.css';
+
+const ReportCenterPage = React.lazy(() => import('./pages/reports/ReportCenterPage').then((module) => ({ default: module.ReportCenterPage })));
+const PersonnelDirectoryPage = React.lazy(() => import('./pages/personnel/PersonnelDirectoryPage').then((module) => ({ default: module.PersonnelDirectoryPage })));
+const EmployeeGovernedEditModal = React.lazy(() => import('./components/personnel/EmployeeGovernedEditModal').then((module) => ({ default: module.EmployeeGovernedEditModal })));
+const EmployeeChangeReviewModal = React.lazy(() => import('./components/personnel/EmployeeChangeReviewModal').then((module) => ({ default: module.EmployeeChangeReviewModal })));
+const ApprovalCenterPage = React.lazy(() => import('./pages/approvals/ApprovalCenterPage').then((module) => ({ default: module.ApprovalCenterPage })));
+const AuditCompliancePage = React.lazy(() => import('./pages/audit/AuditCompliancePage').then((module) => ({ default: module.AuditCompliancePage })));
+const DataQualityCenterPage = React.lazy(() => import('./pages/data-quality/DataQualityCenterPage').then((module) => ({ default: module.DataQualityCenterPage })));
+const SystemHealthPage = React.lazy(() => import('./pages/system-health/SystemHealthPage').then((module) => ({ default: module.SystemHealthPage })));
+const AccessManagementPage = React.lazy(() => import('./pages/access-management/AccessManagementPage').then((module) => ({ default: module.AccessManagementPage })));
+const AttendanceDevicePage = React.lazy(() => import('./pages/attendance-device/AttendanceDevicePage').then((module) => ({ default: module.AttendanceDevicePage })));
+const SecuritySiteManagementPanel = React.lazy(() => import('./components/SecuritySiteManagementPanel').then((module) => ({ default: module.SecuritySiteManagementPanel })));
+const PwaProfilePage = React.lazy(() => import('./pages/pwa-profile/PwaProfilePage').then((module) => ({ default: module.PwaProfilePage })));
+const AttendanceHistoryPwaPage = React.lazy(() => import('./pages/pwa-attendance/AttendanceHistoryPwaPage').then((module) => ({ default: module.AttendanceHistoryPwaPage })));
+const AttendanceSchedulePwaPage = React.lazy(() => import('./pages/pwa-attendance/AttendanceSchedulePwaPage').then((module) => ({ default: module.AttendanceSchedulePwaPage })));
+const AttendancePage = React.lazy(() => import('./pages/attendance/AttendancePage').then((module) => ({ default: module.AttendancePage })));
+const AttendanceSupervisorPage = React.lazy(() => import('./pages/attendance-supervisor/AttendanceSupervisorPage').then((module) => ({ default: module.AttendanceSupervisorPage })));
+const RegistrationReviewPanel = React.lazy(() => import('./pages/access-management/RegistrationReviewPanel').then((module) => ({ default: module.RegistrationReviewPanel })));
+const PasskeySecurityPanel = React.lazy(() => import('./components/PasskeySecurityPanel').then((module) => ({ default: module.PasskeySecurityPanel })));
+const AttendancePolicySettingsCard = React.lazy(() => import('./components/AttendancePolicySettingsCard').then((module) => ({ default: module.AttendancePolicySettingsCard })));
+const LeavePolicySettingsCard = React.lazy(() => import('./components/LeavePolicySettingsCard').then((module) => ({ default: module.LeavePolicySettingsCard })));
+const LeaveTypeMasterPanel = React.lazy(() => import('./components/LeaveTypeMasterPanel').then((module) => ({ default: module.LeaveTypeMasterPanel })));
+const AutoSchedulePatternPanel = React.lazy(() => import('./components/AutoSchedulePatternPanel').then((module) => ({ default: module.AutoSchedulePatternPanel })));
+const ApprovalAuthorityMatrixPanel = React.lazy(() => import('./components/ApprovalAuthorityMatrixPanel').then((module) => ({ default: module.ApprovalAuthorityMatrixPanel })));
+const PersonnelMasterPanel = React.lazy(() => import('./components/PersonnelMasterPanel').then((module) => ({ default: module.PersonnelMasterPanel })));
+const DataRetentionCenterPanel = React.lazy(() => import('./components/DataRetentionCenterPanel').then((module) => ({ default: module.DataRetentionCenterPanel })));
+const ConfigurationRegistryPanel = React.lazy(() => import('./components/ConfigurationRegistryPanel').then((module) => ({ default: module.ConfigurationRegistryPanel })));
+const NotificationCenterPanel = React.lazy(() => import('./components/NotificationCenterPanel').then((module) => ({ default: module.NotificationCenterPanel })));
+const RuleCheckingDataSurfaces = React.lazy(() => import('./components/RuleCheckingDataSurfaces').then((module) => ({ default: module.RuleCheckingDataSurfaces })));
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
@@ -2992,8 +2995,8 @@ function Dashboard() {
       />}
       <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}>
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
-      {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} />}
-      {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <EmployeeChangeReviewModal token={auth.token} initialRequestId={employeeChangeReviewInitialId} onClose={() => { setEmployeeChangeReviewOpen(false); setEmployeeChangeReviewInitialId(undefined); }} onChanged={() => { setEmployeeRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} />}
+      {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} /></React.Suspense>}
+      {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><EmployeeChangeReviewModal token={auth.token} initialRequestId={employeeChangeReviewInitialId} onClose={() => { setEmployeeChangeReviewOpen(false); setEmployeeChangeReviewInitialId(undefined); }} onChanged={() => { setEmployeeRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} /></React.Suspense>}
       {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({auth.user?.role}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนูหลัก" aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(false)} />}
       <aside id="app-navigation-drawer" className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} aria-label="เมนูหลัก">
@@ -3038,7 +3041,7 @@ function Dashboard() {
             </div>
           </>, document.body)}
         </header>
-        <div className="content-area">{content()}</div>
+        <div className="content-area"><React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้า…</div>}>{content()}</React.Suspense></div>
         {pwaShell && <nav className="pwa-bottom-nav" aria-label="เมนู PWA">
           <button type="button" className={activePage === 'attendance' ? 'active' : ''} onClick={() => selectPwaPage('attendance')}><SmsIcon name="clock" size={20} /><span>ลงเวลา</span></button>
           <button type="button" className={activePage === 'attendanceHistory' ? 'active' : ''} onClick={() => selectPwaPage('attendanceHistory')}><SmsIcon name="history" size={20} /><span>ประวัติ</span></button>
@@ -3048,7 +3051,7 @@ function Dashboard() {
         </nav>}
       </main>
     </div>
-    {passkeyPanelOpen && auth.token && <PasskeySecurityPanel token={auth.token} onClose={() => setPasskeyPanelOpen(false)} />}
+    {passkeyPanelOpen && auth.token && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><PasskeySecurityPanel token={auth.token} onClose={() => setPasskeyPanelOpen(false)} /></React.Suspense>}
     {printData && (
       <div className="print-only">
         {printData.printDepartments.length === 0 && (

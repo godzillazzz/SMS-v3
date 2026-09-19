@@ -9,7 +9,7 @@ describe('WAVE 4B Rule Checking responsive data surfaces', () => {
   const styles = read('./styles/data-surfaces.css');
 
   it('uses the shared responsive contract while keeping the KPI page and domain handlers in main', () => {
-    expect(main).toContain("import { RuleCheckingDataSurfaces } from './components/RuleCheckingDataSurfaces';");
+    expect(main).toContain("const RuleCheckingDataSurfaces = React.lazy(() => import('./components/RuleCheckingDataSurfaces')");
     expect(main).toContain('<RuleCheckingDataSurfaces rules={rules} results={results} violations={violations}');
     expect(main).toContain('handleOperationAction(row, action)');
     expect(component).toContain('ResponsiveDataTable');
