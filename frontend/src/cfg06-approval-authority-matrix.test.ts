@@ -18,7 +18,7 @@ describe('CFG-06 Approval Authority Matrix / SLA', () => {
   });
 
   it('places an Admin-only matrix in Configuration Center', () => {
-    expect(main).toContain("import { ApprovalAuthorityMatrixPanel }");
+    expect(main).toContain("const ApprovalAuthorityMatrixPanel = React.lazy(() => import('./components/ApprovalAuthorityMatrixPanel')");
     expect(main).toContain('<ApprovalAuthorityMatrixPanel token={token} />');
     expect(panel).toContain('Approval Authority Matrix / SLA');
     expect(panel).toContain('Admin-only ถูกล็อกโดยระบบ');

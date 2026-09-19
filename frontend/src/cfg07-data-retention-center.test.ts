@@ -10,7 +10,7 @@ const css = read('styles/configuration-center.css');
 
 describe('CFG-07 Data Retention Center', () => {
   it('mounts the governed Retention panel in Configuration Center', () => {
-    expect(main).toContain("import { DataRetentionCenterPanel }");
+    expect(main).toContain("const DataRetentionCenterPanel = React.lazy(() => import('./components/DataRetentionCenterPanel')");
     expect(main).toContain('<DataRetentionCenterPanel token={token} />');
     expect(panel).toContain('Data Retention Center / การเก็บรักษาข้อมูล');
     expect(panel).toContain('Asia/Bangkok');
