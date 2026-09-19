@@ -5,6 +5,7 @@ import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { approvalActionPresentation } from '../../approval-workflow-semantics';
 import { SmsIcon } from '../SmsIcon';
+import { useActionDialog } from '../useActionDialog';
 import { EmployeeReferencePhotoPanel } from './EmployeeReferencePhotoPanel';
 import type { PersonnelRecord, PersonnelRole } from './types';
 import '../../styles/employee-governed-edit.css';
@@ -81,6 +82,7 @@ const display = (field: string, value: unknown) => field === 'isActive' ? (value
 const errorCode = (error: unknown) => error instanceof ApiRequestError && error.details && typeof error.details === 'object' && 'code' in error.details ? String((error.details as { code?: unknown }).code || '') : '';
 
 export function EmployeeGovernedEditModal({ token, employee, role, onClose, onChanged }: Props) {
+  const actionDialog = useActionDialog();
   const modalRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const isAdmin = role === 'ADMIN';
@@ -242,7 +244,15 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
   };
 
   const cancelRequest = async () => {
-    if (!activeRequest || !window.confirm('ยืนยันยกเลิกคำขอแก้ไขนี้?')) return;
+    if (!activeRequest) return;
+    const confirmed = await actionDialog.confirm({
+      title: 'ยกเลิกคำขอแก้ไขพนักงาน',
+      message: 'คำขอนี้จะถูกยกเลิกตาม workflow เดิมและบันทึกเหตุการณ์ไว้ใน Audit โดยไม่แก้ไข Employee Master ปัจจุบัน',
+      context: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName} · Revision ${activeRequest.currentRevision || '—'}`,
+      confirmLabel: 'ยืนยันยกเลิกคำขอ',
+      tone: 'danger'
+    });
+    if (!confirmed) return;
     setBusy(true); setError(undefined);
     try { await api.cancelEmployeeChangeRequest(token, activeRequest.id, crypto.randomUUID()); await loadRequests(); onChanged(); }
     catch (cause) { setError(toRequestErrorState(cause, 'ยกเลิกคำขอไม่สำเร็จ')); }
@@ -318,5 +328,5 @@ export function EmployeeGovernedEditModal({ token, employee, role, onClose, onCh
       <footer className="employee-governed-actions"><div className="employee-action-summary" aria-live="polite"><strong>{changedFieldSummary.length ? 'กำลังเปลี่ยน ' + changedFieldSummary.length + ' รายการ' : 'ยังไม่มีการเปลี่ยนแปลง'}</strong><span>{changedFieldSummary.length ? changedFieldSummary.join(' · ') : 'เลือกการเปลี่ยนแปลงหรือแก้ไขข้อมูลที่ได้รับอนุญาตก่อนดำเนินการ'}</span>{changedFieldSummary.length > 0 && <small>{effectiveMode === 'FUTURE_EFFECTIVE' ? 'กำหนดมีผล ' + (cleanDate(effectiveDate) || 'ยังไม่ระบุวันที่') : 'มีผลทันที'} · {isAdmin ? 'Admin: preflight → confirm' : 'Manager: ส่งคำขอให้ Admin อนุมัติ'}</small>}</div><div className="employee-action-buttons"><button type="button" className="btn-neutral" onClick={onClose} disabled={busy}>ปิด</button>{isAdmin ? <><button type="button" className="btn-neutral" onClick={() => void runPreflight()} disabled={busy || !Object.keys(changes).length || criticalReasonMissing}>ตรวจสอบผลกระทบ</button><button type="button" className="btn-primary" onClick={() => void saveAdmin()} disabled={busy || !preflight || (preflight.warnings.length > 0 && !acknowledgeWarnings)}>บันทึกการแก้ไข</button></> : <>{activeRequest && activeStatuses.has(activeRequest.status) && <button type="button" className={cancelAction.className} onClick={() => void cancelRequest()} disabled={busy}>{cancelAction.label}</button>}{!pendingReadOnly && <button type="button" className={activeRequest?.status === 'RETURNED_FOR_CORRECTION' ? resubmitAction.className : 'btn-primary'} onClick={() => void submitManager()} disabled={busy || !Object.keys(changes).length || criticalReasonMissing}>{activeRequest?.status === 'RETURNED_FOR_CORRECTION' ? resubmitAction.label : 'ส่งคำขอแก้ไข'}</button>}</>}</div></footer>
     </section>
   </div>;
-  return createPortal(modal, document.body);
+  return <>{createPortal(modal, document.body)}{actionDialog.dialog}</>;
 }

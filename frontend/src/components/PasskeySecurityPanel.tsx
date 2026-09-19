@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { browserSupportsWebAuthn, startRegistration } from '@simplewebauthn/browser';
 import { api } from '../api';
 import { SmsIcon } from './SmsIcon';
+import { useActionDialog } from './useActionDialog';
 
 type PasskeyRecord = {
   id: string;
@@ -17,6 +18,7 @@ type Props = { token: string; onClose(): void };
 const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value)) : 'ยังไม่เคยใช้';
 
 export function PasskeySecurityPanel({ token, onClose }: Props) {
+  const actionDialog = useActionDialog();
   const [rows, setRows] = useState<PasskeyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -59,7 +61,17 @@ export function PasskeySecurityPanel({ token, onClose }: Props) {
   };
 
   const rename = async (row: PasskeyRecord) => {
-    const name = window.prompt('ตั้งชื่อ Passkey', row.displayName)?.trim();
+    const name = (await actionDialog.prompt({
+      title: 'เปลี่ยนชื่อ Passkey',
+      message: 'ตั้งชื่อที่ช่วยระบุอุปกรณ์หรือ Passkey นี้ได้ชัดเจน โดยไม่เปลี่ยน credential หรือสิทธิ์การเข้าสู่ระบบ',
+      context: row.displayName,
+      fieldLabel: 'ชื่อ Passkey',
+      initialValue: row.displayName,
+      maxLength: 120,
+      minLength: 1,
+      confirmLabel: 'บันทึกชื่อใหม่',
+      tone: 'primary'
+    }))?.trim();
     if (!name || name === row.displayName) return;
     setBusy(true); setError(undefined); setMessage(undefined);
     try { await api.renamePasskey(token, row.id, name); setMessage('เปลี่ยนชื่อ Passkey แล้ว'); await load(); }
@@ -79,7 +91,7 @@ export function PasskeySecurityPanel({ token, onClose }: Props) {
     finally { setBusy(false); }
   };
 
-  return <div className="passkey-panel-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+  return <><div className="passkey-panel-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
     <aside className="passkey-panel operational-drawer" role="dialog" aria-modal="true" aria-labelledby="passkey-panel-title">
       <header className="passkey-panel__header">
         <div><p>ACCOUNT SECURITY</p><h2 id="passkey-panel-title">การเข้าสู่ระบบและ Passkey</h2><span>จัดการวิธีเข้าสู่ระบบที่ผูกกับบัญชีนี้</span></div>
@@ -106,5 +118,5 @@ export function PasskeySecurityPanel({ token, onClose }: Props) {
         {error && <div className="alert alert-error" role="alert">{error}</div>}
       </div>
     </aside>
-  </div>;
+  </div>{actionDialog.dialog}</>;
 }
