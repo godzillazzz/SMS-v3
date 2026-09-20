@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatRequestErrorMessage } from '../request-error';
 import type { LeaveTypeMaster } from '../leave-type-client';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from './ResponsiveDataTable';
 
@@ -101,7 +102,7 @@ export function LeaveTypeMasterPanel({
       setCreateForm({ code: '', name: '', quotaBucket: 'NONE', isActive: true, sortOrder: 100 });
       setNotice('เพิ่ม Leave Type สำเร็จแล้ว');
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'เพิ่ม Leave Type ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'เพิ่ม Leave Type ไม่สำเร็จ'));
     } finally {
       setBusy(false);
     }
@@ -117,7 +118,7 @@ export function LeaveTypeMasterPanel({
       setEditingId(undefined);
       setEditForm({});
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'บันทึก Leave Type ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'บันทึก Leave Type ไม่สำเร็จ'));
     } finally {
       setBusy(false);
     }

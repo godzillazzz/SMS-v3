@@ -40,6 +40,11 @@ export function normalizeRequestErrorInput(error: RequestErrorInput, fallback = 
   return requestId ? { message, requestId } : { message };
 }
 
+export function formatRequestErrorMessage(reason: unknown, fallback = defaultMessage) {
+  const state = toRequestErrorState(reason, fallback);
+  return state.requestId ? `${state.message} · รหัสอ้างอิง: ${state.requestId}` : state.message;
+}
+
 export async function copyRequestId(requestId: unknown, button?: HTMLButtonElement | null) {
   const safeRequestId = normalizeRequestId(requestId);
   if (!safeRequestId || !globalThis.navigator?.clipboard?.writeText) return false;

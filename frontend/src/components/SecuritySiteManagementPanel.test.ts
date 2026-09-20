@@ -17,7 +17,8 @@ describe('Security Site Admin token role gate', () => {
   });
 
   it('uses the shared authenticated API client instead of component fetch logic', () => {
-    expect(panelSource).toContain("import { ApiRequestError, api } from '../api';");
+    expect(panelSource).toContain("import { api } from '../api';");
+    expect(panelSource).toContain("import { formatRequestErrorMessage } from '../request-error';");
     expect(panelSource).toContain('securitySiteOperations.list(token)');
     expect(panelSource).toContain('securitySiteOperations.rotateQr(token, site.id, qrReason.trim())');
     expect(panelSource).not.toContain('async function adminRequest');

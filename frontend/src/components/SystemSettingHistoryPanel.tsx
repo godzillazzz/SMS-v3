@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatRequestErrorMessage } from '../request-error';
 import { systemSettingHistoryClient, type SettingHistoryData } from './system-setting-history-client';
 import { useActionDialog } from './useActionDialog';
 
@@ -23,7 +24,7 @@ export function SystemSettingHistoryPanel({ token, settings, onRestored }: Props
     try {
       setData(await systemSettingHistoryClient.get(token, key));
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'โหลดประวัติไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'โหลดประวัติไม่สำเร็จ'));
     } finally {
       setBusy(false);
     }
@@ -53,7 +54,7 @@ export function SystemSettingHistoryPanel({ token, settings, onRestored }: Props
       onRestored();
       setNotice('Restore สำเร็จและบันทึก Audit ใหม่แล้ว');
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Restore ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'Restore ไม่สำเร็จ'));
     } finally {
       setBusy(false);
     }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { browserSupportsWebAuthn, startRegistration } from '@simplewebauthn/browser';
 import { api } from '../api';
+import { formatRequestErrorMessage } from '../request-error';
 import { SmsIcon } from './SmsIcon';
 import { useActionDialog } from './useActionDialog';
 
@@ -34,7 +35,7 @@ export function PasskeySecurityPanel({ token, onClose }: Props) {
     setLoading(true);
     setError(undefined);
     try { setRows((await api.passkeys(token)).data || []); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'ไม่สามารถโหลด Passkey ได้'); }
+    catch (reason) { setError(formatRequestErrorMessage(reason, 'ไม่สามารถโหลด Passkey ได้')); }
     finally { setLoading(false); }
   };
 
@@ -56,7 +57,7 @@ export function PasskeySecurityPanel({ token, onClose }: Props) {
       setCurrentPassword('');
       setMessage('เพิ่ม Passkey สำเร็จ อุปกรณ์จะเป็นผู้ยืนยัน Face ID, ลายนิ้วมือ, Windows Hello หรือ PIN ตามที่รองรับ');
       await load();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'เพิ่ม Passkey ไม่สำเร็จ'); }
+    } catch (reason) { setError(formatRequestErrorMessage(reason, 'เพิ่ม Passkey ไม่สำเร็จ')); }
     finally { setBusy(false); }
   };
 
@@ -75,7 +76,7 @@ export function PasskeySecurityPanel({ token, onClose }: Props) {
     if (!name || name === row.displayName) return;
     setBusy(true); setError(undefined); setMessage(undefined);
     try { await api.renamePasskey(token, row.id, name); setMessage('เปลี่ยนชื่อ Passkey แล้ว'); await load(); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'เปลี่ยนชื่อ Passkey ไม่สำเร็จ'); }
+    catch (reason) { setError(formatRequestErrorMessage(reason, 'เปลี่ยนชื่อ Passkey ไม่สำเร็จ')); }
     finally { setBusy(false); }
   };
 
@@ -87,7 +88,7 @@ export function PasskeySecurityPanel({ token, onClose }: Props) {
       setMessage(`ยกเลิก ${revokeTarget.displayName} แล้ว`);
       setRevokeTarget(undefined); setRevokePassword('');
       await load();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'ยกเลิก Passkey ไม่สำเร็จ'); }
+    } catch (reason) { setError(formatRequestErrorMessage(reason, 'ยกเลิก Passkey ไม่สำเร็จ')); }
     finally { setBusy(false); }
   };
 

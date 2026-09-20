@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../api';
+import { formatRequestErrorMessage } from '../../request-error';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { SmsIcon } from '../../components/SmsIcon';
 import { DataTablePagination } from '../../components/ResponsiveDataTable';
@@ -93,7 +94,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
       if (page > nextTotalPages) { setPage(nextTotalPages); return; }
       setRows(next);
       setSelectedId((current) => next.some((row) => row.id === current) ? current : next[0]?.id || '');
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'โหลดคำขอลงทะเบียนไม่สำเร็จ'); }
+    } catch (reason) { setError(formatRequestErrorMessage(reason, 'โหลดคำขอลงทะเบียนไม่สำเร็จ')); }
     finally { setLoading(false); }
   };
 
@@ -106,7 +107,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
       const result = await api.registrationCandidates(token, selected.id, manual ? search.trim() : '');
       setCandidates(Array.isArray(result?.data) ? result.data : []);
       setMatchState(String(result?.meta?.employeeMatchState || ''));
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'ค้นหา Employee Master ไม่สำเร็จ'); }
+    } catch (reason) { setError(formatRequestErrorMessage(reason, 'ค้นหา Employee Master ไม่สำเร็จ')); }
     finally { setCandidateLoading(false); }
   };
 
@@ -140,14 +141,14 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
     if (!selected) return;
     setBusy(true); setError(''); setMessage('');
     try { await api.matchRegistrationRequest(token, selected.id, employeeId); setMessage('จับคู่ Employee Master แล้ว'); setSelectedCandidateId(''); await load(); onChanged(); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'จับคู่ไม่สำเร็จ'); }
+    catch (reason) { setError(formatRequestErrorMessage(reason, 'จับคู่ไม่สำเร็จ')); }
     finally { setBusy(false); }
   };
   const approve = async () => {
     if (!selected) return;
     setBusy(true); setError(''); setMessage('');
     try { await api.approveRegistrationRequest(token, selected.id); setMessage('อนุมัติบัญชีแล้ว — สิทธิ์เริ่มต้น VIEWER'); await load(); onChanged(); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'อนุมัติไม่สำเร็จ'); }
+    catch (reason) { setError(formatRequestErrorMessage(reason, 'อนุมัติไม่สำเร็จ')); }
     finally { setBusy(false); }
   };
   const openReject = (trigger: HTMLButtonElement) => {
@@ -162,7 +163,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
     if (reason.length < 3) { setRejectValidation('กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษร'); rejectTextareaRef.current?.focus(); return; }
     setBusy(true); setError(''); setMessage('');
     try { await api.rejectRegistrationRequest(token, selected.id, reason); setMessage('บันทึกการไม่อนุมัติแล้ว'); setRejectOpen(false); setRejectReason(''); setRejectValidation(''); await load(); onChanged(); window.setTimeout(() => rejectTriggerRef.current?.focus(), 0); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'ไม่สามารถบันทึกได้'); }
+    catch (cause) { setError(formatRequestErrorMessage(cause, 'ไม่สามารถบันทึกได้')); }
     finally { setBusy(false); }
   };
 

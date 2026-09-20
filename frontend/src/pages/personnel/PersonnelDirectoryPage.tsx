@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api';
+import { formatRequestErrorMessage } from '../../request-error';
 import { PersonnelDetailDrawer } from '../../components/personnel/PersonnelDetailDrawer';
 import { PersonnelDirectoryHeader } from '../../components/personnel/PersonnelDirectoryHeader';
 import { PersonnelMetricCard } from '../../components/personnel/PersonnelMetricCard';
@@ -98,7 +99,7 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
     }).catch((reason) => {
       if (!active) return;
       setEmployees([]);
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านข้อมูลพนักงานได้');
+      setError(formatRequestErrorMessage(reason, 'ไม่สามารถอ่านข้อมูลพนักงานได้'));
     }).finally(() => {
       if (active) setLoading(false);
     });

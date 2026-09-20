@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatRequestErrorMessage } from '../request-error';
 import { defaultLeavePolicy, leavePolicyKeys, type LeavePolicyForm } from './leave-policy-contract';
 export { defaultLeavePolicy, leavePolicyKeys, type LeavePolicyForm } from './leave-policy-contract';
 
@@ -50,7 +51,7 @@ export function LeavePolicySettingsCard({ settings, onSave, onRefresh }: {
       await onSave(form);
       setNotice('บันทึกนโยบายการลาสำเร็จแล้ว');
     } catch (reason) {
-      setNotice(reason instanceof Error ? reason.message : 'บันทึกนโยบายการลาไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(reason, 'บันทึกนโยบายการลาไม่สำเร็จ'));
     } finally {
       setSaving(false);
     }

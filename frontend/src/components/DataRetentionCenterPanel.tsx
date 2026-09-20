@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { formatRequestErrorMessage } from '../request-error';
 import {
   cancelRetentionChange,
   createRetentionChange,
@@ -64,7 +65,7 @@ export function DataRetentionCenterPanel({ token }: { token: string }) {
       setCleanupAck(false);
       if (!next.pendingChange) { setShowCancel(false); setCancelReason(''); }
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'อ่าน Data Retention policy ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'อ่าน Data Retention policy ไม่สำเร็จ'));
     } finally {
       setLoading(false);
     }
@@ -93,7 +94,7 @@ export function DataRetentionCenterPanel({ token }: { token: string }) {
       setPreview(result.data as RetentionPreview);
       setAckImpact(false);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'ตรวจสอบผลกระทบไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'ตรวจสอบผลกระทบไม่สำเร็จ'));
     } finally { setBusy(''); }
   };
 
@@ -114,7 +115,7 @@ export function DataRetentionCenterPanel({ token }: { token: string }) {
       setReason('');
       await load({ preserveNotice: true });
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'บันทึก Retention policy ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'บันทึก Retention policy ไม่สำเร็จ'));
     } finally { setBusy(''); }
   };
 
@@ -127,7 +128,7 @@ export function DataRetentionCenterPanel({ token }: { token: string }) {
       setShowCancel(false); setCancelReason('');
       await load({ preserveNotice: true });
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'ยกเลิก Retention change ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'ยกเลิก Retention change ไม่สำเร็จ'));
     } finally { setBusy(''); }
   };
 
@@ -140,7 +141,7 @@ export function DataRetentionCenterPanel({ token }: { token: string }) {
       setNotice(`Cleanup จบแล้ว · สถานะ ${status}`);
       await load({ preserveNotice: true });
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'รัน Data Retention cleanup ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'รัน Data Retention cleanup ไม่สำเร็จ'));
     } finally { setBusy(''); }
   };
 

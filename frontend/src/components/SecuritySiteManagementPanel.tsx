@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ApiRequestError, api } from '../api';
+import { api } from '../api';
+import { formatRequestErrorMessage } from '../request-error';
 import { securitySiteOperations } from './security-site-operations-client';
 import { SecuritySiteMapPicker } from './SecuritySiteMapPicker';
 import { useActionDialog } from './useActionDialog';
@@ -56,7 +57,7 @@ function displayDate(value?: string | null) {
 }
 
 function requestErrorMessage(reason: unknown, fallback: string) {
-  return reason instanceof ApiRequestError || reason instanceof Error ? reason.message : fallback;
+  return formatRequestErrorMessage(reason, fallback);
 }
 
 type GeneratedQr = {

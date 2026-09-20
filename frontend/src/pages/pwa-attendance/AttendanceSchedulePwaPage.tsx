@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatRequestErrorMessage } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
 import { attendanceSelfSchedule, type AttendanceSelfScheduleData } from '../attendance/attendance-client';
 import './employee-attendance-v4.css';
@@ -58,7 +59,7 @@ export function AttendanceSchedulePwaPage({ token, online }: Props) {
     setError(undefined);
     attendanceSelfSchedule(token, month)
       .then((result) => { if (active) setData(result); })
-      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตารางงานได้'); })
+      .catch((reason) => { if (active) setError(formatRequestErrorMessage(reason, 'ไม่สามารถอ่านตารางงานได้')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [month, online, token]);

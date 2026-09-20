@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatRequestErrorMessage } from '../../request-error';
 import { DataRowActionMenu, type DataRowAction } from '../../components/DataRowActionMenu';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { useAccessibleOverlay } from '../../components/useAccessibleOverlay';
@@ -167,7 +168,7 @@ export function AccessManagementPage({ rows, loading, error, role, originalUserI
     setTarget(account); setDepartment(account.department || ''); setSelectedRole(account.role || 'VIEWER'); setSelectedStatus(account.accountStatus || 'ACTIVE'); setSelectedActive(Boolean(account.isActive)); setPassword(''); setShowPassword(false); setMutationError(undefined); setDialog(next);
   };
   const closeDialog = () => { setDialog(undefined); setTarget(undefined); setMutationError(undefined); setShowPassword(false); window.setTimeout(() => dialogTriggerRef.current?.focus(), 0); };
-  const run = async (action: () => Promise<unknown>, success: string) => { setBusy(true); setMutationError(undefined); try { await action(); setNotice(success); closeDialog(); closeDetails(); } catch (reason) { setMutationError(reason instanceof Error ? reason.message : 'ไม่สามารถดำเนินการได้'); } finally { setBusy(false); } };
+  const run = async (action: () => Promise<unknown>, success: string) => { setBusy(true); setMutationError(undefined); try { await action(); setNotice(success); closeDialog(); closeDetails(); } catch (reason) { setMutationError(formatRequestErrorMessage(reason, 'ไม่สามารถดำเนินการได้')); } finally { setBusy(false); } };
   const saveEdit = () => {
     if (!target) return;
     const roleReduced = target.role === 'ADMIN' && selectedRole !== 'ADMIN';

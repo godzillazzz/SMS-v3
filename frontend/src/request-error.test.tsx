@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ApiRequestError } from './api';
-import { RequestErrorContent, RequestErrorReference, copyRequestId, toRequestErrorState } from './request-error';
+import { RequestErrorContent, RequestErrorReference, copyRequestId, formatRequestErrorMessage, toRequestErrorState } from './request-error';
 
 describe('request error reference UI', () => {
   it('renders the visible reference label, selectable text, and copy control when requestId exists', () => {
@@ -56,6 +56,12 @@ describe('request error reference UI', () => {
     expect(html).toContain('ระบบไม่สามารถดำเนินการได้ชั่วคราว');
     expect(html).toContain('req-safe-internals');
     for (const value of ['private-stack', databaseUrl, 'SELECT secret', 'private-token', 'private/object']) expect(html).not.toContain(value);
+  });
+
+  it('formats a supportable inline message with a safe request ID for legacy string surfaces', () => {
+    expect(formatRequestErrorMessage(new ApiRequestError('บันทึกไม่สำเร็จ กรุณาลองใหม่', 503, 'req-inline-503'), 'fallback')).toBe('บันทึกไม่สำเร็จ กรุณาลองใหม่ · รหัสอ้างอิง: req-inline-503');
+    expect(formatRequestErrorMessage(new ApiRequestError('Internal server error. Prisma SQL token=secret', 500, 'req-inline-safe'), 'ลองใหม่ภายหลัง')).toBe('ลองใหม่ภายหลัง · รหัสอ้างอิง: req-inline-safe');
+    expect(formatRequestErrorMessage(new Error('ข้อความจากอุปกรณ์'), 'fallback')).toBe('ข้อความจากอุปกรณ์');
   });
 
   it('surfaces only a safe message and request ID for technical server errors', () => {
