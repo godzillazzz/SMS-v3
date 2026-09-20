@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SmsIcon } from '../../components/SmsIcon';
+import { formatRequestErrorMessage } from '../../request-error';
 import type { AttendanceActiveChallenge } from './attendance-client';
 import { ATTACHMENT_POLICIES, canvasToOptimizedJpeg } from '../../lib/attachment-optimizer';
 
@@ -50,7 +51,7 @@ function cameraErrorMessage(reason: unknown) {
   if (name === 'NotAllowedError' || name === 'SecurityError') return 'ไม่ได้รับสิทธิ์กล้องหน้า กรุณาอนุญาต Camera สำหรับเว็บไซต์นี้';
   if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'ไม่พบกล้องหน้าที่พร้อมใช้งานบนอุปกรณ์นี้';
   if (name === 'NotReadableError') return 'กล้องกำลังถูกใช้งานโดยแอปอื่น กรุณาปิดแอปกล้องแล้วลองใหม่';
-  return reason instanceof Error ? reason.message : 'ไม่สามารถเปิดกล้องหน้าได้';
+  return formatRequestErrorMessage(reason, 'ไม่สามารถเปิดกล้องหน้าได้');
 }
 
 function sleep(milliseconds: number) {
@@ -257,7 +258,7 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
       if (autoFlow) {
         try { await onConfirm({ photo: finalPhoto, challengeFrames: [...frames] }); }
         catch (reason) {
-          const message = reason instanceof Error ? reason.message : 'ไม่สามารถตรวจ Active Challenge และใบหน้าได้';
+          const message = formatRequestErrorMessage(reason, 'ไม่สามารถตรวจ Active Challenge และใบหน้าได้');
           setError(message);
           onFailure?.(message);
           onCloseRef.current();
@@ -276,7 +277,7 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
       setPreviewUrl(nextUrl);
     } catch (reason) {
       if (sequenceEpoch !== captureSequenceEpochRef.current) return;
-      const message = reason instanceof Error ? reason.message : 'ไม่สามารถเก็บลำดับภาพ Active Challenge ได้';
+      const message = formatRequestErrorMessage(reason, 'ไม่สามารถเก็บลำดับภาพ Active Challenge ได้');
       setError(message);
       clearCapturedEvidence();
       if (autoFlow) { onFailure?.(message); onCloseRef.current(); }
@@ -320,7 +321,7 @@ export function AttendanceFaceCapture({ open, busy = false, challenge, rehearsal
     try {
       await onConfirm({ photo, challengeFrames: [...challengeFrames] });
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : rehearsalOnly ? 'ไม่สามารถส่งชุดภาพ Active Challenge UAT ได้' : 'ไม่สามารถตรวจ Active Challenge และใบหน้าได้');
+      setError(formatRequestErrorMessage(reason, rehearsalOnly ? 'ไม่สามารถส่งชุดภาพ Active Challenge UAT ได้' : 'ไม่สามารถตรวจ Active Challenge และใบหน้าได้'));
     }
   };
 

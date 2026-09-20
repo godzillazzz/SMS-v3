@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatRequestErrorMessage } from '../../request-error';
 
 export type G06UatProvisionResult = {
   created: boolean;
@@ -43,7 +44,7 @@ export function G06UatProvisioningPanel({ onProvision }: Props) {
     try {
       setResult(await onProvision());
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถสร้าง Preview UAT fixture ได้');
+      setError(formatRequestErrorMessage(reason, 'ไม่สามารถสร้าง Preview UAT fixture ได้'));
     } finally {
       setBusy(false);
     }

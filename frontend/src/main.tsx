@@ -20,7 +20,7 @@ import { createLeaveType, getLeaveTypes, updateLeaveType, type LeaveTypeMaster }
 import { getShiftTypes } from './shift-type-client';
 import { describePattern, getAutoSchedulePatterns, type AutoSchedulePattern } from './auto-schedule-pattern-client';
 import { setAttendanceTokenRefreshGuard, setAttendanceTokenRefreshHandler } from './attendance-auth-request';
-import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from './request-error';
+import { RequestErrorContent, formatRequestErrorMessage, toRequestErrorState, type RequestErrorInput } from './request-error';
 import { acquireDocumentScrollLock } from './document-scroll-lock';
 import { buildLeaveQuotaProvisioningPayload, canProvisionLeaveQuota, currentBangkokQuotaYear, hasUnmatchedLegacyQuota, leaveQuotaDefaultsFromPolicy, quotaProvisioningEmployeeOptions, thaiQuotaYearLabel } from './leave-quota-provisioning';
 import { printScheduleDocument } from './schedule-print';
@@ -202,7 +202,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(result.user);
       setViewAs(undefined);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถเข้าสู่ระบบได้');
+      setError(formatRequestErrorMessage(reason, 'ไม่สามารถเข้าสู่ระบบได้'));
       throw reason;
     }
   };
@@ -218,7 +218,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(result.user);
       setViewAs(undefined);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้');
+      setError(formatRequestErrorMessage(reason, 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้'));
       throw reason;
     }
   };
@@ -305,7 +305,7 @@ function Login() {
   const signInWithPasskey = async () => {
     setFormError(undefined); setFormMessage(undefined); setBusy(true);
     try { await auth.passkeyLogin(); }
-    catch (reason) { setFormError(reason instanceof Error ? reason.message : 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้'); }
+    catch (reason) { setFormError(formatRequestErrorMessage(reason, 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้')); }
     finally { setBusy(false); }
   };
 
@@ -322,7 +322,7 @@ function Login() {
     const status = typeof reason === 'object' && reason && 'status' in reason ? Number((reason as { status?: unknown }).status) : 0;
     if (status === 429) return 'ส่งรหัสยืนยันบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่';
     if (status === 503) return 'ไม่สามารถส่งรหัสยืนยันได้ในขณะนี้ กรุณาลองใหม่ภายหลัง';
-    return reason instanceof Error ? reason.message : 'ไม่สามารถดำเนินการได้';
+    return formatRequestErrorMessage(reason, 'ไม่สามารถดำเนินการได้');
   };
 
   const requestRegistrationCode = async (isResend = false) => {
@@ -359,7 +359,7 @@ function Login() {
         const result = await api.completePasswordReset(email, code, password); resetView('login'); setPassword(''); setFormMessage(result.message);
       }
     } catch (reason) {
-      setFormError((mode === 'register' || mode === 'registerVerify') ? registrationErrorMessage(reason) : (reason instanceof Error ? reason.message : 'ไม่สามารถดำเนินการได้'));
+      setFormError((mode === 'register' || mode === 'registerVerify') ? registrationErrorMessage(reason) : formatRequestErrorMessage(reason, 'ไม่สามารถดำเนินการได้'));
     }
     finally { setBusy(false); }
   };
@@ -679,7 +679,7 @@ function EmployeeMagicWandModal({
         if (!active) return;
         setPatterns([]);
         setPatternType('');
-        setPatternLoadError(error instanceof Error ? error.message : 'อ่าน Auto Schedule Pattern ไม่สำเร็จ');
+        setPatternLoadError(formatRequestErrorMessage(error, 'อ่าน Auto Schedule Pattern ไม่สำเร็จ'));
       });
     return () => { active = false; };
   }, [token, isSupervisorTarget]);
@@ -700,7 +700,7 @@ function EmployeeMagicWandModal({
       })
       .catch((error) => {
         if (!active) return;
-        setAnalysisText(error instanceof Error ? error.message : 'วิเคราะห์ Phase จากประวัติไม่สำเร็จ');
+        setAnalysisText(formatRequestErrorMessage(error, 'วิเคราะห์ Phase จากประวัติไม่สำเร็จ'));
       });
     return () => { active = false; };
   }, [token, scheduleMonth, target.id, patternType, selectedPattern?.mode]);
@@ -1062,7 +1062,7 @@ function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading,
   const saveTemplates = async () => {
     setSaving(true); setNotice(undefined);
     try { await onSaveTemplates(newLeaveTemplate, leaveStatusTemplate); setNotice('บันทึกเทมเพลตการแจ้งเตือนสำเร็จแล้ว'); }
-    catch (reason) { setNotice(reason instanceof Error ? reason.message : 'บันทึกเทมเพลตไม่สำเร็จ'); }
+    catch (reason) { setNotice(formatRequestErrorMessage(reason, 'บันทึกเทมเพลตไม่สำเร็จ')); }
     finally { setSaving(false); }
   };
   return <section className="view-pane settings-page">

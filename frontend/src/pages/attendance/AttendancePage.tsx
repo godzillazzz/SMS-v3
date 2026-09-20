@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
+import { formatRequestErrorMessage } from '../../request-error';
 import { useAccessibleOverlay } from '../../components/useAccessibleOverlay';
 import {
   AttendanceFlowError,
@@ -521,7 +522,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         setError(reason.message);
       } else {
         setVerificationStage('Face Verification เริ่มไม่สำเร็จ');
-        setError(reason instanceof Error ? reason.message : 'ไม่สามารถเริ่ม Face Verification ได้');
+        setError(formatRequestErrorMessage(reason, 'ไม่สามารถเริ่ม Face Verification ได้'));
       }
     } finally {
       if (operationEpoch === asyncEvidenceEpochRef.current) setVerificationBusy(false);
@@ -563,7 +564,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     }
     locationRecoveryPendingRef.current = false;
     setLocationIssue(null);
-    setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านตำแหน่งได้');
+    setError(formatRequestErrorMessage(reason, 'ไม่สามารถอ่านตำแหน่งได้'));
   };
 
   const retryLocationForActiveAttempt = async () => {
@@ -848,7 +849,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         setRequestId(reason.requestId);
         setError(reason.message);
       } else {
-        setError(reason instanceof Error ? reason.message : 'ไม่สามารถตรวจใบหน้าหรือบันทึกเวลาได้');
+        setError(formatRequestErrorMessage(reason, 'ไม่สามารถตรวจใบหน้าหรือบันทึกเวลาได้'));
       }
       throw reason;
     } finally {

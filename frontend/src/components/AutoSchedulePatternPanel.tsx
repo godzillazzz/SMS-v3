@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { formatRequestErrorMessage } from '../request-error';
 import {
   createAutoSchedulePattern,
   describePattern,
@@ -68,7 +69,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
       setShiftCodes([...new Set(codes)]);
     } catch (error) {
       setLoadError(true);
-      setNotice(error instanceof Error ? error.message : 'อ่าน Auto Schedule Pattern Master ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'อ่าน Auto Schedule Pattern Master ไม่สำเร็จ'));
     } finally {
       setLoading(false);
     }
@@ -173,7 +174,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
       setNotice('เพิ่ม Auto Schedule Pattern สำเร็จแล้ว');
       await load();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'เพิ่ม Auto Schedule Pattern ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'เพิ่ม Auto Schedule Pattern ไม่สำเร็จ'));
     } finally {
       setBusy(false);
     }
@@ -201,7 +202,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
       setNotice('บันทึก Auto Schedule Pattern สำเร็จแล้ว');
       await load();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'บันทึก Auto Schedule Pattern ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'บันทึก Auto Schedule Pattern ไม่สำเร็จ'));
     } finally {
       setBusy(false);
     }

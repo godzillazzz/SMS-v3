@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
+import { formatRequestErrorMessage } from '../request-error';
 import {
   getApprovalPolicies,
   updateApprovalPolicy,
@@ -45,7 +46,7 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
       setItems(policies);
       setDrafts(Object.fromEntries(policies.map((policy) => [policy.requestType, clonePolicy(policy)])));
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'อ่าน Approval Authority Matrix ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'อ่าน Approval Authority Matrix ไม่สำเร็จ'));
     } finally {
       setLoading(false);
     }
@@ -77,7 +78,7 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
       setNotice(`บันทึกนโยบาย ${draft.label} สำเร็จแล้ว`);
       await load();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'บันทึก Approval policy ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(error, 'บันทึก Approval policy ไม่สำเร็จ'));
     } finally {
       setBusyType('');
     }

@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import { ApiRequestError, normalizeRequestId } from './api';
+import { normalizeRequestId } from './api';
 
 export type RequestErrorState = {
   message: string;
@@ -26,7 +26,7 @@ export function toRequestErrorState(reason: unknown, fallback = defaultMessage):
   }
   if (reason instanceof Error) {
     const message = safeUserErrorMessage(reason.message, fallback);
-    const requestId = reason instanceof ApiRequestError ? normalizeRequestId(reason.requestId) : undefined;
+    const requestId = normalizeRequestId((reason as Error & { requestId?: unknown }).requestId);
     return requestId ? { message, requestId } : { message };
   }
   return { message: fallback };
@@ -38,6 +38,11 @@ export function normalizeRequestErrorInput(error: RequestErrorInput, fallback = 
   const message = safeUserErrorMessage(error.message, fallback);
   const requestId = normalizeRequestId(error.requestId);
   return requestId ? { message, requestId } : { message };
+}
+
+export function formatRequestErrorMessage(reason: unknown, fallback = defaultMessage) {
+  const state = toRequestErrorState(reason, fallback);
+  return state.requestId ? `${state.message} · รหัสอ้างอิง: ${state.requestId}` : state.message;
 }
 
 export async function copyRequestId(requestId: unknown, button?: HTMLButtonElement | null) {

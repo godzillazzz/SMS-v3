@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatRequestErrorMessage } from '../../request-error';
 import { getSystemHealth } from '../../system-health-client';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
 import { SmsIcon } from '../../components/SmsIcon';
@@ -113,7 +114,7 @@ export function SystemHealthPage({ token }: { token: string }) {
         if (active) setData(response?.data as SystemHealth);
       })
       .catch((cause) => {
-        if (active) setError(cause instanceof Error ? cause.message : 'ไม่สามารถอ่านสถานะระบบได้');
+        if (active) setError(formatRequestErrorMessage(cause, 'ไม่สามารถอ่านสถานะระบบได้'));
       })
       .finally(() => {
         if (active) setLoading(false);

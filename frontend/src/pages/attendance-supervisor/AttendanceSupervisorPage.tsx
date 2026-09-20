@@ -1,6 +1,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api, type SecuritySite } from '../../api';
+import { formatRequestErrorMessage } from '../../request-error';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import { useAccessibleOverlay } from '../../components/useAccessibleOverlay';
 import {
@@ -506,7 +507,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
         else setHistory(response.data as HistoryData);
       })
       .catch((reason) => {
-        if (active) setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านแดชบอร์ดการลงเวลาได้');
+        if (active) setError(formatRequestErrorMessage(reason, 'ไม่สามารถอ่านแดชบอร์ดการลงเวลาได้'));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -545,7 +546,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
         setRequestMeta(response.meta || { page: requestPage, pageSize: 25, total: 0, totalPages: 1 });
       })
       .catch((reason) => {
-        if (active) setRequestError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านคิวคำขอ Attendance ได้');
+        if (active) setRequestError(formatRequestErrorMessage(reason, 'ไม่สามารถอ่านคิวคำขอ Attendance ได้'));
       })
       .finally(() => {
         if (active) setRequestLoading(false);
@@ -584,7 +585,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
         setDetailRequests(Array.isArray(requestResult.value.data) ? requestResult.value.data : []);
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านรายละเอียด Attendance ได้');
+      setError(formatRequestErrorMessage(reason, 'ไม่สามารถอ่านรายละเอียด Attendance ได้'));
     } finally {
       setDetailLoading(false);
     }
@@ -597,7 +598,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
       if (!url) throw new Error('ไม่พบ URL หลักฐานภาพ');
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'ไม่สามารถเปิดหลักฐานภาพ Attendance ได้');
+      setError(formatRequestErrorMessage(reason, 'ไม่สามารถเปิดหลักฐานภาพ Attendance ได้'));
     }
   };
 
@@ -679,7 +680,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           setMode('requests');
           setRequestStatus('APPROVED');
         } catch (approvalReason) {
-          setRequestNotice(`สร้างคำขอแล้ว แต่การอนุมัติอัตโนมัติไม่สำเร็จ: ${approvalReason instanceof Error ? approvalReason.message : 'กรุณาตรวจคิวอนุมัติ'}`);
+          setRequestNotice(`สร้างคำขอแล้ว แต่การอนุมัติอัตโนมัติไม่สำเร็จ: ${formatRequestErrorMessage(approvalReason, 'กรุณาตรวจคิวอนุมัติ')}`);
           setMode('requests');
           setRequestStatus('PENDING_APPROVAL');
         }
@@ -694,7 +695,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
       setManualDialog(undefined);
       refresh();
     } catch (reason) {
-      setWorkflowError(reason instanceof Error ? reason.message : 'บันทึกยืนยันปฏิบัติงานย้อนหลังไม่สำเร็จ');
+      setWorkflowError(formatRequestErrorMessage(reason, 'บันทึกยืนยันปฏิบัติงานย้อนหลังไม่สำเร็จ'));
     } finally {
       setWorkflowBusy(false);
     }
@@ -796,7 +797,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
       setRequestStatus('PENDING_APPROVAL');
       refresh();
     } catch (reason) {
-      setWorkflowError(reason instanceof Error ? reason.message : 'ส่งคำขอแก้ไข Attendance ไม่สำเร็จ');
+      setWorkflowError(formatRequestErrorMessage(reason, 'ส่งคำขอแก้ไข Attendance ไม่สำเร็จ'));
     } finally {
       setWorkflowBusy(false);
     }
@@ -825,7 +826,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
       setReviewDialog(undefined);
       refresh();
     } catch (reason) {
-      setWorkflowError(reason instanceof Error ? reason.message : 'ดำเนินการคำขอ Attendance ไม่สำเร็จ');
+      setWorkflowError(formatRequestErrorMessage(reason, 'ดำเนินการคำขอ Attendance ไม่สำเร็จ'));
     } finally {
       setWorkflowBusy(false);
     }

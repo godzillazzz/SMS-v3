@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatRequestErrorMessage } from '../request-error';
 import { attendancePolicyKeys, defaultAttendancePolicy, type AttendancePolicyForm } from './attendance-policy-contract';
 export { attendancePolicyKeys, defaultAttendancePolicy, type AttendancePolicyForm } from './attendance-policy-contract';
 
@@ -60,7 +61,7 @@ export function AttendancePolicySettingsCard({ settings, onSave, onRefresh }: {
       await onSave(form);
       setNotice('บันทึก Attendance Policy สำเร็จแล้ว');
     } catch (reason) {
-      setNotice(reason instanceof Error ? reason.message : 'บันทึก Attendance Policy ไม่สำเร็จ');
+      setNotice(formatRequestErrorMessage(reason, 'บันทึก Attendance Policy ไม่สำเร็จ'));
     } finally { setSaving(false); }
   };
 

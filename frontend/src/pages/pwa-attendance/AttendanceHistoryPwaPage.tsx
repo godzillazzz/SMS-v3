@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatRequestErrorMessage } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
 import { activateTabFromKeyboard } from '../../components/AccessibleTabs';
 import { attendanceSelfHistory, type AttendanceSelfHistoryData, type AttendanceSelfRow } from '../attendance/attendance-client';
@@ -80,7 +81,7 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
     setError(undefined);
     attendanceSelfHistory(token, selected)
       .then((result) => { if (active) setData(result); })
-      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'ไม่สามารถอ่านประวัติได้'); })
+      .catch((reason) => { if (active) setError(formatRequestErrorMessage(reason, 'ไม่สามารถอ่านประวัติได้')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [online, range, selected.from, selected.to, token]);

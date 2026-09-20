@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
+import { formatRequestErrorMessage } from '../../request-error';
 import {
-  AttendanceFlowError,
   attendanceFaceChallengeUatCapture,
   attendanceFaceChallengeUatStart,
   type AttendanceActiveChallenge
@@ -62,8 +62,7 @@ export function AttendanceFaceChallengeUatPanel({ token, online, readOnly }: Pro
       setAttempt({ attemptId: started.attemptId, activeChallenge: started.activeChallenge });
       setCameraOpen(true);
     } catch (reason) {
-      if (reason instanceof AttendanceFlowError) setError(reason.message);
-      else setError(reason instanceof Error ? reason.message : 'ไม่สามารถเริ่ม Active Challenge UAT ได้');
+      setError(formatRequestErrorMessage(reason, 'ไม่สามารถเริ่ม Active Challenge UAT ได้'));
     } finally {
       setBusy(false);
     }
@@ -91,12 +90,7 @@ export function AttendanceFaceChallengeUatPanel({ token, online, readOnly }: Pro
       setAttempt(null);
       setMessage('ทดสอบกล้องหน้า + Active Challenge สำเร็จ: Server รับชุดภาพชั่วคราวแล้วทิ้งทันที โดยไม่ได้เรียก Face Verifier, ไม่ออก receipt และไม่สร้าง AttendanceEvent');
     } catch (reason) {
-      const text = reason instanceof AttendanceFlowError
-        ? reason.message
-        : reason instanceof Error
-          ? reason.message
-          : 'ไม่สามารถส่งชุดภาพ Active Challenge UAT ได้';
-      setError(text);
+      setError(formatRequestErrorMessage(reason, 'ไม่สามารถส่งชุดภาพ Active Challenge UAT ได้'));
       throw reason;
     } finally {
       setBusy(false);
