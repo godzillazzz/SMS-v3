@@ -16,6 +16,7 @@ on:
       - feature/q12a-data-scale-export-correctness
       - feature/q12b-performance-code-splitting
       - feature/q12c-native-dialog-replacement
+      - feature/q12d-node22-build-repro
   pull_request:
     branches: [main, fix/serverless-database-reliability]
 
@@ -87,7 +88,12 @@ jobs:
       - run: npm --prefix frontend test
       - run: npx tsc --noEmit
         working-directory: frontend
-      - run: npm --prefix frontend run build
+      - name: Build frontend production bundle
+        env:
+          NODE_ENV: production
+        run: npm --prefix frontend run build
+      - name: Verify frontend production bundle
+        run: node scripts/ci/verify-frontend-production-bundle.js
       - name: Restore tracked frontend build metadata
         shell: bash
         run: git restore -- frontend/tsconfig.tsbuildinfo
