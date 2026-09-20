@@ -15,6 +15,7 @@ const apiBackedSurfaces = [
   'components/DataRetentionCenterPanel.tsx',
   'components/LeavePolicySettingsCard.tsx',
   'components/LeaveTypeMasterPanel.tsx',
+  'components/NotificationCenterPanel.tsx',
   'components/PasskeySecurityPanel.tsx',
   'components/PersonnelMasterPanel.tsx',
   'components/SecuritySiteManagementPanel.tsx',
@@ -23,6 +24,9 @@ const apiBackedSurfaces = [
   'pages/access-management/G06UatProvisioningPanel.tsx',
   'pages/access-management/RegistrationReviewPanel.tsx',
   'pages/attendance-device/AttendanceDevicePage.tsx',
+  'pages/attendance/AttendanceFaceCapture.tsx',
+  'pages/attendance/AttendanceFaceChallengeUatPanel.tsx',
+  'pages/attendance/AttendancePage.tsx',
   'pages/attendance-supervisor/AttendanceSupervisorPage.tsx',
   'pages/personnel/PersonnelDirectoryPage.tsx',
   'pages/pwa-attendance/AttendanceHistoryPwaPage.tsx',
@@ -53,10 +57,13 @@ describe('Q12-E error supportability contract', () => {
     }
   });
 
-  it('does not require browser-local camera/geolocation errors to become API request errors', () => {
+  it('keeps browser-local camera/geolocation cues while routing fallback presentation through the safe formatter', () => {
     const attendance = source('pages/attendance/AttendancePage.tsx');
     const capture = source('pages/attendance/AttendanceFaceCapture.tsx');
     expect(attendance).toContain('LOCATION_PERMISSION_DENIED');
+    expect(attendance).toContain('reason instanceof AttendanceFlowError');
+    expect(attendance).toContain('setRequestId(reason.requestId)');
     expect(capture).toContain('NotReadableError');
+    expect(capture).toContain('formatRequestErrorMessage');
   });
 });

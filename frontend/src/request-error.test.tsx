@@ -62,6 +62,7 @@ describe('request error reference UI', () => {
     expect(formatRequestErrorMessage(new ApiRequestError('บันทึกไม่สำเร็จ กรุณาลองใหม่', 503, 'req-inline-503'), 'fallback')).toBe('บันทึกไม่สำเร็จ กรุณาลองใหม่ · รหัสอ้างอิง: req-inline-503');
     expect(formatRequestErrorMessage(new ApiRequestError('Internal server error. Prisma SQL token=secret', 500, 'req-inline-safe'), 'ลองใหม่ภายหลัง')).toBe('ลองใหม่ภายหลัง · รหัสอ้างอิง: req-inline-safe');
     expect(formatRequestErrorMessage(new Error('ข้อความจากอุปกรณ์'), 'fallback')).toBe('ข้อความจากอุปกรณ์');
+    expect(formatRequestErrorMessage(Object.assign(new Error('Attendance request ไม่สำเร็จ'), { requestId: 'req-attendance-inline' }), 'fallback')).toBe('Attendance request ไม่สำเร็จ · รหัสอ้างอิง: req-attendance-inline');
   });
 
   it('surfaces only a safe message and request ID for technical server errors', () => {

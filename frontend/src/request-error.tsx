@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import { ApiRequestError, normalizeRequestId } from './api';
+import { normalizeRequestId } from './api';
 
 export type RequestErrorState = {
   message: string;
@@ -26,7 +26,7 @@ export function toRequestErrorState(reason: unknown, fallback = defaultMessage):
   }
   if (reason instanceof Error) {
     const message = safeUserErrorMessage(reason.message, fallback);
-    const requestId = reason instanceof ApiRequestError ? normalizeRequestId(reason.requestId) : undefined;
+    const requestId = normalizeRequestId((reason as Error & { requestId?: unknown }).requestId);
     return requestId ? { message, requestId } : { message };
   }
   return { message: fallback };
