@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getUatConfig, hasRoleCredentials, isAdminRbacTargetedRetry, isReportCenterDiagnostic, normalizeBaseUrl, normalizeUatScope } = require('../e2e/helpers/uat-config');
+const { getUatConfig, hasRoleCredentials, isAdminRbacTargetedRetry, isReportCenterDiagnostic, isResponsiveNetworkTargeted, normalizeBaseUrl, normalizeUatScope } = require('../e2e/helpers/uat-config');
 const { isHarmlessConsoleError, requestTarget, sanitizeDiagnostic } = require('../e2e/helpers/uat-observe');
 
 const configuredEnvironment = {
@@ -41,16 +41,21 @@ test('UAT configuration accepts role-specific environment values and HTTPS base 
 test('UAT scope accepts only the approved fixed values', () => {
   assert.equal(normalizeUatScope(undefined), 'full');
   assert.equal(normalizeUatScope('report-center-diagnostic'), 'report-center-diagnostic');
+  assert.equal(normalizeUatScope('responsive-network-targeted'), 'responsive-network-targeted');
   assert.equal(normalizeUatScope('admin-rbac-targeted-retry'), 'admin-rbac-targeted-retry');
   assert.equal(normalizeUatScope('g03-readonly-targeted'), 'g03-readonly-targeted');
   assert.throws(() => normalizeUatScope('all-the-things'), { code: 'UAT_SCOPE_NOT_APPROVED' });
   assert.equal(getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'report-center-diagnostic' }).scope, 'report-center-diagnostic');
+  assert.equal(getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'responsive-network-targeted', UAT_MODE: 'authenticated' }).scope, 'responsive-network-targeted');
   assert.equal(getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'admin-rbac-targeted-retry', UAT_MODE: 'authenticated' }).scope, 'admin-rbac-targeted-retry');
   assert.equal(getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'g03-readonly-targeted', UAT_MODE: 'authenticated' }).scope, 'g03-readonly-targeted');
+  assert.throws(() => getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'responsive-network-targeted', UAT_MODE: 'technical' }), { code: 'UAT_SCOPE_MODE_INVALID' });
   assert.throws(() => getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'admin-rbac-targeted-retry', UAT_MODE: 'technical' }), { code: 'UAT_SCOPE_MODE_INVALID' });
   assert.throws(() => getUatConfig({ ...configuredEnvironment, UAT_SCOPE: 'g03-readonly-targeted', UAT_MODE: 'technical' }), { code: 'UAT_SCOPE_MODE_INVALID' });
   assert.equal(isReportCenterDiagnostic({ UAT_SCOPE: 'report-center-diagnostic' }), true);
   assert.equal(isReportCenterDiagnostic({ UAT_SCOPE: 'full' }), false);
+  assert.equal(isResponsiveNetworkTargeted({ UAT_SCOPE: 'responsive-network-targeted' }), true);
+  assert.equal(isResponsiveNetworkTargeted({ UAT_SCOPE: 'full' }), false);
   assert.equal(isAdminRbacTargetedRetry({ UAT_SCOPE: 'admin-rbac-targeted-retry' }), true);
   assert.equal(isAdminRbacTargetedRetry({ UAT_SCOPE: 'full' }), false);
 });

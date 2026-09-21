@@ -210,6 +210,7 @@ test('V3 workflow exposes explicit mode and least-privilege credential contract'
   assert.match(workflow, /uat_scope:/);
   assert.match(workflow, /default:\s*full/);
   assert.match(workflow, /- report-center-diagnostic/);
+  assert.match(workflow, /- responsive-network-targeted/);
   assert.match(workflow, /default:\s*technical/);
   assert.match(workflow, /type:\s*choice/);
   assert.match(workflow, /- technical/);
@@ -298,6 +299,9 @@ test('V3 isolates Report Center diagnostics without changing the global timeout'
   }
   assert.match(authenticatedSmoke, /Lifecycle coverage is outside the selected UAT scope/);
   assert.match(responsiveSmoke, /test\.setTimeout\(120_000\)/);
+  assert.match(responsiveSmoke, /name: '1024', width: 1024, height: 768/);
+  assert.match(authenticatedSmoke, /name: '1024', width: 1024, height: 768/);
+  assert.match(authenticatedSmoke, /test\.setTimeout\(180_000\)/);
   assert.match(responsiveSmoke, /createStageTracker/);
   assert.match(responsiveSmoke, /fullPage: false/);
   assert.match(technicalSmoke, /test\.setTimeout\(60_000\)/);

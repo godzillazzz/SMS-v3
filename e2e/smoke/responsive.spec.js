@@ -7,6 +7,7 @@ const { createStageTracker } = require('../helpers/uat-stage');
 const viewports = [
   { name: '390', width: 390, height: 844, mobile: true },
   { name: '768', width: 768, height: 1024, mobile: false },
+  { name: '1024', width: 1024, height: 768, mobile: false },
   { name: '1440', width: 1440, height: 900, mobile: false }
 ];
 

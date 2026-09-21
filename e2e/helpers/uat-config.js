@@ -1,5 +1,22 @@
 const roles = ['ADMIN', 'MANAGER', 'VIEWER'];
 const modes = ['technical', 'authenticated'];
+const REPORT_CENTER_DIAGNOSTIC_SCOPE = 'report-center-diagnostic';
+const REPORT_CENTER_DIAGNOSTIC_TEST_TITLES = Object.freeze([
+  'V3 ADMIN: Unified Report Center acceptance',
+  'V3 MANAGER: Unified Report Center acceptance',
+  'V3 ADMIN: Report Center exact network contract'
+]);
+const RESPONSIVE_NETWORK_SCOPE = 'responsive-network-targeted';
+const RESPONSIVE_NETWORK_TEST_TITLES = Object.freeze([
+  'ADMIN responsive smoke 390',
+  'ADMIN responsive smoke 768',
+  'ADMIN responsive smoke 1024',
+  'ADMIN responsive smoke 1440',
+  'V3 ADMIN: authenticated responsive smoke',
+  'V3 MANAGER: authenticated responsive smoke',
+  'V3 ADMIN: License initial-load network contract',
+  'V3 ADMIN: Report Center exact network contract'
+]);
 const TARGETED_AUTH_RETRY_SCOPE = 'admin-rbac-targeted-retry';
 const TARGETED_AUTH_RETRY_TEST_TITLES = Object.freeze([
   'V3 ADMIN: navigation shell',
@@ -17,7 +34,7 @@ const G03_READONLY_TEST_TITLES = Object.freeze([
   'G03 MANAGER: leave quota provisioning control is absent',
   'G03 VIEWER: leave quota provisioning control is absent'
 ]);
-const scopes = ['full', 'report-center-diagnostic', TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE];
+const scopes = ['full', REPORT_CENTER_DIAGNOSTIC_SCOPE, RESPONSIVE_NETWORK_SCOPE, TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE];
 
 function configurationError(code, message) {
   const error = new Error(message);
@@ -55,14 +72,18 @@ function normalizeUatScope(value = 'full') {
   if (!scopes.includes(scope)) {
     throw configurationError(
       'UAT_SCOPE_NOT_APPROVED',
-      'UAT scope not approved: use full, report-center-diagnostic, admin-rbac-targeted-retry, or g03-readonly-targeted.'
+      'UAT scope not approved: use full, report-center-diagnostic, responsive-network-targeted, admin-rbac-targeted-retry, or g03-readonly-targeted.'
     );
   }
   return scope;
 }
 
 function isReportCenterDiagnostic(environment = process.env) {
-  return normalizeUatScope(environment.UAT_SCOPE) === 'report-center-diagnostic';
+  return normalizeUatScope(environment.UAT_SCOPE) === REPORT_CENTER_DIAGNOSTIC_SCOPE;
+}
+
+function isResponsiveNetworkTargeted(environment = process.env) {
+  return normalizeUatScope(environment.UAT_SCOPE) === RESPONSIVE_NETWORK_SCOPE;
 }
 
 function isAdminRbacTargetedRetry(environment = process.env) {
@@ -75,6 +96,8 @@ function isG03ReadonlyTargeted(environment = process.env) {
 
 function getUatScopeTestTitles(environment = process.env) {
   const scope = normalizeUatScope(environment.UAT_SCOPE);
+  if (scope === REPORT_CENTER_DIAGNOSTIC_SCOPE) return [...REPORT_CENTER_DIAGNOSTIC_TEST_TITLES];
+  if (scope === RESPONSIVE_NETWORK_SCOPE) return [...RESPONSIVE_NETWORK_TEST_TITLES];
   if (scope === TARGETED_AUTH_RETRY_SCOPE) return [...TARGETED_AUTH_RETRY_TEST_TITLES];
   if (scope === G03_READONLY_SCOPE) return [...G03_READONLY_TEST_TITLES];
   return undefined;
@@ -98,7 +121,7 @@ function getUatConfig(environment = process.env) {
 
   const mode = normalizeUatMode(environment.UAT_MODE);
   const scope = normalizeUatScope(environment.UAT_SCOPE);
-  if (mode === 'technical' && [TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE].includes(scope)) {
+  if (mode === 'technical' && [RESPONSIVE_NETWORK_SCOPE, TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE].includes(scope)) {
     throw configurationError('UAT_SCOPE_MODE_INVALID', `UAT scope ${scope} requires authenticated mode.`);
   }
   const accounts = {};
@@ -136,6 +159,10 @@ function hasRoleCredentials(role, environment = process.env) {
 
 module.exports = {
   G03_READONLY_SCOPE,
+  REPORT_CENTER_DIAGNOSTIC_SCOPE,
+  REPORT_CENTER_DIAGNOSTIC_TEST_TITLES,
+  RESPONSIVE_NETWORK_SCOPE,
+  RESPONSIVE_NETWORK_TEST_TITLES,
   G03_READONLY_TEST_TITLES,
   TARGETED_AUTH_RETRY_SCOPE,
   TARGETED_AUTH_RETRY_TEST_TITLES,
@@ -147,6 +174,7 @@ module.exports = {
   isAdminRbacTargetedRetry,
   isG03ReadonlyTargeted,
   isReportCenterDiagnostic,
+  isResponsiveNetworkTargeted,
   normalizeBaseUrl,
   normalizeUatMode,
   normalizeUatScope,
