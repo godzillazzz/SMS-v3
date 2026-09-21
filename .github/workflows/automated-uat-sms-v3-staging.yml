@@ -47,6 +47,7 @@ on:
         options:
           - full
           - report-center-diagnostic
+          - responsive-network-targeted
           - admin-rbac-targeted-retry
           - g03-readonly-targeted
 

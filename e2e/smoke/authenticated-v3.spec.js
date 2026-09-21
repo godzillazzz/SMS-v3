@@ -329,9 +329,10 @@ for (const role of ['ADMIN', 'MANAGER']) {
 for (const role of ['ADMIN', 'MANAGER']) {
   test(`V3 ${role}: authenticated responsive smoke`, async ({ page }, testInfo) => {
     test.skip(!authenticatedMode() || diagnosticScope(), 'The diagnostic scope excludes responsive regression coverage.');
+    test.setTimeout(180_000);
     const monitor = startPageMonitor(page);
     const pages = role === 'ADMIN' ? ['dashboard', 'schedule', 'dataQuality', 'audit', 'reportCenter'] : ['dashboard', 'schedule', 'reportCenter'];
-    const viewports = [{ name: '390', width: 390, height: 844 }, { name: '768', width: 768, height: 1024 }, { name: '1440', width: 1440, height: 900 }];
+    const viewports = [{ name: '390', width: 390, height: 844 }, { name: '768', width: 768, height: 1024 }, { name: '1024', width: 1024, height: 768 }, { name: '1440', width: 1440, height: 900 }];
     await page.setViewportSize({ width: viewports[0].width, height: viewports[0].height });
     await loginAs(page, role);
     for (const pageId of pages) {

@@ -195,6 +195,7 @@ test('responsive coverage checks every page at every viewport without redundant 
   const block = start >= 0 && end > start ? source.slice(start, end) : '';
   assert.match(block, /for \(const pageId of pages\)/);
   assert.match(block, /for \(const viewport of viewports\)/);
+  assert.match(block, /name: '1024', width: 1024, height: 768/);
   assert.equal((block.match(/loginAs\(page, role\)/g) || []).length, 1);
   assert.equal((block.match(/performAndWaitForHeavyRequest\(page, '\/api\/v1\/executive-report'/g) || []).length, 1);
   assert.doesNotMatch(block, /page\.goto\('\/'\)/);

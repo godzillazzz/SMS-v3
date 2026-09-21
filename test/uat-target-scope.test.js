@@ -3,6 +3,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
+  REPORT_CENTER_DIAGNOSTIC_SCOPE,
+  REPORT_CENTER_DIAGNOSTIC_TEST_TITLES,
+  RESPONSIVE_NETWORK_SCOPE,
+  RESPONSIVE_NETWORK_TEST_TITLES,
   TARGETED_AUTH_RETRY_SCOPE,
   TARGETED_AUTH_RETRY_TEST_TITLES,
   getUatScopeGrep,
@@ -37,11 +41,34 @@ test('targeted Auth scope grep matches only the fixed test-title allowlist', () 
   assert.equal(grep.test('authenticated-v3.spec.js › V3 ADMIN: navigation shell|.*'), false);
 });
 
-test('full, Report Center diagnostic, and technical scopes do not inherit targeted grep', () => {
+test('Report Center diagnostic scope selects only the approved Report Center evidence', () => {
+  const titles = getUatScopeTestTitles({ UAT_MODE: 'authenticated', UAT_SCOPE: REPORT_CENTER_DIAGNOSTIC_SCOPE });
+  assert.deepEqual(titles, REPORT_CENTER_DIAGNOSTIC_TEST_TITLES);
+  assert.equal(titles.length, 3);
+  assert.equal(titles.some((title) => title.includes('G03 VIEWER')), false);
+  const grep = getUatScopeGrep({ UAT_MODE: 'authenticated', UAT_SCOPE: REPORT_CENTER_DIAGNOSTIC_SCOPE });
+  assert.ok(grep instanceof RegExp);
+  for (const title of REPORT_CENTER_DIAGNOSTIC_TEST_TITLES) assert.equal(grep.test('suite › ' + title), true, title);
+  assert.equal(grep.test('g03-readonly.spec.js › G03 VIEWER: leave quota provisioning control is absent'), false);
+});
+
+test('responsive/network scope selects exactly the approved matrix and network contracts', () => {
+  const titles = getUatScopeTestTitles({ UAT_MODE: 'authenticated', UAT_SCOPE: RESPONSIVE_NETWORK_SCOPE });
+  assert.deepEqual(titles, RESPONSIVE_NETWORK_TEST_TITLES);
+  assert.equal(titles.length, 8);
+  assert.equal(titles.filter((title) => title.startsWith('ADMIN responsive smoke ')).length, 4);
+  assert.ok(titles.includes('ADMIN responsive smoke 1024'));
+  assert.equal(titles.filter((title) => title.includes('network contract')).length, 2);
+  const grep = getUatScopeGrep({ UAT_MODE: 'authenticated', UAT_SCOPE: RESPONSIVE_NETWORK_SCOPE });
+  assert.ok(grep instanceof RegExp);
+  for (const title of RESPONSIVE_NETWORK_TEST_TITLES) assert.equal(grep.test('suite › ' + title), true, title);
+  assert.equal(grep.test('authenticated-v3.spec.js › V3 VIEWER: navigation shell'), false);
+});
+
+test('full and technical scopes do not inherit authenticated targeted grep', () => {
   assert.equal(getUatScopeGrep({ UAT_MODE: 'authenticated', UAT_SCOPE: 'full' }), undefined);
-  assert.equal(getUatScopeGrep({ UAT_MODE: 'authenticated', UAT_SCOPE: 'report-center-diagnostic' }), undefined);
   assert.equal(getUatScopeGrep({ UAT_MODE: 'technical', UAT_SCOPE: 'full' }), undefined);
-  assert.equal(getUatScopeGrep({ UAT_MODE: 'technical', UAT_SCOPE: 'report-center-diagnostic' }), undefined);
+  assert.equal(getUatScopeGrep({ UAT_MODE: 'technical', UAT_SCOPE: REPORT_CENTER_DIAGNOSTIC_SCOPE }), undefined);
 });
 
 test('unknown scope cannot become a Playwright selector or command fragment', () => {
@@ -51,6 +78,7 @@ test('unknown scope cannot become a Playwright selector or command fragment', ()
 
 test('workflow exposes the fixed targeted scope and binds technical identity secrets', () => {
   const technicalJob = workflow.slice(workflow.indexOf('technical-smoke:'), workflow.indexOf('authenticated-uat:'));
+  assert.equal((workflow.match(/- responsive-network-targeted/g) || []).length, 1);
   assert.equal((workflow.match(/- admin-rbac-targeted-retry/g) || []).length, 1);
   assert.match(workflow, /UAT_SCOPE: \$\{\{ inputs\.uat_scope \}\}/);
   assert.match(playwrightConfig, /getUatScopeGrep/);
