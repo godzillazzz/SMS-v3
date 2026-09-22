@@ -64,6 +64,7 @@ const test = base.extend({
     const heavySafety = createHeavyReadSafetyTracker(page);
     let testError;
     let safetyError;
+    let safetyResult;
     try {
       await use(page);
     } catch (error) {
@@ -73,17 +74,21 @@ const test = base.extend({
     const summaryAtTestEnd = heavySafety.summary();
     const safetyWaitStartedAt = Date.now();
     try {
-      await heavySafety.assertNormalCompletion();
+      safetyResult = await heavySafety.assertNormalCompletion();
     } catch (error) {
       safetyError = error;
     } finally {
-      const exceptionalDrainCount = summaryAtTestEnd.outstanding > 0 ? 1 : 0;
+      const exceptionalDrainCount = summaryAtTestEnd.outstandingRequired > 0 ? 1 : 0;
       const exceptionalDrainWaitMs = exceptionalDrainCount ? Math.max(0, Date.now() - safetyWaitStartedAt) : 0;
+      const loadSensitiveDrainCount = Number(safetyResult?.loadSensitiveDrainCount || 0);
+      const loadSensitiveDrainWaitMs = Number(safetyResult?.loadSensitiveDrainWaitMs || 0);
       await testInfo.attach('heavy-read-safety.json', {
         body: JSON.stringify({
-          testsFinishingWithOutstandingHeavyReads: summaryAtTestEnd.outstanding > 0 ? 1 : 0,
+          testsFinishingWithOutstandingHeavyReads: summaryAtTestEnd.outstandingRequired > 0 ? 1 : 0,
           exceptionalHeavyDrainCount: exceptionalDrainCount,
           exceptionalHeavyDrainWaitMs: exceptionalDrainWaitMs,
+          loadSensitiveDrainCount,
+          loadSensitiveDrainWaitMs,
           realHeavyStarts: summaryAtTestEnd.realHeavyStarts,
           preventedHeavyStarts: summaryAtTestEnd.preventedStarts,
           outstandingHeavyReads: summaryAtTestEnd.outstandingHeavyReads

@@ -49,7 +49,7 @@ function safeHeavyReadSafetyAttachment(value) {
   const outstandingHeavyReads = [];
   for (const entry of Array.isArray(value.outstandingHeavyReads) ? value.outstandingHeavyReads.slice(0, 20) : []) {
     const method = entry?.method === 'GET' ? 'GET' : undefined;
-    const path = ['/api/v1/dashboard', '/api/v1/executive-report', '/api/v1/reports/summary'].includes(entry?.path) ? entry.path : undefined;
+    const path = ['/api/v1/dashboard', '/api/v1/executive-report', '/api/v1/reports/summary', '/api/v1/approval-center/summary', '/api/v1/employees/readiness/center'].includes(entry?.path) ? entry.path : undefined;
     const ageMs = safeNonNegativeInteger(entry?.ageMs);
     const state = ['LIVE', 'CLIENT_FAILED'].includes(entry?.state) ? entry.state : undefined;
     if (method && path && state) outstandingHeavyReads.push({ method, path, ageMs, state });
@@ -58,6 +58,8 @@ function safeHeavyReadSafetyAttachment(value) {
     testsFinishingWithOutstandingHeavyReads: safeNonNegativeInteger(value.testsFinishingWithOutstandingHeavyReads),
     exceptionalHeavyDrainCount: safeNonNegativeInteger(value.exceptionalHeavyDrainCount),
     exceptionalHeavyDrainWaitMs: safeNonNegativeInteger(value.exceptionalHeavyDrainWaitMs),
+    loadSensitiveDrainCount: safeNonNegativeInteger(value.loadSensitiveDrainCount),
+    loadSensitiveDrainWaitMs: safeNonNegativeInteger(value.loadSensitiveDrainWaitMs),
     realHeavyStarts: safeNonNegativeInteger(value.realHeavyStarts),
     preventedHeavyStarts: safeNonNegativeInteger(value.preventedHeavyStarts),
     outstandingHeavyReads
@@ -168,6 +170,8 @@ class UatSummaryReporter {
       testsFinishingWithOutstandingHeavyReads: 0,
       exceptionalHeavyDrainCount: 0,
       exceptionalHeavyDrainWaitMs: 0,
+      loadSensitiveDrainCount: 0,
+      loadSensitiveDrainWaitMs: 0,
       realHeavyStarts: 0,
       preventedHeavyStarts: 0,
       outstandingHeavyReads: []
@@ -236,7 +240,7 @@ class UatSummaryReporter {
       if (attachment.name === 'heavy-read-safety.json') {
         const metric = safeHeavyReadSafetyAttachment(parsed);
         if (metric) {
-          for (const key of ['testsFinishingWithOutstandingHeavyReads', 'exceptionalHeavyDrainCount', 'exceptionalHeavyDrainWaitMs', 'realHeavyStarts', 'preventedHeavyStarts']) {
+          for (const key of ['testsFinishingWithOutstandingHeavyReads', 'exceptionalHeavyDrainCount', 'exceptionalHeavyDrainWaitMs', 'loadSensitiveDrainCount', 'loadSensitiveDrainWaitMs', 'realHeavyStarts', 'preventedHeavyStarts']) {
             this.heavyReadSafety[key] += metric[key];
           }
           this.heavyReadSafety.outstandingHeavyReads.push(...metric.outstandingHeavyReads);
@@ -321,6 +325,8 @@ class UatSummaryReporter {
       `- testsFinishingWithOutstandingHeavyReads: ${this.heavyReadSafety.testsFinishingWithOutstandingHeavyReads}`,
       `- exceptionalHeavyDrainCount: ${this.heavyReadSafety.exceptionalHeavyDrainCount}`,
       `- exceptionalHeavyDrainWaitMs: ${this.heavyReadSafety.exceptionalHeavyDrainWaitMs}`,
+      `- loadSensitiveDrainCount: ${this.heavyReadSafety.loadSensitiveDrainCount}`,
+      `- loadSensitiveDrainWaitMs: ${this.heavyReadSafety.loadSensitiveDrainWaitMs}`,
       `- realHeavyStarts: ${this.heavyReadSafety.realHeavyStarts}`,
       `- preventedHeavyStarts: ${this.heavyReadSafety.preventedHeavyStarts}`,
       `- outstandingHeavyReads: ${JSON.stringify(this.heavyReadSafety.outstandingHeavyReads)}`,
