@@ -262,6 +262,32 @@ test('Manager Approval Center obeys governed reviewer-role narrowing without que
   assert.equal(result.data.length, 0);
 });
 
+test('Approval Center summary bounds queue-query fan-out to the Prisma pool floor', async () => {
+  const prisma = adminPrisma();
+  let active = 0;
+  let maxActive = 0;
+  const tracked = async (value = 1) => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    active -= 1;
+    return value;
+  };
+  for (const key of ['employeeChangeRequest', 'employeeReferencePhoto', 'employeeLicenseDocument', 'attendanceDeviceChangeRequest', 'registrationRequest']) {
+    prisma[key].count = () => tracked(1);
+  }
+  prisma.user.count = () => tracked(1);
+  prisma.leaveRequest.count = () => tracked(1);
+  const service = createApprovalCenterService({
+    prisma,
+    clock: () => now,
+    attendanceAdjustmentList: async () => ({ data: [], meta: { total: await tracked(1) } })
+  });
+  const result = await service.summary({ actor: { role: 'ADMIN', sub: 'admin-1' } });
+  assert.equal(result.summary.total, 8);
+  assert.equal(maxActive, 2);
+});
+
 test('Approval Center rejects Viewer even when the route guard is bypassed', async () => {
   const service = createApprovalCenterService({ prisma: {} });
   await assert.rejects(() => service.list({ actor: { role: 'VIEWER' } }), (error) => error?.statusCode === 403 || error?.status === 403);
