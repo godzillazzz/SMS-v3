@@ -263,7 +263,8 @@ async function loginAs(page, role) {
   await expect(page.getByRole('heading', { name: 'แดชบอร์ด', exact: true })).toBeVisible();
   return {
     accessToken: session.accessToken,
-    authContract: cachedSessionDiagnostic(page, stateBefore, dashboardResponse.status())
+    authContract: cachedSessionDiagnostic(page, stateBefore, dashboardResponse.status()),
+    dashboardResponse
   };
 }
 

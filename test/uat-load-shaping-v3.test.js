@@ -202,6 +202,24 @@ test('V3.1 keeps bootstrap reduction while explicit real login owns three requir
   assert.equal(34, 25 + 3 + 2 + 4);
 });
 
+test('Q12-G dashboard diagnostics observe one authenticated boot without redundant reload load', () => {
+  const auth = read('e2e/helpers/uat-auth.js');
+  const authenticated = read('e2e/smoke/authenticated-v3.spec.js');
+  const loginStart = auth.indexOf('async function loginAs(page, role)');
+  const loginEnd = auth.indexOf('async function loginViaUi', loginStart);
+  const loginBlock = auth.slice(loginStart, loginEnd);
+  assert.match(loginBlock, /dashboardResponse/);
+  assert.match(loginBlock, /performAndWaitForHeavyRequest\(page, '\/api\/v1\/dashboard'/);
+
+  const diagnosticStart = authenticated.indexOf('UAT diagnostic ${role}: dashboard observation');
+  const diagnosticEnd = authenticated.indexOf("for (const role of ['ADMIN', 'MANAGER']) {", diagnosticStart + 1);
+  const diagnosticBlock = authenticated.slice(diagnosticStart, diagnosticEnd > diagnosticStart ? diagnosticEnd : undefined);
+  assert.match(diagnosticBlock, /const \{ authContract, dashboardResponse \} = await loginAs\(page, role\)/);
+  assert.match(diagnosticBlock, /return dashboardResponse/);
+  assert.equal((diagnosticBlock.match(/loginAs\(page, role\)/g) || []).length, 1);
+  assert.doesNotMatch(diagnosticBlock, /bootstrapAs\(page, role\)/);
+  assert.doesNotMatch(diagnosticBlock, /page\.reload\(/);
+});
 test('all required browser heavy classes are explicitly terminal-awaited and no semaphore or normal global barrier exists', () => {
   const helper = read('e2e/helpers/uat-heavy-read-v3.js');
   const auth = read('e2e/helpers/uat-auth.js');

@@ -309,13 +309,13 @@ for (const role of ['ADMIN', 'MANAGER']) {
     const monitor = startPageMonitor(page);
     const tracker = createStageTracker({ role, testCode: 'DASHBOARD_DIAGNOSTIC', testInfo });
     try {
-      await bootstrapAs(page, role);
       await tracker.run(
         'NAV03_DASHBOARD',
         async () => {
-          const response = await performAndWaitForHeavyRequest(page, '/api/v1/dashboard', () => page.reload({ waitUntil: 'domcontentloaded' }));
+          const { authContract, dashboardResponse } = await loginAs(page, role);
+          await testInfo.attach('v31-auth-contract.json', { body: JSON.stringify(authContract), contentType: 'application/json' });
           await expect(page.getByRole('heading').first(), `${role} Dashboard must render after the observed response.`).toBeVisible();
-          return response;
+          return dashboardResponse;
         },
         { safeApiPath: '/api/v1/dashboard', safeErrorCode: 'UAT_UI_DASHBOARD_RENDER_FAILED' }
       );
