@@ -10,6 +10,7 @@ const {
   createHeavyReadSafetyTracker,
   markHarnessPreventedHeavyRead,
   performAndWaitForHeavyRequest,
+  performAndWaitForLoadSensitiveRequest,
   resetSafetyMetrics,
   safetyMetricsSnapshot
 } = require('../e2e/helpers/uat-heavy-read-v3');
@@ -159,6 +160,47 @@ test('load-sensitive Approval and Readiness background reads terminal-drain with
     exceptionalHeavyDrainWaitMs: 0
   });
   tracker.stop();
+});
+
+test('load-sensitive terminal helper waits for Approval summary response and requestfinished', async () => {
+  const page = new FakePage();
+  const approval = fakeRequest('https://candidate.test/api/v1/approval-center/summary');
+  const response = { request: () => approval, status: () => 200 };
+  let actionCompleted = false;
+  const completion = performAndWaitForLoadSensitiveRequest(page, '/api/v1/approval-center/summary', async () => {
+    page.emit('request', approval);
+    page.emit('response', response);
+    await tick();
+    actionCompleted = true;
+  });
+  await tick();
+  let settled = false;
+  completion.then(() => { settled = true; });
+  await tick();
+  assert.equal(actionCompleted, true);
+  assert.equal(settled, false);
+  page.emit('requestfinished', approval);
+  assert.equal(await completion, response);
+});
+
+test('load-sensitive terminal helper rejects non-approved paths', async () => {
+  const page = new FakePage();
+  await assert.rejects(
+    () => performAndWaitForLoadSensitiveRequest(page, '/api/v1/dashboard', async () => {}),
+    (error) => error?.code === 'UAT_LOAD_SENSITIVE_ROUTE_NOT_APPROVED'
+  );
+});
+
+test('Q12-G ADMIN refresh explicitly terminal-waits Approval summary without removing refresh contract', () => {
+  const admin = read('e2e/smoke/admin.spec.js');
+  const start = admin.indexOf('ADMIN: dashboard is complete and stable after refresh');
+  const end = admin.indexOf("test('ADMIN: Schedule, Leave, and License pages load through read endpoints'", start);
+  const block = admin.slice(start, end);
+  assert.equal((block.match(/page\.reload\(/g) || []).length, 1);
+  assert.equal((block.match(/performAndWaitForLoadSensitiveRequest\(page, '\/api\/v1\/approval-center\/summary'/g) || []).length, 2);
+  assert.match(block, /performAndWaitForLoadSensitiveRequest[\s\S]*loginAs\(page, 'ADMIN'\)/);
+  assert.match(block, /performAndWaitForLoadSensitiveRequest[\s\S]*performAndWaitForHeavyRequest\(page, '\/api\/v1\/dashboard'[\s\S]*page\.reload/);
+  assert.doesNotMatch(block, /markHarnessPreventedHeavyRead|setPageScopedDashboardSuppression/);
 });
 
 test('Harness-prevented bootstrap Dashboard is removed from server-work accounting', async () => {

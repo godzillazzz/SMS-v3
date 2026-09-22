@@ -4,7 +4,7 @@ const { authenticatedRequest } = require('../helpers/uat-authenticated-request')
 const { hasRoleCredentials, isReportCenterDiagnostic } = require('../helpers/uat-config');
 const { navigateTo, startPageMonitor } = require('../helpers/uat-observe');
 const { getRoleApiMatrix } = require('../helpers/uat-v3-role-matrix');
-const { performAndWaitForHeavyRequest } = require('../helpers/uat-heavy-read-v3');
+const { performAndWaitForHeavyRequest, performAndWaitForLoadSensitiveRequest } = require('../helpers/uat-heavy-read-v3');
 
 test.describe.configure({ mode: 'serial' });
 test.skip(isReportCenterDiagnostic() || !hasRoleCredentials('ADMIN'), 'ADMIN smoke is outside the selected UAT scope or credentials are unavailable.');
@@ -12,10 +12,16 @@ test.skip(isReportCenterDiagnostic() || !hasRoleCredentials('ADMIN'), 'ADMIN smo
 test('ADMIN: dashboard is complete and stable after refresh', async ({ page }) => {
   test.slow();
   const monitor = startPageMonitor(page);
-  const { accessToken } = await loginAs(page, 'ADMIN');
+  let loginResult;
+  await performAndWaitForLoadSensitiveRequest(page, '/api/v1/approval-center/summary', async () => {
+    loginResult = await loginAs(page, 'ADMIN');
+  });
+  const { accessToken } = loginResult;
   await expect(page.locator('section.dashboard-page-v2[aria-label="Operations Dashboard"]')).toBeVisible();
   await expect(page.getByText('ข้อมูลบางส่วนยังไม่พร้อม', { exact: false })).toHaveCount(0);
-  await performAndWaitForHeavyRequest(page, '/api/v1/dashboard', () => page.reload({ waitUntil: 'domcontentloaded' }));
+  await performAndWaitForLoadSensitiveRequest(page, '/api/v1/approval-center/summary', () =>
+    performAndWaitForHeavyRequest(page, '/api/v1/dashboard', () => page.reload({ waitUntil: 'domcontentloaded' }))
+  );
   await expect(page.getByRole('heading', { name: 'แดชบอร์ด', exact: true })).toBeVisible();
   const response = await authenticatedRequest('/api/v1/dashboard', { accessToken });
   expect(response.status, 'Dashboard response must succeed after refresh.').toBeGreaterThanOrEqual(200);

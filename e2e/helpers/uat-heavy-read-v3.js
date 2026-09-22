@@ -180,6 +180,80 @@ async function performAndWaitForHeavyRequest(page, expectedPath, action, {
   }
 }
 
+async function performAndWaitForLoadSensitiveRequest(page, expectedPath, action, {
+  timeout = DEFAULT_REQUEST_TIMEOUT_MS,
+  validateStatus = true,
+  timers = globalThis
+} = {}) {
+  if (!LOAD_SENSITIVE_BACKGROUND_PATHS.has(expectedPath)) throw safeError('UAT_LOAD_SENSITIVE_ROUTE_NOT_APPROVED');
+
+  let matchedRequest;
+  let matchedResponse;
+  let requestResolve;
+  let responseResolve;
+  let finishedResolve;
+  let finishedReject;
+  const requestPromise = new Promise((resolve) => { requestResolve = resolve; });
+  const responsePromise = new Promise((resolve) => { responseResolve = resolve; });
+  const finishedPromise = new Promise((resolve, reject) => {
+    finishedResolve = resolve;
+    finishedReject = reject;
+  });
+
+  const onRequest = (request) => {
+    if (matchedRequest || request.method() !== 'GET' || pathOf(request) !== expectedPath) return;
+    matchedRequest = request;
+    requestResolve(request);
+  };
+  const onResponse = (response) => {
+    const request = response.request();
+    if (!matchedRequest || request !== matchedRequest) return;
+    matchedResponse = response;
+    responseResolve(response);
+  };
+  const onFinished = (request) => {
+    if (matchedRequest && request === matchedRequest) finishedResolve(request);
+  };
+  const onFailed = (request) => {
+    if (matchedRequest && request === matchedRequest) finishedReject(safeError('UAT_LOAD_SENSITIVE_READ_FAILED'));
+  };
+
+  page.on('request', onRequest);
+  page.on('response', onResponse);
+  page.on('requestfinished', onFinished);
+  page.on('requestfailed', onFailed);
+
+  let actionError;
+  let rejectActionFailure;
+  const actionFailure = new Promise((_, reject) => { rejectActionFailure = reject; });
+  const actionPromise = Promise.resolve()
+    .then(action)
+    .catch((error) => {
+      actionError = error;
+      rejectActionFailure(error);
+      return undefined;
+    });
+
+  try {
+    await withTimeout(Promise.race([requestPromise, actionFailure]), timeout, 'UAT_LOAD_SENSITIVE_READ_NOT_STARTED', timers);
+    await withTimeout(Promise.all([responsePromise, finishedPromise]), timeout, 'UAT_LOAD_SENSITIVE_READ_TIMEOUT', timers);
+    await actionPromise;
+    if (actionError) throw actionError;
+    if (!matchedResponse) throw safeError('UAT_LOAD_SENSITIVE_READ_RESPONSE_MISSING');
+    const status = matchedResponse.status();
+    if (validateStatus && (status < 200 || status >= 300)) {
+      const error = safeError(status === 504 ? 'UAT_RUNTIME_LOAD_SENSITIVE_504' : `UAT_RUNTIME_LOAD_SENSITIVE_HTTP_${status}`);
+      error.status = status;
+      throw error;
+    }
+    return matchedResponse;
+  } finally {
+    page.off('request', onRequest);
+    page.off('response', onResponse);
+    page.off('requestfinished', onFinished);
+    page.off('requestfailed', onFailed);
+  }
+}
 function createHeavyReadSafetyTracker(page, {
   now = () => Date.now(),
   timers = globalThis,
@@ -348,6 +422,7 @@ module.exports = {
   markHarnessPreventedHeavyRead,
   pathOf,
   performAndWaitForHeavyRequest,
+  performAndWaitForLoadSensitiveRequest,
   resetSafetyMetrics,
   safetyMetricsSnapshot,
   setPageScopedDashboardSuppression
