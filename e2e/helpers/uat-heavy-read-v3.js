@@ -1,10 +1,20 @@
 'use strict';
 
-const HEAVY_PATHS = new Set([
+const REQUIRED_HEAVY_PATHS = new Set([
   '/api/v1/dashboard',
   '/api/v1/executive-report',
   '/api/v1/reports/summary'
 ]);
+
+// These reads are initiated by normal page/background behavior and were observed to
+// outlive test bodies under Production synthetic load. Track and terminal-drain them
+// before the next test without treating an otherwise healthy background read as a test failure.
+const LOAD_SENSITIVE_BACKGROUND_PATHS = new Set([
+  '/api/v1/approval-center/summary',
+  '/api/v1/employees/readiness/center'
+]);
+
+const HEAVY_PATHS = new Set([...REQUIRED_HEAVY_PATHS, ...LOAD_SENSITIVE_BACKGROUND_PATHS]);
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 const DEFAULT_RUNTIME_CEILING_MS = 60_000;
@@ -97,7 +107,7 @@ async function performAndWaitForHeavyRequest(page, expectedPath, action, {
   validateStatus = true,
   timers = globalThis
 } = {}) {
-  if (!HEAVY_PATHS.has(expectedPath)) throw safeError('UAT_HEAVY_READ_ROUTE_NOT_APPROVED');
+  if (!REQUIRED_HEAVY_PATHS.has(expectedPath)) throw safeError('UAT_HEAVY_READ_ROUTE_NOT_APPROVED');
   if (expectedPath === '/api/v1/dashboard' && isPageScopedDashboardSuppressed(page)) {
     throw safeError('UAT_REQUIRED_DASHBOARD_WHILE_SUPPRESSED');
   }
@@ -195,7 +205,11 @@ function createHeavyReadSafetyTracker(page, {
       return;
     }
     realHeavyStarts += 1;
-    outstanding.set(request, { startedAt: now(), failedAt: undefined });
+    outstanding.set(request, {
+      startedAt: now(),
+      failedAt: undefined,
+      drainOnly: LOAD_SENSITIVE_BACKGROUND_PATHS.has(pathOf(request))
+    });
     notify();
   };
   const onFinished = (request) => {
@@ -236,8 +250,11 @@ function createHeavyReadSafetyTracker(page, {
         ageMs: Math.max(0, current - state.startedAt),
         state: state.failedAt === undefined ? 'LIVE' : 'CLIENT_FAILED'
       }));
+      const states = [...outstanding.values()];
       return {
         outstanding: outstanding.size,
+        outstandingRequired: states.filter((state) => !state.drainOnly).length,
+        outstandingLoadSensitive: states.filter((state) => state.drainOnly).length,
         outstandingHeavyReads,
         preventedStarts,
         realHeavyStarts,
@@ -245,13 +262,17 @@ function createHeavyReadSafetyTracker(page, {
       };
     },
     async assertNormalCompletion() {
-      if (outstanding.size === 0) return this.summary();
+      if (outstanding.size === 0) return { ...this.summary(), loadSensitiveDrainCount: 0, loadSensitiveDrainWaitMs: 0 };
 
-      safetyMetrics.testsFinishingWithOutstandingHeavyReads += 1;
-      safetyMetrics.exceptionalHeavyDrainCount += 1;
+      const initial = this.summary();
+      const drainOnly = initial.outstandingRequired === 0;
+      if (!drainOnly) {
+        safetyMetrics.testsFinishingWithOutstandingHeavyReads += 1;
+        safetyMetrics.exceptionalHeavyDrainCount += 1;
+      }
       const waitStartedAt = now();
       try {
-        if (closed) throw safeError('UAT_UNEXPECTED_OUTSTANDING_HEAVY_READ');
+        if (closed) throw safeError(drainOnly ? 'UAT_LOAD_SENSITIVE_READ_CLOSED' : 'UAT_UNEXPECTED_OUTSTANDING_HEAVY_READ');
         while (outstanding.size > 0) {
           const current = now();
           let nextDeadline = Infinity;
@@ -263,18 +284,20 @@ function createHeavyReadSafetyTracker(page, {
             if (state.failedAt !== undefined) outstanding.delete(request);
             else liveTimedOut = true;
           }
-          if (liveTimedOut) throw safeError('UAT_HEAVY_READ_DRAIN_TIMEOUT');
+          if (liveTimedOut) throw safeError(drainOnly ? 'UAT_LOAD_SENSITIVE_DRAIN_TIMEOUT' : 'UAT_HEAVY_READ_DRAIN_TIMEOUT');
           if (outstanding.size === 0) break;
           await waitForChangeOrDeadline(
             nextChange(),
             Math.max(0, nextDeadline - now()),
             timers
           );
-          if (closed && outstanding.size > 0) throw safeError('UAT_UNEXPECTED_OUTSTANDING_HEAVY_READ');
+          if (closed && outstanding.size > 0) throw safeError(drainOnly ? 'UAT_LOAD_SENSITIVE_READ_CLOSED' : 'UAT_UNEXPECTED_OUTSTANDING_HEAVY_READ');
         }
       } finally {
-        safetyMetrics.exceptionalHeavyDrainWaitMs += Math.max(0, now() - waitStartedAt);
+        if (!drainOnly) safetyMetrics.exceptionalHeavyDrainWaitMs += Math.max(0, now() - waitStartedAt);
       }
+      const waitMs = Math.max(0, now() - waitStartedAt);
+      if (drainOnly) return { ...this.summary(), loadSensitiveDrainCount: initial.outstandingLoadSensitive, loadSensitiveDrainWaitMs: waitMs };
       throw safeError('UAT_UNEXPECTED_OUTSTANDING_HEAVY_READ');
     },
     stop() {
@@ -316,6 +339,8 @@ module.exports = {
   DEFAULT_RUNTIME_CEILING_MS,
   DEFAULT_SAFETY_MARGIN_MS,
   HEAVY_PATHS,
+  LOAD_SENSITIVE_BACKGROUND_PATHS,
+  REQUIRED_HEAVY_PATHS,
   createHeavyReadSafetyTracker,
   installSafetySummaryExitLog,
   isHeavyGetRequest,

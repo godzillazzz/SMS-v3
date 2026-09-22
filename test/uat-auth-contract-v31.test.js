@@ -120,6 +120,8 @@ test('V3.1 remote-safe observability is embedded in already uploaded result and 
     'testsFinishingWithOutstandingHeavyReads',
     'exceptionalHeavyDrainCount',
     'exceptionalHeavyDrainWaitMs',
+    'loadSensitiveDrainCount',
+    'loadSensitiveDrainWaitMs',
     'realHeavyStarts',
     'preventedHeavyStarts'
   ]) {
