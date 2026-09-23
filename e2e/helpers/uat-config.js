@@ -42,7 +42,16 @@ const Q13B_SPECIALIST_WRITE_TEST_TITLES = Object.freeze([
   'Q13B ADMIN: Approval Authority policy update and exact restore',
   'Q13B ADMIN: Access self-mutation denial contract'
 ]);
-const scopes = ['full', REPORT_CENTER_DIAGNOSTIC_SCOPE, RESPONSIVE_NETWORK_SCOPE, TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE, Q13B_SPECIALIST_WRITE_SCOPE];
+const Q13C_BUSINESS_WORKFLOW_SCOPE = 'q13c-business-workflow-targeted';
+const Q13C_BUSINESS_WORKFLOW_TEST_TITLES = Object.freeze([
+  'Q13C ADMIN: Preview mutation safety guard',
+  'Q13C ADMIN: Personnel Master reversible lifecycle',
+  'Q13C ADMIN: Employee Change governed approval workflow',
+  'Q13C ADMIN: Disposable user access lifecycle',
+  'Q13C ADMIN: Security Site reversible configuration workflow',
+  'Q13C ADMIN: System Setting reversible standard update'
+]);
+const scopes = ['full', REPORT_CENTER_DIAGNOSTIC_SCOPE, RESPONSIVE_NETWORK_SCOPE, TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE, Q13B_SPECIALIST_WRITE_SCOPE, Q13C_BUSINESS_WORKFLOW_SCOPE];
 
 function configurationError(code, message) {
   const error = new Error(message);
@@ -80,7 +89,7 @@ function normalizeUatScope(value = 'full') {
   if (!scopes.includes(scope)) {
     throw configurationError(
       'UAT_SCOPE_NOT_APPROVED',
-      'UAT scope not approved: use full, report-center-diagnostic, responsive-network-targeted, admin-rbac-targeted-retry, g03-readonly-targeted, or q13b-specialist-write-targeted.'
+      'UAT scope not approved: use full, report-center-diagnostic, responsive-network-targeted, admin-rbac-targeted-retry, g03-readonly-targeted, q13b-specialist-write-targeted, or q13c-business-workflow-targeted.'
     );
   }
   return scope;
@@ -109,6 +118,7 @@ function getUatScopeTestTitles(environment = process.env) {
   if (scope === TARGETED_AUTH_RETRY_SCOPE) return [...TARGETED_AUTH_RETRY_TEST_TITLES];
   if (scope === G03_READONLY_SCOPE) return [...G03_READONLY_TEST_TITLES];
   if (scope === Q13B_SPECIALIST_WRITE_SCOPE) return [...Q13B_SPECIALIST_WRITE_TEST_TITLES];
+  if (scope === Q13C_BUSINESS_WORKFLOW_SCOPE) return [...Q13C_BUSINESS_WORKFLOW_TEST_TITLES];
   return undefined;
 }
 
@@ -130,7 +140,7 @@ function getUatConfig(environment = process.env) {
 
   const mode = normalizeUatMode(environment.UAT_MODE);
   const scope = normalizeUatScope(environment.UAT_SCOPE);
-  if (mode === 'technical' && [RESPONSIVE_NETWORK_SCOPE, TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE, Q13B_SPECIALIST_WRITE_SCOPE].includes(scope)) {
+  if (mode === 'technical' && [RESPONSIVE_NETWORK_SCOPE, TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE, Q13B_SPECIALIST_WRITE_SCOPE, Q13C_BUSINESS_WORKFLOW_SCOPE].includes(scope)) {
     throw configurationError('UAT_SCOPE_MODE_INVALID', `UAT scope ${scope} requires authenticated mode.`);
   }
   const accounts = {};
@@ -170,6 +180,8 @@ module.exports = {
   G03_READONLY_SCOPE,
   Q13B_SPECIALIST_WRITE_SCOPE,
   Q13B_SPECIALIST_WRITE_TEST_TITLES,
+  Q13C_BUSINESS_WORKFLOW_SCOPE,
+  Q13C_BUSINESS_WORKFLOW_TEST_TITLES,
   REPORT_CENTER_DIAGNOSTIC_SCOPE,
   REPORT_CENTER_DIAGNOSTIC_TEST_TITLES,
   RESPONSIVE_NETWORK_SCOPE,
