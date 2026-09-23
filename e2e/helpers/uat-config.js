@@ -34,7 +34,15 @@ const G03_READONLY_TEST_TITLES = Object.freeze([
   'G03 MANAGER: leave quota provisioning control is absent',
   'G03 VIEWER: leave quota provisioning control is absent'
 ]);
-const scopes = ['full', REPORT_CENTER_DIAGNOSTIC_SCOPE, RESPONSIVE_NETWORK_SCOPE, TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE];
+const Q13B_SPECIALIST_WRITE_SCOPE = 'q13b-specialist-write-targeted';
+const Q13B_SPECIALIST_WRITE_TEST_TITLES = Object.freeze([
+  'Q13B ADMIN: Preview mutation safety guard',
+  'Q13B ADMIN: Leave Pending reversible decision workflow',
+  'Q13B ADMIN: Auto Schedule Pattern create update and cleanup',
+  'Q13B ADMIN: Approval Authority policy update and exact restore',
+  'Q13B ADMIN: Access self-mutation denial contract'
+]);
+const scopes = ['full', REPORT_CENTER_DIAGNOSTIC_SCOPE, RESPONSIVE_NETWORK_SCOPE, TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE, Q13B_SPECIALIST_WRITE_SCOPE];
 
 function configurationError(code, message) {
   const error = new Error(message);
@@ -72,7 +80,7 @@ function normalizeUatScope(value = 'full') {
   if (!scopes.includes(scope)) {
     throw configurationError(
       'UAT_SCOPE_NOT_APPROVED',
-      'UAT scope not approved: use full, report-center-diagnostic, responsive-network-targeted, admin-rbac-targeted-retry, or g03-readonly-targeted.'
+      'UAT scope not approved: use full, report-center-diagnostic, responsive-network-targeted, admin-rbac-targeted-retry, g03-readonly-targeted, or q13b-specialist-write-targeted.'
     );
   }
   return scope;
@@ -100,6 +108,7 @@ function getUatScopeTestTitles(environment = process.env) {
   if (scope === RESPONSIVE_NETWORK_SCOPE) return [...RESPONSIVE_NETWORK_TEST_TITLES];
   if (scope === TARGETED_AUTH_RETRY_SCOPE) return [...TARGETED_AUTH_RETRY_TEST_TITLES];
   if (scope === G03_READONLY_SCOPE) return [...G03_READONLY_TEST_TITLES];
+  if (scope === Q13B_SPECIALIST_WRITE_SCOPE) return [...Q13B_SPECIALIST_WRITE_TEST_TITLES];
   return undefined;
 }
 
@@ -121,7 +130,7 @@ function getUatConfig(environment = process.env) {
 
   const mode = normalizeUatMode(environment.UAT_MODE);
   const scope = normalizeUatScope(environment.UAT_SCOPE);
-  if (mode === 'technical' && [RESPONSIVE_NETWORK_SCOPE, TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE].includes(scope)) {
+  if (mode === 'technical' && [RESPONSIVE_NETWORK_SCOPE, TARGETED_AUTH_RETRY_SCOPE, G03_READONLY_SCOPE, Q13B_SPECIALIST_WRITE_SCOPE].includes(scope)) {
     throw configurationError('UAT_SCOPE_MODE_INVALID', `UAT scope ${scope} requires authenticated mode.`);
   }
   const accounts = {};
@@ -159,6 +168,8 @@ function hasRoleCredentials(role, environment = process.env) {
 
 module.exports = {
   G03_READONLY_SCOPE,
+  Q13B_SPECIALIST_WRITE_SCOPE,
+  Q13B_SPECIALIST_WRITE_TEST_TITLES,
   REPORT_CENTER_DIAGNOSTIC_SCOPE,
   REPORT_CENTER_DIAGNOSTIC_TEST_TITLES,
   RESPONSIVE_NETWORK_SCOPE,

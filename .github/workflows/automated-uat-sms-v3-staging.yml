@@ -50,13 +50,18 @@ on:
           - responsive-network-targeted
           - admin-rbac-targeted-retry
           - g03-readonly-targeted
-
+          - q13b-specialist-write-targeted
+      q13b_write_confirmation:
+        description: Exact Q13-B Preview mutation confirmation; required only for q13b-specialist-write-targeted
+        required: false
+        default: ''
+        type: string
 permissions:
   contents: read
 
 jobs:
   technical-smoke:
-    if: ${{ inputs.uat_mode == 'technical' }}
+    if: ${{ inputs.uat_mode == 'technical' && inputs.uat_scope != 'q13b-specialist-write-targeted' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: production-sms-v3-staging
@@ -303,7 +308,7 @@ jobs:
           fi
 
   authenticated-uat:
-    if: ${{ inputs.uat_mode == 'authenticated' }}
+    if: ${{ inputs.uat_mode == 'authenticated' && inputs.uat_scope != 'q13b-specialist-write-targeted' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production-sms-v3-staging
@@ -606,3 +611,247 @@ jobs:
             echo 'UAT_EXECUTION_FAILED'
             exit 1
           fi
+
+  q13b-identity-preflight:
+    if: ${{ inputs.uat_mode == 'authenticated' && inputs.uat_scope == 'q13b-specialist-write-targeted' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-sms-v3-staging
+    env:
+      Q13B_CONFIRMATION: MUTATE_Q13B_PREVIEW_SPECIALIST_V1
+      Q13B_HARNESS_BRANCH: test/q13b-specialist-write-path-assurance
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.uat_harness_sha }}
+          fetch-depth: 0
+      - name: Verify exact Preview, application, and harness identity
+        shell: bash
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch }}
+          HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+          WRITE_CONFIRMATION: ${{ inputs.q13b_write_confirmation }}
+        run: |
+          set -euo pipefail
+          [[ "$WRITE_CONFIRMATION" == "$Q13B_CONFIRMATION" ]] || { echo Q13B_CONFIRMATION_REQUIRED; exit 1; }
+          [[ "$TARGET_URL" =~ ^https://sms-v3-staging-[a-z0-9]+-godzillazz\.vercel\.app$ ]] || { echo Q13B_PREVIEW_URL_INVALID; exit 1; }
+          [[ "$TARGET_URL" != 'https://sms-v3-staging-ten.vercel.app' ]] || { echo Q13B_PREVIEW_ONLY; exit 1; }
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo Q13B_SOURCE_SHA_INVALID; exit 1; }
+          [[ "$HARNESS_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo Q13B_HARNESS_SHA_INVALID; exit 1; }
+          [[ "$DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]] || { echo Q13B_DEPLOYMENT_ID_INVALID; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$HARNESS_SHA" ]] || { echo Q13B_CHECKOUT_HARNESS_MISMATCH; exit 1; }
+          git fetch --no-tags origin \
+            "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH" \
+            "refs/heads/$Q13B_HARNESS_BRANCH:refs/remotes/origin/$Q13B_HARNESS_BRANCH"
+          [[ "$(git rev-parse refs/remotes/origin/$SOURCE_BRANCH)" == "$SOURCE_SHA" ]] || { echo Q13B_SOURCE_HEAD_DRIFT; exit 1; }
+          [[ "$(git rev-parse refs/remotes/origin/$Q13B_HARNESS_BRANCH)" == "$HARNESS_SHA" ]] || { echo Q13B_HARNESS_HEAD_DRIFT; exit 1; }
+          test -n "$VERCEL_TOKEN"
+          test -n "$VERCEL_ORG_ID"
+          test -n "$VERCEL_PROJECT_ID"
+          identity="$(mktemp)"
+          curl --silent --show-error --fail --location --proto '=https' --tlsv1.2 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --get --data-urlencode "teamId=$VERCEL_ORG_ID" \
+            "https://api.vercel.com/v13/deployments/$DEPLOYMENT_ID" > "$identity"
+          [[ "$(jq -r '.id // ""' "$identity")" == "$DEPLOYMENT_ID" ]] || { echo Q13B_DEPLOYMENT_ID_MISMATCH; exit 1; }
+          [[ "$(jq -r '.projectId // .project.id // ""' "$identity")" == "$VERCEL_PROJECT_ID" ]] || { echo Q13B_PROJECT_MISMATCH; exit 1; }
+          [[ "$(jq -r '.readyState // ""' "$identity")" == 'READY' ]] || { echo Q13B_DEPLOYMENT_NOT_READY; exit 1; }
+          [[ -z "$(jq -r '.target // ""' "$identity")" ]] || { echo Q13B_TARGET_NOT_PREVIEW; exit 1; }
+          [[ "$(jq -r '.meta.githubCommitSha // ""' "$identity")" == "$SOURCE_SHA" ]] || { echo Q13B_DEPLOYMENT_SHA_MISMATCH; exit 1; }
+          target_host="${TARGET_URL#https://}"
+          [[ "$(jq -r '.url // ""' "$identity")" == "$target_host" ]] || { echo Q13B_DEPLOYMENT_URL_MISMATCH; exit 1; }
+          rm -f "$identity"
+          echo Q13B_PREVIEW_IDENTITY=PASS
+          echo Q13B_PRODUCTION_MUTATION=NONE
+
+  q13b-preview-fixture-prep:
+    needs: q13b-identity-preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: "Preview \u2013 sms-v3-staging"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.uat_harness_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Prepare isolated reversible Preview fixtures
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+          UAT_TARGET_MODE: preview
+          UAT_BASE_URL: ${{ inputs.target_url }}
+          UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+          UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+          UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          Q13B_WRITE_CONFIRMATION: ${{ inputs.q13b_write_confirmation }}
+          Q13B_SNAPSHOT_PATH: test-results/q13b-preview-baseline.json
+        run: |
+          set -euo pipefail
+          node scripts/admin/q13b-preview-fixture.js prepare
+      - uses: actions/upload-artifact@v4
+        with:
+          name: q13b-preview-baseline-${{ github.run_id }}
+          path: test-results/q13b-preview-baseline.json
+          if-no-files-found: error
+          retention-days: 7
+
+  q13b-authenticated-write:
+    needs: q13b-preview-fixture-prep
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production-sms-v3-staging
+    env:
+      UAT_BASE_URL: ${{ inputs.target_url }}
+      UAT_TARGET_MODE: preview
+      UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+      UAT_SOURCE_BRANCH: ${{ inputs.source_branch }}
+      UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+      UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
+      UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+      UAT_MODE: authenticated
+      UAT_SCOPE: q13b-specialist-write-targeted
+      Q13B_WRITE_CONFIRMATION: ${{ inputs.q13b_write_confirmation }}
+      PLAYWRIGHT_NO_COPY_PROMPT: 1
+      UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+      UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+      UAT_MANAGER_EMAIL: ${{ secrets.UAT_MANAGER_EMAIL }}
+      UAT_MANAGER_PASSWORD: ${{ secrets.UAT_MANAGER_PASSWORD }}
+      UAT_VIEWER_EMAIL: ${{ secrets.UAT_VIEWER_EMAIL }}
+      UAT_VIEWER_PASSWORD: ${{ secrets.UAT_VIEWER_PASSWORD }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.uat_harness_sha }}
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: application-under-test
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run Q13-B authenticated specialist write contracts
+        id: q13b
+        continue-on-error: true
+        shell: bash
+        run: npx playwright test e2e/smoke/q13b-specialist-write.spec.js
+      - name: Scan Q13-B artifacts for credential leakage
+        id: scan
+        if: always()
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const { scanArtifact } = require('./e2e/helpers/uat-v3-security');
+          const files = ['test-results/uat-summary.md', 'test-results/uat-results.json'];
+          const options = {
+            bypassSecret: process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+            passwordValues: [process.env.UAT_ADMIN_PASSWORD, process.env.UAT_MANAGER_PASSWORD, process.env.UAT_VIEWER_PASSWORD],
+            emailValues: [process.env.UAT_ADMIN_EMAIL, process.env.UAT_MANAGER_EMAIL, process.env.UAT_VIEWER_EMAIL]
+          };
+          const findings = [];
+          for (const file of files) {
+            if (!fs.existsSync(file)) continue;
+            const result = scanArtifact(file, fs.readFileSync(file), options);
+            if (!result.safe) findings.push({ path: result.path, categories: result.categories });
+          }
+          fs.mkdirSync('test-results', { recursive: true });
+          fs.writeFileSync('test-results/q13b-artifact-summary.json', JSON.stringify({ leakCount: findings.reduce((n, row) => n + row.categories.length, 0), findings }));
+          if (findings.length) process.exit(1);
+          console.log('Q13B_ARTIFACT_LEAK_COUNT=0');
+          NODE
+      - name: Publish Q13-B summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Q13-B Specialist Write Assurance'
+            echo '- Target mode: Preview only'
+            echo "- Result: ${{ steps.q13b.outcome }}"
+            echo "- Artifact scan: ${{ steps.scan.outcome }}"
+            if [[ -f test-results/uat-summary.md ]]; then cat test-results/uat-summary.md; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Q13-B safe evidence
+        if: always() && steps.scan.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: q13b-specialist-write-${{ github.run_id }}
+          path: |
+            test-results/uat-summary.md
+            test-results/uat-results.json
+            test-results/uat-v3-account-preflight.json
+            test-results/q13b-artifact-summary.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Enforce Q13-B result
+        if: always()
+        shell: bash
+        run: |
+          [[ "${{ steps.scan.outcome }}" == success ]] || { echo Q13B_ARTIFACT_SCAN_FAILED; exit 1; }
+          [[ "${{ steps.q13b.outcome }}" == success ]] || { echo Q13B_SPECIALIST_WRITE_FAILED; exit 1; }
+          echo Q13B_SPECIALIST_WRITE=PASS
+
+  q13b-preview-fixture-cleanup:
+    if: ${{ always() && needs.q13b-preview-fixture-prep.result == 'success' }}
+    needs: [q13b-preview-fixture-prep, q13b-authenticated-write]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: "Preview \u2013 sms-v3-staging"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.uat_harness_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: q13b-preview-baseline-${{ github.run_id }}
+          path: test-results
+      - name: Restore Preview fixtures and verify exact cleanup
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+          UAT_TARGET_MODE: preview
+          UAT_BASE_URL: ${{ inputs.target_url }}
+          UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+          UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+          UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          Q13B_WRITE_CONFIRMATION: ${{ inputs.q13b_write_confirmation }}
+          Q13B_SNAPSHOT_PATH: test-results/q13b-preview-baseline.json
+        run: |
+          set -euo pipefail
+          node scripts/admin/q13b-preview-fixture.js cleanup | tee test-results/q13b-cleanup.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: q13b-preview-cleanup-${{ github.run_id }}
+          path: test-results/q13b-cleanup.log
+          if-no-files-found: warn
+          retention-days: 7
