@@ -3,7 +3,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { PrismaClient } = require('@prisma/client');
 const { validateTargetScope } = require('../../e2e/helpers/uat-target-contract');
 const { normalizeLogicalTarget, parseTarget, targetFingerprint } = require('../ci/verify-deployment-target');
 const {
@@ -104,8 +103,18 @@ function readSnapshot(environment) {
   return baseline;
 }
 
-function createPrismaClient(databaseUrl) {
+function createPrismaClient(databaseUrl, environment = process.env) {
   if (!databaseUrl) throw q13bError('Q13B_DATABASE_URL_MISSING');
+  const applicationRoot = String(environment.UAT_APPLICATION_ROOT || '').trim();
+  if (!applicationRoot) throw q13bError('Q13B_APPLICATION_ROOT_REQUIRED');
+  const modulePath = path.join(path.resolve(applicationRoot), 'node_modules', '@prisma', 'client');
+  let PrismaClient;
+  try {
+    ({ PrismaClient } = require(modulePath));
+  } catch {
+    throw q13bError('Q13B_APPLICATION_PRISMA_CLIENT_UNAVAILABLE');
+  }
+  if (typeof PrismaClient !== 'function') throw q13bError('Q13B_APPLICATION_PRISMA_CLIENT_INVALID');
   return new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 }
 
@@ -187,7 +196,7 @@ async function diagnose({ environment = process.env, log = console.log, prismaCl
   }
 
   const ownsClient = !prismaClient;
-  const prisma = prismaClient || createPrismaClient(environment.DATABASE_URL);
+  const prisma = prismaClient || createPrismaClient(environment.DATABASE_URL, environment);
   const probe = async (name, operation) => {
     try {
       result[name] = { ok: true, value: await operation() };
@@ -230,7 +239,7 @@ async function diagnose({ environment = process.env, log = console.log, prismaCl
 
 async function snapshot({ environment = process.env, log = console.log } = {}) {
   assertQ13bPreviewExecutionContext(environment, { log });
-  const prisma = createPrismaClient(environment.DATABASE_URL);
+  const prisma = createPrismaClient(environment.DATABASE_URL, environment);
   try {
     const identity = await exactFixtureIdentity(prisma);
     const pattern = await prisma.autoSchedulePattern.findUnique({ where: { code: Q13B_AUTO_PATTERN_CODE } });
@@ -257,7 +266,7 @@ async function snapshot({ environment = process.env, log = console.log } = {}) {
 async function prepare({ environment = process.env, log = console.log } = {}) {
   assertQ13bPreviewExecutionContext(environment, { log });
   const baseline = readSnapshot(environment);
-  const prisma = createPrismaClient(environment.DATABASE_URL);
+  const prisma = createPrismaClient(environment.DATABASE_URL, environment);
   try {
     const prior = await exactFixtureIdentity(prisma);
     await removeQ13bAutoPattern(prisma);
@@ -318,7 +327,7 @@ async function cleanup({ environment = process.env, log = console.log } = {}) {
   const file = snapshotPath(environment);
   if (!fs.existsSync(file)) throw q13bError('Q13B_SNAPSHOT_MISSING');
   const baseline = JSON.parse(fs.readFileSync(file, 'utf8'));
-  const prisma = createPrismaClient(environment.DATABASE_URL);
+  const prisma = createPrismaClient(environment.DATABASE_URL, environment);
   try {
     await restoreApprovalPolicySnapshot(prisma, baseline.approvalPolicySettings);
     const autoPatternsRemoved = await removeQ13bAutoPattern(prisma);
@@ -382,6 +391,7 @@ module.exports = {
   approvalPolicySnapshot,
   assertQ13bPreviewExecutionContext,
   cleanup,
+  createPrismaClient,
   diagnose,
   prepare,
   readSnapshot,

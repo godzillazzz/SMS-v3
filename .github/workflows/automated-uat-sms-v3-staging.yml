@@ -682,11 +682,18 @@ jobs:
         with:
           ref: ${{ inputs.uat_harness_sha }}
           fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+          path: application-under-test
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm --prefix application-under-test ci --include=dev
+      - run: npm --prefix application-under-test run prisma:generate
       - name: Diagnose Q13-B Preview fixture prerequisites
         shell: bash
         env:
@@ -699,6 +706,7 @@ jobs:
           UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
           UAT_SOURCE_SHA: ${{ inputs.source_sha }}
           UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
           Q13B_WRITE_CONFIRMATION: ${{ inputs.q13b_write_confirmation }}
           Q13B_SNAPSHOT_PATH: test-results/q13b-preview-baseline.json
         run: |
@@ -717,6 +725,7 @@ jobs:
           UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
           UAT_SOURCE_SHA: ${{ inputs.source_sha }}
           UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
           Q13B_WRITE_CONFIRMATION: ${{ inputs.q13b_write_confirmation }}
           Q13B_SNAPSHOT_PATH: test-results/q13b-preview-baseline.json
         run: |
@@ -741,6 +750,7 @@ jobs:
           UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
           UAT_SOURCE_SHA: ${{ inputs.source_sha }}
           UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
           Q13B_WRITE_CONFIRMATION: ${{ inputs.q13b_write_confirmation }}
           Q13B_SNAPSHOT_PATH: test-results/q13b-preview-baseline.json
         run: |
@@ -860,11 +870,18 @@ jobs:
         with:
           ref: ${{ inputs.uat_harness_sha }}
           fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+          path: application-under-test
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm --prefix application-under-test ci --include=dev
+      - run: npm --prefix application-under-test run prisma:generate
       - uses: actions/download-artifact@v4
         with:
           name: q13b-preview-baseline-${{ github.run_id }}
@@ -881,6 +898,7 @@ jobs:
           UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
           UAT_SOURCE_SHA: ${{ inputs.source_sha }}
           UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          UAT_APPLICATION_ROOT: ${{ github.workspace }}/application-under-test
           Q13B_WRITE_CONFIRMATION: ${{ inputs.q13b_write_confirmation }}
           Q13B_SNAPSHOT_PATH: test-results/q13b-preview-baseline.json
         run: |
