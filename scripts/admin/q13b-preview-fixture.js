@@ -14,7 +14,8 @@ const {
   FIXTURE_USER_EMAIL,
   prepareDisposableUatEmployee,
   resetDisposableUatEmployee,
-  assertDisposableUatEmployeeBaseline
+  assertDisposableUatEmployeeBaseline,
+  assertExecutionContext
 } = require('./disposable-uat-employee');
 
 const Q13B_CONFIRMATION = 'MUTATE_Q13B_PREVIEW_SPECIALIST_V1';
@@ -32,6 +33,11 @@ function q13bError(code, message = code) {
   const error = new Error(message);
   error.code = code;
   return error;
+}
+
+function safeDiagnosticCode(error) {
+  const value = String(error?.code || error?.errorCode || error?.name || 'Q13B_PREVIEW_FIXTURE_FAILED');
+  return /^[A-Za-z0-9_]+$/.test(value) ? value : 'Q13B_PREVIEW_FIXTURE_FAILED';
 }
 
 function assertQ13bPreviewExecutionContext(environment = process.env, { log = console.log } = {}) {
@@ -79,6 +85,23 @@ function disposableEnvironment(environment = process.env) {
 
 function snapshotPath(environment = process.env) {
   return path.resolve(String(environment.Q13B_SNAPSHOT_PATH || DEFAULT_SNAPSHOT_PATH));
+}
+
+function writeSnapshot(environment, baseline) {
+  const file = snapshotPath(environment);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(baseline, null, 2)}\n`, 'utf8');
+  return file;
+}
+
+function readSnapshot(environment) {
+  const file = snapshotPath(environment);
+  if (!fs.existsSync(file)) throw q13bError('Q13B_SNAPSHOT_MISSING');
+  const baseline = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!baseline || baseline.version !== 3 || !Array.isArray(baseline.approvalPolicySettings) || baseline.approvalPolicySettings.length !== 5) {
+    throw q13bError('Q13B_SNAPSHOT_INVALID');
+  }
+  return baseline;
 }
 
 function createPrismaClient(databaseUrl) {
@@ -149,8 +172,91 @@ async function restoreApprovalPolicySnapshot(client, rows) {
   });
 }
 
+async function diagnose({ environment = process.env, log = console.log, prismaClient = null } = {}) {
+  assertQ13bPreviewExecutionContext(environment, { log });
+  const result = {
+    state: 'Q13B_PREVIEW_DIAGNOSTIC',
+    previewDatabaseIdentity: 'PROVEN',
+    productionDatabaseRejected: true
+  };
+  try {
+    assertExecutionContext(disposableEnvironment(environment));
+    result.disposableContext = 'PASS';
+  } catch (error) {
+    result.disposableContext = { ok: false, code: safeDiagnosticCode(error) };
+  }
+
+  const ownsClient = !prismaClient;
+  const prisma = prismaClient || createPrismaClient(environment.DATABASE_URL);
+  const probe = async (name, operation) => {
+    try {
+      result[name] = { ok: true, value: await operation() };
+    } catch (error) {
+      result[name] = { ok: false, code: safeDiagnosticCode(error) };
+    }
+  };
+
+  try {
+    await probe('databaseConnection', async () => {
+      await prisma.$queryRaw`SELECT 1`;
+      return 'PASS';
+    });
+    await probe('fixtureIdentity', async () => {
+      const identity = await exactFixtureIdentity(prisma);
+      return { employeePresent: Boolean(identity.employee), userPresent: Boolean(identity.user) };
+    });
+    await probe('autoPattern', async () => {
+      const row = await prisma.autoSchedulePattern.findUnique({ where: { code: Q13B_AUTO_PATTERN_CODE } });
+      return row
+        ? { present: true, safe: !row.isSystem && row.targetGroup === 'MANUAL' && String(row.name || '').startsWith(Q13B_AUTO_PATTERN_NAME_PREFIX) }
+        : { present: false, safe: true };
+    });
+    await probe('approvalPolicyRows', async () => prisma.systemSetting.count({ where: { key: { startsWith: 'APPROVAL_POLICY.LEAVE_REQUEST.' } } }));
+  } finally {
+    if (ownsClient) await prisma.$disconnect();
+  }
+
+  result.ok = result.disposableContext === 'PASS'
+    && result.databaseConnection?.ok === true
+    && result.fixtureIdentity?.ok === true
+    && result.autoPattern?.ok === true
+    && result.autoPattern?.value?.safe === true
+    && result.approvalPolicyRows?.ok === true
+    && result.approvalPolicyRows?.value === 5;
+  log(JSON.stringify(result));
+  if (!result.ok) throw q13bError('Q13B_PREVIEW_DIAGNOSTIC_FAILED');
+  return result;
+}
+
+async function snapshot({ environment = process.env, log = console.log } = {}) {
+  assertQ13bPreviewExecutionContext(environment, { log });
+  const prisma = createPrismaClient(environment.DATABASE_URL);
+  try {
+    const identity = await exactFixtureIdentity(prisma);
+    const pattern = await prisma.autoSchedulePattern.findUnique({ where: { code: Q13B_AUTO_PATTERN_CODE } });
+    if (pattern && (pattern.isSystem || pattern.targetGroup !== 'MANUAL' || !String(pattern.name || '').startsWith(Q13B_AUTO_PATTERN_NAME_PREFIX))) {
+      throw q13bError('Q13B_AUTO_PATTERN_IDENTITY_MISMATCH');
+    }
+    const baseline = {
+      version: 3,
+      fixtureEmployeeCode: FIXTURE_EMPLOYEE_CODE,
+      fixtureInitiallyPresent: Boolean(identity.employee),
+      fixtureUserInitiallyPresent: Boolean(identity.user),
+      quotaYear: Q13B_QUOTA_YEAR,
+      autoPatternCode: Q13B_AUTO_PATTERN_CODE,
+      approvalPolicySettings: await approvalPolicySnapshot(prisma)
+    };
+    if (baseline.fixtureInitiallyPresent !== baseline.fixtureUserInitiallyPresent) throw q13bError('Q13B_FIXTURE_IDENTITY_MISMATCH');
+    writeSnapshot(environment, baseline);
+    log('Q13B_PREVIEW_BASELINE_CAPTURED=PASS');
+    return baseline;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
 async function prepare({ environment = process.env, log = console.log } = {}) {
   assertQ13bPreviewExecutionContext(environment, { log });
+  const baseline = readSnapshot(environment);
   const prisma = createPrismaClient(environment.DATABASE_URL);
   try {
     const prior = await exactFixtureIdentity(prisma);
@@ -175,16 +281,6 @@ async function prepare({ environment = process.env, log = console.log } = {}) {
       }
     });
 
-    const baseline = {
-      version: 1,
-      fixtureEmployeeCode: FIXTURE_EMPLOYEE_CODE,
-      quotaYear: Q13B_QUOTA_YEAR,
-      autoPatternCode: Q13B_AUTO_PATTERN_CODE,
-      approvalPolicySettings: await approvalPolicySnapshot(prisma)
-    };
-    const file = snapshotPath(environment);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, `${JSON.stringify(baseline, null, 2)}\n`, 'utf8');
     log(JSON.stringify({ state: 'Q13B_PREVIEW_FIXTURE_READY', fixtureEmployeeCode: FIXTURE_EMPLOYEE_CODE, quotaYear: Q13B_QUOTA_YEAR, approvalPolicyRows: baseline.approvalPolicySettings.length }));
     return baseline;
   } finally {
@@ -192,6 +288,31 @@ async function prepare({ environment = process.env, log = console.log } = {}) {
   }
 }
 
+async function removeDisposableFixtureCreatedByQ13b(client, identity) {
+  if (!identity.employee && !identity.user) return false;
+  if (!identity.employee || !identity.user) throw q13bError('Q13B_FIXTURE_IDENTITY_MISMATCH');
+  const employeeId = identity.employee.id;
+  const userId = identity.user.id;
+  const lifecycleCount = await client.employeeLifecycleEvent.count({ where: { employeeId } });
+  if (lifecycleCount) throw q13bError('Q13B_FIXTURE_UNEXPECTED_LIFECYCLE_DEPENDENCY');
+  const unexpectedAuditCount = await client.auditLog.count({
+    where: {
+      OR: [
+        { actorUserId: userId },
+        { entityType: 'Employee', entityId: employeeId }
+      ]
+    }
+  });
+  if (unexpectedAuditCount) throw q13bError('Q13B_FIXTURE_UNEXPECTED_AUDIT_DEPENDENCY');
+  await client.$transaction(async (tx) => {
+    await tx.refreshSession.deleteMany({ where: { userId } });
+    await tx.authOtpChallenge.deleteMany({ where: { userId } });
+    await tx.auditLog.deleteMany({ where: { entityType: 'DisposableUatEmployeeFixture', entityId: employeeId } });
+    await tx.user.delete({ where: { id: userId } });
+    await tx.employee.delete({ where: { id: employeeId } });
+  });
+  return true;
+}
 async function cleanup({ environment = process.env, log = console.log } = {}) {
   assertQ13bPreviewExecutionContext(environment, { log });
   const file = snapshotPath(environment);
@@ -202,20 +323,32 @@ async function cleanup({ environment = process.env, log = console.log } = {}) {
     await restoreApprovalPolicySnapshot(prisma, baseline.approvalPolicySettings);
     const autoPatternsRemoved = await removeQ13bAutoPattern(prisma);
     const identity = await exactFixtureIdentity(prisma);
-    if (!identity.employee) throw q13bError('Q13B_FIXTURE_IDENTITY_MISSING');
-    const removed = await removeQ13bEmployeeDependencies(prisma, identity.employee);
-    const disposableEnv = disposableEnvironment(environment);
-    await resetDisposableUatEmployee({ prismaClient: prisma, environment: disposableEnv });
-    await assertDisposableUatEmployeeBaseline({ prismaClient: prisma, environment: disposableEnv });
+    let removed = { leaves: 0, quotas: 0 };
+    let disposableEmployeeBaseline = baseline.fixtureInitiallyPresent ? false : 'NOT_PRESENT';
+    let disposableFixtureRemoved = false;
+    if (identity.employee) {
+      removed = await removeQ13bEmployeeDependencies(prisma, identity.employee);
+      if (baseline.fixtureInitiallyPresent) {
+        const disposableEnv = disposableEnvironment(environment);
+        await resetDisposableUatEmployee({ prismaClient: prisma, environment: disposableEnv });
+        await assertDisposableUatEmployeeBaseline({ prismaClient: prisma, environment: disposableEnv });
+        disposableEmployeeBaseline = true;
+      } else {
+        disposableFixtureRemoved = await removeDisposableFixtureCreatedByQ13b(prisma, identity);
+        disposableEmployeeBaseline = 'REMOVED_TO_PRE_RUN_ABSENCE';
+      }
+    } else if (baseline.fixtureInitiallyPresent) {
+      throw q13bError('Q13B_FIXTURE_IDENTITY_MISSING');
+    }
 
     const remainingPattern = await prisma.autoSchedulePattern.findUnique({ where: { code: Q13B_AUTO_PATTERN_CODE } });
-    const remainingLeave = await prisma.leaveRequest.count({ where: { employeeId: identity.employee.id, reason: { contains: Q13B_LEAVE_REASON_MARKER } } });
-    const remainingQuota = await prisma.leaveQuota.count({ where: { employeeId: identity.employee.id, sourceFingerprint: Q13B_QUOTA_FINGERPRINT } });
+    const remainingLeave = identity.employee ? await prisma.leaveRequest.count({ where: { employeeId: identity.employee.id, reason: { contains: Q13B_LEAVE_REASON_MARKER } } }) : 0;
+    const remainingQuota = identity.employee ? await prisma.leaveQuota.count({ where: { employeeId: identity.employee.id, sourceFingerprint: Q13B_QUOTA_FINGERPRINT } }) : 0;
     const restoredPolicy = await approvalPolicySnapshot(prisma);
     if (remainingPattern || remainingLeave || remainingQuota) throw q13bError('Q13B_FIXTURE_CLEANUP_INCOMPLETE');
     if (JSON.stringify(restoredPolicy) !== JSON.stringify(baseline.approvalPolicySettings)) throw q13bError('Q13B_APPROVAL_POLICY_RESTORE_MISMATCH');
 
-    const result = { state: 'Q13B_PREVIEW_FIXTURE_CLEAN', autoPatternsRemoved, leavesRemoved: removed.leaves, quotasRemoved: removed.quotas, disposableEmployeeBaseline: true, approvalPolicyRestored: true };
+    const result = { state: 'Q13B_PREVIEW_FIXTURE_CLEAN', autoPatternsRemoved, leavesRemoved: removed.leaves, quotasRemoved: removed.quotas, disposableEmployeeBaseline, disposableFixtureRemoved, approvalPolicyRestored: true };
     log('Q13B_PREVIEW_FIXTURE_CLEANUP=PASS');
     log(JSON.stringify(result));
     return result;
@@ -227,11 +360,13 @@ async function cleanup({ environment = process.env, log = console.log } = {}) {
 async function main() {
   const command = String(process.argv[2] || '').trim().toLowerCase();
   try {
-    if (command === 'prepare') await prepare();
+    if (command === 'diagnose') await diagnose();
+    else if (command === 'snapshot') await snapshot();
+    else if (command === 'prepare') await prepare();
     else if (command === 'cleanup') await cleanup();
     else throw q13bError('Q13B_COMMAND_INVALID');
   } catch (error) {
-    console.error(error?.code || 'Q13B_PREVIEW_FIXTURE_FAILED');
+    console.error(safeDiagnosticCode(error));
     process.exitCode = 1;
   }
 }
@@ -247,6 +382,10 @@ module.exports = {
   approvalPolicySnapshot,
   assertQ13bPreviewExecutionContext,
   cleanup,
+  diagnose,
   prepare,
-  restoreApprovalPolicySnapshot
+  readSnapshot,
+  restoreApprovalPolicySnapshot,
+  safeDiagnosticCode,
+  snapshot
 };

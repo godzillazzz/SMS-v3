@@ -37,6 +37,10 @@ test('Q13B existing UAT workflow separates Preview DB fixture jobs from credenti
   assert.match(workflow, /APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT/);
   assert.match(workflow, /q13b-preview-fixture-cleanup/);
   assert.match(workflow, /Q13B_HARNESS_BRANCH: test\/automated-uat-v3-authenticated/);
+  assert.match(workflow, /Diagnose Q13-B Preview fixture prerequisites/);
+  assert.match(workflow, /Capture reversible Preview baseline before mutation/);
+  assert.match(workflow, /baseline_ready: \$\{\{ steps\.baseline\.outputs\.ready \}\}/);
+  assert.match(workflow, /needs\.q13b-preview-fixture-prep\.outputs\.baseline_ready == 'true'/);
   const writeSection = workflow.split('  q13b-authenticated-write:')[1].split('  q13b-preview-fixture-cleanup:')[0];
   assert.doesNotMatch(writeSection, /DATABASE_URL|DIRECT_URL/);
 });
@@ -49,6 +53,10 @@ test('Q13B fixture helper fail-closes on Preview DB identity and has explicit cl
   assert.match(helper, /ZZZ_Q13B_UAT_PATTERN_V1/);
   assert.match(helper, /resetDisposableUatEmployee/);
   assert.match(helper, /cleanup/);
+  assert.match(helper, /Q13B_PREVIEW_BASELINE_CAPTURED=PASS/);
+  assert.match(helper, /fixtureInitiallyPresent/);
+  assert.match(helper, /safeDiagnosticCode/);
+  assert.match(helper, /command === 'snapshot'/);
 });
 
 test('Q13B specialist spec fail-closes before mutations and proves terminal cleanup states', () => {

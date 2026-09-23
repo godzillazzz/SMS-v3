@@ -675,6 +675,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     environment: "Preview \u2013 sms-v3-staging"
+    outputs:
+      baseline_ready: ${{ steps.baseline.outputs.ready }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -685,6 +687,48 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Diagnose Q13-B Preview fixture prerequisites
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+          UAT_TARGET_MODE: preview
+          UAT_BASE_URL: ${{ inputs.target_url }}
+          UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+          UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+          UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          Q13B_WRITE_CONFIRMATION: ${{ inputs.q13b_write_confirmation }}
+          Q13B_SNAPSHOT_PATH: test-results/q13b-preview-baseline.json
+        run: |
+          set -euo pipefail
+          node scripts/admin/q13b-preview-fixture.js diagnose
+      - name: Capture reversible Preview baseline before mutation
+        id: baseline
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+          UAT_TARGET_MODE: preview
+          UAT_BASE_URL: ${{ inputs.target_url }}
+          UAT_EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+          UAT_SOURCE_SHA: ${{ inputs.source_sha }}
+          UAT_HARNESS_SHA: ${{ inputs.uat_harness_sha }}
+          Q13B_WRITE_CONFIRMATION: ${{ inputs.q13b_write_confirmation }}
+          Q13B_SNAPSHOT_PATH: test-results/q13b-preview-baseline.json
+        run: |
+          set -euo pipefail
+          node scripts/admin/q13b-preview-fixture.js snapshot
+          echo 'ready=true' >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: q13b-preview-baseline-${{ github.run_id }}
+          path: test-results/q13b-preview-baseline.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Prepare isolated reversible Preview fixtures
         shell: bash
         env:
@@ -702,12 +746,6 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/admin/q13b-preview-fixture.js prepare
-      - uses: actions/upload-artifact@v4
-        with:
-          name: q13b-preview-baseline-${{ github.run_id }}
-          path: test-results/q13b-preview-baseline.json
-          if-no-files-found: error
-          retention-days: 7
 
   q13b-authenticated-write:
     needs: q13b-preview-fixture-prep
@@ -812,7 +850,7 @@ jobs:
           echo Q13B_SPECIALIST_WRITE=PASS
 
   q13b-preview-fixture-cleanup:
-    if: ${{ always() && needs.q13b-preview-fixture-prep.result == 'success' }}
+    if: ${{ always() && needs.q13b-preview-fixture-prep.outputs.baseline_ready == 'true' }}
     needs: [q13b-preview-fixture-prep, q13b-authenticated-write]
     runs-on: ubuntu-latest
     timeout-minutes: 12
