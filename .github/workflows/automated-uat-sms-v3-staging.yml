@@ -619,7 +619,7 @@ jobs:
     environment: production-sms-v3-staging
     env:
       Q13B_CONFIRMATION: MUTATE_Q13B_PREVIEW_SPECIALIST_V1
-      Q13B_HARNESS_BRANCH: test/q13b-specialist-write-path-assurance
+      Q13B_HARNESS_BRANCH: test/automated-uat-v3-authenticated
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

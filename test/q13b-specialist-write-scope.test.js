@@ -36,6 +36,7 @@ test('Q13B existing UAT workflow separates Preview DB fixture jobs from credenti
   assert.match(workflow, /APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT/);
   assert.match(workflow, /APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT/);
   assert.match(workflow, /q13b-preview-fixture-cleanup/);
+  assert.match(workflow, /Q13B_HARNESS_BRANCH: test\/automated-uat-v3-authenticated/);
   const writeSection = workflow.split('  q13b-authenticated-write:')[1].split('  q13b-preview-fixture-cleanup:')[0];
   assert.doesNotMatch(writeSection, /DATABASE_URL|DIRECT_URL/);
 });
