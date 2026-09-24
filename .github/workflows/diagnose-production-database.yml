@@ -30,5 +30,58 @@ jobs:
         run: npx prisma generate
       - name: G06-UAT-01 read-only readiness check
         run: node scripts/ci/g06-uat-readiness-readonly.js
+      - name: G06-CLOSE-01 date preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { PrismaClient } = require('@prisma/client');
+          const { loadLicenseAuthorityByEmployee, licenseStateForWorkDate } = require('./src/services/license-state.service');
+          const prisma = new PrismaClient();
+          const target = new Date('2026-09-25T00:00:00.000Z');
+          const iso = (v) => v ? new Date(v).toISOString() : null;
+          (async () => {
+            const employee = await prisma.employee.findUnique({
+              where: { employeeCode: 'UAT-ST-20260902' },
+              select: { id: true, employeeCode: true, displayName: true, department: true, isActive: true, deletedAt: true }
+            });
+            if (!employee) throw new Error('G06_EMPLOYEE_NOT_FOUND');
+            const shift = await prisma.shiftType.findUnique({
+              where: { code: 'D' },
+              select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, isActive: true }
+            });
+            const assignment = await prisma.shiftAssignment.findUnique({
+              where: { workDate_employeeId: { workDate: target, employeeId: employee.id } },
+              select: { id: true, workDate: true, shiftTypeId: true, securitySiteId: true, licenseStatus: true, licenseOverride: true, locked: true }
+            });
+            const attendanceSessions = await prisma.attendanceSession.findMany({
+              where: { employeeId: employee.id, workDate: target },
+              select: { id: true, state: true, workDate: true, openedAt: true, closedAt: true, events: { select: { id: true, eventType: true, receivedAt: true } } }
+            });
+            const leaveOverlaps = await prisma.leaveRequest.findMany({
+              where: { employeeId: employee.id, startDate: { lte: target }, endDate: { gte: target } },
+              select: { id: true, status: true, leaveType: true, startDate: true, endDate: true, approvedAt: true }
+            });
+            const licenseMap = await loadLicenseAuthorityByEmployee(prisma, [employee.id]);
+            const licenseState = licenseStateForWorkDate(licenseMap.get(employee.id) || [], target);
+            const approval = await prisma.scheduleApproval.findFirst({
+              where: { month: new Date('2026-09-01T00:00:00.000Z') },
+              orderBy: [{ revision: 'desc' }, { updatedAt: 'desc' }],
+              select: { id: true, status: true, revision: true, approvedAt: true, updatedAt: true }
+            });
+            console.log('G06_DATE_PREFLIGHT_BEGIN');
+            console.log(JSON.stringify({
+              mode: 'READ_ONLY_G06_DATE_PREFLIGHT', databaseMutationPerformed: false, targetDate: '2026-09-25',
+              employee: { id: employee.id, employeeCode: employee.employeeCode, displayName: employee.displayName, department: employee.department, active: employee.isActive && !employee.deletedAt },
+              shiftD: shift ? { ...shift, hours: String(shift.hours) } : null,
+              licenseState: { valid: licenseState.valid, status: licenseState.status, expiryDate: iso(licenseState.expiryDate) },
+              existingAssignment: assignment ? { ...assignment, workDate: iso(assignment.workDate) } : null,
+              attendanceSessions: attendanceSessions.map(s => ({ ...s, workDate: iso(s.workDate), openedAt: iso(s.openedAt), closedAt: iso(s.closedAt), events: s.events.map(e => ({ ...e, receivedAt: iso(e.receivedAt) })) })),
+              leaveOverlaps: leaveOverlaps.map(l => ({ ...l, startDate: iso(l.startDate), endDate: iso(l.endDate), approvedAt: iso(l.approvedAt) })),
+              scheduleApproval: approval ? { ...approval, approvedAt: iso(approval.approvedAt), updatedAt: iso(approval.updatedAt) } : null
+            }, null, 2));
+            console.log('G06_DATE_PREFLIGHT_END');
+          })().catch((error) => { console.error(error.message); process.exitCode = 1; }).finally(async () => prisma.$disconnect());
+          NODE
       - name: G06-UAT-01 read-only Master candidate check
         run: node scripts/ci/g06-uat-master-candidates-readonly.js
