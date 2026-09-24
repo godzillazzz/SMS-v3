@@ -22,7 +22,7 @@ test('Personnel Master API is read for Admin Manager and mutation is Admin-only 
   const route = read('src/routes/personnel-masters.routes.js');
   const index = read('src/routes/index.js');
   assert.match(index, /personnel-masters/);
-  assert.equal(route.includes("router.get('/', authorize('ADMIN', 'MANAGER')"), true);
+  assert.equal(route.includes("router.get('/', authorize('ADMIN', 'MANAGER', 'SUPERVISOR')"), true);
   assert.equal(route.includes("router.post('/:kind', authorize('ADMIN')"), true);
   assert.equal(route.includes("router.put('/:kind/:id', authorize('ADMIN')"), true);
   assert.doesNotMatch(route, /router.delete/);

@@ -14,8 +14,8 @@ const REQUEST_TYPE_DEFINITIONS = Object.freeze([
   Object.freeze({ type: 'LICENSE_DOCUMENT', label: 'เอกสารใบอนุญาต', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'ATTENDANCE_DEVICE_REQUEST', label: 'อุปกรณ์ลงเวลา', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'ATTENDANCE_ADJUSTMENT_REQUEST', label: 'ปรับปรุงเวลา Attendance', safeReviewerRoles: Object.freeze(['ADMIN']) }),
-  Object.freeze({ type: 'REGISTRATION_REQUEST', label: 'ลงทะเบียนบัญชี', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER']) }),
-  Object.freeze({ type: 'USER_ACCESS', label: 'เปิดสิทธิ์ผู้ใช้', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER']) }),
+  Object.freeze({ type: 'REGISTRATION_REQUEST', label: 'ลงทะเบียนบัญชี', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR']) }),
+  Object.freeze({ type: 'USER_ACCESS', label: 'เปิดสิทธิ์ผู้ใช้', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR']) }),
   Object.freeze({ type: 'LEAVE_REQUEST', label: 'คำขอลา', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR']), supportsPositionAliases: true })
 ]);
 

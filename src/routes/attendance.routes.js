@@ -187,7 +187,7 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
     } catch (error) { next(error); }
   });
 
-  router.get('/evidence/:id/view', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+  router.get('/evidence/:id/view', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
     try { res.json({ data: await privateEvidence.view({ id: uuid.parse(req.params.id), actor: req.user }) }); } catch (error) { next(error); }
   });
 

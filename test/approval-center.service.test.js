@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createApprovalCenterService, approvalUrgency, supervisorCanApproveLeave } = require('../src/services/approval-center.service');
+const { createApprovalCenterService, approvalUrgency, supervisorCanApproveLeave, reviewerCanApproveLeave } = require('../src/services/approval-center.service');
 const { REQUEST_TYPE_DEFINITIONS, defaultPolicyFor, policyKey } = require('../src/services/approval-policy.service');
 
 const now = new Date('2026-08-28T02:00:00.000Z');
@@ -160,12 +160,14 @@ test('Approval Center summary preserves Manager leave authority while using only
   assert.deepEqual(leaveSelect, { employeeId: true, startDate: true, employee: { select: { jobTitle: true, user: { select: { role: true } } } } });
 });
 
-test('Supervisor role can review peer Supervisor leave only', () => {
-  const activeActor = { employeeId: 'sup-self', employee: { isActive: true, deletedAt: null } };
-  assert.equal(supervisorCanApproveLeave({ employeeId: 'sup-peer', employee: { user: { role: 'SUPERVISOR' } } }, activeActor), true);
+test('Supervisor role inherits Manager leave review and adds peer Supervisor leave', () => {
+  const activeActor = { employeeId: 'sup-self', employee: { jobTitle: 'Supervisor', isActive: true, deletedAt: null } };
+  const guardPeer = { employeeId: 'guard-peer', startDate: now, employee: { jobTitle: 'Guard', user: { role: 'VIEWER' } } };
+  const supervisorPeer = { employeeId: 'sup-peer', startDate: now, employee: { jobTitle: 'Supervisor', user: { role: 'SUPERVISOR' } } };
+  assert.equal(reviewerCanApproveLeave('SUPERVISOR', guardPeer, activeActor, now), true);
+  assert.equal(reviewerCanApproveLeave('SUPERVISOR', supervisorPeer, activeActor, now), true);
   assert.equal(supervisorCanApproveLeave({ employeeId: 'sup-self', employee: { user: { role: 'SUPERVISOR' } } }, activeActor), false);
-  assert.equal(supervisorCanApproveLeave({ employeeId: 'viewer-peer', employee: { user: { role: 'VIEWER' } } }, activeActor), false);
-  assert.equal(supervisorCanApproveLeave({ employeeId: 'sup-peer', employee: { user: { role: 'SUPERVISOR' } } }, { employeeId: 'sup-self', employee: { isActive: false, deletedAt: null } }), false);
+  assert.equal(reviewerCanApproveLeave('SUPERVISOR', supervisorPeer, { employeeId: 'sup-self', employee: { jobTitle: 'Supervisor', isActive: false, deletedAt: null } }, now), false);
 });
 
 test('Approval Center excludes unverified registrations by using the source workflow reviewable predicate', async () => {

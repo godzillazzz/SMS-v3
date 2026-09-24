@@ -49,7 +49,7 @@ router.get('/summary', async (req, res, next) => {
   }
 });
 
-router.post('/:id/approve', authorize('ADMIN', 'MANAGER'), requireLeaveReviewer, async (req, res, next) => {
+router.post('/:id/approve', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), requireLeaveReviewer, async (req, res, next) => {
   try {
     res.json({ data: await leaveService.approveRequest(req.params.id, req.user.sub) });
   } catch (error) {
@@ -57,7 +57,7 @@ router.post('/:id/approve', authorize('ADMIN', 'MANAGER'), requireLeaveReviewer,
   }
 });
 
-router.post('/:id/reject', authorize('ADMIN', 'MANAGER'), requireLeaveReviewer, async (req, res, next) => {
+router.post('/:id/reject', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), requireLeaveReviewer, async (req, res, next) => {
   try {
     const body = rejectSchema.parse(req.body || {});
     res.json({ data: await leaveService.rejectRequest(req.params.id, body.reason, req.user.sub) });

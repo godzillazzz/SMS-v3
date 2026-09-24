@@ -61,7 +61,7 @@ test('legacy schedule and leave controls remain available to Admin and Manager',
   assert.match(frontend, /Submit Leave Request/);
   assert.match(routes, /schedule\/auto-preview', authorize\('ADMIN'\)/);
   assert.match(routes, /schedule\/auto-commit', authorize\('ADMIN'\)/);
-  assert.match(routes, /schedule\/employee-auto-commit', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(routes, /schedule\/employee-auto-commit', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
   assert.match(employees, /orderBy: \[\{ employeeCode: 'asc' \}\]/);
 });
 
@@ -79,7 +79,7 @@ test('leave workflow uses the consolidated leave-requests route and policy valid
   assert.match(routes, /sickAttachmentRequiredAfterDays/);
   assert.match(routes, /LEAVE_SICK_ATTACHMENT_REQUIRED/);
   assert.doesNotMatch(routes, /Sick leave longer than 3 days requires an attachment/);
-  assert.match(routes, /Supervisors may review leave for Supervisor-role peers only/);
+  assert.match(routes, /Supervisor leave requests require Admin or peer-Supervisor approval/);
   assert.match(routes, /Manager leave requests require Supervisor-level approval or higher/);
   assert.match(routes, /const after = await tx\.leaveRequest\.update\(\{ where: \{ id \}, data: \{ status: input\.status, approvedAt:/);
   assert.match(frontend, /const formReady = Boolean/);
@@ -93,7 +93,7 @@ test('leave workflow uses the consolidated leave-requests route and policy valid
 test('leave quota management exposes year-aware entitlement, approved usage, and remaining balances', () => {
   const routes = read('src/routes/operations.routes.js');
   const frontend = read('frontend/src/main.tsx');
-  assert.match(routes, /router\.get\('\/leave-quotas', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(routes, /router\.get\('\/leave-quotas', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
   assert.match(routes, /const quotaYear = legacy \? null : \(req\.query\.year === undefined \? bangkokQuotaYear\(\) : validateQuotaYear\(req\.query\.year\)\)/);
   assert.match(routes, /status: 'APPROVED', startDate: \{ lt: nextYear \}, endDate: \{ gte: yearStart \}/);
   assert.match(routes, /persistedUsageByQuotaYear\(row\)/);

@@ -9,7 +9,7 @@ const css = read('./pages/attendance-supervisor/attendance-supervisor-v4.css');
 
 describe('WAVE 4C Attendance Supervisor authority guard', () => {
   it('keeps role-scoped read models and governed adjustment review boundaries', () => {
-    expect(page).toContain("const manager = role === 'MANAGER';");
+    expect(page).toContain("const manager = ['MANAGER', 'SUPERVISOR'].includes(role);");
     expect(page).toContain("const admin = role === 'ADMIN';");
     expect(page).toContain("if (mode === 'requests') return;");
     expect(page).toContain('attendanceSupervisorDaily(token');

@@ -156,7 +156,7 @@ export function AccessManagementPage({ rows, loading, error, role, originalUserI
   const [mutationError, setMutationError] = useState<string>();
   const triggerRef = useRef<HTMLElement>();
   const dialogTriggerRef = useRef<HTMLElement>();
-  const manager = role === 'MANAGER';
+  const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
   const state = accessManagementState(role, loading, error, rows);
   const departments = useMemo(() => Array.from(new Set(rows.map((row) => row.department || '').filter(Boolean))).sort(), [rows]);
 

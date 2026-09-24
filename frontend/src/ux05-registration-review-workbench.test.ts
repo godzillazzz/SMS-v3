@@ -78,9 +78,9 @@ describe('G04.2 UX-05 Registration Review workbench contract', () => {
     expect(panel).not.toContain('api.updateEmployee');
   });
 
-  it('keeps exact ADMIN/MANAGER reviewer gating and does not broaden public Employee exposure', () => {
-    expect(panel).toContain("if (!['ADMIN', 'MANAGER'].includes(role)) return null");
-    expect(panel).toContain("if (['ADMIN', 'MANAGER'].includes(role)) void load()");
+  it('keeps ADMIN/MANAGER/SUPERVISOR reviewer gating and does not broaden public Employee exposure', () => {
+    expect(panel).toContain("if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) return null");
+    expect(panel).toContain("if (['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) void load()");
     expect(panel).not.toContain('/auth/register/available-employees');
     expect(panel).not.toContain('registrationEmployees');
   });

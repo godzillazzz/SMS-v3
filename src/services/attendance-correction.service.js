@@ -37,8 +37,8 @@ function correctionReason(value) {
 
 function assertCorrectionActor(actor, assignment) {
   const role = String(actor?.role || '').toUpperCase();
-  if (!['ADMIN', 'MANAGER'].includes(role)) throw http(403, 'ATTENDANCE_CORRECTION_FORBIDDEN', 'Attendance correction requires Manager or Admin authority.');
-  if (role === 'MANAGER') {
+  if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) throw http(403, 'ATTENDANCE_CORRECTION_FORBIDDEN', 'Attendance correction requires Manager or Admin authority.');
+  if (['MANAGER', 'SUPERVISOR'].includes(role)) {
     const actorDepartment = String(actor?.department || '').trim();
     const assignmentDepartment = String(assignment?.departmentSnapshot || assignment?.employee?.department || '').trim();
     if (!actorDepartment || !assignmentDepartment || actorDepartment !== assignmentDepartment) {

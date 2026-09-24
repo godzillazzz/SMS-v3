@@ -11,7 +11,7 @@ const TECHNICAL_AUDIT_ACTIONS = ['LOGIN', 'LOGIN_FAILED', 'REFRESH', 'LOGOUT', '
 
 function employeeScope(user, relation = false) {
   if (user.role === 'ADMIN') return relation ? { employee: { is: { isActive: true, deletedAt: null } } } : {};
-  if (user.role === 'MANAGER' && user.department) {
+  if (['MANAGER', 'SUPERVISOR'].includes(user.role) && user.department) {
     return relation ? { employee: { is: { department: user.department, isActive: true, deletedAt: null } } } : { department: user.department };
   }
   return relation ? { employee: { is: { id: user.employeeId || EMPTY_ID, isActive: true, deletedAt: null } } } : { id: user.employeeId || EMPTY_ID };
@@ -103,7 +103,7 @@ function actionableQuotaWhere(scope) {
 function pendingUserWhere(requestUser) {
   return {
     accountStatus: 'PENDING',
-    ...(requestUser.role === 'MANAGER' ? { department: requestUser.department } : {}),
+    ...(['MANAGER', 'SUPERVISOR'].includes(requestUser.role) ? { department: requestUser.department } : {}),
     OR: [
       { employeeId: null },
       { employee: { is: { isActive: true, deletedAt: null } } }
@@ -275,7 +275,7 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
   const expiry90 = new Date(todayStart); expiry90.setUTCDate(expiry90.getUTCDate() + 90);
   const { employeeWhere, relationScope } = scopeForDashboard(requestUser, filters.department);
   const departmentWhere = { deletedAt: null, ...employeeScope(requestUser) };
-  const canManage = ['ADMIN', 'MANAGER'].includes(requestUser.role);
+  const canManage = ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(requestUser.role);
   const canAdmin = requestUser.role === 'ADMIN';
   const licenseWhere = { ...relationScope };
   const leaveWhere = { ...relationScope };
@@ -291,7 +291,7 @@ async function getDashboardSummary({ prismaClient, requestUser, now = new Date()
     { stage: 'DASH_TODAY_OPERATIONS', run: () => findManyIfAvailable(client.leaveRequest, { where: { ...leaveWhere, status: { in: ACTIVE_LEAVE_STATUSES }, startDate: { lte: todayStart }, endDate: { gte: todayStart } }, select: { employeeId: true }, distinct: ['employeeId'] }) },
     { stage: 'DASH_LEAVE', run: () => monthlyLeaveAggregate(client, leaveWhere, monthStart, nextMonth) },
     { stage: 'DASH_LEAVE', run: () => client.leaveRequest.count({ where: { ...leaveWhere, status: 'PENDING' } }) },
-    { stage: 'DASH_ATTENTION', run: () => canAdmin || (requestUser.role === 'MANAGER' && requestUser.department) ? client.user.count({ where: pendingUserWhere(requestUser) }) : 0 },
+    { stage: 'DASH_ATTENTION', run: () => canAdmin || (['MANAGER', 'SUPERVISOR'].includes(requestUser.role) && requestUser.department) ? client.user.count({ where: pendingUserWhere(requestUser) }) : 0 },
     { stage: 'DASH_ATTENTION', run: () => canManage ? client.scheduleApproval.count({ where: { status: { in: ['DRAFT', 'PENDING'] } } }) : 0 },
     { stage: 'DASH_LICENSE', run: () => licenseAggregate(client, licenseWhere, approvedCurrentWhere, todayStart, expiry30, expiry90) },
     { stage: 'DASH_LICENSE', run: () => client.employeeLicenseDocument.findMany({

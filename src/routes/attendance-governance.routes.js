@@ -31,7 +31,7 @@ function requirePreviewAttendance(_req, _res, next) {
 }
 
 function requireManagerOrAdmin(req, _res, next) {
-  return ['ADMIN', 'MANAGER'].includes(String(req.user?.role || '').toUpperCase())
+  return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(String(req.user?.role || '').toUpperCase())
     ? next()
     : next(new HttpError(403, 'Attendance governance access denied.'));
 }

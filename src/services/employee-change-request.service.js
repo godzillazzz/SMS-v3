@@ -31,7 +31,7 @@ function changesFromRevision(revision) {
 
 function canRead(request, actor) { return actor.role === 'ADMIN' || request.requestOwnerUserId === actor.sub; }
 function assertManagerOwner(request, actor) {
-  if (actor.role !== 'MANAGER') throw businessError(403, 'EMPLOYEE_CHANGE_MANAGER_REQUIRED', 'Only a Manager request owner may perform this action.');
+  if (!['MANAGER', 'SUPERVISOR'].includes(actor.role)) throw businessError(403, 'EMPLOYEE_CHANGE_MANAGER_REQUIRED', 'Only a Manager request owner may perform this action.');
   if (request.requestOwnerUserId !== actor.sub) throw businessError(403, 'EMPLOYEE_CHANGE_NOT_REQUEST_OWNER', 'Only the request owner may change or cancel this request.');
 }
 function assertAdmin(actor) { if (actor.role !== 'ADMIN') throw businessError(403, 'EMPLOYEE_CHANGE_ADMIN_REVIEW_REQUIRED', 'Admin review authority is required.'); }
@@ -43,7 +43,7 @@ function createEmployeeChangeRequestService({ prismaClient = prisma, auditServic
   async function getById({ id, actor }) { const request = await findWithHistory(id); if (!request) throw businessError(404, 'EMPLOYEE_CHANGE_REQUEST_NOT_FOUND', 'Employee change request not found.'); if (!canRead(request, actor)) throw businessError(403, 'EMPLOYEE_CHANGE_REQUEST_FORBIDDEN', 'You cannot view this Employee change request.'); return request; }
 
   async function list({ actor, status, employeeId, page = 1, pageSize = 25 }) {
-    if (!['ADMIN', 'MANAGER'].includes(actor.role)) throw businessError(403, 'EMPLOYEE_CHANGE_REQUEST_FORBIDDEN', 'You cannot view Employee change requests.');
+    if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(actor.role)) throw businessError(403, 'EMPLOYEE_CHANGE_REQUEST_FORBIDDEN', 'You cannot view Employee change requests.');
     const where = { ...(actor.role === 'ADMIN' ? { status: status || 'PENDING_APPROVAL' } : { requestOwnerUserId: actor.sub, ...(status && { status }) }), ...(employeeId && { employeeId }) };
     const [total, rows] = await prismaClient.$transaction([
       prismaClient.employeeChangeRequest.count({ where }),
@@ -53,8 +53,8 @@ function createEmployeeChangeRequestService({ prismaClient = prisma, auditServic
   }
 
   async function listForEmployee({ employeeId, actor }) {
-    if (!['ADMIN', 'MANAGER'].includes(actor.role)) throw businessError(403, 'EMPLOYEE_CHANGE_REQUEST_FORBIDDEN', 'You cannot view Employee change requests.');
-    const where = { employeeId, ...(actor.role === 'MANAGER' && { requestOwnerUserId: actor.sub }) };
+    if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(actor.role)) throw businessError(403, 'EMPLOYEE_CHANGE_REQUEST_FORBIDDEN', 'You cannot view Employee change requests.');
+    const where = { employeeId, ...(['MANAGER', 'SUPERVISOR'].includes(actor.role) && { requestOwnerUserId: actor.sub }) };
     const rows = await prismaClient.employeeChangeRequest.findMany({ where, include: requestInclude, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], take: 50 });
     return { data: rows, meta: { page: 1, pageSize: 50, total: rows.length, totalPages: rows.length ? 1 : 0 } };
   }
@@ -82,7 +82,7 @@ function createEmployeeChangeRequestService({ prismaClient = prisma, auditServic
   }
 
   async function createDraft({ employeeId, actor, proposal = null, effectiveMode = 'IMMEDIATE', effectiveDate = null, reason = null, idempotencyKey = crypto.randomUUID() }) {
-    if (actor.role !== 'MANAGER') throw businessError(403, 'EMPLOYEE_CHANGE_REQUEST_REQUIRED', 'Only Manager-originated Employee edits use governed change requests.');
+    if (!['MANAGER', 'SUPERVISOR'].includes(actor.role)) throw businessError(403, 'EMPLOYEE_CHANGE_REQUEST_REQUIRED', 'Only Manager-originated Employee edits use governed change requests.');
     let normalized = null;
     if (proposal && Object.keys(proposal).length) {
       normalized = mutationModule.normalizeChanges(proposal, 'MANAGER');

@@ -51,7 +51,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.post('/batch', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/batch', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   let assignmentCount = Array.isArray(req.body?.assignments) ? req.body.assignments.length : 0;
   try {
     const { assignments } = batchSchema.parse(req.body);
@@ -78,7 +78,7 @@ router.post('/batch', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
   }
 });
 
-router.post('/auto-plan', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/auto-plan', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const { month } = autoPlanSchema.parse(req.body);
     res.json({ data: await scheduleService.autoPlanMonth(month) });

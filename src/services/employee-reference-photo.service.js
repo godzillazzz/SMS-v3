@@ -8,7 +8,7 @@ const { validateReferencePhoto, safeName } = require('./employee-reference-photo
 const { optimizeAttachment } = require('./attachment-optimizer.service');
 
 function http(statusCode, code, message) { return new HttpError(statusCode, message, { code }); }
-function assertReviewer(actor) { if (!['ADMIN', 'MANAGER'].includes(actor?.role)) throw http(403, 'REFERENCE_PHOTO_FORBIDDEN', 'Reference photo access requires Admin or Manager.'); }
+function assertReviewer(actor) { if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(actor?.role)) throw http(403, 'REFERENCE_PHOTO_FORBIDDEN', 'Reference photo access requires Admin or Manager.'); }
 function assertAdmin(actor) { if (actor?.role !== 'ADMIN') throw http(403, 'REFERENCE_PHOTO_ADMIN_REQUIRED', 'Admin approval is required for this action.'); }
 function requiredReason(value) { const text = String(value || '').trim(); if (text.length < 3) throw http(400, 'REFERENCE_PHOTO_REJECTION_REASON_REQUIRED', 'A rejection reason of at least 3 characters is required.'); return text.slice(0, 1000); }
 function safeUser(row) { return row ? { id: row.id, displayName: row.displayName } : undefined; }
@@ -142,7 +142,7 @@ function createEmployeeReferencePhotoService({ prisma = prismaDefault, storage, 
   }
 
   async function cancel({ id, actor }) {
-    if (actor?.role !== 'MANAGER') throw http(403, 'REFERENCE_PHOTO_MANAGER_OWNER_REQUIRED', 'Only the Manager who submitted the pending Reference Photo can cancel it.');
+    if (!['MANAGER', 'SUPERVISOR'].includes(actor?.role)) throw http(403, 'REFERENCE_PHOTO_MANAGER_OWNER_REQUIRED', 'Only the Manager who submitted the pending Reference Photo can cancel it.');
     let cancelled;
     cancelled = await prisma.$transaction(async (tx) => {
       if (typeof tx.$queryRaw === 'function') await tx.$queryRaw`SELECT id FROM employee_reference_photos WHERE id = ${id}::uuid FOR UPDATE`;

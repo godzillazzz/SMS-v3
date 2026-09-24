@@ -98,7 +98,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
     finally { setLoading(false); }
   };
 
-  useEffect(() => { if (['ADMIN', 'MANAGER'].includes(role)) void load(); }, [token, role, refreshSignal, page, statusFilter]);
+  useEffect(() => { if (['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) void load(); }, [token, role, refreshSignal, page, statusFilter]);
 
   const runSearch = async (manual = false) => {
     if (!selected) return;
@@ -135,7 +135,7 @@ export function RegistrationReviewPanel({ token, role, refreshSignal, onChanged,
     };
   }, [rejectOpen]);
 
-  if (!['ADMIN', 'MANAGER'].includes(role)) return null;
+  if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) return null;
 
   const match = async (employeeId: string) => {
     if (!selected) return;

@@ -24,7 +24,7 @@ const approveSchema = z.object({}).strict();
 const rejectSchema = z.object({ reason: z.string().trim().min(3).max(1000) }).strict();
 
 router.use(authenticate);
-router.use(authorize('ADMIN', 'MANAGER'));
+router.use(authorize('ADMIN', 'MANAGER', 'SUPERVISOR'));
 router.use(async (req, _res, next) => {
   try { await approvalPolicy.assertReviewer('REGISTRATION_REQUEST', req.user); next(); }
   catch (error) { next(error); }

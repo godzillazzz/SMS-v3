@@ -52,7 +52,7 @@ function requireAttendanceApi(_req, _res, next) {
     : next(new HttpError(404, 'Not found.'));
 }
 
-router.use(requireAttendanceApi, authenticate, authorize('ADMIN', 'MANAGER'));
+router.use(requireAttendanceApi, authenticate, authorize('ADMIN', 'MANAGER', 'SUPERVISOR'));
 
 router.get('/', async (req, res, next) => {
   try {

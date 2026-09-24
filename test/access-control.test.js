@@ -12,8 +12,9 @@ test('ADMIN, MANAGER, and VIEWER authorization is enforced', async () => {
   assert.equal(await nextResult(authorize('ADMIN'), { user: { role: 'ADMIN' } }), undefined);
   assert.equal((await nextResult(authorize('ADMIN'), { user: { role: 'MANAGER' } })).statusCode, 403);
   assert.equal((await nextResult(authorize('ADMIN'), { user: { role: 'VIEWER' } })).statusCode, 403);
-  assert.equal((await nextResult(authorize('ADMIN', 'MANAGER'), { user: { role: 'VIEWER' } })).statusCode, 403);
-  assert.equal(await nextResult(authorize('ADMIN', 'MANAGER'), { user: { role: 'MANAGER' } }), undefined);
+  assert.equal((await nextResult(authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), { user: { role: 'VIEWER' } })).statusCode, 403);
+  assert.equal(await nextResult(authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), { user: { role: 'MANAGER' } }), undefined);
+  assert.equal(await nextResult(authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), { user: { role: 'SUPERVISOR' } }), undefined);
 });
 test('login rate limiter rejects attempts beyond its configured maximum', async () => {
   const req = { ip: '192.0.2.5' };

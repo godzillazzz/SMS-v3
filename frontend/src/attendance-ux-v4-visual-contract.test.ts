@@ -56,7 +56,7 @@ describe('Attendance UX V4 visual acceptance contract', () => {
   });
 
   it('keeps desktop pending-leave polling out of the PWA Attendance shell to avoid a parallel central refresh race', () => {
-    expect(main).toContain("if (pwaShell || !auth.token || !['ADMIN', 'MANAGER'].includes(auth.user?.role || ''))");
+    expect(main).toContain("if (pwaShell || !auth.token || !['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || ''))");
     expect(main).toContain('[auth.token, auth.user?.role, operationRefresh, pwaShell]');
   });
 
