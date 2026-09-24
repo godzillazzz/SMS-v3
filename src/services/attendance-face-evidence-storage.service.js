@@ -199,7 +199,7 @@ function createSupabaseAttendanceFaceEvidenceStorage({
       include: { employee: { select: { id: true, department: true } } }
     });
     if (!row) throw http(404, 'ATTENDANCE_EVIDENCE_NOT_FOUND', 'Attendance evidence was not found.');
-    if (scope.role === 'MANAGER' && row.employee?.department !== scope.department) {
+    if (['MANAGER', 'SUPERVISOR'].includes(scope.role) && row.employee?.department !== scope.department) {
       throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_FORBIDDEN', 'Manager cannot access another Department Attendance scope.');
     }
     const now = clock();

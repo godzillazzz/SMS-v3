@@ -428,7 +428,7 @@ function createEmployeeLifecycleService({ prismaClient = prisma, auditService = 
       prismaClient.employeeLifecycleEvent.count({ where }),
       prismaClient.employeeLifecycleEvent.findMany({ where, include: { changedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: [{ effectiveDate: 'desc' }, { sequence: 'desc' }], skip: (page - 1) * pageSize, take: pageSize })
     ]);
-    const data = role === 'MANAGER' ? rows.map((event) => ({ ...event, oldValue: { ...event.oldValue, employee: managerEmployeeState(event.oldValue.employee || {}) }, newValue: { ...event.newValue, employee: managerEmployeeState(event.newValue.employee || {}) } })) : rows;
+    const data = ['MANAGER', 'SUPERVISOR'].includes(role) ? rows.map((event) => ({ ...event, oldValue: { ...event.oldValue, employee: managerEmployeeState(event.oldValue.employee || {}) }, newValue: { ...event.newValue, employee: managerEmployeeState(event.newValue.employee || {}) } })) : rows;
     return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
   }
 

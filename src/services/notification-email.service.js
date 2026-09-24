@@ -23,7 +23,7 @@ async function getAdminAndManagerEmails() {
   try {
     const users = await prisma.user.findMany({
       where: {
-        role: { in: ['ADMIN', 'MANAGER'] },
+        role: { in: ['ADMIN', 'MANAGER', 'SUPERVISOR'] },
         isActive: true,
         accountStatus: 'ACTIVE',
         email: { not: '' }
@@ -527,7 +527,7 @@ async function broadcastLeaveRequestEmail(leaveRequest, requestUser, eventType =
   try {
     reviewers = await prisma.user.findMany({
       where: {
-        role: { in: ['ADMIN', 'MANAGER'] },
+        role: { in: ['ADMIN', 'MANAGER', 'SUPERVISOR'] },
         isActive: true,
         accountStatus: 'ACTIVE',
         email: { not: '' }
@@ -575,7 +575,7 @@ async function broadcastLeaveRequestEmail(leaveRequest, requestUser, eventType =
   // 6. Create reservations outside of leave transaction (using individual inserts to capture duplicates per user safely)
   const reservationsToSend = [];
   for (const reviewer of eligibleReviewers) {
-    const roleKey = reviewer.role === 'MANAGER' ? 'manager' : 'admin';
+    const roleKey = ['MANAGER', 'SUPERVISOR'].includes(reviewer.role) ? 'manager' : 'admin';
     const eventKey = 'leave:' + leaveRequest.id + ':' + eventType + ':' + roleKey + ':' + reviewer.id;
     try {
       const reservation = await prisma.emailDeliveryReservation.create({

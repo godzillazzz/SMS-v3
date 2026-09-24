@@ -19,7 +19,7 @@ test('legacy protected shift codes remain enforced while monthly approval is Adm
 
 test('legacy license permissions and date validation remain enforced', () => {
   assert.match(operations, /router\.post\('\/licenses', authorize\('ADMIN'\)/);
-  assert.match(operations, /router\.put\('\/licenses\/:id', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(operations, /router\.put\('\/licenses\/:id', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
   assert.match(operations, /router\.delete\('\/licenses\/:id', authorize\('ADMIN'\)/);
   assert.match(operations, /Issue date must not be after expiry date/);
   assert.match(operations, /License number already exists/);

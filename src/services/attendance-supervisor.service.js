@@ -52,8 +52,8 @@ function parseHistoryRange(filters = {}, fallback = new Date()) {
 
 function scopeForActor(actor, filters = {}) {
   const role = String(actor?.role || '').toUpperCase();
-  if (!['ADMIN', 'MANAGER'].includes(role)) throw http(403, 'ATTENDANCE_SUPERVISOR_FORBIDDEN', 'Attendance supervisor access requires Manager or Admin authority.');
-  if (role === 'MANAGER') {
+  if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) throw http(403, 'ATTENDANCE_SUPERVISOR_FORBIDDEN', 'Attendance supervisor access requires Manager or Admin authority.');
+  if (['MANAGER', 'SUPERVISOR'].includes(role)) {
     const department = String(actor?.department || '').trim();
     if (!department) throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_REQUIRED', 'Manager Attendance scope requires a Department.');
     if (filters.department && filters.department !== department) throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_FORBIDDEN', 'Manager cannot access another Department Attendance scope.');
@@ -148,7 +148,7 @@ function employeeScopeWhere(scope, filters) {
     ...(scope.department ? { department: scope.department } : {}),
     ...(scope.employeeId ? { id: scope.employeeId } : {})
   };
-  if (filters.employeeId && scope.role === 'MANAGER') where.id = filters.employeeId;
+  if (filters.employeeId && ['MANAGER', 'SUPERVISOR'].includes(scope.role)) where.id = filters.employeeId;
   return where;
 }
 
@@ -352,7 +352,7 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     });
     if (!assignment) throw http(404, 'ATTENDANCE_ASSIGNMENT_NOT_FOUND', 'Attendance assignment was not found.');
     const department = assignment.departmentSnapshot || assignment.employee?.department || null;
-    if (scope.role === 'MANAGER' && department !== scope.department) {
+    if (['MANAGER', 'SUPERVISOR'].includes(scope.role) && department !== scope.department) {
       throw http(403, 'ATTENDANCE_SUPERVISOR_SCOPE_FORBIDDEN', 'Manager cannot access another Department Attendance scope.');
     }
 
@@ -387,7 +387,7 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
         })()
       })),
       governance: {
-        canCreateAdjustmentRequest: ['ADMIN', 'MANAGER'].includes(scope.role),
+        canCreateAdjustmentRequest: ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(scope.role),
         canApproveAdjustmentRequest: scope.role === 'ADMIN',
         directOverrideEnabled: false,
         note: 'V4 adjustment requests must not change authoritative Attendance until ADMIN approval.'

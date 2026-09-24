@@ -62,9 +62,9 @@ test('approval service records the real non-Admin role on a denied direct call',
   assert.equal(rejection.metadata.reason, 'UNAUTHORIZED_APPROVAL_ATTEMPT');
 });
 
-test('Supervisor role remains excluded from unrelated Manager/Admin operational authority', () => {
-  assert.doesNotMatch(operations, /router\.put\('\/licenses\/:id', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
+test('Supervisor role inherits Manager operational authority while Admin-only actions stay protected', () => {
+  assert.match(operations, /router\.put\('\/licenses\/:id', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\),/);
+  assert.match(attendanceSupervisorService, /\['ADMIN', 'MANAGER', 'SUPERVISOR'\]\.includes\(role\)/);
+  assert.match(attendanceSupervisorService, /\['MANAGER', 'SUPERVISOR'\]\.includes\(role\)/);
   assert.doesNotMatch(operations, /router\.post\('\/shift-types', authorize\([^\n]*'SUPERVISOR'/);
-  assert.match(attendanceSupervisorService, /if \(!\['ADMIN', 'MANAGER'\]\.includes\(role\)\)/);
-  assert.doesNotMatch(attendanceSupervisorService, /\['ADMIN', 'MANAGER', 'SUPERVISOR'\]/);
 });

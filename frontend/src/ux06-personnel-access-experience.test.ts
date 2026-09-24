@@ -150,10 +150,10 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
   });
 
   it('keeps manager/admin visibility and Audit navigation unchanged', () => {
-    expect(accessPage).toContain("const manager = role === 'MANAGER';");
+    expect(accessPage).toContain("const manager = ['MANAGER', 'SUPERVISOR'].includes(role);");
     expect(accessPage).toContain('onOpenAudit={() => { closeDetails(); onOpenAudit(); }}');
     expect(accessPage).toContain('ดู Audit &amp; Compliance');
-    expect(main).toContain("if (page === 'users') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
+    expect(main).toContain("if (page === 'users') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
   });
 
   it('provides foreground-first dialog stacking, Escape suspension, body locking, and focus restoration', () => {

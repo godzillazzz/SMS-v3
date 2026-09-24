@@ -49,7 +49,7 @@ function createUserAccessService({ prismaClient = prisma, auditService = audit, 
         const before = await tx.user.findUniqueOrThrow({ where: { id } });
         const effectiveInput = { ...input };
 
-        if (actorRole === 'MANAGER') {
+        if (['MANAGER', 'SUPERVISOR'].includes(actorRole)) {
           if (before.accountStatus !== 'PENDING') throw new HttpError(403, 'Managers may approve pending accounts only.');
           await policyService.assertReviewer('USER_ACCESS', { role: actorRole, sub: actorUserId }, tx);
           if (effectiveInput.role && effectiveInput.role !== 'VIEWER') throw new HttpError(403, 'Managers may assign the Viewer role only.');

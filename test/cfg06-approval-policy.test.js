@@ -43,19 +43,25 @@ test('CFG-06 defines every current Approval Center request type with Admin prese
   assert.equal(ALL_SETTING_KEYS.length, 26);
 });
 
-test('CFG-06 exposes Supervisor only for leave review security ceiling', () => {
-  const leave = REQUEST_TYPE_DEFINITIONS.find((row) => row.type === 'LEAVE_REQUEST');
-  assert.deepEqual(leave.safeReviewerRoles, ['ADMIN', 'MANAGER', 'SUPERVISOR']);
-  for (const definition of REQUEST_TYPE_DEFINITIONS.filter((row) => row.type !== 'LEAVE_REQUEST')) {
-    assert.equal(definition.safeReviewerRoles.includes('SUPERVISOR'), false, definition.type);
+test('CFG-06 Supervisor reviewer ceiling exactly inherits Manager reviewer ceiling', () => {
+  for (const definition of REQUEST_TYPE_DEFINITIONS) {
+    assert.equal(definition.safeReviewerRoles.includes('SUPERVISOR'), definition.safeReviewerRoles.includes('MANAGER'), definition.type);
   }
-  const policy = normalizePolicyInput('LEAVE_REQUEST', { reviewerRoles: ['ADMIN', 'SUPERVISOR'], dueSoonHours: 12, overdueHours: 36 });
-  assert.deepEqual(policy.reviewerRoles, ['ADMIN', 'SUPERVISOR']);
+  for (const type of ['REGISTRATION_REQUEST', 'USER_ACCESS', 'LEAVE_REQUEST']) {
+    const definition = REQUEST_TYPE_DEFINITIONS.find((row) => row.type === type);
+    assert.deepEqual(definition.safeReviewerRoles, ['ADMIN', 'MANAGER', 'SUPERVISOR']);
+  }
+  const policy = normalizePolicyInput('USER_ACCESS', { reviewerRoles: ['ADMIN', 'MANAGER', 'SUPERVISOR'], dueSoonHours: 12, overdueHours: 36 });
+  assert.deepEqual(policy.reviewerRoles, ['ADMIN', 'MANAGER', 'SUPERVISOR']);
 });
 
-test('CFG-06 security ceiling cannot grant Manager to an Admin-only workflow or remove Admin', () => {
+test('CFG-06 security ceiling cannot grant Manager or Supervisor to an Admin-only workflow or remove Admin', () => {
   assert.throws(
     () => normalizePolicyInput('LICENSE_DOCUMENT', { reviewerRoles: ['ADMIN', 'MANAGER'], dueSoonHours: 12, overdueHours: 36 }),
+    (error) => error.details?.code === 'APPROVAL_POLICY_ROLE_EXCEEDS_SECURITY_CEILING'
+  );
+  assert.throws(
+    () => normalizePolicyInput('LICENSE_DOCUMENT', { reviewerRoles: ['ADMIN', 'SUPERVISOR'], dueSoonHours: 12, overdueHours: 36 }),
     (error) => error.details?.code === 'APPROVAL_POLICY_ROLE_EXCEEDS_SECURITY_CEILING'
   );
   assert.throws(
@@ -193,6 +199,8 @@ test('CFG-06 registry exposes policy keys as registered but not editable one key
 test('Supervisor role migration is additive and never remaps existing user roles', () => {
   const migration = require('node:fs').readFileSync(require('node:path').join(process.cwd(), 'prisma/migrations/202609240001_add_supervisor_user_role/migration.sql'), 'utf8');
   assert.match(migration, /ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPERVISOR'/);
+  assert.match(migration, /APPROVAL_POLICY\.REGISTRATION_REQUEST\.REVIEWER_ROLES/);
+  assert.match(migration, /APPROVAL_POLICY\.USER_ACCESS\.REVIEWER_ROLES/);
   assert.match(migration, /APPROVAL_POLICY\.LEAVE_REQUEST\.REVIEWER_ROLES/);
   assert.match(migration, /"value"::jsonb \|\| '\["SUPERVISOR"\]'::jsonb/);
   assert.doesNotMatch(migration, /UPDATE\s+"?(?:users|User)"?/i);

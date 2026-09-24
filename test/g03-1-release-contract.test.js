@@ -43,7 +43,7 @@ test('active leave runtime contains no old 30/6/10 fallback or employee-only quo
 test('report summary quota KPI is scoped to the selected Bangkok report period', () => {
   const routes = read('src/routes/operations.routes.js');
   const service = read('src/services/report-summary.service.js');
-  assert.match(routes, /router\.get\('\/reports\/summary', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(routes, /router\.get\('\/reports\/summary', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
   assert.match(routes, /getReportSummary\(\{ prismaClient: prisma, requestUser: currentUser, filters: parsedQuery\.data/);
   assert.match(service, /quotaYear: period\.year/);
   assert.match(service, /currentBangkokPeriod/);

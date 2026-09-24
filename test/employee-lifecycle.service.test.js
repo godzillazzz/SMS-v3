@@ -272,7 +272,7 @@ test('route contract keeps mutations ADMIN-only and lifecycle history read-only'
   const source = fs.readFileSync(path.join(__dirname, '../src/routes/employees.routes.js'), 'utf8');
   assert.match(source, /post\('\/:id\/lifecycle\/preflight', authorize\('ADMIN'\)/);
   assert.match(source, /post\('\/:id\/lifecycle', authorize\('ADMIN'\)/);
-  assert.match(source, /get\('\/:id\/lifecycle', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(source, /get\('\/:id\/lifecycle', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
   assert.match(source, /expectedLifecycleSequence: z\.number\(\)\.int\(\)\.min\(0\)/);
   assert.match(source, /EMPLOYEE_CHANGE_REQUEST_REQUIRED/);
   assert.match(source, /post\('\/:id\/master-edit\/preflight', authorize\('ADMIN'\)/);

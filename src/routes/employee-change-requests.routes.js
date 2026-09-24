@@ -18,7 +18,7 @@ const reviewReject = transition.extend({ reason: z.string().trim().min(3).max(10
 const approve = transition.extend({ acknowledgeWarnings: z.boolean().default(false) });
 
 router.use(authenticate);
-router.use(authorize('ADMIN', 'MANAGER'));
+router.use(authorize('ADMIN', 'MANAGER', 'SUPERVISOR'));
 router.get('/', async (req, res, next) => { try { res.json(await service.list({ actor: req.user, ...paging.parse(req.query) })); } catch (error) { next(error); } });
 router.get('/:id', async (req, res, next) => { try { res.json({ data: await service.getById({ id: uuid.parse(req.params.id), actor: req.user }) }); } catch (error) { next(error); } });
 router.put('/:id/draft', async (req, res, next) => { try { res.json({ data: await service.saveDraft({ id: uuid.parse(req.params.id), actor: req.user, ...draft.parse(req.body) }) }); } catch (error) { next(error); } });

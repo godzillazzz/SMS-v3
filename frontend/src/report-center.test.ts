@@ -58,7 +58,7 @@ describe('Unified Report Center V1 source contract', () => {
   });
 
   it('preserves report RBAC and legacy internal compatibility', () => {
-    expect(app).toContain("if (['licenses', 'reportCenter', 'reports', 'executiveReport'].includes(page)) return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '');");
+    expect(app).toContain("if (['licenses', 'reportCenter', 'reports', 'executiveReport'].includes(page)) return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');");
     expect(app).toContain("executiveReport: 'reportCenter'");
     expect(app).toContain("reports: 'reportCenter'");
     expect(app).toContain("attendanceReport: 'reportCenter'");

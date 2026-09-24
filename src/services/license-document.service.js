@@ -33,7 +33,7 @@ function ensureAdmin(requestUser) {
 }
 
 function ensureEditor(requestUser) {
-  if (!['ADMIN', 'MANAGER'].includes(requestUser?.role)) throw new HttpError(403, 'Manager or administrator access is required.');
+  if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(requestUser?.role)) throw new HttpError(403, 'Manager or administrator access is required.');
 }
 
 function ensureProposedDates(startDate, expiryDate) {
@@ -215,7 +215,7 @@ function createLicenseDocumentService({ prisma, storage, audit, reconcileSchedul
 
   async function canAccess(_tx, requestUser, employeeId) {
     if (requestUser.role === 'ADMIN') return true;
-    return requestUser.role === 'MANAGER' && Boolean(employeeId);
+    return ['MANAGER', 'SUPERVISOR'].includes(requestUser.role) && Boolean(employeeId);
   }
 
   async function list({ licenseId, requestUser }) {

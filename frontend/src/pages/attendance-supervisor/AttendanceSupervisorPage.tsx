@@ -393,7 +393,7 @@ function AttendanceMobileCard({
 
 export function AttendanceSupervisorPage({ token, role, department, userId, onOpenAttendanceReport }: Props) {
   const today = bangkokDateText();
-  const manager = role === 'MANAGER';
+  const manager = ['MANAGER', 'SUPERVISOR'].includes(role);
   const admin = role === 'ADMIN';
 
   const [mode, setMode] = useState<Mode>('daily');

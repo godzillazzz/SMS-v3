@@ -18,8 +18,8 @@ require.cache[require.resolve('../src/services/registration-request.service')] =
 require.cache[require.resolve('../src/services/approval-policy.service')] = { exports: {
   createApprovalPolicyService: () => ({
     assertReviewer: async (_requestType, actor) => {
-      if (!['ADMIN', 'MANAGER'].includes(actor?.role)) throw new HttpError(403, 'Forbidden.');
-      return { requestType: 'REGISTRATION_REQUEST', reviewerRoles: ['ADMIN', 'MANAGER'], dueSoonHours: 24, overdueHours: 48 };
+      if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(actor?.role)) throw new HttpError(403, 'Forbidden.');
+      return { requestType: 'REGISTRATION_REQUEST', reviewerRoles: ['ADMIN', 'MANAGER', 'SUPERVISOR'], dueSoonHours: 24, overdueHours: 48 };
     }
   })
 } };
@@ -54,7 +54,7 @@ for (const [method, path, body] of [
 }
 
 test('ADMIN and MANAGER may use protected review/search/match/approve APIs, with no role input', async () => {
-  for (const role of ['ADMIN', 'MANAGER']) {
+  for (const role of ['ADMIN', 'MANAGER', 'SUPERVISOR']) {
     assert.equal((await request(reviewApp).get('/registration-requests').set('x-test-role', role)).status, 200);
     assert.equal((await request(reviewApp).get('/registration-requests/11111111-1111-4111-8111-111111111111/candidates?search=ab').set('x-test-role', role)).status, 200);
     assert.equal((await request(reviewApp).post('/registration-requests/11111111-1111-4111-8111-111111111111/match').set('x-test-role', role).send({ employeeId: '22222222-2222-4222-8222-222222222222' })).status, 200);

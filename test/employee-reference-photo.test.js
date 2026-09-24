@@ -24,7 +24,7 @@ test('route contract authenticates all endpoints and keeps final review ADMIN-on
   assert.ok(route.includes('router.use(authenticate)'));
   assert.ok(route.includes("router.post('/:id/approve', authorize('ADMIN')"));
   assert.ok(route.includes("router.post('/:id/reject', authorize('ADMIN')"));
-  assert.ok(route.includes("router.post('/:id/cancel', authorize('MANAGER')"));
+  assert.ok(route.includes("router.post('/:id/cancel', authorize('MANAGER', 'SUPERVISOR')"));
   assert.ok(index.includes("router.use('/employee-reference-photos', employeeReferencePhotoRoutes)"));
 });
 

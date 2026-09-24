@@ -27,13 +27,13 @@ describe('Attendance UX V4 Employee Mobile/PWA shell', () => {
     expect(mode).toContain("return SMS_PWA_PAGES.includes(requested as SmsPwaPage) ? requested as SmsPwaPage : 'attendance'");
     expect(mode).toContain("window.matchMedia('(display-mode: standalone)').matches");
     expect(mode).toContain("queryValue('pwa') === '1'");
-    expect(main).toContain("const supervisorAllowed = activePage === 'attendanceSupervisor' && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs");
+    expect(main).toContain("const supervisorAllowed = activePage === 'attendanceSupervisor' && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(main).toContain("if (!isSmsPwaPage(activePage) && !supervisorAllowed) setActivePage('attendance')");
     expect(main).toContain("pwaShell ? initialSmsPwaPage() : 'dashboard'");
   });
 
   it('adds a role-gated on-behalf Attendance shortcut without adding a sixth employee tab', () => {
-    expect(main).toContain("onOpenSupervisor={pwaShell && ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs ? openPwaAttendanceSupervisor : undefined}");
+    expect(main).toContain("onOpenSupervisor={pwaShell && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs ? openPwaAttendanceSupervisor : undefined}");
     expect(main).toContain("url.searchParams.set('page', 'attendanceSupervisor')");
     const nav = main.slice(main.indexOf('className=\"pwa-bottom-nav\"'), main.indexOf('</nav>}', main.indexOf('className=\"pwa-bottom-nav\"')));
     expect(nav).not.toContain('ลงเวลาแทนพนักงาน');

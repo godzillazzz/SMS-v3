@@ -14,7 +14,7 @@ function managerSafeEmployee(employee) {
   return { id, employeeCode, firstName, lastName, displayName, department, jobTitle, isActive };
 }
 const requiresBasicView = (role) => role === 'VIEWER';
-const requiresManagerView = (role) => role === 'MANAGER';
+const requiresManagerView = (role) => ['MANAGER', 'SUPERVISOR'].includes(role);
 function auditSnapshot(employee) {
   const { id, employeeCode, firstName, lastName, department, jobTitle, isActive, deletedAt, deletedByUserId } = employee;
   return { id, employeeCode, firstName, lastName, department, jobTitle, isActive, deletedAt, deletedByUserId };

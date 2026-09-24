@@ -105,7 +105,7 @@ function supervisorCanApproveLeave(row, actorProfile, policy = {}) {
 
 function reviewerCanApproveLeave(role, row, actorProfile, now = new Date(), policy = {}) {
   if (role === 'ADMIN') return true;
-  if (role === 'SUPERVISOR') return supervisorCanApproveLeave(row, actorProfile, policy);
+  if (role === 'SUPERVISOR') return managerCanApproveLeave(row, actorProfile, now, policy) || supervisorCanApproveLeave(row, actorProfile, policy);
   if (role === 'MANAGER') return managerCanApproveLeave(row, actorProfile, now, policy);
   return false;
 }

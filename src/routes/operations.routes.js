@@ -203,12 +203,12 @@ const assertRetroactiveLeaveEntryAllowed = ({ policy, actorRole, actorEmployeeId
       code: `${codePrefix}RETROACTIVE_NOT_ALLOWED`
     });
   }
-  if (actorRole === 'MANAGER' && employeeId === actorEmployeeId) {
+  if (['MANAGER', 'SUPERVISOR'].includes(actorRole) && employeeId === actorEmployeeId) {
     throw new HttpError(400, correction ? 'ผู้จัดการไม่สามารถแก้ไขการลาย้อนหลังให้ตนเองได้' : 'ผู้จัดการไม่สามารถบันทึกการลาย้อนหลังให้ตนเองได้', {
       code: `${codePrefix}MANAGER_RETROACTIVE_SELF_NOT_ALLOWED`
     });
   }
-  if (actorRole === 'MANAGER') {
+  if (['MANAGER', 'SUPERVISOR'].includes(actorRole)) {
     if (!policy.managerRetroactiveOnBehalfEnabled) {
       throw new HttpError(403, 'นโยบายปัจจุบันไม่อนุญาตให้ Manager บันทึกการลาย้อนหลังแทนพนักงาน', {
         code: `${codePrefix}MANAGER_RETROACTIVE_DISABLED`
@@ -230,20 +230,23 @@ const hasSupervisorApprovalLevel = (user, policy) => user.role === 'ADMIN' || ['
 const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser, options = {}) => {
   const policy = await approvalPolicyService.assertReviewer('LEAVE_REQUEST', requestUser, tx);
   if (requestUser.role === 'ADMIN') return policy;
-  // MANAGER keeps its existing position-based global scope. SUPERVISOR is a narrow peer-role reviewer.
+  // SUPERVISOR inherits the complete MANAGER leave-review baseline and adds peer-SUPERVISOR authority.
   const [leaveEmployee, approver] = await Promise.all([
     tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true, department: true, user: { select: { role: true } } } }),
     tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employeeId: true, employee: { select: { jobTitle: true, department: true, isActive: true, deletedAt: true } } } })
   ]);
-  if (requestUser.role === 'SUPERVISOR') {
-    if (!approver.employeeId || approver.employee?.isActive !== true || approver.employee?.deletedAt) throw new HttpError(403, 'Supervisor approval requires an active linked employee.', { code: 'LEAVE_SUPERVISOR_ACTIVE_EMPLOYEE_REQUIRED' });
-    if (approver.employeeId === employeeId) throw new HttpError(400, 'Supervisors cannot review their own leave.', { code: 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED' });
-    if (leaveEmployee.user?.role !== 'SUPERVISOR') throw new HttpError(403, 'Supervisors may review leave for Supervisor-role peers only.', { code: 'LEAVE_SUPERVISOR_PEER_ROLE_REQUIRED' });
-    return policy;
-  }
+  const supervisorRole = requestUser.role === 'SUPERVISOR';
+  if (supervisorRole && approver.employeeId === employeeId) throw new HttpError(400, 'Supervisors cannot review their own leave.', { code: 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED' });
   if (!options.isRetroactive) {
-    if (approvalPositionClass(leaveEmployee, policy) === 'SUPERVISOR') throw new HttpError(403, 'Supervisor leave requests require Admin approval.', { code: 'LEAVE_SUPERVISOR_ADMIN_APPROVAL_REQUIRED' });
-    if (approvalPositionClass(leaveEmployee, policy) === 'MANAGER' && !hasSupervisorApprovalLevel(approver, policy)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.', { code: 'LEAVE_MANAGER_ESCALATION_REQUIRED' });
+    const leavePositionClass = approvalPositionClass(leaveEmployee, policy);
+    if (leavePositionClass === 'SUPERVISOR') {
+      if (supervisorRole) {
+        if (!approver.employeeId || approver.employee?.isActive !== true || approver.employee?.deletedAt) throw new HttpError(403, 'Supervisor approval requires an active linked employee.', { code: 'LEAVE_SUPERVISOR_ACTIVE_EMPLOYEE_REQUIRED' });
+        if (leaveEmployee.user?.role === 'SUPERVISOR') return policy;
+      }
+      throw new HttpError(403, 'Supervisor leave requests require Admin or peer-Supervisor approval.', { code: 'LEAVE_SUPERVISOR_PEER_APPROVAL_REQUIRED' });
+    }
+    if (leavePositionClass === 'MANAGER' && !hasSupervisorApprovalLevel(approver, policy)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.', { code: 'LEAVE_MANAGER_ESCALATION_REQUIRED' });
   }
   return policy;
 };
@@ -294,7 +297,7 @@ const createLeaveRequest = async (tx, input, requestUser, file, substitute, opti
   const onBehalfOf = employeeId !== currentUser.employeeId;
   // MANAGER global scope: department check is removed for on-behalf creation.
   // Retroactive guard (manager cannot key retro for themselves) is enforced above (line 152).
-  if (currentUser.role === 'MANAGER' && onBehalfOf) {
+  if (['MANAGER', 'SUPERVISOR'].includes(currentUser.role) && onBehalfOf) {
     await stageTimer('approval_policy_lookup', () => ensureLeaveApprovalAllowed(tx, employeeId, requestUser, { isRetroactive }));
   }
 
@@ -387,7 +390,7 @@ router.get('/dashboard', async (req, res, next) => {
     res.json({ data: await getDashboardSummary({ requestUser: currentUser, filters: parsedQuery.data, requestId: req.requestId }) });
   } catch (error) { next(error); }
 });
-router.get('/executive-report', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.get('/executive-report', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const parsedQuery = executiveReportQuery.safeParse(req.query);
     if (!parsedQuery.success) throw new HttpError(400, 'Executive report filter is invalid.');
@@ -405,7 +408,7 @@ router.post('/internal/license-reconciliation', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/licenses', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.get('/licenses', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const { page, pageSize, employeeStatus } = licenseListQuery.parse(req.query);
     const where = licenseEmployeeWhere(employeeStatus);
@@ -441,7 +444,7 @@ router.post('/licenses', authorize('ADMIN'), async (req, res, next) => {
     res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
-router.put('/licenses/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.put('/licenses/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id); const input = licenseUpdateInput.parse(req.body);
     if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.');
@@ -465,13 +468,13 @@ router.put('/licenses/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next
     }); res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.get('/licenses/:id/documents', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.get('/licenses/:id/documents', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const licenseId = uuid.parse(req.params.id);
     res.json({ data: await licenseDocuments.list({ licenseId, requestUser: req.user }) });
   } catch (error) { next(error); }
 });
-router.post('/licenses/:id/documents', authorize('ADMIN', 'MANAGER'), licenseDocumentUpload, async (req, res, next) => {
+router.post('/licenses/:id/documents', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), licenseDocumentUpload, async (req, res, next) => {
   try {
     const licenseId = uuid.parse(req.params.id);
     const input = z.object({ licenseNumber: z.string().transform(normalizeLicenseNumber), proposedStartDate: z.coerce.date(), proposedExpiryDate: z.coerce.date(), note: nullableText(2000) }).refine((value) => value.proposedStartDate <= value.proposedExpiryDate, { message: 'Start date must not be after expiry date.', path: ['proposedExpiryDate'] }).parse(req.body);
@@ -482,7 +485,7 @@ router.post('/license-documents/retention-cleanup', authorize('ADMIN'), async (r
   try { res.json({ data: await cleanupDueLicenseDocuments({ prisma, storage: licenseStorage }) }); }
   catch (error) { next(error); }
 });
-router.get('/license-documents/:id/view', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.get('/license-documents/:id/view', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     res.json({ data: await licenseDocuments.view({ id, requestUser: req.user }) });
@@ -501,7 +504,7 @@ router.post('/license-documents/:id/return-for-correction', authorize('ADMIN'), 
     res.json({ data: await licenseDocuments.returnForCorrection({ id, requestUser: req.user, correctionReason }) });
   } catch (error) { next(error); }
 });
-router.post('/license-documents/:id/resubmit', authorize('ADMIN', 'MANAGER'), licenseDocumentUpload, async (req, res, next) => {
+router.post('/license-documents/:id/resubmit', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), licenseDocumentUpload, async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = z.object({ licenseNumber: z.string().transform(normalizeLicenseNumber), proposedStartDate: z.coerce.date(), proposedExpiryDate: z.coerce.date(), note: nullableText(2000) }).refine((value) => value.proposedStartDate <= value.proposedExpiryDate, { message: 'Start date must not be after expiry date.', path: ['proposedExpiryDate'] }).parse(req.body);
@@ -513,7 +516,7 @@ router.post('/license-documents/:id/reject', authorize('ADMIN'), async (req, res
     const id = uuid.parse(req.params.id); const { rejectionReason } = z.object({ rejectionReason: z.string().trim().min(1).max(2000) }).parse(req.body);
     res.json({ data: await licenseDocuments.reject({ id, requestUser: req.user, rejectionReason }) });
   } catch (error) { next(error); }
-});router.post('/license-documents/:id/cancel', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+});router.post('/license-documents/:id/cancel', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     res.json({ data: await licenseDocuments.cancel({ id, requestUser: req.user }) });
@@ -632,13 +635,13 @@ router.post('/schedule/auto-commit', authorize('ADMIN'), async (req, res, next) 
     res.json({ data: await commitAutoSchedule(prisma, month, req.user.sub) });
   } catch (error) { next(error); }
 });
-router.post('/schedule/employee-auto-preview', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/schedule/employee-auto-preview', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const { month, employeeId, startPhase, patternType } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid, startPhase: autoSchedulePhaseInput.default('AUTO'), patternType: z.union([z.literal('AUTO'), autoSchedulePatternCodeInput]).default('AUTO') }).parse(req.body);
     res.json({ data: await buildEmployeeAutoSchedulePlan(prisma, month, employeeId, startPhase, patternType) });
   } catch (error) { next(error); }
 });
-router.post('/schedule/employee-auto-commit', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/schedule/employee-auto-commit', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const { month, employeeId, startPhase, patternType } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), employeeId: uuid, startPhase: autoSchedulePhaseInput.default('AUTO'), patternType: z.union([z.literal('AUTO'), autoSchedulePatternCodeInput]).default('AUTO') }).parse(req.body);
     res.json({ data: await commitEmployeeAutoSchedule(prisma, month, employeeId, req.user.sub, startPhase, patternType) });
@@ -691,7 +694,7 @@ router.post('/schedule/approve-month', authorize('ADMIN', 'SUPERVISOR'), async (
     res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.post('/shifts', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/shifts', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const input = shiftInput.parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
@@ -707,7 +710,7 @@ router.post('/shifts', authorize('ADMIN', 'MANAGER'), async (req, res, next) => 
     }); res.status(201).json({ data: result });
   } catch (error) { next(error); }
 });
-router.put('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.put('/shifts/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id); const input = shiftInput.partial().parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.');
     const result = await prisma.$transaction(async (tx) => {
@@ -742,7 +745,7 @@ router.put('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) 
     }); res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.delete('/shifts/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.findUnique({ where: { id } }); if (!before) return; await tx.shiftAssignment.delete({ where: { id } }); await updateScheduleApprovalState(tx, { workDate: before.workDate, actorUserId: req.user.sub, isAlOnly: false, changeType: 'DELETE_SHIFT' }); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); } });
+router.delete('/shifts/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); await prisma.$transaction(async (tx) => { const before = await tx.shiftAssignment.findUnique({ where: { id } }); if (!before) return; await tx.shiftAssignment.delete({ where: { id } }); await updateScheduleApprovalState(tx, { workDate: before.workDate, actorUserId: req.user.sub, isAlOnly: false, changeType: 'DELETE_SHIFT' }); await audit.log({ actorUserId: req.user.sub, action: 'DELETE', entityType: 'ShiftAssignment', entityId: id, metadata: { before: safeRecord(before, ['employeeId', 'shiftTypeId', 'workDate']) } }, tx); }); res.status(204).send(); } catch (error) { next(error); } });
 
 router.get('/schedule-approvals', async (req, res, next) => {
   try {
@@ -808,10 +811,10 @@ router.get('/rule-checks', async (req, res, next) => {
     res.json({ data: { month, ...evaluateScheduleRules({ rules, employees, shifts, leaves, dates }) } });
   } catch (error) { next(error); }
 });
-router.put('/scheduling-rules/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ value: z.string().trim().min(1).max(1000).optional(), unit: nullableText(100), enabled: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.schedulingRule.findUniqueOrThrow({ where: { id } }); const after = await tx.schedulingRule.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'SchedulingRule', entityId: id, metadata: { before: safeRecord(before, ['value', 'unit', 'enabled']), after: safeRecord(after, ['value', 'unit', 'enabled']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
+router.put('/scheduling-rules/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ value: z.string().trim().min(1).max(1000).optional(), unit: nullableText(100), enabled: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await prisma.$transaction(async (tx) => { const before = await tx.schedulingRule.findUniqueOrThrow({ where: { id } }); const after = await tx.schedulingRule.update({ where: { id }, data: input }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'SchedulingRule', entityId: id, metadata: { before: safeRecord(before, ['value', 'unit', 'enabled']), after: safeRecord(after, ['value', 'unit', 'enabled']) } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
 const approvalPolicyUpdateInput = z.object({
-  reviewerRoles: z.array(z.enum(['ADMIN', 'MANAGER'])).min(1).max(2),
+  reviewerRoles: z.array(z.enum(['ADMIN', 'MANAGER', 'SUPERVISOR'])).min(1).max(3),
   dueSoonHours: z.coerce.number().int(),
   overdueHours: z.coerce.number().int(),
   additionalSupervisorAliases: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
@@ -1056,7 +1059,7 @@ router.get('/leave-policy', async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/leave-requests/pending-count', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.get('/leave-requests/pending-count', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
     const count = await prisma.leaveRequest.count({ where: { status: 'PENDING' } });
@@ -1245,7 +1248,7 @@ router.post('/leave-requests/:id/return-for-correction', authorize('ADMIN', 'MAN
       if (before.status !== 'PENDING') throw new HttpError(409, 'Only pending leave requests can be returned for correction.', { code: 'LEAVE_RETURN_INVALID_STATE' });
       const isRetroactive = checkIsRetroactive(before.startDate);
       await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive });
-      if (req.user.role === 'MANAGER') {
+      if (['MANAGER', 'SUPERVISOR'].includes(req.user.role)) {
         const approver = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
         if (before.employeeId === approver.employeeId) throw new HttpError(400, 'ไม่สามารถตรวจสอบใบลาของตนเอง', { code: 'LEAVE_OWNER_SELF_REVIEW_NOT_ALLOWED' });
       }
@@ -1300,7 +1303,7 @@ router.put('/leave-requests/:id/correction', async (req, res, next) => {
         startDate: input.startDate,
         correction: true
       });
-      if (actor.role === 'MANAGER' && before.employeeId !== actor.employeeId) await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive });
+      if (['MANAGER', 'SUPERVISOR'].includes(actor.role) && before.employeeId !== actor.employeeId) await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive });
       const leaveTypeMaster = await resolveLeaveTypeForRequest(tx, input.leaveType, { allowInactiveId: before.leaveTypeId || undefined });
       const leaveTypeState = leaveTypeSnapshot(leaveTypeMaster);
       const leaveType = leaveTypeState.leaveType;
@@ -1421,7 +1424,7 @@ router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), a
         // MANAGER global scope: no department check in any path.
         // Self-approval guard remains enforced regardless of retroactive status.
         await ensureLeaveApprovalAllowed(tx, before.employeeId, req.user, { isRetroactive });
-        if (req.user.role === 'MANAGER') {
+        if (['MANAGER', 'SUPERVISOR'].includes(req.user.role)) {
           const approverUser = await tx.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { employeeId: true } });
           if (before.employeeId === approverUser.employeeId) {
             throw new HttpError(400, 'ไม่สามารถอนุมัติใบลาของตนเองได้', 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED');
@@ -1552,7 +1555,7 @@ router.post('/leave-quotas', authorize('ADMIN'), async (req, res, next) => {
     res.status(201).json({ data: { ...result, sickLeave: Number(result.sickLeave), personalLeave: Number(result.personalLeave), vacationLeave: Number(result.vacationLeave) } });
   } catch (error) { next(error); }
 });
-router.get('/leave-quotas', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.get('/leave-quotas', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const { page, pageSize } = paging.parse(req.query);
     const legacy = String(req.query.legacy || '') === 'true';
@@ -1602,7 +1605,7 @@ router.put('/leave-quotas/:id/link', authorize('ADMIN'), async (req, res, next) 
     res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.put('/leave-quotas/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.put('/leave-quotas/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = z.object({ sickLeave: z.coerce.number().min(0).max(999).optional(), personalLeave: z.coerce.number().min(0).max(999).optional(), vacationLeave: z.coerce.number().min(0).max(999).optional() }).strict().parse(req.body);
@@ -1617,7 +1620,7 @@ router.put('/leave-quotas/:id', authorize('ADMIN', 'MANAGER'), async (req, res, 
   } catch (error) { next(error); }
 });
 
-router.put('/users/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ role: z.enum(['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER']).optional(), department: nullableText(100), accountStatus: z.enum(['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED']).optional(), isActive: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await userAccess.updateUserAccount({ id, input, actorUserId: req.user.sub, actorRole: req.user.role }); res.json({ data: result }); } catch (error) { next(error); } });
+router.put('/users/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ role: z.enum(['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER']).optional(), department: nullableText(100), accountStatus: z.enum(['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED']).optional(), isActive: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await userAccess.updateUserAccount({ id, input, actorUserId: req.user.sub, actorRole: req.user.role }); res.json({ data: result }); } catch (error) { next(error); } });
 router.post('/users/:id/reset-password', authorize('ADMIN'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const { newPassword } = z.object({ newPassword: z.string().min(8).max(128) }).parse(req.body); const passwordHash = await bcrypt.hash(newPassword, 12); const result = await prisma.$transaction(async (tx) => { const after = await tx.user.update({ where: { id }, data: { passwordHash, passwordResetRequired: false, failedLoginCount: 0, tokenVersion: { increment: 1 } }, select: { id: true, displayName: true, email: true, role: true, accountStatus: true, isActive: true, passwordResetRequired: true } }); await tx.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'UserCredential', entityId: id, metadata: { passwordResetRequired: false, sessionsRevoked: true } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
 router.get('/audit-events', authorize('ADMIN'), async (req, res, next) => {
@@ -1626,7 +1629,7 @@ router.get('/audit-events', authorize('ADMIN'), async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/reports/summary', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.get('/reports/summary', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const parsedQuery = reportSummaryQuery.safeParse(req.query);
     if (!parsedQuery.success) throw new HttpError(400, 'Report summary filter is invalid.');

@@ -15,7 +15,7 @@ export type AccountRecord = {
 export type AccessRole = 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' | string;
 
 export function canLoadAccessManagement(role: AccessRole) {
-  return role === 'ADMIN' || role === 'MANAGER';
+  return role === 'ADMIN' || ['MANAGER', 'SUPERVISOR'].includes(role);
 }
 
 export const viewAsConfirmation = {
@@ -62,7 +62,7 @@ export function accessSummary(accounts: AccountRecord[]) {
 }
 
 export function visibleAccountActions(role: AccessRole, account: AccountRecord, originalUserId?: string) {
-  if (role === 'MANAGER') return account.accountStatus === 'PENDING' ? ['approve', 'details'] : ['details'];
+  if (['MANAGER', 'SUPERVISOR'].includes(role)) return account.accountStatus === 'PENDING' ? ['approve', 'details'] : ['details'];
   if (role !== 'ADMIN') return [];
   const actions = ['details', 'edit', 'reset-password'];
   if (account.id !== originalUserId && isAccountActive(account) && !account.passwordResetRequired) actions.push('view-as');
