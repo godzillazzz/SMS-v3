@@ -215,11 +215,35 @@ describe('Bug 1 — Schedule Approval and Revision Workflow', () => {
       },
       (err) => {
         assert.equal(err.statusCode, 403);
-        assert.match(err.message, /Only an Admin may approve/);
+        assert.match(err.message, /Only an Admin or Supervisor may approve/);
         return true;
       }
     );
 
     assert.equal(auditRejectLogged, true);
+  });
+
+  test('approveMonthlySchedule allows SUPERVISOR and records authority', async () => {
+    const monthDate = new Date(Date.UTC(2026, 6, 1));
+    let auditRecord;
+    const fakeTx = {
+      scheduleApproval: {
+        findFirst: async () => ({ id: 'appr-sup', month: monthDate, status: 'PENDING', revision: 4 }),
+        update: async ({ data }) => ({ id: 'appr-sup', month: monthDate, status: 'APPROVED', revision: data.revision, approvedAt: data.approvedAt, approvedByLegacyRef: data.approvedByLegacyRef })
+      },
+      auditLog: { create: async ({ data }) => { auditRecord = data; } }
+    };
+
+    const result = await approveMonthlySchedule(fakeTx, {
+      month: monthDate,
+      approvalNote: 'Supervisor approval',
+      actorUser: { sub: 'supervisor-1', role: 'SUPERVISOR' }
+    });
+
+    assert.equal(result.status, 'APPROVED');
+    assert.equal(result.revision, 5);
+    assert.equal(result.approvedByLegacyRef, 'supervisor-1');
+    assert.equal(auditRecord.metadata.approvalAuthority, 'SUPERVISOR');
+    assert.equal(auditRecord.metadata.action, 'SCHEDULE_APPROVED');
   });
 });

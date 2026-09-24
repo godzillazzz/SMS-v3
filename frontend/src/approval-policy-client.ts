@@ -5,8 +5,8 @@ const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 export type ApprovalPolicy = {
   requestType: string;
   label: string;
-  reviewerRoles: Array<'ADMIN' | 'MANAGER'>;
-  safeReviewerRoles: Array<'ADMIN' | 'MANAGER'>;
+  reviewerRoles: Array<'ADMIN' | 'MANAGER' | 'SUPERVISOR'>;
+  safeReviewerRoles: Array<'ADMIN' | 'MANAGER' | 'SUPERVISOR'>;
   reviewerRolesLocked: boolean;
   dueSoonHours: number;
   overdueHours: number;

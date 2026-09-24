@@ -12,12 +12,12 @@ const review = read('components/personnel/EmployeeChangeReviewModal.tsx');
 const css = read('styles/approval-center.css');
 
 describe('Approval Center V2 unified frontend contracts', () => {
-  it('moves Approval Center into the review navigation group for Admin and Manager', () => {
+  it('moves Approval Center into the review navigation group for Admin, Manager, and Supervisor', () => {
     expect(main).toContain("{ label: 'ตรวจสอบ', items: [");
     expect(main).toContain("{ id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' }");
-    expect(main).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
-    expect(main).toContain("!['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
-    expect(main).toContain("['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type=\"button\" className=\"topbar-notification-button\"");
+    expect(main).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
+    expect(main).toContain("!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
+    expect(main).toContain("['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type=\"button\" className=\"topbar-notification-button\"");
   });
 
   it('polls a lightweight role-scoped summary and refreshes when the tab becomes visible', () => {

@@ -12,9 +12,9 @@ const scheduleService = fs.readFileSync(path.join(process.cwd(), 'src/services/s
 const shiftService = fs.readFileSync(path.join(process.cwd(), 'src/services/shift.service.js'), 'utf8');
 const userAccessService = fs.readFileSync(path.join(process.cwd(), 'src/services/user-access.service.js'), 'utf8');
 
-test('legacy protected shift codes and Admin-only schedule approval remain enforced', () => {
+test('legacy protected shift codes remain enforced while monthly approval is Admin-or-Supervisor only', () => {
   assert.match(shiftService, /\['D', 'N', 'OFF', 'AL'\]\.includes\(existing\.code\.toUpperCase\(\)\)/);
-  assert.match(operations, /router\.put\('\/schedule-approvals\/:id', authorize\('ADMIN'\)/);
+  assert.match(operations, /router\.put\('\/schedule-approvals\/:id', authorize\('ADMIN', 'SUPERVISOR'\)/);
 });
 
 test('legacy license permissions and date validation remain enforced', () => {
@@ -37,7 +37,7 @@ test('Manager account approval is constrained to Viewer and sensitive settings s
   assert.match(operations, /Sensitive settings must be configured through the approved environment-variable workflow/);
 });
 
-test('legacy navigation and three-role model are represented in the frontend', () => {
+test('legacy navigation and four-role model are represented in the frontend', () => {
   const navigationBlock = frontend.match(/const navigation:[\s\S]*?function AuthProvider/)?.[0] || '';
   for (const label of ['Dashboard', 'ข้อมูลพนักงาน', 'ใบอนุญาต รปภ.', 'ตารางกะรายเดือน', 'รหัสกะและเวลา', 'คำขอลา', 'โควต้าวันลา', 'กฎการทำงาน', 'บันทึกการใช้งานระบบ', 'ผู้ใช้และสิทธิ์', 'รายงานและวิเคราะห์', 'ตั้งค่าระบบ']) {
     assert.ok(navigationBlock.includes(`label: '${label}'`), label);
@@ -51,7 +51,7 @@ test('legacy navigation and three-role model are represented in the frontend', (
   for (const section of ['ภาพรวม', 'พนักงาน', 'ตารางกะ', 'การลา', 'ตรวจสอบ', 'ผู้ใช้และสิทธิ์', 'รายงาน', 'ตั้งค่า']) {
     assert.ok(navigationBlock.includes(`label: '${section}'`), section);
   }
-  assert.match(frontend, /\['ADMIN', 'MANAGER', 'VIEWER'\]/);
+  assert.match(frontend, /\['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'\]/);
   assert.doesNotMatch(frontend, /\['ADMIN', 'HR', 'USER'\]/);
 });
 

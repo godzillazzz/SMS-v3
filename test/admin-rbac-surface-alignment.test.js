@@ -13,14 +13,17 @@ const operations = read('src/routes/operations.routes.js');
 const shifts = read('src/routes/shifts.routes.js');
 const scheduleService = read('src/services/schedule.service.js');
 const shiftService = read('src/services/shift.service.js');
+const attendanceSupervisorService = read('src/services/attendance-supervisor.service.js');
 
-test('all mounted monthly schedule approval routes are Admin-only and preserve actor identity', () => {
-  assert.match(schedules, /router\.post\('\/approve', authorize\('ADMIN'\),/);
+test('monthly schedule approval routes allow Admin or Supervisor while preserving Manager denial', () => {
+  assert.match(schedules, /router\.post\('\/approve', authorize\('ADMIN', 'SUPERVISOR'\),/);
   assert.match(schedules, /approveMonth\(month, note, req\.user\)/);
   assert.doesNotMatch(schedules, /req\.body[^\n]*role/);
-  assert.match(operations, /router\.post\('\/schedule\/approve-month', authorize\('ADMIN'\),/);
-  assert.match(operations, /router\.put\('\/schedule-approvals\/:id', authorize\('ADMIN'\),/);
+  assert.match(operations, /router\.post\('\/schedule\/approve-month', authorize\('ADMIN', 'SUPERVISOR'\),/);
+  assert.match(operations, /router\.put\('\/schedule-approvals\/:id', authorize\('ADMIN', 'SUPERVISOR'\),/);
   assert.match(operations, /actorUser: req\.user/);
+  assert.match(operations, /req\.user\.role === 'SUPERVISOR' && input\.status !== 'APPROVED'/);
+  assert.match(scheduleService, /\['ADMIN', 'SUPERVISOR'\]\.includes\(actorUser\.role\)/);
   assert.doesNotMatch(scheduleService, /actorUser: \{ sub: actorUserId, role: 'ADMIN' \}/);
   assert.match(scheduleService, /async function approveMonth\(yearMonth, note, actorUser\)/);
 });
@@ -57,4 +60,11 @@ test('approval service records the real non-Admin role on a denied direct call',
   assert.equal(rejection.actorUserId, 'manager-1');
   assert.equal(rejection.metadata.role, 'MANAGER');
   assert.equal(rejection.metadata.reason, 'UNAUTHORIZED_APPROVAL_ATTEMPT');
+});
+
+test('Supervisor role remains excluded from unrelated Manager/Admin operational authority', () => {
+  assert.doesNotMatch(operations, /router\.put\('\/licenses\/:id', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
+  assert.doesNotMatch(operations, /router\.post\('\/shift-types', authorize\([^\n]*'SUPERVISOR'/);
+  assert.match(attendanceSupervisorService, /if \(!\['ADMIN', 'MANAGER'\]\.includes\(role\)\)/);
+  assert.doesNotMatch(attendanceSupervisorService, /\['ADMIN', 'MANAGER', 'SUPERVISOR'\]/);
 });

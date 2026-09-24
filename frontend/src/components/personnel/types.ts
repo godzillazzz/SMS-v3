@@ -14,4 +14,4 @@ export type PersonnelRecord = {
   updatedAt?: string;
 };
 
-export type PersonnelRole = 'ADMIN' | 'MANAGER' | 'VIEWER' | string;
+export type PersonnelRole = 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' | string;

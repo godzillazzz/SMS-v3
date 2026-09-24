@@ -230,12 +230,17 @@ const hasSupervisorApprovalLevel = (user, policy) => user.role === 'ADMIN' || ['
 const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser, options = {}) => {
   const policy = await approvalPolicyService.assertReviewer('LEAVE_REQUEST', requestUser, tx);
   if (requestUser.role === 'ADMIN') return policy;
-  // MANAGER has global scope — no department comparison is performed.
-  // Protected self-approval and position escalation rules cannot be disabled by configuration.
+  // MANAGER keeps its existing position-based global scope. SUPERVISOR is a narrow peer-role reviewer.
   const [leaveEmployee, approver] = await Promise.all([
-    tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true, department: true } }),
-    tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employee: { select: { jobTitle: true, department: true } } } })
+    tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true, department: true, user: { select: { role: true } } } }),
+    tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employeeId: true, employee: { select: { jobTitle: true, department: true, isActive: true, deletedAt: true } } } })
   ]);
+  if (requestUser.role === 'SUPERVISOR') {
+    if (!approver.employeeId || approver.employee?.isActive !== true || approver.employee?.deletedAt) throw new HttpError(403, 'Supervisor approval requires an active linked employee.', { code: 'LEAVE_SUPERVISOR_ACTIVE_EMPLOYEE_REQUIRED' });
+    if (approver.employeeId === employeeId) throw new HttpError(400, 'Supervisors cannot review their own leave.', { code: 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED' });
+    if (leaveEmployee.user?.role !== 'SUPERVISOR') throw new HttpError(403, 'Supervisors may review leave for Supervisor-role peers only.', { code: 'LEAVE_SUPERVISOR_PEER_ROLE_REQUIRED' });
+    return policy;
+  }
   if (!options.isRetroactive) {
     if (approvalPositionClass(leaveEmployee, policy) === 'SUPERVISOR') throw new HttpError(403, 'Supervisor leave requests require Admin approval.', { code: 'LEAVE_SUPERVISOR_ADMIN_APPROVAL_REQUIRED' });
     if (approvalPositionClass(leaveEmployee, policy) === 'MANAGER' && !hasSupervisorApprovalLevel(approver, policy)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.', { code: 'LEAVE_MANAGER_ESCALATION_REQUIRED' });
@@ -645,7 +650,7 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
     const { start, end } = monthBounds(input.month);
     const approval = await prisma.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true } });
     if (!approval || approval.status !== 'APPROVED') {
-      throw new HttpError(409, 'ตารางกะประจำเดือนนี้ต้องได้รับการอนุมัติ (Approve) จาก Admin ก่อนส่งออกไฟล์ Excel');
+      throw new HttpError(409, 'ตารางกะประจำเดือนนี้ต้องได้รับการอนุมัติ (Approve) ก่อนส่งออกไฟล์ Excel');
     }
     const rawShifts = await prisma.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end } }, select: { employeeId: true, employeeNameSnapshot: true, departmentSnapshot: true, workDate: true, hours: true, shiftType: { select: { code: true } } }, orderBy: [{ workDate: 'asc' }, { employeeNameSnapshot: 'asc' }] });
     if (!rawShifts.length) throw new HttpError(404, 'No schedule rows were found for export.');
@@ -669,7 +674,7 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
     res.send(workbook);
   } catch (error) { next(error); }
 });
-router.post('/schedule/approve-month', authorize('ADMIN'), async (req, res, next) => {
+router.post('/schedule/approve-month', authorize('ADMIN', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const { month, approvalNote } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), approvalNote: nullableText(2000) }).parse(req.body);
     const [year, monthIndex] = month.split('-').map(Number);
@@ -679,7 +684,7 @@ router.post('/schedule/approve-month', authorize('ADMIN'), async (req, res, next
     });
     try {
       const { notifyScheduleApproved } = require('../services/notification-email.service');
-      await notifyScheduleApproved({ month, approvedBy: req.user.displayName || 'Admin', revision: result.revision });
+      await notifyScheduleApproved({ month, approvedBy: req.user.displayName || (req.user.role === 'SUPERVISOR' ? 'Supervisor' : 'Admin'), revision: result.revision });
     } catch (emailError) {
       logger.error('Failed to send schedule approval email notifications', { error: emailError.message, month, revision: result.revision });
     }
@@ -747,10 +752,11 @@ router.get('/schedule-approvals', async (req, res, next) => {
     }));
   } catch (error) { next(error); }
 });
-router.put('/schedule-approvals/:id', authorize('ADMIN'), async (req, res, next) => {
+router.put('/schedule-approvals/:id', authorize('ADMIN', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = z.object({ status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']), approvalNote: nullableText(2000) }).parse(req.body);
+    if (req.user.role === 'SUPERVISOR' && input.status !== 'APPROVED') throw new HttpError(403, 'Supervisors may approve monthly schedules but may not set other approval states.', { code: 'SCHEDULE_SUPERVISOR_APPROVAL_ONLY' });
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.scheduleApproval.findUniqueOrThrow({ where: { id } });
       let after;
@@ -768,7 +774,7 @@ router.put('/schedule-approvals/:id', authorize('ADMIN'), async (req, res, next)
       const monthStr = result.month ? new Date(result.month).toISOString().slice(0, 7) : '';
       if (monthStr) {
         const { notifyScheduleApproved } = require('../services/notification-email.service');
-        notifyScheduleApproved({ month: monthStr, approvedBy: actor?.displayName || 'Admin', revision: result.revision }).catch(() => undefined);
+        notifyScheduleApproved({ month: monthStr, approvedBy: actor?.displayName || 'ผู้มีอำนาจอนุมัติ', revision: result.revision }).catch(() => undefined);
       }
     }
 
@@ -1226,7 +1232,7 @@ router.get('/leave-requests/:id/attachment', async (req, res, next) => {
     res.send(Buffer.from(leave.attachment.content));
   } catch (error) { next(error); }
 });
-router.post('/leave-requests/:id/return-for-correction', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.post('/leave-requests/:id/return-for-correction', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = leaveWorkflowReasonInput.parse(req.body || {});
@@ -1397,7 +1403,7 @@ router.post('/leave-requests/:id/resubmit', async (req, res, next) => {
     res.json({ data: result });
   } catch (error) { next(error); }
 });
-router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => {
+router.put('/leave-requests/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const id = uuid.parse(req.params.id);
     const input = z.object({ status: z.enum(['APPROVED', 'REJECTED']), reason: nullableText(2000) }).parse(req.body);
@@ -1611,7 +1617,7 @@ router.put('/leave-quotas/:id', authorize('ADMIN', 'MANAGER'), async (req, res, 
   } catch (error) { next(error); }
 });
 
-router.put('/users/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ role: z.enum(['ADMIN', 'MANAGER', 'VIEWER']).optional(), department: nullableText(100), accountStatus: z.enum(['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED']).optional(), isActive: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await userAccess.updateUserAccount({ id, input, actorUserId: req.user.sub, actorRole: req.user.role }); res.json({ data: result }); } catch (error) { next(error); } });
+router.put('/users/:id', authorize('ADMIN', 'MANAGER'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const input = z.object({ role: z.enum(['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER']).optional(), department: nullableText(100), accountStatus: z.enum(['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED']).optional(), isActive: z.boolean().optional() }).parse(req.body); if (!Object.keys(input).length) throw new HttpError(400, 'Update body cannot be empty.'); const result = await userAccess.updateUserAccount({ id, input, actorUserId: req.user.sub, actorRole: req.user.role }); res.json({ data: result }); } catch (error) { next(error); } });
 router.post('/users/:id/reset-password', authorize('ADMIN'), async (req, res, next) => { try { const id = uuid.parse(req.params.id); const { newPassword } = z.object({ newPassword: z.string().min(8).max(128) }).parse(req.body); const passwordHash = await bcrypt.hash(newPassword, 12); const result = await prisma.$transaction(async (tx) => { const after = await tx.user.update({ where: { id }, data: { passwordHash, passwordResetRequired: false, failedLoginCount: 0, tokenVersion: { increment: 1 } }, select: { id: true, displayName: true, email: true, role: true, accountStatus: true, isActive: true, passwordResetRequired: true } }); await tx.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }); await audit.log({ actorUserId: req.user.sub, action: 'UPDATE', entityType: 'UserCredential', entityId: id, metadata: { passwordResetRequired: false, sessionsRevoked: true } }, tx); return after; }); res.json({ data: result }); } catch (error) { next(error); } });
 
 router.get('/audit-events', authorize('ADMIN'), async (req, res, next) => {

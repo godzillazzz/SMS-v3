@@ -95,6 +95,21 @@ function managerCanApproveLeave(row, actorProfile, now = new Date(), policy = {}
   return true;
 }
 
+
+function supervisorCanApproveLeave(row, actorProfile, policy = {}) {
+  if (!row?.employee || !actorProfile?.employeeId) return false;
+  if (row.employeeId === actorProfile.employeeId) return false;
+  if (actorProfile.employee?.isActive !== true || actorProfile.employee?.deletedAt) return false;
+  return row.employee.user?.role === 'SUPERVISOR';
+}
+
+function reviewerCanApproveLeave(role, row, actorProfile, now = new Date(), policy = {}) {
+  if (role === 'ADMIN') return true;
+  if (role === 'SUPERVISOR') return supervisorCanApproveLeave(row, actorProfile, policy);
+  if (role === 'MANAGER') return managerCanApproveLeave(row, actorProfile, now, policy);
+  return false;
+}
+
 function createApprovalCenterService({
   prisma = prismaDefault,
   clock = () => new Date(),
@@ -106,32 +121,32 @@ function createApprovalCenterService({
 
   async function summary({ actor }) {
     const role = String(actor?.role || '').toUpperCase();
-    if (!['ADMIN', 'MANAGER'].includes(role)) {
-      throw new HttpError(403, 'Approval Center requires Manager or Admin authority.', { code: 'APPROVAL_CENTER_REVIEWER_REQUIRED' });
+    if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
+      throw new HttpError(403, 'Approval Center requires Supervisor, Manager, or Admin authority.', { code: 'APPROVAL_CENTER_REVIEWER_REQUIRED' });
     }
 
     const policies = await policyService.loadPolicies(prisma);
     const allowed = (type) => canReview(policies.get(type), role);
-    const actorProfile = role === 'MANAGER' && allowed('LEAVE_REQUEST')
+    const actorProfile = ['MANAGER', 'SUPERVISOR'].includes(role) && allowed('LEAVE_REQUEST')
       ? await prisma.user.findUnique({
         where: { id: actor.sub },
-        select: { id: true, employeeId: true, employee: { select: { jobTitle: true } } }
+        select: { id: true, employeeId: true, employee: { select: { jobTitle: true, isActive: true, deletedAt: true } } }
       })
       : null;
 
     const leaveWhere = {
       status: 'PENDING',
-      ...(role === 'MANAGER' && actorProfile?.employeeId ? { employeeId: { not: actorProfile.employeeId } } : {})
+      ...(['MANAGER', 'SUPERVISOR'].includes(role) && actorProfile?.employeeId ? { employeeId: { not: actorProfile.employeeId } } : {})
     };
 
     const managerLeaveTask = async () => {
       if (!allowed('LEAVE_REQUEST')) return 0;
-      if (role !== 'MANAGER') return prisma.leaveRequest.count({ where: leaveWhere });
+      if (role === 'ADMIN') return prisma.leaveRequest.count({ where: leaveWhere });
       const rows = await prisma.leaveRequest.findMany({
         where: leaveWhere,
-        select: { employeeId: true, startDate: true, employee: { select: { jobTitle: true } } }
+        select: { employeeId: true, startDate: true, employee: { select: { jobTitle: true, user: { select: { role: true } } } } }
       });
-      return rows.filter((row) => managerCanApproveLeave(row, actorProfile, clock(), policies.get('LEAVE_REQUEST'))).length;
+      return rows.filter((row) => reviewerCanApproveLeave(role, row, actorProfile, clock(), policies.get('LEAVE_REQUEST'))).length;
     };
 
     const attendanceAdjustmentTask = async () => {
@@ -177,24 +192,24 @@ function createApprovalCenterService({
 
   async function list({ actor, limit = 100 }) {
     const role = String(actor?.role || '').toUpperCase();
-    if (!['ADMIN', 'MANAGER'].includes(role)) {
-      throw new HttpError(403, 'Approval Center requires Manager or Admin authority.', { code: 'APPROVAL_CENTER_REVIEWER_REQUIRED' });
+    if (!['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(role)) {
+      throw new HttpError(403, 'Approval Center requires Supervisor, Manager, or Admin authority.', { code: 'APPROVAL_CENTER_REVIEWER_REQUIRED' });
     }
 
     const policies = await policyService.loadPolicies(prisma);
     const allowed = (type) => canReview(policies.get(type), role);
     const take = Math.max(1, Math.min(Number(limit) || 100, 100));
     const now = clock();
-    const actorProfile = role === 'MANAGER' && allowed('LEAVE_REQUEST')
+    const actorProfile = ['MANAGER', 'SUPERVISOR'].includes(role) && allowed('LEAVE_REQUEST')
       ? await prisma.user.findUnique({
         where: { id: actor.sub },
-        select: { id: true, employeeId: true, employee: { select: { jobTitle: true } } }
+        select: { id: true, employeeId: true, employee: { select: { jobTitle: true, isActive: true, deletedAt: true } } }
       })
       : null;
 
     const commonEmployeeSelect = {
       id: true, employeeCode: true, firstName: true, lastName: true,
-      displayName: true, department: true, jobTitle: true
+      displayName: true, department: true, jobTitle: true, user: { select: { role: true } }
     };
 
     const listWithOverflowCount = async (model, args) => {
@@ -268,7 +283,7 @@ function createApprovalCenterService({
 
     const leaveWhere = {
       status: 'PENDING',
-      ...(role === 'MANAGER' && actorProfile?.employeeId ? { employeeId: { not: actorProfile.employeeId } } : {})
+      ...(['MANAGER', 'SUPERVISOR'].includes(role) && actorProfile?.employeeId ? { employeeId: { not: actorProfile.employeeId } } : {})
     };
     const leaveListArgs = {
       where: leaveWhere,
@@ -312,10 +327,10 @@ function createApprovalCenterService({
       attendanceAdjustmentsTask
     ]);
 
-    const leaves = role === 'MANAGER'
-      ? rawLeaves.filter((row) => managerCanApproveLeave(row, actorProfile, now, policies.get('LEAVE_REQUEST')))
-      : rawLeaves;
-    const leaveTotal = role === 'MANAGER' ? Math.min(rawLeaveTotal, leaves.length) : rawLeaveTotal;
+    const leaves = role === 'ADMIN'
+      ? rawLeaves
+      : rawLeaves.filter((row) => reviewerCanApproveLeave(role, row, actorProfile, now, policies.get('LEAVE_REQUEST')));
+    const leaveTotal = role === 'ADMIN' ? rawLeaveTotal : Math.min(rawLeaveTotal, leaves.length);
 
     const items = [];
 
@@ -533,4 +548,4 @@ function createApprovalCenterService({
   return { list, summary };
 }
 
-module.exports = { createApprovalCenterService, approvalUrgency, isRetroactiveLeaveStart, managerCanApproveLeave };
+module.exports = { createApprovalCenterService, approvalUrgency, isRetroactiveLeaveStart, managerCanApproveLeave, supervisorCanApproveLeave, reviewerCanApproveLeave };

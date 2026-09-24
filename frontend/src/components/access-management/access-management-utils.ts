@@ -12,7 +12,7 @@ export type AccountRecord = {
   updatedAt?: string;
 };
 
-export type AccessRole = 'ADMIN' | 'MANAGER' | 'VIEWER' | string;
+export type AccessRole = 'ADMIN' | 'MANAGER' | 'SUPERVISOR' | 'VIEWER' | string;
 
 export function canLoadAccessManagement(role: AccessRole) {
   return role === 'ADMIN' || role === 'MANAGER';
