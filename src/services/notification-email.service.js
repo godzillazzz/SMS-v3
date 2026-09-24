@@ -162,7 +162,7 @@ async function getApprovedScheduleRecipients(month) {
 }
 
 /**
- * 1. Admin approves monthly schedule -> Notify affected active employees
+ * 1. Authorized approver approves monthly schedule -> Notify affected active employees
  */
 async function notifyScheduleApproved({ month, approvedBy, revision }) {
   if (!(await emailEventEnabled(prisma, 'SCHEDULE_APPROVED'))) { logger.info('Schedule approval email skipped by governed event policy', { month, revision }); return; }
@@ -185,7 +185,7 @@ async function notifyScheduleApproved({ month, approvedBy, revision }) {
     const monthText = `${thaiMonth} ${thaiYear}`;
     const safeMonth = escapeHtml(month);
     const safeMonthText = escapeHtml(monthText);
-    const safeApprovedBy = escapeHtml(approvedBy || 'Admin');
+    const safeApprovedBy = escapeHtml(approvedBy || 'ผู้มีอำนาจอนุมัติ');
 
     const subject = `SMS v3: แจ้งเตือนอนุมัติตารางกะประจำเดือน ${monthText}`;
     const html = `

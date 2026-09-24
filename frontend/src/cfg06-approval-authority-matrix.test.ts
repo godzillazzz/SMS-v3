@@ -25,10 +25,12 @@ describe('CFG-06 Approval Authority Matrix / SLA', () => {
     expect(panel).toContain('security ceiling');
   });
 
-  it('keeps Admin mandatory and permits Manager only when the safe reviewer ceiling allows it', () => {
+  it('keeps Admin mandatory and permits Manager or Supervisor only when the safe reviewer ceiling allows it', () => {
     expect(panel).toContain('<input type="checkbox" checked disabled /> Admin');
     expect(panel).toContain("policy.safeReviewerRoles.includes('MANAGER')");
-    expect(panel).toContain("reviewerRoles: event.target.checked ? ['ADMIN', 'MANAGER'] : ['ADMIN']");
+    expect(panel).toContain("policy.safeReviewerRoles.includes('SUPERVISOR')");
+    expect(panel).toContain("draft.reviewerRoles.filter((role) => role !== 'MANAGER')");
+    expect(panel).toContain("draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR')");
   });
 
   it('edits SLA per request type and blocks invalid threshold ordering in the UI', () => {

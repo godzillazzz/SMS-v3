@@ -16,7 +16,7 @@ const REQUEST_TYPE_DEFINITIONS = Object.freeze([
   Object.freeze({ type: 'ATTENDANCE_ADJUSTMENT_REQUEST', label: 'ปรับปรุงเวลา Attendance', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'REGISTRATION_REQUEST', label: 'ลงทะเบียนบัญชี', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER']) }),
   Object.freeze({ type: 'USER_ACCESS', label: 'เปิดสิทธิ์ผู้ใช้', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER']) }),
-  Object.freeze({ type: 'LEAVE_REQUEST', label: 'คำขอลา', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER']), supportsPositionAliases: true })
+  Object.freeze({ type: 'LEAVE_REQUEST', label: 'คำขอลา', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR']), supportsPositionAliases: true })
 ]);
 
 const BY_TYPE = new Map(REQUEST_TYPE_DEFINITIONS.map((row) => [row.type, row]));
@@ -128,7 +128,7 @@ function protectedInvariantsFor(definition) {
   if (definition.safeReviewerRoles.length === 1) values.push('Reviewer role is protected as ADMIN only');
   if (definition.type === 'LEAVE_REQUEST') {
     values.push('Self-approval is always forbidden');
-    values.push('Non-retroactive Supervisor leave requires ADMIN approval');
+    values.push('Supervisor-role reviewers may approve only peer Supervisor leave; self-approval remains forbidden');
     values.push('Non-retroactive Manager leave requires Supervisor-level reviewer position or ADMIN');
     values.push('Core Supervisor/Manager position aliases cannot be removed');
   }

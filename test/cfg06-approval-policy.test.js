@@ -43,6 +43,16 @@ test('CFG-06 defines every current Approval Center request type with Admin prese
   assert.equal(ALL_SETTING_KEYS.length, 26);
 });
 
+test('CFG-06 exposes Supervisor only for leave review security ceiling', () => {
+  const leave = REQUEST_TYPE_DEFINITIONS.find((row) => row.type === 'LEAVE_REQUEST');
+  assert.deepEqual(leave.safeReviewerRoles, ['ADMIN', 'MANAGER', 'SUPERVISOR']);
+  for (const definition of REQUEST_TYPE_DEFINITIONS.filter((row) => row.type !== 'LEAVE_REQUEST')) {
+    assert.equal(definition.safeReviewerRoles.includes('SUPERVISOR'), false, definition.type);
+  }
+  const policy = normalizePolicyInput('LEAVE_REQUEST', { reviewerRoles: ['ADMIN', 'SUPERVISOR'], dueSoonHours: 12, overdueHours: 36 });
+  assert.deepEqual(policy.reviewerRoles, ['ADMIN', 'SUPERVISOR']);
+});
+
 test('CFG-06 security ceiling cannot grant Manager to an Admin-only workflow or remove Admin', () => {
   assert.throws(
     () => normalizePolicyInput('LICENSE_DOCUMENT', { reviewerRoles: ['ADMIN', 'MANAGER'], dueSoonHours: 12, overdueHours: 36 }),
@@ -146,7 +156,7 @@ test('CFG-06 update is atomic, audited, and preserves protected role ceiling', a
   assert.deepEqual(updated.additionalSupervisorAliases, ['หัวหน้าชุด']);
   assert.equal(auditEvent.entityType, 'ApprovalAuthorityPolicy');
   assert.equal(auditEvent.entityId, 'LEAVE_REQUEST');
-  assert.deepEqual(auditEvent.metadata.before.reviewerRoles, ['ADMIN', 'MANAGER']);
+  assert.deepEqual(auditEvent.metadata.before.reviewerRoles, ['ADMIN', 'MANAGER', 'SUPERVISOR']);
   assert.deepEqual(auditEvent.metadata.after.reviewerRoles, ['ADMIN']);
 });
 
@@ -178,4 +188,13 @@ test('CFG-06 registry exposes policy keys as registered but not editable one key
   assert.equal(definitions.every((row) => row.group === 'APPROVAL'), true);
   assert.equal(definitions.every((row) => row.editable === false), true);
   assert.equal(definitions.every((row) => row.authority === 'ADMIN_GOVERNED_VIA_APPROVAL_POLICY_API'), true);
+});
+
+test('Supervisor role migration is additive and never remaps existing user roles', () => {
+  const migration = require('node:fs').readFileSync(require('node:path').join(process.cwd(), 'prisma/migrations/202609240001_add_supervisor_user_role/migration.sql'), 'utf8');
+  assert.match(migration, /ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPERVISOR'/);
+  assert.match(migration, /APPROVAL_POLICY\.LEAVE_REQUEST\.REVIEWER_ROLES/);
+  assert.match(migration, /"value"::jsonb \|\| '\["SUPERVISOR"\]'::jsonb/);
+  assert.doesNotMatch(migration, /UPDATE\s+"?(?:users|User)"?/i);
+  assert.doesNotMatch(migration, /SET\s+"?role"?\s*=/i);
 });

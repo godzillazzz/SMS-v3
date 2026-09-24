@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createApprovalCenterService, approvalUrgency } = require('../src/services/approval-center.service');
+const { createApprovalCenterService, approvalUrgency, supervisorCanApproveLeave } = require('../src/services/approval-center.service');
 const { REQUEST_TYPE_DEFINITIONS, defaultPolicyFor, policyKey } = require('../src/services/approval-policy.service');
 
 const now = new Date('2026-08-28T02:00:00.000Z');
@@ -157,7 +157,15 @@ test('Approval Center summary preserves Manager leave authority while using only
   const service = createApprovalCenterService({ prisma, clock: () => now });
   const result = await service.summary({ actor: { role: 'MANAGER', sub: 'manager-1' } });
   assert.equal(result.summary.byType.LEAVE_REQUEST, 1);
-  assert.deepEqual(leaveSelect, { employeeId: true, startDate: true, employee: { select: { jobTitle: true } } });
+  assert.deepEqual(leaveSelect, { employeeId: true, startDate: true, employee: { select: { jobTitle: true, user: { select: { role: true } } } } });
+});
+
+test('Supervisor role can review peer Supervisor leave only', () => {
+  const activeActor = { employeeId: 'sup-self', employee: { isActive: true, deletedAt: null } };
+  assert.equal(supervisorCanApproveLeave({ employeeId: 'sup-peer', employee: { user: { role: 'SUPERVISOR' } } }, activeActor), true);
+  assert.equal(supervisorCanApproveLeave({ employeeId: 'sup-self', employee: { user: { role: 'SUPERVISOR' } } }, activeActor), false);
+  assert.equal(supervisorCanApproveLeave({ employeeId: 'viewer-peer', employee: { user: { role: 'VIEWER' } } }, activeActor), false);
+  assert.equal(supervisorCanApproveLeave({ employeeId: 'sup-peer', employee: { user: { role: 'SUPERVISOR' } } }, { employeeId: 'sup-self', employee: { isActive: false, deletedAt: null } }), false);
 });
 
 test('Approval Center excludes unverified registrations by using the source workflow reviewable predicate', async () => {

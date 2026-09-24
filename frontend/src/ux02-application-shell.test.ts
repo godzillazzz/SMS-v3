@@ -28,7 +28,7 @@ describe('G04.2 UX-02 application shell contract', () => {
   });
 
   it('keeps role filtering explicit, including Manager access to Approval Center', () => {
-    expect(main).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '') && !auth.isViewingAs");
+    expect(main).toContain("if (page === 'approvalCenter') return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(main).toContain("if (page === 'leavePending' || page === 'attendanceSupervisor') return ['ADMIN', 'MANAGER'].includes(auth.user?.role || '')");
     expect(main).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (page === 'audit') return auth.user?.role === 'ADMIN'");

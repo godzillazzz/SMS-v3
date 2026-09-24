@@ -357,7 +357,7 @@ async function updateScheduleApprovalState(tx, { workDate, month, actorUserId, i
 }
 
 async function approveMonthlySchedule(tx, { month, approvalNote, actorUser }) {
-  if (actorUser.role !== 'ADMIN') {
+  if (!['ADMIN', 'SUPERVISOR'].includes(actorUser.role)) {
     await audit.log({
       actorUserId: actorUser.sub,
       action: 'REJECTED',
@@ -368,7 +368,7 @@ async function approveMonthlySchedule(tx, { month, approvalNote, actorUser }) {
         role: actorUser.role
       }
     }, tx);
-    throw new HttpError(403, 'Only an Admin may approve monthly schedules.');
+    throw new HttpError(403, 'Only an Admin or Supervisor may approve monthly schedules.', { code: 'SCHEDULE_APPROVAL_AUTHORITY_REQUIRED' });
   }
 
   const monthDate = month instanceof Date ? month : new Date(month);
@@ -418,7 +418,8 @@ async function approveMonthlySchedule(tx, { month, approvalNote, actorUser }) {
     entityType: 'ScheduleApproval',
     entityId: result.id,
     metadata: {
-      action: 'ADMIN_SCHEDULE_APPROVED',
+      action: 'SCHEDULE_APPROVED',
+      approvalAuthority: actorUser.role,
       status: 'APPROVED',
       revision: result.revision,
       approvedAt: result.approvedAt

@@ -119,12 +119,13 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
                       checked={draft.reviewerRoles.includes('MANAGER')}
                       disabled={!managerAllowed || busyType === policy.requestType}
                       onChange={(event) => updateDraft(policy.requestType, {
-                        reviewerRoles: event.target.checked ? ['ADMIN', 'MANAGER'] : ['ADMIN']
+                        reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'MANAGER'), 'MANAGER'] : draft.reviewerRoles.filter((role) => role !== 'MANAGER')
                       })}
                     /> Manager
                   </label>
+                  {policy.safeReviewerRoles.includes('SUPERVISOR') && <label><input type="checkbox" checked={draft.reviewerRoles.includes('SUPERVISOR')} disabled={busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR'), 'SUPERVISOR'] : draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR') })} /> Supervisor</label>}
                 </div>
-                {!managerAllowed && <small className="cell-note">Admin-only ถูกล็อกโดยระบบ</small>}
+                {!managerAllowed && !policy.safeReviewerRoles.includes('SUPERVISOR') && <small className="cell-note">Admin-only ถูกล็อกโดยระบบ</small>}
               </td>
               <td><label className="field-group compact-field"><span className="visually-hidden">ใกล้ SLA</span><input aria-label={`ชั่วโมงใกล้ SLA ${policy.label}`} type="number" min={1} max={168} value={draft.dueSoonHours} onChange={(event) => updateDraft(policy.requestType, { dueSoonHours: Number(event.target.value) })} /><small>ชั่วโมง</small></label></td>
               <td><label className="field-group compact-field"><span className="visually-hidden">เกิน SLA</span><input aria-label={`ชั่วโมงเกิน SLA ${policy.label}`} type="number" min={2} max={720} value={draft.overdueHours} onChange={(event) => updateDraft(policy.requestType, { overdueHours: Number(event.target.value) })} /><small>ชั่วโมง</small></label></td>
@@ -151,9 +152,10 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
               <h4 id={`${key}-reviewer-heading`}>ผู้มีอำนาจอนุมัติ</h4>
               <div className="approval-role-controls">
                 <label><input type="checkbox" checked disabled /> Admin <small>จำเป็น</small></label>
-                <label><input type="checkbox" checked={draft.reviewerRoles.includes('MANAGER')} disabled={!managerAllowed || busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? ['ADMIN', 'MANAGER'] : ['ADMIN'] })} /> Manager</label>
+                <label><input type="checkbox" checked={draft.reviewerRoles.includes('MANAGER')} disabled={!managerAllowed || busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'MANAGER'), 'MANAGER'] : draft.reviewerRoles.filter((role) => role !== 'MANAGER') })} /> Manager</label>
+                {policy.safeReviewerRoles.includes('SUPERVISOR') && <label><input type="checkbox" checked={draft.reviewerRoles.includes('SUPERVISOR')} disabled={busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR'), 'SUPERVISOR'] : draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR') })} /> Supervisor</label>}
               </div>
-              {!managerAllowed && <p className="approval-policy-lock-note">Admin-only ถูกล็อกโดย security ceiling</p>}
+              {!managerAllowed && !policy.safeReviewerRoles.includes('SUPERVISOR') && <p className="approval-policy-lock-note">Admin-only ถูกล็อกโดย security ceiling</p>}
             </section>
             <section className="approval-policy-mobile-card__section" aria-labelledby={`${key}-sla-heading`}>
               <h4 id={`${key}-sla-heading`}>เกณฑ์ SLA</h4>
