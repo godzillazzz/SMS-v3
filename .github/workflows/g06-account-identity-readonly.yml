@@ -1,0 +1,111 @@
+name: ONE-TIME G06 Account Identity Readonly
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_release_sha:
+        description: Exact application release SHA
+        required: true
+        type: string
+      confirm_scope:
+        description: Type G06_ACCOUNT_IDENTITY_READONLY
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_RELEASE_SHA: ac5dd81e64af76d36f61b5b94328371acbe950da
+  EXPECTED_EMPLOYEE_CODE: UAT-ST-20260902
+  EXPECTED_EMPLOYEE_ID: 76fb6def-9f04-4cbd-8c2e-b9be21d8af56
+
+jobs:
+  inspect:
+    if: ${{ github.ref_name == 'main' && inputs.confirm_scope == 'G06_ACCOUNT_IDENTITY_READONLY' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production-sms-v3-staging
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_release_sha }}
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate exact readonly scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.expected_release_sha }}" = "$EXPECTED_RELEASE_SHA"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_RELEASE_SHA"
+          test -n "$DATABASE_URL"
+          echo "G06_ACCOUNT_IDENTITY_SCOPE=PASS"
+
+      - name: Install exact release dependencies
+        run: npm ci --include=dev
+
+      - name: Generate exact release Prisma client
+        run: npx prisma generate
+
+      - name: Inspect exact linked account read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const { PrismaClient } = require('@prisma/client');
+          const prisma = new PrismaClient();
+          (async () => {
+            const employee = await prisma.employee.findUnique({
+              where: { employeeCode: process.env.EXPECTED_EMPLOYEE_CODE },
+              select: { id: true, employeeCode: true, isActive: true, deletedAt: true }
+            });
+            if (!employee || employee.id !== process.env.EXPECTED_EMPLOYEE_ID || !employee.isActive || employee.deletedAt) throw new Error('EMPLOYEE_IDENTITY_GATE_FAILED');
+            const users = await prisma.user.findMany({
+              where: { employeeId: employee.id },
+              select: { email: true, displayName: true, role: true, isActive: true, accountStatus: true, passwordResetRequired: true, failedLoginCount: true, employeeId: true }
+            });
+            if (users.length !== 1) throw new Error(`LINKED_USER_COUNT_${users.length}`);
+            const user = users[0];
+            if (user.role !== 'VIEWER' || user.employeeId !== employee.id) throw new Error('LINKED_USER_AUTHORITY_GATE_FAILED');
+            const summary = {
+              mode: 'G06_ACCOUNT_IDENTITY_READONLY',
+              employeeCode: employee.employeeCode,
+              employeeId: employee.id,
+              accountEmail: user.email,
+              accountDisplayName: user.displayName,
+              role: user.role,
+              isActive: user.isActive,
+              accountStatus: user.accountStatus,
+              passwordResetRequired: user.passwordResetRequired,
+              failedLoginCount: user.failedLoginCount,
+              employeeLinkagePreserved: true,
+              databaseMutationPerformed: false,
+              g07: 'EXCLUDED'
+            };
+            fs.writeFileSync('g06-account-identity.json', JSON.stringify(summary, null, 2));
+            console.log('G06_ACCOUNT_IDENTITY_BEGIN');
+            console.log(JSON.stringify(summary, null, 2));
+            console.log('G06_ACCOUNT_IDENTITY_END');
+          })().catch((error) => {
+            console.error(`G06_ACCOUNT_IDENTITY_FAILED=${error.message}`);
+            process.exitCode = 1;
+          }).finally(async () => prisma.$disconnect());
+          NODE
+
+      - name: Upload sanitized identity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: g06-account-identity-${{ github.run_id }}
+          path: g06-account-identity.json
+          if-no-files-found: error
+          retention-days: 7
