@@ -2,86 +2,102 @@ name: Diagnose sms-v3-staging Production Database
 
 on:
   workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact commit used to identify the production application
+        required: true
+        type: string
+      confirm_project_name:
+        description: Type sms-v3-staging to confirm the target project
+        required: true
+        type: string
+      confirm_environment:
+        description: Type production to confirm the target environment
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+env:
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  EXPECTED_PROJECT_NAME: sms-v3-staging
+  VERCEL_CLI_VERSION: 56.4.1
+  DIAGNOSTIC_DIR: /tmp/sms-v3-production-database
+
 jobs:
   diagnose:
+    if: ${{ github.ref_name == 'main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment:
       name: production-sms-v3-staging
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DIRECT_URL: ${{ secrets.DATABASE_URL }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ac5dd81e64af76d36f61b5b94328371acbe950da
+          ref: main
           fetch-depth: 1
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Install dependencies
-        run: npm ci --include=dev
-      - name: Generate Prisma client
-        run: npx prisma generate
-      - name: G06-UAT-01 read-only readiness check
-        run: node scripts/ci/g06-uat-readiness-readonly.js
-      - name: G06-CLOSE-01 date preflight
+
+      - name: Check target and secret presence
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirm_project_name }}" = "$EXPECTED_PROJECT_NAME"
+          test "${{ inputs.confirm_environment }}" = production
+          test -n "$VERCEL_TOKEN" && echo 'VERCEL_TOKEN=PRESENT' || { echo 'VERCEL_TOKEN=MISSING'; exit 1; }
+          test -n "$VERCEL_ORG_ID" && echo 'VERCEL_ORG_ID=PRESENT' || { echo 'VERCEL_ORG_ID=MISSING'; exit 1; }
+          test -n "$VERCEL_PROJECT_ID" && echo 'VERCEL_PROJECT_ID=PRESENT' || { echo 'VERCEL_PROJECT_ID=MISSING'; exit 1; }
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          mkdir -p "$DIAGNOSTIC_DIR"
+          chmod 700 "$DIAGNOSTIC_DIR"
+
+      - name: Fetch and validate exact diagnostic target commit
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'TARGET_SHA_INVALID'; exit 1; }
+          git fetch --no-tags --depth=1 origin "$TARGET_SHA"
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          echo 'TARGET_COMMIT_VALIDATED=true'
+
+      - name: Install read-only diagnostic dependencies
+        run: npm ci
+
+      - name: Verify Vercel project identity
         shell: bash
         run: |
           set -euo pipefail
-          node <<'NODE'
-          const { PrismaClient } = require('@prisma/client');
-          const { loadLicenseAuthorityByEmployee, licenseStateForWorkDate } = require('./src/services/license-state.service');
-          const prisma = new PrismaClient();
-          const target = new Date('2026-09-25T00:00:00.000Z');
-          const iso = (v) => v ? new Date(v).toISOString() : null;
-          (async () => {
-            const employee = await prisma.employee.findUnique({
-              where: { employeeCode: 'UAT-ST-20260902' },
-              select: { id: true, employeeCode: true, displayName: true, department: true, isActive: true, deletedAt: true }
-            });
-            if (!employee) throw new Error('G06_EMPLOYEE_NOT_FOUND');
-            const shift = await prisma.shiftType.findUnique({
-              where: { code: 'D' },
-              select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, isActive: true }
-            });
-            const assignment = await prisma.shiftAssignment.findUnique({
-              where: { workDate_employeeId: { workDate: target, employeeId: employee.id } },
-              select: { id: true, workDate: true, shiftTypeId: true, securitySiteId: true, licenseStatus: true, licenseOverride: true, locked: true }
-            });
-            const attendanceSessions = await prisma.attendanceSession.findMany({
-              where: { employeeId: employee.id, workDate: target },
-              select: { id: true, state: true, workDate: true, openedAt: true, closedAt: true, events: { select: { id: true, eventType: true, receivedAt: true } } }
-            });
-            const leaveOverlaps = await prisma.leaveRequest.findMany({
-              where: { employeeId: employee.id, startDate: { lte: target }, endDate: { gte: target } },
-              select: { id: true, status: true, leaveType: true, startDate: true, endDate: true, approvedAt: true }
-            });
-            const licenseMap = await loadLicenseAuthorityByEmployee(prisma, [employee.id]);
-            const licenseState = licenseStateForWorkDate(licenseMap.get(employee.id) || [], target);
-            const approval = await prisma.scheduleApproval.findFirst({
-              where: { month: new Date('2026-09-01T00:00:00.000Z') },
-              orderBy: [{ revision: 'desc' }, { updatedAt: 'desc' }],
-              select: { id: true, status: true, revision: true, approvedAt: true, updatedAt: true }
-            });
-            console.log('G06_DATE_PREFLIGHT_BEGIN');
-            console.log(JSON.stringify({
-              mode: 'READ_ONLY_G06_DATE_PREFLIGHT', databaseMutationPerformed: false, targetDate: '2026-09-25',
-              employee: { id: employee.id, employeeCode: employee.employeeCode, displayName: employee.displayName, department: employee.department, active: employee.isActive && !employee.deletedAt },
-              shiftD: shift ? { ...shift, hours: String(shift.hours) } : null,
-              licenseState: { valid: licenseState.valid, status: licenseState.status, expiryDate: iso(licenseState.expiryDate) },
-              existingAssignment: assignment ? { ...assignment, workDate: iso(assignment.workDate) } : null,
-              attendanceSessions: attendanceSessions.map(s => ({ ...s, workDate: iso(s.workDate), openedAt: iso(s.openedAt), closedAt: iso(s.closedAt), events: s.events.map(e => ({ ...e, receivedAt: iso(e.receivedAt) })) })),
-              leaveOverlaps: leaveOverlaps.map(l => ({ ...l, startDate: iso(l.startDate), endDate: iso(l.endDate), approvedAt: iso(l.approvedAt) })),
-              scheduleApproval: approval ? { ...approval, approvedAt: iso(approval.approvedAt), updatedAt: iso(approval.updatedAt) } : null
-            }, null, 2));
-            console.log('G06_DATE_PREFLIGHT_END');
-          })().catch((error) => { console.error(error.message); process.exitCode = 1; }).finally(async () => prisma.$disconnect());
-          NODE
-      - name: G06-UAT-01 read-only Master candidate check
-        run: node scripts/ci/g06-uat-master-candidates-readonly.js
+          umask 077
+          inspect_log="$DIAGNOSTIC_DIR/vercel-project-inspect.log"
+          if ! npx --yes "vercel@$VERCEL_CLI_VERSION" project inspect "$VERCEL_PROJECT_ID" --yes --non-interactive --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" >"$inspect_log" 2>&1; then
+            echo 'PROJECT_VALIDATION=FAIL'
+            exit 1
+          fi
+          grep -Fq "$EXPECTED_PROJECT_NAME" "$inspect_log"
+          echo 'PROJECT_VALIDATION=PASS'
+
+      - name: Run sanitized production environment diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes "vercel@$VERCEL_CLI_VERSION" env run -e production --project "$VERCEL_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --non-interactive -- node scripts/ci/production-database-diagnostic.js diagnose
+
+      - name: Remove temporary environment files
+        if: ${{ always() }}
+        shell: bash
+        run: rm -rf -- "$DIAGNOSTIC_DIR"
