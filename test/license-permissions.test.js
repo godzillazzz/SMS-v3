@@ -6,21 +6,21 @@ const routeSource = fs.readFileSync(require.resolve('../src/routes/operations.ro
 const serviceSource = fs.readFileSync(require.resolve('../src/services/license-document.service.js'), 'utf8');
 
 test('license routes expose the intended role policy', () => {
-  assert.match(routeSource, /router\.get\('\/licenses', authorize\('ADMIN', 'MANAGER'\)/);
-  assert.match(routeSource, /router\.put\('\/licenses\/:id', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(routeSource, /router\.get\('\/licenses', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
+  assert.match(routeSource, /router\.put\('\/licenses\/:id', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
   assert.match(routeSource, /router\.delete\('\/licenses\/:id', authorize\('ADMIN'\)/);
-  assert.match(routeSource, /router\.get\('\/licenses\/:id\/documents', authorize\('ADMIN', 'MANAGER'\)/);
-  assert.match(routeSource, /router\.post\('\/licenses\/:id\/documents', authorize\('ADMIN', 'MANAGER'\)/);
-  assert.match(routeSource, /router\.get\('\/license-documents\/:id\/view', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(routeSource, /router\.get\('\/licenses\/:id\/documents', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
+  assert.match(routeSource, /router\.post\('\/licenses\/:id\/documents', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
+  assert.match(routeSource, /router\.get\('\/license-documents\/:id\/view', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
   assert.match(routeSource, /router\.post\('\/license-documents\/:id\/approve', authorize\('ADMIN'\)/);
   assert.match(routeSource, /router\.post\('\/license-documents\/:id\/return-for-correction', authorize\('ADMIN'\)/);
-  assert.match(routeSource, /router\.post\('\/license-documents\/:id\/resubmit', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(routeSource, /router\.post\('\/license-documents\/:id\/resubmit', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
   assert.match(routeSource, /router\.post\('\/license-documents\/:id\/reject', authorize\('ADMIN'\)/);
   assert.match(routeSource, /router\.delete\('\/license-documents\/:id\/permanent', authorize\('ADMIN'\)/);
 });
 
-test('license document service grants manager access without department scope', () => {
-  assert.match(serviceSource, /return requestUser\.role === 'MANAGER'\s*&&/);
+test('license document service grants manager and Supervisor access without department scope', () => {
+  assert.match(serviceSource, /return \['MANAGER', 'SUPERVISOR'\]\.includes\(requestUser\.role\)\s*&&/);
   assert.doesNotMatch(serviceSource, /manager\.department/);
 });
 
@@ -29,7 +29,7 @@ test('master license fields remain behind the document approval workflow', () =>
 });
 
 test('license correction authority is owner-scoped while final review remains Admin-only', () => {
-  assert.match(routeSource, /router\.post\('\/license-documents\/:id\/cancel', authorize\('ADMIN', 'MANAGER'\)/);
+  assert.match(routeSource, /router\.post\('\/license-documents\/:id\/cancel', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);
   assert.match(serviceSource, /ensureRequestOwner\(document, requestUser\)/);
   assert.match(serviceSource, /LICENSE_CANCEL_ALLOWED_STATES = new Set\(\['RETURNED_FOR_CORRECTION'\]\)/);
   assert.match(routeSource, /license-documents\/:id\/approve', authorize\('ADMIN'\)/);
