@@ -1,0 +1,279 @@
+name: ONE-TIME G06-CLOSE-01 Schedule Fixture
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_release_sha:
+        description: Exact Production application release SHA
+        required: true
+        type: string
+      target_date:
+        description: Exact controlled UAT work date
+        required: true
+        type: string
+      confirm_scope:
+        description: Type G06_CLOSE_01_SCHEDULE_FIXTURE
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_RELEASE_SHA: ac5dd81e64af76d36f61b5b94328371acbe950da
+  EXPECTED_EMPLOYEE_CODE: UAT-ST-20260902
+  EXPECTED_EMPLOYEE_ID: 76fb6def-9f04-4cbd-8c2e-b9be21d8af56
+  EXPECTED_SHIFT_D_ID: a412eab6-b314-4f9e-bef1-8e2d7743c17f
+  EXPECTED_TARGET_DATE: '2026-09-25'
+  CANONICAL_BASE_URL: https://sms-v3-staging-ten.vercel.app
+
+jobs:
+  fixture:
+    if: ${{ github.ref_name == 'main' && inputs.confirm_scope == 'G06_CLOSE_01_SCHEDULE_FIXTURE' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production-sms-v3-staging
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DATABASE_URL }}
+      UAT_ADMIN_EMAIL: ${{ secrets.UAT_ADMIN_EMAIL }}
+      UAT_ADMIN_PASSWORD: ${{ secrets.UAT_ADMIN_PASSWORD }}
+      TARGET_DATE: ${{ inputs.target_date }}
+      INPUT_RELEASE_SHA: ${{ inputs.expected_release_sha }}
+    steps:
+      - name: Validate exact G06-CLOSE-01 scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$INPUT_RELEASE_SHA" = "$EXPECTED_RELEASE_SHA"
+          test "$TARGET_DATE" = "$EXPECTED_TARGET_DATE"
+          test -n "$DATABASE_URL"
+          test -n "$UAT_ADMIN_EMAIL"
+          test -n "$UAT_ADMIN_PASSWORD"
+          echo 'G06_CLOSE_01_SCOPE_GUARD=PASS'
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_release_sha }}
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install exact release dependencies
+        run: npm ci --include=dev
+
+      - name: Generate exact release Prisma client
+        run: npx prisma generate
+
+      - name: Execute one governed G06 schedule fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { PrismaClient } = require('@prisma/client');
+          const { loadLicenseAuthorityByEmployee, licenseStateForWorkDate } = require('./src/services/license-state.service');
+
+          const prisma = new PrismaClient();
+          const baseUrl = process.env.CANONICAL_BASE_URL;
+          const employeeCode = process.env.EXPECTED_EMPLOYEE_CODE;
+          const employeeId = process.env.EXPECTED_EMPLOYEE_ID;
+          const expectedShiftId = process.env.EXPECTED_SHIFT_D_ID;
+          const targetDateText = process.env.TARGET_DATE;
+          const targetDate = new Date(`${targetDateText}T00:00:00.000Z`);
+          const monthText = targetDateText.slice(0, 7);
+          const monthDate = new Date(`${monthText}-01T00:00:00.000Z`);
+          const expectedRemark = 'G06-CLOSE-01 controlled UAT fixture';
+          const overrideReason = 'G06-CLOSE-01 controlled UAT fixture - missing operational license';
+          const safe = {
+            mode: 'G06_CLOSE_01_SCHEDULE_FIXTURE',
+            targetDate: targetDateText,
+            employeeCode,
+            employeeId,
+            releaseSha: process.env.EXPECTED_RELEASE_SHA,
+            databaseDirectWritePerformed: false,
+            applicationApiMutationOnly: true,
+            assignmentCreated: false,
+            approvalPerformed: false,
+            licenseOverrideUsed: false
+          };
+
+          function fail(code, details = {}) {
+            const error = new Error(code);
+            error.details = details;
+            throw error;
+          }
+          async function api(path, { method = 'GET', token, body } = {}) {
+            const headers = { 'content-type': 'application/json' };
+            if (token) headers.authorization = `Bearer ${token}`;
+            const response = await fetch(`${baseUrl}${path}`, {
+              method,
+              headers,
+              body: body === undefined ? undefined : JSON.stringify(body)
+            });
+            const payload = await response.json().catch(() => ({}));
+            const requestId = response.headers.get('x-request-id') || payload?.requestId || null;
+            return { ok: response.ok, status: response.status, payload, requestId };
+          }
+
+          (async () => {
+            const ready = await api('/api/v1/ready');
+            if (!ready.ok || ready.payload?.status !== 'ready' || ready.payload?.database !== 'ok') {
+              fail('CANONICAL_READY_GATE_FAILED', { status: ready.status, requestId: ready.requestId });
+            }
+
+            const employee = await prisma.employee.findUnique({
+              where: { employeeCode },
+              select: { id: true, employeeCode: true, isActive: true, deletedAt: true, department: true }
+            });
+            if (!employee || employee.id !== employeeId || !employee.isActive || employee.deletedAt) fail('EMPLOYEE_GATE_FAILED');
+
+            const shift = await prisma.shiftType.findUnique({
+              where: { code: 'D' },
+              select: { id: true, code: true, name: true, startTime: true, endTime: true, isActive: true }
+            });
+            if (!shift || shift.id !== expectedShiftId || shift.code !== 'D' || !shift.isActive || shift.startTime !== '07:00' || shift.endTime !== '19:00') {
+              fail('SHIFT_D_GATE_FAILED');
+            }
+
+            let existing = await prisma.shiftAssignment.findUnique({
+              where: { workDate_employeeId: { workDate: targetDate, employeeId } },
+              include: { shiftType: { select: { code: true } } }
+            });
+            const sessions = await prisma.attendanceSession.findMany({
+              where: { employeeId, workDate: targetDate },
+              select: { id: true, state: true, events: { select: { id: true } } }
+            });
+            const leaves = await prisma.leaveRequest.findMany({
+              where: { employeeId, startDate: { lte: targetDate }, endDate: { gte: targetDate } },
+              select: { id: true, status: true }
+            });
+            const blockingLeaves = leaves.filter((row) => !['REJECTED', 'CANCELLED'].includes(String(row.status || '').toUpperCase()));
+            if (sessions.length) fail('ATTENDANCE_CONFLICT_PRESENT', { count: sessions.length });
+            if (blockingLeaves.length) fail('LEAVE_CONFLICT_PRESENT', { count: blockingLeaves.length, statuses: blockingLeaves.map((row) => row.status) });
+
+            const licenseMap = await loadLicenseAuthorityByEmployee(prisma, [employeeId]);
+            const licenseState = licenseStateForWorkDate(licenseMap.get(employeeId) || [], targetDate);
+            safe.licenseState = { valid: Boolean(licenseState.valid), status: licenseState.status || 'UNKNOWN' };
+            const useOverride = !licenseState.valid;
+            safe.licenseOverrideUsed = useOverride;
+
+            const beforeApproval = await prisma.scheduleApproval.findFirst({
+              where: { month: monthDate },
+              orderBy: [{ revision: 'desc' }, { updatedAt: 'desc' }],
+              select: { status: true, revision: true }
+            });
+            safe.approvalBefore = beforeApproval;
+
+            if (existing) {
+              const sameFixture = existing.shiftTypeId === expectedShiftId && existing.remark === expectedRemark;
+              if (!sameFixture) fail('TARGET_DATE_ASSIGNMENT_CONFLICT', { shiftCode: existing.shiftType?.code || null });
+              safe.assignmentAlreadyPresent = true;
+            }
+
+            const login = await api('/api/v1/auth/login', {
+              method: 'POST',
+              body: { email: process.env.UAT_ADMIN_EMAIL, password: process.env.UAT_ADMIN_PASSWORD, clientType: 'browser' }
+            });
+            if (!login.ok || login.payload?.user?.role !== 'ADMIN' || typeof login.payload?.accessToken !== 'string' || !login.payload.accessToken) {
+              fail('ADMIN_LOGIN_FAILED', { status: login.status, requestId: login.requestId });
+            }
+            const token = login.payload.accessToken;
+
+            if (!existing) {
+              const assignmentBody = {
+                assignments: [{
+                  employeeId,
+                  shiftTypeId: expectedShiftId,
+                  workDate: targetDateText,
+                  remark: expectedRemark,
+                  licenseOverride: useOverride,
+                  overrideReason: useOverride ? overrideReason : ''
+                }]
+              };
+              const batch = await api('/api/v1/schedules/batch', { method: 'POST', token, body: assignmentBody });
+              safe.batchHttpStatus = batch.status;
+              safe.batchRequestId = batch.requestId;
+              if (!batch.ok) fail('SCHEDULE_BATCH_FAILED', { status: batch.status, requestId: batch.requestId, error: batch.payload?.error || null });
+              safe.assignmentCreated = true;
+            }
+
+            existing = await prisma.shiftAssignment.findUnique({
+              where: { workDate_employeeId: { workDate: targetDate, employeeId } },
+              include: { shiftType: { select: { code: true } } }
+            });
+            if (!existing || existing.shiftTypeId !== expectedShiftId || existing.shiftType?.code !== 'D' || existing.remark !== expectedRemark) {
+              fail('POST_BATCH_ASSIGNMENT_VERIFY_FAILED');
+            }
+            if (useOverride && (existing.licenseStatus !== 'OVERRIDDEN' || !existing.licenseOverride)) fail('LICENSE_OVERRIDE_VERIFY_FAILED');
+            if (!useOverride && existing.licenseStatus !== 'VALID') fail('LICENSE_VALID_VERIFY_FAILED');
+            safe.assignmentId = existing.id;
+            safe.assignmentLicenseStatus = existing.licenseStatus;
+
+            let latestApproval = await prisma.scheduleApproval.findFirst({
+              where: { month: monthDate },
+              orderBy: [{ revision: 'desc' }, { updatedAt: 'desc' }],
+              select: { status: true, revision: true }
+            });
+            safe.approvalAfterBatch = latestApproval;
+            if (!latestApproval || latestApproval.status !== 'APPROVED') {
+              const approve = await api('/api/v1/schedules/approve', {
+                method: 'POST',
+                token,
+                body: { month: monthText, note: 'G06-CLOSE-01 controlled UAT schedule fixture' }
+              });
+              safe.approveHttpStatus = approve.status;
+              safe.approveRequestId = approve.requestId;
+              if (!approve.ok) fail('SCHEDULE_APPROVAL_FAILED', { status: approve.status, requestId: approve.requestId, error: approve.payload?.error || null });
+              safe.approvalPerformed = true;
+            }
+
+            latestApproval = await prisma.scheduleApproval.findFirst({
+              where: { month: monthDate },
+              orderBy: [{ revision: 'desc' }, { updatedAt: 'desc' }],
+              select: { status: true, revision: true, approvedAt: true }
+            });
+            safe.approvalFinal = { status: latestApproval?.status || null, revision: latestApproval?.revision || null, approvedAt: latestApproval?.approvedAt?.toISOString?.() || null };
+            if (latestApproval?.status !== 'APPROVED') fail('FINAL_APPROVAL_NOT_APPROVED');
+
+            const readiness = await api(`/api/v1/employees/${encodeURIComponent(employeeId)}/onboarding-readiness`, { token });
+            safe.readinessHttpStatus = readiness.status;
+            safe.readinessRequestId = readiness.requestId;
+            if (!readiness.ok) fail('ONBOARDING_READINESS_API_FAILED', { status: readiness.status, requestId: readiness.requestId });
+            const data = readiness.payload?.data || readiness.payload;
+            safe.readiness = {
+              status: data?.status || null,
+              blockers: data?.blockers || [],
+              checks: data?.checks || null
+            };
+            if (data?.status !== 'READY') fail('FINAL_ONBOARDING_NOT_READY', { blockers: data?.blockers || [] });
+            for (const key of ['employee', 'structure', 'account', 'referencePhoto', 'schedule', 'site', 'device']) {
+              if (!data?.checks?.[key]?.ready) fail(`FINAL_CHECK_NOT_READY_${key.toUpperCase()}`);
+            }
+            if (data?.checks?.site?.code !== 'WCS') fail('FINAL_SITE_NOT_WCS', { code: data?.checks?.site?.code || null });
+
+            fs.writeFileSync('g06-close-01-schedule-fixture.json', JSON.stringify(safe, null, 2));
+            console.log('G06_CLOSE_01_SCHEDULE_FIXTURE_BEGIN');
+            console.log(JSON.stringify(safe, null, 2));
+            console.log('G06_CLOSE_01_SCHEDULE_FIXTURE_END');
+          })().catch((error) => {
+            const failure = { code: error.message, details: error.details || null, ...safe };
+            fs.writeFileSync('g06-close-01-schedule-fixture.json', JSON.stringify(failure, null, 2));
+            console.error(`G06_CLOSE_01_FAILED=${error.message}`);
+            if (error.details) console.error(JSON.stringify(error.details));
+            process.exitCode = 1;
+          }).finally(async () => prisma.$disconnect());
+          NODE
+
+      - name: Upload sanitized G06-CLOSE-01 fixture evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: g06-close-01-schedule-fixture-${{ github.run_id }}
+          path: g06-close-01-schedule-fixture.json
+          if-no-files-found: warn
+          retention-days: 14
