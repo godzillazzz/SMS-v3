@@ -133,6 +133,13 @@ function getUatScopeGrep(environment = process.env) {
   return new RegExp('(?:' + titles.map(escapeRegExp).join('|') + ')$');
 }
 
+function getUatScopeGrepInvert(environment = process.env) {
+  const scope = normalizeUatScope(environment.UAT_SCOPE);
+  if (scope !== 'full') return undefined;
+  const excludedTitles = [...Q13B_SPECIALIST_WRITE_TEST_TITLES, ...Q13C_BUSINESS_WORKFLOW_TEST_TITLES];
+  return new RegExp('(?:' + excludedTitles.map(escapeRegExp).join('|') + ')$');
+}
+
 function getUatConfig(environment = process.env) {
   if (!String(environment.UAT_BASE_URL || '').trim()) {
     throw configurationError('UAT_CONFIGURATION_MISSING', 'UAT configuration missing: UAT_BASE_URL');
@@ -192,6 +199,7 @@ module.exports = {
   configurationError,
   getUatConfig,
   getUatScopeGrep,
+  getUatScopeGrepInvert,
   getUatScopeTestTitles,
   hasRoleCredentials,
   isAdminRbacTargetedRetry,

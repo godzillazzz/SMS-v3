@@ -61,3 +61,11 @@ test('Q13C specialist spec covers all remaining business write contracts', () =>
   assert.match(spec, /SUSPENDED/);
   assert.match(spec, /APPROVED/);
 });
+test('full scope excludes Preview-only Q13-B/Q13-C mutation suites', () => {
+  const invert = config.getUatScopeGrepInvert({ UAT_MODE: 'authenticated', UAT_SCOPE: 'full' });
+  assert.ok(invert instanceof RegExp);
+  for (const title of [...config.Q13B_SPECIALIST_WRITE_TEST_TITLES, ...config.Q13C_BUSINESS_WORKFLOW_TEST_TITLES]) assert.match(title, invert);
+  assert.doesNotMatch('V3 ADMIN: navigation shell', invert);
+  assert.equal(config.getUatScopeGrepInvert({ UAT_MODE: 'authenticated', UAT_SCOPE: 'q13b-specialist-write-targeted' }), undefined);
+  assert.equal(config.getUatScopeGrepInvert({ UAT_MODE: 'authenticated', UAT_SCOPE: 'q13c-business-workflow-targeted' }), undefined);
+});
