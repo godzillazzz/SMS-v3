@@ -71,7 +71,9 @@ import './styles/system-health.css';
 import './styles/configuration-center.css';
 import './styles/ux-ui-remediation.css';
 import './styles/ux-ui-quality-10.css';
+import './styles/award-landing.css';
 
+const AwardPublicExperience = React.lazy(() => import('./components/AwardPublicExperience').then((module) => ({ default: module.AwardPublicExperience })));
 const ReportCenterPage = React.lazy(() => import('./pages/reports/ReportCenterPage').then((module) => ({ default: module.ReportCenterPage })));
 const PersonnelDirectoryPage = React.lazy(() => import('./pages/personnel/PersonnelDirectoryPage').then((module) => ({ default: module.PersonnelDirectoryPage })));
 const EmployeeGovernedEditModal = React.lazy(() => import('./components/personnel/EmployeeGovernedEditModal').then((module) => ({ default: module.EmployeeGovernedEditModal })));
@@ -372,7 +374,11 @@ function Login() {
   const resetStep = mode === 'resetVerify' ? 2 : 1;
 
   return (
-    <main className="login-page auth-experience-page">
+    <main className="login-page auth-experience-page award-auth-page">
+      <React.Suspense fallback={null}>
+        <AwardPublicExperience showLanding={mode === 'login'} renderLogo={() => <Logo />} />
+      </React.Suspense>
+      <section className="award-login-stage">
       <a className="auth-skip-link" href="#auth-login-form">ข้ามไปแบบฟอร์มเข้าสู่ระบบ</a>
       <section className="login-shell auth-experience-shell" aria-label="เข้าสู่ระบบ Security Management System">
         <aside className="login-intro auth-brand-panel">
@@ -491,6 +497,8 @@ function Login() {
           </form>
         </section>
       </section>
+      </section>
+      <footer className="award-public-footer"><span>SMS · Security Management System</span><small>Secure operations, designed for clarity.</small></footer>
     </main>
   );
 }
