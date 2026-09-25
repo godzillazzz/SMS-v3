@@ -90,7 +90,7 @@ test('REGRESSION: Employee Lifecycle modal stays usable at mobile, tablet, and d
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.setContent(buildDocument(employeeLifecycleStyles, employeeLifecycleFixture()));
     const modal = page.locator('.lifecycle-modal');
-    const action = page.getByRole('button', { name: 'ยืนยันย้ายแผนก', exact: true });
+    const action = page.getByRole('button', { name: 'ยืนยันย้ายหน่วยงาน', exact: true });
     await expect(modal).toBeVisible();
     await expect(action).toBeVisible();
     const metrics = await modal.evaluate((node) => ({
