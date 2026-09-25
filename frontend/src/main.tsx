@@ -14,6 +14,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
+import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
 import { getApprovalCenterSummary } from './approval-center-client';
 import { getLeavePolicy } from './leave-policy-client';
 import { createLeaveType, getLeaveTypes, updateLeaveType, type LeaveTypeMaster } from './leave-type-client';
@@ -867,7 +868,7 @@ const tablePages: Record<OperationalPage, { title: string; eyebrow: string; desc
   ] },
   users: { title: 'ผู้ใช้และสิทธิ์', eyebrow: 'ผู้ดูแลระบบ', description: 'บัญชี บทบาท สถานะ และข้อกำหนดเปลี่ยนรหัสผ่าน', columns: [
     { label: 'ชื่อผู้ใช้', value: (row) => text(row.displayName) }, { label: 'อีเมล', value: (row) => text(row.email) },
-    { label: 'บทบาท', value: (row) => text(row.role) }, { label: 'สถานะบัญชี', value: (row) => text(row.accountStatus) },
+    { label: 'บทบาท', value: (row) => roleDisplayName(String(row.role || '')) }, { label: 'สถานะบัญชี', value: (row) => text(row.accountStatus) },
     { label: 'เปลี่ยนรหัสผ่าน', value: (row) => row.passwordResetRequired ? 'จำเป็น' : 'ไม่จำเป็น' }
   ] },
   audit: { title: 'ประวัติการทำรายการ', eyebrow: 'ผู้ดูแลระบบ', description: 'เหตุการณ์สำคัญของระบบโดยไม่แสดง payload ที่อ่อนไหว', columns: [
@@ -1457,7 +1458,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
     catch (reason) { setNotice(undefined); setSubmitError(toRequestErrorState(reason, 'ส่งคำขอลาไม่สำเร็จ')); }
     finally { setSubmitting(false); }
   };
-  const status = (row: DataRow) => { const actorName = row.approvedByDisplayName ? String(row.approvedByDisplayName) : ''; const actorRole = String(row.approvedByRole || 'ผู้อนุมัติ'); const actionDate = row.approvedAt ? String(date(row.approvedAt)) : ''; return <div className="leave-status-cell"><span className={`status-badge status-badge--${semanticStatusTone(row.status)}`}>{String(text(row.status))}</span>{actorName ? <small className="leave-action-log">ดำเนินการโดย {actorName} ({actorRole})<br />วันที่ {actionDate}</small> : null}</div>; };
+  const status = (row: DataRow) => { const actorName = row.approvedByDisplayName ? String(row.approvedByDisplayName) : ''; const actorRole = roleDisplayName(String(row.approvedByRole || ''), 'ผู้อนุมัติ'); const actionDate = row.approvedAt ? String(date(row.approvedAt)) : ''; return <div className="leave-status-cell"><span className={`status-badge status-badge--${semanticStatusTone(row.status)}`}>{String(text(row.status))}</span>{actorName ? <small className="leave-action-log">ดำเนินการโดย {actorName} ({actorRole})<br />วันที่ {actionDate}</small> : null}</div>; };
   const leaveEmployeeContext = (row: DataRow) => {
     const employee = nested(row.employee);
     return [employee.employeeCode, row.departmentSnapshot]
@@ -1575,7 +1576,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
       <section className="leave-history-card data-surface-card"><header><span>📋</span><div><h2>{mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด (All Employee Leaves & Print A4)' : 'ประวัติคำขอลาของฉัน (My Leave History)'}</h2><p>{mode === 'history' ? 'สำหรับหัวหน้างานและ Admin ตรวจสอบรายการลาทั้งหมด และพิมพ์ใบลาอนุมัติ' : 'วันที่ลา ประเภทการลา และสถานะคำขอลา'}</p></div>{mode === 'history' && <button className="btn-neutral small-action" onClick={onRefresh}>↻ รีเฟรชข้อมูล</button>}</header>{mode === 'history' && historyMonth && onHistoryMonthChange && onHistoryMonthStep && <div className="leave-history-filter data-toolbar-panel"><div><strong>แสดงข้อมูล: {formatThaiMonth(historyMonth)}</strong><small>รายการลาที่มีช่วงวันทับซ้อนกับเดือนที่เลือก</small></div><div className="leave-history-month-controls"><MonthGridPicker value={historyMonth} onChange={onHistoryMonthChange} /><button className="btn-neutral small-action" onClick={() => onHistoryMonthStep(-1)}>‹ เดือนก่อน</button><button className="btn-neutral small-action" onClick={() => onHistoryMonthStep(1)}>เดือนถัดไป ›</button></div></div>}{mode !== 'history' && <><div className="my-leave-quota-heading">โควต้าคงเหลือ{quotaYear ? ` · ${thaiQuotaYearLabel(quotaYear)}` : ''}</div><div className="my-leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <article className={`leave-quota-card ${tone}`} key={`my-${label}`}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ที่กำหนด (วัน)</small></div><span>{icon}</span></article>)}</div></>}{loading ? <div className="loading-row data-state-inline data-state--loading" role="status">กำลังดึงประวัติการลา…</div> : leaveTable(historyRows, false, mode === 'history' && historyMonth ? `ไม่พบประวัติการลาในเดือน${formatThaiMonth(historyMonth)}` : 'ไม่มีรายการ', true)}{mode === 'history' && historyTotalPages && onHistoryPageChange && <DataTablePagination page={historyPage || 1} totalPages={historyTotalPages} onChange={onHistoryPageChange} ariaLabel="การแบ่งหน้าประวัติการลา" loading={loading} className="pagination-bar" />}{mode === 'history' && <div className="leave-history-total">ทั้งหมด {historyTotal ?? historyRows.length} รายการในเดือนที่เลือก</div>}</section>
     </div>
     <ErrorAlert message={error} className="leave-error" />
-    {canManage && <section className="leave-pending-card data-surface-card" aria-busy={loading}><header><span>⚡</span><div><h2>รายการใบลาที่รออนุมัติ</h2><p>สำหรับหัวหน้างาน (Manager) และผู้ดูแลระบบ (Admin) ในการตรวจสอบสิทธิ์และอนุมัติวันลา</p></div><b>🛡️ สิทธิ์ผู้บริหาร/หัวหน้างาน</b></header>{loading ? <div className="loading-row data-state-inline data-state--loading" role="status" aria-live="polite">กำลังตรวจสอบรายการที่รออนุมัติ…</div> : leaveTable(pendingRows, true)}</section>}
+    {canManage && <section className="leave-pending-card data-surface-card" aria-busy={loading}><header><span>⚡</span><div><h2>รายการใบลาที่รออนุมัติ</h2><p>สำหรับ Supervisor / Manager และผู้ดูแลระบบ (Admin) ในการตรวจสอบสิทธิ์และอนุมัติวันลา</p></div><b>🛡️ สิทธิ์ผู้บริหาร/หัวหน้างาน</b></header>{loading ? <div className="loading-row data-state-inline data-state--loading" role="status" aria-live="polite">กำลังตรวจสอบรายการที่รออนุมัติ…</div> : leaveTable(pendingRows, true)}</section>}
   </section>;
 }
 
@@ -2344,7 +2345,7 @@ function Dashboard() {
       }, (form) => api.updateLeaveQuota(auth.token!, id, form));
       else if (activePage === 'users') runEditor({
         title: 'แก้ไขผู้ใช้และสิทธิ์', submitLabel: 'บันทึกสิทธิ์',
-        fields: [{ name: 'role', label: 'บทบาท', type: 'select', required: true, options: ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].map((value) => ({ value, label: value })) }, { name: 'department', label: 'หน่วยงาน' }, { name: 'accountStatus', label: 'สถานะบัญชี', type: 'select', required: true, options: ['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED'].map((value) => ({ value, label: value })) }],
+        fields: [{ name: 'role', label: 'บทบาท', type: 'select', required: true, options: ['ADMIN', 'MANAGER', 'SUPERVISOR', 'VIEWER'].map((value) => ({ value, label: ROLE_DISPLAY_LABEL[value] || value })) }, { name: 'department', label: 'หน่วยงาน' }, { name: 'accountStatus', label: 'สถานะบัญชี', type: 'select', required: true, options: ['ACTIVE', 'PENDING', 'SUSPENDED', 'REJECTED'].map((value) => ({ value, label: value })) }],
         values: { role: String(row.role || ''), department: String(row.department || ''), accountStatus: String(row.accountStatus || '') }
       }, (form) => api.updateUser(auth.token!, id, form));
       return;
@@ -2397,7 +2398,7 @@ function Dashboard() {
               <div className="avatar" style={{ width: '48px', height: '48px', fontSize: '18px', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>{initials}</div>
               <div>
                 <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#ffffff' }}>สวัสดี, {auth.user?.displayName || 'ผู้ดูแลระบบ'} 👋</h1>
-                <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'rgba(255, 255, 255, 0.85)' }}>{todayThaiStr} · บทบาท: <strong style={{ color: '#60a5fa' }}>{auth.user?.role || 'VIEWER'}</strong></p>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'rgba(255, 255, 255, 0.85)' }}>{todayThaiStr} · บทบาท: <strong style={{ color: '#60a5fa' }}>{roleDisplayName(auth.user?.role || 'VIEWER')}</strong></p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -3009,7 +3010,7 @@ function Dashboard() {
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} /></React.Suspense>}
       {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><EmployeeChangeReviewModal token={auth.token} initialRequestId={employeeChangeReviewInitialId} onClose={() => { setEmployeeChangeReviewOpen(false); setEmployeeChangeReviewInitialId(undefined); }} onChanged={() => { setEmployeeRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} /></React.Suspense>}
-      {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({auth.user?.role}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
+      {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({roleDisplayName(auth.user?.role)}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนูหลัก" aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(false)} />}
       <aside id="app-navigation-drawer" className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} aria-label="เมนูหลัก">
         <div className="sidebar-brand">
@@ -3021,7 +3022,7 @@ function Dashboard() {
           <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}{item.id === 'approvalCenter' && pendingApprovalCount > 0 && <b className="nav-count-badge">{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</b>}</span></button>)}</div>
         ))}</nav>
         <div className="sidebar-footer">
-          <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></div>
+          <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
           <button type="button" className="sidebar-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} /><span>ออกจากระบบ</span></button>
         </div>
       </aside>
@@ -3039,13 +3040,13 @@ function Dashboard() {
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
             {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type="button" className="topbar-notification-button" aria-label={'คำขออนุมัติ ' + pendingApprovalCount + ' รายการ'} title="คำขอที่รอการอนุมัติ" onClick={() => setActivePage('approvalCenter')}><SmsIcon name="bell" size={19} />{pendingApprovalCount > 0 && <span className="topbar-notification-badge">{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
             <ThemeControl compact />
-            <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></button>
+            <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></button>
             <button ref={mobileUtilityTriggerRef} type="button" className="mobile-utility-button" aria-label="เปิดเมนูบัญชีและธีม" aria-expanded={mobileUtilityOpen} aria-controls="mobile-utility-panel" onClick={() => setMobileUtilityOpen((value) => !value)}><SmsIcon name="more" size={20} /></button>
           </div>
           {mobileUtilityOpen && createPortal(<>
             <button type="button" className="mobile-utility-backdrop" aria-label="ปิดเมนูบัญชีและธีม" onClick={() => setMobileUtilityOpen(false)} />
             <div id="mobile-utility-panel" className="mobile-utility-panel" role="dialog" aria-modal="true" aria-label="บัญชีและการตั้งค่าหน้าจอ">
-              <div className="mobile-utility-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{auth.user?.role || 'VIEWER'}</small></span></div>
+              <div className="mobile-utility-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
               <label className="mobile-utility-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงานบนมือถือ" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
               <div className="mobile-utility-theme"><span>Theme</span><ThemeControl /></div>
               <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setPasskeyPanelOpen(true); }}><SmsIcon name="key" size={18} />การเข้าสู่ระบบและ Passkey</button>

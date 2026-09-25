@@ -121,9 +121,9 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
                       onChange={(event) => updateDraft(policy.requestType, {
                         reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'MANAGER'), 'MANAGER'] : draft.reviewerRoles.filter((role) => role !== 'MANAGER')
                       })}
-                    /> Manager
+                    /> Supervisor
                   </label>
-                  {policy.safeReviewerRoles.includes('SUPERVISOR') && <label><input type="checkbox" checked={draft.reviewerRoles.includes('SUPERVISOR')} disabled={busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR'), 'SUPERVISOR'] : draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR') })} /> Supervisor</label>}
+                  {policy.safeReviewerRoles.includes('SUPERVISOR') && <label><input type="checkbox" checked={draft.reviewerRoles.includes('SUPERVISOR')} disabled={busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR'), 'SUPERVISOR'] : draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR') })} /> Manager</label>}
                 </div>
                 {!managerAllowed && !policy.safeReviewerRoles.includes('SUPERVISOR') && <small className="cell-note">Admin-only ถูกล็อกโดยระบบ</small>}
               </td>
@@ -152,8 +152,8 @@ export function ApprovalAuthorityMatrixPanel({ token }: { token: string }) {
               <h4 id={`${key}-reviewer-heading`}>ผู้มีอำนาจอนุมัติ</h4>
               <div className="approval-role-controls">
                 <label><input type="checkbox" checked disabled /> Admin <small>จำเป็น</small></label>
-                <label><input type="checkbox" checked={draft.reviewerRoles.includes('MANAGER')} disabled={!managerAllowed || busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'MANAGER'), 'MANAGER'] : draft.reviewerRoles.filter((role) => role !== 'MANAGER') })} /> Manager</label>
-                {policy.safeReviewerRoles.includes('SUPERVISOR') && <label><input type="checkbox" checked={draft.reviewerRoles.includes('SUPERVISOR')} disabled={busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR'), 'SUPERVISOR'] : draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR') })} /> Supervisor</label>}
+                <label><input type="checkbox" checked={draft.reviewerRoles.includes('MANAGER')} disabled={!managerAllowed || busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'MANAGER'), 'MANAGER'] : draft.reviewerRoles.filter((role) => role !== 'MANAGER') })} /> Supervisor</label>
+                {policy.safeReviewerRoles.includes('SUPERVISOR') && <label><input type="checkbox" checked={draft.reviewerRoles.includes('SUPERVISOR')} disabled={busyType === policy.requestType} onChange={(event) => updateDraft(policy.requestType, { reviewerRoles: event.target.checked ? [...draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR'), 'SUPERVISOR'] : draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR') })} /> Manager</label>}
               </div>
               {!managerAllowed && !policy.safeReviewerRoles.includes('SUPERVISOR') && <p className="approval-policy-lock-note">Admin-only ถูกล็อกโดย security ceiling</p>}
             </section>

@@ -4,6 +4,7 @@ import { api, type SecuritySite } from '../../api';
 import { formatRequestErrorMessage } from '../../request-error';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import { useAccessibleOverlay } from '../../components/useAccessibleOverlay';
+import { roleDisplayName } from '../../role-display';
 import {
   attendanceSupervisorDaily,
   attendanceSupervisorHistory,
@@ -927,7 +928,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
       <div>
         <span className="attendance-supervisor-v4__eyebrow">การควบคุมการลงเวลา</span>
         <h2>ศูนย์ควบคุมการลงเวลา</h2>
-        <p>{manager ? `ขอบเขต Manager: ${department || 'ไม่ระบุ Department'}` : 'Admin มองเห็นทุก Department ตามสิทธิ์'}</p>
+        <p>{manager ? `ขอบเขต Supervisor / Manager: ${department || 'ไม่ระบุ Department'}` : 'Admin มองเห็นทุก Department ตามสิทธิ์'}</p>
       </div>
       <div className="attendance-supervisor-v4__hero-controls">
         <button type="button" className="attendance-supervisor-v4__manual-btn" onClick={openManualConfirmation}>
@@ -1065,7 +1066,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
             <p>
               {admin
                 ? 'ทุกการเปลี่ยนเวลาต้องผ่านปุ่มอนุมัติแยกต่างหากก่อนมีผลจริง'
-                : 'คำขอของ Manager ไม่มีผลต่อ Attendance จนกว่า ADMIN จะอนุมัติ'}
+                : 'คำขอของ Supervisor / Manager ไม่มีผลต่อ Attendance จนกว่า ADMIN จะอนุมัติ'}
             </p>
           </div>
           <label>
@@ -1101,7 +1102,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
             <div className="attendance-supervisor-v4__request-empty">
               <SmsIcon name="approval" size={26} />
               <strong>ไม่มีคำขอตามสถานะที่เลือก</strong>
-              <span>เมื่อ Manager/Admin ส่งคำขอ ระบบจะแสดงที่นี่โดยไม่เปลี่ยน Attendance เดิม</span>
+              <span>เมื่อ Supervisor / Manager / Admin ส่งคำขอ ระบบจะแสดงที่นี่โดยไม่เปลี่ยน Attendance เดิม</span>
             </div>
           )}
 
@@ -1129,7 +1130,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
               </div>
 
               <div className="attendance-supervisor-v4__request-meta">
-                <span><b>Maker</b> {request.makerDisplayName || request.makerRoleSnapshot}</span>
+                <span><b>Maker</b> {request.makerDisplayName || roleDisplayName(request.makerRoleSnapshot)}</span>
                 <span><b>Revision</b> {request.currentRevision}</span>
                 <span><b>สร้างเมื่อ</b> {dateTime(request.createdAt)}</span>
                 {request.approverDisplayName && <span><b>Approver</b> {request.approverDisplayName}</span>}
@@ -1272,7 +1273,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
                     </span>
                   </div>
                   <small>
-                    Revision {request.currentRevision} · Maker {request.makerDisplayName || request.makerRoleSnapshot} · {dateTime(request.createdAt)}
+                    Revision {request.currentRevision} · Maker {request.makerDisplayName || roleDisplayName(request.makerRoleSnapshot)} · {dateTime(request.createdAt)}
                   </small>
                   <p>{request.reason}</p>
                 </article>
@@ -1309,7 +1310,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
             <div>
               <span>MANUAL ATTENDANCE</span>
               <h3>คีย์ยืนยันมาปฏิบัติงานย้อนหลัง</h3>
-              <p>{manager ? 'Manager ส่งคำขอ · ADMIN อนุมัติเป็นขั้นสุดท้าย' : 'Admin ยืนยันและอนุมัติผ่าน Audit workflow เดิม'}</p>
+              <p>{manager ? 'Supervisor / Manager ส่งคำขอ · ADMIN อนุมัติเป็นขั้นสุดท้าย' : 'Admin ยืนยันและอนุมัติผ่าน Audit workflow เดิม'}</p>
             </div>
             <button type="button" aria-label="ปิด" disabled={workflowBusy} onClick={() => setManualDialog(undefined)}><SmsIcon name="close" size={18} /></button>
           </header>
@@ -1485,7 +1486,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           <div className="attendance-supervisor-v4__review-reason">
             <span>เหตุผลจาก Maker</span>
             <strong>{reviewDialog.request.reason}</strong>
-            <small>Maker: {reviewDialog.request.makerDisplayName || reviewDialog.request.makerRoleSnapshot} · Revision {reviewDialog.request.currentRevision}</small>
+            <small>Maker: {reviewDialog.request.makerDisplayName || roleDisplayName(reviewDialog.request.makerRoleSnapshot)} · Revision {reviewDialog.request.currentRevision}</small>
           </div>
 
           {reviewDialog.action !== 'approve' && (

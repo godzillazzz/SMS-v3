@@ -3,6 +3,7 @@ import { api } from '../../api';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { SmsIcon } from '../SmsIcon';
 import type { PersonnelRecord } from './types';
+import { roleDisplayName } from '../../role-display';
 
 type Props = {
   employee?: PersonnelRecord;
@@ -113,7 +114,7 @@ export function PersonnelDetailDrawer({ employee, token, canManage, onClose, onE
           <div className={activeRequest ? 'personnel-state-card personnel-state-card--warning' : 'personnel-state-card'}><span>คำขอเปลี่ยนแปลง</span><strong>{activeRequest ? requestStatusLabel[activeRequest.status] || activeRequest.status : statusLoading ? 'กำลังตรวจสอบ…' : 'ไม่มีรายการค้าง'}</strong>{activeRequest?.draftEffectiveMode === 'FUTURE_EFFECTIVE' && <small>มีผล {fmtDate(activeRequest.draftEffectiveDate)}</small>}</div>
           <div className={pendingLifecycle ? 'personnel-state-card personnel-state-card--warning' : 'personnel-state-card'}><span>Future-effective</span><strong>{pendingLifecycle ? lifecycleLabel[pendingLifecycle.type] || pendingLifecycle.type : statusLoading ? 'กำลังตรวจสอบ…' : 'ไม่มีรายการรอมีผล'}</strong>{pendingLifecycle && <small>{fmtDate(pendingLifecycle.effectiveDate)}</small>}</div>
           <div className={reference?.activePhoto ? 'personnel-state-card personnel-state-card--ok' : 'personnel-state-card personnel-state-card--warning'}><span>รูปอ้างอิงใบหน้า</span><strong>{reference?.activePhoto ? 'พร้อมใช้งาน' : statusLoading ? 'กำลังตรวจสอบ…' : 'ยังไม่พร้อม'}</strong>{reference?.pendingPhoto ? <small>มีรูปใหม่รอพิจารณา</small> : reference?.activePhoto ? <small>Reference Photo ACTIVE</small> : <small>ต้องมีรูป ACTIVE ก่อนตรวจสอบใบหน้า</small>}</div>
-          <div className={accountReady(account) ? 'personnel-state-card personnel-state-card--ok' : account ? 'personnel-state-card personnel-state-card--warning' : 'personnel-state-card'}><span>บัญชีเข้าใช้งาน</span><strong>{account ? (accountReady(account) ? 'พร้อมใช้งาน' : 'ยังไม่พร้อมใช้งาน') : statusLoading ? 'กำลังตรวจสอบ…' : 'ยังไม่พบบัญชีเชื่อมโยง'}</strong>{account?.role && <small>สิทธิ์ {account.role}</small>}</div>
+          <div className={accountReady(account) ? 'personnel-state-card personnel-state-card--ok' : account ? 'personnel-state-card personnel-state-card--warning' : 'personnel-state-card'}><span>บัญชีเข้าใช้งาน</span><strong>{account ? (accountReady(account) ? 'พร้อมใช้งาน' : 'ยังไม่พร้อมใช้งาน') : statusLoading ? 'กำลังตรวจสอบ…' : 'ยังไม่พบบัญชีเชื่อมโยง'}</strong>{account?.role && <small>สิทธิ์ {roleDisplayName(account.role)}</small>}</div>
           <div className={expiringLicense ? 'personnel-state-card personnel-state-card--warning' : activeLicenses.length ? 'personnel-state-card personnel-state-card--ok' : 'personnel-state-card'}><span>ใบอนุญาต</span><strong>{expiringLicense ? 'ใกล้หมดอายุภายใน 30 วัน' : statusLoading ? 'กำลังตรวจสอบ…' : activeLicenses.length ? 'ไม่มีรายการใกล้หมดอายุ' : 'ไม่มีใบอนุญาตที่ Active'}</strong>{expiringLicense ? <small>{expiringLicense.licenseType || 'License'} · หมดอายุ {fmtDate(expiringLicense.expiryDate)}</small> : <small>Active {activeLicenses.length} รายการ</small>}</div>
         </section>
         {statusUnavailable && <div className="personnel-360-data-note" role="status">ข้อมูล governance บางส่วนไม่พร้อมใช้งาน จึงไม่คาดเดาสถานะจาก client</div>}

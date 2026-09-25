@@ -3,6 +3,7 @@ import { api } from '../../api';
 import { getApprovalCenter } from '../../approval-center-client';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
+import { roleDisplayName } from '../../role-display';
 import type { LeaveDecisionAction } from '../../components/LeaveDecisionConfirmation';
 import '../../styles/approval-center.css';
 
@@ -225,7 +226,7 @@ export function ApprovalCenterPage({ token, role, currentEmployeeId, refreshKey 
         {selected ? <>
           <header><button type="button" className="approval-center-back" onClick={() => setMobileDetailOpen(false)}><SmsIcon name="history" size={16} />กลับรายการ</button><div><p>{typeLabel[selected.type]}</p><h2>{requestSubject(selected)}</h2><span>{requestContext(selected)} · {selected.type === 'REGISTRATION_REQUEST' ? text(selected.metadata?.email) : (selected.employee?.department || text(selected.metadata?.department))}</span></div><span className={'approval-urgency approval-urgency--' + selected.urgency.toLowerCase()}>{urgencyLabel(selected)}</span></header>
           <dl className="approval-center-meta">
-            <div><dt>ผู้ส่งคำขอ</dt><dd>{selected.requestedBy?.displayName || 'ระบบ'}{selected.requestedBy?.role ? ' (' + selected.requestedBy.role + ')' : ''}</dd></div>
+            <div><dt>ผู้ส่งคำขอ</dt><dd>{selected.requestedBy?.displayName || 'ระบบ'}{selected.requestedBy?.role ? ' (' + roleDisplayName(selected.requestedBy.role) + ')' : ''}</dd></div>
             <div><dt>ส่งเมื่อ</dt><dd>{fmt(selected.submittedAt)}</dd></div>
             <div><dt>เวลาที่รอ</dt><dd>{selected.ageHours < 1 ? 'ไม่ถึง 1 ชั่วโมง' : selected.ageHours + ' ชั่วโมง'}</dd></div>
           </dl>

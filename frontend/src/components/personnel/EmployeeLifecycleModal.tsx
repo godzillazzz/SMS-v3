@@ -4,6 +4,7 @@ import { SmsIcon } from '../SmsIcon';
 import { api } from '../../api';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import type { PersonnelRecord } from './types';
+import { roleDisplayName } from '../../role-display';
 import '../../styles/employee-lifecycle.css';
 
 type LifecycleType = 'NAME_CHANGE' | 'DEPARTMENT_TRANSFER' | 'POSITION_CHANGE' | 'EMPLOYMENT_TERMINATION' | 'REHIRE';
@@ -307,7 +308,7 @@ export function EmployeeLifecycleModal({ token, employee, onClose, onApplied }: 
           {terminationNeedsConfirmation && <label className="lifecycle-confirm"><span>พิมพ์รหัสภายใน {employee.employeeCode} เพื่อยืนยันการลาออก</span><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" /></label>}
           <footer><button type="button" className="btn-neutral" disabled={busy} onClick={onClose}>ยกเลิก</button><button type="submit" className={type === 'EMPLOYMENT_TERMINATION' && preflight ? 'lifecycle-danger' : 'btn-primary'} disabled={busy || Boolean(preflight?.blockingIssues.length) || (warningsNeedAcknowledgement && !acknowledgeWarnings) || (terminationNeedsConfirmation && confirmation !== employee.employeeCode)}>{busy ? 'กำลังดำเนินการ…' : preflight ? `ยืนยัน${typeLabels[type]}` : 'ตรวจสอบผลกระทบ'}</button></footer>
         </form>
-        <aside className="lifecycle-history"><header><h3>ประวัติการเปลี่ยนแปลงสำคัญ</h3><span>อ่านอย่างเดียว</span></header>{loadingHistory ? <p>กำลังโหลดประวัติ…</p> : history.length ? <ol>{history.map((event) => <li key={event.id}><div><b>{historyTypeLabel(event)}</b><span className={`lifecycle-status lifecycle-status--${event.status.toLowerCase()}`}>{event.status === 'APPLIED' ? 'มีผลแล้ว' : 'รอวันที่มีผล'}</span></div><time>{thaiDate(event.effectiveDate)}</time><strong>{eventChange(event)}</strong><p>เหตุผล: {event.reason}</p><small>โดย {event.changedBy?.displayName || 'ผู้ดูแลระบบ'} ({event.changedBy?.role || 'ADMIN'}) · บันทึก {new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(event.createdAt))}</small></li>)}</ol> : <div className="lifecycle-empty">ยังไม่มีประวัติการเปลี่ยนแปลงที่ยืนยันได้</div>}</aside>
+        <aside className="lifecycle-history"><header><h3>ประวัติการเปลี่ยนแปลงสำคัญ</h3><span>อ่านอย่างเดียว</span></header>{loadingHistory ? <p>กำลังโหลดประวัติ…</p> : history.length ? <ol>{history.map((event) => <li key={event.id}><div><b>{historyTypeLabel(event)}</b><span className={`lifecycle-status lifecycle-status--${event.status.toLowerCase()}`}>{event.status === 'APPLIED' ? 'มีผลแล้ว' : 'รอวันที่มีผล'}</span></div><time>{thaiDate(event.effectiveDate)}</time><strong>{eventChange(event)}</strong><p>เหตุผล: {event.reason}</p><small>โดย {event.changedBy?.displayName || 'ผู้ดูแลระบบ'} ({roleDisplayName(event.changedBy?.role || 'ADMIN')}) · บันทึก {new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(event.createdAt))}</small></li>)}</ol> : <div className="lifecycle-empty">ยังไม่มีประวัติการเปลี่ยนแปลงที่ยืนยันได้</div>}</aside>
       </div>
     </section>
   </div>;

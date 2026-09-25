@@ -79,7 +79,7 @@ test('leave workflow uses the consolidated leave-requests route and policy valid
   assert.match(routes, /sickAttachmentRequiredAfterDays/);
   assert.match(routes, /LEAVE_SICK_ATTACHMENT_REQUIRED/);
   assert.doesNotMatch(routes, /Sick leave longer than 3 days requires an attachment/);
-  assert.match(routes, /Supervisor leave requests require Admin or peer-Supervisor approval/);
+  assert.match(routes, /Supervisor-position leave requests require Admin or peer Manager-role approval/);
   assert.match(routes, /Manager leave requests require Supervisor-level approval or higher/);
   assert.match(routes, /const after = await tx\.leaveRequest\.update\(\{ where: \{ id \}, data: \{ status: input\.status, approvedAt:/);
   assert.match(frontend, /const formReady = Boolean/);
