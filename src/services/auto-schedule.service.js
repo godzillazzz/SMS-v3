@@ -3,6 +3,7 @@
 const HttpError = require('../utils/http-error');
 const audit = require('./audit.service');
 const { validateScheduleRowsOperational } = require('./employee-operational-eligibility.service');
+const { ensureMonthlyRosterSnapshot } = require('./schedule-roster.service');
 const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('./license-state.service');
 const {
   canonicalMode,
@@ -233,7 +234,7 @@ async function buildAutoSchedulePlan(client, month) {
   const historyStart = new Date(start.getTime() - 366 * DAY_MS);
   const [rules, allEmployees, shiftTypes, currentShifts, historyRows, licensesByEmployee, patternRows] = await Promise.all([
     client.schedulingRule.findMany({ select: { ruleId: true, value: true, enabled: true } }),
-    client.employee.findMany({ where: { deletedAt: null, isActive: true }, select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true, jobTitle: true }, orderBy: { employeeCode: 'asc' } }),
+    client.employee.findMany({ where: { deletedAt: null, isActive: true }, select: { id: true, employeeCode: true, displayName: true, firstName: true, lastName: true, department: true, jobTitle: true, scheduleOrder: true }, orderBy: [{ department: 'asc' }, { scheduleOrder: 'asc' }, { employeeCode: 'asc' }] }),
     client.shiftType.findMany({ where: { isActive: true }, select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } }),
     client.shiftAssignment.findMany({ where: { workDate: { gte: start, lt: end } }, include: { shiftType: { select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, color: true } } } }),
     client.shiftAssignment.findMany({ where: { workDate: { gte: historyStart, lt: start } }, orderBy: { workDate: 'desc' }, include: { shiftType: { select: { code: true } } } }),
@@ -410,6 +411,7 @@ async function commitAutoSchedule(prisma, month, actorUserId) {
     const employeeIds = [...new Set(plan.rows.map((row) => row.employeeId))];
     const al = await tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' }, select: { id: true } });
     const { start, end } = monthBounds(month);
+    await ensureMonthlyRosterSnapshot(tx, month, { extraEmployeeIds: employeeIds, actorUserId, source: 'AUTO_SCHEDULE' });
     const generated = plan.rows.filter((row) => !row.locked);
     await validateScheduleRowsOperational(tx, generated.map((row) => ({
       employeeId: row.employeeId,
@@ -490,6 +492,7 @@ async function commitEmployeeAutoSchedule(prisma, month, employeeId, actorUserId
     const plan = await buildEmployeeAutoSchedulePlan(tx, month, employeeId, startPhase, patternType);
     const al = await tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' }, select: { id: true } });
     const { start, end } = monthBounds(month);
+    await ensureMonthlyRosterSnapshot(tx, month, { extraEmployeeIds: [employeeId], actorUserId, source: 'AUTO_SCHEDULE_EMPLOYEE' });
     const generated = plan.rows.filter((row) => !row.locked);
     await validateScheduleRowsOperational(tx, generated.map((row) => ({
       employeeId: row.employeeId,

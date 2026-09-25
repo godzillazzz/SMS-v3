@@ -68,12 +68,12 @@ function buildApprovedScheduleWorkbook({ month, approval, departments, shifts, e
     const peopleMap = new Map();
     rows.forEach((shift) => {
       const employee = employeeById.get(shift.employeeId) || {};
-      const person = peopleMap.get(shift.employeeId) || { name: shift.employeeNameSnapshot, position: shift.positionSnapshot || employee.jobTitle || '', shifts: new Map(), totalHours: 0 };
+      const person = peopleMap.get(shift.employeeId) || { name: shift.employeeNameSnapshot, position: shift.positionSnapshot || employee.jobTitle || '', rosterOrder: Number(shift.rosterOrder ?? Number.MAX_SAFE_INTEGER), shifts: new Map(), totalHours: 0 };
       person.shifts.set(new Date(shift.workDate).toISOString().slice(0, 10), { code: shift.shiftType.code, hours: Number(shift.hours || 0) });
       person.totalHours += Number(shift.hours || 0);
       peopleMap.set(shift.employeeId, person);
     });
-    const people = [...peopleMap.values()].sort((first, second) => first.name.localeCompare(second.name, 'th'));
+    const people = [...peopleMap.values()].sort((first, second) => Number(first.rosterOrder) - Number(second.rosterOrder) || first.name.localeCompare(second.name, 'th'));
     return { name: safeSheetName(department, usedNames), xml: sheetXml({ department, month, dates, people, shiftTypes, approval, exportedBy, exportedAt }) };
   });
   const sheetEntries = sheets.map((sheet, index) => `<sheet name="${xmlEscape(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`).join('');

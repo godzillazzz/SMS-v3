@@ -14,6 +14,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
+import { getScheduleRosterOrder, updateScheduleRosterOrder } from './schedule-roster-client';
 import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
 import { getApprovalCenterSummary } from './approval-center-client';
 import { getLeavePolicy } from './leave-policy-client';
@@ -26,6 +27,7 @@ import { acquireDocumentScrollLock } from './document-scroll-lock';
 import { buildLeaveQuotaProvisioningPayload, canProvisionLeaveQuota, currentBangkokQuotaYear, hasUnmatchedLegacyQuota, leaveQuotaDefaultsFromPolicy, quotaProvisioningEmployeeOptions, thaiQuotaYearLabel } from './leave-quota-provisioning';
 import { printScheduleDocument } from './schedule-print';
 import { currentBangkokMonth, formatThaiMonth, MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
+import { ScheduleRosterOrderModal, type ScheduleRosterEmployee } from './components/ScheduleRosterOrderModal';
 import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
@@ -1752,6 +1754,9 @@ function Dashboard() {
   const [batchSaveBusy, setBatchSaveBusy] = useState(false);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [deptMenuOpen, setDeptMenuOpen] = useState(false);
+  const [rosterOrderDepartment, setRosterOrderDepartment] = useState<string>();
+  const [rosterOrderEmployees, setRosterOrderEmployees] = useState<ScheduleRosterEmployee[]>([]);
+  const [rosterOrderBusy, setRosterOrderBusy] = useState(false);
 
   const changeLeaveMonth = (value: string) => {
     const normalized = normalizeMonthValue(value);
@@ -1819,6 +1824,38 @@ function Dashboard() {
       setOperationError(toRequestErrorState(reason, 'บันทึกการเปลี่ยนแปลงไม่สำเร็จ'));
     } finally {
       setBatchSaveBusy(false);
+    }
+  };
+
+  const openRosterOrderManager = async (department: string) => {
+    if (!auth.token || !department || rosterOrderBusy) return;
+    setRosterOrderBusy(true);
+    setOperationError(undefined);
+    try {
+      const result = await getScheduleRosterOrder(auth.token, department);
+      setRosterOrderEmployees(Array.isArray(result?.data) ? result.data as ScheduleRosterEmployee[] : []);
+      setRosterOrderDepartment(department);
+    } catch (reason) {
+      setOperationError(toRequestErrorState(reason, 'อ่านลำดับพนักงานไม่สำเร็จ'));
+    } finally {
+      setRosterOrderBusy(false);
+    }
+  };
+
+  const saveRosterOrder = async (employeeIds: string[]) => {
+    if (!auth.token || !rosterOrderDepartment || rosterOrderBusy) return;
+    setRosterOrderBusy(true);
+    setOperationError(undefined);
+    try {
+      await updateScheduleRosterOrder(auth.token, rosterOrderDepartment, employeeIds);
+      setRosterOrderDepartment(undefined);
+      setRosterOrderEmployees([]);
+      setOperationPage(1);
+      setOperationRefresh((value) => value + 1);
+    } catch (reason) {
+      setOperationError(toRequestErrorState(reason, 'บันทึกลำดับพนักงานไม่สำเร็จ'));
+    } finally {
+      setRosterOrderBusy(false);
     }
   };
 
@@ -2591,9 +2628,10 @@ function Dashboard() {
     }
     if (activePage === 'schedule') {
       const calendar = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
+      const rosterSnapshotLocked = Boolean(calendar.rosterSnapshotLocked);
       const dates = Array.isArray(calendar.dates) ? calendar.dates.map(String) : [];
       const rawCalendarEmployees = Array.isArray(calendar.employees) ? calendar.employees as DataRow[] : [];
-      const allCalendarEmployees = [...rawCalendarEmployees].sort((a, b) => (String(a.employeeCode || '')).localeCompare(String(b.employeeCode || ''), undefined, { numeric: true }));
+      const allCalendarEmployees = rawCalendarEmployees;
       const calendarEmployees = selectedDepartments.length > 0
         ? allCalendarEmployees.filter((emp) => selectedDepartments.includes(text(emp.department)))
         : allCalendarEmployees;
@@ -2730,6 +2768,18 @@ function Dashboard() {
               )}
             </div>
 
+            {canManage && (
+              <button
+                type="button"
+                className="btn-neutral small-action"
+                title={selectedDepartments.length === 1 ? 'จัดลำดับพนักงานสำหรับเดือนใหม่ของแผนกนี้' : 'เลือก 1 แผนกเพื่อจัดลำดับพนักงาน'}
+                disabled={rosterOrderBusy || selectedDepartments.length !== 1}
+                onClick={() => { const department = selectedDepartments[0]; if (department) void openRosterOrderManager(department); }}
+              >
+                {rosterOrderBusy ? 'กำลังอ่านลำดับ…' : '☰ จัดลำดับพนักงาน'}
+              </button>
+            )}
+            <span className="toolbar-count" title="ลำดับเดือนที่ถูก Snapshot จะไม่เปลี่ยนตาม Master Order">{rosterSnapshotLocked ? '🔒 เดือนนี้ใช้ลำดับ Snapshot' : '↕ เดือนนี้ใช้ Master Order'}</span>
             {auth.user?.role === 'ADMIN' && (
               <button className="btn-primary compact" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)', border: 'none', fontWeight: 'bold', padding: '8px 14px', borderRadius: '8px' }} disabled={autoScheduleBusy} onClick={previewAutoSchedule}>
                 {autoScheduleBusy ? 'กำลังคำนวณ…' : '✨ ดูตัวอย่างจัดกะอัตโนมัติ'}
@@ -2821,6 +2871,7 @@ function Dashboard() {
   );
 })()}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={() => { const key = `${employee.id}_${day}`; setScheduleDrafts((prev) => ({ ...prev, [key]: { action: 'delete', id: String(shift.id), employeeId: String(employee.id), workDate: day } })); }}><SmsIcon name="close" size={14} /></button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={(e) => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day }, e)}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
+        {rosterOrderDepartment && <ScheduleRosterOrderModal department={rosterOrderDepartment} employees={rosterOrderEmployees} busy={rosterOrderBusy} onClose={() => { if (!rosterOrderBusy) { setRosterOrderDepartment(undefined); setRosterOrderEmployees([]); } }} onSave={saveRosterOrder} />}
         {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} scheduleMonth={scheduleMonth} token={auth.token} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { const result = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); const rows = Array.isArray(result?.data?.rows) ? result.data.rows as DataRow[] : []; applyPreviewToDrafts(rows, employeeId); setEmployeeAutoScheduleTarget(undefined); } catch (reason) { setOperationError(toRequestErrorState(reason, 'สร้างฉบับร่างจัดกะอัตโนมัติรายบุคคลไม่สำเร็จ')); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
         {shiftEditorTarget && (
           <ShiftEditorModal
@@ -2976,7 +3027,7 @@ function Dashboard() {
     const calendar = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
     const dates = Array.isArray(calendar.dates) ? calendar.dates.map(String) : [];
     const rawCalendarEmployees = Array.isArray(calendar.employees) ? calendar.employees as DataRow[] : [];
-    const allCalendarEmployees = [...rawCalendarEmployees].sort((a, b) => (String(a.employeeCode || '')).localeCompare(String(b.employeeCode || ''), undefined, { numeric: true }));
+    const allCalendarEmployees = rawCalendarEmployees;
     const calendarEmployees = selectedDepartments.length > 0
       ? allCalendarEmployees.filter((emp) => selectedDepartments.includes(text(emp.department)))
       : allCalendarEmployees;

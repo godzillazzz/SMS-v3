@@ -14,6 +14,7 @@ const { reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules 
 const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('../services/license-state.service');
 const { updateScheduleApprovalState, approveMonthlySchedule } = require('../services/schedule.service');
 const { createSchedulePersonnelResolver, enrichScheduleAssignments } = require('../services/schedule-personnel-history.service');
+const { ensureMonthlyRosterSnapshot, loadCalendarRoster } = require('../services/schedule-roster.service');
 const { linkLeaveQuota } = require('../services/leave-quota-link.service');
 const { provisionLeaveQuota } = require('../services/leave-quota-provisioning.service');
 const { bangkokQuotaYear, validateQuotaYear } = require('../services/annual-leave-quota.service');
@@ -592,25 +593,9 @@ router.get('/schedule-calendar', async (req, res, next) => {
     const [year, monthIndex] = filters.month.split('-').map(Number);
     const monthStart = new Date(Date.UTC(year, monthIndex - 1, 1));
     const nextMonth = new Date(Date.UTC(year, monthIndex, 1));
-    const employeeWhere = {
-      deletedAt: null,
-      ...(filters.search && { OR: [
-        { employeeCode: { contains: filters.search, mode: 'insensitive' } },
-        { firstName: { contains: filters.search, mode: 'insensitive' } },
-        { lastName: { contains: filters.search, mode: 'insensitive' } }
-      ] })
-    };
-    const employeeCandidates = await prisma.employee.findMany({
-      where: employeeWhere,
-      select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true, isActive: true, deletedAt: true },
-      orderBy: [{ employeeCode: 'asc' }]
-    });
-    const resolvePersonnel = await createSchedulePersonnelResolver(prisma, employeeCandidates);
-    const monthAsOf = monthStart;
-    const historicalEmployees = employeeCandidates.map((employee) => ({ ...employee, ...(resolvePersonnel(employee.id, monthAsOf) || {}) }));
-    const filteredEmployees = filters.department ? historicalEmployees.filter((employee) => employee.department === filters.department) : historicalEmployees;
-    const total = filteredEmployees.length;
-    const employees = filteredEmployees.slice((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize);
+    const roster = await loadCalendarRoster(prisma, monthStart, { department: filters.department, search: filters.search });
+    const total = roster.employees.length;
+    const employees = roster.employees.slice((filters.page - 1) * filters.pageSize, filters.page * filters.pageSize);
     const employeeIds = employees.map((employee) => employee.id);
     const [shifts, approval] = await Promise.all([employeeIds.length ? prisma.shiftAssignment.findMany({
       where: { employeeId: { in: employeeIds }, workDate: { gte: monthStart, lt: nextMonth } },
@@ -620,7 +605,7 @@ router.get('/schedule-calendar', async (req, res, next) => {
     const operationalConflictIds = await projectedScheduleConflictIds(prisma, shifts);
     const visibleShifts = shifts.map((shift) => ({ ...shift, operationalConflict: operationalConflictIds.has(String(shift.id)) ? 'INACTIVE_EMPLOYEE_SCHEDULE_CONFLICT' : null }));
     const dates = Array.from({ length: Math.round((nextMonth - monthStart) / 86400000) }, (_, index) => new Date(Date.UTC(year, monthIndex - 1, index + 1)).toISOString().slice(0, 10));
-    res.json({ data: { month: filters.month, dates, approval, employees: employees.map((employee) => ({ ...employee, shifts: visibleShifts.filter((shift) => shift.employeeId === employee.id) })) }, meta: { page: filters.page, pageSize: filters.pageSize, total, totalPages: Math.ceil(total / filters.pageSize) } });
+    res.json({ data: { month: filters.month, dates, approval, rosterSnapshotLocked: roster.snapshotLocked, employees: employees.map((employee) => ({ ...employee, shifts: visibleShifts.filter((shift) => shift.employeeId === employee.id) })) }, meta: { page: filters.page, pageSize: filters.pageSize, total, totalPages: Math.ceil(total / filters.pageSize) } });
   } catch (error) { next(error); }
 });
 router.post('/schedule/auto-preview', authorize('ADMIN'), async (req, res, next) => {
@@ -664,10 +649,13 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
       prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { displayName: true } })
     ]);
     const historicalShifts = await enrichScheduleAssignments(prisma, rawShifts, employees);
-    const availableDepartments = [...new Set(historicalShifts.map((row) => row.departmentSnapshot).filter(Boolean))].sort();
+    const rosterSnapshots = await prisma.scheduleRosterSnapshot.findMany({ where: { month: start }, select: { employeeId: true, rosterOrder: true } });
+    const rosterOrderByEmployee = new Map(rosterSnapshots.map((row) => [String(row.employeeId), Number(row.rosterOrder)]));
+    const orderedHistoricalShifts = historicalShifts.map((row) => ({ ...row, rosterOrder: rosterOrderByEmployee.get(String(row.employeeId)) ?? Number.MAX_SAFE_INTEGER }));
+    const availableDepartments = [...new Set(orderedHistoricalShifts.map((row) => row.departmentSnapshot).filter(Boolean))].sort();
     const selectedDepartments = input.scope === 'all' || !input.departments.length ? availableDepartments : input.departments.filter((department) => availableDepartments.includes(department));
     if (!selectedDepartments.length) throw new HttpError(404, 'No schedule rows were found for the selected departments.');
-    const shifts = historicalShifts.filter((shift) => selectedDepartments.includes(shift.departmentSnapshot));
+    const shifts = orderedHistoricalShifts.filter((shift) => selectedDepartments.includes(shift.departmentSnapshot));
     if (!shifts.length) throw new HttpError(404, 'No schedule rows were found for export.');
     const workbook = buildApprovedScheduleWorkbook({ month: input.month, approval, departments: selectedDepartments, shifts, employees, shiftTypes, exportedBy: actor.displayName });
     await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'ScheduleExport', entityId: `${input.month}-r${approval.revision}`, metadata: { month: input.month, revision: approval.revision, departmentCount: selectedDepartments.length, rowCount: shifts.length, format: 'XLSX' } });
@@ -699,6 +687,7 @@ router.post('/shifts', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, 
     const input = shiftInput.parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
       const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: input.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: input.shiftTypeId } })]);
+      await ensureMonthlyRosterSnapshot(tx, input.workDate, { extraEmployeeIds: [input.employeeId], actorUserId: req.user.sub, source: 'DIRECT_SHIFT' });
       if (shiftType.isActive === false) throw new HttpError(409, 'Shift type is inactive and cannot be assigned to a new schedule.');
       await ensureEmployeeOperationalForShift(tx, { employeeId: input.employeeId, workDate: input.workDate, shiftCode: shiftType.code });
       const licenseState = await licenseStateForShift(tx, { employeeId: input.employeeId, workDate: input.workDate, shiftCode: shiftType.code, override: input.licenseOverride, overrideReason: input.overrideReason, actorRole: req.user.role });
@@ -720,6 +709,7 @@ router.put('/shifts/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (re
       const shiftTypeId = input.shiftTypeId || before.shiftTypeId;
       const workDate = input.workDate || before.workDate;
       const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: shiftTypeId } })]);
+      await ensureMonthlyRosterSnapshot(tx, workDate, { extraEmployeeIds: [employeeId], actorUserId: req.user.sub, source: 'DIRECT_SHIFT_UPDATE' });
       const changingShiftType = Boolean(input.shiftTypeId && input.shiftTypeId !== before.shiftTypeId);
       if (changingShiftType && shiftType.isActive === false) throw new HttpError(409, 'Shift type is inactive and cannot be assigned to a new schedule.');
       await ensureEmployeeOperationalForShift(tx, { employeeId, workDate, shiftCode: shiftType.code });

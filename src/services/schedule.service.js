@@ -5,6 +5,7 @@ const audit = require('./audit.service');
 const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('./license-state.service');
 const { ensureEmployeeOperationalForShift } = require('./employee-operational-eligibility.service');
 const { createSchedulePersonnelResolver, enrichScheduleAssignments } = require('./schedule-personnel-history.service');
+const { ensureMonthlyRosterSnapshot, loadCalendarRoster } = require('./schedule-roster.service');
 
 function parseMonthDates(yearMonth) {
   const [yearStr, monthStr] = yearMonth.split('-');
@@ -45,12 +46,8 @@ async function getMonthlyGrid(yearMonth) {
     })
   ]);
 
-  const assignedEmployeeIds = [...new Set(rawAssignments.map((assignment) => assignment.employeeId))];
-  const rawEmployees = await prisma.employee.findMany({
-    where: { OR: [{ deletedAt: null }, ...(assignedEmployeeIds.length ? [{ id: { in: assignedEmployeeIds } }] : [])] },
-    orderBy: [{ employeeCode: 'asc' }]
-  });
-  const resolvePersonnel = await createSchedulePersonnelResolver(prisma, rawEmployees);
+  const roster = await loadCalendarRoster(prisma, startDate);
+  const rawEmployees = roster.employees;
   const historicalAssignments = await enrichScheduleAssignments(prisma, rawAssignments, rawEmployees);
 
   const assignmentsByEmp = new Map();
@@ -61,10 +58,7 @@ async function getMonthlyGrid(yearMonth) {
     assignmentsByEmp.get(ass.employeeId).push(ass);
   }
 
-  const employees = rawEmployees.map((emp) => {
-    const state = resolvePersonnel(emp.id, startDate);
-    return { ...emp, ...(state || {}), shifts: assignmentsByEmp.get(emp.id) || [] };
-  }).filter((emp) => emp.isActive || (assignmentsByEmp.get(emp.id) || []).length > 0);
+  const employees = rawEmployees.map((emp) => ({ ...emp, shifts: assignmentsByEmp.get(emp.id) || [] }));
 
   const rulesViolations = await evaluateRulesForAssignments(rawAssignments);
 
@@ -100,6 +94,17 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
   const results = await prisma.$transaction(async (tx) => {
     const list = [];
     const monthsToTouch = new Set();
+    const rosterIdsByMonth = new Map();
+    for (const assignment of assignments) {
+      const monthKey = String(assignment.workDate).slice(0, 7);
+      const ids = rosterIdsByMonth.get(monthKey) || new Set();
+      ids.add(String(assignment.employeeId));
+      rosterIdsByMonth.set(monthKey, ids);
+    }
+    for (const [monthKey, ids] of rosterIdsByMonth.entries()) {
+      await ensureMonthlyRosterSnapshot(tx, monthKey, { extraEmployeeIds: [...ids], actorUserId, source: 'MANUAL_BATCH' });
+    }
+
 
     // Keep every database operation in this interactive transaction on the
     // transaction client.  Calling the global client here requires a second

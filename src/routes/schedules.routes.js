@@ -1,6 +1,8 @@
 const express = require('express');
+const prisma = require('../config/prisma');
 const { z } = require('zod');
 const scheduleService = require('../services/schedule.service');
+const { listDepartmentRoster, reorderDepartmentRoster } = require('../services/schedule-roster.service');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const { logger, errorCategory } = require('../utils/logger');
 
@@ -41,11 +43,39 @@ const approveSchema = z.object({
   note: z.string().optional()
 });
 
+const rosterQuerySchema = z.object({
+  department: z.string().trim().min(1).max(100)
+});
+
+const rosterOrderSchema = z.object({
+  department: z.string().trim().min(1).max(100),
+  employeeIds: z.array(z.string().uuid()).min(1).max(500)
+});
+
 router.get('/', async (req, res, next) => {
   try {
     const currentMonth = new Date().toISOString().slice(0, 7);
     const { month } = monthQuerySchema.parse({ month: req.query.month || currentMonth });
     res.json({ data: await scheduleService.getMonthlyGrid(month) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/roster-order', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    const { department } = rosterQuerySchema.parse(req.query);
+    res.json({ data: await listDepartmentRoster(prisma, department, req.user) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/roster-order', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
+  try {
+    const { department, employeeIds } = rosterOrderSchema.parse(req.body);
+
+    res.json({ data: await reorderDepartmentRoster(prisma, { department, employeeIds, actorUser: req.user }) });
   } catch (error) {
     next(error);
   }
