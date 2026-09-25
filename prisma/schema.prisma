@@ -443,6 +443,7 @@ model Employee {
   legacyEmployeeId            String?                         @unique @map("legacy_employee_id") @db.VarChar(100)
   displayName                 String?                         @map("display_name") @db.VarChar(255)
   skill                       String?                         @db.VarChar(255)
+  scheduleOrder               Int?                            @map("schedule_order")
   createdAt                   DateTime                        @default(now()) @map("created_at")
   updatedAt                   DateTime                        @updatedAt @map("updated_at")
   user                        User?
@@ -464,8 +465,11 @@ model Employee {
   attendanceSessions          AttendanceSession[]
   attendanceEvidence          AttendanceEvidence[]
 
+  scheduleRosterSnapshots ScheduleRosterSnapshot[]
+
   @@index([isActive, deletedAt])
   @@index([department])
+  @@index([department, scheduleOrder])
   @@map("employees")
 }
 
@@ -1071,6 +1075,26 @@ model LeaveQuota {
   @@index([quotaYear])
   @@index([matchStatus])
   @@map("leave_quotas")
+}
+
+model ScheduleRosterSnapshot {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  month                DateTime @db.Date
+  employeeId           String   @map("employee_id") @db.Uuid
+  employeeCodeSnapshot String   @map("employee_code_snapshot") @db.VarChar(50)
+  employeeNameSnapshot String   @map("employee_name_snapshot") @db.VarChar(255)
+  departmentSnapshot   String?  @map("department_snapshot") @db.VarChar(100)
+  jobTitleSnapshot     String?  @map("job_title_snapshot") @db.VarChar(100)
+  rosterOrder          Int      @map("roster_order")
+  source               String   @default("SCHEDULE_CREATE") @db.VarChar(50)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  employee             Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([month, employeeId])
+  @@index([month, departmentSnapshot, rosterOrder])
+  @@index([employeeId, month])
+  @@map("schedule_roster_snapshots")
 }
 
 model ScheduleApproval {

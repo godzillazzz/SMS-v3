@@ -218,6 +218,9 @@ async function applyEmployeeSnapshot(tx, employee, type, snapshot, effectiveDate
     email: state.email || null, phone: state.phone || null, department: state.department || null, jobTitle: state.jobTitle || null,
     hiredAt: state.hiredAt ? dateOnly(state.hiredAt) : null, skill: state.skill || null, isActive: Boolean(state.isActive)
   } : { firstName: state.firstName, lastName: state.lastName, displayName: state.displayName, department: state.department, jobTitle: state.jobTitle, isActive: state.isActive };
+  const departmentWillChange = (employee.department || null) !== (state.department || null);
+  const activeWillChange = Boolean(employee.isActive) !== Boolean(state.isActive);
+  if (departmentWillChange || activeWillChange) data.scheduleOrder = null;
   const after = await tx.employee.update({ where: { id: employee.id }, data });
   const linkedUser = await tx.user.findUnique({ where: { employeeId: employee.id } });
   let synchronizedUser = linkedUser;

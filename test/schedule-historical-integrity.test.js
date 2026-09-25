@@ -46,9 +46,10 @@ test('schedule calendar and approved export resolve historical personnel instead
   const calendarStart = operations.indexOf("router.get('/schedule-calendar'");
   const calendarEnd = operations.indexOf("router.post('/schedule/auto-preview'", calendarStart);
   const calendar = operations.slice(calendarStart, calendarEnd);
-  assert.match(calendar, /createSchedulePersonnelResolver/);
+  assert.match(calendar, /loadCalendarRoster/);
   assert.doesNotMatch(calendar, /filters\.department && \{ department: filters\.department \}/);
-  assert.match(calendar, /historicalEmployees/);
+  const rosterService = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'schedule-roster.service.js'), 'utf8');
+  assert.match(rosterService, /createSchedulePersonnelResolver/);
   const exportStart = operations.indexOf("router.post('/schedule/export.xlsx'");
   const exportEnd = operations.indexOf("router.post('/schedule/approve-month'", exportStart);
   const exportBlock = operations.slice(exportStart, exportEnd);
