@@ -230,21 +230,21 @@ const hasSupervisorApprovalLevel = (user, policy) => user.role === 'ADMIN' || ['
 const ensureLeaveApprovalAllowed = async (tx, employeeId, requestUser, options = {}) => {
   const policy = await approvalPolicyService.assertReviewer('LEAVE_REQUEST', requestUser, tx);
   if (requestUser.role === 'ADMIN') return policy;
-  // SUPERVISOR inherits the complete MANAGER leave-review baseline and adds peer-SUPERVISOR authority.
+  // Internal SUPERVISOR key is displayed as Manager after the role-name swap; it keeps the former Supervisor peer-review authority.
   const [leaveEmployee, approver] = await Promise.all([
     tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { jobTitle: true, department: true, user: { select: { role: true } } } }),
     tx.user.findUniqueOrThrow({ where: { id: requestUser.sub }, select: { role: true, employeeId: true, employee: { select: { jobTitle: true, department: true, isActive: true, deletedAt: true } } } })
   ]);
-  const supervisorRole = requestUser.role === 'SUPERVISOR';
-  if (supervisorRole && approver.employeeId === employeeId) throw new HttpError(400, 'Supervisors cannot review their own leave.', { code: 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED' });
+  const managerDisplayRole = requestUser.role === 'SUPERVISOR';
+  if (managerDisplayRole && approver.employeeId === employeeId) throw new HttpError(400, 'Manager-role reviewers cannot review their own leave.', { code: 'LEAVE_OWNER_SELF_APPROVAL_NOT_ALLOWED' });
   if (!options.isRetroactive) {
     const leavePositionClass = approvalPositionClass(leaveEmployee, policy);
     if (leavePositionClass === 'SUPERVISOR') {
-      if (supervisorRole) {
-        if (!approver.employeeId || approver.employee?.isActive !== true || approver.employee?.deletedAt) throw new HttpError(403, 'Supervisor approval requires an active linked employee.', { code: 'LEAVE_SUPERVISOR_ACTIVE_EMPLOYEE_REQUIRED' });
+      if (managerDisplayRole) {
+        if (!approver.employeeId || approver.employee?.isActive !== true || approver.employee?.deletedAt) throw new HttpError(403, 'Manager-role approval requires an active linked employee.', { code: 'LEAVE_SUPERVISOR_ACTIVE_EMPLOYEE_REQUIRED' });
         if (leaveEmployee.user?.role === 'SUPERVISOR') return policy;
       }
-      throw new HttpError(403, 'Supervisor leave requests require Admin or peer-Supervisor approval.', { code: 'LEAVE_SUPERVISOR_PEER_APPROVAL_REQUIRED' });
+      throw new HttpError(403, 'Supervisor-position leave requests require Admin or peer Manager-role approval.', { code: 'LEAVE_SUPERVISOR_PEER_APPROVAL_REQUIRED' });
     }
     if (leavePositionClass === 'MANAGER' && !hasSupervisorApprovalLevel(approver, policy)) throw new HttpError(403, 'Manager leave requests require Supervisor-level approval or higher.', { code: 'LEAVE_MANAGER_ESCALATION_REQUIRED' });
   }
@@ -687,7 +687,7 @@ router.post('/schedule/approve-month', authorize('ADMIN', 'SUPERVISOR'), async (
     });
     try {
       const { notifyScheduleApproved } = require('../services/notification-email.service');
-      await notifyScheduleApproved({ month, approvedBy: req.user.displayName || (req.user.role === 'SUPERVISOR' ? 'Supervisor' : 'Admin'), revision: result.revision });
+      await notifyScheduleApproved({ month, approvedBy: req.user.displayName || (req.user.role === 'SUPERVISOR' ? 'Manager' : 'Admin'), revision: result.revision });
     } catch (emailError) {
       logger.error('Failed to send schedule approval email notifications', { error: emailError.message, month, revision: result.revision });
     }
@@ -759,7 +759,7 @@ router.put('/schedule-approvals/:id', authorize('ADMIN', 'SUPERVISOR'), async (r
   try {
     const id = uuid.parse(req.params.id);
     const input = z.object({ status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']), approvalNote: nullableText(2000) }).parse(req.body);
-    if (req.user.role === 'SUPERVISOR' && input.status !== 'APPROVED') throw new HttpError(403, 'Supervisors may approve monthly schedules but may not set other approval states.', { code: 'SCHEDULE_SUPERVISOR_APPROVAL_ONLY' });
+    if (req.user.role === 'SUPERVISOR' && input.status !== 'APPROVED') throw new HttpError(403, 'Managers may approve monthly schedules but may not set other approval states.', { code: 'SCHEDULE_SUPERVISOR_APPROVAL_ONLY' });
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.scheduleApproval.findUniqueOrThrow({ where: { id } });
       let after;

@@ -368,7 +368,7 @@ async function approveMonthlySchedule(tx, { month, approvalNote, actorUser }) {
         role: actorUser.role
       }
     }, tx);
-    throw new HttpError(403, 'Only an Admin or Supervisor may approve monthly schedules.', { code: 'SCHEDULE_APPROVAL_AUTHORITY_REQUIRED' });
+    throw new HttpError(403, 'Only an Admin or Manager may approve monthly schedules.', { code: 'SCHEDULE_APPROVAL_AUTHORITY_REQUIRED' });
   }
 
   const monthDate = month instanceof Date ? month : new Date(month);

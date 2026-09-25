@@ -15,7 +15,7 @@ function sourceFiles(dir) {
   });
 }
 
-test('SUPERVISOR inherits every source permission gate granted to MANAGER', () => {
+test('internal SUPERVISOR key retains the former Supervisor superset of internal MANAGER', () => {
   const violations = [];
   for (const file of productionRoots.flatMap(sourceFiles)) {
     const relative = path.relative(root, file).replaceAll('\\', '/');
@@ -33,10 +33,10 @@ test('SUPERVISOR inherits every source permission gate granted to MANAGER', () =
   assert.deepEqual(violations, []);
 });
 
-test('SUPERVISOR extras remain additive without granting MANAGER monthly approval', () => {
+test('internal SUPERVISOR key keeps monthly approval while external display name is Manager', () => {
   const schedule = fs.readFileSync(path.join(root, 'src/services/schedule.service.js'), 'utf8');
   const operations = fs.readFileSync(path.join(root, 'src/routes/operations.routes.js'), 'utf8');
   assert.match(schedule, /\['ADMIN', 'SUPERVISOR'\]\.includes\(actorUser\.role\)/);
-  assert.match(operations, /Supervisors cannot review their own leave|Supervisors may review|peer-Supervisor|peer Supervisor/i);
+  assert.match(operations, /Manager-role reviewers cannot review their own leave|peer Manager-role/i);
   assert.doesNotMatch(schedule, /\['ADMIN', 'MANAGER', 'SUPERVISOR'\]\.includes\(actorUser\.role\)/);
 });

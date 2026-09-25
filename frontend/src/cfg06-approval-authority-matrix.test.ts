@@ -31,6 +31,8 @@ describe('CFG-06 Approval Authority Matrix / SLA', () => {
     expect(panel).toContain("policy.safeReviewerRoles.includes('SUPERVISOR')");
     expect(panel).toContain("draft.reviewerRoles.filter((role) => role !== 'MANAGER')");
     expect(panel).toContain("draft.reviewerRoles.filter((role) => role !== 'SUPERVISOR')");
+    expect(panel).toContain('/> Supervisor');
+    expect(panel).toContain('/> Manager</label>');
   });
 
   it('edits SLA per request type and blocks invalid threshold ordering in the UI', () => {

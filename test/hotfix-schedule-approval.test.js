@@ -215,7 +215,7 @@ describe('Bug 1 — Schedule Approval and Revision Workflow', () => {
       },
       (err) => {
         assert.equal(err.statusCode, 403);
-        assert.match(err.message, /Only an Admin or Supervisor may approve/);
+        assert.match(err.message, /Only an Admin or Manager may approve/);
         return true;
       }
     );
@@ -236,7 +236,7 @@ describe('Bug 1 — Schedule Approval and Revision Workflow', () => {
 
     const result = await approveMonthlySchedule(fakeTx, {
       month: monthDate,
-      approvalNote: 'Supervisor approval',
+      approvalNote: 'Manager display-role approval',
       actorUser: { sub: 'supervisor-1', role: 'SUPERVISOR' }
     });
 

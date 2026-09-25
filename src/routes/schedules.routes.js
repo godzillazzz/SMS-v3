@@ -93,7 +93,7 @@ router.post('/approve', authorize('ADMIN', 'SUPERVISOR'), async (req, res, next)
     const result = await scheduleService.approveMonth(month, note, req.user);
     try {
       const { notifyScheduleApproved } = require('../services/notification-email.service');
-      await notifyScheduleApproved({ month, approvedBy: req.user.displayName || (req.user.role === 'SUPERVISOR' ? 'Supervisor' : 'Admin'), revision: result.revision });
+      await notifyScheduleApproved({ month, approvedBy: req.user.displayName || (req.user.role === 'SUPERVISOR' ? 'Manager' : 'Admin'), revision: result.revision });
     } catch (emailError) {
       logger.error('Failed to send schedule approval email notifications', { error: emailError.message, month, revision: result.revision });
     }

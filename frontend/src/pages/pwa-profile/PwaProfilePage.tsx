@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { SmsIcon } from '../../components/SmsIcon';
 import { buildSmsPwaUatReport, readSmsPwaDiagnostics } from '../../pwa-diagnostics';
+import { roleDisplayName } from '../../role-display';
 
 export type PwaProfileUser = {
   displayName?: string;
@@ -43,7 +44,7 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
   return <section className="pwa-profile-page" aria-label="โปรไฟล์">
     <header className="pwa-profile-hero">
       <span className="pwa-profile-avatar">{initials(user?.displayName)}</span>
-      <div><p>SMS EMPLOYEE</p><h1>{user?.displayName || 'ผู้ใช้งาน'}</h1><span>{user?.role || 'VIEWER'}</span></div>
+      <div><p>SMS EMPLOYEE</p><h1>{user?.displayName || 'ผู้ใช้งาน'}</h1><span>{roleDisplayName(user?.role || 'VIEWER')}</span></div>
     </header>
 
     {readOnly && <div className="settings-notice">กำลังอยู่ใน View As — การเปลี่ยนข้อมูลความปลอดภัยและการทำรายการถูกจำกัด</div>}
@@ -52,7 +53,7 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
       <h2>ข้อมูลบัญชี</h2>
       <dl>
         <div><dt>อีเมล</dt><dd>{user?.email || '-'}</dd></div>
-        <div><dt>Role</dt><dd>{user?.role || 'VIEWER'}</dd></div>
+        <div><dt>Role</dt><dd>{roleDisplayName(user?.role || 'VIEWER')}</dd></div>
         <div><dt>หน่วยงาน</dt><dd>{user?.department || '-'}</dd></div>
         <div><dt>การเชื่อมต่อ</dt><dd className={online ? 'is-online' : 'is-offline'}>{online ? 'ออนไลน์' : 'ออฟไลน์'}</dd></div>
       </dl>
