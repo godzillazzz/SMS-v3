@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS "schedule_roster_snapshots" (
   "updated_at" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "schedule_roster_snapshots_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "schedule_roster_snapshots_employee_id_fkey"
-    FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "schedule_roster_snapshots_month_employee_id_key"

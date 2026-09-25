@@ -1089,7 +1089,7 @@ model ScheduleRosterSnapshot {
   source               String   @default("SCHEDULE_CREATE") @db.VarChar(50)
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
-  employee             Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  employee             Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([month, employeeId])
   @@index([month, departmentSnapshot, rosterOrder])
