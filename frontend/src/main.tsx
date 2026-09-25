@@ -31,7 +31,7 @@ import { ScheduleRosterOrderModal, type ScheduleRosterEmployee } from './compone
 import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
-import { DashboardPage } from './pages/dashboard/DashboardPage';
+const DashboardPage = React.lazy(() => import('./pages/dashboard/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import type { DataQualityFilters, DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
 import type { G06UatProvisionResult } from './pages/access-management/G06UatProvisioningPanel';
