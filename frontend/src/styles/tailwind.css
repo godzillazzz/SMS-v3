@@ -1,0 +1,15 @@
+@layer theme, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@source "../**/*.{ts,tsx}";
+
+@theme {
+  --font-sans: "Kanit", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+  --color-sms-canvas: #030910;
+  --color-sms-surface: #061421;
+  --color-sms-card: #091b2c;
+  --color-sms-cyan: #25b8d3;
+  --color-sms-cyan-light: #a5f3fc;
+  --color-sms-cyan-dark: #13788c;
+}

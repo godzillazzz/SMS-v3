@@ -95,9 +95,12 @@ describe('SMS Signature Experience V1.2 visual reconciliation', () => {
 });
 
 describe('SMS V1.2 Passkey product/security UI contract', () => {
-  it('keeps password login and adds a secondary Passkey action with truthful device-verification language', () => {
-    expect(main).toContain('เข้าสู่ระบบด้วย Passkey');
-    expect(main).toContain('Face ID • ลายนิ้วมือ • Windows Hello');
+  it('keeps password login and exposes Passkey plus Hardware Key as explicit Zero-Trust methods with truthful device-verification language', () => {
+    expect(main).toContain('nexus-auth-methods');
+    expect(main).toContain("setAuthMethod('passkey')");
+    expect(main).toContain("setAuthMethod('hardware')");
+    expect(main).toContain('Touch ID, Face ID, Windows Hello');
+    expect(main).toContain('FIDO2 / WEBAUTHN · ROAMING SECURITY KEY');
     expect(main).toContain('type="password"');
     expect(main).toContain('auth-primary-action');
     expect(main).not.toMatch(/face recognition only/i);

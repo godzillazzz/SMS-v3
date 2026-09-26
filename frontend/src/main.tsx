@@ -2,6 +2,17 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
+import '@fontsource/kanit/thai-400.css';
+import '@fontsource/kanit/thai-500.css';
+import '@fontsource/kanit/thai-600.css';
+import '@fontsource/kanit/thai-700.css';
+import '@fontsource/kanit/thai-800.css';
+import '@fontsource/plus-jakarta-sans/latin-400.css';
+import '@fontsource/plus-jakarta-sans/latin-600.css';
+import '@fontsource/plus-jakarta-sans/latin-700.css';
+import '@fontsource/jetbrains-mono/latin-500.css';
+import '@fontsource/jetbrains-mono/latin-600.css';
+import '@fontsource/jetbrains-mono/latin-700.css';
 import '@fontsource/noto-sans-thai/thai-400.css';
 import '@fontsource/noto-sans-thai/thai-500.css';
 import '@fontsource/noto-sans-thai/thai-600.css';
@@ -72,6 +83,8 @@ import './styles/configuration-center.css';
 import './styles/ux-ui-remediation.css';
 import './styles/ux-ui-quality-10.css';
 import './styles/award-landing.css';
+import './styles/tailwind.css';
+import './styles/command-nexus.css';
 import './styles/award-interior.css';
 
 const AwardPublicExperience = React.lazy(() => import('./components/AwardPublicExperience').then((module) => ({ default: module.AwardPublicExperience })));
@@ -296,6 +309,7 @@ function Login() {
   const [registrationState, setRegistrationState] = useState<string>();
   const [resendSeconds, setResendSeconds] = useState(0);
   const [passkeyEnabled, setPasskeyEnabled] = useState(false);
+  const [authMethod, setAuthMethod] = useState<'password' | 'passkey' | 'hardware'>('password');
 
   useEffect(() => {
     api.passkeyConfig().then((result) => setPasskeyEnabled(Boolean(result?.enabled) && browserSupportsWebAuthn())).catch(() => setPasskeyEnabled(false));
@@ -307,11 +321,11 @@ function Login() {
     return () => window.clearInterval(timer);
   }, [mode, resendSeconds]);
 
-  const resetView = (next: typeof mode) => { setMode(next); setFormError(undefined); setFormMessage(undefined); setCode(''); setRegistrationState(undefined); if (next !== 'registerVerify') setResendSeconds(0); };
-  const signInWithPasskey = async () => {
+  const resetView = (next: typeof mode) => { setMode(next); setAuthMethod('password'); setFormError(undefined); setFormMessage(undefined); setCode(''); setRegistrationState(undefined); if (next !== 'registerVerify') setResendSeconds(0); };
+  const signInWithPasskey = async (method: 'passkey' | 'hardware' = 'passkey') => {
     setFormError(undefined); setFormMessage(undefined); setBusy(true);
     try { await auth.passkeyLogin(); }
-    catch (reason) { setFormError(formatRequestErrorMessage(reason, 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้')); }
+    catch (reason) { setFormError(formatRequestErrorMessage(reason, method === 'hardware' ? 'ไม่สามารถเข้าสู่ระบบด้วย Hardware Key ได้' : 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้')); }
     finally { setBusy(false); }
   };
 
@@ -379,15 +393,16 @@ function Login() {
       <React.Suspense fallback={null}>
         <AwardPublicExperience showLanding={mode === 'login'} renderLogo={() => <Logo />} />
       </React.Suspense>
-      <section className="award-login-stage">
+      <section className="nexus-auth-stage" id="access">
       <a className="auth-skip-link" href="#auth-login-form">ข้ามไปแบบฟอร์มเข้าสู่ระบบ</a>
-      <section className="login-shell auth-experience-shell" aria-label="เข้าสู่ระบบ Security Management System">
-        <aside className="login-intro auth-brand-panel">
+      {mode === 'login' && <div className="nexus-auth-heading"><span>ZERO-TRUST ENTERPRISE IDENTITY HUB</span><h2>ศูนย์ยืนยันตัวตน Command Console SMS</h2><p>เข้าถึงพื้นที่ปฏิบัติการรักษาความปลอดภัยด้วยการรับรองตัวตนหลายปัจจัยและ Enterprise Identity Policy</p></div>}
+      <section className="login-shell auth-experience-shell nexus-auth-shell" aria-label="เข้าสู่ระบบ Security Management System">
+        <aside className="login-intro auth-brand-panel nexus-auth-intro">
           <div className="intro-brand auth-brand"><Logo /><span><b>SMS</b><strong>Security Management System</strong></span></div>
           <div className="intro-copy auth-brand-copy">
-            <p className="auth-brand-eyebrow">SECURITY MANAGEMENT SYSTEM</p>
-            <h1>บริหารงานรักษาความปลอดภัย<br />ในพื้นที่เดียว</h1>
-            <p>จัดการข้อมูลบุคลากร ตารางกะ การลา และกฎการทำงานด้วยประสบการณ์เดียวกันทั้งระบบ</p>
+            <p className="auth-brand-eyebrow">MULTI-FACTOR SECURITY ENCLAVE</p>
+            <h1>Zero-Trust Identity Hub<br />สำหรับ Command Console</h1>
+            <p>FIDO2 / WebAuthn · Secure session · Access governed by account role and enterprise policy</p>
             <div className="auth-brand-points" aria-label="ความสามารถหลักของระบบ">
               <span><SmsIcon name="employees" size={18} />ข้อมูลบุคลากร</span>
               <span><SmsIcon name="calendar" size={18} />ตารางกะและการลา</span>
@@ -447,7 +462,7 @@ function Login() {
             </svg>
           </div>          <p className="auth-brand-footnote"><SmsIcon name="shield" size={16} />การเข้าถึงข้อมูลเป็นไปตามสิทธิ์ของบัญชีผู้ใช้งาน</p>
         </aside>
-        <section className="login-form-panel auth-card-panel">
+        <section className="login-form-panel auth-card-panel nexus-auth-panel">
           <div className="login-theme-control auth-theme-control"><ThemeControl compact /></div>
           <div className="auth-mobile-brand"><Logo /><span><b>SMS</b><strong>Security Management System</strong></span></div>
           <form id="auth-login-form" className="login-form auth-form" onSubmit={submit} aria-busy={busy}>
@@ -463,14 +478,14 @@ function Login() {
                 {resultPresentation.recovery && <button className="auth-secondary-action" type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน</button>}
               </div>
             </section> : <>
-              <header className="auth-form-heading">
-                <span className="auth-form-kicker">SMS</span>
-                <h2>{title}</h2><p className="form-lead">{lead}</p>
+              <header className="auth-form-heading nexus-auth-card-header">
+                {mode === 'login' ? <><span className="nexus-enclave-badge"><i />ZERO-TRUST ENCLAVE</span><h2>เข้าสู่ระบบปฏิบัติการ</h2><p className="nexus-protocol-label">SELECT VERIFICATION PROTOCOL</p></> : <><span className="auth-form-kicker">SMS</span><h2>{title}</h2><p className="form-lead">{lead}</p></>}
               </header>
               {(mode === 'register' || mode === 'registerVerify') && <AuthProgress flow="registration" current={registrationStep} />}
               {(mode === 'reset' || mode === 'resetVerify') && <AuthProgress flow="reset" current={resetStep} />}
               {(formError || (mode === 'login' ? auth.error : undefined)) && <div className="alert alert-error auth-alert" role="alert" aria-live="assertive"><SmsIcon name="shield" size={18} /><span>{formError || auth.error}</span></div>}
               {formMessage && <div className="login-help-action auth-notice" role="status" aria-live="polite"><SmsIcon name="approval" size={18} /><span>{formMessage}</span></div>}
+              {mode === 'login' && <div className="nexus-auth-methods" role="tablist" aria-label="วิธีเข้าสู่ระบบ"><button type="button" role="tab" aria-selected={authMethod === 'password'} className={authMethod === 'password' ? 'is-active' : ''} onClick={() => setAuthMethod('password')}>อีเมล / รหัสผ่าน</button><button type="button" role="tab" aria-selected={authMethod === 'passkey'} className={authMethod === 'passkey' ? 'is-active' : ''} onClick={() => setAuthMethod('passkey')}>Passkey</button><button type="button" role="tab" aria-selected={authMethod === 'hardware'} className={authMethod === 'hardware' ? 'is-active' : ''} onClick={() => setAuthMethod('hardware')}>Hardware Key</button></div>}
 
               {mode === 'register' && <>
                 <label className="field-group auth-field" htmlFor="registration-name"><span>ชื่อ-นามสกุล</span><input id="registration-name" value={submittedName} onChange={(event) => setSubmittedName(event.target.value)} type="text" minLength={2} maxLength={200} required autoComplete="name" /><small className="field-hint">ใช้สำหรับส่งคำขอให้ผู้ดูแลตรวจสอบ ข้อมูลนี้ไม่ใช่ข้อมูลยืนยันตัวบุคคลจาก Employee Master</small></label>
@@ -480,19 +495,22 @@ function Login() {
               {mode === 'registerVerify' && <div className="auth-otp-intro"><span><SmsIcon name="shield" size={18} /></span><div><b>เราได้ส่งรหัส 6 หลักไปยัง</b><strong>{maskedEmail}</strong></div></div>}
               {mode === 'resetVerify' && <div className="auth-otp-intro"><span><SmsIcon name="shield" size={18} /></span><div><b>กรอกรหัสยืนยันที่ได้รับทางอีเมล</b><strong>{maskedEmail}</strong><small>OTP และรหัสผ่านใหม่จะถูกตรวจสอบพร้อมกันเมื่อกดยืนยัน</small></div></div>}
 
-              <label className="field-group auth-field" htmlFor="email"><span>อีเมล</span><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete={mode === 'login' ? 'username' : 'email'} disabled={mode === 'registerVerify'} /></label>
+              {(mode !== 'login' || authMethod === 'password') && <label className="field-group auth-field" htmlFor="email"><span>{mode === 'login' ? 'ชื่อผู้ใช้หรืออีเมล (Corporate Email)' : 'อีเมล'}</span><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder={mode === 'login' ? 'operator@sms.local' : 'name@company.com'} required autoComplete={mode === 'login' ? 'username' : 'email'} disabled={mode === 'registerVerify'} /></label>}
 
               {(mode === 'registerVerify' || mode === 'resetVerify') && <label className="field-group auth-field auth-otp-field" htmlFor="otp-code"><span>รหัส OTP 6 หลัก</span><input id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" aria-describedby={mode === 'registerVerify' ? 'registration-otp-help' : undefined} placeholder="000000" /></label>}
 
-              {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group auth-field" htmlFor="password"><span>{mode === 'resetVerify' ? 'รหัสผ่านใหม่' : 'รหัสผ่าน'}</span><span className="password-field auth-password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'อย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle auth-password-toggle" type="button" aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} aria-pressed={showPassword} onMouseDown={(event) => event.preventDefault()} onClick={() => setShowPassword((visible) => !visible)}><SmsIcon name={showPassword ? 'eyeOff' : 'eye'} size={18} /><span>{showPassword ? 'ซ่อน' : 'แสดง'}</span></button></span></label>}
+              {(((mode === 'login' && authMethod === 'password') || mode === 'register' || mode === 'resetVerify')) && <label className="field-group auth-field" htmlFor="password"><span>{mode === 'resetVerify' ? 'รหัสผ่านใหม่' : mode === 'login' ? 'รหัสผ่านความปลอดภัย (Security Passphrase)' : 'รหัสผ่าน'}</span><span className="password-field auth-password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'อย่างน้อย 8 ตัวอักษร' : '••••••••••••'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle auth-password-toggle" type="button" aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} aria-pressed={showPassword} onMouseDown={(event) => event.preventDefault()} onClick={() => setShowPassword((visible) => !visible)}><SmsIcon name={showPassword ? 'eyeOff' : 'eye'} size={18} /><span>{showPassword ? 'ซ่อน' : 'แสดง'}</span></button></span></label>}
 
-              <button className="btn-primary auth-primary-action" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งคำขอและรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
+              {mode === 'login' && authMethod === 'password' && <div className="nexus-password-meta"><span>SECURE CREDENTIAL CHANNEL</span><button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน?</button></div>}
+              {(mode !== 'login' || authMethod === 'password') && <button className="btn-primary auth-primary-action" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบปฏิบัติการ →' : mode === 'register' ? 'ส่งคำขอและรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>}
 
-              {mode === 'login' && passkeyEnabled && <div className="auth-passkey-zone"><div className="auth-or-separator"><span>หรือ</span></div><button className="auth-passkey-action" type="button" disabled={busy} onClick={signInWithPasskey}><SmsIcon name="key" size={19} /><span><b>เข้าสู่ระบบด้วย Passkey</b><small>Face ID • ลายนิ้วมือ • Windows Hello</small></span></button></div>}
+              {mode === 'login' && authMethod === 'passkey' && <div className="nexus-webauthn-panel"><div className="nexus-auth-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 11c0 3.5-1 6.8-2.75 9.57M5.8 18.53l.06-.09A13.9 13.9 0 008 11a4 4 0 118 0c0 1.02-.07 2.02-.2 3M13.68 20.84A21.9 21.9 0 0015.17 17M19 18.13A20.7 20.7 0 0020 11.8 8 8 0 004 12m0 0c0 1.55.29 3.04.82 4.4M7.3 19.71A16 16 0 0012 21c2.25 0 4.36-.47 6.28-1.3"/></svg></div><h4>สแกนลายนิ้วมือหรือใบหน้า (Passkey)</h4><p>ใช้ Touch ID, Face ID, Windows Hello หรือ Passkey บนอุปกรณ์ของคุณ</p><small>FIDO2 / WEBAUTHN · PLATFORM AUTHENTICATOR</small>{!passkeyEnabled && <em>WebAuthn ยังไม่พร้อมใช้งานใน environment นี้</em>}<button type="button" disabled={busy || !passkeyEnabled} onClick={() => signInWithPasskey('passkey')}>เริ่มการยืนยันด้วย Passkey →</button></div>}
+              {mode === 'login' && authMethod === 'hardware' && <div className="nexus-webauthn-panel"><div className="nexus-auth-method-icon is-hardware" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.74 5.74L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.59a1 1 0 01.29-.7l5.97-5.97A6 6 0 1121 9z"/></svg></div><h4>เสียบกุญแจฮาร์ดแวร์ความปลอดภัย</h4><p>เสียบ YubiKey หรือ USB Security Key แล้วแตะเซนเซอร์เพื่อยืนยันตัวตน</p><small>FIDO2 / WEBAUTHN · ROAMING SECURITY KEY</small>{!passkeyEnabled && <em>WebAuthn ยังไม่พร้อมใช้งานใน environment นี้</em>}<button type="button" disabled={busy || !passkeyEnabled} onClick={() => signInWithPasskey('hardware')}>ตรวจหากุญแจฮาร์ดแวร์ (Scan USB) →</button></div>}
 
               {mode === 'registerVerify' && <div className="auth-resend" id="registration-otp-help"><p>หากยังไม่พบอีเมล กรุณาตรวจสอบ Spam/Junk</p><button type="button" disabled={busy || resendSeconds > 0} onClick={resendRegistrationCode}>{resendSeconds > 0 ? `ส่งรหัสอีกครั้งใน ${resendSeconds} วินาที` : 'ส่งรหัสอีกครั้ง'}</button></div>}
 
-              {mode === 'login' ? <div className="login-links auth-links">{!showAccountRecovery && <button type="button" onClick={() => resetView('register')}>ส่งคำขอลงทะเบียน</button>}<button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน</button></div> : <div className="login-links auth-links auth-links--back"><button type="button" onClick={() => resetView('login')}>กลับหน้าเข้าสู่ระบบ</button></div>}
+              {mode === 'login' && <div className="nexus-auth-security-footer" aria-label="สถานะระบบยืนยันตัวตน"><span><i className="is-ready" />ENCLAVE READY</span><b>•</b><span><i />SESSION SECURE</span><b>•</b><span><i className={passkeyEnabled ? 'is-ready' : ''} />FIDO2 / WEBAUTHN</span></div>}
+              {mode === 'login' ? <div className="login-links auth-links">{!showAccountRecovery && <button type="button" onClick={() => resetView('register')}>ส่งคำขอลงทะเบียน</button>}</div> : <div className="login-links auth-links auth-links--back"><button type="button" onClick={() => resetView('login')}>กลับหน้าเข้าสู่ระบบ</button></div>}
               <p className="login-help auth-support-note">พบปัญหาการใช้งาน กรุณาติดต่อผู้ดูแลระบบของหน่วยงาน</p>
             </>}
           </form>
@@ -1765,7 +1783,6 @@ function Dashboard() {
   const [deptMenuOpen, setDeptMenuOpen] = useState(false);
   const [rosterOrderDepartment, setRosterOrderDepartment] = useState<string>();
   const [rosterOrderEmployees, setRosterOrderEmployees] = useState<ScheduleRosterEmployee[]>([]);
-  const [rosterOrderSnapshotLocked, setRosterOrderSnapshotLocked] = useState(false);
   const [rosterOrderBusy, setRosterOrderBusy] = useState(false);
 
   const changeLeaveMonth = (value: string) => {
@@ -1844,7 +1861,6 @@ function Dashboard() {
     try {
       const result = await getScheduleRosterOrder(auth.token, department, scheduleMonth);
       setRosterOrderEmployees(Array.isArray(result?.data) ? result.data as ScheduleRosterEmployee[] : []);
-      setRosterOrderSnapshotLocked(Boolean(result?.meta?.snapshotLocked));
       setRosterOrderDepartment(department);
     } catch (reason) {
       setOperationError(toRequestErrorState(reason, 'อ่านลำดับพนักงานไม่สำเร็จ'));
@@ -1861,7 +1877,6 @@ function Dashboard() {
       await updateScheduleRosterOrder(auth.token, rosterOrderDepartment, employeeIds, scheduleMonth);
       setRosterOrderDepartment(undefined);
       setRosterOrderEmployees([]);
-      setRosterOrderSnapshotLocked(false);
       setOperationPage(1);
       setOperationRefresh((value) => value + 1);
     } catch (reason) {
@@ -2883,7 +2898,7 @@ function Dashboard() {
   );
 })()}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={() => { const key = `${employee.id}_${day}`; setScheduleDrafts((prev) => ({ ...prev, [key]: { action: 'delete', id: String(shift.id), employeeId: String(employee.id), workDate: day } })); }}><SmsIcon name="close" size={14} /></button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={(e) => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day }, e)}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
-        {rosterOrderDepartment && <ScheduleRosterOrderModal department={rosterOrderDepartment} month={scheduleMonth} snapshotLocked={rosterOrderSnapshotLocked} employees={rosterOrderEmployees} busy={rosterOrderBusy} onClose={() => { if (!rosterOrderBusy) { setRosterOrderDepartment(undefined); setRosterOrderEmployees([]); setRosterOrderSnapshotLocked(false); } }} onSave={saveRosterOrder} />}
+        {rosterOrderDepartment && <ScheduleRosterOrderModal department={rosterOrderDepartment} month={scheduleMonth} snapshotLocked={rosterSnapshotLocked} employees={rosterOrderEmployees} busy={rosterOrderBusy} onClose={() => { if (!rosterOrderBusy) { setRosterOrderDepartment(undefined); setRosterOrderEmployees([]); } }} onSave={saveRosterOrder} />}
         {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} scheduleMonth={scheduleMonth} token={auth.token} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { const result = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); const rows = Array.isArray(result?.data?.rows) ? result.data.rows as DataRow[] : []; applyPreviewToDrafts(rows, employeeId); setEmployeeAutoScheduleTarget(undefined); } catch (reason) { setOperationError(toRequestErrorState(reason, 'สร้างฉบับร่างจัดกะอัตโนมัติรายบุคคลไม่สำเร็จ')); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
         {shiftEditorTarget && (
           <ShiftEditorModal
