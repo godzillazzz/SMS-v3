@@ -29,13 +29,15 @@ async function rosterCall(path: string, token: string, init: RequestInit = {}) {
   return payload;
 }
 
-export function getScheduleRosterOrder(token: string, department: string) {
-  return rosterCall(`/schedules/roster-order?department=${encodeURIComponent(department)}`, token);
+export function getScheduleRosterOrder(token: string, department: string, month?: string) {
+  const params = new URLSearchParams({ department });
+  if (month) params.set('month', month);
+  return rosterCall(`/schedules/roster-order?${params.toString()}`, token);
 }
 
-export function updateScheduleRosterOrder(token: string, department: string, employeeIds: string[]) {
+export function updateScheduleRosterOrder(token: string, department: string, employeeIds: string[], month?: string) {
   return rosterCall('/schedules/roster-order', token, {
     method: 'PUT',
-    body: JSON.stringify({ department, employeeIds })
+    body: JSON.stringify({ department, employeeIds, ...(month ? { month } : {}) })
   });
 }

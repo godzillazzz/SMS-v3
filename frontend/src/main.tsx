@@ -72,6 +72,7 @@ import './styles/configuration-center.css';
 import './styles/ux-ui-remediation.css';
 import './styles/ux-ui-quality-10.css';
 import './styles/award-landing.css';
+import './styles/award-interior.css';
 
 const AwardPublicExperience = React.lazy(() => import('./components/AwardPublicExperience').then((module) => ({ default: module.AwardPublicExperience })));
 const ReportCenterPage = React.lazy(() => import('./pages/reports/ReportCenterPage').then((module) => ({ default: module.ReportCenterPage })));
@@ -1764,6 +1765,7 @@ function Dashboard() {
   const [deptMenuOpen, setDeptMenuOpen] = useState(false);
   const [rosterOrderDepartment, setRosterOrderDepartment] = useState<string>();
   const [rosterOrderEmployees, setRosterOrderEmployees] = useState<ScheduleRosterEmployee[]>([]);
+  const [rosterOrderSnapshotLocked, setRosterOrderSnapshotLocked] = useState(false);
   const [rosterOrderBusy, setRosterOrderBusy] = useState(false);
 
   const changeLeaveMonth = (value: string) => {
@@ -1840,8 +1842,9 @@ function Dashboard() {
     setRosterOrderBusy(true);
     setOperationError(undefined);
     try {
-      const result = await getScheduleRosterOrder(auth.token, department);
+      const result = await getScheduleRosterOrder(auth.token, department, scheduleMonth);
       setRosterOrderEmployees(Array.isArray(result?.data) ? result.data as ScheduleRosterEmployee[] : []);
+      setRosterOrderSnapshotLocked(Boolean(result?.meta?.snapshotLocked));
       setRosterOrderDepartment(department);
     } catch (reason) {
       setOperationError(toRequestErrorState(reason, 'อ่านลำดับพนักงานไม่สำเร็จ'));
@@ -1855,9 +1858,10 @@ function Dashboard() {
     setRosterOrderBusy(true);
     setOperationError(undefined);
     try {
-      await updateScheduleRosterOrder(auth.token, rosterOrderDepartment, employeeIds);
+      await updateScheduleRosterOrder(auth.token, rosterOrderDepartment, employeeIds, scheduleMonth);
       setRosterOrderDepartment(undefined);
       setRosterOrderEmployees([]);
+      setRosterOrderSnapshotLocked(false);
       setOperationPage(1);
       setOperationRefresh((value) => value + 1);
     } catch (reason) {
@@ -2879,7 +2883,7 @@ function Dashboard() {
   );
 })()}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={() => { const key = `${employee.id}_${day}`; setScheduleDrafts((prev) => ({ ...prev, [key]: { action: 'delete', id: String(shift.id), employeeId: String(employee.id), workDate: day } })); }}><SmsIcon name="close" size={14} /></button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={(e) => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day }, e)}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
-        {rosterOrderDepartment && <ScheduleRosterOrderModal department={rosterOrderDepartment} employees={rosterOrderEmployees} busy={rosterOrderBusy} onClose={() => { if (!rosterOrderBusy) { setRosterOrderDepartment(undefined); setRosterOrderEmployees([]); } }} onSave={saveRosterOrder} />}
+        {rosterOrderDepartment && <ScheduleRosterOrderModal department={rosterOrderDepartment} month={scheduleMonth} snapshotLocked={rosterOrderSnapshotLocked} employees={rosterOrderEmployees} busy={rosterOrderBusy} onClose={() => { if (!rosterOrderBusy) { setRosterOrderDepartment(undefined); setRosterOrderEmployees([]); setRosterOrderSnapshotLocked(false); } }} onSave={saveRosterOrder} />}
         {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} scheduleMonth={scheduleMonth} token={auth.token} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { const result = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); const rows = Array.isArray(result?.data?.rows) ? result.data.rows as DataRow[] : []; applyPreviewToDrafts(rows, employeeId); setEmployeeAutoScheduleTarget(undefined); } catch (reason) { setOperationError(toRequestErrorState(reason, 'สร้างฉบับร่างจัดกะอัตโนมัติรายบุคคลไม่สำเร็จ')); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
         {shiftEditorTarget && (
           <ShiftEditorModal

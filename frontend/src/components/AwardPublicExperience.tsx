@@ -1,40 +1,19 @@
 import type { ReactNode } from 'react';
-import { SmsIcon } from './SmsIcon';
 
-type AwardPublicExperienceProps = {
-  showLanding: boolean;
-  renderLogo: () => ReactNode;
-};
+type AwardPublicExperienceProps = { showLanding: boolean; renderLogo: () => ReactNode };
 
 export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicExperienceProps) {
-  return (
-    <>
-      <div className="award-atmosphere" aria-hidden="true"><i /><i /><i /><span /></div>
-      <header className="award-public-nav">
-        <div className="award-public-brand">{renderLogo()}<span><b>SMS</b><small>SECURITY OPERATIONS</small></span></div>
-        <nav><a href="#award-capabilities">Capabilities</a><a href="#award-trust">Trust</a><a href="#auth-login-form" className="award-nav-cta">เข้าสู่ระบบ</a></nav>
-      </header>
-      {showLanding && <section className="award-hero">
-        <div className="award-hero-copy">
-          <p className="award-kicker"><span /> SECURITY INTELLIGENCE · UNIFIED OPERATIONS</p>
-          <h1>See the operation.<br /><em>Secure the moment.</em></h1>
-          <p className="award-hero-lead">ศูนย์กลางการบริหารงานรักษาความปลอดภัยที่เชื่อมบุคลากร ตารางปฏิบัติงาน การลงเวลา การอนุมัติ และข้อมูลเชิงปฏิบัติการไว้ในประสบการณ์เดียว</p>
-          <div className="award-hero-actions"><a className="award-primary" href="#auth-login-form">เข้าสู่ระบบ <span>↗</span></a><a className="award-secondary" href="#award-capabilities">สำรวจแพลตฟอร์ม</a></div>
-          <div className="award-trustline" id="award-trust"><span><b>01</b> Role-based access</span><span><b>02</b> Operational visibility</span><span><b>03</b> Audit-ready workflow</span></div>
-        </div>
-        <div className="award-command-visual" aria-hidden="true">
-          <div className="award-orbit award-orbit-a" /><div className="award-orbit award-orbit-b" />
-          <div className="award-radar"><div className="award-radar-grid" /><div className="award-radar-sweep" /><span className="award-node n1" /><span className="award-node n2" /><span className="award-node n3" /><span className="award-node n4" /><div className="award-core">{renderLogo()}<b>SMS</b><small>LIVE OPERATIONS</small></div></div>
-          <div className="award-float-card award-float-card-a"><span className="award-live-dot" /><div><small>OPERATION STATUS</small><b>Protected & connected</b></div></div>
-          <div className="award-float-card award-float-card-b"><small>WORKFORCE</small><b>Unified command</b><span>Personnel · Schedule · Attendance</span></div>
-        </div>
-      </section>}
-      {showLanding && <section className="award-capabilities" id="award-capabilities">
-        <article><span>01</span><SmsIcon name="employees" size={22} /><h2>People</h2><p>บริหารข้อมูลบุคลากรและสิทธิ์อย่างเป็นระบบ</p></article>
-        <article><span>02</span><SmsIcon name="calendar" size={22} /><h2>Operations</h2><p>วางตารางกะ ลงเวลา และติดตามงานใน flow เดียว</p></article>
-        <article><span>03</span><SmsIcon name="approval" size={22} /><h2>Decisions</h2><p>รวม approval workflow และสถานะที่ต้องจัดการ</p></article>
-        <article><span>04</span><SmsIcon name="shield" size={22} /><h2>Assurance</h2><p>สิทธิ์ การตรวจสอบ และหลักฐานพร้อมสำหรับการกำกับดูแล</p></article>
-      </section>}
-    </>
-  );
+  return <>
+    <div className="award-atmosphere" aria-hidden="true"><i /><i /><i /><span /></div>
+    <header className="award-public-nav"><div className="award-public-brand">{renderLogo()}<span><b>SMS</b><small>ระบบบริหารงานรักษาความปลอดภัย</small></span></div><nav><a href="#award-preview">ภาพรวมระบบ</a><a href="#auth-login-form" className="award-nav-cta">เข้าสู่ระบบ</a></nav></header>
+    {showLanding && <section className="award-hero">
+      <div className="award-hero-copy"><p className="award-kicker"><span /> ศูนย์บัญชาการงานรักษาความปลอดภัยอัจฉริยะ</p><h1>เห็นภาพรวมทุกงาน<br /><em>มั่นใจในทุกการปฏิบัติ</em></h1><p className="award-hero-lead">ศูนย์กลางการบริหารงานรักษาความปลอดภัย เชื่อมบุคลากร ตารางปฏิบัติงาน การลงเวลา การอนุมัติ และข้อมูลสำคัญไว้ในระบบเดียว</p><div className="award-hero-actions"><a className="award-primary" href="#auth-login-form">เข้าสู่ระบบ <span>↗</span></a><a className="award-secondary" href="#award-preview">ดูระบบ</a></div></div>
+      <div className="award-command-visual" aria-hidden="true"><div className="award-orbit award-orbit-a"/><div className="award-orbit award-orbit-b"/><div className="award-radar"><div className="award-radar-grid"/><div className="award-radar-sweep"/><span className="award-node n1"/><span className="award-node n2"/><span className="award-node n3"/><span className="award-node n4"/><div className="award-core">{renderLogo()}<b>SMS</b><small>ศูนย์ปฏิบัติการ</small></div></div><div className="award-float-card award-float-card-a"><span className="award-live-dot"/><div><small>สถานะระบบ</small><b>พร้อมปฏิบัติการ</b></div></div><div className="award-float-card award-float-card-b"><small>กำลังพล</small><b>บริหารงานในจุดเดียว</b><span>บุคลากร · ตารางกะ · ลงเวลา</span></div></div>
+    </section>}
+    {showLanding && <section className="award-showcase" id="award-preview">
+      <div className="award-showcase-copy"><p><span/> SECURITY MANAGEMENT SYSTEM</p><h2>หนึ่งมุมมอง<br/><em>เห็นทั้งการปฏิบัติการ</em></h2><span>ข้อมูลที่สำคัญถูกจัดลำดับให้เห็นสถานการณ์ งานที่ต้องตัดสินใจ และความพร้อมของกำลังพลได้ในจังหวะเดียว</span><div className="award-showcase-tags"><b>กำลังพล</b><b>ตารางกะ</b><b>ลงเวลา</b><b>อนุมัติ</b></div></div>
+      <div className="award-product-stage" aria-label="ตัวอย่างภาพรวมระบบ"><div className="award-stage-glow"/><div className="award-product-window"><div className="award-window-bar"><span/><span/><span/><b>SMS · Operations Center</b><em>LIVE</em></div><div className="award-window-body"><aside>{renderLogo()}<i className="active"/><i/><i/><i/><i/></aside><main><div className="award-window-title"><span><small>ภาพรวมวันนี้</small><b>ศูนย์ควบคุมการปฏิบัติงาน</b></span><em>● ระบบพร้อมใช้งาน</em></div><div className="award-window-metrics"><span><small>กำลังพล</small><b>พร้อมปฏิบัติงาน</b><i>สถานะล่าสุด</i></span><span><small>ตารางกะ</small><b>บริหารแบบรวมศูนย์</b><i>ข้อมูลต่อเนื่อง</i></span><span><small>รายการอนุมัติ</small><b>เห็นสิ่งที่ต้องทำ</b><i>ตัดสินใจได้เร็ว</i></span></div><div className="award-window-lower"><div className="award-window-chart"><label>ภาพรวมการปฏิบัติงาน <small>7 วันล่าสุด</small></label><div><span/><span/><span/><span/><span/><span/><span/><span/></div></div><div className="award-window-feed"><label>สถานะงาน</label><span><i/>กำลังพลพร้อม</span><span><i/>ตารางกะอัปเดต</span><span><i/>ข้อมูลลงเวลาพร้อม</span></div></div></main></div></div></div>
+    </section>}
+    {showLanding && <section className="award-final-cta"><div className="award-cta-mark">{renderLogo()}</div><p>SECURITY MANAGEMENT SYSTEM</p><h2>พร้อมสำหรับ<br/><em>ทุกการปฏิบัติการ</em></h2><span>เข้าสู่ระบบเพื่อเริ่มบริหารงานรักษาความปลอดภัยจากศูนย์กลางเดียว</span><a href="#auth-login-form">เข้าสู่ระบบ SMS <b>↗</b></a><small>SECURE · CONNECTED · OPERATION READY</small></section>}
+  </>;
 }

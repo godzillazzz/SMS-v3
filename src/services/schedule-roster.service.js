@@ -108,6 +108,91 @@ async function reorderDepartmentRoster(client, { department, employeeIds, actorU
   }, { maxWait: 10000, timeout: 30000 });
 }
 
+async function listMonthlyRosterOrder(client, department, month, actorUser = null) {
+  const value = String(department || '').trim();
+  if (!value) throw new HttpError(400, 'Department is required to manage roster order.');
+  if (actorUser) await assertRosterDepartmentAuthority(client, actorUser, value);
+  const start = monthStart(month);
+  const currentMonth = monthStart(new Date());
+  const rows = await client.scheduleRosterSnapshot.findMany({
+    where: { month: start, departmentSnapshot: value },
+    include: { employee: { select: { id: true, firstName: true, lastName: true, displayName: true, isActive: true, deletedAt: true, scheduleOrder: true } } },
+    orderBy: [{ rosterOrder: 'asc' }, { employeeCodeSnapshot: 'asc' }]
+  });
+  if (!rows.length) {
+    return {
+      snapshotLocked: false,
+      historical: false,
+      employees: await listDepartmentRoster(client, value)
+    };
+  }
+  const visibleRows = start >= currentMonth
+    ? rows.filter((row) => row.employee?.isActive === true && row.employee?.deletedAt == null)
+    : rows;
+  return {
+    snapshotLocked: true,
+    historical: start < currentMonth,
+    employees: visibleRows.map((row) => ({
+      id: row.employeeId,
+      employeeCode: row.employeeCodeSnapshot,
+      firstName: row.employee.firstName,
+      lastName: row.employee.lastName,
+      displayName: row.employeeNameSnapshot,
+      department: row.departmentSnapshot,
+      jobTitle: row.jobTitleSnapshot,
+      scheduleOrder: row.employee.scheduleOrder,
+      rosterOrder: row.rosterOrder
+    }))
+  };
+}
+
+async function reorderMonthlyRoster(client, { department, month, employeeIds, actorUser }) {
+  const value = String(department || '').trim();
+  const ids = Array.isArray(employeeIds) ? employeeIds.map(String) : [];
+  if (!value) throw new HttpError(400, 'Department is required to manage roster order.');
+  await assertRosterDepartmentAuthority(client, actorUser, value);
+  const start = monthStart(month);
+  const currentMonth = monthStart(new Date());
+  if (start < currentMonth) {
+    throw new HttpError(409, 'Historical roster order is locked.', { code: 'ROSTER_HISTORY_LOCKED' });
+  }
+
+  const snapshotRows = await client.scheduleRosterSnapshot.findMany({
+    where: { month: start, departmentSnapshot: value },
+    include: { employee: { select: { id: true, isActive: true, deletedAt: true } } },
+    orderBy: [{ rosterOrder: 'asc' }, { employeeCodeSnapshot: 'asc' }]
+  });
+  if (!snapshotRows.length) {
+    const employees = await reorderDepartmentRoster(client, { department: value, employeeIds: ids, actorUser });
+    return { snapshotLocked: false, historical: false, employees };
+  }
+
+  const editableRows = snapshotRows.filter((row) => row.employee?.isActive === true && row.employee?.deletedAt == null);
+  const currentIds = new Set(editableRows.map((row) => String(row.employeeId)));
+  if (!ids.length || new Set(ids).size !== ids.length || currentIds.size !== ids.length || ids.some((id) => !currentIds.has(id))) {
+    throw new HttpError(409, 'The monthly roster changed. Refresh the roster before saving its order.', { code: 'ROSTER_ORDER_STALE' });
+  }
+  const previous = editableRows.map((row) => String(row.employeeId));
+  const actorUserId = actorUser.sub;
+
+  return client.$transaction(async (tx) => {
+    for (let index = 0; index < ids.length; index += 1) {
+      await tx.scheduleRosterSnapshot.update({
+        where: { month_employeeId: { month: start, employeeId: ids[index] } },
+        data: { rosterOrder: (index + 1) * 10 }
+      });
+    }
+    await audit.log({
+      actorUserId,
+      action: 'UPDATE',
+      entityType: 'ScheduleRosterSnapshotOrder',
+      entityId: `${start.toISOString().slice(0, 7)}:${value}`,
+      metadata: { month: start.toISOString().slice(0, 7), department: value, employeeCount: ids.length, previousEmployeeIds: previous, orderedEmployeeIds: ids }
+    }, tx);
+    return listMonthlyRosterOrder(tx, value, month);
+  }, { maxWait: 10000, timeout: 30000 });
+}
+
 async function assignedEmployeeIdsForMonth(client, start, end) {
   const rows = await client.shiftAssignment.findMany({
     where: { workDate: { gte: start, lt: end } },
@@ -208,9 +293,13 @@ async function loadCalendarRoster(client, month, { department, search } = {}) {
       include: { employee: { select: { id: true, firstName: true, lastName: true, displayName: true, isActive: true, deletedAt: true, scheduleOrder: true } } },
       orderBy: [{ departmentSnapshot: 'asc' }, { rosterOrder: 'asc' }, { employeeCodeSnapshot: 'asc' }]
     });
+    const currentMonth = monthStart(new Date());
+    const visibleRows = start >= currentMonth
+      ? rows.filter((row) => row.employee?.isActive === true && row.employee?.deletedAt == null)
+      : rows;
     return {
       snapshotLocked: true,
-      employees: rows.map((row) => ({
+      employees: visibleRows.map((row) => ({
         id: row.employeeId,
         employeeCode: row.employeeCodeSnapshot,
         firstName: row.employee.firstName,
@@ -260,8 +349,10 @@ module.exports = {
   assertRosterDepartmentAuthority,
   ensureMonthlyRosterSnapshot,
   listDepartmentRoster,
+  listMonthlyRosterOrder,
   loadCalendarRoster,
   monthStart,
   reorderDepartmentRoster,
+  reorderMonthlyRoster,
   sortRoster
 };

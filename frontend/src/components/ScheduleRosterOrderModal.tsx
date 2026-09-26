@@ -12,6 +12,8 @@ export type ScheduleRosterEmployee = {
 
 type Props = {
   department: string;
+  month?: string;
+  snapshotLocked?: boolean;
   employees: ScheduleRosterEmployee[];
   busy?: boolean;
   onClose: () => void;
@@ -22,7 +24,7 @@ function employeeName(employee: ScheduleRosterEmployee) {
   return employee.displayName || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || employee.employeeCode || employee.id;
 }
 
-export function ScheduleRosterOrderModal({ department, employees, busy = false, onClose, onSave }: Props) {
+export function ScheduleRosterOrderModal({ department, month, snapshotLocked = false, employees, busy = false, onClose, onSave }: Props) {
   const [items, setItems] = useState<ScheduleRosterEmployee[]>(employees);
   const [draggedId, setDraggedId] = useState<string>();
 
@@ -59,11 +61,12 @@ export function ScheduleRosterOrderModal({ department, employees, busy = false, 
         <div className="dialog-heading">
           <div>
             <p className="eyebrow">Roster Order</p>
-            <h2 id="schedule-roster-order-title">จัดลำดับพนักงาน · {department}</h2>
+            <h2 id="schedule-roster-order-title">ย้ายลำดับชื่อพนักงาน · {department}</h2>
+            {month && <small style={{ display: 'block', marginTop: 4 }}>เดือน {month}{snapshotLocked ? ' · ลำดับของตารางเดือนนี้' : ' · ลำดับตั้งต้นของแผนก'}</small>}
           </div>
           <button type="button" className="btn-neutral small-action" disabled={busy} onClick={onClose}>ปิด</button>
         </div>
-        <p className="helper-text">ลากแถว หรือใช้ปุ่มขึ้น/ลง ลำดับนี้เป็นค่าเริ่มต้นของเดือนที่ยังไม่ถูก Snapshot เท่านั้น ตารางเดือนเก่าจะไม่เปลี่ยนตาม</p>
+        <p className="helper-text">ลากแถวบนคอมพิวเตอร์ หรือใช้ปุ่ม ↑ ↓ บนมือถือ แล้วกดบันทึก ลำดับจะเปลี่ยนในตารางเดือนที่กำลังเปิดอยู่ทันที ส่วนเดือนย้อนหลังยังคงล็อกเพื่อรักษาประวัติ</p>
         <div style={{ display: 'grid', gap: 8, maxHeight: '55vh', overflowY: 'auto', margin: '14px 0' }}>
           {items.map((employee, index) => (
             <div
@@ -81,8 +84,8 @@ export function ScheduleRosterOrderModal({ department, employees, busy = false, 
                 <small style={{ display: 'block' }}>{employee.employeeCode || '—'}{employee.jobTitle ? ` · ${employee.jobTitle}` : ''}</small>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" className="btn-neutral small-action" aria-label={`เลื่อน ${employeeName(employee)} ขึ้น`} disabled={busy || index === 0} onClick={() => move(index, index - 1)}>↑</button>
-                <button type="button" className="btn-neutral small-action" aria-label={`เลื่อน ${employeeName(employee)} ลง`} disabled={busy || index === items.length - 1} onClick={() => move(index, index + 1)}>↓</button>
+                <button type="button" className="btn-neutral small-action" title="ย้ายขึ้น" aria-label={`เลื่อน ${employeeName(employee)} ขึ้น`} disabled={busy || index === 0} onClick={() => move(index, index - 1)}>↑</button>
+                <button type="button" className="btn-neutral small-action" title="ย้ายลง" aria-label={`เลื่อน ${employeeName(employee)} ลง`} disabled={busy || index === items.length - 1} onClick={() => move(index, index + 1)}>↓</button>
               </div>
             </div>
           ))}
