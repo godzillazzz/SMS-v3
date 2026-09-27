@@ -534,3 +534,14 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
   [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-card>.table-scroll,
   [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .schedule-grid tbody tr{background:var(--surface-card,#fff)!important}
 }
+
+/* Dark Mode closure for Employee / Personnel cards overridden by the light-first award layer. */
+[data-theme="dark"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-summary-grid article,.personnel-search-panel,.personnel-table-card,.personnel-metric,.personnel-empty-state,.personnel-state-card,.personnel-360-data-note,.personnel-360-timeline li,.personnel-readiness-summary,.attendance-readiness-center,.attendance-readiness-panel){
+  background:var(--color-surface,#071726)!important;
+  background-image:none!important;
+  color:var(--color-text,#e2e8f0)!important;
+  border-color:var(--color-border,rgba(148,163,184,.2))!important;
+  box-shadow:var(--shadow-sm,0 8px 24px rgba(0,0,0,.18))!important;
+}
+[data-theme="dark"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-summary-grid article,.personnel-metric,.personnel-state-card) :is(h2,h3,strong){color:var(--color-text,#e2e8f0)!important}
+[data-theme="dark"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-summary-grid article,.personnel-metric,.personnel-state-card) :is(p,small,span){color:var(--color-text-secondary,#94a3b8)!important}
