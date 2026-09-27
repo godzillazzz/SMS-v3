@@ -90,3 +90,18 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - No database change was performed.
 - No API, Permission, or RBAC behavior was changed by this hotfix.
 - Rollback reference: prior Ready Production deployment `dpl_3U9vmhUPwH4t2dZtaWUSa5Tyi7eK` (`https://sms-v3-staging-o35tu0low-godzillazz.vercel.app`).
+
+## Final Theme Fix Production Closure — 2026-09-28
+
+- Source branch: `preview/enterprise-evolution-20260927`
+- Release source commit: `b22ac2d` (`fix(frontend): restore dark personnel card surfaces`), including prior Light Roster fix `669fe99`.
+- Targeted theme/visual regression: 8 files, 65/65 tests passed.
+- Full frontend regression: 104/104 files, 721/721 tests passed.
+- Production build: PASS (`tsc -b && vite build`); only the existing Vite chunk-size warning remained.
+- Preview RC: `dpl_Gt8U3rTsNo1rpM5F5sNM94fAxHfz`, status Ready.
+- Production deployment: `dpl_8XXKhUajEKkBeqA6yWgUjAzCinQE`, status Ready.
+- Production artifact URL: `https://sms-v3-staging-k4p9m9r3b-godzillazz.vercel.app`.
+- Canonical alias `https://sms-v3-staging-godzillazz.vercel.app` was explicitly assigned to this Production deployment. It is currently protected by Vercel SSO and returns HTTP 302 to the Vercel SSO endpoint for unauthenticated requests.
+- Public alias `https://sms-v3-staging-ten.vercel.app` was explicitly assigned to the same Production deployment and returned HTTP 200, Content-Length 2573, ETag `"cf3ab9dbc380d4ff56b12d16e348b854"`.
+- No database migration/change. No intentional API, Permission, or RBAC behavior change.
+- Release scope closed: Light Roster surfaces and Dark Mode employee/personnel card surfaces are included in the same verified Production release.
