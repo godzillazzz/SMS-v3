@@ -1,10 +1,10 @@
-﻿# MASTER HANDOFF
+# MASTER HANDOFF
 
 ## SMS V3 — Enterprise Evolution Production Release
 
-**Release date:** 2026-09-27 (ICT)  
-**Status:** PRODUCTION — READY  
-**Release source branch:** `preview/enterprise-evolution-20260927`  
+**Release date:** 2026-09-27 (ICT)
+**Status:** PRODUCTION — READY
+**Release source branch:** `preview/enterprise-evolution-20260927`
 **Release source commit:** `de4c86d544849ce18422ae5c0e997e4e8270de6f` (`feat(frontend): complete enterprise evolution preview`)
 
 ## Production
