@@ -545,3 +545,12 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 }
 [data-theme="dark"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-summary-grid article,.personnel-metric,.personnel-state-card) :is(h2,h3,strong){color:var(--color-text,#e2e8f0)!important}
 [data-theme="dark"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-summary-grid article,.personnel-metric,.personnel-state-card) :is(p,small,span){color:var(--color-text-secondary,#94a3b8)!important}
+
+/* Quality closure: coarse-pointer targets and theme-safe interactive focus. */
+@media (pointer:coarse){
+  .app-shell:not(.pwa-shell) :is(button,[role="button"],a.btn-primary,a.btn-secondary,.icon-button){min-width:44px;min-height:44px}
+}
+@media (max-width:640px){
+  .app-shell:not(.pwa-shell) :is(.personnel-table-card,.calendar-card,.audit-nexus-v48,.security-site-admin){max-width:100%;min-width:0}
+  .app-shell:not(.pwa-shell) :is(.personnel-table-card,.calendar-card) :is(.table-scroll,.table-scroll-x){overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+}
