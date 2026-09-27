@@ -25,7 +25,6 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
-import { getScheduleRosterOrder, updateScheduleRosterOrder } from './schedule-roster-client';
 import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
 import { getApprovalCenterSummary } from './approval-center-client';
 import { getLeavePolicy } from './leave-policy-client';
@@ -38,7 +37,6 @@ import { acquireDocumentScrollLock } from './document-scroll-lock';
 import { buildLeaveQuotaProvisioningPayload, canProvisionLeaveQuota, currentBangkokQuotaYear, hasUnmatchedLegacyQuota, leaveQuotaDefaultsFromPolicy, quotaProvisioningEmployeeOptions, thaiQuotaYearLabel } from './leave-quota-provisioning';
 import { printScheduleDocument } from './schedule-print';
 import { currentBangkokMonth, formatThaiMonth, MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
-import { ScheduleRosterOrderModal, type ScheduleRosterEmployee } from './components/ScheduleRosterOrderModal';
 import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
@@ -86,6 +84,7 @@ import './styles/award-landing.css';
 import './styles/tailwind.css';
 import './styles/command-nexus.css';
 import './styles/award-interior.css';
+import './styles/operational-layer.css';
 
 const AwardPublicExperience = React.lazy(() => import('./components/AwardPublicExperience').then((module) => ({ default: module.AwardPublicExperience })));
 const ReportCenterPage = React.lazy(() => import('./pages/reports/ReportCenterPage').then((module) => ({ default: module.ReportCenterPage })));
@@ -1096,7 +1095,7 @@ function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading,
     finally { setSaving(false); }
   };
   return <section className="view-pane settings-page">
-    <div className="page-heading settings-heading"><div><p className="eyebrow">ADMIN · GOVERNED CONFIGURATION</p><h1>Configuration Center</h1><p>จัดการค่าที่ระบบ register และ validate ไว้แล้ว โดยแยก secret/operational authority ออกจาก SystemSetting อย่างชัดเจน</p></div><div className="heading-actions"><button className="btn-neutral small-action" disabled={!exportableSettings.length} onClick={() => downloadCsv(exportableSettings, 'smsv3-governed-settings')}>⇧ Export governed values</button><button className="btn-neutral small-action" onClick={onAudit}>Audit Log</button><button className="btn-primary compact" disabled title="SMS ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก">↻ Google Sheets ถูกยกเลิก</button></div></div>
+    <div className="page-heading settings-heading"><div><p className="eyebrow">ADMIN · GOVERNED CONFIGURATION</p><h1>Configuration Center</h1><p>จัดการค่าที่ระบบ register และ validate ไว้แล้ว โดยแยก secret/operational authority ออกจาก SystemSetting อย่างชัดเจน</p></div><div className="heading-actions"><button type="button" className="btn-neutral small-action" disabled={!exportableSettings.length} onClick={() => downloadCsv(exportableSettings, 'smsv3-governed-settings')}><SmsIcon name="report" size={15} /> Export governed values</button><button type="button" className="btn-neutral small-action" onClick={onAudit}><SmsIcon name="audit" size={15} /> Audit Log</button><button type="button" className="btn-primary compact" disabled title="SMS ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก"><SmsIcon name="refresh" size={15} /> Google Sheets ถูกยกเลิก</button></div></div>
     {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
     {loading ? <div className="loading-row">กำลังอ่าน Configuration Registry…</div> : <ConfigurationRegistryPanel settings={settings} />}
     <AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />
@@ -1108,12 +1107,12 @@ function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading,
     <DataRetentionCenterPanel token={token} />
     <NotificationCenterPanel token={token} />
     <section className="line-settings-card">
-      <div className="line-settings-title"><span>💬</span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
+      <div className="line-settings-title"><span aria-hidden="true"><SmsIcon name="bell" size={20} /></span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
       <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><input type="password" value="••••••••••••••••" disabled aria-label="LINE access token is managed securely" /><small>ไม่แสดงและไม่บันทึก token ในหน้าจอนี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>
-      <div className="line-template-grid"><label className="field-group"><span>🔔 เทมเพลตคำขอลางานใหม่ (New Leave Request Template)</span><textarea rows={7} value={newLeaveTemplate} onChange={(event) => setNewLeaveTemplate(event.target.value)} maxLength={2000} /></label><label className="field-group"><span>📢 เทมเพลตอัปเดตสถานะใบลา (Leave Status Update Template)</span><textarea rows={7} value={leaveStatusTemplate} onChange={(event) => setLeaveStatusTemplate(event.target.value)} maxLength={2000} /></label></div>
-      <div className="template-help"><strong>💡 ตัวแปรที่ใช้ในข้อความได้</strong><span><code>{'{Name}'}</code> พนักงาน</span><span><code>{'{Department}'}</code> แผนก</span><span><code>{'{Type}'}</code> ประเภทการลา</span><span><code>{'{Days}'}</code> จำนวนวัน</span><span><code>{'{StartDate}'}</code> / <code>{'{EndDate}'}</code> วันที่ลา</span><span><code>{'{Reason}'}</code> เหตุผล</span><span><code>{'{FileUrl}'}</code> ไฟล์แนบ</span><span><code>{'{Status}'}</code> สถานะ</span></div>
+      <div className="line-template-grid"><label className="field-group"><span>เทมเพลตคำขอลางานใหม่ (New Leave Request Template)</span><textarea rows={7} value={newLeaveTemplate} onChange={(event) => setNewLeaveTemplate(event.target.value)} maxLength={2000} /></label><label className="field-group"><span>เทมเพลตอัปเดตสถานะใบลา (Leave Status Update Template)</span><textarea rows={7} value={leaveStatusTemplate} onChange={(event) => setLeaveStatusTemplate(event.target.value)} maxLength={2000} /></label></div>
+      <div className="template-help"><strong><SmsIcon name="quality" size={15} /> ตัวแปรที่ใช้ในข้อความได้</strong><span><code>{'{Name}'}</code> พนักงาน</span><span><code>{'{Department}'}</code> แผนก</span><span><code>{'{Type}'}</code> ประเภทการลา</span><span><code>{'{Days}'}</code> จำนวนวัน</span><span><code>{'{StartDate}'}</code> / <code>{'{EndDate}'}</code> วันที่ลา</span><span><code>{'{Reason}'}</code> เหตุผล</span><span><code>{'{FileUrl}'}</code> ไฟล์แนบ</span><span><code>{'{Status}'}</code> สถานะ</span></div>
       {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
-      <div className="line-settings-actions"><button className="btn-primary compact" disabled={saving} onClick={saveTemplates}>💾 {saving ? 'กำลังบันทึก…' : 'บันทึกเทมเพลตการแจ้งเตือน'}</button><button className="btn-neutral small-action" disabled title="การส่ง LINE ยังไม่เปิดใช้ใน staging">🔔 ทดสอบส่งข้อความแจ้งเตือน</button><button className="btn-neutral small-action" onClick={onRefresh}>↻ รีเฟรช</button></div>
+      <div className="line-settings-actions"><button type="button" className="btn-primary compact" disabled={saving} onClick={saveTemplates}><SmsIcon name="check" size={15} /> {saving ? 'กำลังบันทึก…' : 'บันทึกเทมเพลตการแจ้งเตือน'}</button><button type="button" className="btn-neutral small-action" disabled title="การส่ง LINE ยังไม่เปิดใช้ใน staging"><SmsIcon name="bell" size={15} /> ทดสอบส่งข้อความแจ้งเตือน</button><button type="button" className="btn-neutral small-action" onClick={onRefresh}><SmsIcon name="refresh" size={15} /> รีเฟรช</button></div>
       <p className="line-settings-footnote">สถานะปัจจุบัน: การส่ง LINE ยังไม่เปิดใช้งานใน staging — การบันทึกด้านบนเก็บเฉพาะเทมเพลตที่ไม่มีข้อมูลลับ</p>
     </section>
   </section>;
@@ -1322,7 +1321,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
                 ref={initialFocusRef}
                 value={shiftTypeId}
                 onChange={(e) => setShiftTypeId(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff', color: '#0f172a', fontWeight: 600 }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0', fontWeight: 600 }}
               >
                 {selectableShiftTypes.map((t) => (
                   <option key={String(t.id)} value={String(t.id)}>
@@ -1341,14 +1340,14 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
                 value={remark}
                 onChange={(e) => setRemark(e.target.value)}
                 placeholder="Manual batch edit"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#0f1d2a' }}
               />
             </div>
           </div>
 
           {isInvalidLicense && (
             <div style={{
-              backgroundColor: '#fff1f2',
+              backgroundColor: '#210d12',
               border: '1px solid #fecdd3',
               borderRadius: '12px',
               padding: '16px',
@@ -1407,7 +1406,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
                 padding: '9px 18px',
                 borderRadius: '10px',
                 border: '1px solid #cbd5e1',
-                backgroundColor: '#ffffff',
+                backgroundColor: '#0f1d2a',
                 color: '#334155',
                 fontWeight: 600,
                 fontSize: '13px',
@@ -1663,6 +1662,16 @@ function Dashboard() {
   const [dataQualityPageSize, setDataQualityPageSize] = useState(25);
   const [dataQualityFilters, setDataQualityFilters] = useState<DataQualityFilters>({ severity: '', module: '', rule: '', department: '', search: '' });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [desktopView, setDesktopView] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem('sms-display-mode') === 'desktop');
+  const toggleDesktopView = () => {
+    setDesktopView((current) => {
+      const next = !current;
+      if (typeof window !== 'undefined') window.localStorage.setItem('sms-display-mode', next ? 'desktop' : 'mobile');
+      setMobileMenuOpen(false);
+      setMobileUtilityOpen(false);
+      return next;
+    });
+  };
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -1781,9 +1790,6 @@ function Dashboard() {
   const [batchSaveBusy, setBatchSaveBusy] = useState(false);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [deptMenuOpen, setDeptMenuOpen] = useState(false);
-  const [rosterOrderDepartment, setRosterOrderDepartment] = useState<string>();
-  const [rosterOrderEmployees, setRosterOrderEmployees] = useState<ScheduleRosterEmployee[]>([]);
-  const [rosterOrderBusy, setRosterOrderBusy] = useState(false);
 
   const changeLeaveMonth = (value: string) => {
     const normalized = normalizeMonthValue(value);
@@ -1854,37 +1860,6 @@ function Dashboard() {
     }
   };
 
-  const openRosterOrderManager = async (department: string) => {
-    if (!auth.token || !department || rosterOrderBusy) return;
-    setRosterOrderBusy(true);
-    setOperationError(undefined);
-    try {
-      const result = await getScheduleRosterOrder(auth.token, department, scheduleMonth);
-      setRosterOrderEmployees(Array.isArray(result?.data) ? result.data as ScheduleRosterEmployee[] : []);
-      setRosterOrderDepartment(department);
-    } catch (reason) {
-      setOperationError(toRequestErrorState(reason, 'อ่านลำดับพนักงานไม่สำเร็จ'));
-    } finally {
-      setRosterOrderBusy(false);
-    }
-  };
-
-  const saveRosterOrder = async (employeeIds: string[]) => {
-    if (!auth.token || !rosterOrderDepartment || rosterOrderBusy) return;
-    setRosterOrderBusy(true);
-    setOperationError(undefined);
-    try {
-      await updateScheduleRosterOrder(auth.token, rosterOrderDepartment, employeeIds, scheduleMonth);
-      setRosterOrderDepartment(undefined);
-      setRosterOrderEmployees([]);
-      setOperationPage(1);
-      setOperationRefresh((value) => value + 1);
-    } catch (reason) {
-      setOperationError(toRequestErrorState(reason, 'บันทึกลำดับพนักงานไม่สำเร็จ'));
-    } finally {
-      setRosterOrderBusy(false);
-    }
-  };
 
   useEffect(() => {
     if (!auth.token || !['licenses', 'schedule', 'leave', 'leavePending', 'leaveHistory', 'quota'].includes(activePage)) return;
@@ -2560,7 +2535,7 @@ function Dashboard() {
 
               <div style={{ display: 'grid', gap: '12px' }}>
                 {Number(dashboardSummary.expiringLicenses || 0) > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', background: '#211807', border: '1px solid #fcd34d', borderRadius: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontSize: '20px' }}>⚠️</span>
                       <div>
@@ -2609,7 +2584,7 @@ function Dashboard() {
             </div>
           </div>
 
-          <div className="table-card" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', background: '#f8fafc' }}>
+          <div className="table-card" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', background: '#061421' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '20px' }}>🚀</span>
               <div>
@@ -2628,7 +2603,7 @@ function Dashboard() {
         </section>
       );
     }
-    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { setActivePage(item.sourcePage); }} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
+    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { setActivePage(item.sourcePage); }} onOpenAudit={() => setActivePage('audit')} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
     if (activePage === 'employees') return <PersonnelDirectoryPage token={auth.token} refreshKey={employeeRefresh} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
@@ -2655,10 +2630,9 @@ function Dashboard() {
     }
     if (activePage === 'schedule') {
       const calendar = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
-      const rosterSnapshotLocked = Boolean(calendar.rosterSnapshotLocked);
       const dates = Array.isArray(calendar.dates) ? calendar.dates.map(String) : [];
       const rawCalendarEmployees = Array.isArray(calendar.employees) ? calendar.employees as DataRow[] : [];
-      const allCalendarEmployees = rawCalendarEmployees;
+      const allCalendarEmployees = [...rawCalendarEmployees].sort((a, b) => text(a.employeeCode).localeCompare(text(b.employeeCode), 'th', { numeric: true, sensitivity: 'base' }));
       const calendarEmployees = selectedDepartments.length > 0
         ? allCalendarEmployees.filter((emp) => selectedDepartments.includes(text(emp.department)))
         : allCalendarEmployees;
@@ -2744,7 +2718,13 @@ function Dashboard() {
         } catch (reason) { setOperationError(toRequestErrorState(reason, 'ส่งออก Excel ไม่สำเร็จ')); }
         finally { setScheduleExportBusy(false); }
       };
-      return <section className="view-pane schedule-calendar-page">
+      return <section className="view-pane schedule-calendar-page nexus-roster-workspace">
+        <div className="roster-command-kicker">SMS NEXUS / PERSONNEL / DUTY ROSTER</div>
+        <div className="roster-telemetry-strip" aria-label="Roster telemetry">
+          <div><span>ROSTER READINESS</span><strong>AWAITING DATA</strong><small>Verified telemetry only</small></div>
+          <div><span>SHIFT COVERAGE · 24H</span><strong>AWAITING DATA</strong><small>No simulated coverage</small></div>
+          <div><span>ROSTER STATE</span><strong className={approval.status === 'APPROVED' ? 'is-secure' : 'is-warning'}>{approval.status === 'APPROVED' ? 'PUBLISHED' : 'DRAFT'}</strong><small>{monthLabel}</small></div>
+        </div>
         <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>ตารางกะรายเดือน</h1><p>จัดกะรายเดือน (โหมดบันทึกด้วยตนเอง: แก้ไขกะหรือลบกะในตารางได้ต่อเนื่อง แล้วกด 💾 บันทึกการเปลี่ยนแปลง เพื่อบันทึกทีเดียว)</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="btn-info small-action" onClick={() => void printScheduleDocument()}>📄 Export PDF</button></>}</div></div>
         <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ อนุมัติแล้ว' : '● รออนุมัติ'} · {monthLabel}</strong><small>Revision {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'ผู้มีอำนาจอนุมัติ')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้าง revision ใหม่โดยอัตโนมัติ'}</small></div>{['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token) return; const confirmed = await actionDialog.confirm({ title: 'อนุมัติตารางกะรายเดือน', message: 'การอนุมัติจะเปลี่ยนสถานะตารางเดือนนี้เป็น APPROVED ตาม workflow เดิม และการแก้ไขภายหลังจะสร้าง revision ใหม่โดยอัตโนมัติ', context: monthLabel, confirmLabel: 'ยืนยันอนุมัติตาราง', tone: 'primary' }); if (!confirmed) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); } catch (reason) { setOperationError(toRequestErrorState(reason, 'อนุมัติตารางไม่สำเร็จ')); } }}>อนุมัติ ตารางเดือนนี้</button>}</div>
         <div className="calendar-toolbar-box schedule-workbench" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px 20px', margin: '14px 0 16px 0', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.05)' }}>
@@ -2795,18 +2775,6 @@ function Dashboard() {
               )}
             </div>
 
-            {canManage && (
-              <button
-                type="button"
-                className="btn-neutral small-action"
-                title={selectedDepartments.length === 1 ? 'จัดลำดับพนักงานสำหรับเดือนใหม่ของแผนกนี้' : 'เลือก 1 แผนกเพื่อจัดลำดับพนักงาน'}
-                disabled={rosterOrderBusy || selectedDepartments.length !== 1}
-                onClick={() => { const department = selectedDepartments[0]; if (department) void openRosterOrderManager(department); }}
-              >
-                {rosterOrderBusy ? 'กำลังอ่านลำดับ…' : '☰ จัดลำดับพนักงาน'}
-              </button>
-            )}
-            <span className="toolbar-count" title="ลำดับเดือนที่ถูก Snapshot จะไม่เปลี่ยนตาม Master Order">{rosterSnapshotLocked ? '🔒 เดือนนี้ใช้ลำดับ Snapshot' : '↕ เดือนนี้ใช้ Master Order'}</span>
             {auth.user?.role === 'ADMIN' && (
               <button className="btn-primary compact" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)', border: 'none', fontWeight: 'bold', padding: '8px 14px', borderRadius: '8px' }} disabled={autoScheduleBusy} onClick={previewAutoSchedule}>
                 {autoScheduleBusy ? 'กำลังคำนวณ…' : '✨ ดูตัวอย่างจัดกะอัตโนมัติ'}
@@ -2837,7 +2805,7 @@ function Dashboard() {
         </div>
         {auth.user?.role === 'ADMIN' && autoSchedulePreview && (
           <div className="dialog-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !autoScheduleBusy) setAutoSchedulePreview(undefined); }}>
-            <section className="edit-dialog" style={{ maxWidth: '780px', backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <section className="edit-dialog" style={{ maxWidth: '780px', backgroundColor: '#0f1d2a', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
               <div className="dialog-heading" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>🪄 ตัวอย่างตารางจัดกะอัตโนมัติ ( Auto Schedule Preview )</h2>
                 <button type="button" aria-label="ปิดตัวอย่างตารางจัดกะอัตโนมัติ" style={{ background: 'none', border: 'none', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}><SmsIcon name="close" size={20} /></button>
@@ -2851,7 +2819,7 @@ function Dashboard() {
               </div>
 
               {previewWarnings.length > 0 && (
-                <div className="preview-warning" style={{ backgroundColor: '#fff7ed', border: '1px solid #ffedd5', color: '#c2410c', padding: '12px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px' }}>
+                <div className="preview-warning" style={{ backgroundColor: '#211807', border: '1px solid #ffedd5', color: '#c2410c', padding: '12px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px' }}>
                   <strong>รายการที่ต้องตรวจสอบ:</strong>
                   {previewWarnings.slice(0, 8).map((warning, index) => <p key={`${String(warning)}-${index}`} style={{ margin: '4px 0 0 0' }}>• {text(warning)}</p>)}
                 </div>
@@ -2876,7 +2844,7 @@ function Dashboard() {
               </div>
 
               <div className="preview-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                <button className="btn-secondary" style={{ padding: '9px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>ยกเลิก Preview</button>
+                <button className="btn-secondary" style={{ padding: '9px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#0f1d2a', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>ยกเลิก Preview</button>
                 <button className="btn-primary compact" style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)', color: '#ffffff', fontWeight: 700, cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={saveAutoSchedule}>🪄 ใส่ลงในฉบับร่าง (ยังไม่บันทึก)</button>
               </div>
             </section>
@@ -2898,7 +2866,6 @@ function Dashboard() {
   );
 })()}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={() => { const key = `${employee.id}_${day}`; setScheduleDrafts((prev) => ({ ...prev, [key]: { action: 'delete', id: String(shift.id), employeeId: String(employee.id), workDate: day } })); }}><SmsIcon name="close" size={14} /></button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={(e) => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day }, e)}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
-        {rosterOrderDepartment && <ScheduleRosterOrderModal department={rosterOrderDepartment} month={scheduleMonth} snapshotLocked={rosterSnapshotLocked} employees={rosterOrderEmployees} busy={rosterOrderBusy} onClose={() => { if (!rosterOrderBusy) { setRosterOrderDepartment(undefined); setRosterOrderEmployees([]); } }} onSave={saveRosterOrder} />}
         {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} scheduleMonth={scheduleMonth} token={auth.token} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { const result = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); const rows = Array.isArray(result?.data?.rows) ? result.data.rows as DataRow[] : []; applyPreviewToDrafts(rows, employeeId); setEmployeeAutoScheduleTarget(undefined); } catch (reason) { setOperationError(toRequestErrorState(reason, 'สร้างฉบับร่างจัดกะอัตโนมัติรายบุคคลไม่สำเร็จ')); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
         {shiftEditorTarget && (
           <ShiftEditorModal
@@ -2976,7 +2943,7 @@ function Dashboard() {
       const results = Array.isArray(ruleCheckResponse.ruleResults) ? ruleCheckResponse.ruleResults as DataRow[] : [];
       const violations = Array.isArray(ruleCheckResponse.violations) ? ruleCheckResponse.violations as DataRow[] : [];
       const metrics = nested(ruleCheckResponse.metrics);
-      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Rule Checking</h1><p>ตรวจสอบกฎเดิมกับตารางกะจาก PostgreSQL แบบ read-only</p></div><div className="heading-actions"><label className="month-filter"><span>เดือน</span><select value={scheduleMonth} onChange={(event) => setScheduleMonth(event.target.value)} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', backgroundColor: '#ffffff', color: '#0f172a' }}>{Array.from({ length: 24 }, (_, i) => { const d = new Date(Date.UTC(2025, i, 1)); const val = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d); const thaiYear = d.getUTCFullYear() + 543; return <option key={val} value={val}>{name} พ.ศ. {thaiYear}</option>; })}</select></label><button className="btn-neutral small-action" onClick={() => setOperationRefresh((value) => value + 1)}>ตรวจสอบอีกครั้ง</button></div></div>
+      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Rule Checking</h1><p>ตรวจสอบกฎเดิมกับตารางกะจาก PostgreSQL แบบ read-only</p></div><div className="heading-actions"><label className="month-filter"><span>เดือน</span><select value={scheduleMonth} onChange={(event) => setScheduleMonth(event.target.value)} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0' }}>{Array.from({ length: 24 }, (_, i) => { const d = new Date(Date.UTC(2025, i, 1)); const val = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d); const thaiYear = d.getUTCFullYear() + 543; return <option key={val} value={val}>{name} พ.ศ. {thaiYear}</option>; })}</select></label><button className="btn-neutral small-action" onClick={() => setOperationRefresh((value) => value + 1)}>ตรวจสอบอีกครั้ง</button></div></div>
         <ErrorAlert message={operationError} />
         <div className="rule-summary-grid"><article><span className={Number(metrics.violations || 0) ? 'rule-state fail' : 'rule-state pass'}>{Number(metrics.violations || 0) ? '!' : '✓'}</span><div><p>รายการขัดกฎทั้งหมด</p><strong>{text(metrics.violations)}</strong></div></article><article><span className="rule-state pass">✓</span><div><p>กฎที่ผ่าน</p><strong>{text(metrics.rulesPassed)} / {text(metrics.rulesChecked)}</strong></div></article><article><span className="rule-state pass">♙</span><div><p>พนักงาน Active</p><strong>{text(metrics.activeEmployees)}</strong></div></article><article><span className="rule-state pass">◷</span><div><p>ชั่วโมงรวม</p><strong>{text(metrics.totalHours)}</strong></div></article></div>
         <RuleCheckingDataSurfaces rules={rules} results={results} violations={violations} loading={operationLoading} canManage={canManage} onAction={(row, action) => handleOperationAction(row, action)} />
@@ -3054,7 +3021,7 @@ function Dashboard() {
     const calendar = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
     const dates = Array.isArray(calendar.dates) ? calendar.dates.map(String) : [];
     const rawCalendarEmployees = Array.isArray(calendar.employees) ? calendar.employees as DataRow[] : [];
-    const allCalendarEmployees = rawCalendarEmployees;
+    const allCalendarEmployees = [...rawCalendarEmployees].sort((a, b) => text(a.employeeCode).localeCompare(text(b.employeeCode), 'th', { numeric: true, sensitivity: 'base' }));
     const calendarEmployees = selectedDepartments.length > 0
       ? allCalendarEmployees.filter((emp) => selectedDepartments.includes(text(emp.department)))
       : allCalendarEmployees;
@@ -3084,11 +3051,14 @@ function Dashboard() {
         onClose={() => { if (!operationLoading) setLeaveDecision(undefined); }}
         onConfirm={confirmLeaveDecision}
       /></React.Suspense>}
-      <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}>
+      <div
+        className={`app-shell ${desktopView ? 'desktop-view' : ''} ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}
+        style={{ backgroundColor: 'var(--surface-page, #020813)', color: 'var(--text-on-surface, #f1f5f9)' }}
+      >
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} /></React.Suspense>}
       {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><EmployeeChangeReviewModal token={auth.token} initialRequestId={employeeChangeReviewInitialId} onClose={() => { setEmployeeChangeReviewOpen(false); setEmployeeChangeReviewInitialId(undefined); }} onChanged={() => { setEmployeeRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} /></React.Suspense>}
-      {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({roleDisplayName(auth.user?.role)}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
+      {auth.isViewingAs && <div className="view-as-banner" role="status"><span><SmsIcon name="eye" size={16} /> กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({roleDisplayName(auth.user?.role)}) · อ่านอย่างเดียว</span><button type="button" onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนูหลัก" aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(false)} />}
       <aside id="app-navigation-drawer" className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} aria-label="เมนูหลัก">
         <div className="sidebar-brand">
@@ -3118,6 +3088,7 @@ function Dashboard() {
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
             {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type="button" className="topbar-notification-button" aria-label={'คำขออนุมัติ ' + pendingApprovalCount + ' รายการ'} title="คำขอที่รอการอนุมัติ" onClick={() => setActivePage('approvalCenter')}><SmsIcon name="bell" size={19} />{pendingApprovalCount > 0 && <span className="topbar-notification-badge">{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
             <ThemeControl compact />
+            <button type="button" className="display-mode-toggle" aria-pressed={desktopView} title={desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} /><span>{desktopView ? 'Mobile' : 'Desktop'}</span></button>
             <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></button>
             <button ref={mobileUtilityTriggerRef} type="button" className="mobile-utility-button" aria-label="เปิดเมนูบัญชีและธีม" aria-expanded={mobileUtilityOpen} aria-controls="mobile-utility-panel" onClick={() => setMobileUtilityOpen((value) => !value)}><SmsIcon name="more" size={20} /></button>
           </div>
@@ -3127,6 +3098,7 @@ function Dashboard() {
               <div className="mobile-utility-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
               <label className="mobile-utility-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงานบนมือถือ" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
               <div className="mobile-utility-theme"><span>Theme</span><ThemeControl /></div>
+              <button type="button" className="mobile-utility-display-mode" aria-pressed={desktopView} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} />{desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'}</button>
               <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setPasskeyPanelOpen(true); }}><SmsIcon name="key" size={18} />การเข้าสู่ระบบและ Passkey</button>
               <button type="button" className="mobile-utility-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} />ออกจากระบบ</button>
             </div>

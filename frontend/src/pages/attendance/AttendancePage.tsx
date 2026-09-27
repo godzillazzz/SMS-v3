@@ -1017,7 +1017,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       void handleStartAttendance();
     };
 
-    return <section className="attendance-v4" aria-label="SMS Time Attendance">
+    return <section className="attendance-v4" data-nexus-checkin aria-label="Attendance Verification & Mobile Check-in">
       <AttendanceQrScanner
         open={scannerOpen && !interactionDisabled}
         autoFlow
@@ -1054,6 +1054,11 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         </section>
       </div>}
 
+      <div className="attendance-nexus-checkin__breadcrumb">SMS NEXUS / WORKFORCE / ATTENDANCE VERIFICATION</div>
+      <header className="attendance-nexus-checkin__hero">
+        <div><h1>Attendance Verification</h1><p>ตรวจสอบการลงเวลาเข้า-ออกเวร การสแกนจุดตรวจ และความแม่นยำของพิกัดภาคสนาม</p></div>
+      </header>
+
       <header className="attendance-v4__topbar">
         <div className="attendance-v4__brand">
           <img src="/attendance-sms-logo.svg" alt="SMS" />
@@ -1069,7 +1074,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         <span><strong>ลงเวลาแทนพนักงาน</strong><small>Manager / Admin · คำขอแบบมีการควบคุม</small></span>
       </button>}
 
-      <article className={`attendance-v4__employee ${assignment ? '' : 'is-empty'}`}>
+      <article className={`attendance-v4__employee attendance-nexus-checkin__pass ${assignment ? '' : 'is-empty'}`}>
         <p className="attendance-v4__employee-site">{siteName}</p>
         <h1>{employeeCode ? `${employeeCode} ` : ''}{employeeName}</h1>
         <div className="attendance-v4__employee-meta">

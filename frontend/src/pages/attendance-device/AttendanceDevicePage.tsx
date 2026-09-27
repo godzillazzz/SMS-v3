@@ -313,7 +313,8 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
   const isReplacement = Boolean(activeDevice);
   const proofReady = Boolean(request?.candidateDevice?.proofVerifiedAt);
 
-  return <><section className="view-pane attendance-device-page">
+  return <><section className="view-pane attendance-device-page nexus-device-registry" aria-label="Trusted Device Registry">
+    <div className="nexus-page-breadcrumb">SMS NEXUS / SECURITY / ATTENDANCE DEVICES</div>
     <div className="page-heading attendance-device-heading">
       <div><p className="eyebrow">G06 · PERSONAL DEVICE</p><h1>อุปกรณ์ลงเวลา</h1><p>ผูกอุปกรณ์หลักกับ Employee แบบ 1 คน = 1 เครื่อง โดยเครื่องแรกและการเปลี่ยนเครื่องต้อง Admin อนุมัติ</p></div>
       <div className="heading-actions"><button type="button" className="btn-neutral small-action" disabled={busy} onClick={() => void refresh()}><SmsIcon name="refresh" size={17} />รีเฟรช</button></div>

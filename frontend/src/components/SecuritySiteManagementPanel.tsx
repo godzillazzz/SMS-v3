@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { formatRequestErrorMessage } from '../request-error';
 import { securitySiteOperations } from './security-site-operations-client';
-import { SecuritySiteMapPicker } from './SecuritySiteMapPicker';
+const SecuritySiteMapPicker = lazy(() => import('./SecuritySiteMapPicker').then((module) => ({ default: module.SecuritySiteMapPicker })));
 import { useActionDialog } from './useActionDialog';
 import '../styles/security-site-management.css';
 import {
@@ -47,8 +47,13 @@ export function securitySiteTokenRole(token: string) {
 }
 
 function numberOrNull(value: string) {
+  if (!value.trim()) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function SiteMapLoading() {
+  return <div className="security-site-map-loading" role="status" aria-live="polite"><span aria-hidden="true" /><strong>กำลังโหลด OpenStreetMap…</strong><small>กำลังเตรียมแผนที่และ Geofence editor</small></div>;
 }
 
 function displayDate(value?: string | null) {
@@ -105,6 +110,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   const [siteStatusFilter, setSiteStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [deactivationReason, setDeactivationReason] = useState('');
   const [pendingDestructiveAction, setPendingDestructiveAction] = useState<DestructiveAction | null>(null);
+  const [intelligenceOpen, setIntelligenceOpen] = useState(true);
 
   useEffect(() => {
     if (!pendingDestructiveAction) return;
@@ -121,6 +127,11 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   const selectedOverlaps = selectedSite
     ? overlaps.filter((warning) => warning.siteId === selectedSite.id || warning.otherSiteId === selectedSite.id)
     : overlaps;
+  const activeSiteCount = activeSites.length;
+  const selectedDepartments = selectedSite
+    ? Array.from(new Set(selectedSite.departmentLinks.map((link) => link.departmentName).filter(Boolean)))
+    : [];
+  const selectedQrStatus = selectedSite?.currentQrCredential ? 'ACTIVE / SYNCED' : 'AWAITING QR';
 
   const applySite = (site: SecuritySite | null) => {
     setSelectedSiteId(site?.id || '');
@@ -374,8 +385,9 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     }
   };
 
-  return <><section className="security-site-admin" aria-label="Admin Security Site Management">
-    <header className="security-site-admin__header">
+  return <><section className="security-site-admin nexus-gis-workspace nexus-site-command" aria-label="Security Site & Checkpoint Command">
+    <div className="nexus-page-breadcrumb">SMS NEXUS / SECURITY / SITE MANAGEMENT</div>
+    <header className="security-site-admin__header gis-legacy-header">
       <div><p className="eyebrow">ADMIN · ATTENDANCE SITE AUTHORITY</p><h2>Security Site Management</h2><p>กำหนด Site, Geofence, Department ↔ Site และ Default/Home Site โดยไม่ผูก Site ถาวรไว้ที่ Employee</p></div>
       <button type="button" className="btn-neutral" disabled={loading || saving} onClick={() => void reload()}>↻ รีเฟรช</button>
     </header>
@@ -383,6 +395,66 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
     <div className="security-site-authority-rule"><strong>Expected Site authority</strong><span>1. Schedule Site override</span><span>2. Department Default Site</span><span>3. BLOCK — ไม่เดา Site</span></div>
     {error && <div className="alert alert-error" role="alert">{error}</div>}
     {notice && <div className="settings-notice" role="status">{notice}</div>}
+
+    <section className="gis-command-header">
+      <div>
+        <p className="gis-command-breadcrumb">SMS NEXUS / GEOSPATIAL / SITE SURVEILLANCE</p>
+        <h1>GIS Surveillance &amp; Site Control</h1>
+        <p>ระบบแผนที่ยุทธวิธีและการกำกับ Security Site / Geofence จากข้อมูลจริงของระบบ</p>
+      </div>
+      <button type="button" className="btn-neutral" disabled={loading || saving} onClick={() => void reload()}>REFRESH MATRIX</button>
+    </section>
+
+    <div className="nexus-gis-status-strip" aria-label="GIS telemetry">
+      <span><small>TOTAL SITES</small><b>{loading && !sites.length ? 'AWAITING TELEMETRY' : sites.length}</b><em>Configured sites</em></span>
+      <span><small>ACTIVE STATUS</small><b className="is-nominal">{loading && !sites.length ? 'AWAITING TELEMETRY' : activeSiteCount}</b><em>Operational sites</em></span>
+      <span><small>GEOFENCE WATCH</small><b className={overlaps.length ? 'is-warning' : 'is-nominal'}>{loading && !sites.length ? 'AWAITING TELEMETRY' : overlaps.length}</b><em>{overlaps.length ? 'Configuration overlap review' : 'No overlap warning'}</em></span>
+      <span><small>MATRIX CALIBRATION</small><b>AWAITING TELEMETRY</b><em>No calibration channel in backend</em></span>
+    </div>
+
+    <section className="gis-tactical-workspace" aria-label="Tactical GIS workspace">
+      <article className="gis-map-deck">
+        <header className="gis-map-deck__header">
+          <div><span>TACTICAL MAP WELL</span><strong>{selectedSite ? `${selectedSite.code} / ${selectedSite.name}` : 'SITE CHANNEL UNSELECTED'}</strong></div>
+          <div className="gis-map-deck__meta"><span>SECTOR GRID</span><b>EPSG:4326</b></div>
+        </header>
+        <Suspense fallback={<SiteMapLoading />}>
+        <SecuritySiteMapPicker
+          latitude={numberOrNull(form.latitude)}
+          longitude={numberOrNull(form.longitude)}
+          radiusMeters={numberOrNull(form.geofenceRadiusMeters)}
+          siteLabel={[form.code.trim(), form.name.trim()].filter(Boolean).join(' · ') || 'Security Site'}
+          onPositionChange={({ latitude, longitude }) => setForm((current) => ({
+            ...current,
+            latitude: latitude.toFixed(7),
+            longitude: longitude.toFixed(7)
+          }))}
+        />
+        </Suspense>
+        <div className="gis-map-channel-state"><strong>CHECKPOINT CHANNEL NOT CONFIGURED</strong><span>ไม่มี Checkpoint API / patrol route / RTK telemetry ใน backend ปัจจุบัน</span></div>
+      </article>
+
+      <aside className={`gis-intelligence-sheet ${intelligenceOpen ? 'is-open' : ''}`} aria-label="Site intelligence panel">
+        <button type="button" className="gis-intelligence-sheet__toggle" aria-expanded={intelligenceOpen} onClick={() => setIntelligenceOpen((value) => !value)}>
+          <span>SITE INTELLIGENCE</span><b>{selectedSite?.code || 'NO SITE SELECTED'}</b><i>{intelligenceOpen ? '−' : '+'}</i>
+        </button>
+        <div className="gis-intelligence-sheet__content">
+          {selectedSite ? <>
+            <div className="gis-site-identity"><div><span>SITE ID</span><strong>{selectedSite.code}</strong><p>{selectedSite.name}</p></div><em className={selectedSite.isActive ? 'is-nominal' : 'is-warning'}>{selectedSite.isActive ? 'ACTIVE' : 'INACTIVE'}</em></div>
+            <div className="gis-spatial-grid">
+              <div><span>LATITUDE</span><strong>{selectedSite.latitude ?? 'AWAITING DATA'}</strong></div>
+              <div><span>LONGITUDE</span><strong>{selectedSite.longitude ?? 'AWAITING DATA'}</strong></div>
+              <div><span>GEOFENCE RADIUS</span><strong>{selectedSite.geofenceRadiusMeters} m</strong></div>
+              <div><span>GEOMETRY</span><strong>CIRCULAR BUFFER</strong></div>
+            </div>
+            <section className="gis-intel-section"><header><span>ASSIGNED DEPARTMENTS</span><b>{selectedDepartments.length}</b></header>{selectedDepartments.length ? <div className="gis-department-list">{selectedDepartments.map((name) => <span key={name}>{name}</span>)}</div> : <p className="gis-intel-empty">NO DEPARTMENT MAPPING</p>}</section>
+            <section className="gis-intel-section"><header><span>ATTENDANCE QR LIFECYCLE</span><b className={selectedSite.currentQrCredential ? 'is-nominal' : 'is-warning'}>{selectedQrStatus}</b></header><div className="gis-qr-facts"><span>VERSION <strong>{selectedSite.currentQrCredential?.version ?? '—'}</strong></span><span>VALID FROM <strong>{selectedSite.currentQrCredential ? displayDate(selectedSite.currentQrCredential.validFrom) : 'AWAITING QR'}</strong></span></div><div className="gis-intel-actions"><button type="button" className="btn-primary" disabled={saving || !selectedSite.isActive || qrReason.trim().length < 3} title="ระบุเหตุผล Rotate QR ในส่วน QR lifecycle อย่างน้อย 3 ตัวอักษรก่อน" onClick={() => void rotateQr()}>ROTATE QR</button><button type="button" className="btn-neutral" disabled title="ยังไม่มี site-scoped access audit API">ACCESS AUDIT</button></div></section>
+            <section className="gis-intel-section gis-alert-channel"><header><span>ACTIVE GEOFENCE ALERT</span><b>NOT CONFIGURED</b></header><p>Backend ปัจจุบันไม่มี live out-of-bounds event channel จึงไม่สร้างเหตุการณ์จำลอง</p>{selectedOverlaps.length > 0 && <div className="gis-config-warning">{selectedOverlaps.length} configuration overlap warning{selectedOverlaps.length > 1 ? 's' : ''} requires review.</div>}</section>
+            <div className="gis-mobile-quick-actions"><button type="button" disabled>SCAN SITE QR</button><button type="button" disabled>COMMS</button><small>CHANNEL NOT CONFIGURED</small></div>
+          </> : <div className="gis-intel-empty-state"><strong>SELECT A SECURITY SITE</strong><span>เลือก Site จาก Site master เพื่อเปิด Spatial Geometry, Department mapping และ QR lifecycle</span></div>}
+        </div>
+      </aside>
+    </section>
 
     <div className="security-site-admin__grid">
       <article className="security-site-admin__card">
@@ -401,6 +473,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
 
       <article className="security-site-admin__card">
         <div className="security-site-admin__card-title"><div><h3>OpenStreetMap / Geofence</h3><small>คลิกบนแผนที่หรือลากหมุดเพื่อเลือกตำแหน่ง Site · วง Geofence แสดงตามรัศมีจริง</small></div></div>
+        <Suspense fallback={<SiteMapLoading />}>
         <SecuritySiteMapPicker
           latitude={numberOrNull(form.latitude)}
           longitude={numberOrNull(form.longitude)}
@@ -412,6 +485,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
             longitude: longitude.toFixed(7)
           }))}
         />
+        </Suspense>
         <div className="security-site-overlap-list">{selectedOverlaps.length ? selectedOverlaps.map((warning) => <div key={`${warning.siteId}-${warning.otherSiteId}`} className="security-site-overlap-warning"><strong>⚠ {warning.siteCode} ↔ {warning.otherSiteCode}</strong><span>ศูนย์กลางห่าง {warning.distanceMeters} ม. · วงซ้อนประมาณ {warning.overlapMeters} ม.</span></div>) : <div className="security-site-no-warning">ไม่พบ Geofence overlap ในชุดที่เลือก</div>}</div>
       </article>
 

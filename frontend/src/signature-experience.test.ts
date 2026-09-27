@@ -57,11 +57,11 @@ describe('SMS Signature Experience V1 regression contract', () => {
     expect(access).toContain('const actions = visibleAccountActions');
   });
 
-  it('prioritizes action-required work before passive dashboard analysis', () => {
-    expect(dashboard).toContain('dashboard-focus-band');
-    expect(dashboard).toContain('งานที่ต้องจัดการ');
-    expect(dashboard.indexOf('<AttentionNeededCard')).toBeLessThan(dashboard.indexOf('<TodayOperationsCard'));
-    expect(dashboard.indexOf('dashboard-focus-band')).toBeLessThan(dashboard.indexOf('dashboard-secondary-grid'));
+  it('prioritizes the verified priority stream before passive workforce analysis', () => {
+    expect(dashboard).toContain('nexus-stream');
+    expect(dashboard).toContain('Attention Required');
+    expect(dashboard).toContain('NO SIMULATED COORDINATES');
+    expect(dashboard.indexOf('nexus-stream')).toBeLessThan(dashboard.indexOf('nexus-lower-grid'));
   });
 
   it('turns pending leave approval into one persistent decision workspace without weakening self-approval rules', () => {

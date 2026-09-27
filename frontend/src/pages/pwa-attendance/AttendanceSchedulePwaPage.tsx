@@ -64,7 +64,8 @@ export function AttendanceSchedulePwaPage({ token, online }: Props) {
     return () => { active = false; };
   }, [month, online, token]);
 
-  return <section className="employee-v4-page employee-v4-list-page" aria-label="ตารางงาน">
+  return <section className="employee-v4-page employee-v4-list-page nexus-mobile-duty" aria-label="Duty Schedule">
+    <div className="nexus-mobile-breadcrumb">SMS NEXUS / MY DUTY / SCHEDULE</div>
     <header className="employee-v4-section-header">
       <div><p>WORK SCHEDULE</p><h1>ตารางงาน</h1><span>แสดงเฉพาะตารางที่อนุมัติและล็อกแล้ว</span></div>
       <span className="employee-v4-header-icon"><SmsIcon name="calendar" size={22} /></span>

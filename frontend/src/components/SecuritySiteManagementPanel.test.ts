@@ -25,17 +25,30 @@ describe('Security Site Admin token role gate', () => {
     expect(panelSource).not.toContain('fetch(`/api/v1');
   });
 
+  it('treats blank coordinates as null so an unselected site does not become 0,0', () => {
+    expect(panelSource).toContain("if (!value.trim()) return null;");
+  });
+
   it('uses OpenStreetMap with click and draggable marker site selection', () => {
-    expect(panelSource).toContain("import { SecuritySiteMapPicker } from './SecuritySiteMapPicker';");
+    expect(panelSource).toContain("lazy(() => import('./SecuritySiteMapPicker')");
+    expect(panelSource).not.toContain("import { SecuritySiteMapPicker } from './SecuritySiteMapPicker';");
+    expect(panelSource).toContain('<Suspense fallback={<SiteMapLoading />}>');
     expect(panelSource).toContain('<SecuritySiteMapPicker');
     expect(panelSource).toContain('latitude: latitude.toFixed(7)');
     expect(panelSource).toContain('longitude: longitude.toFixed(7)');
-    expect(mapPickerSource).toContain("L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'");
-    expect(mapPickerSource).toContain("attribution: '&copy; OpenStreetMap contributors'");
+    expect(mapPickerSource).toContain("from 'maplibre-gl'");
+    expect(panelSource).toContain('กำลังโหลด OpenStreetMap…');
+    expect(mapPickerSource).toContain("tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png']");
+    expect(mapPickerSource).toContain('© OpenStreetMap contributors');
+    expect(mapPickerSource).toContain("'fill-color': '#ef4444'");
+    expect(mapPickerSource).toContain("'line-color': '#ef4444'");
+    expect(mapPickerSource).not.toContain("'fill-color': '#25b8d3'");
+    expect(mapPickerSource).not.toContain("'line-color': '#25b8d3'");
     expect(mapPickerSource).toContain("map.on('click'");
     expect(mapPickerSource).toContain('draggable: true');
-    expect(mapPickerSource).toContain("markerRef.current.on('dragend'");
-    expect(mapPickerSource).toContain('L.circle(position');
+    expect(mapPickerSource).toContain("marker.on('dragend'");
+    expect(mapPickerSource).toContain("type: 'fill'");
+    expect(mapPickerSource).toContain("type: 'line'");
   });
 
   it('keeps QR token ephemeral and provides local render/print/download actions', () => {

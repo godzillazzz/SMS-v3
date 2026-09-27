@@ -21,6 +21,7 @@
     "@simplewebauthn/browser": "13.3.0",
     "jsqr": "1.4.0",
     "leaflet": "^1.9.4",
+    "maplibre-gl": "6.11.2",
     "pdf-lib": "^1.17.1",
     "qrcode": "1.5.4",
     "react": "^18.3.1",
