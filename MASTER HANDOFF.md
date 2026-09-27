@@ -73,3 +73,20 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - Post-correction TypeScript + Vite production build: **PASS**.
 - No database change was performed.
 - No API, Permission, or RBAC behavior was changed as part of the alias correction.
+
+## Mobile Theme Visibility Production Hotfix — 2026-09-28
+
+- User-reported symptom: the Light Theme control was not visibly available in the mobile utility theme control.
+- Source fix commit: `27475cf` (`fix(frontend): keep mobile theme icons visible`).
+- Fix scope: mobile theme-control CSS only; all three existing theme icon buttons and their SVG icons are explicitly kept visible. No label text was added and theme component logic was not changed.
+- Targeted regression: **4/4 test files passed, 58/58 tests passed**.
+- Full frontend regression: **104/104 test files passed, 721/721 tests passed**.
+- TypeScript + Vite production build: **PASS**.
+- Preview release candidate: `https://sms-v3-staging-321ikorif-godzillazz.vercel.app` (`dpl_7ZpRXCb1vEZXehm45uZFo6FUmEXr`), target `preview`, status `Ready`, root smoke `HTTP 200 OK`.
+- Production deployment: `https://sms-v3-staging-lljn1oh60-godzillazz.vercel.app` (`dpl_GeZUsMigmiEY86qu8rc2ykAxBR3F`), target `production`, status `Ready`.
+- Canonical Production alias: `https://sms-v3-staging-godzillazz.vercel.app` -> `dpl_GeZUsMigmiEY86qu8rc2ykAxBR3F`.
+- Operational alias: `https://sms-v3-staging-ten.vercel.app` -> `dpl_GeZUsMigmiEY86qu8rc2ykAxBR3F`.
+- Post-cutover smoke: both Production aliases returned **HTTP 200 OK**, content length `2573`, ETag `8083ea037f4c228df5665b5a46903939`.
+- No database change was performed.
+- No API, Permission, or RBAC behavior was changed by this hotfix.
+- Rollback reference: prior Ready Production deployment `dpl_3U9vmhUPwH4t2dZtaWUSa5Tyi7eK` (`https://sms-v3-staging-o35tu0low-godzillazz.vercel.app`).
