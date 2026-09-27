@@ -512,3 +512,25 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace .security-site-map-loading strong{color:#172033!important}
 [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace .security-site-map-loading small{color:#64748b!important}
 [data-theme="light"] .app-shell:not(.pwa-shell) .dashboard-list-skeleton{background:var(--surface-raised,#f8fafc)!important}
+/* Enterprise Evolution Light Mode roster shift-card closure. Keep shift identity colors while removing Dark surfaces. */
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .schedule-grid :is(th,td){
+  background:var(--surface-card,#fff)!important;
+  color:var(--text-on-surface,#334155)!important;
+  border-color:var(--border-card,#eef0f5)!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .schedule-grid .employee-sticky{
+  background:var(--surface-card,#fff)!important;
+  color:var(--text-on-surface,#334155)!important;
+  box-shadow:8px 0 14px rgba(71,85,105,.08)!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .employee-sticky strong{color:#0f172a!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .employee-sticky small{color:#64748b!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-shift.shift-d{background:#ecfeff!important;border-color:#67e8f9!important;color:#0e7490!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-shift.shift-n{background:#eef2ff!important;border-color:#c7d2fe!important;color:#4338ca!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace :is(.calendar-shift.shift-al,.calendar-shift.shift-lv){background:#fff7ed!important;border-color:#fed7aa!important;color:#c2410c!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-shift.shift-off{background:#f1f5f9!important;border-color:#cbd5e1!important;color:#475569!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-shift :is(small,.shift-note){color:currentColor!important}
+@media(max-width:640px){
+  [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-card>.table-scroll,
+  [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .schedule-grid tbody tr{background:var(--surface-card,#fff)!important}
+}
