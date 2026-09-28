@@ -382,3 +382,11 @@ User requested that work be recorded here before continuing in a new chat.
 - Real authenticated role workflows still require approved UAT credentials.
 - Any business acceptance of payroll/timekeeping interpretation and certified official reports requires human owner sign-off.
 - Production mutation/release is not authorized by this re-audit.
+
+
+## Deferred approval identity requirement — 2026-09-28
+
+- Product requirement: every approval flow in SMS must record and display the human approver's name, using the Leave approval experience as the reference behavior.
+- This applies across all current and future approval workflows, not only Leave. Approval history/detail surfaces should make it clear who approved each action rather than showing only a generic status, role, or system action.
+- Preserve the underlying authoritative approver identity/audit trail so the displayed name can be traced back to the actual authenticated approver.
+- This requirement is intentionally deferred. Do not implement broad approval-flow changes as part of the current G06/GPS work; schedule the cross-system approval-name consistency work for a later phase.
