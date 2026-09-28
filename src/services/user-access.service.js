@@ -62,6 +62,7 @@ function createUserAccessService({ prismaClient = prisma, auditService = audit, 
           await policyService.assertReviewer('USER_ACCESS', { role: actorRole, sub: actorUserId }, tx);
         }
 
+        const isApprovalTransition = before.accountStatus === 'PENDING' && effectiveInput.accountStatus === 'ACTIVE';
         const attemptedProtectedFields = changedProtectedFields(before, effectiveInput);
         if (actorRole === 'ADMIN' && id === actorUserId && attemptedProtectedFields.length > 0) {
           return { denied: { statusCode: 403, code: SELF_ACCESS_MUTATION_FORBIDDEN, attemptedProtectedFields } };
@@ -74,11 +75,11 @@ function createUserAccessService({ prismaClient = prisma, auditService = audit, 
 
         const after = await tx.user.update({
           where: { id },
-          data: { ...effectiveInput, approvedAt: effectiveInput.accountStatus === 'ACTIVE' ? new Date() : undefined, tokenVersion: { increment: 1 } },
-          select: { id: true, legacyUserId: true, displayName: true, email: true, role: true, department: true, accountStatus: true, isActive: true, passwordResetRequired: true }
+          data: { ...effectiveInput, ...(isApprovalTransition && { approvedAt: new Date(), approvedByLegacyRef: actorUserId }), tokenVersion: { increment: 1 } },
+          select: { id: true, legacyUserId: true, displayName: true, email: true, role: true, department: true, accountStatus: true, isActive: true, passwordResetRequired: true, approvedAt: true, approvedByLegacyRef: true }
         });
         await tx.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
-        await auditService.log({ actorUserId, action: 'UPDATE', entityType: 'User', entityId: id, metadata: { before: { role: before.role, department: before.department, accountStatus: before.accountStatus, isActive: before.isActive }, after: { role: after.role, department: after.department, accountStatus: after.accountStatus, isActive: after.isActive } } }, tx);
+        await auditService.log({ actorUserId, action: 'UPDATE', entityType: 'User', entityId: id, metadata: { before: { role: before.role, department: before.department, accountStatus: before.accountStatus, isActive: before.isActive }, after: { role: after.role, department: after.department, accountStatus: after.accountStatus, isActive: after.isActive }, ...(isApprovalTransition && { approval: { approvedByUserId: actorUserId, approvedAt: after.approvedAt } }) } }, tx);
         return { after };
       }, { isolationLevel: 'Serializable' });
     } catch (error) {

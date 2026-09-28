@@ -253,7 +253,7 @@ function HistoryModal({ documents, services, isAdmin, onClose, onDeleted }: { do
         <p className="license-history-file">{document.safeDisplayFileName}</p>
         <p>{formatLicenseDate(document.proposedStartDate)} – {formatLicenseDate(document.proposedExpiryDate)}</p>
         <small>ผู้แนบ: {document.uploadedBy?.displayName || '-'} · {formatLicenseDateTime(document.uploadedAt)}</small>
-        <small>ผู้ตรวจ: {document.reviewedBy?.displayName || '-'} · {formatLicenseDateTime(document.reviewedAt)}</small>
+        <small>{document.status === 'APPROVED' ? 'ผู้อนุมัติ' : 'ผู้ตรวจ'}: {document.reviewedBy?.displayName || (document.status === 'APPROVED' ? 'ไม่พบชื่อผู้อนุมัติ' : '-')} · {formatLicenseDateTime(document.reviewedAt)}</small>
         {document.correctionReason && <p className="license-correction-reason">เหตุผลส่งกลับแก้ไข: {document.correctionReason}</p>}
         {document.rejectionReason && <p className="license-rejection-reason">เหตุผลไม่อนุมัติ: {document.rejectionReason}</p>}
         {document.returnedBy && <small>ผู้ส่งกลับแก้ไข: {document.returnedBy.displayName} · {formatLicenseDateTime(document.returnedAt)}</small>}

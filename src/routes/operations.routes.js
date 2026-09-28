@@ -7,6 +7,7 @@ const prisma = require('../config/prisma');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const audit = require('../services/audit.service');
 const userAccess = require('../services/user-access.service');
+const { resolveApprovalActors, withApprovalIdentity } = require('../services/approval-identity.service');
 const { evaluateScheduleRules } = require('../services/schedule-rules.service');
 const { buildAutoSchedulePlan, buildEmployeeAutoSchedulePlan, commitAutoSchedule, commitEmployeeAutoSchedule, monthBounds } = require('../services/auto-schedule.service');
 const { buildApprovedScheduleWorkbook } = require('../services/schedule-export.service');
@@ -601,11 +602,13 @@ router.get('/schedule-calendar', async (req, res, next) => {
       where: { employeeId: { in: employeeIds }, workDate: { gte: monthStart, lt: nextMonth } },
       select: { id: true, employeeId: true, shiftTypeId: true, workDate: true, startTime: true, endTime: true, hours: true, remark: true, locked: true, licenseStatus: true, licenseOverride: true, licenseBlockedFromShiftTypeId: true, shiftType: { select: { id: true, code: true, name: true, color: true } } },
       orderBy: [{ employeeId: 'asc' }, { workDate: 'asc' }]
-    }) : Promise.resolve([]), prisma.scheduleApproval.findFirst({ where: { month: monthStart }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true, approvalNote: true } })]);
+    }) : Promise.resolve([]), prisma.scheduleApproval.findFirst({ where: { month: monthStart }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true, approvedByLegacyRef: true, approvalNote: true } })]);
+    const approvalActors = await resolveApprovalActors(prisma, approval ? [approval.approvedByLegacyRef] : []);
+    const approvalWithIdentity = approval ? withApprovalIdentity(approval, 'approvedByLegacyRef', approvalActors) : approval;
     const operationalConflictIds = await projectedScheduleConflictIds(prisma, shifts);
     const visibleShifts = shifts.map((shift) => ({ ...shift, operationalConflict: operationalConflictIds.has(String(shift.id)) ? 'INACTIVE_EMPLOYEE_SCHEDULE_CONFLICT' : null }));
     const dates = Array.from({ length: Math.round((nextMonth - monthStart) / 86400000) }, (_, index) => new Date(Date.UTC(year, monthIndex - 1, index + 1)).toISOString().slice(0, 10));
-    res.json({ data: { month: filters.month, dates, approval, rosterSnapshotLocked: roster.snapshotLocked, employees: employees.map((employee) => ({ ...employee, shifts: visibleShifts.filter((shift) => shift.employeeId === employee.id) })) }, meta: { page: filters.page, pageSize: filters.pageSize, total, totalPages: Math.ceil(total / filters.pageSize) } });
+    res.json({ data: { month: filters.month, dates, approval: approvalWithIdentity, rosterSnapshotLocked: roster.snapshotLocked, employees: employees.map((employee) => ({ ...employee, shifts: visibleShifts.filter((shift) => shift.employeeId === employee.id) })) }, meta: { page: filters.page, pageSize: filters.pageSize, total, totalPages: Math.ceil(total / filters.pageSize) } });
   } catch (error) { next(error); }
 });
 router.post('/schedule/auto-preview', authorize('ADMIN'), async (req, res, next) => {
@@ -636,7 +639,7 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
   try {
     const input = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), scope: z.enum(['selected', 'all']).default('selected'), departments: z.array(z.string().trim().min(1).max(100)).max(100).default([]) }).parse(req.body);
     const { start, end } = monthBounds(input.month);
-    const approval = await prisma.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true } });
+    const approval = await prisma.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { id: true, status: true, revision: true, approvedAt: true, approvedByLegacyRef: true } });
     if (!approval || approval.status !== 'APPROVED') {
       throw new HttpError(409, 'ตารางกะประจำเดือนนี้ต้องได้รับการอนุมัติ (Approve) ก่อนส่งออกไฟล์ Excel');
     }
@@ -657,7 +660,9 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
     if (!selectedDepartments.length) throw new HttpError(404, 'No schedule rows were found for the selected departments.');
     const shifts = orderedHistoricalShifts.filter((shift) => selectedDepartments.includes(shift.departmentSnapshot));
     if (!shifts.length) throw new HttpError(404, 'No schedule rows were found for export.');
-    const workbook = buildApprovedScheduleWorkbook({ month: input.month, approval, departments: selectedDepartments, shifts, employees, shiftTypes, exportedBy: actor.displayName });
+    const approvalActors = await resolveApprovalActors(prisma, [approval.approvedByLegacyRef]);
+    const approvalWithIdentity = withApprovalIdentity(approval, 'approvedByLegacyRef', approvalActors);
+    const workbook = buildApprovedScheduleWorkbook({ month: input.month, approval: approvalWithIdentity, departments: selectedDepartments, shifts, employees, shiftTypes, exportedBy: actor.displayName });
     await audit.log({ actorUserId: req.user.sub, action: 'CREATE', entityType: 'ScheduleExport', entityId: `${input.month}-r${approval.revision}`, metadata: { month: input.month, revision: approval.revision, departmentCount: selectedDepartments.length, rowCount: shifts.length, format: 'XLSX' } });
     const [year, monthNumber] = input.month.split('-');
     const fileName = `SMS-ตารางกะ-${Number(year) + 543}-${monthNumber}-R${approval.revision}.xlsx`;
@@ -673,13 +678,15 @@ router.post('/schedule/approve-month', authorize('ADMIN', 'SUPERVISOR'), async (
     const result = await prisma.$transaction(async (tx) => {
       return approveMonthlySchedule(tx, { month: monthStart, approvalNote, actorUser: req.user });
     });
+    const approvers = await resolveApprovalActors(prisma, [result.approvedByLegacyRef || req.user.sub]);
+    const resultWithIdentity = withApprovalIdentity(result, 'approvedByLegacyRef', approvers);
     try {
       const { notifyScheduleApproved } = require('../services/notification-email.service');
-      await notifyScheduleApproved({ month, approvedBy: req.user.displayName || (req.user.role === 'SUPERVISOR' ? 'Manager' : 'Admin'), revision: result.revision });
+      await notifyScheduleApproved({ month, approvedBy: resultWithIdentity.approvedByDisplayName || 'ไม่พบชื่อผู้อนุมัติ', revision: result.revision });
     } catch (emailError) {
       logger.error('Failed to send schedule approval email notifications', { error: emailError.message, month, revision: result.revision });
     }
-    res.json({ data: result });
+    res.json({ data: resultWithIdentity });
   } catch (error) { next(error); }
 });
 router.post('/shifts', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
@@ -739,10 +746,12 @@ router.delete('/shifts/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async 
 
 router.get('/schedule-approvals', async (req, res, next) => {
   try {
-    res.json(await paged(prisma.scheduleApproval, req.query, {
-      select: { id: true, month: true, status: true, revision: true, changeType: true, changedAt: true, approvedAt: true, approvalNote: true },
+    const response = await paged(prisma.scheduleApproval, req.query, {
+      select: { id: true, month: true, status: true, revision: true, changeType: true, changedAt: true, approvedAt: true, approvedByLegacyRef: true, approvalNote: true },
       orderBy: [{ month: 'desc' }, { revision: 'desc' }]
-    }));
+    });
+    const approvers = await resolveApprovalActors(prisma, response.data.map((row) => row.approvedByLegacyRef));
+    res.json({ ...response, data: response.data.map((row) => withApprovalIdentity(row, 'approvedByLegacyRef', approvers)) });
   } catch (error) { next(error); }
 });
 router.put('/schedule-approvals/:id', authorize('ADMIN', 'SUPERVISOR'), async (req, res, next) => {
@@ -771,7 +780,8 @@ router.put('/schedule-approvals/:id', authorize('ADMIN', 'SUPERVISOR'), async (r
       }
     }
 
-    res.json({ data: result });
+    const approvers = await resolveApprovalActors(prisma, result?.approvedByLegacyRef ? [result.approvedByLegacyRef] : []);
+    res.json({ data: withApprovalIdentity(result, 'approvedByLegacyRef', approvers) });
   } catch (error) { next(error); }
 });
 

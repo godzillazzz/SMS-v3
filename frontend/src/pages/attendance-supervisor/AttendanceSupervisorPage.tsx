@@ -1134,7 +1134,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
                 <span><b>Maker</b> {request.makerDisplayName || roleDisplayName(request.makerRoleSnapshot)}</span>
                 <span><b>Revision</b> {request.currentRevision}</span>
                 <span><b>สร้างเมื่อ</b> {dateTime(request.createdAt)}</span>
-                {request.approverDisplayName && <span><b>Approver</b> {request.approverDisplayName}</span>}
+                {request.approverDisplayName && <span><b>ผู้อนุมัติ</b> {request.approverDisplayName}</span>}
               </div>
 
               <div className="attendance-supervisor-v4__request-reason">

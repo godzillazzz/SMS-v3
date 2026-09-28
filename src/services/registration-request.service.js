@@ -33,7 +33,8 @@ const requestSelect = {
   rejectionReason: true,
   createdAt: true,
   updatedAt: true,
-  matchedEmployee: { select: candidateSelect }
+  matchedEmployee: { select: candidateSelect },
+  reviewedBy: { select: { id: true, displayName: true, role: true } }
 };
 
 function displayName(employee) {
@@ -184,7 +185,8 @@ function createRegistrationRequestService({ prismaClient = prisma, auditService 
             accountStatus: 'ACTIVE',
             passwordResetRequired: false,
             requestedAt: request.createdAt,
-            approvedAt: new Date()
+            approvedAt: new Date(),
+            approvedByLegacyRef: actorUserId
           },
           select: { id: true, email: true, displayName: true, role: true, employeeId: true, department: true, accountStatus: true, isActive: true }
         });

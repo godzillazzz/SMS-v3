@@ -7,7 +7,7 @@ const { buildApprovedScheduleWorkbook, thaiMonth } = require('../src/services/sc
 test('approved schedule export is a custom-formatted multi-sheet XLSX workbook', () => {
   const workbook = buildApprovedScheduleWorkbook({
     month: '2026-07',
-    approval: { revision: 4, approvedAt: new Date('2026-07-01T00:00:00Z') },
+    approval: { revision: 4, approvedAt: new Date('2026-07-01T00:00:00Z'), approvedByDisplayName: 'Sample Approver' },
     departments: ['SAMPLE-A', 'SAMPLE-B'],
     shifts: [
       { employeeId: 'employee-a', employeeNameSnapshot: 'Sample Employee A', departmentSnapshot: 'SAMPLE-A', workDate: new Date('2026-07-01T00:00:00Z'), hours: 12, shiftType: { code: 'D' } },
@@ -25,6 +25,8 @@ test('approved schedule export is a custom-formatted multi-sheet XLSX workbook',
   const styles = strFromU8(files['xl/styles.xml']);
   assert.match(firstSheet, /ตารางกะที่อนุมัติแล้ว/);
   assert.match(firstSheet, /Revision: 4/);
+  assert.match(firstSheet, /ผู้อนุมัติ: Sample Approver/);
+  assert.match(firstSheet, /\(Sample Approver\)/);
   assert.match(firstSheet, /คำอธิบายรหัสกะ/);
   assert.match(firstSheet, /ผู้จัดการเขต \(ผู้อนุมัติ\)/);
   assert.match(styles, /<name val="Sarabun"\/>/);

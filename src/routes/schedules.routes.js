@@ -2,6 +2,7 @@ const express = require('express');
 const prisma = require('../config/prisma');
 const { z } = require('zod');
 const scheduleService = require('../services/schedule.service');
+const { resolveApprovalActors, withApprovalIdentity } = require('../services/approval-identity.service');
 const { listDepartmentRoster, listMonthlyRosterOrder, reorderDepartmentRoster, reorderMonthlyRoster } = require('../services/schedule-roster.service');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const { logger, errorCategory } = require('../utils/logger');
@@ -128,13 +129,15 @@ router.post('/approve', authorize('ADMIN', 'SUPERVISOR'), async (req, res, next)
   try {
     const { month, note } = approveSchema.parse(req.body);
     const result = await scheduleService.approveMonth(month, note, req.user);
+    const approvers = await resolveApprovalActors(prisma, [result.approvedByLegacyRef || req.user.sub]);
+    const resultWithIdentity = withApprovalIdentity(result, 'approvedByLegacyRef', approvers);
     try {
       const { notifyScheduleApproved } = require('../services/notification-email.service');
-      await notifyScheduleApproved({ month, approvedBy: req.user.displayName || (req.user.role === 'SUPERVISOR' ? 'Manager' : 'Admin'), revision: result.revision });
+      await notifyScheduleApproved({ month, approvedBy: resultWithIdentity.approvedByDisplayName || 'ไม่พบชื่อผู้อนุมัติ', revision: result.revision });
     } catch (emailError) {
       logger.error('Failed to send schedule approval email notifications', { error: emailError.message, month, revision: result.revision });
     }
-    res.json({ data: result });
+    res.json({ data: resultWithIdentity });
   } catch (error) {
     next(error);
   }
