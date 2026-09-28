@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -19,5 +19,5 @@ export function SecuritySiteMapPicker({latitude,longitude,radiusMeters,siteLabel
  useEffect(()=>{callbackRef.current=onPositionChange},[onPositionChange]);
  useEffect(()=>{const container=containerRef.current;if(!container||mapRef.current)return;const hasPosition=validCoordinate(latitude,longitude);const map=L.map(container,{zoomControl:true,attributionControl:false,minZoom:3,maxZoom:19}).setView(hasPosition?[latitude as number,longitude as number]:DEFAULT_CENTER,hasPosition?SITE_ZOOM:DEFAULT_ZOOM);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{minZoom:0,maxZoom:19}).addTo(map);map.on('click',(event:L.LeafletMouseEvent)=>callbackRef.current({latitude:event.latlng.lat,longitude:event.latlng.lng}));mapRef.current=map;syncSiteOnMap(map);window.setTimeout(()=>map.invalidateSize(),0);return()=>{map.remove();mapRef.current=null;markerRef.current=null;circleRef.current=null;lastPositionRef.current=''}},[]);
  useEffect(()=>{latestRef.current={latitude,longitude,radiusMeters,siteLabel};if(mapRef.current)syncSiteOnMap(mapRef.current)},[latitude,longitude,radiusMeters,siteLabel]);
- return <div className="security-site-map-picker"><div className="security-site-map-picker__map-frame"><div ref={containerRef} className="security-site-map-picker__canvas" aria-label="แผนที่ OpenStreetMap สำหรับเลือกตำแหน่ง Security Site"/><a className="security-site-map-picker__osm-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a></div><div className="security-site-map-picker__help"><strong>OpenStreetMap</strong><span>คลิกบนแผนที่หรือลากหมุดเพื่อกำหนดตำแหน่ง Security Site</span><small>วงกลมแสดงรัศมี Geofence ตามค่าที่กำหนด</small></div></div>;
+ return <div className="security-site-map-picker"><div className="security-site-map-picker__map-frame"><div ref={containerRef} className="security-site-map-picker__canvas" aria-label="แผนที่ OpenStreetMap สำหรับเลือกตำแหน่ง Security Site"/><a className="security-site-map-picker__osm-credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a></div><div className="security-site-map-picker__help"><strong>OpenStreetMap</strong><span>คลิกบนแผนที่หรือลากหมุดเพื่อเลือกตำแหน่ง Security Site</span><small>วงกลมแสดงขอบเขต Geofence ตามรัศมีที่กำหนด</small></div></div>;
 }

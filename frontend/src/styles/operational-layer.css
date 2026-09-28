@@ -118,8 +118,8 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .nexus-attendance-ops .is-warning,.nexus-mobile-history .is-warning,.nexus-mobile-duty .is-warning{background:#211807!important;color:#fbbf24!important;border-color:rgba(245,158,11,.35)!important}
 .nexus-attendance-ops .is-danger,.nexus-mobile-history .is-danger,.nexus-mobile-duty .is-danger{background:#210d12!important;color:#f87171!important;border-color:rgba(239,68,68,.35)!important}
 .nexus-site-command .security-site-qr-image{background:#020f1c!important;border-color:rgba(37,184,211,.25)!important}
-.nexus-site-command .maplibregl-ctrl-group,.nexus-site-command .maplibregl-ctrl-group button{background:#0f1d2a!important;border-color:rgba(37,184,211,.25)!important}
-.nexus-site-command .maplibregl-ctrl-group button:hover{background:#1a2836!important}.nexus-site-command .maplibregl-ctrl-attrib{background:rgba(2,15,28,.92)!important;color:#94a3b8!important}.nexus-site-command .maplibregl-ctrl-attrib a{color:#25b8d3!important}
+.nexus-site-command .leaflet-control-zoom,.nexus-site-command .leaflet-control-zoom a{background:#0f1d2a!important;border-color:rgba(37,184,211,.25)!important;color:#cbd5e1!important}
+.nexus-site-command .leaflet-control-zoom a:hover{background:#1a2836!important}.nexus-site-command .leaflet-control-attribution{background:rgba(2,15,28,.92)!important;color:#94a3b8!important}.nexus-site-command .leaflet-control-attribution a{color:#25b8d3!important}
 .nexus-site-command .security-site-map-picker__marker{border-color:#25b8d3!important}.nexus-site-command .security-site-map-picker__marker i{background:#020813!important}
 .nexus-mobile-history .employee-v4-status.is-warning{background:#211807!important;color:#fbbf24!important}
 /* Command Nexus v4.8 — Personnel Directory strict ZERO-WHITE token scope */
@@ -489,7 +489,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 }
 [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace :is(.gis-command-header h1,.security-site-admin__header h2,.nexus-gis-status-strip b){color:#172033!important}
 [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace :is(.gis-command-header p,.security-site-admin__header p,.nexus-gis-status-strip span){color:#64748b!important}
-[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace :is(.security-site-authority-rule,.security-site-authority-rule span,.security-site-qr-image,.maplibregl-ctrl-group,.maplibregl-ctrl-group button){
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace :is(.security-site-authority-rule,.security-site-authority-rule span,.security-site-qr-image,.leaflet-control-zoom,.leaflet-control-zoom a){
   background:var(--surface-card,#fff)!important;
   background-image:none!important;
   color:var(--text-on-surface,#334155)!important;
