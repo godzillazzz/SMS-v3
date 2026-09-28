@@ -289,3 +289,51 @@ User requested that work be recorded here before continuing in a new chat.
 - The dirty main worktree `C:\40.AI\_sms_v3_roster_prod` was not touched.
 - `frontend/tsconfig.tsbuildinfo` was not modified.
 - No application source changes were made after the already-passed Phase 4 QA/build gates; this closure only records release verification and deployment state.
+
+
+## Phase 5 Production hardening / post-release validation — 2026-09-28
+
+### Scope completed without privileged credentials
+- Re-audited the existing observability foundation instead of duplicating it. The application already has sanitized structured logging, request duration telemetry, bounded runtime p50/p95/error summaries, ADMIN-only System Health, database readiness, alert policy/dedup/cooldown, and production monitoring/incident runbooks.
+- Backend dependency audit: `npm audit --audit-level=high` -> 0 vulnerabilities.
+- Frontend dependency audit: `npm --prefix frontend audit --audit-level=high` -> 0 vulnerabilities.
+- Environment contract definition gate: PASS, 66 source-validated keys.
+- Prisma format check: PASS.
+- Prisma schema validation: PASS when supplied non-secret CI-shaped validation URLs; no live database connection was required for schema validation.
+- Frontend TypeScript no-emit check: PASS.
+- Full frontend Vitest: 111/111 files, 740/740 tests PASS.
+- Frontend production build + bundle verifier: PASS. Main JS 370,911 bytes (<400 KB gate), GIS/map 151,947 bytes (<300 KB gate), main CSS 682,755 bytes (<700 KB gate), 43 JS chunks.
+- Build-generated `frontend/tsconfig.tsbuildinfo` was restored and is not part of this checkpoint.
+
+### Backend local-suite environment boundary
+- A bare local `npm test` was attempted without production/test database secrets. It executed 1,106 tests: 1,084 passed, 21 failed, 1 skipped.
+- The 21 failures were environment-bound: missing `DATABASE_URL` / `JWT_SECRET` and Prisma tests that require a database. This shell does not have the CI PostgreSQL service or approved database credentials.
+- These failures are not classified as application regressions. The repository CI workflow remains the authoritative database-backed gate because it provisions PostgreSQL and the required test-only environment before `npm test` / integration tests.
+- No source code was weakened or changed to make environment-dependent tests pass.
+
+### Authenticated E2E readiness
+- Existing ADMIN / MANAGER / VIEWER Playwright harness is complete and fails safe: role tests are skipped unless each role has a complete approved credential pair.
+- No credential was invented, copied from documentation, or exposed.
+- UAT configuration contract tests: 6/6 PASS, including HTTPS base URL validation, partial-credential rejection, diagnostics redaction, and console allowlist behavior.
+
+### Current Production drift and verification
+- During post-release validation, Production was found to have moved after the prior Phase 4 closure. The current deployment is `dpl_3eXALHeYHRsYC6ZDuTMmb3v2VVKs` at `https://sms-v3-staging-6c104vha5-godzillazz.vercel.app`, created 2026-09-28 10:58:38 ICT; Vercel reports target `production`, status `Ready`.
+- `https://sms-v3-staging-ten.vercel.app` resolves to this current deployment. The explicit alias `https://sms-v3-staging-godzillazzz.vercel.app` also resolves from this deployment according to `vercel alias ls`.
+- Current authenticated artifact verification: HTTP 200, ETag `"c60cb211ad516e6bb22d46f631603a3f"`, main asset `assets/index-CMmA1f21.js`, stylesheet `assets/index-C6E_BkOL.css`.
+- This differs from the earlier Phase 4 promoted artifact (`dpl_8vCrbakayeAb5yAqAV8ixfDXFYAh`, ETag payload `a22384aecafc573aba6a79cc9860a82b`). No rollback or alias overwrite was performed because the newer current Production was already Ready and passed the gates below.
+- Direct Production `/api/v1/health`: HTTP 200 `{"status":"ok"}`.
+- Direct Production `/api/v1/ready`: HTTP 200 with `status=ready` and `database=ok`.
+- Production technical Playwright re-run: 4/4 PASS (health/readiness/assets/audit 401 boundary + login browser smoke at 390/768/1440).
+- Full Production Playwright run: 33 discovered, 10 PASS, 23 SKIP, 0 FAIL. Credential-gated ADMIN/MANAGER/VIEWER and authenticated responsive scenarios account for the intentional skips; all runnable regression and technical scenarios passed.
+- Deployment Protection was not weakened.
+
+### Remaining external/credential-gated work only
+- Real authenticated ADMIN / MANAGER / VIEWER workflow execution remains gated on approved real UAT credentials. The harness is already prepared; no code work is required before credentials are supplied.
+- Database-backed local/integration execution remains gated on the CI PostgreSQL service or an explicitly approved disposable test database. CI already defines that environment.
+- Global production telemetry/SLA cannot be inferred from the in-process rolling telemetry by design; the System Health surface correctly labels it `CURRENT_RUNTIME_INSTANCE` and not global metrics.
+
+### Safety / rollback / final state
+- Previous rollback reference remains `dpl_ChtNFvkW8vZ1qxdReZMZJnc1Q78Z` unless release governance designates a newer rollback target.
+- The Phase 4 promoted deployment `dpl_8vCrbakayeAb5yAqAV8ixfDXFYAh` remains a known verified release artifact but is no longer the current Production deployment.
+- The dirty main worktree `C:\40.AI\_sms_v3_roster_prod` was not touched.
+- Phase 5 introduced no application source, database, RBAC, or deployment-protection changes; only verification evidence and this handoff closure are being committed.
