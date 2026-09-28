@@ -276,6 +276,11 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain('Production ใช้ flow นี้ไม่ได้');
     expect(page).toContain('Bypassed for UAT');
     expect(client).toContain('/attendance/uat/gps-events');
+    expect(page).toContain("data.readiness.state === 'QR_STEP_UP_REQUIRED' || data.readiness.state === 'QR_RESCAN_REQUIRED'");
+    expect(page).toContain('setQrStepUpRequired(true)');
+    expect(page).toContain('setScannerOpen(true)');
+    expect(page).toContain('setQrStepUpRequired(false)');
+    expect(page).toContain('if (employeeV4) void attendanceSelfToday(token).then(setTodayData).catch(() => {});');
     expect(client).toContain('AttendanceGpsOnlyUatCommitData');
     expect(client).toContain('faceVerificationBypassed: true');
     expect(client).toContain('uatOnly: true');
