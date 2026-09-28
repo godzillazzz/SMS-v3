@@ -118,6 +118,10 @@ jobs:
         shell: bash
         run: node scripts/ci/verify-preview-migration-target.js
 
+      - name: Read-only G06 current fixture readiness diagnostic
+        shell: bash
+        run: node scripts/ci/g06-current-fixture-preview-readonly.js
+
       - name: Require exactly the approved Preview migration set pending before mutation
         shell: bash
         run: |
