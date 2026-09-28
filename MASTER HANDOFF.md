@@ -141,3 +141,23 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - Operational smoke: HTTP 200, Content-Length 2573, ETag `"a351e61cc319c0f88bff4d647900a3bc"`.
 - No DB migration/change and no intentional API, Permission, or RBAC behavior change.
 - Rollback reference: previous Production `dpl_DqtuNmZXbd52RX5bUWQrhMsjaRwY` (`https://sms-v3-staging-8oxgyvzu1-godzillazz.vercel.app`).
+
+## Observability + Performance Optimization Release — 2026-09-28
+
+- Source commit: `8903e55` (`perf(frontend): cut GIS and main bundle weight`).
+- Observability: existing read-only System Health remains the production operational dashboard for API p50/p95, HTTP 5xx, database latency, slow routes, warnings, deployment host/SHA and runtime sample scope; its regression contracts remain green. No third-party telemetry secret or DB change was introduced.
+- Authenticated E2E: ADMIN/MANAGER/VIEWER Playwright suites remain credential-gated. Vercel environment variable inventory contains no `UAT_ADMIN_*`, `UAT_MANAGER_*`, or `UAT_VIEWER_*` credentials, and repository/docs contain no approved role credentials. No account/password was invented or extracted. Technical production smoke remains mandatory and passed.
+- GIS optimization: map implementation moved from MapLibre GL to the already-installed Leaflet engine while preserving OpenStreetMap tiles, click-to-select, draggable marker, geofence circle, lazy route/map loading and attribution.
+- GIS JS chunk before: ~1,040,094 bytes. After: 151,938 bytes (~85.4% reduction; gzip 44.67 kB).
+- Main JS before: 500,768 bytes. After: 359,131 bytes (~28.3% reduction; gzip 83.37 kB) by isolating React and WebAuthn vendor code.
+- Release budgets tightened to main <=400,000 bytes and GIS <=300,000 bytes. Current build passes both.
+- UX polish: Security Site map help/ARIA copy is explicit Thai guidance; map selection behavior and geofence identity remain intact.
+- Full frontend regression: 106/106 files, 729/729 tests passed.
+- Production build: PASS, 415 modules transformed; bundle budget gate PASS.
+- Preview RC: `dpl_3xDCbJNU3tf1FFTzakq92ezWuMHZ`, Ready.
+- Production: `dpl_FZxPP9UoMfqfospnc3tG1Xd48xtW`, Ready, artifact `https://sms-v3-staging-c6rglnxmw-godzillazz.vercel.app`.
+- Canonical and operational (`sms-v3-staging-ten`) aliases explicitly point to this Production deployment.
+- Production technical Playwright smoke: 4/4 passed at API/health/auth boundary and browser widths 390/768/1440.
+- Operational smoke: HTTP 200, Content-Length 2660, ETag `"5132f345d5d7ee7d5dc0b8964c88084e"`.
+- No DB migration/change and no intentional API, Permission, or RBAC behavior change.
+- Rollback reference: previous Production `dpl_CRMfif9bYWb2g2bGsocUgFMMaqCm` (`https://sms-v3-staging-1wxrgfi84-godzillazz.vercel.app`).
