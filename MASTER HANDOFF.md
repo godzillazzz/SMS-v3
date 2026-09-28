@@ -444,3 +444,54 @@ User requested that work be recorded here before continuing in a new chat.
 
 ### Do not claim yet
 - G06 is not 100% accepted until the physical mobile GPS/permission test above passes and later Face/on-device UAT is completed.
+
+## G06 Preview fixture Attendance-authority follow-up — 2026-09-28
+
+### Physical UAT evidence received
+- Real iPhone test proved GPS acquisition works on-device with reported accuracy around 6–8 meters.
+- First blocker was `ACCOUNT_NOT_ELIGIBLE`; the reserved Preview fixture account was then used and the Employee/User linkage became valid.
+- Next blocker was Schedule authority: the Attendance page reported that no current approved/authoritative shift assignment could be resolved.
+
+### Read-only Preview diagnosis
+- Read-only diagnostic run `36403494314` verified the Preview target before reading and performed no database mutation.
+- Reserved fixture `UAT-G06-20260911-01` is active, correctly linked to an active VIEWER account, department `UAT-PREVIEW`.
+- Bangkok test date: `2026-09-28`.
+- Today Shift Assignments: none.
+- Current-month ScheduleApproval: `APPROVED`, revision `2`; therefore no broad monthly approval mutation is required or permitted for this fix.
+- Active Day Shift `D` exists (`07:00–19:00`).
+- `UAT-PREVIEW` has no Department Default Site mapping.
+
+### Narrow Preview-only remediation
+- Commit `75665de feat(g06): prepare preview attendance authority from GPS`.
+- Added ADMIN-only `/admin/g06-uat/attendance-authority` flow for the reserved G06 fixture.
+- Admin mobile UI adds `เตรียม Attendance UAT จาก GPS ปัจจุบัน` after the fixture is loaded.
+- The flow requests one-shot high-accuracy GPS, requires fresh/accurate evidence, and selects only an ACTIVE Security Site for which `distance + accuracy <= geofence radius`.
+- It requires the month to already be `APPROVED`, uses active Shift `D`, creates only today's locked ShiftAssignment for the reserved G06 fixture with explicit Site provenance `G06_PREVIEW_UAT`, and never changes ScheduleApproval.
+- Exact matching G06 assignment is idempotent; any existing non-G06 assignment for that Employee/date is fail-closed and is never overwritten.
+- Audit records the explicit Site, GPS distance/accuracy, schedule approval revision, and `productionChanged=false`.
+- If current GPS is not confidently inside any Active Security Site, the flow fails with `G06_UAT_SITE_NOT_CONFIDENT_INSIDE`; Site configuration is then the next layer to fix rather than bypassing geofence authority.
+
+### Validation and deploy evidence
+- Backend targeted provisioning/authority tests: 13/13 PASS.
+- Broader G06/Attendance backend suite: 70/70 PASS.
+- Frontend targeted G06/visual tests: 30/30 PASS.
+- Full frontend regression: 111/111 files, 743/743 tests PASS.
+- TypeScript: PASS.
+- Production-style frontend build + bundle verifier: PASS (main ~372 KB, map ~152 KB, CSS ~685 KB).
+- Authoritative exact-source CI run `36406126356`: SUCCESS, including DB migrate/seed/status, backend tests, integration, authoritative Attendance integration, frontend tests, TypeScript, build, bundle verification, and repository hygiene.
+- Preview deployment: `dpl_E4vYjXF9esLxfirQx5fNAiRP2Vim`.
+- Preview URL: `https://sms-v3-staging-pstg8cq32-godzillazz.vercel.app`.
+- Deployment target: Preview; state: READY.
+- `/api/v1/health`: PASS; `/api/v1/ready`: PASS with database ok.
+- Unauthenticated POST to `/api/v1/admin/g06-uat/attendance-authority`: HTTP 401.
+- Deployed Access Management bundle contains one-shot geolocation, high-accuracy mode, `GOVERNED_PREVIEW_ONLY`, `ScheduleApproval`, and the new Attendance UAT preparation UI.
+- Production was not deployed, promoted, aliased, migrated, or mutated.
+
+### Next physical action
+1. Login to the new Preview as ADMIN.
+2. Open Access Management -> G06 Preview UAT Fixture.
+3. Load the existing fixture (`สร้าง G06 Preview UAT fixture`; existing fixture is returned idempotently).
+4. Press `เตรียม Attendance UAT จาก GPS ปัจจุบัน` at the physical test Site and allow precise location.
+5. If successful, verify Site / Shift D / Approved rev 2 are shown.
+6. Logout ADMIN, login `uat-g06-20260911-01@example.invalid`, open Attendance and press `ลงเวลา GPS (UAT)`.
+7. If the preparation step says no Active Security Site contains the current GPS, stop there and fix Site configuration; do not bypass the Site/geofence gate.
