@@ -258,3 +258,34 @@ User requested that work be recorded here before continuing in a new chat.
 5. Verify final Production aliases from Vercel before assigning; historically `sms-v3-staging-ten.vercel.app` and the explicit prior alias `sms-v3-staging-godzillazzz.vercel.app` were used. Do not guess alias spelling.
 6. Run final Production technical E2E 4/4 against the canonical unprotected Production alias, verify HTTP/artifact/ETag, then append final Phase 3 closure here.
 7. Commit/push the handoff update, restore generated `frontend/tsconfig.tsbuildinfo` if modified, and finish with a clean isolated worktree.
+
+
+## Phase 4 Production closure — 2026-09-28
+
+### Release execution
+- Checkpoint branch was clean and synchronized before release work: `preview/enterprise-evolution-20260927`, HEAD `c006fa7 docs: checkpoint phase 3 continuation`.
+- Latest protected Preview `dpl_GMh7uE89Y8RUJmGBpRmu6H7tmuY3` was re-verified as `Ready`.
+- Authenticated exact-Preview artifact verification returned HTTP 200 with ETag `W/"a22384aecafc573aba6a79cc9860a82b"` and the expected Vite assets, including `assets/index-DPK5MZLm.js` and `assets/index-C6E_BkOL.css`.
+- The recorded Preview Playwright technical smoke was inspected. All 4 direct-browser scenarios failed only with `PROTECTED_DEPLOYMENT_UNVERIFIED` because Vercel Deployment Protection intercepted the browser flow. No protection setting was weakened and no bypass secret was invented.
+- The approved Preview was promoted through Vercel. Promotion produced Production deployment `dpl_8vCrbakayeAb5yAqAV8ixfDXFYAh` at `https://sms-v3-staging-g5xuzdqax-godzillazz.vercel.app`; final status: `Ready`.
+
+### Production aliases / protection
+- Canonical technical Production alias `https://sms-v3-staging-ten.vercel.app` was explicitly assigned to `dpl_8vCrbakayeAb5yAqAV8ixfDXFYAh` and verified by direct HTTP 200.
+- Explicit prior Production alias `https://sms-v3-staging-godzillazzz.vercel.app` was explicitly assigned to the same deployment; `vercel alias ls` confirms its source is now `sms-v3-staging-g5xuzdqax-godzillazz.vercel.app`.
+- The Vercel project-style `...godzillazz.vercel.app` access path remains protected and returns the expected Vercel SSO redirect for an unauthenticated browser. Deployment Protection was preserved.
+- The unprotected `-ten` alias is the Production technical-smoke target and is classified by the suite as `CANONICAL_COMPATIBLE`.
+
+### Final Production verification
+- Authenticated exact-Production artifact verification against `dpl_8vCrbakayeAb5yAqAV8ixfDXFYAh` returned HTTP 200.
+- Production ETag: `"a22384aecafc573aba6a79cc9860a82b"`; the hash matches the Preview artifact ETag payload. Production Vite asset filenames also match the verified Preview.
+- Direct Production technical Playwright E2E against `https://sms-v3-staging-ten.vercel.app`: 4/4 passed in 30.3s.
+- Passed: root/login HTTP, health, readiness x3, Vite asset loading, no unexpected `/_next/`, unauthenticated audit API 401 boundary, and login browser smoke at 390 / 768 / 1440 widths.
+- Final generated UAT summary reports: Root PASS, Login PASS, Health PASS, Ready #1/#2/#3 PASS, Vite assets PASS, Audit API 401 PASS, Origin `CANONICAL_COMPATIBLE`, Overall PASSED.
+- Authenticated ADMIN/MANAGER/VIEWER scenarios remain intentionally skipped because approved real role credentials are not present. No credentials were invented.
+
+### Rollback / safety
+- Rollback reference remains `dpl_ChtNFvkW8vZ1qxdReZMZJnc1Q78Z` / `https://sms-v3-staging-lkhwrf7mh-godzillazz.vercel.app`, previously verified `Ready`.
+- If rollback is required, use the established rollback/promotion procedure for that deployment and re-verify both Production aliases before traffic validation.
+- The dirty main worktree `C:\40.AI\_sms_v3_roster_prod` was not touched.
+- `frontend/tsconfig.tsbuildinfo` was not modified.
+- No application source changes were made after the already-passed Phase 4 QA/build gates; this closure only records release verification and deployment state.
