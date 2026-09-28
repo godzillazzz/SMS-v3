@@ -495,3 +495,42 @@ User requested that work be recorded here before continuing in a new chat.
 5. If successful, verify Site / Shift D / Approved rev 2 are shown.
 6. Logout ADMIN, login `uat-g06-20260911-01@example.invalid`, open Attendance and press `ลงเวลา GPS (UAT)`.
 7. If the preparation step says no Active Security Site contains the current GPS, stop there and fix Site configuration; do not bypass the Site/geofence gate.
+## G06 GPS authority PostgreSQL + Face-prerequisite preflight checkpoint — 2026-09-28
+
+### Work completed while physical-device UAT is pending
+- Added real PostgreSQL integration coverage for the Preview-only G06 Attendance-authority preparation path in commit `ad9ac42 test(g06): verify preview attendance authority on postgres`.
+- CI run `36416551347`: SUCCESS. The isolated PostgreSQL suite proved real Prisma/DB behavior for G06 authority preparation, including create, exact retry idempotency, outside-geofence fail-closed behavior, non-G06 assignment conflict protection, ScheduleApproval non-mutation, audit persistence, and transaction rollback if audit persistence fails.
+- Updated GPS-only UAT contract/runbook in `5f3a53e test(g06): lock GPS UAT step-up and refresh flow`: strong server-validated GPS may proceed in `GPS_ASSURED` mode without QR; QR opens only for server-derived Step-up/rescan states; committed CHECK_IN refreshes self-service state; CHECK_OUT remains dependent on a committed CHECK_IN.
+- Added read-only G06 Face prerequisite preflight in commit `375684d feat(g06): surface read-only face prerequisites`.
+- The G06 Admin fixture card now exposes `ตรวจความพร้อมก่อนเปิด Face`, reusing the existing `/employees/:id/onboarding-readiness` endpoint.
+- This preflight is read-only and displays server-authoritative Account / Attendance Device / Reference Photo / Schedule / Security Site readiness and blockers.
+- The preflight does not request Camera/GPS permission, does not start Face verification, does not call a Face verifier, does not create a verification session, and does not create an AttendanceEvent.
+- Face Match, Simple Active Challenge and provider runtime remain separate later gates; preflight READY must not be represented as Face PASS.
+
+### Validation evidence
+- Frontend targeted readiness/G06 contract: 26/26 PASS.
+- Full frontend regression after preflight: 111/111 files, 744/744 tests PASS.
+- TypeScript: PASS.
+- Exact-source CI run `36417565028` for `375684da7867755bb0361638c550345e05c5cbb7`: SUCCESS, including audits, env contract, Prisma format/validate/generate, ephemeral PostgreSQL migrate/seed/status, backend tests, integration tests, authoritative Attendance integration, frontend tests, TypeScript, production-style build/bundle verifier and repository hygiene.
+
+### Latest testable Preview
+- Deployment: `dpl_E7XdpyXCEFTpVRCDFyUButyYaLqG`.
+- URL: `https://sms-v3-staging-a7cmrsrvn-godzillazz.vercel.app`.
+- Target: Preview.
+- State: READY.
+- Source application commit: `375684da7867755bb0361638c550345e05c5cbb7`.
+- GPS-only build flag remains enabled for this Preview.
+- `/api/v1/health`: PASS (`status=ok`).
+- `/api/v1/ready`: PASS (`status=ready`, database ok).
+- Unauthenticated POST `/api/v1/admin/g06-uat/attendance-authority`: HTTP 401.
+- Unauthenticated GET `/api/v1/employees/:id/onboarding-readiness`: HTTP 401.
+- Deployed Access Management bundle contains one-shot geolocation/high-accuracy markers plus Face-prerequisite markers `Attendance Device`, `Reference Photo`, `Face Match`, `Active Challenge`, `provider runtime`, and `Blockers`; main bundle contains `/onboarding-readiness`.
+- Production deployment/promotion/alias, Production DB/data/migration, and Production environment mutations for this checkpoint: 0.
+
+### Physical dependency / next action
+1. Login to the latest Preview as ADMIN.
+2. Open Access Management -> G06 Preview UAT Fixture and load the existing fixture.
+3. Optional but useful now: press `ตรวจความพร้อมก่อนเปิด Face` and record the server blockers. This can expose Device / Reference Photo prerequisites without opening Face.
+4. At the real test Site, press `เตรียม Attendance UAT จาก GPS ปัจจุบัน`; this physical GPS sample cannot be completed by automation.
+5. If Site preparation succeeds, logout ADMIN, login `uat-g06-20260911-01@example.invalid`, then run GPS-only CHECK_IN -> refresh -> CHECK_OUT.
+6. Only after the GPS phase passes, resolve any preflight Device/Reference blockers and resume `Device Proof -> Face Match -> Simple Active Challenge`.

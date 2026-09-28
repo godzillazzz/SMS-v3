@@ -3,9 +3,9 @@
 Status: **physical-device GPS UAT in progress**
 Date: 2026-09-28
 Branch: `preview/enterprise-evolution-20260927`
-Application commit under test: `75665de4862bcc1769fe17d18704c2099851aef8`
-Preview deployment: `dpl_E4vYjXF9esLxfirQx5fNAiRP2Vim`
-Preview URL: `https://sms-v3-staging-pstg8cq32-godzillazz.vercel.app`
+Application commit under test: `375684da7867755bb0361638c550345e05c5cbb7`
+Preview deployment: `dpl_E7XdpyXCEFTpVRCDFyUButyYaLqG`
+Preview URL: `https://sms-v3-staging-a7cmrsrvn-godzillazz.vercel.app`
 
 ## Purpose
 
