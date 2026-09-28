@@ -11,8 +11,6 @@ import { LeaveSummaryCard } from '../../components/dashboard/LeaveSummaryCard';
 import { LicenseSummaryCard } from '../../components/dashboard/LicenseSummaryCard';
 import { RequestErrorReference, type RequestErrorInput } from '../../request-error';
 import { asNumber, type DashboardAction, type DashboardActivity, type DashboardExpiringLicense, type DashboardFilters, type DashboardNavigate, type DashboardSummary, type DashboardUser } from '../../components/dashboard/types';
-import '../../styles/dashboard.css';
-import '../../styles/operational-layer.css';
 
 type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: RequestErrorInput; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; pendingApprovalCount?: number; onOpenApprovalCenter?(): void; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
 
