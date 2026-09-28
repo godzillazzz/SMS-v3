@@ -390,3 +390,57 @@ User requested that work be recorded here before continuing in a new chat.
 - This applies across all current and future approval workflows, not only Leave. Approval history/detail surfaces should make it clear who approved each action rather than showing only a generic status, role, or system action.
 - Preserve the underlying authoritative approver identity/audit trail so the displayed name can be traced back to the actual authenticated approver.
 - This requirement is intentionally deferred. Do not implement broad approval-flow changes as part of the current G06/GPS work; schedule the cross-system approval-name consistency work for a later phase.
+
+## G06 GPS-only Attendance Step 2 Preview checkpoint — 2026-09-28
+
+### Goal and isolation model
+- Purpose: prove the real Schedule -> Site -> GPS/geofence -> optional QR -> CHECK_IN/CHECK_OUT event pipeline before returning to Face Verification debugging.
+- This is Preview/UAT only. Production routing does not expose the GPS-only event endpoint.
+- GPS-only UAT events are never represented as Face-verified events.
+
+### Application and database invariants
+- G06 GPS-only Attendance event implementation: `ef96af5 feat(g06): record preview GPS-only attendance events`.
+- Migration split/fix: `f2121bb fix(g06): split GPS UAT enum migration`.
+- AttendanceEvent provenance now includes `GPS_ONLY_UAT`.
+- `ONLINE` events remain database-constrained to require a non-null `face_verification_session_id`.
+- `GPS_ONLY_UAT` events are database-constrained to require `face_verification_session_id IS NULL`.
+- GPS-only UAT events still use server-authoritative event intent, Schedule/Site authority, GPS/geofence/QR validation, server received time, idempotency, CHECK_IN-before-CHECK_OUT rules, AttendanceSession open/close behavior, and audit logging.
+- UI clearly labels Face and Device as bypassed for UAT and displays GPS-only UAT success separately from the normal Face flow.
+
+### Authoritative CI and Preview migration
+- Final migration-guard source commit: `850b0a4 ci(g06): allow exact preview prerequisite migration set`.
+- Exact-source CI run `36398527615`: SUCCESS.
+- Preview migration run `36398557141`: SUCCESS.
+- Preview target fingerprint guard proved the Preview database target is distinct from Production before mutation.
+- The exact pending set applied was:
+  - `202609240001_add_supervisor_user_role`
+  - `202609250001_add_schedule_roster_order`
+  - `202609280001_g06_gps_only_uat_event_provenance`
+  - `202609280002_g06_gps_only_uat_event_provenance_constraint`
+- Post-migration verification proved migration state current and the GPS/Face provenance invariants present.
+- No Production database migration was run as part of this G06 checkpoint.
+
+### Testable Preview artifact
+- Deployment: `dpl_AGTe9D5W5Fyuxbtw4disay274bWC`
+- URL: `https://sms-v3-staging-iwu85uv3t-godzillazz.vercel.app`
+- Target: Preview
+- Status: Ready
+- Build flag: `VITE_G06_GPS_ONLY_UAT=true`
+- `/api/v1/health`: PASS (`status=ok`)
+- `/api/v1/ready`: PASS (`status=ready`, database ok)
+- Unauthenticated `POST /api/v1/attendance/uat/gps-events`: HTTP 401, proving the UAT event path still requires authentication.
+- Deployed Attendance bundle contains the GPS UAT flow and user-visible copy including `ลงเวลา GPS (UAT)`, `GPS-only UAT บันทึกเวลาแล้ว`, Face/Device bypass disclosure, and `GPS_ONLY_UAT` provenance wording.
+
+### Next physical UAT
+1. Open the Preview URL on a real mobile device and authenticate with an approved account.
+2. Open Attendance and allow precise location.
+3. While inside the configured Site geofence, press `ลงเวลา GPS (UAT)`.
+4. Complete QR Step-up if Server policy requests it.
+5. Expected CHECK_IN result: Server creates an AttendanceEvent with `provenance=GPS_ONLY_UAT`, server-received timestamp, and no FaceVerificationSession.
+6. Re-open/refresh Attendance and verify the committed CHECK_IN is reflected in the self-service state/history.
+7. Repeat for CHECK_OUT; the same AttendanceSession must close and CHECK_OUT must not be possible before CHECK_IN.
+8. Also test an outside-geofence location or otherwise invalid Site evidence and confirm the event is rejected.
+9. After GPS CHECK_IN/CHECK_OUT behavior is proven on-device, resume Face debugging one layer at a time: Device Proof -> Face Match -> Active Challenge.
+
+### Do not claim yet
+- G06 is not 100% accepted until the physical mobile GPS/permission test above passes and later Face/on-device UAT is completed.
