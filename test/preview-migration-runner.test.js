@@ -126,8 +126,12 @@ test('Preview migration workflow is manual, protected, exact-source, and fail-cl
   assert.match(workflow, /prisma-migration\.js deploy/);
   assert.match(workflow, /prisma-migration\.js status/);
   assert.match(workflow, /verify-g06-gps-uat-preview-migration\.js/);
+  assert.match(workflow, /EXPECTED_SUPERVISOR_MIGRATION: 202609240001_add_supervisor_user_role/);
+  assert.match(workflow, /EXPECTED_ROSTER_MIGRATION: 202609250001_add_schedule_roster_order/);
   assert.match(workflow, /EXPECTED_ENUM_MIGRATION: 202609280001_g06_gps_only_uat_event_provenance/);
   assert.match(workflow, /EXPECTED_MIGRATION_HEAD: 202609280002_g06_gps_only_uat_event_provenance_constraint/);
+  assert.match(workflow, /PREVIEW_PENDING_SET=EXACT_APPROVED_FOUR_MIGRATIONS/);
+  assert.match(workflow, /MIGRATION_NAME=\$EXPECTED_SUPERVISOR_MIGRATION,\$EXPECTED_ROSTER_MIGRATION,\$EXPECTED_ENUM_MIGRATION,\$EXPECTED_MIGRATION_HEAD/);
   assert.match(workflow, /REQUIRED_CONFIRMATION: MIGRATE_G06_GPS_ONLY_UAT_PREVIEW/);
   assert.doesNotMatch(workflow, /prisma\s+migrate\s+resolve|prisma\s+db\s+push|prisma\s+db\s+seed|db:seed/i);
   assert.doesNotMatch(workflow, /DATABASE_URL[^\n]*(?:GITHUB_OUTPUT|GITHUB_STEP_SUMMARY)/i);

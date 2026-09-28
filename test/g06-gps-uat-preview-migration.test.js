@@ -49,7 +49,7 @@ test('G06 Preview migration verifier fails closed when any provenance invariant 
   }
 });
 
-test('G06 Preview migration workflow is manual, exact-source, fingerprint-guarded, and applies only the expected migration', () => {
+test('G06 Preview migration workflow is manual, exact-source, fingerprint-guarded, and applies only the exact approved pending set', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'migrate-approved-preview.yml'), 'utf8').replace(/\r\n/g, '\n');
@@ -61,9 +61,12 @@ test('G06 Preview migration workflow is manual, exact-source, fingerprint-guarde
   assert.match(workflow, /verify-preview-migration-target\.js/);
   assert.match(workflow, /APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT/);
   assert.match(workflow, /APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT/);
+  assert.match(workflow, /EXPECTED_SUPERVISOR_MIGRATION: 202609240001_add_supervisor_user_role/);
+  assert.match(workflow, /EXPECTED_ROSTER_MIGRATION: 202609250001_add_schedule_roster_order/);
   assert.match(workflow, /EXPECTED_ENUM_MIGRATION: 202609280001_g06_gps_only_uat_event_provenance/);
   assert.match(workflow, /EXPECTED_MIGRATION_HEAD: 202609280002_g06_gps_only_uat_event_provenance_constraint/);
-  assert.match(workflow, /grep -Fxq "MIGRATION_NAME=\$EXPECTED_ENUM_MIGRATION,\$EXPECTED_MIGRATION_HEAD"/);
+  assert.match(workflow, /grep -Fxq "MIGRATION_NAME=\$EXPECTED_SUPERVISOR_MIGRATION,\$EXPECTED_ROSTER_MIGRATION,\$EXPECTED_ENUM_MIGRATION,\$EXPECTED_MIGRATION_HEAD"/);
+  assert.match(workflow, /PREVIEW_PENDING_SET=EXACT_APPROVED_FOUR_MIGRATIONS/);
   assert.match(workflow, /prisma-migration\.js deploy/);
   assert.match(workflow, /verify-g06-gps-uat-preview-migration\.js/);
   assert.doesNotMatch(workflow, /prisma\s+migrate\s+resolve|prisma\s+db\s+push|prisma\s+db\s+seed|db:seed/i);

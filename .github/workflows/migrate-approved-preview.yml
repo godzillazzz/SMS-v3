@@ -30,6 +30,8 @@ concurrency:
 
 env:
   EXPECTED_SOURCE_BRANCH: preview/enterprise-evolution-20260927
+  EXPECTED_SUPERVISOR_MIGRATION: 202609240001_add_supervisor_user_role
+  EXPECTED_ROSTER_MIGRATION: 202609250001_add_schedule_roster_order
   EXPECTED_ENUM_MIGRATION: 202609280001_g06_gps_only_uat_event_provenance
   EXPECTED_MIGRATION_HEAD: 202609280002_g06_gps_only_uat_event_provenance_constraint
   REQUIRED_CONFIRMATION: MIGRATE_G06_GPS_ONLY_UAT_PREVIEW
@@ -73,7 +75,7 @@ jobs:
           ref: ${{ inputs.source_sha }}
           fetch-depth: 0
 
-      - name: Verify exact source identity and G06 migration pair
+      - name: Verify exact source identity and approved Preview migration set
         shell: bash
         run: |
           set -euo pipefail
@@ -81,6 +83,8 @@ jobs:
           test "$(git rev-parse 'HEAD^{tree}')" = "$SOURCE_TREE"
           git fetch --no-tags origin "$EXPECTED_SOURCE_BRANCH"
           test "$(git rev-parse "origin/$EXPECTED_SOURCE_BRANCH")" = "$SOURCE_SHA"
+          test -f "prisma/migrations/$EXPECTED_SUPERVISOR_MIGRATION/migration.sql"
+          test -f "prisma/migrations/$EXPECTED_ROSTER_MIGRATION/migration.sql"
           test -f "prisma/migrations/$EXPECTED_ENUM_MIGRATION/migration.sql"
           test -f "prisma/migrations/$EXPECTED_MIGRATION_HEAD/migration.sql"
           test -z "$(git status --porcelain)"
@@ -114,7 +118,7 @@ jobs:
         shell: bash
         run: node scripts/ci/verify-preview-migration-target.js
 
-      - name: Require exactly the G06 migration pair pending before mutation
+      - name: Require exactly the approved Preview migration set pending before mutation
         shell: bash
         run: |
           set -euo pipefail
@@ -128,8 +132,8 @@ jobs:
           grep -Fxq 'MIGRATION_HISTORY_MISMATCH=false' "$status_output"
           grep -Fxq 'SCHEMA_MISMATCH=false' "$status_output"
           grep -Fxq 'PENDING_MIGRATIONS=true' "$status_output"
-          grep -Fxq "MIGRATION_NAME=$EXPECTED_ENUM_MIGRATION,$EXPECTED_MIGRATION_HEAD" "$status_output"
-          echo 'PREVIEW_PENDING_SET=EXACT_G06_PAIR_ONLY'
+          grep -Fxq "MIGRATION_NAME=$EXPECTED_SUPERVISOR_MIGRATION,$EXPECTED_ROSTER_MIGRATION,$EXPECTED_ENUM_MIGRATION,$EXPECTED_MIGRATION_HEAD" "$status_output"
+          echo 'PREVIEW_PENDING_SET=EXACT_APPROVED_FOUR_MIGRATIONS'
 
       - name: Apply repository-governed Preview migrations
         shell: bash
@@ -156,7 +160,7 @@ jobs:
             echo '### G06 GPS-only UAT Preview migration'
             echo '- Target: isolated sms-v3 Preview database (fingerprint-guarded)'
             echo '- Source identity: PASS'
-            echo '- Pending set: exact enum + provenance-constraint migration pair'
+            echo '- Pending set: exact Supervisor + roster-order prerequisites + G06 enum + provenance constraint'
             echo '- Prisma migration state: CURRENT'
             echo '- ONLINE requires Face session: enforced by DB constraint'
             echo '- GPS_ONLY_UAT requires null Face session: enforced by DB constraint'
