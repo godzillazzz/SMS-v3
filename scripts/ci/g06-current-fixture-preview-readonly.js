@@ -68,6 +68,21 @@ function bangkokDateParts(now = new Date()) {
     select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, isActive: true }
   });
   const diagnosticNow = new Date();
+  const allSites = await prisma.securitySite.findMany({
+    orderBy: { code: 'asc' },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      isActive: true,
+      geofenceRadiusMeters: true,
+      qrCredentials: {
+        orderBy: { version: 'desc' },
+        take: 1,
+        select: { id: true, version: true, validFrom: true, validUntil: true, revokedAt: true }
+      }
+    }
+  });
   const activeSites = await prisma.securitySite.findMany({
     where: { isActive: true },
     orderBy: { code: 'asc' },
@@ -158,6 +173,17 @@ function bangkokDateParts(now = new Date()) {
       changeType: approval.changeType
     } : null,
     departmentMaster,
+    allSecuritySiteCount: allSites.length,
+    allSecuritySites: allSites.map((site) => ({
+      code: site.code,
+      name: site.name,
+      active: site.isActive,
+      geofenceRadiusMeters: site.geofenceRadiusMeters,
+      latestQrVersion: site.qrCredentials[0]?.version || null,
+      latestQrRevoked: Boolean(site.qrCredentials[0]?.revokedAt),
+      latestQrValidFrom: iso(site.qrCredentials[0]?.validFrom),
+      latestQrValidUntil: iso(site.qrCredentials[0]?.validUntil)
+    })),
     activeSecuritySiteCount: activeSites.length,
     activeSecuritySites: activeSites.map((site) => ({
       code: site.code,
