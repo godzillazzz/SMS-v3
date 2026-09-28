@@ -36,19 +36,19 @@ describe('Security Site Admin token role gate', () => {
     expect(panelSource).toContain('<SecuritySiteMapPicker');
     expect(panelSource).toContain('latitude: latitude.toFixed(7)');
     expect(panelSource).toContain('longitude: longitude.toFixed(7)');
-    expect(mapPickerSource).toContain("from 'maplibre-gl'");
+    expect(mapPickerSource).toContain("from 'leaflet'");
     expect(panelSource).toContain('กำลังโหลด OpenStreetMap…');
-    expect(mapPickerSource).toContain("tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png']");
+    expect(mapPickerSource).toContain("L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png'");
     expect(mapPickerSource).toContain('© OpenStreetMap contributors');
-    expect(mapPickerSource).toContain("'fill-color': '#ef4444'");
-    expect(mapPickerSource).toContain("'line-color': '#ef4444'");
-    expect(mapPickerSource).not.toContain("'fill-color': '#25b8d3'");
+    expect(mapPickerSource).toContain("fillColor:'#ef4444'");
+    expect(mapPickerSource).toContain("color:'#ef4444'");
+    expect(mapPickerSource).not.toContain("fillColor:'#25b8d3'");
     expect(mapPickerSource).not.toContain("'line-color': '#25b8d3'");
     expect(mapPickerSource).toContain("map.on('click'");
-    expect(mapPickerSource).toContain('draggable: true');
+    expect(mapPickerSource).toContain('draggable:true');
     expect(mapPickerSource).toContain("marker.on('dragend'");
-    expect(mapPickerSource).toContain("type: 'fill'");
-    expect(mapPickerSource).toContain("type: 'line'");
+    expect(mapPickerSource).toContain('L.circle(center');
+    expect(mapPickerSource).toContain('.setRadius(radius)');
   });
 
   it('keeps QR token ephemeral and provides local render/print/download actions', () => {
