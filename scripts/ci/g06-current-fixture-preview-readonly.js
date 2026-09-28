@@ -67,6 +67,27 @@ function bangkokDateParts(now = new Date()) {
     where: { code: 'D' },
     select: { id: true, code: true, name: true, startTime: true, endTime: true, hours: true, isActive: true }
   });
+  const diagnosticNow = new Date();
+  const activeSites = await prisma.securitySite.findMany({
+    where: { isActive: true },
+    orderBy: { code: 'asc' },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      geofenceRadiusMeters: true,
+      qrCredentials: {
+        where: {
+          revokedAt: null,
+          validFrom: { lte: diagnosticNow },
+          OR: [{ validUntil: null }, { validUntil: { gt: diagnosticNow } }]
+        },
+        orderBy: { version: 'desc' },
+        take: 1,
+        select: { id: true, version: true, validFrom: true, validUntil: true }
+      }
+    }
+  });
 
   console.log('G06_CURRENT_FIXTURE_PREVIEW_READONLY_BEGIN');
   console.log(JSON.stringify({
@@ -137,6 +158,16 @@ function bangkokDateParts(now = new Date()) {
       changeType: approval.changeType
     } : null,
     departmentMaster,
+    activeSecuritySiteCount: activeSites.length,
+    activeSecuritySites: activeSites.map((site) => ({
+      code: site.code,
+      name: site.name,
+      geofenceRadiusMeters: site.geofenceRadiusMeters,
+      validQrReady: site.qrCredentials.length === 1,
+      currentQrVersion: site.qrCredentials[0]?.version || null,
+      currentQrValidFrom: iso(site.qrCredentials[0]?.validFrom),
+      currentQrValidUntil: iso(site.qrCredentials[0]?.validUntil)
+    })),
     departmentSites: defaultSites.map((row) => ({
       code: row.code,
       name: row.name,
