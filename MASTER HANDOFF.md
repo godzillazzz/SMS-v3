@@ -161,3 +161,20 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - Operational smoke: HTTP 200, Content-Length 2660, ETag `"5132f345d5d7ee7d5dc0b8964c88084e"`.
 - No DB migration/change and no intentional API, Permission, or RBAC behavior change.
 - Rollback reference: previous Production `dpl_CRMfif9bYWb2g2bGsocUgFMMaqCm` (`https://sms-v3-staging-1wxrgfi84-godzillazz.vercel.app`).
+
+## Production Operations Acceptance Closure — 2026-09-28
+
+- Source commit: `b892487` (`ops: establish production health acceptance baseline`).
+- Added `docs/PRODUCTION_SYSTEM_HEALTH_RUNBOOK.md` with actionable Watch/Incident thresholds for HTTP 5xx, API p95, DB latency, route p95, dropped samples, safe triage, and rollback rules.
+- Added CSS release budget <=700,000 bytes to the existing main <=400,000 and GIS <=300,000 gates. Current build: main 359,131 bytes; GIS 151,938 bytes; global CSS 676,075 bytes. PASS.
+- Visual/UX regression contracts: 8/8 targeted files, 58/58 tests passed.
+- Full frontend regression: 107/107 files, 731/731 tests passed.
+- Build: PASS, 415 modules transformed; bundle gate PASS.
+- UAT config: 6/6 passed and 33 Playwright scenarios discovered. Authenticated ADMIN/MANAGER/VIEWER scenarios remain credential-gated because approved role credentials are not present; no credentials were invented.
+- Preview: `dpl_BvapbK7QP8dqGsKxTyPt7qg1ypwD`, Ready.
+- Production: `dpl_EWcnuhqHbkE5xXp3hLBfswubX6AX`, Ready, artifact `https://sms-v3-staging-322ghblyl-godzillazz.vercel.app`.
+- Canonical and operational (`sms-v3-staging-ten`) aliases explicitly point to this Production deployment.
+- Production technical Playwright smoke: 4/4 passed at API/health/auth boundary and widths 390/768/1440.
+- Operational smoke: HTTP 200, Content-Length 2660, ETag `"5132f345d5d7ee7d5dc0b8964c88084e"`.
+- No DB migration/change and no intentional API, Permission, or RBAC behavior change.
+- Rollback reference: previous Production `dpl_FZxPP9UoMfqfospnc3tG1Xd48xtW` (`https://sms-v3-staging-c6rglnxmw-godzillazz.vercel.app`).
