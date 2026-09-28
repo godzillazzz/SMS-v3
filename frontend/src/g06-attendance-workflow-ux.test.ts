@@ -11,6 +11,8 @@ const faceCapture = read('./pages/attendance/AttendanceFaceCapture.tsx');
 const faceUat = read('./pages/attendance/AttendanceFaceChallengeUatPanel.tsx');
 const css = read('./pages/attendance/attendance.css');
 const actionState = read('./pages/attendance/attendance-action-state.ts');
+const accessG06 = read('./pages/access-management/G06UatProvisioningPanel.tsx');
+const api = read('./api.ts');
 
 describe('G06 Attendance frontend UX skeleton', () => {
   it('exposes a dedicated self-service Attendance page separate from Personal Device setup', () => {
@@ -279,6 +281,17 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).toContain('uatOnly: true');
   });
 
+  it('prepares the existing G06 fixture for GPS Attendance from an explicit Admin one-shot location without mutating Schedule approval', () => {
+    expect(accessG06).toContain('เตรียม Attendance UAT จาก GPS ปัจจุบัน');
+    expect(accessG06).toContain('navigator.geolocation.getCurrentPosition');
+    expect(accessG06).toContain('enableHighAccuracy: true');
+    expect(accessG06).toContain('maximumAge: 0');
+    expect(accessG06).toContain('timeout: 15000');
+    expect(accessG06).toContain('โดยไม่แก้ ScheduleApproval');
+    expect(api).toContain("'/admin/g06-uat/attendance-authority'");
+    expect(main).toContain('onPrepareG06Attendance={async (location) => {');
+    expect(main).toContain('api.prepareG06AttendanceAuthority(auth.token!, location)');
+  });
   it('uses one-shot high-accuracy geolocation without continuous tracking or local persistence', () => {
     expect(page).toContain('navigator.geolocation.getCurrentPosition');
     expect(page).toContain('enableHighAccuracy: true');

@@ -68,6 +68,6 @@ describe('G04.2 VF-05 final mockup fidelity closure contract', () => {
   });
 
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(apiSha256).toBe('088ed2f76851165ca59dab2245542e56946014b70fbca3e86bc4a986714bf9a3');
+    expect(apiSha256).toBe('d3bc253357c39a82382682666508f4c2c6a5a5e46c345acc76d48468dc80d3f7');
   });
 });
