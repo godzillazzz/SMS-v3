@@ -93,7 +93,8 @@ function sourceRegressionContracts() {
   }
 
   requireIncludes(dashboardPage, [
-    '!error && partialErrors.length > 0',
+    'error ?',
+    'partialErrors.length > 0',
     'dashboard-data-warning',
     'ข้อมูลบางส่วนยังไม่พร้อม'
   ], 'DASHBOARD_PARTIAL_WARNING_CONTRACT_FAILED');
