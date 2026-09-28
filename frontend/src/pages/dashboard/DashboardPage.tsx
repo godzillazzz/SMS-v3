@@ -5,6 +5,7 @@ import { TodayOperationsCard } from '../../components/dashboard/TodayOperationsC
 import { AttentionNeededCard } from '../../components/dashboard/AttentionNeededCard';
 import { RecentActivityCard } from '../../components/dashboard/RecentActivityCard';
 import { QuickActionsCard } from '../../components/dashboard/QuickActionsCard';
+import { WorkQueueJourney } from '../../components/dashboard/WorkQueueJourney';
 import { DataSyncStatusCard } from '../../components/dashboard/DataSyncStatusCard';
 import { LeaveSummaryCard } from '../../components/dashboard/LeaveSummaryCard';
 import { LicenseSummaryCard } from '../../components/dashboard/LicenseSummaryCard';
@@ -51,6 +52,8 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
     </header>
 
     <DashboardFilterBar filters={filters} departments={departments} role={user?.role} loading={loading} onChange={onFiltersChange} />
+
+    <WorkQueueJourney canManage={canManage} pendingApprovalCount={pendingApprovalCount} onOpenApprovalCenter={onOpenApprovalCenter} onNavigate={onNavigate} />
 
     {error ? <div className="nexus-command__alert dashboard-data-error" role="alert"><strong>DATA CHANNEL DEGRADED</strong><span>ไม่สามารถโหลดข้อมูล Dashboard ได้ ระบบจะไม่สร้างข้อมูลทดแทน</span><RequestErrorReference requestId={typeof error === 'string' ? undefined : error?.requestId} /></div> : partialErrors.length > 0 ? <div className="nexus-command__alert dashboard-data-warning" role="status"><strong>PARTIAL DATA CHANNEL</strong><span>ข้อมูลบางส่วนยังไม่พร้อม ส่วนที่พร้อมยังแสดงตามสิทธิ์ของคุณ</span></div> : null}
 
