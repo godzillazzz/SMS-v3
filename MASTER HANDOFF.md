@@ -337,3 +337,18 @@ User requested that work be recorded here before continuing in a new chat.
 - The Phase 4 promoted deployment `dpl_8vCrbakayeAb5yAqAV8ixfDXFYAh` remains a known verified release artifact but is no longer the current Production deployment.
 - The dirty main worktree `C:\40.AI\_sms_v3_roster_prod` was not touched.
 - Phase 5 introduced no application source, database, RBAC, or deployment-protection changes; only verification evidence and this handoff closure are being committed.
+
+
+## Phase 5 acceptance addendum — authoritative CI closure — 2026-09-28
+
+### Database-backed CI evidence
+- GitHub Actions CI run `36378124196` for exact commit `2a673a854ae77fc702f8fbf22ae07b44041f54d5` completed successfully.
+- The CI validate job provisioned the repository-defined disposable PostgreSQL 16 service; no production database or production database credential was used.
+- Successful gates included dependency install, backend/frontend high-severity audits, environment governance contract, Prisma format/validate/generate, test migration, seed, migration status, `npm test`, `npm run test:integration`, authoritative Attendance event integration, full frontend tests, TypeScript no-emit, production frontend build, bundle verification, tracked build-metadata restoration, and repository hygiene.
+- This authoritative database-backed success closes the uncertainty from the earlier bare-shell local run whose 21 failures were caused by absent database/JWT environment. Those local failures are not an outstanding regression.
+
+### Release acceptance state
+- Current canonical Production remains deployment `dpl_3eXALHeYHRsYC6ZDuTMmb3v2VVKs`, target production, status Ready.
+- Existing rollback workflow validates project/org/deployment identity, requires explicit confirmation, promotes only an existing Ready production deployment, and verifies canonical health after rollback; it does not roll back database migrations.
+- Existing automated UAT workflow is manual/dispatch-driven and already includes technical smoke plus artifact leak scanning. It was not dispatched from this addendum because Production technical/full runnable smoke was already executed directly during Phase 5 and passed.
+- Remaining acceptance work is strictly external/privileged: approved real ADMIN/MANAGER/VIEWER credentials for authenticated workflows and any human business-owner sign-off.
