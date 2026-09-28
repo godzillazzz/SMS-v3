@@ -178,3 +178,21 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - Operational smoke: HTTP 200, Content-Length 2660, ETag `"5132f345d5d7ee7d5dc0b8964c88084e"`.
 - No DB migration/change and no intentional API, Permission, or RBAC behavior change.
 - Rollback reference: previous Production `dpl_FZxPP9UoMfqfospnc3tG1Xd48xtW` (`https://sms-v3-staging-c6rglnxmw-godzillazz.vercel.app`).
+
+## Task-Oriented Workflow UX Phase 2 Production Release — 2026-09-28
+
+- Source commit: `12ecaf2 feat(frontend): add task oriented dashboard journey`
+- Scope: added a Dashboard recommended-work journey that guides the existing Schedule -> Personnel -> Approval flow and surfaces pending approval priority for managers.
+- Authorization/data safety: navigation delegates to existing `setActivePage`/RBAC behavior; no new API calls, DB changes, permission changes, or RBAC changes.
+- Theme/responsive: dedicated light/dark styling plus mobile/tablet responsive layout; existing three-icon theme control unchanged.
+- Targeted UX regression: 5/5 files, 29/29 tests passed.
+- Full frontend regression: 109/109 files, 735/735 tests passed.
+- Build: PASS, 417 modules transformed.
+- Production bundle gate: PASS; main 364,906 bytes, GIS 151,938 bytes, CSS 682,260 bytes, 43 JS chunks.
+- UAT config/discovery: 6/6 config tests passed; 33 Playwright scenarios discovered. Authenticated ADMIN/MANAGER/VIEWER execution remains credential-gated because no approved real role credentials are present.
+- Preview: `dpl_ByTqbvdYdaztEx4tFVhjm8XzTZWT` / `https://sms-v3-staging-8ne020yq7-godzillazz.vercel.app`, status Ready. Direct Preview browser smoke was blocked by Vercel Deployment Protection; authenticated Vercel CLI verification returned HTTP 200 and confirmed built Vite assets.
+- Production: `dpl_ChtNFvkW8vZ1qxdReZMZJnc1Q78Z` / `https://sms-v3-staging-lkhwrf7mh-godzillazz.vercel.app`, status Ready.
+- Production aliases explicitly assigned: `https://sms-v3-staging-ten.vercel.app` and `https://sms-v3-staging-godzillazzz.vercel.app`.
+- Production technical E2E after alias cutover: 4/4 passed (HTTP health/readiness/Vite assets/audit authorization boundary plus login browser smoke at 390/768/1440).
+- Production HTTP verification: 200; Content-Length 2660; ETag `"c237b95a4bbffdf3c43a836db8bc8629"`; Server Vercel.
+- Rollback reference: previous production deployment `dpl_EWcnuhqHbkE5xXp3hLBfswubX6AX` / `https://sms-v3-staging-322ghblyl-godzillazz.vercel.app`.
