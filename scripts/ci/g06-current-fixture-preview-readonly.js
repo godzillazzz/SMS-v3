@@ -27,7 +27,9 @@ function bangkokDateParts(now = new Date()) {
     where: { employeeCode: EMPLOYEE_CODE },
     select: {
       id: true, employeeCode: true, displayName: true, department: true, jobTitle: true, isActive: true, deletedAt: true,
-      user: { select: { id: true, email: true, role: true, employeeId: true, isActive: true, accountStatus: true } }
+      user: { select: { id: true, email: true, role: true, employeeId: true, isActive: true, accountStatus: true } },
+      attendanceDevices: { where: { status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' }, take: 3, select: { id: true, status: true, activatedAt: true, proofVerifiedAt: true, revokedAt: true } },
+      referencePhotos: { where: { status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' }, take: 3, select: { id: true, status: true, activatedAt: true, reviewedAt: true, supersededAt: true } }
     }
   });
 
@@ -85,7 +87,28 @@ function bangkokDateParts(now = new Date()) {
         linked: employee.user.employeeId === employee.id,
         isActive: employee.user.isActive,
         accountStatus: employee.user.accountStatus
-      } : null
+      } : null,
+      facePrerequisites: {
+        activeAttendanceDeviceCount: employee.attendanceDevices.length,
+        attendanceDevices: employee.attendanceDevices.map((row) => ({
+          id: row.id,
+          status: row.status,
+          activatedAt: iso(row.activatedAt),
+          proofVerified: Boolean(row.proofVerifiedAt),
+          proofVerifiedAt: iso(row.proofVerifiedAt),
+          revokedAt: iso(row.revokedAt)
+        })),
+        activeReferencePhotoCount: employee.referencePhotos.length,
+        referencePhotos: employee.referencePhotos.map((row) => ({
+          id: row.id,
+          status: row.status,
+          activatedAt: iso(row.activatedAt),
+          reviewedAt: iso(row.reviewedAt),
+          supersededAt: iso(row.supersededAt)
+        })),
+        attendanceDeviceReady: employee.attendanceDevices.length === 1 && Boolean(employee.attendanceDevices[0]?.proofVerifiedAt),
+        referencePhotoReady: employee.referencePhotos.length === 1
+      }
     } : null,
     todayAssignments: assignments.map((row) => ({
       id: row.id,
