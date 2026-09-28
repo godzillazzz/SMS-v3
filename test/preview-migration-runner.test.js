@@ -120,6 +120,9 @@ test('Preview migration workflow is manual, protected, exact-source, and fail-cl
   assert.match(workflow, /APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: \$\{\{ vars\.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT \}\}/);
   assert.match(workflow, /node scripts\/ci\/verify-preview-migration-target\.js/);
   assert.match(workflow, /prisma-migration\.js status --allow-pending/);
+  assert.match(workflow, /PREVIEW_MIGRATION_STATUS_DIAGNOSTICS_BEGIN/);
+  assert.match(workflow, /cat \"\$status_output\"/);
+  assert.match(workflow, /PREVIEW_MIGRATION_STATUS_DIAGNOSTICS_END/);
   assert.match(workflow, /prisma-migration\.js deploy/);
   assert.match(workflow, /prisma-migration\.js status/);
   assert.match(workflow, /verify-g06-gps-uat-preview-migration\.js/);

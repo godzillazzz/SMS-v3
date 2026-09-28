@@ -121,6 +121,9 @@ jobs:
           status_output=$(mktemp)
           trap 'rm -f "$status_output"' EXIT
           node scripts/ci/prisma-migration.js status --allow-pending >"$status_output"
+          echo 'PREVIEW_MIGRATION_STATUS_DIAGNOSTICS_BEGIN'
+          cat "$status_output"
+          echo 'PREVIEW_MIGRATION_STATUS_DIAGNOSTICS_END'
           grep -Fxq 'MIGRATION_STATUS_CLASS=PENDING_MIGRATIONS_ONLY' "$status_output"
           grep -Fxq 'MIGRATION_HISTORY_MISMATCH=false' "$status_output"
           grep -Fxq 'SCHEMA_MISMATCH=false' "$status_output"
