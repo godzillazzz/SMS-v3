@@ -92,7 +92,7 @@ export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicEx
         <div className="nexus-shell nexus-nav__inner">
           <a className="nexus-brand" href="#overview" aria-label="SMS Security Management System">
             <span className="nexus-brand__mark">{renderLogo()}</span>
-            <span className="nexus-brand__copy"><strong>SMS <em>v4.8</em></strong><small>ระบบบริหารงานรักษาความปลอดภัย</small></span>
+            <span className="nexus-brand__copy"><strong>SMS</strong><small>ระบบบริหารงานรักษาความปลอดภัย</small></span>
           </a>
           <nav className="nexus-nav__links" aria-label="เมนูหน้า public">
             <a className="is-active" href="#overview">ภาพรวมระบบ</a>
@@ -109,7 +109,7 @@ export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicEx
           <div className="nexus-hero__rail nexus-hero__rail--right" aria-hidden="true"><span>ZERO TRUST / ACTIVE</span><b>TH-BKK</b></div>
           <div className="nexus-shell nexus-hero__grid">
             <div className="nexus-hero__copy">
-              <div className="nexus-hero__eyebrow"><i />DEFENSE MATRIX VER 4.8.19 <span>ENCRYPTED / ZERO-TRUST ACTIVE</span></div>
+              <div className="nexus-hero__eyebrow"><i />DEFENSE MATRIX <span>ENCRYPTED / ZERO-TRUST ACTIVE</span></div>
               <div className="nexus-simulated-pill"><b>SIMULATED LIVE DATA</b><span>ข้อมูลจำลองสำหรับหน้า Public — ไม่ใช่ข้อมูลปฏิบัติการจริง</span></div>
               <h1>เห็นภาพรวมทุกงาน<span>มั่นใจในทุกการปฏิบัติ</span></h1>
               <p>ศูนย์บัญชาการงานรักษาความปลอดภัยระดับองค์กรที่รวมกำลังพล ตารางกะ จุดตรวจ การลงเวลา การอนุมัติ และการกำกับสิทธิ์ไว้ในประสบการณ์เดียว — ออกแบบให้เห็นสถานะสำคัญได้ทันทีโดยไม่ลดทอนความปลอดภัยของข้อมูลจริง</p>
@@ -203,12 +203,6 @@ export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicEx
           </div>
         </section>
 
-        <section className="nexus-auth-transition" aria-label="ไปยังหน้าล็อกอิน">
-          <div className="nexus-shell nexus-auth-transition__inner">
-            <div><span>SECURE SURFACE / AUTHENTICATED ONLY</span><h2>ข้อมูลจริงเริ่มหลังการยืนยันตัวตน</h2></div>
-            <a href="#auth-login-form">เข้าสู่ Zero-Trust Login Console <b aria-hidden="true">→</b></a>
-          </div>
-        </section>
       </main>
     </div>
   );
