@@ -211,3 +211,12 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - UAT configuration/discovery: 6/6 config tests passed; 33 Playwright scenarios discovered in 5 files. Authenticated ADMIN/MANAGER/VIEWER execution remains credential-gated because approved real role credentials are not present; no credentials were invented.
 - Deployment state: no new Phase 4 Preview or Production deployment was created in this source-ready pass. Phase 3 Preview `dpl_BA9D7Jv2RfvVvBjcELQcjxUM4j5b` remains protected by Vercel Deployment Protection for direct browser E2E, pending an approved Automation Bypass secret.
 - Production remains unchanged at `dpl_ChtNFvkW8vZ1qxdReZMZJnc1Q78Z` / `https://sms-v3-staging-lkhwrf7mh-godzillazz.vercel.app`.
+
+### Phase 4 Preview Verification — 2026-09-28
+
+- Preview deployment: `dpl_GMh7uE89Y8RUJmGBpRmu6H7tmuY3` / `https://sms-v3-staging-rarjr1dbk-godzillazz.vercel.app`, status Ready.
+- Vercel preview build passed with 417 modules transformed. Preview build correctly skipped production migration.
+- Authenticated Vercel CLI artifact verification returned HTTP 200, ETag `W/"a22384aecafc573aba6a79cc9860a82b"`, Server Vercel, and confirmed Vite assets including `assets/index-DPK5MZLm.js` and `assets/index-C6E_BkOL.css`.
+- Direct Playwright technical smoke was attempted and all 4 scenarios were blocked by `PROTECTED_DEPLOYMENT_UNVERIFIED` from Vercel Deployment Protection (HTTP/audit boundary plus login browser smoke at 390/768/1440). This is an access gate, not evidence of an application regression.
+- No Deployment Protection setting was weakened and no bypass secret or role credential was invented.
+- Production was not promoted; it remains `dpl_ChtNFvkW8vZ1qxdReZMZJnc1Q78Z` pending approved Automation Bypass and direct Preview E2E clearance.
