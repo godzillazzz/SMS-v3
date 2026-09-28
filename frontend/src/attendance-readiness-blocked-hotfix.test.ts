@@ -8,9 +8,18 @@ describe('Attendance readiness blocked hotfix', () => {
   it('turns a known missing ACTIVE device into an explicit setup action', () => {
     expect(page).toContain('const [deviceStateKnown, setDeviceStateKnown] = useState(false)');
     expect(page).toContain("const devicePrerequisiteBlocked = deviceStateKnown && !deviceEnrolled");
-    expect(page).toContain("const actionText = pendingAttendanceCommit ? 'บันทึกซ้ำ' : deviceBlocked ? 'ตั้งค่าอุปกรณ์'");
+    expect(page).toContain("const gpsOnlyUatMode = GPS_ONLY_UAT_ENABLED");
+    expect(page).toContain("const deviceBlocked = gpsOnlyUatMode ? false : serverDeviceBlocked || devicePrerequisiteBlocked");
+    expect(page).toContain("const actionText = gpsOnlyUatMode ? 'ทดสอบ GPS' : pendingAttendanceCommit ? 'บันทึกซ้ำ' : deviceBlocked ? 'ตั้งค่าอุปกรณ์'");
     expect(page).toContain("deviceV4Ready ? 'พร้อม' : deviceBlocked ? 'จำเป็น' : 'ตรวจเมื่อกด'");
     expect(page).toContain('ต้องตั้งค่า <b>DEVICE</b> ก่อน');
+  });
+
+  it('keeps the device bypass limited to the explicit Preview GPS-only UAT branch', () => {
+    expect(page).toContain("const GPS_ONLY_UAT_ENABLED = import.meta.env.VITE_G06_GPS_ONLY_UAT === 'true'");
+    expect(page).toContain('Preview GPS-only UAT');
+    expect(page).toContain('จะไม่สร้าง AttendanceEvent');
+    expect(page).toContain("if (gpsOnlyUatMode) {");
   });
 
   it('routes the employee to the existing device enrollment page without bypassing server authority', () => {
