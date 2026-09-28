@@ -400,7 +400,7 @@ function Login() {
       {mode === 'login' && <div className="nexus-auth-heading"><span>ZERO-TRUST ENTERPRISE IDENTITY HUB</span><h2>ศูนย์ยืนยันตัวตน Command Console SMS</h2><p>เข้าถึงพื้นที่ปฏิบัติการรักษาความปลอดภัยด้วยการรับรองตัวตนหลายปัจจัยและ Enterprise Identity Policy</p></div>}
       <section className="login-shell auth-experience-shell nexus-auth-shell" aria-label="เข้าสู่ระบบ Security Management System">
         <aside className="login-intro auth-brand-panel nexus-auth-intro">
-          <div className="intro-brand auth-brand"><Logo /><span><b>SMS</b><strong>Security Management System</strong></span></div>
+          <div className="intro-brand auth-brand"><Logo /><span className="sms-brand-copy"><b>SMS</b><strong>ระบบบริหารงานรักษาความปลอดภัย</strong></span></div>
           <div className="intro-copy auth-brand-copy">
             <p className="auth-brand-eyebrow">MULTI-FACTOR SECURITY ENCLAVE</p>
             <h1>Zero-Trust Identity Hub<br />สำหรับ Command Console</h1>
@@ -466,7 +466,7 @@ function Login() {
         </aside>
         <section className="login-form-panel auth-card-panel nexus-auth-panel">
           <div className="login-theme-control auth-theme-control"><ThemeControl compact /></div>
-          <div className="auth-mobile-brand"><Logo /><span><b>SMS</b><strong>Security Management System</strong></span></div>
+          <div className="auth-mobile-brand"><Logo /><span className="sms-brand-copy"><b>SMS</b><strong>ระบบบริหารงานรักษาความปลอดภัย</strong></span></div>
           <form id="auth-login-form" className="login-form auth-form" onSubmit={submit} aria-busy={busy}>
             {resultPresentation ? <section className={`auth-result auth-result--${resultPresentation.tone}`} aria-live="polite" aria-labelledby="registration-result-title">
               <div className="auth-result__verified"><span className="auth-result__verified-icon"><SmsIcon name="approval" size={20} /></span><span><b>ยืนยันอีเมลสำเร็จ</b><small>การยืนยันอีเมลยังไม่ใช่การอนุมัติบัญชี</small></span></div>
@@ -519,7 +519,7 @@ function Login() {
         </section>
       </section>
       </section>
-      <footer className="award-public-footer"><span>SMS · Security Management System</span><small>Secure operations, designed for clarity.</small></footer>
+      <footer className="award-public-footer"><span>SMS · ระบบบริหารงานรักษาความปลอดภัย</span><small>Secure operations, designed for clarity.</small></footer>
     </main>
   );
 }
@@ -3147,7 +3147,7 @@ function Dashboard() {
       <aside id="app-navigation-drawer" className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} aria-label="เมนูหลัก">
         <div className="sidebar-brand">
           <Logo />
-          <div><strong>SMS</strong><span>Security Management System</span></div>
+          <div className="sms-brand-copy"><strong>SMS</strong><span>ระบบบริหารงานรักษาความปลอดภัย</span></div>
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
@@ -3159,12 +3159,12 @@ function Dashboard() {
         </div>
       </aside>
       <main className="main-area">
-        {pwaShell && activePage !== 'attendance' && <header className="pwa-mobile-header"><span className="pwa-mobile-brand"><Logo /><span><strong>SMS</strong><small>{pageTitle}</small></span></span><span className={`pwa-online-state ${pwaOnline ? '' : 'offline'}`}>{pwaOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span></header>}
+        {pwaShell && activePage !== 'attendance' && <header className="pwa-mobile-header"><span className="pwa-mobile-brand"><Logo /><span className="sms-brand-copy"><strong>SMS</strong><small>ระบบบริหารงานรักษาความปลอดภัย</small></span></span><span className={`pwa-online-state ${pwaOnline ? '' : 'offline'}`}>{pwaOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span></header>}
         {pwaShell && !pwaOnline && <div className="pwa-offline-banner">ออฟไลน์ — เปิดดู shell ได้ แต่การลงเวลาและการส่งคำขอลาต้องรอการเชื่อมต่อ Server</div>}
         <header className="topbar">
           <div className="topbar-left">
             <button ref={mobileMenuTriggerRef} type="button" className="mobile-menu-button" aria-label="เปิดเมนูหลัก" aria-expanded={mobileMenuOpen} aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(true)}><SmsIcon name="menu" size={20} /></button>
-            <span className="mobile-brand"><Logo /><span><b>SMS</b><small>{pageTitle}</small></span></span>
+            <span className="mobile-brand"><Logo /><span className="sms-brand-copy"><b>SMS</b><small>ระบบบริหารงานรักษาความปลอดภัย</small></span></span>
             <span className="topbar-copy"><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></span>
           </div>
           <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
