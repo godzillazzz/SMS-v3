@@ -116,6 +116,18 @@ export type AttendanceAcceptedData = {
   readiness?: AttendanceReadinessState;
 };
 
+export type AttendanceGpsOnlyUatCommitData = AttendanceAcceptedData & {
+  uatOnly: true;
+  faceVerificationBypassed: true;
+  eventIntent: AttendanceEventIntent | null;
+  site: AttendanceGpsOnlyUatData['site'];
+  workDate: string | null;
+  geofence: AttendanceGpsOnlyUatData['geofence'];
+};
+
+export type AttendanceGpsOnlyUatCommitResult =
+  | { routeAvailable: true; data: AttendanceGpsOnlyUatCommitData; requestId?: string }
+  | { routeAvailable: false; data: null; requestId?: string };
 export type AttendanceFaceChallengeUatStartData = {
   ok: true;
   uatOnly: true;
@@ -338,6 +350,34 @@ export async function attendanceGpsOnlyUatReadiness(token: string, input: {
   return { routeAvailable: true, data: payload.data as AttendanceGpsOnlyUatData, requestId };
 }
 
+export async function attendanceGpsOnlyUatCommit(token: string, input: {
+  captureId: string;
+  qrToken?: string;
+  location: AttendanceLocationEvidence;
+}): Promise<AttendanceGpsOnlyUatCommitResult> {
+  const response = await attendanceAuthenticatedRequest(`/attendance/uat/gps-events`, token, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(token, true),
+    body: JSON.stringify({
+      captureId: input.captureId,
+      attendanceEvidence: {
+        ...(input.qrToken ? { qrToken: input.qrToken } : {}),
+        location: input.location
+      }
+    })
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  if (response.status === 404) return { routeAvailable: false, data: null, requestId };
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(
+    publicError(payload, response.status, 'ไม่สามารถบันทึกเวลา GPS UAT ได้'),
+    response.status,
+    requestId,
+    publicCode(payload)
+  );
+  return { routeAvailable: true, data: payload.data as AttendanceGpsOnlyUatCommitData, requestId };
+}
 export async function attendanceVerificationStart(token: string, input: {
   captureId: string;
   qrToken?: string;

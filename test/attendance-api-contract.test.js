@@ -17,7 +17,7 @@ const attendanceEvidence = {
 };
 
 function fakeDependencies() {
-  const calls = { resolveIntent: [], prepareContext: [], prepareGpsOnlyUat: [], prepareVerification: [], deviceProof: [], liveFace: [], accept: [] };
+  const calls = { resolveIntent: [], prepareContext: [], prepareGpsOnlyUat: [], prepareVerification: [], deviceProof: [], liveFace: [], acceptGpsUat: [], accept: [] };
   const verification = {
     resolveEventIntent: async (input) => { calls.resolveIntent.push(input); return { eventIntent: 'CHECK_IN', shiftAssignmentId: '66666666-6666-4666-8666-666666666666', workDate: '2026-08-24' }; },
     prepareContext: async (input) => { calls.prepareContext.push(input); return { contextDigest: 'a'.repeat(64) }; },
@@ -53,6 +53,17 @@ function fakeDependencies() {
     verifyLiveFace: async (input) => { calls.liveFace.push(input); return { verificationAccepted: true, receipt: 'server-issued-receipt', receiptExpiresAt: 'soon', evidence: { storageStatus: 'NOT_STORED', stored: false } }; }
   };
   const events = {
+    acceptGpsOnlyUatEvent: async (input) => {
+      calls.acceptGpsUat.push(input);
+      return {
+        idempotent: false,
+        event: { id: 'abababab-abab-4bab-8bab-abababababab', eventType: 'CHECK_IN', provenance: 'GPS_ONLY_UAT', effectiveEventAt: '2026-08-24T03:00:00.000Z' },
+        session: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', state: 'OPEN' },
+        site: { id: '77777777-7777-4777-8777-777777777777', name: 'Test Site' },
+        workDate: '2026-08-24',
+        geofence: { inside: true, classification: 'CONFIDENT_INSIDE', distanceMeters: 3.2, qrMode: 'GPS_ASSURED', riskFlags: [] }
+      };
+    },
     acceptVerifiedEvent: async (input) => {
       calls.accept.push(input);
       return {
@@ -94,6 +105,20 @@ test('runtime-enabled readiness validates server authority but still cannot repo
   assert.equal(Object.prototype.hasOwnProperty.call(calls.prepareContext[0], 'contextDigest'), false);
 });
 
+test('GPS-only UAT acceptance creates an explicitly bypassed UAT Attendance event without biometric runtime', async () => {
+  const { calls, verification, events } = fakeDependencies();
+  const service = createAttendanceApiContractService({ verificationContextService: verification, attendanceEventService: events, isBiometricRuntimeEnabled: () => false });
+  const result = await service.acceptGpsOnlyUatEvent({ actor, captureId, attendanceEvidence });
+  assert.equal(result.ok, true);
+  assert.equal(result.uatOnly, true);
+  assert.equal(result.faceVerificationBypassed, true);
+  assert.equal(result.attendanceAccepted, true);
+  assert.equal(result.event.provenance, 'GPS_ONLY_UAT');
+  assert.equal(calls.acceptGpsUat.length, 1);
+  assert.deepEqual(calls.acceptGpsUat[0], { actor, captureId, attendanceEvidence });
+  assert.equal(calls.prepareVerification.length, 0);
+  assert.equal(calls.liveFace.length, 0);
+});
 test('beginVerification is blocked while runtime is disabled and creates no FaceVerificationSession work', async () => {
   const { calls, verification, events } = fakeDependencies();
   const service = createAttendanceApiContractService({ verificationContextService: verification, attendanceEventService: events, isBiometricRuntimeEnabled: () => false });

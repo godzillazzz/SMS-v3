@@ -6,7 +6,7 @@ import {
   AttendanceFlowError,
   attendanceAcceptVerifiedEvent,
   attendanceDeviceState,
-  attendanceGpsOnlyUatReadiness,
+  attendanceGpsOnlyUatCommit,
   attendanceVerificationStart,
   attendanceFaceMatch,
   attendanceSelfToday,
@@ -15,7 +15,7 @@ import {
   type AttendanceContextRef,
   type AttendanceEventIntent,
   type AttendanceLocationEvidence,
-  type AttendanceGpsOnlyUatData,
+  type AttendanceGpsOnlyUatCommitData,
   type AttendanceFaceRetryHint,
   type AttendanceReadinessState,
   type AttendanceSelfTodayData
@@ -298,7 +298,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   const [deviceStateKnown, setDeviceStateKnown] = useState(false);
   const [locationIssue, setLocationIssue] = useState<AttendanceLocationError | null>(null);
   const [locationHelpOpen, setLocationHelpOpen] = useState(false);
-  const [gpsUatResult, setGpsUatResult] = useState<AttendanceGpsOnlyUatData | null>(null);
+  const [gpsUatResult, setGpsUatResult] = useState<AttendanceGpsOnlyUatCommitData | null>(null);
   const asyncEvidenceEpochRef = useRef(0);
   const activeCaptureIdRef = useRef<string | null>(null);
   const locationRecoveryPendingRef = useRef(false);
@@ -332,8 +332,8 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         ? 'แตะเพื่อเช็กอิน'
         : 'แตะเพื่อลงเวลา';
   const qrReady = Boolean(qrToken) || (Boolean(readiness) && !qrStepUpRequired && readiness?.state === 'READY_TO_START_VERIFICATION');
-  const faceReady = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
-  const deviceReady = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
+  const faceReady = !GPS_ONLY_UAT_ENABLED && (Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen);
+  const deviceReady = !GPS_ONLY_UAT_ENABLED && (Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen);
   const readinessLabel = attendanceAccepted
     ? 'บันทึกเวลาเรียบร้อย'
     : flowBusy ? 'กำลังตรวจสอบตามลำดับความปลอดภัย' : 'พร้อมสำหรับการลงเวลาแบบปลอดภัย';
@@ -554,28 +554,54 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     resetVerificationState();
     try {
       if (GPS_ONLY_UAT_ENABLED) {
-        const checked = await attendanceGpsOnlyUatReadiness(token, {
+        const committed = await attendanceGpsOnlyUatCommit(token, {
           captureId,
           qrToken: nextQrToken?.trim() || undefined,
           location: nextLocation
         });
         if (shouldStopOperation(operationEpoch)) return;
-        setRequestId(checked.requestId);
-        if (!checked.routeAvailable) {
+        setRequestId(committed.requestId);
+        if (!committed.routeAvailable) {
           setRouteUnavailable(true);
           setVerificationStage('GPS-only UAT ยังไม่เปิดใน Preview นี้');
           return;
         }
-        const data = checked.data;
+        const data = committed.data;
         setEventIntent(data.eventIntent);
-        if (data.ok && data.geofence?.inside === true) {
+        if (data.ok && data.attendanceAccepted === true) {
+          const acceptedAt = typeof data.event?.effectiveEventAt === 'string'
+            ? data.event.effectiveEventAt
+            : typeof data.event?.receivedAt === 'string'
+              ? data.event.receivedAt
+              : '';
+          if (!acceptedAt) throw new Error('Server ยอมรับ GPS-only UAT AttendanceEvent แต่ไม่ส่งเวลาฝั่ง Server กลับมา');
           setGpsUatResult(data);
           setReadiness(null);
           setQrStepUpRequired(false);
+          setScannerOpen(false);
+          setQrToken('');
+          setLocation(null);
+          setLocationBusy(false);
+          setChecking(false);
+          setAttendanceAccepted({
+            intent: data.eventIntent,
+            acceptedAt,
+            eventId: typeof data.event?.id === 'string' ? data.event.id : null,
+            sessionId: typeof data.session?.id === 'string' ? data.session.id : null,
+            recovered: data.idempotent === true
+          });
+          activeCaptureIdRef.current = null;
+          locationRecoveryPendingRef.current = false;
+          setLocationIssue(null);
+          setLocationHelpOpen(false);
           const siteLabel = data.site?.name || 'Site ที่ Server ยืนยัน';
-          const distanceLabel = typeof data.geofence.distanceMeters === 'number' ? ` · ระยะ ${Math.round(data.geofence.distanceMeters)} ม.` : '';
-          setVerificationStage(`GPS UAT ผ่าน · ${siteLabel}${distanceLabel}`);
-          setError(undefined);
+          const distanceMeters = data.geofence?.distanceMeters;
+          const distanceLabel = typeof distanceMeters === 'number' ? ` · ระยะ ${Math.round(distanceMeters)} ม.` : '';
+          setVerificationStage(data.idempotent === true
+            ? `Server ยืนยัน GPS-only UAT AttendanceEvent เดิม · ${siteLabel}${distanceLabel}`
+            : `Server บันทึก GPS-only UAT AttendanceEvent แล้ว · ${siteLabel}${distanceLabel}`);
+          if (employeeV4) void attendanceSelfToday(token).then(setTodayData).catch(() => {});
+          asyncEvidenceEpochRef.current += 1;
           return;
         }
         setGpsUatResult(null);
@@ -583,7 +609,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
           setReadiness(data.readiness);
           if (data.readiness.state === 'QR_STEP_UP_REQUIRED' || data.readiness.state === 'QR_RESCAN_REQUIRED') {
             setQrStepUpRequired(true);
-            setVerificationStage('GPS ผ่านระดับที่ Server ต้องการ QR Step-up เพิ่มเติม');
+            setVerificationStage('GPS ผ่านระดับที่ Server ต้องการ QR Step-up เพิ่มเติมก่อนบันทึกเวลา UAT');
             setScannerOpen(true);
             return;
           }
@@ -592,8 +618,8 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
           setError(blockedCopy.detail);
           return;
         }
-        setVerificationStage('GPS UAT ยังไม่ผ่าน');
-        setError('Server ยังไม่ยืนยันว่า GPS อยู่ในพื้นที่ที่อนุญาต');
+        setVerificationStage('GPS-only UAT ยังบันทึกเวลาไม่สำเร็จ');
+        setError('Server ยังไม่ยืนยัน Schedule + Site + GPS/Geofence + QR สำหรับ AttendanceEvent');
         return;
       }
       await beginFaceVerificationWithEvidence(captureId, nextQrToken, nextLocation, operationEpoch);
@@ -1032,15 +1058,15 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
             'กลับมาที่ SMS ระบบจะตรวจสิทธิ์และลองอ่าน GPS ใหม่'
           ];
     const qrV4Ready = qrReady || Boolean(readiness && !qrStepUpRequired && readiness.state === 'READY_TO_START_VERIFICATION');
-    const faceV4Ready = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
-    const deviceV4Ready = deviceEnrolled || Boolean(attendanceAccepted) || Boolean(verificationSession);
+    const faceV4Ready = !GPS_ONLY_UAT_ENABLED && (Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen);
+    const deviceV4Ready = !GPS_ONLY_UAT_ENABLED && (deviceEnrolled || Boolean(attendanceAccepted) || Boolean(verificationSession));
     const serverDeviceBlocked = readiness?.state === 'DEVICE_SETUP_REQUIRED' || readiness?.state === 'DEVICE_REVIEW_REQUIRED';
     const devicePrerequisiteBlocked = deviceStateKnown && !deviceEnrolled && !attendanceAccepted && !verificationSession;
     const gpsOnlyUatMode = GPS_ONLY_UAT_ENABLED;
     const deviceBlocked = gpsOnlyUatMode ? false : serverDeviceBlocked || devicePrerequisiteBlocked;
     const nonRetryableReadinessBlocked = Boolean(readiness?.blocking && readiness.retryable === false && !serverDeviceBlocked);
-    const actionText = gpsOnlyUatMode ? 'ทดสอบ GPS' : pendingAttendanceCommit ? 'บันทึกซ้ำ' : deviceBlocked ? 'ตั้งค่าอุปกรณ์' : (nextIntent === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า');
-    const actionThai = gpsOnlyUatMode ? 'ทดสอบ GPS / Geofence' : pendingAttendanceCommit ? 'ลองบันทึกเวลาอีกครั้ง' : deviceBlocked ? 'ตั้งค่าอุปกรณ์ลงเวลา' : primaryActionState.actionThai;
+    const actionText = gpsOnlyUatMode ? 'ลงเวลา GPS (UAT)' : pendingAttendanceCommit ? 'บันทึกซ้ำ' : deviceBlocked ? 'ตั้งค่าอุปกรณ์' : (nextIntent === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า');
+    const actionThai = gpsOnlyUatMode ? 'ลงเวลา GPS / Geofence (Preview)' : pendingAttendanceCommit ? 'ลองบันทึกเวลาอีกครั้ง' : deviceBlocked ? 'ตั้งค่าอุปกรณ์ลงเวลา' : primaryActionState.actionThai;
     const handleEmployeePrimaryAction = () => {
       if (gpsOnlyUatMode) {
         if (!primaryActionState.enabled) {
@@ -1207,12 +1233,12 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
           </article>
           <article className={`attendance-v4__ready-card ${faceV4Ready ? 'is-ready' : ''}`}>
             <span className="attendance-v4__ready-icon"><SmsIcon name="face" size={21} /></span>
-            <div><strong>ใบหน้า</strong><small>{faceV4Ready ? 'พร้อม' : 'อัตโนมัติ'}</small></div>
+            <div><strong>ใบหน้า</strong><small>{gpsOnlyUatMode ? 'ข้ามเฉพาะ UAT' : faceV4Ready ? 'พร้อม' : 'อัตโนมัติ'}</small></div>
             {faceV4Ready && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
           </article>
           <article className={`attendance-v4__ready-card ${deviceV4Ready ? 'is-ready' : ''}`}>
             <span className="attendance-v4__ready-icon"><SmsIcon name="device" size={21} /></span>
-            <div><strong>อุปกรณ์</strong><small>{deviceV4Ready ? 'พร้อม' : deviceBlocked ? 'จำเป็น' : 'ตรวจเมื่อกด'}</small></div>
+            <div><strong>อุปกรณ์</strong><small>{gpsOnlyUatMode ? 'ข้ามเฉพาะ UAT' : deviceV4Ready ? 'พร้อม' : deviceBlocked ? 'จำเป็น' : 'ตรวจเมื่อกด'}</small></div>
             {deviceV4Ready && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
           </article>
         </section>
@@ -1236,8 +1262,8 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       {readOnly && <div className="attendance-v4__notice is-warning"><strong>View As · อ่านอย่างเดียว</strong><span>ไม่อนุญาตให้ ADMIN/MANAGER ลงเวลาแทนพนักงานจากหน้าจอนี้</span></div>}
       {!online && <div className="attendance-v4__notice is-warning"><strong>ออฟไลน์</strong><span>Attendance ต้องเชื่อมต่อ Server จึงจะลงเวลาได้</span></div>}
       {routeUnavailable && <div className="attendance-v4__notice is-warning"><strong>Attendance runtime ยังไม่เปิด</strong><span>Server gate ปิดอยู่ จึงไม่มี AttendanceEvent ถูกสร้าง</span></div>}
-      {gpsOnlyUatMode && <div className="attendance-v4__notice is-warning"><strong>Preview GPS-only UAT</strong><span>รอบนี้ข้าม Device/Face เพื่อทดสอบ Schedule + Site + GPS/Geofence + QR เท่านั้น และจะไม่สร้าง AttendanceEvent</span></div>}
-      {gpsOnlyUatMode && gpsUatResult && <div className="attendance-v4__notice" role="status"><strong>GPS UAT ผ่าน</strong><span>{gpsUatResult.site?.name || 'Site'} · {gpsUatResult.geofence?.classification || 'INSIDE'}{typeof gpsUatResult.geofence?.distanceMeters === 'number' ? ` · ระยะ ${Math.round(gpsUatResult.geofence.distanceMeters)} ม.` : ''} · {gpsUatResult.eventIntent === 'CHECK_OUT' ? 'Server intent: CHECK OUT' : 'Server intent: CHECK IN'}</span></div>}
+      {gpsOnlyUatMode && <div className="attendance-v4__notice is-warning"><strong>Preview GPS-only UAT</strong><span>รอบนี้ข้าม Device/Face และสร้าง AttendanceEvent เฉพาะ Preview ด้วย provenance GPS_ONLY_UAT เพื่อทดสอบ Schedule + Site + GPS/Geofence + QR · Production ใช้ flow นี้ไม่ได้</span></div>}
+      {gpsOnlyUatMode && gpsUatResult && <div className="attendance-v4__notice" role="status"><strong>GPS-only UAT บันทึกเวลาแล้ว</strong><span>{gpsUatResult.site?.name || 'Site'} · {gpsUatResult.geofence?.classification || 'INSIDE'}{typeof gpsUatResult.geofence?.distanceMeters === 'number' ? ` · ระยะ ${Math.round(gpsUatResult.geofence.distanceMeters)} ม.` : ''} · {gpsUatResult.eventIntent === 'CHECK_OUT' ? 'Server intent: CHECK OUT' : 'Server intent: CHECK IN'}</span></div>}
       {deviceBlocked && <div className="attendance-v4__notice is-warning" role="alert">
         <strong>ต้องตั้งค่าอุปกรณ์ลงเวลาก่อน</strong>
         <span>Attendance ต้องมีอุปกรณ์สถานะ ACTIVE ที่ผูกกับพนักงาน คีย์ต้องสร้างบนอุปกรณ์จริงและผ่านขั้นตอนอนุมัติก่อนใช้งาน</span>
@@ -1344,11 +1370,11 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
           </div>
           <div className={faceReady ? 'is-ready' : verificationBusy ? 'is-active' : ''}>
             <SmsIcon name="face" size={21} />
-            <span><strong>Face</strong><small>{attendanceAccepted ? 'Verified' : faceReady ? 'Ready' : 'ยืนยันใบหน้าชั่วคราว'}</small></span>
+            <span><strong>Face</strong><small>{GPS_ONLY_UAT_ENABLED ? 'Bypassed for UAT' : attendanceAccepted ? 'Verified' : faceReady ? 'Ready' : 'ยืนยันใบหน้าชั่วคราว'}</small></span>
           </div>
           <div className={deviceReady ? 'is-ready' : verificationStage?.includes('อุปกรณ์') ? 'is-active' : ''}>
             <SmsIcon name="device" size={21} />
-            <span><strong>Device</strong><small>{deviceReady ? 'OK' : 'Server ตรวจอุปกรณ์หลัก'}</small></span>
+            <span><strong>Device</strong><small>{GPS_ONLY_UAT_ENABLED ? 'Bypassed for UAT' : deviceReady ? 'OK' : 'Server ตรวจอุปกรณ์หลัก'}</small></span>
           </div>
         </section>
 

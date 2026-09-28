@@ -266,15 +266,17 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain('UAT นี้ไม่มี Face PASS และไม่มี Attendance PASS');
   });
 
-  it('keeps GPS-only UAT explicitly Preview-gated and non-authoritative before face debugging', () => {
+  it('keeps GPS-only UAT Preview-gated while recording truthful non-biometric Attendance provenance', () => {
     expect(page).toContain("import.meta.env.VITE_G06_GPS_ONLY_UAT === 'true'");
-    expect(page).toContain('attendanceGpsOnlyUatReadiness(token');
+    expect(page).toContain('attendanceGpsOnlyUatCommit(token');
     expect(page).toContain('Preview GPS-only UAT');
-    expect(page).toContain('จะไม่สร้าง AttendanceEvent');
-    expect(page).toContain('ข้าม Device/Face');
-    expect(client).toContain('/attendance/uat/gps-readiness');
+    expect(page).toContain('provenance GPS_ONLY_UAT');
+    expect(page).toContain('Production ใช้ flow นี้ไม่ได้');
+    expect(page).toContain('Bypassed for UAT');
+    expect(client).toContain('/attendance/uat/gps-events');
+    expect(client).toContain('AttendanceGpsOnlyUatCommitData');
     expect(client).toContain('faceVerificationBypassed: true');
-    expect(client).toContain('attendanceAccepted: false');
+    expect(client).toContain('uatOnly: true');
   });
 
   it('uses one-shot high-accuracy geolocation without continuous tracking or local persistence', () => {

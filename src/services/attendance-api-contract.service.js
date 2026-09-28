@@ -88,6 +88,43 @@ function createAttendanceApiContractService({
       return { ok: false, diagnosticOnly: true, faceVerificationBypassed: true, attendanceAccepted: false, eventIntent: null, site: null, workDate: null, geofence: null, readiness: mapAttendanceDomainOutcome(error) };
     }
   }
+  async function acceptGpsOnlyUatEvent({ actor, captureId, attendanceEvidence } = {}) {
+    try {
+      if (typeof events.acceptGpsOnlyUatEvent !== 'function') {
+        const error = new Error('GPS-only UAT Attendance acceptance is unavailable.');
+        error.details = { code: 'ATTENDANCE_GPS_UAT_UNAVAILABLE' };
+        throw error;
+      }
+      const result = await events.acceptGpsOnlyUatEvent({ actor, captureId, attendanceEvidence });
+      return {
+        ok: true,
+        uatOnly: true,
+        faceVerificationBypassed: true,
+        attendanceAccepted: true,
+        eventIntent: result.event?.eventType || null,
+        idempotent: result.idempotent === true,
+        event: result.event,
+        session: result.session,
+        site: result.site || null,
+        workDate: result.workDate || null,
+        geofence: result.geofence || null
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        uatOnly: true,
+        faceVerificationBypassed: true,
+        attendanceAccepted: false,
+        eventIntent: null,
+        event: null,
+        session: null,
+        site: null,
+        workDate: null,
+        geofence: null,
+        readiness: mapAttendanceDomainOutcome(error)
+      };
+    }
+  }
   async function beginVerification({ actor, captureId, attendanceEvidence } = {}) {
     if (!runtimeEnabled()) {
       return { ok: false, eventIntent: null, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }), verification: null };
@@ -138,6 +175,7 @@ function createAttendanceApiContractService({
       return {
         ok: true,
         attendanceAccepted: true,
+        eventIntent: result.event?.eventType || null,
         idempotent: result.idempotent === true,
         event: result.event,
         session: result.session
@@ -154,6 +192,7 @@ function createAttendanceApiContractService({
   return {
     assessReadiness,
     assessGpsOnlyUat,
+    acceptGpsOnlyUatEvent,
     beginVerification,
     verifyDeviceProof,
     verifyLiveFace,

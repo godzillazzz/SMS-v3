@@ -205,6 +205,17 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
   }, async (req, res, next) => {
     try { const input = prepareInput.parse(req.body); res.json({ data: await service.assessGpsOnlyUat({ actor: req.user, ...input }) }); } catch (error) { next(error); }
   });
+
+  router.post('/uat/gps-events', (req, res, next) => {
+    if (environment.VERCEL_ENV !== 'preview') return next(new HttpError(404, 'Not found.'));
+    return next();
+  }, async (req, res, next) => {
+    try {
+      const input = prepareInput.parse(req.body);
+      const result = await service.acceptGpsOnlyUatEvent({ actor: req.user, ...input });
+      res.status(result.attendanceAccepted === true && result.idempotent !== true ? 201 : 200).json({ data: result });
+    } catch (error) { next(error); }
+  });
   router.post('/verification/start', async (req, res, next) => {
     try { const input = prepareInput.parse(req.body); res.status(201).json({ data: await service.beginVerification({ actor: req.user, ...input }) }); } catch (error) { next(error); }
   });

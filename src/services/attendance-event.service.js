@@ -231,6 +231,136 @@ function createAttendanceEventService({
     return { event: safeEvent(row), session: safeSession(row.session), idempotent: true };
   }
 
+  async function existingGpsOnlyUatCapture(client, identity, captureId) {
+    const row = await client.attendanceEvent.findUnique({ where: { captureId }, include: { session: true } });
+    if (!row) return null;
+    if (row.session.employeeId !== identity.employeeId || row.provenance !== 'GPS_ONLY_UAT') {
+      throw http(409, 'ATTENDANCE_CAPTURE_ID_CONFLICT', 'captureId already belongs to a different Attendance event.');
+    }
+    return { event: safeEvent(row), session: safeSession(row.session), idempotent: true, site: null, workDate: row.session.workDate || null, geofence: null };
+  }
+
+  async function acceptGpsOnlyUatEvent({ actor, captureId, attendanceEvidence }) {
+    const normalizedCaptureId = normalizedUuid(captureId, 'ATTENDANCE_CAPTURE_ID_INVALID');
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const identity = await actorIdentity(tx, actor);
+        const alreadyCommitted = await existingGpsOnlyUatCapture(tx, identity, normalizedCaptureId);
+        if (alreadyCommitted) return alreadyCommitted;
+        if (typeof verificationContext.prepareGpsOnlyUat !== 'function') {
+          throw http(500, 'ATTENDANCE_GPS_UAT_UNAVAILABLE', 'GPS-only UAT verifier is unavailable.');
+        }
+        const prepared = await verificationContext.prepareGpsOnlyUat({ actor, captureId: normalizedCaptureId, attendanceEvidence }, tx);
+        const attendanceContext = prepared?.attendanceContext;
+        const intent = eventIntent(prepared?.eventIntent);
+        if (!attendanceContext || attendanceContext.captureId !== normalizedCaptureId || attendanceContext.eventIntent !== intent) {
+          throw http(409, 'ATTENDANCE_CONTEXT_STALE', 'GPS-only UAT context changed before Attendance acceptance.');
+        }
+
+        const existing = await existingCapture(tx, identity, normalizedCaptureId, intent, attendanceContext);
+        if (existing) return { ...existing, site: prepared.site || null, workDate: prepared.workDate || null, geofence: prepared.geofence || null };
+
+        const contextDigest = sha256Json({
+          version: 'ATTENDANCE_GPS_ONLY_UAT_CONTEXT_V1',
+          purpose: 'ATTENDANCE_EVENT',
+          provenance: 'GPS_ONLY_UAT',
+          captureId: normalizedCaptureId,
+          eventIntent: intent,
+          identity,
+          shiftAssignmentId: attendanceContext.shiftAssignmentId,
+          evidence: attendanceContext.evidence
+        });
+        const resolved = {
+          contextDigest,
+          contextRef: attendanceContext,
+          authority: {
+            userId: identity.userId,
+            employeeId: identity.employeeId,
+            shiftAssignmentId: attendanceContext.shiftAssignmentId,
+            securitySiteId: prepared?.site?.id,
+            securitySiteAuthoritySource: prepared?.site?.authoritySource || null,
+            workDate: prepared?.workDate || null
+          }
+        };
+        if (!resolved.authority.securitySiteId) throw http(409, 'ATTENDANCE_SITE_STALE', 'GPS-only UAT Site authority is unavailable.');
+
+        const expectation = await loadExpectation(tx, resolved);
+        const now = clock();
+        const session = await sessionForEvent(tx, resolved, expectation, intent, now);
+        const sameType = await tx.attendanceEvent.findUnique({ where: { sessionId_eventType: { sessionId: session.id, eventType: intent } } });
+        if (sameType) throw http(409, intent === 'CHECK_IN' ? 'ATTENDANCE_ALREADY_CHECKED_IN' : 'ATTENDANCE_ALREADY_CHECKED_OUT', `${intent} already exists for this Attendance session.`);
+        if (intent === 'CHECK_OUT') {
+          const checkedIn = await tx.attendanceEvent.findUnique({ where: { sessionId_eventType: { sessionId: session.id, eventType: 'CHECK_IN' } } });
+          if (!checkedIn) throw http(409, 'ATTENDANCE_CHECK_IN_REQUIRED', 'CHECK_IN is required before CHECK_OUT.');
+        }
+
+        const event = await tx.attendanceEvent.create({
+          data: {
+            sessionId: session.id,
+            faceVerificationSessionId: null,
+            captureId: normalizedCaptureId,
+            eventType: intent,
+            provenance: 'GPS_ONLY_UAT',
+            receivedAt: now,
+            effectiveEventAt: now,
+            timeBasis: 'SERVER_RECEIVED',
+            contextDigest,
+            locationEvidence: attendanceContext.evidence,
+            verificationSnapshot: {
+              mode: 'GPS_ONLY_UAT',
+              faceVerificationBypassed: true,
+              deviceVerificationBypassed: true,
+              verifiedAt: now.toISOString(),
+              siteId: prepared.site?.id || null,
+              geofenceClassification: prepared.geofence?.classification || null,
+              qrMode: prepared.geofence?.qrMode || null,
+              riskFlags: Array.isArray(prepared.geofence?.riskFlags) ? prepared.geofence.riskFlags : []
+            }
+          }
+        });
+
+        let finalSession = session;
+        if (intent === 'CHECK_OUT') {
+          finalSession = await tx.attendanceSession.update({ where: { id: session.id }, data: { state: 'CLOSED', closedAt: now } });
+        }
+
+        await audit.log({
+          actorUserId: identity.userId,
+          action: 'CREATE',
+          entityType: 'AttendanceEvent',
+          entityId: event.id,
+          metadata: {
+            sessionId: session.id,
+            shiftAssignmentId: session.shiftAssignmentId,
+            eventType: intent,
+            timeBasis: 'SERVER_RECEIVED',
+            provenance: 'GPS_ONLY_UAT',
+            securitySiteId: session.expectedSiteId,
+            verificationSessionId: null,
+            faceVerificationBypassed: true
+          }
+        }, tx);
+
+        return {
+          event: safeEvent(event),
+          session: safeSession(finalSession),
+          idempotent: false,
+          site: prepared.site || null,
+          workDate: prepared.workDate || null,
+          geofence: prepared.geofence || null
+        };
+      });
+    } catch (error) {
+      if (error?.code === 'P2002') {
+        const identity = await actorIdentity(prisma, actor);
+        const existing = await existingGpsOnlyUatCapture(prisma, identity, normalizedCaptureId).catch(() => null);
+        if (existing) return existing;
+        throw http(409, 'ATTENDANCE_EVENT_CONFLICT', 'Attendance event state changed. Please refresh and retry.');
+      }
+      throw error;
+    }
+  }
+
   async function acceptVerifiedEvent({ actor, receipt, attendanceContext }) {
     const captureId = normalizedUuid(attendanceContext?.captureId, 'ATTENDANCE_CAPTURE_ID_INVALID');
     const intent = eventIntent(attendanceContext?.eventIntent);
@@ -315,7 +445,7 @@ function createAttendanceEventService({
     }
   }
 
-  return { acceptVerifiedEvent };
+  return { acceptGpsOnlyUatEvent, acceptVerifiedEvent };
 }
 
 module.exports = {

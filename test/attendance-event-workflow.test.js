@@ -82,12 +82,23 @@ function resolved(captureId, eventIntent) {
 }
 
 function fakeVerification() {
-  const calls = { resolve: [], consume: [] };
+  const calls = { resolve: [], consume: [], gps: [] };
   return {
     calls,
     resolveContextRef: async ({ ref }, client) => {
       calls.resolve.push({ ref, client });
       return resolved(ref.captureId, ref.eventIntent);
+    },
+    prepareGpsOnlyUat: async ({ captureId, attendanceEvidence }, client) => {
+      const eventIntent = captureId === ids.captureOut ? 'CHECK_OUT' : 'CHECK_IN';
+      calls.gps.push({ captureId, attendanceEvidence, client });
+      return {
+        eventIntent,
+        attendanceContext: contextRef(captureId, eventIntent),
+        site: { id: ids.site, name: 'HQ', authoritySource: 'SCHEDULE', expectedSiteId: ids.site, actualSiteId: ids.site },
+        workDate: '2026-08-24',
+        geofence: { inside: true, classification: 'CONFIDENT_INSIDE', distanceMeters: 3.2, qrMode: 'GPS_ASSURED', riskFlags: [] }
+      };
     },
     consumeVerificationInTransaction: async ({ tx, attendanceContext }) => {
       calls.consume.push({ tx, attendanceContext });
@@ -216,6 +227,60 @@ test('CHECK_IN creates one OPEN AttendanceSession and one ONLINE server-time eve
   assert.equal(JSON.stringify(audit.calls[0].entry).includes('receipt-secret'), false);
 });
 
+test('GPS-only UAT CHECK_IN creates an explicit GPS_ONLY_UAT event with no FaceVerificationSession', async () => {
+  const { db, state } = fakeDb();
+  const verification = fakeVerification();
+  const audit = auditFake();
+  const service = createAttendanceEventService({ prisma: db, audit, verificationContextService: verification, clock: () => now });
+  const attendanceEvidence = { location: { latitude: 13.7241, longitude: 100.5701, accuracyMeters: 8, capturedAt: now.toISOString() } };
+  const result = await service.acceptGpsOnlyUatEvent({ actor: { sub: ids.user }, captureId: ids.captureIn, attendanceEvidence });
+
+  assert.equal(result.idempotent, false);
+  assert.equal(result.session.state, 'OPEN');
+  assert.equal(result.event.eventType, 'CHECK_IN');
+  assert.equal(result.event.provenance, 'GPS_ONLY_UAT');
+  assert.equal(result.event.faceVerificationSessionId, null);
+  assert.equal(state.events[0].verificationSnapshot.mode, 'GPS_ONLY_UAT');
+  assert.equal(state.events[0].verificationSnapshot.faceVerificationBypassed, true);
+  assert.equal(state.events[0].verificationSnapshot.deviceVerificationBypassed, true);
+  assert.equal(verification.calls.gps.length, 1);
+  assert.equal(verification.calls.consume.length, 0);
+  assert.equal(audit.calls[0].entry.metadata.provenance, 'GPS_ONLY_UAT');
+  assert.equal(audit.calls[0].entry.metadata.verificationSessionId, null);
+});
+
+test('GPS-only UAT same capture retry returns the committed event before resolving a new server intent', async () => {
+  const session = sessionFromExpectation();
+  const existing = checkInEvent({ faceVerificationSessionId: null, provenance: 'GPS_ONLY_UAT' });
+  const { db } = fakeDb({ initialSession: session, initialEvents: [existing] });
+  const verification = fakeVerification();
+  verification.prepareGpsOnlyUat = async () => { throw new Error('idempotent retry must not resolve a new intent'); };
+  const service = createAttendanceEventService({ prisma: db, audit: auditFake(), verificationContextService: verification, clock: () => now });
+  const result = await service.acceptGpsOnlyUatEvent({ actor: { sub: ids.user }, captureId: ids.captureIn, attendanceEvidence: {} });
+
+  assert.equal(result.idempotent, true);
+  assert.equal(result.event.id, ids.eventIn);
+  assert.equal(result.event.provenance, 'GPS_ONLY_UAT');
+  assert.equal(verification.calls.gps.length, 0);
+  assert.equal(verification.calls.consume.length, 0);
+});
+
+test('GPS-only UAT CHECK_OUT requires CHECK_IN and closes the same AttendanceSession', async () => {
+  const session = sessionFromExpectation();
+  const gpsCheckIn = checkInEvent({ faceVerificationSessionId: null, provenance: 'GPS_ONLY_UAT' });
+  const { db, state } = fakeDb({ initialSession: session, initialEvents: [gpsCheckIn] });
+  const verification = fakeVerification();
+  const service = createAttendanceEventService({ prisma: db, audit: auditFake(), verificationContextService: verification, clock: () => now });
+  const attendanceEvidence = { location: { latitude: 13.7241, longitude: 100.5701, accuracyMeters: 8, capturedAt: now.toISOString() } };
+  const result = await service.acceptGpsOnlyUatEvent({ actor: { sub: ids.user }, captureId: ids.captureOut, attendanceEvidence });
+
+  assert.equal(result.event.eventType, 'CHECK_OUT');
+  assert.equal(result.event.provenance, 'GPS_ONLY_UAT');
+  assert.equal(result.event.faceVerificationSessionId, null);
+  assert.equal(result.session.state, 'CLOSED');
+  assert.equal(state.events.length, 2);
+  assert.equal(verification.calls.consume.length, 0);
+});
 test('approved auto-schedule row remains valid at event acceptance when it is not manually locked', async () => {
   const { db, state } = fakeDb({ assignmentRow: assignment({ locked: false }) });
   const verification = fakeVerification();
@@ -291,23 +356,29 @@ test('second CHECK_IN with a different captureId is rejected before receipt cons
   assert.equal(verification.calls.consume.length, 0);
 });
 
-test('schema/migration enforce one session per shift, one event type per session, one face verification per event and server-time semantics', () => {
+test('schema/migrations enforce session uniqueness, server time, and explicit ONLINE versus GPS_ONLY_UAT verification provenance', () => {
   const root = path.resolve(__dirname, '..');
   const schema = fs.readFileSync(path.join(root, 'prisma', 'schema.prisma'), 'utf8');
-  const migration = fs.readFileSync(path.join(root, 'prisma', 'migrations', '202608240004_g06_attendance_event_workflow_v1', 'migration.sql'), 'utf8');
+  const baseMigration = fs.readFileSync(path.join(root, 'prisma', 'migrations', '202608240004_g06_attendance_event_workflow_v1', 'migration.sql'), 'utf8');
+  const gpsUatMigration = fs.readFileSync(path.join(root, 'prisma', 'migrations', '202609280001_g06_gps_only_uat_event_provenance', 'migration.sql'), 'utf8');
   assert.match(schema, /model AttendanceSession \{/);
   assert.match(schema, /shiftAssignmentId\s+String\s+@unique/);
   assert.match(schema, /expectationDigest\s+String/);
   assert.match(schema, /model AttendanceEvent \{/);
-  assert.match(schema, /faceVerificationSessionId\s+String\s+@unique/);
+  assert.match(schema, /faceVerificationSessionId\s+String\?\s+@unique/);
+  assert.match(schema, /AttendanceEventProvenance[\s\S]*GPS_ONLY_UAT/);
   assert.match(schema, /captureId\s+String\s+@unique/);
   assert.match(schema, /@@unique\(\[sessionId, eventType\]\)/);
-  assert.match(migration, /attendance_sessions_closed_state_check/);
-  assert.match(migration, /attendance_sessions_expectation_digest_format/);
-  assert.match(migration, /attendance_events_server_time_check/);
-  assert.match(migration, /attendance_events_context_digest_format/);
+  assert.match(baseMigration, /attendance_sessions_closed_state_check/);
+  assert.match(baseMigration, /attendance_sessions_expectation_digest_format/);
+  assert.match(baseMigration, /attendance_events_server_time_check/);
+  assert.match(baseMigration, /attendance_events_context_digest_format/);
+  assert.match(gpsUatMigration, /GPS_ONLY_UAT/);
+  assert.match(gpsUatMigration, /ALTER COLUMN "face_verification_session_id" DROP NOT NULL/);
+  assert.match(gpsUatMigration, /attendance_events_verification_provenance_check/);
+  assert.match(gpsUatMigration, /"provenance" = 'ONLINE'[\s\S]*"face_verification_session_id" IS NOT NULL/);
+  assert.match(gpsUatMigration, /"provenance" = 'GPS_ONLY_UAT'[\s\S]*"face_verification_session_id" IS NULL/);
 });
-
 test('Attendance event service remains behind the gated API contract with no direct route coupling', () => {
   const root = path.resolve(__dirname, '..');
   const routesRoot = path.join(root, 'src', 'routes');
