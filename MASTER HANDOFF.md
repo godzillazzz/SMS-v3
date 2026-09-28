@@ -122,3 +122,22 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - Operational smoke: HTTP 200, Content-Length 2573, ETag `"a351e61cc319c0f88bff4d647900a3bc"`.
 - No DB migration/change and no intentional API, Permission, or RBAC behavior change.
 - Rollback reference: previous Production `dpl_8XXKhUajEKkBeqA6yWgUjAzCinQE` (`https://sms-v3-staging-k4p9m9r3b-godzillazz.vercel.app`).
+
+## Production Hardening Release Gate — 2026-09-28
+
+- Source commit: `44496f5` (`ci: enforce production hardening release gates`).
+- CI now runs on `preview/enterprise-evolution-20260927` and enforces frontend build verification.
+- Performance budget gate: main JS <=525,000 bytes, GIS lazy map chunk <=1,100,000 bytes, other JS chunks <=500,000 bytes, and GIS lazy chunk must exist. Current measured main: 500,768 bytes; GIS: 1,040,094 bytes; 42 JS chunks. PASS.
+- Production hardening contract covers explicit loading/empty/permission/error states plus Light/Dark, mobile and accessibility release contracts.
+- UAT technical smoke was repaired to follow the current accessible login CTA instead of a stale exact label.
+- Targeted hardening suite: 10/10 files, 55/55 tests passed.
+- Full frontend regression: 106/106 files, 729/729 tests passed.
+- UAT configuration contract: 6/6 passed; 33 Playwright tests discovered. Authenticated role flows remain credential-gated and no credentials were invented or embedded.
+- Production technical Playwright smoke: 4/4 passed (HTTP/health/readiness/assets/auth boundary + login browser smoke at 390/768/1440).
+- Build: PASS, 416 modules transformed. Existing Vite >500 kB advisory remains, while explicit release budgets pass.
+- Preview RC: `dpl_FEJVw9KmvMgBpk9wjFkeqC49Wm5e`, Ready.
+- Production: `dpl_CRMfif9bYWb2g2bGsocUgFMMaqCm`, Ready, artifact `https://sms-v3-staging-1wxrgfi84-godzillazz.vercel.app`.
+- Canonical and operational (`sms-v3-staging-ten`) aliases explicitly point to this Production deployment.
+- Operational smoke: HTTP 200, Content-Length 2573, ETag `"a351e61cc319c0f88bff4d647900a3bc"`.
+- No DB migration/change and no intentional API, Permission, or RBAC behavior change.
+- Rollback reference: previous Production `dpl_DqtuNmZXbd52RX5bUWQrhMsjaRwY` (`https://sms-v3-staging-8oxgyvzu1-godzillazz.vercel.app`).
