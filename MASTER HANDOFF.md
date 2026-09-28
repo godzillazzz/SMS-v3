@@ -352,3 +352,33 @@ User requested that work be recorded here before continuing in a new chat.
 - Existing rollback workflow validates project/org/deployment identity, requires explicit confirmation, promotes only an existing Ready production deployment, and verifies canonical health after rollback; it does not roll back database migrations.
 - Existing automated UAT workflow is manual/dispatch-driven and already includes technical smoke plus artifact leak scanning. It was not dispatched from this addendum because Production technical/full runnable smoke was already executed directly during Phase 5 and passed.
 - Remaining acceptance work is strictly external/privileged: approved real ADMIN/MANAGER/VIEWER credentials for authenticated workflows and any human business-owner sign-off.
+
+
+## G06 current-baseline re-audit — 2026-09-28
+
+### Why the August handoff is no longer a complete status source
+- The August G06 Department ↔ SecuritySite closure correctly stated `ATTENDANCE_V1_100_PERCENT=NO` for that historical gate, but the current branch contains substantial later Attendance V1 implementation.
+- Current source includes dedicated services for event acceptance, result derivation, supervisor reads, corrections/adjustments, month governance/certification, official reporting, device enrollment, readiness, Site evidence, face verification, and retention-related operations.
+- Current integration inventory includes Attendance event workflow, verification context, adjustment V4, governance, device enrollment, and SecuritySite authority/open-session pinning suites.
+
+### Current evidence gathered without privileged credentials
+- G06 security/face/provisioning targeted backend suite: 37/37 PASS.
+- Focused frontend G06/Attendance/SecuritySite suite: 17 files, 115/115 tests PASS.
+- Broader local Attendance/Schedule/SecuritySite unit selection executed 238 tests: 230 PASS and 8 FAIL. The observed failures are local-environment bound (missing `DATABASE_URL` / `JWT_SECRET` and direct Prisma initialization without a local database), not a newly identified deterministic source regression.
+- The exact branch already has authoritative database-backed CI success recorded for commit `2a673a8`, including `npm test`, integration tests, authoritative Attendance event integration, frontend tests, TypeScript, build and bundle verification.
+
+### Attendance capabilities now evidenced in current source/tests
+- Server-authoritative CHECK_IN/CHECK_OUT event commit, idempotency, immutable event/session rules and server-time semantics.
+- Expected/actual Site handling, assist-other-site outcome, QR hashing/revocation/version authority, GPS accuracy/freshness/geofence and uncertainty-aware QR step-up.
+- Approved schedule and auto-schedule authority, Bangkok work-date handling, overnight shifts and expectation pinning.
+- Attendance result vocabulary including late, early-out, absent, missing check-in/out, leave and time-abnormal behavior.
+- Supervisor daily/history/detail read models and attention summaries.
+- Governed correction/adjustment flow, monthly governance/certification and official certified-report projection/XLSX generation.
+- Device enrollment/governance, face-verification fail-closed boundaries, routine no-retention rules and Preview-only UAT provisioning controls.
+
+### Remaining gates that still require external evidence
+- Do not claim G06/Attendance V1 100% complete from automated code evidence alone.
+- Physical/on-device PWA, camera/face Active Challenge, GPS/permission behavior and real mobile-browser UAT still require approved real device/user execution.
+- Real authenticated role workflows still require approved UAT credentials.
+- Any business acceptance of payroll/timekeeping interpretation and certified official reports requires human owner sign-off.
+- Production mutation/release is not authorized by this re-audit.
