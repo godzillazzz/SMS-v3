@@ -10,7 +10,7 @@ const page = read('pages/approvals/ApprovalCenterPage.tsx');
 const review = read('components/personnel/EmployeeChangeReviewModal.tsx');
 const css = read('styles/approval-center.css');
 
-describe('Approval Center Command Nexus v4.8 frontend contracts', () => {
+describe('Approval Center Command Nexus frontend contracts', () => {
   it('keeps Approval Center role scope and the existing aggregate API', () => {
     expect(main).toContain("{ label: 'ตรวจสอบ', items: [");
     expect(main).toContain("{ id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' }");

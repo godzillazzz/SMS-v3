@@ -326,7 +326,7 @@
   .security-site-confirm-dialog__actions button { width: 100%; }
 }
 
-/* SMS Command Nexus v4.8 — GIS Surveillance / strict zero-white */
+/* SMS Command Nexus — GIS Surveillance / strict zero-white */
 .nexus-gis-workspace{margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:#020813!important;background-color:#020813!important;color:#c8dde3!important;box-shadow:none!important;font-family:"Plus Jakarta Sans","Kanit",sans-serif;color-scheme:dark}
 .nexus-gis-workspace .gis-legacy-header{display:none!important}
 .gis-command-header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:22px 20px 18px;border:1px solid rgba(37,184,211,.18);border-radius:6px;background:linear-gradient(120deg,#061421,#020f1c);box-shadow:inset 2px 0 #25b8d3}

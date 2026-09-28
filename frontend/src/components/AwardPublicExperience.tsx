@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CyberGlobe } from './CyberGlobe';
 
 type AwardPublicExperienceProps = { showLanding: boolean; renderLogo: () => ReactNode };
@@ -64,7 +64,7 @@ export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicEx
   if (!showLanding) return null;
 
   return (
-    <div className="nexus-public" data-design="sms-command-nexus-v4.8-full-bleed">
+    <div className="nexus-public" data-design="sms-command-nexus-full-bleed">
       <div className="nexus-grid-field" aria-hidden="true" />
       <div className="nexus-ambient nexus-ambient--north" aria-hidden="true" />
       <div className="nexus-ambient nexus-ambient--east" aria-hidden="true" />

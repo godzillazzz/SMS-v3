@@ -105,7 +105,7 @@
   .approval-center-detail{padding:12px}
 }
 
-/* Approval Center Command Nexus v4.8 preview */
+/* Approval Center Command Nexus preview */
 .nexus-approval-center{background:#020813!important;color:#cbd5e1!important;color-scheme:dark}
 .nexus-approval-center{--color-surface:#061421;--color-surface-muted:#020f1c;--color-surface-elevated:#0f1d2a;--color-primary-soft:#253545;--color-warning-soft:rgba(245,158,11,.12);--color-danger-soft:rgba(239,68,68,.12);--color-attention-soft:rgba(245,158,11,.12)}
 .nexus-approval-center *{box-sizing:border-box}

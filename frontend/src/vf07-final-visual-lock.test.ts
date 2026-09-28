@@ -42,12 +42,14 @@ describe('G04.2 VF-07 visual baseline with Owner brand correction', () => {
     for (const capability of ['ข้อมูลบุคลากร', 'ตารางกะและการลา', 'สิทธิ์และกฎการทำงาน']) expect(main).toContain(capability);
     expect(main).toContain('className="sms-brand-copy"');
     expect(publicExperience).toContain('<strong>SMS</strong><small>ระบบบริหารงานรักษาความปลอดภัย</small>');
-    expect(publicExperience).not.toContain('SMS <em>v4.8</em>');
+    expect(publicExperience).not.toMatch(/SMS <em>v\d+\.\d+<\/em>/);
     expect(publicExperience).not.toContain('DEFENSE MATRIX VER 4.8.19');
     expect(publicExperience).not.toContain('SECURE SURFACE / AUTHENTICATED ONLY');
     expect(publicExperience).not.toContain('Zero-Trust Login Console');
     expect(publicExperience).not.toContain('nexus-auth-transition');
     expect(operational).toContain('Unified SMS brand lockup — Owner reference, versionless.');
+    expect(publicExperience).not.toMatch(/\bv\d+\.\d+\b/i);
+    expect(operational).not.toMatch(/\bv\d+\.\d+\b/i);
     expect(operational).toContain('border:1px solid rgba(37,184,211,.52)!important;');
     expect(operational).toContain('background:linear-gradient(145deg,rgba(10,31,47,.98),rgba(3,13,24,.98))!important;');
   });

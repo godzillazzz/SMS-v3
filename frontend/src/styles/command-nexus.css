@@ -1,4 +1,4 @@
-﻿/* SMS Command Nexus — Masterpiece v4.8 Full-Bleed */
+/* SMS Command Nexus — Masterpiece Full-Bleed */
 :root{--nexus-canvas:#020813;--nexus-surface:#061421;--nexus-card:#091b2c;--nexus-cyan:#25b8d3;--nexus-cyan-soft:#a5f3fc;--nexus-cyan-dark:#13788c;--nexus-line:rgba(37,184,211,.16);--nexus-line-strong:rgba(37,184,211,.38);--nexus-text:#f1f5f9;--nexus-muted:#8194a6;--nexus-dim:#526779}
 .font-mono-tech{font-family:"JetBrains Mono","IBM Plex Mono",ui-monospace,monospace}
 @keyframes nexusPulseGlow{0%,100%{opacity:.42;transform:scale(1)}50%{opacity:.82;transform:scale(1.035)}}
