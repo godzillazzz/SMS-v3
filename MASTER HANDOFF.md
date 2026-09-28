@@ -220,3 +220,41 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - Direct Playwright technical smoke was attempted and all 4 scenarios were blocked by `PROTECTED_DEPLOYMENT_UNVERIFIED` from Vercel Deployment Protection (HTTP/audit boundary plus login browser smoke at 390/768/1440). This is an access gate, not evidence of an application regression.
 - No Deployment Protection setting was weakened and no bypass secret or role credential was invented.
 - Production was not promoted; it remains `dpl_ChtNFvkW8vZ1qxdReZMZJnc1Q78Z` pending approved Automation Bypass and direct Preview E2E clearance.
+
+## Continuation checkpoint — 2026-09-28 10:xx ICT
+
+User requested that work be recorded here before continuing in a new chat.
+
+### Current source / worktree
+- Isolated worktree: `C:\40.AI\_sms_v3_enterprise_preview`
+- Branch: `preview/enterprise-evolution-20260927`
+- Current source commit at checkpoint: `d461c14 feat(frontend): harden competition grade accessibility`
+- Phase 3 local QA already completed: targeted 31/31; full frontend 110/110 files, 738/738 tests; build PASS (417 modules); UAT config 6/6; Playwright discovery 33 tests / 5 files.
+- Bundle baseline: main JS ~364.9 KB / 400 KB; GIS ~151.94 KB / 300 KB; main CSS ~683.5 KB / 700 KB on latest Vercel Preview build; 43 JS chunks.
+- No API/DB/RBAC behavior change. Theme control remains 3 icons. Dashboard eager loading and GIS lazy Leaflet behavior preserved.
+
+### Latest Phase 3 Preview verification
+- New Preview deployment: `dpl_GMh7uE89Y8RUJmGBpRmu6H7tmuY3`
+- Preview URL: `https://sms-v3-staging-rarjr1dbk-godzillazz.vercel.app`
+- Vercel status: Ready.
+- Authenticated `vercel curl` against the exact deployment succeeded for `/` with HTTP 200.
+- Preview ETag: `W/"a22384aecafc573aba6a79cc9860a82b"`.
+- Exact built assets observed include `assets/index-DPK5MZLm.js`, `assets/index-C6E_BkOL.css`, `react-vendor-BKbRJdrT.js`, `webauthn-vendor-CAMkWa7m.js`.
+- `/api/health` is not a defined route on this deployment (`Route not found`); do not treat that alone as a frontend regression.
+- Direct Playwright Preview technical smoke was re-run without weakening Deployment Protection. It remained blocked/failing on protected Preview access (same infrastructure constraint as earlier Phase 3). Authenticated CLI artifact verification is the available exact-deployment verification path unless an approved Automation Bypass secret is configured.
+- Never invent or expose a bypass secret or ADMIN/MANAGER/VIEWER credentials.
+
+### Production state / safety
+- Phase 3 has NOT been promoted to Production at this checkpoint.
+- Current Production remains Phase 2: `dpl_ChtNFvkW8vZ1qxdReZMZJnc1Q78Z`.
+- Do not touch the dirty main worktree `C:\40.AI\_sms_v3_roster_prod`.
+- Preserve Deployment Protection. Prefer authenticated `vercel curl` verification when no approved bypass secret exists.
+
+### Next-chat continuation
+1. Read this MASTER HANDOFF first and inspect `git status --short` plus latest commits.
+2. Confirm the latest Preview `dpl_GMh7uE89Y8RUJmGBpRmu6H7tmuY3` is Ready and exact artifact verification still succeeds.
+3. Inspect the completed Playwright smoke output/test-results and accurately record that direct browser Preview access is protection-blocked; clean only generated test artifacts if untracked/ignored.
+4. If the established authenticated artifact gate is accepted, promote the exact Preview to Production; rollback reference is `dpl_ChtNFvkW8vZ1qxdReZMZJnc1Q78Z`.
+5. Verify final Production aliases from Vercel before assigning; historically `sms-v3-staging-ten.vercel.app` and the explicit prior alias `sms-v3-staging-godzillazzz.vercel.app` were used. Do not guess alias spelling.
+6. Run final Production technical E2E 4/4 against the canonical unprotected Production alias, verify HTTP/artifact/ETag, then append final Phase 3 closure here.
+7. Commit/push the handoff update, restore generated `frontend/tsconfig.tsbuildinfo` if modified, and finish with a clean isolated worktree.
