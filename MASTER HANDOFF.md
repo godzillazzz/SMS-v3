@@ -105,3 +105,20 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - Public alias `https://sms-v3-staging-ten.vercel.app` was explicitly assigned to the same Production deployment and returned HTTP 200, Content-Length 2573, ETag `"cf3ab9dbc380d4ff56b12d16e348b854"`.
 - No database migration/change. No intentional API, Permission, or RBAC behavior change.
 - Release scope closed: Light Roster surfaces and Dark Mode employee/personnel card surfaces are included in the same verified Production release.
+
+## Enterprise Quality Closure — 2026-09-28
+
+- Source commit: `d2a8b7e` (`feat(frontend): harden enterprise mobile accessibility`).
+- Performance audit confirmed Security Site panel and MapLibre picker remain route/map lazy. Production build still reports `SecuritySiteManagementPanel` 61.53 kB, main `index` 500.76 kB, and lazy `SecuritySiteMapPicker` 1,040.09 kB; no risky Dashboard contract change was made.
+- Theme hardening: permanent quality contract locks recent Light Roster and Dark Personnel regressions in addition to the authenticated hard-dark surface guard.
+- Mobile UX: authenticated enterprise cards are width-contained and horizontal table scrollers use contained momentum scrolling at <=640px.
+- Accessibility: coarse-pointer authenticated controls receive 44x44 minimum targets; existing global focus-visible and reduced-motion contracts remain enforced.
+- Targeted quality suite: 10/10 files, 61/61 tests passed.
+- Full regression: 105/105 files, 726/726 tests passed.
+- Production build: PASS, 416 modules transformed; existing >500 kB chunk warning remains.
+- Preview RC: `dpl_Fa1hov8SE6Py3vdxthVANGAJo97H`, Ready.
+- Production: `dpl_DqtuNmZXbd52RX5bUWQrhMsjaRwY`, Ready, artifact `https://sms-v3-staging-8oxgyvzu1-godzillazz.vercel.app`.
+- Canonical and operational (`sms-v3-staging-ten`) aliases explicitly point to this Production deployment.
+- Operational smoke: HTTP 200, Content-Length 2573, ETag `"a351e61cc319c0f88bff4d647900a3bc"`.
+- No DB migration/change and no intentional API, Permission, or RBAC behavior change.
+- Rollback reference: previous Production `dpl_8XXKhUajEKkBeqA6yWgUjAzCinQE` (`https://sms-v3-staging-k4p9m9r3b-godzillazz.vercel.app`).
