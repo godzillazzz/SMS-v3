@@ -570,7 +570,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .brand-mark::before,.brand-mark::after{content:"";position:absolute;width:8px;height:8px;pointer-events:none}
 .brand-mark::before{left:-3px;top:-3px;border-left:1px solid #7ce8f7;border-top:1px solid #7ce8f7}
 .brand-mark::after{right:-3px;bottom:-3px;border-right:1px solid #7ce8f7;border-bottom:1px solid #7ce8f7}
-.brand-mark>b{font-family:"Plus Jakarta Sans","Kanit",sans-serif!important;font-weight:800!important;letter-spacing:.035em!important}
+
 .sms-brand-copy{display:grid!important;gap:2px!important;min-width:0}
 .sms-brand-copy :is(b,strong){color:inherit;font-weight:750;line-height:1.1}
 .sms-brand-copy :is(span,small,strong){white-space:nowrap}

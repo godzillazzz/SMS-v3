@@ -366,20 +366,14 @@ code, .audit-entity-id, .personnel-table code { font-family: var(--font-mono) !i
 
   /* Mobile brand is a complete SMS mark, never an apparent "S…" truncation. */
   .mobile-brand { min-width: 0; gap: 8px !important; }
-  .mobile-brand .brand-mark {
+  .mobile-brand .brand-logo {
     width: 36px !important;
     height: 36px !important;
     flex: 0 0 36px !important;
-    font-size: 11px !important;
+
     overflow: visible !important;
   }
-  .mobile-brand .brand-mark b {
-    display: block !important;
-    max-width: none !important;
-    overflow: visible !important;
-    text-overflow: clip !important;
-    white-space: nowrap !important;
-  }
+
   .mobile-brand > span:last-child { min-width: 0; }
   .mobile-brand > span:last-child b { font-size: 13px; }
   .mobile-brand > span:last-child small { font-size: 10px; }
