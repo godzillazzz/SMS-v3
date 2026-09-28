@@ -66,6 +66,15 @@ function createAttendanceApiContractService({
     }
   }
 
+  async function assessGpsOnlyUat({ actor, captureId, attendanceEvidence } = {}) {
+    try {
+      const resolvedIntent = await resolveServerIntent(actor);
+      const prepared = await verification.prepareContext({ actor, captureId, eventIntent: resolvedIntent.eventIntent, attendanceEvidence });
+      return { ok: true, diagnosticOnly: true, faceVerificationBypassed: true, attendanceAccepted: false, eventIntent: resolvedIntent.eventIntent, attendanceContext: prepared.attendanceContext || null, authority: prepared.authority || null };
+    } catch (error) {
+      return { ok: false, diagnosticOnly: true, faceVerificationBypassed: true, attendanceAccepted: false, eventIntent: null, attendanceContext: null, authority: null, readiness: mapAttendanceDomainOutcome(error) };
+    }
+  }
   async function beginVerification({ actor, captureId, attendanceEvidence } = {}) {
     if (!runtimeEnabled()) {
       return { ok: false, eventIntent: null, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }), verification: null };
@@ -131,6 +140,7 @@ function createAttendanceApiContractService({
 
   return {
     assessReadiness,
+    assessGpsOnlyUat,
     beginVerification,
     verifyDeviceProof,
     verifyLiveFace,

@@ -242,3 +242,26 @@ test('Attendance API contract remains provider-neutral after gated route skeleto
   assert.match(attendanceClient, /\/attendance\/events/);
   assert.doesNotMatch(attendanceClient, /face-verification-self-hosted|AWS_|Rekognition|padPassed|faceMatchPassed|receiptHash/);
 });
+
+test('GPS-only UAT validates server Site/GPS authority without biometric runtime and never claims Attendance acceptance', async () => {
+  const { calls, verification, events } = fakeDependencies();
+  verification.prepareContext = async (input) => {
+    calls.prepareContext.push(input);
+    return {
+      contextDigest: 'a'.repeat(64),
+      attendanceContext: { captureId, eventIntent: 'CHECK_IN', shiftAssignmentId: '66666666-6666-4666-8666-666666666666' },
+      authority: { securitySiteId: '77777777-7777-4777-8777-777777777777' }
+    };
+  };
+  const service = createAttendanceApiContractService({ verificationContextService: verification, attendanceEventService: events, isBiometricRuntimeEnabled: () => false });
+  const result = await service.assessGpsOnlyUat({ actor, captureId, attendanceEvidence });
+  assert.equal(result.ok, true);
+  assert.equal(result.diagnosticOnly, true);
+  assert.equal(result.faceVerificationBypassed, true);
+  assert.equal(result.attendanceAccepted, false);
+  assert.equal(result.eventIntent, 'CHECK_IN');
+  assert.equal(calls.resolveIntent.length, 1);
+  assert.equal(calls.prepareContext.length, 1);
+  assert.equal(calls.prepareVerification.length, 0);
+  assert.equal(calls.accept.length, 0);
+});
