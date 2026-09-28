@@ -360,7 +360,8 @@ test('schema/migrations enforce session uniqueness, server time, and explicit ON
   const root = path.resolve(__dirname, '..');
   const schema = fs.readFileSync(path.join(root, 'prisma', 'schema.prisma'), 'utf8');
   const baseMigration = fs.readFileSync(path.join(root, 'prisma', 'migrations', '202608240004_g06_attendance_event_workflow_v1', 'migration.sql'), 'utf8');
-  const gpsUatMigration = fs.readFileSync(path.join(root, 'prisma', 'migrations', '202609280001_g06_gps_only_uat_event_provenance', 'migration.sql'), 'utf8');
+  const gpsUatEnumMigration = fs.readFileSync(path.join(root, 'prisma', 'migrations', '202609280001_g06_gps_only_uat_event_provenance', 'migration.sql'), 'utf8');
+  const gpsUatConstraintMigration = fs.readFileSync(path.join(root, 'prisma', 'migrations', '202609280002_g06_gps_only_uat_event_provenance_constraint', 'migration.sql'), 'utf8');
   assert.match(schema, /model AttendanceSession \{/);
   assert.match(schema, /shiftAssignmentId\s+String\s+@unique/);
   assert.match(schema, /expectationDigest\s+String/);
@@ -373,11 +374,12 @@ test('schema/migrations enforce session uniqueness, server time, and explicit ON
   assert.match(baseMigration, /attendance_sessions_expectation_digest_format/);
   assert.match(baseMigration, /attendance_events_server_time_check/);
   assert.match(baseMigration, /attendance_events_context_digest_format/);
-  assert.match(gpsUatMigration, /GPS_ONLY_UAT/);
-  assert.match(gpsUatMigration, /ALTER COLUMN "face_verification_session_id" DROP NOT NULL/);
-  assert.match(gpsUatMigration, /attendance_events_verification_provenance_check/);
-  assert.match(gpsUatMigration, /"provenance" = 'ONLINE'[\s\S]*"face_verification_session_id" IS NOT NULL/);
-  assert.match(gpsUatMigration, /"provenance" = 'GPS_ONLY_UAT'[\s\S]*"face_verification_session_id" IS NULL/);
+  assert.match(gpsUatEnumMigration, /ADD VALUE IF NOT EXISTS 'GPS_ONLY_UAT'/);
+  assert.doesNotMatch(gpsUatEnumMigration, /attendance_events_verification_provenance_check/);
+  assert.match(gpsUatConstraintMigration, /ALTER COLUMN "face_verification_session_id" DROP NOT NULL/);
+  assert.match(gpsUatConstraintMigration, /attendance_events_verification_provenance_check/);
+  assert.match(gpsUatConstraintMigration, /"provenance" = 'ONLINE'[\s\S]*"face_verification_session_id" IS NOT NULL/);
+  assert.match(gpsUatConstraintMigration, /"provenance" = 'GPS_ONLY_UAT'[\s\S]*"face_verification_session_id" IS NULL/);
 });
 test('Attendance event service remains behind the gated API contract with no direct route coupling', () => {
   const root = path.resolve(__dirname, '..');

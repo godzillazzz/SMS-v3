@@ -52,7 +52,7 @@ test('G06 Preview migration verifier fails closed when any provenance invariant 
 test('G06 Preview migration workflow is manual, exact-source, fingerprint-guarded, and applies only the expected migration', () => {
   const fs = require('node:fs');
   const path = require('node:path');
-  const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'one-time-g06-gps-uat-preview-migration.yml'), 'utf8').replace(/\r\n/g, '\n');
+  const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'migrate-approved-preview.yml'), 'utf8').replace(/\r\n/g, '\n');
   assert.match(workflow, /^on:\n\s+workflow_dispatch:/m);
   assert.doesNotMatch(workflow, /^\s+(?:push|pull_request|schedule|repository_dispatch):/m);
   assert.match(workflow, /EXPECTED_SOURCE_BRANCH: preview\/enterprise-evolution-20260927/);
@@ -61,7 +61,9 @@ test('G06 Preview migration workflow is manual, exact-source, fingerprint-guarde
   assert.match(workflow, /verify-preview-migration-target\.js/);
   assert.match(workflow, /APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT/);
   assert.match(workflow, /APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT/);
-  assert.match(workflow, /grep -Fxq "MIGRATION_NAME=\$EXPECTED_MIGRATION_HEAD"/);
+  assert.match(workflow, /EXPECTED_ENUM_MIGRATION: 202609280001_g06_gps_only_uat_event_provenance/);
+  assert.match(workflow, /EXPECTED_MIGRATION_HEAD: 202609280002_g06_gps_only_uat_event_provenance_constraint/);
+  assert.match(workflow, /grep -Fxq "MIGRATION_NAME=\$EXPECTED_ENUM_MIGRATION,\$EXPECTED_MIGRATION_HEAD"/);
   assert.match(workflow, /prisma-migration\.js deploy/);
   assert.match(workflow, /verify-g06-gps-uat-preview-migration\.js/);
   assert.doesNotMatch(workflow, /prisma\s+migrate\s+resolve|prisma\s+db\s+push|prisma\s+db\s+seed|db:seed/i);

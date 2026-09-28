@@ -1,6 +1,6 @@
 'use strict';
 
-const EXPECTED_MIGRATION_HEAD = '202609280001_g06_gps_only_uat_event_provenance';
+const EXPECTED_MIGRATION_HEAD = '202609280002_g06_gps_only_uat_event_provenance_constraint';
 
 function queryRaw(prisma, sql) {
   if (typeof prisma?.$queryRawUnsafe !== 'function') throw new Error('Prisma read-only query capability is unavailable');
