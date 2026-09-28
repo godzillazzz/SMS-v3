@@ -263,7 +263,13 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 function Logo() {
-  return <span className="brand-mark" aria-label="SMS"><b>SMS</b></span>;
+  return (
+    <img
+      className="brand-logo"
+      src="/attendance-sms-logo.svg"
+      alt="SMS"
+    />
+  );
 }
 
 function readLeaveMonthFromUrl(): string {

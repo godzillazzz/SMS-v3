@@ -14,9 +14,15 @@ const index = fs.readFileSync(path.resolve(root, '../index.html'), 'utf8');
 const apiBytes = fs.readFileSync(path.join(root, 'api.ts'), 'utf8').replace(/\r\n/g, '\n');
 
 describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
-  it('renders the same approved SMS tile across desktop, login and mobile brand surfaces', () => {
+  it('renders the approved SMS logo asset across desktop, login and mobile brand surfaces', () => {
     expect(main).toContain('function Logo()');
-    expect(main).toContain('className="brand-mark" aria-label="SMS"><b>SMS</b>');
+    expect(main).toMatch(/<img\s+className="brand-logo"\s+src="\/attendance-sms-logo\.svg"\s+alt="SMS"\s*\/>/);
+    expect(main).toContain('renderLogo={() => <Logo />}');
+    expect(main).toContain('<div className="intro-brand auth-brand"><Logo />');
+    expect(main).toContain('<div className="auth-mobile-brand"><Logo />');
+    expect(main).toContain('<div className="sidebar-brand">');
+    expect(main).toContain('<span className="pwa-mobile-brand"><Logo />');
+    expect(main).toContain('<span className="mobile-brand"><Logo />');
     expect(main).toContain('className="intro-brand auth-brand"');
     expect(main).toContain('className="auth-mobile-brand"');
     expect(main).toContain('className="sidebar-brand"');
@@ -66,9 +72,9 @@ describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
 
   it('locks the reusable SMS tile to exact shared centered geometry', () => {
     expect(css).toContain('G04.2 VF-07.1 V2 — Owner exact SMS logo geometry lock');
-    expect(css).toMatch(/\.brand-mark \{[\s\S]*?position: relative;[\s\S]*?display: inline-grid !important;[\s\S]*?place-items: center !important;/);
-    expect(css).toMatch(/\.brand-mark > b \{[\s\S]*?top: 50%;[\s\S]*?left: 50%;[\s\S]*?transform: translate\(-50%, -50%\);[\s\S]*?color: #fff !important;[\s\S]*?line-height: 1;/);
-    expect(css).toMatch(/\.sidebar-brand \.brand-mark \{[\s\S]*?margin-top: 0;/);
+    expect(css).toMatch(/\.brand-logo \{[\s\S]*?display: block;[\s\S]*?object-fit: contain;[\s\S]*?transform: scale\(\.74\);/);
+    expect(css).toMatch(/\.sidebar-brand \.brand-logo \{[\s\S]*?width: 38px;[\s\S]*?height: 38px;[\s\S]*?flex-basis: 38px;/);
+    expect(css).toMatch(/\.auth-brand \.brand-logo \{[\s\S]*?width: 44px;[\s\S]*?height: 44px;/);
   });
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
     expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('088ed2f76851165ca59dab2245542e56946014b70fbca3e86bc4a986714bf9a3');
