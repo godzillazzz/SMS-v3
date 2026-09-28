@@ -286,6 +286,20 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(client).toContain('uatOnly: true');
   });
 
+  it('surfaces read-only server authority blockers before Face without starting biometric verification', () => {
+    expect(accessG06).toContain('ตรวจความพร้อมก่อนเปิด Face');
+    expect(accessG06).toContain('onInspectReadiness(employeeId)');
+    expect(accessG06).toContain('Attendance Device');
+    expect(accessG06).toContain('Reference Photo');
+    expect(accessG06).toContain('Schedule');
+    expect(accessG06).toContain('Security Site');
+    expect(accessG06).toContain('preflight นี้ไม่เรียก Face verifier');
+    expect(main).toContain('api.employeeOnboardingReadiness(auth.token!, employeeId)');
+    expect(api).toContain('employeeOnboardingReadiness');
+    expect(api).toContain('/onboarding-readiness');
+    expect(accessG06).not.toContain('attendanceFaceMatch(');
+    expect(accessG06).not.toContain('attendanceAcceptVerifiedEvent(');
+  });
   it('prepares the existing G06 fixture for GPS Attendance from an explicit Admin one-shot location without mutating Schedule approval', () => {
     expect(accessG06).toContain('เตรียม Attendance UAT จาก GPS ปัจจุบัน');
     expect(accessG06).toContain('navigator.geolocation.getCurrentPosition');

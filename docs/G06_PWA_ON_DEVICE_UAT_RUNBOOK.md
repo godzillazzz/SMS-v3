@@ -73,6 +73,21 @@ If Admin preparation reports that GPS is not confidently inside any Active Secur
 
 Correct action: fix Security Site coordinates/radius/activation. Do **not** widen/bypass the geofence merely to force a PASS.
 
+## 1A. Read-only preflight before returning to Face
+
+After the fixture exists, Admin may press `ตรวจความพร้อมก่อนเปิด Face` in the G06 Preview UAT Fixture card.
+
+This calls the existing Employee onboarding-readiness endpoint only. It does not request Camera/GPS permission, create a verification session, call a face provider or create an AttendanceEvent.
+
+Use it to surface server-authoritative blockers early:
+
+- Account authority
+- exactly one proven ACTIVE Attendance Device
+- ACTIVE Reference Photo
+- approved/current Schedule
+- Security Site authority
+
+Typical blockers include `ATTENDANCE_DEVICE_REQUIRED`, `REFERENCE_PHOTO_REQUIRED`, `SCHEDULE_REQUIRED`, `SCHEDULE_NOT_APPROVED` and Site-authority errors. Face Match / Active Challenge / provider runtime remain separate later gates even when this preflight says the authority prerequisites are READY.
 ## 2. Employee login and Attendance entry
 
 Logout ADMIN and login with the reserved G06 VIEWER fixture.

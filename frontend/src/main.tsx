@@ -46,7 +46,7 @@ import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { WorkflowCommandPalette } from './components/WorkflowCommandPalette';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import type { DataQualityFilters, DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
-import type { G06AttendanceAuthorityResult, G06UatProvisionResult } from './pages/access-management/G06UatProvisioningPanel';
+import type { G06AttendanceAuthorityResult, G06OnboardingReadinessResult, G06UatProvisionResult } from './pages/access-management/G06UatProvisioningPanel';
 import { initialSmsPwaPage, isSmsPwaPage, isSmsPwaShellMode, type SmsPwaPage } from './pwa-mode';
 import { registerSmsPwa } from './pwa';
 import { canLoadAccessManagement } from './components/access-management/access-management-utils';
@@ -3084,6 +3084,9 @@ function Dashboard() {
             const response = await api.prepareG06AttendanceAuthority(auth.token!, location);
             setOperationRefresh((value) => value + 1);
             return (response as { data: G06AttendanceAuthorityResult }).data;
+          }}          onInspectG06Readiness={async (employeeId) => {
+            const response = await api.employeeOnboardingReadiness(auth.token!, employeeId);
+            return (response as { data: G06OnboardingReadinessResult }).data;
           }}
         />
         <RegistrationReviewPanel token={auth.token!} role={auth.user?.role || 'VIEWER'} refreshSignal={operationRefresh} onChanged={() => setOperationRefresh((value) => value + 1)} onOpenEmployeeMaster={() => setActivePage('employees')} />
