@@ -196,3 +196,18 @@ Enterprise Evolution is released to Production. The release artifact, canonical 
 - Production technical E2E after alias cutover: 4/4 passed (HTTP health/readiness/Vite assets/audit authorization boundary plus login browser smoke at 390/768/1440).
 - Production HTTP verification: 200; Content-Length 2660; ETag `"c237b95a4bbffdf3c43a836db8bc8629"`; Server Vercel.
 - Rollback reference: previous production deployment `dpl_EWcnuhqHbkE5xXp3hLBfswubX6AX` / `https://sms-v3-staging-322ghblyl-godzillazz.vercel.app`.
+
+## Competition-Grade UX Phase 4 — Source Ready / Deployment Pending — 2026-09-28
+
+- Scope: aligned Security Site GIS presentation with the Leaflet engine already shipped in the application, removed stale MapLibre selectors from operational/light-mode GIS styling, repaired the map picker Thai accessibility/help copy, and added a dedicated Phase 4 regression contract.
+- GIS behavior preserved: OpenStreetMap tiles, lazy `SecuritySiteMapPicker`, click-to-select, draggable marker, geofence circle/radius, site-position synchronization, attribution, and existing API/data flow remain unchanged.
+- Theme/responsive safety: Leaflet controls now receive the existing dark operational styling and explicit Light Theme surface styling. Existing three-icon theme control is unchanged.
+- Authorization/data safety: no DB migration/change and no intentional API, Permission, or RBAC behavior change. Dashboard eager-loading and GIS lazy-loading contracts remain intact.
+- New regression: `frontend/src/competition-grade-ux-phase4.test.ts` guards Leaflet-only GIS selectors and readable Thai map guidance.
+- Targeted Phase 4/quality suite: 6/6 files, 23/23 tests passed.
+- Full frontend regression: 111/111 files, 740/740 tests passed.
+- Build: PASS, 417 modules transformed.
+- Production bundle gate: PASS; main 364,906 bytes, GIS 151,947 bytes, CSS 682,755 bytes, 43 JS chunks.
+- UAT configuration/discovery: 6/6 config tests passed; 33 Playwright scenarios discovered in 5 files. Authenticated ADMIN/MANAGER/VIEWER execution remains credential-gated because approved real role credentials are not present; no credentials were invented.
+- Deployment state: no new Phase 4 Preview or Production deployment was created in this source-ready pass. Phase 3 Preview `dpl_BA9D7Jv2RfvVvBjcELQcjxUM4j5b` remains protected by Vercel Deployment Protection for direct browser E2E, pending an approved Automation Bypass secret.
+- Production remains unchanged at `dpl_ChtNFvkW8vZ1qxdReZMZJnc1Q78Z` / `https://sms-v3-staging-lkhwrf7mh-godzillazz.vercel.app`.
