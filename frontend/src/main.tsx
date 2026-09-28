@@ -41,6 +41,7 @@ import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
+import { WorkflowCommandPalette } from './components/WorkflowCommandPalette';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import type { DataQualityFilters, DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
 import type { G06UatProvisionResult } from './pages/access-management/G06UatProvisioningPanel';
@@ -1662,6 +1663,7 @@ function Dashboard() {
   const [dataQualityPageSize, setDataQualityPageSize] = useState(25);
   const [dataQualityFilters, setDataQualityFilters] = useState<DataQualityFilters>({ severity: '', module: '', rule: '', department: '', search: '' });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [desktopView, setDesktopView] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem('sms-display-mode') === 'desktop');
   const toggleDesktopView = () => {
     setDesktopView((current) => {
@@ -2061,6 +2063,18 @@ function Dashboard() {
   const visibleNavigation = navigation
     .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)) }))
     .filter((section) => section.items.length > 0);
+  const workflowCommands = visibleNavigation.flatMap((section) => section.items.map((item) => ({ ...item, group: section.label })));
+  useEffect(() => {
+    if (pwaShell) return;
+    const openCommandPalette = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', openCommandPalette);
+    return () => window.removeEventListener('keydown', openCommandPalette);
+  }, [pwaShell]);
   const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName}` }));
   const activeLeaveTypes = leaveTypes.filter((item) => item.isActive);
   const leaveTypeOptions = activeLeaveTypes.map((item) => ({ value: item.code, label: item.name }));
@@ -3043,6 +3057,7 @@ function Dashboard() {
 
   return (
     <>
+      {!pwaShell && <WorkflowCommandPalette open={commandPaletteOpen} items={workflowCommands} onClose={() => setCommandPaletteOpen(false)} onNavigate={(id) => setActivePage(id as Page)} />}
       {leaveDecision && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่างยืนยัน…</div>}><LeaveDecisionConfirmation
         target={leaveDecision.target}
         action={leaveDecision.action}
@@ -3085,6 +3100,7 @@ function Dashboard() {
           </div>
           <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
           <div className="topbar-actions">
+            {!pwaShell && <button type="button" className="workflow-command-trigger" aria-label="เปิดเมนูนำทางด่วน" title="ไปยังงานหรือหน้าที่ต้องการ" onClick={() => setCommandPaletteOpen(true)}><SmsIcon name="search" size={16} /><span>Quick nav</span><kbd>Ctrl K</kbd></button>}
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
             {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type="button" className="topbar-notification-button" aria-label={'คำขออนุมัติ ' + pendingApprovalCount + ' รายการ'} title="คำขอที่รอการอนุมัติ" onClick={() => setActivePage('approvalCenter')}><SmsIcon name="bell" size={19} />{pendingApprovalCount > 0 && <span className="topbar-notification-badge">{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
             <ThemeControl compact />
@@ -3097,6 +3113,7 @@ function Dashboard() {
             <div id="mobile-utility-panel" className="mobile-utility-panel" role="dialog" aria-modal="true" aria-label="บัญชีและการตั้งค่าหน้าจอ">
               <div className="mobile-utility-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
               <label className="mobile-utility-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงานบนมือถือ" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
+              <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setCommandPaletteOpen(true); }}><SmsIcon name="search" size={18} />ไปยังงานหรือหน้าอื่น</button>
               <div className="mobile-utility-theme"><span>Theme</span><ThemeControl /></div>
               <button type="button" className="mobile-utility-display-mode" aria-pressed={desktopView} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} />{desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'}</button>
               <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setPasskeyPanelOpen(true); }}><SmsIcon name="key" size={18} />การเข้าสู่ระบบและ Passkey</button>
