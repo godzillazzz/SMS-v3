@@ -266,6 +266,17 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(faceCapture).toContain('UAT นี้ไม่มี Face PASS และไม่มี Attendance PASS');
   });
 
+  it('keeps GPS-only UAT explicitly Preview-gated and non-authoritative before face debugging', () => {
+    expect(page).toContain("import.meta.env.VITE_G06_GPS_ONLY_UAT === 'true'");
+    expect(page).toContain('attendanceGpsOnlyUatReadiness(token');
+    expect(page).toContain('Preview GPS-only UAT');
+    expect(page).toContain('จะไม่สร้าง AttendanceEvent');
+    expect(page).toContain('ข้าม Device/Face');
+    expect(client).toContain('/attendance/uat/gps-readiness');
+    expect(client).toContain('faceVerificationBypassed: true');
+    expect(client).toContain('attendanceAccepted: false');
+  });
+
   it('uses one-shot high-accuracy geolocation without continuous tracking or local persistence', () => {
     expect(page).toContain('navigator.geolocation.getCurrentPosition');
     expect(page).toContain('enableHighAccuracy: true');

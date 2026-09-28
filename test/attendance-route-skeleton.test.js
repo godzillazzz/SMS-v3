@@ -118,7 +118,10 @@ function serviceSpy() {
         calls.push(['readiness', input]);
         return { ok: true, eventIntent: 'CHECK_IN', readiness: { state: 'READY_TO_START_VERIFICATION', attendanceAccepted: false } };
       },
-      async beginVerification(input) {
+      async assessGpsOnlyUat(input) {
+        calls.push(['gps-uat', input]);
+        return { ok: true, diagnosticOnly: true, faceVerificationBypassed: true, attendanceAccepted: false, eventIntent: 'CHECK_IN', site: { id: siteId, name: 'Test Site' }, workDate: '2026-08-24', geofence: { inside: true, classification: 'CONFIDENT_INSIDE', distanceMeters: 2.5, qrMode: 'GPS_ASSURED', riskFlags: [] } };
+      },      async beginVerification(input) {
         calls.push(['start', input]);
         return {
           ok: true,
@@ -173,6 +176,27 @@ test('Preview route remains hidden unless ATTENDANCE_API_PREVIEW_ENABLED is expl
   assert.equal(spy.calls.length, 0);
 });
 
+test('GPS-only UAT route is Preview-only, authenticated, and non-authoritative', async () => {
+  const productionSpy = serviceSpy();
+  const production = appFor({ environment: { VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true' }, service: productionSpy.service });
+  const productionResponse = await request(production)
+    .post('/api/v1/attendance/uat/gps-readiness')
+    .set('Authorization', 'Bearer route-test')
+    .send({ captureId, attendanceEvidence: evidence });
+  assert.equal(productionResponse.status, 404);
+  assert.equal(productionSpy.calls.length, 0);
+
+  const previewSpy = serviceSpy();
+  const preview = appFor({ environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }, service: previewSpy.service });
+  const previewResponse = await request(preview)
+    .post('/api/v1/attendance/uat/gps-readiness')
+    .set('Authorization', 'Bearer route-test')
+    .send({ captureId, attendanceEvidence: evidence });
+  assert.equal(previewResponse.status, 200);
+  assert.equal(previewResponse.body.data.diagnosticOnly, true);
+  assert.equal(previewResponse.body.data.attendanceAccepted, false);
+  assert.deepEqual(previewSpy.calls[0], ['gps-uat', { actor: { sub: 'route-user', role: 'VIEWER' }, captureId, attendanceEvidence: evidence }]);
+});
 test('flagged Preview Attendance route requires authentication before contract execution', async () => {
   const spy = serviceSpy();
   const app = appFor({ environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }, service: spy.service });

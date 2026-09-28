@@ -68,11 +68,24 @@ function createAttendanceApiContractService({
 
   async function assessGpsOnlyUat({ actor, captureId, attendanceEvidence } = {}) {
     try {
-      const resolvedIntent = await resolveServerIntent(actor);
-      const prepared = await verification.prepareContext({ actor, captureId, eventIntent: resolvedIntent.eventIntent, attendanceEvidence });
-      return { ok: true, diagnosticOnly: true, faceVerificationBypassed: true, attendanceAccepted: false, eventIntent: resolvedIntent.eventIntent, attendanceContext: prepared.attendanceContext || null, authority: prepared.authority || null };
+      if (typeof verification.prepareGpsOnlyUat !== 'function') {
+        const error = new Error('GPS-only UAT verifier is unavailable.');
+        error.details = { code: 'ATTENDANCE_GPS_UAT_UNAVAILABLE' };
+        throw error;
+      }
+      const prepared = await verification.prepareGpsOnlyUat({ actor, captureId, attendanceEvidence });
+      return {
+        ok: true,
+        diagnosticOnly: true,
+        faceVerificationBypassed: true,
+        attendanceAccepted: false,
+        eventIntent: prepared.eventIntent || null,
+        site: prepared.site || null,
+        workDate: prepared.workDate || null,
+        geofence: prepared.geofence || null
+      };
     } catch (error) {
-      return { ok: false, diagnosticOnly: true, faceVerificationBypassed: true, attendanceAccepted: false, eventIntent: null, attendanceContext: null, authority: null, readiness: mapAttendanceDomainOutcome(error) };
+      return { ok: false, diagnosticOnly: true, faceVerificationBypassed: true, attendanceAccepted: false, eventIntent: null, site: null, workDate: null, geofence: null, readiness: mapAttendanceDomainOutcome(error) };
     }
   }
   async function beginVerification({ actor, captureId, attendanceEvidence } = {}) {

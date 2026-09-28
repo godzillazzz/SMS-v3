@@ -296,6 +296,36 @@ function createAttendanceVerificationContextService({
     };
   }
 
+  async function prepareGpsOnlyUat({ actor, captureId, attendanceEvidence }, client = prisma) {
+    const normalizedCaptureId = normalizedUuid(captureId, 'ATTENDANCE_CAPTURE_ID_INVALID');
+    const identity = await resolveIdentity(client, actor);
+    const assignment = await resolveCurrentAssignment(client, identity.employeeId, clock());
+    const [, existingSession] = await Promise.all([
+      requireApprovedSchedule(client, assignment),
+      client.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } })
+    ]);
+    const eventIntent = await resolveEventIntentFromSession(client, identity, assignment, existingSession);
+    const { authority: site, validated } = await validatedSiteEvidence(client, assignment, attendanceEvidence, existingSession);
+    return {
+      eventIntent,
+      attendanceContext: contextRef({ captureId: normalizedCaptureId, eventIntent, assignment, evidenceRef: validated.evidenceRef }),
+      site: {
+        id: site.site.id,
+        name: site.site.name || site.site.code || null,
+        authoritySource: site.source || null,
+        expectedSiteId: validated.evidenceRef.expectedSiteId,
+        actualSiteId: validated.evidenceRef.actualSiteId
+      },
+      workDate: workDateText(assignment.workDate),
+      geofence: {
+        inside: validated.decision?.insideGeofence === true,
+        classification: validated.decision?.geofenceClassification || validated.evidenceRef.geofenceClassification || null,
+        distanceMeters: validated.decision?.distanceMeters ?? null,
+        qrMode: validated.evidenceRef.qrMode || null,
+        riskFlags: Array.isArray(validated.evidenceRef.riskFlags) ? validated.evidenceRef.riskFlags : []
+      }
+    };
+  }
   async function resolveContextRef({ actor, ref }, client = prisma) {
     const captureId = normalizedUuid(ref?.captureId, 'ATTENDANCE_CAPTURE_ID_INVALID');
     const action = String(ref?.eventIntent || '').trim().toUpperCase();
@@ -380,6 +410,7 @@ function createAttendanceVerificationContextService({
 
   return {
     prepareContext,
+    prepareGpsOnlyUat,
     resolveEventIntent,
     resolveContextRef,
     prepareVerification,

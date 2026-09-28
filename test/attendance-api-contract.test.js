@@ -17,10 +17,11 @@ const attendanceEvidence = {
 };
 
 function fakeDependencies() {
-  const calls = { resolveIntent: [], prepareContext: [], prepareVerification: [], deviceProof: [], liveFace: [], accept: [] };
+  const calls = { resolveIntent: [], prepareContext: [], prepareGpsOnlyUat: [], prepareVerification: [], deviceProof: [], liveFace: [], accept: [] };
   const verification = {
     resolveEventIntent: async (input) => { calls.resolveIntent.push(input); return { eventIntent: 'CHECK_IN', shiftAssignmentId: '66666666-6666-4666-8666-666666666666', workDate: '2026-08-24' }; },
     prepareContext: async (input) => { calls.prepareContext.push(input); return { contextDigest: 'a'.repeat(64) }; },
+    prepareGpsOnlyUat: async (input) => { calls.prepareGpsOnlyUat.push(input); return { eventIntent: 'CHECK_IN', site: { id: '77777777-7777-4777-8777-777777777777', name: 'Test Site', authoritySource: 'SCHEDULE', expectedSiteId: '77777777-7777-4777-8777-777777777777', actualSiteId: '77777777-7777-4777-8777-777777777777' }, workDate: '2026-08-24', geofence: { inside: true, classification: 'CONFIDENT_INSIDE', distanceMeters: 3.2, qrMode: 'GPS_ASSURED', riskFlags: [] } }; },
     prepareVerification: async (input) => {
       calls.prepareVerification.push(input);
       return {
@@ -245,14 +246,6 @@ test('Attendance API contract remains provider-neutral after gated route skeleto
 
 test('GPS-only UAT validates server Site/GPS authority without biometric runtime and never claims Attendance acceptance', async () => {
   const { calls, verification, events } = fakeDependencies();
-  verification.prepareContext = async (input) => {
-    calls.prepareContext.push(input);
-    return {
-      contextDigest: 'a'.repeat(64),
-      attendanceContext: { captureId, eventIntent: 'CHECK_IN', shiftAssignmentId: '66666666-6666-4666-8666-666666666666' },
-      authority: { securitySiteId: '77777777-7777-4777-8777-777777777777' }
-    };
-  };
   const service = createAttendanceApiContractService({ verificationContextService: verification, attendanceEventService: events, isBiometricRuntimeEnabled: () => false });
   const result = await service.assessGpsOnlyUat({ actor, captureId, attendanceEvidence });
   assert.equal(result.ok, true);
@@ -260,8 +253,12 @@ test('GPS-only UAT validates server Site/GPS authority without biometric runtime
   assert.equal(result.faceVerificationBypassed, true);
   assert.equal(result.attendanceAccepted, false);
   assert.equal(result.eventIntent, 'CHECK_IN');
-  assert.equal(calls.resolveIntent.length, 1);
-  assert.equal(calls.prepareContext.length, 1);
+  assert.equal(result.site.name, 'Test Site');
+  assert.equal(result.geofence.inside, true);
+  assert.equal(result.geofence.qrMode, 'GPS_ASSURED');
+  assert.equal(calls.prepareGpsOnlyUat.length, 1);
+  assert.equal(calls.resolveIntent.length, 0);
+  assert.equal(calls.prepareContext.length, 0);
   assert.equal(calls.prepareVerification.length, 0);
   assert.equal(calls.accept.length, 0);
 });

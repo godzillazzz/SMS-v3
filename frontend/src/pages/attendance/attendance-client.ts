@@ -26,6 +26,34 @@ export type AttendanceReadinessData = {
   readiness: AttendanceReadinessState;
 };
 
+export type AttendanceGpsOnlyUatData = {
+  ok: boolean;
+  diagnosticOnly: true;
+  faceVerificationBypassed: true;
+  attendanceAccepted: false;
+  eventIntent: AttendanceEventIntent | null;
+  site: {
+    id: string;
+    name: string | null;
+    authoritySource: string | null;
+    expectedSiteId: string;
+    actualSiteId: string;
+  } | null;
+  workDate: string | null;
+  geofence: {
+    inside: boolean;
+    classification: string | null;
+    distanceMeters: number | null;
+    qrMode: string | null;
+    riskFlags: string[];
+  } | null;
+  readiness?: AttendanceReadinessState;
+};
+
+export type AttendanceGpsOnlyUatResult =
+  | { routeAvailable: true; data: AttendanceGpsOnlyUatData; requestId?: string }
+  | { routeAvailable: false; data: null; requestId?: string };
+
 export type AttendanceContextRef = {
   captureId: string;
   eventIntent: AttendanceEventIntent;
@@ -284,6 +312,30 @@ export async function attendanceReadiness(token: string, input: {
   const payload = await jsonPayload(response);
   if (!response.ok) throw new AttendanceReadinessError(publicError(payload, response.status, 'ไม่สามารถตรวจสอบความพร้อมของระบบลงเวลาได้'), response.status, requestId);
   return { routeAvailable: true, data: payload.data as AttendanceReadinessData, requestId };
+}
+
+export async function attendanceGpsOnlyUatReadiness(token: string, input: {
+  captureId: string;
+  qrToken?: string;
+  location: AttendanceLocationEvidence;
+}): Promise<AttendanceGpsOnlyUatResult> {
+  const response = await attendanceAuthenticatedRequest(`/attendance/uat/gps-readiness`, token, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(token, true),
+    body: JSON.stringify({
+      captureId: input.captureId,
+      attendanceEvidence: {
+        ...(input.qrToken ? { qrToken: input.qrToken } : {}),
+        location: input.location
+      }
+    })
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  if (response.status === 404) return { routeAvailable: false, data: null, requestId };
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'ไม่สามารถทดสอบ GPS UAT ได้'), response.status, requestId);
+  return { routeAvailable: true, data: payload.data as AttendanceGpsOnlyUatData, requestId };
 }
 
 export async function attendanceVerificationStart(token: string, input: {

@@ -117,11 +117,15 @@ function evidenceDecision(location = attendanceEvidence.location) {
     locationBindingDigest: digest(JSON.stringify(normalizedLocation)),
     evidenceRef: {
       siteId: ids.site,
+      expectedSiteId: ids.site,
+      actualSiteId: ids.site,
       qrMode: 'STEP_UP_QR',
       qrCredentialId: ids.qrCredential,
+      geofenceClassification: 'CONFIDENT_INSIDE',
+      riskFlags: [],
       location: normalizedLocation
     },
-    decision: { siteId: ids.site, insideGeofence: true, distanceMeters: 3.2 }
+    decision: { siteId: ids.site, expectedSiteId: ids.site, actualSiteId: ids.site, insideGeofence: true, geofenceClassification: 'CONFIDENT_INSIDE', distanceMeters: 3.2, riskFlags: [] }
   };
 }
 
@@ -193,6 +197,22 @@ test('server resolves CHECK_IN when the authoritative current shift has no Atten
   assert.deepEqual(resolved, { eventIntent: 'CHECK_IN', shiftAssignmentId: ids.assignmentToday, workDate: '2026-08-24' });
 });
 
+test('GPS-only UAT validates schedule and Site evidence without device or Reference Photo authority', async () => {
+  const { db, clock } = fakeDb();
+  db.attendanceDeviceEnrollment.findMany = async () => { throw new Error('biometric device authority must not be queried'); };
+  db.employeeReferencePhoto.findMany = async () => { throw new Error('reference photo authority must not be queried'); };
+  const face = fakeFace();
+  const siteEvidence = fakeSiteEvidence();
+  const siteAuthority = { resolve: async ({ assignment: row }) => ({ site: { ...row.securitySite, name: 'Test Site', code: 'TEST' }, source: 'SCHEDULE' }) };
+  const service = createAttendanceVerificationContextService({ prisma: db, faceSessionService: face, siteEvidenceService: siteEvidence, siteAuthorityService: siteAuthority, clock });
+  const result = await service.prepareGpsOnlyUat({ actor: { sub: ids.user }, captureId: ids.capture, attendanceEvidence });
+  assert.equal(result.eventIntent, 'CHECK_IN');
+  assert.equal(result.site.name, 'Test Site');
+  assert.equal(result.geofence.inside, true);
+  assert.equal(result.geofence.qrMode, 'STEP_UP_QR');
+  assert.equal(siteEvidence.calls.validate.length, 1);
+  assert.equal(face.calls.create.length, 0);
+});
 test('approved auto-schedule row is actionable even when it is not manually locked', async () => {
   const { db, clock } = fakeDb({ rows: [assignment({ locked: false })] });
   const service = createAttendanceVerificationContextService({ prisma: db, faceSessionService: fakeFace(), siteEvidenceService: fakeSiteEvidence(), clock });
