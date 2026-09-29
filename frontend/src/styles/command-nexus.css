@@ -63,7 +63,7 @@
   font-family: "Plus Jakarta Sans", "Kanit", sans-serif;
 }
 /* Explicit auth controls must not fall back to the legacy signature font. */
-.award-auth-page .nexus-auth-stage :is(.auth-theme-control button, .auth-password-toggle, .auth-links button) {
+.award-auth-page .nexus-auth-stage :is(.auth-theme-control button, .auth-password-toggle, .auth-links button, .nexus-webauthn-panel button) {
   font-family: "Kanit", "Plus Jakarta Sans", sans-serif !important;
 }
 @media (max-width: 560px) {

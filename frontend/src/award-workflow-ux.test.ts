@@ -20,7 +20,11 @@ describe('Command Nexus public footer and approved font contract', () => {
   expect(commandNexus).toContain('.nexus-auth-stage{');
   expect(commandNexus).toContain('font-family: "Kanit", "Plus Jakarta Sans", sans-serif;');
   expect(commandNexus).toContain('font-family: "Plus Jakarta Sans", "Kanit", sans-serif;');
-  expect(commandNexus).toContain('.auth-theme-control button, .auth-password-toggle, .auth-links button');
+  // The Passkey and Hardware Key panels mount only after the user changes auth method.
+  // Their buttons used to inherit the legacy signature font despite the default-login audit passing.
+  expect(commandNexus).toMatch(/\.award-auth-page \.nexus-auth-stage :is\([^)]*\.auth-theme-control button, \.auth-password-toggle, \.auth-links button, \.nexus-webauthn-panel button\)\s*\{\s*font-family: "Kanit", "Plus Jakarta Sans", sans-serif !important;/);
+  expect(landing).toContain('เริ่มการยืนยันด้วย Passkey →');
+  expect(landing).toContain('ตรวจหากุญแจฮาร์ดแวร์ (Scan USB) →');
   expect(commandNexus).not.toMatch(/\bfont(?:-family)?\s*:[^;}]*\b(?:Inter|Noto Sans Thai|Leelawadee UI|Arial|Times New Roman)\b/i);
   expect(landing.indexOf("import './styles/command-nexus.css';")).toBeGreaterThan(landing.indexOf("import './styles/award-landing.css';"));
  });
