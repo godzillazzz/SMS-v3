@@ -584,3 +584,47 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 /* Competition-grade accessibility baseline: keyboard clarity and motion safety across operational surfaces. */
 :where(button,a,input,select,textarea,[role="button"],[tabindex]:not([tabindex="-1"])):focus-visible{outline:2px solid var(--color-primary,#38bdf8);outline-offset:2px}
 @media(prefers-reduced-motion:reduce){html:focus-within{scroll-behavior:auto!important}*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* Duty roster typography contract: keep Thai UI on Kanit, Latin UI on
+   Plus Jakarta Sans, and operational identifiers on JetBrains Mono.
+   Explicit Thai fallbacks prevent monospace text falling into legacy
+   Noto Sans Thai / Inter when a schedule label contains Thai characters. */
+.nexus-roster-workspace :is(button, input, select, textarea),
+.nexus-roster-workspace .schedule-roster-order-dialog {
+  font-family: "Plus Jakarta Sans", "Kanit", sans-serif !important;
+}
+.nexus-roster-workspace :is(
+  .page-heading h1,
+  .schedule-grid .employee-sticky strong,
+  .schedule-roster-order-dialog h2,
+  .schedule-roster-order-dialog strong
+) {
+  font-family: "Kanit", "Plus Jakarta Sans", sans-serif !important;
+}
+.nexus-roster-workspace :is(
+  .roster-command-kicker,
+  .page-heading .eyebrow,
+  .roster-telemetry-strip span,
+  .roster-telemetry-strip small,
+  .roster-telemetry-strip strong,
+  .schedule-workbench > div:first-child,
+  .toolbar-count,
+  .schedule-grid thead th,
+  .schedule-grid .employee-sticky small,
+  .schedule-grid .calendar-shift,
+  .calendar-shift b,
+  .calendar-shift small,
+  .calendar-shift .shift-note,
+  .preview-table code
+) {
+  font-family: "JetBrains Mono", "Kanit", monospace !important;
+}
+/* The shift editor portals outside .nexus-roster-workspace. Its controls
+   need the same approved type stack without changing other app dialogs. */
+.shift-editor-modal__viewport .shift-editor-modal__dialog,
+.shift-editor-modal__viewport .shift-editor-modal__dialog :is(button, input, select, textarea) {
+  font-family: "Plus Jakarta Sans", "Kanit", sans-serif !important;
+}
+.shift-editor-modal__viewport .shift-editor-modal__dialog :is(h1, h2, h3) {
+  font-family: "Kanit", "Plus Jakarta Sans", sans-serif !important;
+}
