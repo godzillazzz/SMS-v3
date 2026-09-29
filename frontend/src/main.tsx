@@ -525,7 +525,7 @@ function Login() {
         </section>
       </section>
       </section>
-      <footer className="award-public-footer"><span>SMS · ระบบบริหารงานรักษาความปลอดภัย</span><small>Secure operations, designed for clarity.</small></footer>
+      <footer className="award-public-footer"><span lang="th">SMS · ระบบบริหารงานรักษาความปลอดภัย</span><small lang="en">Secure operations, designed for clarity.</small></footer>
     </main>
   );
 }

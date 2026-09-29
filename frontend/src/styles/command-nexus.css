@@ -33,3 +33,42 @@
 
 /* Typography collision guard: legacy signature styles must not override Command Nexus type. */
 .nexus-public :is(h1,h2,h3),.nexus-auth-stage :is(h1,h2,h3){font-family:"Kanit","Plus Jakarta Sans",sans-serif!important}
+
+/* Public landing footer: full-bleed, legible and aligned with Command Nexus typography. */
+.award-auth-page > .award-public-footer {
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 16px;
+  padding: 24px clamp(20px, 4vw, 56px) !important;
+  text-align: center;
+  font-family: "Kanit", "Plus Jakarta Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.65;
+  color: #b9cbdc !important;
+}
+.award-auth-page > .award-public-footer :is(span, small) {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit !important;
+}
+.award-auth-page > .award-public-footer small {
+  font-family: "Plus Jakarta Sans", "Kanit", sans-serif;
+}
+/* Explicit auth controls must not fall back to the legacy signature font. */
+.award-auth-page .nexus-auth-stage :is(.auth-theme-control button, .auth-password-toggle, .auth-links button) {
+  font-family: "Kanit", "Plus Jakarta Sans", sans-serif !important;
+}
+@media (max-width: 560px) {
+  .award-auth-page > .award-public-footer {
+    flex-direction: column;
+    gap: 3px;
+  }
+}
