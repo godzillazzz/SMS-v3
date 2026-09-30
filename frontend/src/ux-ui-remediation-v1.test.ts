@@ -10,6 +10,7 @@ const remediationCss = read('./styles/ux-ui-remediation.css');
 const approval = read('./pages/approvals/ApprovalCenterPage.tsx');
 const approvalCss = read('./styles/approval-center.css');
 const attendance = read('./pages/attendance/AttendancePage.tsx');
+const attendanceDeviceProof = read('./pages/attendance/attendance-device-proof.ts');
 const supervisor = read('./pages/attendance-supervisor/AttendanceSupervisorPage.tsx');
 const personnel = read('./components/personnel/PersonnelTable.tsx');
 const access = read('./pages/access-management/AccessManagementPage.tsx');
@@ -46,7 +47,8 @@ describe('UXUI-REM-01 audited remediation contracts', () => {
     expect(supervisor).toContain('useAccessibleOverlay<HTMLElement>(Boolean(manualDialog)');
     expect(access).toContain('useAccessibleOverlay<HTMLElement>(true, onClose');
     expect(attendance).toContain('attendanceVerificationStart(token');
-    expect(attendance).toContain('verifyAttendanceDeviceProof(token');
+    expect(attendanceDeviceProof).toContain('verifyAttendanceDeviceProof');
+    expect(attendanceDeviceProof).toContain('postDeviceProof(token, verification.sessionId');
     expect(attendance).toContain('attendanceFaceMatch(token');
     expect(attendance).toContain('attendanceAcceptVerifiedEvent(token');
   });

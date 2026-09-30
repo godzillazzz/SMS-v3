@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { attendancePrimaryActionState, createAttendanceActivationGuard } from './pages/attendance/attendance-action-state';
 
 const page = readFileSync(new URL('./pages/attendance/AttendancePage.tsx', import.meta.url), 'utf8');
+const deviceProof = readFileSync(new URL('./pages/attendance/attendance-device-proof.ts', import.meta.url), 'utf8');
 
 describe('Attendance primary action state', () => {
   it('allows an idle employee with an approved schedule to start CHECK_IN without QR/Face/Device pre-gates', () => {
@@ -57,8 +58,9 @@ describe('Attendance activation and cancellation hotfix', () => {
     expect(page).toMatch(/handleStartAttendance[\s\S]*?positionOnce\(\)[\s\S]*?checkReadinessWithEvidence\(captureId, undefined, nextLocation, operationEpoch\)/);
     expect(page).toMatch(/checkReadinessWithEvidence[\s\S]*?beginFaceVerificationWithEvidence/);
     expect(page).not.toContain('attendanceReadiness(token');
-    expect(page).toMatch(/beginFaceVerificationWithEvidence[\s\S]*?attendanceVerificationStart\(token[\s\S]*?signAttendanceDeviceChallenge[\s\S]*?verifyAttendanceDeviceProof[\s\S]*?setFaceCaptureOpen\(true\)/);
-    expect(page).toContain('signAttendanceDeviceChallenge(verification.deviceEnrollmentId, verification.challenge)');
+    expect(page).toMatch(/beginFaceVerificationWithEvidence[\s\S]*?attendanceVerificationStart\(token[\s\S]*?performAttendanceDeviceProof[\s\S]*?setFaceCaptureOpen\(true\)/);
+    expect(deviceProof).toContain('dependencies.signChallenge(verification.deviceEnrollmentId, verification.challenge)');
+    expect(deviceProof).toContain('dependencies.postDeviceProof(token, verification.sessionId');
   });
 
   it('surfaces user-visible reasons when an active attempt is blocked or cancelled', () => {

@@ -7,12 +7,15 @@ import { attendanceDeviceAdminOverview, revokeAttendanceDeviceCurrent } from '..
 import {
   ATTENDANCE_DEVICE_KEY_ALGORITHM,
   attendanceDeviceCapability,
+  correlateAttendanceDeviceKeyIds,
   deleteAttendanceDeviceKey,
   generateAttendanceDeviceKeyPair,
-  getAttendanceDeviceKey,
+  listAttendanceDeviceKeyIds,
   pruneAttendanceDeviceKeys,
   signAttendanceDeviceChallenge,
-  storeAttendanceDevicePrivateKey
+  storeAttendanceDevicePrivateKey,
+  type AttendanceDeviceKeyInspection,
+  type AttendanceDeviceKeyInventory
 } from '../../lib/attendance-device-key';
 
 export type AttendanceDeviceEnrollment = {
@@ -120,6 +123,29 @@ function capabilityMessage(reason?: string) {
   return 'อุปกรณ์หรือเบราว์เซอร์นี้ยังไม่พร้อมสำหรับการลงทะเบียน';
 }
 
+function inspectFromInventory(inventory: AttendanceDeviceKeyInventory, enrollmentId?: string | null): AttendanceDeviceKeyInspection | null {
+  if (!enrollmentId) return null;
+  if (!inventory.available) return { enrollmentId, status: 'UNAVAILABLE', algorithm: null, namedCurve: null, extractable: null, usages: [], createdAt: null, errorCode: 'INDEXED_DB_UNAVAILABLE' };
+  return inventory.keys.find((key) => key.enrollmentId === enrollmentId)
+    || { enrollmentId, status: 'MISSING', algorithm: null, namedCurve: null, extractable: null, usages: [], createdAt: null };
+}
+
+function localKeyStatusCopy(inspection: AttendanceDeviceKeyInspection | null) {
+  if (!inspection) return 'ยังไม่มี Server device ID ให้ตรวจ';
+  if (inspection.status === 'PRESENT') return 'Private key พร้อมใน browser นี้ · พร้อมทำ device proof';
+  if (inspection.status === 'MISSING') return 'ไม่พบ key ที่ตรงกับ enrollment ID นี้ใน browser/profile ปัจจุบัน; หน้านี้แยกไม่ได้ว่าเกิดจากล้างข้อมูลเว็บไซต์, private browsing หรือใช้ browser/profile อื่น';
+  if (inspection.status === 'INVALID') return 'พบ key record แต่ metadata ไม่ถูกต้อง จึงใช้ทำ device proof ไม่ได้';
+  return 'อ่าน IndexedDB ไม่ได้ จึงยังยืนยัน local private key ไม่ได้';
+}
+
+function localKeyReadinessState(inspection: AttendanceDeviceKeyInspection | null, capabilitySupported: boolean) {
+  if (!inspection) return 'UNKNOWN';
+  if (inspection.status === 'PRESENT') return capabilitySupported ? 'READY_LOCAL_KEY' : 'RUNTIME_UNAVAILABLE';
+  if (inspection.status === 'MISSING') return 'MISSING_LOCAL_KEY';
+  if (inspection.status === 'INVALID') return 'INVALID_LOCAL_KEY';
+  return 'LOCAL_KEY_UNAVAILABLE';
+}
+
 export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
   const actionDialog = useActionDialog();
   const capability = useMemo(() => attendanceDeviceCapability(), []);
@@ -134,7 +160,9 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
   const [displayName, setDisplayName] = useState('โทรศัพท์ลงเวลาของฉัน');
   const [reason, setReason] = useState('');
   const [cancelReason, setCancelReason] = useState('');
-  const [localKeyPresent, setLocalKeyPresent] = useState<boolean | null>(null);
+  const [keyInventory, setKeyInventory] = useState<AttendanceDeviceKeyInventory | null>(null);
+  const [activeKeyInspection, setActiveKeyInspection] = useState<AttendanceDeviceKeyInspection | null>(null);
+  const [candidateKeyInspection, setCandidateKeyInspection] = useState<AttendanceDeviceKeyInspection | null>(null);
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget>(null);
   const [reviewReason, setReviewReason] = useState('');
   const [adminOverview, setAdminOverview] = useState<AttendanceDeviceAdminEmployee[]>([]);
@@ -148,19 +176,25 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
       const response = await api.attendanceDeviceState(token);
       const next = response.data as SelfState;
       setSelfState(next);
-      if (capability.supported) {
+      let inventory = await listAttendanceDeviceKeyIds(next.employeeId);
+      let activeInspection = inspectFromInventory(inventory, next.activeDevice?.id);
+      let candidateInspection = inspectFromInventory(inventory, next.activeRequest?.candidateDeviceEnrollmentId);
+      const hasPotentialIdMismatch = Boolean(next.activeDevice?.id && activeInspection?.status === 'MISSING' && inventory.available && inventory.keys.length > 0);
+      if (capability.supported && !hasPotentialIdMismatch) {
         const allowedIds = [next.activeDevice?.id, next.activeRequest?.candidateDeviceEnrollmentId].filter(Boolean) as string[];
         await pruneAttendanceDeviceKeys(next.employeeId, allowedIds).catch(() => undefined);
+        inventory = await listAttendanceDeviceKeyIds(next.employeeId);
+        activeInspection = inspectFromInventory(inventory, next.activeDevice?.id);
+        candidateInspection = inspectFromInventory(inventory, next.activeRequest?.candidateDeviceEnrollmentId);
       }
-      if (next.activeRequest?.candidateDeviceEnrollmentId && capability.supported) {
-        try { setLocalKeyPresent(Boolean(await getAttendanceDeviceKey(next.activeRequest.candidateDeviceEnrollmentId))); }
-        catch { setLocalKeyPresent(false); }
-      } else {
-        setLocalKeyPresent(null);
-      }
+      setKeyInventory(inventory);
+      setActiveKeyInspection(activeInspection);
+      setCandidateKeyInspection(candidateInspection);
     } catch (error) {
       setSelfState(null);
-      setLocalKeyPresent(null);
+      setKeyInventory(null);
+      setActiveKeyInspection(null);
+      setCandidateKeyInspection(null);
       setSelfError(formatRequestErrorMessage(error, 'ไม่สามารถอ่านสถานะอุปกรณ์ลงเวลาได้'));
     } finally { setSelfLoading(false); }
   };
@@ -315,6 +349,20 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
   const activeDevice = selfState?.activeDevice;
   const isReplacement = Boolean(activeDevice);
   const proofReady = Boolean(request?.candidateDevice?.proofVerifiedAt);
+  const activeIdChain = correlateAttendanceDeviceKeyIds({
+    activeDeviceId: activeDevice?.id,
+    candidateDeviceId: request?.candidateDeviceEnrollmentId,
+    storedEnrollmentIds: keyInventory?.enrollmentIds || []
+  });
+  const activeLocalKeyPresent = activeKeyInspection?.status === 'PRESENT' && activeIdChain.activeKeyIdMatch === true;
+  const activeLocalKeyReady = activeLocalKeyPresent && capability.supported;
+  const candidateLocalKeyPresent = candidateKeyInspection?.status === 'PRESENT';
+  const activeLocalKeyCopy = activeLocalKeyPresent && !capability.supported
+    ? `พบ local key record แต่ browser นี้ยังทำ device proof ไม่ได้: ${capabilityMessage(capability.reason)}`
+    : `${localKeyStatusCopy(activeKeyInspection)}${activeKeyInspection?.status === 'MISSING' ? ' Attendance จะหยุดก่อน device proof; ตรวจ ID chain ก่อนใช้ governed replacement/re-registration flow' : ''}`;
+  const candidateLocalKeyCopy = candidateLocalKeyPresent && !capability.supported
+    ? `พบ local key record แต่ browser นี้ยังทำ device proof ไม่ได้: ${capabilityMessage(capability.reason)}`
+    : localKeyStatusCopy(candidateKeyInspection);
 
   return <><section className="view-pane attendance-device-page nexus-device-registry" aria-label="Trusted Device Registry">
     <div className="nexus-page-breadcrumb">SMS NEXUS / SECURITY / ATTENDANCE DEVICES</div>
@@ -331,10 +379,30 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
       <article className="attendance-device-card attendance-device-card--primary">
         <header><span className="attendance-device-card__icon"><SmsIcon name="key" size={21} /></span><div><h2>อุปกรณ์หลักของฉัน</h2><p>Private key อยู่เฉพาะใน browser storage ของอุปกรณ์นี้ และส่งออกไม่ได้</p></div></header>
         {selfLoading ? <div className="attendance-device-state">กำลังอ่านสถานะอุปกรณ์…</div>
-          : activeDevice ? <div className="attendance-device-current">
-            <div className="attendance-device-current__hero"><span className="device-orb"><SmsIcon name="check" size={22} /></span><div><strong>{activeDevice.displayName}</strong><span>ACTIVE · ใช้เป็นอุปกรณ์หลักสำหรับ Attendance/Patrol</span></div></div>
+          : activeDevice ? <div className="attendance-device-current" data-testid="attendance-active-device" data-local-key-state={localKeyReadinessState(activeKeyInspection, capability.supported)}>
+            <div className="attendance-device-current__hero"><span className={`device-orb ${activeLocalKeyReady ? '' : 'is-warning'}`}><SmsIcon name={activeLocalKeyReady ? 'check' : 'key'} size={22} /></span><div><strong>{activeDevice.displayName}</strong><span>Server device ACTIVE · ใช้เป็นอุปกรณ์หลักสำหรับ Attendance/Patrol</span></div></div>
+            <div className={`device-proof-state ${activeLocalKeyReady ? 'is-ready' : 'is-warning'}`} role={activeLocalKeyReady ? 'status' : 'alert'}>
+              <SmsIcon name={activeLocalKeyReady ? 'check' : 'key'} size={18} />
+              <div><strong>{activeLocalKeyReady ? 'Private key พร้อมใน browser นี้' : 'สถานะ Server ACTIVE แต่ local key ยังไม่พร้อม'}</strong><span>{activeLocalKeyCopy}</span></div>
+            </div>
             <dl><div><dt>เปิดใช้งาน</dt><dd>{formatDate(activeDevice.activatedAt)}</dd></div><div><dt>ผู้อนุมัติ</dt><dd>{activeDevice.approvedBy?.displayName || 'ไม่พบชื่อผู้อนุมัติ'}</dd></div><div><dt>แพลตฟอร์ม</dt><dd>{activeDevice.platformHint || 'Web'}</dd></div><div><dt>Key</dt><dd>{activeDevice.keyAlgorithm}</dd></div></dl>
           </div> : !selfError ? <div className="attendance-device-state attendance-device-state--empty"><strong>ยังไม่มีอุปกรณ์หลัก</strong><span>ลงทะเบียนจากโทรศัพท์หรืออุปกรณ์ที่ต้องการใช้ลงเวลา แล้วรอ Admin อนุมัติ</span></div> : null}
+        {activeDevice && <details className="attendance-device-diagnostics" data-testid="attendance-device-id-diagnostics">
+          <summary>รายละเอียดการตรวจสถานะ key ใน browser นี้</summary>
+          <dl>
+            <div><dt>SERVER_ACTIVE_DEVICE</dt><dd>{activeIdChain.activeDeviceId || '—'}</dd></div>
+            <div><dt>LOCAL_PRIVATE_KEY_PRESENT</dt><dd>{activeKeyInspection?.status === 'PRESENT' && activeIdChain.activeKeyIdMatch === true ? 'true' : activeKeyInspection?.status === 'MISSING' ? 'false' : 'unknown'} · {activeKeyInspection?.status || 'UNKNOWN'}</dd></div>
+            <div><dt>ACTIVE_DEVICE_KEY_ID_MATCH</dt><dd>{activeIdChain.activeKeyIdMatch === true ? 'MATCH' : activeIdChain.activeKeyIdMatch === false ? 'MISMATCH' : 'ยังตรวจไม่ได้'}</dd></div>
+            <div><dt>VERIFICATION_DEVICE_ID</dt><dd>ยังไม่มี verification session ในหน้านี้</dd></div>
+            <div><dt>VERIFICATION_DEVICE_ID_MATCH</dt><dd>ยังไม่ได้ตรวจในหน้านี้</dd></div>
+            <div><dt>ACTIVE_REQUEST_CANDIDATE_ID</dt><dd>{activeIdChain.candidateDeviceId || '—'}</dd></div>
+            <div><dt>CANDIDATE_LOCAL_PRIVATE_KEY</dt><dd>{candidateKeyInspection?.status || 'ไม่มี candidate'}{candidateLocalKeyPresent ? ' · ID ตรงกัน' : ''}</dd></div>
+            <div><dt>INDEXEDDB_STORED_ENROLLMENT_IDS</dt><dd>{keyInventory?.available ? activeIdChain.storedEnrollmentIds.join(', ') || 'ไม่มี enrollment ID ที่อ่านได้' : 'อ่าน IndexedDB ไม่ได้'}</dd></div>
+            <div><dt>MALFORMED_LOCAL_KEY_RECORDS</dt><dd>{keyInventory?.available ? keyInventory.malformedRecordCount : 'unknown'}</dd></div>
+            <div><dt>LOCAL_KEY_METADATA</dt><dd>{activeKeyInspection?.algorithm || '—'} / {activeKeyInspection?.namedCurve || '—'} · extractable={String(activeKeyInspection?.extractable ?? 'unknown')} · usages={activeKeyInspection?.usages.join(', ') || '—'}</dd></div>
+            <div><dt>BROWSER_STORAGE</dt><dd>secureContext={String(window.isSecureContext)} · WebCrypto={String(Boolean(globalThis.crypto?.subtle))} · IndexedDB={keyInventory?.available ? 'readable' : 'unavailable'}</dd></div>
+          </dl>
+        </details>}
         {selfError && <div className="alert alert-error" role="alert">{selfError}</div>}
       </article>
 
@@ -342,11 +410,11 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
         <header><span className="attendance-device-card__icon"><SmsIcon name="shield" size={21} /></span><div><h2>{request ? 'คำขอที่กำลังดำเนินการ' : isReplacement ? 'ขอเปลี่ยนอุปกรณ์' : 'ลงทะเบียนอุปกรณ์เครื่องแรก'}</h2><p>บัญชี/Passkey ไม่ถือเป็นหลักฐานว่าเครื่องนี้เป็น Attendance device จนกว่า Admin จะอนุมัติ</p></div></header>
         {request ? <div className="attendance-device-request">
           <div className="attendance-device-request__top"><div><strong>{request.candidateDevice?.displayName || 'Candidate device'}</strong><span>{request.requestType === 'INITIAL' ? 'เครื่องแรก' : 'เปลี่ยนอุปกรณ์'}</span></div><span className={`status-badge ${statusClass[request.status]}`}>{statusLabel[request.status]}</span></div>
-          <div className={`device-proof-state ${proofReady ? 'is-ready' : 'is-warning'}`}><SmsIcon name={proofReady ? 'check' : 'key'} size={18} /><div><strong>{proofReady ? 'Device proof ผ่านแล้ว' : 'ยังต้องยืนยันคีย์ของอุปกรณ์'}</strong><span>{proofReady ? `พิสูจน์เมื่อ ${formatDate(request.candidateDevice?.proofVerifiedAt)}` : localKeyPresent === false ? 'ไม่พบ private key ของ candidate นี้ใน browser ปัจจุบัน' : 'กด “ยืนยันคีย์อีกครั้ง” จากอุปกรณ์เดิมก่อนให้ Admin อนุมัติ'}</span></div></div>
+          <div className={`device-proof-state ${proofReady ? 'is-ready' : 'is-warning'}`} data-testid="attendance-candidate-key-state" data-local-key-state={candidateKeyInspection?.status || 'UNKNOWN'}><SmsIcon name={proofReady ? 'check' : 'key'} size={18} /><div><strong>{proofReady ? 'Device proof ผ่านแล้ว' : 'สถานะ local key ของ candidate'}</strong><span>{proofReady ? `พิสูจน์เมื่อ ${formatDate(request.candidateDevice?.proofVerifiedAt)}` : candidateLocalKeyCopy}</span></div></div>
           {request.reason && <p className="attendance-device-reason"><b>เหตุผล:</b> {request.reason}</p>}
           {request.reviewerComment && <div className="attendance-device-review-note"><b>ความเห็นผู้ตรวจ:</b><span>{request.reviewerComment}</span></div>}
           {request.status === 'RETURNED_FOR_CORRECTION' && <label className="attendance-device-field"><span>เหตุผล/คำชี้แจงสำหรับส่งใหม่</span><textarea value={reason} maxLength={1000} onChange={(event) => setReason(event.target.value)} placeholder={request.reason || 'ระบุคำชี้แจงเพิ่มเติม'} /></label>}
-          {!proofReady && localKeyPresent !== false && <button type="button" className="btn-primary" disabled={busy || readOnly || !capability.supported} onClick={() => void retryProof()}><SmsIcon name="key" size={17} />{busy ? 'กำลังยืนยัน…' : 'ยืนยันคีย์อีกครั้ง'}</button>}
+          {!proofReady && candidateKeyInspection?.status !== 'MISSING' && candidateKeyInspection?.status !== 'INVALID' && <button type="button" className="btn-primary" disabled={busy || readOnly || !capability.supported} onClick={() => void retryProof()}><SmsIcon name="key" size={17} />{busy ? 'กำลังยืนยัน…' : 'ยืนยันคีย์อีกครั้ง'}</button>}
           {request.status === 'RETURNED_FOR_CORRECTION' && <button type="button" className="btn-primary" disabled={busy || readOnly} onClick={() => void resubmit()}><SmsIcon name="refresh" size={17} />ส่งให้ Admin พิจารณาอีกครั้ง</button>}
           <div className="attendance-device-cancel"><label className="attendance-device-field"><span>เหตุผลที่ยกเลิกคำขอ</span><input value={cancelReason} maxLength={1000} onChange={(event) => setCancelReason(event.target.value)} placeholder="เช่น เลือกอุปกรณ์ผิด / ต้องการลงทะเบียนใหม่" /></label><button type="button" className="btn-danger-outline" disabled={busy || readOnly || !cancelReason.trim()} onClick={() => void cancelRequest()}>ยกเลิกคำขอนี้</button></div>
         </div> : <div className="attendance-device-enroll-form">

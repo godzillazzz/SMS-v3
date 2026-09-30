@@ -16,6 +16,31 @@ export type AttendanceDeviceCapability = {
   reason?: 'SECURE_CONTEXT_REQUIRED' | 'WEB_CRYPTO_UNAVAILABLE' | 'INDEXED_DB_UNAVAILABLE';
 };
 
+export type AttendanceDeviceKeyInspection = {
+  enrollmentId: string;
+  status: 'PRESENT' | 'MISSING' | 'INVALID' | 'UNAVAILABLE';
+  algorithm: string | null;
+  namedCurve: string | null;
+  extractable: boolean | null;
+  usages: string[];
+  createdAt: string | null;
+  errorCode?: 'INDEXED_DB_UNAVAILABLE' | 'MALFORMED_RECORD';
+};
+
+export type AttendanceDeviceKeyInventory = {
+  available: boolean;
+  enrollmentIds: string[];
+  keys: AttendanceDeviceKeyInspection[];
+  malformedRecordCount: number;
+};
+
+export class AttendanceDeviceKeyError extends Error {
+  constructor(readonly code: 'ATTENDANCE_DEVICE_LOCAL_KEY_MISSING' | 'ATTENDANCE_DEVICE_LOCAL_KEY_INVALID' | 'ATTENDANCE_DEVICE_KEY_STORAGE_UNAVAILABLE', message: string) {
+    super(message);
+    this.name = 'AttendanceDeviceKeyError';
+  }
+}
+
 function bytesToBase64(bytes: Uint8Array) {
   let binary = '';
   for (let offset = 0; offset < bytes.length; offset += 0x8000) {
@@ -68,6 +93,128 @@ async function withStore<T>(mode: IDBTransactionMode, action: (store: IDBObjectS
   }
 }
 
+function isRecord(value: unknown): value is AttendanceDeviceKeyRecord {
+  return Boolean(value && typeof value === 'object');
+}
+
+function inspectRecord(enrollmentId: string, value: unknown): AttendanceDeviceKeyInspection {
+  if (value == null) {
+    return { enrollmentId, status: 'MISSING', algorithm: null, namedCurve: null, extractable: null, usages: [], createdAt: null };
+  }
+  if (!isRecord(value)) {
+    return { enrollmentId, status: 'INVALID', algorithm: null, namedCurve: null, extractable: null, usages: [], createdAt: null, errorCode: 'MALFORMED_RECORD' };
+  }
+
+  const rawKey = value.privateKey as unknown;
+  const hasCryptoKeyConstructor = typeof globalThis.CryptoKey === 'function';
+  const isCryptoKey = hasCryptoKeyConstructor && rawKey instanceof globalThis.CryptoKey;
+  const key = (isCryptoKey ? rawKey : null) as CryptoKey | null;
+  const algorithm = key?.algorithm && typeof key.algorithm === 'object' ? key.algorithm as KeyAlgorithm & { namedCurve?: string } : null;
+  let usages: string[] = [];
+  try {
+    if (key?.usages && typeof key.usages[Symbol.iterator] === 'function') usages = Array.from(key.usages);
+  } catch {
+    usages = [];
+  }
+  const recordMatches = value.candidateDeviceEnrollmentId === enrollmentId
+    && typeof value.employeeId === 'string'
+    && value.employeeId.length > 0
+    && typeof value.publicKeySpkiBase64 === 'string'
+    && value.publicKeySpkiBase64.length > 0
+    && typeof value.createdAt === 'string'
+    && value.createdAt.length > 0;
+  const keyMatches = Boolean(isCryptoKey && key
+    && key.type === 'private'
+    && key.extractable === false
+    && algorithm?.name === 'ECDSA'
+    && algorithm.namedCurve === 'P-256'
+    && usages.includes('sign'));
+  const status = recordMatches && keyMatches ? 'PRESENT' : 'INVALID';
+  return {
+    enrollmentId,
+    status,
+    algorithm: algorithm?.name || null,
+    namedCurve: algorithm?.namedCurve || null,
+    extractable: typeof key?.extractable === 'boolean' ? key.extractable : null,
+    usages,
+    createdAt: typeof value.createdAt === 'string' ? value.createdAt : null,
+    ...(status === 'INVALID' ? { errorCode: 'MALFORMED_RECORD' as const } : {})
+  };
+}
+
+function unavailableInspection(enrollmentId: string): AttendanceDeviceKeyInspection {
+  return { enrollmentId, status: 'UNAVAILABLE', algorithm: null, namedCurve: null, extractable: null, usages: [], createdAt: null, errorCode: 'INDEXED_DB_UNAVAILABLE' };
+}
+
+export async function inspectAttendanceDeviceKey(enrollmentId: string): Promise<AttendanceDeviceKeyInspection> {
+  if (typeof enrollmentId !== 'string' || !enrollmentId.trim()) return { enrollmentId: '', status: 'INVALID', algorithm: null, namedCurve: null, extractable: null, usages: [], createdAt: null, errorCode: 'MALFORMED_RECORD' };
+  try {
+    const record = await withStore<AttendanceDeviceKeyRecord | undefined>('readonly', (store) => store.get(enrollmentId));
+    return inspectRecord(enrollmentId, record);
+  } catch {
+    return unavailableInspection(enrollmentId);
+  }
+}
+
+export async function hasAttendanceDeviceKey(enrollmentId: string) {
+  return (await inspectAttendanceDeviceKey(enrollmentId)).status === 'PRESENT';
+}
+
+export async function listAttendanceDeviceKeyIds(employeeId?: string): Promise<AttendanceDeviceKeyInventory> {
+  try {
+    const rows = await withStore<AttendanceDeviceKeyRecord[]>('readonly', (store) => store.getAll());
+    const matchingRows = (Array.isArray(rows) ? rows : []).filter((row) => !employeeId || (isRecord(row) && row.employeeId === employeeId));
+    const keys = matchingRows.map((row) => {
+      const enrollmentId = isRecord(row) && typeof row.candidateDeviceEnrollmentId === 'string' ? row.candidateDeviceEnrollmentId : '';
+      return inspectRecord(enrollmentId, row);
+    });
+    return {
+      available: true,
+      enrollmentIds: keys.filter((key) => key.enrollmentId).map((key) => key.enrollmentId),
+      malformedRecordCount: keys.filter((key) => key.status === 'INVALID').length,
+      keys
+    };
+  } catch {
+    return { available: false, enrollmentIds: [], malformedRecordCount: 0, keys: [] };
+  }
+}
+
+export type AttendanceDeviceKeyIdChain = {
+  activeDeviceId: string | null;
+  candidateDeviceId: string | null;
+  verificationDeviceId: string | null;
+  storedEnrollmentIds: string[];
+  activeKeyIdMatch: boolean | null;
+  candidateKeyIdMatch: boolean | null;
+  verificationKeyIdMatch: boolean | null;
+  verificationMatchesActive: boolean | null;
+};
+
+export function correlateAttendanceDeviceKeyIds(input: {
+  activeDeviceId?: string | null;
+  candidateDeviceId?: string | null;
+  verificationDeviceId?: string | null;
+  storedEnrollmentIds: string[];
+}): AttendanceDeviceKeyIdChain {
+  const activeDeviceId = input.activeDeviceId || null;
+  const candidateDeviceId = input.candidateDeviceId || null;
+  const verificationDeviceId = input.verificationDeviceId || null;
+  const storedEnrollmentIds = [...new Set(input.storedEnrollmentIds.filter(Boolean))];
+  const stored = new Set(storedEnrollmentIds);
+  return {
+    activeDeviceId,
+    candidateDeviceId,
+    verificationDeviceId,
+    storedEnrollmentIds,
+    activeKeyIdMatch: activeDeviceId ? stored.has(activeDeviceId) : null,
+    candidateKeyIdMatch: candidateDeviceId ? stored.has(candidateDeviceId) : null,
+    verificationKeyIdMatch: verificationDeviceId ? stored.has(verificationDeviceId) : null,
+    verificationMatchesActive: verificationDeviceId
+      ? activeDeviceId ? verificationDeviceId === activeDeviceId : false
+      : null
+  };
+}
+
 export async function generateAttendanceDeviceKeyPair() {
   const capability = attendanceDeviceCapability();
   if (!capability.supported) throw new Error(capability.reason || 'ATTENDANCE_DEVICE_CRYPTO_UNAVAILABLE');
@@ -94,15 +241,29 @@ export async function deleteAttendanceDeviceKey(candidateDeviceEnrollmentId: str
 export async function pruneAttendanceDeviceKeys(employeeId: string, allowedEnrollmentIds: string[]) {
   const allowed = new Set(allowedEnrollmentIds.filter(Boolean));
   const rows = await withStore<AttendanceDeviceKeyRecord[]>('readonly', (store) => store.getAll());
-  const stale = rows.filter((row) => row.employeeId === employeeId && !allowed.has(row.candidateDeviceEnrollmentId));
+  const stale = (Array.isArray(rows) ? rows : []).filter((row) => isRecord(row)
+    && row.employeeId === employeeId
+    && typeof row.candidateDeviceEnrollmentId === 'string'
+    && row.candidateDeviceEnrollmentId.length > 0
+    && !allowed.has(row.candidateDeviceEnrollmentId));
   await Promise.all(stale.map((row) => deleteAttendanceDeviceKey(row.candidateDeviceEnrollmentId)));
   return stale.length;
 }
 
 export async function signAttendanceDeviceChallenge(candidateDeviceEnrollmentId: string, challenge: string) {
-  const record = await getAttendanceDeviceKey(candidateDeviceEnrollmentId);
-  if (!record?.privateKey) throw new Error('ไม่พบคีย์ส่วนตัวของอุปกรณ์นี้ในเบราว์เซอร์ กรุณายกเลิกคำขอและลงทะเบียนใหม่จากอุปกรณ์ที่ต้องการใช้งาน');
-  if (record.privateKey.extractable) throw new Error('คีย์ของอุปกรณ์ไม่ผ่านข้อกำหนดความปลอดภัย');
+  let record: AttendanceDeviceKeyRecord | null;
+  try {
+    record = await getAttendanceDeviceKey(candidateDeviceEnrollmentId);
+  } catch {
+    throw new AttendanceDeviceKeyError('ATTENDANCE_DEVICE_KEY_STORAGE_UNAVAILABLE', 'ไม่สามารถอ่าน IndexedDB ของอุปกรณ์ใน browser/profile นี้ได้ จึงยังยืนยัน device proof ไม่ได้');
+  }
+  const inspection = inspectRecord(candidateDeviceEnrollmentId, record);
+  if (inspection.status === 'MISSING') {
+    throw new AttendanceDeviceKeyError('ATTENDANCE_DEVICE_LOCAL_KEY_MISSING', 'ไม่พบ local private key สำหรับ device enrollment ID ที่ Server ส่งมาใน browser/profile นี้');
+  }
+  if (inspection.status !== 'PRESENT' || !record?.privateKey) {
+    throw new AttendanceDeviceKeyError('ATTENDANCE_DEVICE_LOCAL_KEY_INVALID', 'พบ record ของอุปกรณ์ แต่ key metadata ไม่ผ่านข้อกำหนด P-256 non-exportable; หยุดก่อนส่ง device proof');
+  }
   const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, record.privateKey, base64UrlToBytes(challenge));
   return bytesToBase64(new Uint8Array(signature));
 }

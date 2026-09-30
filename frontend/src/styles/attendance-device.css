@@ -18,6 +18,7 @@
 .attendance-device-current { display: grid; gap: 18px; }
 .attendance-device-current__hero { display: flex; align-items: center; gap: 13px; }
 .device-orb { display: inline-grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border-radius: 15px; color: var(--color-success); background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface)); }
+.device-orb.is-warning { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface)); }
 .attendance-device-current__hero > div { display: grid; gap: 4px; min-width: 0; }
 .attendance-device-current__hero strong { overflow: hidden; color: var(--color-text); font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
 .attendance-device-current__hero span { color: var(--color-text-muted); font-size: 11px; }
@@ -75,6 +76,18 @@
 .attendance-device-review-modal header h3 { margin: 0; color: var(--color-text); font-size: 18px; }
 .attendance-device-review-modal header span { color: var(--color-text-muted); font-size: 11px; }
 .attendance-device-review-modal > footer { display: flex; justify-content: flex-end; gap: 8px; }
+.attendance-device-diagnostics,
+.attendance-device-runtime-diagnostics { min-width: 0; border: 1px solid var(--color-border); border-radius: 11px; padding: 10px 12px; color: var(--color-text-muted); background: color-mix(in srgb, var(--color-surface-muted) 38%, var(--color-surface)); }
+.attendance-device-diagnostics summary,
+.attendance-device-runtime-diagnostics summary { cursor: pointer; color: var(--color-text); font-size: 11px; font-weight: 700; }
+.attendance-device-diagnostics dl,
+.attendance-device-runtime-diagnostics dl { display: grid; gap: 7px; margin: 10px 0 0; }
+.attendance-device-diagnostics dl > div,
+.attendance-device-runtime-diagnostics dl > div { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(0, 1.3fr); gap: 8px; border-top: 1px solid var(--color-border); padding-top: 7px; }
+.attendance-device-diagnostics dt,
+.attendance-device-runtime-diagnostics dt { color: var(--color-text-muted); font-size: 9px; font-weight: 700; overflow-wrap: anywhere; }
+.attendance-device-diagnostics dd,
+.attendance-device-runtime-diagnostics dd { min-width: 0; margin: 0; color: var(--color-text); font-family: var(--font-mono, monospace); font-size: 10px; overflow-wrap: anywhere; }
 .status-badge.returned { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface)); }
 .status-badge.muted { color: var(--color-text-muted); background: var(--color-surface-muted); }
 
@@ -88,6 +101,8 @@
   .attendance-device-admin-section { border-radius: 14px; padding: 15px; }
   .attendance-device-current dl,
   .attendance-device-review-meta { grid-template-columns: 1fr; }
+  .attendance-device-diagnostics dl > div,
+  .attendance-device-runtime-diagnostics dl > div { grid-template-columns: 1fr; gap: 3px; }
   .attendance-device-cancel { grid-template-columns: 1fr; }
   .attendance-device-review-card__head,
   .attendance-device-request__top,

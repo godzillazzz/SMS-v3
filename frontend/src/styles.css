@@ -183,6 +183,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
+@media (max-width: 360px) {
+  body, #root { min-width: 0; }
+}
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 

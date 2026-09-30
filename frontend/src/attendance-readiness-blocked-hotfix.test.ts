@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const page = readFileSync(new URL('./pages/attendance/AttendancePage.tsx', import.meta.url), 'utf8');
+const deviceProof = readFileSync(new URL('./pages/attendance/attendance-device-proof.ts', import.meta.url), 'utf8');
 const main = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
 
 describe('Attendance readiness blocked hotfix', () => {
@@ -9,7 +10,8 @@ describe('Attendance readiness blocked hotfix', () => {
     expect(page).toContain('const [deviceStateKnown, setDeviceStateKnown] = useState(false)');
     expect(page).toContain("const devicePrerequisiteBlocked = deviceStateKnown && !deviceEnrolled");
     expect(page).toContain("const actionText = pendingAttendanceCommit ? 'บันทึกซ้ำ' : deviceBlocked ? 'ตั้งค่าอุปกรณ์'");
-    expect(page).toContain("deviceV4Ready ? 'พร้อม' : deviceBlocked ? 'จำเป็น' : 'ตรวจเมื่อกด'");
+    expect(page).toContain('const deviceV4Ready = (deviceEnrolled && deviceKeyCapability.supported && deviceKeyInspection?.status === \'PRESENT\')');
+    expect(page).toContain('const deviceKeyLabel = attendanceAccepted || verificationSession');
     expect(page).toContain('ต้องตั้งค่า <b>DEVICE</b> ก่อน');
   });
 
@@ -18,8 +20,17 @@ describe('Attendance readiness blocked hotfix', () => {
     expect(page).toContain('onOpenAttendanceDevice?.()');
     expect(main).toContain("onOpenAttendanceDevice={() => selectPwaPage('attendanceDevice')}");
     expect(page).toContain('Attendance ต้องมีอุปกรณ์สถานะ ACTIVE ที่ผูกกับพนักงาน');
-    expect(page).toMatch(/attendanceVerificationStart\(token[\s\S]*?verification\.deviceEnrollmentId[\s\S]*?signAttendanceDeviceChallenge[\s\S]*?verifyAttendanceDeviceProof/);
-    expect(page).not.toMatch(/attendanceVerificationStart\(token[\s\S]*?attendanceDeviceState\(token\)[\s\S]*?verifyAttendanceDeviceProof/);
+    const verificationStart = page.indexOf('const started = await attendanceVerificationStart(token');
+    const deviceProofFlow = page.indexOf('await performAttendanceDeviceProof({');
+    const activeDeviceRefresh = deviceProof.indexOf('await dependencies.readDeviceState(token)');
+    const keyRead = deviceProof.indexOf('await dependencies.readKeyInventory(currentDeviceState.employeeId)');
+    const signature = deviceProof.indexOf('dependencies.signChallenge(verification.deviceEnrollmentId');
+    const proofPost = deviceProof.indexOf('dependencies.postDeviceProof(token, verification.sessionId');
+    expect(verificationStart).toBeGreaterThan(-1);
+    expect(deviceProofFlow).toBeGreaterThan(verificationStart);
+    expect(keyRead).toBeGreaterThan(activeDeviceRefresh);
+    expect(signature).toBeGreaterThan(keyRead);
+    expect(proofPost).toBeGreaterThan(signature);
   });
 
   it('surfaces a server readiness 200 that contains a blocking state instead of silently returning to Ready', () => {
