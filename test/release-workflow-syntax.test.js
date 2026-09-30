@@ -66,18 +66,18 @@ test("Production verifier checks native Git provenance and immutable runtime bef
     "Verify immutable candidate, explicitly promote, then verify canonical Production",
   );
   assert.match(workflow, /git show "\$GITHUB_SHA:scripts\/ci\/\$tool"/);
+  assert.match(workflow, /vercel-api-deployment\.js/);
+  assert.match(workflow, /inspect-vercel-deployment\.js/);
   assert.match(create, /create-vercel-git-candidate\.js/);
-  assert.match(create, /expectedCommitSha: expectedCommit/);
-  assert.match(create, /expectedCommitRef: expectedRef/);
-  assert.match(create, /requireNoAliases: true/);
+  assert.match(create, /inspect-vercel-deployment\.js "\$deployment_id" "\$TARGET_SHA" "\$SOURCE_BRANCH" production true/);
   assert.match(workflow, /CONTROL_PLANE_SHA: \$\{\{ github\.sha \}\}/);
   assert.match(ciGuard, /RELEASE_CONTROL_PLANE_EXACT_SHA_CI=PASS/);
   assert.match(ciGuard, /APPLICATION_SOURCE_EXACT_SHA_CI=PASS/);
   assert.match(script, /verify_public_runtime "\$DEPLOYMENT_URL" IMMUTABLE_CANDIDATE true/);
-  assert.match(script, /CANONICAL_ROLLBACK_STILL_CURRENT=PASS/);
-  assert.match(script, /IMMUTABLE_CANDIDATE_NATIVE_SHA_REF=PASS/);
-  assert.ok(script.indexOf('IMMUTABLE_CANDIDATE true') < script.indexOf('promote "$DEPLOYMENT_ID"'));
-  assert.match(script, /inspect \"\$DEPLOYMENT_ID\" --format=json/);
+  assert.match(script, /CANONICAL_ROLLBACK_ALIAS_STILL_CURRENT=PASS/);
+  assert.match(script, /inspect-vercel-deployment\.js "\$DEPLOYMENT_ID" "\$TARGET_SHA" "\$SOURCE_BRANCH" production true/);
+  assert.match(script, /inspect-vercel-deployment\.js "\$ROLLBACK_DEPLOYMENT_ID" "\$CURRENT_PRODUCTION_SOURCE_SHA" "\$CURRENT_PRODUCTION_SOURCE_REF" production false/);
+  assert.ok(script.indexOf('inspect-vercel-deployment.js "$DEPLOYMENT_ID" "$TARGET_SHA" "$SOURCE_BRANCH" production true') < script.indexOf('promote "$DEPLOYMENT_ID"'));
   assert.match(script, /promote \"\$DEPLOYMENT_ID\"/);
   assert.match(
     script,
@@ -143,7 +143,8 @@ test("pre-applied migration release guard requires exact prior Production migrat
   assert.doesNotMatch(productionGuard, /prisma-migration\.js deploy|prisma migrate deploy/);
   assert.match(rollbackGuard, /inspect "\$EXPECTED_CANONICAL_URL" --format=json/);
   assert.match(rollbackGuard, /ROLLBACK_CHECKPOINT_CURRENT=PASS/);
-  assert.match(rollbackGuard, /expectedId, expectedProjectId/);
+  assert.match(rollbackGuard, /inspect-vercel-deployment\.js "\$ROLLBACK_DEPLOYMENT_ID" "\$CURRENT_PRODUCTION_SOURCE_SHA" "\$CURRENT_PRODUCTION_SOURCE_REF" production false/);
+  assert.match(workflow, /current_production_source_ref: \$\{\{ steps\.manifest\.outputs\.current_production_source_ref \}\}/);
 });
 
 

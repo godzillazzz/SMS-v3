@@ -39,8 +39,8 @@ function inspectDeploymentRecord(raw, options = {}) {
   if (!record || typeof record !== 'object') throw new Error('Vercel inspect did not return a deployment record');
   if (expectedId && record.id !== expectedId) throw new Error('Vercel inspect deployment ID mismatch');
   if (expectedProjectId && record.projectId !== expectedProjectId) throw new Error('Vercel inspect project ID mismatch');
-  const commitSha = record.meta?.githubCommitSha || record.meta?.githubCommitId || '';
-  const commitRef = record.meta?.githubCommitRef || record.gitSource?.ref || '';
+  const commitSha = record.meta?.githubCommitSha || '';
+  const commitRef = record.meta?.githubCommitRef || '';
   const target = record.target || '';
   const readyState = record.readyState || record.state || '';
   if (expectedCommitSha && commitSha !== expectedCommitSha) throw new Error('Vercel inspect native githubCommitSha mismatch');

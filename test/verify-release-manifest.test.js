@@ -13,6 +13,7 @@ function validManifest() {
     commit_sha: '86a495a60e989ff25e08cf5d204ba5ad6e7e064c',
     tree_sha: 'ccf7e9858b5a52dcd2be61a05f5bc2d4bcfaf6e1',
     current_production_source_sha: '7b9757facdea9934b63417fe955cbec418151d05',
+    current_production_source_ref: 'release/approval-identity-branding-20260928',
     rollback_deployment_id: 'dpl_DzkK9oq8s2VmURATc2HLDMWRUSS5',
     target_project_name: 'sms-v3-staging',
     target_project_id: 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s',
@@ -73,6 +74,12 @@ test('fails closed when rollback safety policy is weakened', () => {
   assert.throws(() => validateReleaseManifest(manifest), /rollback_policy mismatch/);
 });
 
+test('fails closed when rollback source ref does not match the canonical checkpoint', () => {
+  const manifest = validManifest();
+  manifest.current_production_source_ref = 'some-other-branch';
+  assert.throws(() => validateReleaseManifest(manifest), /current_production_source_ref mismatch/);
+});
+
 test('fails closed when the manifest permits a Production environment mutation', () => {
   const manifest = validManifest();
   manifest.production_environment_change_policy = 'ENVIRONMENT_CHANGE_ALLOWED';
@@ -110,6 +117,7 @@ test('current approved Production manifest resolves the exact G06 release target
   assert.equal(result.commitSha, '5c1e9414b6d694e53b060608d32c12184bb9c459');
   assert.equal(result.treeSha, '12fee56a2657080d9f1c4bac136297ed6a15131b');
   assert.equal(result.currentProductionSourceSha, '3f1b88850748e5c5000044eee505fd7003a1205e');
+  assert.equal(result.currentProductionSourceRef, 'release/approval-identity-branding-20260928');
   assert.equal(result.rollbackDeploymentId, 'dpl_2ctpAuS6C82xe5WpULqbk9N2Ay8U');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');

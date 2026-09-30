@@ -5,6 +5,7 @@
   "commit_sha": "5c1e9414b6d694e53b060608d32c12184bb9c459",
   "tree_sha": "12fee56a2657080d9f1c4bac136297ed6a15131b",
   "current_production_source_sha": "3f1b88850748e5c5000044eee505fd7003a1205e",
+  "current_production_source_ref": "release/approval-identity-branding-20260928",
   "rollback_deployment_id": "dpl_2ctpAuS6C82xe5WpULqbk9N2Ay8U",
   "preview_deployment_id": "dpl_EzbZPpyG4kqW2QgL5CPXJM5AVSEa",
   "target_project_name": "sms-v3-staging",

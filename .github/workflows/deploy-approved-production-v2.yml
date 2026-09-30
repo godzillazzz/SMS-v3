@@ -30,6 +30,7 @@ jobs:
       commit_sha: ${{ steps.manifest.outputs.commit_sha }}
       tree_sha: ${{ steps.manifest.outputs.tree_sha }}
       current_production_source_sha: ${{ steps.manifest.outputs.current_production_source_sha }}
+      current_production_source_ref: ${{ steps.manifest.outputs.current_production_source_ref }}
       rollback_deployment_id: ${{ steps.manifest.outputs.rollback_deployment_id }}
       target_project_name: ${{ steps.manifest.outputs.target_project_name }}
       target_project_id: ${{ steps.manifest.outputs.target_project_id }}
@@ -61,7 +62,7 @@ jobs:
           grep -Fxq 'RELEASE_MANIFEST_GUARD=PASS' "$manifest_output"
           while IFS='=' read -r key value; do
             case "$key" in
-              release_id|commit_sha|tree_sha|current_production_source_sha|rollback_deployment_id|target_project_name|target_project_id|target_org_id|target_environment|canonical_url|source_branch|run_migrations|database_change_policy|pre_applied_migration_manifest_path|pre_applied_migration_evidence_run_id)
+              release_id|commit_sha|tree_sha|current_production_source_sha|current_production_source_ref|rollback_deployment_id|target_project_name|target_project_id|target_org_id|target_environment|canonical_url|source_branch|run_migrations|database_change_policy|pre_applied_migration_manifest_path|pre_applied_migration_evidence_run_id)
                 echo "$key=$value" >> "$GITHUB_OUTPUT"
                 ;;
             esac
@@ -73,6 +74,7 @@ jobs:
           TARGET_SHA: ${{ steps.manifest.outputs.commit_sha }}
           TARGET_TREE: ${{ steps.manifest.outputs.tree_sha }}
           CURRENT_PRODUCTION_SOURCE_SHA: ${{ steps.manifest.outputs.current_production_source_sha }}
+          CURRENT_PRODUCTION_SOURCE_REF: ${{ steps.manifest.outputs.current_production_source_ref }}
           SOURCE_BRANCH: ${{ steps.manifest.outputs.source_branch }}
           RUN_MIGRATIONS: ${{ steps.manifest.outputs.run_migrations }}
           DATABASE_CHANGE_POLICY: ${{ steps.manifest.outputs.database_change_policy }}
@@ -290,6 +292,7 @@ jobs:
       TARGET_TREE: ${{ needs.prepare.outputs.tree_sha }}
       SOURCE_BRANCH: ${{ needs.prepare.outputs.source_branch }}
       CURRENT_PRODUCTION_SOURCE_SHA: ${{ needs.prepare.outputs.current_production_source_sha }}
+      CURRENT_PRODUCTION_SOURCE_REF: ${{ needs.prepare.outputs.current_production_source_ref }}
       ROLLBACK_DEPLOYMENT_ID: ${{ needs.prepare.outputs.rollback_deployment_id }}
       MANIFEST_SHA256: ${{ needs.prepare.outputs.manifest_sha256 }}
       DATABASE_CHANGE_POLICY: ${{ needs.prepare.outputs.database_change_policy }}
@@ -308,7 +311,7 @@ jobs:
           git fetch --no-tags origin "$GITHUB_SHA"
           release_tools=/tmp/sms-release-control-plane
           mkdir -p "$release_tools"
-          for tool in verify-public-runtime.js vercel-curl-fetch.js create-vercel-git-candidate.js vercel-deployment.js; do
+          for tool in verify-public-runtime.js vercel-curl-fetch.js create-vercel-git-candidate.js vercel-api-deployment.js vercel-deployment.js; do
             git show "$GITHUB_SHA:scripts/ci/$tool" > "$release_tools/$tool"
             node --check "$release_tools/$tool"
           done
@@ -491,14 +494,15 @@ jobs:
           rollback_current_json=$(mktemp)
           trap 'rm -f "$rollback_current_json"' EXIT
           npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$rollback_current_json"
-          node - "$rollback_current_json" "$ROLLBACK_DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" <<'NODE'
+          node - "$rollback_current_json" "$ROLLBACK_DEPLOYMENT_ID" <<'NODE'
           const fs = require('node:fs');
-          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
-          const [file, expectedId, expectedProjectId] = process.argv.slice(2);
-          const record = inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
-          if (record.target !== 'production') throw new Error('Rollback checkpoint is not a Production deployment');
+          const [file, expectedId] = process.argv.slice(2);
+          const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (record.id !== expectedId) throw new Error('Canonical Production is not the manifest rollback deployment');
+          if (record.target !== 'production' || record.readyState !== 'READY') throw new Error('Canonical rollback deployment is not READY Production');
           process.stdout.write('ROLLBACK_CHECKPOINT_CURRENT=PASS\n');
           NODE
+          node /tmp/sms-release-control-plane/inspect-vercel-deployment.js "$ROLLBACK_DEPLOYMENT_ID" "$CURRENT_PRODUCTION_SOURCE_SHA" "$CURRENT_PRODUCTION_SOURCE_REF" production false
 
       - name: Build exact prebuilt Production artifact and enforce feature sentinels
         shell: bash
@@ -538,8 +542,7 @@ jobs:
         run: |
           set -euo pipefail
           deployment_output=$(mktemp)
-          inspect_json=$(mktemp)
-          trap 'rm -f "$deployment_output" "$inspect_json"' EXIT
+          trap 'rm -f "$deployment_output"' EXIT
           node /tmp/sms-release-control-plane/create-vercel-git-candidate.js >"$deployment_output"
           while IFS='=' read -r key value; do
             case "$key" in
@@ -561,22 +564,8 @@ jobs:
           test "$candidate_alias_assigned" = false
           [[ "$deployment_id" =~ ^dpl_[A-Za-z0-9]+$ ]]
           [[ "$deployment_url" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ ]]
-          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$deployment_id" --format=json --token "$VERCEL_TOKEN" >"$inspect_json"
-          node - "$inspect_json" "$deployment_id" "$EXPECTED_PROJECT_ID" "$TARGET_SHA" "$SOURCE_BRANCH" <<'NODE'
-          const fs = require('node:fs');
-          const { inspectDeploymentRecord } = require('/tmp/sms-release-control-plane/vercel-deployment.js');
-          const [file, expectedId, expectedProjectId, expectedCommit, expectedRef] = process.argv.slice(2);
-          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), {
-            expectedId,
-            expectedProjectId,
-            expectedCommitSha: expectedCommit,
-            expectedCommitRef: expectedRef,
-            expectedTarget: 'production',
-            requireReady: true,
-            requireNoAliases: true
-          });
-          process.stdout.write('GIT_SOURCED_CANDIDATE_INSPECT=PASS\nNATIVE_SHA_REF=PASS\nNO_ALIAS_ASSIGNED=PASS\n');
-          NODE
+          node /tmp/sms-release-control-plane/inspect-vercel-deployment.js "$deployment_id" "$TARGET_SHA" "$SOURCE_BRANCH" production true
+          echo 'GIT_SOURCED_CANDIDATE_INSPECT=PASS'
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
 
@@ -649,36 +638,26 @@ jobs:
           NODE
           }
 
-          candidate_json=$(mktemp)
           rollback_json=$(mktemp)
-          trap 'rm -f "$candidate_json" "$rollback_json"' EXIT
-          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$DEPLOYMENT_ID" --format=json --token "$VERCEL_TOKEN" >"$candidate_json"
-          node - "$candidate_json" "$DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" "$TARGET_SHA" "$SOURCE_BRANCH" <<'NODE'
-          const fs = require('node:fs');
-          const { inspectDeploymentRecord } = require('/tmp/sms-release-control-plane/vercel-deployment.js');
-          const [file, expectedId, expectedProjectId, expectedCommit, expectedRef] = process.argv.slice(2);
-          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), {
-            expectedId,
-            expectedProjectId,
-            expectedCommitSha: expectedCommit,
-            expectedCommitRef: expectedRef,
-            expectedTarget: 'production',
-            requireReady: true,
-            requireNoAliases: true
-          });
-          process.stdout.write('IMMUTABLE_CANDIDATE_NATIVE_SHA_REF=PASS\nIMMUTABLE_CANDIDATE_READY=PASS\nIMMUTABLE_CANDIDATE_NO_ALIAS=PASS\n');
-          NODE
+          trap 'rm -f "$rollback_json"' EXIT
+          node /tmp/sms-release-control-plane/inspect-vercel-deployment.js "$DEPLOYMENT_ID" "$TARGET_SHA" "$SOURCE_BRANCH" production true
+          echo 'IMMUTABLE_CANDIDATE_NATIVE_SHA_REF=PASS'
+          echo 'IMMUTABLE_CANDIDATE_READY=PASS'
+          echo 'IMMUTABLE_CANDIDATE_NO_ALIAS=PASS'
 
           verify_public_runtime "$DEPLOYMENT_URL" IMMUTABLE_CANDIDATE true
 
           npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$rollback_json"
-          node - "$rollback_json" "$ROLLBACK_DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" <<'NODE'
+          node - "$rollback_json" "$ROLLBACK_DEPLOYMENT_ID" <<'NODE'
           const fs = require('node:fs');
-          const { inspectDeploymentRecord } = require('/tmp/sms-release-control-plane/vercel-deployment.js');
-          const [file, expectedId, expectedProjectId] = process.argv.slice(2);
-          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId, expectedTarget: 'production', requireReady: true });
-          process.stdout.write('CANONICAL_ROLLBACK_STILL_CURRENT=PASS\n');
+          const [file, expectedId] = process.argv.slice(2);
+          const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (record.id !== expectedId) throw new Error('Canonical Production changed away from the manifest rollback deployment');
+          if (record.target !== 'production' || record.readyState !== 'READY') throw new Error('Manifest rollback deployment is not READY Production');
+          process.stdout.write('CANONICAL_ROLLBACK_ALIAS_STILL_CURRENT=PASS\n');
           NODE
+          node /tmp/sms-release-control-plane/inspect-vercel-deployment.js "$ROLLBACK_DEPLOYMENT_ID" "$CURRENT_PRODUCTION_SOURCE_SHA" "$CURRENT_PRODUCTION_SOURCE_REF" production false
+          echo 'CANONICAL_ROLLBACK_NATIVE_PROVENANCE=PASS'
 
           npx --yes vercel@"$VERCEL_CLI_VERSION" promote "$DEPLOYMENT_ID" --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
 
@@ -687,22 +666,18 @@ jobs:
           matched=false
           for attempt in $(seq 1 18); do
             if npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$canonical_json" 2>/dev/null; then
-              if node - "$canonical_json" "$DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" "$TARGET_SHA" "$SOURCE_BRANCH" <<'NODE'
+              if node - "$canonical_json" "$DEPLOYMENT_ID" <<'NODE'
           const fs = require('node:fs');
-          const { inspectDeploymentRecord } = require('/tmp/sms-release-control-plane/vercel-deployment.js');
-          const [file, expectedId, expectedProjectId, expectedCommit, expectedRef] = process.argv.slice(2);
-          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), {
-            expectedId,
-            expectedProjectId,
-            expectedCommitSha: expectedCommit,
-            expectedCommitRef: expectedRef,
-            expectedTarget: 'production',
-            requireReady: true
-          });
-          NODE
+          const [file, expectedId] = process.argv.slice(2);
+          const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (record.id !== expectedId) throw new Error('Canonical URL does not resolve to the promoted deployment yet');
+          if (record.target !== 'production' || record.readyState !== 'READY') throw new Error('Promoted canonical deployment is not READY Production');
+NODE
               then
-                matched=true
-                break
+                if node /tmp/sms-release-control-plane/inspect-vercel-deployment.js "$DEPLOYMENT_ID" "$TARGET_SHA" "$SOURCE_BRANCH" production false >/dev/null; then
+                  matched=true
+                  break
+                fi
               fi
             fi
             sleep 5
@@ -721,12 +696,12 @@ jobs:
 
           canonical_is_rollback=false
           if npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$rollback_json" 2>/dev/null; then
-            if node - "$rollback_json" "$ROLLBACK_DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" <<'NODE'
+            if node - "$rollback_json" "$ROLLBACK_DEPLOYMENT_ID" <<'NODE'
           const fs = require('node:fs');
-          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
-          const [file, expectedId, expectedProjectId] = process.argv.slice(2);
-          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
-          NODE
+          const [file, expectedId] = process.argv.slice(2);
+          const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (record.id !== expectedId || record.target !== 'production' || record.readyState !== 'READY') process.exit(1);
+NODE
             then
               canonical_is_rollback=true
             fi
@@ -741,15 +716,17 @@ jobs:
           restored=false
           for attempt in $(seq 1 18); do
             if npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$rollback_json" 2>/dev/null; then
-              if node - "$rollback_json" "$ROLLBACK_DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" <<'NODE'
+              if node - "$rollback_json" "$ROLLBACK_DEPLOYMENT_ID" <<'NODE'
           const fs = require('node:fs');
-          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
-          const [file, expectedId, expectedProjectId] = process.argv.slice(2);
-          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
-          NODE
+          const [file, expectedId] = process.argv.slice(2);
+          const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (record.id !== expectedId || record.target !== 'production' || record.readyState !== 'READY') process.exit(1);
+NODE
               then
-                restored=true
-                break
+                if node /tmp/sms-release-control-plane/inspect-vercel-deployment.js "$ROLLBACK_DEPLOYMENT_ID" "$CURRENT_PRODUCTION_SOURCE_SHA" "$CURRENT_PRODUCTION_SOURCE_REF" production false >/dev/null; then
+                  restored=true
+                  break
+                fi
               fi
             fi
             sleep 5

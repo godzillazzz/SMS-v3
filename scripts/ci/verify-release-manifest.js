@@ -9,6 +9,7 @@ const EXPECTED = Object.freeze({
   orgId: 'team_nemCExHbZ8EAhSgsvefHPAEz',
   environment: 'production',
   canonicalUrl: 'https://sms-v3-staging-ten.vercel.app',
+  currentProductionSourceRef: 'release/approval-identity-branding-20260928',
   sourceBranch: 'fix/serverless-database-reliability',
 });
 
@@ -39,6 +40,7 @@ function validateReleaseManifest(input) {
   assert(shaPattern.test(input.commit_sha || ''), 'invalid commit_sha');
   assert(shaPattern.test(input.tree_sha || ''), 'invalid tree_sha');
   assert(shaPattern.test(input.current_production_source_sha || ''), 'invalid current_production_source_sha');
+  assert(input.current_production_source_ref === EXPECTED.currentProductionSourceRef, 'current_production_source_ref mismatch');
   assert(deploymentPattern.test(input.rollback_deployment_id || ''), 'invalid rollback_deployment_id');
   assert(input.target_project_name === EXPECTED.projectName, 'target_project_name mismatch');
   assert(input.target_project_id === EXPECTED.projectId, 'target_project_id mismatch');
@@ -70,6 +72,7 @@ function validateReleaseManifest(input) {
     commitSha: input.commit_sha,
     treeSha: input.tree_sha,
     currentProductionSourceSha: input.current_production_source_sha,
+    currentProductionSourceRef: input.current_production_source_ref,
     rollbackDeploymentId: input.rollback_deployment_id,
     targetProjectName: input.target_project_name,
     targetProjectId: input.target_project_id,
@@ -97,6 +100,7 @@ function outputLines(manifest) {
     `commit_sha=${manifest.commitSha}`,
     `tree_sha=${manifest.treeSha}`,
     `current_production_source_sha=${manifest.currentProductionSourceSha}`,
+    `current_production_source_ref=${manifest.currentProductionSourceRef}`,
     `rollback_deployment_id=${manifest.rollbackDeploymentId}`,
     `target_project_name=${manifest.targetProjectName}`,
     `target_project_id=${manifest.targetProjectId}`,
