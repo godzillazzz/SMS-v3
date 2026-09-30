@@ -27,7 +27,7 @@ function validManifest() {
     database_change_policy: 'NO_DATABASE_CHANGES',
     production_environment_change_policy: 'NO_ENVIRONMENT_CHANGES',
     cors_policy: 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY',
-    deployment_method: 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_ALIAS_EXPLICIT_PROMOTION',
+    deployment_method: 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION',
     post_deploy_verification_plan: 'IMMUTABLE_CANDIDATE_AND_CANONICAL_HEALTH_READY_AUTH_CORS_RECURSIVE_UI_SENTINELS_AUTO_ROLLBACK',
   };
 }
@@ -123,7 +123,7 @@ test('current approved Production manifest resolves the exact G06 release target
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.productionEnvironmentChangePolicy, 'NO_ENVIRONMENT_CHANGES');
   assert.equal(result.corsPolicy, 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY');
-  assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_ALIAS_EXPLICIT_PROMOTION');
+  assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION');
   assert.equal(result.preAppliedMigrationManifestPath, '');
   assert.equal(result.preAppliedMigrationEvidenceRunId, '');
   assert.equal(manifest.preview_deployment_id, 'dpl_EzbZPpyG4kqW2QgL5CPXJM5AVSEa');

@@ -13,8 +13,8 @@ const record = {
     githubCommitSha: 'a'.repeat(40),
     githubCommitRef: 'fix/serverless-database-reliability',
   },
-  aliasAssigned: false,
-  alias: [],
+  aliasAssigned: true,
+  alias: ['sms-v3-staging-git-fix-serverless-database-re-662e13-godzillazz.vercel.app'],
 };
 
 test('reads Vercel native deployment metadata through the team-scoped REST API', async () => {
@@ -35,7 +35,7 @@ test('reads Vercel native deployment metadata through the team-scoped REST API',
   assert.equal(result.meta.githubCommitRef, 'fix/serverless-database-reliability');
 });
 
-test('verifies native project, SHA/ref, READY target, and no aliases from the API record', async () => {
+test('verifies native project, SHA/ref, READY target, and absence of the canonical alias while allowing the branch alias', async () => {
   const result = await inspectVercelDeployment({
     deploymentId: record.id,
     teamId: 'team_expected',
@@ -44,8 +44,9 @@ test('verifies native project, SHA/ref, READY target, and no aliases from the AP
     expectedCommitSha: 'a'.repeat(40),
     expectedCommitRef: 'fix/serverless-database-reliability',
     expectedTarget: 'production',
+    expectedCanonicalUrl: 'https://sms-v3-staging-ten.vercel.app',
     requireReady: true,
-    requireNoAliases: true,
+    requireNoCanonicalAlias: true,
     fetchImpl: async () => ({ ok: true, json: async () => record }),
   });
 
@@ -53,7 +54,8 @@ test('verifies native project, SHA/ref, READY target, and no aliases from the AP
   assert.equal(result.projectId, 'prj_expected');
   assert.equal(result.commitSha, 'a'.repeat(40));
   assert.equal(result.commitRef, 'fix/serverless-database-reliability');
-  assert.equal(result.aliasAssigned, false);
+  assert.equal(result.aliasAssigned, true);
+  assert.equal(result.canonicalAliasAssigned, false);
 });
 
 test('fails closed for malformed deployment IDs and does not disclose API error bodies', async () => {

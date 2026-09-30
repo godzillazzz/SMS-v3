@@ -21,10 +21,14 @@ test('rejects malformed or incomplete deployment output', () => {
 });
 
 test('validates inspection identity against the captured deployment and native source', () => {
-  assert.deepEqual(inspectDeploymentRecord(JSON.stringify({ id: 'dpl_new123', projectId: 'prj_expected', createdAt: 456, readyState: 'READY', target: 'production', alias: [], aliasAssigned: false, gitSource: { type: 'github', ref: 'release/ref' }, meta: { githubCommitSha: 'abc123', githubCommitRef: 'release/ref' } }), { expectedId: 'dpl_new123', expectedProjectId: 'prj_expected', expectedCommitSha: 'abc123', expectedCommitRef: 'release/ref', expectedTarget: 'production', requireReady: true, requireNoAliases: true }), {
-    id: 'dpl_new123', projectId: 'prj_expected', createdAt: 456, commitSha: 'abc123', commitRef: 'release/ref', target: 'production', readyState: 'READY', aliasAssigned: false, aliases: []
+  const expectedCanonicalUrl = 'https://sms-v3-staging-ten.vercel.app';
+  const branchAlias = 'sms-v3-staging-git-fix-serverless-database-re-662e13-godzillazz.vercel.app';
+  assert.deepEqual(inspectDeploymentRecord(JSON.stringify({ id: 'dpl_new123', projectId: 'prj_expected', createdAt: 456, readyState: 'READY', target: 'production', alias: [branchAlias], aliasAssigned: true, gitSource: { type: 'github', ref: 'release/ref' }, meta: { githubCommitSha: 'abc123', githubCommitRef: 'release/ref' } }), { expectedId: 'dpl_new123', expectedProjectId: 'prj_expected', expectedCommitSha: 'abc123', expectedCommitRef: 'release/ref', expectedTarget: 'production', expectedCanonicalUrl, requireReady: true, requireNoCanonicalAlias: true }), {
+    id: 'dpl_new123', projectId: 'prj_expected', createdAt: 456, commitSha: 'abc123', commitRef: 'release/ref', target: 'production', readyState: 'READY', aliasAssigned: true, aliases: [branchAlias], canonicalAliasAssigned: false
   });
   assert.throws(() => inspectDeploymentRecord(JSON.stringify({ id: 'dpl_other' }), { expectedId: 'dpl_new123' }), /deployment ID mismatch/);
   assert.throws(() => inspectDeploymentRecord(JSON.stringify({ id: 'dpl_new123', projectId: 'prj_expected', target: 'production', readyState: 'READY', meta: { githubCommitSha: 'abc123', githubCommitRef: 'HEAD' } }), { expectedCommitSha: 'abc123', expectedCommitRef: 'release/ref' }), /githubCommitRef mismatch/);
   assert.throws(() => inspectDeploymentRecord(JSON.stringify({ id: 'dpl_new123', projectId: 'prj_expected', target: 'production', readyState: 'BUILDING', meta: { githubCommitSha: 'abc123', githubCommitRef: 'release/ref' } }), { requireReady: true }), /not READY/);
+  assert.throws(() => inspectDeploymentRecord(JSON.stringify({ id: 'dpl_new123', alias: ['sms-v3-staging-ten.vercel.app'], meta: {} }), { expectedCanonicalUrl, requireNoCanonicalAlias: true }), /canonical Production alias assigned/);
+  assert.throws(() => inspectDeploymentRecord(JSON.stringify({ id: 'dpl_new123', alias: [] }), { requireNoCanonicalAlias: true }), /canonical URL is unavailable/);
 });

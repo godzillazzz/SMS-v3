@@ -69,7 +69,9 @@ test("Production verifier checks native Git provenance and immutable runtime bef
   assert.match(workflow, /vercel-api-deployment\.js/);
   assert.match(workflow, /inspect-vercel-deployment\.js/);
   assert.match(create, /create-vercel-git-candidate\.js/);
+  assert.match(create, /candidate_canonical_alias_assigned/);
   assert.match(create, /inspect-vercel-deployment\.js "\$deployment_id" "\$TARGET_SHA" "\$SOURCE_BRANCH" production true/);
+  assert.match(script, /IMMUTABLE_CANDIDATE_NO_CANONICAL_ALIAS=PASS/);
   assert.match(workflow, /CONTROL_PLANE_SHA: \$\{\{ github\.sha \}\}/);
   assert.match(ciGuard, /RELEASE_CONTROL_PLANE_EXACT_SHA_CI=PASS/);
   assert.match(ciGuard, /APPLICATION_SOURCE_EXACT_SHA_CI=PASS/);

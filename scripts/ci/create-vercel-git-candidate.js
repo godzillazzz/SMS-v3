@@ -3,6 +3,8 @@
 const deploymentPattern = /^dpl_[A-Za-z0-9]+$/;
 const commitPattern = /^[0-9a-f]{40}$/;
 const hostPattern = /^https:\/\/sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app\/?$/;
+const canonicalHost = 'sms-v3-staging-ten.vercel.app';
+const branchAliasPattern = /^sms-v3-staging-git-fix-serverless-database-re-[a-z0-9-]+-godzillazz\.vercel\.app$/;
 
 function assert(condition, message) {
   if (!condition) throw new Error(`Production candidate guard: ${message}`);
@@ -18,6 +20,15 @@ function getLinkedGitHubRepository(project) {
   return { org: 'godzillazzz', repo: 'SMS-v3', identity };
 }
 
+function aliasHost(alias) {
+  if (typeof alias !== 'string' || !alias) return '';
+  try {
+    return new URL(alias.includes('://') ? alias : `https://${alias}`).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
 function assertCandidateRecord(record, expected) {
   assert(record && typeof record === 'object', 'Vercel returned no deployment record');
   assert(deploymentPattern.test(record.id || ''), 'Vercel returned an invalid deployment id');
@@ -31,11 +42,18 @@ function assertCandidateRecord(record, expected) {
   assert(String(record.gitSource?.repo || '').toLowerCase() === 'sms-v3', 'native Git source repository mismatch');
   assert(String(record.gitSource?.sha || '').toLowerCase() === expected.commitSha, 'native Git source SHA mismatch');
   assert(record.gitSource?.ref === expected.commitRef, 'native Git source ref mismatch');
-  assert(Array.isArray(record.alias) && record.alias.length === 0, 'candidate was assigned an alias');
-  assert(record.aliasAssigned === false || record.aliasAssigned === 'false', 'candidate alias assignment is not confirmed false');
+  assert(Array.isArray(record.alias), 'candidate aliases are missing from the Vercel deployment record');
+  const aliases = record.alias.map(aliasHost);
+  assert(aliases.every(Boolean), 'candidate contains a malformed alias');
+  assert(!aliases.includes(canonicalHost), 'candidate was assigned the canonical Production alias');
+  assert(aliases.every((host) => branchAliasPattern.test(host)), 'candidate contains an unexpected non-branch alias');
+  assert(record.aliasAssigned === true || record.aliasAssigned === 'true' || record.aliasAssigned === false || record.aliasAssigned === 'false', 'candidate alias assignment state is unavailable');
+  if (record.aliasAssigned === true || record.aliasAssigned === 'true') {
+    assert(aliases.length > 0, 'candidate alias assignment is reported without a branch alias');
+  }
   const url = record.url && (record.url.startsWith('http') ? record.url : `https://${record.url}`);
   assert(hostPattern.test(url || ''), 'candidate URL is outside the expected Vercel deployment host pattern');
-  return { id: record.id, url };
+  return { id: record.id, url, aliases, aliasAssigned: record.aliasAssigned };
 }
 
 async function main({ env = process.env, fetchImpl = globalThis.fetch, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), now = Date.now } = {}) {
@@ -78,6 +96,7 @@ async function main({ env = process.env, fetchImpl = globalThis.fetch, sleep = (
   const project = await api(`/v9/projects/${encodeURIComponent(projectId)}?${query}`);
   assert(project.id === projectId, 'Vercel project identity mismatch');
   assert(project.name === projectName, 'Vercel project name mismatch');
+  assert(project.autoAssignCustomDomains === false, 'Vercel project must have automatic custom Production domain assignment disabled');
   const linked = getLinkedGitHubRepository(project);
 
   const requestBody = {
@@ -118,7 +137,9 @@ async function main({ env = process.env, fetchImpl = globalThis.fetch, sleep = (
     `candidate_commit_sha=${commitSha}`,
     `candidate_commit_ref=${commitRef}`,
     'candidate_target=production',
-    'candidate_alias_assigned=false',
+    `candidate_alias_assigned=${String(candidate.aliasAssigned)}`,
+    'candidate_canonical_alias_assigned=false',
+    `candidate_alias_count=${candidate.aliases.length}`,
   ].join('\n') + '\n');
 }
 
@@ -129,4 +150,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { assertCandidateRecord, getLinkedGitHubRepository, main };
+module.exports = { aliasHost, assertCandidateRecord, getLinkedGitHubRepository, main };

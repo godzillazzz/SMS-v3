@@ -32,19 +32,28 @@ function candidateRecord(overrides = {}) {
   };
 }
 
-test('creates a production-target GitHub candidate pinned to the exact source SHA/ref without aliases', async () => {
+function projectRecord(overrides = {}) {
+  return {
+    id: env.EXPECTED_PROJECT_ID,
+    name: env.EXPECTED_PROJECT_NAME,
+    autoAssignCustomDomains: false,
+    link: { type: 'github', org: 'godzillazzz', repo: 'SMS-v3' },
+    ...overrides,
+  };
+}
+
+test('creates a production-target GitHub candidate pinned to exact SHA/ref and permits only an unassigned-canonical branch alias', async () => {
   const requests = [];
   const output = [];
   const fetchImpl = async (url, init) => {
     requests.push({ url: new URL(url), init });
     if (url.includes('/v9/projects/')) {
-      return response({
-        id: env.EXPECTED_PROJECT_ID,
-        name: env.EXPECTED_PROJECT_NAME,
-        link: { type: 'github', org: 'godzillazzz', repo: 'SMS-v3' },
-      });
+      return response(projectRecord());
     }
-    return response(candidateRecord());
+    return response(candidateRecord({
+      alias: ['sms-v3-staging-git-fix-serverless-database-re-662e13-godzillazz.vercel.app'],
+      aliasAssigned: true,
+    }));
   };
 
   await main({
@@ -73,11 +82,7 @@ test('creates a production-target GitHub candidate pinned to the exact source SH
 test('fails closed when Vercel native Git SHA or ref does not match', async () => {
   const fetchImpl = async (url) => {
     if (url.includes('/v9/projects/')) {
-      return response({
-        id: env.EXPECTED_PROJECT_ID,
-        name: env.EXPECTED_PROJECT_NAME,
-        link: { type: 'github', org: 'godzillazzz', repo: 'SMS-v3' },
-      });
+      return response(projectRecord());
     }
     return response(candidateRecord({
       meta: { githubCommitSha: env.TARGET_SHA, githubCommitRef: 'HEAD' },
@@ -87,17 +92,31 @@ test('fails closed when Vercel native Git SHA or ref does not match', async () =
   await assert.rejects(main({ env, fetchImpl, sleep: async () => {}, now: () => 0 }), /native githubCommitRef mismatch/);
 });
 
-test('fails closed when candidate creation assigns an alias', async () => {
+test('fails closed when project auto-assignment of custom Production domains is enabled', async () => {
   const fetchImpl = async (url) => {
     if (url.includes('/v9/projects/')) {
-      return response({
-        id: env.EXPECTED_PROJECT_ID,
-        name: env.EXPECTED_PROJECT_NAME,
-        link: { type: 'github', org: 'godzillazzz', repo: 'SMS-v3' },
-      });
+      return response(projectRecord({ autoAssignCustomDomains: true }));
     }
+    return response(candidateRecord());
+  };
+
+  await assert.rejects(main({ env, fetchImpl, sleep: async () => {}, now: () => 0 }), /automatic custom Production domain assignment disabled/);
+});
+
+test('fails closed when the canonical Production alias is assigned to the candidate', async () => {
+  const fetchImpl = async (url) => {
+    if (url.includes('/v9/projects/')) return response(projectRecord());
     return response(candidateRecord({ alias: ['sms-v3-staging-ten.vercel.app'], aliasAssigned: true }));
   };
 
-  await assert.rejects(main({ env, fetchImpl, sleep: async () => {}, now: () => 0 }), /candidate was assigned an alias/);
+  await assert.rejects(main({ env, fetchImpl, sleep: async () => {}, now: () => 0 }), /canonical Production alias/);
+});
+
+test('fails closed when a candidate has an unexpected non-branch alias', async () => {
+  const fetchImpl = async (url) => {
+    if (url.includes('/v9/projects/')) return response(projectRecord());
+    return response(candidateRecord({ alias: ['unrelated.example.com'], aliasAssigned: true }));
+  };
+
+  await assert.rejects(main({ env, fetchImpl, sleep: async () => {}, now: () => 0 }), /unexpected non-branch alias/);
 });

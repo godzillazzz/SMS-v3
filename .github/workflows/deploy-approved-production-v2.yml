@@ -552,7 +552,7 @@ jobs:
               candidate_commit_sha) candidate_commit_sha="$value" ;;
               candidate_commit_ref) candidate_commit_ref="$value" ;;
               candidate_target) candidate_target="$value" ;;
-              candidate_alias_assigned) candidate_alias_assigned="$value" ;;
+              candidate_canonical_alias_assigned) candidate_canonical_alias_assigned="$value" ;;
             esac
           done <"$deployment_output"
           test -n "${deployment_id:-}"
@@ -561,7 +561,7 @@ jobs:
           test "$candidate_commit_sha" = "$TARGET_SHA"
           test "$candidate_commit_ref" = "$SOURCE_BRANCH"
           test "$candidate_target" = production
-          test "$candidate_alias_assigned" = false
+          test "$candidate_canonical_alias_assigned" = false
           [[ "$deployment_id" =~ ^dpl_[A-Za-z0-9]+$ ]]
           [[ "$deployment_url" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ ]]
           node /tmp/sms-release-control-plane/inspect-vercel-deployment.js "$deployment_id" "$TARGET_SHA" "$SOURCE_BRANCH" production true
@@ -643,7 +643,7 @@ jobs:
           node /tmp/sms-release-control-plane/inspect-vercel-deployment.js "$DEPLOYMENT_ID" "$TARGET_SHA" "$SOURCE_BRANCH" production true
           echo 'IMMUTABLE_CANDIDATE_NATIVE_SHA_REF=PASS'
           echo 'IMMUTABLE_CANDIDATE_READY=PASS'
-          echo 'IMMUTABLE_CANDIDATE_NO_ALIAS=PASS'
+          echo 'IMMUTABLE_CANDIDATE_NO_CANONICAL_ALIAS=PASS'
 
           verify_public_runtime "$DEPLOYMENT_URL" IMMUTABLE_CANDIDATE true
 

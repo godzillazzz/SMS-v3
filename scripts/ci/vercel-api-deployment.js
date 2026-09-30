@@ -44,8 +44,9 @@ async function inspectVercelDeployment({
   expectedCommitSha,
   expectedCommitRef,
   expectedTarget,
+  expectedCanonicalUrl,
   requireReady,
-  requireNoAliases,
+  requireNoCanonicalAlias,
   fetchImpl = globalThis.fetch,
 }) {
   const record = await getVercelDeploymentRecord({ deploymentId, teamId, token, fetchImpl });
@@ -56,8 +57,9 @@ async function inspectVercelDeployment({
     expectedCommitSha,
     expectedCommitRef,
     expectedTarget,
+    expectedCanonicalUrl,
     requireReady,
-    requireNoAliases,
+    requireNoCanonicalAlias,
   });
 }
 

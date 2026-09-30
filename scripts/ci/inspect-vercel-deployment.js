@@ -3,9 +3,9 @@
 const { inspectVercelDeployment } = require('./vercel-api-deployment');
 
 async function main({ args = process.argv.slice(2), env = process.env, fetchImpl } = {}) {
-  const [deploymentId, expectedCommitSha, expectedCommitRef, expectedTarget, noAliases] = args;
-  if (!deploymentId || !expectedCommitSha || !expectedCommitRef || !expectedTarget || !['true', 'false'].includes(noAliases)) {
-    throw new Error('Usage: inspect-vercel-deployment <deployment-id> <expected-sha> <expected-ref> <expected-target> <require-no-aliases>');
+  const [deploymentId, expectedCommitSha, expectedCommitRef, expectedTarget, noCanonicalAlias] = args;
+  if (!deploymentId || !expectedCommitSha || !expectedCommitRef || !expectedTarget || !['true', 'false'].includes(noCanonicalAlias)) {
+    throw new Error('Usage: inspect-vercel-deployment <deployment-id> <expected-sha> <expected-ref> <expected-target> <require-no-canonical-alias>');
   }
 
   const record = await inspectVercelDeployment({
@@ -16,8 +16,9 @@ async function main({ args = process.argv.slice(2), env = process.env, fetchImpl
     expectedCommitSha,
     expectedCommitRef,
     expectedTarget,
+    expectedCanonicalUrl: env.EXPECTED_CANONICAL_URL,
     requireReady: true,
-    requireNoAliases: noAliases === 'true',
+    requireNoCanonicalAlias: noCanonicalAlias === 'true',
     fetchImpl,
   });
 
@@ -31,6 +32,7 @@ async function main({ args = process.argv.slice(2), env = process.env, fetchImpl
     `ready_state=${record.readyState}`,
     `alias_assigned=${String(record.aliasAssigned)}`,
     `alias_count=${record.aliases.length}`,
+    `canonical_alias_assigned=${String(record.canonicalAliasAssigned)}`,
   ].join('\n') + '\n');
 }
 
