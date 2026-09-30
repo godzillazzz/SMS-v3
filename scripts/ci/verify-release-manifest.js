@@ -9,7 +9,7 @@ const EXPECTED = Object.freeze({
   orgId: 'team_nemCExHbZ8EAhSgsvefHPAEz',
   environment: 'production',
   canonicalUrl: 'https://sms-v3-staging-ten.vercel.app',
-  currentProductionSourceRef: 'release/approval-identity-branding-20260928',
+  currentProductionSourceRef: 'fix/serverless-database-reliability',
   sourceBranch: 'fix/serverless-database-reliability',
 });
 
