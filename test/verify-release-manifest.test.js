@@ -126,7 +126,7 @@ test('current approved Production manifest resolves the exact G06 release target
   assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION');
   assert.equal(result.preAppliedMigrationManifestPath, '');
   assert.equal(result.preAppliedMigrationEvidenceRunId, '');
-  assert.equal(manifest.preview_deployment_id, 'dpl_8texHrHUrLfLS3NKfxSaSDGvBgZy');
+  assert.equal(manifest.preview_deployment_id, 'dpl_7d7i7usQb7MaJkKtveMqBEeM3W7U');
   assert.equal(manifest.performance_status, 'NOT_EVALUATED_SCOPE_LIMITED_RELEASE');
   assert.equal(manifest.global_performance_regression, 'NOT_EVALUATED');
   assert.equal(manifest.custom_preview_cors_preflight, 'PASS');
