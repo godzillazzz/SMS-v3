@@ -105,6 +105,83 @@ test('beginVerification is blocked while runtime is disabled and creates no Face
   assert.equal(calls.prepareVerification.length, 0);
 });
 
+test('normal employee remains blocked when Face runtime is disabled even while controlled UAT flag is enabled', async () => {
+  const { calls, verification, events } = fakeDependencies();
+  verification.isGeofenceOnlyUatActor = async () => false;
+  const service = createAttendanceApiContractService({
+    verificationContextService: verification,
+    attendanceEventService: events,
+    isBiometricRuntimeEnabled: () => false,
+    isGeofenceOnlyUatEnabled: () => true
+  });
+  const result = await service.beginVerification({ actor, captureId, attendanceEvidence });
+  assert.equal(result.ok, false);
+  assert.equal(result.readiness.state, 'BIOMETRIC_RUNTIME_DISABLED');
+  assert.equal(result.verification, null);
+  assert.equal(calls.prepareVerification.length, 0);
+});
+
+test('only database-authorized UAT identity may start with Face runtime disabled and receives no Active Challenge', async () => {
+  const { calls, verification, face, events } = fakeDependencies();
+  const uatActor = { sub: 'uat-controlled-user', role: 'VIEWER' };
+  verification.isGeofenceOnlyUatActor = async ({ actor: identity }) => identity.sub === uatActor.sub;
+  const prepare = verification.prepareVerification;
+  verification.prepareVerification = async (input) => ({ ...(await prepare(input)), employeeCode: 'UAT-ST-20260902' });
+  const service = createAttendanceApiContractService({
+    verificationContextService: verification,
+    faceVerificationService: face,
+    attendanceEventService: events,
+    isBiometricRuntimeEnabled: () => false,
+    isGeofenceOnlyUatEnabled: () => true
+  });
+  const started = await service.beginVerification({ actor: uatActor, captureId, attendanceEvidence });
+  assert.equal(started.ok, true);
+  assert.equal(started.verification.verificationMode, 'GEOFENCE_ONLY_UAT');
+  assert.equal(started.verification.activeChallenge, null);
+  assert.equal(calls.prepareVerification.length, 1);
+
+  const deviceProof = await service.verifyDeviceProof({ actor: uatActor, sessionId: started.verification.sessionId, challengeId: started.verification.challengeId, challenge: started.verification.challenge, signatureBase64: 'opaque-signature' });
+  assert.equal(deviceProof.ok, true);
+  const liveFace = await service.verifyLiveFace({ actor: uatActor, sessionId: started.verification.sessionId, livePhotoFile: {}, challengeFrameFiles: [] });
+  assert.equal(liveFace.ok, false);
+  assert.equal(liveFace.receipt, null);
+  assert.equal(calls.liveFace.length, 0);
+});
+
+test('controlled UAT stops before receipt issuance when an unregistered device proof fails', async () => {
+  const { calls, verification, events } = fakeDependencies();
+  const uatActor = { sub: 'uat-controlled-user', role: 'VIEWER' };
+  verification.isGeofenceOnlyUatActor = async ({ actor: identity }) => identity.sub === uatActor.sub;
+  const prepare = verification.prepareVerification;
+  verification.prepareVerification = async (input) => ({ ...(await prepare(input)), employeeCode: 'UAT-ST-20260902' });
+  const deviceFailure = new Error('Device authority rejected the proof.');
+  deviceFailure.details = { code: 'DEVICE_PROOF_FAILED' };
+  const face = {
+    verifyDeviceProof: async (input) => { calls.deviceProof.push(input); throw deviceFailure; },
+    verifyLiveFace: async (input) => { calls.liveFace.push(input); return { verificationAccepted: false, receipt: null }; }
+  };
+  const service = createAttendanceApiContractService({
+    verificationContextService: verification,
+    faceVerificationService: face,
+    attendanceEventService: events,
+    isBiometricRuntimeEnabled: () => false,
+    isGeofenceOnlyUatEnabled: () => true
+  });
+  const started = await service.beginVerification({ actor: uatActor, captureId, attendanceEvidence });
+  assert.equal(started.verification.verificationMode, 'GEOFENCE_ONLY_UAT');
+  const proof = await service.verifyDeviceProof({
+    actor: uatActor,
+    sessionId: started.verification.sessionId,
+    challengeId: started.verification.challengeId,
+    challenge: started.verification.challenge,
+    signatureBase64: 'invalid-signature'
+  });
+  assert.equal(proof.ok, false);
+  assert.equal(proof.readiness.state, 'DEVICE_PROOF_RETRY');
+  assert.equal(calls.deviceProof.length, 1);
+  assert.equal(calls.accept.length, 0);
+});
+
 test('beginVerification passes only raw Attendance evidence inputs and returns a narrow safe start projection', async () => {
   const { calls, verification, events } = fakeDependencies();
   const service = createAttendanceApiContractService({ verificationContextService: verification, attendanceEventService: events, isBiometricRuntimeEnabled: () => true });
@@ -123,7 +200,7 @@ test('beginVerification passes only raw Attendance evidence inputs and returns a
   assert.equal(calls.resolveIntent.length, 0);
   assert.equal(calls.prepareVerification.length, 1);
   assert.deepEqual(Object.keys(calls.prepareVerification[0]).sort(), ['actor', 'attendanceEvidence', 'captureId']);
-  assert.deepEqual(Object.keys(result.verification).sort(), ['activeChallenge', 'attendanceContext', 'challenge', 'challengeId', 'deviceEnrollmentId', 'expiresAt', 'sessionId', 'status']);
+  assert.deepEqual(Object.keys(result.verification).sort(), ['activeChallenge', 'attendanceContext', 'challenge', 'challengeId', 'deviceEnrollmentId', 'expiresAt', 'sessionId', 'status', 'verificationMode']);
   const serialized = JSON.stringify(result);
   assert.equal(serialized.includes('secret-fingerprint'), false);
   assert.equal(serialized.includes('secret-checksum'), false);
@@ -213,7 +290,7 @@ test('safe verification projection does not expose biometric/provider/internal a
     attendanceContext: { captureId: 'cap' },
     receipt: 'must-never-be-here'
   });
-  assert.deepEqual(projected, { sessionId: 's', deviceEnrollmentId: 'device', status: 'CREATED', expiresAt: 'soon', challengeId: 'c', challenge: 'challenge', attendanceContext: { captureId: 'cap' }, activeChallenge: null });
+  assert.deepEqual(projected, { verificationMode: 'BIOMETRIC', sessionId: 's', deviceEnrollmentId: 'device', status: 'CREATED', expiresAt: 'soon', challengeId: 'c', challenge: 'challenge', attendanceContext: { captureId: 'cap' }, activeChallenge: null });
 });
 
 test('Attendance API contract remains provider-neutral after gated route skeleton mount', () => {

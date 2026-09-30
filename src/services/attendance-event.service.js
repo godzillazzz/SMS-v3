@@ -6,6 +6,7 @@ const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { createAttendanceVerificationContextService } = require('./attendance-verification-context.service');
 const { createSecuritySiteAuthorityService, SITE_AUTHORITY_SOURCES } = require('./security-site-authority.service');
+const { GEOFENCE_ONLY_UAT_MODE, isGeofenceOnlyUatReceipt } = require('./attendance-geofence-only-uat-receipt.service');
 
 const EVENT_INTENTS = new Set(['CHECK_IN', 'CHECK_OUT']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -253,10 +254,41 @@ function createAttendanceEventService({
           if (!checkedIn) throw http(409, 'ATTENDANCE_CHECK_IN_REQUIRED', 'CHECK_IN is required before CHECK_OUT.');
         }
 
-        const consumed = await verificationContext.consumeVerificationInTransaction({ tx, actor, receipt, attendanceContext });
+        let consumed;
+        if (isGeofenceOnlyUatReceipt(receipt)) {
+          if (typeof verificationContext.consumeGeofenceOnlyUatReceiptInTransaction !== 'function') {
+            throw http(409, 'GEOFENCE_ONLY_UAT_RECEIPT_INVALID', 'Controlled geofence-only Attendance receipt cannot be consumed.');
+          }
+          consumed = await verificationContext.consumeGeofenceOnlyUatReceiptInTransaction({ tx, actor, receipt, attendanceContext });
+        } else {
+          consumed = await verificationContext.consumeVerificationInTransaction({ tx, actor, receipt, attendanceContext });
+        }
         if (consumed.employeeId !== identity.employeeId || consumed.contextDigest !== resolved.contextDigest) {
           throw http(409, 'ATTENDANCE_CONTEXT_STALE', 'Verification receipt changed before Attendance acceptance.');
         }
+
+        const controlledGeofenceOnlyUat = consumed.verificationMode === GEOFENCE_ONLY_UAT_MODE;
+        const verificationSnapshot = controlledGeofenceOnlyUat
+          ? {
+            faceVerificationSessionId: consumed.sessionId,
+            deviceEnrollmentId: consumed.deviceEnrollmentId,
+            referencePhotoId: consumed.referencePhotoId,
+            verificationMode: GEOFENCE_ONLY_UAT_MODE,
+            employeeCode: consumed.employeeCode,
+            securitySiteId: consumed.securitySiteId,
+            faceVerificationPerformed: false,
+            activeChallengePerformed: false,
+            deviceProofVerifiedAt: consumed.deviceProofVerifiedAt instanceof Date ? consumed.deviceProofVerifiedAt.toISOString() : null
+          }
+          : {
+            faceVerificationSessionId: consumed.sessionId,
+            deviceEnrollmentId: consumed.deviceEnrollmentId,
+            referencePhotoId: consumed.referencePhotoId,
+            verifiedAt: consumed.verifiedAt ? new Date(consumed.verifiedAt).toISOString() : null,
+            provider: consumed.provider || null,
+            policyProfileId: consumed.policyProfileId || null,
+            engineVersion: consumed.engineVersion || null
+          };
 
         const event = await tx.attendanceEvent.create({
           data: {
@@ -270,15 +302,7 @@ function createAttendanceEventService({
             timeBasis: 'SERVER_RECEIVED',
             contextDigest: consumed.contextDigest,
             locationEvidence: resolved.contextRef.evidence,
-            verificationSnapshot: {
-              faceVerificationSessionId: consumed.sessionId,
-              deviceEnrollmentId: consumed.deviceEnrollmentId,
-              referencePhotoId: consumed.referencePhotoId,
-              verifiedAt: consumed.verifiedAt ? new Date(consumed.verifiedAt).toISOString() : null,
-              provider: consumed.provider || null,
-              policyProfileId: consumed.policyProfileId || null,
-              engineVersion: consumed.engineVersion || null
-            }
+            verificationSnapshot
           }
         });
 
@@ -298,7 +322,15 @@ function createAttendanceEventService({
             eventType: intent,
             timeBasis: 'SERVER_RECEIVED',
             securitySiteId: session.expectedSiteId,
-            verificationSessionId: consumed.sessionId
+            verificationSessionId: consumed.sessionId,
+            ...(controlledGeofenceOnlyUat ? {
+              verificationMode: GEOFENCE_ONLY_UAT_MODE,
+              employeeCode: consumed.employeeCode,
+              faceVerificationPerformed: false,
+              activeChallengePerformed: false,
+              deviceEnrollmentId: consumed.deviceEnrollmentId,
+              deviceProofVerifiedAt: consumed.deviceProofVerifiedAt instanceof Date ? consumed.deviceProofVerifiedAt.toISOString() : null
+            } : {})
           }
         }, tx);
 

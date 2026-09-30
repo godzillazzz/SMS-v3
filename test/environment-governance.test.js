@@ -47,6 +47,17 @@ test('contract definition is complete and contains no credential material', () =
   assert.doesNotMatch(JSON.stringify(contract), /-----BEGIN .*PRIVATE KEY-----/i);
 });
 
+test('G06 geofence-only UAT flag is documented as Production-only, non-shared, and optional', () => {
+  const variable = contract.variables.G06_GEOFENCE_ONLY_UAT_ENABLED;
+  assert.equal(variable.sensitive, false);
+  assert.equal(variable.runtimeRequired, false);
+  assert.deepEqual(variable.scopes, ['production']);
+  assert.equal(variable.shared, false);
+  assert.equal(variable.branchOverrideAllowed, false);
+  assert.match(variable.purpose, /UAT-ST-20260902/);
+  assert.match(variable.ownerNotes, /device, schedule, site, and geofence validation/);
+});
+
 test('Production rejects wildcard and non-canonical Vercel CORS origins', () => {
   for (const cors of ['*', 'https://sms-v3-staging-preview.vercel.app']) {
     assert.throws(() => validateEnvironment({ environment: 'production', env: { ...validProductionEnv, CORS_ORIGIN: cors } }), /CORS_ORIGIN/);

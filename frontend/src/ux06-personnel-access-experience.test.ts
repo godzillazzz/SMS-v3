@@ -158,7 +158,10 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
 
   it('provides foreground-first dialog stacking, Escape suspension, body locking, and focus restoration', () => {
     expect(accessPage).toContain('suspendEscape={Boolean(dialog)}');
-    expect(accessPage).toContain("if (!suspendEscape) window.addEventListener('keydown', onKey)");
+    expect(accessPage).toContain('if (!account || suspendEscape) return;');
+    expect(accessPage).toContain('window.addEventListener(\'keydown\', onKey)');
+    expect(accessPage).toContain('onCloseRef.current()');
+    expect(accessPage).toContain('}, [Boolean(account), suspendEscape]);');
     expect(accessPage).toContain('const releaseScrollLock = acquireDocumentScrollLock()');
     expect(accessPage).toContain('releaseScrollLock()');
     expect(accessPage).toContain("if (event.key === 'Escape')");

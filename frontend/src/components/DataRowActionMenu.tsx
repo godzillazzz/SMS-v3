@@ -4,7 +4,7 @@ import { SmsIcon } from './SmsIcon';
 
 export type DataRowAction = {
   label: string;
-  onSelect(): void;
+  onSelect(trigger?: HTMLButtonElement): void;
   tone?: 'default' | 'danger';
   disabled?: boolean;
 };
@@ -113,7 +113,7 @@ export function DataRowActionMenu({ label, actions }: Props) {
       className={action.tone === 'danger' ? 'is-danger' : ''}
       disabled={action.disabled}
       onClick={() => {
-        action.onSelect();
+        action.onSelect(triggerRef.current || undefined);
         close(false);
       }}
     >{action.label}</button>)}</div>, document.body)}
