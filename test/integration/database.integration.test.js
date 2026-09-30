@@ -82,7 +82,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
 
   test('real PostgreSQL concurrent lifecycle submissions preserve sequence ordering under the advisory lock', async () => {
     const created = await employees.create(employee('lifecycle-concurrent'), actorId);
-    const effectiveDate = '2026-10-01';
+    const effectiveDate = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
     const firstAnalysis = await lifecycle.preflightEmployeeLifecycleAction({ employeeId: created.id, type: 'POSITION_CHANGE', effectiveDate, changes: { jobTitle: 'Concurrent Position' } });
     const secondAnalysis = await lifecycle.preflightEmployeeLifecycleAction({ employeeId: created.id, type: 'NAME_CHANGE', effectiveDate, changes: { firstName: 'Concurrent', lastName: 'Name' } });
     assert.equal(firstAnalysis.latestLifecycleSequence, 0);
