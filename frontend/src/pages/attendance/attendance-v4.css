@@ -318,6 +318,8 @@
 .attendance-v4__ready-card strong { color: #15274b; font-size: 11px; }
 .attendance-v4__ready-card small { overflow: hidden; color: #748098; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .attendance-v4__ready-card.is-ready small { color: #12a15b; }
+.attendance-v4__ready-card.is-warning { border-color: color-mix(in srgb, var(--color-warning) 42%, var(--color-border)); }
+.attendance-v4__ready-card.is-warning small { color: var(--color-warning); }
 
 .attendance-v4__ready-check {
   position: absolute;

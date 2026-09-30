@@ -290,6 +290,14 @@
 .attendance-v2-trust { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .attendance-v2-trust > div { display: flex; align-items: flex-start; gap: 8px; border: 1px solid var(--color-border); border-radius: 14px; padding: 10px; background: color-mix(in srgb, var(--color-surface-muted) 45%, var(--color-surface)); }
 .attendance-v2-trust > div > svg { flex: 0 0 auto; color: var(--color-primary); margin-top: 1px; }
+.attendance-v2-trust > div.is-warning { border-color: color-mix(in srgb, var(--color-warning) 42%, var(--color-border)); background: color-mix(in srgb, var(--color-warning) 8%, var(--color-surface)); }
+.attendance-v2-trust > div.is-warning > svg { color: var(--color-warning); }
+.attendance-device-runtime-diagnostics { min-width: 0; border: 1px solid var(--color-border); border-radius: 11px; padding: 10px 12px; color: var(--color-text-muted); background: color-mix(in srgb, var(--color-surface-muted) 38%, var(--color-surface)); }
+.attendance-device-runtime-diagnostics summary { cursor: pointer; color: var(--color-text); font-size: 11px; font-weight: 700; }
+.attendance-device-runtime-diagnostics dl { display: grid; gap: 7px; margin: 10px 0 0; }
+.attendance-device-runtime-diagnostics dl > div { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(0, 1.3fr); gap: 8px; border-top: 1px solid var(--color-border); padding-top: 7px; }
+.attendance-device-runtime-diagnostics dt { color: var(--color-text-muted); font-size: 9px; font-weight: 700; overflow-wrap: anywhere; }
+.attendance-device-runtime-diagnostics dd { min-width: 0; margin: 0; color: var(--color-text); font-family: var(--font-mono, monospace); font-size: 10px; overflow-wrap: anywhere; }
 .attendance-v2-trust span { display: grid; min-width: 0; gap: 2px; }
 .attendance-v2-trust strong { color: var(--color-text); font-size: 9.5px; }
 .attendance-v2-trust small { color: var(--color-text-muted); font-size: 8px; line-height: 1.4; }
@@ -304,6 +312,7 @@
   .attendance-v2-progress-step strong, .attendance-v2-progress-step small { white-space: normal; }
   .attendance-v2-trust { grid-template-columns: 1fr; }
   .attendance-v2-trust > div { min-height: 52px; align-items: center; }
+  .attendance-device-runtime-diagnostics dl > div { grid-template-columns: 1fr; gap: 3px; }
   .attendance-face-backdrop { place-items: stretch; padding: 0; }
   .attendance-face-dialog { width: 100dvw; height: 100dvh; max-height: none; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 10px; overflow: hidden; border: 0; border-radius: 0; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
   .attendance-face-dialog > header h2 { font-size: 20px; }

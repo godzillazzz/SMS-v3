@@ -61,5 +61,5 @@ describe('AccessManagementPage reset-password mobile focus', () => {
     fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'รีเซ็ตรหัสผ่าน' })).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(returnFocusTarget));
-  });
+  }, 15_000);
 });

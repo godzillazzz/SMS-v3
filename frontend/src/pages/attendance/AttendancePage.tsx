@@ -10,7 +10,6 @@ import {
   attendanceGeofenceOnlyUatReceipt,
   attendanceFaceMatch,
   attendanceSelfToday,
-  verifyAttendanceDeviceProof,
   type AttendanceActiveChallenge,
   type AttendanceContextRef,
   type AttendanceEventIntent,
@@ -19,7 +18,14 @@ import {
   type AttendanceReadinessState,
   type AttendanceSelfTodayData
 } from './attendance-client';
-import { signAttendanceDeviceChallenge } from '../../lib/attendance-device-key';
+import {
+  attendanceDeviceCapability,
+  listAttendanceDeviceKeyIds,
+  type AttendanceDeviceKeyIdChain,
+  type AttendanceDeviceKeyInspection,
+  type AttendanceDeviceKeyInventory
+} from '../../lib/attendance-device-key';
+import { isCompleteAttendanceVerification, performAttendanceDeviceProof } from './attendance-device-proof';
 import { AttendanceFaceCapture } from './AttendanceFaceCapture';
 import { AttendanceQrScanner } from './AttendanceQrScanner';
 import { attendancePrimaryActionState, createAttendanceActivationGuard } from './attendance-action-state';
@@ -157,6 +163,28 @@ type PendingAttendanceCommit = {
   verificationMode: AttendanceVerificationMode;
 };
 
+type AttendanceDeviceKeyDiagnostics = {
+  chain: AttendanceDeviceKeyIdChain;
+  inspection: AttendanceDeviceKeyInspection | null;
+  storageAvailable: boolean;
+  serverActiveDeviceStatus: string | null;
+};
+
+function inspectionForEnrollment(inventory: AttendanceDeviceKeyInventory, enrollmentId?: string | null): AttendanceDeviceKeyInspection | null {
+  if (!enrollmentId) return null;
+  if (!inventory.available) return { enrollmentId, status: 'UNAVAILABLE', algorithm: null, namedCurve: null, extractable: null, usages: [], createdAt: null, errorCode: 'INDEXED_DB_UNAVAILABLE' };
+  return inventory.keys.find((key) => key.enrollmentId === enrollmentId)
+    || { enrollmentId, status: 'MISSING', algorithm: null, namedCurve: null, extractable: null, usages: [], createdAt: null };
+}
+
+function localDeviceKeyLabel(status: AttendanceDeviceKeyInspection['status'] | null, capabilitySupported: boolean) {
+  if (status === 'PRESENT') return capabilitySupported ? 'Local key พร้อม' : 'Local key มี แต่ browser ยังทำ device proof ไม่ได้';
+  if (status === 'MISSING') return 'Local key ไม่พบ';
+  if (status === 'INVALID') return 'Local key ใช้ไม่ได้';
+  if (status === 'UNAVAILABLE') return 'อ่าน key storage ไม่ได้';
+  return 'ตรวจ key เมื่อกด';
+}
+
 function canRetryVerifiedAttendanceCommit(readiness: { state?: string | null } | null | undefined) {
   return readiness?.state === 'ATTENDANCE_UNAVAILABLE' || readiness?.state === 'BIOMETRIC_TEMPORARILY_UNAVAILABLE';
 }
@@ -273,6 +301,7 @@ function fallbackCopy(state?: AttendanceReadinessState | null): Copy {
 }
 
 export function AttendancePage({ token, displayName, department, readOnly = false, online = true, employeeV4 = false, onTodayHistory, onOpenSettings, onOpenAttendanceDevice, onOpenSupervisor }: Props) {
+  const deviceKeyCapability = useMemo(() => attendanceDeviceCapability(), []);
   const [qrToken, setQrToken] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [location, setLocation] = useState<AttendanceLocationEvidence | null>(null);
@@ -296,6 +325,13 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   const [todayLoading, setTodayLoading] = useState(false);
   const [deviceEnrolled, setDeviceEnrolled] = useState(false);
   const [deviceStateKnown, setDeviceStateKnown] = useState(false);
+  const [deviceActiveId, setDeviceActiveId] = useState<string | null>(null);
+  const [deviceCandidateId, setDeviceCandidateId] = useState<string | null>(null);
+  const [deviceStoredKeyIds, setDeviceStoredKeyIds] = useState<string[]>([]);
+  const [deviceMalformedKeyCount, setDeviceMalformedKeyCount] = useState(0);
+  const [deviceKeyInspection, setDeviceKeyInspection] = useState<AttendanceDeviceKeyInspection | null>(null);
+  const [deviceKeyStorageAvailable, setDeviceKeyStorageAvailable] = useState<boolean | null>(null);
+  const [deviceProofDiagnostics, setDeviceProofDiagnostics] = useState<AttendanceDeviceKeyDiagnostics | null>(null);
   const [locationIssue, setLocationIssue] = useState<AttendanceLocationError | null>(null);
   const [locationHelpOpen, setLocationHelpOpen] = useState(false);
   const asyncEvidenceEpochRef = useRef(0);
@@ -332,7 +368,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         : 'แตะเพื่อลงเวลา';
   const qrReady = Boolean(qrToken) || (Boolean(readiness) && !qrStepUpRequired && readiness?.state === 'READY_TO_START_VERIFICATION');
   const faceReady = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
-  const deviceReady = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
+  const deviceReady = Boolean(attendanceAccepted) || Boolean(verificationSession) || Boolean(deviceEnrolled && deviceKeyCapability.supported && deviceKeyInspection?.status === 'PRESENT');
   const readinessLabel = attendanceAccepted
     ? 'บันทึกเวลาเรียบร้อย'
     : flowBusy ? 'กำลังตรวจสอบตามลำดับความปลอดภัย' : 'พร้อมสำหรับการลงเวลาแบบปลอดภัย';
@@ -347,6 +383,12 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   useEffect(() => {
     if (!employeeV4 || !online) {
       setDeviceStateKnown(false);
+      setDeviceActiveId(null);
+      setDeviceCandidateId(null);
+      setDeviceStoredKeyIds([]);
+      setDeviceMalformedKeyCount(0);
+      setDeviceKeyInspection(null);
+      setDeviceKeyStorageAvailable(null);
       return;
     }
     let active = true;
@@ -357,14 +399,28 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       .catch(() => { if (active) setTodayData(undefined); })
       .finally(() => { if (active) setTodayLoading(false); });
     attendanceDeviceState(token)
-      .then((result) => {
+      .then(async (result) => {
         if (!active) return;
         setDeviceEnrolled(result.activeDevice?.status === 'ACTIVE');
+        setDeviceActiveId(result.activeDevice?.id || null);
+        setDeviceCandidateId(result.activeRequest?.candidateDeviceEnrollmentId || null);
+        const inventory = await listAttendanceDeviceKeyIds(result.employeeId);
+        if (!active) return;
+        setDeviceStoredKeyIds(inventory.enrollmentIds);
+        setDeviceMalformedKeyCount(inventory.malformedRecordCount);
+        setDeviceKeyStorageAvailable(inventory.available);
+        setDeviceKeyInspection(inspectionForEnrollment(inventory, result.activeDevice?.id));
         setDeviceStateKnown(true);
       })
       .catch(() => {
         if (!active) return;
         setDeviceEnrolled(false);
+        setDeviceActiveId(null);
+        setDeviceCandidateId(null);
+        setDeviceStoredKeyIds([]);
+        setDeviceMalformedKeyCount(0);
+        setDeviceKeyInspection(null);
+        setDeviceKeyStorageAvailable(false);
         setDeviceStateKnown(false);
       });
     return () => { active = false; };
@@ -503,17 +559,25 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       setQrStepUpRequired(false);
       verificationMode = verification.verificationMode === 'GEOFENCE_ONLY_UAT' ? 'GEOFENCE_ONLY_UAT' : 'BIOMETRIC';
       const controlledUat = verificationMode === 'GEOFENCE_ONLY_UAT';
-      if (!verification.sessionId || !verification.deviceEnrollmentId || !verification.challengeId || !verification.challenge || !verification.attendanceContext || (!controlledUat && !verification.activeChallenge)) {
+      if (!isCompleteAttendanceVerification(verification)) {
         throw new Error('Server ไม่ได้ออก Verification session, Device binding และ Active Challenge ที่สมบูรณ์');
       }
-
       setVerificationStage('กำลังยืนยันคีย์ของอุปกรณ์หลัก…');
-      const signatureBase64 = await signAttendanceDeviceChallenge(verification.deviceEnrollmentId, verification.challenge);
-      if (shouldStopOperation(operationEpoch)) return;
-      await verifyAttendanceDeviceProof(token, verification.sessionId, {
-        challengeId: verification.challengeId,
-        challenge: verification.challenge,
-        signatureBase64
+      await performAttendanceDeviceProof({
+        token,
+        requestId: started.requestId,
+        verification,
+        capability: deviceKeyCapability,
+        onDiagnostics: ({ chain, inspection, storageAvailable, serverActiveDeviceStatus }, inventory) => {
+          setDeviceEnrolled(serverActiveDeviceStatus === 'ACTIVE');
+          setDeviceActiveId(chain.activeDeviceId);
+          setDeviceCandidateId(chain.candidateDeviceId);
+          setDeviceStoredKeyIds(inventory.enrollmentIds);
+          setDeviceMalformedKeyCount(inventory.malformedRecordCount);
+          setDeviceKeyInspection(inspectionForEnrollment(inventory, chain.activeDeviceId));
+          setDeviceKeyStorageAvailable(storageAvailable);
+          setDeviceProofDiagnostics({ chain, inspection, storageAvailable, serverActiveDeviceStatus });
+        }
       });
       if (shouldStopOperation(operationEpoch)) return;
 
@@ -601,7 +665,8 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       setVerificationSession(null);
       if (reason instanceof AttendanceFlowError) {
         setRequestId(reason.requestId);
-        setVerificationStage(verificationMode === 'GEOFENCE_ONLY_UAT' ? 'Controlled geofence-only UAT ยังไม่สำเร็จ' : reason.code === 'FACE_VERIFIER_UNAVAILABLE' ? 'FACE_VERIFIER_UNAVAILABLE' : 'Face Verification เริ่มไม่สำเร็จ');
+        const deviceKeyFailure = reason.code?.startsWith('ATTENDANCE_DEVICE_') === true;
+        setVerificationStage(deviceKeyFailure ? 'Device Proof ถูกหยุดก่อนส่ง เพราะ local key หรือ ID chain ไม่พร้อม' : verificationMode === 'GEOFENCE_ONLY_UAT' ? 'Controlled geofence-only UAT ยังไม่สำเร็จ' : reason.code === 'FACE_VERIFIER_UNAVAILABLE' ? 'FACE_VERIFIER_UNAVAILABLE' : 'Face Verification เริ่มไม่สำเร็จ');
         setError(reason.message);
       } else {
         setVerificationStage(verificationMode === 'GEOFENCE_ONLY_UAT' ? 'Controlled geofence-only UAT ยังไม่สำเร็จ' : 'Face Verification เริ่มไม่สำเร็จ');
@@ -1080,10 +1145,15 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
           ];
     const qrV4Ready = qrReady || Boolean(readiness && !qrStepUpRequired && readiness.state === 'READY_TO_START_VERIFICATION');
     const faceV4Ready = Boolean(attendanceAccepted) || Boolean(verificationSession) || faceCaptureOpen;
-    const deviceV4Ready = deviceEnrolled || Boolean(attendanceAccepted) || Boolean(verificationSession);
+    const deviceV4Ready = (deviceEnrolled && deviceKeyCapability.supported && deviceKeyInspection?.status === 'PRESENT') || Boolean(attendanceAccepted) || Boolean(verificationSession);
     const serverDeviceBlocked = readiness?.state === 'DEVICE_SETUP_REQUIRED' || readiness?.state === 'DEVICE_REVIEW_REQUIRED';
     const devicePrerequisiteBlocked = deviceStateKnown && !deviceEnrolled && !attendanceAccepted && !verificationSession;
     const deviceBlocked = serverDeviceBlocked || devicePrerequisiteBlocked;
+    const deviceKeyLabel = attendanceAccepted || verificationSession
+      ? 'พร้อม'
+      : deviceEnrolled
+        ? localDeviceKeyLabel(deviceKeyInspection?.status || null, deviceKeyCapability.supported)
+        : deviceBlocked ? 'จำเป็น' : 'ตรวจเมื่อกด';
     const nonRetryableReadinessBlocked = Boolean(readiness?.blocking && readiness.retryable === false && !serverDeviceBlocked);
     const actionText = pendingAttendanceCommit ? 'บันทึกซ้ำ' : deviceBlocked ? 'ตั้งค่าอุปกรณ์' : (nextIntent === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า');
     const actionThai = pendingAttendanceCommit ? 'ลองบันทึกเวลาอีกครั้ง' : deviceBlocked ? 'ตั้งค่าอุปกรณ์ลงเวลา' : primaryActionState.actionThai;
@@ -1247,9 +1317,9 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
             <div><strong>ใบหน้า</strong><small>{faceV4Ready ? 'พร้อม' : 'อัตโนมัติ'}</small></div>
             {faceV4Ready && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
           </article>
-          <article className={`attendance-v4__ready-card ${deviceV4Ready ? 'is-ready' : ''}`}>
+          <article className={`attendance-v4__ready-card ${deviceV4Ready ? 'is-ready' : deviceEnrolled ? 'is-warning' : ''}`} data-testid="attendance-device-readiness" data-server-active={String(deviceEnrolled)} data-local-key-state={deviceKeyInspection?.status || 'UNKNOWN'}>
             <span className="attendance-v4__ready-icon"><SmsIcon name="device" size={21} /></span>
-            <div><strong>อุปกรณ์</strong><small>{deviceV4Ready ? 'พร้อม' : deviceBlocked ? 'จำเป็น' : 'ตรวจเมื่อกด'}</small></div>
+            <div><strong>อุปกรณ์</strong><small>{deviceKeyLabel}</small></div>
             {deviceV4Ready && <span className="attendance-v4__ready-check"><SmsIcon name="check" size={11} /></span>}
           </article>
         </section>
@@ -1381,11 +1451,25 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
             <SmsIcon name="face" size={21} />
             <span><strong>Face</strong><small>{attendanceAccepted ? 'Verified' : faceReady ? 'Ready' : 'ยืนยันใบหน้าชั่วคราว'}</small></span>
           </div>
-          <div className={deviceReady ? 'is-ready' : verificationStage?.includes('อุปกรณ์') ? 'is-active' : ''}>
+          <div className={deviceReady ? 'is-ready' : deviceEnrolled ? 'is-warning' : verificationStage?.includes('อุปกรณ์') ? 'is-active' : ''} data-testid="attendance-device-trust" data-server-active={String(deviceEnrolled)} data-local-key-state={deviceProofDiagnostics?.inspection?.status || deviceKeyInspection?.status || 'UNKNOWN'}>
             <SmsIcon name="device" size={21} />
-            <span><strong>Device</strong><small>{deviceReady ? 'OK' : 'Server ตรวจอุปกรณ์หลัก'}</small></span>
+            <span><strong>Device</strong><small>{deviceReady ? 'Server ACTIVE · local key พร้อม' : deviceEnrolled ? localDeviceKeyLabel(deviceProofDiagnostics?.inspection?.status || deviceKeyInspection?.status || null, deviceKeyCapability.supported) : 'ตรวจสถานะ Server'}</small></span>
           </div>
         </section>
+        <details className="attendance-device-runtime-diagnostics" data-testid="attendance-runtime-device-diagnostics">
+          <summary>Device readiness และ ID chain ใน browser นี้</summary>
+          <dl>
+            <div><dt>SERVER_ACTIVE_DEVICE</dt><dd>{deviceProofDiagnostics?.chain.activeDeviceId || deviceActiveId || '—'} · status={deviceProofDiagnostics?.serverActiveDeviceStatus || (deviceEnrolled ? 'ACTIVE' : 'unknown')}</dd></div>
+            <div><dt>LOCAL_PRIVATE_KEY_PRESENT</dt><dd>{deviceProofDiagnostics?.inspection?.status || deviceKeyInspection?.status || 'UNKNOWN'}</dd></div>
+            <div><dt>VERIFICATION_DEVICE_ID</dt><dd>{deviceProofDiagnostics?.chain.verificationDeviceId || 'ยังไม่มี verification'}</dd></div>
+            <div><dt>VERIFICATION_DEVICE_ID_MATCH</dt><dd>{deviceProofDiagnostics?.chain.verificationMatchesActive === null || !deviceProofDiagnostics ? 'ยังไม่ได้ตรวจ' : deviceProofDiagnostics.chain.verificationMatchesActive ? 'MATCH' : 'MISMATCH'}</dd></div>
+            <div><dt>ACTIVE_REQUEST_CANDIDATE_ID</dt><dd>{deviceProofDiagnostics?.chain.candidateDeviceId || deviceCandidateId || '—'}</dd></div>
+            <div><dt>INDEXEDDB_STORED_ENROLLMENT_IDS</dt><dd>{(deviceProofDiagnostics?.chain.storedEnrollmentIds || deviceStoredKeyIds).join(', ') || 'ไม่มี enrollment ID ที่อ่านได้'}</dd></div>
+            <div><dt>MALFORMED_LOCAL_KEY_RECORDS</dt><dd>{deviceMalformedKeyCount}</dd></div>
+            <div><dt>LOCAL_KEY_METADATA</dt><dd>{(deviceProofDiagnostics?.inspection || deviceKeyInspection)?.algorithm || '—'} / {(deviceProofDiagnostics?.inspection || deviceKeyInspection)?.namedCurve || '—'} · extractable={String((deviceProofDiagnostics?.inspection || deviceKeyInspection)?.extractable ?? 'unknown')} · usages={(deviceProofDiagnostics?.inspection || deviceKeyInspection)?.usages.join(', ') || '—'}</dd></div>
+            <div><dt>BROWSER_STORAGE</dt><dd>secureContext={String(window.isSecureContext)} · WebCrypto={String(Boolean(globalThis.crypto?.subtle))} · IndexedDB={(deviceProofDiagnostics?.storageAvailable ?? deviceKeyStorageAvailable) === true ? 'readable' : (deviceProofDiagnostics?.storageAvailable ?? deviceKeyStorageAvailable) === false ? 'unavailable' : 'unknown'}</dd></div>
+          </dl>
+        </details>
 
         <div className="attendance-v2-clock attendance-v3-clock-card" aria-label={`เวลาปัจจุบัน ${thaiClock(now)} นาฬิกา`}>
           <strong>{thaiClock(now)}</strong>

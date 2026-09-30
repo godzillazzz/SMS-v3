@@ -66,6 +66,7 @@ export type AttendanceVerificationStartResult =
 export type AttendanceDeviceState = {
   employeeId: string;
   activeDevice: { id: string; status: string } | null;
+  activeRequest?: { candidateDeviceEnrollmentId: string } | null;
 };
 
 export type AttendanceFaceRetryHint = 'MOVE_MORE' | 'KEEP_FACE_VISIBLE' | 'FOLLOW_DIRECTION' | 'START_CENTERED' | 'RETURN_CENTER';

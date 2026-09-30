@@ -201,15 +201,18 @@ test('wrong private key fails closed and consumes challenge', async () => {
 
 test('admin final approval activates exactly the verified first device', async () => {
   const material = keyMaterial(); const { state, service } = harness(); await createCandidate(service, material); await proveCandidate(service, material);
+  const candidateEnrollmentIdBeforeApproval = state.enrollments[0].id;
   const approved = await service.approve({ actor: adminActor, requestId: ids.request });
   assert.equal(approved.status, 'APPROVED'); assert.equal(state.enrollments.filter((d) => d.status === 'ACTIVE').length, 1);
+  assert.equal(candidateEnrollmentIdBeforeApproval, ids.candidate);
+  assert.equal(state.enrollments.find((d) => d.status === 'ACTIVE').id, candidateEnrollmentIdBeforeApproval, 'approval must activate the same enrollment ID the browser used to store its key');
   assert.equal(state.enrollments[0].approvedByUserId, ids.admin); assert.equal(state.audits.at(-1).metadata.event, 'FINAL_APPROVE');
 });
 
 test('replacement revokes old device and activates candidate in one transaction', async () => {
   const active = { id: ids.active, employeeId: ids.employee, publicKey: Buffer.from('old'), keyAlgorithm: 'ECDSA_P256_SHA256', credentialFingerprint: 'a'.repeat(64), displayName: 'Old Phone', status: 'ACTIVE', proofVerifiedAt: now, enrolledAt: now, activatedAt: new Date('2026-08-01T00:00:00Z'), revokedAt: null, revokedReason: null, createdByUserId: ids.employeeUser, approvedByUserId: ids.admin, createdAt: now, updatedAt: now };
   const material = keyMaterial(); const { state, service } = harness({ activeDevice: active }); await createCandidate(service, material); assert.equal(state.requests[0].requestType, 'REPLACEMENT'); assert.equal(state.requests[0].currentDeviceEnrollmentId, ids.active); await proveCandidate(service, material); await service.approve({ actor: adminActor, requestId: ids.request });
-  assert.equal(state.enrollments.find((d) => d.id === ids.active).status, 'REVOKED'); assert.equal(state.enrollments.find((d) => d.id === ids.candidate).status, 'ACTIVE'); assert.equal(state.enrollments.filter((d) => d.status === 'ACTIVE').length, 1);
+  assert.equal(state.enrollments.find((d) => d.id === ids.active).status, 'REVOKED'); assert.equal(state.enrollments.find((d) => d.id === ids.candidate).status, 'ACTIVE'); assert.equal(state.enrollments.find((d) => d.status === 'ACTIVE').id, ids.candidate); assert.equal(state.enrollments.filter((d) => d.status === 'ACTIVE').length, 1);
 });
 
 test('replacement activation failure rolls back old-device revocation', async () => {

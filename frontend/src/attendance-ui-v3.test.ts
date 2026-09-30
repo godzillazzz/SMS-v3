@@ -40,7 +40,8 @@ describe('Attendance UI V3 mockup-aligned employee surface', () => {
     expect(page).toContain('GPS เฉพาะตอนลงเวลา');
     expect(page).toContain('QR เฉพาะเมื่อจำเป็น');
     expect(page).toContain('ยืนยันใบหน้าชั่วคราว');
-    expect(page).toContain('Server ตรวจอุปกรณ์หลัก');
+    expect(page).toContain('localDeviceKeyLabel(deviceProofDiagnostics?.inspection?.status || deviceKeyInspection?.status || null, deviceKeyCapability.supported)');
+    expect(page).toContain('data-testid="attendance-device-trust"');
     expect(page).toContain('ระบบเป็นผู้ตัดสินเวลาเข้า/ออก');
     expect(page).toContain('Server time เป็น authority ตอนบันทึก');
   });
