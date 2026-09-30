@@ -38,6 +38,8 @@ describe('Owner-approved roster and brand contracts', () => {
     expect(operational).not.toContain('.sidebar-brand>div span{display:none!important}');
     expect(operational).toContain('.app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-copy>span{display:block!important}');
     expect(operational).toMatch(/\.sidebar-brand \.sms-brand-copy>span\{[^}]*display:block!important;[^}]*font-family:"Plus Jakarta Sans","Kanit",sans-serif!important;/);
+    expect(operational).toContain('.sidebar-brand{min-height:66px!important;margin-bottom:8px!important;padding-bottom:10px!important;gap:8px!important}');
+    expect(operational).toMatch(/@media\(max-width:1024px\)\s*\{\s*\.app-shell:not\(\.pwa-shell\) \.sidebar-brand>\.sms-brand-copy>span\s*\{\s*white-space:normal!important;\s*line-height:1.3!important;\s*overflow-wrap:break-word!important;/);
     expect(nexus).not.toContain('.nexus-brand__copy small{display:none}');
     expect(nexus).toMatch(/@media\(max-width:760px\)[\s\S]*?\.nexus-brand__copy small\{display:block\}/);
     expect(nexus).toMatch(/@media \(max-width: 560px\)[\s\S]*?\.award-auth-page \.nexus-brand__copy small\s*\{\s*display: block !important;/);
