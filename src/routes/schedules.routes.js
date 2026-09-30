@@ -3,7 +3,6 @@ const prisma = require('../config/prisma');
 const { z } = require('zod');
 const scheduleService = require('../services/schedule.service');
 const { resolveApprovalActors, withApprovalIdentity } = require('../services/approval-identity.service');
-const { listDepartmentRoster, listMonthlyRosterOrder, reorderDepartmentRoster, reorderMonthlyRoster } = require('../services/schedule-roster.service');
 const { authenticate, authorize } = require('../middlewares/authenticate');
 const { logger, errorCategory } = require('../utils/logger');
 
@@ -44,46 +43,11 @@ const approveSchema = z.object({
   note: z.string().optional()
 });
 
-const rosterQuerySchema = z.object({
-  department: z.string().trim().min(1).max(100),
-  month: z.string().regex(/^\d{4}-\d{2}$/).optional()
-});
-
-const rosterOrderSchema = z.object({
-  department: z.string().trim().min(1).max(100),
-  month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
-  employeeIds: z.array(z.string().uuid()).min(1).max(500)
-});
-
 router.get('/', async (req, res, next) => {
   try {
     const currentMonth = new Date().toISOString().slice(0, 7);
     const { month } = monthQuerySchema.parse({ month: req.query.month || currentMonth });
     res.json({ data: await scheduleService.getMonthlyGrid(month) });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.get('/roster-order', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
-  try {
-    const { department, month } = rosterQuerySchema.parse(req.query);
-    const result = month
-      ? await listMonthlyRosterOrder(prisma, department, month, req.user)
-      : { snapshotLocked: false, historical: false, employees: await listDepartmentRoster(prisma, department, req.user) };
-    res.json({ data: result.employees, meta: { snapshotLocked: result.snapshotLocked, historical: result.historical } });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.put('/roster-order', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
-  try {
-    const { department, month, employeeIds } = rosterOrderSchema.parse(req.body);
-    const result = month
-      ? await reorderMonthlyRoster(prisma, { department, month, employeeIds, actorUser: req.user })
-      : { snapshotLocked: false, historical: false, employees: await reorderDepartmentRoster(prisma, { department, employeeIds, actorUser: req.user }) };
-    res.json({ data: result.employees, meta: { snapshotLocked: result.snapshotLocked, historical: result.historical } });
   } catch (error) {
     next(error);
   }

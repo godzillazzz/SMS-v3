@@ -20,179 +20,18 @@ function displayName(employee) {
   return employee.displayName || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || employee.employeeCode;
 }
 
-function orderValue(value) {
-  return Number.isInteger(value) && value > 0 ? value : Number.MAX_SAFE_INTEGER;
-}
-
+/** Display order is always employee code (numeric-aware), not a mutable roster position. */
 function sortRoster(a, b) {
-  const department = String(a.department || '').localeCompare(String(b.department || ''), 'th');
-  if (department) return department;
-  const order = orderValue(a.rosterOrder ?? a.scheduleOrder) - orderValue(b.rosterOrder ?? b.scheduleOrder);
-  if (order) return order;
-  const code = String(a.employeeCode || a.employeeCodeSnapshot || '').localeCompare(String(b.employeeCode || b.employeeCodeSnapshot || ''), 'en', { numeric: true });
-  if (code) return code;
+  const left = String(a.employeeCode || a.employeeCodeSnapshot || '');
+  const right = String(b.employeeCode || b.employeeCodeSnapshot || '');
+  const byCode = left.localeCompare(right, 'en', { numeric: true, sensitivity: 'base' });
+  if (byCode) return byCode;
+  const byDepartment = String(a.department || a.departmentSnapshot || '').localeCompare(
+    String(b.department || b.departmentSnapshot || ''), 'th'
+  );
+  if (byDepartment) return byDepartment;
   return String(a.id || a.employeeId || '').localeCompare(String(b.id || b.employeeId || ''));
 }
-
-async function assertRosterDepartmentAuthority(client, actorUser, department) {
-  if (actorUser?.role === 'ADMIN') return;
-  if (!actorUser?.sub) throw new HttpError(403, 'Roster order authority is required.');
-  const user = await client.user.findUnique({ where: { id: actorUser.sub }, select: { department: true, role: true, isActive: true, accountStatus: true } });
-  if (!user || !user.isActive || user.accountStatus !== 'ACTIVE' || !['MANAGER', 'SUPERVISOR'].includes(user.role)) {
-    throw new HttpError(403, 'Roster order authority is required.');
-  }
-  if (!user.department || String(user.department) !== String(department)) {
-    throw new HttpError(403, 'You may manage roster order only for your own department.', { code: 'ROSTER_DEPARTMENT_SCOPE_REQUIRED' });
-  }
-}
-
-async function listDepartmentRoster(client, department, actorUser = null) {
-  const value = String(department || '').trim();
-  if (!value) throw new HttpError(400, 'Department is required to manage roster order.');
-  if (actorUser) await assertRosterDepartmentAuthority(client, actorUser, value);
-  const employees = await client.employee.findMany({
-    where: { department: value, isActive: true, deletedAt: null },
-    select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true, scheduleOrder: true },
-    orderBy: [{ scheduleOrder: 'asc' }, { employeeCode: 'asc' }]
-  });
-  const sorted = employees.slice().sort((a, b) => sortRoster(a, b));
-  let nextOrder = sorted.reduce((max, employee) => Math.max(max, Number.isInteger(employee.scheduleOrder) ? employee.scheduleOrder : 0), 0);
-  return sorted.map((employee) => {
-    const rosterOrder = Number.isInteger(employee.scheduleOrder) && employee.scheduleOrder > 0
-      ? employee.scheduleOrder
-      : (nextOrder += 10);
-    return { ...employee, displayName: displayName(employee), rosterOrder };
-  });
-}
-
-async function reorderDepartmentRoster(client, { department, employeeIds, actorUser }) {
-  const value = String(department || '').trim();
-  const ids = Array.isArray(employeeIds) ? employeeIds.map(String) : [];
-  if (!value) throw new HttpError(400, 'Department is required to manage roster order.');
-  await assertRosterDepartmentAuthority(client, actorUser, value);
-  const actorUserId = actorUser.sub;
-  if (!ids.length || new Set(ids).size !== ids.length) throw new HttpError(400, 'Roster order must contain each active employee exactly once.');
-
-  return client.$transaction(async (tx) => {
-    const current = await tx.employee.findMany({
-      where: { department: value, isActive: true, deletedAt: null },
-      select: { id: true, employeeCode: true, scheduleOrder: true }
-    });
-    const currentIds = new Set(current.map((employee) => String(employee.id)));
-    if (currentIds.size !== ids.length || ids.some((id) => !currentIds.has(id))) {
-      throw new HttpError(409, 'The department roster changed. Refresh the roster before saving its order.', { code: 'ROSTER_ORDER_STALE' });
-    }
-
-    const previous = current
-      .slice()
-      .sort((a, b) => orderValue(a.scheduleOrder) - orderValue(b.scheduleOrder) || String(a.employeeCode).localeCompare(String(b.employeeCode), 'en', { numeric: true }))
-      .map((employee) => String(employee.id));
-
-    await tx.employee.updateMany({
-      where: { department: value, OR: [{ isActive: false }, { deletedAt: { not: null } }] },
-      data: { scheduleOrder: null }
-    });
-    for (let index = 0; index < ids.length; index += 1) {
-      await tx.employee.update({ where: { id: ids[index] }, data: { scheduleOrder: (index + 1) * 10 } });
-    }
-
-    await audit.log({
-      actorUserId,
-      action: 'UPDATE',
-      entityType: 'ScheduleRosterOrder',
-      entityId: value,
-      metadata: { department: value, employeeCount: ids.length, previousEmployeeIds: previous, orderedEmployeeIds: ids }
-    }, tx);
-
-    return listDepartmentRoster(tx, value);
-  }, { maxWait: 10000, timeout: 30000 });
-}
-
-async function listMonthlyRosterOrder(client, department, month, actorUser = null) {
-  const value = String(department || '').trim();
-  if (!value) throw new HttpError(400, 'Department is required to manage roster order.');
-  if (actorUser) await assertRosterDepartmentAuthority(client, actorUser, value);
-  const start = monthStart(month);
-  const currentMonth = monthStart(new Date());
-  const rows = await client.scheduleRosterSnapshot.findMany({
-    where: { month: start, departmentSnapshot: value },
-    include: { employee: { select: { id: true, firstName: true, lastName: true, displayName: true, isActive: true, deletedAt: true, scheduleOrder: true } } },
-    orderBy: [{ rosterOrder: 'asc' }, { employeeCodeSnapshot: 'asc' }]
-  });
-  if (!rows.length) {
-    return {
-      snapshotLocked: false,
-      historical: false,
-      employees: await listDepartmentRoster(client, value)
-    };
-  }
-  const visibleRows = start >= currentMonth
-    ? rows.filter((row) => row.employee?.isActive === true && row.employee?.deletedAt == null)
-    : rows;
-  return {
-    snapshotLocked: true,
-    historical: start < currentMonth,
-    employees: visibleRows.map((row) => ({
-      id: row.employeeId,
-      employeeCode: row.employeeCodeSnapshot,
-      firstName: row.employee.firstName,
-      lastName: row.employee.lastName,
-      displayName: row.employeeNameSnapshot,
-      department: row.departmentSnapshot,
-      jobTitle: row.jobTitleSnapshot,
-      scheduleOrder: row.employee.scheduleOrder,
-      rosterOrder: row.rosterOrder
-    }))
-  };
-}
-
-async function reorderMonthlyRoster(client, { department, month, employeeIds, actorUser }) {
-  const value = String(department || '').trim();
-  const ids = Array.isArray(employeeIds) ? employeeIds.map(String) : [];
-  if (!value) throw new HttpError(400, 'Department is required to manage roster order.');
-  await assertRosterDepartmentAuthority(client, actorUser, value);
-  const start = monthStart(month);
-  const currentMonth = monthStart(new Date());
-  if (start < currentMonth) {
-    throw new HttpError(409, 'Historical roster order is locked.', { code: 'ROSTER_HISTORY_LOCKED' });
-  }
-
-  const snapshotRows = await client.scheduleRosterSnapshot.findMany({
-    where: { month: start, departmentSnapshot: value },
-    include: { employee: { select: { id: true, isActive: true, deletedAt: true } } },
-    orderBy: [{ rosterOrder: 'asc' }, { employeeCodeSnapshot: 'asc' }]
-  });
-  if (!snapshotRows.length) {
-    const employees = await reorderDepartmentRoster(client, { department: value, employeeIds: ids, actorUser });
-    return { snapshotLocked: false, historical: false, employees };
-  }
-
-  const editableRows = snapshotRows.filter((row) => row.employee?.isActive === true && row.employee?.deletedAt == null);
-  const currentIds = new Set(editableRows.map((row) => String(row.employeeId)));
-  if (!ids.length || new Set(ids).size !== ids.length || currentIds.size !== ids.length || ids.some((id) => !currentIds.has(id))) {
-    throw new HttpError(409, 'The monthly roster changed. Refresh the roster before saving its order.', { code: 'ROSTER_ORDER_STALE' });
-  }
-  const previous = editableRows.map((row) => String(row.employeeId));
-  const actorUserId = actorUser.sub;
-
-  return client.$transaction(async (tx) => {
-    for (let index = 0; index < ids.length; index += 1) {
-      await tx.scheduleRosterSnapshot.update({
-        where: { month_employeeId: { month: start, employeeId: ids[index] } },
-        data: { rosterOrder: (index + 1) * 10 }
-      });
-    }
-    await audit.log({
-      actorUserId,
-      action: 'UPDATE',
-      entityType: 'ScheduleRosterSnapshotOrder',
-      entityId: `${start.toISOString().slice(0, 7)}:${value}`,
-      metadata: { month: start.toISOString().slice(0, 7), department: value, employeeCount: ids.length, previousEmployeeIds: previous, orderedEmployeeIds: ids }
-    }, tx);
-    return listMonthlyRosterOrder(tx, value, month);
-  }, { maxWait: 10000, timeout: 30000 });
-}
-
 async function assignedEmployeeIdsForMonth(client, start, end) {
   const rows = await client.shiftAssignment.findMany({
     where: { workDate: { gte: start, lt: end } },
@@ -220,7 +59,7 @@ async function ensureMonthlyRosterSnapshot(client, month, { extraEmployeeIds = [
   const candidates = await client.employee.findMany({
     where,
     select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true, isActive: true, deletedAt: true, scheduleOrder: true },
-    orderBy: [{ department: 'asc' }, { scheduleOrder: 'asc' }, { employeeCode: 'asc' }]
+    orderBy: [{ employeeCode: 'asc' }, { department: 'asc' }]
   });
   if (!candidates.length) return existing;
 
@@ -271,7 +110,7 @@ async function ensureMonthlyRosterSnapshot(client, month, { extraEmployeeIds = [
   }
   return client.scheduleRosterSnapshot.findMany({
     where: { month: start },
-    orderBy: [{ departmentSnapshot: 'asc' }, { rosterOrder: 'asc' }, { employeeCodeSnapshot: 'asc' }]
+    orderBy: [{ departmentSnapshot: 'asc' }, { employeeCodeSnapshot: 'asc' }]
   });
 }
 
@@ -291,7 +130,7 @@ async function loadCalendarRoster(client, month, { department, search } = {}) {
     const rows = await client.scheduleRosterSnapshot.findMany({
       where,
       include: { employee: { select: { id: true, firstName: true, lastName: true, displayName: true, isActive: true, deletedAt: true, scheduleOrder: true } } },
-      orderBy: [{ departmentSnapshot: 'asc' }, { rosterOrder: 'asc' }, { employeeCodeSnapshot: 'asc' }]
+      orderBy: [{ departmentSnapshot: 'asc' }, { employeeCodeSnapshot: 'asc' }]
     });
     const currentMonth = monthStart(new Date());
     const visibleRows = start >= currentMonth
@@ -311,7 +150,7 @@ async function loadCalendarRoster(client, month, { department, search } = {}) {
         deletedAt: row.employee.deletedAt,
         scheduleOrder: row.employee.scheduleOrder,
         rosterOrder: row.rosterOrder
-      }))
+      })).sort(sortRoster)
     };
   }
 
@@ -327,7 +166,7 @@ async function loadCalendarRoster(client, month, { department, search } = {}) {
       ] }] } : {})
     },
     select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true, isActive: true, deletedAt: true, scheduleOrder: true },
-    orderBy: [{ department: 'asc' }, { scheduleOrder: 'asc' }, { employeeCode: 'asc' }]
+    orderBy: [{ employeeCode: 'asc' }, { department: 'asc' }]
   });
   const resolvePersonnel = await createSchedulePersonnelResolver(client, candidates);
   const employees = candidates.map((employee) => {
@@ -346,13 +185,13 @@ async function loadCalendarRoster(client, month, { department, search } = {}) {
 }
 
 module.exports = {
-  assertRosterDepartmentAuthority,
+
   ensureMonthlyRosterSnapshot,
-  listDepartmentRoster,
-  listMonthlyRosterOrder,
+
+
   loadCalendarRoster,
   monthStart,
-  reorderDepartmentRoster,
-  reorderMonthlyRoster,
+
+
   sortRoster
 };

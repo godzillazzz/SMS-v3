@@ -589,15 +589,12 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
    Plus Jakarta Sans, and operational identifiers on JetBrains Mono.
    Explicit Thai fallbacks prevent monospace text falling into legacy
    Noto Sans Thai / Inter when a schedule label contains Thai characters. */
-.nexus-roster-workspace :is(button, input, select, textarea),
-.nexus-roster-workspace .schedule-roster-order-dialog {
+.nexus-roster-workspace :is(button, input, select, textarea) {
   font-family: "Plus Jakarta Sans", "Kanit", sans-serif !important;
 }
 .nexus-roster-workspace :is(
   .page-heading h1,
-  .schedule-grid .employee-sticky strong,
-  .schedule-roster-order-dialog h2,
-  .schedule-roster-order-dialog strong
+  .schedule-grid .employee-sticky strong
 ) {
   font-family: "Kanit", "Plus Jakarta Sans", sans-serif !important;
 }

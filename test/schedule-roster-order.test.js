@@ -1,84 +1,77 @@
 'use strict';
 
+process.env.NODE_ENV = 'test';
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { sortRoster, loadCalendarRoster } = require('../src/services/schedule-roster.service');
 
 const root = path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('schema separates employee master order from immutable monthly roster snapshots', () => {
+test('preserves historical snapshot schema and existing migrations without modifying database data', () => {
   const schema = read('prisma/schema.prisma');
-  assert.match(schema, /scheduleOrder\s+Int\?\s+@map\("schedule_order"\)/);
+  const migration = read('prisma/migrations/202609250001_add_schedule_roster_order/migration.sql');
   assert.match(schema, /model ScheduleRosterSnapshot \{/);
   assert.match(schema, /@@unique\(\[month, employeeId\]\)/);
-  assert.match(schema, /@@index\(\[month, departmentSnapshot, rosterOrder\]\)/);
-});
-
-test('migration preserves legacy historical ordering and seeds active master ordering', () => {
-  const migration = read('prisma/migrations/202609250001_add_schedule_roster_order/migration.sql');
-  assert.match(migration, /WHERE is_active = TRUE AND deleted_at IS NULL/);
-  assert.match(migration, /ORDER BY employee_code ASC, id ASC/);
   assert.match(migration, /MIGRATION_BACKFILL/);
-  assert.match(migration, /PARTITION BY month, COALESCE\(department_snapshot, ''\)/);
 });
 
-test('calendar uses roster service instead of employee-code sorting and exposes snapshot state', () => {
-  const operations = read('src/routes/operations.routes.js');
-  assert.match(operations, /loadCalendarRoster\(prisma, monthStart/);
-  assert.match(operations, /rosterSnapshotLocked: roster\.snapshotLocked/);
-  const route = operations.slice(operations.indexOf("router.get('/schedule-calendar'"), operations.indexOf("router.post('/schedule/auto-preview'"));
-  assert.doesNotMatch(route, /orderBy:\s*\[\{ employeeCode: 'asc' \}\]/);
+test('employee code sorts numerically and ignores both legacy roster-order fields', () => {
+  const employees = [
+    { id: 'a', employeeCode: 'ST-10', scheduleOrder: 10, rosterOrder: 10 },
+    { id: 'b', employeeCode: 'ST-2', scheduleOrder: 900, rosterOrder: 900 },
+    { id: 'c', employeeCode: 'ST-1', scheduleOrder: 200, rosterOrder: 200 }
+  ];
+  assert.deepEqual(employees.slice().sort(sortRoster).map(({ employeeCode }) => employeeCode), ['ST-1', 'ST-2', 'ST-10']);
+  assert.deepEqual(
+    [{ employeeId: 'a', employeeCodeSnapshot: 'ST-10', rosterOrder: 1 },
+      { employeeId: 'b', employeeCodeSnapshot: 'ST-2', rosterOrder: 99 }].sort(sortRoster).map(({ employeeCodeSnapshot }) => employeeCodeSnapshot),
+    ['ST-2', 'ST-10']
+  );
 });
 
-test('every schedule write path snapshots roster before changing the month', () => {
-  const schedules = read('src/services/schedule.service.js');
-  const auto = read('src/services/auto-schedule.service.js');
-  const operations = read('src/routes/operations.routes.js');
-  assert.match(schedules, /ensureMonthlyRosterSnapshot\(tx, monthKey, \{ extraEmployeeIds: \[\.\.\.ids\]/);
-  assert.match(auto, /source: 'AUTO_SCHEDULE'/);
-  assert.match(auto, /source: 'AUTO_SCHEDULE_EMPLOYEE'/);
-  assert.match(operations, /source: 'DIRECT_SHIFT'/);
-  assert.match(operations, /source: 'DIRECT_SHIFT_UPDATE'/);
+test('historical monthly roster uses stored employee codes, not stored custom positions', async () => {
+  const rows = [
+    { employeeId: 'a', employeeCodeSnapshot: 'ST-10', employeeNameSnapshot: 'A', departmentSnapshot: 'D', jobTitleSnapshot: null, rosterOrder: 1, employee: { firstName: 'A', lastName: '', isActive: true, deletedAt: null, scheduleOrder: 1 } },
+    { employeeId: 'b', employeeCodeSnapshot: 'ST-2', employeeNameSnapshot: 'B', departmentSnapshot: 'D', jobTitleSnapshot: null, rosterOrder: 100, employee: { firstName: 'B', lastName: '', isActive: true, deletedAt: null, scheduleOrder: 100 } }
+  ];
+  const calls = [];
+  const client = { scheduleRosterSnapshot: {
+    count: async () => rows.length,
+    findMany: async (query) => { calls.push(query); return rows; }
+  } };
+  const roster = await loadCalendarRoster(client, '2025-04');
+  assert.equal(roster.snapshotLocked, true);
+  assert.deepEqual(roster.employees.map((row) => row.employeeCode), ['ST-2', 'ST-10']);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].where.month.toISOString().slice(0, 7), '2025-04');
+  assert.deepEqual(rows.map((row) => row.rosterOrder), [1, 100]);
 });
 
-test('roster ordering is department-scoped for non-admin managers and supervisors', () => {
+test('calendar, print and approved Excel export use employee code instead of custom roster positions', () => {
   const service = read('src/services/schedule-roster.service.js');
-  const routes = read('src/routes/schedules.routes.js');
-  assert.match(service, /actorUser\?\.role === 'ADMIN'/);
-  assert.match(service, /\['MANAGER', 'SUPERVISOR'\]\.includes\(user\.role\)/);
-  assert.match(service, /ROSTER_DEPARTMENT_SCOPE_REQUIRED/);
-  assert.match(routes, /listDepartmentRoster\(prisma, department, req\.user\)/);
-  assert.match(routes, /reorderDepartmentRoster\(prisma, \{ department, employeeIds, actorUser: req\.user \}\)/);
-});
-
-test('department transfer or active-state change frees the employee master roster position', () => {
-  const lifecycle = read('src/services/employee-lifecycle.service.js');
-  assert.match(lifecycle, /departmentWillChange/);
-  assert.match(lifecycle, /activeWillChange/);
-  assert.match(lifecycle, /data\.scheduleOrder = null/);
-});
-
-test('approved Excel export follows roster snapshot order instead of alphabetical employee name', () => {
   const operations = read('src/routes/operations.routes.js');
-  const exporter = read('src/services/schedule-export.service.js');
-  assert.match(operations, /scheduleRosterSnapshot\.findMany\(\{ where: \{ month: start \}/);
-  assert.match(operations, /rosterOrderByEmployee/);
-  assert.match(exporter, /rosterOrder: Number\(shift\.rosterOrder/);
-  assert.match(exporter, /Number\(first\.rosterOrder\) - Number\(second\.rosterOrder\)/);
+  const exportSource = read('src/services/schedule-export.service.js');
+  const main = read('frontend/src/main.tsx');
+  assert.match(service, /employees: visibleRows\.map[\s\S]*?\)\)\.sort\(sortRoster\)/);
+  assert.match(service, /employees\.sort\(sortRoster\)/);
+  assert.match(operations, /employeeCodeSnapshot: snapshotCodeByEmployee\.get/);
+  assert.doesNotMatch(operations.slice(operations.indexOf("router.post('/schedule/export.xlsx'")), /rosterOrderByEmployee/);
+  assert.match(exportSource, /numeric: true, sensitivity: 'base'/);
+  assert.doesNotMatch(exportSource, /first\.rosterOrder|second\.rosterOrder/);
+  assert.equal((main.match(/sortScheduleEmployeesByCode\(rawCalendarEmployees\)/g) || []).length, 2);
 });
 
-test('schedule UI preserves server order and provides reorder plus snapshot status controls', () => {
+test('the manual reorder UI and API are removed, retaining immutable snapshots', () => {
+  const routes = read('src/routes/schedules.routes.js');
+  const rosterService = read('src/services/schedule-roster.service.js');
   const main = read('frontend/src/main.tsx');
-  const modal = read('frontend/src/components/ScheduleRosterOrderModal.tsx');
-  const rosterClient = read('frontend/src/schedule-roster-client.ts');
-  assert.match(main, /const allCalendarEmployees = rawCalendarEmployees;/);
-  assert.doesNotMatch(main, /allCalendarEmployees = \[\.\.\.rawCalendarEmployees\]\.sort\(\(a, b\) => \(String\(a\.employeeCode/);
-  assert.match(main, /จัดลำดับพนักงาน/);
-  assert.match(main, /rosterSnapshotLocked/);
-  assert.match(modal, /draggable=\{!busy\}/);
-  assert.match(modal, /บันทึกลำดับพนักงาน/);
-  assert.match(rosterClient, /getScheduleRosterOrder/);
-  assert.match(rosterClient, /updateScheduleRosterOrder/);
+  assert.doesNotMatch(routes, /roster-order|reorderMonthlyRoster|reorderDepartmentRoster/);
+  assert.doesNotMatch(rosterService, /function reorderMonthlyRoster|function reorderDepartmentRoster/);
+  assert.doesNotMatch(main, /จัดลำดับพนักงาน|rosterOrderDepartment|ScheduleRosterOrderModal|getScheduleRosterOrder|updateScheduleRosterOrder/);
+  assert.equal(fs.existsSync(path.join(root, 'frontend/src/components/ScheduleRosterOrderModal.tsx')), false);
+  assert.equal(fs.existsSync(path.join(root, 'frontend/src/schedule-roster-client.ts')), false);
+  assert.match(rosterService, /async function ensureMonthlyRosterSnapshot/);
 });

@@ -37,13 +37,12 @@ describe('monthly roster font contract', () => {
     expect(contract).toContain('font-family: "JetBrains Mono", "Kanit", monospace !important;');
   });
 
-  it('covers calendar controls, roster-order dialog and portalled shift editor', () => {
+  it('covers calendar controls and portalled shift editor', () => {
     expect(contract).toContain('.nexus-roster-workspace :is(button, input, select, textarea)');
-    expect(contract).toContain('.schedule-roster-order-dialog strong');
     expect(contract).toContain('.shift-editor-modal__viewport .shift-editor-modal__dialog :is(button, input, select, textarea)');
     expect(contract).toContain('.shift-editor-modal__viewport .shift-editor-modal__dialog :is(h1, h2, h3)');
     expect(contract).toContain('font-family: "Plus Jakarta Sans", "Kanit", sans-serif !important;');
     expect(main).toContain('className="shift-editor-modal__viewport"');
-    expect(main).toContain('<ScheduleRosterOrderModal');
+    expect(main).not.toContain('<ScheduleRosterOrderModal');
   });
 });

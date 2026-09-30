@@ -71,4 +71,14 @@
     flex-direction: column;
     gap: 3px;
   }
+  /* Keep the complete versionless SMS lockup legible on narrow screens. */
+  .award-auth-page .nexus-nav__inner { gap: 6px; }
+  .award-auth-page .nexus-brand { min-width: 0; gap: 5px; }
+  .award-auth-page .nexus-brand__mark { flex-shrink: 0; }
+  .award-auth-page .nexus-brand__copy small {
+    display: block !important;
+    font-size: clamp(8px, 2.3vw, 10px);
+    white-space: nowrap;
+  }
+  .award-auth-page .nexus-command-button { flex-shrink: 0; padding-inline: 6px; }
 }

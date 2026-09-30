@@ -92,7 +92,7 @@ export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicEx
         <div className="nexus-shell nexus-nav__inner">
           <a className="nexus-brand" href="#overview" aria-label="SMS Security Management System">
             <span className="nexus-brand__mark">{renderLogo()}</span>
-            <span className="nexus-brand__copy"><strong>SMS</strong><small>ระบบบริหารงานรักษาความปลอดภัย</small></span>
+            <span className="nexus-brand__copy"><strong>SMS</strong><small>Security Management System</small></span>
           </a>
           <nav className="nexus-nav__links" aria-label="เมนูหน้า public">
             <a className="is-active" href="#overview">ภาพรวมระบบ</a>

@@ -108,7 +108,7 @@ export function createSecuritySiteQrPrintHtml(input: SecuritySiteQrPrintInput): 
     <div>Valid from: ${escapeHtml(input.validFromLabel)}</div>
   </div>
   <img id="security-site-qr-print-image" class="qr-print-image" src="${escapeHtml(input.dataUrl)}" width="768" height="768" alt="Attendance Site QR" />
-  <footer><span>Security Management System V3</span><span>${escapeHtml(input.siteCode)} · QR v${escapeHtml(String(input.version))}</span></footer>
+  <footer><span>Security Management System</span><span>${escapeHtml(input.siteCode)} · QR v${escapeHtml(String(input.version))}</span></footer>
 </main>
 </body>
 </html>`;

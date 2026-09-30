@@ -652,9 +652,11 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
       prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { displayName: true } })
     ]);
     const historicalShifts = await enrichScheduleAssignments(prisma, rawShifts, employees);
-    const rosterSnapshots = await prisma.scheduleRosterSnapshot.findMany({ where: { month: start }, select: { employeeId: true, rosterOrder: true } });
-    const rosterOrderByEmployee = new Map(rosterSnapshots.map((row) => [String(row.employeeId), Number(row.rosterOrder)]));
-    const orderedHistoricalShifts = historicalShifts.map((row) => ({ ...row, rosterOrder: rosterOrderByEmployee.get(String(row.employeeId)) ?? Number.MAX_SAFE_INTEGER }));
+    const rosterSnapshots = await prisma.scheduleRosterSnapshot.findMany({ where: { month: start }, select: { employeeId: true, employeeCodeSnapshot: true } });
+    // Preserve each month’s historical employee code; ignore obsolete custom roster positions.
+    const codeByEmployee = new Map(employees.map((employee) => [String(employee.id), String(employee.employeeCode || '')]));
+    const snapshotCodeByEmployee = new Map(rosterSnapshots.map((row) => [String(row.employeeId), String(row.employeeCodeSnapshot || '')]));
+    const orderedHistoricalShifts = historicalShifts.map((row) => ({ ...row, employeeCodeSnapshot: snapshotCodeByEmployee.get(String(row.employeeId)) || codeByEmployee.get(String(row.employeeId)) || '' }));
     const availableDepartments = [...new Set(orderedHistoricalShifts.map((row) => row.departmentSnapshot).filter(Boolean))].sort();
     const selectedDepartments = input.scope === 'all' || !input.departments.length ? availableDepartments : input.departments.filter((department) => availableDepartments.includes(department));
     if (!selectedDepartments.length) throw new HttpError(404, 'No schedule rows were found for the selected departments.');

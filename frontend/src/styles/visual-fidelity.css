@@ -4090,9 +4090,9 @@ button.personnel-primary-action,
   width: 100%;
   height: 100%;
   flex-basis: 100%;
-  filter: brightness(0) invert(1);
+  filter: none;
 }
 
 [data-theme="dark"] .brand-logo {
-  filter: brightness(0) invert(1);
+  filter: none;
 }

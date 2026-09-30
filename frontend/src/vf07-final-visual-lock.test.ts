@@ -38,10 +38,10 @@ describe('G04.2 VF-07 visual baseline with Owner brand correction', () => {
     expect(main).toContain('function Logo()');
     expect(main).toMatch(/<img\s+className="brand-logo"\s+src="\/attendance-sms-logo\.svg"\s+alt="SMS"\s*\/>/);
     expect(main).not.toMatch(/SMS V3|SMS v3/);
-    expect(main).toContain('<strong>ระบบบริหารงานรักษาความปลอดภัย</strong>');
+    expect(main).toContain('<strong>Security Management System</strong>');
     for (const capability of ['ข้อมูลบุคลากร', 'ตารางกะและการลา', 'สิทธิ์และกฎการทำงาน']) expect(main).toContain(capability);
     expect(main).toContain('className="sms-brand-copy"');
-    expect(publicExperience).toContain('<strong>SMS</strong><small>ระบบบริหารงานรักษาความปลอดภัย</small>');
+    expect(publicExperience).toContain('<strong>SMS</strong><small>Security Management System</small>');
     expect(publicExperience).not.toMatch(/SMS <em>v\d+\.\d+<\/em>/);
     expect(publicExperience).not.toContain('DEFENSE MATRIX VER 4.8.19');
     expect(publicExperience).not.toContain('SECURE SURFACE / AUTHENTICATED ONLY');
