@@ -10,6 +10,7 @@ const icon = fs.readFileSync(path.join(root, '../public/attendance-sms-logo.svg'
 const qr = fs.readFileSync(path.join(root, 'components/security-site-qr.ts'), 'utf8');
 const visual = fs.readFileSync(path.join(root, 'styles/visual-fidelity.css'), 'utf8');
 const nexus = fs.readFileSync(path.join(root, 'styles/command-nexus.css'), 'utf8');
+const operational = fs.readFileSync(path.join(root, 'styles/operational-layer.css'), 'utf8');
 
 describe('Owner-approved roster and brand contracts', () => {
   it('orders employees by their codes numerically, without mutating source rows', () => {
@@ -30,6 +31,16 @@ describe('Owner-approved roster and brand contracts', () => {
     expect(main.match(/sortScheduleEmployeesByCode\(rawCalendarEmployees\)/g)).toHaveLength(2);
     expect(main).not.toMatch(/getScheduleRosterOrder|updateScheduleRosterOrder|ScheduleRosterOrderModal|canReorderRoster|rosterOrderDepartment|จัดลำดับพนักงาน/);
     expect(main).toContain('className="schedule-grid"');
+  });
+
+  it('keeps the Security Management System subtitle visible in the authenticated sidebar and public tablet navbar', () => {
+    expect(main).toContain('<div className="sms-brand-copy"><strong>SMS</strong><span>Security Management System</span></div>');
+    expect(operational).not.toContain('.sidebar-brand>div span{display:none!important}');
+    expect(operational).toContain('.app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-copy>span{display:block!important}');
+    expect(operational).toMatch(/\.sidebar-brand \.sms-brand-copy>span\{[^}]*display:block!important;[^}]*font-family:"Plus Jakarta Sans","Kanit",sans-serif!important;/);
+    expect(nexus).not.toContain('.nexus-brand__copy small{display:none}');
+    expect(nexus).toMatch(/@media\(max-width:760px\)[\s\S]*?\.nexus-brand__copy small\{display:block\}/);
+    expect(nexus).toMatch(/@media \(max-width: 560px\)[\s\S]*?\.award-auth-page \.nexus-brand__copy small\s*\{\s*display: block !important;/);
   });
 
   it('uses the reference shield and versionless SMS identity across brand surfaces', () => {
