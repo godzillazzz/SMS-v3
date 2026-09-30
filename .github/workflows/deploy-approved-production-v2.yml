@@ -217,18 +217,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ steps.manifest.outputs.commit_sha }}
+          CONTROL_PLANE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          ci_json=$(mktemp)
-          trap 'rm -f "$ci_json"' EXIT
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&status=success&per_page=100" >"$ci_json"
-          node - "$ci_json" <<'NODE'
+          source_ci_json=$(mktemp)
+          control_ci_json=$(mktemp)
+          trap 'rm -f "$source_ci_json" "$control_ci_json"' EXIT
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&status=success&per_page=100" >"$source_ci_json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CONTROL_PLANE_SHA&status=success&per_page=100" >"$control_ci_json"
+          node - "$source_ci_json" "$control_ci_json" <<'NODE'
           const fs = require('node:fs');
-          const file = process.argv[2];
-          const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-          const pass = (data.workflow_runs || []).some((run) => run.name === 'CI' && run.head_sha === process.env.TARGET_SHA && run.conclusion === 'success');
-          if (!pass) throw new Error('exact-SHA successful CI evidence not found');
-          process.stdout.write('EXACT_SHA_CI=PASS\n');
+          const [sourceFile, controlFile] = process.argv.slice(2);
+          const hasSuccessfulCi = (file, sha) => {
+            const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+            return (data.workflow_runs || []).some((run) => run.name === 'CI' && run.head_sha === sha && run.conclusion === 'success');
+          };
+          if (!hasSuccessfulCi(sourceFile, process.env.TARGET_SHA)) throw new Error('application source exact-SHA CI evidence not found');
+          if (!hasSuccessfulCi(controlFile, process.env.CONTROL_PLANE_SHA)) throw new Error('release control-plane exact-SHA CI evidence not found');
+          process.stdout.write('APPLICATION_SOURCE_EXACT_SHA_CI=PASS\nRELEASE_CONTROL_PLANE_EXACT_SHA_CI=PASS\n');
           NODE
 
       - name: Hash immutable release manifest evidence
@@ -268,7 +274,7 @@ jobs:
     name: Approve Production
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment:
       name: production-sms-v3-staging
       url: https://sms-v3-staging-ten.vercel.app
@@ -282,6 +288,7 @@ jobs:
       RUN_MIGRATIONS: ${{ needs.prepare.outputs.run_migrations }}
       TARGET_SHA: ${{ needs.prepare.outputs.commit_sha }}
       TARGET_TREE: ${{ needs.prepare.outputs.tree_sha }}
+      SOURCE_BRANCH: ${{ needs.prepare.outputs.source_branch }}
       CURRENT_PRODUCTION_SOURCE_SHA: ${{ needs.prepare.outputs.current_production_source_sha }}
       ROLLBACK_DEPLOYMENT_ID: ${{ needs.prepare.outputs.rollback_deployment_id }}
       MANIFEST_SHA256: ${{ needs.prepare.outputs.manifest_sha256 }}
@@ -293,6 +300,19 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.commit_sha }}
           fetch-depth: 0
+
+      - name: Load release-control verifier from dispatched source SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$GITHUB_SHA"
+          release_tools=/tmp/sms-release-control-plane
+          mkdir -p "$release_tools"
+          for tool in verify-public-runtime.js vercel-curl-fetch.js create-vercel-git-candidate.js vercel-deployment.js; do
+            git show "$GITHUB_SHA:scripts/ci/$tool" > "$release_tools/$tool"
+            node --check "$release_tools/$tool"
+          done
+          echo 'RELEASE_CONTROL_PLANE_TOOLS=LOADED_FROM_DISPATCH_SHA'
 
       - uses: actions/setup-node@v4
         with:
@@ -500,7 +520,7 @@ jobs:
           node scripts/ci/verify-release-artifact.js frontend/dist .vercel/output/static
           node scripts/ci/verify-linux-artifact.js .vercel/output --require-sharp-load
 
-      - name: Restore exact source identity before prebuilt deploy
+      - name: Revalidate exact source identity after Production build
         shell: bash
         run: |
           set -euo pipefail
@@ -512,36 +532,50 @@ jobs:
           test "$(git rev-parse HEAD^{tree})" = "$TARGET_TREE"
           test -z "$(git status --porcelain)"
 
-      - name: Deploy exact prebuilt artifact
+      - name: Create Git-sourced immutable Production candidate
         id: deploy
         shell: bash
         run: |
           set -euo pipefail
-          deploy_json=$(mktemp)
           deployment_output=$(mktemp)
           inspect_json=$(mktemp)
-          trap 'rm -f "$deploy_json" "$deployment_output" "$inspect_json"' EXIT
-          npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --prod --yes --project "$EXPECTED_PROJECT_ID" --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN" --format=json >"$deploy_json"
-          node scripts/ci/vercel-deployment.js "$deploy_json" "$EXPECTED_PROJECT_ID" "$ROLLBACK_DEPLOYMENT_ID" >"$deployment_output"
+          trap 'rm -f "$deployment_output" "$inspect_json"' EXIT
+          node /tmp/sms-release-control-plane/create-vercel-git-candidate.js >"$deployment_output"
           while IFS='=' read -r key value; do
             case "$key" in
               deployment_id) deployment_id="$value" ;;
               deployment_url) deployment_url="$value" ;;
+              candidate_project_id) candidate_project_id="$value" ;;
+              candidate_commit_sha) candidate_commit_sha="$value" ;;
+              candidate_commit_ref) candidate_commit_ref="$value" ;;
+              candidate_target) candidate_target="$value" ;;
+              candidate_alias_assigned) candidate_alias_assigned="$value" ;;
             esac
           done <"$deployment_output"
           test -n "${deployment_id:-}"
           test -n "${deployment_url:-}"
+          test "$candidate_project_id" = "$EXPECTED_PROJECT_ID"
+          test "$candidate_commit_sha" = "$TARGET_SHA"
+          test "$candidate_commit_ref" = "$SOURCE_BRANCH"
+          test "$candidate_target" = production
+          test "$candidate_alias_assigned" = false
           [[ "$deployment_id" =~ ^dpl_[A-Za-z0-9]+$ ]]
           [[ "$deployment_url" =~ ^https://sms-v3-staging-[A-Za-z0-9-]+\.vercel\.app/?$ ]]
           npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$deployment_id" --format=json --token "$VERCEL_TOKEN" >"$inspect_json"
-          node - "$inspect_json" "$deployment_id" "$EXPECTED_PROJECT_ID" "$TARGET_SHA" <<'NODE'
+          node - "$inspect_json" "$deployment_id" "$EXPECTED_PROJECT_ID" "$TARGET_SHA" "$SOURCE_BRANCH" <<'NODE'
           const fs = require('node:fs');
-          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
-          const [file, expectedId, expectedProjectId, expectedCommit] = process.argv.slice(2);
-          const record = inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
-          if (record.target !== 'production') throw new Error('Vercel deployment target is not production');
-          if (record.commitSha && record.commitSha !== expectedCommit) throw new Error('Vercel deployment commit mismatch');
-          process.stdout.write('DEPLOYMENT_INSPECT=PASS\n');
+          const { inspectDeploymentRecord } = require('/tmp/sms-release-control-plane/vercel-deployment.js');
+          const [file, expectedId, expectedProjectId, expectedCommit, expectedRef] = process.argv.slice(2);
+          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), {
+            expectedId,
+            expectedProjectId,
+            expectedCommitSha: expectedCommit,
+            expectedCommitRef: expectedRef,
+            expectedTarget: 'production',
+            requireReady: true,
+            requireNoAliases: true
+          });
+          process.stdout.write('GIT_SOURCED_CANDIDATE_INSPECT=PASS\nNATIVE_SHA_REF=PASS\nNO_ALIAS_ASSIGNED=PASS\n');
           NODE
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "deployment_url=$deployment_url" >> "$GITHUB_OUTPUT"
@@ -559,11 +593,20 @@ jobs:
           verify_public_runtime() {
             local base_url="$1"
             local label="$2"
-            node - "$base_url" "$label" <<'NODE'
+            local use_vercel_curl="$3"
+            node - "$base_url" "$label" "$use_vercel_curl" <<'NODE'
           const base = process.argv[2].replace(/\/$/, '');
           const label = process.argv[3];
+          const useVercelCurl = process.argv[4] === 'true';
           const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน', 'Approval Authority Matrix / SLA', 'การเปลี่ยนแปลงสำคัญ', 'เปลี่ยนชื่อ', 'ย้ายหน่วยงาน / แผนก', 'เปลี่ยนตำแหน่ง', 'Data Retention Center / การเก็บรักษาข้อมูล', 'รัน Cleanup รอบถัดไป'];
-          async function request(path) { return fetch(`${base}${path}`, { redirect: 'follow' }); }
+          const { verifyPublicRuntime } = require('/tmp/sms-release-control-plane/verify-public-runtime.js');
+          const { createVercelCurlFetch } = require('/tmp/sms-release-control-plane/vercel-curl-fetch.js');
+          const fetchImpl = useVercelCurl
+            ? createVercelCurlFetch({ baseUrl: base, token: process.env.VERCEL_TOKEN, orgId: process.env.VERCEL_ORG_ID, projectId: process.env.VERCEL_PROJECT_ID, cliVersion: process.env.VERCEL_CLI_VERSION })
+            : globalThis.fetch;
+          async function request(path, init = {}) {
+            return fetchImpl(new URL(path, `${base}/`).toString(), { redirect: 'manual', ...init });
+          }
           async function main() {
             const health = await request('/api/v1/health');
             if (health.status !== 200) throw new Error(`${label} health status ${health.status}`);
@@ -578,56 +621,63 @@ jobs:
             const root = await request('/');
             if (root.status !== 200) throw new Error(`${label} root status ${root.status}`);
             const html = await root.text();
-            const match = html.match(/<script[^>]+src=["']([^"']*\/assets\/index-[^"']+\.js)["']/i);
-            if (!match) throw new Error(`${label} main frontend bundle not found`);
-            const bundleUrl = new URL(match[1], `${base}/`).toString();
-            const bundle = await fetch(bundleUrl, { redirect: 'follow' });
-            if (bundle.status !== 200) throw new Error(`${label} bundle status ${bundle.status}`);
-            const js = await bundle.text();
-            const missing = sentinels.filter((value) => !js.includes(value));
-            if (missing.length) throw new Error(`${label} missing runtime sentinels: ${missing.join(', ')}`);
+            const runtime = await verifyPublicRuntime({
+              baseUrl: base,
+              html,
+              sentinels,
+              fetchImpl,
+              onLog: (line) => process.stdout.write(`${line}\n`),
+            });
             const governedOrigin = new URL(process.env.EXPECTED_CANONICAL_URL).origin;
-            const corsTrusted = await fetch(`${base}/api/v1/auth/login`, {
+            const corsTrusted = await request('/api/v1/auth/login', {
               method: 'OPTIONS',
               headers: { Origin: governedOrigin, 'Access-Control-Request-Method': 'POST' },
-              redirect: 'manual'
             });
             if (corsTrusted.status !== 204) throw new Error(`${label} trusted CORS status ${corsTrusted.status}`);
             if (corsTrusted.headers.get('access-control-allow-origin') !== governedOrigin) throw new Error(`${label} trusted CORS origin mismatch`);
             if (corsTrusted.headers.get('access-control-allow-credentials') !== 'true') throw new Error(`${label} trusted CORS credentials mismatch`);
             const untrustedOrigin = 'https://untrusted.invalid';
-            const corsDenied = await fetch(`${base}/api/v1/auth/login`, {
+            const corsDenied = await request('/api/v1/auth/login', {
               method: 'OPTIONS',
               headers: { Origin: untrustedOrigin, 'Access-Control-Request-Method': 'POST' },
-              redirect: 'manual'
             });
             if (corsDenied.status !== 403) throw new Error(`${label} untrusted CORS status ${corsDenied.status}`);
             if (corsDenied.headers.get('access-control-allow-origin')) throw new Error(`${label} untrusted CORS unexpectedly allowed`);
-            process.stdout.write(`${label}_RUNTIME_VERIFY=PASS\n${label}_CORS_VERIFY=PASS\nBUNDLE_BYTES=${Buffer.byteLength(js)}\nSENTINELS=${sentinels.length}\n`);
+            process.stdout.write(`${label}_RUNTIME_VERIFY=PASS\n${label}_CORS_VERIFY=PASS\nRUNTIME_ASSETS=${runtime.assets.length}\nRUNTIME_BYTES=${runtime.totalBytes}\nSENTINELS=${sentinels.length}\n`);
           }
           main().catch((error) => { console.error(error); process.exit(1); });
           NODE
           }
 
-          # Vercel `curl` is a beta CLI surface and has repeatedly returned exit code 2
-          # inside the protected GitHub runner despite a healthy READY deployment. Do not
-          # make Production cutover correctness depend on that beta command. The exact
-          # prebuilt artifact has already passed the release-artifact sentinel guard, and
-          # the deployment step has already validated project/target/source identity.
-          # Re-inspect the immutable candidate with the stable inspect command immediately
-          # before promotion, then perform the authoritative runtime checks on the public
-          # canonical URL. Any canonical verification failure auto-rolls back below.
           candidate_json=$(mktemp)
-          trap 'rm -f "$candidate_json"' EXIT
+          rollback_json=$(mktemp)
+          trap 'rm -f "$candidate_json" "$rollback_json"' EXIT
           npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$DEPLOYMENT_ID" --format=json --token "$VERCEL_TOKEN" >"$candidate_json"
-          node - "$candidate_json" "$DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" "$TARGET_SHA" <<'NODE'
+          node - "$candidate_json" "$DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" "$TARGET_SHA" "$SOURCE_BRANCH" <<'NODE'
           const fs = require('node:fs');
-          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
-          const [file, expectedId, expectedProjectId, expectedCommit] = process.argv.slice(2);
-          const record = inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
-          if (record.target !== 'production') throw new Error('Immutable candidate target is not production');
-          if (record.commitSha && record.commitSha !== expectedCommit) throw new Error('Immutable candidate commit mismatch');
-          process.stdout.write('IMMUTABLE_CANDIDATE_INSPECT=PASS\n');
+          const { inspectDeploymentRecord } = require('/tmp/sms-release-control-plane/vercel-deployment.js');
+          const [file, expectedId, expectedProjectId, expectedCommit, expectedRef] = process.argv.slice(2);
+          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), {
+            expectedId,
+            expectedProjectId,
+            expectedCommitSha: expectedCommit,
+            expectedCommitRef: expectedRef,
+            expectedTarget: 'production',
+            requireReady: true,
+            requireNoAliases: true
+          });
+          process.stdout.write('IMMUTABLE_CANDIDATE_NATIVE_SHA_REF=PASS\nIMMUTABLE_CANDIDATE_READY=PASS\nIMMUTABLE_CANDIDATE_NO_ALIAS=PASS\n');
+          NODE
+
+          verify_public_runtime "$DEPLOYMENT_URL" IMMUTABLE_CANDIDATE true
+
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$rollback_json"
+          node - "$rollback_json" "$ROLLBACK_DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" <<'NODE'
+          const fs = require('node:fs');
+          const { inspectDeploymentRecord } = require('/tmp/sms-release-control-plane/vercel-deployment.js');
+          const [file, expectedId, expectedProjectId] = process.argv.slice(2);
+          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId, expectedTarget: 'production', requireReady: true });
+          process.stdout.write('CANONICAL_ROLLBACK_STILL_CURRENT=PASS\n');
           NODE
 
           npx --yes vercel@"$VERCEL_CLI_VERSION" promote "$DEPLOYMENT_ID" --yes --scope "$VERCEL_ORG_ID" --token "$VERCEL_TOKEN"
@@ -637,11 +687,18 @@ jobs:
           matched=false
           for attempt in $(seq 1 18); do
             if npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$canonical_json" 2>/dev/null; then
-              if node - "$canonical_json" "$DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" <<'NODE'
+              if node - "$canonical_json" "$DEPLOYMENT_ID" "$EXPECTED_PROJECT_ID" "$TARGET_SHA" "$SOURCE_BRANCH" <<'NODE'
           const fs = require('node:fs');
-          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
-          const [file, expectedId, expectedProjectId] = process.argv.slice(2);
-          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), { expectedId, expectedProjectId });
+          const { inspectDeploymentRecord } = require('/tmp/sms-release-control-plane/vercel-deployment.js');
+          const [file, expectedId, expectedProjectId, expectedCommit, expectedRef] = process.argv.slice(2);
+          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), {
+            expectedId,
+            expectedProjectId,
+            expectedCommitSha: expectedCommit,
+            expectedCommitRef: expectedRef,
+            expectedTarget: 'production',
+            requireReady: true
+          });
           NODE
               then
                 matched=true
@@ -651,7 +708,7 @@ jobs:
             sleep 5
           done
           test "$matched" = true
-          verify_public_runtime "$EXPECTED_CANONICAL_URL" CANONICAL_PRODUCTION
+          verify_public_runtime "$EXPECTED_CANONICAL_URL" CANONICAL_PRODUCTION false
 
       - name: Auto-rollback to manifest checkpoint if post-deploy verification fails
         id: rollback

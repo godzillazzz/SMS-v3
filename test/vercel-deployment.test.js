@@ -20,9 +20,11 @@ test('rejects malformed or incomplete deployment output', () => {
   assert.throws(() => deploymentRecord(JSON.stringify({ id: 'dep_wrong', url: 'sms-v3-staging.vercel.app' })), /deployment ID/);
 });
 
-test('validates inspection identity against the captured deployment', () => {
-  assert.deepEqual(inspectDeploymentRecord(JSON.stringify({ id: 'dpl_new123', projectId: 'prj_expected', createdAt: 456, target: 'production', meta: { githubCommitSha: 'abc123' } }), { expectedId: 'dpl_new123', expectedProjectId: 'prj_expected' }), {
-    id: 'dpl_new123', projectId: 'prj_expected', createdAt: 456, commitSha: 'abc123', target: 'production'
+test('validates inspection identity against the captured deployment and native source', () => {
+  assert.deepEqual(inspectDeploymentRecord(JSON.stringify({ id: 'dpl_new123', projectId: 'prj_expected', createdAt: 456, readyState: 'READY', target: 'production', alias: [], aliasAssigned: false, gitSource: { type: 'github', ref: 'release/ref' }, meta: { githubCommitSha: 'abc123', githubCommitRef: 'release/ref' } }), { expectedId: 'dpl_new123', expectedProjectId: 'prj_expected', expectedCommitSha: 'abc123', expectedCommitRef: 'release/ref', expectedTarget: 'production', requireReady: true, requireNoAliases: true }), {
+    id: 'dpl_new123', projectId: 'prj_expected', createdAt: 456, commitSha: 'abc123', commitRef: 'release/ref', target: 'production', readyState: 'READY', aliasAssigned: false, aliases: []
   });
   assert.throws(() => inspectDeploymentRecord(JSON.stringify({ id: 'dpl_other' }), { expectedId: 'dpl_new123' }), /deployment ID mismatch/);
+  assert.throws(() => inspectDeploymentRecord(JSON.stringify({ id: 'dpl_new123', projectId: 'prj_expected', target: 'production', readyState: 'READY', meta: { githubCommitSha: 'abc123', githubCommitRef: 'HEAD' } }), { expectedCommitSha: 'abc123', expectedCommitRef: 'release/ref' }), /githubCommitRef mismatch/);
+  assert.throws(() => inspectDeploymentRecord(JSON.stringify({ id: 'dpl_new123', projectId: 'prj_expected', target: 'production', readyState: 'BUILDING', meta: { githubCommitSha: 'abc123', githubCommitRef: 'release/ref' } }), { requireReady: true }), /not READY/);
 });

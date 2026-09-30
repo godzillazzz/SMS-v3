@@ -33,17 +33,33 @@ function validateDeployment(record, { expectedProjectId, rollbackDeploymentId } 
   return record;
 }
 
-function inspectDeploymentRecord(raw, { expectedId, expectedProjectId } = {}) {
+function inspectDeploymentRecord(raw, options = {}) {
+  const { expectedId, expectedProjectId, expectedCommitSha, expectedCommitRef, expectedTarget, requireReady, requireNoAliases } = options;
   const record = parseJsonOutput(raw);
   if (!record || typeof record !== 'object') throw new Error('Vercel inspect did not return a deployment record');
   if (expectedId && record.id !== expectedId) throw new Error('Vercel inspect deployment ID mismatch');
-  if (expectedProjectId && record.projectId && record.projectId !== expectedProjectId) throw new Error('Vercel inspect project ID mismatch');
+  if (expectedProjectId && record.projectId !== expectedProjectId) throw new Error('Vercel inspect project ID mismatch');
+  const commitSha = record.meta?.githubCommitSha || record.meta?.githubCommitId || '';
+  const commitRef = record.meta?.githubCommitRef || record.gitSource?.ref || '';
+  const target = record.target || '';
+  const readyState = record.readyState || record.state || '';
+  if (expectedCommitSha && commitSha !== expectedCommitSha) throw new Error('Vercel inspect native githubCommitSha mismatch');
+  if (expectedCommitRef && commitRef !== expectedCommitRef) throw new Error('Vercel inspect native githubCommitRef mismatch');
+  if (expectedTarget && target !== expectedTarget) throw new Error('Vercel inspect deployment target mismatch');
+  if (requireReady && readyState !== 'READY') throw new Error('Vercel inspect deployment is not READY');
+  if (requireNoAliases && (record.aliasAssigned !== false && record.aliasAssigned !== 'false' || (Array.isArray(record.alias) && record.alias.length > 0))) {
+    throw new Error('Vercel inspect candidate has aliases assigned');
+  }
   return {
     id: record.id || '',
     projectId: record.projectId || '',
     createdAt: record.createdAt || '',
-    commitSha: record.meta?.githubCommitSha || record.meta?.githubCommitId || '',
-    target: record.target || 'production'
+    commitSha,
+    commitRef,
+    target,
+    readyState,
+    aliasAssigned: record.aliasAssigned,
+    aliases: Array.isArray(record.alias) ? record.alias : [],
   };
 }
 

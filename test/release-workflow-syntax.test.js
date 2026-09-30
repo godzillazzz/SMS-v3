@@ -40,6 +40,7 @@ test(
     for (const stepName of [
       "Validate exact source identity, branch ancestry, migration policy, and clean tree",
       "Revalidate exact source after Owner approval",
+      "Create Git-sourced immutable Production candidate",
       "Verify immutable candidate, explicitly promote, then verify canonical Production",
     ]) {
       const script = extractRunBlock(workflow, stepName);
@@ -56,14 +57,26 @@ test(
   },
 );
 
-test("Production verifier avoids Vercel beta curl and keeps authoritative canonical checks", () => {
+test("Production verifier checks native Git provenance and immutable runtime before promotion", () => {
   const workflow = fs.readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n");
+  const create = extractRunBlock(workflow, "Create Git-sourced immutable Production candidate");
+  const ciGuard = extractRunBlock(workflow, "Require successful exact-SHA CI evidence");
   const script = extractRunBlock(
     workflow,
     "Verify immutable candidate, explicitly promote, then verify canonical Production",
   );
-  assert.equal(script.includes('vercel@"$VERCEL_CLI_VERSION" curl'), false);
-  assert.match(script, /IMMUTABLE_CANDIDATE_INSPECT=PASS/);
+  assert.match(workflow, /git show "\$GITHUB_SHA:scripts\/ci\/\$tool"/);
+  assert.match(create, /create-vercel-git-candidate\.js/);
+  assert.match(create, /expectedCommitSha: expectedCommit/);
+  assert.match(create, /expectedCommitRef: expectedRef/);
+  assert.match(create, /requireNoAliases: true/);
+  assert.match(workflow, /CONTROL_PLANE_SHA: \$\{\{ github\.sha \}\}/);
+  assert.match(ciGuard, /RELEASE_CONTROL_PLANE_EXACT_SHA_CI=PASS/);
+  assert.match(ciGuard, /APPLICATION_SOURCE_EXACT_SHA_CI=PASS/);
+  assert.match(script, /verify_public_runtime "\$DEPLOYMENT_URL" IMMUTABLE_CANDIDATE true/);
+  assert.match(script, /CANONICAL_ROLLBACK_STILL_CURRENT=PASS/);
+  assert.match(script, /IMMUTABLE_CANDIDATE_NATIVE_SHA_REF=PASS/);
+  assert.ok(script.indexOf('IMMUTABLE_CANDIDATE true') < script.indexOf('promote "$DEPLOYMENT_ID"'));
   assert.match(script, /inspect \"\$DEPLOYMENT_ID\" --format=json/);
   assert.match(script, /promote \"\$DEPLOYMENT_ID\"/);
   assert.match(
