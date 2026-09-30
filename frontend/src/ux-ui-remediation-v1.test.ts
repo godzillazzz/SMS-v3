@@ -27,13 +27,15 @@ describe('UXUI-REM-01 audited remediation contracts', () => {
     expect(main).toContain('id="auth-login-form"');
   });
 
-  it('exposes Approval Center selection semantics and a single-scroll mobile list-to-detail workflow', () => {
+  it('exposes Approval Center selection semantics and dedicated mobile queue/audit tabs', () => {
     expect(approval).toContain('aria-pressed={filter ===');
     expect(approval).toContain('aria-pressed={selected?.id === item.id}');
-    expect(approval).toContain('setMobileDetailOpen(true)');
-    expect(approval).toContain('approval-center-back');
-    expect(approvalCss).toContain('.approval-center-layout.is-mobile-detail .approval-center-queue{display:none}');
-    expect(approvalCss).toContain('.approval-center-layout.is-mobile-detail .approval-center-detail{display:block}');
+    expect(approval).toContain("setMobileTab('QUEUE')");
+    expect(approval).toContain("setMobileTab('AUDIT')");
+    expect(approval).toContain('คำขอรออนุมัติ ({visible.length})');
+    expect(approval).toContain('บันทึกเหตุการณ์สด (Live Log)');
+    expect(approval).toContain('overflow-x-hidden');
+    expect(approvalCss).toContain('.nexus-approval-center{background:#020813!important');
   });
 
   it('standardizes modal focus management without changing Attendance authority calls', () => {

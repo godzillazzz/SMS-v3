@@ -7,10 +7,13 @@ const {
   serverRuntimeReadiness,
   mapAttendanceDomainOutcome
 } = require('./attendance-readiness-state.service');
+const { GEOFENCE_ONLY_UAT_MODE, GEOFENCE_ONLY_UAT_EMPLOYEE_CODE } = require('./attendance-geofence-only-uat-receipt.service');
 
 function safeVerificationStart(result) {
   const session = result?.session || {};
+  const verificationMode = result?.verificationMode === GEOFENCE_ONLY_UAT_MODE ? GEOFENCE_ONLY_UAT_MODE : 'BIOMETRIC';
   return {
+    verificationMode,
     sessionId: session.id || null,
     deviceEnrollmentId: session.deviceEnrollmentId || null,
     status: session.status || null,
@@ -18,7 +21,7 @@ function safeVerificationStart(result) {
     challengeId: result?.challengeId || null,
     challenge: result?.challenge || null,
     attendanceContext: result?.attendanceContext || null,
-    activeChallenge: result?.activeChallenge || null
+    activeChallenge: verificationMode === GEOFENCE_ONLY_UAT_MODE ? null : (result?.activeChallenge || null)
   };
 }
 
@@ -26,9 +29,10 @@ function createAttendanceApiContractService({
   verificationContextService = null,
   attendanceEventService = null,
   faceVerificationService = null,
-  isBiometricRuntimeEnabled = () => false
+  isBiometricRuntimeEnabled = () => false,
+  isGeofenceOnlyUatEnabled = () => false
 } = {}) {
-  const verification = verificationContextService || createAttendanceVerificationContextService();
+  const verification = verificationContextService || createAttendanceVerificationContextService({ isGeofenceOnlyUatEnabled });
   const events = attendanceEventService || createAttendanceEventService({ verificationContextService: verification });
   const face = faceVerificationService || createAttendanceFaceVerificationService();
 
@@ -38,6 +42,15 @@ function createAttendanceApiContractService({
     } catch {
       return false;
     }
+  }
+
+  function geofenceOnlyUatEnabled() {
+    try { return isGeofenceOnlyUatEnabled() === true; } catch { return false; }
+  }
+
+  async function geofenceOnlyUatActor(actor) {
+    if (!geofenceOnlyUatEnabled() || typeof verification.isGeofenceOnlyUatActor !== 'function') return false;
+    try { return await verification.isGeofenceOnlyUatActor({ actor }) === true; } catch { return false; }
   }
 
   async function resolveServerIntent(actor) {
@@ -50,7 +63,9 @@ function createAttendanceApiContractService({
   }
 
   async function assessReadiness({ actor, captureId, attendanceEvidence } = {}) {
-    if (!runtimeEnabled()) {
+    const biometricEnabled = runtimeEnabled();
+    const uatActor = await geofenceOnlyUatActor(actor);
+    if (!biometricEnabled && !uatActor) {
       return { ok: true, eventIntent: null, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }) };
     }
     try {
@@ -59,7 +74,8 @@ function createAttendanceApiContractService({
       return {
         ok: true,
         eventIntent: resolvedIntent.eventIntent,
-        readiness: serverRuntimeReadiness({ serverRuntimeEnabled: true })
+        readiness: serverRuntimeReadiness({ serverRuntimeEnabled: true }),
+        ...(uatActor ? { verificationMode: GEOFENCE_ONLY_UAT_MODE } : {})
       };
     } catch (error) {
       return { ok: false, eventIntent: null, readiness: mapAttendanceDomainOutcome(error) };
@@ -67,16 +83,24 @@ function createAttendanceApiContractService({
   }
 
   async function beginVerification({ actor, captureId, attendanceEvidence } = {}) {
-    if (!runtimeEnabled()) {
+    const biometricEnabled = runtimeEnabled();
+    const uatActor = await geofenceOnlyUatActor(actor);
+    if (!biometricEnabled && !uatActor) {
       return { ok: false, eventIntent: null, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }), verification: null };
     }
     try {
       const result = await verification.prepareVerification({ actor, captureId, attendanceEvidence });
+      const controlledUat = uatActor
+        && result.employeeCode === GEOFENCE_ONLY_UAT_EMPLOYEE_CODE
+        && geofenceOnlyUatEnabled();
+      if (!biometricEnabled && !controlledUat) {
+        return { ok: false, eventIntent: null, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }), verification: null };
+      }
       return {
         ok: true,
         eventIntent: result.eventIntent || null,
         readiness: serverRuntimeReadiness({ serverRuntimeEnabled: true }),
-        verification: safeVerificationStart(result)
+        verification: safeVerificationStart({ ...result, verificationMode: controlledUat ? GEOFENCE_ONLY_UAT_MODE : 'BIOMETRIC' })
       };
     } catch (error) {
       return { ok: false, eventIntent: null, readiness: mapAttendanceDomainOutcome(error), verification: null };
@@ -84,7 +108,7 @@ function createAttendanceApiContractService({
   }
 
   async function verifyDeviceProof({ actor, sessionId, challengeId, challenge, signatureBase64 } = {}) {
-    if (!runtimeEnabled()) {
+    if (!runtimeEnabled() && !(await geofenceOnlyUatActor(actor))) {
       return { ok: false, verificationReady: false, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }) };
     }
     try {
@@ -129,11 +153,24 @@ function createAttendanceApiContractService({
     }
   }
 
+  async function issueGeofenceOnlyUatEventReceipt({ actor, sessionId, attendanceContext } = {}) {
+    if (!(await geofenceOnlyUatActor(actor)) || typeof verification.issueGeofenceOnlyUatReceipt !== 'function') {
+      return { ok: false, receipt: null, readiness: serverRuntimeReadiness({ serverRuntimeEnabled: false }) };
+    }
+    try {
+      const result = await verification.issueGeofenceOnlyUatReceipt({ actor, sessionId, attendanceContext });
+      return { ok: true, ...result };
+    } catch (error) {
+      return { ok: false, receipt: null, readiness: mapAttendanceDomainOutcome(error) };
+    }
+  }
+
   return {
     assessReadiness,
     beginVerification,
     verifyDeviceProof,
     verifyLiveFace,
+    issueGeofenceOnlyUatEventReceipt,
     acceptVerifiedEvent
   };
 }

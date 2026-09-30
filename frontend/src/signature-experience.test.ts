@@ -15,7 +15,7 @@ describe('SMS Signature Experience V1 regression contract', () => {
   it('owns the final visual layer without replacing the accepted brand foundation', () => {
     expect(main).toContain("import './styles/signature-experience.css';");
     expect(main.indexOf("import './styles/signature-experience.css';")).toBeGreaterThan(main.indexOf("import './styles/visual-fidelity.css';"));
-    expect(main).toContain('<span className="brand-mark" aria-label="SMS"><b>SMS</b></span>');
+    expect(main).toMatch(/<img\s+className="brand-logo"\s+src="\/attendance-sms-logo\.svg"\s+alt="SMS"\s*\/>/);
     expect(main).not.toMatch(/<[^>]*>\s*SMS V3\s*</i);
     expect(css).not.toMatch(/neon/i);
   });
@@ -57,11 +57,11 @@ describe('SMS Signature Experience V1 regression contract', () => {
     expect(access).toContain('const actions = visibleAccountActions');
   });
 
-  it('prioritizes action-required work before passive dashboard analysis', () => {
-    expect(dashboard).toContain('dashboard-focus-band');
-    expect(dashboard).toContain('งานที่ต้องจัดการ');
-    expect(dashboard.indexOf('<AttentionNeededCard')).toBeLessThan(dashboard.indexOf('<TodayOperationsCard'));
-    expect(dashboard.indexOf('dashboard-focus-band')).toBeLessThan(dashboard.indexOf('dashboard-secondary-grid'));
+  it('prioritizes the verified priority stream before passive workforce analysis', () => {
+    expect(dashboard).toContain('nexus-stream');
+    expect(dashboard).toContain('Attention Required');
+    expect(dashboard).toContain('NO SIMULATED COORDINATES');
+    expect(dashboard.indexOf('nexus-stream')).toBeLessThan(dashboard.indexOf('nexus-lower-grid'));
   });
 
   it('turns pending leave approval into one persistent decision workspace without weakening self-approval rules', () => {
@@ -169,9 +169,9 @@ describe('SMS Signature Experience V1.1 final polish contracts', () => {
     expect(polishCss).toContain('.dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)) !important;');
     expect(polishCss).toContain('min-height: 66px !important;');
     expect(polishCss).toContain('.dashboard-secondary-metrics { display: none !important; }');
-    expect(polishCss).toContain('.mobile-brand .brand-mark');
-    expect(polishCss).toContain('overflow: visible !important;');
-    expect(polishCss).toContain('text-overflow: clip !important;');
+    expect(polishCss).toContain('.mobile-brand { min-width: 0; gap: 8px !important; }');
+    expect(polishCss).toContain('.mobile-brand .brand-logo {');
+    expect(polishCss).toContain('.mobile-brand > span:last-child { min-width: 0; }');
   });
 
   it('normalizes key user-facing language without weakening the accepted interaction architecture', () => {
@@ -188,7 +188,7 @@ describe('SMS Signature Experience V1.1 final polish contracts', () => {
   it('does not reintroduce lower Sidebar Theme or visible V3 branding', () => {
     expect(main).not.toContain('<div className="sidebar-theme-block">');
     expect(main).toContain('<ThemeControl compact />');
-    expect(main).toContain('<span className="brand-mark" aria-label="SMS"><b>SMS</b></span>');
+    expect(main).toMatch(/<img\s+className="brand-logo"\s+src="\/attendance-sms-logo\.svg"\s+alt="SMS"\s*\/>/);
     expect(main).not.toMatch(/<[^>]*>\s*SMS V3\s*</i);
   });
 });

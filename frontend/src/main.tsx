@@ -2,6 +2,17 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
+import '@fontsource/kanit/thai-400.css';
+import '@fontsource/kanit/thai-500.css';
+import '@fontsource/kanit/thai-600.css';
+import '@fontsource/kanit/thai-700.css';
+import '@fontsource/kanit/thai-800.css';
+import '@fontsource/plus-jakarta-sans/latin-400.css';
+import '@fontsource/plus-jakarta-sans/latin-600.css';
+import '@fontsource/plus-jakarta-sans/latin-700.css';
+import '@fontsource/jetbrains-mono/latin-500.css';
+import '@fontsource/jetbrains-mono/latin-600.css';
+import '@fontsource/jetbrains-mono/latin-700.css';
 import '@fontsource/noto-sans-thai/thai-400.css';
 import '@fontsource/noto-sans-thai/thai-500.css';
 import '@fontsource/noto-sans-thai/thai-600.css';
@@ -14,7 +25,6 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
-import { getScheduleRosterOrder, updateScheduleRosterOrder } from './schedule-roster-client';
 import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
 import { getApprovalCenterSummary } from './approval-center-client';
 import { getLeavePolicy } from './leave-policy-client';
@@ -26,12 +36,14 @@ import { RequestErrorContent, formatRequestErrorMessage, toRequestErrorState, ty
 import { acquireDocumentScrollLock } from './document-scroll-lock';
 import { buildLeaveQuotaProvisioningPayload, canProvisionLeaveQuota, currentBangkokQuotaYear, hasUnmatchedLegacyQuota, leaveQuotaDefaultsFromPolicy, quotaProvisioningEmployeeOptions, thaiQuotaYearLabel } from './leave-quota-provisioning';
 import { printScheduleDocument } from './schedule-print';
+import { sortScheduleEmployeesByCode } from './schedule-employee-code-order';
+
 import { currentBangkokMonth, formatThaiMonth, MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
-import { ScheduleRosterOrderModal, type ScheduleRosterEmployee } from './components/ScheduleRosterOrderModal';
 import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
+import { WorkflowCommandPalette } from './components/WorkflowCommandPalette';
 import { defaultAuditFilters, type AuditFilters } from './components/audit/audit-types';
 import type { DataQualityFilters, DataQualityIssue } from './pages/data-quality/DataQualityCenterPage';
 import type { G06UatProvisionResult } from './pages/access-management/G06UatProvisioningPanel';
@@ -72,6 +84,10 @@ import './styles/configuration-center.css';
 import './styles/ux-ui-remediation.css';
 import './styles/ux-ui-quality-10.css';
 import './styles/award-landing.css';
+import './styles/tailwind.css';
+import './styles/command-nexus.css';
+import './styles/award-interior.css';
+import './styles/operational-layer.css';
 
 const AwardPublicExperience = React.lazy(() => import('./components/AwardPublicExperience').then((module) => ({ default: module.AwardPublicExperience })));
 const ReportCenterPage = React.lazy(() => import('./pages/reports/ReportCenterPage').then((module) => ({ default: module.ReportCenterPage })));
@@ -247,7 +263,13 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 function Logo() {
-  return <span className="brand-mark" aria-label="SMS"><b>SMS</b></span>;
+  return (
+    <img
+      className="brand-logo"
+      src="/attendance-sms-logo.svg"
+      alt="SMS"
+    />
+  );
 }
 
 function readLeaveMonthFromUrl(): string {
@@ -295,6 +317,7 @@ function Login() {
   const [registrationState, setRegistrationState] = useState<string>();
   const [resendSeconds, setResendSeconds] = useState(0);
   const [passkeyEnabled, setPasskeyEnabled] = useState(false);
+  const [authMethod, setAuthMethod] = useState<'password' | 'passkey' | 'hardware'>('password');
 
   useEffect(() => {
     api.passkeyConfig().then((result) => setPasskeyEnabled(Boolean(result?.enabled) && browserSupportsWebAuthn())).catch(() => setPasskeyEnabled(false));
@@ -306,11 +329,11 @@ function Login() {
     return () => window.clearInterval(timer);
   }, [mode, resendSeconds]);
 
-  const resetView = (next: typeof mode) => { setMode(next); setFormError(undefined); setFormMessage(undefined); setCode(''); setRegistrationState(undefined); if (next !== 'registerVerify') setResendSeconds(0); };
-  const signInWithPasskey = async () => {
+  const resetView = (next: typeof mode) => { setMode(next); setAuthMethod('password'); setFormError(undefined); setFormMessage(undefined); setCode(''); setRegistrationState(undefined); if (next !== 'registerVerify') setResendSeconds(0); };
+  const signInWithPasskey = async (method: 'passkey' | 'hardware' = 'passkey') => {
     setFormError(undefined); setFormMessage(undefined); setBusy(true);
     try { await auth.passkeyLogin(); }
-    catch (reason) { setFormError(formatRequestErrorMessage(reason, 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้')); }
+    catch (reason) { setFormError(formatRequestErrorMessage(reason, method === 'hardware' ? 'ไม่สามารถเข้าสู่ระบบด้วย Hardware Key ได้' : 'ไม่สามารถเข้าสู่ระบบด้วย Passkey ได้')); }
     finally { setBusy(false); }
   };
 
@@ -378,15 +401,16 @@ function Login() {
       <React.Suspense fallback={null}>
         <AwardPublicExperience showLanding={mode === 'login'} renderLogo={() => <Logo />} />
       </React.Suspense>
-      <section className="award-login-stage">
+      <section className="nexus-auth-stage" id="access">
       <a className="auth-skip-link" href="#auth-login-form">ข้ามไปแบบฟอร์มเข้าสู่ระบบ</a>
-      <section className="login-shell auth-experience-shell" aria-label="เข้าสู่ระบบ Security Management System">
-        <aside className="login-intro auth-brand-panel">
-          <div className="intro-brand auth-brand"><Logo /><span><b>SMS</b><strong>Security Management System</strong></span></div>
+      {mode === 'login' && <div className="nexus-auth-heading"><span>ZERO-TRUST ENTERPRISE IDENTITY HUB</span><h2>ศูนย์ยืนยันตัวตน Command Console SMS</h2><p>เข้าถึงพื้นที่ปฏิบัติการรักษาความปลอดภัยด้วยการรับรองตัวตนหลายปัจจัยและ Enterprise Identity Policy</p></div>}
+      <section className="login-shell auth-experience-shell nexus-auth-shell" aria-label="เข้าสู่ระบบ Security Management System">
+        <aside className="login-intro auth-brand-panel nexus-auth-intro">
+          <div className="intro-brand auth-brand"><Logo /><span className="sms-brand-copy"><b>SMS</b><strong>Security Management System</strong></span></div>
           <div className="intro-copy auth-brand-copy">
-            <p className="auth-brand-eyebrow">SECURITY MANAGEMENT SYSTEM</p>
-            <h1>บริหารงานรักษาความปลอดภัย<br />ในพื้นที่เดียว</h1>
-            <p>จัดการข้อมูลบุคลากร ตารางกะ การลา และกฎการทำงานด้วยประสบการณ์เดียวกันทั้งระบบ</p>
+            <p className="auth-brand-eyebrow">MULTI-FACTOR SECURITY ENCLAVE</p>
+            <h1>Zero-Trust Identity Hub<br />สำหรับ Command Console</h1>
+            <p>FIDO2 / WebAuthn · Secure session · Access governed by account role and enterprise policy</p>
             <div className="auth-brand-points" aria-label="ความสามารถหลักของระบบ">
               <span><SmsIcon name="employees" size={18} />ข้อมูลบุคลากร</span>
               <span><SmsIcon name="calendar" size={18} />ตารางกะและการลา</span>
@@ -446,9 +470,9 @@ function Login() {
             </svg>
           </div>          <p className="auth-brand-footnote"><SmsIcon name="shield" size={16} />การเข้าถึงข้อมูลเป็นไปตามสิทธิ์ของบัญชีผู้ใช้งาน</p>
         </aside>
-        <section className="login-form-panel auth-card-panel">
+        <section className="login-form-panel auth-card-panel nexus-auth-panel">
           <div className="login-theme-control auth-theme-control"><ThemeControl compact /></div>
-          <div className="auth-mobile-brand"><Logo /><span><b>SMS</b><strong>Security Management System</strong></span></div>
+          <div className="auth-mobile-brand"><Logo /><span className="sms-brand-copy"><b>SMS</b><strong>Security Management System</strong></span></div>
           <form id="auth-login-form" className="login-form auth-form" onSubmit={submit} aria-busy={busy}>
             {resultPresentation ? <section className={`auth-result auth-result--${resultPresentation.tone}`} aria-live="polite" aria-labelledby="registration-result-title">
               <div className="auth-result__verified"><span className="auth-result__verified-icon"><SmsIcon name="approval" size={20} /></span><span><b>ยืนยันอีเมลสำเร็จ</b><small>การยืนยันอีเมลยังไม่ใช่การอนุมัติบัญชี</small></span></div>
@@ -462,14 +486,14 @@ function Login() {
                 {resultPresentation.recovery && <button className="auth-secondary-action" type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน</button>}
               </div>
             </section> : <>
-              <header className="auth-form-heading">
-                <span className="auth-form-kicker">SMS</span>
-                <h2>{title}</h2><p className="form-lead">{lead}</p>
+              <header className="auth-form-heading nexus-auth-card-header">
+                {mode === 'login' ? <><span className="nexus-enclave-badge"><i />ZERO-TRUST ENCLAVE</span><h2>เข้าสู่ระบบปฏิบัติการ</h2><p className="nexus-protocol-label">SELECT VERIFICATION PROTOCOL</p></> : <><span className="auth-form-kicker">SMS</span><h2>{title}</h2><p className="form-lead">{lead}</p></>}
               </header>
               {(mode === 'register' || mode === 'registerVerify') && <AuthProgress flow="registration" current={registrationStep} />}
               {(mode === 'reset' || mode === 'resetVerify') && <AuthProgress flow="reset" current={resetStep} />}
               {(formError || (mode === 'login' ? auth.error : undefined)) && <div className="alert alert-error auth-alert" role="alert" aria-live="assertive"><SmsIcon name="shield" size={18} /><span>{formError || auth.error}</span></div>}
               {formMessage && <div className="login-help-action auth-notice" role="status" aria-live="polite"><SmsIcon name="approval" size={18} /><span>{formMessage}</span></div>}
+              {mode === 'login' && <div className="nexus-auth-methods" role="tablist" aria-label="วิธีเข้าสู่ระบบ"><button type="button" role="tab" aria-selected={authMethod === 'password'} className={authMethod === 'password' ? 'is-active' : ''} onClick={() => setAuthMethod('password')}>อีเมล / รหัสผ่าน</button><button type="button" role="tab" aria-selected={authMethod === 'passkey'} className={authMethod === 'passkey' ? 'is-active' : ''} onClick={() => setAuthMethod('passkey')}>Passkey</button><button type="button" role="tab" aria-selected={authMethod === 'hardware'} className={authMethod === 'hardware' ? 'is-active' : ''} onClick={() => setAuthMethod('hardware')}>Hardware Key</button></div>}
 
               {mode === 'register' && <>
                 <label className="field-group auth-field" htmlFor="registration-name"><span>ชื่อ-นามสกุล</span><input id="registration-name" value={submittedName} onChange={(event) => setSubmittedName(event.target.value)} type="text" minLength={2} maxLength={200} required autoComplete="name" /><small className="field-hint">ใช้สำหรับส่งคำขอให้ผู้ดูแลตรวจสอบ ข้อมูลนี้ไม่ใช่ข้อมูลยืนยันตัวบุคคลจาก Employee Master</small></label>
@@ -479,26 +503,29 @@ function Login() {
               {mode === 'registerVerify' && <div className="auth-otp-intro"><span><SmsIcon name="shield" size={18} /></span><div><b>เราได้ส่งรหัส 6 หลักไปยัง</b><strong>{maskedEmail}</strong></div></div>}
               {mode === 'resetVerify' && <div className="auth-otp-intro"><span><SmsIcon name="shield" size={18} /></span><div><b>กรอกรหัสยืนยันที่ได้รับทางอีเมล</b><strong>{maskedEmail}</strong><small>OTP และรหัสผ่านใหม่จะถูกตรวจสอบพร้อมกันเมื่อกดยืนยัน</small></div></div>}
 
-              <label className="field-group auth-field" htmlFor="email"><span>อีเมล</span><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@company.com" required autoComplete={mode === 'login' ? 'username' : 'email'} disabled={mode === 'registerVerify'} /></label>
+              {(mode !== 'login' || authMethod === 'password') && <label className="field-group auth-field" htmlFor="email"><span>{mode === 'login' ? 'ชื่อผู้ใช้หรืออีเมล (Corporate Email)' : 'อีเมล'}</span><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder={mode === 'login' ? 'operator@sms.local' : 'name@company.com'} required autoComplete={mode === 'login' ? 'username' : 'email'} disabled={mode === 'registerVerify'} /></label>}
 
               {(mode === 'registerVerify' || mode === 'resetVerify') && <label className="field-group auth-field auth-otp-field" htmlFor="otp-code"><span>รหัส OTP 6 หลัก</span><input id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" aria-describedby={mode === 'registerVerify' ? 'registration-otp-help' : undefined} placeholder="000000" /></label>}
 
-              {(mode === 'login' || mode === 'register' || mode === 'resetVerify') && <label className="field-group auth-field" htmlFor="password"><span>{mode === 'resetVerify' ? 'รหัสผ่านใหม่' : 'รหัสผ่าน'}</span><span className="password-field auth-password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'อย่างน้อย 8 ตัวอักษร' : 'กรอกรหัสผ่าน'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle auth-password-toggle" type="button" aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} aria-pressed={showPassword} onMouseDown={(event) => event.preventDefault()} onClick={() => setShowPassword((visible) => !visible)}><SmsIcon name={showPassword ? 'eyeOff' : 'eye'} size={18} /><span>{showPassword ? 'ซ่อน' : 'แสดง'}</span></button></span></label>}
+              {(((mode === 'login' && authMethod === 'password') || mode === 'register' || mode === 'resetVerify')) && <label className="field-group auth-field" htmlFor="password"><span>{mode === 'resetVerify' ? 'รหัสผ่านใหม่' : mode === 'login' ? 'รหัสผ่านความปลอดภัย (Security Passphrase)' : 'รหัสผ่าน'}</span><span className="password-field auth-password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'อย่างน้อย 8 ตัวอักษร' : '••••••••••••'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle auth-password-toggle" type="button" aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} aria-pressed={showPassword} onMouseDown={(event) => event.preventDefault()} onClick={() => setShowPassword((visible) => !visible)}><SmsIcon name={showPassword ? 'eyeOff' : 'eye'} size={18} /><span>{showPassword ? 'ซ่อน' : 'แสดง'}</span></button></span></label>}
 
-              <button className="btn-primary auth-primary-action" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบ' : mode === 'register' ? 'ส่งคำขอและรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>
+              {mode === 'login' && authMethod === 'password' && <div className="nexus-password-meta"><span>SECURE CREDENTIAL CHANNEL</span><button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน?</button></div>}
+              {(mode !== 'login' || authMethod === 'password') && <button className="btn-primary auth-primary-action" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบปฏิบัติการ →' : mode === 'register' ? 'ส่งคำขอและรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>}
 
-              {mode === 'login' && passkeyEnabled && <div className="auth-passkey-zone"><div className="auth-or-separator"><span>หรือ</span></div><button className="auth-passkey-action" type="button" disabled={busy} onClick={signInWithPasskey}><SmsIcon name="key" size={19} /><span><b>เข้าสู่ระบบด้วย Passkey</b><small>Face ID • ลายนิ้วมือ • Windows Hello</small></span></button></div>}
+              {mode === 'login' && authMethod === 'passkey' && <div className="nexus-webauthn-panel"><div className="nexus-auth-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 11c0 3.5-1 6.8-2.75 9.57M5.8 18.53l.06-.09A13.9 13.9 0 008 11a4 4 0 118 0c0 1.02-.07 2.02-.2 3M13.68 20.84A21.9 21.9 0 0015.17 17M19 18.13A20.7 20.7 0 0020 11.8 8 8 0 004 12m0 0c0 1.55.29 3.04.82 4.4M7.3 19.71A16 16 0 0012 21c2.25 0 4.36-.47 6.28-1.3"/></svg></div><h4>สแกนลายนิ้วมือหรือใบหน้า (Passkey)</h4><p>ใช้ Touch ID, Face ID, Windows Hello หรือ Passkey บนอุปกรณ์ของคุณ</p><small>FIDO2 / WEBAUTHN · PLATFORM AUTHENTICATOR</small>{!passkeyEnabled && <em>WebAuthn ยังไม่พร้อมใช้งานใน environment นี้</em>}<button type="button" disabled={busy || !passkeyEnabled} onClick={() => signInWithPasskey('passkey')}>เริ่มการยืนยันด้วย Passkey →</button></div>}
+              {mode === 'login' && authMethod === 'hardware' && <div className="nexus-webauthn-panel"><div className="nexus-auth-method-icon is-hardware" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.74 5.74L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.59a1 1 0 01.29-.7l5.97-5.97A6 6 0 1121 9z"/></svg></div><h4>เสียบกุญแจฮาร์ดแวร์ความปลอดภัย</h4><p>เสียบ YubiKey หรือ USB Security Key แล้วแตะเซนเซอร์เพื่อยืนยันตัวตน</p><small>FIDO2 / WEBAUTHN · ROAMING SECURITY KEY</small>{!passkeyEnabled && <em>WebAuthn ยังไม่พร้อมใช้งานใน environment นี้</em>}<button type="button" disabled={busy || !passkeyEnabled} onClick={() => signInWithPasskey('hardware')}>ตรวจหากุญแจฮาร์ดแวร์ (Scan USB) →</button></div>}
 
               {mode === 'registerVerify' && <div className="auth-resend" id="registration-otp-help"><p>หากยังไม่พบอีเมล กรุณาตรวจสอบ Spam/Junk</p><button type="button" disabled={busy || resendSeconds > 0} onClick={resendRegistrationCode}>{resendSeconds > 0 ? `ส่งรหัสอีกครั้งใน ${resendSeconds} วินาที` : 'ส่งรหัสอีกครั้ง'}</button></div>}
 
-              {mode === 'login' ? <div className="login-links auth-links">{!showAccountRecovery && <button type="button" onClick={() => resetView('register')}>ส่งคำขอลงทะเบียน</button>}<button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน</button></div> : <div className="login-links auth-links auth-links--back"><button type="button" onClick={() => resetView('login')}>กลับหน้าเข้าสู่ระบบ</button></div>}
+              {mode === 'login' && <div className="nexus-auth-security-footer" aria-label="สถานะระบบยืนยันตัวตน"><span><i className="is-ready" />ENCLAVE READY</span><b>•</b><span><i />SESSION SECURE</span><b>•</b><span><i className={passkeyEnabled ? 'is-ready' : ''} />FIDO2 / WEBAUTHN</span></div>}
+              {mode === 'login' ? <div className="login-links auth-links">{!showAccountRecovery && <button type="button" onClick={() => resetView('register')}>ส่งคำขอลงทะเบียน</button>}</div> : <div className="login-links auth-links auth-links--back"><button type="button" onClick={() => resetView('login')}>กลับหน้าเข้าสู่ระบบ</button></div>}
               <p className="login-help auth-support-note">พบปัญหาการใช้งาน กรุณาติดต่อผู้ดูแลระบบของหน่วยงาน</p>
             </>}
           </form>
         </section>
       </section>
       </section>
-      <footer className="award-public-footer"><span>SMS · Security Management System</span><small>Secure operations, designed for clarity.</small></footer>
+      <footer className="award-public-footer"><span lang="th">SMS · ระบบบริหารงานรักษาความปลอดภัย</span><small lang="en">Secure operations, designed for clarity.</small></footer>
     </main>
   );
 }
@@ -1077,7 +1104,7 @@ function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading,
     finally { setSaving(false); }
   };
   return <section className="view-pane settings-page">
-    <div className="page-heading settings-heading"><div><p className="eyebrow">ADMIN · GOVERNED CONFIGURATION</p><h1>Configuration Center</h1><p>จัดการค่าที่ระบบ register และ validate ไว้แล้ว โดยแยก secret/operational authority ออกจาก SystemSetting อย่างชัดเจน</p></div><div className="heading-actions"><button className="btn-neutral small-action" disabled={!exportableSettings.length} onClick={() => downloadCsv(exportableSettings, 'smsv3-governed-settings')}>⇧ Export governed values</button><button className="btn-neutral small-action" onClick={onAudit}>Audit Log</button><button className="btn-primary compact" disabled title="SMS ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก">↻ Google Sheets ถูกยกเลิก</button></div></div>
+    <div className="page-heading settings-heading"><div><p className="eyebrow">ADMIN · GOVERNED CONFIGURATION</p><h1>Configuration Center</h1><p>จัดการค่าที่ระบบ register และ validate ไว้แล้ว โดยแยก secret/operational authority ออกจาก SystemSetting อย่างชัดเจน</p></div><div className="heading-actions"><button type="button" className="btn-neutral small-action" disabled={!exportableSettings.length} onClick={() => downloadCsv(exportableSettings, 'smsv3-governed-settings')}><SmsIcon name="report" size={15} /> Export governed values</button><button type="button" className="btn-neutral small-action" onClick={onAudit}><SmsIcon name="audit" size={15} /> Audit Log</button><button type="button" className="btn-primary compact" disabled title="SMS ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก"><SmsIcon name="refresh" size={15} /> Google Sheets ถูกยกเลิก</button></div></div>
     {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
     {loading ? <div className="loading-row">กำลังอ่าน Configuration Registry…</div> : <ConfigurationRegistryPanel settings={settings} />}
     <AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />
@@ -1089,12 +1116,12 @@ function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading,
     <DataRetentionCenterPanel token={token} />
     <NotificationCenterPanel token={token} />
     <section className="line-settings-card">
-      <div className="line-settings-title"><span>💬</span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
+      <div className="line-settings-title"><span aria-hidden="true"><SmsIcon name="bell" size={20} /></span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
       <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><input type="password" value="••••••••••••••••" disabled aria-label="LINE access token is managed securely" /><small>ไม่แสดงและไม่บันทึก token ในหน้าจอนี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>
-      <div className="line-template-grid"><label className="field-group"><span>🔔 เทมเพลตคำขอลางานใหม่ (New Leave Request Template)</span><textarea rows={7} value={newLeaveTemplate} onChange={(event) => setNewLeaveTemplate(event.target.value)} maxLength={2000} /></label><label className="field-group"><span>📢 เทมเพลตอัปเดตสถานะใบลา (Leave Status Update Template)</span><textarea rows={7} value={leaveStatusTemplate} onChange={(event) => setLeaveStatusTemplate(event.target.value)} maxLength={2000} /></label></div>
-      <div className="template-help"><strong>💡 ตัวแปรที่ใช้ในข้อความได้</strong><span><code>{'{Name}'}</code> พนักงาน</span><span><code>{'{Department}'}</code> แผนก</span><span><code>{'{Type}'}</code> ประเภทการลา</span><span><code>{'{Days}'}</code> จำนวนวัน</span><span><code>{'{StartDate}'}</code> / <code>{'{EndDate}'}</code> วันที่ลา</span><span><code>{'{Reason}'}</code> เหตุผล</span><span><code>{'{FileUrl}'}</code> ไฟล์แนบ</span><span><code>{'{Status}'}</code> สถานะ</span></div>
+      <div className="line-template-grid"><label className="field-group"><span>เทมเพลตคำขอลางานใหม่ (New Leave Request Template)</span><textarea rows={7} value={newLeaveTemplate} onChange={(event) => setNewLeaveTemplate(event.target.value)} maxLength={2000} /></label><label className="field-group"><span>เทมเพลตอัปเดตสถานะใบลา (Leave Status Update Template)</span><textarea rows={7} value={leaveStatusTemplate} onChange={(event) => setLeaveStatusTemplate(event.target.value)} maxLength={2000} /></label></div>
+      <div className="template-help"><strong><SmsIcon name="quality" size={15} /> ตัวแปรที่ใช้ในข้อความได้</strong><span><code>{'{Name}'}</code> พนักงาน</span><span><code>{'{Department}'}</code> แผนก</span><span><code>{'{Type}'}</code> ประเภทการลา</span><span><code>{'{Days}'}</code> จำนวนวัน</span><span><code>{'{StartDate}'}</code> / <code>{'{EndDate}'}</code> วันที่ลา</span><span><code>{'{Reason}'}</code> เหตุผล</span><span><code>{'{FileUrl}'}</code> ไฟล์แนบ</span><span><code>{'{Status}'}</code> สถานะ</span></div>
       {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
-      <div className="line-settings-actions"><button className="btn-primary compact" disabled={saving} onClick={saveTemplates}>💾 {saving ? 'กำลังบันทึก…' : 'บันทึกเทมเพลตการแจ้งเตือน'}</button><button className="btn-neutral small-action" disabled title="การส่ง LINE ยังไม่เปิดใช้ใน staging">🔔 ทดสอบส่งข้อความแจ้งเตือน</button><button className="btn-neutral small-action" onClick={onRefresh}>↻ รีเฟรช</button></div>
+      <div className="line-settings-actions"><button type="button" className="btn-primary compact" disabled={saving} onClick={saveTemplates}><SmsIcon name="check" size={15} /> {saving ? 'กำลังบันทึก…' : 'บันทึกเทมเพลตการแจ้งเตือน'}</button><button type="button" className="btn-neutral small-action" disabled title="การส่ง LINE ยังไม่เปิดใช้ใน staging"><SmsIcon name="bell" size={15} /> ทดสอบส่งข้อความแจ้งเตือน</button><button type="button" className="btn-neutral small-action" onClick={onRefresh}><SmsIcon name="refresh" size={15} /> รีเฟรช</button></div>
       <p className="line-settings-footnote">สถานะปัจจุบัน: การส่ง LINE ยังไม่เปิดใช้งานใน staging — การบันทึกด้านบนเก็บเฉพาะเทมเพลตที่ไม่มีข้อมูลลับ</p>
     </section>
   </section>;
@@ -1303,7 +1330,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
                 ref={initialFocusRef}
                 value={shiftTypeId}
                 onChange={(e) => setShiftTypeId(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff', color: '#0f172a', fontWeight: 600 }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0', fontWeight: 600 }}
               >
                 {selectableShiftTypes.map((t) => (
                   <option key={String(t.id)} value={String(t.id)}>
@@ -1322,14 +1349,14 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
                 value={remark}
                 onChange={(e) => setRemark(e.target.value)}
                 placeholder="Manual batch edit"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#ffffff' }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: '#0f1d2a' }}
               />
             </div>
           </div>
 
           {isInvalidLicense && (
             <div style={{
-              backgroundColor: '#fff1f2',
+              backgroundColor: '#210d12',
               border: '1px solid #fecdd3',
               borderRadius: '12px',
               padding: '16px',
@@ -1388,7 +1415,7 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
                 padding: '9px 18px',
                 borderRadius: '10px',
                 border: '1px solid #cbd5e1',
-                backgroundColor: '#ffffff',
+                backgroundColor: '#0f1d2a',
                 color: '#334155',
                 fontWeight: 600,
                 fontSize: '13px',
@@ -1644,6 +1671,17 @@ function Dashboard() {
   const [dataQualityPageSize, setDataQualityPageSize] = useState(25);
   const [dataQualityFilters, setDataQualityFilters] = useState<DataQualityFilters>({ severity: '', module: '', rule: '', department: '', search: '' });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [desktopView, setDesktopView] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem('sms-display-mode') === 'desktop');
+  const toggleDesktopView = () => {
+    setDesktopView((current) => {
+      const next = !current;
+      if (typeof window !== 'undefined') window.localStorage.setItem('sms-display-mode', next ? 'desktop' : 'mobile');
+      setMobileMenuOpen(false);
+      setMobileUtilityOpen(false);
+      return next;
+    });
+  };
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -1762,9 +1800,10 @@ function Dashboard() {
   const [batchSaveBusy, setBatchSaveBusy] = useState(false);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [deptMenuOpen, setDeptMenuOpen] = useState(false);
-  const [rosterOrderDepartment, setRosterOrderDepartment] = useState<string>();
-  const [rosterOrderEmployees, setRosterOrderEmployees] = useState<ScheduleRosterEmployee[]>([]);
-  const [rosterOrderBusy, setRosterOrderBusy] = useState(false);
+
+
+
+
 
   const changeLeaveMonth = (value: string) => {
     const normalized = normalizeMonthValue(value);
@@ -1835,37 +1874,6 @@ function Dashboard() {
     }
   };
 
-  const openRosterOrderManager = async (department: string) => {
-    if (!auth.token || !department || rosterOrderBusy) return;
-    setRosterOrderBusy(true);
-    setOperationError(undefined);
-    try {
-      const result = await getScheduleRosterOrder(auth.token, department);
-      setRosterOrderEmployees(Array.isArray(result?.data) ? result.data as ScheduleRosterEmployee[] : []);
-      setRosterOrderDepartment(department);
-    } catch (reason) {
-      setOperationError(toRequestErrorState(reason, 'อ่านลำดับพนักงานไม่สำเร็จ'));
-    } finally {
-      setRosterOrderBusy(false);
-    }
-  };
-
-  const saveRosterOrder = async (employeeIds: string[]) => {
-    if (!auth.token || !rosterOrderDepartment || rosterOrderBusy) return;
-    setRosterOrderBusy(true);
-    setOperationError(undefined);
-    try {
-      await updateScheduleRosterOrder(auth.token, rosterOrderDepartment, employeeIds);
-      setRosterOrderDepartment(undefined);
-      setRosterOrderEmployees([]);
-      setOperationPage(1);
-      setOperationRefresh((value) => value + 1);
-    } catch (reason) {
-      setOperationError(toRequestErrorState(reason, 'บันทึกลำดับพนักงานไม่สำเร็จ'));
-    } finally {
-      setRosterOrderBusy(false);
-    }
-  };
 
   useEffect(() => {
     if (!auth.token || !['licenses', 'schedule', 'leave', 'leavePending', 'leaveHistory', 'quota'].includes(activePage)) return;
@@ -2067,6 +2075,18 @@ function Dashboard() {
   const visibleNavigation = navigation
     .map((section) => ({ ...section, items: section.items.filter((item) => canViewPage(item.id)) }))
     .filter((section) => section.items.length > 0);
+  const workflowCommands = visibleNavigation.flatMap((section) => section.items.map((item) => ({ ...item, group: section.label })));
+  useEffect(() => {
+    if (pwaShell) return;
+    const openCommandPalette = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', openCommandPalette);
+    return () => window.removeEventListener('keydown', openCommandPalette);
+  }, [pwaShell]);
   const employeeOptions = employees.map((employee) => ({ value: employee.id, label: `${employee.employeeCode} · ${employee.firstName} ${employee.lastName}` }));
   const activeLeaveTypes = leaveTypes.filter((item) => item.isActive);
   const leaveTypeOptions = activeLeaveTypes.map((item) => ({ value: item.code, label: item.name }));
@@ -2541,7 +2561,7 @@ function Dashboard() {
 
               <div style={{ display: 'grid', gap: '12px' }}>
                 {Number(dashboardSummary.expiringLicenses || 0) > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', background: '#211807', border: '1px solid #fcd34d', borderRadius: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontSize: '20px' }}>⚠️</span>
                       <div>
@@ -2590,7 +2610,7 @@ function Dashboard() {
             </div>
           </div>
 
-          <div className="table-card" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', background: '#f8fafc' }}>
+          <div className="table-card" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px', background: '#061421' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '20px' }}>🚀</span>
               <div>
@@ -2609,7 +2629,7 @@ function Dashboard() {
         </section>
       );
     }
-    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { setActivePage(item.sourcePage); }} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
+    if (activePage === 'approvalCenter' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs) return <ApprovalCenterPage token={auth.token} role={auth.user?.role || 'VIEWER'} currentEmployeeId={String(leaveSummary.employeeId || '')} refreshKey={approvalCenterRefresh} onChanged={() => { setApprovalCenterRefresh((value) => value + 1); setEmployeeRefresh((value) => value + 1); setOperationRefresh((value) => value + 1); }} onOpenEmployeeChange={(requestId) => { setEmployeeChangeReviewInitialId(requestId); setEmployeeChangeReviewOpen(true); }} onNavigate={(item) => { setActivePage(item.sourcePage); }} onOpenAudit={() => setActivePage('audit')} onLeaveDecision={(item, action) => openLeaveDecision({ id: item.requestId, employeeId: item.employee?.id, employeeNameSnapshot: item.employee?.displayName || item.title, departmentSnapshot: item.employee?.department || item.metadata?.department, leaveTypeNameSnapshot: item.metadata?.leaveType, startDate: item.metadata?.startDate, endDate: item.metadata?.endDate, dayCount: item.metadata?.dayCount, reason: item.metadata?.reason, substitute: item.metadata?.substitute, status: item.status }, action)} />;
     if (activePage === 'employees') return <PersonnelDirectoryPage token={auth.token} refreshKey={employeeRefresh} canManage={canManage} role={auth.user?.role || 'VIEWER'} searchValue={search} onSearchValueChange={setSearch} onAdd={() => openEmployeeEditor()} onReviewChanges={() => { if (auth.user?.role === 'ADMIN' && !auth.isViewingAs) { setEmployeeChangeReviewInitialId(undefined); setEmployeeChangeReviewOpen(true); } }} onEdit={openEmployeeEditor} />;
     if (activePage === 'audit') {
       const auditRows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
@@ -2636,10 +2656,9 @@ function Dashboard() {
     }
     if (activePage === 'schedule') {
       const calendar = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
-      const rosterSnapshotLocked = Boolean(calendar.rosterSnapshotLocked);
       const dates = Array.isArray(calendar.dates) ? calendar.dates.map(String) : [];
       const rawCalendarEmployees = Array.isArray(calendar.employees) ? calendar.employees as DataRow[] : [];
-      const allCalendarEmployees = rawCalendarEmployees;
+      const allCalendarEmployees = sortScheduleEmployeesByCode(rawCalendarEmployees);
       const calendarEmployees = selectedDepartments.length > 0
         ? allCalendarEmployees.filter((emp) => selectedDepartments.includes(text(emp.department)))
         : allCalendarEmployees;
@@ -2725,7 +2744,13 @@ function Dashboard() {
         } catch (reason) { setOperationError(toRequestErrorState(reason, 'ส่งออก Excel ไม่สำเร็จ')); }
         finally { setScheduleExportBusy(false); }
       };
-      return <section className="view-pane schedule-calendar-page">
+      return <section className="view-pane schedule-calendar-page nexus-roster-workspace">
+        <div className="roster-command-kicker">SMS NEXUS / PERSONNEL / DUTY ROSTER</div>
+        <div className="roster-telemetry-strip" aria-label="Roster telemetry">
+          <div><span>ROSTER READINESS</span><strong>AWAITING DATA</strong><small>Verified telemetry only</small></div>
+          <div><span>SHIFT COVERAGE · 24H</span><strong>AWAITING DATA</strong><small>No simulated coverage</small></div>
+          <div><span>ROSTER STATE</span><strong className={approval.status === 'APPROVED' ? 'is-secure' : 'is-warning'}>{approval.status === 'APPROVED' ? 'PUBLISHED' : 'DRAFT'}</strong><small>{monthLabel}</small></div>
+        </div>
         <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>ตารางกะรายเดือน</h1><p>จัดกะรายเดือน (โหมดบันทึกด้วยตนเอง: แก้ไขกะหรือลบกะในตารางได้ต่อเนื่อง แล้วกด 💾 บันทึกการเปลี่ยนแปลง เพื่อบันทึกทีเดียว)</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="btn-info small-action" onClick={() => void printScheduleDocument()}>📄 Export PDF</button></>}</div></div>
         <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ อนุมัติแล้ว' : '● รออนุมัติ'} · {monthLabel}</strong><small>Revision {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'ผู้มีอำนาจอนุมัติ')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้าง revision ใหม่โดยอัตโนมัติ'}</small></div>{['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token) return; const confirmed = await actionDialog.confirm({ title: 'อนุมัติตารางกะรายเดือน', message: 'การอนุมัติจะเปลี่ยนสถานะตารางเดือนนี้เป็น APPROVED ตาม workflow เดิม และการแก้ไขภายหลังจะสร้าง revision ใหม่โดยอัตโนมัติ', context: monthLabel, confirmLabel: 'ยืนยันอนุมัติตาราง', tone: 'primary' }); if (!confirmed) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); } catch (reason) { setOperationError(toRequestErrorState(reason, 'อนุมัติตารางไม่สำเร็จ')); } }}>อนุมัติ ตารางเดือนนี้</button>}</div>
         <div className="calendar-toolbar-box schedule-workbench" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px 20px', margin: '14px 0 16px 0', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.05)' }}>
@@ -2776,18 +2801,6 @@ function Dashboard() {
               )}
             </div>
 
-            {canManage && (
-              <button
-                type="button"
-                className="btn-neutral small-action"
-                title={selectedDepartments.length === 1 ? 'จัดลำดับพนักงานสำหรับเดือนใหม่ของแผนกนี้' : 'เลือก 1 แผนกเพื่อจัดลำดับพนักงาน'}
-                disabled={rosterOrderBusy || selectedDepartments.length !== 1}
-                onClick={() => { const department = selectedDepartments[0]; if (department) void openRosterOrderManager(department); }}
-              >
-                {rosterOrderBusy ? 'กำลังอ่านลำดับ…' : '☰ จัดลำดับพนักงาน'}
-              </button>
-            )}
-            <span className="toolbar-count" title="ลำดับเดือนที่ถูก Snapshot จะไม่เปลี่ยนตาม Master Order">{rosterSnapshotLocked ? '🔒 เดือนนี้ใช้ลำดับ Snapshot' : '↕ เดือนนี้ใช้ Master Order'}</span>
             {auth.user?.role === 'ADMIN' && (
               <button className="btn-primary compact" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)', border: 'none', fontWeight: 'bold', padding: '8px 14px', borderRadius: '8px' }} disabled={autoScheduleBusy} onClick={previewAutoSchedule}>
                 {autoScheduleBusy ? 'กำลังคำนวณ…' : '✨ ดูตัวอย่างจัดกะอัตโนมัติ'}
@@ -2818,7 +2831,7 @@ function Dashboard() {
         </div>
         {auth.user?.role === 'ADMIN' && autoSchedulePreview && (
           <div className="dialog-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !autoScheduleBusy) setAutoSchedulePreview(undefined); }}>
-            <section className="edit-dialog" style={{ maxWidth: '780px', backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <section className="edit-dialog" style={{ maxWidth: '780px', backgroundColor: '#0f1d2a', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
               <div className="dialog-heading" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>🪄 ตัวอย่างตารางจัดกะอัตโนมัติ ( Auto Schedule Preview )</h2>
                 <button type="button" aria-label="ปิดตัวอย่างตารางจัดกะอัตโนมัติ" style={{ background: 'none', border: 'none', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}><SmsIcon name="close" size={20} /></button>
@@ -2832,7 +2845,7 @@ function Dashboard() {
               </div>
 
               {previewWarnings.length > 0 && (
-                <div className="preview-warning" style={{ backgroundColor: '#fff7ed', border: '1px solid #ffedd5', color: '#c2410c', padding: '12px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px' }}>
+                <div className="preview-warning" style={{ backgroundColor: '#211807', border: '1px solid #ffedd5', color: '#c2410c', padding: '12px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px' }}>
                   <strong>รายการที่ต้องตรวจสอบ:</strong>
                   {previewWarnings.slice(0, 8).map((warning, index) => <p key={`${String(warning)}-${index}`} style={{ margin: '4px 0 0 0' }}>• {text(warning)}</p>)}
                 </div>
@@ -2857,7 +2870,7 @@ function Dashboard() {
               </div>
 
               <div className="preview-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                <button className="btn-secondary" style={{ padding: '9px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>ยกเลิก Preview</button>
+                <button className="btn-secondary" style={{ padding: '9px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#0f1d2a', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>ยกเลิก Preview</button>
                 <button className="btn-primary compact" style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)', color: '#ffffff', fontWeight: 700, cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={saveAutoSchedule}>🪄 ใส่ลงในฉบับร่าง (ยังไม่บันทึก)</button>
               </div>
             </section>
@@ -2879,7 +2892,6 @@ function Dashboard() {
   );
 })()}</button>{canManage && <button className="calendar-delete" aria-label={`ลบกะ ${day}`} onClick={() => { const key = `${employee.id}_${day}`; setScheduleDrafts((prev) => ({ ...prev, [key]: { action: 'delete', id: String(shift.id), employeeId: String(employee.id), workDate: day } })); }}><SmsIcon name="close" size={14} /></button>}</div> : canManage ? <button className="empty-shift" title="เพิ่มกะ" onClick={(e) => openShiftEditor(undefined, { employeeId: String(employee.id), workDate: day }, e)}>+</button> : <span className="empty-shift read-only">–</span>}</td>; })}</tr>; }) : <tr><td colSpan={dates.length + 1} className="no-rows">ไม่มีพนักงานหรือตารางกะในตัวกรองนี้</td></tr>}</tbody></table></div>}</div>
         {operationResponse.meta?.totalPages && operationResponse.meta.totalPages > 1 && <div className="pagination-bar"><button disabled={(operationResponse.meta.page || 1) <= 1 || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) - 1)}>‹ ก่อนหน้า</button><span>หน้า {operationResponse.meta.page} จาก {operationResponse.meta.totalPages}</span><button disabled={(operationResponse.meta.page || 1) >= operationResponse.meta.totalPages || operationLoading} onClick={() => setOperationPage((operationResponse.meta?.page || 1) + 1)}>หน้าถัดไป ›</button></div>}
-        {rosterOrderDepartment && <ScheduleRosterOrderModal department={rosterOrderDepartment} employees={rosterOrderEmployees} busy={rosterOrderBusy} onClose={() => { if (!rosterOrderBusy) { setRosterOrderDepartment(undefined); setRosterOrderEmployees([]); } }} onSave={saveRosterOrder} />}
         {employeeAutoScheduleTarget && <EmployeeMagicWandModal target={employeeAutoScheduleTarget} scheduleMonth={scheduleMonth} token={auth.token} busy={Boolean(employeeAutoScheduleBusyId)} onClose={() => setEmployeeAutoScheduleTarget(undefined)} onSubmit={async (autoContinue, startPhase, patternType) => { if (!auth.token || !employeeAutoScheduleTarget || employeeAutoScheduleBusyId) return; const employeeId = String(employeeAutoScheduleTarget.id || ''); if (!employeeId) return; const phase = autoContinue ? 'AUTO' : startPhase; setEmployeeAutoScheduleBusyId(employeeId); setOperationError(undefined); try { const result = await api.previewEmployeeAutoSchedule(auth.token, scheduleMonth, employeeId, phase, patternType); const rows = Array.isArray(result?.data?.rows) ? result.data.rows as DataRow[] : []; applyPreviewToDrafts(rows, employeeId); setEmployeeAutoScheduleTarget(undefined); } catch (reason) { setOperationError(toRequestErrorState(reason, 'สร้างฉบับร่างจัดกะอัตโนมัติรายบุคคลไม่สำเร็จ')); } finally { setEmployeeAutoScheduleBusyId(undefined); } }} />}
         {shiftEditorTarget && (
           <ShiftEditorModal
@@ -2957,7 +2969,7 @@ function Dashboard() {
       const results = Array.isArray(ruleCheckResponse.ruleResults) ? ruleCheckResponse.ruleResults as DataRow[] : [];
       const violations = Array.isArray(ruleCheckResponse.violations) ? ruleCheckResponse.violations as DataRow[] : [];
       const metrics = nested(ruleCheckResponse.metrics);
-      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Rule Checking</h1><p>ตรวจสอบกฎเดิมกับตารางกะจาก PostgreSQL แบบ read-only</p></div><div className="heading-actions"><label className="month-filter"><span>เดือน</span><select value={scheduleMonth} onChange={(event) => setScheduleMonth(event.target.value)} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', backgroundColor: '#ffffff', color: '#0f172a' }}>{Array.from({ length: 24 }, (_, i) => { const d = new Date(Date.UTC(2025, i, 1)); const val = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d); const thaiYear = d.getUTCFullYear() + 543; return <option key={val} value={val}>{name} พ.ศ. {thaiYear}</option>; })}</select></label><button className="btn-neutral small-action" onClick={() => setOperationRefresh((value) => value + 1)}>ตรวจสอบอีกครั้ง</button></div></div>
+      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Rule Checking</h1><p>ตรวจสอบกฎเดิมกับตารางกะจาก PostgreSQL แบบ read-only</p></div><div className="heading-actions"><label className="month-filter"><span>เดือน</span><select value={scheduleMonth} onChange={(event) => setScheduleMonth(event.target.value)} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0' }}>{Array.from({ length: 24 }, (_, i) => { const d = new Date(Date.UTC(2025, i, 1)); const val = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d); const thaiYear = d.getUTCFullYear() + 543; return <option key={val} value={val}>{name} พ.ศ. {thaiYear}</option>; })}</select></label><button className="btn-neutral small-action" onClick={() => setOperationRefresh((value) => value + 1)}>ตรวจสอบอีกครั้ง</button></div></div>
         <ErrorAlert message={operationError} />
         <div className="rule-summary-grid"><article><span className={Number(metrics.violations || 0) ? 'rule-state fail' : 'rule-state pass'}>{Number(metrics.violations || 0) ? '!' : '✓'}</span><div><p>รายการขัดกฎทั้งหมด</p><strong>{text(metrics.violations)}</strong></div></article><article><span className="rule-state pass">✓</span><div><p>กฎที่ผ่าน</p><strong>{text(metrics.rulesPassed)} / {text(metrics.rulesChecked)}</strong></div></article><article><span className="rule-state pass">♙</span><div><p>พนักงาน Active</p><strong>{text(metrics.activeEmployees)}</strong></div></article><article><span className="rule-state pass">◷</span><div><p>ชั่วโมงรวม</p><strong>{text(metrics.totalHours)}</strong></div></article></div>
         <RuleCheckingDataSurfaces rules={rules} results={results} violations={violations} loading={operationLoading} canManage={canManage} onAction={(row, action) => handleOperationAction(row, action)} />
@@ -3035,7 +3047,7 @@ function Dashboard() {
     const calendar = !Array.isArray(operationResponse.data) ? operationResponse.data || {} : {};
     const dates = Array.isArray(calendar.dates) ? calendar.dates.map(String) : [];
     const rawCalendarEmployees = Array.isArray(calendar.employees) ? calendar.employees as DataRow[] : [];
-    const allCalendarEmployees = rawCalendarEmployees;
+    const allCalendarEmployees = sortScheduleEmployeesByCode(rawCalendarEmployees);
     const calendarEmployees = selectedDepartments.length > 0
       ? allCalendarEmployees.filter((emp) => selectedDepartments.includes(text(emp.department)))
       : allCalendarEmployees;
@@ -3057,6 +3069,7 @@ function Dashboard() {
 
   return (
     <>
+      {!pwaShell && <WorkflowCommandPalette open={commandPaletteOpen} items={workflowCommands} onClose={() => setCommandPaletteOpen(false)} onNavigate={(id) => setActivePage(id as Page)} />}
       {leaveDecision && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่างยืนยัน…</div>}><LeaveDecisionConfirmation
         target={leaveDecision.target}
         action={leaveDecision.action}
@@ -3065,16 +3078,19 @@ function Dashboard() {
         onClose={() => { if (!operationLoading) setLeaveDecision(undefined); }}
         onConfirm={confirmLeaveDecision}
       /></React.Suspense>}
-      <div className={`app-shell ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}>
+      <div
+        className={`app-shell ${desktopView ? 'desktop-view' : ''} ${auth.isViewingAs ? 'view-as-active' : ''} ${pwaShell ? `pwa-shell pwa-page-${activePage}` : ''}`}
+        style={{ backgroundColor: 'var(--surface-page, #020813)', color: 'var(--text-on-surface, #f1f5f9)' }}
+      >
       {editor && <EditDialog editor={editor} busy={editorBusy} error={editorError} onClose={() => { setEditor(undefined); setEditorError(undefined); }} />}
       {employeeGovernedEditTarget && auth.token && !auth.isViewingAs && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><EmployeeGovernedEditModal token={auth.token} employee={employeeGovernedEditTarget} role={auth.user?.role || 'VIEWER'} onClose={() => setEmployeeGovernedEditTarget(undefined)} onChanged={() => setEmployeeRefresh((value) => value + 1)} /></React.Suspense>}
       {employeeChangeReviewOpen && auth.token && auth.user?.role === 'ADMIN' && !auth.isViewingAs && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดหน้าต่าง…</div>}><EmployeeChangeReviewModal token={auth.token} initialRequestId={employeeChangeReviewInitialId} onClose={() => { setEmployeeChangeReviewOpen(false); setEmployeeChangeReviewInitialId(undefined); }} onChanged={() => { setEmployeeRefresh((value) => value + 1); setApprovalCenterRefresh((value) => value + 1); }} /></React.Suspense>}
-      {auth.isViewingAs && <div className="view-as-banner" role="status"><span>🐞 กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({roleDisplayName(auth.user?.role)}) · อ่านอย่างเดียว</span><button onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
+      {auth.isViewingAs && <div className="view-as-banner" role="status"><span><SmsIcon name="eye" size={16} /> กำลังดูระบบในมุมมอง <strong>{auth.user?.displayName}</strong> ({roleDisplayName(auth.user?.role)}) · อ่านอย่างเดียว</span><button type="button" onClick={() => { auth.endViewAs(); setActivePage('users'); }}>กลับสู่บัญชี Admin</button></div>}
       {mobileMenuOpen && <button className="sidebar-overlay" aria-label="ปิดเมนูหลัก" aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(false)} />}
       <aside id="app-navigation-drawer" className={`sidebar ${mobileMenuOpen ? 'open' : ''}`} aria-label="เมนูหลัก">
         <div className="sidebar-brand">
           <Logo />
-          <div><strong>SMS</strong><span>Security Management System</span></div>
+          <div className="sms-brand-copy"><strong>SMS</strong><span>Security Management System</span></div>
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
@@ -3086,19 +3102,21 @@ function Dashboard() {
         </div>
       </aside>
       <main className="main-area">
-        {pwaShell && activePage !== 'attendance' && <header className="pwa-mobile-header"><span className="pwa-mobile-brand"><Logo /><span><strong>SMS</strong><small>{pageTitle}</small></span></span><span className={`pwa-online-state ${pwaOnline ? '' : 'offline'}`}>{pwaOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span></header>}
+        {pwaShell && activePage !== 'attendance' && <header className="pwa-mobile-header"><span className="pwa-mobile-brand"><Logo /><span className="sms-brand-copy"><strong>SMS</strong><small>Security Management System</small></span></span><span className={`pwa-online-state ${pwaOnline ? '' : 'offline'}`}>{pwaOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span></header>}
         {pwaShell && !pwaOnline && <div className="pwa-offline-banner">ออฟไลน์ — เปิดดู shell ได้ แต่การลงเวลาและการส่งคำขอลาต้องรอการเชื่อมต่อ Server</div>}
         <header className="topbar">
           <div className="topbar-left">
             <button ref={mobileMenuTriggerRef} type="button" className="mobile-menu-button" aria-label="เปิดเมนูหลัก" aria-expanded={mobileMenuOpen} aria-controls="app-navigation-drawer" onClick={() => setMobileMenuOpen(true)}><SmsIcon name="menu" size={20} /></button>
-            <span className="mobile-brand"><Logo /><span><b>SMS</b><small>{pageTitle}</small></span></span>
+            <span className="mobile-brand"><Logo /><span className="sms-brand-copy"><b>SMS</b><small>Security Management System</small></span></span>
             <span className="topbar-copy"><strong>{pageTitle}</strong><small>{pageSubtitle[navigationPage]}</small></span>
           </div>
           <label className="topbar-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
           <div className="topbar-actions">
+            {!pwaShell && <button type="button" className="workflow-command-trigger" aria-label="เปิดเมนูนำทางด่วน" title="ไปยังงานหรือหน้าที่ต้องการ" onClick={() => setCommandPaletteOpen(true)}><SmsIcon name="search" size={16} /><span>Quick nav</span><kbd>Ctrl K</kbd></button>}
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
             {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type="button" className="topbar-notification-button" aria-label={'คำขออนุมัติ ' + pendingApprovalCount + ' รายการ'} title="คำขอที่รอการอนุมัติ" onClick={() => setActivePage('approvalCenter')}><SmsIcon name="bell" size={19} />{pendingApprovalCount > 0 && <span className="topbar-notification-badge">{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
             <ThemeControl compact />
+            <button type="button" className="display-mode-toggle" aria-pressed={desktopView} title={desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} /><span>{desktopView ? 'Mobile' : 'Desktop'}</span></button>
             <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></button>
             <button ref={mobileUtilityTriggerRef} type="button" className="mobile-utility-button" aria-label="เปิดเมนูบัญชีและธีม" aria-expanded={mobileUtilityOpen} aria-controls="mobile-utility-panel" onClick={() => setMobileUtilityOpen((value) => !value)}><SmsIcon name="more" size={20} /></button>
           </div>
@@ -3107,7 +3125,9 @@ function Dashboard() {
             <div id="mobile-utility-panel" className="mobile-utility-panel" role="dialog" aria-modal="true" aria-label="บัญชีและการตั้งค่าหน้าจอ">
               <div className="mobile-utility-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
               <label className="mobile-utility-search"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาพนักงานบนมือถือ" placeholder="ค้นหาพนักงาน..." value={search} onChange={(event) => { setSearch(event.target.value); if (event.target.value && activePage !== 'employees') setActivePage('employees'); }} /></label>
+              <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setCommandPaletteOpen(true); }}><SmsIcon name="search" size={18} />ไปยังงานหรือหน้าอื่น</button>
               <div className="mobile-utility-theme"><span>Theme</span><ThemeControl /></div>
+              <button type="button" className="mobile-utility-display-mode" aria-pressed={desktopView} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} />{desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'}</button>
               <button type="button" className="mobile-utility-security" onClick={() => { setMobileUtilityOpen(false); setPasskeyPanelOpen(true); }}><SmsIcon name="key" size={18} />การเข้าสู่ระบบและ Passkey</button>
               <button type="button" className="mobile-utility-logout" onClick={() => auth.logout()}><SmsIcon name="logout" size={18} />ออกจากระบบ</button>
             </div>

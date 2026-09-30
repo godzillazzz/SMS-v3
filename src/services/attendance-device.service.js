@@ -25,9 +25,9 @@ function mapConflict(error) {
   if (error?.code === 'P2002') return http(409, 'ATTENDANCE_DEVICE_STATE_CONFLICT', 'Attendance device state changed. Please refresh and try again.');
   return error;
 }
-function safeEnrollment(row) { return row ? { id: row.id, employeeId: row.employeeId, displayName: row.displayName, keyAlgorithm: row.keyAlgorithm, credentialFingerprint: row.credentialFingerprint, platformHint: row.platformHint, status: row.status, proofVerifiedAt: row.proofVerifiedAt, enrolledAt: row.enrolledAt, activatedAt: row.activatedAt, revokedAt: row.revokedAt, revokedReason: row.revokedReason } : null; }
+function safeEnrollment(row) { return row ? { id: row.id, employeeId: row.employeeId, displayName: row.displayName, keyAlgorithm: row.keyAlgorithm, credentialFingerprint: row.credentialFingerprint, platformHint: row.platformHint, status: row.status, proofVerifiedAt: row.proofVerifiedAt, enrolledAt: row.enrolledAt, activatedAt: row.activatedAt, revokedAt: row.revokedAt, revokedReason: row.revokedReason, approvedByUserId: row.approvedByUserId || null, approvedBy: safeRequester(row.approvedBy) } : null; }
 function safeEmployee(row) { return row ? { id: row.id, displayName: row.displayName, firstName: row.firstName, lastName: row.lastName, department: row.department } : undefined; }
-function safeRequester(row) { return row ? { id: row.id, displayName: row.displayName } : undefined; }
+function safeRequester(row) { return row ? { id: row.id, displayName: row.displayName, role: row.role || null } : undefined; }
 function safeAudit(row) {
   if (!row) return null;
   const source = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {};
@@ -35,7 +35,7 @@ function safeAudit(row) {
   const metadata = Object.fromEntries(Object.entries(source).filter(([key]) => allowed.has(key)));
   return { id: row.id, actorUserId: row.actorUserId, action: row.action, entityType: row.entityType, entityId: row.entityId, metadata, createdAt: row.createdAt, actor: safeRequester(row.actor) };
 }
-function safeRequest(row) { return row ? { id: row.id, employeeId: row.employeeId, requestType: row.requestType, status: row.status, requestedByUserId: row.requestedByUserId, candidateDeviceEnrollmentId: row.candidateDeviceEnrollmentId, currentDeviceEnrollmentId: row.currentDeviceEnrollmentId, reason: row.reason, reviewerComment: row.reviewerComment, reviewedByUserId: row.reviewedByUserId, reviewedAt: row.reviewedAt, returnedAt: row.returnedAt, cancelledAt: row.cancelledAt, createdAt: row.createdAt, updatedAt: row.updatedAt, candidateDevice: row.candidateDevice ? safeEnrollment(row.candidateDevice) : undefined, employee: safeEmployee(row.employee), requestedBy: safeRequester(row.requestedBy) } : null; }
+function safeRequest(row) { return row ? { id: row.id, employeeId: row.employeeId, requestType: row.requestType, status: row.status, requestedByUserId: row.requestedByUserId, candidateDeviceEnrollmentId: row.candidateDeviceEnrollmentId, currentDeviceEnrollmentId: row.currentDeviceEnrollmentId, reason: row.reason, reviewerComment: row.reviewerComment, reviewedByUserId: row.reviewedByUserId, reviewedAt: row.reviewedAt, returnedAt: row.returnedAt, cancelledAt: row.cancelledAt, createdAt: row.createdAt, updatedAt: row.updatedAt, candidateDevice: row.candidateDevice ? safeEnrollment(row.candidateDevice) : undefined, employee: safeEmployee(row.employee), requestedBy: safeRequester(row.requestedBy), reviewedBy: safeRequester(row.reviewedBy) } : null; }
 
 function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date(), randomBytes = crypto.randomBytes } = {}) {
   async function loadLinkedEmployee(client, actor) {
@@ -54,8 +54,8 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
   async function getMyState({ actor }) {
     const employee = await loadLinkedEmployee(prisma, actor);
     const [activeDevice, activeRequest] = await Promise.all([
-      prisma.attendanceDeviceEnrollment.findFirst({ where: { employeeId: employee.id, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } }),
-      prisma.attendanceDeviceChangeRequest.findFirst({ where: { employeeId: employee.id, status: { in: ACTIVE_REQUEST_STATUSES } }, include: { candidateDevice: true }, orderBy: { createdAt: 'desc' } })
+      prisma.attendanceDeviceEnrollment.findFirst({ where: { employeeId: employee.id, status: 'ACTIVE' }, include: { approvedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: { activatedAt: 'desc' } }),
+      prisma.attendanceDeviceChangeRequest.findFirst({ where: { employeeId: employee.id, status: { in: ACTIVE_REQUEST_STATUSES } }, include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, reviewedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: { createdAt: 'desc' } })
     ]);
     return { employeeId: employee.id, activeDevice: safeEnrollment(activeDevice), activeRequest: safeRequest(activeRequest) };
   }
@@ -149,15 +149,15 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
 
   async function listRequests({ actor, status = 'PENDING_APPROVAL' }) {
     assertAdmin(actor);
-    const rows = await prisma.attendanceDeviceChangeRequest.findMany({ where: status ? { status } : {}, include: { candidateDevice: true, employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } }, requestedBy: { select: { id: true, displayName: true } } }, orderBy: { createdAt: 'asc' } });
+    const rows = await prisma.attendanceDeviceChangeRequest.findMany({ where: status ? { status } : {}, include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } }, requestedBy: { select: { id: true, displayName: true, role: true } }, reviewedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: { createdAt: 'asc' } });
     return rows.map(safeRequest);
   }
 
   async function listAdminOverview({ actor }) {
     assertAdmin(actor);
     const [enrollments, requests, audits] = await Promise.all([
-      prisma.attendanceDeviceEnrollment.findMany({ include: { employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } } }, orderBy: [{ employeeId: 'asc' }, { createdAt: 'desc' }] }),
-      prisma.attendanceDeviceChangeRequest.findMany({ include: { candidateDevice: true, employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } }, requestedBy: { select: { id: true, displayName: true } } }, orderBy: { createdAt: 'desc' } }),
+      prisma.attendanceDeviceEnrollment.findMany({ include: { employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } }, approvedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: [{ employeeId: 'asc' }, { createdAt: 'desc' }] }),
+      prisma.attendanceDeviceChangeRequest.findMany({ include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, employee: { select: { id: true, displayName: true, firstName: true, lastName: true, department: true } }, requestedBy: { select: { id: true, displayName: true, role: true } }, reviewedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: { createdAt: 'desc' } }),
       prisma.auditLog.findMany({ where: { entityType: { in: ['AttendanceDeviceEnrollment', 'AttendanceDeviceChangeRequest'] } }, include: { actor: { select: { id: true, displayName: true } } }, orderBy: { createdAt: 'desc' }, take: 300 })
     ]);
     const groups = new Map();
@@ -192,7 +192,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
         const device = await tx.attendanceDeviceEnrollment.findUnique({ where: { id: deviceEnrollmentId } });
         if (!device || device.employeeId !== employeeId) throw http(404, 'ATTENDANCE_DEVICE_NOT_FOUND', 'Attendance device not found.');
         if (device.status !== 'ACTIVE') throw http(409, 'ATTENDANCE_DEVICE_NOT_ACTIVE', 'Only the current ACTIVE Attendance device can be revoked.');
-        const pending = await tx.attendanceDeviceChangeRequest.findFirst({ where: { employeeId, status: { in: ACTIVE_REQUEST_STATUSES } }, include: { candidateDevice: true }, orderBy: { createdAt: 'desc' } });
+        const pending = await tx.attendanceDeviceChangeRequest.findFirst({ where: { employeeId, status: { in: ACTIVE_REQUEST_STATUSES } }, include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, reviewedBy: { select: { id: true, displayName: true, role: true } } }, orderBy: { createdAt: 'desc' } });
         const claimed = await tx.attendanceDeviceEnrollment.updateMany({ where: { id: device.id, employeeId, status: 'ACTIVE' }, data: { status: 'REVOKED', revokedAt: now, revokedReason: text } });
         if (claimed.count !== 1) throw http(409, 'ATTENDANCE_DEVICE_STATE_CONFLICT', 'Attendance device state changed. Please refresh and try again.');
         let cancelledRequestId = null;
@@ -225,9 +225,9 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
         if (request.requestType === 'INITIAL' && active) throw http(409, 'ATTENDANCE_DEVICE_STALE_REQUEST', 'An active device already exists.');
         if (request.requestType === 'REPLACEMENT' && (!active || active.id !== request.currentDeviceEnrollmentId)) throw http(409, 'ATTENDANCE_DEVICE_STALE_REQUEST', 'The active device changed after this request was submitted.');
         if (active) await tx.attendanceDeviceEnrollment.update({ where: { id: active.id }, data: { status: 'REVOKED', revokedAt: now, revokedReason: 'ADMIN_APPROVED_REPLACEMENT' } });
-        const candidate = await tx.attendanceDeviceEnrollment.update({ where: { id: request.candidateDeviceEnrollmentId }, data: { status: 'ACTIVE', activatedAt: now, approvedByUserId: actor.sub, revokedAt: null, revokedReason: null } });
+        const candidate = await tx.attendanceDeviceEnrollment.update({ where: { id: request.candidateDeviceEnrollmentId }, data: { status: 'ACTIVE', activatedAt: now, approvedByUserId: actor.sub, revokedAt: null, revokedReason: null }, include: { approvedBy: { select: { id: true, displayName: true, role: true } } } });
         await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'FINAL_APPROVE', requestType: request.requestType, employeeId: request.employeeId, previousDeviceEnrollmentId: active?.id || null, activeDeviceEnrollmentId: candidate.id, requestedByUserId: request.requestedByUserId } }, tx);
-        const approved = await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { candidateDevice: true } });
+        const approved = await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { candidateDevice: { include: { approvedBy: { select: { id: true, displayName: true, role: true } } } }, reviewedBy: { select: { id: true, displayName: true, role: true } } } });
         return safeRequest(approved);
       });
     } catch (error) { throw mapConflict(error); }
@@ -244,7 +244,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
       const claimed = await tx.attendanceDeviceChangeRequest.updateMany({ where: { id: request.id, status: 'PENDING_APPROVAL' }, data: { status: 'RETURNED_FOR_CORRECTION', reviewerComment: text, reviewedByUserId: actor.sub, returnedAt: now } });
       if (claimed.count !== 1) throw http(409, 'ATTENDANCE_DEVICE_REQUEST_NOT_ACTIONABLE', 'Only pending device requests can be returned.');
       await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'RETURN_FOR_CORRECTION', employeeId: request.employeeId } }, tx);
-      return safeRequest(await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id } }));
+      return safeRequest(await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { reviewedBy: { select: { id: true, displayName: true, role: true } } } }));
     });
   }
 
@@ -272,7 +272,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
       if (claimed.count !== 1) throw http(409, 'ATTENDANCE_DEVICE_REQUEST_NOT_ACTIONABLE', 'Only pending device requests can be rejected.');
       await tx.attendanceDeviceEnrollment.update({ where: { id: request.candidateDeviceEnrollmentId }, data: { status: 'REJECTED', revokedAt: now, revokedReason: text } });
       await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'REJECT', employeeId: request.employeeId } }, tx);
-      return safeRequest(await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id } }));
+      return safeRequest(await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { reviewedBy: { select: { id: true, displayName: true, role: true } } } }));
     });
   }
 
@@ -287,7 +287,7 @@ function createAttendanceDeviceService({ prisma = prismaDefault, audit = auditDe
       if (claimed.count !== 1) throw http(409, 'ATTENDANCE_DEVICE_REQUEST_NOT_ACTIONABLE', 'This device request can no longer be cancelled.');
       await tx.attendanceDeviceEnrollment.update({ where: { id: request.candidateDeviceEnrollmentId }, data: { status: 'CANCELLED', revokedAt: now, revokedReason: text } });
       await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendanceDeviceChangeRequest', entityId: request.id, metadata: { event: 'CANCEL', employeeId: request.employeeId } }, tx);
-      return safeRequest(await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id } }));
+      return safeRequest(await tx.attendanceDeviceChangeRequest.findUnique({ where: { id: request.id }, include: { reviewedBy: { select: { id: true, displayName: true, role: true } } } }));
     });
   }
 

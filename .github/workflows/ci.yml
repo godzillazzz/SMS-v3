@@ -1,9 +1,10 @@
-name: CI
+﻿name: CI
 
 on:
   workflow_dispatch:
   push:
     branches:
+      - preview/enterprise-evolution-20260927
       - fix/serverless-database-reliability
       - fix/sms-v1-2-1-visual-consistency-inactive-darkmode
       - fix/g05-license-document-delete-audit-tombstone

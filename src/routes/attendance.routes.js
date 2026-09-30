@@ -59,7 +59,8 @@ const attendanceContextInput = z.object({
   shiftAssignmentId: uuid,
   evidence: attendanceContextEvidenceInput
 }).strict();
-const acceptInput = z.object({ receipt: z.string().trim().min(32).max(512), attendanceContext: attendanceContextInput }).strict();
+const acceptInput = z.object({ receipt: z.string().trim().min(32).max(2048), attendanceContext: attendanceContextInput }).strict();
+const geofenceOnlyUatReceiptInput = z.object({ attendanceContext: attendanceContextInput }).strict();
 const deviceProofInput = z.object({ challengeId: uuid, challenge: z.string().min(16).max(512), signatureBase64: z.string().min(16).max(4096) }).strict();
 const selfHistoryQuery = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -85,6 +86,12 @@ function faceCaptureUpload(req, res, next) {
 function attendanceApiEnabled(environment = process.env) {
   if (environment.VERCEL_ENV === 'production') return environment.ATTENDANCE_API_PRODUCTION_ENABLED === 'true';
   return environment.VERCEL_ENV === 'preview' && environment.ATTENDANCE_API_PREVIEW_ENABLED === 'true';
+}
+
+function attendanceGeofenceOnlyUatEnabled(environment = process.env) {
+  return environment.VERCEL_ENV === 'production'
+    && attendanceApiEnabled(environment)
+    && environment.G06_GEOFENCE_ONLY_UAT_ENABLED === 'true';
 }
 
 function selfHostedFaceRuntimeConfigured(environment = process.env) {
@@ -125,7 +132,8 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
   const privateEvidence = evidenceStorage || createSupabaseAttendanceFaceEvidenceStorage({ environment });
   const service = contractService || createAttendanceApiContractService({
     faceVerificationService: createAttendanceFaceVerificationService({ environment }),
-    isBiometricRuntimeEnabled: () => attendanceBiometricRuntimeEnabled(environment)
+    isBiometricRuntimeEnabled: () => attendanceBiometricRuntimeEnabled(environment),
+    isGeofenceOnlyUatEnabled: () => attendanceGeofenceOnlyUatEnabled(environment)
   });
   const uatService = faceChallengeUatService || createAttendanceFaceChallengeUatService();
   const engineUatService = faceEngineUatService || createAttendanceFaceEngineUatService({ environment });
@@ -141,6 +149,10 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
 
   function requireFaceEngineUat(_req, _res, next) {
     return attendanceFaceEngineUatEnabled(environment) ? next() : next(new HttpError(404, 'Not found.'));
+  }
+
+  function requireGeofenceOnlyUat(_req, _res, next) {
+    return attendanceGeofenceOnlyUatEnabled(environment) ? next() : next(new HttpError(404, 'Not found.'));
   }
 
   router.post('/uat/face-challenge/start', requireFaceChallengeUat, authenticateMiddleware, async (req, res, next) => {
@@ -207,6 +219,13 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
     try { const input = deviceProofInput.parse(req.body); res.json({ data: await service.verifyDeviceProof({ actor: req.user, sessionId: uuid.parse(req.params.id), ...input }) }); } catch (error) { next(error); }
   });
 
+  router.post('/verification/:id/geofence-only-uat/receipt', requireGeofenceOnlyUat, async (req, res, next) => {
+    try {
+      const input = geofenceOnlyUatReceiptInput.parse(req.body);
+      res.json({ data: await service.issueGeofenceOnlyUatEventReceipt({ actor: req.user, sessionId: uuid.parse(req.params.id), ...input }) });
+    } catch (error) { next(error); }
+  });
+
   router.post('/verification/:id/face-match', faceCaptureUpload, async (req, res, next) => {
     try {
       if (Object.keys(req.body || {}).length !== 0) throw new HttpError(400, 'Unexpected face-verification fields.', { code: 'ATTENDANCE_FACE_INPUT_INVALID' });
@@ -229,6 +248,7 @@ const router = createAttendanceRoutes();
 module.exports = {
   router,
   attendanceApiEnabled,
+  attendanceGeofenceOnlyUatEnabled,
   selfHostedFaceRuntimeConfigured,
   inProcessFaceRuntimeConfigured,
   attendanceBiometricRuntimeEnabled,

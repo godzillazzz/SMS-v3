@@ -12,6 +12,7 @@ const { validJpegFixture } = require('./support/valid-jpeg-fixture');
 const {
   createAttendanceRoutes,
   attendanceApiEnabled,
+  attendanceGeofenceOnlyUatEnabled,
   selfHostedFaceRuntimeConfigured,
   inProcessFaceRuntimeConfigured,
   attendanceBiometricRuntimeEnabled
@@ -135,6 +136,10 @@ function serviceSpy() {
         calls.push(['face-match', input]);
         return { ok: true, verificationAccepted: true, receipt: 'r'.repeat(43), evidence: { storageStatus: 'NOT_STORED', stored: false } };
       },
+      async issueGeofenceOnlyUatEventReceipt(input) {
+        calls.push(['uat-receipt', input]);
+        return { ok: true, verificationMode: 'GEOFENCE_ONLY_UAT', receipt: 'server-issued-uat-receipt', receiptExpiresAt: '2026-08-24T03:02:00.000Z' };
+      },
       async acceptVerifiedEvent(input) {
         calls.push(['event', input]);
         return { ok: true, attendanceAccepted: true, idempotent: false, event: { id: 'event-1' }, session: { id: 'attendance-session-1' } };
@@ -171,6 +176,53 @@ test('Preview route remains hidden unless ATTENDANCE_API_PREVIEW_ENABLED is expl
   const response = await request(app).post('/api/v1/attendance/readiness').set('Authorization', 'Bearer route-test').send({});
   assert.equal(response.status, 404);
   assert.equal(spy.calls.length, 0);
+});
+
+test('controlled geofence-only UAT gate is Production-only and requires the Attendance API gate', () => {
+  assert.equal(attendanceGeofenceOnlyUatEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true', G06_GEOFENCE_ONLY_UAT_ENABLED: 'true' }), true);
+  assert.equal(attendanceGeofenceOnlyUatEnabled({ VERCEL_ENV: 'production', G06_GEOFENCE_ONLY_UAT_ENABLED: 'true' }), false);
+  assert.equal(attendanceGeofenceOnlyUatEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', G06_GEOFENCE_ONLY_UAT_ENABLED: 'true' }), false);
+});
+
+test('geofence-only UAT receipt route is hidden in Preview even if its flag is set', async () => {
+  const spy = serviceSpy();
+  const app = appFor({ environment: { VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', G06_GEOFENCE_ONLY_UAT_ENABLED: 'true' }, service: spy.service });
+  const response = await request(app)
+    .post('/api/v1/attendance/verification/55555555-5555-4555-8555-555555555555/geofence-only-uat/receipt')
+    .set('Authorization', 'Bearer route-test')
+    .send({ attendanceContext: context });
+  assert.equal(response.status, 404);
+  assert.equal(spy.calls.length, 0);
+});
+
+test('Production geofence-only UAT receipt route accepts only strict context and requires authentication', async () => {
+  const spy = serviceSpy();
+  const app = appFor({
+    environment: { VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true', G06_GEOFENCE_ONLY_UAT_ENABLED: 'true' },
+    service: spy.service
+  });
+  const sessionId = '55555555-5555-4555-8555-555555555555';
+  const response = await request(app)
+    .post(`/api/v1/attendance/verification/${sessionId}/geofence-only-uat/receipt`)
+    .set('Authorization', 'Bearer route-test')
+    .send({ attendanceContext: context });
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.verificationMode, 'GEOFENCE_ONLY_UAT');
+  assert.equal(spy.calls[0][0], 'uat-receipt');
+  assert.deepEqual(spy.calls[0][1], { actor: { sub: 'route-user', role: 'VIEWER' }, sessionId, attendanceContext: context });
+
+  const forged = await request(app)
+    .post(`/api/v1/attendance/verification/${sessionId}/geofence-only-uat/receipt`)
+    .set('Authorization', 'Bearer route-test')
+    .send({ attendanceContext: context, faceMatchPassed: true });
+  assert.equal(forged.status, 400);
+  assert.equal(spy.calls.length, 1);
+
+  const anonymous = await request(app)
+    .post(`/api/v1/attendance/verification/${sessionId}/geofence-only-uat/receipt`)
+    .send({ attendanceContext: context });
+  assert.equal(anonymous.status, 401);
+  assert.equal(spy.calls.length, 1);
 });
 
 test('flagged Preview Attendance route requires authentication before contract execution', async () => {

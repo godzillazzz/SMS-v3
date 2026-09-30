@@ -47,13 +47,13 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
     expect(css).toContain('min-height: 60px;');
   });
 
-  it('uses Thai-first Dashboard hierarchy with four premium KPIs and Quick Access before deeper summaries', () => {
-    expect(dashboardHero).toContain('<h1>แดชบอร์ด</h1>');
-    expect(dashboardHero).not.toContain('OPERATIONS CENTER');
-    for (const label of ['กำลังปฏิบัติงาน', 'ลาวันนี้', 'รออนุมัติ', 'ต้องติดตาม']) expect(metrics).toContain(label);
-    expect(metrics).not.toContain('EXECUTIVE SNAPSHOT');
-    expect(dashboardPage).toContain('dashboard-top-row');
-    expect(dashboardPage.indexOf('<QuickActionsCard')).toBeLessThan(dashboardPage.indexOf('dashboard-secondary-grid'));
+  it('uses the approved Command Nexus hierarchy with four operational KPIs before deeper signals', () => {
+    expect(dashboardPage).toContain('Command Overview');
+    expect(dashboardPage).toContain('nexus-command__grid');
+    for (const label of ['ACTIVE PERSONNEL', 'ON DUTY TODAY', 'LEAVE / PENDING', 'LICENSE WATCH']) expect(dashboardPage).toContain(label);
+    expect(dashboardPage).toContain('GIS INTEGRATION PENDING');
+    expect(dashboardPage).toContain('nexus-kpis');
+    expect(dashboardPage.indexOf('nexus-kpis')).toBeLessThan(dashboardPage.indexOf('nexus-lower-grid'));
     expect(css).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
     expect(css).toContain('min-height: 146px;');
   });

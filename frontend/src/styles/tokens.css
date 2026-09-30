@@ -114,6 +114,16 @@
   color-scheme: light;
   --color-bg: #faf8fc;
   --color-surface: #ffffff;
+  /* Enterprise semantic surfaces: components consume roles, not palette values. */
+  --surface-page: var(--color-bg);
+  --surface-card: var(--color-surface);
+  --surface-raised: var(--color-surface-elevated);
+  --surface-control: var(--color-surface-muted);
+  --surface-selected: var(--color-primary-soft);
+  --surface-overlay: var(--color-surface-elevated);
+  --border-card: var(--color-border);
+  --text-on-surface: var(--color-text);
+  --text-on-surface-muted: var(--color-text-secondary);
   --color-surface-elevated: #ffffff;
   --color-surface-muted: #f3f2f7;
   --color-surface-subtle: #fbfaff;
@@ -221,6 +231,15 @@
   color-scheme: dark;
   --color-bg: #090d18;
   --color-surface: #111827;
+  --surface-page: var(--color-bg);
+  --surface-card: var(--color-surface);
+  --surface-raised: var(--color-surface-elevated);
+  --surface-control: var(--color-surface-muted);
+  --surface-selected: var(--color-primary-soft);
+  --surface-overlay: var(--color-surface-elevated);
+  --border-card: var(--color-border);
+  --text-on-surface: var(--color-text);
+  --text-on-surface-muted: var(--color-text-secondary);
   --color-surface-elevated: #161e30;
   --color-surface-muted: #1b2334;
   --color-surface-subtle: #0f1625;

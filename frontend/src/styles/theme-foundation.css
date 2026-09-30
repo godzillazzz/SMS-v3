@@ -112,7 +112,7 @@ textarea {
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   color: var(--color-text);
-  background: var(--color-surface-elevated);
+  background: var(--surface-raised, var(--color-surface-elevated));
   caret-color: var(--color-primary);
 }
 
@@ -146,7 +146,7 @@ input[type="radio"] { accent-color: var(--color-primary); }
   border-color: var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text);
-  background: var(--color-surface);
+  background: var(--surface-card, var(--color-surface));
   box-shadow: var(--shadow-sm);
 }
 
@@ -220,7 +220,7 @@ input[type="radio"] { accent-color: var(--color-primary); }
 .dashboard-quick-actions__grid button,
 .dashboard-hero__status {
   border-color: var(--color-border);
-  background: var(--color-surface);
+  background: var(--surface-card, var(--color-surface));
   box-shadow: var(--shadow-sm);
 }
 
@@ -241,13 +241,13 @@ input[type="radio"] { accent-color: var(--color-primary); }
 .dashboard-metric { border-left-color: var(--metric-accent, var(--color-primary)); }
 .dashboard-metric__icon { color: var(--metric-accent, var(--color-primary)); background: color-mix(in srgb, var(--metric-accent, var(--color-primary)) 14%, transparent); }
 .dashboard-donut { background: conic-gradient(var(--color-primary) 0 var(--dashboard-progress), var(--color-border) var(--dashboard-progress) 360deg); }
-.dashboard-donut > div { background: var(--color-surface); }
+.dashboard-donut > div { background: var(--surface-card, var(--color-surface)); }
 .dashboard-status-track { background: var(--color-surface-muted); }
 .dashboard-activity-dot { background: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft); }
 .dashboard-link-button { color: var(--color-primary); }
 .dashboard-filter-bar__icon { color: var(--color-primary); background: var(--color-primary-soft); }
 .dashboard-filter-bar__controls input,
-.dashboard-filter-bar__controls select { color: var(--color-text); background: var(--color-surface-elevated); border-color: var(--color-border-strong); }
+.dashboard-filter-bar__controls select { color: var(--color-text); background: var(--surface-raised, var(--color-surface-elevated)); border-color: var(--color-border-strong); }
 .dashboard-skeleton,
 .dashboard-list-skeleton span { background: linear-gradient(90deg, var(--color-surface-muted), var(--color-surface-elevated), var(--color-surface-muted)); background-size: 200% 100%; }
 
@@ -320,7 +320,7 @@ input[type="radio"] { accent-color: var(--color-primary); }
 .theme-control button:hover { color: var(--color-text); background: color-mix(in srgb, var(--color-surface-elevated) 76%, transparent); }
 .theme-control button.is-active {
   color: var(--color-primary);
-  background: var(--color-surface-elevated);
+  background: var(--surface-raised, var(--color-surface-elevated));
   border-color: var(--color-border);
   box-shadow: var(--shadow-sm);
 }
@@ -376,3 +376,12 @@ input[type="radio"] { accent-color: var(--color-primary); }
 }
 
 /* Shell icon placement is owned by styles/app-shell.css. */
+
+/* Enterprise UX convergence — shared interaction, hierarchy and motion. */
+:root{--motion-fast:140ms;--motion-standard:200ms;--motion-slow:280ms;--ease-enterprise:cubic-bezier(.2,.8,.2,1)}
+@media (prefers-reduced-motion:no-preference){.app-shell:not(.pwa-shell) :is(button,a,input,select,textarea,.dashboard-card,.metric-card,.settings-card,.dashboard-panel,.dashboard-metric,.data-surface,.data-surface-card){transition:background-color var(--motion-standard) var(--ease-enterprise),border-color var(--motion-standard) var(--ease-enterprise),box-shadow var(--motion-standard) var(--ease-enterprise),color var(--motion-fast) ease,transform var(--motion-fast) var(--ease-enterprise)}.app-shell:not(.pwa-shell) :is(button,a)[href]:active,.app-shell:not(.pwa-shell) button:active{transform:translateY(1px)}}
+@media (prefers-reduced-motion:reduce){.app-shell:not(.pwa-shell) *, .app-shell:not(.pwa-shell) *::before,.app-shell:not(.pwa-shell) *::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+.app-shell:not(.pwa-shell) :is(.dashboard-panel,.dashboard-metric,.dashboard-card,.metric-card,.settings-card,.data-surface,.data-surface-card){background:var(--surface-card,var(--color-surface));border-color:var(--border-card,var(--color-border));color:var(--text-on-surface,var(--color-text))}
+.app-shell:not(.pwa-shell) :is(input:not([type=checkbox]):not([type=radio]),select,textarea){background:var(--surface-raised,var(--color-surface-elevated));color:var(--text-on-surface,var(--color-text))}
+.app-shell:not(.pwa-shell) :is(.dashboard-panel,.dashboard-card,.settings-card) :is(h1,h2,h3){text-wrap:balance}
+.app-shell:not(.pwa-shell) :is(.dashboard-panel,.dashboard-card,.settings-card) p{text-wrap:pretty}

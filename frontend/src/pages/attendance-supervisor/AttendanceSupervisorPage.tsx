@@ -923,7 +923,8 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
     )}
   </div>;
 
-  return <section className="attendance-supervisor-v4">
+  return <section className="attendance-supervisor-v4 nexus-attendance-ops" aria-label="Attendance Operations Control">
+    <div className="nexus-page-breadcrumb">SMS NEXUS / WORKFORCE / ATTENDANCE SUPERVISOR</div>
     <header className="attendance-supervisor-v4__hero">
       <div>
         <span className="attendance-supervisor-v4__eyebrow">การควบคุมการลงเวลา</span>
@@ -1133,7 +1134,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
                 <span><b>Maker</b> {request.makerDisplayName || roleDisplayName(request.makerRoleSnapshot)}</span>
                 <span><b>Revision</b> {request.currentRevision}</span>
                 <span><b>สร้างเมื่อ</b> {dateTime(request.createdAt)}</span>
-                {request.approverDisplayName && <span><b>Approver</b> {request.approverDisplayName}</span>}
+                {request.approverDisplayName && <span><b>ผู้อนุมัติ</b> {request.approverDisplayName}</span>}
               </div>
 
               <div className="attendance-supervisor-v4__request-reason">

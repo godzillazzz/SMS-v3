@@ -2,11 +2,19 @@
 
 const crypto = require('node:crypto');
 const prismaDefault = require('../config/prisma');
+const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { createFaceVerificationSessionService } = require('./face-verification-session.service');
 const { createAttendanceSiteEvidenceService } = require('./attendance-site-evidence.service');
 const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
+const {
+  GEOFENCE_ONLY_UAT_MODE,
+  GEOFENCE_ONLY_UAT_EMPLOYEE_CODE,
+  GEOFENCE_ONLY_UAT_RECEIPT_TTL_MS,
+  issueGeofenceOnlyUatReceipt: signGeofenceOnlyUatReceipt,
+  verifyGeofenceOnlyUatReceipt
+} = require('./attendance-geofence-only-uat-receipt.service');
 
 const CONTEXT_VERSION = 'ATTENDANCE_FACE_CONTEXT_V1';
 const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
@@ -113,11 +121,22 @@ function createAttendanceVerificationContextService({
   faceSessionService = null,
   siteEvidenceService = null,
   siteAuthorityService = null,
-  clock = () => new Date()
+  clock = () => new Date(),
+  audit = auditDefault,
+  isGeofenceOnlyUatEnabled = () => false,
+  receiptSecret = () => process.env.JWT_SECRET
 } = {}) {
   const face = faceSessionService || createFaceVerificationSessionService({ prisma, clock });
   const siteEvidence = siteEvidenceService || createAttendanceSiteEvidenceService({ prisma, clock });
   const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
+
+  function geofenceOnlyUatEnabled() {
+    try { return isGeofenceOnlyUatEnabled() === true; } catch { return false; }
+  }
+
+  function geofenceOnlyUatSecret() {
+    try { return receiptSecret(); } catch { return ''; }
+  }
 
   async function resolveIdentity(client, actor) {
     const user = await client.user.findUnique({
@@ -127,14 +146,29 @@ function createAttendanceVerificationContextService({
         employeeId: true,
         isActive: true,
         accountStatus: true,
-        employee: { select: { id: true, isActive: true, deletedAt: true } }
+        employee: { select: { id: true, employeeCode: true, isActive: true, deletedAt: true } }
       }
     });
     if (!user?.employeeId || !user.employee) throw http(403, 'ATTENDANCE_EMPLOYEE_LINK_REQUIRED', 'A linked employee account is required.');
     if (!user.isActive || user.accountStatus !== 'ACTIVE' || !user.employee.isActive || user.employee.deletedAt) {
       throw http(409, 'INACTIVE_EMPLOYEE_OPERATION', 'Inactive employees cannot prepare Attendance verification.');
     }
-    return { userId: user.id, employeeId: user.employee.id };
+    return { userId: user.id, employeeId: user.employee.id, employeeCode: user.employee.employeeCode };
+  }
+
+  async function isGeofenceOnlyUatActor({ actor }, client = prisma) {
+    if (!geofenceOnlyUatEnabled()) return false;
+    const identity = await resolveIdentity(client, actor);
+    return identity.employeeCode === GEOFENCE_ONLY_UAT_EMPLOYEE_CODE;
+  }
+
+  async function requireGeofenceOnlyUatIdentity(actor, client = prisma) {
+    if (!geofenceOnlyUatEnabled()) throw http(404, 'GEOFENCE_ONLY_UAT_DISABLED', 'Controlled geofence-only Attendance mode is disabled.');
+    const identity = await resolveIdentity(client, actor);
+    if (identity.employeeCode !== GEOFENCE_ONLY_UAT_EMPLOYEE_CODE) {
+      throw http(403, 'GEOFENCE_ONLY_UAT_NOT_ALLOWED', 'Controlled geofence-only Attendance mode is not enabled for this employee.');
+    }
+    return identity;
   }
 
   async function resolveBiometricAuthority(client, employeeId) {
@@ -352,7 +386,132 @@ function createAttendanceVerificationContextService({
       await face.failSession(session.id, 'ATTENDANCE_CONTEXT_STALE').catch(() => {});
       throw http(409, 'ATTENDANCE_CONTEXT_STALE', 'Attendance authority changed while preparing face verification.');
     }
-    return { ...created, eventIntent, attendanceContext };
+    return { ...created, eventIntent, attendanceContext, employeeCode: identity.employeeCode };
+  }
+
+  async function issueGeofenceOnlyUatReceipt({ actor, sessionId, attendanceContext }) {
+    const identity = await requireGeofenceOnlyUatIdentity(actor);
+    const normalizedSessionId = normalizedUuid(sessionId, 'FACE_VERIFICATION_SESSION_INVALID');
+    const resolved = await resolveContextRef({ actor, ref: attendanceContext });
+    const session = await prisma.faceVerificationSession.findUnique({ where: { id: normalizedSessionId } });
+    const now = clock();
+    if (!session
+      || session.userId !== identity.userId
+      || session.employeeId !== identity.employeeId
+      || session.deviceEnrollmentId !== resolved.authority.deviceEnrollmentId
+      || session.referencePhotoId !== resolved.authority.referencePhotoId
+      || session.purpose !== 'ATTENDANCE_EVENT'
+      || session.contextDigest !== resolved.contextDigest
+      || session.status !== 'DEVICE_PROOF_VERIFIED'
+      || !(session.deviceProofVerifiedAt instanceof Date)
+      || !(session.expiresAt instanceof Date)
+      || session.expiresAt <= now) {
+      throw http(409, 'GEOFENCE_ONLY_UAT_SESSION_NOT_READY', 'A current, device-verified Attendance session is required.');
+    }
+    const event = await prisma.attendanceEvent.findUnique({ where: { faceVerificationSessionId: session.id }, select: { id: true } });
+    if (event) throw http(409, 'GEOFENCE_ONLY_UAT_RECEIPT_REPLAYED', 'This Attendance verification session has already been consumed.');
+
+    const issuedAt = now.getTime();
+    const expiresAt = Math.min(session.expiresAt.getTime(), issuedAt + GEOFENCE_ONLY_UAT_RECEIPT_TTL_MS);
+    if (expiresAt <= issuedAt) throw http(410, 'VERIFICATION_EXPIRED', 'Attendance verification session expired.');
+    const claims = {
+      version: 1,
+      verificationMode: GEOFENCE_ONLY_UAT_MODE,
+      employeeCode: identity.employeeCode,
+      sessionId: session.id,
+      userId: identity.userId,
+      employeeId: identity.employeeId,
+      deviceEnrollmentId: session.deviceEnrollmentId,
+      referencePhotoId: session.referencePhotoId,
+      eventIntent: resolved.contextRef.eventIntent,
+      captureId: resolved.contextRef.captureId,
+      shiftAssignmentId: resolved.contextRef.shiftAssignmentId,
+      contextDigest: resolved.contextDigest,
+      nonce: crypto.randomUUID(),
+      issuedAt,
+      expiresAt
+    };
+    const receipt = signGeofenceOnlyUatReceipt({ claims, secret: geofenceOnlyUatSecret() });
+    await audit.log({
+      actorUserId: identity.userId,
+      action: 'UPDATE',
+      entityType: 'FaceVerificationSession',
+      entityId: session.id,
+      metadata: {
+        event: 'GEOFENCE_ONLY_UAT_RECEIPT_ISSUED',
+        verificationMode: GEOFENCE_ONLY_UAT_MODE,
+        employeeCode: identity.employeeCode,
+        deviceEnrollmentId: session.deviceEnrollmentId,
+        shiftAssignmentId: resolved.authority.shiftAssignmentId,
+        securitySiteId: resolved.authority.securitySiteId,
+        contextDigest: resolved.contextDigest,
+        faceVerificationPerformed: false,
+        activeChallengePerformed: false,
+        expiresAt: new Date(expiresAt).toISOString()
+      }
+    });
+    return { receipt, receiptExpiresAt: new Date(expiresAt).toISOString(), verificationMode: GEOFENCE_ONLY_UAT_MODE };
+  }
+
+  async function consumeGeofenceOnlyUatReceiptInTransaction({ tx, actor, receipt, attendanceContext }) {
+    if (!tx) throw http(500, 'ATTENDANCE_TRANSACTION_REQUIRED', 'Attendance receipt consumption requires an existing transaction.');
+    const identity = await requireGeofenceOnlyUatIdentity(actor, tx);
+    const claims = verifyGeofenceOnlyUatReceipt({ receipt, secret: geofenceOnlyUatSecret(), now: clock().getTime() });
+    if (!claims) throw http(409, 'GEOFENCE_ONLY_UAT_RECEIPT_INVALID', 'Controlled geofence-only Attendance receipt is invalid or expired.');
+    const resolved = await resolveContextRef({ actor, ref: attendanceContext }, tx);
+    const session = await tx.faceVerificationSession.findUnique({ where: { id: claims.sessionId } });
+    const now = clock();
+    const exactClaims = claims.userId === identity.userId
+      && claims.employeeId === identity.employeeId
+      && claims.employeeCode === identity.employeeCode
+      && claims.captureId === resolved.contextRef.captureId
+      && claims.eventIntent === resolved.contextRef.eventIntent
+      && claims.shiftAssignmentId === resolved.contextRef.shiftAssignmentId
+      && claims.contextDigest === resolved.contextDigest
+      && claims.deviceEnrollmentId === resolved.authority.deviceEnrollmentId
+      && claims.referencePhotoId === resolved.authority.referencePhotoId;
+    if (!exactClaims
+      || !session
+      || session.userId !== identity.userId
+      || session.employeeId !== identity.employeeId
+      || session.deviceEnrollmentId !== claims.deviceEnrollmentId
+      || session.referencePhotoId !== claims.referencePhotoId
+      || session.purpose !== 'ATTENDANCE_EVENT'
+      || session.contextDigest !== resolved.contextDigest
+      || session.status !== 'DEVICE_PROOF_VERIFIED'
+      || !(session.deviceProofVerifiedAt instanceof Date)
+      || !(session.expiresAt instanceof Date)
+      || session.expiresAt <= now) {
+      throw http(409, 'GEOFENCE_ONLY_UAT_RECEIPT_STALE', 'Controlled Attendance authority changed or the receipt was already used.');
+    }
+    const existingEvent = await tx.attendanceEvent.findUnique({ where: { faceVerificationSessionId: session.id }, select: { id: true } });
+    if (existingEvent) throw http(409, 'GEOFENCE_ONLY_UAT_RECEIPT_REPLAYED', 'This Attendance verification session has already been consumed.');
+    const claimed = await tx.faceVerificationSession.updateMany({
+      where: {
+        id: session.id,
+        userId: identity.userId,
+        employeeId: identity.employeeId,
+        status: 'DEVICE_PROOF_VERIFIED',
+        contextDigest: resolved.contextDigest,
+        expiresAt: { gt: now }
+      },
+      data: { status: 'CONSUMED' }
+    });
+    if (claimed.count !== 1) throw http(409, 'GEOFENCE_ONLY_UAT_RECEIPT_REPLAYED', 'This Attendance verification session has already been consumed.');
+    return {
+      sessionId: session.id,
+      employeeId: identity.employeeId,
+      userId: identity.userId,
+      deviceEnrollmentId: session.deviceEnrollmentId,
+      referencePhotoId: session.referencePhotoId,
+      contextDigest: resolved.contextDigest,
+      deviceProofVerifiedAt: session.deviceProofVerifiedAt,
+      verificationMode: GEOFENCE_ONLY_UAT_MODE,
+      employeeCode: identity.employeeCode,
+      securitySiteId: resolved.authority.securitySiteId,
+      faceVerificationPerformed: false,
+      activeChallengePerformed: false
+    };
   }
 
   function expectedReceipt(resolved) {
@@ -383,6 +542,9 @@ function createAttendanceVerificationContextService({
     resolveEventIntent,
     resolveContextRef,
     prepareVerification,
+    isGeofenceOnlyUatActor,
+    issueGeofenceOnlyUatReceipt,
+    consumeGeofenceOnlyUatReceiptInTransaction,
     consumeVerification,
     consumeVerificationInTransaction
   };

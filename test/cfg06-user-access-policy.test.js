@@ -72,6 +72,8 @@ test('CFG-06 USER_ACCESS policy permits Manager only within legacy pending-to-Vi
   assert.equal(result.role, 'VIEWER');
   assert.equal(result.accountStatus, 'ACTIVE');
   assert.equal(result.isActive, true);
+  assert.equal(result.approvedByLegacyRef, 'manager-1');
+  assert.ok(result.approvedAt instanceof Date);
   assert.equal(calls.length, 1);
 });
 

@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="th">
+<html lang="th" class="dark" style="background-color: #020813 !important; color-scheme: dark;">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0B58D8" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="SMS" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -25,9 +25,16 @@
         }
       })();
     </script>
+    <style>
+      :root { color-scheme: dark; background: #020813; }
+      html, body, #root, #__next { background: #020813 !important; background-color: #020813 !important; color: #f1f5f9; margin: 0 !important; padding: 0 !important; min-height: 100vh !important; width: 100% !important; }
+      html, body { overflow-x: hidden; overscroll-behavior-x: none; }
+      body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+      #root { isolation: isolate; }
+    </style>
     <title>Security Management System</title>
   </head>
-  <body>
+  <body style="background-color: #020813 !important; margin: 0; padding: 0;">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

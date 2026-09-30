@@ -236,6 +236,16 @@
       "scopes": ["production", "preview"],
       "branchOverrideAllowed": false,
       "ownerNotes": "Must be explicit. Default release policy is false unless separately governed."
+    },
+    "G06_GEOFENCE_ONLY_UAT_ENABLED": {
+      "purpose": "Temporary, allowlisted G06 geofence-only Attendance experiment for employee UAT-ST-20260902",
+      "masterSource": "Owner-authorized G06 UAT release instruction",
+      "sensitive": false,
+      "runtimeRequired": false,
+      "shared": false,
+      "scopes": ["production"],
+      "branchOverrideAllowed": false,
+      "ownerNotes": "Enable only for the controlled UAT attempt. Server code separately pins the authenticated employee code and continues device, schedule, site, and geofence validation. Disable/remove after the physical experiment."
     }
   },
   "policies": {

@@ -123,7 +123,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
     expect(page).toContain('accepted.idempotent === true');
     expect(page).toContain('setPendingAttendanceCommit(null)');
     expect(page).toContain('receipt เดิมหมดอายุแล้ว');
-    expect(page.match(/attendanceAcceptVerifiedEvent\(token/g)?.length).toBe(2);
+    expect(page.match(/attendanceAcceptVerifiedEvent\(token/g)?.length).toBe(3);
     expect(page).not.toContain('localStorage.setItem');
     expect(page).not.toContain('sessionStorage.setItem');
   });

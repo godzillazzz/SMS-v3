@@ -28,6 +28,8 @@ export type AttendanceDeviceEnrollment = {
   activatedAt?: string | null;
   revokedAt?: string | null;
   revokedReason?: string | null;
+  approvedByUserId?: string | null;
+  approvedBy?: { id: string; displayName?: string | null; role?: string | null };
 };
 
 export type AttendanceDeviceRequest = {
@@ -46,7 +48,8 @@ export type AttendanceDeviceRequest = {
   createdAt: string;
   candidateDevice?: AttendanceDeviceEnrollment;
   employee?: { id: string; displayName?: string | null; firstName?: string | null; lastName?: string | null; department?: string | null };
-  requestedBy?: { id: string; displayName?: string | null };
+  requestedBy?: { id: string; displayName?: string | null; role?: string | null };
+  reviewedBy?: { id: string; displayName?: string | null; role?: string | null };
 };
 
 type SelfState = {
@@ -313,7 +316,8 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
   const isReplacement = Boolean(activeDevice);
   const proofReady = Boolean(request?.candidateDevice?.proofVerifiedAt);
 
-  return <><section className="view-pane attendance-device-page">
+  return <><section className="view-pane attendance-device-page nexus-device-registry" aria-label="Trusted Device Registry">
+    <div className="nexus-page-breadcrumb">SMS NEXUS / SECURITY / ATTENDANCE DEVICES</div>
     <div className="page-heading attendance-device-heading">
       <div><p className="eyebrow">G06 · PERSONAL DEVICE</p><h1>อุปกรณ์ลงเวลา</h1><p>ผูกอุปกรณ์หลักกับ Employee แบบ 1 คน = 1 เครื่อง โดยเครื่องแรกและการเปลี่ยนเครื่องต้อง Admin อนุมัติ</p></div>
       <div className="heading-actions"><button type="button" className="btn-neutral small-action" disabled={busy} onClick={() => void refresh()}><SmsIcon name="refresh" size={17} />รีเฟรช</button></div>
@@ -329,7 +333,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
         {selfLoading ? <div className="attendance-device-state">กำลังอ่านสถานะอุปกรณ์…</div>
           : activeDevice ? <div className="attendance-device-current">
             <div className="attendance-device-current__hero"><span className="device-orb"><SmsIcon name="check" size={22} /></span><div><strong>{activeDevice.displayName}</strong><span>ACTIVE · ใช้เป็นอุปกรณ์หลักสำหรับ Attendance/Patrol</span></div></div>
-            <dl><div><dt>เปิดใช้งาน</dt><dd>{formatDate(activeDevice.activatedAt)}</dd></div><div><dt>แพลตฟอร์ม</dt><dd>{activeDevice.platformHint || 'Web'}</dd></div><div><dt>Key</dt><dd>{activeDevice.keyAlgorithm}</dd></div></dl>
+            <dl><div><dt>เปิดใช้งาน</dt><dd>{formatDate(activeDevice.activatedAt)}</dd></div><div><dt>ผู้อนุมัติ</dt><dd>{activeDevice.approvedBy?.displayName || 'ไม่พบชื่อผู้อนุมัติ'}</dd></div><div><dt>แพลตฟอร์ม</dt><dd>{activeDevice.platformHint || 'Web'}</dd></div><div><dt>Key</dt><dd>{activeDevice.keyAlgorithm}</dd></div></dl>
           </div> : !selfError ? <div className="attendance-device-state attendance-device-state--empty"><strong>ยังไม่มีอุปกรณ์หลัก</strong><span>ลงทะเบียนจากโทรศัพท์หรืออุปกรณ์ที่ต้องการใช้ลงเวลา แล้วรอ Admin อนุมัติ</span></div> : null}
         {selfError && <div className="alert alert-error" role="alert">{selfError}</div>}
       </article>
@@ -371,7 +375,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
         <div className="attendance-device-review-card__head"><div><strong>{adminEmployeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'}</span></div><span className={`status-badge ${row.activeDevice ? 'active' : 'muted'}`}>{row.activeDevice ? 'ACTIVE DEVICE' : 'NO ACTIVE DEVICE'}</span></div>
         {row.activeDevice ? <div className="attendance-device-review-meta"><div><span>อุปกรณ์ปัจจุบัน</span><b>{row.activeDevice.displayName}</b></div><div><span>Device Proof</span><b>{row.activeDevice.proofVerifiedAt ? `ผ่าน · ${formatDate(row.activeDevice.proofVerifiedAt)}` : 'ไม่พบหลักฐาน'}</b></div><div><span>Activated</span><b>{formatDate(row.activeDevice.activatedAt)}</b></div><div><span>Credential</span><b>{row.activeDevice.credentialFingerprint?.slice(0, 12) || '—'}…</b></div></div> : <div className="attendance-device-state attendance-device-state--empty"><strong>ไม่มีอุปกรณ์ ACTIVE</strong><span>พนักงานต้องลงทะเบียนและผ่าน Device Proof ก่อนส่ง Admin อนุมัติอุปกรณ์ใหม่</span></div>}
         {row.activeRequest && <p className="attendance-device-reason"><b>คำขอที่กำลังดำเนินการ:</b> {row.activeRequest.requestType} · {row.activeRequest.status}{row.activeRequest.reason ? ` · ${row.activeRequest.reason}` : ''}</p>}
-        <div className="attendance-device-history-block"><strong>Device History ({row.history.length})</strong>{row.history.map((device) => <div className="attendance-device-review-meta" key={device.id}><div><span>สถานะ</span><b>{device.status}</b></div><div><span>อุปกรณ์</span><b>{device.displayName}</b></div><div><span>Proof / Activation</span><b>{device.proofVerifiedAt ? 'PROOF VERIFIED' : 'PROOF NOT VERIFIED'} · {formatDate(device.activatedAt)}</b></div><div><span>Revoked</span><b>{formatDate(device.revokedAt)}{device.revokedReason ? ` · ${device.revokedReason}` : ''}</b></div></div>)}</div>
+        <div className="attendance-device-history-block"><strong>Device History ({row.history.length})</strong>{row.history.map((device) => <div className="attendance-device-review-meta" key={device.id}><div><span>สถานะ</span><b>{device.status}</b></div><div><span>อุปกรณ์</span><b>{device.displayName}</b></div><div><span>Proof / Activation</span><b>{device.proofVerifiedAt ? 'PROOF VERIFIED' : 'PROOF NOT VERIFIED'} · {formatDate(device.activatedAt)}</b></div><div><span>ผู้อนุมัติ</span><b>{device.approvedBy?.displayName || (device.status === 'ACTIVE' ? 'ไม่พบชื่อผู้อนุมัติ' : '-')}</b></div><div><span>Revoked</span><b>{formatDate(device.revokedAt)}{device.revokedReason ? ` · ${device.revokedReason}` : ''}</b></div></div>)}</div>
         {row.recentAudit.length > 0 && <div className="attendance-device-history-block"><strong>Recent Audit</strong>{row.recentAudit.slice(0, 5).map((audit) => <p className="attendance-device-reason" key={audit.id}><b>{String(audit.metadata?.event || audit.action)}</b> · {formatDate(audit.createdAt)} · {audit.actor?.displayName || 'System/Admin'}{typeof audit.metadata?.reason === 'string' ? ` · ${audit.metadata.reason}` : ''}</p>)}</div>}
         {row.activeDevice && <footer><button type="button" className="btn-danger-outline" disabled={busy || readOnly} onClick={() => { setRevokeTarget(row); setRevokeReason(''); }}>ยกเลิกอุปกรณ์ปัจจุบัน</button></footer>}
       </article>)}</div> : <div className="attendance-device-state attendance-device-state--empty"><strong>ยังไม่มีประวัติอุปกรณ์</strong><span>เมื่อมีการลงทะเบียนอุปกรณ์ รายการจะปรากฏที่นี่</span></div>}

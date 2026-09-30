@@ -92,7 +92,8 @@ export function ReportCenterPage({ token, role, onNavigate, initialTab = 'execut
     printDocument('.executive-report-print', pdfFilename);
   };
 
-  return <section className="report-center-page view-pane" aria-label="ศูนย์รายงานและวิเคราะห์">
+  return <section className="report-center-page view-pane nexus-report-intelligence" aria-label="Operational Intelligence & Reports">
+    <div className="nexus-page-breadcrumb">SMS NEXUS / INTELLIGENCE / REPORTS</div>
     <header className="report-center-heading">
       <div><p className="eyebrow">UNIFIED REPORT CENTER</p><h1>รายงานและวิเคราะห์</h1><p>Executive &amp; Operational Report Center</p></div>
       {(activeTab === 'executive' || activeTab === 'export') && <div className="report-center-quick-export" aria-label="ส่งออกด่วน"><button type="button" className="btn-primary" disabled={!executiveReport} onClick={exportPdf}>ส่งออก PDF</button></div>}

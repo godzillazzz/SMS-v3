@@ -97,12 +97,21 @@ function AccountDrawer({ account, role, originalUserId, suspendEscape = false, o
 }) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!account) return;
     const releaseScrollLock = acquireDocumentScrollLock();
     const timer = window.setTimeout(() => closeRef.current?.focus({ preventScroll: true }), 0);
+    return () => {
+      window.clearTimeout(timer);
+      releaseScrollLock();
+    };
+  }, [account?.id]);
+  useEffect(() => {
+    if (!account || suspendEscape) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+      if (event.key === 'Escape') { event.preventDefault(); onCloseRef.current(); return; }
       if (event.key !== 'Tab' || !drawerRef.current) return;
       const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter((element) => !element.hasAttribute('disabled'));
       if (!focusable.length) return;
@@ -110,24 +119,22 @@ function AccountDrawer({ account, role, originalUserId, suspendEscape = false, o
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
-    if (!suspendEscape) window.addEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey);
     return () => {
-      window.clearTimeout(timer);
       window.removeEventListener('keydown', onKey);
-      releaseScrollLock();
     };
-  }, [account, onClose, suspendEscape]);
+  }, [Boolean(account), suspendEscape]);
   if (!account) return null;
   const actions = visibleAccountActions(role, account, originalUserId);
   const moreActions: DataRowAction[] = [];
-  if (actions.includes('approve') && actions.includes('edit')) moreActions.push({ label: 'แก้ไขบัญชี', onSelect: () => onEdit(account) });
-  if (actions.includes('reset-password')) moreActions.push({ label: 'รีเซ็ตรหัสผ่าน', onSelect: () => onReset(account) });
-  if (actions.includes('view-as')) moreActions.push({ label: 'ดูในมุมมองผู้ใช้ (View As)', onSelect: () => onViewAs(account) });
-  if (actions.includes('activate') && actions.includes('edit')) moreActions.push({ label: 'เปิดใช้งานบัญชี', onSelect: () => onToggle(account) });
+  if (actions.includes('approve') && actions.includes('edit')) moreActions.push({ label: 'แก้ไขบัญชี', onSelect: (trigger) => onEdit(account, trigger) });
+  if (actions.includes('reset-password')) moreActions.push({ label: 'รีเซ็ตรหัสผ่าน', onSelect: (trigger) => onReset(account, trigger) });
+  if (actions.includes('view-as')) moreActions.push({ label: 'ดูในมุมมองผู้ใช้ (View As)', onSelect: (trigger) => onViewAs(account, trigger) });
+  if (actions.includes('activate') && actions.includes('edit')) moreActions.push({ label: 'เปิดใช้งานบัญชี', onSelect: (trigger) => onToggle(account, trigger) });
   const primary = actions.includes('approve') ? 'approve' : actions.includes('edit') ? 'edit' : actions.includes('activate') ? 'activate' : undefined;
 
   return <div className="account-drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !suspendEscape) onClose(); }}><aside ref={drawerRef} className="account-drawer operational-drawer" role="dialog" aria-modal="true" aria-labelledby="account-drawer-title"><header><div className="account-drawer-identity"><span className="account-drawer-avatar" aria-hidden="true"><SmsIcon name="users" size={21} /></span><div><p>ACCOUNT RECORD</p><h2 id="account-drawer-title">{account.displayName || 'บัญชีผู้ใช้งาน'}</h2><div className="account-drawer-context"><span className="role-badge">{roleLabel[account.role || ''] || account.role || 'ไม่ระบุบทบาท'}</span><span className={`access-account-state access-account-state--${String(account.accountStatus || '').toLowerCase()}`}>{statusLabel[String(account.accountStatus || '')] || 'ไม่ระบุสถานะ'}</span></div></div></div><button ref={closeRef} className="drawer-close overlay-close" type="button" onClick={onClose} aria-label="ปิดรายละเอียดบัญชี"><SmsIcon name="close" size={20} /></button></header><div className="account-drawer-body">
-    <section><div className="account-section-heading"><span aria-hidden="true"><SmsIcon name="users" size={18} /></span><div><h3>บัญชี</h3><p>ข้อมูลบทบาทและขอบเขตที่ระบบส่งกลับ</p></div></div><dl><div><dt>บทบาท</dt><dd>{roleLabel[account.role || ''] || account.role || 'ไม่ระบุ'}</dd></div><div><dt>หน่วยงาน</dt><dd>{account.department || 'ไม่ระบุหน่วยงาน'}</dd></div><div><dt>อัปเดตล่าสุด</dt><dd>{formatDate(account.updatedAt || account.createdAt)}</dd></div></dl></section>
+    <section><div className="account-section-heading"><span aria-hidden="true"><SmsIcon name="users" size={18} /></span><div><h3>บัญชี</h3><p>ข้อมูลบทบาทและขอบเขตที่ระบบส่งกลับ</p></div></div><dl><div><dt>บทบาท</dt><dd>{roleLabel[account.role || ''] || account.role || 'ไม่ระบุ'}</dd></div><div><dt>หน่วยงาน</dt><dd>{account.department || 'ไม่ระบุหน่วยงาน'}</dd></div><div><dt>อัปเดตล่าสุด</dt><dd>{formatDate(account.updatedAt || account.createdAt)}</dd></div>{account.approvedAt && <><div><dt>ผู้อนุมัติ</dt><dd>{account.approvedByDisplayName || 'ไม่พบชื่อผู้อนุมัติ'}</dd></div><div><dt>วันที่อนุมัติ</dt><dd>{formatDate(account.approvedAt)}</dd></div></>}</dl></section>
     <section><div className="account-section-heading"><span aria-hidden="true"><SmsIcon name="shield" size={18} /></span><div><h3>การเข้าถึง</h3><p>สถานะบัญชีและสถานะการใช้งานเป็นคนละข้อมูล</p></div></div><div className="drawer-status-grid"><div><span>สถานะบัญชี</span><b>{statusLabel[String(account.accountStatus || '')] || 'ไม่ระบุ'}</b></div><div><span>สถานะใช้งาน</span><AccountStatusBadge account={account} /></div></div></section>
     <section><div className="account-section-heading"><span aria-hidden="true"><SmsIcon name="key" size={18} /></span><div><h3>ความปลอดภัย</h3><p>แสดงเฉพาะสถานะที่จำเป็นต่อการจัดการบัญชี</p></div></div><div className="drawer-security-state"><ResetBadge required={account.passwordResetRequired} /><p>{account.passwordResetRequired ? 'บัญชีนี้ต้องตั้งรหัสผ่านใหม่ก่อนใช้งานตามขั้นตอนที่ระบบรองรับ' : 'ไม่มีข้อกำหนดเปลี่ยนรหัสผ่านที่ระบบส่งกลับในขณะนี้'}</p></div></section>
     <section><div className="account-section-heading"><span aria-hidden="true"><SmsIcon name="audit" size={18} /></span><div><h3>Audit &amp; Compliance</h3><p>เปิดบันทึกเหตุการณ์ตามสิทธิ์โดยไม่ขยายข้อมูลอ่อนไหวในหน้าจอนี้</p></div></div><button className="btn-info account-audit-action" type="button" onClick={onOpenAudit}>ดู Audit &amp; Compliance</button></section>

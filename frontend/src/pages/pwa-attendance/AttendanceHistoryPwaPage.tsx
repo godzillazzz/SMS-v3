@@ -86,7 +86,8 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
     return () => { active = false; };
   }, [online, range, selected.from, selected.to, token]);
 
-  return <section className="employee-v4-page employee-v4-list-page" aria-label="ประวัติการลงเวลา">
+  return <section className="employee-v4-page employee-v4-list-page nexus-mobile-history" aria-label="Attendance History">
+    <div className="nexus-mobile-breadcrumb">SMS NEXUS / MY DUTY / ATTENDANCE HISTORY</div>
     <header className="employee-v4-section-header">
       <div><p>ข้อมูลย้อนหลัง</p><h1>ประวัติการลงเวลา</h1><span>ข้อมูลเวลาที่เซิร์ฟเวอร์รับและบันทึกจริง</span></div>
       <span className="employee-v4-header-icon"><SmsIcon name="history" size={22} /></span>

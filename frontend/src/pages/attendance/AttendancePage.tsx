@@ -7,6 +7,7 @@ import {
   attendanceAcceptVerifiedEvent,
   attendanceDeviceState,
   attendanceVerificationStart,
+  attendanceGeofenceOnlyUatReceipt,
   attendanceFaceMatch,
   attendanceSelfToday,
   verifyAttendanceDeviceProof,
@@ -146,11 +147,14 @@ const readinessCopy: Record<string, Copy> = {
 type AttendanceLocationIssueCode = 'LOCATION_PERMISSION_DENIED' | 'LOCATION_TIMEOUT' | 'LOCATION_UNAVAILABLE' | 'LOCATION_NOT_SUPPORTED';
 type AttendanceFailurePresentation = 'ATTENDANCE' | 'VERIFICATION' | 'ACTIVE_CHALLENGE';
 
+type AttendanceVerificationMode = 'BIOMETRIC' | 'GEOFENCE_ONLY_UAT';
+
 type PendingAttendanceCommit = {
   receipt: string;
   receiptExpiresAt: string | null;
   attendanceContext: AttendanceContextRef;
   intent: AttendanceEventIntent;
+  verificationMode: AttendanceVerificationMode;
 };
 
 function canRetryVerifiedAttendanceCommit(readiness: { state?: string | null } | null | undefined) {
@@ -283,9 +287,9 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
   const [faceCaptureOpen, setFaceCaptureOpen] = useState(false);
   const [verificationBusy, setVerificationBusy] = useState(false);
   const [verificationStage, setVerificationStage] = useState<string>();
-  const [verificationSession, setVerificationSession] = useState<{ sessionId: string; attendanceContext: AttendanceContextRef; activeChallenge: AttendanceActiveChallenge } | null>(null);
+  const [verificationSession, setVerificationSession] = useState<{ sessionId: string; attendanceContext: AttendanceContextRef; activeChallenge: AttendanceActiveChallenge | null; verificationMode: AttendanceVerificationMode } | null>(null);
   const [pendingAttendanceCommit, setPendingAttendanceCommit] = useState<PendingAttendanceCommit | null>(null);
-  const [attendanceAccepted, setAttendanceAccepted] = useState<{ intent: AttendanceEventIntent | null; acceptedAt: string; eventId?: string | null; sessionId?: string | null; recovered?: boolean } | null>(null);
+  const [attendanceAccepted, setAttendanceAccepted] = useState<{ intent: AttendanceEventIntent | null; acceptedAt: string; eventId?: string | null; sessionId?: string | null; recovered?: boolean; verificationMode?: AttendanceVerificationMode } | null>(null);
   const [qrStepUpRequired, setQrStepUpRequired] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [todayData, setTodayData] = useState<AttendanceSelfTodayData>();
@@ -466,6 +470,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     setVerificationBusy(true);
     setVerificationStage('กำลังขอ Verification session จาก Server…');
     setError(undefined);
+    let verificationMode: AttendanceVerificationMode = 'BIOMETRIC';
     try {
       const started = await attendanceVerificationStart(token, {
         captureId,
@@ -496,7 +501,9 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         return;
       }
       setQrStepUpRequired(false);
-      if (!verification.sessionId || !verification.deviceEnrollmentId || !verification.challengeId || !verification.challenge || !verification.attendanceContext || !verification.activeChallenge) {
+      verificationMode = verification.verificationMode === 'GEOFENCE_ONLY_UAT' ? 'GEOFENCE_ONLY_UAT' : 'BIOMETRIC';
+      const controlledUat = verificationMode === 'GEOFENCE_ONLY_UAT';
+      if (!verification.sessionId || !verification.deviceEnrollmentId || !verification.challengeId || !verification.challenge || !verification.attendanceContext || (!controlledUat && !verification.activeChallenge)) {
         throw new Error('Server ไม่ได้ออก Verification session, Device binding และ Active Challenge ที่สมบูรณ์');
       }
 
@@ -510,7 +517,83 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       });
       if (shouldStopOperation(operationEpoch)) return;
 
-      setVerificationSession({ sessionId: verification.sessionId, attendanceContext: verification.attendanceContext, activeChallenge: verification.activeChallenge });
+      setVerificationSession({ sessionId: verification.sessionId, attendanceContext: verification.attendanceContext, activeChallenge: verification.activeChallenge, verificationMode });
+      if (controlledUat) {
+        setVerificationStage('Device proof ผ่านแล้ว · กำลังตรวจ geofence และออกหลักฐาน controlled UAT โดยไม่ใช้ Face / Active Challenge');
+        const issued = await attendanceGeofenceOnlyUatReceipt(token, verification.sessionId, verification.attendanceContext);
+        if (shouldStopOperation(operationEpoch)) return;
+        if (issued.ok !== true || !issued.receipt) {
+          setVerificationSession(null);
+          if (issued.readiness) setReadiness(issued.readiness);
+          const blockedCopy = issued.readiness ? fallbackCopy(issued.readiness) : null;
+          setFailurePresentation('VERIFICATION');
+          setVerificationStage(blockedCopy?.title || 'Controlled geofence-only UAT ยังไม่พร้อม');
+          setError(blockedCopy?.detail || 'Server ยังไม่ออกหลักฐาน UAT สำหรับการลงเวลาครั้งนี้');
+          return;
+        }
+        const acceptedIntent = verification.attendanceContext.eventIntent || started.data.eventIntent;
+        if (!acceptedIntent) throw new Error('Server intent ไม่พร้อม กรุณาเริ่มตรวจสอบใหม่');
+        const pending: PendingAttendanceCommit = {
+          receipt: issued.receipt,
+          receiptExpiresAt: issued.receiptExpiresAt || null,
+          attendanceContext: verification.attendanceContext,
+          intent: acceptedIntent,
+          verificationMode
+        };
+        setPendingAttendanceCommit(pending);
+        setVerificationSession(null);
+        setVerificationStage('Device proof และ geofence ผ่านแล้ว · Server กำลังบันทึก AttendanceEvent ใน controlled UAT mode');
+        const accepted = await attendanceAcceptVerifiedEvent(token, { receipt: pending.receipt, attendanceContext: pending.attendanceContext });
+        if (shouldStopOperation(operationEpoch)) return;
+        if (accepted.attendanceAccepted !== true) {
+          if (accepted.readiness) setReadiness(accepted.readiness);
+          if (!canRetryVerifiedAttendanceCommit(accepted.readiness)) {
+            setPendingAttendanceCommit(null);
+            const blockedCopy = accepted.readiness ? fallbackCopy(accepted.readiness) : null;
+            setVerificationStage(blockedCopy?.title || 'Attendance ยังไม่พร้อม');
+            setError(blockedCopy?.detail || 'Server ปฏิเสธ AttendanceEvent ตามกฎความปลอดภัย กรุณาทำตามคำแนะนำก่อนเริ่มใหม่');
+            return;
+          }
+          setFailurePresentation('ATTENDANCE');
+          setVerificationStage('Controlled geofence-only UAT ผ่านแล้ว · รอ retry การบันทึก AttendanceEvent');
+          setError('Server ยังบันทึกเวลาไม่สำเร็จ แต่เก็บหลักฐาน UAT ที่ลงนามแล้วไว้ชั่วคราว กรุณากด “ลองบันทึกเวลาอีกครั้ง”');
+          return;
+        }
+        const acceptedAt = typeof accepted.event?.effectiveEventAt === 'string'
+          ? accepted.event.effectiveEventAt
+          : typeof accepted.event?.receivedAt === 'string' ? accepted.event.receivedAt : '';
+        if (!acceptedAt) throw new Error('Server ยอมรับ AttendanceEvent แต่ไม่ส่งเวลาฝั่ง Server กลับมา');
+        setFaceCaptureOpen(false);
+        setVerificationSession(null);
+        setPendingAttendanceCommit(null);
+        setQrToken('');
+        setLocation(null);
+        setLocationBusy(false);
+        setChecking(false);
+        setReadiness(null);
+        setEventIntent(null);
+        setRouteUnavailable(false);
+        setRequestId(undefined);
+        setError(undefined);
+        setAttendanceAccepted({
+          intent: acceptedIntent,
+          acceptedAt,
+          eventId: typeof accepted.event?.id === 'string' ? accepted.event.id : null,
+          sessionId: typeof accepted.session?.id === 'string' ? accepted.session.id : null,
+          recovered: accepted.idempotent === true,
+          verificationMode
+        });
+        setQrStepUpRequired(false);
+        activeCaptureIdRef.current = null;
+        locationRecoveryPendingRef.current = false;
+        setLocationIssue(null);
+        setLocationHelpOpen(false);
+        setVerificationStage('Server บันทึกเวลาแล้ว · controlled geofence-only UAT · ไม่ได้ตรวจ Face หรือ Active Challenge');
+        setVerificationBusy(false);
+        asyncEvidenceEpochRef.current += 1;
+        if (employeeV4) void attendanceSelfToday(token).then(setTodayData).catch(() => {});
+        return;
+      }
       setVerificationStage('Device proof ผ่านแล้ว · พร้อมทำ Simple Active Challenge');
       setFaceCaptureOpen(true);
     } catch (reason) {
@@ -518,11 +601,11 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       setVerificationSession(null);
       if (reason instanceof AttendanceFlowError) {
         setRequestId(reason.requestId);
-        setVerificationStage(reason.code === 'FACE_VERIFIER_UNAVAILABLE' ? 'FACE_VERIFIER_UNAVAILABLE' : 'Face Verification เริ่มไม่สำเร็จ');
+        setVerificationStage(verificationMode === 'GEOFENCE_ONLY_UAT' ? 'Controlled geofence-only UAT ยังไม่สำเร็จ' : reason.code === 'FACE_VERIFIER_UNAVAILABLE' ? 'FACE_VERIFIER_UNAVAILABLE' : 'Face Verification เริ่มไม่สำเร็จ');
         setError(reason.message);
       } else {
-        setVerificationStage('Face Verification เริ่มไม่สำเร็จ');
-        setError(formatRequestErrorMessage(reason, 'ไม่สามารถเริ่ม Face Verification ได้'));
+        setVerificationStage(verificationMode === 'GEOFENCE_ONLY_UAT' ? 'Controlled geofence-only UAT ยังไม่สำเร็จ' : 'Face Verification เริ่มไม่สำเร็จ');
+        setError(formatRequestErrorMessage(reason, verificationMode === 'GEOFENCE_ONLY_UAT' ? 'ไม่สามารถตรวจ geofence หรือบันทึก UAT Attendance ได้' : 'ไม่สามารถเริ่ม Face Verification ได้'));
       }
     } finally {
       if (operationEpoch === asyncEvidenceEpochRef.current) setVerificationBusy(false);
@@ -790,7 +873,8 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         receipt: matched.receipt,
         receiptExpiresAt: matched.receiptExpiresAt || null,
         attendanceContext: activeVerification.attendanceContext,
-        intent: acceptedIntent
+        intent: acceptedIntent,
+        verificationMode: 'BIOMETRIC'
       };
       setPendingAttendanceCommit(eventCommitCandidate);
       setFaceCaptureOpen(false);
@@ -862,7 +946,9 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
     if (!pending || verificationBusy || interactionDisabledRef.current) return;
     setVerificationBusy(true);
     setFailurePresentation('ATTENDANCE');
-    setVerificationStage('Face Verification ผ่านแล้ว · กำลัง retry การบันทึก AttendanceEvent…');
+    setVerificationStage(pending.verificationMode === 'GEOFENCE_ONLY_UAT'
+      ? 'Controlled geofence-only UAT ผ่านแล้ว · กำลัง retry การบันทึก AttendanceEvent…'
+      : 'Face Verification ผ่านแล้ว · กำลัง retry การบันทึก AttendanceEvent…');
     setError(undefined);
     try {
       const accepted = await attendanceAcceptVerifiedEvent(token, { receipt: pending.receipt, attendanceContext: pending.attendanceContext });
@@ -881,13 +967,15 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         setRouteUnavailable(false);
         setRequestId(undefined);
         setError(undefined);
-        setAttendanceAccepted({ intent: pending.intent, acceptedAt, eventId: typeof accepted.event?.id === 'string' ? accepted.event.id : null, sessionId: typeof accepted.session?.id === 'string' ? accepted.session.id : null, recovered: accepted.idempotent === true });
+        setAttendanceAccepted({ intent: pending.intent, acceptedAt, eventId: typeof accepted.event?.id === 'string' ? accepted.event.id : null, sessionId: typeof accepted.session?.id === 'string' ? accepted.session.id : null, recovered: accepted.idempotent === true, verificationMode: pending.verificationMode });
         setQrStepUpRequired(false);
         activeCaptureIdRef.current = null;
         locationRecoveryPendingRef.current = false;
         setLocationIssue(null);
         setLocationHelpOpen(false);
-        setVerificationStage(accepted.idempotent === true ? 'Server ยืนยัน AttendanceEvent เดิมแบบ idempotent เรียบร้อย' : 'Server บันทึกเวลาเรียบร้อยแล้ว');
+        setVerificationStage(pending.verificationMode === 'GEOFENCE_ONLY_UAT'
+          ? 'Server บันทึกเวลาแล้ว · controlled geofence-only UAT · ไม่ได้ตรวจ Face หรือ Active Challenge'
+          : accepted.idempotent === true ? 'Server ยืนยัน AttendanceEvent เดิมแบบ idempotent เรียบร้อย' : 'Server บันทึกเวลาเรียบร้อยแล้ว');
         asyncEvidenceEpochRef.current += 1;
         if (employeeV4) void attendanceSelfToday(token).then(setTodayData).catch(() => {});
         return;
@@ -905,28 +993,36 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
         setPendingAttendanceCommit(null);
         setVerificationSession(null);
-        setVerificationStage('สิทธิ์ยืนยันใบหน้าหมดอายุแล้ว');
-        setError('Server ยังไม่บันทึก AttendanceEvent และ receipt เดิมหมดอายุแล้ว กรุณาเริ่มยืนยันตัวตนใหม่หนึ่งครั้ง');
+        setVerificationStage('หลักฐานยืนยันหมดอายุแล้ว');
+        setError('Server ยังไม่บันทึก AttendanceEvent และหลักฐานเดิมหมดอายุแล้ว กรุณาเริ่มตรวจสอบใหม่หนึ่งครั้ง');
         return;
       }
-      setVerificationStage('Face Verification ผ่านแล้ว · ยังรอการบันทึก AttendanceEvent');
-      setError('Server ยังบันทึกเวลาไม่สำเร็จ แต่ยังเก็บ receipt เดิมไว้ในหน่วยความจำ กรุณากด “ลองบันทึกเวลาอีกครั้ง”');
+      setVerificationStage(pending.verificationMode === 'GEOFENCE_ONLY_UAT'
+        ? 'Controlled geofence-only UAT ผ่านแล้ว · ยังรอการบันทึก AttendanceEvent'
+        : 'Face Verification ผ่านแล้ว · ยังรอการบันทึก AttendanceEvent');
+      setError('Server ยังบันทึกเวลาไม่สำเร็จ แต่เก็บหลักฐานเดิมไว้ในหน่วยความจำ กรุณากด “ลองบันทึกเวลาอีกครั้ง”');
     } catch (reason) {
       if (reason instanceof AttendanceFlowError) setRequestId(reason.requestId);
       const expiresAtMs = pending.receiptExpiresAt ? Date.parse(pending.receiptExpiresAt) : Number.NaN;
       if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
         setPendingAttendanceCommit(null);
         setVerificationSession(null);
-        setVerificationStage('สิทธิ์ยืนยันใบหน้าหมดอายุแล้ว');
+        setVerificationStage('หลักฐานยืนยันหมดอายุแล้ว');
         setError('การบันทึกเวลายังไม่สำเร็จและ receipt เดิมหมดอายุแล้ว กรุณาเริ่มยืนยันตัวตนใหม่หนึ่งครั้ง');
       } else {
-        setVerificationStage('Face Verification ผ่านแล้ว · retry การบันทึก AttendanceEvent ได้');
-        setError('การบันทึกเวลาเกิดข้อผิดพลาดชั่วคราว กรุณากด “ลองบันทึกเวลาอีกครั้ง” โดยไม่ต้องตรวจหน้าใหม่');
+        setVerificationStage(pending.verificationMode === 'GEOFENCE_ONLY_UAT'
+          ? 'Controlled geofence-only UAT ผ่านแล้ว · retry การบันทึก AttendanceEvent ได้'
+          : 'Face Verification ผ่านแล้ว · retry การบันทึก AttendanceEvent ได้');
+        setError('การบันทึกเวลาเกิดข้อผิดพลาดชั่วคราว กรุณากด “ลองบันทึกเวลาอีกครั้ง” โดยไม่ต้องเริ่มตรวจสอบใหม่');
       }
     } finally {
       setVerificationBusy(false);
     }
   };
+  const controlledGeofenceOnlyUat = verificationSession?.verificationMode === 'GEOFENCE_ONLY_UAT'
+    || pendingAttendanceCommit?.verificationMode === 'GEOFENCE_ONLY_UAT'
+    || attendanceAccepted?.verificationMode === 'GEOFENCE_ONLY_UAT';
+
   if (employeeV4) {
     const assignment = todayData?.assignment || null;
     const scheduleReady = Boolean(todayData?.scheduleReady && assignment);
@@ -1017,7 +1113,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       void handleStartAttendance();
     };
 
-    return <section className="attendance-v4" aria-label="SMS Time Attendance">
+    return <section className="attendance-v4" data-nexus-checkin aria-label="Attendance Verification & Mobile Check-in">
       <AttendanceQrScanner
         open={scannerOpen && !interactionDisabled}
         autoFlow
@@ -1054,6 +1150,11 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         </section>
       </div>}
 
+      <div className="attendance-nexus-checkin__breadcrumb">SMS NEXUS / WORKFORCE / ATTENDANCE VERIFICATION</div>
+      <header className="attendance-nexus-checkin__hero">
+        <div><h1>Attendance Verification</h1><p>ตรวจสอบการลงเวลาเข้า-ออกเวร การสแกนจุดตรวจ และความแม่นยำของพิกัดภาคสนาม</p></div>
+      </header>
+
       <header className="attendance-v4__topbar">
         <div className="attendance-v4__brand">
           <img src="/attendance-sms-logo.svg" alt="SMS" />
@@ -1069,7 +1170,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         <span><strong>ลงเวลาแทนพนักงาน</strong><small>Manager / Admin · คำขอแบบมีการควบคุม</small></span>
       </button>}
 
-      <article className={`attendance-v4__employee ${assignment ? '' : 'is-empty'}`}>
+      <article className={`attendance-v4__employee attendance-nexus-checkin__pass ${assignment ? '' : 'is-empty'}`}>
         <p className="attendance-v4__employee-site">{siteName}</p>
         <h1>{employeeCode ? `${employeeCode} ` : ''}{employeeName}</h1>
         <div className="attendance-v4__employee-meta">
@@ -1299,7 +1400,11 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
 
         {attendanceAccepted && <div className="attendance-v2-success" role="status">
           <span className="attendance-v2-success-icon"><SmsIcon name="check" size={28} /></span>
-          <div><strong>{intentLabel(attendanceAccepted.intent)}สำเร็จ</strong><span>{thaiTime(attendanceAccepted.acceptedAt)}</span></div>
+          <div>
+            <strong>{intentLabel(attendanceAccepted.intent)}สำเร็จ</strong>
+            <span>{thaiTime(attendanceAccepted.acceptedAt)}</span>
+            {attendanceAccepted.verificationMode === 'GEOFENCE_ONLY_UAT' && <span>controlled geofence-only UAT · ไม่ได้ตรวจ Face หรือ Active Challenge</span>}
+          </div>
         </div>}
 
         {!attendanceAccepted && gpsReady && <div className="attendance-v2-location is-ready">
@@ -1313,7 +1418,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
       {(flowBusy || flowPhase > 0) && <section className="attendance-v2-progress attendance-v3-progress" aria-label="ขั้นตอนการลงเวลา">
         {[
           { step: 1, title: 'GPS', detail: gpsReady ? 'ตำแหน่งพร้อม' : 'กำลังอ่าน GPS' },
-          { step: 2, title: 'QR / Device / Face', detail: qrStepUpRequired ? 'กำลังสแกน QR' : (verificationStage || 'Server ตรวจอัตโนมัติ') },
+          { step: 2, title: controlledGeofenceOnlyUat ? 'QR / Device / Geofence' : 'QR / Device / Face', detail: qrStepUpRequired ? 'กำลังสแกน QR' : (verificationStage || 'Server ตรวจอัตโนมัติ') },
           { step: 3, title: 'Attendance', detail: attendanceAccepted ? 'บันทึกเรียบร้อย' : 'รอการยืนยัน' }
         ].map((item) => {
           const done = flowPhase > item.step;
@@ -1344,7 +1449,9 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
 
       <section className="attendance-v3-privacy-note" aria-label="นโยบายความเป็นส่วนตัว Attendance">
         <SmsIcon name="shield" size={18} />
-        <p><strong>Privacy by design</strong><span>GPS เฉพาะตอนลงเวลา · QR เฉพาะเมื่อจำเป็น · ยืนยันใบหน้าชั่วคราวและไม่เก็บ live/challenge frames เป็นหลักฐานถาวร</span></p>
+        <p><strong>Privacy by design</strong><span>{controlledGeofenceOnlyUat
+          ? 'G06 controlled UAT: ใช้ตำแหน่งจริงและ device proof · รอบนี้ไม่ได้ทำ Face / Active Challenge · ยังตรวจ schedule, site และ geofence ฝั่ง Server'
+          : 'GPS เฉพาะตอนลงเวลา · QR เฉพาะเมื่อจำเป็น · ยืนยันใบหน้าชั่วคราวและไม่เก็บ live/challenge frames เป็นหลักฐานถาวร'}</span></p>
       </section>
     </div>
   </section>;

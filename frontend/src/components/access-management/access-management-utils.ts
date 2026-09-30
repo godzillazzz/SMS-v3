@@ -8,6 +8,10 @@ export type AccountRecord = {
   accountStatus?: AccountStatus;
   isActive?: boolean;
   passwordResetRequired?: boolean;
+  approvedAt?: string | null;
+  approvedByLegacyRef?: string | null;
+  approvedByDisplayName?: string | null;
+  approvedByRole?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };

@@ -1,0 +1,635 @@
+/* SMS Command Nexus — authenticated operational layer preview. Presentation only; no authority/data semantics changed. */
+:root{color-scheme:dark;background:#020813;--nexus-bg:#020813;--nexus-surface:#061421;--nexus-dim:#030d17;--nexus-container:#0f1d2a;--nexus-high:#1a2836;--nexus-line:rgba(37,184,211,.15);--nexus-cyan:#25b8d3;--nexus-cyan-soft:#78d7e8;--nexus-muted:#6e93a8;--nexus-success:#10b981;--nexus-warning:#f59e0b;--nexus-danger:#ef4444}
+html,body,#root,#__next{width:100%!important;min-width:100%!important;min-height:100vh!important;margin:0!important;padding:0!important;background:#020813!important;background-color:#020813!important;color:#f1f5f9;overflow-x:hidden}
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.app-shell:not(.pwa-shell){background:var(--nexus-bg)!important;color:#d8e8ef;font-family:"Plus Jakarta Sans","Kanit",sans-serif}.app-shell:not(.pwa-shell) .main-area{background:radial-gradient(circle at 76% 0,rgba(37,184,211,.075),transparent 27%),linear-gradient(180deg,#020813,#030b13 70%)}
+.app-shell:not(.pwa-shell) .sidebar{width:224px;flex:0 0 224px;background:linear-gradient(180deg,#020914,#04121e 58%,#020813)!important;border-right:1px solid rgba(37,184,211,.18)!important;box-shadow:20px 0 70px rgba(0,0,0,.25)}.app-shell:not(.pwa-shell) .sidebar:after{content:"TACTICAL CMD · ";position:absolute;left:22px;top:74px;font:600 9px "JetBrains Mono";letter-spacing:.18em;color:#3d7185}.app-shell:not(.pwa-shell) .sidebar-brand{min-height:92px;border-bottom:1px solid var(--nexus-line)}.app-shell:not(.pwa-shell) .sidebar-brand strong{font-family:"Plus Jakarta Sans";letter-spacing:.13em;color:#e7fbff}.app-shell:not(.pwa-shell) .sidebar-brand span{color:#52788f;font:500 9px "JetBrains Mono";letter-spacing:.05em}.app-shell:not(.pwa-shell) .nav-section>p{color:#38657a!important;font:600 9px "JetBrains Mono"!important;letter-spacing:.16em!important}.app-shell:not(.pwa-shell) .nav-item{color:#7ea0b1!important;border-radius:5px!important;font-size:12px!important}.app-shell:not(.pwa-shell) .nav-item:hover{background:rgba(37,184,211,.06)!important;color:#c8f4fb!important}.app-shell:not(.pwa-shell) .nav-item.active{background:linear-gradient(90deg,rgba(37,184,211,.16),rgba(37,184,211,.025))!important;border-color:rgba(37,184,211,.2)!important;color:#9eeafa!important;box-shadow:inset 2px 0 #25b8d3,0 0 24px rgba(37,184,211,.06)!important}.app-shell:not(.pwa-shell) .nav-icon{color:#25b8d3}.app-shell:not(.pwa-shell) .sidebar-footer{border-top:1px solid var(--nexus-line)}
+.app-shell:not(.pwa-shell) .topbar{min-height:72px;background:rgba(2,8,19,.86)!important;border-bottom:1px solid var(--nexus-line)!important;box-shadow:none!important;backdrop-filter:blur(18px)}.app-shell:not(.pwa-shell) .topbar-copy strong{color:#d9edf3;font-family:"Kanit"}.app-shell:not(.pwa-shell) .topbar-copy small{color:#52788f}.app-shell:not(.pwa-shell) .topbar-search{background:#04111c!important;border:1px solid var(--nexus-line)!important}.app-shell:not(.pwa-shell) .topbar-search input{color:#b8d5df!important}.app-shell:not(.pwa-shell) .environment-pill{background:rgba(16,185,129,.08)!important;border-color:rgba(16,185,129,.25)!important;color:#52d6aa!important;font-family:"JetBrains Mono"}.app-shell:not(.pwa-shell) .content-area{max-width:none!important;padding:26px clamp(18px,2.2vw,34px) 44px!important;background:#020813!important;background-color:#020813!important;color:#f1f5f9!important}
+.nexus-command{max-width:1600px;margin:0 auto;display:grid;gap:16px;background:#020813!important;background-color:#020813!important;color:#f1f5f9!important}.nexus-command :is(h1,h2,h3){font-family:"Kanit","Plus Jakarta Sans",sans-serif!important;color:#e9f8fb!important}.nexus-command button{font-family:inherit}.nexus-kicker{margin:0 0 6px;color:#25b8d3!important;font:600 9px/1.4 "JetBrains Mono";letter-spacing:.16em;text-transform:uppercase}.nexus-command__hero{min-height:108px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:12px 2px 16px;border-bottom:1px solid var(--nexus-line);background:#020813!important;background-color:#020813!important;color:#f1f5f9!important}.nexus-command__hero .nexus-kicker{color:#25b8d3!important}.nexus-command__hero h1{color:#fff!important;font-weight:700!important}.nexus-command__hero>div>p:last-child{color:#94a3b8!important}.nexus-command__hero h1{font-size:clamp(30px,3vw,46px);line-height:1;margin:0 0 9px;letter-spacing:-.035em}.nexus-command__hero>div>p:last-child{margin:0;color:#6f94a6;font-size:12px}.nexus-hero-status{display:grid;justify-items:end;gap:4px;font-family:"JetBrains Mono"}.nexus-hero-status span{color:#65d9b2;font-size:9px;letter-spacing:.12em}.nexus-hero-status span i{display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;background:#10b981;box-shadow:0 0 12px #10b981}.nexus-hero-status strong{color:#c8e4eb;font-size:12px}.nexus-hero-status small{color:#456f82;font-size:9px}.nexus-command__alert{display:flex;gap:14px;align-items:center;padding:11px 14px;border:1px solid rgba(245,158,11,.25);background:rgba(245,158,11,.055);color:#dca94f;font:10px "JetBrains Mono"}.nexus-command__alert span{color:#8b795d}
+.nexus-panel{overflow:hidden;border:1px solid var(--nexus-line);background:linear-gradient(145deg,rgba(6,20,33,.96),rgba(3,13,23,.98));box-shadow:inset 0 1px rgba(255,255,255,.015),0 18px 50px rgba(0,0,0,.16)}.nexus-panel>header{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px;padding:14px 17px;border-bottom:1px solid var(--nexus-line)}.nexus-panel h2{margin:0;font-size:16px;letter-spacing:.01em}.nexus-command__grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(290px,.92fr);gap:16px}.nexus-state{padding:5px 8px;border:1px solid rgba(245,158,11,.25);color:#e0a84d;background:rgba(245,158,11,.06);font:600 8px "JetBrains Mono";letter-spacing:.13em}.nexus-vector-field{position:relative;min-height:330px;overflow:hidden;background-color:#020b14;background-image:linear-gradient(rgba(37,184,211,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(37,184,211,.055) 1px,transparent 1px),radial-gradient(circle at center,rgba(37,184,211,.1),transparent 42%);background-size:28px 28px,28px 28px,100% 100%}.nexus-radar-ring{position:absolute;left:50%;top:50%;border:1px solid rgba(37,184,211,.13);border-radius:50%;transform:translate(-50%,-50%)}.nexus-radar-ring.r1{width:110px;height:110px}.nexus-radar-ring.r2{width:220px;height:220px}.nexus-radar-ring.r3{width:360px;height:360px}.nexus-vector-cross{position:absolute;background:rgba(37,184,211,.12)}.nexus-vector-cross.x{left:0;right:0;top:50%;height:1px}.nexus-vector-cross.y{top:0;bottom:0;left:50%;width:1px}.nexus-vector-core{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#25b8d3;text-align:center}.nexus-vector-core svg{filter:drop-shadow(0 0 10px rgba(37,184,211,.55))}.nexus-vector-core strong{margin-top:10px;font:600 10px "JetBrains Mono";letter-spacing:.18em}.nexus-vector-core span{margin-top:5px;color:#4e7a8d;font:9px "JetBrains Mono"}.nexus-map-panel>footer{display:flex;align-items:center;justify-content:space-between;padding:11px 15px;border-top:1px solid var(--nexus-line);color:#355f72;font:8px "JetBrains Mono";letter-spacing:.12em}.nexus-map-panel>footer button,.nexus-readiness header button,.nexus-activity header button{border:0;background:transparent;color:#66cfe2;font:600 9px "JetBrains Mono";letter-spacing:.08em;cursor:pointer}.nexus-stream>header>b{display:grid;place-items:center;width:30px;height:30px;border:1px solid rgba(239,68,68,.22);background:rgba(239,68,68,.06);color:#ff7070;font:600 11px "JetBrains Mono"}.nexus-stream__list{min-height:281px}.nexus-stream__item{display:grid;grid-template-columns:8px 1fr auto;gap:11px;padding:14px 16px;border-bottom:1px solid rgba(37,184,211,.08)}.nexus-stream__pulse{width:6px;height:6px;margin-top:4px;border-radius:50%;background:#f59e0b;box-shadow:0 0 10px rgba(245,158,11,.5)}.nexus-stream__item strong{display:block;color:#bcd8e1;font-size:11px}.nexus-stream__item small{display:block;margin-top:4px;color:#557c8e;font-size:9px;line-height:1.45}.nexus-stream__item em{color:#789aaa;font:normal 9px "JetBrains Mono"}.nexus-clear,.nexus-loading{min-height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#345e70;font:9px "JetBrains Mono";letter-spacing:.08em}.nexus-clear svg{color:#10b981}.nexus-clear strong{margin-top:10px;color:#6acbad}.nexus-clear span{margin-top:5px;max-width:210px;color:#426b7d;line-height:1.5}.nexus-stream__cta{width:100%;min-height:43px;border:0;border-top:1px solid var(--nexus-line);background:rgba(37,184,211,.045);color:#73d5e6;font:600 9px "JetBrains Mono";letter-spacing:.1em;cursor:pointer}.nexus-stream__cta span{margin-left:8px;color:#f59e0b}
+.nexus-kpis{display:grid;grid-template-columns:1.2fr 1fr 1fr .9fr;border:1px solid var(--nexus-line);background:#030d17}.nexus-kpis button{min-height:116px;padding:17px;text-align:left;border:0;border-right:1px solid var(--nexus-line);background:transparent;cursor:pointer}.nexus-kpis button:last-child{border-right:0}.nexus-kpis button:hover{background:rgba(37,184,211,.035)}.nexus-kpis span,.nexus-kpis em{display:block;color:#4f7b8e;font:600 8px "JetBrains Mono";letter-spacing:.12em;font-style:normal}.nexus-kpis strong{display:block;margin:8px 0;color:#dff7fb;font:500 30px "JetBrains Mono";letter-spacing:-.06em;text-shadow:0 0 22px rgba(37,184,211,.18)}.nexus-kpis strong small{color:#52788f;font-size:14px}.nexus-kpis em{color:#3d8c79}.nexus-lower-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}.nexus-readiness,.nexus-activity{min-height:210px}.nexus-readiness__meter{height:7px;margin:30px 18px 24px;background:#081b29;box-shadow:inset 0 0 0 1px rgba(37,184,211,.08)}.nexus-readiness__meter span{display:block;height:100%;background:linear-gradient(90deg,#147c91,#25b8d3);box-shadow:0 0 18px rgba(37,184,211,.3)}.nexus-readiness__stats{display:grid;grid-template-columns:repeat(3,1fr);padding:0 18px 20px}.nexus-readiness__stats span{color:#496f80;font:8px "JetBrains Mono";letter-spacing:.1em}.nexus-readiness__stats b{display:block;margin-bottom:5px;color:#b8dce5;font-size:17px}.nexus-activity>div>p{display:flex;gap:10px;margin:0;padding:10px 17px;border-bottom:1px solid rgba(37,184,211,.06)}.nexus-activity>div>p i{width:5px;height:5px;margin-top:5px;border-radius:50%;background:#25b8d3}.nexus-activity>div>p strong,.nexus-activity>div>p small{display:block}.nexus-activity>div>p strong{color:#a9cbd4;font-size:10px}.nexus-activity>div>p small{margin-top:3px;color:#4f7789;font-size:8px}.nexus-activity__empty{min-height:105px;align-items:center}
+.app-shell:not(.pwa-shell) :is(.bg-white,.bg-gray-50,.bg-slate-50,.bg-zinc-50){background-color:#061421!important}
+@media(max-width:980px){.app-shell:not(.pwa-shell) .sidebar{width:232px}.nexus-command__grid,.nexus-lower-grid{grid-template-columns:1fr}.nexus-kpis{grid-template-columns:1fr 1fr}.nexus-kpis button:nth-child(2){border-right:0}.nexus-kpis button:nth-child(-n+2){border-bottom:1px solid var(--nexus-line)}}
+@media(max-width:760px){.app-shell:not(.pwa-shell) .content-area{padding:12px 12px 92px!important}.app-shell:not(.pwa-shell) .topbar{min-height:60px}.nexus-command{gap:10px}.nexus-command__hero{min-height:auto;padding:15px 2px 14px;align-items:flex-start}.nexus-command__hero h1{font-size:28px}.nexus-command__hero>div>p:last-child{max-width:270px;font-size:10px;line-height:1.55}.nexus-hero-status{display:none}.nexus-command__grid{gap:10px}.nexus-vector-field{min-height:240px}.nexus-radar-ring.r3{width:300px;height:300px}.nexus-panel>header{min-height:58px;padding:12px 13px}.nexus-kpis{grid-template-columns:1fr 1fr}.nexus-kpis button{min-height:98px;padding:13px}.nexus-kpis strong{font-size:24px}.nexus-kpis span,.nexus-kpis em{font-size:7px}.nexus-lower-grid{gap:10px}.nexus-map-panel>footer{gap:10px}.nexus-map-panel>footer>span{display:none}.nexus-map-panel>footer button{margin-left:auto}.nexus-stream__list{min-height:180px}.nexus-clear,.nexus-loading{min-height:180px}}
+@media(max-width:390px){.nexus-command__hero h1{font-size:25px}.nexus-kpis strong{font-size:21px}.nexus-kpis button{min-width:0}.nexus-readiness__stats b{font-size:14px}}
+@media(prefers-reduced-motion:reduce){.nexus-command *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+/* App.tsx blueprint adaptation: real roster + Security Site modules */
+.nexus-module-heading{padding:18px 20px!important;border:1px solid rgba(37,184,211,.16);background:linear-gradient(120deg,rgba(6,20,33,.96),rgba(3,13,23,.86));box-shadow:inset 2px 0 #25b8d3,0 16px 42px rgba(0,0,0,.14)}.nexus-module-heading .eyebrow{color:#4f8499!important;font:600 9px "JetBrains Mono"!important;letter-spacing:.14em!important}.nexus-module-heading h1{color:#eaf9fc!important;font-family:"Kanit"!important;letter-spacing:-.025em}.nexus-module-heading p{color:#7193a2!important}.nexus-roster-workspace .approval-banner{border-radius:4px!important;background:rgba(6,20,33,.9)!important;border-color:rgba(37,184,211,.18)!important;color:#b8d5df!important}.nexus-roster-workspace .calendar-toolbar-box{background:linear-gradient(145deg,#061421,#030d17)!important;border:1px solid rgba(37,184,211,.18)!important;border-radius:4px!important;box-shadow:none!important}.nexus-roster-workspace .calendar-toolbar-box>div:first-child{color:#7ed9e9!important;font-family:"JetBrains Mono"!important}.nexus-roster-workspace .calendar-card{border:1px solid rgba(37,184,211,.16)!important;border-radius:4px!important;background:#030d17!important}.nexus-roster-workspace .schedule-grid thead th{background:#061421!important;color:#6e93a8!important;border-color:rgba(37,184,211,.12)!important;font-family:"JetBrains Mono"}.nexus-roster-workspace .schedule-grid td{background:#030d17;border-color:rgba(37,184,211,.08)!important;color:#a9c8d2}.nexus-roster-workspace .schedule-grid .employee-sticky{background:#061421!important}.nexus-roster-workspace .schedule-grid .employee-sticky strong{color:#d9edf3}.nexus-roster-workspace .schedule-grid .employee-sticky small{color:#557b8d}.nexus-roster-workspace .toolbar-count{background:#061421!important;border-color:rgba(37,184,211,.18)!important;color:#6fb8c8!important;font-family:"JetBrains Mono"}.nexus-roster-workspace .btn-primary{background:#25b8d3!important;color:#020813!important;border-color:#25b8d3!important}.nexus-roster-workspace .btn-neutral{background:#0f1d2a!important;color:#a9cbd4!important;border-color:rgba(37,184,211,.2)!important}
+.nexus-gis-workspace{color:#a9c8d2}.nexus-gis-workspace .security-site-admin__header{padding:18px 20px;border:1px solid rgba(37,184,211,.18);background:linear-gradient(120deg,#061421,#030d17);box-shadow:inset 2px 0 #25b8d3}.nexus-gis-workspace .security-site-admin__header h2{font-family:"Kanit"!important;color:#e9f8fb!important;font-size:28px!important}.nexus-gis-workspace .security-site-admin__header p{color:#7193a2}.nexus-gis-status-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid rgba(37,184,211,.16);background:#030d17}.nexus-gis-status-strip span{padding:13px 15px;border-right:1px solid rgba(37,184,211,.12);color:#557d8f;font:600 8px "JetBrains Mono";letter-spacing:.1em}.nexus-gis-status-strip span:last-child{border-right:0}.nexus-gis-status-strip b{display:block;margin-bottom:4px;color:#74d4e5;font-size:15px;letter-spacing:0}.nexus-gis-workspace .security-site-authority-rule{background:#061421!important;border-color:rgba(37,184,211,.15)!important;color:#7294a4!important}.nexus-gis-workspace .security-site-admin__card{background:linear-gradient(145deg,#061421,#030d17)!important;border-color:rgba(37,184,211,.16)!important;border-radius:4px!important;box-shadow:none!important}.nexus-gis-workspace .security-site-admin__card h3{color:#dff4f8!important;font-family:"Kanit"!important}.nexus-gis-workspace .security-site-admin__card small{color:#55798a!important}.nexus-gis-workspace .field-group>span{color:#6f98a9!important}.nexus-gis-workspace :is(input,select,textarea){background:#020f1c!important;color:#c7e0e6!important;border-color:rgba(37,184,211,.18)!important}.nexus-gis-workspace .security-site-map{background:#020f1c!important;border-color:rgba(37,184,211,.16)!important}.nexus-gis-workspace .security-site-map__grid{stroke:rgba(37,184,211,.12)!important}.nexus-gis-workspace .security-site-map__radius{stroke:#25b8d3!important;fill:rgba(37,184,211,.06)!important}.nexus-gis-workspace .security-site-map__pin{fill:#25b8d3!important;filter:drop-shadow(0 0 6px #25b8d3)}.nexus-gis-workspace .security-site-map__legend{background:#030d17!important;color:#7096a7!important}.nexus-gis-workspace .security-site-map__legend strong{color:#bce8f0!important}.nexus-gis-workspace .btn-primary{background:#25b8d3!important;color:#020813!important;border-color:#25b8d3!important}.nexus-gis-workspace .btn-neutral{background:#0f1d2a!important;color:#a9cbd4!important;border-color:rgba(37,184,211,.2)!important}
+@media(max-width:760px){.nexus-module-heading,.nexus-gis-workspace .security-site-admin__header{padding:14px!important}.nexus-gis-workspace .security-site-admin__header h2{font-size:23px!important}.nexus-gis-status-strip{grid-template-columns:1fr}.nexus-gis-status-strip span{border-right:0;border-bottom:1px solid rgba(37,184,211,.1)}.nexus-gis-status-strip span:last-child{border-bottom:0}.nexus-roster-workspace .calendar-toolbar-box{padding:12px!important}}
+/* Dashboard: retain established operational data, reskin only. */
+.nexus-command .dashboard-filter-bar{border:1px solid var(--nexus-line)!important;background:linear-gradient(145deg,#061421,#030d17)!important;box-shadow:none!important;border-radius:6px!important;color:#a9cbd4!important}.nexus-command .dashboard-filter-bar__icon{background:rgba(37,184,211,.08)!important;color:#25b8d3!important}.nexus-command .dashboard-filter-bar label>span{color:#5f8799!important}.nexus-command .dashboard-filter-bar :is(input,select){background:#0f1d2a!important;color:#c8e2e8!important;border-color:rgba(37,184,211,.2)!important;border-radius:5px!important;color-scheme:dark}.nexus-legacy-data{display:grid;gap:16px}.nexus-section-heading{display:flex;align-items:end;justify-content:space-between;padding:18px 2px 10px;border-bottom:1px solid var(--nexus-line)}.nexus-section-heading h2{margin:0;font-size:22px}.nexus-section-heading>span{color:#3f7185;font:600 8px "JetBrains Mono";letter-spacing:.13em}.nexus-command .dashboard-panel{background:linear-gradient(145deg,rgba(6,20,33,.98),rgba(3,13,23,.98))!important;border:1px solid var(--nexus-line)!important;border-radius:6px!important;box-shadow:0 18px 50px rgba(0,0,0,.12)!important;color:#a9c8d2!important}.nexus-command .dashboard-panel__header{border-color:rgba(37,184,211,.1)!important}.nexus-command .dashboard-panel__header :is(h2,strong){color:#e2f4f7!important}.nexus-command .dashboard-panel__header :is(p,span),.nexus-command .dashboard-panel__footnote{color:#557d8f!important}.nexus-command .dashboard-panel button,.nexus-command .dashboard-quick-actions button{border-radius:5px!important}.nexus-command .dashboard-quick-actions__grid>button{background:#071725!important;border:1px solid rgba(37,184,211,.12)!important;color:#b7d5dd!important}.nexus-command .dashboard-quick-actions__grid>button:hover{background:#0f1d2a!important;border-color:rgba(37,184,211,.32)!important}.nexus-command .dashboard-quick-actions__grid>button>span{color:#25b8d3!important;background:rgba(37,184,211,.08)!important}.nexus-command .dashboard-quick-actions__grid small{color:#557b8d!important}.nexus-command .dashboard-legend>div,.nexus-command .dashboard-stat-row,.nexus-command .dashboard-activity-item{border-color:rgba(37,184,211,.08)!important}.nexus-command .dashboard-legend p,.nexus-command .dashboard-legend span{color:#668b9b!important}.nexus-command .dashboard-legend b{color:#d8edf2!important}.nexus-command .dashboard-donut{background-color:#071725!important}.nexus-command .dashboard-donut>div{background:#061421!important}.nexus-command .dashboard-donut strong{color:#e5f8fb!important}.nexus-command .dashboard-primary-grid,.nexus-command .dashboard-secondary-grid,.nexus-command .dashboard-tertiary-grid{gap:16px!important}.nexus-command .dashboard-data-sync,.nexus-command .dashboard-recent-activity{min-width:0}.nexus-command :is(.dashboard-attention__empty,.dashboard-workforce__empty){color:#6f93a3!important}.nexus-command :is(.dashboard-attention__empty,.dashboard-workforce__empty) strong{color:#bdd9e0!important}
+@media(max-width:760px){.nexus-legacy-data{gap:10px}.nexus-section-heading{padding-top:14px}.nexus-section-heading>span{display:none}.nexus-command .dashboard-filter-bar{padding:10px!important}.nexus-command .dashboard-filter-bar__controls{grid-template-columns:1fr!important}.nexus-command .dashboard-primary-grid,.nexus-command .dashboard-secondary-grid,.nexus-command .dashboard-tertiary-grid{grid-template-columns:1fr!important;gap:10px!important}}
+/* Zero-white dashboard internals: override legacy light tiles without changing data/behavior. */
+.nexus-command :is(.dashboard-mini-stat,.dashboard-today-stat,.dashboard-shift-group,.dashboard-attention-row,.dashboard-expiring-row,.dashboard-secondary-metric,.dashboard-today-highlight,.dashboard-workforce .dashboard-legend>div,.dashboard-empty-inline,.dashboard-unavailable,.dashboard-sync-status__body){background:#071725!important;background-color:#071725!important;border-color:rgba(37,184,211,.14)!important;color:#b9d5dd!important;box-shadow:none!important}.nexus-command :is(.dashboard-mini-stat,.dashboard-today-stat,.dashboard-shift-group,.dashboard-attention-row,.dashboard-expiring-row,.dashboard-secondary-metric):hover{background:#0f1d2a!important;border-color:rgba(37,184,211,.34)!important}.nexus-command :is(.dashboard-mini-stat,.dashboard-today-stat,.dashboard-shift-group,.dashboard-attention-row,.dashboard-expiring-row,.dashboard-secondary-metric,.dashboard-today-highlight) :is(strong,b){color:#e2f5f8!important}.nexus-command :is(.dashboard-mini-stat,.dashboard-today-stat,.dashboard-shift-group,.dashboard-attention-row,.dashboard-expiring-row,.dashboard-secondary-metric,.dashboard-today-highlight) :is(span,small){color:#6f95a5!important}.nexus-command .dashboard-link-button{color:#5bd0e5!important}.nexus-command :is(.dashboard-period,.dashboard-panel__unavailable,.dashboard-readiness-badge){background:#0f1d2a!important;border:1px solid rgba(37,184,211,.14)!important;color:#75b8c7!important}.nexus-command .dashboard-readiness-badge--warning{color:#e4ad4d!important;border-color:rgba(245,158,11,.2)!important;background:rgba(245,158,11,.07)!important}.nexus-command .dashboard-list-skeleton span,.nexus-command .dashboard-skeleton{background:linear-gradient(90deg,#071725,#0f1d2a,#071725)!important;background-size:200% 100%!important}.nexus-command .dashboard-status-track{background:#0b1c29!important}.nexus-command .dashboard-status-row b,.nexus-command .dashboard-activity-row b,.nexus-command .dashboard-subsection-heading b,.nexus-command .dashboard-expiring-list__header{color:#bad7df!important}.nexus-command .dashboard-status-row small,.nexus-command .dashboard-activity-row small,.nexus-command .dashboard-subsection-heading small{color:#7fa5b4!important}
+/* Mobile/readability hardening — zero white leakage and WCAG-oriented contrast. */
+.nexus-command .dashboard-today-highlight{background:linear-gradient(145deg,#081a28,#061421)!important;border-color:rgba(37,184,211,.22)!important}.nexus-command .dashboard-today-highlight span,.nexus-command .dashboard-today-highlight small{color:#94a3b8!important}.nexus-command .dashboard-today-highlight strong{color:#f1f5f9!important}.nexus-command .dashboard-today-stat{background:#081a28!important;color:#e2e8f0!important}.nexus-command .dashboard-today-stat span{color:#a8c2cc!important}.nexus-command .dashboard-today-stat strong{color:#f8fafc!important}.nexus-command .dashboard-shift-group{background:#071725!important;color:#d8edf2!important}.nexus-command .dashboard-shift-group b,.nexus-command .dashboard-shift-group strong{color:#e8f6f8!important}.nexus-command .dashboard-shift-group small{color:#9ab7c2!important}.nexus-command .dashboard-subsection-heading b{color:#dceff3!important}.nexus-command .dashboard-subsection-heading small{color:#94a3b8!important}.nexus-command .dashboard-mini-stat{background:#081a28!important}.nexus-command .dashboard-mini-stat span{color:#b3c9d1!important}.nexus-command .dashboard-mini-stat strong{color:#f8fafc!important}.nexus-command .dashboard-mini-stat small{color:#94a3b8!important}.nexus-command .dashboard-quick-actions__grid button{background:#071725!important;color:#e2f1f4!important}.nexus-command .dashboard-quick-actions__grid button b{color:#e5f4f7!important}.nexus-command .dashboard-quick-actions__grid button small{color:#9bb7c2!important}.nexus-command .dashboard-attention-row b,.nexus-command .dashboard-expiring-row__person b{color:#e5f4f7!important}.nexus-command .dashboard-attention-row small,.nexus-command .dashboard-expiring-row__person small{color:#9bb7c2!important}.nexus-command .dashboard-workforce .dashboard-legend>div{background:#071725!important}.nexus-command .dashboard-workforce .dashboard-legend p{color:#a7c2cc!important}.nexus-command .dashboard-workforce .dashboard-legend b{color:#f1f5f9!important}.nexus-command .dashboard-secondary-metric{background:#071725!important}.nexus-command .dashboard-secondary-metric span,.nexus-command .dashboard-secondary-metric small{color:#9bb7c2!important}.nexus-command .dashboard-secondary-metric strong{color:#f8fafc!important}.nexus-command .dashboard-panel__header p{color:#7fa5b4!important}.nexus-command .dashboard-panel__header h2{color:#f1f5f9!important}.nexus-command .dashboard-panel__footnote{color:#8daab6!important}.nexus-command .dashboard-readiness-badge{color:#86efac!important;background:rgba(16,185,129,.1)!important;border-color:rgba(16,185,129,.25)!important}.nexus-command .dashboard-attention__count.is-clear{color:#86efac!important;background:rgba(16,185,129,.1)!important}.nexus-command .dashboard-attention__count:not(.is-clear){color:#fcd34d!important;background:rgba(245,158,11,.1)!important}.nexus-command .dashboard-empty-inline b,.nexus-command .dashboard-unavailable b,.nexus-command .dashboard-sync-status__body b{color:#dceff3!important}.nexus-command .dashboard-empty-inline small,.nexus-command .dashboard-unavailable small,.nexus-command .dashboard-sync-status__body small{color:#94a3b8!important}
+@media(max-width:640px){.nexus-command .dashboard-today-stat,.nexus-command .dashboard-mini-stat,.nexus-command .dashboard-shift-group,.nexus-command .dashboard-quick-actions__grid button,.nexus-command .dashboard-workforce .dashboard-legend>div{background:#071725!important;background-color:#071725!important}.nexus-command .dashboard-today-stat strong,.nexus-command .dashboard-mini-stat strong,.nexus-command .dashboard-shift-group strong,.nexus-command .dashboard-shift-group b,.nexus-command .dashboard-quick-actions__grid button b{color:#f8fafc!important}.nexus-command .dashboard-today-stat span,.nexus-command .dashboard-mini-stat span,.nexus-command .dashboard-shift-group small,.nexus-command .dashboard-quick-actions__grid button small{color:#a8c2cc!important}}
+/* Duty Roster — strict zero-white */
+.nexus-roster-workspace{background:#020813!important;color:#d8edf2!important;font-family:"Plus Jakarta Sans","Kanit",sans-serif}.nexus-roster-workspace .page-heading{background:#061421!important;border:1px solid rgba(37,184,211,.2)!important;border-radius:6px!important;padding:18px 20px!important}.nexus-roster-workspace .page-heading h1{color:#f8fafc!important;font-family:"Kanit",sans-serif!important}.nexus-roster-workspace .page-heading :is(p,.eyebrow){color:#94a3b8!important}.nexus-roster-workspace .page-heading .eyebrow,.roster-command-kicker{color:#25b8d3!important;font:700 10px "JetBrains Mono",monospace!important;letter-spacing:.14em}.roster-command-kicker{margin:0 0 8px}.roster-telemetry-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin:10px 0 12px;padding:1px;background:rgba(37,184,211,.16);border:1px solid rgba(37,184,211,.2);border-radius:6px;overflow:hidden}.roster-telemetry-strip>div{padding:12px 14px;background:#061421}.roster-telemetry-strip span,.roster-telemetry-strip small{display:block;color:#7899a7;font:600 9px "JetBrains Mono",monospace;letter-spacing:.08em}.roster-telemetry-strip strong{display:block;margin:4px 0;color:#a8c2cc;font:700 14px "JetBrains Mono",monospace}.roster-telemetry-strip .is-secure{color:#10b981}.roster-telemetry-strip .is-warning{color:#f59e0b}.nexus-roster-workspace .approval-banner{background:#061421!important;border:1px solid rgba(37,184,211,.2)!important;border-radius:6px!important;color:#d8edf2!important}.nexus-roster-workspace .approval-banner strong{color:#f1f5f9!important}.nexus-roster-workspace .approval-banner small{color:#94a3b8!important}.nexus-roster-workspace .schedule-workbench{background:#061421!important;background-color:#061421!important;border:1px solid rgba(37,184,211,.25)!important;border-radius:6px!important;box-shadow:none!important;color:#b8d3dc!important}.nexus-roster-workspace .schedule-workbench>div:first-child{color:#25b8d3!important}.nexus-roster-workspace .schedule-workbench [style*="color: #64748b"],.nexus-roster-workspace .schedule-workbench [style*="color: #475569"]{color:#94a3b8!important}.nexus-roster-workspace .schedule-workbench [style*="border-top"]{border-color:rgba(37,184,211,.18)!important}.nexus-roster-workspace :is(.btn-neutral,.schedule-department-trigger){background:#0f1d2a!important;color:#c2dbe2!important;border-color:rgba(37,184,211,.25)!important;border-radius:6px!important}.nexus-roster-workspace :is(.btn-neutral,.schedule-department-trigger):hover{background:#1a2836!important;color:#f1f5f9!important}.nexus-roster-workspace .btn-primary{background:#25b8d3!important;color:#020813!important;border-color:#25b8d3!important;border-radius:6px!important}.nexus-roster-workspace .toolbar-count{background:#020f1c!important;color:#8fb0bc!important;border:1px solid rgba(37,184,211,.18)!important}.nexus-roster-workspace .schedule-department-popover{background:#061421!important;color:#d8edf2!important;border-color:rgba(37,184,211,.25)!important}.nexus-roster-workspace .schedule-department-option:hover{background:#1a2836!important}.nexus-roster-workspace .calendar-card{background:#020f1c!important;border:1px solid rgba(37,184,211,.2)!important;border-radius:6px!important}.nexus-roster-workspace .schedule-grid{background:#020f1c!important}.nexus-roster-workspace .schedule-grid thead th{background:#061421!important;color:#94a3b8!important;border-color:rgba(37,184,211,.14)!important;font-family:"JetBrains Mono",monospace!important}.nexus-roster-workspace .schedule-grid thead th b{color:#e2f5f8!important}.nexus-roster-workspace .schedule-grid td{background:#020f1c!important;color:#c8dde3!important;border-color:rgba(37,184,211,.1)!important}.nexus-roster-workspace .schedule-grid .employee-sticky{position:sticky!important;left:0!important;z-index:3;background:#061421!important;box-shadow:8px 0 14px rgba(2,8,19,.72)}.nexus-roster-workspace .schedule-grid thead .employee-sticky{z-index:5!important}.nexus-roster-workspace .employee-sticky strong{color:#f1f5f9!important}.nexus-roster-workspace .employee-sticky small{color:#8fb0bc!important;font-family:"JetBrains Mono",monospace!important}.nexus-roster-workspace .calendar-shift{border-radius:6px!important;font-family:"JetBrains Mono",monospace!important}.nexus-roster-workspace .calendar-shift.shift-d{background:#022638!important;border-color:#25b8d3!important;color:#25b8d3!important}.nexus-roster-workspace .calendar-shift.shift-n{background:#181e36!important;border-color:rgba(129,140,248,.45)!important;color:#818cf8!important}.nexus-roster-workspace :is(.calendar-shift.shift-al,.calendar-shift.shift-lv){background:#331c0e!important;border-color:rgba(245,158,11,.45)!important;color:#f59e0b!important}.nexus-roster-workspace .calendar-shift.shift-off{background:#09111b!important;border-color:#253545!important;color:#64748b!important}.nexus-roster-workspace .empty-shift{background:#0f1d2a!important;color:#6f95a5!important;border-color:rgba(37,184,211,.18)!important}.nexus-roster-workspace .pagination-bar{background:#061421!important;color:#94a3b8!important;border-color:rgba(37,184,211,.18)!important}.nexus-roster-workspace .dialog-backdrop .edit-dialog{background:#061421!important;background-color:#061421!important;border:1px solid rgba(37,184,211,.25)!important;border-radius:8px!important;color:#d8edf2!important;box-shadow:0 24px 70px rgba(0,0,0,.55)!important}.nexus-roster-workspace .dialog-backdrop .edit-dialog h2{color:#f1f5f9!important}.nexus-roster-workspace .preview-summary{color:#a8c2cc!important}.nexus-roster-workspace .preview-warning{background:#24180a!important;background-color:#24180a!important;border-color:rgba(245,158,11,.3)!important;color:#fbbf24!important}.nexus-roster-workspace .preview-table-wrap{background:#020f1c!important;border-color:rgba(37,184,211,.18)!important}.nexus-roster-workspace .preview-table :is(th,td){background:#020f1c!important;color:#c8dde3!important;border-color:rgba(37,184,211,.1)!important}.nexus-roster-workspace .preview-actions .btn-secondary{background:#0f1d2a!important;background-color:#0f1d2a!important;color:#c2dbe2!important;border-color:rgba(37,184,211,.25)!important}@media(max-width:640px){.roster-telemetry-strip{grid-template-columns:1fr}.nexus-roster-workspace .page-heading{padding:14px!important}.nexus-roster-workspace .heading-actions{width:100%;display:grid!important;grid-template-columns:1fr 1fr}.nexus-roster-workspace .heading-actions>*{min-width:0;width:100%}.nexus-roster-workspace .schedule-workbench{padding:12px!important}.nexus-roster-workspace .schedule-workbench .btn-neutral,.nexus-roster-workspace .schedule-workbench .btn-primary{min-height:44px}.nexus-roster-workspace .calendar-card>.table-scroll{background:#020813!important;border-radius:6px;scroll-snap-type:x proximity}.nexus-roster-workspace .schedule-grid .employee-sticky{min-width:146px!important;max-width:146px!important}.nexus-roster-workspace .schedule-grid th:not(.employee-sticky),.nexus-roster-workspace .schedule-grid td:not(.employee-sticky){width:104px!important;min-width:104px!important;scroll-snap-align:start}.nexus-roster-workspace .calendar-shift-wrap{width:90px!important;min-height:78px!important}.nexus-roster-workspace .calendar-shift{width:90px!important;max-width:90px!important;min-height:78px!important}.nexus-roster-workspace .schedule-grid tbody tr{background:#020f1c!important}.nexus-roster-workspace .schedule-department-popover{position:fixed!important;left:12px!important;right:12px!important;top:auto!important;bottom:76px!important;max-width:none!important;z-index:50}.nexus-roster-workspace .pagination-bar{border-radius:6px!important}}
+/* Roster mobile contrast hardening — draft action well */
+.nexus-roster-workspace .schedule-draft-actions{background:#020f1c!important;background-color:#020f1c!important;border:1px solid rgba(37,184,211,.18)!important;border-top:1px solid rgba(37,184,211,.25)!important;border-radius:6px!important;padding:12px!important;color:#a9c8d2!important}.nexus-roster-workspace .schedule-draft-actions>span{color:#b8d3dc!important}.nexus-roster-workspace .schedule-draft-actions .btn-primary{background:#25b8d3!important;background-color:#25b8d3!important;color:#020813!important;border:1px solid #25b8d3!important;opacity:1!important}.nexus-roster-workspace .schedule-draft-actions .btn-primary:disabled{background:#123646!important;background-color:#123646!important;color:#8fb8c4!important;border-color:#24566a!important;opacity:1!important}.nexus-roster-workspace .schedule-draft-actions .btn-danger{background:#3a1820!important;background-color:#3a1820!important;color:#fda4af!important;border:1px solid rgba(239,68,68,.5)!important;opacity:1!important}.nexus-roster-workspace .schedule-draft-actions .btn-danger:disabled{background:#20141a!important;background-color:#20141a!important;color:#9f6971!important;border-color:#54303a!important;opacity:1!important}.nexus-roster-workspace .schedule-workbench :is(button,span,div,p,small,strong){text-shadow:none!important}.nexus-roster-workspace .schedule-workbench [style*="background: #eff6ff"],.nexus-roster-workspace .schedule-workbench [style*="background-color: #fff"],.nexus-roster-workspace .schedule-workbench [style*="background: #fff"]{background:#061421!important;background-color:#061421!important}.nexus-roster-workspace .schedule-workbench [style*="color: #1e40af"]{color:#7ed9e9!important}.nexus-roster-workspace .schedule-workbench [style*="color: #475569"]{color:#b8d3dc!important}@media(max-width:640px){.nexus-roster-workspace .schedule-draft-actions{display:grid!important;grid-template-columns:1fr!important;gap:10px!important}.nexus-roster-workspace .schedule-draft-actions :is(button,span){width:100%!important;min-width:0!important}.nexus-roster-workspace .schedule-draft-actions button{min-height:52px!important;font-size:15px!important;line-height:1.35!important}.nexus-roster-workspace .schedule-draft-actions>span{font-size:13px!important;line-height:1.55!important}.nexus-roster-workspace .schedule-workbench{overflow:hidden!important}.nexus-roster-workspace .schedule-workbench>*{max-width:100%!important}}
+/* Compact authenticated shell: reclaim left workspace and simplify brand. */
+.app-shell:not(.pwa-shell) .sidebar:after{content:none!important;display:none!important}.app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-copy>span{display:block!important}.app-shell:not(.pwa-shell) .sidebar-brand{min-height:66px!important;margin-bottom:8px!important;padding-bottom:10px!important;gap:4px!important}.app-shell:not(.pwa-shell) .sidebar-brand>div{gap:0!important}.app-shell:not(.pwa-shell) .sidebar-brand strong{font-size:16px!important}
+@media(min-width:1025px){.app-shell:not(.pwa-shell) .sidebar{width:224px!important;flex:0 0 224px!important}.app-shell:not(.pwa-shell) .main-area{width:calc(100% - 224px)!important}.app-shell:not(.pwa-shell) .content-area{padding:22px 20px 40px!important}.app-shell:not(.pwa-shell) .topbar{margin-left:12px!important;margin-right:12px!important}}
+@media(min-width:1025px) and (max-width:1280px){.app-shell:not(.pwa-shell) .sidebar{width:218px!important;flex-basis:218px!important}.app-shell:not(.pwa-shell) .main-area{width:calc(100% - 218px)!important}.app-shell:not(.pwa-shell) .content-area{padding-left:16px!important;padding-right:16px!important}}
+/* Desktop sidebar follows viewport; only navigation scrolls internally. */
+@media(min-width:1025px){.app-shell:not(.pwa-shell){display:block!important;min-height:100vh!important}.app-shell:not(.pwa-shell) .sidebar{position:fixed!important;top:0!important;left:0!important;z-index:60!important;width:224px!important;height:100dvh!important;min-height:100dvh!important;max-height:100dvh!important;margin:0!important;overflow:hidden!important;overscroll-behavior:contain!important;border-radius:0!important}.app-shell:not(.pwa-shell) .sidebar .nav-menu{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;scrollbar-gutter:stable}.app-shell:not(.pwa-shell) .sidebar-footer{flex:0 0 auto!important}.app-shell:not(.pwa-shell) .main-area{width:calc(100% - 224px)!important;min-height:100vh!important;margin-left:224px!important}.app-shell:not(.pwa-shell) .topbar{position:sticky!important}}
+@media(min-width:1025px) and (max-width:1280px){.app-shell:not(.pwa-shell) .sidebar{width:218px!important}.app-shell:not(.pwa-shell) .main-area{width:calc(100% - 218px)!important;margin-left:218px!important}}
+
+
+/* Command Nexus — full authenticated surface convergence */
+.app-shell:not(.pwa-shell) :is(.view-pane,.data-surface-page,.attendance-device-page,.attendance-supervisor-v4,.report-center-page,.executive-report-page,.pwa-profile-page){color:#cbd5e1!important;color-scheme:dark}
+.app-shell:not(.pwa-shell) :is(.page-heading,.section-title,.report-center-heading,.attendance-device-heading){border-color:rgba(37,184,211,.18)!important;background:#061421!important;color:#e9f8fb!important;border-radius:8px!important}
+.app-shell:not(.pwa-shell) :is(.dashboard-card,.data-surface-card,.card,.settings-card,.rule-summary-grid article,.leave-pending-card,.attendance-device-card,.attendance-device-admin-section,.report-center-card,.executive-report-chart){background:#061421!important;background-color:#061421!important;border-color:rgba(37,184,211,.18)!important;color:#cbd5e1!important;box-shadow:none!important;border-radius:8px!important}
+.app-shell:not(.pwa-shell) :is(input,select,textarea){background:#0f1d2a!important;background-color:#0f1d2a!important;color:#e2e8f0!important;border-color:rgba(37,184,211,.25)!important;color-scheme:dark}
+.app-shell:not(.pwa-shell) :is(option,optgroup){background:#0f1d2a!important;color:#e2e8f0!important}
+.app-shell:not(.pwa-shell) :is(.btn-secondary,.btn-neutral,.small-action,.topbar-icon,.mobile-menu-button){background:#0f1d2a!important;color:#cbd5e1!important;border-color:rgba(37,184,211,.22)!important;border-radius:6px!important}
+.app-shell:not(.pwa-shell) :is(.btn-secondary,.btn-neutral,.small-action,.topbar-icon,.mobile-menu-button):hover{background:#1a2836!important}
+.app-shell:not(.pwa-shell) :is(.btn-primary){background:#25b8d3!important;color:#020813!important;border-color:#25b8d3!important;border-radius:6px!important}
+.app-shell:not(.pwa-shell) :is(table,thead,tbody,tr,th,td){border-color:rgba(37,184,211,.12)!important}
+.app-shell:not(.pwa-shell) :is(thead th){background:#020f1c!important;color:#7aa4b6!important}
+.app-shell:not(.pwa-shell) :is(tbody td){background:#061421;color:#cbd5e1}
+.app-shell:not(.pwa-shell) :is(tbody tr:hover td){background:#1a2836!important}
+.app-shell:not(.pwa-shell) :is(.modal,.dialog,.edit-dialog,[class*="__modal"],[class*="__drawer"]){background-color:#061421!important;color:#cbd5e1!important;border-color:rgba(37,184,211,.22)!important}
+.app-shell:not(.pwa-shell) :is(.eyebrow,[class*="breadcrumb"]){color:#25b8d3!important}
+.app-shell:not(.pwa-shell) :is(h1,h2,h3,h4){color:#f8fafc}
+.app-shell:not(.pwa-shell) :is(code,time,[class*="timestamp"],[class*="device-id"],[class*="employee-code"]){font-family:"JetBrains Mono",monospace!important}
+
+/* Attendance Supervisor: strict tactical dark override without changing workflow authority. */
+.app-shell:not(.pwa-shell) .attendance-supervisor-v4{background:#020813!important;color:#cbd5e1!important;font-family:"Plus Jakarta Sans","Kanit",sans-serif}
+.app-shell:not(.pwa-shell) .attendance-supervisor-v4 :is(.attendance-supervisor-v4__hero,.attendance-supervisor-v4__kpi,.attendance-supervisor-v4__request-card,.attendance-supervisor-v4__workflow-modal,.attendance-supervisor-v4__review-compare,.attendance-supervisor-v4__review-reason){background:#061421!important;color:#cbd5e1!important;border-color:rgba(37,184,211,.2)!important;border-radius:8px!important;box-shadow:none!important}
+.app-shell:not(.pwa-shell) .attendance-supervisor-v4 :is(input,select,textarea){background:#0f1d2a!important;color:#e2e8f0!important;border-color:rgba(37,184,211,.25)!important;border-radius:6px!important}
+.app-shell:not(.pwa-shell) .attendance-supervisor-v4 :is(.attendance-supervisor-v4__workflow-principle,.attendance-supervisor-v4__returned-note){background:rgba(245,158,11,.08)!important;color:#f59e0b!important;border-color:rgba(245,158,11,.28)!important}
+.app-shell:not(.pwa-shell) .attendance-supervisor-v4 .attendance-supervisor-v4__workflow-error{background:rgba(239,68,68,.08)!important;color:#ef4444!important;border-color:rgba(239,68,68,.28)!important}
+.app-shell:not(.pwa-shell) .attendance-supervisor-v4 :is(.attendance-supervisor-v4__workflow-modal>header button,.attendance-supervisor-v4__tabs button){background:#0f1d2a!important;color:#cbd5e1!important;border-color:rgba(37,184,211,.2)!important}
+
+/* Attendance trusted device registry. */
+.app-shell:not(.pwa-shell) .attendance-device-page{--color-surface:#061421;--color-surface-muted:#020f1c;--color-border:rgba(37,184,211,.2);--color-text:#f8fafc;--color-text-muted:#94a3b8;--color-primary:#25b8d3;--color-success:#10b981;--color-warning:#f59e0b}
+.app-shell:not(.pwa-shell) .attendance-device-page :is(.attendance-device-card,.attendance-device-admin-section,.attendance-device-review-card,.attendance-device-review-modal){border-radius:8px!important;box-shadow:none!important}
+
+/* Reports stay dark on screen; print-only documents retain paper white in print media. */
+@media screen{
+.app-shell:not(.pwa-shell) :is(.report-center-page,.executive-report-page){background:#020813!important;color:#cbd5e1!important}
+.app-shell:not(.pwa-shell) :is(.report-center-page,.executive-report-page) :is(section,article,[class*="card"],[class*="panel"]):not(.print-only):not([class*="print-"]){border-color:rgba(37,184,211,.18)!important}
+}
+
+/* Mobile employee shell — Nexus pass/history/schedule/profile surfaces. */
+.pwa-shell{background:#020813!important;color:#cbd5e1!important;color-scheme:dark}
+.pwa-shell :is(.employee-v4-page,.pwa-profile-page){background:#020813!important;color:#cbd5e1!important}
+.pwa-shell :is(.employee-v4-section-header,.employee-v4-card,.pwa-profile-hero,.settings-card,.data-mobile-card){background:#061421!important;color:#cbd5e1!important;border-color:rgba(37,184,211,.2)!important;border-radius:8px!important;box-shadow:none!important}
+.pwa-shell :is(input,select,textarea,button:not(.btn-primary)){background-color:#0f1d2a;color:#cbd5e1;border-color:rgba(37,184,211,.22)}
+.pwa-shell :is(h1,h2,h3,strong){color:#f8fafc}
+.pwa-shell :is(time,code){font-family:"JetBrains Mono",monospace}
+@media(max-width:520px){.app-shell:not(.pwa-shell) :is(.page-heading,.section-title,.report-center-heading,.attendance-device-heading){border-radius:6px!important}.pwa-shell :is(.employee-v4-page,.pwa-profile-page){max-width:100%;overflow-x:hidden}}
+/* Command Nexus — page-level redesign contracts for remaining legacy routes */
+.nexus-page-breadcrumb,.nexus-mobile-breadcrumb{font:600 10px/1.3 "JetBrains Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:#25b8d3;margin:0 0 8px}
+.nexus-attendance-ops,.nexus-device-registry,.nexus-site-command,.nexus-report-intelligence,.nexus-executive-intelligence{background:#020813!important;color:#cbd5e1!important;max-width:100%;overflow-x:hidden}
+.nexus-attendance-ops>header,.nexus-device-registry>.attendance-device-heading,.nexus-site-command>.security-site-admin__header,.nexus-report-intelligence>.report-center-heading,.nexus-executive-intelligence>.executive-report-heading{background:#061421!important;border:1px solid rgba(37,184,211,.2)!important;border-radius:8px!important;box-shadow:none!important}
+.nexus-attendance-ops :is(.attendance-supervisor-v4__kpis,.attendance-supervisor-v4__filters),.nexus-device-registry :is(.attendance-device-grid,.attendance-device-admin-section),.nexus-site-command .security-site-admin__grid,.nexus-report-intelligence .report-center-layout,.nexus-executive-intelligence .executive-report-grid{gap:12px!important}
+.nexus-site-command :is(.security-site-admin__card,.security-site-map,.security-site-map-empty,.security-site-confirm-dialog),.nexus-report-intelligence :is(.report-center-panel,.report-center-export-card),.nexus-executive-intelligence :is(.executive-report-panel,.executive-report-chart){background:#061421!important;color:#cbd5e1!important;border-color:rgba(37,184,211,.2)!important;border-radius:8px!important;box-shadow:none!important}
+.nexus-site-command :is(input,select,textarea),.nexus-report-intelligence :is(input,select,textarea),.nexus-executive-intelligence :is(input,select,textarea){background:#0f1d2a!important;color:#e2e8f0!important;border-color:rgba(37,184,211,.25)!important}
+.nexus-site-command :is(code,.security-site-qr-history__row),.nexus-report-intelligence :is(code,time),.nexus-executive-intelligence :is(code,time){font-family:"JetBrains Mono",monospace!important}
+.nexus-mobile-history,.nexus-mobile-duty,.nexus-mobile-profile{background:#020813!important;color:#cbd5e1!important;max-width:100%;overflow-x:hidden}
+.nexus-mobile-history :is(.employee-v4-history-card,.employee-v4-segmented,.employee-v4-empty),.nexus-mobile-duty :is(.employee-v4-month-control,.employee-v4-shift-highlights article,.employee-v4-schedule-card,.employee-v4-approved,.employee-v4-empty),.nexus-mobile-profile :is(.pwa-profile-hero,.pwa-profile-card){background:#061421!important;color:#cbd5e1!important;border:1px solid rgba(37,184,211,.2)!important;border-radius:8px!important;box-shadow:none!important}
+.nexus-mobile-history :is(.employee-v4-history-times,.employee-v4-history-sites),.nexus-mobile-duty .employee-v4-schedule-date{background:#020f1c!important;border-color:rgba(37,184,211,.16)!important}
+.nexus-mobile-history :is(time,strong),.nexus-mobile-duty :is(time,.employee-v4-schedule-date strong),.nexus-mobile-profile dd{font-family:"JetBrains Mono",monospace}
+.nexus-mobile-profile .pwa-profile-avatar{background:#020f1c!important;color:#25b8d3!important;border:1px solid rgba(37,184,211,.35)!important;box-shadow:0 0 18px rgba(37,184,211,.15)!important}
+@media(min-width:1100px){.nexus-attendance-ops .attendance-supervisor-v4__content{grid-template-columns:minmax(0,65fr) minmax(320px,35fr)}.nexus-site-command .security-site-admin__grid{grid-template-columns:minmax(0,65fr) minmax(320px,35fr)}}
+@media(max-width:520px){.nexus-page-breadcrumb,.nexus-mobile-breadcrumb{font-size:9px}.nexus-mobile-history,.nexus-mobile-duty,.nexus-mobile-profile{width:100%;min-width:0}}
+/* Command Nexus — strict ZERO WHITE remediation for remaining routes */
+.nexus-attendance-ops :is(header,article,section,div,table,thead,tbody,tr,td,th,aside,dialog,form,label,details),
+.nexus-device-registry :is(header,article,section,div,table,thead,tbody,tr,td,th,aside,dialog,form,label,details),
+.nexus-site-command :is(header,article,section,div,table,thead,tbody,tr,td,th,aside,dialog,form,label,details),
+.nexus-report-intelligence :is(header,article,section,div,table,thead,tbody,tr,td,th,aside,dialog,form,label,details),
+.nexus-executive-intelligence :is(header,article,section,div,table,thead,tbody,tr,td,th,aside,dialog,form,label,details),
+.nexus-mobile-history :is(header,article,section,div,details),
+.nexus-mobile-duty :is(header,article,section,div,details),
+.nexus-mobile-profile :is(header,article,section,div,details){--surface-color:#061421;--color-surface:#061421}
+.nexus-attendance-ops :is(input,select,textarea,button),.nexus-device-registry :is(input,select,textarea,button),.nexus-site-command :is(input,select,textarea,button),.nexus-report-intelligence :is(input,select,textarea,button),.nexus-executive-intelligence :is(input,select,textarea,button){color-scheme:dark}
+.nexus-attendance-ops :is(input,select,textarea),.nexus-device-registry :is(input,select,textarea),.nexus-site-command :is(input,select,textarea),.nexus-report-intelligence :is(input,select,textarea),.nexus-executive-intelligence :is(input,select,textarea){background:#0f1d2a!important;background-color:#0f1d2a!important;color:#e2e8f0!important;border-color:rgba(37,184,211,.25)!important}
+.nexus-attendance-ops :is(.attendance-supervisor-v4__kpi,.attendance-supervisor-v4__filters,.attendance-supervisor-v4__mobile-card,.attendance-supervisor-v4__table-wrap,.attendance-supervisor-v4__detail,.attendance-supervisor-v4__dialog,.data-table-state),
+.nexus-device-registry :is(.attendance-device-card,.attendance-device-table-wrap,.attendance-device-admin-section,.edit-dialog),
+.nexus-site-command :is(.security-site-authority-rule span,.security-site-overlap-warning,.security-site-qr-history__row,.security-site-confirm-dialog,.security-site-confirm-dialog__impact,.security-site-qr-once,.security-site-map-empty),
+.nexus-mobile-history :is(.employee-v4-message,.employee-v4-history-card,.employee-v4-history-correction,.employee-v4-empty),
+.nexus-mobile-duty :is(.employee-v4-message,.employee-v4-schedule-card,.employee-v4-empty),
+.nexus-mobile-profile :is(.settings-notice,.pwa-profile-card){background:#061421!important;background-color:#061421!important;background-image:none!important;color:#cbd5e1!important;border-color:rgba(37,184,211,.2)!important;box-shadow:none!important}
+.nexus-attendance-ops :is(.is-warning,.is-danger),.nexus-mobile-history :is(.is-warning,.is-danger),.nexus-mobile-duty :is(.is-warning,.is-danger){background-image:none!important}
+.nexus-attendance-ops .is-warning,.nexus-mobile-history .is-warning,.nexus-mobile-duty .is-warning{background:#211807!important;color:#fbbf24!important;border-color:rgba(245,158,11,.35)!important}
+.nexus-attendance-ops .is-danger,.nexus-mobile-history .is-danger,.nexus-mobile-duty .is-danger{background:#210d12!important;color:#f87171!important;border-color:rgba(239,68,68,.35)!important}
+.nexus-site-command .security-site-qr-image{background:#020f1c!important;border-color:rgba(37,184,211,.25)!important}
+.nexus-site-command .leaflet-control-zoom,.nexus-site-command .leaflet-control-zoom a{background:#0f1d2a!important;border-color:rgba(37,184,211,.25)!important;color:#cbd5e1!important}
+.nexus-site-command .leaflet-control-zoom a:hover{background:#1a2836!important}.nexus-site-command .leaflet-control-attribution{background:rgba(2,15,28,.92)!important;color:#94a3b8!important}.nexus-site-command .leaflet-control-attribution a{color:#25b8d3!important}
+.nexus-site-command .security-site-map-picker__marker{border-color:#25b8d3!important}.nexus-site-command .security-site-map-picker__marker i{background:#020813!important}
+.nexus-mobile-history .employee-v4-status.is-warning{background:#211807!important;color:#fbbf24!important}
+/* Command Nexus — Personnel Directory strict ZERO-WHITE token scope */
+.app-shell:not(.pwa-shell) .personnel-directory-page{
+  --color-bg:#020813;
+  --color-surface:#061421;
+  --color-surface-elevated:#0f1d2a;
+  --color-surface-muted:#020f1c;
+  --color-surface-subtle:#020f1c;
+  --color-border:rgba(37,184,211,.20);
+  --color-border-strong:rgba(37,184,211,.30);
+  --color-text:#f8fafc;
+  --color-text-secondary:#cbd5e1;
+  --color-text-muted:#94a3b8;
+  --color-primary:#25b8d3;
+  --color-primary-soft:#253545;
+  --color-success:#10b981;
+  --color-success-soft:rgba(16,185,129,.12);
+  --color-warning:#f59e0b;
+  --color-warning-soft:rgba(245,158,11,.12);
+  --color-danger:#ef4444;
+  --color-danger-soft:rgba(239,68,68,.12);
+  color-scheme:dark;
+}
+.app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-search-panel,.personnel-table-card,.personnel-metric,.personnel-empty-state,.personnel-detail-drawer,.personnel-state-card,.personnel-360-data-note,.personnel-360-timeline li,.personnel-readiness-summary,.attendance-readiness-center){
+  box-shadow:none!important;
+}
+.app-shell:not(.pwa-shell) .personnel-directory-page :is(input,select,textarea,button){color-scheme:dark}
+/* Command Nexus Daylight — award-grade authenticated light theme */
+[data-theme="light"] .app-shell:not(.pwa-shell){--color-bg:#f3f7fb;--color-surface:#ffffff;--color-surface-elevated:#ffffff;--color-surface-muted:#eef4f8;--color-surface-subtle:#f7fafc;--color-border:#dce6ee;--color-border-strong:#c9d8e4;--color-text:#102033;--color-text-secondary:#4c6174;--color-text-muted:#74889a;--color-primary:#087f9c;--color-primary-soft:#e2f4f8;--color-success:#078a60;--color-success-soft:#e4f6ef;--color-warning:#b66a00;--color-warning-soft:#fff3dc;--color-danger:#cf3946;--color-danger-soft:#fdebed;color-scheme:light!important;background:radial-gradient(circle at 92% 0,rgba(83,190,225,.10),transparent 26%),linear-gradient(180deg,#f8fbfe 0,#f2f7fb 100%)!important;color:#102033!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .content-area{background:transparent!important;color:#102033!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .topbar{background:rgba(250,253,255,.9)!important;border-bottom:1px solid #dce6ee!important;box-shadow:0 8px 30px rgba(26,62,91,.045)!important;backdrop-filter:blur(18px) saturate(1.15)}
+[data-theme="light"] .app-shell:not(.pwa-shell) .topbar :is(strong,h1,h2){color:#102033!important}[data-theme="light"] .app-shell:not(.pwa-shell) .topbar :is(small,span){color:#617588}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.view-pane,.data-surface-page,.attendance-device-page,.attendance-supervisor-v4,.report-center-page,.executive-report-page,.personnel-directory-page,.nexus-attendance-ops,.nexus-device-registry,.nexus-site-command,.nexus-report-intelligence,.nexus-executive-intelligence){background:transparent!important;color:#102033!important;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.page-heading,.section-title,.report-center-heading,.attendance-device-heading,.dashboard-card,.data-surface-card,.card,.settings-card,.rule-summary-grid article,.leave-pending-card,.attendance-device-card,.attendance-device-admin-section,.report-center-card,.executive-report-chart,.dashboard-panel,.dashboard-metric,.dashboard-filter-bar,.personnel-search-panel,.personnel-table-card,.personnel-metric,.personnel-empty-state,.personnel-detail-drawer,.personnel-state-card,.personnel-360-data-note,.personnel-360-timeline li,.personnel-readiness-summary,.attendance-readiness-center){background:#fff!important;background-color:#fff!important;color:#102033!important;border-color:#dce6ee!important;border-radius:12px!important;box-shadow:0 8px 26px rgba(29,63,89,.055)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(h1,h2,h3,h4,strong){color:#102033!important}[data-theme="light"] .app-shell:not(.pwa-shell) :is(p,small,label,dd,.muted-text,.cell-note){color:#52677a}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.eyebrow,[class*="breadcrumb"],.nexus-page-breadcrumb){color:#087f9c!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(input,select,textarea){background:#fff!important;background-color:#fff!important;color:#102033!important;border-color:#cfdde7!important;color-scheme:light!important;box-shadow:0 2px 8px rgba(29,63,89,.025)}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(option,optgroup){background:#fff!important;color:#102033!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.btn-secondary,.btn-neutral,.small-action,.topbar-icon,.mobile-menu-button){background:#fff!important;color:#334b60!important;border-color:#d5e1e9!important;box-shadow:0 3px 10px rgba(29,63,89,.04)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.btn-secondary,.btn-neutral,.small-action,.topbar-icon,.mobile-menu-button):hover{background:#edf7fa!important;border-color:#b7dce5!important;color:#087f9c!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .btn-primary{background:linear-gradient(135deg,#0a91ad,#087f9c)!important;color:#fff!important;border-color:#087f9c!important;box-shadow:0 7px 18px rgba(8,127,156,.18)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(table,thead,tbody,tr,th,td){border-color:#e0e8ef!important}[data-theme="light"] .app-shell:not(.pwa-shell) thead th{background:#eef4f8!important;color:#52677a!important}[data-theme="light"] .app-shell:not(.pwa-shell) tbody td{background:#fff!important;color:#263d52!important}[data-theme="light"] .app-shell:not(.pwa-shell) tbody tr:hover td{background:#f2f8fb!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.modal,.dialog,.edit-dialog,[class*="__modal"],[class*="__drawer"]){background:#fff!important;background-color:#fff!important;color:#102033!important;border-color:#dce6ee!important;box-shadow:0 24px 70px rgba(21,50,75,.16)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page{--color-bg:#f3f7fb;--color-surface:#fff;--color-surface-elevated:#fff;--color-surface-muted:#eef4f8;--color-surface-subtle:#f7fafc;--color-border:#dce6ee;--color-border-strong:#c9d8e4;--color-text:#102033;--color-text-secondary:#4c6174;--color-text-muted:#74889a;--color-primary:#087f9c;--color-primary-soft:#e2f4f8;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(input,select,textarea,button){color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-workbench{background:#fff!important;color:#102033!important;border-color:#dce6ee!important;box-shadow:0 8px 26px rgba(29,63,89,.055)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-grid .employee-sticky{background:#fff!important;color:#102033!important}[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-grid .employee-sticky :is(strong,small){color:#102033!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-grid :is(th,.schedule-day-head){background:#eef4f8!important;color:#52677a!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-draft-actions{background:#f7fafc!important;border-color:#dce6ee!important;color:#52677a!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-workbench [style*="background: #eff6ff"],[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-workbench [style*="background-color: #fff"],[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-workbench [style*="background: #fff"]{background:#f7fafc!important;background-color:#f7fafc!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-workbench [style*="color: #1e40af"]{color:#087f9c!important}[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-workbench [style*="color: #475569"]{color:#52677a!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.attendance-supervisor-v4__hero,.attendance-supervisor-v4__kpi,.attendance-supervisor-v4__request-card,.attendance-supervisor-v4__workflow-modal,.attendance-supervisor-v4__review-compare,.attendance-supervisor-v4__review-reason,.security-site-admin__card,.security-site-map,.security-site-map-empty,.security-site-confirm-dialog,.report-center-panel,.report-center-export-card,.executive-report-panel,.executive-report-chart){background:#fff!important;color:#102033!important;border-color:#dce6ee!important;box-shadow:0 8px 26px rgba(29,63,89,.055)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-attendance-ops,.nexus-device-registry,.nexus-site-command,.nexus-report-intelligence,.nexus-executive-intelligence) :is(input,select,textarea,button){color-scheme:light!important}
+[data-theme="light"] .theme-control{background:#edf3f7!important;border-color:#d8e3eb!important}[data-theme="light"] .theme-control button.is-active{background:#fff!important;color:#087f9c!important;border-color:#d5e1e9!important;box-shadow:0 3px 10px rgba(29,63,89,.08)!important}
+/* Command Nexus Daylight — full authenticated surface convergence */
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.dashboard-page,.schedule-calendar-page,.settings-page,.leave-page,.data-surface-page){--sms-page:#f3f7fb;--sms-surface:#fff;--sms-surface-soft:#eef4f8;--sms-border:#dce6ee;--sms-text:#102033;--sms-muted:#617588;--nexus-bg:#f3f7fb;--nexus-panel:#fff;--nexus-well:#eef4f8;--nexus-line:#dce6ee;--nexus-text:#102033;--nexus-muted:#617588;--nexus-cyan:#087f9c;color:#102033!important;background:transparent!important;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.settings-page,.leave-page,.data-surface-page,.schedule-calendar-page) :is(.table-card,.filter-card,.summary-card,.settings-section,.settings-panel,.leave-submit-card,.leave-decision-queue,.leave-decision-detail,.leave-decision-actions,.leave-quota-card,.schedule-calendar-toolbar,.schedule-calendar-summary,.schedule-calendar-table-wrap,.data-state){background:#fff!important;color:#102033!important;border-color:#dce6ee!important;box-shadow:0 8px 26px rgba(29,63,89,.055)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.settings-page,.leave-page,.data-surface-page,.schedule-calendar-page) :is(header,footer)[class*="card"],
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.settings-page,.leave-page,.data-surface-page,.schedule-calendar-page) :is([class*="toolbar"],[class*="filter-bar"]){border-color:#dce6ee!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.settings-page,.leave-page,.data-surface-page,.schedule-calendar-page) :is(h1,h2,h3,h4,strong,dt,dd){color:#102033}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.settings-page,.leave-page,.data-surface-page,.schedule-calendar-page) :is(p,small,label,span:not(.status-badge):not([class*="badge"])){border-color:#dce6ee}
+
+/* User-selectable responsive presentation mode. Native responsive remains the default. */
+.display-mode-toggle,.mobile-utility-display-mode{align-items:center;gap:7px;border:1px solid var(--color-border,#334155);border-radius:7px;background:var(--color-surface-elevated,#0f1d2a);color:var(--color-text-secondary,#cbd5e1);font:600 11px "Plus Jakarta Sans","Kanit",sans-serif;cursor:pointer}
+.display-mode-toggle{display:none;min-height:34px;padding:0 10px}.mobile-utility-display-mode{display:flex;width:100%;min-height:44px;padding:0 12px;justify-content:flex-start}
+[data-theme="light"] .display-mode-toggle,[data-theme="light"] .mobile-utility-display-mode{background:#fff;color:#334b60;border-color:#d5e1e9;box-shadow:0 3px 10px rgba(29,63,89,.04)}
+@media(max-width:1024px){.app-shell:not(.pwa-shell) .display-mode-toggle{display:inline-flex}}
+@media(max-width:1024px){
+  html:has(.app-shell.desktop-view),body:has(.app-shell.desktop-view){min-width:1180px;overflow-x:auto!important}
+  .app-shell.desktop-view:not(.pwa-shell){display:block!important;min-width:1180px!important;min-height:100vh!important}
+  .app-shell.desktop-view:not(.pwa-shell) .sidebar{display:flex!important;position:fixed!important;left:0!important;top:0!important;width:224px!important;height:100dvh!important;max-height:100dvh!important;z-index:60!important;box-shadow:none!important;overflow:hidden!important}
+  .app-shell.desktop-view:not(.pwa-shell) .sidebar .nav-menu{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important}
+  .app-shell.desktop-view:not(.pwa-shell) .sidebar-close-button,.app-shell.desktop-view:not(.pwa-shell) .sidebar-overlay,.app-shell.desktop-view:not(.pwa-shell) .mobile-menu-button,.app-shell.desktop-view:not(.pwa-shell) .mobile-brand,.app-shell.desktop-view:not(.pwa-shell) .mobile-utility-button{display:none!important}
+  .app-shell.desktop-view:not(.pwa-shell) .main-area{display:block!important;width:956px!important;min-width:956px!important;margin-left:224px!important}
+  .app-shell.desktop-view:not(.pwa-shell) .topbar{display:flex!important;min-width:932px!important;min-height:64px!important;margin:0 12px!important;padding:0 18px!important}
+  .app-shell.desktop-view:not(.pwa-shell) .topbar-copy,.app-shell.desktop-view:not(.pwa-shell) .environment-pill,.app-shell.desktop-view:not(.pwa-shell) .topbar-profile,.app-shell.desktop-view:not(.pwa-shell) .topbar-search,.app-shell.desktop-view:not(.pwa-shell) .display-mode-toggle{display:flex!important}
+  .app-shell.desktop-view:not(.pwa-shell) .content-area{width:auto!important;min-width:0!important;padding:22px 20px 40px!important}
+  .app-shell.desktop-view:not(.pwa-shell) :is(.mobile-card-list,.leave-history-mobile-list){display:none!important}
+  .app-shell.desktop-view:not(.pwa-shell) :is(.desktop-table,.leave-history-desktop-table){display:block!important}
+}
+/* 2026-09-27 Light Theme visual correction — Nexus dashboard + desktop sidebar */
+[data-theme="light"] .app-shell:not(.pwa-shell){--nexus-bg:#f3f7fb;--nexus-surface:#ffffff;--nexus-dim:#eef4f8;--nexus-container:#f7fafc;--nexus-high:#e7f0f5;--nexus-line:#d8e5ec;--nexus-cyan:#087f9c;--nexus-cyan-soft:#0b89a8;--nexus-muted:#617588;background:#f3f7fb!important;color:#102033!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .main-area{background:linear-gradient(180deg,#f6f9fc 0%,#eef4f8 100%)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .sidebar{background:linear-gradient(180deg,#ffffff 0%,#f6fafc 100%)!important;border-right-color:#d8e5ec!important;color:#263b4d!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .sidebar :is(.brand-name,.nav-item,.nav-group-label,.sidebar-footer,.sidebar-footer b,.sidebar-footer small){color:#263b4d!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .sidebar .nav-group-label{color:#7a8e9e!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .sidebar .nav-item:hover{background:#edf5f8!important;color:#075f77!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .sidebar .nav-item.active{background:#e5f4f8!important;color:#087f9c!important;border-color:#b9dfe8!important}
+[data-theme="light"] .nexus-command{background:transparent!important;background-color:transparent!important;color:#102033!important}
+[data-theme="light"] .nexus-command :is(h1,h2,h3){color:#102033!important}
+[data-theme="light"] .nexus-kicker{color:#087f9c!important}
+[data-theme="light"] .nexus-command__hero{border-bottom-color:#d8e5ec!important}
+[data-theme="light"] .nexus-command__hero>div>p:last-child{color:#617588!important}
+[data-theme="light"] .nexus-hero-status{background:#fff!important;border-color:#d8e5ec!important;color:#50687b!important}
+[data-theme="light"] .nexus-panel,[data-theme="light"] .nexus-kpis{background:#fff!important;background-color:#fff!important;border-color:#d8e5ec!important;box-shadow:0 8px 26px rgba(29,63,89,.055)!important}
+[data-theme="light"] .nexus-panel>header{border-bottom-color:#d8e5ec!important}
+[data-theme="light"] .nexus-vector-field{background-color:#f5fafc!important;background-image:linear-gradient(rgba(8,127,156,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(8,127,156,.07) 1px,transparent 1px),radial-gradient(circle at center,rgba(8,127,156,.09),transparent 42%)!important}
+[data-theme="light"] .nexus-kpis button{background:#fff!important;border-color:#d8e5ec!important}
+[data-theme="light"] .nexus-kpis button:hover{background:#f3f8fa!important}
+[data-theme="light"] .nexus-kpis strong{color:#102033!important;text-shadow:none!important}
+[data-theme="light"] .nexus-kpis :is(span,em){color:#668093!important}
+[data-theme="light"] .nexus-command .dashboard-filter-bar{background:#fff!important;background-color:#fff!important;border-color:#d8e5ec!important;color:#102033!important;box-shadow:0 8px 26px rgba(29,63,89,.05)!important}
+[data-theme="light"] .nexus-command .dashboard-filter-bar__icon{background:#e8f6f9!important;color:#087f9c!important}
+[data-theme="light"] .nexus-command .dashboard-filter-bar label>span{color:#617588!important}
+[data-theme="light"] .nexus-command .dashboard-filter-bar :is(input,select){background:#fff!important;color:#102033!important;border-color:#cbdbe4!important;color-scheme:light!important}
+[data-theme="light"] .nexus-command :is(.dashboard-panel,.dashboard-metric,.dashboard-mini-stat,.dashboard-today-stat,.dashboard-shift-group,.dashboard-attention-row,.dashboard-expiring-row,.dashboard-secondary-metric,.dashboard-today-highlight,.dashboard-workforce .dashboard-legend>div,.dashboard-empty-inline,.dashboard-unavailable,.dashboard-sync-status__body){background:#fff!important;background-color:#fff!important;border-color:#d8e5ec!important;color:#334b60!important;box-shadow:0 5px 18px rgba(29,63,89,.045)!important}
+[data-theme="light"] .nexus-command :is(.dashboard-panel,.dashboard-metric,.dashboard-mini-stat,.dashboard-today-stat,.dashboard-shift-group,.dashboard-attention-row,.dashboard-expiring-row,.dashboard-secondary-metric,.dashboard-today-highlight) :is(h2,h3,strong,b){color:#102033!important;text-shadow:none!important}
+[data-theme="light"] .nexus-command :is(.dashboard-panel,.dashboard-metric,.dashboard-mini-stat,.dashboard-today-stat,.dashboard-shift-group,.dashboard-attention-row,.dashboard-expiring-row,.dashboard-secondary-metric,.dashboard-today-highlight) :is(p,small,span){color:#617588!important}
+@media(max-width:1024px){
+  .app-shell.desktop-view:not(.pwa-shell) .sidebar{width:218px!important}
+  .app-shell.desktop-view:not(.pwa-shell) .main-area{width:962px!important;min-width:962px!important;margin-left:218px!important}
+  .app-shell.desktop-view:not(.pwa-shell) .topbar{min-width:918px!important}
+}
+/* Daylight final cascade: concept fidelity + reliable mobile desktop emulation */
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command .dashboard-quick-actions{background:linear-gradient(135deg,#fff 0%,#fbf9ff 55%,#f3fbff 100%)!important;border:1px solid #e2e8f0!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command .dashboard-quick-actions__grid button{background:#fff!important;background-color:#fff!important;color:#17253a!important;border:1px solid #e3e8ef!important;border-radius:12px!important;box-shadow:0 5px 16px rgba(29,63,89,.045)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command .dashboard-quick-actions__grid button:nth-child(1)>span{background:#eeeaff!important;color:#6754e8!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command .dashboard-quick-actions__grid button:nth-child(2)>span{background:#e7f7fb!important;color:#168da9!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command .dashboard-quick-actions__grid button:nth-child(3)>span{background:#fff4dc!important;color:#b66a00!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command .dashboard-quick-actions__grid button:nth-child(4)>span{background:#fdebf3!important;color:#bd3e72!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command .dashboard-quick-actions__grid button :is(b,strong){color:#17253a!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command .dashboard-quick-actions__grid button small{color:#708296!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-command :is(.dashboard-today-operations,.dashboard-attention,.dashboard-workforce,.dashboard-recent-activity){background:#fff!important;color:#17253a!important;border-color:#e1e8ef!important}
+
+@media(max-width:1024px){
+  html:has(.app-shell.desktop-view),body:has(.app-shell.desktop-view){min-width:0!important;width:100%!important;overflow-x:auto!important;background:#f3f7fb!important}
+  .app-shell.desktop-view:not(.pwa-shell){position:relative!important;display:grid!important;grid-template-columns:190px minmax(990px,1fr)!important;width:1180px!important;min-width:1180px!important;min-height:100vh!important;transform:none!important}
+  .app-shell.desktop-view:not(.pwa-shell) .sidebar{display:flex!important;position:fixed!important;left:0!important;top:0!important;grid-column:1!important;width:190px!important;min-width:190px!important;height:100vh!important;z-index:80!important;transform:none!important;visibility:visible!important;opacity:1!important}
+  [data-theme="light"] .app-shell.desktop-view:not(.pwa-shell) .sidebar{background:linear-gradient(180deg,#fff,#f6fafc)!important}
+  .app-shell.desktop-view:not(.pwa-shell) .main-area{grid-column:2!important;width:990px!important;min-width:990px!important;margin-left:0!important;transform:none!important}
+  .app-shell.desktop-view:not(.pwa-shell) .topbar{width:966px!important;min-width:966px!important;margin:0 12px!important}
+  .app-shell.desktop-view:not(.pwa-shell) .content-area{width:990px!important;min-width:990px!important;box-sizing:border-box!important}
+  .app-shell.desktop-view:not(.pwa-shell) .sidebar-close-button,.app-shell.desktop-view:not(.pwa-shell) .sidebar-overlay,.app-shell.desktop-view:not(.pwa-shell) .mobile-menu-button,.app-shell.desktop-view:not(.pwa-shell) .mobile-brand,.app-shell.desktop-view:not(.pwa-shell) .mobile-utility-button{display:none!important}
+}
+/* Luminous Nexus Light Edition — Stitch source-of-truth. DARK MODE INTENTIONALLY UNSCOPED. */
+[data-theme="light"] .app-shell:not(.pwa-shell){--ln-bg:#f8f9ff;--ln-card:#fff;--ln-line:#eef0f5;--ln-text:#172033;--ln-muted:#7b8798;--ln-purple:#7c3aed;--ln-violet:#8b5cf6;--ln-cyan:#06b6d4;--ln-rose:#f43f5e;--ln-green:#10b981;background:radial-gradient(circle at 10% 20%,rgba(237,233,254,.45),rgba(248,249,255,.9) 60%),radial-gradient(circle at 90% 80%,rgba(221,243,255,.45),rgba(248,249,255,.9) 60%)!important;color:var(--ln-text)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .main-area{background:transparent!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .sidebar{background:rgba(255,255,255,.94)!important;border-right:1px solid #eef0f5!important;box-shadow:0 1px 3px rgba(15,23,42,.04)!important;color:#475569!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .sidebar .brand-mark{background:linear-gradient(45deg,#7c3aed,#6366f1,#a78bfa)!important;border-radius:14px!important;box-shadow:0 8px 18px rgba(124,58,237,.22)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .sidebar .nav-group-label{color:#94a3b8!important;font-size:10px!important;letter-spacing:.12em!important;text-transform:uppercase!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .sidebar .nav-item{border-radius:11px!important;color:#64748b!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .sidebar .nav-item:hover{background:#f8fafc!important;color:#0f172a!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .sidebar .nav-item.active{background:rgba(245,243,255,.9)!important;color:#6d28d9!important;border-color:transparent!important;box-shadow:none!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .topbar{background:rgba(255,255,255,.76)!important;backdrop-filter:blur(16px)!important;border-color:#eef0f5!important;box-shadow:none!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .topbar-search{background:#f1f5f9!important;border-color:transparent!important;border-radius:12px!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .content-area{background:transparent!important}
+[data-theme="light"] .nexus-command{max-width:1480px!important;margin:0 auto!important;gap:24px!important;color:var(--ln-text)!important}
+[data-theme="light"] .nexus-command__hero{padding:10px 4px 4px!important;border:0!important;background:transparent!important}
+[data-theme="light"] .nexus-command__hero h1{font-size:28px!important;letter-spacing:-.025em!important;color:#0f172a!important;text-shadow:none!important}
+[data-theme="light"] .nexus-command__hero>div>p:last-child{color:#64748b!important;font-size:13px!important}
+[data-theme="light"] .nexus-kicker{color:#7c3aed!important;letter-spacing:.12em!important}
+[data-theme="light"] .nexus-hero-status{background:#f5f3ff!important;color:#6d28d9!important;border:1px solid #ede9fe!important;border-radius:999px!important}
+[data-theme="light"] .nexus-kpis{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:18px!important;background:transparent!important;border:0!important;box-shadow:none!important}
+[data-theme="light"] .nexus-kpis button{min-height:124px!important;padding:20px!important;background:#fff!important;border:1px solid #f1f5f9!important;border-radius:16px!important;box-shadow:0 10px 25px -5px rgba(124,58,237,.05),0 8px 10px -6px rgba(0,0,0,.02)!important;transition:.2s ease!important}
+[data-theme="light"] .nexus-kpis button:hover{transform:translateY(-2px)!important;box-shadow:0 20px 30px -10px rgba(124,58,237,.1),0 10px 15px -5px rgba(0,0,0,.04)!important}
+[data-theme="light"] .nexus-kpis strong{font-size:28px!important;color:#0f172a!important;text-shadow:none!important}
+[data-theme="light"] .nexus-kpis span,[data-theme="light"] .nexus-kpis em{color:#94a3b8!important}
+[data-theme="light"] .nexus-command .dashboard-filter-bar{padding:16px 20px!important;background:rgba(255,255,255,.92)!important;border:1px solid #f1f5f9!important;border-radius:16px!important;box-shadow:0 10px 25px -5px rgba(124,58,237,.035)!important}
+[data-theme="light"] .nexus-command .dashboard-filter-bar__icon{background:#f5f3ff!important;color:#7c3aed!important;border-radius:12px!important}
+[data-theme="light"] .nexus-command .dashboard-filter-bar :is(input,select){background:#f8fafc!important;border:1px solid #e2e8f0!important;border-radius:10px!important;color:#334155!important}
+[data-theme="light"] .nexus-command__grid{gap:20px!important}
+[data-theme="light"] .nexus-command .dashboard-panel{background:#fff!important;border:1px solid #f1f5f9!important;border-radius:16px!important;box-shadow:0 10px 25px -5px rgba(124,58,237,.045),0 8px 10px -6px rgba(0,0,0,.018)!important;color:#334155!important;overflow:hidden!important}
+[data-theme="light"] .nexus-command .dashboard-panel__header{padding-bottom:14px!important;border-color:#f1f5f9!important}
+[data-theme="light"] .nexus-command .dashboard-panel__header :is(h2,h3){color:#0f172a!important;font-size:15px!important}
+[data-theme="light"] .nexus-command .dashboard-panel__header :is(p,span){color:#94a3b8!important}
+[data-theme="light"] .nexus-command :is(.dashboard-today-highlight,.dashboard-today-stat,.dashboard-shift-group,.dashboard-attention-row,.dashboard-expiring-row,.dashboard-secondary-metric,.dashboard-mini-stat){background:#fff!important;border:1px solid #f1f5f9!important;border-radius:12px!important;box-shadow:none!important}
+[data-theme="light"] .nexus-command :is(.dashboard-today-highlight,.dashboard-today-stat,.dashboard-shift-group,.dashboard-attention-row,.dashboard-expiring-row,.dashboard-secondary-metric,.dashboard-mini-stat) :is(b,strong){color:#0f172a!important}
+[data-theme="light"] .nexus-command :is(.dashboard-today-highlight,.dashboard-today-stat,.dashboard-shift-group,.dashboard-attention-row,.dashboard-expiring-row,.dashboard-secondary-metric,.dashboard-mini-stat) :is(span,small,p){color:#64748b!important}
+[data-theme="light"] .nexus-command .dashboard-donut{background:conic-gradient(#7c3aed var(--dashboard-progress),#f1f5f9 0)!important;box-shadow:none!important}
+[data-theme="light"] .nexus-command .dashboard-donut:before{background:#fff!important}
+[data-theme="light"] .nexus-command .dashboard-donut strong{color:#0f172a!important}
+[data-theme="light"] .nexus-command .dashboard-legend>div{background:#fff!important;border:0!important;border-bottom:1px solid #f8fafc!important;box-shadow:none!important}
+[data-theme="light"] .nexus-command .dashboard-legend p{color:#64748b!important}.nexus-command .dashboard-legend b{color:#0f172a}
+[data-theme="light"] .nexus-command .dashboard-quick-actions{background:linear-gradient(135deg,#fff,#fcfbff 60%,#f7fcff)!important}
+[data-theme="light"] .nexus-command .dashboard-quick-actions__grid button{background:#fff!important;border:1px solid #f1f5f9!important;border-radius:14px!important;color:#334155!important;box-shadow:0 5px 16px rgba(124,58,237,.035)!important}
+[data-theme="light"] .nexus-command .dashboard-quick-actions__grid button b{color:#172033!important}.nexus-command .dashboard-quick-actions__grid button small{color:#94a3b8!important}
+[data-theme="light"] .nexus-command .dashboard-quick-actions__grid button:nth-child(4n+1)>span{background:#f5f3ff!important;color:#7c3aed!important}[data-theme="light"] .nexus-command .dashboard-quick-actions__grid button:nth-child(4n+2)>span{background:#ecfeff!important;color:#0891b2!important}[data-theme="light"] .nexus-command .dashboard-quick-actions__grid button:nth-child(4n+3)>span{background:#fff1f2!important;color:#e11d48!important}[data-theme="light"] .nexus-command .dashboard-quick-actions__grid button:nth-child(4n)>span{background:#eef2ff!important;color:#4f46e5!important}
+[data-theme="light"] .nexus-command .dashboard-link-button{background:#f5f3ff!important;color:#6d28d9!important;border-color:#ede9fe!important;border-radius:10px!important}
+[data-theme="light"] .nexus-command :is(.dashboard-period,.dashboard-panel__unavailable){background:#f8fafc!important;color:#64748b!important;border-color:#e2e8f0!important;border-radius:999px!important}
+[data-theme="light"] .nexus-command .dashboard-readiness-badge{background:#ecfdf5!important;color:#047857!important;border-color:#d1fae5!important}.nexus-command .dashboard-readiness-badge--warning{background:#fffbeb!important;color:#b45309!important;border-color:#fef3c7!important}
+[data-theme="light"] .nexus-command .dashboard-panel__footnote{color:#94a3b8!important;border-color:#f1f5f9!important}
+[data-theme="light"] .nexus-command .dashboard-skeleton{background:linear-gradient(90deg,#f1f5f9,#f8fafc,#f1f5f9)!important}
+@media(max-width:1180px){[data-theme="light"] .nexus-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:640px){[data-theme="light"] .nexus-kpis{grid-template-columns:1fr!important}[data-theme="light"] .nexus-command{gap:16px!important}}
+/* Screenshot closure 2026-09-27 — LIGHT ONLY; fixes observed dark leakage. */
+[data-theme="light"] .nexus-command .dashboard-donut>div{background:#fff!important;color:#64748b!important}
+[data-theme="light"] .nexus-command .dashboard-donut>div strong{color:#0f172a!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page{background:transparent!important;color:#172033!important;--signature-bg:#f8f9ff;--signature-surface:#fff;--signature-surface-raised:#fff;--signature-border:#eef0f5;--signature-text:#172033;--signature-text-muted:#7b8798;--table-bg:#fff;--table-header-bg:#f8fafc;--table-row-hover-bg:#fafaff;--table-text:#172033;--table-text-secondary:#64748b;--drawer-bg:#fff!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-directory-header,.personnel-search-panel,.personnel-table-card,.personnel-metric,.personnel-empty-state,.personnel-state-card,.personnel-360-data-note,.personnel-360-timeline li,.personnel-readiness-summary,.attendance-readiness-center){background:#fff!important;background-image:none!important;color:#334155!important;border-color:#eef0f5!important;box-shadow:0 10px 25px -5px rgba(124,58,237,.045),0 8px 10px -6px rgba(0,0,0,.018)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page .personnel-directory-header{background:transparent!important;border:0!important;box-shadow:none!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(h1,h2,h3,h4,strong,b,.personnel-result-line){color:#172033!important;text-shadow:none!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(p,small,label,dt,.personnel-eyebrow){color:#64748b!important;text-shadow:none!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page .personnel-eyebrow{color:#7c3aed!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(input,select,textarea){background:#f8fafc!important;background-image:none!important;color:#334155!important;border-color:#e2e8f0!important;box-shadow:none!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.attendance-readiness-center,.attendance-readiness-panel){background:#fff!important;background-image:none!important;border:1px solid #eef0f5!important;color:#334155!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page [class*="readiness"] :is(button,.chip){background:#f8fafc!important;color:#64748b!important;border-color:#e2e8f0!important;box-shadow:none!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page [class*="readiness"] button:is(.active,.is-active,[aria-pressed="true"]){background:#f5f3ff!important;color:#6d28d9!important;border-color:#ddd6fe!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-table,.data-surface-table){background:#fff!important;color:#334155!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-table,.data-surface-table) thead th{background:#f8fafc!important;color:#64748b!important;border-color:#eef0f5!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-table,.data-surface-table) tbody :is(tr,td){background:#fff!important;color:#334155!important;border-color:#f1f5f9!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-table,.data-surface-table) tbody tr:hover td{background:#fafaff!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .personnel-detail-drawer{background:#fff!important;color:#334155!important;border-color:#eef0f5!important}
+/* Forced desktop on narrow screens: the viewport itself owns horizontal panning. */
+@media (max-width:1024px){
+  html:has(.app-shell.desktop-view){width:100%!important;min-width:0!important;max-width:none!important;overflow-x:scroll!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;overscroll-behavior-x:contain!important}
+  body:has(.app-shell.desktop-view){width:1180px!important;min-width:1180px!important;max-width:none!important;overflow:visible!important;position:relative!important;touch-action:pan-x pan-y!important}
+  .app-shell.desktop-view:not(.pwa-shell){width:1180px!important;min-width:1180px!important;max-width:none!important;overflow:visible!important;touch-action:pan-x pan-y!important}
+  .app-shell.desktop-view:not(.pwa-shell) .main-area{overflow:visible!important}
+  .app-shell.desktop-view:not(.pwa-shell) .content-area{overflow:visible!important}
+  .app-shell.desktop-view:not(.pwa-shell) .topbar{position:sticky!important;top:0!important}
+}
+/* Luminous Nexus system-wide light closure — authenticated pages only. Dark rules remain untouched. */
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-approval-center,.audit-nexus-v48,.nexus-gis-workspace,.view-pane,.data-surface-page,.attendance-device-page,.attendance-supervisor-v4,.report-center-page,.executive-report-page,.settings-page){color-scheme:light!important;background:#f8f9ff!important;color:#334155!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-approval-center,.audit-nexus-v48,.nexus-gis-workspace) :where(input,select,textarea,button){color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-approval-center,.audit-nexus-v48,.nexus-gis-workspace) :where(input,select,textarea){background:#f8fafc!important;color:#334155!important;border-color:#e2e8f0!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-approval-center,.audit-nexus-v48,.nexus-gis-workspace) :where(option,optgroup){background:#fff!important;color:#334155!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-approval-center,.audit-nexus-v48,.nexus-gis-workspace) :is(h1,h2,h3,h4,strong,b,dd){color:#172033!important;text-shadow:none!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-approval-center,.audit-nexus-v48,.nexus-gis-workspace) :is(p,small,dt,label){color:#64748b!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center :is(.nexus-telemetry-card,.approval-center-metrics article,.approval-center-layout,.approval-center-filter button,.approval-center-photo-actions textarea,.approval-center-back,.approval-center-queue,.approval-center-meta div,.approval-center-fields span,.approval-center-photo-frame,.approval-center-source-meta div){background:#fff!important;background-image:none!important;border-color:#eef0f5!important;color:#334155!important;box-shadow:0 10px 25px -5px rgba(124,58,237,.04)!important;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center .approval-center-filter button:is(.active,[aria-pressed="true"]){background:#f5f3ff!important;color:#6d28d9!important;border-color:#ddd6fe!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48{--audit-root:#f8f9ff;--audit-surface:#fff;--audit-well:#fff;--audit-control:#f8fafc;--audit-hover:#fafaff;--audit-active:#f5f3ff;--audit-cyan:#7c3aed;max-width:100%!important;overflow-x:visible!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 :is(.audit-page-header,.audit-metric,.audit-toolbar,.audit-table-card,.audit-state,.data-state,.audit-preview-panel){background:#fff!important;background-image:none!important;border-color:#eef0f5!important;color:#334155!important;box-shadow:0 10px 25px -5px rgba(124,58,237,.04)!important;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-table th{background:#f8fafc!important;color:#64748b!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-table td{background:#fff!important;color:#334155!important;border-color:#f1f5f9!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-table tbody tr:hover td{background:#fafaff!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-table tbody tr.is-selected td{background:#f5f3ff!important;box-shadow:inset 3px 0 #7c3aed!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace :is(.security-site-admin__card,.security-site-map,.security-site-map-empty,.security-site-map__legend,.security-site-map-picker__help,.security-site-mapping-option,.security-site-qr-state,.security-site-qr-history,.security-site-qr-history__row,.security-site-qr-result,.alert,.settings-notice){background:#fff!important;background-image:none!important;border-color:#eef0f5!important;color:#334155!important;box-shadow:0 10px 25px -5px rgba(124,58,237,.035)!important;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace .security-site-map svg{background:#f8fafc!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace .security-site-mapping-option.is-selected{background:#f5f3ff!important;border-color:#c4b5fd!important;box-shadow:inset 2px 0 #7c3aed!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-approval-center,.audit-nexus-v48,.nexus-gis-workspace) :is(.btn-primary,.primary-button){background:linear-gradient(90deg,#7c3aed,#6366f1)!important;color:#fff!important;border-color:#7c3aed!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-approval-center,.audit-nexus-v48,.nexus-gis-workspace) :is(.btn-neutral,.audit-header-actions button,.audit-pagination button,.audit-preview-link){background:#fff!important;color:#475569!important;border-color:#e2e8f0!important}
+[data-theme="light"] .nexus-reject-modal,[data-theme="light"] .audit-preview-panel,[data-theme="light"] .security-site-confirm-dialog{color-scheme:light!important;background:#fff!important;color:#334155!important;border-color:#e2e8f0!important}
+/* Luminous Nexus Light — card white lock. Theme-scoped only; Dark Mode unchanged. */
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(
+.card,.panel,.metric-card,.stat-card,.summary-card,.kpi-card,.dashboard-card,.surface-card,
+.nexus-telemetry-card,.attendance-v4__action-card,.attendance-v4__ready-card,.attendance-v4__clock,.attendance-v4__notice,.attendance-v4__receipt,
+.security-site-admin__card,.gis-map-deck,.gis-intelligence-sheet,.audit-metric,.audit-toolbar,.audit-table-card,.audit-state,.data-state,.audit-preview-panel,
+.report-card,.executive-card,.settings-card,.data-surface,.data-surface-card
+){background:#fff!important;background-image:none!important;color-scheme:light!important;border-color:#eef0f5!important;box-shadow:0 10px 25px -5px rgba(124,58,237,.045),0 8px 10px -6px rgba(15,23,42,.025)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-v4[data-nexus-checkin] :is(.attendance-v4__action-card,.attendance-v4__ready-card,.attendance-v4__clock,.attendance-v4__notice,.attendance-v4__receipt){background:#fff!important;background-image:none!important;border-color:#eef0f5!important;color:#334155!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center section:is(.rounded-\[8px\]){background:#fff!important;background-image:none!important;border-color:#eef0f5!important;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center section[class*="bg-[#020f1c]"],
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center section[class*="bg-[#061421]"]{background:#fff!important;background-image:none!important;border-color:#eef0f5!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace :is(.gis-intelligence-sheet,.gis-mobile-quick-actions button){background:#fff!important;color:#475569!important;border-color:#e2e8f0!important}
+[data-theme="light"] .security-site-confirm-dialog,[data-theme="light"] .nexus-reject-modal{background:#fff!important;background-image:none!important;color:#334155!important;color-scheme:light!important}
+/* Light exhaustive hard-coded surface neutralizer — scoped, never changes Dark. */
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center{background:#f8f9ff!important;color:#334155!important;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center :is(header,section,aside,footer,thead,tbody,tr,td,th,div,span,button,textarea)[class*="bg-[#020813]"],
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center :is(header,section,aside,footer,thead,tbody,tr,td,th,div,span,button,textarea)[class*="bg-[#020f1c]"],
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center :is(header,section,aside,footer,thead,tbody,tr,td,th,div,span,button,textarea)[class*="bg-[#061421]"],
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center :is(header,section,aside,footer,thead,tbody,tr,td,th,div,span,button,textarea)[class*="bg-[#0f1d2a]"]{background:#fff!important;background-image:none!important;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center thead[class*="bg-[#0f1d2a]"]{background:#f8fafc!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-approval-center :is(button,textarea)[class*="bg-[#0f1d2a]"]{background:#f8fafc!important;color:#475569!important;border-color:#e2e8f0!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-v4[data-nexus-checkin]{background:#f8f9ff!important;color:#334155!important;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-v4[data-nexus-checkin] :where(input,textarea,select,option,optgroup){background:#fff!important;color:#334155!important;border-color:#e2e8f0!important;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-v4[data-nexus-checkin] :is(.attendance-nexus-checkin__pass,.attendance-v4__action-card,.attendance-v4__ready-card,.attendance-v4__clock,.attendance-v4__notice,.attendance-v4__receipt){background:#fff!important;background-image:none!important;border-color:#eef0f5!important;color:#334155!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .attendance-v4[data-nexus-checkin] :is(.attendance-v4__today-link,.attendance-v4__settings,.attendance-v4__supervisor-shortcut,.attendance-v4__ready-line){background:#fff!important;border-color:#e2e8f0!important;color:#475569!important}
+
+/* Enterprise Evolution Phase A.2 — authenticated Light Mode surface closure. Dark Mode rules above stay untouched. */
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-roster-workspace,.nexus-attendance-ops,.attendance-supervisor-v4,.nexus-device-registry,.attendance-device-page){
+  --surface-page:#f8f9ff;
+  --surface-card:#fff;
+  --surface-raised:#f8fafc;
+  --surface-control:#f8fafc;
+  --surface-selected:#f5f3ff;
+  --border-card:#eef0f5;
+  --text-on-surface:#334155;
+  --text-on-surface-muted:#64748b;
+  background:var(--surface-page)!important;
+  color:var(--text-on-surface)!important;
+  color-scheme:light!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.bg-white){background:var(--surface-card,#fff)!important;background-color:var(--surface-card,#fff)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.bg-gray-50,.bg-slate-50,.bg-zinc-50){background:var(--surface-raised,#f8fafc)!important;background-color:var(--surface-raised,#f8fafc)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace :is(.schedule-workbench,.calendar-card,.preview-table-wrap,.schedule-department-popover,.pagination-bar,.approval-banner,.schedule-grid,.schedule-draft-actions,.table-scroll,.toolbar-count){
+  background:var(--surface-card,#fff)!important;
+  background-image:none!important;
+  border-color:var(--border-card,#eef0f5)!important;
+  color:var(--text-on-surface,#334155)!important;
+  color-scheme:light!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .roster-telemetry-strip>div{
+  background:var(--surface-card,#fff)!important;
+  border-color:var(--border-card,#eef0f5)!important;
+  color:var(--text-on-surface,#334155)!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-attendance-ops,.attendance-supervisor-v4) :is(.attendance-supervisor-v4__hero,.attendance-supervisor-v4__kpi,.attendance-supervisor-v4__request-card,.attendance-supervisor-v4__filters,.attendance-supervisor-v4__mobile-card,.attendance-supervisor-v4__table-wrap,.attendance-supervisor-v4__detail,.attendance-supervisor-v4__dialog,.attendance-supervisor-v4__workflow-modal,.attendance-supervisor-v4__review-compare,.attendance-supervisor-v4__review-reason,.data-table-state){
+  background:var(--surface-card,#fff)!important;
+  background-image:none!important;
+  border-color:var(--border-card,#eef0f5)!important;
+  color:var(--text-on-surface,#334155)!important;
+  box-shadow:0 10px 25px -5px rgba(124,58,237,.035)!important;
+  color-scheme:light!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-attendance-ops,.attendance-supervisor-v4) :is(.attendance-supervisor-v4__workflow-modal>header button,.attendance-supervisor-v4__tabs button,input,select,textarea){
+  background:var(--surface-control,#f8fafc)!important;
+  color:var(--text-on-surface,#334155)!important;
+  border-color:#e2e8f0!important;
+  color-scheme:light!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) :is(.nexus-device-registry,.attendance-device-page) :is(.attendance-device-card,.attendance-device-table-wrap,.attendance-device-admin-section,.attendance-device-review-card,.attendance-device-review-modal,.edit-dialog){
+  background:var(--surface-card,#fff)!important;
+  background-image:none!important;
+  border-color:var(--border-card,#eef0f5)!important;
+  color:var(--text-on-surface,#334155)!important;
+  box-shadow:0 10px 25px -5px rgba(124,58,237,.035)!important;
+  color-scheme:light!important;
+}
+
+/* Enterprise Evolution Phase A.2.1 — residual roster/report controls discovered by the permanent surface guard. */
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-toolbar-box,
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-executive-intelligence>.executive-report-heading{
+  background:var(--surface-card,#fff)!important;
+  background-image:none!important;
+  color:var(--text-on-surface,#334155)!important;
+  border-color:var(--border-card,#eef0f5)!important;
+  box-shadow:0 10px 25px -5px rgba(124,58,237,.035)!important;
+  color-scheme:light!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .schedule-department-trigger,
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .empty-shift{
+  background:var(--surface-control,#f8fafc)!important;
+  background-image:none!important;
+  color:var(--text-on-surface,#334155)!important;
+  border-color:#e2e8f0!important;
+  color-scheme:light!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .schedule-department-trigger:hover:not(:disabled){
+  background:var(--surface-selected,#f5f3ff)!important;
+  color:#6d28d9!important;
+  border-color:#ddd6fe!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-metric-icon{background:#f5f3ff!important;color:#7c3aed!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-metric--teal .audit-metric-icon{background:#ecfdf5!important;color:#047857!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-metric--amber .audit-metric-icon{background:#fff7ed!important;color:#c2410c!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-metric--blue .audit-metric-icon{background:#eff6ff!important;color:#2563eb!important}
+
+/* Enterprise Evolution Phase A.3 — Audit + GIS residual surface closure. */
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-page-size{color:var(--text-on-surface-muted,#64748b)!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 :is(.audit-clear-filters,.audit-preview-close,.audit-preview-panel footer button){
+  background:var(--surface-control,#f8fafc)!important;
+  color:var(--text-on-surface,#334155)!important;
+  border-color:#e2e8f0!important;
+  color-scheme:light!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 :is(.audit-metric-skeleton,.audit-skeleton-row span){
+  background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 37%,#f1f5f9 63%)!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-preview-panel :is(header,footer,dl div){
+  background:var(--surface-card,#fff)!important;
+  border-color:var(--border-card,#eef0f5)!important;
+  color:var(--text-on-surface,#334155)!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-preview-note{
+  background:var(--surface-selected,#f5f3ff)!important;
+  color:#6d28d9!important;
+  border-color:#ddd6fe!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace :is(.gis-command-header,.security-site-admin__header,.nexus-gis-status-strip,.gis-map-deck__header,.gis-department-list,.gis-intelligence-sheet__toggle,.gis-spatial-grid){
+  background:var(--surface-card,#fff)!important;
+  background-image:none!important;
+  color:var(--text-on-surface,#334155)!important;
+  border-color:var(--border-card,#eef0f5)!important;
+  box-shadow:none!important;
+  color-scheme:light!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace :is(.gis-command-header h1,.security-site-admin__header h2,.nexus-gis-status-strip b){color:#172033!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace :is(.gis-command-header p,.security-site-admin__header p,.nexus-gis-status-strip span){color:#64748b!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace :is(.security-site-authority-rule,.security-site-authority-rule span,.security-site-qr-image,.leaflet-control-zoom,.leaflet-control-zoom a){
+  background:var(--surface-card,#fff)!important;
+  background-image:none!important;
+  color:var(--text-on-surface,#334155)!important;
+  border-color:#e2e8f0!important;
+  color-scheme:light!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace :is(.security-site-overlap-warning,.security-site-qr-once,.security-site-confirm-dialog__impact){
+  background:#fff7ed!important;
+  background-image:none!important;
+  color:#9a3412!important;
+  border-color:#fed7aa!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace .security-site-qr-once code{
+  background:#fff!important;
+  color:#9a3412!important;
+  border-color:#fed7aa!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace .security-site-map-picker__marker i{background:#fff!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace .security-site-map-loading{background:var(--surface-raised,#f8fafc)!important;color:var(--text-on-surface,#334155)!important;border-color:var(--border-card,#eef0f5)!important;color-scheme:light!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace .security-site-map-loading strong{color:#172033!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-gis-workspace .security-site-map-loading small{color:#64748b!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .dashboard-list-skeleton{background:var(--surface-raised,#f8fafc)!important}
+/* Enterprise Evolution Light Mode roster shift-card closure. Keep shift identity colors while removing Dark surfaces. */
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .schedule-grid :is(th,td){
+  background:var(--surface-card,#fff)!important;
+  color:var(--text-on-surface,#334155)!important;
+  border-color:var(--border-card,#eef0f5)!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .schedule-grid .employee-sticky{
+  background:var(--surface-card,#fff)!important;
+  color:var(--text-on-surface,#334155)!important;
+  box-shadow:8px 0 14px rgba(71,85,105,.08)!important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .employee-sticky strong{color:#0f172a!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .employee-sticky small{color:#64748b!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-shift.shift-d{background:#ecfeff!important;border-color:#67e8f9!important;color:#0e7490!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-shift.shift-n{background:#eef2ff!important;border-color:#c7d2fe!important;color:#4338ca!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace :is(.calendar-shift.shift-al,.calendar-shift.shift-lv){background:#fff7ed!important;border-color:#fed7aa!important;color:#c2410c!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-shift.shift-off{background:#f1f5f9!important;border-color:#cbd5e1!important;color:#475569!important}
+[data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-shift :is(small,.shift-note){color:currentColor!important}
+@media(max-width:640px){
+  [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .calendar-card>.table-scroll,
+  [data-theme="light"] .app-shell:not(.pwa-shell) .nexus-roster-workspace .schedule-grid tbody tr{background:var(--surface-card,#fff)!important}
+}
+
+/* Dark Mode closure for Employee / Personnel cards overridden by the light-first award layer. */
+[data-theme="dark"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-summary-grid article,.personnel-search-panel,.personnel-table-card,.personnel-metric,.personnel-empty-state,.personnel-state-card,.personnel-360-data-note,.personnel-360-timeline li,.personnel-readiness-summary,.attendance-readiness-center,.attendance-readiness-panel){
+  background:var(--color-surface,#071726)!important;
+  background-image:none!important;
+  color:var(--color-text,#e2e8f0)!important;
+  border-color:var(--color-border,rgba(148,163,184,.2))!important;
+  box-shadow:var(--shadow-sm,0 8px 24px rgba(0,0,0,.18))!important;
+}
+[data-theme="dark"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-summary-grid article,.personnel-metric,.personnel-state-card) :is(h2,h3,strong){color:var(--color-text,#e2e8f0)!important}
+[data-theme="dark"] .app-shell:not(.pwa-shell) .personnel-directory-page :is(.personnel-summary-grid article,.personnel-metric,.personnel-state-card) :is(p,small,span){color:var(--color-text-secondary,#94a3b8)!important}
+
+/* Quality closure: coarse-pointer targets and theme-safe interactive focus. */
+@media (pointer:coarse){
+  .app-shell:not(.pwa-shell) :is(button,[role="button"],a.btn-primary,a.btn-secondary,.icon-button){min-width:44px;min-height:44px}
+}
+@media (max-width:640px){
+  .app-shell:not(.pwa-shell) :is(.personnel-table-card,.calendar-card,.audit-nexus-v48,.security-site-admin){max-width:100%;min-width:0}
+  .app-shell:not(.pwa-shell) :is(.personnel-table-card,.calendar-card) :is(.table-scroll,.table-scroll-x){overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+}
+/* Award-benchmark workflow layer: fast contextual navigation without weakening RBAC. */
+.workflow-command-trigger{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 10px;border:1px solid var(--color-border,#334155);border-radius:8px;background:var(--color-surface-elevated,#0f1d2a);color:var(--color-text-secondary,#cbd5e1);font:600 11px "Plus Jakarta Sans","Kanit",sans-serif;cursor:pointer}.workflow-command-trigger kbd,.workflow-command kbd{font:600 10px "JetBrains Mono",monospace;border:1px solid currentColor;border-radius:4px;padding:2px 5px;opacity:.58}.workflow-command-layer{position:fixed;inset:0;z-index:1600;display:flex;align-items:flex-start;justify-content:center;padding:12vh 18px 24px;background:rgba(2,8,19,.68);backdrop-filter:blur(8px)}.workflow-command{width:min(640px,100%);max-height:min(680px,76vh);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(37,184,211,.25);border-radius:14px;background:#071521;color:#e7f1f6;box-shadow:0 28px 80px rgba(0,0,0,.42)}.workflow-command header{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid rgba(148,163,184,.14)}.workflow-command header input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:inherit;font:500 16px "Kanit",sans-serif}.workflow-command__meta,.workflow-command footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 16px;color:#8197a8;font:600 10px "Plus Jakarta Sans","Kanit",sans-serif;letter-spacing:.08em}.workflow-command__results{overflow:auto;padding:6px}.workflow-command__results button{width:100%;display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:10px;padding:10px;border:0;border-radius:9px;background:transparent;color:inherit;text-align:left;cursor:pointer}.workflow-command__results button:hover,.workflow-command__results button:focus-visible{outline:0;background:rgba(37,184,211,.11)}.workflow-command__icon{display:grid;place-items:center;width:36px;height:36px;border-radius:8px;background:rgba(37,184,211,.1);color:#54d4e9}.workflow-command__results button>span:nth-child(2){display:grid;gap:2px}.workflow-command__results strong{font:600 14px "Kanit",sans-serif}.workflow-command__results small{color:#8197a8;font:500 11px "Kanit",sans-serif}.workflow-command__empty{display:grid;gap:4px;padding:28px;text-align:center;color:#8197a8}.workflow-command footer{border-top:1px solid rgba(148,163,184,.12);letter-spacing:0}.workflow-command footer span:first-child{display:flex;align-items:center;gap:5px}[data-theme="light"] .workflow-command-trigger{background:#fff;color:#334b60;border-color:#d5e1e9}[data-theme="light"] .workflow-command-layer{background:rgba(26,45,62,.28)}[data-theme="light"] .workflow-command{background:#fff;color:#102033;border-color:#d7e4ec;box-shadow:0 28px 80px rgba(29,63,89,.2)}[data-theme="light"] .workflow-command__results button:hover,[data-theme="light"] .workflow-command__results button:focus-visible{background:#eef7fa}@media(max-width:760px){.workflow-command-trigger{display:none}.workflow-command-layer{padding-top:8vh}.workflow-command footer{align-items:flex-start;flex-direction:column}}
+
+/* Unified SMS brand lockup — Owner reference, versionless. */
+.brand-mark{
+  position:relative!important;
+  overflow:visible!important;
+  border:1px solid rgba(37,184,211,.52)!important;
+  border-radius:10px!important;
+  background:linear-gradient(145deg,rgba(10,31,47,.98),rgba(3,13,24,.98))!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.05),0 0 20px rgba(37,184,211,.08)!important;
+  color:#fff!important;
+}
+.brand-mark::before,.brand-mark::after{content:"";position:absolute;width:8px;height:8px;pointer-events:none}
+.brand-mark::before{left:-3px;top:-3px;border-left:1px solid #7ce8f7;border-top:1px solid #7ce8f7}
+.brand-mark::after{right:-3px;bottom:-3px;border-right:1px solid #7ce8f7;border-bottom:1px solid #7ce8f7}
+
+.sms-brand-copy{display:grid!important;gap:2px!important;min-width:0}
+.sms-brand-copy :is(b,strong){color:inherit;font-weight:750;line-height:1.1}
+.sms-brand-copy :is(span,small,strong){white-space:nowrap}
+.sidebar-brand .sms-brand-copy>strong,.sidebar-brand .sms-brand-copy>b{font-size:17px!important;color:#fff!important}
+.sidebar-brand .sms-brand-copy>span{display:block!important;font-family:"Plus Jakarta Sans","Kanit",sans-serif!important;letter-spacing:0!important;font-size:10px!important;color:#b4cbd9!important}
+/* Sidebar drawer has less room than desktop: wrap the full brand label, never clip it. */
+@media(max-width:1024px){
+  .app-shell:not(.pwa-shell) .sidebar-brand>.sms-brand-copy>span{
+    white-space:normal!important;
+    line-height:1.3!important;
+    overflow-wrap:break-word!important;
+  }
+}
+.auth-brand .sms-brand-copy>strong,.auth-mobile-brand .sms-brand-copy>strong{font-size:11px!important;font-weight:500!important;color:var(--text-secondary,#94a3b8)!important}
+.mobile-brand .sms-brand-copy small,.pwa-mobile-brand .sms-brand-copy small{font-size:9px!important;font-weight:500!important;color:var(--text-secondary,#94a3b8)!important}
+.nexus-brand__copy strong{gap:0!important}
+.nexus-brand__copy em{display:none!important}
+
+/* Competition-grade accessibility baseline: keyboard clarity and motion safety across operational surfaces. */
+:where(button,a,input,select,textarea,[role="button"],[tabindex]:not([tabindex="-1"])):focus-visible{outline:2px solid var(--color-primary,#38bdf8);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){html:focus-within{scroll-behavior:auto!important}*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* Duty roster typography contract: keep Thai UI on Kanit, Latin UI on
+   Plus Jakarta Sans, and operational identifiers on JetBrains Mono.
+   Explicit Thai fallbacks prevent monospace text falling into legacy
+   Noto Sans Thai / Inter when a schedule label contains Thai characters. */
+.nexus-roster-workspace :is(button, input, select, textarea) {
+  font-family: "Plus Jakarta Sans", "Kanit", sans-serif !important;
+}
+.nexus-roster-workspace :is(
+  .page-heading h1,
+  .schedule-grid .employee-sticky strong
+) {
+  font-family: "Kanit", "Plus Jakarta Sans", sans-serif !important;
+}
+.nexus-roster-workspace :is(
+  .roster-command-kicker,
+  .page-heading .eyebrow,
+  .roster-telemetry-strip span,
+  .roster-telemetry-strip small,
+  .roster-telemetry-strip strong,
+  .schedule-workbench > div:first-child,
+  .toolbar-count,
+  .schedule-grid thead th,
+  .schedule-grid .employee-sticky small,
+  .schedule-grid .calendar-shift,
+  .calendar-shift b,
+  .calendar-shift small,
+  .calendar-shift .shift-note,
+  .preview-table code
+) {
+  font-family: "JetBrains Mono", "Kanit", monospace !important;
+}
+/* The shift editor portals outside .nexus-roster-workspace. Its controls
+   need the same approved type stack without changing other app dialogs. */
+.shift-editor-modal__viewport .shift-editor-modal__dialog,
+.shift-editor-modal__viewport .shift-editor-modal__dialog :is(button, input, select, textarea) {
+  font-family: "Plus Jakarta Sans", "Kanit", sans-serif !important;
+}
+.shift-editor-modal__viewport .shift-editor-modal__dialog :is(h1, h2, h3) {
+  font-family: "Kanit", "Plus Jakarta Sans", sans-serif !important;
+}

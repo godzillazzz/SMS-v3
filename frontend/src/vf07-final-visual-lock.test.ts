@@ -11,6 +11,8 @@ const quick = read('components/dashboard/QuickActionsCard.tsx');
 const access = read('pages/access-management/AccessManagementPage.tsx');
 const review = read('pages/access-management/RegistrationReviewPanel.tsx');
 const theme = read('theme.ts');
+const operational = read('styles/operational-layer.css');
+const publicExperience = read('components/AwardPublicExperience.tsx');
 const apiBytes = fs.readFileSync(path.join(root, 'api.ts'), 'utf8').replace(/\r\n/g, '\n');
 const apiSha256 = crypto.createHash('sha256').update(apiBytes).digest('hex');
 const vf07 = css.slice(css.indexOf('G04.2 VF-07'));
@@ -32,13 +34,24 @@ describe('G04.2 VF-07 visual baseline with Owner brand correction', () => {
     expect(main).not.toContain('auth-pastel-shield');
   });
 
-  it('uses one purple SMS tile and removes V3 from rendered brand lockups', () => {
+  it('uses one versionless SMS brand lockup everywhere and removes the redundant secure-transition banner', () => {
     expect(main).toContain('function Logo()');
-    expect(main).toContain('className="brand-mark" aria-label="SMS"><b>SMS</b>');
+    expect(main).toMatch(/<img\s+className="brand-logo"\s+src="\/attendance-sms-logo\.svg"\s+alt="SMS"\s*\/>/);
     expect(main).not.toMatch(/SMS V3|SMS v3/);
     expect(main).toContain('<strong>Security Management System</strong>');
     for (const capability of ['ข้อมูลบุคลากร', 'ตารางกะและการลา', 'สิทธิ์และกฎการทำงาน']) expect(main).toContain(capability);
-    expect(css).toContain('background: linear-gradient(145deg, #8d6cf2 0%, #6e55dc 56%, #5740c9 100%)');
+    expect(main).toContain('className="sms-brand-copy"');
+    expect(publicExperience).toContain('<strong>SMS</strong><small>Security Management System</small>');
+    expect(publicExperience).not.toMatch(/SMS <em>v\d+\.\d+<\/em>/);
+    expect(publicExperience).not.toContain('DEFENSE MATRIX VER 4.8.19');
+    expect(publicExperience).not.toContain('SECURE SURFACE / AUTHENTICATED ONLY');
+    expect(publicExperience).not.toContain('Zero-Trust Login Console');
+    expect(publicExperience).not.toContain('nexus-auth-transition');
+    expect(operational).toContain('Unified SMS brand lockup — Owner reference, versionless.');
+    expect(publicExperience).not.toMatch(/\bv\d+\.\d+\b/i);
+    expect(operational).not.toMatch(/\bv\d+\.\d+\b/i);
+    expect(operational).toContain('border:1px solid rgba(37,184,211,.52)!important;');
+    expect(operational).toContain('background:linear-gradient(145deg,rgba(10,31,47,.98),rgba(3,13,24,.98))!important;');
   });
 
   it('implements the Owner shield with internal SVG/CSS only', () => {

@@ -82,7 +82,7 @@ function resolved(captureId, eventIntent) {
 }
 
 function fakeVerification() {
-  const calls = { resolve: [], consume: [] };
+  const calls = { resolve: [], consume: [], consumeUat: [] };
   return {
     calls,
     resolveContextRef: async ({ ref }, client) => {
@@ -103,6 +103,24 @@ function fakeVerification() {
         provider: 'TEST_PROVIDER',
         policyProfileId: 'policy-v1',
         engineVersion: 'engine-v1'
+      };
+    },
+    consumeGeofenceOnlyUatReceiptInTransaction: async ({ tx, attendanceContext }) => {
+      calls.consumeUat.push({ tx, attendanceContext });
+      const r = resolved(attendanceContext.captureId, attendanceContext.eventIntent);
+      return {
+        sessionId: ids.faceSession,
+        employeeId: ids.employee,
+        userId: ids.user,
+        deviceEnrollmentId: ids.device,
+        referencePhotoId: ids.photo,
+        contextDigest: r.contextDigest,
+        deviceProofVerifiedAt: now,
+        verificationMode: 'GEOFENCE_ONLY_UAT',
+        employeeCode: 'UAT-ST-20260902',
+        securitySiteId: ids.site,
+        faceVerificationPerformed: false,
+        activeChallengePerformed: false
       };
     }
   };
@@ -214,6 +232,31 @@ test('CHECK_IN creates one OPEN AttendanceSession and one ONLINE server-time eve
   assert.equal(audit.calls.length, 1);
   assert.equal(audit.calls[0].entry.entityType, 'AttendanceEvent');
   assert.equal(JSON.stringify(audit.calls[0].entry).includes('receipt-secret'), false);
+});
+
+test('controlled UAT receipt records explicit geofence-only provenance and leaves Face unclaimed', async () => {
+  const { db, state } = fakeDb();
+  const verification = fakeVerification();
+  const audit = auditFake();
+  const service = createAttendanceEventService({ prisma: db, audit, verificationContextService: verification, clock: () => now });
+  const result = await service.acceptVerifiedEvent({
+    actor: { sub: ids.user },
+    receipt: 'g06-geofence-only-uat-v1.payload.signature',
+    attendanceContext: contextRef(ids.captureIn, 'CHECK_IN')
+  });
+
+  assert.equal(result.event.eventType, 'CHECK_IN');
+  assert.equal(state.events[0].verificationSnapshot.verificationMode, 'GEOFENCE_ONLY_UAT');
+  assert.equal(state.events[0].verificationSnapshot.employeeCode, 'UAT-ST-20260902');
+  assert.equal(state.events[0].verificationSnapshot.securitySiteId, ids.site);
+  assert.equal(state.events[0].verificationSnapshot.faceVerificationPerformed, false);
+  assert.equal(state.events[0].verificationSnapshot.activeChallengePerformed, false);
+  assert.equal(state.events[0].verificationSnapshot.deviceProofVerifiedAt, now.toISOString());
+  assert.equal(verification.calls.consumeUat.length, 1);
+  assert.equal(verification.calls.consume.length, 0);
+  assert.equal(audit.calls[0].entry.metadata.verificationMode, 'GEOFENCE_ONLY_UAT');
+  assert.equal(audit.calls[0].entry.metadata.employeeCode, 'UAT-ST-20260902');
+  assert.equal(audit.calls[0].entry.metadata.faceVerificationPerformed, false);
 });
 
 test('approved auto-schedule row remains valid at event acceptance when it is not manually locked', async () => {

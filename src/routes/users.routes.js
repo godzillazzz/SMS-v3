@@ -5,16 +5,18 @@ const { authenticate, authorize } = require('../middlewares/authenticate');
 const audit = require('../services/audit.service');
 const { accessTokenFor } = require('../services/auth.service');
 const HttpError = require('../utils/http-error');
+const { resolveApprovalActors, withApprovalIdentity } = require('../services/approval-identity.service');
 
 const router = express.Router();
 router.get('/', authenticate, authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   try {
     const users = await prisma.user.findMany({
       where: ['MANAGER', 'SUPERVISOR'].includes(req.user.role) ? { accountStatus: 'PENDING' } : undefined,
-      select: { id: true, legacyUserId: true, email: true, displayName: true, role: true, department: true, accountStatus: true, isActive: true, passwordResetRequired: true, createdAt: true, updatedAt: true },
+      select: { id: true, legacyUserId: true, email: true, displayName: true, role: true, department: true, accountStatus: true, isActive: true, passwordResetRequired: true, approvedAt: true, approvedByLegacyRef: true, createdAt: true, updatedAt: true },
       orderBy: { displayName: 'asc' }
     });
-    res.json({ data: users });
+    const approvers = await resolveApprovalActors(prisma, users.map((user) => user.approvedByLegacyRef));
+    res.json({ data: users.map((user) => withApprovalIdentity(user, 'approvedByLegacyRef', approvers)) });
   } catch (error) { next(error); }
 });
 router.post('/:id/view-as', authenticate, authorize('ADMIN'), async (req, res, next) => {

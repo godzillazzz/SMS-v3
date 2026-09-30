@@ -1,4 +1,4 @@
-const { test, expect } = require('../helpers/uat-test');
+﻿const { test, expect } = require('../helpers/uat-test');
 const { assertNoHorizontalOverflow, captureScreenshot, startPageMonitor } = require('../helpers/uat-observe');
 const {
   assertExpectedStatus,
@@ -79,7 +79,7 @@ for (const viewport of viewports) {
 
     const email = page.getByLabel('อีเมล');
     const password = page.locator('#password');
-    const submit = page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true });
+    const submit = page.getByRole('button', { name: /เข้าสู่ระบบ/ });
     await expect(email).toBeVisible();
     await expect(password).toBeVisible();
     await expect(submit).toBeVisible();

@@ -144,7 +144,7 @@ async function approveRequest(id, actorUserId) {
 
   notifyLeaveProcessed({ leave: updatedRequest, status: 'APPROVED', approverName }).catch(() => undefined);
 
-  return updatedRequest;
+  return { ...updatedRequest, approvedByDisplayName: approverName };
 }
 
 async function rejectRequest(id, reason, actorUserId) {
@@ -168,7 +168,7 @@ async function rejectRequest(id, reason, actorUserId) {
 
   notifyLeaveProcessed({ leave: updated, status: 'REJECTED', approverName }).catch(() => undefined);
 
-  return updated;
+  return { ...updated, approvedByDisplayName: approverName };
 }
 
 async function getSummary(employeeId) {

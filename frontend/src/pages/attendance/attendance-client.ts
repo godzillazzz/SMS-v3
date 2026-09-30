@@ -40,6 +40,7 @@ export type AttendanceActiveChallenge = {
 };
 
 export type AttendanceVerificationStart = {
+  verificationMode: 'BIOMETRIC' | 'GEOFENCE_ONLY_UAT';
   sessionId: string | null;
   deviceEnrollmentId: string | null;
   status: string | null;
@@ -76,6 +77,14 @@ export type AttendanceFaceVerificationData = {
   receiptExpiresAt?: string | null;
   retryHint?: AttendanceFaceRetryHint | null;
   evidence?: { storageStatus?: string; stored?: boolean };
+  readiness?: AttendanceReadinessState;
+};
+
+export type AttendanceGeofenceOnlyUatReceiptData = {
+  ok: boolean;
+  verificationMode?: 'GEOFENCE_ONLY_UAT';
+  receipt: string | null;
+  receiptExpiresAt?: string | null;
   readiness?: AttendanceReadinessState;
 };
 
@@ -375,6 +384,20 @@ export async function verifyAttendanceDeviceProof(token: string, sessionId: stri
     throw new AttendanceFlowError('Server ไม่ยอมรับ device proof สำหรับ Face Verification', 409, requestId, payload.data?.readiness?.state);
   }
   return payload.data as Record<string, unknown>;
+}
+
+export async function attendanceGeofenceOnlyUatReceipt(token: string, sessionId: string, attendanceContext: AttendanceContextRef): Promise<AttendanceGeofenceOnlyUatReceiptData> {
+  const response = await attendanceAuthenticatedRequest(`/attendance/verification/${encodeURIComponent(sessionId)}/geofence-only-uat/receipt`, token, {
+    method: 'POST',
+    credentials: 'include',
+    headers: authHeaders(token, true),
+    body: JSON.stringify({ attendanceContext })
+  });
+  const requestId = safeRequestId(response.headers.get('x-request-id'));
+  if (response.status === 404) throw new AttendanceFlowError('Controlled geofence-only UAT mode is not enabled for this account.', 404, requestId, 'GEOFENCE_ONLY_UAT_UNAVAILABLE');
+  const payload = await jsonPayload(response);
+  if (!response.ok) throw new AttendanceFlowError(publicError(payload, response.status, 'Server ไม่สามารถออกหลักฐาน UAT แบบ geofence-only ได้'), response.status, requestId, publicCode(payload));
+  return payload.data as AttendanceGeofenceOnlyUatReceiptData;
 }
 
 export async function attendanceFaceMatch(token: string, sessionId: string, photo: Blob, challengeFrames: Blob[]): Promise<AttendanceFaceVerificationData> {

@@ -22,7 +22,7 @@ function sheetXml({ department, month, dates, people, shiftTypes, approval, expo
   const lastColumn = columnName(totalColumns);
   const rows = [];
   rows.push(rowXml(1, [inlineCell('A1', `Security Management System - ตารางกะที่อนุมัติแล้ว · ${thaiMonth(month)}`, 1)], 34));
-  rows.push(rowXml(2, [inlineCell('A2', `แผนก: ${department}  |  Revision: ${approval.revision}  |  วันที่อนุมัติ: ${approval.approvedAt ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(approval.approvedAt)) : '-'}`, 2)], 25));
+  rows.push(rowXml(2, [inlineCell('A2', `แผนก: ${department}  |  Revision: ${approval.revision}  |  ผู้อนุมัติ: ${approval.approvedByDisplayName || 'ไม่พบชื่อผู้อนุมัติ'}  |  วันที่อนุมัติ: ${approval.approvedAt ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(approval.approvedAt)) : '-'}`, 2)], 25));
   rows.push(rowXml(3, [inlineCell('A3', `Export โดย: ${exportedBy}  |  วันที่ Export: ${new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'medium', timeZone: 'Asia/Bangkok' }).format(exportedAt)}`, 3)], 22));
   const headerValues = ['ลำดับ', 'ชื่อ-นามสกุล', 'ตำแหน่ง', ...dates.map((date) => { const value = new Date(`${date}T00:00:00Z`); return `${value.getUTCDate()}\n${['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'][value.getUTCDay()]}`; }), 'ชม.รวม'];
   rows.push(rowXml(4, headerValues.map((value, index) => { const day = index >= 3 && index < dates.length + 3 ? new Date(`${dates[index - 3]}T00:00:00Z`).getUTCDay() : undefined; return inlineCell(`${columnName(index + 1)}4`, value, day === 0 ? 5 : day === 6 ? 6 : 4); }), 32));
@@ -47,7 +47,7 @@ function sheetXml({ department, month, dates, people, shiftTypes, approval, expo
   rows.push(rowXml(nextRow + 1, [inlineCell(`${signStartRef}${nextRow + 1}`, '(...............................................................................)', 14)], 28));
   rows.push(rowXml(nextRow + 2, [inlineCell(`${signStartRef}${nextRow + 2}`, 'พนักงานผู้จัดพิมพ์รายงาน / หัวหน้าพนักงานรักษาความปลอดภัย', 14)], 32));
   rows.push(rowXml(nextRow + 4, [inlineCell(`${signStartRef}${nextRow + 4}`, 'ทราบ / ลงชื่อ...............................................................................', 14)], 34));
-  rows.push(rowXml(nextRow + 5, [inlineCell(`${signStartRef}${nextRow + 5}`, '(...............................................................................)', 14)], 28));
+  rows.push(rowXml(nextRow + 5, [inlineCell(`${signStartRef}${nextRow + 5}`, `(${approval.approvedByDisplayName || 'ไม่พบชื่อผู้อนุมัติ'})`, 14)], 28));
   rows.push(rowXml(nextRow + 6, [inlineCell(`${signStartRef}${nextRow + 6}`, 'ผู้จัดการเขต (ผู้อนุมัติ)', 14)], 32));
   const merges = [`A1:${lastColumn}1`, `A2:${lastColumn}2`, `A3:${lastColumn}3`, `A${legendStart}:${lastColumn}${legendStart}`, `${signStartRef}${nextRow}:${lastColumn}${nextRow}`, `${signStartRef}${nextRow + 1}:${lastColumn}${nextRow + 1}`, `${signStartRef}${nextRow + 2}:${lastColumn}${nextRow + 2}`, `${signStartRef}${nextRow + 4}:${lastColumn}${nextRow + 4}`, `${signStartRef}${nextRow + 5}:${lastColumn}${nextRow + 5}`, `${signStartRef}${nextRow + 6}:${lastColumn}${nextRow + 6}`];
   const columns = [`<col min="1" max="1" width="7" customWidth="1"/>`, `<col min="2" max="2" width="28" customWidth="1"/>`, `<col min="3" max="3" width="20" customWidth="1"/>`, `<col min="4" max="${dates.length + 3}" width="5.5" customWidth="1"/>`, `<col min="${totalColumns}" max="${totalColumns}" width="11" customWidth="1"/>`].join('');
@@ -68,12 +68,12 @@ function buildApprovedScheduleWorkbook({ month, approval, departments, shifts, e
     const peopleMap = new Map();
     rows.forEach((shift) => {
       const employee = employeeById.get(shift.employeeId) || {};
-      const person = peopleMap.get(shift.employeeId) || { name: shift.employeeNameSnapshot, position: shift.positionSnapshot || employee.jobTitle || '', rosterOrder: Number(shift.rosterOrder ?? Number.MAX_SAFE_INTEGER), shifts: new Map(), totalHours: 0 };
+      const person = peopleMap.get(shift.employeeId) || { name: shift.employeeNameSnapshot, position: shift.positionSnapshot || employee.jobTitle || '', employeeCode: shift.employeeCodeSnapshot || employee.employeeCode || '', shifts: new Map(), totalHours: 0 };
       person.shifts.set(new Date(shift.workDate).toISOString().slice(0, 10), { code: shift.shiftType.code, hours: Number(shift.hours || 0) });
       person.totalHours += Number(shift.hours || 0);
       peopleMap.set(shift.employeeId, person);
     });
-    const people = [...peopleMap.values()].sort((first, second) => Number(first.rosterOrder) - Number(second.rosterOrder) || first.name.localeCompare(second.name, 'th'));
+    const people = [...peopleMap.values()].sort((first, second) => String(first.employeeCode).localeCompare(String(second.employeeCode), 'en', { numeric: true, sensitivity: 'base' }) || first.name.localeCompare(second.name, 'th'));
     return { name: safeSheetName(department, usedNames), xml: sheetXml({ department, month, dates, people, shiftTypes, approval, exportedBy, exportedAt }) };
   });
   const sheetEntries = sheets.map((sheet, index) => `<sheet name="${xmlEscape(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`).join('');

@@ -54,7 +54,7 @@
     padding: 15px;
     border: 1px solid #e4e8f0;
     border-radius: 11px;
-    background: #fff;
+    background: #061421;
   }
 
   .audit-mobile-card.is-selected {
@@ -210,3 +210,7 @@
     font-size: 13px;
   }
 }
+
+/* Nexus mobile card zero-white guard */
+@media(max-width:640px){.audit-nexus-v48 .audit-mobile-card{border-color:rgba(37,184,211,.25)!important;border-left:3px solid #25b8d3!important;border-radius:8px!important;background:#061421!important;color:#cbd5e1!important}.audit-nexus-v48 .audit-mobile-card.is-selected{border-color:#25b8d3!important;box-shadow:inset 3px 0 #25b8d3!important}.audit-nexus-v48 .audit-mobile-card time,.audit-nexus-v48 .audit-mobile-card strong{color:#f8fafc!important}.audit-nexus-v48 .audit-mobile-label,.audit-nexus-v48 .audit-mobile-summary p,.audit-nexus-v48 .audit-mobile-card footer small{color:#94a3b8!important}.audit-nexus-v48 .audit-mobile-facts,.audit-nexus-v48 .audit-mobile-card footer{border-color:rgba(37,184,211,.16)!important}.audit-nexus-v48 .audit-mobile-skeleton span{background:#0f1d2a!important}.audit-nexus-v48 .audit-mobile-empty{background:#020f1c!important;color:#94a3b8!important}}
+@media(max-width:640px){[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-mobile-card{background:var(--surface-card,#fff)!important;color:var(--text-on-surface,#334155)!important;border-color:var(--border-card,#eef0f5)!important;border-left:3px solid #7c3aed!important;box-shadow:0 8px 20px rgba(124,58,237,.04)!important;color-scheme:light!important}[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-mobile-card.is-selected{background:var(--surface-selected,#f5f3ff)!important;border-color:#c4b5fd!important;box-shadow:inset 3px 0 #7c3aed!important}[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-mobile-card :is(time,strong){color:#172033!important}[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 :is(.audit-mobile-label,.audit-mobile-summary p,.audit-mobile-card footer small){color:#64748b!important}[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 :is(.audit-mobile-facts,.audit-mobile-card footer){border-color:#f1f5f9!important}[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-mobile-skeleton span{background:var(--surface-raised,#f8fafc)!important}[data-theme="light"] .app-shell:not(.pwa-shell) .audit-nexus-v48 .audit-mobile-empty{background:var(--surface-card,#fff)!important;color:#64748b!important;border-color:var(--border-card,#eef0f5)!important}}

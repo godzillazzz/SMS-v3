@@ -64,8 +64,8 @@ test('legacy clock variants remain actionable and preserve overnight classificat
   assert.equal(isOvernightAssignment(assignment({ startTime: '19.00', endTime: '7:00', code: 'N' })), true);
 });
 
-function fakeDb({ now = new Date('2026-08-24T03:00:00.000Z'), rows = [assignment()], approvalStatus = 'APPROVED', sessionRow = null, attendanceEvents = [] } = {}) {
-  const state = { rows, approvalStatus, sessionRow, attendanceEvents };
+function fakeDb({ now = new Date('2026-08-24T03:00:00.000Z'), rows = [assignment()], approvalStatus = 'APPROVED', sessionRow = null, attendanceEvents = [], employeeCode = 'EMP001', devices = null, photos = null } = {}) {
+  const state = { rows, approvalStatus, sessionRow, attendanceEvents, faceSession: null };
   const db = {
     user: {
       findUnique: async () => ({
@@ -73,14 +73,14 @@ function fakeDb({ now = new Date('2026-08-24T03:00:00.000Z'), rows = [assignment
         employeeId: ids.employee,
         isActive: true,
         accountStatus: 'ACTIVE',
-        employee: { id: ids.employee, isActive: true, deletedAt: null }
+        employee: { id: ids.employee, employeeCode, isActive: true, deletedAt: null }
       })
     },
     attendanceDeviceEnrollment: {
-      findMany: async () => [{ id: ids.device, employeeId: ids.employee, status: 'ACTIVE', credentialFingerprint: 'd'.repeat(64), activatedAt: now }]
+      findMany: async () => devices || [{ id: ids.device, employeeId: ids.employee, status: 'ACTIVE', credentialFingerprint: 'd'.repeat(64), activatedAt: now }]
     },
     employeeReferencePhoto: {
-      findMany: async () => [{ id: ids.photo, employeeId: ids.employee, status: 'ACTIVE', checksum: 'a'.repeat(64), activatedAt: now, storageDeletedAt: null, storageDeletionRequestedAt: null }]
+      findMany: async () => photos || [{ id: ids.photo, employeeId: ids.employee, status: 'ACTIVE', checksum: 'a'.repeat(64), activatedAt: now, storageDeletedAt: null, storageDeletionRequestedAt: null }]
     },
     shiftAssignment: {
       findMany: async ({ where }) => {
@@ -98,7 +98,19 @@ function fakeDb({ now = new Date('2026-08-24T03:00:00.000Z'), rows = [assignment
     attendanceEvent: {
       findMany: async ({ where }) => state.attendanceEvents
         .filter((row) => row.sessionId === where.sessionId && (!where.eventType?.in || where.eventType.in.includes(row.eventType)))
-        .map((row) => ({ eventType: row.eventType }))
+        .map((row) => ({ eventType: row.eventType })),
+      findUnique: async ({ where }) => {
+        if (where.faceVerificationSessionId) return state.attendanceEvents.find((row) => row.faceVerificationSessionId === where.faceVerificationSessionId) || null;
+        return null;
+      }
+    },
+    faceVerificationSession: {
+      findUnique: async ({ where }) => state.faceSession?.id === where.id ? state.faceSession : null,
+      updateMany: async ({ where, data }) => {
+        if (!state.faceSession || state.faceSession.id !== where.id || state.faceSession.status !== where.status) return { count: 0 };
+        state.faceSession = { ...state.faceSession, ...data };
+        return { count: 1 };
+      }
     }
   };
   return { db, state, clock: () => now };
@@ -297,6 +309,130 @@ test('prepareVerification ignores any client digest and passes only the server-b
   assert.notEqual(face.calls.create[0].contextDigest, 'e'.repeat(64));
   assert.equal(face.calls.create[0].contextDigest, result.session.contextDigest);
   assert.equal(result.attendanceContext.shiftAssignmentId, ids.assignmentToday);
+});
+
+test('controlled UAT still blocks UAT-ST-20260902 when GPS proves outside the authorized geofence', async () => {
+  const target = fakeDb({ employeeCode: 'UAT-ST-20260902' });
+  const outside = {
+    validateForAssignment: async () => { throw Object.assign(new Error('outside'), { details: { code: 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE' } }); },
+    revalidateRef: async () => { throw Object.assign(new Error('outside'), { details: { code: 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE' } }); }
+  };
+  const face = fakeFace();
+  const service = createAttendanceVerificationContextService({
+    prisma: target.db,
+    faceSessionService: face,
+    siteEvidenceService: outside,
+    isGeofenceOnlyUatEnabled: () => true,
+    clock: target.clock
+  });
+  await assert.rejects(
+    () => service.prepareVerification({ actor: { sub: ids.user }, captureId: ids.capture, attendanceEvidence }),
+    (error) => error.details?.code === 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE'
+  );
+  assert.equal(face.calls.create.length, 0);
+});
+
+test('controlled UAT blocks UAT-ST-20260902 when the registered Attendance device is missing', async () => {
+  const target = fakeDb({ employeeCode: 'UAT-ST-20260902', devices: [] });
+  const face = fakeFace();
+  const service = createAttendanceVerificationContextService({
+    prisma: target.db,
+    faceSessionService: face,
+    siteEvidenceService: fakeSiteEvidence(),
+    isGeofenceOnlyUatEnabled: () => true,
+    clock: target.clock
+  });
+  await assert.rejects(
+    () => service.prepareVerification({ actor: { sub: ids.user }, captureId: ids.capture, attendanceEvidence }),
+    (error) => error.details?.code === 'ATTENDANCE_DEVICE_REQUIRED'
+  );
+  assert.equal(face.calls.create.length, 0);
+});
+
+test('controlled UAT blocks UAT-ST-20260902 when the current schedule is not approved', async () => {
+  const target = fakeDb({ employeeCode: 'UAT-ST-20260902', approvalStatus: 'PENDING' });
+  const face = fakeFace();
+  const service = createAttendanceVerificationContextService({
+    prisma: target.db,
+    faceSessionService: face,
+    siteEvidenceService: fakeSiteEvidence(),
+    isGeofenceOnlyUatEnabled: () => true,
+    clock: target.clock
+  });
+  await assert.rejects(
+    () => service.prepareVerification({ actor: { sub: ids.user }, captureId: ids.capture, attendanceEvidence }),
+    (error) => error.details?.code === 'ATTENDANCE_SCHEDULE_NOT_APPROVED'
+  );
+  assert.equal(face.calls.create.length, 0);
+});
+
+test('controlled UAT receipt requires device proof, carries no Face pass, and is consumed once with audit provenance', async () => {
+  const target = fakeDb({ employeeCode: 'UAT-ST-20260902' });
+  const face = fakeFace();
+  const auditCalls = [];
+  const service = createAttendanceVerificationContextService({
+    prisma: target.db,
+    faceSessionService: face,
+    siteEvidenceService: fakeSiteEvidence(),
+    audit: { log: async (entry, tx) => auditCalls.push({ entry, tx }) },
+    isGeofenceOnlyUatEnabled: () => true,
+    receiptSecret: () => 'unit-test-signing-key-is-at-least-32-bytes',
+    clock: target.clock
+  });
+  const prepared = await service.prepareVerification({ actor: { sub: ids.user }, captureId: ids.capture, attendanceEvidence });
+  assert.equal(prepared.employeeCode, 'UAT-ST-20260902');
+  target.state.faceSession = {
+    ...prepared.session,
+    status: 'DEVICE_PROOF_VERIFIED',
+    deviceProofVerifiedAt: target.clock(),
+    expiresAt: new Date(target.clock().getTime() + 5 * 60_000),
+    contextDigest: face.calls.create[0].contextDigest
+  };
+
+  const issued = await service.issueGeofenceOnlyUatReceipt({ actor: { sub: ids.user }, sessionId: prepared.session.id, attendanceContext: prepared.attendanceContext });
+  assert.equal(issued.verificationMode, 'GEOFENCE_ONLY_UAT');
+  assert.equal(typeof issued.receipt, 'string');
+  assert.equal(JSON.stringify(issued).includes('unit-test-signing-key'), false);
+  assert.equal(auditCalls[0].entry.metadata.event, 'GEOFENCE_ONLY_UAT_RECEIPT_ISSUED');
+  assert.equal(auditCalls[0].entry.metadata.faceVerificationPerformed, false);
+  assert.equal(auditCalls[0].entry.metadata.activeChallengePerformed, false);
+
+  const disabledService = createAttendanceVerificationContextService({
+    prisma: target.db,
+    faceSessionService: face,
+    siteEvidenceService: fakeSiteEvidence(),
+    audit: { log: async () => {} },
+    isGeofenceOnlyUatEnabled: () => false,
+    receiptSecret: () => 'unit-test-signing-key-is-at-least-32-bytes',
+    clock: target.clock
+  });
+  await assert.rejects(
+    () => disabledService.consumeGeofenceOnlyUatReceiptInTransaction({ tx: target.db, actor: { sub: ids.user }, receipt: issued.receipt, attendanceContext: prepared.attendanceContext }),
+    (error) => error.details?.code === 'GEOFENCE_ONLY_UAT_DISABLED'
+  );
+  assert.equal(target.state.faceSession.status, 'DEVICE_PROOF_VERIFIED');
+
+  const tx = { ...target.db };
+  const consumed = await service.consumeGeofenceOnlyUatReceiptInTransaction({
+    tx,
+    actor: { sub: ids.user },
+    receipt: issued.receipt,
+    attendanceContext: prepared.attendanceContext
+  });
+  assert.equal(consumed.verificationMode, 'GEOFENCE_ONLY_UAT');
+  assert.equal(consumed.faceVerificationPerformed, false);
+  assert.equal(consumed.activeChallengePerformed, false);
+  assert.equal(target.state.faceSession.status, 'CONSUMED');
+  const { verifyGeofenceOnlyUatReceipt } = require('../src/services/attendance-geofence-only-uat-receipt.service');
+  assert.equal(verifyGeofenceOnlyUatReceipt({
+    receipt: `${issued.receipt}x`,
+    secret: 'unit-test-signing-key-is-at-least-32-bytes',
+    now: target.clock().getTime()
+  }), null);
+  await assert.rejects(
+    () => service.consumeGeofenceOnlyUatReceiptInTransaction({ tx, actor: { sub: ids.user }, receipt: issued.receipt, attendanceContext: prepared.attendanceContext }),
+    (error) => error.details?.code === 'GEOFENCE_ONLY_UAT_RECEIPT_STALE'
+  );
 });
 
 test('receipt consumption re-resolves current Site/QR/GPS authority and transaction-aware path reuses the caller transaction', async () => {
