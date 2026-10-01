@@ -367,10 +367,18 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     ]);
     assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeC, quotaYear: 2030 } }), 1);
 
-    await Promise.all([
-      ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2031 }),
-      ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: 2032 })
-    ]);
+    const concurrentYears = [2031, 2032];
+    const differentYearResults = await Promise.allSettled(
+      concurrentYears.map((quotaYear) => ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear }))
+    );
+    for (const [index, result] of differentYearResults.entries()) {
+      if (result.status === 'rejected') {
+        assert.equal(result.reason?.statusCode, 409);
+        assert.equal(result.reason?.details?.code, 'LEAVE_QUOTA_STATE_CONFLICT');
+        const settledRetry = await ensureAnnualQuota({ employeeId: ids.employeeC, quotaYear: concurrentYears[index] });
+        assert.equal(settledRetry.quota.quotaYear, concurrentYears[index]);
+      }
+    }
     assert.equal(await prisma.leaveQuota.count({ where: { employeeId: ids.employeeC, quotaYear: { in: [2031, 2032] } } }), 2);
     await cleanup();
   });
