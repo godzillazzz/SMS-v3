@@ -1,7 +1,10 @@
 export const ATTENDANCE_DEVICE_KEY_ALGORITHM = 'ECDSA_P256_SHA256' as const;
-const DB_NAME = 'smsv3-attendance-device-keys';
-const DB_VERSION = 1;
-const STORE_NAME = 'deviceKeys';
+export const ATTENDANCE_DEVICE_KEY_DATABASE_NAME = 'smsv3-attendance-device-keys';
+export const ATTENDANCE_DEVICE_KEY_DATABASE_VERSION = 1;
+export const ATTENDANCE_DEVICE_KEY_OBJECT_STORE_NAME = 'deviceKeys';
+const DB_NAME = ATTENDANCE_DEVICE_KEY_DATABASE_NAME;
+const DB_VERSION = ATTENDANCE_DEVICE_KEY_DATABASE_VERSION;
+const STORE_NAME = ATTENDANCE_DEVICE_KEY_OBJECT_STORE_NAME;
 
 export type AttendanceDeviceKeyRecord = {
   candidateDeviceEnrollmentId: string;

@@ -1,7 +1,13 @@
 ﻿import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { isG06DeviceContextDiagnosticBuild } from './src/lib/g06-device-context-diagnostic-route';
+const enableG06DeviceContextDiagnostic = isG06DeviceContextDiagnosticBuild(process.env.VERCEL, process.env.VERCEL_ENV);
+
 export default defineConfig({
+  define: {
+    __SMSV3_G06_DEVICE_CONTEXT_DIAGNOSTIC__: JSON.stringify(enableG06DeviceContextDiagnostic)
+  },
   plugins: [react(), tailwindcss()],
   build: {
     rollupOptions: {
