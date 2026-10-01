@@ -15,7 +15,7 @@ const { reconcileEmployeeLicenseSchedules, reconcileAllEmployeeLicenseSchedules 
 const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('../services/license-state.service');
 const { updateScheduleApprovalState, approveMonthlySchedule } = require('../services/schedule.service');
 const { createSchedulePersonnelResolver, enrichScheduleAssignments } = require('../services/schedule-personnel-history.service');
-const { ensureMonthlyRosterSnapshot, loadCalendarRoster } = require('../services/schedule-roster.service');
+const { loadCalendarRoster } = require('../services/schedule-roster.service');
 const { linkLeaveQuota } = require('../services/leave-quota-link.service');
 const { provisionLeaveQuota } = require('../services/leave-quota-provisioning.service');
 const { bangkokQuotaYear, validateQuotaYear } = require('../services/annual-leave-quota.service');
@@ -608,7 +608,7 @@ router.get('/schedule-calendar', async (req, res, next) => {
     const operationalConflictIds = await projectedScheduleConflictIds(prisma, shifts);
     const visibleShifts = shifts.map((shift) => ({ ...shift, operationalConflict: operationalConflictIds.has(String(shift.id)) ? 'INACTIVE_EMPLOYEE_SCHEDULE_CONFLICT' : null }));
     const dates = Array.from({ length: Math.round((nextMonth - monthStart) / 86400000) }, (_, index) => new Date(Date.UTC(year, monthIndex - 1, index + 1)).toISOString().slice(0, 10));
-    res.json({ data: { month: filters.month, dates, approval: approvalWithIdentity, rosterSnapshotLocked: roster.snapshotLocked, employees: employees.map((employee) => ({ ...employee, shifts: visibleShifts.filter((shift) => shift.employeeId === employee.id) })) }, meta: { page: filters.page, pageSize: filters.pageSize, total, totalPages: Math.ceil(total / filters.pageSize) } });
+    res.json({ data: { month: filters.month, dates, approval: approvalWithIdentity, employees: employees.map((employee) => ({ ...employee, shifts: visibleShifts.filter((shift) => shift.employeeId === employee.id) })) }, meta: { page: filters.page, pageSize: filters.pageSize, total, totalPages: Math.ceil(total / filters.pageSize) } });
   } catch (error) { next(error); }
 });
 router.post('/schedule/auto-preview', authorize('ADMIN'), async (req, res, next) => {
@@ -652,11 +652,11 @@ router.post('/schedule/export.xlsx', async (req, res, next) => {
       prisma.user.findUniqueOrThrow({ where: { id: req.user.sub }, select: { displayName: true } })
     ]);
     const historicalShifts = await enrichScheduleAssignments(prisma, rawShifts, employees);
-    const rosterSnapshots = await prisma.scheduleRosterSnapshot.findMany({ where: { month: start }, select: { employeeId: true, employeeCodeSnapshot: true } });
-    // Preserve each month’s historical employee code; ignore obsolete custom roster positions.
+    // Runtime roster snapshots are retired. Approved exports use the current employee
+    // code for deterministic numeric-aware ordering while historical personnel
+    // name/department still comes from lifecycle enrichment.
     const codeByEmployee = new Map(employees.map((employee) => [String(employee.id), String(employee.employeeCode || '')]));
-    const snapshotCodeByEmployee = new Map(rosterSnapshots.map((row) => [String(row.employeeId), String(row.employeeCodeSnapshot || '')]));
-    const orderedHistoricalShifts = historicalShifts.map((row) => ({ ...row, employeeCodeSnapshot: snapshotCodeByEmployee.get(String(row.employeeId)) || codeByEmployee.get(String(row.employeeId)) || '' }));
+    const orderedHistoricalShifts = historicalShifts.map((row) => ({ ...row, employeeCodeSnapshot: codeByEmployee.get(String(row.employeeId)) || '' }));
     const availableDepartments = [...new Set(orderedHistoricalShifts.map((row) => row.departmentSnapshot).filter(Boolean))].sort();
     const selectedDepartments = input.scope === 'all' || !input.departments.length ? availableDepartments : input.departments.filter((department) => availableDepartments.includes(department));
     if (!selectedDepartments.length) throw new HttpError(404, 'No schedule rows were found for the selected departments.');
@@ -696,7 +696,6 @@ router.post('/shifts', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, 
     const input = shiftInput.parse(req.body);
     const result = await prisma.$transaction(async (tx) => {
       const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: input.employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: input.shiftTypeId } })]);
-      await ensureMonthlyRosterSnapshot(tx, input.workDate, { extraEmployeeIds: [input.employeeId], actorUserId: req.user.sub, source: 'DIRECT_SHIFT' });
       if (shiftType.isActive === false) throw new HttpError(409, 'Shift type is inactive and cannot be assigned to a new schedule.');
       await ensureEmployeeOperationalForShift(tx, { employeeId: input.employeeId, workDate: input.workDate, shiftCode: shiftType.code });
       const licenseState = await licenseStateForShift(tx, { employeeId: input.employeeId, workDate: input.workDate, shiftCode: shiftType.code, override: input.licenseOverride, overrideReason: input.overrideReason, actorRole: req.user.role });
@@ -718,7 +717,6 @@ router.put('/shifts/:id', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (re
       const shiftTypeId = input.shiftTypeId || before.shiftTypeId;
       const workDate = input.workDate || before.workDate;
       const [employee, shiftType] = await Promise.all([tx.employee.findUniqueOrThrow({ where: { id: employeeId } }), tx.shiftType.findUniqueOrThrow({ where: { id: shiftTypeId } })]);
-      await ensureMonthlyRosterSnapshot(tx, workDate, { extraEmployeeIds: [employeeId], actorUserId: req.user.sub, source: 'DIRECT_SHIFT_UPDATE' });
       const changingShiftType = Boolean(input.shiftTypeId && input.shiftTypeId !== before.shiftTypeId);
       if (changingShiftType && shiftType.isActive === false) throw new HttpError(409, 'Shift type is inactive and cannot be assigned to a new schedule.');
       await ensureEmployeeOperationalForShift(tx, { employeeId, workDate, shiftCode: shiftType.code });

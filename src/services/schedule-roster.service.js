@@ -1,7 +1,6 @@
 'use strict';
 
 const HttpError = require('../utils/http-error');
-const audit = require('./audit.service');
 const { createSchedulePersonnelResolver } = require('./schedule-personnel-history.service');
 
 function monthStart(value) {
@@ -16,22 +15,17 @@ function monthEnd(start) {
   return new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
 }
 
-function displayName(employee) {
-  return employee.displayName || `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || employee.employeeCode;
-}
-
-/** Display order is always employee code (numeric-aware), not a mutable roster position. */
+/** Display order is always employee code (numeric-aware), never a mutable roster position. */
 function sortRoster(a, b) {
-  const left = String(a.employeeCode || a.employeeCodeSnapshot || '');
-  const right = String(b.employeeCode || b.employeeCodeSnapshot || '');
+  const left = String(a.employeeCode || '');
+  const right = String(b.employeeCode || '');
   const byCode = left.localeCompare(right, 'en', { numeric: true, sensitivity: 'base' });
   if (byCode) return byCode;
-  const byDepartment = String(a.department || a.departmentSnapshot || '').localeCompare(
-    String(b.department || b.departmentSnapshot || ''), 'th'
-  );
+  const byDepartment = String(a.department || '').localeCompare(String(b.department || ''), 'th');
   if (byDepartment) return byDepartment;
-  return String(a.id || a.employeeId || '').localeCompare(String(b.id || b.employeeId || ''));
+  return String(a.id || '').localeCompare(String(b.id || ''));
 }
+
 async function assignedEmployeeIdsForMonth(client, start, end) {
   const rows = await client.shiftAssignment.findMany({
     where: { workDate: { gte: start, lt: end } },
@@ -41,121 +35,17 @@ async function assignedEmployeeIdsForMonth(client, start, end) {
   return rows.map((row) => String(row.employeeId));
 }
 
-async function ensureMonthlyRosterSnapshot(client, month, { extraEmployeeIds = [], actorUserId = null, source = 'SCHEDULE_CREATE' } = {}) {
-  if (!client?.scheduleRosterSnapshot?.findMany || !client?.scheduleRosterSnapshot?.createMany) return [];
-  const start = monthStart(month);
-  const end = monthEnd(start);
-  const existing = await client.scheduleRosterSnapshot.findMany({
-    where: { month: start },
-    select: { employeeId: true, departmentSnapshot: true, rosterOrder: true }
-  });
-  const existingIds = new Set(existing.map((row) => String(row.employeeId)));
-  const assignedIds = await assignedEmployeeIdsForMonth(client, start, end);
-  const forcedIds = [...new Set([...assignedIds, ...(extraEmployeeIds || []).map(String)])];
-
-  const where = existing.length
-    ? { id: { in: forcedIds.filter((id) => !existingIds.has(id)) } }
-    : { OR: [{ isActive: true, deletedAt: null }, ...(forcedIds.length ? [{ id: { in: forcedIds } }] : [])] };
-  const candidates = await client.employee.findMany({
-    where,
-    select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true, isActive: true, deletedAt: true, scheduleOrder: true },
-    orderBy: [{ employeeCode: 'asc' }, { department: 'asc' }]
-  });
-  if (!candidates.length) return existing;
-
-  const resolvePersonnel = await createSchedulePersonnelResolver(client, candidates);
-  const existingMaxByDepartment = new Map();
-  for (const row of existing) {
-    const key = String(row.departmentSnapshot || '');
-    existingMaxByDepartment.set(key, Math.max(existingMaxByDepartment.get(key) || 0, Number(row.rosterOrder) || 0));
-  }
-  const nextByDepartment = new Map(existingMaxByDepartment);
-  const rows = [];
-  for (const employee of candidates) {
-    if (existingIds.has(String(employee.id))) continue;
-    const historical = resolvePersonnel(employee.id, start) || {};
-    const forced = forcedIds.includes(String(employee.id));
-    if (existing.length === 0 && !employee.isActive && !forced) continue;
-    const department = historical.department ?? employee.department ?? null;
-    const key = String(department || '');
-    let rosterOrder = Number.isInteger(employee.scheduleOrder) && employee.scheduleOrder > 0 ? employee.scheduleOrder : null;
-    if (!rosterOrder) {
-      const next = (nextByDepartment.get(key) || 0) + 10;
-      nextByDepartment.set(key, next);
-      rosterOrder = next;
-    } else {
-      nextByDepartment.set(key, Math.max(nextByDepartment.get(key) || 0, rosterOrder));
-    }
-    rows.push({
-      month: start,
-      employeeId: employee.id,
-      employeeCodeSnapshot: employee.employeeCode,
-      employeeNameSnapshot: historical.displayName || displayName(employee),
-      departmentSnapshot: department,
-      jobTitleSnapshot: historical.jobTitle ?? employee.jobTitle ?? null,
-      rosterOrder,
-      source
-    });
-  }
-  if (!rows.length) return existing;
-  const result = await client.scheduleRosterSnapshot.createMany({ data: rows, skipDuplicates: true });
-  if (actorUserId && result.count) {
-    await audit.log({
-      actorUserId,
-      action: 'CREATE',
-      entityType: 'ScheduleRosterSnapshot',
-      entityId: start.toISOString().slice(0, 7),
-      metadata: { month: start.toISOString().slice(0, 7), createdRows: result.count, source }
-    }, client);
-  }
-  return client.scheduleRosterSnapshot.findMany({
-    where: { month: start },
-    orderBy: [{ departmentSnapshot: 'asc' }, { employeeCodeSnapshot: 'asc' }]
-  });
-}
-
+/**
+ * Monthly roster is derived live from Employee master plus employees that already
+ * have assignments in the selected month. ScheduleRosterSnapshot is intentionally
+ * not read or written: an incomplete snapshot must never hide active employees.
+ */
 async function loadCalendarRoster(client, month, { department, search } = {}) {
   const start = monthStart(month);
   const end = monthEnd(start);
-  const snapshotCount = client?.scheduleRosterSnapshot?.count ? await client.scheduleRosterSnapshot.count({ where: { month: start } }) : 0;
-  if (snapshotCount > 0) {
-    const where = {
-      month: start,
-      ...(department ? { departmentSnapshot: department } : {}),
-      ...(search ? { OR: [
-        { employeeCodeSnapshot: { contains: search, mode: 'insensitive' } },
-        { employeeNameSnapshot: { contains: search, mode: 'insensitive' } }
-      ] } : {})
-    };
-    const rows = await client.scheduleRosterSnapshot.findMany({
-      where,
-      include: { employee: { select: { id: true, firstName: true, lastName: true, displayName: true, isActive: true, deletedAt: true, scheduleOrder: true } } },
-      orderBy: [{ departmentSnapshot: 'asc' }, { employeeCodeSnapshot: 'asc' }]
-    });
-    const currentMonth = monthStart(new Date());
-    const visibleRows = start >= currentMonth
-      ? rows.filter((row) => row.employee?.isActive === true && row.employee?.deletedAt == null)
-      : rows;
-    return {
-      snapshotLocked: true,
-      employees: visibleRows.map((row) => ({
-        id: row.employeeId,
-        employeeCode: row.employeeCodeSnapshot,
-        firstName: row.employee.firstName,
-        lastName: row.employee.lastName,
-        displayName: row.employeeNameSnapshot,
-        department: row.departmentSnapshot,
-        jobTitle: row.jobTitleSnapshot,
-        isActive: row.employee.isActive,
-        deletedAt: row.employee.deletedAt,
-        scheduleOrder: row.employee.scheduleOrder,
-        rosterOrder: row.rosterOrder
-      })).sort(sortRoster)
-    };
-  }
-
   const assignedIds = await assignedEmployeeIdsForMonth(client, start, end);
   const assignedSet = new Set(assignedIds);
+
   const candidates = await client.employee.findMany({
     where: {
       OR: [{ isActive: true, deletedAt: null }, ...(assignedIds.length ? [{ id: { in: assignedIds } }] : [])],
@@ -165,9 +55,21 @@ async function loadCalendarRoster(client, month, { department, search } = {}) {
         { lastName: { contains: search, mode: 'insensitive' } }
       ] }] } : {})
     },
-    select: { id: true, employeeCode: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true, isActive: true, deletedAt: true, scheduleOrder: true },
+    select: {
+      id: true,
+      employeeCode: true,
+      firstName: true,
+      lastName: true,
+      displayName: true,
+      department: true,
+      jobTitle: true,
+      isActive: true,
+      deletedAt: true,
+      scheduleOrder: true
+    },
     orderBy: [{ employeeCode: 'asc' }, { department: 'asc' }]
   });
+
   const resolvePersonnel = await createSchedulePersonnelResolver(client, candidates);
   const employees = candidates.map((employee) => {
     const historical = resolvePersonnel(employee.id, start) || {};
@@ -175,23 +77,19 @@ async function loadCalendarRoster(client, month, { department, search } = {}) {
     return {
       ...employee,
       ...historical,
-      isActive: assigned ? Boolean(historical.isActive) : Boolean(employee.isActive),
-      scheduleOrder: employee.scheduleOrder,
-      rosterOrder: employee.scheduleOrder
+      isActive: assigned ? Boolean(historical.isActive) : Boolean(employee.isActive)
     };
-  }).filter((employee) => (employee.isActive || assignedSet.has(String(employee.id))) && (!department || employee.department === department));
+  }).filter((employee) =>
+    (employee.isActive || assignedSet.has(String(employee.id))) &&
+    (!department || employee.department === department)
+  );
+
   employees.sort(sortRoster);
-  return { snapshotLocked: false, employees };
+  return { employees };
 }
 
 module.exports = {
-
-  ensureMonthlyRosterSnapshot,
-
-
   loadCalendarRoster,
   monthStart,
-
-
   sortRoster
 };

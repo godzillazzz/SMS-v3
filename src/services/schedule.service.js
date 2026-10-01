@@ -5,7 +5,7 @@ const audit = require('./audit.service');
 const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('./license-state.service');
 const { ensureEmployeeOperationalForShift } = require('./employee-operational-eligibility.service');
 const { createSchedulePersonnelResolver, enrichScheduleAssignments } = require('./schedule-personnel-history.service');
-const { ensureMonthlyRosterSnapshot, loadCalendarRoster } = require('./schedule-roster.service');
+const { loadCalendarRoster } = require('./schedule-roster.service');
 
 function parseMonthDates(yearMonth) {
   const [yearStr, monthStr] = yearMonth.split('-');
@@ -94,16 +94,6 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
   const results = await prisma.$transaction(async (tx) => {
     const list = [];
     const monthsToTouch = new Set();
-    const rosterIdsByMonth = new Map();
-    for (const assignment of assignments) {
-      const monthKey = String(assignment.workDate).slice(0, 7);
-      const ids = rosterIdsByMonth.get(monthKey) || new Set();
-      ids.add(String(assignment.employeeId));
-      rosterIdsByMonth.set(monthKey, ids);
-    }
-    for (const [monthKey, ids] of rosterIdsByMonth.entries()) {
-      await ensureMonthlyRosterSnapshot(tx, monthKey, { extraEmployeeIds: [...ids], actorUserId, source: 'MANUAL_BATCH' });
-    }
 
 
     // Keep every database operation in this interactive transaction on the
