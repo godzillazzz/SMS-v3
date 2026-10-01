@@ -2807,7 +2807,7 @@ function Dashboard() {
                 {autoScheduleBusy ? 'กำลังคำนวณ…' : '✨ ดูตัวอย่างจัดกะอัตโนมัติ'}
               </button>
             )}
-            <span className="toolbar-count" style={{ marginLeft: 'auto' }}>แสดง {calendarEmployees.length} จาก {operationResponse.meta?.total || 0} คน</span>
+            <span className="toolbar-count" style={{ marginLeft: 'auto' }}>แสดง {calendarEmployees.length} จาก {allCalendarEmployees.length} คน</span>
           </div>
           <div title="ไม้กายสิทธิ์สำหรับ Admin — จัดกะทุกคนด้วย Shared Pattern Engine เดียวกับไม้กายสิทธิ์รายบุคคล" style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>
             Shared Pattern Engine เดียวกับไม้กายสิทธิ์รายบุคคล · Auto Continue แบบเดียวกับไม้กายสิทธิ์รายบุคคล · ใช้ Pattern Master เดียวกับไม้กายสิทธิ์รายบุคคล · อ่านแพทเทิร์น Supervisor/พนักงานทั่วไปจากค่าที่ Admin จัดการ · คง AL และ Admin license override
