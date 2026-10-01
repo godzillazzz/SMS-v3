@@ -672,7 +672,7 @@ jobs:
           const record = JSON.parse(fs.readFileSync(file, 'utf8'));
           if (record.id !== expectedId) throw new Error('Canonical URL does not resolve to the promoted deployment yet');
           if (record.target !== 'production' || record.readyState !== 'READY') throw new Error('Promoted canonical deployment is not READY Production');
-NODE
+          NODE
               then
                 if node /tmp/sms-release-control-plane/inspect-vercel-deployment.js "$DEPLOYMENT_ID" "$TARGET_SHA" "$SOURCE_BRANCH" production false >/dev/null; then
                   matched=true
@@ -701,7 +701,7 @@ NODE
           const [file, expectedId] = process.argv.slice(2);
           const record = JSON.parse(fs.readFileSync(file, 'utf8'));
           if (record.id !== expectedId || record.target !== 'production' || record.readyState !== 'READY') process.exit(1);
-NODE
+          NODE
             then
               canonical_is_rollback=true
             fi
@@ -721,7 +721,7 @@ NODE
           const [file, expectedId] = process.argv.slice(2);
           const record = JSON.parse(fs.readFileSync(file, 'utf8'));
           if (record.id !== expectedId || record.target !== 'production' || record.readyState !== 'READY') process.exit(1);
-NODE
+          NODE
               then
                 if node /tmp/sms-release-control-plane/inspect-vercel-deployment.js "$ROLLBACK_DEPLOYMENT_ID" "$CURRENT_PRODUCTION_SOURCE_SHA" "$CURRENT_PRODUCTION_SOURCE_REF" production false >/dev/null; then
                   restored=true
