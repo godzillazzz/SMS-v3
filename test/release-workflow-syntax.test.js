@@ -50,6 +50,23 @@ test("Production workflow Node heredoc terminators stay inside YAML run blocks",
   );
 });
 
+test("Production workflow loads every referenced release-control helper before use", () => {
+  const workflow = fs.readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n");
+  const loader = extractRunBlock(workflow, "Load release-control verifier from dispatched source SHA");
+  const toolList = loader.match(/for tool in ([^\n]+); do/);
+  assert.ok(toolList, "expected the release-control helper loader loop");
+  const loaded = new Set(toolList[1].trim().split(/\s+/));
+  const referenced = new Set(
+    [...workflow.matchAll(/\/tmp\/sms-release-control-plane\/([A-Za-z0-9-]+\.js)/g)]
+      .map((match) => match[1]),
+  );
+
+  assert.ok(referenced.size > 0, "expected release-control helper references");
+  for (const filename of referenced) {
+    assert.ok(loaded.has(filename), `${filename} must be loaded from the dispatched control-plane SHA before use`);
+  }
+});
+
 test(
   "Production release guard shell blocks are syntactically valid on bash runners",
   { skip: process.platform === "win32" },
