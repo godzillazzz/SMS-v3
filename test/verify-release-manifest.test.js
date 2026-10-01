@@ -110,15 +110,15 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest resolves the exact monthly-roster hotfix with no database changes', () => {
+test('current approved Production manifest targets reconciled G06 and schedule source with no database changes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-d6542a7-20261001');
-  assert.equal(result.commitSha, 'd6542a707d5b7fe19d31f50a00c75afa72fdb0c8');
-  assert.equal(result.treeSha, 'ba4248385d64b6a36cafc1a6e6dfe8cea67f23e0');
-  assert.equal(result.currentProductionSourceSha, '5c1e9414b6d694e53b060608d32c12184bb9c459');
+  assert.equal(result.releaseId, 'sms-v3-prod-302720d-20261001');
+  assert.equal(result.commitSha, '302720d411a03fc666efac23d6025ba0bc157122');
+  assert.equal(result.treeSha, 'b96d499863ae71b965abd30781203394d26b7a6c');
+  assert.equal(result.currentProductionSourceSha, 'd6542a707d5b7fe19d31f50a00c75afa72fdb0c8');
   assert.equal(result.currentProductionSourceRef, 'fix/serverless-database-reliability');
-  assert.equal(result.rollbackDeploymentId, 'dpl_F9U8zeKpT8oWtjf1P38EAy2Z2VtV');
+  assert.equal(result.rollbackDeploymentId, 'dpl_2gScBJQChdGNTjWkoLMoQLcdMsDx');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.productionEnvironmentChangePolicy, 'NO_ENVIRONMENT_CHANGES');
@@ -126,16 +126,16 @@ test('current approved Production manifest resolves the exact monthly-roster hot
   assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION');
   assert.equal(result.preAppliedMigrationManifestPath, '');
   assert.equal(result.preAppliedMigrationEvidenceRunId, '');
-  assert.equal(manifest.preview_deployment_id, 'dpl_WuhNSqbNanShVXFGDjArSuvQzprd');
+  assert.equal(manifest.preview_deployment_id, 'dpl_5VZjtjAPM1GjDB3F626fMgyXNKUL');
   assert.equal(manifest.performance_status, 'NOT_EVALUATED_SCOPE_LIMITED_RELEASE');
   assert.equal(manifest.global_performance_regression, 'NOT_EVALUATED');
   assert.equal(manifest.custom_preview_cors_preflight, 'PASS');
-  assert.equal(manifest.wave8_responsive_recheck, 'NOT_REQUIRED_SERVER_ROSTER_RUNTIME_HOTFIX_FRONTEND_FULL_753_AND_BUILD_PASS');
+  assert.equal(manifest.wave8_responsive_recheck, 'G06_DEVICE_KEY_CHROMIUM_WEBKIT_320_390_1440_AND_COMBINED_FRONTEND_766_NODE22');
   assert.equal(manifest.linux_node22_artifact_guard, 'PASS');
   assert.equal(manifest.serverless_concurrency_guard, 'PASS');
-  assert.equal(manifest.attendance_security_change, 'NONE');
-  assert.equal(manifest.g06_changed, 'NO');
-  assert.equal(manifest.production_env_preparation, 'NONE');
+  assert.equal(manifest.attendance_security_change, 'CONTROLLED_UAT_ONLY_ACTIVE_DEVICE_LOCAL_KEY_READINESS_AND_ID_MATCH_FAIL_CLOSED_FACE_CHALLENGE_SCOPE_UNCHANGED');
+  assert.equal(manifest.g06_changed, 'YES_CONTROLLED_UAT_ONLY');
+  assert.equal(manifest.production_env_preparation, 'EXISTING_PRODUCTION_ONLY_G06_UAT_FLAG_UNCHANGED; NO_ENVIRONMENT_CHANGE_IN_THIS_RELEASE');
   assert.equal(manifest.g07, 'EXCLUDED');
 });
 
