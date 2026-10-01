@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { main } = require('../scripts/ci/create-vercel-git-candidate');
+const { assertCandidateRecord, main } = require('../scripts/ci/create-vercel-git-candidate');
 
 const env = {
   VERCEL_TOKEN: 'test-token',
@@ -77,6 +77,80 @@ test('creates a production-target GitHub candidate pinned to exact SHA/ref and p
     ref: env.SOURCE_BRANCH,
     sha: env.TARGET_SHA,
   });
+});
+
+test('accepts Vercel native Git metadata when repository identity is carried by commit metadata', () => {
+  const record = candidateRecord({
+    meta: {
+      githubCommitOrg: 'godzillazzz',
+      githubCommitRepo: 'SMS-v3',
+      githubCommitRepoId: '1305361853',
+      githubCommitSha: env.TARGET_SHA,
+      githubCommitRef: env.SOURCE_BRANCH,
+    },
+    gitSource: {
+      type: 'github',
+      ref: env.SOURCE_BRANCH,
+      sha: env.TARGET_SHA,
+      repoId: '1305361853',
+    },
+  });
+
+  assert.equal(assertCandidateRecord(record, {
+    projectId: env.EXPECTED_PROJECT_ID,
+    commitSha: env.TARGET_SHA,
+    commitRef: env.SOURCE_BRANCH,
+  }).id, record.id);
+});
+
+test('fails closed when native Git source and commit metadata disagree about repository identity', () => {
+  const record = candidateRecord({
+    meta: {
+      githubCommitOrg: 'godzillazzz',
+      githubCommitRepo: 'SMS-v3',
+      githubCommitRepoId: '1305361853',
+      githubCommitSha: env.TARGET_SHA,
+      githubCommitRef: env.SOURCE_BRANCH,
+    },
+    gitSource: {
+      type: 'github',
+      org: 'unexpected-org',
+      repo: 'SMS-v3',
+      ref: env.SOURCE_BRANCH,
+      sha: env.TARGET_SHA,
+      repoId: '1305361853',
+    },
+  });
+
+  assert.throws(() => assertCandidateRecord(record, {
+    projectId: env.EXPECTED_PROJECT_ID,
+    commitSha: env.TARGET_SHA,
+    commitRef: env.SOURCE_BRANCH,
+  }), /native Git source organization conflicts with commit metadata/);
+});
+
+test('fails closed when native Git source and commit metadata disagree about repository id', () => {
+  const record = candidateRecord({
+    meta: {
+      githubCommitOrg: 'godzillazzz',
+      githubCommitRepo: 'SMS-v3',
+      githubCommitRepoId: '1305361853',
+      githubCommitSha: env.TARGET_SHA,
+      githubCommitRef: env.SOURCE_BRANCH,
+    },
+    gitSource: {
+      type: 'github',
+      ref: env.SOURCE_BRANCH,
+      sha: env.TARGET_SHA,
+      repoId: '999999999',
+    },
+  });
+
+  assert.throws(() => assertCandidateRecord(record, {
+    projectId: env.EXPECTED_PROJECT_ID,
+    commitSha: env.TARGET_SHA,
+    commitRef: env.SOURCE_BRANCH,
+  }), /native Git source repository id mismatch/);
 });
 
 test('fails closed when Vercel native Git SHA or ref does not match', async () => {
