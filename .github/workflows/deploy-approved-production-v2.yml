@@ -311,7 +311,7 @@ jobs:
           git fetch --no-tags origin "$GITHUB_SHA"
           release_tools=/tmp/sms-release-control-plane
           mkdir -p "$release_tools"
-          for tool in verify-public-runtime.js vercel-curl-fetch.js create-vercel-git-candidate.js vercel-api-deployment.js vercel-deployment.js; do
+          for tool in verify-public-runtime.js vercel-curl-fetch.js create-vercel-git-candidate.js inspect-vercel-deployment.js vercel-api-deployment.js vercel-deployment.js; do
             git show "$GITHUB_SHA:scripts/ci/$tool" > "$release_tools/$tool"
             node --check "$release_tools/$tool"
           done
