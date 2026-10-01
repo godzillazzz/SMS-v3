@@ -1,0 +1,30 @@
+* { box-sizing: border-box; }
+html, body, #root { min-height: 100%; margin: 0; }
+body { background: #f3f6fb; color: #172033; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.g06-device-context-diagnostic { display: grid; width: min(860px, 100%); gap: 16px; margin: 0 auto; padding: 20px 16px 40px; }
+.g06-device-context-diagnostic__header { display: grid; gap: 8px; }
+.g06-device-context-diagnostic__header h1 { margin: 0; font-size: clamp(22px, 5vw, 30px); line-height: 1.2; }
+.g06-device-context-diagnostic__header p { margin: 0; color: #526078; line-height: 1.55; }
+.g06-device-context-diagnostic__eyebrow { color: #1856a8 !important; font-size: 11px; font-weight: 800; letter-spacing: .1em; }
+.g06-device-context-diagnostic__card, .g06-device-context-diagnostic__notice { min-width: 0; border: 1px solid #d9e0eb; border-radius: 14px; background: #fff; padding: 16px; box-shadow: 0 2px 8px rgb(22 35 57 / 5%); }
+.g06-device-context-diagnostic__notice { border-color: #edc86a; background: #fff9e7; }
+.g06-device-context-diagnostic__notice p { margin: 6px 0 0; color: #594719; line-height: 1.55; }
+.g06-device-context-diagnostic__card h2 { margin: 0 0 12px; font-size: 17px; }
+.g06-device-context-diagnostic__card h3 { margin: 14px 0 8px; font-size: 14px; }
+.g06-device-context-diagnostic__card > p { margin: 0 0 12px; color: #526078; line-height: 1.5; overflow-wrap: anywhere; }
+.g06-device-context-diagnostic__card dl { display: grid; gap: 8px; margin: 0; }
+.g06-device-context-diagnostic__card dl > div { display: grid; grid-template-columns: minmax(138px, .7fr) minmax(0, 1.3fr); gap: 10px; border-top: 1px solid #e8edf4; padding-top: 8px; }
+.g06-device-context-diagnostic__card dt { color: #607087; font-size: 12px; font-weight: 700; }
+.g06-device-context-diagnostic__card dd { min-width: 0; margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.g06-device-context-diagnostic__card select, .g06-device-context-diagnostic__field input { width: 100%; min-width: 0; border: 1px solid #aebbd0; border-radius: 8px; padding: 9px 10px; background: #fff; color: #172033; font: inherit; }
+.g06-device-context-diagnostic__field { display: grid; gap: 6px; margin: 12px 0; font-size: 13px; font-weight: 700; }
+.g06-device-context-diagnostic__card button { min-height: 42px; border: 0; border-radius: 9px; padding: 10px 14px; background: #1856a8; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.g06-device-context-diagnostic__card button:disabled { opacity: .65; cursor: progress; }
+.g06-device-context-diagnostic__footnote { margin: 12px 0 0 !important; color: #65748a !important; font-size: 12px; }
+.g06-device-context-diagnostic__result { margin-top: 14px; border-top: 1px solid #dce4ef; padding-top: 2px; }
+@media (max-width: 380px) {
+  .g06-device-context-diagnostic { padding-inline: 10px; }
+  .g06-device-context-diagnostic__card, .g06-device-context-diagnostic__notice { padding: 12px; }
+  .g06-device-context-diagnostic__card dl > div { grid-template-columns: minmax(105px, .68fr) minmax(0, 1.32fr); gap: 6px; }
+  .g06-device-context-diagnostic__card dt, .g06-device-context-diagnostic__card dd { font-size: 11px; }
+}

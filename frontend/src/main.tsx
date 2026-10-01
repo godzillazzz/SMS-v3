@@ -25,6 +25,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
+import { isG06DeviceContextDiagnosticRequested, shouldOpenG06DeviceContextDiagnostic } from './lib/g06-device-context-diagnostic-route';
 import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
 import { getApprovalCenterSummary } from './approval-center-client';
 import { getLeavePolicy } from './leave-policy-client';
@@ -3282,11 +3283,22 @@ function Dashboard() {
   );
 }
 
+const G06DeviceContextDiagnostic = React.lazy(() => import('./pages/attendance-device/G06DeviceContextDiagnosticPage').then(({ G06DeviceContextDiagnosticPage }) => ({ default: G06DeviceContextDiagnosticPage })));
+
 function App() {
   const auth = useContext(AuthContext)!;
   if (auth.loading) return <div className="full-loader">กำลังเตรียมระบบ…</div>;
-  return auth.token ? <Dashboard /> : <Login />;
+  if (!auth.token) return <Login />;
+  if (shouldOpenG06DeviceContextDiagnostic({ authenticated: Boolean(auth.token), diagnosticBuild: __SMSV3_G06_DEVICE_CONTEXT_DIAGNOSTIC__, search: window.location.search })) {
+    return <React.Suspense fallback={<div className="full-loader">กำลังเตรียมการตรวจแบบ read-only…</div>}><G06DeviceContextDiagnostic /></React.Suspense>;
+  }
+  return <Dashboard />;
 }
 
-registerSmsPwa();
-createRoot(document.getElementById('root')!).render(<React.StrictMode><AuthProvider><App /></AuthProvider></React.StrictMode>);
+const appRoot = document.getElementById('root')!;
+const diagnosticQueryRequested = isG06DeviceContextDiagnosticRequested({
+  diagnosticBuild: __SMSV3_G06_DEVICE_CONTEXT_DIAGNOSTIC__,
+  search: window.location.search
+});
+if (!diagnosticQueryRequested) registerSmsPwa();
+createRoot(appRoot).render(<React.StrictMode><AuthProvider><App /></AuthProvider></React.StrictMode>);
