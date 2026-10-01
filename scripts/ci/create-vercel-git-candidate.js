@@ -29,6 +29,23 @@ function aliasHost(alias) {
   }
 }
 
+function assertNativeGitRepositoryIdentity(record) {
+  const normalize = (value) => String(value || '').trim().replace(/\.git$/i, '').toLowerCase();
+  const sourceOrg = normalize(record.gitSource?.org || record.gitSource?.owner);
+  const metadataOrg = normalize(record.meta?.githubCommitOrg);
+  const sourceRepo = normalize(record.gitSource?.repo);
+  const metadataRepo = normalize(record.meta?.githubCommitRepo);
+
+  assert(!sourceOrg || !metadataOrg || sourceOrg === metadataOrg, 'native Git source organization conflicts with commit metadata');
+  assert(!sourceRepo || !metadataRepo || sourceRepo === metadataRepo, 'native Git source repository conflicts with commit metadata');
+  assert((sourceOrg || metadataOrg) === 'godzillazzz', 'native Git source organization mismatch');
+  assert((sourceRepo || metadataRepo) === 'sms-v3', 'native Git source repository mismatch');
+
+  const sourceRepoId = String(record.gitSource?.repoId || '');
+  const metadataRepoId = String(record.meta?.githubCommitRepoId || '');
+  assert(!sourceRepoId || !metadataRepoId || sourceRepoId === metadataRepoId, 'native Git source repository id mismatch');
+}
+
 function assertCandidateRecord(record, expected) {
   assert(record && typeof record === 'object', 'Vercel returned no deployment record');
   assert(deploymentPattern.test(record.id || ''), 'Vercel returned an invalid deployment id');
@@ -38,8 +55,7 @@ function assertCandidateRecord(record, expected) {
   assert(record.meta?.githubCommitSha === expected.commitSha, 'native githubCommitSha mismatch');
   assert(record.meta?.githubCommitRef === expected.commitRef, 'native githubCommitRef mismatch');
   assert(record.gitSource?.type === 'github', 'candidate is not Git-sourced from GitHub');
-  assert(String(record.gitSource?.org || '').toLowerCase() === 'godzillazzz', 'native Git source organization mismatch');
-  assert(String(record.gitSource?.repo || '').toLowerCase() === 'sms-v3', 'native Git source repository mismatch');
+  assertNativeGitRepositoryIdentity(record);
   assert(String(record.gitSource?.sha || '').toLowerCase() === expected.commitSha, 'native Git source SHA mismatch');
   assert(record.gitSource?.ref === expected.commitRef, 'native Git source ref mismatch');
   assert(Array.isArray(record.alias), 'candidate aliases are missing from the Vercel deployment record');
