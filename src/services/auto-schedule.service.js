@@ -3,7 +3,6 @@
 const HttpError = require('../utils/http-error');
 const audit = require('./audit.service');
 const { validateScheduleRowsOperational } = require('./employee-operational-eligibility.service');
-const { ensureMonthlyRosterSnapshot } = require('./schedule-roster.service');
 const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('./license-state.service');
 const {
   canonicalMode,
@@ -411,7 +410,6 @@ async function commitAutoSchedule(prisma, month, actorUserId) {
     const employeeIds = [...new Set(plan.rows.map((row) => row.employeeId))];
     const al = await tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' }, select: { id: true } });
     const { start, end } = monthBounds(month);
-    await ensureMonthlyRosterSnapshot(tx, month, { extraEmployeeIds: employeeIds, actorUserId, source: 'AUTO_SCHEDULE' });
     const generated = plan.rows.filter((row) => !row.locked);
     await validateScheduleRowsOperational(tx, generated.map((row) => ({
       employeeId: row.employeeId,
@@ -492,7 +490,6 @@ async function commitEmployeeAutoSchedule(prisma, month, employeeId, actorUserId
     const plan = await buildEmployeeAutoSchedulePlan(tx, month, employeeId, startPhase, patternType);
     const al = await tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' }, select: { id: true } });
     const { start, end } = monthBounds(month);
-    await ensureMonthlyRosterSnapshot(tx, month, { extraEmployeeIds: [employeeId], actorUserId, source: 'AUTO_SCHEDULE_EMPLOYEE' });
     const generated = plan.rows.filter((row) => !row.locked);
     await validateScheduleRowsOperational(tx, generated.map((row) => ({
       employeeId: row.employeeId,
