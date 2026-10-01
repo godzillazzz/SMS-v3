@@ -9,6 +9,9 @@ describe('Attendance readiness blocked hotfix', () => {
   it('turns a known missing ACTIVE device into an explicit setup action', () => {
     expect(page).toContain('const [deviceStateKnown, setDeviceStateKnown] = useState(false)');
     expect(page).toContain("const devicePrerequisiteBlocked = deviceStateKnown && !deviceEnrolled");
+    expect(page).toContain("const activeLocalKeyMissing = deviceStateKnown");
+    expect(page).toContain("deviceKeyInspection?.status === 'MISSING'");
+    expect(page).toContain("const deviceBlocked = serverDeviceBlocked || devicePrerequisiteBlocked || activeLocalKeyMissing");
     expect(page).toContain("const actionText = pendingAttendanceCommit ? 'บันทึกซ้ำ' : deviceBlocked ? 'ตั้งค่าอุปกรณ์'");
     expect(page).toContain('const deviceV4Ready = (deviceEnrolled && deviceKeyCapability.supported && deviceKeyInspection?.status === \'PRESENT\')');
     expect(page).toContain('const deviceKeyLabel = attendanceAccepted || verificationSession');
@@ -20,6 +23,9 @@ describe('Attendance readiness blocked hotfix', () => {
     expect(page).toContain('onOpenAttendanceDevice?.()');
     expect(main).toContain("onOpenAttendanceDevice={() => selectPwaPage('attendanceDevice')}");
     expect(page).toContain('Attendance ต้องมีอุปกรณ์สถานะ ACTIVE ที่ผูกกับพนักงาน');
+    expect(page).toContain("activeLocalKeyMissing ? 'ต้องซ่อมอุปกรณ์ลงเวลาก่อน'");
+    expect(page).toContain('PWA นี้ไม่มี local private key สำหรับ enrollment ปัจจุบัน');
+    expect(page).toContain('เปิดหน้าอุปกรณ์ลงเวลา');
     const verificationStart = page.indexOf('const started = await attendanceVerificationStart(token');
     const deviceProofFlow = page.indexOf('await performAttendanceDeviceProof({');
     const activeDeviceRefresh = deviceProof.indexOf('await dependencies.readDeviceState(token)');
