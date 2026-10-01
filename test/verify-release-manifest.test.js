@@ -110,15 +110,15 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest releases only the authenticated read-only G06 device-context diagnostic', () => {
+test('current approved Production manifest releases Schedule count and G06 diagnostic readability fixes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-5c4bcd0-20261001');
-  assert.equal(result.commitSha, '5c4bcd0acae97542315695f2a600dd81bcaea323');
-  assert.equal(result.treeSha, '929fd573c92a219a2d7f2096edcf5372ba6ae57f');
-  assert.equal(result.currentProductionSourceSha, '302720d411a03fc666efac23d6025ba0bc157122');
+  assert.equal(result.releaseId, 'sms-v3-prod-43a303d-20261001');
+  assert.equal(result.commitSha, '43a303d91f7287f49bb3381e0287a117449aec51');
+  assert.equal(result.treeSha, 'a8a22b445e4320762255d7b44980fc96ffecb91c');
+  assert.equal(result.currentProductionSourceSha, '5c4bcd0acae97542315695f2a600dd81bcaea323');
   assert.equal(result.currentProductionSourceRef, 'fix/serverless-database-reliability');
-  assert.equal(result.rollbackDeploymentId, 'dpl_CvahuztbE617uMbWt36GmUsgELVu');
+  assert.equal(result.rollbackDeploymentId, 'dpl_A6X8qXGv4u7W3dETK9hW9oApNzHo');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.productionEnvironmentChangePolicy, 'NO_ENVIRONMENT_CHANGES');
@@ -126,19 +126,19 @@ test('current approved Production manifest releases only the authenticated read-
   assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION');
   assert.equal(result.preAppliedMigrationManifestPath, '');
   assert.equal(result.preAppliedMigrationEvidenceRunId, '');
-  assert.equal(manifest.preview_deployment_id, 'dpl_2qzmFSFwNmf2VEqY4Tf2DgxsT3oa');
+  assert.equal(manifest.preview_deployment_id, 'dpl_G2jH32KbGQXoj7fGjdu45fmADiog');
   assert.equal(manifest.performance_status, 'NOT_EVALUATED_SCOPE_LIMITED_RELEASE');
   assert.equal(manifest.global_performance_regression, 'NOT_EVALUATED');
-  assert.equal(manifest.custom_preview_cors_preflight, 'PASS');
-  assert.equal(manifest.wave8_responsive_recheck, 'G06_DEVICE_CONTEXT_DIAGNOSTIC_AUTH_GATED_READONLY_CHROMIUM_320_390_1440_EXACT_PREVIEW_HEALTH_READY_CORS');
+  assert.equal(manifest.custom_preview_cors_preflight, 'DEFERRED_TO_GOVERNED_WORKFLOW');
+  assert.equal(manifest.wave8_responsive_recheck, 'SCHEDULE_COUNT_AND_G06_DIAGNOSTIC_READABILITY_EXACT_SHA_CI_AND_PREVIEW_HEALTH_READY');
   assert.equal(manifest.linux_node22_artifact_guard, 'PASS');
   assert.equal(manifest.serverless_concurrency_guard, 'PASS');
   assert.equal(manifest.db_schema_mutation, 'NONE');
   assert.equal(manifest.db_data_mutation, 'NONE');
-  assert.equal(manifest.attendance_security_change, 'NONE_READ_ONLY_DEVICE_CONTEXT_DIAGNOSTIC_ONLY_G06_SECURITY_POLICY_UNCHANGED');
-  assert.equal(manifest.g06_changed, 'READ_ONLY_DEVICE_CONTEXT_DIAGNOSTIC_ONLY');
-  assert.equal(manifest.release_risk_domain, 'G06_DEVICE_CONTEXT_DIAGNOSTIC_ONLY');
-  assert.equal(manifest.main_runtime_risk, 'AUTHENTICATED_QUERY_GATED_READ_ONLY_INDEXEDDB_INSPECTION_NO_ATTENDANCE_REQUEST');
+  assert.equal(manifest.attendance_security_change, 'NONE_G06_DIAGNOSTIC_CSS_ONLY_SECURITY_POLICY_UNCHANGED');
+  assert.equal(manifest.g06_changed, 'DIAGNOSTIC_READABILITY_ONLY');
+  assert.equal(manifest.release_risk_domain, 'SCHEDULE_COUNT_LABEL_AND_G06_DIAGNOSTIC_READABILITY');
+  assert.equal(manifest.main_runtime_risk, 'SCHEDULE_COUNT_DENOMINATOR_DISPLAY_AND_DIAGNOSTIC_CSS_ONLY');
   assert.equal(manifest.production_env_preparation, 'NO_ENVIRONMENT_CHANGE_IN_THIS_RELEASE; EXISTING_FLAG_VALUE_NOT_READ_OR_CHANGED');
   assert.equal(manifest.g07, 'EXCLUDED');
 });
