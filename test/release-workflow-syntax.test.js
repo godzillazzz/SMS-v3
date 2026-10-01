@@ -30,6 +30,26 @@ function extractRunBlock(workflow, stepName) {
     .join("\n");
 }
 
+test("Production workflow Node heredoc terminators stay inside YAML run blocks", () => {
+  const workflow = fs
+    .readFileSync(workflowPath, "utf8")
+    .replace(/\r\n/g, "\n");
+  const heredocStarts = (workflow.match(/<<'NODE'/g) || []).length;
+  const indentedTerminators = (workflow.match(/^ {10}NODE$/gm) || []).length;
+
+  assert.ok(heredocStarts > 0, "expected inline Node checks in the release workflow");
+  assert.equal(
+    indentedTerminators,
+    heredocStarts,
+    "every Node heredoc terminator must remain indented under its YAML run scalar",
+  );
+  assert.doesNotMatch(
+    workflow,
+    /^NODE$/m,
+    "an unindented heredoc terminator ends the YAML scalar and invalidates the workflow",
+  );
+});
+
 test(
   "Production release guard shell blocks are syntactically valid on bash runners",
   { skip: process.platform === "win32" },
