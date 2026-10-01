@@ -25,6 +25,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
+import { shouldOpenG06PreviewDeviceDiagnostic } from './lib/g06-preview-diagnostic-route';
 import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
 import { getApprovalCenterSummary } from './approval-center-client';
 import { getLeavePolicy } from './leave-policy-client';
@@ -3288,5 +3289,19 @@ function App() {
   return auth.token ? <Dashboard /> : <Login />;
 }
 
-registerSmsPwa();
-createRoot(document.getElementById('root')!).render(<React.StrictMode><AuthProvider><App /></AuthProvider></React.StrictMode>);
+const appRoot = document.getElementById('root')!;
+const openPreviewDeviceDiagnostic = __SMSV3_G06_PREVIEW_DEVICE_DIAGNOSTIC__
+  && shouldOpenG06PreviewDeviceDiagnostic({ previewBuild: true, search: window.location.search });
+
+if (openPreviewDeviceDiagnostic) {
+  void import('./pages/attendance-device/G06PreviewDeviceContextDiagnosticPage')
+    .then(({ G06PreviewDeviceContextDiagnosticPage }) => {
+      createRoot(appRoot).render(<React.StrictMode><G06PreviewDeviceContextDiagnosticPage /></React.StrictMode>);
+    })
+    .catch(() => {
+      appRoot.textContent = 'Preview G06 diagnostic could not be loaded. No Attendance request was made.';
+    });
+} else {
+  registerSmsPwa();
+  createRoot(appRoot).render(<React.StrictMode><AuthProvider><App /></AuthProvider></React.StrictMode>);
+}
