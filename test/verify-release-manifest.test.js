@@ -110,12 +110,12 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest resolves the exact G06 release target with no database changes', () => {
+test('current approved Production manifest resolves the exact monthly-roster hotfix with no database changes', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-1504ab1-20261001');
-  assert.equal(result.commitSha, '1504ab15b5937ab2906727e858ea65f82803ac23');
-  assert.equal(result.treeSha, '054600d79972baaaad226a6576deef3c1cd9b1dd');
+  assert.equal(result.releaseId, 'sms-v3-prod-d6542a7-20261001');
+  assert.equal(result.commitSha, 'd6542a707d5b7fe19d31f50a00c75afa72fdb0c8');
+  assert.equal(result.treeSha, 'ba4248385d64b6a36cafc1a6e6dfe8cea67f23e0');
   assert.equal(result.currentProductionSourceSha, '5c1e9414b6d694e53b060608d32c12184bb9c459');
   assert.equal(result.currentProductionSourceRef, 'fix/serverless-database-reliability');
   assert.equal(result.rollbackDeploymentId, 'dpl_F9U8zeKpT8oWtjf1P38EAy2Z2VtV');
@@ -126,16 +126,16 @@ test('current approved Production manifest resolves the exact G06 release target
   assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION');
   assert.equal(result.preAppliedMigrationManifestPath, '');
   assert.equal(result.preAppliedMigrationEvidenceRunId, '');
-  assert.equal(manifest.preview_deployment_id, 'dpl_7d7i7usQb7MaJkKtveMqBEeM3W7U');
+  assert.equal(manifest.preview_deployment_id, 'dpl_WuhNSqbNanShVXFGDjArSuvQzprd');
   assert.equal(manifest.performance_status, 'NOT_EVALUATED_SCOPE_LIMITED_RELEASE');
   assert.equal(manifest.global_performance_regression, 'NOT_EVALUATED');
   assert.equal(manifest.custom_preview_cors_preflight, 'PASS');
-  assert.equal(manifest.wave8_responsive_recheck, 'DEVICE_KEY_BROWSER_HARNESS_CHROMIUM_AND_PLAYWRIGHT_WEBKIT_320_390_1440');
+  assert.equal(manifest.wave8_responsive_recheck, 'NOT_REQUIRED_SERVER_ROSTER_RUNTIME_HOTFIX_FRONTEND_FULL_753_AND_BUILD_PASS');
   assert.equal(manifest.linux_node22_artifact_guard, 'PASS');
   assert.equal(manifest.serverless_concurrency_guard, 'PASS');
-  assert.equal(manifest.attendance_security_change, 'CONTROLLED_GEOFENCE_ONLY_UAT_PLUS_ACTIVE_DEVICE_LOCAL_KEY_READINESS_AND_ID_MATCH_FAIL_CLOSED');
-  assert.equal(manifest.g06_changed, 'YES_CONTROLLED_UAT_ONLY');
-  assert.match(manifest.production_env_preparation, /G06_GEOFENCE_ONLY_UAT_ENABLED=true/);
+  assert.equal(manifest.attendance_security_change, 'NONE');
+  assert.equal(manifest.g06_changed, 'NO');
+  assert.equal(manifest.production_env_preparation, 'NONE');
   assert.equal(manifest.g07, 'EXCLUDED');
 });
 
