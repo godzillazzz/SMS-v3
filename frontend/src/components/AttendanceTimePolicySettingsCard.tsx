@@ -54,16 +54,23 @@ export function AttendanceTimePolicySettingsCard({ token }: Props) {
   const [scopeId, setScopeId] = useState('');
   const [form, setForm] = useState<AttendanceTimePolicy>();
   const [effectiveFrom, setEffectiveFrom] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setLoadError('');
+    setData(undefined);
+    setForm(undefined);
     try { setData(await loadAttendanceTimePolicies(token)); }
-    catch (reason) { setError(formatRequestErrorMessage(reason, 'โหลดนโยบายเวลาลงงานไม่สำเร็จ')); }
+    catch (reason) {
+      setData(undefined);
+      setForm(undefined);
+      setLoadError(formatRequestErrorMessage(reason, 'โหลดนโยบายเวลาลงงานไม่สำเร็จ'));
+    }
     finally { setLoading(false); }
   }, [token]);
 
@@ -125,7 +132,7 @@ export function AttendanceTimePolicySettingsCard({ token }: Props) {
     return <label className="field-group" key={key}><span>{label}</span><select value={checked ? 'true' : 'false'} disabled={saving} onChange={(event) => toggle(key, event.target.value === 'true', initial)}><option value="false">ปิด</option><option value="true">เปิด</option></select><small>{help}</small></label>;
   };
 
-  return <section className="line-settings-card attendance-policy-settings-card" aria-label="นโยบายเวลาลงงาน">
+  return <section className="line-settings-card attendance-policy-settings-card" aria-label="นโยบายเวลาลงงาน" aria-busy={loading}>
     <div className="line-settings-title"><span>◷</span><div><h2>นโยบายเวลาลงงาน</h2><p>ปรับการจัดประเภทเวลาและช่วงที่อนุญาตลงเวลาได้ โดยมาสายยังลงเวลาได้ตามปกติ เว้นแต่ Admin เปิดข้อจำกัดล่าสุด</p></div></div>
     <div className="line-secure-grid">
       <label className="field-group"><span>ระดับการตั้งค่า</span><select value={scopeType} disabled={saving} onChange={(event) => { setScopeType(event.target.value as AttendanceTimePolicyScope); setScopeId(''); }}><option value="COMPANY">ค่าเริ่มต้นบริษัท</option><option value="SITE">รายไซต์</option><option value="SHIFT_TYPE">รายประเภทกะ</option></select></label>
@@ -148,7 +155,9 @@ export function AttendanceTimePolicySettingsCard({ token }: Props) {
       <label className="field-group"><span>เริ่มใช้นโยบาย (เวลาไทย)</span><input type="datetime-local" value={effectiveFrom} disabled={saving} onChange={(event) => setEffectiveFrom(event.target.value)} /><small>เว้นว่างเพื่อเริ่มใช้ทันทีตามเวลาเซิร์ฟเวอร์ · วันและเวลานี้ตีความเป็น Asia/Bangkok · ย้อนวันที่ไม่ได้</small></label>
     </div>
     {scopeType !== 'COMPANY' && <p className="line-settings-footnote">ค่าที่แสดงเริ่มจากนโยบายบริษัทเมื่อยังไม่มี override ระดับนี้ · override ที่มีผลแล้ว: {selectedSource ? `${selectedSource.scopeType} · ${bangkokDateTimeValue(selectedSource.effectiveFrom).replace('T', ' ')}` : 'ยังไม่มี'}</p>}
-    {loading && <div className="settings-notice">กำลังโหลดนโยบายเวลา…</div>}
+    {loading && <div className="settings-notice" role="status">กำลังโหลดนโยบายเวลา…</div>}
+    {loadError && <div className="settings-notice error" role="alert"><strong>โหลดนโยบายเวลาไม่สำเร็จ</strong><span>{loadError}</span><span>ยังไม่แสดงค่าเริ่มต้นหรือช่องแก้ไข จนกว่าจะโหลดข้อมูลจากระบบได้</span></div>}
+    {!loading && !loadError && data && form && <div className="settings-notice success" role="status">โหลดนโยบายเวลาและรายการ Site/ประเภทกะแล้ว</div>}
     {error && <div className="settings-notice error" role="alert">{error}</div>}
     {notice && <div className="settings-notice success" role="status">{notice}</div>}
     <div className="line-settings-actions"><button type="button" className="btn-primary compact" disabled={saving || loading || !form || (scopeType !== 'COMPANY' && !scopeId)} onClick={() => void save()}>💾 {saving ? 'กำลังบันทึก…' : 'บันทึกนโยบายเวลา'}</button><button type="button" className="btn-neutral small-action" disabled={saving || loading} onClick={() => void refresh()}>↻ รีเฟรช</button></div>
