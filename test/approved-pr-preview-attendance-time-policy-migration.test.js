@@ -62,7 +62,11 @@ test('Preview migration workflow is manual, exact-PR, fingerprint-guarded and Pr
   assert.match(workflow, /EXPECTED_SOURCE_BRANCH: fix\/serverless-database-reliability/);
   assert.match(workflow, /EXPECTED_PR_NUMBER: '417'/);
   assert.match(workflow, /pr\.draft !== true/);
-  assert.match(workflow, /check\.name === 'validate'/);
+  assert.match(workflow, /actions\.listRepoWorkflows/);
+  assert.match(workflow, /workflow\.path === '\.github\/workflows\/ci\.yml' && workflow\.name === 'CI'/);
+  assert.match(workflow, /actions\.listWorkflowRuns/);
+  assert.match(workflow, /run\.head_sha === sourceSha && run\.head_branch === process\.env\.EXPECTED_PR_BRANCH/);
+  assert.match(workflow, /\.sort\(\(a, b\) => Date\.parse\(b\.created_at\) - Date\.parse\(a\.created_at\)\)/);
   assert.match(workflow, /vercelStatus\.state !== 'success'/);
   assert.match(workflow, /name: 'Preview – sms-v3-staging'/);
   assert.match(workflow, /node scripts\/ci\/verify-preview-migration-target\.js/);

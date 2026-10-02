@@ -17,9 +17,9 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
   pull-requests: read
-  checks: read
   statuses: read
 
 concurrency:
@@ -78,15 +78,21 @@ jobs:
             if (pr.base.ref !== process.env.EXPECTED_SOURCE_BRANCH) throw new Error('Source PR base branch mismatch');
             if (pr.head.ref !== process.env.EXPECTED_PR_BRANCH || pr.head.repo?.full_name !== `${owner}/${repo}`) throw new Error('Source PR head repository or branch mismatch');
             if (pr.head.sha !== sourceSha) throw new Error('Source PR head SHA changed');
-            const { data: checks } = await github.rest.checks.listForRef({ owner, repo, ref: sourceSha, per_page: 100 });
-            if (!checks.check_runs.some((check) => check.name === 'validate' && check.status === 'completed' && check.conclusion === 'success')) throw new Error('Exact-head CI validate check must be successful');
+            const { data: workflows } = await github.rest.actions.listRepoWorkflows({ owner, repo, per_page: 100 });
+            const ciWorkflow = workflows.workflows.find((workflow) => workflow.path === '.github/workflows/ci.yml' && workflow.name === 'CI');
+            if (!ciWorkflow) throw new Error('Authoritative CI workflow was not found');
+            const { data: ciRuns } = await github.rest.actions.listWorkflowRuns({ owner, repo, workflow_id: ciWorkflow.id, branch: process.env.EXPECTED_PR_BRANCH, event: 'pull_request', per_page: 100 });
+            const latestCiRun = ciRuns.workflow_runs
+              .filter((run) => run.head_sha === sourceSha && run.head_branch === process.env.EXPECTED_PR_BRANCH)
+              .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+            if (!latestCiRun || latestCiRun.status !== 'completed' || latestCiRun.conclusion !== 'success') throw new Error('Latest exact-head CI workflow run must be successful');
             const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({ owner, repo, ref: sourceSha, per_page: 100 });
             const vercelStatus = statuses.find((status) => status.context === 'Vercel');
             if (!vercelStatus || vercelStatus.state !== 'success') throw new Error('Exact-head Vercel Preview check must be successful');
             core.setOutput('source_pr_number', String(number));
             core.setOutput('source_sha', sourceSha);
             core.info('SOURCE_PR_DRAFT=PASS');
-            core.info('EXACT_HEAD_CI=PASS');
+            core.info(`EXACT_HEAD_CI=PASS run_id=${latestCiRun.id}`);
             core.info('EXACT_HEAD_PREVIEW=PASS');
         env:
           SOURCE_PR_NUMBER: ${{ inputs.source_pr_number }}
@@ -110,7 +116,8 @@ jobs:
           git fetch --no-tags origin "$EXPECTED_SOURCE_BRANCH"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git rev-parse "origin/$EXPECTED_SOURCE_BRANCH")" = "$GITHUB_SHA"
-          git fetch --no-tags origin "$SOURCE_SHA"
+          git fetch --no-tags origin "$EXPECTED_PR_BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$SOURCE_SHA"
           test "$(git rev-parse "$SOURCE_SHA")" = "$SOURCE_SHA"
           test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE"
           mkdir -p "$SOURCE_ROOT"
