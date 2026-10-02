@@ -1,0 +1,176 @@
+name: Migrate Approved PR Preview Attendance Time Policy
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_pr_number:
+        description: The open Draft PR containing the approved Attendance Time Policy migration
+        required: true
+        type: string
+      source_sha:
+        description: Exact PR head commit SHA
+        required: true
+        type: string
+      source_tree:
+        description: Exact PR head tree SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+  statuses: read
+
+concurrency:
+  group: sms-v3-staging-preview-attendance-time-policy-migration
+  cancel-in-progress: false
+
+env:
+  EXPECTED_SOURCE_BRANCH: fix/serverless-database-reliability
+  EXPECTED_PR_NUMBER: '417'
+  EXPECTED_PR_BRANCH: codex/g06-time-policy-20261002
+  EXPECTED_MIGRATION_HEAD: 202610020002_attendance_time_policy_v1
+  EXPECTED_SCHEMA_SHA256: e4143928cfa88d4bad053aff022ad5a7f4ec15c9feb22c864b797317ebdf154b
+  EXPECTED_MIGRATION_SHA256: 5822719590321945832adf87647ca448773f5eff8cb40b7d35ccdd8cf5f443ee
+
+jobs:
+  migrate:
+    name: Apply exact approved isolated Preview migration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: 'Preview – sms-v3-staging'
+    env:
+      NODE_ENV: production
+      VERCEL_ENV: preview
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+      APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+      SOURCE_PR_NUMBER: ${{ inputs.source_pr_number }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      SOURCE_TREE: ${{ inputs.source_tree }}
+
+    steps:
+      - name: Require manual dispatch on authoritative release branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REF_NAME" = "$EXPECTED_SOURCE_BRANCH"
+          test "$SOURCE_PR_NUMBER" = "$EXPECTED_PR_NUMBER"
+          printf '%s\n' "$SOURCE_SHA" | grep -Eq '^[0-9a-f]{40}$'
+          printf '%s\n' "$SOURCE_TREE" | grep -Eq '^[0-9a-f]{40}$'
+          echo 'DISPATCH_AUTHORITY=PASS'
+
+      - name: Verify exact open Draft PR and green exact-head gates
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const number = Number(process.env.SOURCE_PR_NUMBER);
+            const expectedNumber = Number(process.env.EXPECTED_PR_NUMBER);
+            const sourceSha = process.env.SOURCE_SHA;
+            const { owner, repo } = context.repo;
+            if (number !== expectedNumber) throw new Error('Unexpected source PR number');
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+            if (pr.state !== 'open' || pr.draft !== true) throw new Error('Source PR must remain open and Draft for Preview-only validation');
+            if (pr.base.ref !== process.env.EXPECTED_SOURCE_BRANCH) throw new Error('Source PR base branch mismatch');
+            if (pr.head.ref !== process.env.EXPECTED_PR_BRANCH || pr.head.repo?.full_name !== `${owner}/${repo}`) throw new Error('Source PR head repository or branch mismatch');
+            if (pr.head.sha !== sourceSha) throw new Error('Source PR head SHA changed');
+            const { data: checks } = await github.rest.checks.listForRef({ owner, repo, ref: sourceSha, per_page: 100 });
+            if (!checks.check_runs.some((check) => check.name === 'validate' && check.status === 'completed' && check.conclusion === 'success')) throw new Error('Exact-head CI validate check must be successful');
+            const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({ owner, repo, ref: sourceSha, per_page: 100 });
+            const vercelStatus = statuses.find((status) => status.context === 'Vercel');
+            if (!vercelStatus || vercelStatus.state !== 'success') throw new Error('Exact-head Vercel Preview check must be successful');
+            core.setOutput('source_pr_number', String(number));
+            core.setOutput('source_sha', sourceSha);
+            core.info('SOURCE_PR_DRAFT=PASS');
+            core.info('EXACT_HEAD_CI=PASS');
+            core.info('EXACT_HEAD_PREVIEW=PASS');
+        env:
+          SOURCE_PR_NUMBER: ${{ inputs.source_pr_number }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          EXPECTED_PR_NUMBER: ${{ env.EXPECTED_PR_NUMBER }}
+          EXPECTED_SOURCE_BRANCH: ${{ env.EXPECTED_SOURCE_BRANCH }}
+          EXPECTED_PR_BRANCH: ${{ env.EXPECTED_PR_BRANCH }}
+
+      - name: Checkout exact release-control source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Verify release-control ref has not advanced and source identities match
+        shell: bash
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/approved-attendance-time-policy-source
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$EXPECTED_SOURCE_BRANCH"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse "origin/$EXPECTED_SOURCE_BRANCH")" = "$GITHUB_SHA"
+          git fetch --no-tags origin "$SOURCE_SHA"
+          test "$(git rev-parse "$SOURCE_SHA")" = "$SOURCE_SHA"
+          test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE"
+          mkdir -p "$SOURCE_ROOT"
+          git archive "$SOURCE_SHA" \
+            prisma/schema.prisma \
+            "prisma/migrations/$EXPECTED_MIGRATION_HEAD" \
+            | tar -x -C "$SOURCE_ROOT"
+          echo 'RELEASE_CONTROL_SOURCE=PASS'
+          echo 'APPLICATION_SOURCE_TREE=PASS'
+
+      - name: Verify pinned additive migration source
+        shell: bash
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/approved-attendance-time-policy-source
+        run: |
+          set -euo pipefail
+          test -f "$SOURCE_ROOT/prisma/schema.prisma"
+          test -f "$SOURCE_ROOT/prisma/migrations/$EXPECTED_MIGRATION_HEAD/migration.sql"
+          printf '%s  %s\n' "$EXPECTED_SCHEMA_SHA256" "$SOURCE_ROOT/prisma/schema.prisma" | sha256sum --check --status
+          printf '%s  %s\n' "$EXPECTED_MIGRATION_SHA256" "$SOURCE_ROOT/prisma/migrations/$EXPECTED_MIGRATION_HEAD/migration.sql" | sha256sum --check --status
+          echo 'PINNED_SCHEMA=PASS'
+          echo 'PINNED_MIGRATION=PASS'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install trusted release-control dependencies
+        shell: bash
+        run: npm ci --include=dev
+
+      - name: Generate Prisma client from the pinned application schema
+        shell: bash
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/approved-attendance-time-policy-source
+        run: npx --no-install prisma generate --schema "$SOURCE_ROOT/prisma/schema.prisma"
+
+      - name: Prove isolated non-Production Preview database target
+        shell: bash
+        run: node scripts/ci/verify-preview-migration-target.js
+
+      - name: Apply only the approved Attendance Time Policy migration if pending
+        shell: bash
+        env:
+          SOURCE_ROOT: ${{ runner.temp }}/approved-attendance-time-policy-source
+        run: node scripts/ci/apply-approved-pr-preview-attendance-time-policy-migration.js "$SOURCE_ROOT/prisma/schema.prisma" "$SOURCE_ROOT/prisma/migrations"
+
+      - name: Verify migration completion without exposing database details
+        shell: bash
+        run: |
+          {
+            echo '### Approved PR Preview Attendance Time Policy migration'
+            echo '- Source PR: #417 (remains Draft during Preview validation)'
+            echo '- Exact source identity and CI/Preview checks: PASS'
+            echo '- Preview target fingerprint: matches approved Preview and differs from Production'
+            echo '- Migration: 202610020002_attendance_time_policy_v1'
+            echo '- Migration execution: only if that exact migration was pending'
+            echo '- Data seed or Attendance/Policy row mutation: NOT PERFORMED'
+            echo '- Production database accessed: NO'
+            echo '- Raw database output or secrets emitted: NO'
+          } >> "$GITHUB_STEP_SUMMARY"
