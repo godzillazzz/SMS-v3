@@ -130,7 +130,27 @@ test("Production verifier checks native Git provenance and immutable runtime bef
   assert.match(script, /เปลี่ยนตำแหน่ง/);
   assert.match(script, /Data Retention Center \/ การเก็บรักษาข้อมูล/);
   assert.match(script, /รัน Cleanup รอบถัดไป/);
-  assert.match(workflow, /Critical UI sentinels: PASS \(12\/12\)/);
+  assert.match(workflow, /Critical UI sentinels: PASS \(17\/17\)/);
+});
+
+test("Production runtime verification includes the G06 Simple Attendance contract", () => {
+  const workflow = fs.readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n");
+  const runtime = extractRunBlock(
+    workflow,
+    "Verify immutable candidate, explicitly promote, then verify canonical Production",
+  );
+
+  for (const sentinel of [
+    "GPS / GEOFENCE",
+    "เครื่องแรก · ผูกอัตโนมัติ",
+    "เครื่องอื่น · ติดธงตรวจ",
+    "AES-GCM encrypted queue",
+    "รอ ADMIN ยืนยันก่อนนับ",
+  ]) {
+    assert.ok(runtime.includes(sentinel), `missing G06 runtime sentinel: ${sentinel}`);
+  }
+  assert.match(runtime, /SENTINELS=\$\{sentinels\.length\}/);
+  assert.match(workflow, /Critical UI sentinels: PASS \(17\/17\)/);
 });
 
 
