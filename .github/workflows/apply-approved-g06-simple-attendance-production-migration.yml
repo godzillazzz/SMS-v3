@@ -237,16 +237,32 @@ jobs:
       - name: Verify Production database target guard
         run: node scripts/ci/verify-deployment-target.js --verify
 
-      - name: Require exactly the approved G06 Simple Attendance migration to be pending
+      - name: Require approved G06 migration pending or already applied
+        id: migration_state
         shell: bash
         run: |
           set -euo pipefail
           status_output=$(mktemp)
           trap 'rm -f "$status_output"' EXIT
           node scripts/ci/prisma-migration.js status --allow-pending >"$status_output"
-          grep -Fxq 'MIGRATION_STATUS_CLASS=PENDING_MIGRATIONS_ONLY' "$status_output"
-          grep -Fxq "MIGRATION_NAME=$MIGRATION_NAME" "$status_output"
-          grep -Fxq 'PENDING_MIGRATIONS=true' "$status_output"
+          status_class=$(awk -F= '$1=="MIGRATION_STATUS_CLASS"{print $2}' "$status_output")
+          case "$status_class" in
+            PENDING_MIGRATIONS_ONLY)
+              grep -Fxq "MIGRATION_NAME=$MIGRATION_NAME" "$status_output"
+              grep -Fxq 'PENDING_MIGRATIONS=true' "$status_output"
+              echo 'apply_needed=true' >> "$GITHUB_OUTPUT"
+              echo 'EXACT_PENDING_MIGRATION=PASS'
+              ;;
+            UP_TO_DATE)
+              grep -Fxq 'PENDING_MIGRATIONS=false' "$status_output"
+              echo 'apply_needed=false' >> "$GITHUB_OUTPUT"
+              echo 'APPROVED_MIGRATION_ALREADY_APPLIED=PASS'
+              ;;
+            *)
+              echo "Unexpected migration status class: $status_class" >&2
+              exit 1
+              ;;
+          esac
           node - <<'NODE'
           const fs = require('node:fs');
           const verifier = require('/tmp/verify-approved-production-migration.js');
@@ -255,9 +271,9 @@ jobs:
           verifier.validateSqlForMigration(result.migrationId, fs.readFileSync(result.migrationPath, 'utf8'));
           process.stdout.write('MIGRATION_POLICY_REVALIDATION=PASS\n');
           NODE
-          echo 'EXACT_PENDING_MIGRATION=PASS'
 
       - name: Apply exact approved Production migration
+        if: steps.migration_state.outputs.apply_needed == 'true'
         run: node scripts/ci/prisma-migration.js deploy
 
       - name: Verify migration status and G06 Simple Attendance database invariants
@@ -278,21 +294,20 @@ jobs:
           canonical_json=$(mktemp)
           trap 'rm -f "$canonical_json"' EXIT
           npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$canonical_json"
-          node - "$canonical_json" "$EXPECTED_ID" "$EXPECTED_PROJECT_ID" "$EXPECTED_SHA" "$EXPECTED_REF" <<'NODE'
+          # Compact CLI inspect verifies canonical alias identity/READY; authenticated API verifies project and native Git provenance.
+          node - "$canonical_json" "$EXPECTED_ID" <<'NODE'
           const fs = require('node:fs');
           const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
-          const [file, id, projectId, sha, ref] = process.argv.slice(2);
+          const [file, id] = process.argv.slice(2);
           inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), {
             expectedId: id,
-            expectedProjectId: projectId,
-            expectedCommitSha: sha,
-            expectedCommitRef: ref,
             expectedTarget: 'production',
-            expectedCanonicalUrl: process.env.EXPECTED_CANONICAL_URL,
             requireReady: true,
           });
           NODE
+          echo 'POST_MIGRATION_CANONICAL_ALIAS_ID=PASS'
           node scripts/ci/inspect-vercel-deployment.js "$EXPECTED_ID" "$EXPECTED_SHA" "$EXPECTED_REF" production false
+          echo 'POST_MIGRATION_CANONICAL_NATIVE_PROVENANCE=PASS'
           node - <<'NODE'
           const base = process.env.EXPECTED_CANONICAL_URL.replace(/\/$/, '');
           const trustedOrigin = new URL(process.env.EXPECTED_CANONICAL_URL).origin;

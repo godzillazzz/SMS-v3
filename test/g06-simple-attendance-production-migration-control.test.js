@@ -70,9 +70,16 @@ test('G06 migration workflow retains exact source, current canonical, database-t
   assert.match(workflow, /node scripts\/ci\/inspect-vercel-deployment\.js "\$EXPECTED_ID" "\$EXPECTED_SHA" "\$EXPECTED_REF" production false/);
   assert.match(workflow, /CANONICAL_NATIVE_PROJECT_SHA_REF=PASS/);
   assert.match(workflow, /node scripts\/ci\/verify-deployment-target\.js --verify/);
-  assert.match(workflow, /MIGRATION_STATUS_CLASS=PENDING_MIGRATIONS_ONLY/);
+  assert.match(workflow, /MIGRATION_STATUS_CLASS/);
+  assert.match(workflow, /PENDING_MIGRATIONS_ONLY/);
+  assert.match(workflow, /UP_TO_DATE/);
   assert.match(workflow, /MIGRATION_NAME=\$MIGRATION_NAME/);
+  assert.match(workflow, /APPROVED_MIGRATION_ALREADY_APPLIED=PASS/);
+  assert.match(workflow, /apply_needed=false/);
+  assert.match(workflow, /if: steps\.migration_state\.outputs\.apply_needed == 'true'/);
   assert.match(workflow, /node scripts\/ci\/prisma-migration\.js deploy/);
+  assert.match(workflow, /POST_MIGRATION_CANONICAL_ALIAS_ID=PASS/);
+  assert.match(workflow, /POST_MIGRATION_CANONICAL_NATIVE_PROVENANCE=PASS/);
   assert.match(workflow, /verify-g06-simple-attendance-production-migration\.js/);
   assert.match(workflow, /CANONICAL_CORS_TRUSTED=204 UNTRUSTED=403/);
   assert.doesNotMatch(workflow, /vercel(?:@[^\s]+)?\s+(?:deploy|promote|rollback)|vercel\s+(?:deploy|promote|rollback)/i);
