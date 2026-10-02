@@ -592,7 +592,7 @@ jobs:
           const base = process.argv[2].replace(/\/$/, '');
           const label = process.argv[3];
           const useVercelCurl = process.argv[4] === 'true';
-          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน', 'Approval Authority Matrix / SLA', 'การเปลี่ยนแปลงสำคัญ', 'เปลี่ยนชื่อ', 'ย้ายหน่วยงาน / แผนก', 'เปลี่ยนตำแหน่ง', 'Data Retention Center / การเก็บรักษาข้อมูล', 'รัน Cleanup รอบถัดไป'];
+          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน', 'Approval Authority Matrix / SLA', 'การเปลี่ยนแปลงสำคัญ', 'เปลี่ยนชื่อ', 'ย้ายหน่วยงาน / แผนก', 'เปลี่ยนตำแหน่ง', 'Data Retention Center / การเก็บรักษาข้อมูล', 'รัน Cleanup รอบถัดไป', 'GPS / GEOFENCE', 'เครื่องแรก · ผูกอัตโนมัติ', 'เครื่องอื่น · ติดธงตรวจ', 'AES-GCM encrypted queue', 'รอ ADMIN ยืนยันก่อนนับ'];
           const { verifyPublicRuntime } = require('/tmp/sms-release-control-plane/verify-public-runtime.js');
           const { createVercelCurlFetch } = require('/tmp/sms-release-control-plane/vercel-curl-fetch.js');
           const fetchImpl = useVercelCurl
@@ -784,6 +784,6 @@ jobs:
             echo "- Rollback checkpoint: $ROLLBACK_DEPLOYMENT_ID"
             echo "- Manifest SHA-256: $MANIFEST_SHA256"
             echo '- Post-deploy verification: PASS'
-            echo '- Critical UI sentinels: PASS (12/12)'
+            echo '- Critical UI sentinels: PASS (17/17)'
             echo '- Canonical credentialed CORS policy: PASS'
           } >> "$GITHUB_STEP_SUMMARY"
