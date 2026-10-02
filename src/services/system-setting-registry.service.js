@@ -100,6 +100,26 @@ const DEFINITIONS = Object.freeze([
     description: 'ขอ QR Step-up เมื่อ GPS อยู่ในหลาย Site พร้อมกัน'
   }),
   frozenDefinition({
+    key: ATTENDANCE_POLICY_KEYS.offlineConfirmAfterSeconds,
+    group: GROUPS.ATTENDANCE.id,
+    groupLabel: GROUPS.ATTENDANCE.label,
+    groupOrder: GROUPS.ATTENDANCE.order,
+    label: 'Offline confirmation threshold',
+    valueType: 'NUMBER',
+    description: 'Delayed offline records beyond this threshold require ADMIN confirmation before counting.',
+    constraints: { min: 60, max: 86400, unit: 'seconds' }
+  }),
+  frozenDefinition({
+    key: ATTENDANCE_POLICY_KEYS.offlineBundleTtlSeconds,
+    group: GROUPS.ATTENDANCE.id,
+    groupLabel: GROUPS.ATTENDANCE.label,
+    groupOrder: GROUPS.ATTENDANCE.order,
+    label: 'Offline authorization lifetime',
+    valueType: 'NUMBER',
+    description: 'Lifetime of the signed authorization snapshot used for offline Attendance capture.',
+    constraints: { min: 300, max: 172800, unit: 'seconds' }
+  }),
+  frozenDefinition({
     key: LEAVE_POLICY_KEYS.defaultSickDays,
     group: GROUPS.LEAVE.id,
     groupLabel: GROUPS.LEAVE.label,

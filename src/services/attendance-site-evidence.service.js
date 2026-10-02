@@ -395,6 +395,48 @@ function createAttendanceSiteEvidenceService({
     };
   }
 
+  async function validateGpsOnlyForAssignment({ assignment, location, referenceTime = null }, client = prisma) {
+    if (!assignment?.securitySiteId) throw http(409, 'ATTENDANCE_SITE_REQUIRED', 'The Shift Assignment does not have an authoritative Security Site.');
+    const now = referenceTime instanceof Date ? referenceTime : (referenceTime ? new Date(referenceTime) : clock());
+    if (Number.isNaN(now.getTime())) throw http(400, 'ATTENDANCE_LOCATION_CAPTURED_AT_INVALID', 'A valid Attendance capture time is required.');
+    const policy = await currentPolicy(client);
+    const expectedSite = await loadSite(client, assignment.securitySiteId);
+    const sample = normalizeSample(location, now, policy);
+    const actualSite = await actualSiteForSample(client, expectedSite, sample, policy);
+    const gps = validateSample(actualSite, sample, policy);
+    const riskFlags = riskFlagsFor(expectedSite, actualSite, gps);
+    return {
+      siteBindingDigest: bindingDigest(siteBindingPayload(expectedSite, actualSite)),
+      locationBindingDigest: gps.digest,
+      evidenceRef: {
+        siteId: expectedSite.id,
+        expectedSiteId: expectedSite.id,
+        actualSiteId: actualSite.id,
+        geofenceClassification: gps.classification,
+        riskFlags,
+        location: {
+          latitude: decimal7(gps.sample.latitude),
+          longitude: decimal7(gps.sample.longitude),
+          accuracyMeters: decimal2(gps.sample.accuracyMeters),
+          capturedAt: gps.sample.capturedAt.toISOString()
+        }
+      },
+      decision: {
+        siteId: expectedSite.id,
+        expectedSiteId: expectedSite.id,
+        actualSiteId: actualSite.id,
+        assistOtherSite: expectedSite.id !== actualSite.id,
+        riskFlags,
+        insideGeofence: true,
+        geofenceClassification: gps.classification,
+        distanceMeters: Number(gps.distanceMeters.toFixed(2)),
+        distanceLowerBoundMeters: Number(gps.lowerBoundMeters.toFixed(2)),
+        distanceUpperBoundMeters: Number(gps.upperBoundMeters.toFixed(2)),
+        locationAssurance: 'GPS_GEOFENCE'
+      }
+    };
+  }
+
   async function validateForAssignment({ assignment, qrToken, location }, client = prisma) {
     if (!assignment?.securitySiteId) throw http(409, 'ATTENDANCE_SITE_REQUIRED', 'The Shift Assignment does not have an authoritative Security Site.');
     const now = clock();
@@ -461,7 +503,7 @@ function createAttendanceSiteEvidenceService({
     };
   }
 
-  return { validateForAssignment, revalidateRef };
+  return { validateForAssignment, validateGpsOnlyForAssignment, revalidateRef };
 }
 
 module.exports = {
