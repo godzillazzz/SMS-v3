@@ -20,6 +20,25 @@ test('rejects malformed or incomplete deployment output', () => {
   assert.throws(() => deploymentRecord(JSON.stringify({ id: 'dep_wrong', url: 'sms-v3-staging.vercel.app' })), /deployment ID/);
 });
 
+test('accepts compact Vercel CLI inspection for canonical alias identity before API provenance verification', () => {
+  const record = inspectDeploymentRecord(JSON.stringify({
+    id: 'dpl_current123',
+    name: 'sms-v3-staging',
+    target: 'production',
+    readyState: 'READY',
+    aliases: ['sms-v3-staging-git-fix-serverless-database-re-godzillazz.vercel.app'],
+    builds: []
+  }), {
+    expectedId: 'dpl_current123',
+    expectedTarget: 'production',
+    requireReady: true
+  });
+  assert.equal(record.id, 'dpl_current123');
+  assert.equal(record.projectId, '');
+  assert.equal(record.commitSha, '');
+  assert.equal(record.commitRef, '');
+});
+
 test('validates inspection identity against the captured deployment and native source', () => {
   const expectedCanonicalUrl = 'https://sms-v3-staging-ten.vercel.app';
   const branchAlias = 'sms-v3-staging-git-fix-serverless-database-re-662e13-godzillazz.vercel.app';

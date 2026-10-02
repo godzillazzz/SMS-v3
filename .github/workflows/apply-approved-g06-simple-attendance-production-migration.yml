@@ -182,22 +182,22 @@ jobs:
           canonical_json=$(mktemp)
           trap 'rm -f "$canonical_json"' EXIT
           npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$canonical_json"
-          node - "$canonical_json" "$EXPECTED_ID" "$EXPECTED_PROJECT_ID" "$EXPECTED_SHA" "$EXPECTED_REF" <<'NODE'
+          # Vercel CLI compact inspect JSON omits native project/Git metadata; use it only for canonical alias identity.
+          node - "$canonical_json" "$EXPECTED_ID" <<'NODE'
           const fs = require('node:fs');
           const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
-          const [file, id, projectId, sha, ref] = process.argv.slice(2);
+          const [file, id] = process.argv.slice(2);
           const record = inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), {
             expectedId: id,
-            expectedProjectId: projectId,
-            expectedCommitSha: sha,
-            expectedCommitRef: ref,
             expectedTarget: 'production',
-            expectedCanonicalUrl: process.env.EXPECTED_CANONICAL_URL,
             requireReady: true,
           });
           if (!record.id) throw new Error('canonical rollback deployment identity missing');
           NODE
+          echo 'CANONICAL_ALIAS_DEPLOYMENT_ID=PASS'
+          # The authenticated Vercel API record is authoritative for project ID and native Git SHA/ref provenance.
           node scripts/ci/inspect-vercel-deployment.js "$EXPECTED_ID" "$EXPECTED_SHA" "$EXPECTED_REF" production false
+          echo 'CANONICAL_NATIVE_PROJECT_SHA_REF=PASS'
           echo 'CANONICAL_ROLLBACK_CHECKPOINT_CURRENT=PASS'
 
       - name: Verify canonical health, readiness, and CORS before migration
