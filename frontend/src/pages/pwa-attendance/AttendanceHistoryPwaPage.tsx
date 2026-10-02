@@ -33,6 +33,13 @@ function time(value?: string | null) {
   return new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(value));
 }
 
+function actualSiteLabel(row: AttendanceSelfRow) {
+  const sites = row.attendanceSites || [];
+  const fallback = row.actualSite?.name || row.actualSite?.code || (row.assignedSite || row.expectedSite)?.name || '—';
+  if (sites.length <= 1) return fallback;
+  return sites.map((site) => `${site.eventType === 'CHECK_OUT' ? 'ออก' : 'เข้า'}: ${site.actualSite?.name || site.actualSite?.code || fallback}`).join(' / ');
+}
+
 function dateLabel(value: string) {
   return new Intl.DateTimeFormat('th-TH', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(`${value}T00:00:00.000Z`));
 }
@@ -137,8 +144,9 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
             <small>แสดงเฉพาะการแก้ไขที่มีผลต่อการลงเวลาแล้ว · ข้อมูลเหตุการณ์ลงเวลาเดิมไม่ถูกแก้ไข</small>
           </details>}
           <div className="employee-v4-history-sites">
-            <div><SmsIcon name="quality" size={15} /><span>พื้นที่ตามตาราง</span><strong>{row.expectedSite?.name || 'ไม่ระบุ'}</strong></div>
-            <div><SmsIcon name="location" size={15} /><span>พื้นที่ที่บันทึกจริง</span><strong>{row.actualSite?.name || '—'}</strong></div>
+            <div><SmsIcon name="quality" size={15} /><span>สถานที่ตามตาราง</span><strong>{(row.assignedSite || row.expectedSite)?.name || 'ไม่ระบุ'}</strong></div>
+            <div><SmsIcon name="location" size={15} /><span>สถานที่ลงเวลาจริง</span><strong>{actualSiteLabel(row)}</strong></div>
+            <div><SmsIcon name="quality" size={15} /><span>ประเภท</span><strong>{row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</strong></div>
           </div>
           {(() => {
             const flags = row.flags.map((flag) => operationalFlagLabels[flag]).filter(Boolean);

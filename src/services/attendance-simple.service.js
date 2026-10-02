@@ -11,7 +11,8 @@ const { createAttendancePolicyService } = require('./attendance-policy.service')
 const { bangkokParts, isOvernightAssignment, actionableAssignment } = require('./attendance-verification-context.service');
 
 const SIMPLE_EVENT_VERSION = 'SMS_ATTENDANCE_SIMPLE_EVENT_V1';
-const OFFLINE_BUNDLE_VERSION = 'SMS_ATTENDANCE_OFFLINE_BUNDLE_V1';
+const OFFLINE_BUNDLE_VERSION = 'SMS_ATTENDANCE_OFFLINE_BUNDLE_V2';
+const LEGACY_OFFLINE_BUNDLE_VERSION = 'SMS_ATTENDANCE_OFFLINE_BUNDLE_V1';
 const MOVE_REQUEST_VERSION = 'SMS_ATTENDANCE_DEVICE_MOVE_V1';
 const KEY_ALGORITHM = 'ECDSA_P256_SHA256';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -200,7 +201,7 @@ function createAttendanceSimpleService({
     if (!actual || actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) throw http(400, 'ATTENDANCE_OFFLINE_BUNDLE_INVALID', 'Offline Attendance bundle signature is invalid.');
     let payload;
     try { payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')); } catch {}
-    if (!payload || payload.version !== OFFLINE_BUNDLE_VERSION) throw http(400, 'ATTENDANCE_OFFLINE_BUNDLE_INVALID', 'Offline Attendance bundle is invalid.');
+    if (!payload || ![OFFLINE_BUNDLE_VERSION, LEGACY_OFFLINE_BUNDLE_VERSION].includes(payload.version)) throw http(400, 'ATTENDANCE_OFFLINE_BUNDLE_INVALID', 'Offline Attendance bundle is invalid.');
     return payload;
   }
 
@@ -216,6 +217,7 @@ function createAttendanceSimpleService({
     ]);
     const authority = await siteAuthority.resolve({ assignment, employee: identity.employee, existingSession }, prisma);
     const eventIntent = await eventIntentForAssignment(prisma, identity, assignment);
+    const eligibleSites = await siteEvidence.eligibleSitesForAssignment({ assignment: { ...assignment, securitySiteId: authority.site.id } }, prisma);
     const payload = {
       version: OFFLINE_BUNDLE_VERSION, userId: identity.userId, employeeId: identity.employeeId, employeeCode: identity.employeeCode,
       shiftAssignmentId: assignment.id, workDate: workDateText(assignment.workDate),
@@ -225,6 +227,7 @@ function createAttendanceSimpleService({
       approval: { id: approval.id, revision: approval.revision },
       site: { id: authority.site.id, code: authority.site.code, name: authority.site.name,
         latitude: Number(authority.site.latitude), longitude: Number(authority.site.longitude), geofenceRadiusMeters: Number(authority.site.geofenceRadiusMeters) },
+      eligibleSites,
       policy: { maxAccuracyMeters: policy.maxAccuracyMeters, futureSkewMs: policy.futureSkewMs,
         offlineConfirmAfterMs: policy.offlineConfirmAfterMs, offlineBundleTtlMs: policy.offlineBundleTtlMs },
       issuedAt: now.toISOString(), expiresAt: new Date(now.getTime() + policy.offlineBundleTtlMs).toISOString()
@@ -235,6 +238,7 @@ function createAttendanceSimpleService({
     });
     return { employee: identity.employee, eventIntent,
       assignment: { id: assignment.id, workDate: workDateText(assignment.workDate), shift: payload.shift, site: payload.site },
+      eligibleSites,
       activeDevice,
       offline: { bundle: issueBundle(payload), issuedAt: payload.issuedAt, expiresAt: payload.expiresAt, confirmAfterMs: policy.offlineConfirmAfterMs, maxAccuracyMeters: policy.maxAccuracyMeters } };
   }
@@ -334,17 +338,33 @@ function createAttendanceSimpleService({
     const evidenceAssignment = { ...assignment, securitySiteId: authority.site.id, securitySite: authority.site };
     const offline = Boolean(input.offlineBundle);
     const riskFlags = integrityRiskFlags(input.device?.signals);
+    let offlineBundle = null;
 
     if (offline) {
-      const bundle = verifyBundle(input.offlineBundle);
-      if (bundle.userId !== identity.userId || bundle.employeeId !== identity.employeeId || bundle.shiftAssignmentId !== assignment.id) throw http(409, 'ATTENDANCE_OFFLINE_BUNDLE_STALE', 'Offline Attendance bundle does not match the current account or shift.');
-      const issuedAt = new Date(bundle.issuedAt);
-      const expiresAt = new Date(bundle.expiresAt);
+      offlineBundle = verifyBundle(input.offlineBundle);
+      if (offlineBundle.userId !== identity.userId || offlineBundle.employeeId !== identity.employeeId || offlineBundle.shiftAssignmentId !== assignment.id) throw http(409, 'ATTENDANCE_OFFLINE_BUNDLE_STALE', 'Offline Attendance bundle does not match the current account or shift.');
+      const issuedAt = new Date(offlineBundle.issuedAt);
+      const expiresAt = new Date(offlineBundle.expiresAt);
       if (Number.isNaN(issuedAt.getTime()) || Number.isNaN(expiresAt.getTime()) || capturedAt.getTime() < issuedAt.getTime() - 60000 || capturedAt.getTime() > expiresAt.getTime()) throw http(409, 'ATTENDANCE_OFFLINE_BUNDLE_STALE', 'Offline Attendance was captured outside the authorized offline window.');
-      if (bundle.site?.id !== authority.site.id) riskFlags.push('SITE_AUTHORITY_CHANGED');
+      if (offlineBundle.site?.id !== authority.site.id) riskFlags.push('SITE_AUTHORITY_CHANGED');
     }
 
     const locationResult = await siteEvidence.validateGpsOnlyForAssignment({ assignment: evidenceAssignment, location: input.location, referenceTime: offline ? capturedAt : now }, prisma);
+    if (offline) {
+      const actualSiteId = String(locationResult.decision.actualSiteId || '');
+      const authorizedSites = offlineBundle.version === OFFLINE_BUNDLE_VERSION
+        ? (Array.isArray(offlineBundle.eligibleSites) ? offlineBundle.eligibleSites : [])
+        : (offlineBundle.site ? [offlineBundle.site] : []);
+      const capturedAuthority = authorizedSites.find((site) => String(site?.id || '') === actualSiteId);
+      if (!capturedAuthority) throw http(409, 'ATTENDANCE_OFFLINE_SITE_NOT_AUTHORIZED', 'The captured location was outside the Site set authorized for this Offline Attendance bundle.');
+      const currentSites = await siteEvidence.eligibleSitesForAssignment({ assignment: evidenceAssignment }, prisma);
+      const currentAuthority = currentSites.find((site) => String(site.id) === actualSiteId);
+      if (!currentAuthority) throw http(409, 'ATTENDANCE_OFFLINE_SITE_INACTIVE', 'The actual Attendance Site is no longer active.');
+      const sameGeometry = Number(capturedAuthority.latitude) === Number(currentAuthority.latitude)
+        && Number(capturedAuthority.longitude) === Number(currentAuthority.longitude)
+        && Number(capturedAuthority.geofenceRadiusMeters) === Number(currentAuthority.geofenceRadiusMeters);
+      if (!sameGeometry) throw http(409, 'ATTENDANCE_OFFLINE_SITE_AUTHORITY_CHANGED', 'The actual Attendance Site geofence changed after the Offline bundle was issued.');
+    }
     riskFlags.push(...(locationResult.decision.riskFlags || []));
     const locationCapturedAt = new Date(input.location?.capturedAt);
     if (offline && Math.abs(locationCapturedAt.getTime() - capturedAt.getTime()) > 120000) riskFlags.push('OFFLINE_LOCATION_TIME_MISMATCH');
@@ -373,7 +393,11 @@ function createAttendanceSimpleService({
         await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendancePendingEvent', entityId: pending.id,
           metadata: { event: 'OFFLINE_DELAYED_PENDING_CONFIRMATION', employeeId: identity.employeeId,
             shiftAssignmentId: assignment.id, captureId: input.captureId, delayMs,
-            deviceEnrollmentId: binding.enrollment.id, riskFlags: pending.riskFlags } }, tx);
+            eventType: action, capturedAt: capturedAt.toISOString(), deviceEnrollmentId: binding.enrollment.id,
+            assignedSiteId: locationResult.evidenceRef.expectedSiteId, assignedSiteCode: locationResult.evidenceRef.assignedSite?.code || null,
+            actualSiteId: locationResult.evidenceRef.actualSiteId, actualSiteCode: locationResult.evidenceRef.actualSite?.code || null,
+            workSiteContext: locationResult.evidenceRef.workSiteContext, gpsEvidenceDigest: locationResult.locationBindingDigest,
+            riskFlags: pending.riskFlags } }, tx);
         return { counted: false, status: 'PENDING_CONFIRMATION', pendingEvent: pending, reviewRequired: true, reviewReasons: pending.riskFlags };
       }
 
@@ -381,6 +405,8 @@ function createAttendanceSimpleService({
       const reviewRequired = uniqueRiskFlags.length > 0;
       const context = { version: SIMPLE_EVENT_VERSION, employeeId: identity.employeeId, shiftAssignmentId: assignment.id,
         captureId: input.captureId, eventIntent: action, locationEvidence: locationResult.evidenceRef,
+        assignedSiteId: locationResult.evidenceRef.expectedSiteId, actualSiteId: locationResult.evidenceRef.actualSiteId,
+        workSiteContext: locationResult.evidenceRef.workSiteContext,
         deviceEnrollmentId: binding.enrollment.id, credentialFingerprint: material.fingerprint };
       const event = await tx.attendanceEvent.create({
         data: { sessionId: session.id, faceVerificationSessionId: null, deviceEnrollmentId: binding.enrollment.id,
@@ -396,7 +422,12 @@ function createAttendanceSimpleService({
         metadata: { event: 'ATTENDANCE_SIMPLE_ACCEPTED', employeeId: identity.employeeId,
           shiftAssignmentId: assignment.id, captureId: input.captureId, eventType: action,
           sourceMode: offline ? 'OFFLINE' : 'ONLINE', deviceEnrollmentId: binding.enrollment.id,
-          deviceBinding: binding.binding, reviewRequired, reviewReasons: uniqueRiskFlags } }, tx);
+          deviceBinding: binding.binding, assignedSiteId: locationResult.evidenceRef.expectedSiteId,
+          assignedSiteCode: locationResult.evidenceRef.assignedSite?.code || null,
+          actualSiteId: locationResult.evidenceRef.actualSiteId, actualSiteCode: locationResult.evidenceRef.actualSite?.code || null,
+          workSiteContext: locationResult.evidenceRef.workSiteContext, capturedAt: (offline ? capturedAt : now).toISOString(),
+          gpsEvidenceDigest: locationResult.locationBindingDigest,
+          reviewRequired, reviewReasons: uniqueRiskFlags } }, tx);
       return { counted: true, status: reviewRequired ? 'ACCEPTED_REVIEW_FLAGGED' : 'ACCEPTED',
         event, session: finalSession, deviceBinding: binding.binding, reviewRequired, reviewReasons: uniqueRiskFlags };
     });
@@ -475,18 +506,28 @@ function createAttendanceSimpleService({
         return { status: 'CONFIRMED', pendingEvent: confirmed, event: existingCapture, counted: true, idempotent: true };
       }
       const snapshot = pending.deviceSnapshot && typeof pending.deviceSnapshot === 'object' ? pending.deviceSnapshot : {};
+      const pendingRiskFlags = Array.isArray(pending.riskFlags) ? [...new Set(pending.riskFlags.filter((flag) => typeof flag === 'string' && flag))] : [];
+      const pendingLocation = pending.locationEvidence && typeof pending.locationEvidence === 'object' ? pending.locationEvidence : {};
       const event = await tx.attendanceEvent.create({
         data: { sessionId: session.id, faceVerificationSessionId: null, deviceEnrollmentId: snapshot.deviceEnrollmentId || null,
           captureId: pending.captureId, eventType: pending.eventType, provenance: 'ONLINE', sourceMode: 'OFFLINE',
           receivedAt: pending.receivedAt, effectiveEventAt: pending.capturedAt, deviceCapturedAt: pending.capturedAt, timeBasis: 'SERVER_RECEIVED',
           contextDigest: pending.payloadDigest, locationEvidence: pending.locationEvidence,
-          verificationSnapshot: snapshot, reviewRequired: false, reviewReasons: null }
+          verificationSnapshot: snapshot, reviewRequired: pendingRiskFlags.length > 0,
+          reviewReasons: pendingRiskFlags.length > 0 ? pendingRiskFlags : null }
       });
       if (pending.eventType === 'CHECK_OUT') await tx.attendanceSession.update({ where: { id: session.id }, data: { state: 'CLOSED', closedAt: now } });
       const confirmed = await tx.attendancePendingEvent.update({ where: { id: pending.id },
         data: { status: 'CONFIRMED', reviewedByUserId: actor.sub, reviewedAt: now, reviewComment: note, attendanceEventId: event.id } });
       await audit.log({ actorUserId: actor.sub, action: 'UPDATE', entityType: 'AttendancePendingEvent', entityId: pending.id,
-        metadata: { event: 'CONFIRM_DELAYED_OFFLINE_ATTENDANCE', attendanceEventId: event.id, comment: note } }, tx);
+        metadata: { event: 'CONFIRM_DELAYED_OFFLINE_ATTENDANCE', attendanceEventId: event.id, comment: note,
+          employeeId: pending.employeeId, shiftAssignmentId: pending.shiftAssignmentId, captureId: pending.captureId,
+          eventType: pending.eventType, capturedAt: pending.capturedAt.toISOString(),
+          assignedSiteId: pendingLocation.expectedSiteId || null, assignedSiteCode: pendingLocation.assignedSite?.code || null,
+          actualSiteId: pendingLocation.actualSiteId || null, actualSiteCode: pendingLocation.actualSite?.code || null,
+          workSiteContext: pendingLocation.workSiteContext || 'ASSIGNED_SITE',
+          gpsEvidenceDigest: pendingLocation.locationBindingDigest || null, deviceEnrollmentId: snapshot.deviceEnrollmentId || null,
+          reviewReasons: pendingRiskFlags } }, tx);
       return { status: 'CONFIRMED', pendingEvent: confirmed, event, counted: true };
     });
   }

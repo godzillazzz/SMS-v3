@@ -292,7 +292,32 @@ test('history classifies only immutable raw AttendanceEvent rows and labels the 
   assert.equal(result.rows[0].checkOutEventId, 'event-out');
   assert.equal(result.rows[0].authority, 'RAW_ATTENDANCE_EVENT');
   assert.equal(result.rows[0].expectedSite.name, 'Main Site');
+  assert.equal(result.rows[0].assignedSite.name, 'Main Site');
   assert.equal(result.rows[0].actualSite.name, 'Main Site');
+  assert.equal(result.rows[0].workSiteContext, 'ASSIGNED_SITE');
+});
+
+test('self history preserves scheduled Site A and reports actual support Site B', async () => {
+  const raw = [
+    { id: 'event-in', eventType: 'CHECK_IN', effectiveEventAt: new Date('2026-08-27T00:00:00.000Z'),
+      locationEvidence: { expectedSiteId: 'site-1', actualSiteId: 'site-1', workSiteContext: 'ASSIGNED_SITE' } },
+    { id: 'event-out', eventType: 'CHECK_OUT', effectiveEventAt: new Date('2026-08-27T12:00:00.000Z'),
+      locationEvidence: { expectedSiteId: 'site-1', actualSiteId: 'site-b', workSiteContext: 'SUPPORT_SITE' } }
+  ];
+  const row = assignment({ events: raw });
+  const { prisma, calls } = basePrisma({
+    shiftAssignment: { async findMany(input) { calls.assignmentFindMany.push(input); return [row]; } },
+    securitySite: { async findUnique(input) { calls.siteFindUnique.push(input); return { id: 'site-b', code: 'SITE-B', name: 'Support Site B' }; } }
+  });
+  const service = createAttendanceSelfService({ prisma, clock: () => new Date('2026-08-27T13:00:00.000Z') });
+  const result = await service.history({ actor: { sub: 'user-1', role: 'VIEWER' }, from: '2026-08-27', to: '2026-08-27' });
+  assert.equal(result.rows[0].assignedSite.name, 'Main Site');
+  assert.equal(result.rows[0].actualSite.name, 'Support Site B');
+  assert.equal(result.rows[0].workSiteContext, 'SUPPORT_SITE');
+  assert.deepEqual(result.rows[0].attendanceSites.map((site) => [site.eventType, site.actualSiteId, site.workSiteContext]), [
+    ['CHECK_IN', 'site-1', 'ASSIGNED_SITE'],
+    ['CHECK_OUT', 'site-b', 'SUPPORT_SITE']
+  ]);
 });
 
 

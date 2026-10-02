@@ -93,7 +93,7 @@ const simpleEventInput = z.object({
   capturedAt: z.string().datetime({ offset: true }),
   location: locationInput,
   device: simpleDeviceInput,
-  offlineBundle: z.string().trim().min(32).max(32768).nullable().optional()
+  offlineBundle: z.string().trim().min(32).max(900000).nullable().optional()
 }).strict();
 const simpleMoveInput = z.object({
   requestId: uuid,

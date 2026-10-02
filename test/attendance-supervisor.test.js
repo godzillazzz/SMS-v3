@@ -110,6 +110,36 @@ test('daily read model derives server-authoritative today status without writing
   assert.equal(attentionOnly.rows[0].attendanceStatus, 'NOT_CHECKED_IN_YET');
 });
 
+test('supervisor read model serializes scheduled and actual Sites independently for support work', async () => {
+  const row = shiftAssignment({ id: 'support', employeeId: 'emp-support', name: 'Support Guard', department: 'OPS', events: [
+    { eventType: 'CHECK_IN', effectiveEventAt: new Date('2026-08-25T00:00:00.000Z'), locationEvidence: {
+      expectedSiteId: 'support-site', actualSiteId: 'support-site', workSiteContext: 'ASSIGNED_SITE'
+    } },
+    { eventType: 'CHECK_OUT', effectiveEventAt: new Date('2026-08-25T12:00:00.000Z'), locationEvidence: {
+      expectedSiteId: 'support-site', actualSiteId: 'actual-site-b', workSiteContext: 'SUPPORT_SITE'
+    } }
+  ] });
+  const prisma = {
+    shiftAssignment: { findMany: async () => [row] },
+    leaveRequest: { findMany: async () => [] },
+    securitySite: { findUnique: async () => ({ id: 'actual-site-b', code: 'B', name: 'Support Site B' }) }
+  };
+  const service = createAttendanceSupervisorService({
+    prisma,
+    clock: () => new Date('2026-08-25T01:00:00.000Z'),
+    siteAuthorityService: { resolve: async ({ assignment }) => ({ site: assignment.securitySite }) }
+  });
+  const result = await service.daily({ actor: { role: 'MANAGER', department: 'OPS' }, filters: { date: '2026-08-25' } });
+  assert.equal(result.rows[0].assignedSite.name, 'Site support');
+  assert.equal(result.rows[0].actualSite.name, 'Support Site B');
+  assert.equal(result.rows[0].workSiteContext, 'SUPPORT_SITE');
+  assert.ok(result.rows[0].flags.includes('ASSIST_OTHER_SITE'));
+  assert.deepEqual(result.rows[0].attendanceSites.map((site) => [site.eventType, site.actualSiteId, site.workSiteContext]), [
+    ['CHECK_IN', 'support-site', 'ASSIGNED_SITE'],
+    ['CHECK_OUT', 'actual-site-b', 'SUPPORT_SITE']
+  ]);
+});
+
 
 test('history range is bounded to protect serverless read cost', () => {
   const range = parseHistoryRange({ from: '2026-08-01', to: '2026-08-27' }, new Date('2026-08-27T01:00:00.000Z'));
