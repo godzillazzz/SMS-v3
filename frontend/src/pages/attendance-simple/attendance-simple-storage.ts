@@ -260,4 +260,3 @@ export function gpsGeofenceDecision(site: { latitude: number; longitude: number;
     : lowerBoundMeters <= site.geofenceRadiusMeters ? 'BORDERLINE' : 'CONFIDENT_OUTSIDE';
   return { classification, distanceMeters, lowerBoundMeters, upperBoundMeters };
 }
-

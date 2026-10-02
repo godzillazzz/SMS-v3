@@ -112,6 +112,12 @@ function integrityRiskFlags(signals = {}) {
   return [...new Set(flags)];
 }
 
+function assertFirstDeviceCanAutoBind(activeEnrollment, existingEnrollment) {
+  if (!activeEnrollment && existingEnrollment) {
+    throw http(409, 'ATTENDANCE_DEVICE_NOT_ALLOWED', 'An existing inactive device enrollment requires ADMIN approval before it can be used.');
+  }
+}
+
 function createAttendanceSimpleService({
   prisma = prismaDefault, audit = auditDefault, clock = () => new Date(),
   siteEvidenceService = null, siteAuthorityService = null, policyService = null,
@@ -237,24 +243,14 @@ function createAttendanceSimpleService({
     const existing = await client.attendanceDeviceEnrollment.findUnique({ where: { credentialFingerprint: material.fingerprint } });
     if (existing && existing.employeeId !== identity.employeeId) throw http(409, 'ATTENDANCE_DEVICE_BOUND_TO_OTHER_EMPLOYEE', 'This device identity is already bound to another employee.');
     const active = await client.attendanceDeviceEnrollment.findFirst({ where: { employeeId: identity.employeeId, status: 'ACTIVE' }, orderBy: { activatedAt: 'desc' } });
+    assertFirstDeviceCanAutoBind(active, existing);
     if (!active) {
-      let enrollment = existing;
-      if (enrollment) {
-        enrollment = await client.attendanceDeviceEnrollment.update({
-          where: { id: enrollment.id },
-          data: { status: 'ACTIVE', proofVerifiedAt: now, activatedAt: now, revokedAt: null, revokedReason: null,
-            displayName: cleanText(device.displayName, 120) || enrollment.displayName,
-            platformHint: cleanText(device.platformHint, 100) || enrollment.platformHint,
-            userAgentSnapshot: cleanText(device.userAgentSnapshot, 500) || enrollment.userAgentSnapshot }
-        });
-      } else {
-        enrollment = await client.attendanceDeviceEnrollment.create({
-          data: { employeeId: identity.employeeId, publicKey: material.bytes, keyAlgorithm: KEY_ALGORITHM,
-            credentialFingerprint: material.fingerprint, displayName: cleanText(device.displayName, 120) || 'Attendance device',
-            platformHint: cleanText(device.platformHint, 100), userAgentSnapshot: cleanText(device.userAgentSnapshot, 500),
-            status: 'ACTIVE', proofVerifiedAt: now, activatedAt: now, createdByUserId: actor.sub }
-        });
-      }
+      const enrollment = await client.attendanceDeviceEnrollment.create({
+        data: { employeeId: identity.employeeId, publicKey: material.bytes, keyAlgorithm: KEY_ALGORITHM,
+          credentialFingerprint: material.fingerprint, displayName: cleanText(device.displayName, 120) || 'Attendance device',
+          platformHint: cleanText(device.platformHint, 100), userAgentSnapshot: cleanText(device.userAgentSnapshot, 500),
+          status: 'ACTIVE', proofVerifiedAt: now, activatedAt: now, createdByUserId: actor.sub }
+      });
       await audit.log({ actorUserId: actor.sub, action: 'CREATE', entityType: 'AttendanceDeviceEnrollment', entityId: enrollment.id,
         metadata: { event: 'AUTO_BIND_FIRST_DEVICE', employeeId: identity.employeeId, credentialFingerprint: material.fingerprint, keyAlgorithm: KEY_ALGORITHM } }, client);
       return { enrollment, binding: 'PRIMARY', reviewFlags: [] };
@@ -501,6 +497,6 @@ function createAttendanceSimpleService({
 module.exports = {
   SIMPLE_EVENT_VERSION, OFFLINE_BUNDLE_VERSION, MOVE_REQUEST_VERSION,
   canonicalize, canonicalJson, objectDigest, signedEventPayload, integrityRiskFlags,
+  assertFirstDeviceCanAutoBind,
   createAttendanceSimpleService
 };
-

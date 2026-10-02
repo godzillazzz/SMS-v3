@@ -107,4 +107,3 @@ export async function simpleAttendanceMoveRequest(token: string, input: {
   });
   return await payload(response);
 }
-

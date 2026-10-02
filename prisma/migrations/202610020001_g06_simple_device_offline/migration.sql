@@ -90,3 +90,17 @@ ALTER TABLE "attendance_pending_events"
   FOREIGN KEY ("reviewed_by_user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT "attendance_pending_events_attendance_event_id_fkey"
   FOREIGN KEY ("attendance_event_id") REFERENCES "attendance_events"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- Pending offline payload metadata is server-authoritative Attendance data.
+ALTER TABLE public."attendance_pending_events" ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    EXECUTE 'REVOKE ALL ON TABLE public."attendance_pending_events" FROM anon';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    EXECUTE 'REVOKE ALL ON TABLE public."attendance_pending_events" FROM authenticated';
+  END IF;
+END
+$$;

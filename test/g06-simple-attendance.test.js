@@ -7,7 +7,8 @@ const assert = require('node:assert/strict');
 const {
   canonicalJson,
   integrityRiskFlags,
-  signedEventPayload
+  signedEventPayload,
+  assertFirstDeviceCanAutoBind
 } = require('../src/services/attendance-simple.service');
 
 test('simple attendance canonical signing payload is deterministic', () => {
@@ -41,6 +42,16 @@ test('device integrity risks are review flags, not a device bypass', () => {
   ]);
 });
 
+test('only a genuinely new device can use first-device auto-binding', () => {
+  assert.doesNotThrow(() => assertFirstDeviceCanAutoBind(null, null));
+  for (const status of ['REVOKED', 'REJECTED', 'CANCELLED', 'PENDING_APPROVAL']) {
+    assert.throws(() => assertFirstDeviceCanAutoBind(null, { status }), (error) =>
+      error.statusCode === 409 && error.details?.code === 'ATTENDANCE_DEVICE_NOT_ALLOWED',
+      `${status} enrollment must not be reactivated by self-service Attendance`);
+  }
+  assert.doesNotThrow(() => assertFirstDeviceCanAutoBind({ status: 'ACTIVE' }, { status: 'ACTIVE' }));
+});
+
 test('simple attendance keeps GPS geofence and admin review contracts', () => {
   const service = fs.readFileSync(path.join(__dirname, '../src/services/attendance-simple.service.js'), 'utf8');
   const routes = fs.readFileSync(path.join(__dirname, '../src/routes/attendance.routes.js'), 'utf8');
@@ -53,6 +64,27 @@ test('simple attendance keeps GPS geofence and admin review contracts', () => {
   assert.match(routes, /authorize\('ADMIN'\)/);
 });
 
+test('owner-requested simplified Attendance contract excludes Face and QR gates', () => {
+  const page = fs.readFileSync(path.join(__dirname, '../frontend/src/pages/attendance-simple/AttendanceSimplePage.tsx'), 'utf8');
+  const client = fs.readFileSync(path.join(__dirname, '../frontend/src/pages/attendance-simple/attendance-simple-client.ts'), 'utf8');
+  const service = fs.readFileSync(path.join(__dirname, '../src/services/attendance-simple.service.js'), 'utf8');
+  assert.match(client, /\/attendance\/simple\//);
+  assert.doesNotMatch(client, /\b(?:face|qr|challenge)\b/i);
+  assert.doesNotMatch(page, /\b(?:face|qr)\b/i);
+  assert.match(service, /faceVerificationSessionId:\s*null/);
+});
+
+test('delayed offline events remain pending and uncounted until ADMIN confirmation', () => {
+  const service = fs.readFileSync(path.join(__dirname, '../src/services/attendance-simple.service.js'), 'utf8');
+  const migration = fs.readFileSync(path.join(__dirname, '../prisma/migrations/202610020001_g06_simple_device_offline/migration.sql'), 'utf8');
+  assert.match(service, /status:\s*'PENDING_CONFIRMATION'/);
+  assert.match(service, /counted:\s*false,\s*status:\s*'PENDING_CONFIRMATION'/);
+  assert.match(service, /if \(actor\?\.role !== 'ADMIN'\) throw http\(403, 'FORBIDDEN'/);
+  assert.match(migration, /ALTER TABLE public\."attendance_pending_events" ENABLE ROW LEVEL SECURITY/);
+  assert.match(migration, /REVOKE ALL ON TABLE public\."attendance_pending_events" FROM anon/);
+  assert.match(migration, /REVOKE ALL ON TABLE public\."attendance_pending_events" FROM authenticated/);
+});
+
 test('rollback-safe schema does not add new values to existing attendance enums', () => {
   const schema = fs.readFileSync(path.join(__dirname, '../prisma/schema.prisma'), 'utf8');
   const provenance = schema.match(/enum AttendanceEventProvenance \{([\s\S]*?)\}/)?.[1] || '';
@@ -62,4 +94,3 @@ test('rollback-safe schema does not add new values to existing attendance enums'
   assert.match(schema, /sourceMode\s+String\s+@default\("ONLINE"\)/);
   assert.match(schema, /observationOnly\s+Boolean/);
 });
-

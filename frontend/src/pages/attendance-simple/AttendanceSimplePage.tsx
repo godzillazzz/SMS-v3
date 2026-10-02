@@ -386,4 +386,3 @@ export function AttendanceSimplePage({
 }
 
 export default AttendanceSimplePage;
-
