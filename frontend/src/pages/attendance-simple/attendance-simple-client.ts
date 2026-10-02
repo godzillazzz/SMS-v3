@@ -82,23 +82,29 @@ export type SimpleEventResult = {
   pendingEvent?: { id?: string; capturedAt?: string; receivedAt?: string; status?: string; locationEvidence?: SimpleLocationEvidence | null } | null;
 };
 
+export function attendanceSimpleErrorMessage(body: unknown): string {
+  const responseBody = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+  const error = responseBody.error && typeof responseBody.error === 'object'
+    ? responseBody.error as Record<string, unknown>
+    : {};
+  const code = typeof error.code === 'string' ? error.code : '';
+  const messages: Record<string, string> = {
+    ATTENDANCE_CHECK_IN_TOO_EARLY: 'ยังไม่ถึงช่วงเวลาที่อนุญาตให้ลงเวลาเข้า',
+    ATTENDANCE_CHECK_IN_LATEST_WINDOW_EXCEEDED: 'ไม่สามารถลงเวลาเข้าได้ เนื่องจากเกินช่วงเวลาที่กำหนด',
+    ATTENDANCE_CHECK_OUT_TOO_EARLY: 'ยังไม่ถึงช่วงเวลาที่อนุญาตให้ลงเวลาออก',
+    ATTENDANCE_CHECK_OUT_LATEST_WINDOW_EXCEEDED: 'ไม่สามารถลงเวลาออกได้ เนื่องจากเกินช่วงเวลาที่กำหนด',
+    ATTENDANCE_OUTSIDE_SITE_GEOFENCE: 'ไม่สามารถลงเวลาได้ เนื่องจากอยู่นอกพื้นที่ทำงานที่กำหนด',
+    ATTENDANCE_ASSIGNMENT_REQUIRED: 'ไม่พบกะงานที่ได้รับอนุมัติ',
+    ATTENDANCE_SCHEDULE_NOT_APPROVED: 'ไม่พบกะงานที่ได้รับอนุมัติ'
+  };
+  if (messages[code]) return messages[code];
+  if (typeof error.message === 'string') return error.message;
+  return typeof responseBody.message === 'string' ? responseBody.message : 'ไม่สามารถส่งคำขอลงเวลาได้';
+}
+
 async function payload(response: Response) {
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const code = typeof body?.error?.code === 'string' ? body.error.code : '';
-    const policyMessages: Record<string, string> = {
-      ATTENDANCE_CHECK_IN_TOO_EARLY: 'ยังไม่ถึงช่วงเวลาที่อนุญาตให้ลงเวลาเข้า',
-      ATTENDANCE_CHECK_IN_LATEST_WINDOW_EXCEEDED: 'ไม่สามารถลงเวลาเข้าได้ เนื่องจากเกินช่วงเวลาที่กำหนด',
-      ATTENDANCE_CHECK_OUT_TOO_EARLY: 'ยังไม่ถึงช่วงเวลาที่อนุญาตให้ลงเวลาออก',
-      ATTENDANCE_CHECK_OUT_LATEST_WINDOW_EXCEEDED: 'ไม่สามารถลงเวลาออกได้ เนื่องจากเกินช่วงเวลาที่กำหนด',
-      ATTENDANCE_ASSIGNMENT_REQUIRED: 'ไม่พบกะงานที่ได้รับอนุมัติ',
-      ATTENDANCE_SCHEDULE_NOT_APPROVED: 'ไม่พบกะงานที่ได้รับอนุมัติ'
-    };
-    const message = typeof body?.error?.message === 'string'
-      ? policyMessages[code] || body.error.message
-      : typeof body?.message === 'string' ? body.message : 'Attendance request failed';
-    throw new Error(message);
-  }
+  if (!response.ok) throw new Error(attendanceSimpleErrorMessage(body));
   return body?.data;
 }
 
