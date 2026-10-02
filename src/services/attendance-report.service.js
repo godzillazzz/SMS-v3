@@ -87,6 +87,19 @@ function reportId(certification) {
 }
 
 function reportRowProjection(row = {}) {
+  const assignedSite = row.assignedSite ?? row.expectedSite ?? null;
+  const actualSite = row.actualSite ?? assignedSite;
+  const attendanceSites = Array.isArray(row.attendanceSites) ? row.attendanceSites.map((entry) => ({
+    eventType: entry?.eventType || null,
+    actualSiteId: entry?.actualSiteId || entry?.actualSite?.id || null,
+    actualSite: entry?.actualSite && typeof entry.actualSite === 'object'
+      ? { id: entry.actualSite.id, code: entry.actualSite.code, name: entry.actualSite.name }
+      : null,
+    workSiteContext: entry?.workSiteContext === 'SUPPORT_SITE' ? 'SUPPORT_SITE' : 'ASSIGNED_SITE'
+  })) : [];
+  const supportSite = row.workSiteContext === 'SUPPORT_SITE'
+    || attendanceSites.some((entry) => entry.workSiteContext === 'SUPPORT_SITE')
+    || Boolean(assignedSite?.id && actualSite?.id && String(assignedSite.id) !== String(actualSite.id));
   return {
     assignmentId: row.assignmentId,
     employeeId: row.employeeId,
@@ -96,7 +109,10 @@ function reportRowProjection(row = {}) {
     workDate: row.workDate,
     shift: row.shift ?? null,
     expectedSite: row.expectedSite ?? null,
-    actualSite: row.actualSite ?? null,
+    assignedSite,
+    actualSite,
+    workSiteContext: supportSite ? 'SUPPORT_SITE' : 'ASSIGNED_SITE',
+    attendanceSites,
     expectedStartAt: row.expectedStartAt ?? null,
     expectedEndAt: row.expectedEndAt ?? null,
     checkInAt: row.checkInAt ?? null,
@@ -158,9 +174,9 @@ function attendanceSheetXml(certification) {
   const snapshot = certification.snapshot;
   const columns = [
     'วันที่', 'รหัสพนักงาน', 'ชื่อ-นามสกุล', 'หน่วยงาน',
-    'Expected Site', 'Actual Site', 'กะ', 'เวลาเริ่มตามกะ', 'เวลาเลิกตามกะ',
+    'สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'กะ', 'เวลาเริ่มตามกะ', 'เวลาเลิกตามกะ',
     'เวลาเข้า', 'เวลาออก', 'ชั่วโมงทำงาน', 'สาย (นาที)', 'ออกก่อน (นาที)',
-    'Flags', 'ผลการลงเวลา'
+    'Flags', 'ผลการลงเวลา', 'ประเภทสถานที่'
   ];
   const rows = [];
   rows.push(rowXml(1, [inlineCell('A1', 'Security Management System — Official Attendance Report', 1)], 32));
@@ -168,15 +184,17 @@ function attendanceSheetXml(certification) {
   rows.push(rowXml(3, [inlineCell('A3', `Certified At: ${bangkokDateTime(certification.certifiedAt)}  |  Digest: ${certification.summaryDigest}`, 3)], 22));
   rows.push(rowXml(5, columns.map((value, index) => inlineCell(`${columnName(index + 1)}5`, value, 4)), 30));
 
-  snapshot.rows.forEach((row, index) => {
+  snapshot.rows.map(reportRowProjection).forEach((row, index) => {
     const rowNumber = index + 6;
     const values = [
       row.workDate || '-',
       row.employeeCode || '-',
       row.employeeName || '-',
       row.department || '-',
-      row.expectedSite?.name || row.expectedSite?.code || '-',
-      row.actualSite?.name || row.actualSite?.code || '-',
+      row.assignedSite?.name || row.assignedSite?.code || '-',
+      row.attendanceSites?.length > 1
+        ? row.attendanceSites.map((entry) => `${entry.eventType === 'CHECK_OUT' ? 'ออก' : 'เข้า'}: ${entry.actualSite?.name || entry.actualSite?.code || '-'}`).join(' / ')
+        : row.actualSite?.name || row.actualSite?.code || '-',
       row.shift?.code || row.shift?.name || '-',
       bangkokDateTime(row.expectedStartAt),
       bangkokDateTime(row.expectedEndAt),
@@ -186,7 +204,8 @@ function attendanceSheetXml(certification) {
       row.lateMinutes,
       row.earlyOutMinutes,
       (row.flags || []).join(', '),
-      attendanceResultText(row)
+      attendanceResultText(row),
+      row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'
     ];
     const cells = values.map((value, colIndex) => {
       const reference = `${columnName(colIndex + 1)}${rowNumber}`;

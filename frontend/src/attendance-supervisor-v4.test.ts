@@ -56,7 +56,7 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain("onClick={() => setStatus('REQUIRES_ATTENTION')}");
     expect(page).toContain("onClick={() => setStatus('WRONG_SHIFT')}");
     expect(page).toContain("role={onClick ? 'button' : undefined}");
-    for (const column of ['จุดตามตาราง', 'จุดที่บันทึก', 'เวลาปฏิบัติงาน', 'ข้อสังเกต', 'การทำงาน']) expect(page).toContain(column);
+    for (const column of ['สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'ประเภท', 'เวลาปฏิบัติงาน', 'ข้อสังเกต', 'การทำงาน']) expect(page).toContain(column);
   });
 
   it('shows original versus effective Attendance and immutable raw events in the detail drawer', () => {

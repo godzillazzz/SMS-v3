@@ -234,6 +234,55 @@ function locationCheck(site, sample, policy) {
   };
 }
 
+function stableSiteCompare(left, right) {
+  const leftCode = String(left.code || '').toUpperCase();
+  const rightCode = String(right.code || '').toUpperCase();
+  if (leftCode !== rightCode) return leftCode < rightCode ? -1 : 1;
+  const leftId = String(left.id || '').toLowerCase();
+  const rightId = String(right.id || '').toLowerCase();
+  return leftId === rightId ? 0 : leftId < rightId ? -1 : 1;
+}
+
+function chooseActualSite(expectedSite, candidates, sample, policy) {
+  const unique = new Map([[String(expectedSite.id), expectedSite]]);
+  for (const candidate of candidates || []) if (candidate?.id) unique.set(String(candidate.id), candidate);
+  const checked = [...unique.values()].map((candidate) => ({
+    candidate,
+    check: locationCheck(candidate, sample, policy)
+  }));
+
+  const assigned = checked.find((row) => String(row.candidate.id) === String(expectedSite.id)
+    && row.check.classification !== GEOFENCE_CLASSIFICATIONS.CONFIDENT_OUTSIDE);
+  if (assigned) return assigned;
+  // Keep the established uncertainty policy for the assigned Site, but only
+  // accept a different support Site when GPS confidently places the sample
+  // inside that Site's geofence.
+  const matching = checked.filter((row) => String(row.candidate.id) !== String(expectedSite.id)
+    && row.check.classification === GEOFENCE_CLASSIFICATIONS.CONFIDENT_INSIDE);
+  matching.sort((left, right) => {
+    const leftNormalized = left.check.distanceMeters / left.candidate.geofenceRadiusMeters;
+    const rightNormalized = right.check.distanceMeters / right.candidate.geofenceRadiusMeters;
+    return leftNormalized - rightNormalized || stableSiteCompare(left.candidate, right.candidate);
+  });
+  return matching[0] || null;
+}
+
+function siteSummary(site) {
+  return site ? { id: site.id, code: String(site.code || ''), name: String(site.name || '') } : null;
+}
+
+function siteGeometrySnapshot(site) {
+  return {
+    id: site.id,
+    code: String(site.code || ''),
+    name: String(site.name || ''),
+    latitude: Number(site.latitude),
+    longitude: Number(site.longitude),
+    geofenceRadiusMeters: Number(site.geofenceRadiusMeters),
+    isActive: true
+  };
+}
+
 function validateLocationAgainstSite(site, sample, policy) {
   const checked = locationCheck(site, sample, policy);
   if (checked.classification === GEOFENCE_CLASSIFICATIONS.CONFIDENT_OUTSIDE) {
@@ -266,6 +315,14 @@ function createAttendanceSiteEvidenceService({
       select: { id: true, code: true, name: true, latitude: true, longitude: true, geofenceRadiusMeters: true, isActive: true }
     });
     return rows.map((candidate) => { try { return assertSite(candidate); } catch { return null; } }).filter(Boolean);
+  }
+
+  async function eligibleSitesForAssignment({ assignment }, client = prisma) {
+    if (!assignment?.securitySiteId) throw http(409, 'ATTENDANCE_SITE_REQUIRED', 'The Shift Assignment does not have an authoritative Security Site.');
+    const expectedSite = await loadSite(client, assignment.securitySiteId);
+    const all = new Map((await activeSites(client)).map((site) => [String(site.id), site]));
+    all.set(String(expectedSite.id), expectedSite);
+    return [...all.values()].sort(stableSiteCompare).map(siteGeometrySnapshot);
   }
 
   async function validateQrToken(client, site, qrToken, now) {
@@ -305,25 +362,8 @@ function createAttendanceSiteEvidenceService({
   }
 
   async function actualSiteForSample(client, expectedSite, sample, policy) {
-    const expectedCheck = locationCheck(expectedSite, sample, policy);
-    if (expectedCheck.classification === GEOFENCE_CLASSIFICATIONS.CONFIDENT_INSIDE) return expectedSite;
-
-    const otherChecks = (await activeSites(client))
-      .filter((candidate) => candidate.id !== expectedSite.id)
-      .map((candidate) => ({ candidate, check: locationCheck(candidate, sample, policy) }));
-
-    const confidentInside = otherChecks
-      .filter((row) => row.check.classification === GEOFENCE_CLASSIFICATIONS.CONFIDENT_INSIDE)
-      .sort((left, right) => left.check.distanceMeters - right.check.distanceMeters || String(left.candidate.code).localeCompare(String(right.candidate.code)));
-    if (confidentInside.length) return confidentInside[0].candidate;
-
-    if (expectedCheck.classification === GEOFENCE_CLASSIFICATIONS.BORDERLINE) return expectedSite;
-
-    const borderline = otherChecks
-      .filter((row) => row.check.classification === GEOFENCE_CLASSIFICATIONS.BORDERLINE)
-      .sort((left, right) => left.check.distanceMeters - right.check.distanceMeters || String(left.candidate.code).localeCompare(String(right.candidate.code)));
-    if (borderline.length) return borderline[0].candidate;
-
+    const selected = chooseActualSite(expectedSite, await activeSites(client), sample, policy);
+    if (selected) return selected.candidate;
     throw http(409, 'ATTENDANCE_OUTSIDE_SITE_GEOFENCE', 'Attendance location is confidently outside all active Security Site geofences.');
   }
 
@@ -358,10 +398,14 @@ function createAttendanceSiteEvidenceService({
   }
 
   function evidenceReference({ expectedSite, actualSite, gps, qrMode, qrCredential }) {
+    const workSiteContext = expectedSite.id === actualSite.id ? 'ASSIGNED_SITE' : 'SUPPORT_SITE';
     return {
       siteId: expectedSite.id,
       expectedSiteId: expectedSite.id,
       actualSiteId: actualSite.id,
+      assignedSite: siteSummary(expectedSite),
+      actualSite: siteSummary(actualSite),
+      workSiteContext,
       qrMode,
       qrCredentialId: qrCredential?.id || null,
       geofenceClassification: gps.classification,
@@ -381,6 +425,9 @@ function createAttendanceSiteEvidenceService({
       siteId: expectedSite.id,
       expectedSiteId: expectedSite.id,
       actualSiteId: actualSite.id,
+      assignedSite: siteSummary(expectedSite),
+      actualSite: siteSummary(actualSite),
+      workSiteContext: assist ? 'SUPPORT_SITE' : 'ASSIGNED_SITE',
       assistOtherSite: assist,
       riskFlags: riskFlagsFor(expectedSite, actualSite, gps),
       insideGeofence: true,
@@ -412,6 +459,9 @@ function createAttendanceSiteEvidenceService({
         siteId: expectedSite.id,
         expectedSiteId: expectedSite.id,
         actualSiteId: actualSite.id,
+        assignedSite: siteSummary(expectedSite),
+        actualSite: siteSummary(actualSite),
+        workSiteContext: expectedSite.id === actualSite.id ? 'ASSIGNED_SITE' : 'SUPPORT_SITE',
         geofenceClassification: gps.classification,
         riskFlags,
         location: {
@@ -425,6 +475,9 @@ function createAttendanceSiteEvidenceService({
         siteId: expectedSite.id,
         expectedSiteId: expectedSite.id,
         actualSiteId: actualSite.id,
+        assignedSite: siteSummary(expectedSite),
+        actualSite: siteSummary(actualSite),
+        workSiteContext: expectedSite.id === actualSite.id ? 'ASSIGNED_SITE' : 'SUPPORT_SITE',
         assistOtherSite: expectedSite.id !== actualSite.id,
         riskFlags,
         insideGeofence: true,
@@ -503,7 +556,7 @@ function createAttendanceSiteEvidenceService({
     };
   }
 
-  return { validateForAssignment, validateGpsOnlyForAssignment, revalidateRef };
+  return { validateForAssignment, validateGpsOnlyForAssignment, eligibleSitesForAssignment, revalidateRef };
 }
 
 module.exports = {
@@ -519,6 +572,8 @@ module.exports = {
   QR_STEP_UP_INNER_MARGIN_METERS,
   QR_ASSURANCE_MODES,
   GEOFENCE_CLASSIFICATIONS,
+  chooseActualSite,
+  stableSiteCompare,
   tokenHash,
   haversineMeters,
   bindingDigest,

@@ -38,6 +38,34 @@ type Props = {
 };
 
 type StatusTone = 'neutral' | 'success' | 'warning' | 'danger';
+type SiteSummary = { id: string; code?: string | null; name?: string | null };
+type DisplaySiteContext = { assignedSite: SiteSummary; actualSite: SiteSummary | null; workSiteContext: 'ASSIGNED_SITE' | 'SUPPORT_SITE' | 'OUTSIDE_ALL_SITES' };
+
+function siteDisplayName(site: SiteSummary | null | undefined): string {
+  const value = String(site?.name || site?.code || '').trim();
+  if (!value) return 'Site ที่ตรวจพบ';
+  return /^site(?:\s|$)/i.test(value) ? value : `Site ${value}`;
+}
+
+function reviewContextDetails(result: SimpleEventResult, evidence = result.event?.locationEvidence): string[] {
+  const reasons = new Set([...(result.reviewReasons || []), ...(result.event?.reviewReasons || [])]);
+  const details: string[] = [];
+  if (evidence?.workSiteContext === 'SUPPORT_SITE' || reasons.has('ASSIST_OTHER_SITE')) {
+    details.push(`ช่วยปฏิบัติงานที่ ${siteDisplayName(evidence?.actualSite)}`);
+  }
+  if (result.deviceBinding === 'FOREIGN' || reasons.has('DEVICE_MISMATCH')) {
+    details.push('ใช้อุปกรณ์อื่นจากเครื่องหลัก · ติดธงให้ตรวจสอบ');
+  }
+  const unclassifiedRisk = [...reasons].some((reason) => !['ASSIST_OTHER_SITE', 'DEVICE_MISMATCH'].includes(reason));
+  if (unclassifiedRisk || (result.reviewRequired && details.length === 0)) details.push('มีธงความเสี่ยงให้ตรวจสอบ');
+  return details;
+}
+
+function acceptedAttendanceDisplay(result: SimpleEventResult): { tone: StatusTone; message: string } {
+  const details = reviewContextDetails(result);
+  const tone: StatusTone = details.length || result.reviewRequired ? 'warning' : 'success';
+  return { tone, message: details.length ? `ลงเวลาสำเร็จ · ${details.join(' · ')}` : 'ลงเวลาสำเร็จ' };
+}
 
 function uuid(): string {
   if (crypto.randomUUID) return crypto.randomUUID();
@@ -119,6 +147,8 @@ export function AttendanceSimplePage({
   const [message, setMessage] = useState('กำลังเตรียมระบบลงเวลา…');
   const [tone, setTone] = useState<StatusTone>('neutral');
   const [lastResult, setLastResult] = useState<SimpleEventResult | null>(null);
+  const [siteContext, setSiteContext] = useState<DisplaySiteContext | null>(null);
+  const [pendingSiteCapture, setPendingSiteCapture] = useState<{ location: Awaited<ReturnType<typeof getLocation>>; context: NonNullable<ReturnType<typeof gpsGeofenceDecision>['actualSite']> } | null>(null);
   const [moveReason, setMoveReason] = useState('');
   const [moveBusy, setMoveBusy] = useState(false);
 
@@ -152,15 +182,17 @@ export function AttendanceSimplePage({
         if (result.counted || result.status === 'PENDING_CONFIRMATION') {
           await removeQueued(row.captureId);
           setLastResult(result);
+          const evidence = result.event?.locationEvidence || result.pendingEvent?.locationEvidence;
+          if (evidence?.assignedSite) setSiteContext({ assignedSite: evidence.assignedSite, actualSite: evidence.actualSite || null, workSiteContext: evidence.workSiteContext || 'ASSIGNED_SITE' });
           if (result.status === 'PENDING_CONFIRMATION') {
             setTone('warning');
-            setMessage('ส่งรายการ Offline แล้ว แต่ส่งช้าเกินกำหนด · รอ ADMIN ยืนยันก่อนนับ');
-          } else if (result.reviewRequired) {
-            setTone('warning');
-            setMessage('ส่งรายการ Offline สำเร็จและนับเวลาแล้ว · มีธงให้ตรวจอุปกรณ์');
+            const details = reviewContextDetails(result, evidence);
+            const contextMessage = details.length ? `${details.join(' · ')} · ` : '';
+            setMessage(`${contextMessage}ส่งรายการ Offline แล้ว แต่ส่งช้าเกินกำหนด · รอ ADMIN ยืนยันก่อนนับ`);
           } else {
-            setTone('success');
-            setMessage('ส่งรายการ Offline และบันทึกเวลาเรียบร้อย');
+            const accepted = acceptedAttendanceDisplay(result);
+            setTone(accepted.tone);
+            setMessage(`ส่งรายการ Offline แล้ว · ${accepted.message}`);
           }
         }
       } catch {
@@ -218,11 +250,26 @@ export function AttendanceSimplePage({
     setTone('neutral');
     setMessage('กำลังตรวจ GPS/GEOFENCE…');
     try {
-      const location = await getLocation();
-      const localDecision = gpsGeofenceDecision(bootstrap.assignment.site, location);
-      if (localDecision.classification === 'CONFIDENT_OUTSIDE') {
-        throw new Error(`อยู่นอก GEOFENCE ของ ${bootstrap.assignment.site.name} · ไม่บันทึกเวลา`);
+      const pendingAgeMs = pendingSiteCapture ? Date.now() - new Date(pendingSiteCapture.location.capturedAt).getTime() : Infinity;
+      const reusePending = pendingSiteCapture !== null && pendingAgeMs >= 0 && pendingAgeMs <= 180000;
+      const location = reusePending ? pendingSiteCapture.location : await getLocation();
+      const localDecision = gpsGeofenceDecision(bootstrap.assignment.site, location, bootstrap.eligibleSites || []);
+      if (!online && localDecision.classification === 'CONFIDENT_OUTSIDE') {
+        throw new Error('อยู่นอก GEOFENCE ของทุก Site ที่อนุญาต · ไม่บันทึกเวลา');
       }
+      if (!reusePending && localDecision.workSiteContext === 'SUPPORT_SITE' && localDecision.actualSite) {
+        setSiteContext({ assignedSite: { id: localDecision.assignedSite.id, code: localDecision.assignedSite.code, name: localDecision.assignedSite.name || '' },
+          actualSite: localDecision.actualSite ? { id: localDecision.actualSite.id, code: localDecision.actualSite.code, name: localDecision.actualSite.name || '' } : null,
+          workSiteContext: localDecision.workSiteContext });
+        setPendingSiteCapture({ location, context: localDecision.actualSite });
+        setTone('warning');
+        setMessage(`สถานที่ตามตาราง: ${bootstrap.assignment.site.name} · กำลังลงเวลาที่ ${siteDisplayName(localDecision.actualSite)} · ระบบจะบันทึกเป็น “ช่วยปฏิบัติงาน” · กดอีกครั้งเพื่อยืนยัน`);
+        return;
+      }
+      setPendingSiteCapture(null);
+      setSiteContext({ assignedSite: { id: localDecision.assignedSite.id, code: localDecision.assignedSite.code, name: localDecision.assignedSite.name || '' },
+        actualSite: localDecision.actualSite ? { id: localDecision.actualSite.id, code: localDecision.actualSite.code, name: localDecision.actualSite.name || '' } : null,
+        workSiteContext: localDecision.workSiteContext });
       const capturedAt = new Date().toISOString();
       const offlineBundle = online && token ? null : bootstrap.offline.bundle;
       const input = await signedEvent(identity, {
@@ -246,9 +293,12 @@ export function AttendanceSimplePage({
         await storeEncryptedBootstrap(next);
         setBootstrap(next);
         setTone(localDecision.classification === 'BORDERLINE' ? 'warning' : 'success');
+        const siteMessage = localDecision.workSiteContext === 'SUPPORT_SITE'
+          ? `สถานที่ลงเวลาจริง: ${siteDisplayName(localDecision.actualSite)} · ช่วยปฏิบัติงาน · `
+          : '';
         setMessage(localDecision.classification === 'BORDERLINE'
-          ? 'เก็บเวลา Offline แบบเข้ารหัสแล้ว · ตำแหน่งอยู่ขอบ GEOFENCE และจะถูกตรวจเมื่อส่ง'
-          : 'เก็บเวลา Offline แบบเข้ารหัสแล้ว · จะส่งอัตโนมัติเมื่อกลับมาออนไลน์');
+          ? `${siteMessage}เก็บเวลา Offline แบบเข้ารหัสแล้ว · ตำแหน่งอยู่ขอบ GEOFENCE และจะถูกตรวจเมื่อส่ง`
+          : `${siteMessage}เก็บเวลา Offline แบบเข้ารหัสแล้ว · จะส่งอัตโนมัติเมื่อกลับมาออนไลน์`);
         return;
       }
 
@@ -256,13 +306,17 @@ export function AttendanceSimplePage({
       setLastResult(result);
       if (result.status === 'PENDING_CONFIRMATION') {
         setTone('warning');
-        setMessage('รายการถูกส่งแล้วแต่ต้องให้ ADMIN ยืนยันก่อนนับ');
-      } else if (result.reviewRequired || result.deviceBinding === 'FOREIGN') {
-        setTone('warning');
-        setMessage('บันทึกเวลาแล้ว · เครื่องนี้ไม่ใช่เครื่องหลัก จึงติดธงให้ตรวจ');
+        const evidence = result.pendingEvent?.locationEvidence;
+        if (evidence?.assignedSite) setSiteContext({ assignedSite: evidence.assignedSite, actualSite: evidence.actualSite || null, workSiteContext: evidence.workSiteContext || 'ASSIGNED_SITE' });
+        const details = reviewContextDetails(result, evidence);
+        const contextMessage = details.length ? `${details.join(' · ')} · ` : '';
+        setMessage(`${contextMessage}รายการ Offline ต้องให้ ADMIN ยืนยันก่อนนับ`);
       } else {
-        setTone('success');
-        setMessage('บันทึกเวลาเรียบร้อย');
+        const accepted = acceptedAttendanceDisplay(result);
+        setTone(accepted.tone);
+        const evidence = result.event?.locationEvidence;
+        if (evidence?.assignedSite) setSiteContext({ assignedSite: evidence.assignedSite, actualSite: evidence.actualSite || null, workSiteContext: evidence.workSiteContext || 'ASSIGNED_SITE' });
+        setMessage(accepted.message);
       }
       if (result.counted) {
         try {
@@ -274,6 +328,7 @@ export function AttendanceSimplePage({
         }
       }
     } catch (error) {
+      setPendingSiteCapture(null);
       setTone('danger');
       setMessage(error instanceof Error ? error.message : 'ลงเวลาไม่สำเร็จ');
     } finally {
@@ -331,12 +386,14 @@ export function AttendanceSimplePage({
 
     <div className="attendance-simple__summary">
       <div><span>กะ</span><strong>{shiftText}</strong></div>
-      <div><span>พื้นที่</span><strong>{bootstrap?.assignment.site.name || '—'}</strong></div>
+      <div><span>สถานที่ตามตาราง</span><strong>{bootstrap?.assignment.site.name || '—'}</strong></div>
       <div><span>เครือข่าย</span><strong>{online ? 'Online' : 'Offline'}</strong></div>
     </div>
 
     <div className={`attendance-simple__status is-${tone}`} role="status">
       <strong>{message}</strong>
+      {siteContext && <span>สถานที่ตามตาราง: {siteContext.assignedSite.name || siteContext.assignedSite.code || '—'}</span>}
+      {siteContext && <span>สถานที่ลงเวลาจริง: {siteContext.workSiteContext === 'SUPPORT_SITE' ? siteDisplayName(siteContext.actualSite) : siteContext.actualSite?.name || siteContext.assignedSite.name || '—'}{siteContext.workSiteContext === 'SUPPORT_SITE' ? ' · ช่วยปฏิบัติงาน' : ' · ปกติ'}</span>}
       {queueCount > 0 && <span>คิวเข้ารหัสรอส่ง {queueCount} รายการ</span>}
     </div>
 
@@ -361,7 +418,7 @@ export function AttendanceSimplePage({
       disabled={readOnly || busy || !identity || !bootstrap}
       onClick={() => void recordAttendance()}
     >
-      <span>{busy ? 'กำลังตรวจ…' : bootstrap?.eventIntent === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า'}</span>
+      <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยันช่วยปฏิบัติงานที่ ${siteDisplayName(pendingSiteCapture.context)}` : bootstrap?.eventIntent === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า'}</span>
       <small>{online ? 'บันทึกกับ Server' : 'เก็บเข้ารหัสไว้ในเครื่อง'}</small>
     </button>
 

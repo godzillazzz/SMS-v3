@@ -120,6 +120,12 @@ export type AttendanceSelfEmployee = {
 };
 
 export type AttendanceSelfSite = { id: string; code?: string | null; name: string };
+export type AttendanceEventSite = {
+  eventType?: string | null;
+  actualSiteId?: string | null;
+  actualSite?: AttendanceSelfSite | null;
+  workSiteContext?: 'ASSIGNED_SITE' | 'SUPPORT_SITE';
+};
 export type AttendanceSelfShift = {
   id: string;
   code?: string | null;
@@ -135,7 +141,10 @@ export type AttendanceSelfRow = {
   employee: AttendanceSelfEmployee;
   shift: AttendanceSelfShift;
   expectedSite?: AttendanceSelfSite | null;
+  assignedSite?: AttendanceSelfSite | null;
   actualSite?: AttendanceSelfSite | null;
+  workSiteContext?: 'ASSIGNED_SITE' | 'SUPPORT_SITE';
+  attendanceSites?: AttendanceEventSite[];
   expectedStartAt?: string | null;
   expectedEndAt?: string | null;
   originalCheckInAt?: string | null;
@@ -176,6 +185,9 @@ export type AttendanceSelfScheduleRow = {
   assignmentId: string;
   shift: AttendanceSelfShift;
   expectedSite?: AttendanceSelfSite | null;
+  assignedSite?: AttendanceSelfSite | null;
+  actualSite?: AttendanceSelfSite | null;
+  workSiteContext?: 'ASSIGNED_SITE' | 'SUPPORT_SITE';
   remark?: string | null;
 };
 

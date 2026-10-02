@@ -51,14 +51,29 @@ function eventByType(events, type) {
   return (events || []).find((row) => String(row?.eventType || '').toUpperCase() === type) || null;
 }
 
-function actualSiteId(events) {
+function siteObservations(events, expectedSiteId = null) {
+  const expectedId = expectedSiteId == null ? null : String(expectedSiteId);
+  const observations = [];
   for (const event of events || []) {
     const evidence = event?.locationEvidence;
     if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) continue;
     const value = evidence.actualSiteId || evidence.siteId || null;
-    if (value) return String(value);
+    if (!value) continue;
+    const actualId = String(value);
+    const recordedContext = String(evidence.workSiteContext || '').toUpperCase();
+    const workSiteContext = recordedContext === 'SUPPORT_SITE' || recordedContext === 'ASSIGNED_SITE'
+      ? recordedContext
+      : expectedId && actualId !== expectedId ? 'SUPPORT_SITE' : 'ASSIGNED_SITE';
+    observations.push({ eventType: event.eventType || null, actualSiteId: actualId, workSiteContext });
   }
-  return null;
+  return observations;
+}
+
+function actualSiteId(events, expectedSiteId = null) {
+  const observations = siteObservations(events, expectedSiteId);
+  return observations.find((row) => row.workSiteContext === 'SUPPORT_SITE')?.actualSiteId
+    || observations[0]?.actualSiteId
+    || null;
 }
 
 function employeeSummary(employee) {
@@ -158,12 +173,31 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
     const hasLeave = await approvedLeave(employee.id, assignment.workDate, client);
     const result = classifyAttendanceDay({ assignment, events: effectiveEvents, approvedLeave: hasLeave, asOf });
     const expectedSite = await resolveExpectedSite(assignment, client);
-    const observedSiteId = actualSiteId(rawEvents);
-    let actualSite = null;
+    const observations = siteObservations(rawEvents, expectedSite?.id || null);
+    const observedSiteId = actualSiteId(rawEvents, expectedSite?.id || null);
+    let actualSite = expectedSite;
     if (observedSiteId) {
       actualSite = expectedSite?.id === observedSiteId
         ? expectedSite
         : await client.securitySite.findUnique({ where: { id: observedSiteId }, select: { id: true, code: true, name: true } }).catch(() => null);
+    }
+    const workSiteContext = observations.some((row) => row.workSiteContext === 'SUPPORT_SITE')
+      ? 'SUPPORT_SITE' : 'ASSIGNED_SITE';
+    const attendanceSites = observations.map((row) => ({
+      eventType: row.eventType,
+      actualSite: row.actualSiteId === String(expectedSite?.id || '')
+        ? siteSummary(expectedSite)
+        : null,
+      actualSiteId: row.actualSiteId,
+      workSiteContext: row.workSiteContext
+    }));
+    for (const entry of attendanceSites) {
+      if (!entry.actualSite && entry.actualSiteId) {
+        entry.actualSite = siteSummary(await client.securitySite.findUnique({
+          where: { id: entry.actualSiteId },
+          select: { id: true, code: true, name: true }
+        }).catch(() => null));
+      }
     }
     const originalCheckIn = eventByType(rawEvents, 'CHECK_IN');
     const originalCheckOut = eventByType(rawEvents, 'CHECK_OUT');
@@ -176,7 +210,10 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
       employee: employeeSummary(employee),
       shift: shiftSummary(assignment),
       expectedSite: siteSummary(expectedSite),
+      assignedSite: siteSummary(expectedSite),
       actualSite: siteSummary(actualSite),
+      workSiteContext,
+      attendanceSites,
       expectedStartAt: result.expectedStartAt,
       expectedEndAt: result.expectedEndAt,
       originalCheckInAt: originalCheckIn?.effectiveEventAt || null,
@@ -339,6 +376,9 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
         assignmentId: assignment.id,
         shift: shiftSummary(assignment),
         expectedSite: siteSummary(expectedSite),
+        assignedSite: siteSummary(expectedSite),
+        actualSite: siteSummary(expectedSite),
+        workSiteContext: 'ASSIGNED_SITE',
         remark: assignment.remark || null
       });
     }

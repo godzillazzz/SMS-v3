@@ -39,21 +39,39 @@ function eventByType(events, type) {
   return (events || []).find((row) => String(row?.eventType || '').toUpperCase() === type) || null;
 }
 
-function actualSiteId(events) {
+function siteObservations(events, expectedSiteId = null) {
+  const expectedId = expectedSiteId == null ? null : String(expectedSiteId);
+  const observations = [];
   for (const event of events || []) {
     const evidence = event?.locationEvidence;
     if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) continue;
-    const id = evidence.actualSiteId || evidence.siteId || null;
-    if (id) return String(id);
+    const value = evidence.actualSiteId || evidence.siteId || null;
+    if (!value) continue;
+    const actualSiteId = String(value);
+    const recordedContext = String(evidence.workSiteContext || '').toUpperCase();
+    const workSiteContext = recordedContext === 'SUPPORT_SITE' || recordedContext === 'ASSIGNED_SITE'
+      ? recordedContext
+      : expectedId && actualSiteId !== expectedId ? 'SUPPORT_SITE' : 'ASSIGNED_SITE';
+    observations.push({ eventType: event.eventType || null, actualSiteId, workSiteContext });
   }
-  return null;
+  return observations;
 }
 
-function evidenceFlags(events) {
+function actualSiteId(events, expectedSiteId = null) {
+  const observations = siteObservations(events, expectedSiteId);
+  return observations.find((row) => row.workSiteContext === 'SUPPORT_SITE')?.actualSiteId
+    || observations[0]?.actualSiteId
+    || null;
+}
+
+function evidenceFlags(events, expectedSiteId = null) {
   const flags = new Set();
   for (const event of events || []) {
     const evidence = event?.locationEvidence;
     if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) continue;
+    const actualSiteId = evidence.actualSiteId || evidence.siteId || null;
+    if (String(evidence.workSiteContext || '').toUpperCase() === 'SUPPORT_SITE'
+      || (actualSiteId && expectedSiteId && String(actualSiteId) !== String(expectedSiteId))) flags.add('ASSIST_OTHER_SITE');
     const riskFlags = Array.isArray(evidence.riskFlags) ? evidence.riskFlags : [];
     riskFlags.forEach((flag) => { if (typeof flag === 'string' && flag) flags.add(flag); });
   }
@@ -140,7 +158,7 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
     });
     const assignmentIds = assignments.map((row) => row.id);
     const employeeIds = [...new Set(assignments.map((row) => row.employeeId))];
-    const actualSiteIds = [...new Set(assignments.map((row) => actualSiteId(row.attendanceSession?.events || [])).filter(Boolean))];
+    const actualSiteIds = [...new Set(assignments.flatMap((row) => siteObservations(row.attendanceSession?.events || []).map((site) => site.actualSiteId)))];
     const [corrections, leaves, actualSites] = await Promise.all([
       currentCorrectionsForAssignments(client, assignmentIds),
       employeeIds.length ? client.leaveRequest.findMany({
@@ -174,9 +192,16 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
       }
       const rawCheckIn = eventByType(rawEvents, 'CHECK_IN');
       const rawCheckOut = eventByType(rawEvents, 'CHECK_OUT');
-      const currentActualSiteId = actualSiteId(rawEvents);
-      const actualSite = currentActualSiteId ? actualSiteById.get(currentActualSiteId) || null : null;
-      const flags = [...new Set([...result.flags, ...evidenceFlags(rawEvents), ...(assignmentCorrections.length ? ['CORRECTED'] : [])])];
+      const observations = siteObservations(rawEvents, expectedSite?.id || null);
+      const currentActualSiteId = actualSiteId(rawEvents, expectedSite?.id || null);
+      const actualSite = currentActualSiteId ? actualSiteById.get(currentActualSiteId) || null : expectedSite;
+      const attendanceSites = observations.map((site) => ({
+        eventType: site.eventType,
+        actualSiteId: site.actualSiteId,
+        actualSite: actualSiteById.get(site.actualSiteId) || null,
+        workSiteContext: site.workSiteContext
+      }));
+      const flags = [...new Set([...result.flags, ...evidenceFlags(rawEvents, expectedSite?.id || null), ...(assignmentCorrections.length ? ['CORRECTED'] : [])])];
       rows.push({
         assignmentId: assignment.id,
         sessionId: session?.id || null,
@@ -187,8 +212,11 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
         workDate: assignment.workDate.toISOString().slice(0, 10),
         shift: { id: assignment.shiftTypeId, code: assignment.shiftType?.code || null, name: assignment.shiftType?.name || null },
         expectedSite: expectedSite ? { id: expectedSite.id, code: expectedSite.code, name: expectedSite.name } : null,
+        assignedSite: expectedSite ? { id: expectedSite.id, code: expectedSite.code, name: expectedSite.name } : null,
         actualSiteId: currentActualSiteId,
         actualSite: actualSite ? { id: actualSite.id, code: actualSite.code, name: actualSite.name } : null,
+        workSiteContext: observations.some((site) => site.workSiteContext === 'SUPPORT_SITE') ? 'SUPPORT_SITE' : 'ASSIGNED_SITE',
+        attendanceSites,
         expectedStartAt: result.expectedStartAt,
         expectedEndAt: result.expectedEndAt,
         originalCheckInAt: rawCheckIn?.effectiveEventAt || null,

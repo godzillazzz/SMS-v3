@@ -31,8 +31,8 @@ describe('WAVE 2 verified accessibility semantics', () => {
   });
 
   it('marks Attendance Supervisor headers without changing attendance behavior', () => {
-    expect((attendanceSupervisor.match(/<th scope="col"/g) ?? []).length).toBe(11);
-    for (const label of ['พนักงาน', 'กะ', 'จุดตามตาราง', 'จุดที่บันทึก', 'สถานะ', 'การทำงาน']) {
+    expect((attendanceSupervisor.match(/<th scope="col"/g) ?? []).length).toBe(12);
+    for (const label of ['พนักงาน', 'กะ', 'สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'ประเภท', 'สถานะ', 'การทำงาน']) {
       expect(attendanceSupervisor).toContain(`>${label}</th>`);
     }
   });

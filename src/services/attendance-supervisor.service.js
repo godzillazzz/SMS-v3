@@ -66,14 +66,29 @@ function eventByType(events, type) {
   return (events || []).find((row) => String(row?.eventType || '').toUpperCase() === type) || null;
 }
 
-function evidenceActualSiteId(events) {
+function siteObservations(events, expectedSiteId = null) {
+  const expectedId = expectedSiteId == null ? null : String(expectedSiteId);
+  const observations = [];
   for (const event of events || []) {
     const evidence = event?.locationEvidence;
     if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) continue;
     const value = evidence.actualSiteId || evidence.siteId || null;
-    if (value) return String(value);
+    if (!value) continue;
+    const actualSiteId = String(value);
+    const recordedContext = String(evidence.workSiteContext || '').toUpperCase();
+    const workSiteContext = recordedContext === 'SUPPORT_SITE' || recordedContext === 'ASSIGNED_SITE'
+      ? recordedContext
+      : expectedId && actualSiteId !== expectedId ? 'SUPPORT_SITE' : 'ASSIGNED_SITE';
+    observations.push({ eventType: event.eventType || null, actualSiteId, workSiteContext });
   }
-  return null;
+  return observations;
+}
+
+function evidenceActualSiteId(events, expectedSiteId = null) {
+  const observations = siteObservations(events, expectedSiteId);
+  return observations.find((row) => row.workSiteContext === 'SUPPORT_SITE')?.actualSiteId
+    || observations[0]?.actualSiteId
+    || null;
 }
 
 function extraFlags(events, expectedSiteId, corrections = []) {
@@ -82,7 +97,8 @@ function extraFlags(events, expectedSiteId, corrections = []) {
     const evidence = event?.locationEvidence;
     if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) continue;
     const actualSiteId = evidence.actualSiteId || evidence.siteId || null;
-    if (actualSiteId && expectedSiteId && String(actualSiteId) !== String(expectedSiteId)) flags.add('ASSIST_OTHER_SITE');
+    if (String(evidence.workSiteContext || '').toUpperCase() === 'SUPPORT_SITE'
+      || (actualSiteId && expectedSiteId && String(actualSiteId) !== String(expectedSiteId))) flags.add('ASSIST_OTHER_SITE');
     const riskFlags = Array.isArray(evidence.riskFlags) ? evidence.riskFlags : [];
     riskFlags.forEach((flag) => { if (typeof flag === 'string' && flag) flags.add(flag); });
   }
@@ -218,8 +234,9 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
       });
       const derived = extraFlags(rawEvents, expectedSite?.id || null, corrections);
       const flags = [...new Set([...result.flags, ...derived])];
-      const actualSiteId = evidenceActualSiteId(rawEvents);
-      let actualSite = null;
+      const observations = siteObservations(rawEvents, expectedSite?.id || null);
+      const actualSiteId = evidenceActualSiteId(rawEvents, expectedSite?.id || null);
+      let actualSite = expectedSite;
       if (actualSiteId) {
         if (expectedSite?.id === actualSiteId) actualSite = expectedSite;
         else if (actualSiteCache.has(actualSiteId)) actualSite = actualSiteCache.get(actualSiteId);
@@ -231,6 +248,17 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
           actualSiteCache.set(actualSiteId, actualSite);
         }
       }
+      const attendanceSites = await Promise.all(observations.map(async (row) => {
+        let site = row.actualSiteId === String(expectedSite?.id || '') ? expectedSite : actualSiteCache.get(row.actualSiteId);
+        if (site === undefined || (!site && row.actualSiteId !== String(expectedSite?.id || ''))) {
+          site = await client.securitySite.findUnique({
+            where: { id: row.actualSiteId },
+            select: { id: true, code: true, name: true }
+          }).catch(() => null);
+          actualSiteCache.set(row.actualSiteId, site);
+        }
+        return { eventType: row.eventType, actualSite: site ? { id: site.id, code: site.code, name: site.name } : null, actualSiteId: row.actualSiteId, workSiteContext: row.workSiteContext };
+      }));
 
       const originalCheckIn = eventByType(rawEvents, 'CHECK_IN');
       const originalCheckOut = eventByType(rawEvents, 'CHECK_OUT');
@@ -243,7 +271,10 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
         employeeName: assignment.employeeNameSnapshot || assignment.employee?.displayName || `${assignment.employee?.firstName || ''} ${assignment.employee?.lastName || ''}`.trim(),
         department: assignment.departmentSnapshot || assignment.employee?.department || null,
         expectedSite: expectedSite ? { id: expectedSite.id, code: expectedSite.code, name: expectedSite.name } : null,
+        assignedSite: expectedSite ? { id: expectedSite.id, code: expectedSite.code, name: expectedSite.name } : null,
         actualSite: actualSite ? { id: actualSite.id, code: actualSite.code, name: actualSite.name } : null,
+        workSiteContext: observations.some((row) => row.workSiteContext === 'SUPPORT_SITE') ? 'SUPPORT_SITE' : 'ASSIGNED_SITE',
+        attendanceSites,
         shift: {
           id: assignment.shiftTypeId,
           code: assignment.shiftType?.code || null,
@@ -268,7 +299,8 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
     }
 
     return rows.filter((row) => {
-      if (filters.siteId && row.expectedSite?.id !== filters.siteId && row.actualSite?.id !== filters.siteId) return false;
+      if (filters.siteId && row.expectedSite?.id !== filters.siteId && row.actualSite?.id !== filters.siteId
+        && !row.attendanceSites.some((site) => site.actualSiteId === filters.siteId)) return false;
       if (filters.status === 'REQUIRES_ATTENTION') {
         const attention = new Set(['NOT_CHECKED_IN_YET', 'LATE', 'EARLY_OUT', 'WRONG_SHIFT', 'OUTSIDE_ALL_SITES', 'ABSENT', 'TIME_ABNORMAL']);
         if (!attention.has(row.attendanceStatus) && !row.flags.includes('MISSING_CHECK_IN') && !row.flags.includes('MISSING_CHECK_OUT')) return false;

@@ -244,19 +244,56 @@ export function deviceRiskSignals() {
   };
 }
 
-export function gpsGeofenceDecision(site: { latitude: number; longitude: number; geofenceRadiusMeters: number }, location: { latitude: number; longitude: number; accuracyMeters: number }) {
+export type GeofenceSite = { id: string; code?: string | null; name?: string | null; latitude: number; longitude: number; geofenceRadiusMeters: number };
+export type GeofenceDecision = {
+  classification: 'CONFIDENT_INSIDE' | 'BORDERLINE' | 'CONFIDENT_OUTSIDE';
+  distanceMeters: number;
+  lowerBoundMeters: number;
+  upperBoundMeters: number;
+  assignedSite: GeofenceSite;
+  actualSite: GeofenceSite | null;
+  workSiteContext: 'ASSIGNED_SITE' | 'SUPPORT_SITE' | 'OUTSIDE_ALL_SITES';
+};
+
+export function gpsGeofenceDecision(site: GeofenceSite, location: { latitude: number; longitude: number; accuracyMeters: number }, eligibleSites: GeofenceSite[] = []): GeofenceDecision {
   const radius = 6371008.8;
   const toRadians = (degrees: number) => degrees * Math.PI / 180;
-  const phi1 = toRadians(site.latitude);
-  const phi2 = toRadians(location.latitude);
-  const deltaPhi = toRadians(location.latitude - site.latitude);
-  const deltaLambda = toRadians(location.longitude - site.longitude);
-  const a = Math.sin(deltaPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
-  const distanceMeters = radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const lowerBoundMeters = Math.max(0, distanceMeters - location.accuracyMeters);
-  const upperBoundMeters = distanceMeters + location.accuracyMeters;
-  const classification = upperBoundMeters <= site.geofenceRadiusMeters
-    ? 'CONFIDENT_INSIDE'
-    : lowerBoundMeters <= site.geofenceRadiusMeters ? 'BORDERLINE' : 'CONFIDENT_OUTSIDE';
-  return { classification, distanceMeters, lowerBoundMeters, upperBoundMeters };
+  const check = (candidate: GeofenceSite) => {
+    const phi1 = toRadians(candidate.latitude);
+    const phi2 = toRadians(location.latitude);
+    const deltaPhi = toRadians(location.latitude - candidate.latitude);
+    const deltaLambda = toRadians(location.longitude - candidate.longitude);
+    const a = Math.sin(deltaPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
+    const distanceMeters = radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const lowerBoundMeters = Math.max(0, distanceMeters - location.accuracyMeters);
+    const upperBoundMeters = distanceMeters + location.accuracyMeters;
+    const classification = upperBoundMeters <= candidate.geofenceRadiusMeters
+      ? 'CONFIDENT_INSIDE' as const
+      : lowerBoundMeters <= candidate.geofenceRadiusMeters ? 'BORDERLINE' as const : 'CONFIDENT_OUTSIDE' as const;
+    return { candidate, classification, distanceMeters, lowerBoundMeters, upperBoundMeters };
+  };
+  const byId = new Map<string, GeofenceSite>([[String(site.id), site]]);
+  for (const candidate of eligibleSites) if (candidate?.id) byId.set(String(candidate.id), candidate);
+  const matching = [...byId.values()].map(check).filter((row) => row.classification !== 'CONFIDENT_OUTSIDE');
+  const assigned = matching.find((row) => String(row.candidate.id) === String(site.id));
+  const selected = assigned || matching.sort((left, right) => {
+    const normalizedDistance = left.distanceMeters / left.candidate.geofenceRadiusMeters - right.distanceMeters / right.candidate.geofenceRadiusMeters;
+    const leftCode = String(left.candidate.code || '').toUpperCase();
+    const rightCode = String(right.candidate.code || '').toUpperCase();
+    const codeOrder = leftCode === rightCode ? 0 : leftCode < rightCode ? -1 : 1;
+    const leftId = String(left.candidate.id).toLowerCase();
+    const rightId = String(right.candidate.id).toLowerCase();
+    const idOrder = leftId === rightId ? 0 : leftId < rightId ? -1 : 1;
+    return normalizedDistance || codeOrder || idOrder;
+  })[0] || null;
+  const classification = selected?.classification || 'CONFIDENT_OUTSIDE';
+  return {
+    classification,
+    distanceMeters: selected?.distanceMeters ?? Number.POSITIVE_INFINITY,
+    lowerBoundMeters: selected?.lowerBoundMeters ?? Number.POSITIVE_INFINITY,
+    upperBoundMeters: selected?.upperBoundMeters ?? Number.POSITIVE_INFINITY,
+    assignedSite: site,
+    actualSite: selected?.candidate || null,
+    workSiteContext: !selected ? 'OUTSIDE_ALL_SITES' : String(selected.candidate.id) === String(site.id) ? 'ASSIGNED_SITE' : 'SUPPORT_SITE'
+  };
 }

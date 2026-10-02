@@ -42,6 +42,13 @@ function durationText(minutes?: number | null) {
   return `${hours}:${String(Math.max(0, minutes) % 60).padStart(2, '0')}`;
 }
 
+function actualSiteLabel(row: AttendanceReportRow) {
+  const sites = row.attendanceSites || [];
+  const fallback = row.actualSite?.name || row.actualSite?.code || (row.assignedSite || row.expectedSite)?.name || '-';
+  if (sites.length <= 1) return fallback;
+  return sites.map((site) => `${site.eventType === 'CHECK_OUT' ? 'ออก' : 'เข้า'}: ${site.actualSite?.name || site.actualSite?.code || fallback}`).join(' / ');
+}
+
 function resultText(row: AttendanceReportRow) {
   const flags = new Set(row.flags || []);
   if (flags.has('LEAVE')) return 'ลา';
@@ -161,12 +168,13 @@ export function AttendanceOfficialReportPrint({ report, employeePages = groupByE
           <div><span>สถานะเอกสาร</span><strong>{report.certificationStatus}</strong></div>
         </section>
         <table className="attendance-report-table">
-          <thead><tr><th>วันที่</th><th>กะ</th><th>พื้นที่ตามตาราง</th><th>พื้นที่ที่บันทึกจริง</th><th>เข้า</th><th>ออก</th><th>ชม.</th><th>สาย</th><th>ก่อน</th><th>ผล</th></tr></thead>
+          <thead><tr><th>วันที่</th><th>กะ</th><th>สถานที่ตามตาราง</th><th>สถานที่ลงเวลาจริง</th><th>ประเภท</th><th>เข้า</th><th>ออก</th><th>ชม.</th><th>สาย</th><th>ก่อน</th><th>ผล</th></tr></thead>
           <tbody>{rows.map((row) => <tr key={row.assignmentId}>
             <td>{formatDate(row.workDate)}</td>
             <td>{row.shift?.code || row.shift?.name || '-'}</td>
-            <td>{row.expectedSite?.name || row.expectedSite?.code || '-'}</td>
-            <td>{row.actualSite?.name || row.actualSite?.code || '-'}</td>
+            <td>{(row.assignedSite || row.expectedSite)?.name || (row.assignedSite || row.expectedSite)?.code || '-'}</td>
+            <td>{actualSiteLabel(row)}</td>
+            <td>{row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</td>
             <td>{formatTime(row.checkInAt)}</td>
             <td>{formatTime(row.checkOutAt)}</td>
             <td>{durationText(row.workedMinutes)}</td>

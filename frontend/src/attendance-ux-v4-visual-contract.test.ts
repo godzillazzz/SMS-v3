@@ -93,8 +93,9 @@ describe('Attendance UX V4 visual acceptance contract', () => {
   });
 
   it('shows scheduled and recorded Site context plus operational flags in employee history', () => {
-    expect(history).toContain('พื้นที่ตามตาราง');
-    expect(history).toContain('พื้นที่ที่บันทึกจริง');
+    expect(history).toContain('สถานที่ตามตาราง');
+    expect(history).toContain('สถานที่ลงเวลาจริง');
+    expect(history).toContain("row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'");
     expect(history).toContain('WRONG_SHIFT');
     expect(history).toContain('ASSIST_OTHER_SITE');
     expect(history).toContain('OUTSIDE_ALL_SITES');

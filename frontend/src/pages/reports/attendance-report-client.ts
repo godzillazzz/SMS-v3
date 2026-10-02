@@ -2,6 +2,12 @@ import { ApiRequestError, normalizeRequestId } from '../../api';
 import { attendanceAuthenticatedRequest } from '../../attendance-auth-request';
 
 export type AttendanceReportSite = { id: string; code: string; name: string };
+export type AttendanceReportSiteObservation = {
+  eventType?: string | null;
+  actualSiteId?: string | null;
+  actualSite?: AttendanceReportSite | null;
+  workSiteContext?: 'ASSIGNED_SITE' | 'SUPPORT_SITE';
+};
 export type AttendanceReportRow = {
   assignmentId: string;
   sessionId?: string | null;
@@ -12,7 +18,10 @@ export type AttendanceReportRow = {
   workDate: string;
   shift?: { id?: string; code?: string | null; name?: string | null } | null;
   expectedSite?: AttendanceReportSite | null;
+  assignedSite?: AttendanceReportSite | null;
   actualSite?: AttendanceReportSite | null;
+  workSiteContext?: 'ASSIGNED_SITE' | 'SUPPORT_SITE';
+  attendanceSites?: AttendanceReportSiteObservation[];
   expectedStartAt?: string | null;
   expectedEndAt?: string | null;
   checkInAt?: string | null;

@@ -34,6 +34,12 @@ type Props = {
 };
 
 type Site = { id: string; code?: string | null; name: string };
+type AttendanceSiteObservation = {
+  eventType?: string | null;
+  actualSiteId?: string | null;
+  actualSite?: Site | null;
+  workSiteContext?: 'ASSIGNED_SITE' | 'SUPPORT_SITE';
+};
 type Shift = {
   id: string;
   code?: string | null;
@@ -51,7 +57,10 @@ type AttendanceRow = {
   employeeName: string;
   department?: string | null;
   expectedSite?: Site | null;
+  assignedSite?: Site | null;
   actualSite?: Site | null;
+  workSiteContext?: 'ASSIGNED_SITE' | 'SUPPORT_SITE';
+  attendanceSites?: AttendanceSiteObservation[];
   shift: Shift;
   expectedStartAt?: string | null;
   expectedEndAt?: string | null;
@@ -201,6 +210,13 @@ function time(value?: string | null) {
     minute: '2-digit',
     hourCycle: 'h23'
   }).format(new Date(value));
+}
+
+function actualSiteLabel(row: AttendanceRow) {
+  const sites = row.attendanceSites || [];
+  const fallback = row.actualSite?.name || row.actualSite?.code || (row.assignedSite || row.expectedSite)?.name || '—';
+  if (sites.length <= 1) return fallback;
+  return sites.map((site) => `${site.eventType === 'CHECK_OUT' ? 'ออก' : 'เข้า'}: ${site.actualSite?.name || site.actualSite?.code || fallback}`).join(' / ');
 }
 
 function dateTime(value?: string | null) {
@@ -357,8 +373,9 @@ function AttendanceMobileCard({
 
     <dl>
       <div><dt>กะ</dt><dd>{row.shift.code || row.shift.name || '—'}</dd></div>
-      <div><dt>จุดตามตาราง</dt><dd>{row.expectedSite?.name || '—'}</dd></div>
-      <div><dt>จุดที่บันทึก</dt><dd>{row.actualSite?.name || '—'}</dd></div>
+      <div><dt>สถานที่ตามตาราง</dt><dd>{(row.assignedSite || row.expectedSite)?.name || '—'}</dd></div>
+      <div><dt>สถานที่ลงเวลาจริง</dt><dd>{actualSiteLabel(row)}</dd></div>
+      <div><dt>ประเภท</dt><dd>{row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</dd></div>
       <div><dt>เข้า</dt><dd>{time(row.checkInAt)}</dd></div>
       <div><dt>ออก</dt><dd>{time(row.checkOutAt)}</dd></div>
       <div><dt>เวลาปฏิบัติงาน</dt><dd>{duration(row.workedMinutes)}</dd></div>
@@ -843,8 +860,9 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           {mode === 'history' && <th scope="col">วันที่</th>}
           <th scope="col">พนักงาน</th>
           <th scope="col">กะ</th>
-          <th scope="col">จุดตามตาราง</th>
-          <th scope="col">จุดที่บันทึก</th>
+          <th scope="col">สถานที่ตามตาราง</th>
+          <th scope="col">สถานที่ลงเวลาจริง</th>
+          <th scope="col">ประเภท</th>
           <th scope="col">เข้า</th>
           <th scope="col">ออก</th>
           <th scope="col">เวลาปฏิบัติงาน</th>
@@ -867,8 +885,9 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
               <small>{row.department || '—'}</small>
             </td>
             <td>{row.shift.code || row.shift.name || '—'}</td>
-            <td>{row.expectedSite?.name || '—'}</td>
-            <td>{row.actualSite?.name || '—'}</td>
+            <td>{(row.assignedSite || row.expectedSite)?.name || '—'}</td>
+            <td>{actualSiteLabel(row)}</td>
+            <td>{row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</td>
             <td>{time(row.checkInAt)}</td>
             <td>{time(row.checkOutAt)}</td>
             <td>{duration(row.workedMinutes)}</td>
@@ -1230,8 +1249,9 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
               <div><span>วันที่</span><strong>{detail.date}</strong></div>
               <div><span>พนักงาน</span><strong>{detail.employeeCode || '—'}</strong></div>
               <div><span>กะ</span><strong>{detail.shift.code || detail.shift.name || '—'}</strong></div>
-              <div><span>พื้นที่ตามตาราง</span><strong>{detail.expectedSite?.name || '—'}</strong></div>
-              <div><span>พื้นที่ที่บันทึกจริง</span><strong>{detail.actualSite?.name || '—'}</strong></div>
+              <div><span>สถานที่ตามตาราง</span><strong>{(detail.assignedSite || detail.expectedSite)?.name || '—'}</strong></div>
+              <div><span>สถานที่ลงเวลาจริง</span><strong>{actualSiteLabel(detail)}</strong></div>
+              <div><span>ประเภท</span><strong>{detail.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</strong></div>
               <div><span>สถานะ</span><strong>{statusLabel(detail.attendanceStatus)}</strong></div>
             </section>
 

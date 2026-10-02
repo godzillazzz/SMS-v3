@@ -18,6 +18,7 @@ const {
   GEOFENCE_CLASSIFICATIONS,
   tokenHash,
   haversineMeters,
+  chooseActualSite,
   createAttendanceSiteEvidenceService
 } = require('../src/services/attendance-site-evidence.service');
 
@@ -213,17 +214,73 @@ test('uncertainty-aware geofence requires QR for BORDERLINE and records LOCATION
   );
 });
 
-test('CONFIDENT_INSIDE at another active Site outranks expected Site BORDERLINE', async () => {
+test('assigned Site wins overlapping geofences whenever its uncertainty band still matches', async () => {
   const other = { ...baseSite({ id: ids.otherSite, code: 'HQ-B' }), latitude: 13.72513, longitude: 100.5701, geofenceRadiusMeters: 80 };
-  const { service } = serviceFor({ otherSites: [other], credential: baseCredential({ securitySiteId: ids.otherSite }) });
-  const sample = location({ latitude: 13.72513, longitude: 100.5701, accuracyMeters: 8 });
+  const { service } = serviceFor({ otherSites: [other] });
+  const sample = location({ latitude: 13.72514, longitude: 100.5701, accuracyMeters: 8 });
   const result = await service.validateForAssignment({
     assignment: { securitySiteId: ids.site },
     qrToken,
     location: sample
   });
+  assert.equal(result.evidenceRef.actualSiteId, ids.site);
+  assert.equal(result.evidenceRef.workSiteContext, 'ASSIGNED_SITE');
+  assert.equal(result.decision.geofenceClassification, 'BORDERLINE');
+  assert.deepEqual(result.evidenceRef.riskFlags, ['LOCATION_RISK']);
+});
+
+test('support-site overlap selection uses normalized distance then stable Site code and ID', () => {
+  const assigned = baseSite({ latitude: 13.72, longitude: 100.57, geofenceRadiusMeters: 30 });
+  const widerButNearer = baseSite({ id: ids.otherSite, code: 'Z-SITE', latitude: 13.7242, longitude: 100.57012, geofenceRadiusMeters: 200 });
+  const lexicalWinner = baseSite({ id: '33333333-3333-4333-8333-333333333333', code: 'A-SITE', latitude: 13.7242, longitude: 100.57012, geofenceRadiusMeters: 200 });
+  const sample = location({ capturedAt: now });
+  const selected = chooseActualSite(assigned, [lexicalWinner, widerButNearer], sample, {});
+  assert.equal(selected.candidate.id, lexicalWinner.id);
+  assert.equal(selected.check.classification, 'CONFIDENT_INSIDE');
+
+  const normalizedAssigned = baseSite({ latitude: 13.72, longitude: 100.57, geofenceRadiusMeters: 25 });
+  const narrowCloser = baseSite({ id: '55555555-5555-4555-8555-555555555555', code: 'A-CLOSER', latitude: 13.7244, longitude: 100.5701, geofenceRadiusMeters: 60 });
+  const broadNormalizedWinner = baseSite({ id: '66666666-6666-4666-8666-666666666666', code: 'Z-NORMALIZED', latitude: 13.7246, longitude: 100.5701, geofenceRadiusMeters: 120 });
+  const normalized = chooseActualSite(normalizedAssigned, [narrowCloser, broadNormalizedWinner], location({ capturedAt: now }), {});
+  assert.ok(haversineMeters(normalizedAssigned.latitude, normalizedAssigned.longitude, narrowCloser.latitude, narrowCloser.longitude)
+    < haversineMeters(normalizedAssigned.latitude, normalizedAssigned.longitude, broadNormalizedWinner.latitude, broadNormalizedWinner.longitude));
+  assert.equal(normalized.candidate.id, broadNormalizedWinner.id);
+});
+
+test('support Site requires a confident inside GPS classification when assigned Site is outside', () => {
+  const assigned = baseSite({ latitude: 13.7241, longitude: 100.5701, geofenceRadiusMeters: 60 });
+  const support = baseSite({ id: ids.otherSite, code: 'HQ-B', latitude: 13.72513, longitude: 100.5701, geofenceRadiusMeters: 80 });
+  const sample = location({ latitude: 13.7259, longitude: 100.5701, accuracyMeters: 8, capturedAt: now });
+  const supportDistance = haversineMeters(support.latitude, support.longitude, sample.latitude, sample.longitude);
+  const assignedDistance = haversineMeters(assigned.latitude, assigned.longitude, sample.latitude, sample.longitude);
+  assert.ok(supportDistance - sample.accuracyMeters <= support.geofenceRadiusMeters);
+  assert.ok(supportDistance + sample.accuracyMeters > support.geofenceRadiusMeters);
+  assert.ok(assignedDistance - sample.accuracyMeters > assigned.geofenceRadiusMeters);
+  assert.equal(chooseActualSite(assigned, [support], sample, {}), null);
+});
+
+test('offline eligible Site snapshot contains active authoritative Sites only and deterministic order', async () => {
+  const disabled = baseSite({ id: '44444444-4444-4444-8444-444444444444', code: 'DISABLED', isActive: false });
+  const { service } = serviceFor({ otherSites: [baseSite({ id: ids.otherSite, code: 'HQ-B' }), disabled] });
+  const sites = await service.eligibleSitesForAssignment({ assignment: { securitySiteId: ids.site } });
+  assert.deepEqual(sites.map((site) => site.code), ['HQ-A', 'HQ-B']);
+  assert.equal(sites.some((site) => site.id === disabled.id), false);
+  assert.equal(sites.every((site) => site.isActive === true), true);
+});
+
+test('support-site evidence persists assigned/actual Site and explicit work context', async () => {
+  const other = { ...baseSite({ id: ids.otherSite, code: 'HQ-B' }), latitude: 13.72513, longitude: 100.5701, geofenceRadiusMeters: 80 };
+  const { service } = serviceFor({ otherSites: [other] });
+  const result = await service.validateGpsOnlyForAssignment({
+    assignment: { securitySiteId: ids.site },
+    location: location({ latitude: 13.7253, longitude: 100.5701 }),
+    referenceTime: now
+  });
+  assert.equal(result.evidenceRef.expectedSiteId, ids.site);
   assert.equal(result.evidenceRef.actualSiteId, ids.otherSite);
-  assert.equal(result.decision.geofenceClassification, 'CONFIDENT_INSIDE');
+  assert.equal(result.evidenceRef.assignedSite.code, 'HQ-A');
+  assert.equal(result.evidenceRef.actualSite.code, 'HQ-B');
+  assert.equal(result.evidenceRef.workSiteContext, 'SUPPORT_SITE');
   assert.deepEqual(result.evidenceRef.riskFlags, ['ASSIST_OTHER_SITE']);
 });
 
