@@ -164,6 +164,11 @@ jobs:
                   EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-production-migration-v2.yml'
                   EVIDENCE_WORKFLOW_EVENT='push'
                   ;;
+                .github/releases/approved-g06-simple-attendance-production-migration.json)
+                  EVIDENCE_WORKFLOW_NAME='Apply Approved G06 Simple Attendance Production Migration'
+                  EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-g06-simple-attendance-production-migration.yml'
+                  EVIDENCE_WORKFLOW_EVENT='push'
+                  ;;
                 .github/releases/approved-mdg-01b-production-migration.json)
                   EVIDENCE_WORKFLOW_NAME='Apply Approved MDG-01B Production Migration'
                   EVIDENCE_WORKFLOW_PATH='.github/workflows/one-time-vercel-production-sync.yml'
