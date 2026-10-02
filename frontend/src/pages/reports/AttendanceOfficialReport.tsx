@@ -49,19 +49,36 @@ function actualSiteLabel(row: AttendanceReportRow) {
   return sites.map((site) => `${site.eventType === 'CHECK_OUT' ? 'ออก' : 'เข้า'}: ${site.actualSite?.name || site.actualSite?.code || fallback}`).join(' / ');
 }
 
+function abnormalReasonLabel(reason: string) {
+  const labels: Record<string, string> = {
+    MISSING_CHECK_OUT: 'ไม่ได้ลงเวลาออก',
+    MAX_SHIFT_DURATION_EXCEEDED: 'เกินเวลากะสูงสุด',
+    CHECK_OUT_BEFORE_CHECK_IN: 'ลำดับเวลาออกก่อนเวลาเข้า'
+  };
+  return labels[reason] || 'เวลาผิดปกติ';
+}
+
+function abnormalReasonText(reasons?: string[]) {
+  return [...new Set((reasons || []).map(abnormalReasonLabel))].join(', ') || 'เวลาผิดปกติ';
+}
+
 function resultText(row: AttendanceReportRow) {
   const flags = new Set(row.flags || []);
   if (flags.has('LEAVE')) return 'ลา';
   if (flags.has('ABSENT')) return 'ขาดงาน';
-  if (flags.has('MISSING_CHECK_OUT')) return 'เวลาผิดปกติ / ไม่มีเวลาออก';
-  if (flags.has('TIME_ABNORMAL')) return 'เวลาผิดปกติ';
-  if (flags.has('OUTSIDE_ALL_SITES')) return 'อยู่นอกพื้นที่ Site';
-  if (flags.has('WRONG_SHIFT')) return 'ผิดกะ';
-  if (flags.has('ASSIST_OTHER_SITE')) return `ช่วยปฏิบัติงาน ณ ${row.actualSite?.name || row.actualSite?.code || '-'}`;
-  if (flags.has('EARLY_OUT') && flags.has('LATE')) return 'มาสาย / ออกก่อนเวลา';
-  if (flags.has('EARLY_OUT')) return 'ออกก่อนเวลา';
-  if (flags.has('LATE')) return 'มาสาย';
-  if (flags.has('ON_TIME')) return 'ปกติ';
+  const labels: string[] = [];
+  if (flags.has('OUTSIDE_ALL_SITES')) labels.push('อยู่นอกพื้นที่ Site');
+  if (flags.has('WRONG_SHIFT')) labels.push('ผิดกะ');
+  if (flags.has('DEVICE_MISMATCH')) labels.push('ใช้อุปกรณ์อื่น · ตรวจสอบ');
+  if (row.workSiteContext === 'SUPPORT_SITE' || flags.has('ASSIST_OTHER_SITE')) labels.push(`ช่วยปฏิบัติงาน ณ ${row.actualSite?.name || row.actualSite?.code || '-'}`);
+  const punctuality = row.punctuality || (flags.has('LATE') ? 'LATE' : flags.has('ON_TIME') ? 'ON_TIME' : null);
+  if (punctuality === 'LATE') labels.push('มาสาย');
+  else if (punctuality === 'ON_TIME') labels.push('ตรงเวลา');
+  const checkout = row.checkoutCondition || (flags.has('MISSING_CHECK_OUT') ? 'MISSING_CHECK_OUT' : flags.has('EARLY_OUT') ? 'EARLY_LEAVE' : null);
+  if (checkout === 'EARLY_LEAVE') labels.push('ออกก่อนเวลา');
+  if (checkout === 'MISSING_CHECK_OUT' || flags.has('MISSING_CHECK_OUT')) labels.push('ไม่ได้ลงเวลาออก');
+  if (row.abnormalTime || flags.has('TIME_ABNORMAL')) labels.push(abnormalReasonText(row.abnormalReasons));
+  if (labels.length) return [...new Set(labels)].join(' / ');
   return row.status || '-';
 }
 
@@ -168,18 +185,21 @@ export function AttendanceOfficialReportPrint({ report, employeePages = groupByE
           <div><span>สถานะเอกสาร</span><strong>{report.certificationStatus}</strong></div>
         </section>
         <table className="attendance-report-table">
-          <thead><tr><th>วันที่</th><th>กะ</th><th>สถานที่ตามตาราง</th><th>สถานที่ลงเวลาจริง</th><th>ประเภท</th><th>เข้า</th><th>ออก</th><th>ชม.</th><th>สาย</th><th>ก่อน</th><th>ผล</th></tr></thead>
+          <thead><tr><th>วันที่</th><th>กะ</th><th>เริ่มกะ</th><th>เลิกกะ</th><th>สถานที่ตามตาราง</th><th>สถานที่ลงเวลาจริง</th><th>ประเภท</th><th>เข้า</th><th>ออก</th><th>ชม.</th><th>สถานะเข้า</th><th>สถานะออก</th><th>ผิดปกติ</th><th>ผล</th></tr></thead>
           <tbody>{rows.map((row) => <tr key={row.assignmentId}>
             <td>{formatDate(row.workDate)}</td>
             <td>{row.shift?.code || row.shift?.name || '-'}</td>
+            <td>{formatTime(row.scheduledStartAt || row.expectedStartAt)}</td>
+            <td>{formatTime(row.scheduledEndAt || row.expectedEndAt)}</td>
             <td>{(row.assignedSite || row.expectedSite)?.name || (row.assignedSite || row.expectedSite)?.code || '-'}</td>
             <td>{actualSiteLabel(row)}</td>
             <td>{row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</td>
-            <td>{formatTime(row.checkInAt)}</td>
-            <td>{formatTime(row.checkOutAt)}</td>
+            <td>{formatTime(row.effectiveCheckInAt || row.checkInAt)}</td>
+            <td>{formatTime(row.effectiveCheckOutAt || row.checkOutAt)}</td>
             <td>{durationText(row.workedMinutes)}</td>
-            <td>{row.lateMinutes ?? '-'}</td>
-            <td>{row.earlyOutMinutes ?? '-'}</td>
+            <td>{row.punctuality === 'LATE' || row.flags.includes('LATE') ? 'สาย' : row.punctuality === 'ON_TIME' || row.flags.includes('ON_TIME') ? 'ตรงเวลา' : '-'}</td>
+            <td>{row.checkoutCondition === 'EARLY_LEAVE' || row.flags.includes('EARLY_OUT') ? 'ออกก่อนเวลา' : row.checkoutCondition === 'MISSING_CHECK_OUT' || row.flags.includes('MISSING_CHECK_OUT') ? 'ไม่ได้ลงเวลาออก' : row.checkoutCondition === 'NORMAL' ? 'ปกติ' : '-'}</td>
+            <td>{row.abnormalTime || row.flags.includes('TIME_ABNORMAL') ? abnormalReasonText(row.abnormalReasons) : '-'}</td>
             <td>{resultText(row)}</td>
           </tr>)}</tbody>
         </table>

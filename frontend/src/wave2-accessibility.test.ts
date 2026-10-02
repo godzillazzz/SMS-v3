@@ -30,9 +30,9 @@ describe('WAVE 2 verified accessibility semantics', () => {
     expect(dataQuality).toContain('onPageSize(Number(event.target.value))');
   });
 
-  it('marks Attendance Supervisor headers without changing attendance behavior', () => {
-    expect((attendanceSupervisor.match(/<th scope="col"/g) ?? []).length).toBe(12);
-    for (const label of ['พนักงาน', 'กะ', 'สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'ประเภท', 'สถานะ', 'การทำงาน']) {
+  it('marks Attendance Supervisor headers including the new time-policy fields', () => {
+    expect((attendanceSupervisor.match(/<th scope="col"/g) ?? []).length).toBe(14);
+    for (const label of ['พนักงาน', 'กะ', 'เวลาตามกะ', 'สถานะเวลา', 'สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'ประเภท', 'สถานะ', 'การทำงาน']) {
       expect(attendanceSupervisor).toContain(`>${label}</th>`);
     }
   });

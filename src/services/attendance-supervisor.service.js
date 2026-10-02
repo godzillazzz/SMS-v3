@@ -4,6 +4,7 @@ const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
 const { classifyAttendanceDay, ATTENDANCE_RESULT_FLAGS } = require('./attendance-result.service');
+const { createAttendanceTimePolicyService } = require('./attendance-time-policy.service');
 const { currentCorrectionsForAssignments, applyCurrentCorrections } = require('./attendance-correction.service');
 
 const BANGKOK_TIME_ZONE = 'Asia/Bangkok';
@@ -94,6 +95,10 @@ function evidenceActualSiteId(events, expectedSiteId = null) {
 function extraFlags(events, expectedSiteId, corrections = []) {
   const flags = new Set();
   for (const event of events || []) {
+    const reviewReasons = Array.isArray(event?.reviewReasons) ? event.reviewReasons : [];
+    reviewReasons.forEach((flag) => {
+      if (typeof flag === 'string' && /^[A-Z][A-Z0-9_:-]{0,79}$/.test(flag)) flags.add(flag);
+    });
     const evidence = event?.locationEvidence;
     if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) continue;
     const actualSiteId = evidence.actualSiteId || evidence.siteId || null;
@@ -174,8 +179,9 @@ function pagination(filters = {}) {
   return { page, pageSize };
 }
 
-function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () => new Date(), siteAuthorityService = null } = {}) {
+function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () => new Date(), siteAuthorityService = null, timePolicyService = null } = {}) {
   const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
+  const timePolicies = timePolicyService || createAttendanceTimePolicyService({ prisma, clock });
 
   async function correctionsMap(client, assignmentIds) {
     const currentCorrections = typeof client.$queryRaw === 'function'
@@ -219,7 +225,8 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
       const session = assignment.attendanceSession || null;
       const rawEvents = session?.events || [];
       const corrections = correctionsByAssignment.get(assignment.id) || [];
-      const events = applyCurrentCorrections(rawEvents, corrections);
+      const correctedEvents = applyCurrentCorrections(rawEvents, corrections);
+      const events = await timePolicies.hydrateEvents({ assignment, events: correctedEvents }, client);
       let expectedSite = session?.expectedSite || assignment.securitySite || null;
       if (!expectedSite) {
         try { expectedSite = (await siteAuthority.resolve({ assignment, existingSession: session }, client)).site; }
@@ -284,13 +291,23 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
         },
         expectedStartAt: result.expectedStartAt,
         expectedEndAt: result.expectedEndAt,
+        scheduledStartAt: result.scheduledStartAt,
+        scheduledEndAt: result.scheduledEndAt,
         originalCheckInAt: originalCheckIn?.effectiveEventAt || null,
         originalCheckOutAt: originalCheckOut?.effectiveEventAt || null,
         checkInAt: result.checkInAt,
         checkOutAt: result.checkOutAt,
+        effectiveCheckInAt: result.effectiveCheckInAt,
+        effectiveCheckOutAt: result.effectiveCheckOutAt,
         workedMinutes: result.workedMinutes,
         lateMinutes: result.lateMinutes,
         earlyOutMinutes: result.earlyOutMinutes,
+        punctuality: result.punctuality,
+        checkoutCondition: result.checkoutCondition,
+        abnormalTime: result.abnormalTime,
+        abnormalReasons: result.abnormalReasons,
+        effectivePolicy: result.effectivePolicy,
+        effectivePolicies: result.effectivePolicies,
         corrections,
         correctionAuthority: corrections.length ? 'EFFECTIVE_ATTENDANCE_CORRECTION' : 'RAW_ATTENDANCE_EVENT',
         attendanceStatus: operationalStatus(result, flags),

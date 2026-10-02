@@ -65,6 +65,8 @@ function status(row: AttendanceSelfRow) {
 const operationalFlagLabels: Record<string, string> = {
   WRONG_SHIFT: 'ผิดกะ',
   ASSIST_OTHER_SITE: 'ช่วยพื้นที่อื่น',
+  DEVICE_MISMATCH: 'ใช้อุปกรณ์อื่น · ตรวจสอบ',
+  DEVICE_MOVE_PENDING: 'รออนุมัติย้ายเครื่อง',
   OUTSIDE_ALL_SITES: 'นอกพื้นที่',
   MISSING_CHECK_IN: 'ไม่มีเวลาเข้า',
   MISSING_CHECK_OUT: 'ไม่มีเวลาออก',
@@ -150,7 +152,13 @@ export function AttendanceHistoryPwaPage({ token, online }: Props) {
           </div>
           {(() => {
             const flags = row.flags.map((flag) => operationalFlagLabels[flag]).filter(Boolean);
-            return (row.lateMinutes || row.earlyOutMinutes || flags.length > 0) ? <div className="employee-v4-history-flags">
+            const timeLabels = [
+              row.punctuality === 'LATE' ? 'มาสาย' : row.punctuality === 'ON_TIME' ? 'ตรงเวลา' : null,
+              row.checkoutCondition === 'EARLY_LEAVE' ? 'ออกก่อนเวลา' : row.checkoutCondition === 'MISSING_CHECK_OUT' ? 'ไม่ได้ลงเวลาออก' : null,
+              row.abnormalTime ? 'เวลาผิดปกติ' : null
+            ].filter((value): value is string => Boolean(value));
+            return (row.lateMinutes || row.earlyOutMinutes || flags.length > 0 || timeLabels.length > 0) ? <div className="employee-v4-history-flags">
+              {timeLabels.map((label) => <span key={`time-${label}`}>{label}</span>)}
               {Boolean(row.lateMinutes) && <span>สาย {row.lateMinutes} นาที</span>}
               {Boolean(row.earlyOutMinutes) && <span>ออกก่อน {row.earlyOutMinutes} นาที</span>}
               {flags.map((flag) => <span key={flag}>{flag}</span>)}

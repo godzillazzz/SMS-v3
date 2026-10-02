@@ -6,6 +6,7 @@ const prismaDefault = require('../config/prisma');
 const auditDefault = require('./audit.service');
 const HttpError = require('../utils/http-error');
 const { classifyAttendanceDay } = require('./attendance-result.service');
+const { createAttendanceTimePolicyService } = require('./attendance-time-policy.service');
 const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
 const { currentCorrectionsForAssignments, applyCurrentCorrections } = require('./attendance-correction.service');
 
@@ -67,6 +68,10 @@ function actualSiteId(events, expectedSiteId = null) {
 function evidenceFlags(events, expectedSiteId = null) {
   const flags = new Set();
   for (const event of events || []) {
+    const reviewReasons = Array.isArray(event?.reviewReasons) ? event.reviewReasons : [];
+    reviewReasons.forEach((flag) => {
+      if (typeof flag === 'string' && /^[A-Z][A-Z0-9_:-]{0,79}$/.test(flag)) flags.add(flag);
+    });
     const evidence = event?.locationEvidence;
     if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) continue;
     const actualSiteId = evidence.actualSiteId || evidence.siteId || null;
@@ -121,8 +126,9 @@ async function requireApprovedSchedule(client, period) {
   return approval;
 }
 
-function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date(), siteAuthorityService = null } = {}) {
+function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit = auditDefault, clock = () => new Date(), siteAuthorityService = null, timePolicyService = null } = {}) {
   const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
+  const timePolicies = timePolicyService || createAttendanceTimePolicyService({ prisma, audit, clock });
 
   async function certificationHistory(month, client = prisma) {
     const period = parseMonth(month);
@@ -182,7 +188,8 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
       const session = assignment.attendanceSession || null;
       const rawEvents = session?.events || [];
       const assignmentCorrections = correctionsByAssignment.get(assignment.id) || [];
-      const events = applyCurrentCorrections(rawEvents, assignmentCorrections);
+      const correctedEvents = applyCurrentCorrections(rawEvents, assignmentCorrections);
+      const events = await timePolicies.hydrateEvents({ assignment, events: correctedEvents }, client);
       const leave = leaves.some((row) => row.employeeId === assignment.employeeId && row.startDate <= assignment.workDate && row.endDate >= assignment.workDate);
       const result = classifyAttendanceDay({ assignment, events, approvedLeave: leave, asOf: now });
       let expectedSite = session?.expectedSite || assignment.securitySite || null;
@@ -219,13 +226,23 @@ function createAttendanceMonthGovernanceService({ prisma = prismaDefault, audit 
         attendanceSites,
         expectedStartAt: result.expectedStartAt,
         expectedEndAt: result.expectedEndAt,
+        scheduledStartAt: result.scheduledStartAt,
+        scheduledEndAt: result.scheduledEndAt,
         originalCheckInAt: rawCheckIn?.effectiveEventAt || null,
         originalCheckOutAt: rawCheckOut?.effectiveEventAt || null,
         checkInAt: result.checkInAt,
         checkOutAt: result.checkOutAt,
+        effectiveCheckInAt: result.effectiveCheckInAt,
+        effectiveCheckOutAt: result.effectiveCheckOutAt,
         workedMinutes: result.workedMinutes,
         lateMinutes: result.lateMinutes,
         earlyOutMinutes: result.earlyOutMinutes,
+        punctuality: result.punctuality,
+        checkoutCondition: result.checkoutCondition,
+        abnormalTime: result.abnormalTime,
+        abnormalReasons: result.abnormalReasons,
+        effectivePolicy: result.effectivePolicy,
+        effectivePolicies: result.effectivePolicies,
         status: result.status,
         flags,
         corrections: assignmentCorrections.map((row) => ({ id: row.id, eventType: row.eventType, reason: row.reason, actorUserId: row.actorUserId, createdAt: row.createdAt }))

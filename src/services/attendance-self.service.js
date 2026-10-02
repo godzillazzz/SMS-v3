@@ -4,6 +4,7 @@ const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
 const { classifyAttendanceDay } = require('./attendance-result.service');
+const { createAttendanceTimePolicyService } = require('./attendance-time-policy.service');
 const { bangkokParts, isOvernightAssignment } = require('./attendance-verification-context.service');
 const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { currentCorrectionsForAssignments, applyCurrentCorrections } = require('./attendance-correction.service');
@@ -102,8 +103,9 @@ function siteSummary(site) {
   return site ? { id: site.id, code: site.code, name: site.name } : null;
 }
 
-function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new Date(), siteAuthorityService = null, correctionsForAssignments = currentCorrectionsForAssignments, applyCorrections = applyCurrentCorrections } = {}) {
+function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new Date(), siteAuthorityService = null, timePolicyService = null, correctionsForAssignments = currentCorrectionsForAssignments, applyCorrections = applyCurrentCorrections } = {}) {
   const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
+  const timePolicies = timePolicyService || createAttendanceTimePolicyService({ prisma, clock });
 
   async function identity(actor, client = prisma) {
     const user = await client.user.findUnique({
@@ -169,7 +171,8 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
   async function normalizeAssignment(assignment, employee, asOf, client = prisma, providedCorrections = null) {
     const rawEvents = assignment.attendanceSession?.events || [];
     const corrections = providedCorrections || await correctionsForAssignments(client, [assignment.id]);
-    const effectiveEvents = applyCorrections(rawEvents, corrections);
+    const correctedEvents = applyCorrections(rawEvents, corrections);
+    const effectiveEvents = await timePolicies.hydrateEvents({ assignment, events: correctedEvents }, client);
     const hasLeave = await approvedLeave(employee.id, assignment.workDate, client);
     const result = classifyAttendanceDay({ assignment, events: effectiveEvents, approvedLeave: hasLeave, asOf });
     const expectedSite = await resolveExpectedSite(assignment, client);
@@ -216,17 +219,27 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
       attendanceSites,
       expectedStartAt: result.expectedStartAt,
       expectedEndAt: result.expectedEndAt,
+      scheduledStartAt: result.scheduledStartAt,
+      scheduledEndAt: result.scheduledEndAt,
       originalCheckInAt: originalCheckIn?.effectiveEventAt || null,
       originalCheckOutAt: originalCheckOut?.effectiveEventAt || null,
       checkInAt: result.checkInAt,
       checkOutAt: result.checkOutAt,
+      effectiveCheckInAt: result.effectiveCheckInAt,
+      effectiveCheckOutAt: result.effectiveCheckOutAt,
       checkInEventId: originalCheckIn?.id || null,
       checkOutEventId: originalCheckOut?.id || null,
       workedMinutes: result.workedMinutes,
       lateMinutes: result.lateMinutes,
       earlyOutMinutes: result.earlyOutMinutes,
+      punctuality: result.punctuality,
+      checkoutCondition: result.checkoutCondition,
+      abnormalTime: result.abnormalTime,
+      abnormalReasons: result.abnormalReasons,
+      effectivePolicy: result.effectivePolicy,
+      effectivePolicies: result.effectivePolicies,
       status: result.status,
-      flags: result.flags,
+      flags: [...new Set([...result.flags, ...rawEvents.flatMap((row) => Array.isArray(row.reviewReasons) ? row.reviewReasons : [])])],
       corrected,
       correctionEventTypes: correctedTypes,
       authority: corrected ? 'EFFECTIVE_ATTENDANCE_CORRECTION' : 'RAW_ATTENDANCE_EVENT'
@@ -264,7 +277,11 @@ function createAttendanceSelfService({ prisma = prismaDefault, clock = () => new
       const endText = normalizeScheduleTime(previous.endTime || previous.shiftType?.endTime || null) || '00:00';
       const [hour, minute] = endText.split(':').map(Number);
       const endMinutes = Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : 0;
-      if (local.minutes < endMinutes) return previous;
+      const sessionEvents = previous.attendanceSession?.events || [];
+      const openCheckout = previous.attendanceSession?.state === 'OPEN'
+        && sessionEvents.some((event) => event.eventType === 'CHECK_IN')
+        && !sessionEvents.some((event) => event.eventType === 'CHECK_OUT');
+      if (openCheckout || local.minutes < endMinutes) return previous;
     }
     return today || null;
   }

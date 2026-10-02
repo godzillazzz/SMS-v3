@@ -219,6 +219,7 @@ model User {
   attendanceDevicesApproved         AttendanceDeviceEnrollment[]      @relation("AttendanceDeviceApprovedBy")
   attendanceDeviceRequestsCreated   AttendanceDeviceChangeRequest[]   @relation("AttendanceDeviceRequestedBy")
   attendanceDeviceRequestsReviewed  AttendanceDeviceChangeRequest[]   @relation("AttendanceDeviceReviewedBy")
+  attendanceTimePoliciesCreated     AttendanceTimePolicy[]            @relation("AttendanceTimePolicyCreatedBy")
   referencePhotosUploaded           EmployeeReferencePhoto[]          @relation("EmployeeReferencePhotoUploadedBy")
   referencePhotosReviewed           EmployeeReferencePhoto[]          @relation("EmployeeReferencePhotoReviewedBy")
   faceVerificationSessions          FaceVerificationSession[]         @relation("FaceVerificationSessionUser")
@@ -665,6 +666,9 @@ model AttendanceEvent {
   effectiveEventAt          DateTime                  @map("effective_event_at")
   deviceCapturedAt          DateTime?                 @map("device_captured_at")
   timeBasis                 AttendanceTimeBasis       @default(SERVER_RECEIVED) @map("time_basis")
+  punctuality               String?                   @db.VarChar(16)
+  checkoutCondition         String?                   @map("checkout_condition") @db.VarChar(24)
+  timePolicySnapshot        Json?                     @map("time_policy_snapshot")
   contextDigest             String                    @map("context_digest") @db.Char(64)
   locationEvidence          Json                      @map("location_evidence")
   verificationSnapshot      Json                      @map("verification_snapshot")
@@ -683,25 +687,26 @@ model AttendanceEvent {
 }
 
 model AttendancePendingEvent {
-  id                String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId        String                       @map("employee_id") @db.Uuid
-  shiftAssignmentId String                       @map("shift_assignment_id") @db.Uuid
-  captureId         String                       @unique @map("capture_id") @db.Uuid
-  eventType         AttendanceEventType          @map("event_type")
-  sourceMode        String                       @default("OFFLINE") @map("source_mode") @db.VarChar(16)
-  capturedAt        DateTime                     @map("captured_at")
-  receivedAt        DateTime                     @map("received_at")
-  locationEvidence  Json                         @map("location_evidence")
-  deviceSnapshot    Json                         @map("device_snapshot")
-  riskFlags         Json                         @map("risk_flags")
-  payloadDigest     String                       @map("payload_digest") @db.Char(64)
-  status            AttendancePendingEventStatus @default(PENDING_CONFIRMATION)
-  reviewedByUserId  String?                      @map("reviewed_by_user_id") @db.Uuid
-  reviewedAt        DateTime?                    @map("reviewed_at")
-  reviewComment     String?                      @map("review_comment") @db.VarChar(1000)
-  attendanceEventId String?                      @unique @map("attendance_event_id") @db.Uuid
-  createdAt         DateTime                     @default(now()) @map("created_at")
-  updatedAt         DateTime                     @updatedAt @map("updated_at")
+  id                 String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId         String                       @map("employee_id") @db.Uuid
+  shiftAssignmentId  String                       @map("shift_assignment_id") @db.Uuid
+  captureId          String                       @unique @map("capture_id") @db.Uuid
+  eventType          AttendanceEventType          @map("event_type")
+  sourceMode         String                       @default("OFFLINE") @map("source_mode") @db.VarChar(16)
+  capturedAt         DateTime                     @map("captured_at")
+  receivedAt         DateTime                     @map("received_at")
+  locationEvidence   Json                         @map("location_evidence")
+  deviceSnapshot     Json                         @map("device_snapshot")
+  timePolicySnapshot Json?                        @map("time_policy_snapshot")
+  riskFlags          Json                         @map("risk_flags")
+  payloadDigest      String                       @map("payload_digest") @db.Char(64)
+  status             AttendancePendingEventStatus @default(PENDING_CONFIRMATION)
+  reviewedByUserId   String?                      @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt         DateTime?                    @map("reviewed_at")
+  reviewComment      String?                      @map("review_comment") @db.VarChar(1000)
+  attendanceEventId  String?                      @unique @map("attendance_event_id") @db.Uuid
+  createdAt          DateTime                     @default(now()) @map("created_at")
+  updatedAt          DateTime                     @updatedAt @map("updated_at")
 
   @@index([employeeId, capturedAt])
   @@index([status, receivedAt])
@@ -821,18 +826,19 @@ model EmployeeChangeRequestEvent {
 }
 
 model SecuritySite {
-  id                   String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code                 String                     @unique @db.VarChar(50)
-  name                 String                     @db.VarChar(150)
-  latitude             Decimal                    @db.Decimal(10, 7)
-  longitude            Decimal                    @db.Decimal(10, 7)
-  geofenceRadiusMeters Int                        @map("geofence_radius_meters")
-  isActive             Boolean                    @default(true) @map("is_active")
-  createdAt            DateTime                   @default(now()) @map("created_at")
-  updatedAt            DateTime                   @updatedAt @map("updated_at")
-  shiftAssignments     ShiftAssignment[]
-  qrCredentials        SecuritySiteQrCredential[]
-  attendanceSessions   AttendanceSession[]        @relation("AttendanceSessionExpectedSite")
+  id                     String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                   String                     @unique @db.VarChar(50)
+  name                   String                     @db.VarChar(150)
+  latitude               Decimal                    @db.Decimal(10, 7)
+  longitude              Decimal                    @db.Decimal(10, 7)
+  geofenceRadiusMeters   Int                        @map("geofence_radius_meters")
+  isActive               Boolean                    @default(true) @map("is_active")
+  createdAt              DateTime                   @default(now()) @map("created_at")
+  updatedAt              DateTime                   @updatedAt @map("updated_at")
+  shiftAssignments       ShiftAssignment[]
+  qrCredentials          SecuritySiteQrCredential[]
+  attendanceSessions     AttendanceSession[]        @relation("AttendanceSessionExpectedSite")
+  attendanceTimePolicies AttendanceTimePolicy[]     @relation("AttendanceTimePolicySite")
 
   @@index([isActive, code])
   @@map("security_sites")
@@ -855,18 +861,19 @@ model SecuritySiteQrCredential {
 }
 
 model ShiftType {
-  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code               String              @unique @db.VarChar(50)
-  name               String              @db.VarChar(150)
-  startTime          String?             @map("start_time") @db.VarChar(20)
-  endTime            String?             @map("end_time") @db.VarChar(20)
-  hours              Decimal             @db.Decimal(6, 2)
-  color              String?             @db.VarChar(50)
-  isActive           Boolean             @default(true) @map("is_active")
-  createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @updatedAt @map("updated_at")
-  shiftAssignments   ShiftAssignment[]
-  attendanceSessions AttendanceSession[] @relation("AttendanceSessionExpectedShiftType")
+  id                     String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                   String                 @unique @db.VarChar(50)
+  name                   String                 @db.VarChar(150)
+  startTime              String?                @map("start_time") @db.VarChar(20)
+  endTime                String?                @map("end_time") @db.VarChar(20)
+  hours                  Decimal                @db.Decimal(6, 2)
+  color                  String?                @db.VarChar(50)
+  isActive               Boolean                @default(true) @map("is_active")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+  shiftAssignments       ShiftAssignment[]
+  attendanceSessions     AttendanceSession[]    @relation("AttendanceSessionExpectedShiftType")
+  attendanceTimePolicies AttendanceTimePolicy[] @relation("AttendanceTimePolicyShiftType")
 
   @@map("shift_types")
 }
@@ -1214,6 +1221,25 @@ model SystemSetting {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("system_settings")
+}
+
+model AttendanceTimePolicy {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scopeType       String        @map("scope_type") @db.VarChar(20)
+  siteId          String?       @map("site_id") @db.Uuid
+  shiftTypeId     String?       @map("shift_type_id") @db.Uuid
+  policy          Json          @db.JsonB
+  effectiveFrom   DateTime      @map("effective_from")
+  createdByUserId String        @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at")
+  site            SecuritySite? @relation("AttendanceTimePolicySite", fields: [siteId], references: [id], onDelete: Restrict)
+  shiftType       ShiftType?    @relation("AttendanceTimePolicyShiftType", fields: [shiftTypeId], references: [id], onDelete: Restrict)
+  createdBy       User          @relation("AttendanceTimePolicyCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([scopeType, siteId, effectiveFrom])
+  @@index([scopeType, shiftTypeId, effectiveFrom])
+  @@index([createdByUserId, createdAt])
+  @@map("attendance_time_policies")
 }
 
 model RetentionPolicyChange {

@@ -68,8 +68,10 @@ export type SimpleEventResult = {
   deviceBinding?: 'PRIMARY' | 'FOREIGN';
   reviewRequired?: boolean;
   reviewReasons?: string[];
+  timeClassification?: { punctuality?: 'ON_TIME' | 'LATE' | null; checkoutCondition?: 'NORMAL' | 'EARLY_LEAVE' | null };
   event?: {
     id?: string; eventType?: string; effectiveEventAt?: string; receivedAt?: string;
+    punctuality?: 'ON_TIME' | 'LATE' | null; checkoutCondition?: 'NORMAL' | 'EARLY_LEAVE' | null;
     reviewReasons?: string[] | null;
     locationEvidence?: {
       assignedSite?: SimpleSiteSummary | null;
@@ -83,8 +85,17 @@ export type SimpleEventResult = {
 async function payload(response: Response) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
+    const code = typeof body?.error?.code === 'string' ? body.error.code : '';
+    const policyMessages: Record<string, string> = {
+      ATTENDANCE_CHECK_IN_TOO_EARLY: 'ยังไม่ถึงช่วงเวลาที่อนุญาตให้ลงเวลาเข้า',
+      ATTENDANCE_CHECK_IN_LATEST_WINDOW_EXCEEDED: 'ไม่สามารถลงเวลาเข้าได้ เนื่องจากเกินช่วงเวลาที่กำหนด',
+      ATTENDANCE_CHECK_OUT_TOO_EARLY: 'ยังไม่ถึงช่วงเวลาที่อนุญาตให้ลงเวลาออก',
+      ATTENDANCE_CHECK_OUT_LATEST_WINDOW_EXCEEDED: 'ไม่สามารถลงเวลาออกได้ เนื่องจากเกินช่วงเวลาที่กำหนด',
+      ATTENDANCE_ASSIGNMENT_REQUIRED: 'ไม่พบกะงานที่ได้รับอนุมัติ',
+      ATTENDANCE_SCHEDULE_NOT_APPROVED: 'ไม่พบกะงานที่ได้รับอนุมัติ'
+    };
     const message = typeof body?.error?.message === 'string'
-      ? body.error.message
+      ? policyMessages[code] || body.error.message
       : typeof body?.message === 'string' ? body.message : 'Attendance request failed';
     throw new Error(message);
   }

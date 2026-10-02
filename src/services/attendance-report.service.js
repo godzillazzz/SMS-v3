@@ -60,20 +60,42 @@ function durationText(minutes) {
   return `${hours}:${String(mins).padStart(2, '0')}`;
 }
 
+const abnormalReasonLabels = Object.freeze({
+  MISSING_CHECK_OUT: 'ไม่ได้ลงเวลาออก',
+  MAX_SHIFT_DURATION_EXCEEDED: 'เกินเวลากะสูงสุด',
+  CHECK_OUT_BEFORE_CHECK_IN: 'ลำดับเวลาออกก่อนเวลาเข้า'
+});
+
+function abnormalReasonText(reasons = []) {
+  const labels = [...new Set((Array.isArray(reasons) ? reasons : []).map((reason) => abnormalReasonLabels[reason] || 'เวลาผิดปกติ'))];
+  return labels.join(', ') || 'เวลาผิดปกติ';
+}
+
 function attendanceResultText(row) {
   const flags = new Set(Array.isArray(row?.flags) ? row.flags : []);
   const actualSiteName = row?.actualSite?.name || row?.actualSite?.code || '-';
   if (flags.has('LEAVE')) return 'ลา';
   if (flags.has('ABSENT')) return 'ขาดงาน';
-  if (flags.has('MISSING_CHECK_OUT')) return 'เวลาผิดปกติ / ไม่มีเวลาออก';
-  if (flags.has('TIME_ABNORMAL')) return 'เวลาผิดปกติ';
-  if (flags.has('OUTSIDE_ALL_SITES')) return 'อยู่นอกพื้นที่ Site ที่กำหนด';
-  if (flags.has('WRONG_SHIFT')) return 'ลงเวลาผิดกะ';
-  if (flags.has('ASSIST_OTHER_SITE')) return `ช่วยปฏิบัติงาน ณ ${actualSiteName}`;
-  if (flags.has('EARLY_OUT') && flags.has('LATE')) return 'มาสาย / ออกก่อนเวลา';
-  if (flags.has('EARLY_OUT')) return 'ออกก่อนเวลา';
-  if (flags.has('LATE')) return 'มาสาย';
-  if (flags.has('ON_TIME')) return 'ปกติ';
+  const labels = [];
+  if (flags.has('OUTSIDE_ALL_SITES')) labels.push('อยู่นอกพื้นที่ Site ที่กำหนด');
+  if (flags.has('WRONG_SHIFT')) labels.push('ลงเวลาผิดกะ');
+  if (flags.has('DEVICE_MISMATCH')) labels.push('ใช้อุปกรณ์อื่น · ตรวจสอบ');
+  if (row?.workSiteContext === 'SUPPORT_SITE' || flags.has('ASSIST_OTHER_SITE')) labels.push(`ช่วยปฏิบัติงาน ณ ${actualSiteName}`);
+  const punctuality = row?.punctuality || (flags.has('LATE') ? 'LATE' : flags.has('ON_TIME') ? 'ON_TIME' : null);
+  if (punctuality === 'LATE') labels.push('มาสาย');
+  else if (punctuality === 'ON_TIME') labels.push('ตรงเวลา');
+  const checkout = row?.checkoutCondition || (flags.has('MISSING_CHECK_OUT') ? 'MISSING_CHECK_OUT' : flags.has('EARLY_OUT') ? 'EARLY_LEAVE' : null);
+  if (checkout === 'EARLY_LEAVE') labels.push('ออกก่อนเวลา');
+  if (checkout === 'MISSING_CHECK_OUT' || flags.has('MISSING_CHECK_OUT')) labels.push('ไม่ได้ลงเวลาออก');
+  if (row?.abnormalTime || flags.has('TIME_ABNORMAL')) {
+    const reasons = Array.isArray(row?.abnormalReasons) ? row.abnormalReasons : [];
+    const remainingReasons = checkout === 'MISSING_CHECK_OUT'
+      ? reasons.filter((reason) => reason !== 'MISSING_CHECK_OUT')
+      : reasons;
+    if (remainingReasons.length) labels.push(abnormalReasonText(remainingReasons));
+    else if (!reasons.length || checkout !== 'MISSING_CHECK_OUT') labels.push('เวลาผิดปกติ');
+  }
+  if (labels.length) return [...new Set(labels)].join(' / ');
   if (row?.status === 'LEAVE') return 'ลา';
   if (row?.status === 'ABSENT') return 'ขาดงาน';
   return String(row?.status || '-');
@@ -115,11 +137,21 @@ function reportRowProjection(row = {}) {
     attendanceSites,
     expectedStartAt: row.expectedStartAt ?? null,
     expectedEndAt: row.expectedEndAt ?? null,
+    scheduledStartAt: row.scheduledStartAt ?? row.expectedStartAt ?? null,
+    scheduledEndAt: row.scheduledEndAt ?? row.expectedEndAt ?? null,
     checkInAt: row.checkInAt ?? null,
     checkOutAt: row.checkOutAt ?? null,
+    effectiveCheckInAt: row.effectiveCheckInAt ?? row.checkInAt ?? null,
+    effectiveCheckOutAt: row.effectiveCheckOutAt ?? row.checkOutAt ?? null,
     workedMinutes: row.workedMinutes ?? null,
     lateMinutes: row.lateMinutes ?? null,
     earlyOutMinutes: row.earlyOutMinutes ?? null,
+    punctuality: row.punctuality || (Array.isArray(row.flags) && row.flags.includes('LATE') ? 'LATE' : Array.isArray(row.flags) && row.flags.includes('ON_TIME') ? 'ON_TIME' : null),
+    checkoutCondition: row.checkoutCondition || (Array.isArray(row.flags) && row.flags.includes('MISSING_CHECK_OUT') ? 'MISSING_CHECK_OUT' : Array.isArray(row.flags) && row.flags.includes('EARLY_OUT') ? 'EARLY_LEAVE' : null),
+    abnormalTime: row.abnormalTime === true || (Array.isArray(row.flags) && (row.flags.includes('TIME_ABNORMAL') || row.flags.includes('MISSING_CHECK_OUT'))),
+    abnormalReasons: Array.isArray(row.abnormalReasons) ? row.abnormalReasons : [],
+    effectivePolicy: row.effectivePolicy || null,
+    effectivePolicies: row.effectivePolicies || null,
     status: row.status,
     flags: Array.isArray(row.flags) ? row.flags : []
   };
@@ -176,7 +208,7 @@ function attendanceSheetXml(certification) {
     'วันที่', 'รหัสพนักงาน', 'ชื่อ-นามสกุล', 'หน่วยงาน',
     'สถานที่ตามตาราง', 'สถานที่ลงเวลาจริง', 'กะ', 'เวลาเริ่มตามกะ', 'เวลาเลิกตามกะ',
     'เวลาเข้า', 'เวลาออก', 'ชั่วโมงทำงาน', 'สาย (นาที)', 'ออกก่อน (นาที)',
-    'Flags', 'ผลการลงเวลา', 'ประเภทสถานที่'
+    'สถานะเข้างาน', 'สถานะเวลาออก', 'เวลาผิดปกติ', 'Flags', 'ผลการลงเวลา', 'ประเภทสถานที่'
   ];
   const rows = [];
   rows.push(rowXml(1, [inlineCell('A1', 'Security Management System — Official Attendance Report', 1)], 32));
@@ -203,13 +235,16 @@ function attendanceSheetXml(certification) {
       durationText(row.workedMinutes),
       row.lateMinutes,
       row.earlyOutMinutes,
+      row.punctuality === 'ON_TIME' ? 'ตรงเวลา' : row.punctuality === 'LATE' ? 'สาย' : '-',
+      row.checkoutCondition === 'EARLY_LEAVE' ? 'ออกก่อนเวลา' : row.checkoutCondition === 'MISSING_CHECK_OUT' ? 'ไม่ได้ลงเวลาออก' : row.checkoutCondition === 'NORMAL' ? 'ปกติ' : '-',
+      row.abnormalTime ? abnormalReasonText(row.abnormalReasons) : '-',
       (row.flags || []).join(', '),
       attendanceResultText(row),
       row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'
     ];
     const cells = values.map((value, colIndex) => {
       const reference = `${columnName(colIndex + 1)}${rowNumber}`;
-      return [12, 13].includes(colIndex) ? numberCell(reference, value, 5) : inlineCell(reference, value, colIndex === 15 ? 6 : 5);
+      return [12, 13].includes(colIndex) ? numberCell(reference, value, 5) : inlineCell(reference, value, colIndex === 18 ? 6 : 5);
     });
     rows.push(rowXml(rowNumber, cells, 22));
   });
@@ -222,7 +257,7 @@ function attendanceSheetXml(certification) {
     <col min="1" max="1" width="12" customWidth="1"/><col min="2" max="2" width="15" customWidth="1"/>
     <col min="3" max="4" width="24" customWidth="1"/><col min="5" max="7" width="20" customWidth="1"/>
     <col min="8" max="11" width="20" customWidth="1"/><col min="12" max="14" width="14" customWidth="1"/>
-    <col min="15" max="15" width="40" customWidth="1"/><col min="16" max="16" width="30" customWidth="1"/>
+    <col min="15" max="17" width="24" customWidth="1"/><col min="18" max="18" width="40" customWidth="1"/><col min="19" max="19" width="34" customWidth="1"/>
   </cols>
   <sheetData>${rows.join('')}</sheetData>
   <mergeCells count="3"><mergeCell ref="A1:${lastColumn}1"/><mergeCell ref="A2:${lastColumn}2"/><mergeCell ref="A3:${lastColumn}3"/></mergeCells>
@@ -337,6 +372,7 @@ function createAttendanceReportService({ prisma = prismaDefault, clock = () => n
 
 module.exports = {
   attendanceResultText,
+  abnormalReasonText,
   bangkokDateTime,
   durationText,
   reportId,

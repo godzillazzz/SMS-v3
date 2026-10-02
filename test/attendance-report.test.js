@@ -6,12 +6,20 @@ const assert = require('node:assert/strict');
 const { unzipSync, strFromU8 } = require('fflate');
 const {
   attendanceResultText,
+  abnormalReasonText,
   buildAttendanceWorkbook,
   loadCertifiedAttendanceMonth,
   reportId,
   reportRowProjection
 } = require('../src/services/attendance-report.service');
 const { snapshotDigest } = require('../src/services/attendance-month-governance.service');
+
+test('report abnormal reason labels are understandable Thai and hide internal codes', () => {
+  assert.equal(abnormalReasonText(['MISSING_CHECK_OUT', 'MAX_SHIFT_DURATION_EXCEEDED']), 'ไม่ได้ลงเวลาออก, เกินเวลากะสูงสุด');
+  assert.equal(attendanceResultText({ abnormalTime: true, abnormalReasons: ['MAX_SHIFT_DURATION_EXCEEDED'] }), 'เกินเวลากะสูงสุด');
+  assert.equal(attendanceResultText({ checkoutCondition: 'MISSING_CHECK_OUT', abnormalTime: true, abnormalReasons: ['MISSING_CHECK_OUT'] }), 'ไม่ได้ลงเวลาออก');
+  assert.equal(attendanceResultText({ checkoutCondition: 'MISSING_CHECK_OUT', abnormalTime: true, abnormalReasons: ['MISSING_CHECK_OUT', 'MAX_SHIFT_DURATION_EXCEEDED'] }), 'ไม่ได้ลงเวลาออก / เกินเวลากะสูงสุด');
+});
 
 function certification() {
   return {
@@ -112,7 +120,7 @@ test('official Attendance XLSX is generated from certified snapshot without raw 
   assert.match(attendance, /ช่วยปฏิบัติงาน/);
   assert.match(attendance, /<c r="Q6"[^>]*>[\s\S]*?ช่วยปฏิบัติงาน/);
   assert.match(attendance, /<c r="Q7"[^>]*>[\s\S]*?ปกติ/);
-  assert.match(attendance, /เวลาผิดปกติ \/ ไม่มีเวลาออก/);
+  assert.match(attendance, /ไม่ได้ลงเวลาออก/);
   assert.match(attendance, /MISSING_CHECK_OUT, TIME_ABNORMAL/);
   assert.doesNotMatch(attendance, /RAW-LOCATION-MUST-NOT-EXPORT/);
   assert.doesNotMatch(attendance, /PHOTO-MUST-NOT-EXPORT/);
@@ -126,7 +134,7 @@ test('official Attendance XLSX is generated from certified snapshot without raw 
 });
 
 test('human-readable Attendance result preserves abnormal and assist-site wording', () => {
-  assert.equal(attendanceResultText({ flags: ['MISSING_CHECK_OUT', 'TIME_ABNORMAL'] }), 'เวลาผิดปกติ / ไม่มีเวลาออก');
+  assert.equal(attendanceResultText({ flags: ['MISSING_CHECK_OUT', 'TIME_ABNORMAL'] }), 'ไม่ได้ลงเวลาออก / เวลาผิดปกติ');
   assert.equal(attendanceResultText({ flags: ['ASSIST_OTHER_SITE'], actualSite: { name: 'คลังเหนือ' } }), 'ช่วยปฏิบัติงาน ณ คลังเหนือ');
   assert.equal(attendanceResultText({ flags: ['LATE', 'EARLY_OUT'] }), 'มาสาย / ออกก่อนเวลา');
 });
