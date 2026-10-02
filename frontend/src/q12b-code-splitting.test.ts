@@ -12,7 +12,7 @@ describe('Q12-B route-level code splitting contracts', () => {
   it('keeps the default Dashboard eager while lazy-loading non-default heavy routes', () => {
     expect(main).toContain("import { DashboardPage } from './pages/dashboard/DashboardPage';");
     const lazyModules = [
-      ['AttendancePage', './pages/attendance/AttendancePage'],
+      ['AttendanceSimplePage', './pages/attendance-simple/AttendanceSimplePage'],
       ['AttendanceSupervisorPage', './pages/attendance-supervisor/AttendanceSupervisorPage'],
       ['SecuritySiteManagementPanel', './components/SecuritySiteManagementPanel'],
       ['ReportCenterPage', './pages/reports/ReportCenterPage'],
