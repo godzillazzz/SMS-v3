@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -62,6 +63,14 @@ const MIGRATIONS = Object.freeze({
     migrationPolicy: 'ADDITIVE_MASTER_SCHEMA_WITH_CONTROLLED_BOOTSTRAP_BACKFILL',
     postVerifyScript: 'scripts/ci/verify-emp-ux-production-migration.js',
     dataBackfill: true,
+    schemaChanged: true
+  }),
+  'G06-SIMPLE-ATTENDANCE': Object.freeze({
+    migrationName: '202610020001_g06_simple_device_offline',
+    migrationPolicy: 'G06_DEVICE_BINDING_SECURE_OFFLINE_GPS_GEOFENCE_SCHEMA_ONLY_NO_BACKFILL',
+    postVerifyScript: 'scripts/ci/verify-g06-simple-attendance-production-migration.js',
+    sqlSha256: '0cb317e8c243793321f3b3d5cad7f23b845d595f8373f9b62edab1c31c79c82f',
+    dataBackfill: false,
     schemaChanged: true
   })
 });
@@ -297,6 +306,59 @@ function validateCfg07Sql(sql) {
   return { statementCount: 9, controlledUpdateCount: 0 };
 }
 
+function validateG06SimpleAttendanceSql(sql) {
+  const source = String(sql || '');
+  const normalizedSql = source.replace(/\r\n/g, '\n');
+  const sqlSha256 = crypto.createHash('sha256').update(normalizedSql, 'utf8').digest('hex');
+  assert(sqlSha256 === MIGRATIONS['G06-SIMPLE-ATTENDANCE'].sqlSha256, 'G06 SQL does not match the exact approved migration content');
+  assert(!/\b(?:DELETE\s+FROM|TRUNCATE\b|INSERT\s+INTO|DROP\s+(?:TABLE|TYPE|SCHEMA|DATABASE|INDEX)|GRANT\b|CREATE\s+POLICY|DROP\s+POLICY)\b/i.test(source), 'G06 data/destructive/permission mutation is forbidden');
+  assert(!/(^|;)\s*UPDATE\s+/im.test(source), 'G06 data UPDATE/backfill is forbidden');
+
+  const droppedConstraints = [...source.matchAll(/\bDROP\s+CONSTRAINT\s+IF\s+EXISTS\s+"([^"]+)"/gi)].map((match) => match[1]).sort();
+  assert(droppedConstraints.length === 2, 'G06 may replace only the two approved attendance time constraints');
+  assert(droppedConstraints.join(',') === 'attendance_events_server_time_check,attendance_events_source_mode_check', 'G06 dropped constraint allowlist mismatch');
+  assert((source.match(/\bDROP\s+CONSTRAINT\b/gi) || []).length === 2, 'G06 contains an unapproved constraint removal');
+
+  const createTables = [...source.matchAll(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+"([^"]+)"/gi)].map((match) => match[1]);
+  assert(createTables.length === 1 && createTables[0] === 'attendance_pending_events', 'G06 may create only attendance_pending_events');
+  assert((source.match(/CREATE\s+TABLE\b/gi) || []).length === 1, 'G06 table creation count mismatch');
+
+  const alterTargets = [...source.matchAll(/ALTER\s+TABLE\s+(?:public\.)?"([^"]+)"/gi)].map((match) => match[1]);
+  assert(alterTargets.length > 0 && alterTargets.every((table) => ['attendance_device_enrollments', 'attendance_events', 'attendance_pending_events'].includes(table)), 'G06 ALTER target is outside the Attendance schema allowlist');
+  assert(/ALTER TABLE "attendance_events"\s+ALTER COLUMN "face_verification_session_id" DROP NOT NULL/i.test(source), 'G06 Face session column nullability change is missing');
+  assert(/CREATE TYPE "AttendancePendingEventStatus" AS ENUM \('PENDING_CONFIRMATION', 'CONFIRMED', 'REJECTED'\)/i.test(source), 'G06 pending-event state enum mismatch');
+  assert(/"attendance_events_source_mode_check"\s+CHECK\s*\([\s\S]*"source_mode" = 'ONLINE'[\s\S]*"effective_event_at" = "received_at"[\s\S]*"source_mode" = 'OFFLINE'[\s\S]*"device_captured_at" <= "received_at"/i.test(source), 'G06 online/offline event-time invariant mismatch');
+  assert(/"attendance_pending_events_offline_only" CHECK \("source_mode" = 'OFFLINE'\)/i.test(source), 'G06 pending events must remain offline-only');
+  assert(/"attendance_pending_events_capture_before_receive" CHECK \("captured_at" <= "received_at"\)/i.test(source), 'G06 pending capture-time invariant mismatch');
+
+  const expectedIndexes = [
+    'attendance_events_device_enrollment_id_received_at_idx',
+    'attendance_events_review_required_received_at_idx',
+    'attendance_pending_events_capture_id_key',
+    'attendance_pending_events_attendance_event_id_key',
+    'attendance_pending_events_employee_id_captured_at_idx',
+    'attendance_pending_events_status_received_at_idx',
+    'attendance_pending_events_shift_assignment_id_event_type_idx'
+  ];
+  const indexes = [...source.matchAll(/CREATE\s+(?:UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS\s+"([^"]+)"/gi)].map((match) => match[1]);
+  assert(indexes.length === expectedIndexes.length && expectedIndexes.every((name) => indexes.includes(name)), 'G06 index set mismatch');
+
+  for (const constraint of [
+    'attendance_events_device_enrollment_id_fkey',
+    'attendance_pending_events_employee_id_fkey',
+    'attendance_pending_events_shift_assignment_id_fkey',
+    'attendance_pending_events_reviewed_by_user_id_fkey',
+    'attendance_pending_events_attendance_event_id_fkey'
+  ]) assert(source.includes('"' + constraint + '"'), 'G06 foreign key missing: ' + constraint);
+
+  assert(/ALTER TABLE public\."attendance_pending_events" ENABLE ROW LEVEL SECURITY/i.test(source), 'G06 pending-event RLS is missing');
+  assert(/REVOKE ALL ON TABLE public\."attendance_pending_events" FROM anon/i.test(source), 'G06 anon table revoke is missing');
+  assert(/REVOKE ALL ON TABLE public\."attendance_pending_events" FROM authenticated/i.test(source), 'G06 authenticated table revoke is missing');
+  assert((source.match(/\bDO\s+\$\$/gi) || []).length === 2, 'G06 guarded enum/RLS blocks mismatch');
+
+  return { statementCount: 18, controlledUpdateCount: 0 };
+}
+
 function validateEmpUxSql(sql) {
   const source = String(sql || '');
   rejectDestructiveSql(source);
@@ -356,6 +418,7 @@ function validateSqlForMigration(migrationId, sql) {
   if (migrationId === 'CFG-05') return validateCfg05Sql(sql);
   if (migrationId === 'CFG-06') return validateCfg06Sql(sql);
   if (migrationId === 'CFG-07') return validateCfg07Sql(sql);
+  if (migrationId === 'G06-SIMPLE-ATTENDANCE') return validateG06SimpleAttendanceSql(sql);
   if (migrationId === 'MDG-01B') return validateMdg01bSql(sql);
   if (migrationId === 'EMP-UX-01') return validateEmpUxSql(sql);
   throw new Error(`production migration guard: unsupported migration_id: ${migrationId}`);
@@ -459,6 +522,7 @@ module.exports = {
   validateCfg05Sql,
   validateCfg06Sql,
   validateCfg07Sql,
+  validateG06SimpleAttendanceSql,
   validateEmpUxSql,
   validateMdg01bSql,
   validateSqlForMigration,

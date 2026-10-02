@@ -1,0 +1,336 @@
+name: Apply Approved G06 Simple Attendance Production Migration
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/serverless-database-reliability
+    paths:
+      - .github/workflows/apply-approved-g06-simple-attendance-production-migration.yml
+      - .github/releases/approved-g06-simple-attendance-production-migration.json
+      - scripts/ci/verify-approved-production-migration.js
+      - scripts/ci/verify-g06-simple-attendance-production-migration.js
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: sms-v3-staging-production-migration-v2
+  cancel-in-progress: false
+
+env:
+  MANIFEST_PATH: .github/releases/approved-g06-simple-attendance-production-migration.json
+  EXPECTED_SOURCE_BRANCH: fix/serverless-database-reliability
+  EXPECTED_CANONICAL_URL: https://sms-v3-staging-ten.vercel.app
+  EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+  EXPECTED_ORG_ID: team_nemCExHbZ8EAhSgsvefHPAEz
+  VERCEL_CLI_VERSION: 56.4.1
+
+jobs:
+  prepare:
+    name: Prepare exact approved Production migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      source_sha: ${{ steps.manifest.outputs.source_commit_sha }}
+      source_tree: ${{ steps.manifest.outputs.source_tree_sha }}
+      migration_name: ${{ steps.manifest.outputs.migration_name }}
+      migration_path: ${{ steps.manifest.outputs.migration_path }}
+      post_verify_script: ${{ steps.manifest.outputs.post_verify_script }}
+      current_production_deployment_id: ${{ steps.manifest.outputs.current_production_deployment_id }}
+      current_production_application_sha: ${{ steps.manifest.outputs.current_production_application_sha }}
+      prisma_schema_changed: ${{ steps.manifest.outputs.prisma_schema_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate migration manifest and controlled SQL policy
+        id: manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=$(mktemp)
+          trap 'rm -f "$output"' EXIT
+          node scripts/ci/verify-approved-production-migration.js "$MANIFEST_PATH" >"$output"
+          grep -Fxq 'PRODUCTION_MIGRATION_MANIFEST_GUARD=PASS' "$output"
+          while IFS='=' read -r key value; do
+            case "$key" in
+              source_commit_sha|source_tree_sha|migration_name|migration_path|post_verify_script|current_production_deployment_id|current_production_application_sha|prisma_schema_changed)
+                echo "$key=$value" >> "$GITHUB_OUTPUT"
+                ;;
+            esac
+          done <"$output"
+
+      - name: Validate exact source identity, Prisma delta, and successful CI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.manifest.outputs.source_commit_sha }}
+          SOURCE_TREE: ${{ steps.manifest.outputs.source_tree_sha }}
+          MIGRATION_PATH: ${{ steps.manifest.outputs.migration_path }}
+          CURRENT_PRODUCTION_APPLICATION_SHA: ${{ steps.manifest.outputs.current_production_application_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$EXPECTED_SOURCE_BRANCH"
+          git cat-file -e "${SOURCE_SHA}^{commit}"
+          git cat-file -e "${CURRENT_PRODUCTION_APPLICATION_SHA}^{commit}"
+          git merge-base --is-ancestor "$SOURCE_SHA" "origin/$EXPECTED_SOURCE_BRANCH"
+          git merge-base --is-ancestor "$CURRENT_PRODUCTION_APPLICATION_SHA" "$SOURCE_SHA"
+          test "$(git rev-parse "${SOURCE_SHA}^{tree}")" = "$SOURCE_TREE"
+
+          changed_prisma=$(git diff --name-only "$CURRENT_PRODUCTION_APPLICATION_SHA" "$SOURCE_SHA" -- prisma/schema.prisma prisma/migrations | sort)
+          if test "${{ steps.manifest.outputs.prisma_schema_changed }}" = "true"; then
+            expected_prisma=$(printf '%s\n%s\n' "$MIGRATION_PATH" 'prisma/schema.prisma' | sort)
+          else
+            expected_prisma=$(printf '%s\n' "$MIGRATION_PATH" | sort)
+          fi
+          test "$changed_prisma" = "$expected_prisma"
+
+          ci_success=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow CI --commit "$SOURCE_SHA" --limit 20 --json status,conclusion --jq '[.[] | select(.status=="completed" and .conclusion=="success")] | length')
+          test "$ci_success" -ge 1
+          test -z "$(git status --porcelain)"
+
+      - name: Publish Owner migration decision summary
+        shell: bash
+        run: |
+          {
+            echo '### G06 Simple Attendance Production migration prepared'
+            echo "- Exact application source SHA: ${{ steps.manifest.outputs.source_commit_sha }}"
+            echo "- Exact application tree: ${{ steps.manifest.outputs.source_tree_sha }}"
+            echo "- Migration: ${{ steps.manifest.outputs.migration_name }}"
+            echo '- Policy: additive device binding and secure offline Attendance schema only; GPS/geofence remains mandatory'
+            echo '- Data backfill: NO'
+            echo '- Application deployment: NO'
+            echo '- Destructive rollback: NO'
+            echo "- Current Production deployment remains: ${{ steps.manifest.outputs.current_production_deployment_id }}"
+            echo '- Owner action: Approve Production Migration only'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  migrate:
+    name: Approve Production Migration
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production-sms-v3-staging
+      url: https://sms-v3-staging-ten.vercel.app
+    env:
+      NODE_ENV: production
+      VERCEL_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      EXPECTED_PROJECT_ID: prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s
+      SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+      SOURCE_TREE: ${{ needs.prepare.outputs.source_tree }}
+      MIGRATION_NAME: ${{ needs.prepare.outputs.migration_name }}
+      MIGRATION_PATH: ${{ needs.prepare.outputs.migration_path }}
+      POST_VERIFY_SCRIPT: ${{ needs.prepare.outputs.post_verify_script }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Revalidate exact migration source after Owner approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SOURCE_TREE"
+          test -z "$(git status --porcelain)"
+          git fetch --no-tags origin "$GITHUB_SHA"
+          git show "$GITHUB_SHA:scripts/ci/verify-approved-production-migration.js" >/tmp/verify-approved-production-migration.js
+          git show "$GITHUB_SHA:$MANIFEST_PATH" >/tmp/approved-production-migration.json
+          git show "$GITHUB_SHA:$POST_VERIFY_SCRIPT" >/tmp/post-verify-production-migration.js
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const verifier = require('/tmp/verify-approved-production-migration.js');
+          const manifest = JSON.parse(fs.readFileSync('/tmp/approved-production-migration.json', 'utf8'));
+          const result = verifier.validateMigrationManifest(manifest, { root: process.cwd(), verifySql: false });
+          const sql = fs.readFileSync(result.migrationPath, 'utf8');
+          verifier.validateSqlForMigration(result.migrationId, sql);
+          process.stdout.write('POST_APPROVAL_MIGRATION_REVALIDATION=PASS\n');
+          NODE
+          test -z "$(git status --porcelain)"
+
+      - name: Verify canonical Production rollback checkpoint is still current
+        shell: bash
+        env:
+          EXPECTED_ID: ${{ needs.prepare.outputs.current_production_deployment_id }}
+          EXPECTED_SHA: ${{ needs.prepare.outputs.current_production_application_sha }}
+          EXPECTED_REF: fix/serverless-database-reliability
+        run: |
+          set -euo pipefail
+          test "$VERCEL_PROJECT_ID" = "$EXPECTED_PROJECT_ID"
+          test "$VERCEL_ORG_ID" = "$EXPECTED_ORG_ID"
+          test -n "$VERCEL_TOKEN"
+          canonical_json=$(mktemp)
+          trap 'rm -f "$canonical_json"' EXIT
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$canonical_json"
+          node - "$canonical_json" "$EXPECTED_ID" "$EXPECTED_PROJECT_ID" "$EXPECTED_SHA" "$EXPECTED_REF" <<'NODE'
+          const fs = require('node:fs');
+          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
+          const [file, id, projectId, sha, ref] = process.argv.slice(2);
+          const record = inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), {
+            expectedId: id,
+            expectedProjectId: projectId,
+            expectedCommitSha: sha,
+            expectedCommitRef: ref,
+            expectedTarget: 'production',
+            expectedCanonicalUrl: process.env.EXPECTED_CANONICAL_URL,
+            requireReady: true,
+          });
+          if (!record.id) throw new Error('canonical rollback deployment identity missing');
+          NODE
+          node scripts/ci/inspect-vercel-deployment.js "$EXPECTED_ID" "$EXPECTED_SHA" "$EXPECTED_REF" production false
+          echo 'CANONICAL_ROLLBACK_CHECKPOINT_CURRENT=PASS'
+
+      - name: Verify canonical health, readiness, and CORS before migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const base = process.env.EXPECTED_CANONICAL_URL.replace(/\/$/, '');
+          const trustedOrigin = new URL(process.env.EXPECTED_CANONICAL_URL).origin;
+          async function preflight(origin) {
+            return fetch(base + '/api/v1/auth/login', {
+              method: 'OPTIONS',
+              headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' },
+            });
+          }
+          async function main() {
+            const health = await fetch(base + '/api/v1/health');
+            const healthBody = await health.json();
+            if (health.status !== 200 || healthBody.status !== 'ok') throw new Error('Canonical health failed before migration');
+            const ready = await fetch(base + '/api/v1/ready');
+            const readyBody = await ready.json();
+            if (ready.status !== 200 || readyBody.status !== 'ready' || readyBody.database !== 'ok') throw new Error('Canonical readiness failed before migration');
+            const trusted = await preflight(trustedOrigin);
+            if (trusted.status !== 204 || trusted.headers.get('access-control-allow-origin') !== trustedOrigin || trusted.headers.get('access-control-allow-credentials') !== 'true') throw new Error('Trusted canonical CORS failed before migration');
+            const denied = await preflight('https://untrusted.invalid');
+            if (denied.status !== 403 || denied.headers.get('access-control-allow-origin')) throw new Error('Untrusted canonical CORS was allowed before migration');
+            process.stdout.write('CANONICAL_HEALTH_HTTP=' + health.status + ' STATUS=' + healthBody.status + '\n');
+            process.stdout.write('CANONICAL_READY_HTTP=' + ready.status + ' STATUS=' + readyBody.status + ' DATABASE=' + readyBody.database + '\n');
+            process.stdout.write('CANONICAL_CORS_TRUSTED=204 UNTRUSTED=403\n');
+          }
+          main().catch((error) => { process.stderr.write(error.message + '\n'); process.exitCode = 1; });
+          NODE
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Verify Production database target guard
+        run: node scripts/ci/verify-deployment-target.js --verify
+
+      - name: Require exactly the approved G06 Simple Attendance migration to be pending
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_output=$(mktemp)
+          trap 'rm -f "$status_output"' EXIT
+          node scripts/ci/prisma-migration.js status --allow-pending >"$status_output"
+          grep -Fxq 'MIGRATION_STATUS_CLASS=PENDING_MIGRATIONS_ONLY' "$status_output"
+          grep -Fxq "MIGRATION_NAME=$MIGRATION_NAME" "$status_output"
+          grep -Fxq 'PENDING_MIGRATIONS=true' "$status_output"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const verifier = require('/tmp/verify-approved-production-migration.js');
+          const manifest = JSON.parse(fs.readFileSync('/tmp/approved-production-migration.json', 'utf8'));
+          const result = verifier.validateMigrationManifest(manifest, { root: process.cwd(), verifySql: false });
+          verifier.validateSqlForMigration(result.migrationId, fs.readFileSync(result.migrationPath, 'utf8'));
+          process.stdout.write('MIGRATION_POLICY_REVALIDATION=PASS\n');
+          NODE
+          echo 'EXACT_PENDING_MIGRATION=PASS'
+
+      - name: Apply exact approved Production migration
+        run: node scripts/ci/prisma-migration.js deploy
+
+      - name: Verify migration status and G06 Simple Attendance database invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/prisma-migration.js status
+          NODE_PATH="$PWD/node_modules" node /tmp/post-verify-production-migration.js
+
+      - name: Verify canonical application remains healthy
+        shell: bash
+        env:
+          EXPECTED_ID: ${{ needs.prepare.outputs.current_production_deployment_id }}
+          EXPECTED_SHA: ${{ needs.prepare.outputs.current_production_application_sha }}
+          EXPECTED_REF: fix/serverless-database-reliability
+        run: |
+          set -euo pipefail
+          canonical_json=$(mktemp)
+          trap 'rm -f "$canonical_json"' EXIT
+          npx --yes vercel@"$VERCEL_CLI_VERSION" inspect "$EXPECTED_CANONICAL_URL" --format=json --token "$VERCEL_TOKEN" >"$canonical_json"
+          node - "$canonical_json" "$EXPECTED_ID" "$EXPECTED_PROJECT_ID" "$EXPECTED_SHA" "$EXPECTED_REF" <<'NODE'
+          const fs = require('node:fs');
+          const { inspectDeploymentRecord } = require('./scripts/ci/vercel-deployment');
+          const [file, id, projectId, sha, ref] = process.argv.slice(2);
+          inspectDeploymentRecord(fs.readFileSync(file, 'utf8'), {
+            expectedId: id,
+            expectedProjectId: projectId,
+            expectedCommitSha: sha,
+            expectedCommitRef: ref,
+            expectedTarget: 'production',
+            expectedCanonicalUrl: process.env.EXPECTED_CANONICAL_URL,
+            requireReady: true,
+          });
+          NODE
+          node scripts/ci/inspect-vercel-deployment.js "$EXPECTED_ID" "$EXPECTED_SHA" "$EXPECTED_REF" production false
+          node - <<'NODE'
+          const base = process.env.EXPECTED_CANONICAL_URL.replace(/\/$/, '');
+          const trustedOrigin = new URL(process.env.EXPECTED_CANONICAL_URL).origin;
+          async function preflight(origin) {
+            return fetch(base + '/api/v1/auth/login', {
+              method: 'OPTIONS',
+              headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' },
+            });
+          }
+          async function main() {
+            const health = await fetch(base + '/api/v1/health');
+            const healthBody = await health.json();
+            if (health.status !== 200 || healthBody.status !== 'ok') throw new Error('Canonical health failed');
+            const ready = await fetch(base + '/api/v1/ready');
+            const readyBody = await ready.json();
+            if (ready.status !== 200 || readyBody.status !== 'ready' || readyBody.database !== 'ok') throw new Error('Canonical readiness failed');
+            const trusted = await preflight(trustedOrigin);
+            if (trusted.status !== 204 || trusted.headers.get('access-control-allow-origin') !== trustedOrigin || trusted.headers.get('access-control-allow-credentials') !== 'true') throw new Error('Trusted canonical CORS failed');
+            const denied = await preflight('https://untrusted.invalid');
+            if (denied.status !== 403 || denied.headers.get('access-control-allow-origin')) throw new Error('Untrusted canonical CORS was not rejected');
+            process.stdout.write('CANONICAL_HEALTH_HTTP=' + health.status + ' STATUS=' + healthBody.status + '\n');
+            process.stdout.write('CANONICAL_READY_HTTP=' + ready.status + ' STATUS=' + readyBody.status + ' DATABASE=' + readyBody.database + '\n');
+            process.stdout.write('CANONICAL_CORS_TRUSTED=204 UNTRUSTED=403\n');
+          }
+          main().catch((error) => { process.stderr.write(error.message + '\n'); process.exitCode = 1; });
+          NODE
+
+      - name: Migration summary
+        shell: bash
+        run: |
+          {
+            echo '### G06 Simple Attendance Production migration'
+            echo '- Migration status: PASS'
+            echo '- pending Attendance schema, RLS, role revokes, indexes and constraints: VERIFIED'
+            echo '- Data backfill: NOT PERFORMED'
+            echo '- device binding / secure offline / GPS-geofence contract: VERIFIED'
+            echo '- Face/QR removal: intentional Owner policy requirement; not a verification bypass'
+            echo '- Canonical deployment identity/health/readiness/CORS unchanged: PASS'
+            echo '- Application deployment performed: NO'
+            echo '- Destructive rollback performed: NO'
+          } >> "$GITHUB_STEP_SUMMARY"
