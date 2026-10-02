@@ -65,7 +65,10 @@ test('G06 migration workflow retains exact source, current canonical, database-t
   assert.match(workflow, /git merge-base --is-ancestor "\$SOURCE_SHA" "origin\/\$EXPECTED_SOURCE_BRANCH"/);
   assert.match(workflow, /gh run list --repo "\$GITHUB_REPOSITORY" --workflow CI --commit "\$SOURCE_SHA"/);
   assert.match(workflow, /inspectDeploymentRecord\(fs\.readFileSync\(file, 'utf8'\)/);
-  assert.match(workflow, /node scripts\/ci\/inspect-vercel-deployment\.js/);
+  assert.match(workflow, /node - "\$canonical_json" "\$EXPECTED_ID" <<'NODE'/);
+  assert.match(workflow, /CANONICAL_ALIAS_DEPLOYMENT_ID=PASS/);
+  assert.match(workflow, /node scripts\/ci\/inspect-vercel-deployment\.js "\$EXPECTED_ID" "\$EXPECTED_SHA" "\$EXPECTED_REF" production false/);
+  assert.match(workflow, /CANONICAL_NATIVE_PROJECT_SHA_REF=PASS/);
   assert.match(workflow, /node scripts\/ci\/verify-deployment-target\.js --verify/);
   assert.match(workflow, /MIGRATION_STATUS_CLASS=PENDING_MIGRATIONS_ONLY/);
   assert.match(workflow, /MIGRATION_NAME=\$MIGRATION_NAME/);
