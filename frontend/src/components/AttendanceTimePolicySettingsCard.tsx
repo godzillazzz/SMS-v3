@@ -63,6 +63,8 @@ export function AttendanceTimePolicySettingsCard({ token }: Props) {
   const refresh = useCallback(async () => {
     setLoading(true);
     setLoadError('');
+    setError('');
+    setNotice('');
     setData(undefined);
     setForm(undefined);
     try { setData(await loadAttendanceTimePolicies(token)); }
