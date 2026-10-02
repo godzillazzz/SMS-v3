@@ -17,7 +17,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
   it('exposes a dedicated self-service Attendance page separate from Personal Device setup', () => {
     expect(main).toContain("'attendance'");
     expect(main).toContain("{ id: 'attendance', icon: 'attendance', label: 'ลงเวลา' }");
-    expect(main).toContain('<AttendancePage');
+    expect(main).toContain('<AttendanceSimplePage');
     expect(page).toContain('attendance-v2-hero');
     expect(page).toContain('className="attendance-v4"');
     expect(main).toContain('displayName={auth.user?.displayName}');

@@ -9,7 +9,9 @@ const ATTENDANCE_POLICY_KEYS = Object.freeze({
   futureSkewSeconds: 'ATTENDANCE_GPS_FUTURE_SKEW_SECONDS',
   autoPassAccuracyMeters: 'ATTENDANCE_GPS_AUTO_PASS_ACCURACY_METERS',
   innerMarginMeters: 'ATTENDANCE_GEOFENCE_INNER_MARGIN_METERS',
-  stepUpOnSiteOverlap: 'ATTENDANCE_QR_STEP_UP_ON_SITE_OVERLAP'
+  stepUpOnSiteOverlap: 'ATTENDANCE_QR_STEP_UP_ON_SITE_OVERLAP',
+  offlineConfirmAfterSeconds: 'ATTENDANCE_OFFLINE_CONFIRM_AFTER_SECONDS',
+  offlineBundleTtlSeconds: 'ATTENDANCE_OFFLINE_BUNDLE_TTL_SECONDS'
 });
 
 const ATTENDANCE_QR_POLICIES = Object.freeze(['ADAPTIVE', 'REQUIRED', 'DISABLED']);
@@ -20,7 +22,9 @@ const DEFAULT_ATTENDANCE_POLICY = Object.freeze({
   futureSkewMs: 30000,
   autoPassAccuracyMeters: 20,
   innerMarginMeters: 20,
-  stepUpOnSiteOverlap: true
+  stepUpOnSiteOverlap: true,
+  offlineConfirmAfterMs: 15 * 60 * 1000,
+  offlineBundleTtlMs: 24 * 60 * 60 * 1000
 });
 
 function boundedNumber(value, fallback, min, max) {
@@ -54,7 +58,9 @@ function policyFromSettings(rows = []) {
     futureSkewMs: Math.round(boundedNumber(byKey.get(ATTENDANCE_POLICY_KEYS.futureSkewSeconds), DEFAULT_ATTENDANCE_POLICY.futureSkewMs / 1000, 5, 120) * 1000),
     autoPassAccuracyMeters,
     innerMarginMeters: boundedNumber(byKey.get(ATTENDANCE_POLICY_KEYS.innerMarginMeters), DEFAULT_ATTENDANCE_POLICY.innerMarginMeters, 0, 100),
-    stepUpOnSiteOverlap: booleanValue(byKey.get(ATTENDANCE_POLICY_KEYS.stepUpOnSiteOverlap), DEFAULT_ATTENDANCE_POLICY.stepUpOnSiteOverlap)
+    stepUpOnSiteOverlap: booleanValue(byKey.get(ATTENDANCE_POLICY_KEYS.stepUpOnSiteOverlap), DEFAULT_ATTENDANCE_POLICY.stepUpOnSiteOverlap),
+    offlineConfirmAfterMs: Math.round(boundedNumber(byKey.get(ATTENDANCE_POLICY_KEYS.offlineConfirmAfterSeconds), DEFAULT_ATTENDANCE_POLICY.offlineConfirmAfterMs / 1000, 60, 86400) * 1000),
+    offlineBundleTtlMs: Math.round(boundedNumber(byKey.get(ATTENDANCE_POLICY_KEYS.offlineBundleTtlSeconds), DEFAULT_ATTENDANCE_POLICY.offlineBundleTtlMs / 1000, 300, 172800) * 1000)
   });
 }
 
@@ -75,7 +81,9 @@ function validateAttendancePolicySetting(key, value) {
     [ATTENDANCE_POLICY_KEYS.maxAgeSeconds]: [30, 600],
     [ATTENDANCE_POLICY_KEYS.futureSkewSeconds]: [5, 120],
     [ATTENDANCE_POLICY_KEYS.autoPassAccuracyMeters]: [3, 50],
-    [ATTENDANCE_POLICY_KEYS.innerMarginMeters]: [0, 100]
+    [ATTENDANCE_POLICY_KEYS.innerMarginMeters]: [0, 100],
+    [ATTENDANCE_POLICY_KEYS.offlineConfirmAfterSeconds]: [60, 86400],
+    [ATTENDANCE_POLICY_KEYS.offlineBundleTtlSeconds]: [300, 172800]
   };
   if (ranges[key]) {
     const number = Number(text);

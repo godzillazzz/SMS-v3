@@ -26,6 +26,8 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
 import { isG06DeviceContextDiagnosticRequested, shouldOpenG06DeviceContextDiagnostic } from './lib/g06-device-context-diagnostic-route';
+import { readEncryptedBootstrap } from './pages/attendance-simple/attendance-simple-storage';
+import type { SimpleBootstrap } from './pages/attendance-simple/attendance-simple-client';
 import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
 import { getApprovalCenterSummary } from './approval-center-client';
 import { getLeavePolicy } from './leave-policy-client';
@@ -105,7 +107,7 @@ const SecuritySiteManagementPanel = React.lazy(() => import('./components/Securi
 const PwaProfilePage = React.lazy(() => import('./pages/pwa-profile/PwaProfilePage').then((module) => ({ default: module.PwaProfilePage })));
 const AttendanceHistoryPwaPage = React.lazy(() => import('./pages/pwa-attendance/AttendanceHistoryPwaPage').then((module) => ({ default: module.AttendanceHistoryPwaPage })));
 const AttendanceSchedulePwaPage = React.lazy(() => import('./pages/pwa-attendance/AttendanceSchedulePwaPage').then((module) => ({ default: module.AttendanceSchedulePwaPage })));
-const AttendancePage = React.lazy(() => import('./pages/attendance/AttendancePage').then((module) => ({ default: module.AttendancePage })));
+const AttendanceSimplePage = React.lazy(() => import('./pages/attendance-simple/AttendanceSimplePage').then((module) => ({ default: module.AttendanceSimplePage })));
 const AttendanceSupervisorPage = React.lazy(() => import('./pages/attendance-supervisor/AttendanceSupervisorPage').then((module) => ({ default: module.AttendanceSupervisorPage })));
 const RegistrationReviewPanel = React.lazy(() => import('./pages/access-management/RegistrationReviewPanel').then((module) => ({ default: module.RegistrationReviewPanel })));
 const PasskeySecurityPanel = React.lazy(() => import('./components/PasskeySecurityPanel').then((module) => ({ default: module.PasskeySecurityPanel })));
@@ -209,7 +211,12 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       return Boolean(primaryTokenRef.current && requestToken === primaryTokenRef.current);
     });
     refresh().catch(() => undefined).finally(() => setLoading(false));
+    const refreshWhenOnline = () => {
+      if (!primaryTokenRef.current) void refresh().catch(() => undefined);
+    };
+    window.addEventListener('online', refreshWhenOnline);
     return () => {
+      window.removeEventListener('online', refreshWhenOnline);
       setTokenRefreshHandler(null);
       setAttendanceTokenRefreshHandler(null);
       setAttendanceTokenRefreshGuard(null);
@@ -2977,7 +2984,7 @@ function Dashboard() {
       </section>;
     }
     if (activePage === 'attendance' && auth.token) {
-      return <AttendancePage
+      return <AttendanceSimplePage
         token={auth.token}
         displayName={auth.user?.displayName}
         department={auth.user?.department}
@@ -3285,10 +3292,36 @@ function Dashboard() {
 
 const G06DeviceContextDiagnostic = React.lazy(() => import('./pages/attendance-device/G06DeviceContextDiagnosticPage').then(({ G06DeviceContextDiagnosticPage }) => ({ default: G06DeviceContextDiagnosticPage })));
 
+function OfflineAttendanceGate() {
+  const [state, setState] = useState<'CHECKING' | 'AVAILABLE' | 'UNAVAILABLE'>('CHECKING');
+
+  useEffect(() => {
+    let active = true;
+    if (navigator.onLine) {
+      setState('UNAVAILABLE');
+      return () => { active = false; };
+    }
+    readEncryptedBootstrap<SimpleBootstrap>()
+      .then((cached) => {
+        if (!active) return;
+        const expiresAt = cached?.offline?.expiresAt ? new Date(cached.offline.expiresAt) : null;
+        setState(cached && expiresAt && !Number.isNaN(expiresAt.getTime()) && Date.now() <= expiresAt.getTime() ? 'AVAILABLE' : 'UNAVAILABLE');
+      })
+      .catch(() => { if (active) setState('UNAVAILABLE'); });
+    return () => { active = false; };
+  }, []);
+
+  if (state === 'CHECKING') return <div className="full-loader">กำลังตรวจสิทธิ์ Offline…</div>;
+  if (state !== 'AVAILABLE') return <Login />;
+  return <React.Suspense fallback={<div className="full-loader">กำลังเปิดระบบลงเวลา Offline…</div>}>
+    <AttendanceSimplePage online={false} />
+  </React.Suspense>;
+}
+
 function App() {
   const auth = useContext(AuthContext)!;
   if (auth.loading) return <div className="full-loader">กำลังเตรียมระบบ…</div>;
-  if (!auth.token) return <Login />;
+  if (!auth.token) return <OfflineAttendanceGate />;
   if (shouldOpenG06DeviceContextDiagnostic({ authenticated: Boolean(auth.token), diagnosticBuild: __SMSV3_G06_DEVICE_CONTEXT_DIAGNOSTIC__, search: window.location.search })) {
     return <React.Suspense fallback={<div className="full-loader">กำลังเตรียมการตรวจแบบ read-only…</div>}><G06DeviceContextDiagnostic /></React.Suspense>;
   }

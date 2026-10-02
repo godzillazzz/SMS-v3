@@ -169,6 +169,12 @@ enum AttendanceTimeBasis {
   SERVER_RECEIVED
 }
 
+enum AttendancePendingEventStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  REJECTED
+}
+
 model User {
   id                                String                            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email                             String                            @unique @db.VarChar(255)
@@ -310,6 +316,7 @@ model AttendanceDeviceEnrollment {
   platformHint             String?                          @map("platform_hint") @db.VarChar(100)
   userAgentSnapshot        String?                          @map("user_agent_snapshot") @db.VarChar(500)
   status                   AttendanceDeviceEnrollmentStatus @default(PENDING_APPROVAL)
+  observationOnly          Boolean                          @default(false) @map("observation_only")
   proofVerifiedAt          DateTime?                        @map("proof_verified_at")
   enrolledAt               DateTime                         @default(now()) @map("enrolled_at")
   activatedAt              DateTime?                        @map("activated_at")
@@ -648,24 +655,58 @@ model AttendanceSession {
 model AttendanceEvent {
   id                        String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   sessionId                 String                    @map("session_id") @db.Uuid
-  faceVerificationSessionId String                    @unique @map("face_verification_session_id") @db.Uuid
+  faceVerificationSessionId String?                   @unique @map("face_verification_session_id") @db.Uuid
+  deviceEnrollmentId        String?                   @map("device_enrollment_id") @db.Uuid
   captureId                 String                    @unique @map("capture_id") @db.Uuid
   eventType                 AttendanceEventType       @map("event_type")
   provenance                AttendanceEventProvenance @default(ONLINE)
+  sourceMode                String                    @default("ONLINE") @map("source_mode") @db.VarChar(16)
   receivedAt                DateTime                  @map("received_at")
   effectiveEventAt          DateTime                  @map("effective_event_at")
+  deviceCapturedAt          DateTime?                 @map("device_captured_at")
   timeBasis                 AttendanceTimeBasis       @default(SERVER_RECEIVED) @map("time_basis")
   contextDigest             String                    @map("context_digest") @db.Char(64)
   locationEvidence          Json                      @map("location_evidence")
   verificationSnapshot      Json                      @map("verification_snapshot")
+  reviewRequired            Boolean                   @default(false) @map("review_required")
+  reviewReasons             Json?                     @map("review_reasons")
   createdAt                 DateTime                  @default(now()) @map("created_at")
   session                   AttendanceSession         @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  faceVerificationSession   FaceVerificationSession   @relation(fields: [faceVerificationSessionId], references: [id], onDelete: Restrict)
+  faceVerificationSession   FaceVerificationSession?  @relation(fields: [faceVerificationSessionId], references: [id], onDelete: Restrict)
 
   @@unique([sessionId, eventType])
   @@index([sessionId, effectiveEventAt])
   @@index([receivedAt])
+  @@index([deviceEnrollmentId, receivedAt])
+  @@index([reviewRequired, receivedAt])
   @@map("attendance_events")
+}
+
+model AttendancePendingEvent {
+  id                String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId        String                       @map("employee_id") @db.Uuid
+  shiftAssignmentId String                       @map("shift_assignment_id") @db.Uuid
+  captureId         String                       @unique @map("capture_id") @db.Uuid
+  eventType         AttendanceEventType          @map("event_type")
+  sourceMode        String                       @default("OFFLINE") @map("source_mode") @db.VarChar(16)
+  capturedAt        DateTime                     @map("captured_at")
+  receivedAt        DateTime                     @map("received_at")
+  locationEvidence  Json                         @map("location_evidence")
+  deviceSnapshot    Json                         @map("device_snapshot")
+  riskFlags         Json                         @map("risk_flags")
+  payloadDigest     String                       @map("payload_digest") @db.Char(64)
+  status            AttendancePendingEventStatus @default(PENDING_CONFIRMATION)
+  reviewedByUserId  String?                      @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt        DateTime?                    @map("reviewed_at")
+  reviewComment     String?                      @map("review_comment") @db.VarChar(1000)
+  attendanceEventId String?                      @unique @map("attendance_event_id") @db.Uuid
+  createdAt         DateTime                     @default(now()) @map("created_at")
+  updatedAt         DateTime                     @updatedAt @map("updated_at")
+
+  @@index([employeeId, capturedAt])
+  @@index([status, receivedAt])
+  @@index([shiftAssignmentId, eventType])
+  @@map("attendance_pending_events")
 }
 
 model EmployeeLifecycleEvent {

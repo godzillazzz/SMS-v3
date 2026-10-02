@@ -33,7 +33,9 @@ test('Attendance policy parses Admin-controlled QR/GPS settings with bounded val
     futureSkewMs: 20000,
     autoPassAccuracyMeters: 12,
     innerMarginMeters: 15,
-    stepUpOnSiteOverlap: false
+    stepUpOnSiteOverlap: false,
+    offlineConfirmAfterMs: 900000,
+    offlineBundleTtlMs: 86400000
   });
 });
 
@@ -56,6 +58,8 @@ test('Admin setting validator accepts only supported policy values and safety ra
   assert.equal(validateAttendancePolicySetting(ATTENDANCE_POLICY_KEYS.qrPolicy, 'adaptive'), 'ADAPTIVE');
   assert.equal(validateAttendancePolicySetting(ATTENDANCE_POLICY_KEYS.stepUpOnSiteOverlap, 'TRUE'), 'true');
   assert.equal(validateAttendancePolicySetting(ATTENDANCE_POLICY_KEYS.maxAccuracyMeters, '35'), '35');
+  assert.equal(validateAttendancePolicySetting(ATTENDANCE_POLICY_KEYS.offlineConfirmAfterSeconds, '900'), '900');
+  assert.equal(validateAttendancePolicySetting(ATTENDANCE_POLICY_KEYS.offlineBundleTtlSeconds, '86400'), '86400');
   assert.throws(() => validateAttendancePolicySetting(ATTENDANCE_POLICY_KEYS.qrPolicy, 'ALWAYS_PASS'));
   assert.throws(() => validateAttendancePolicySetting(ATTENDANCE_POLICY_KEYS.maxAccuracyMeters, '500'));
   assert.throws(() => validateAttendancePolicySetting(ATTENDANCE_POLICY_KEYS.innerMarginMeters, '-1'));

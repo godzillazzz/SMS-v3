@@ -12,6 +12,7 @@ const { createAttendanceFaceEngineUatService } = require('../services/attendance
 const { inProcessFaceConfig } = require('../services/in-process-face-match.provider');
 const { validateAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
 const { createAttendanceSelfService } = require('../services/attendance-self.service');
+const { createAttendanceSimpleService } = require('../services/attendance-simple.service');
 const { createSupabaseAttendanceFaceEvidenceStorage } = require('../services/attendance-face-evidence-storage.service');
 const { authorize } = require('../middlewares/authenticate');
 
@@ -67,6 +68,43 @@ const selfHistoryQuery = z.object({
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
 }).strict();
 const selfScheduleQuery = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }).strict();
+const simpleDeviceSignalsInput = z.object({
+  standalone: z.boolean().optional(),
+  secureContext: z.boolean(),
+  serviceWorkerControlled: z.boolean().optional(),
+  webCrypto: z.boolean(),
+  indexedDb: z.boolean(),
+  privateKeyNonExportable: z.boolean(),
+  automation: z.boolean().optional(),
+  integrityWarnings: z.array(z.string().trim().min(1).max(80)).max(10).optional()
+}).strict();
+const simpleDeviceInput = z.object({
+  publicKeySpkiBase64: z.string().min(16).max(8192),
+  keyAlgorithm: z.literal('ECDSA_P256_SHA256'),
+  displayName: z.string().trim().min(1).max(120).optional(),
+  platformHint: z.string().trim().max(100).nullable().optional(),
+  signals: simpleDeviceSignalsInput,
+  signatureBase64: z.string().min(16).max(4096)
+}).strict();
+const simpleEventInput = z.object({
+  captureId: uuid,
+  eventIntent: z.enum(['CHECK_IN', 'CHECK_OUT']),
+  shiftAssignmentId: uuid,
+  capturedAt: z.string().datetime({ offset: true }),
+  location: locationInput,
+  device: simpleDeviceInput,
+  offlineBundle: z.string().trim().min(32).max(32768).nullable().optional()
+}).strict();
+const simpleMoveInput = z.object({
+  requestId: uuid,
+  publicKeySpkiBase64: z.string().min(16).max(8192),
+  keyAlgorithm: z.literal('ECDSA_P256_SHA256'),
+  signatureBase64: z.string().min(16).max(4096),
+  displayName: z.string().trim().min(1).max(120).optional(),
+  platformHint: z.string().trim().max(100).nullable().optional(),
+  reason: z.string().trim().min(3).max(1000)
+}).strict();
+const simplePendingReviewInput = z.object({ comment: z.string().trim().min(3).max(1000) }).strict();
 const livePhotoUpload = multer({ storage: multer.memoryStorage(), limits: { files: 1 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fields: 0, parts: 2 + ACTIVE_FACE_CHALLENGE_FRAME_COUNT, fileSize: ATTACHMENT_PROFILES.ATTENDANCE_FACE.imageHardLimitBytes } }).fields([
   { name: 'photo', maxCount: 1 },
   { name: 'challengeFrame', maxCount: ACTIVE_FACE_CHALLENGE_FRAME_COUNT }
@@ -127,7 +165,7 @@ function defaultAuthenticate(req, res, next) {
   return require('../middlewares/authenticate').authenticate(req, res, next);
 }
 
-function createAttendanceRoutes({ environment = process.env, authenticateMiddleware = defaultAuthenticate, contractService = null, faceChallengeUatService = null, faceEngineUatService = null, selfService = null, evidenceStorage = null } = {}) {
+function createAttendanceRoutes({ environment = process.env, authenticateMiddleware = defaultAuthenticate, contractService = null, faceChallengeUatService = null, faceEngineUatService = null, selfService = null, simpleService = null, evidenceStorage = null } = {}) {
   const router = express.Router();
   const privateEvidence = evidenceStorage || createSupabaseAttendanceFaceEvidenceStorage({ environment });
   const service = contractService || createAttendanceApiContractService({
@@ -138,6 +176,7 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
   const uatService = faceChallengeUatService || createAttendanceFaceChallengeUatService();
   const engineUatService = faceEngineUatService || createAttendanceFaceEngineUatService({ environment });
   const employeeSelf = selfService || createAttendanceSelfService();
+  const simpleAttendance = simpleService || createAttendanceSimpleService();
 
   function requirePreviewAttendance(_req, _res, next) {
     return attendanceApiEnabled(environment) ? next() : next(new HttpError(404, 'Not found.'));
@@ -180,6 +219,42 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
   });
 
   router.use(requirePreviewAttendance, authenticateMiddleware);
+
+  router.get('/simple/bootstrap', async (req, res, next) => {
+    try { res.json({ data: await simpleAttendance.bootstrap({ actor: req.user }) }); } catch (error) { next(error); }
+  });
+
+  router.post('/simple/events', async (req, res, next) => {
+    try {
+      const input = simpleEventInput.parse(req.body);
+      res.status(201).json({ data: await simpleAttendance.submit({ actor: req.user, input, requestUserAgent: req.headers['user-agent'] || null }) });
+    } catch (error) { next(error); }
+  });
+
+  router.post('/simple/device/move-request', async (req, res, next) => {
+    try {
+      const input = simpleMoveInput.parse(req.body);
+      res.status(201).json({ data: await simpleAttendance.requestDeviceMove({ actor: req.user, input, requestUserAgent: req.headers['user-agent'] || null }) });
+    } catch (error) { next(error); }
+  });
+
+  router.get('/simple/pending', authorize('ADMIN'), async (req, res, next) => {
+    try { res.json({ data: await simpleAttendance.listPending({ actor: req.user }) }); } catch (error) { next(error); }
+  });
+
+  router.post('/simple/pending/:id/confirm', authorize('ADMIN'), async (req, res, next) => {
+    try {
+      const input = simplePendingReviewInput.parse(req.body);
+      res.json({ data: await simpleAttendance.reviewPending({ actor: req.user, pendingId: uuid.parse(req.params.id), action: 'CONFIRM', comment: input.comment }) });
+    } catch (error) { next(error); }
+  });
+
+  router.post('/simple/pending/:id/reject', authorize('ADMIN'), async (req, res, next) => {
+    try {
+      const input = simplePendingReviewInput.parse(req.body);
+      res.json({ data: await simpleAttendance.reviewPending({ actor: req.user, pendingId: uuid.parse(req.params.id), action: 'REJECT', comment: input.comment }) });
+    } catch (error) { next(error); }
+  });
 
   router.get('/me/today', async (req, res, next) => {
     try { res.json({ data: await employeeSelf.today({ actor: req.user }) }); } catch (error) { next(error); }
