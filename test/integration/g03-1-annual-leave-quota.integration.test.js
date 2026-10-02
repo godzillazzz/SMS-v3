@@ -317,9 +317,12 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   test('simultaneous approvals cannot overdraw the same annual balance', async () => {
     await seed();
     const t = await tokens();
-    await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('race'), employeeId: ids.employeeB, quotaYear: 2026, employeeNameSnapshot: 'G031 Bravo Annual', sickLeave: 30, personalLeave: 3, vacationLeave: 1, matchStatus: 'MATCHED' } });
-    const a = await request(app).post('/api/v1/leave-requests').set('Authorization', `Bearer ${t.manager}`).send({ employeeId: ids.employeeB, leaveType: 'ลาพักร้อน', startDate: '2026-10-01', endDate: '2026-10-01', substitute: 'Sub A' });
-    const b = await request(app).post('/api/v1/leave-requests').set('Authorization', `Bearer ${t.manager}`).send({ employeeId: ids.employeeB, leaveType: 'ลาพักร้อน', startDate: '2026-10-03', endDate: '2026-10-03', substitute: 'Sub B' });
+    const quotaYear = Number(new Intl.DateTimeFormat('en', { timeZone: 'Asia/Bangkok', year: 'numeric' }).format(new Date())) + 1;
+    const firstDate = `${quotaYear}-01-01`;
+    const secondDate = `${quotaYear}-01-03`;
+    await prisma.leaveQuota.create({ data: { sourceFingerprint: fp('race'), employeeId: ids.employeeB, quotaYear, employeeNameSnapshot: 'G031 Bravo Annual', sickLeave: 30, personalLeave: 3, vacationLeave: 1, matchStatus: 'MATCHED' } });
+    const a = await request(app).post('/api/v1/leave-requests').set('Authorization', `Bearer ${t.manager}`).send({ employeeId: ids.employeeB, leaveType: 'ลาพักร้อน', startDate: firstDate, endDate: firstDate, substitute: 'Sub A' });
+    const b = await request(app).post('/api/v1/leave-requests').set('Authorization', `Bearer ${t.manager}`).send({ employeeId: ids.employeeB, leaveType: 'ลาพักร้อน', startDate: secondDate, endDate: secondDate, substitute: 'Sub B' });
     assert.equal(a.status, 201); assert.equal(b.status, 201);
     const approvals = await Promise.all([
       request(app).put(`/api/v1/leave-requests/${a.body.data.id}`).set('Authorization', `Bearer ${t.admin}`).send({ status: 'APPROVED' }),
