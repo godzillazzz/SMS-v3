@@ -52,6 +52,13 @@ jobs:
         env:
           RECIPIENT_PUBLIC_KEY: ${{ inputs.recipient_public_key }}
 
+      - name: Checkout exact workflow source and tooling lockfile
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Verify PR #417 exact Draft source and release branch checkpoint
         uses: actions/github-script@v7
         env:

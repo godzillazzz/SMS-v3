@@ -294,3 +294,17 @@ test('one-time provisioning requires protected Preview approval and guards befor
   assert.match(provisionWorkflow, /RECIPIENT_PUBLIC_KEY: \$\{\{ inputs\.recipient_public_key \}\}/);
   assert.doesNotMatch(provisionWorkflow, /PRODUCTION_DATABASE_URL|production-sms-v3-staging|prisma\s+migrate\s+deploy|prisma\s+db\s+push/i);
 });
+
+test('provision workflow checks out its exact tooling source before Node cache and npm install', () => {
+  const checkout = provisionWorkflow.indexOf('Checkout exact workflow source and tooling lockfile');
+  const nodeSetup = provisionWorkflow.indexOf('Set up Node.js 22');
+  const install = provisionWorkflow.indexOf('Install PostgreSQL client and inspection tooling');
+  assert.ok(checkout >= 0 && checkout < nodeSetup && nodeSetup < install);
+  const checkoutStep = provisionWorkflow.slice(checkout, nodeSetup);
+  assert.match(checkoutStep, /uses: actions\/checkout@v4/);
+  assert.match(checkoutStep, /ref: \$\{\{ github\.sha \}\}/);
+  assert.match(checkoutStep, /fetch-depth: 1/);
+  assert.match(checkoutStep, /persist-credentials: false/);
+  assert.match(provisionWorkflow.slice(nodeSetup, install), /cache: npm/);
+  assert.match(provisionWorkflow.slice(install), /npm ci --ignore-scripts --no-audit --no-fund/);
+});
