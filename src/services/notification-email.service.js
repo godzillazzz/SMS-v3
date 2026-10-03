@@ -3,11 +3,11 @@ const prisma = require('../config/prisma');
 const env = require('../config/env');
 const logger = require('../utils/logger');
 
-function createTransporter(configuration = env) {
+function createTransporter(configuration = env, transportFactory = nodemailer.createTransport) {
   if (configuration.otpDeliveryProvider !== 'gmail_smtp' || !configuration.smtpHost) {
     return null;
   }
-  return nodemailer.createTransport({
+  return transportFactory({
     host: configuration.smtpHost,
     port: configuration.smtpPort,
     secure: configuration.smtpSecure,
@@ -33,31 +33,35 @@ async function getAdminAndManagerEmails() {
   }
 }
 
-async function sendNotification({ to, subject, html, text }) {
+async function sendNotification({ to, subject, html, text }, {
+  configuration = env,
+  transportFactory = nodemailer.createTransport,
+  loggerInstance = logger
+} = {}) {
   if (process.env.DISABLE_EMAIL_NOTIFICATIONS !== 'false') {
-    logger.info('Email notification skipped (Disabled during development mode)', { subject });
+    loggerInstance.info('Email notification skipped (Disabled during development mode)', { subject });
     return;
   }
   const recipients = Array.isArray(to) ? [...new Set(to.map((e) => String(e).trim().toLowerCase()).filter(Boolean))] : [String(to).trim().toLowerCase()];
   if (!recipients.length) return;
 
-  const transporter = createTransporter();
+  const transporter = createTransporter(configuration, transportFactory);
   if (!transporter) {
-    logger.info('Email notification skipped (SMTP disabled or not configured)', { subject, recipientCount: recipients.length });
+    loggerInstance.info('Email notification skipped (SMTP disabled or not configured)', { subject, recipientCount: recipients.length });
     return;
   }
 
   try {
     await transporter.sendMail({
-      from: env.otpFromEmail || env.smtpUsername,
+      from: configuration.otpFromEmail || configuration.smtpUsername,
       to: recipients.join(', '),
       subject,
       text: text || html.replace(/<[^>]+>/g, ''),
       html
     });
-    logger.info('Notification email sent successfully', { subject, recipientCount: recipients.length });
+    loggerInstance.info('Notification email sent successfully', { subject, recipientCount: recipients.length });
   } catch (error) {
-    logger.error('Failed to send notification email', { error: error.message, subject, recipientCount: recipients.length });
+    loggerInstance.error('Failed to send notification email', { error, subject, recipientCount: recipients.length });
   }
 }
 
@@ -233,6 +237,8 @@ async function notifyLeaveProcessed({ leave, status, approverName }) {
 }
 
 module.exports = {
+  createTransporter,
+  sendNotification,
   notifyScheduleApproved,
   notifyNewRegistration,
   notifyLeaveSubmitted,
