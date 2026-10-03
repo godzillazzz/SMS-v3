@@ -45,9 +45,9 @@ const PRISMA_SCHEMA = [
   '  siteId          String?  @map("site_id") @db.Uuid',
   '  shiftTypeId     String?  @map("shift_type_id") @db.Uuid',
   '  policy          Json     @db.JsonB',
-  '  effectiveFrom   DateTime @map("effective_from")',
+  '  effectiveFrom   DateTime @map("effective_from") @db.Timestamptz(6)',
   '  createdByUserId String   @map("created_by_user_id") @db.Uuid',
-  '  createdAt       DateTime @map("created_at")',
+  '  createdAt       DateTime @map("created_at") @db.Timestamptz(6)',
   '  @@map("attendance_time_policies")',
   '}',
   'model AttendanceEvent {',
@@ -69,9 +69,9 @@ function migrationFixture(overrides = {}) {
     site_id: 'UUID',
     shift_type_id: 'UUID',
     policy: 'JSONB',
-    effective_from: 'TIMESTAMP(3)',
+    effective_from: 'TIMESTAMPTZ',
     created_by_user_id: 'UUID',
-    created_at: 'TIMESTAMP(3)',
+    created_at: 'TIMESTAMPTZ',
     punctuality: 'VARCHAR(16)',
     checkout_condition: 'VARCHAR(24)',
     time_policy_snapshot: 'JSONB',
@@ -306,8 +306,8 @@ test('fails closed when migration history cannot be read', () => {
 
 test('detects migration and Prisma model timestamp shape mismatch without revealing values', () => {
   const timezoneMigration = migrationFixture({
-    effective_from: 'TIMESTAMPTZ',
-    created_at: 'TIMESTAMPTZ',
+    effective_from: 'TIMESTAMP(3)',
+    created_at: 'TIMESTAMP(3)',
   });
   const result = inspectPrismaMigrationShape(PRISMA_SCHEMA, timezoneMigration);
   assert.equal(result.prismaModelParsed, true);
@@ -357,7 +357,7 @@ test('model and field map mismatches are reported separately from type mismatche
   assert.ok(result.fieldMappingMismatchColumns.includes('attendance_time_policies.effective_from'));
 });
 
-test('keeps physical schema evidence separate from migration-source compatibility', async () => {
+test('accepts the explicit Prisma timestamptz native type against migration TIMESTAMPTZ', async () => {
   const prisma = schemaClient();
   const result = await inspectSchema(prisma, PRISMA_SCHEMA, migrationFixture({
     effective_from: 'TIMESTAMPTZ',
@@ -366,14 +366,14 @@ test('keeps physical schema evidence separate from migration-source compatibilit
   assert.equal(result.physicalVerified, true);
   assert.equal(result.verified, true);
   assert.equal(result.mappingMatches, true);
-  assert.equal(result.migrationTypeShapeMatches, false);
-  assert.equal(result.migrationMatchesPrisma, false);
-  assert.deepEqual(result.migrationModelMismatchColumns, ['effective_from', 'created_at']);
+  assert.equal(result.migrationTypeShapeMatches, true);
+  assert.equal(result.migrationMatchesPrisma, true);
+  assert.deepEqual(result.migrationModelMismatchColumns, []);
 });
 
 test('does not call an exact-pending migration safe when its SQL differs from the pinned Prisma schema', () => {
   const history = targetRecordFacts([], sourceMigrations());
-  const shape = inspectPrismaMigrationShape(PRISMA_SCHEMA, migrationFixture({ effective_from: 'TIMESTAMPTZ', created_at: 'TIMESTAMPTZ' }));
+  const shape = inspectPrismaMigrationShape(PRISMA_SCHEMA, migrationFixture({ effective_from: 'TIMESTAMP(3)', created_at: 'TIMESTAMP(3)' }));
   const schema = schemaState({ present: false, verified: false, physicalVerified: false, mappingMatches: true,
     migrationTypeShapeMatches: shape.typeShapeMatches, migrationMatchesPrisma: shape.migrationMatchesPrisma });
   assert.equal(shape.mappingMatches, true);
@@ -387,9 +387,9 @@ test('distinguishes an applied physical schema from a source mismatch', () => {
   assert.equal(migrationSchemaClass(history, schema), 'STATUS_READ_FAILED');
 });
 
-test('Prisma field parsing maps DateTime default to timestamp and reads explicit native types', () => {
+test('Prisma field parsing honors explicit timestamptz native type', () => {
   const fields = readPrismaColumnExpectations(PRISMA_SCHEMA);
-  assert.equal(fields['attendance_time_policies.effective_from'].udtName, 'timestamp');
+  assert.equal(fields['attendance_time_policies.effective_from'].udtName, 'timestamptz');
   assert.equal(fields['attendance_time_policies.scope_type'].udtName, 'varchar');
   assert.equal(fields['attendance_time_policies.scope_type'].maxLength, 20);
   assert.equal(fields['attendance_time_policies.site_id'].udtName, 'uuid');
@@ -404,6 +404,8 @@ test('schema inspection queries catalog metadata only and validates shape, index
   assert.ok(prisma.queries.every((sql) => /^\s*SELECT\b/i.test(sql)));
   assert.ok(prisma.queries.every((sql) => !/^\s*(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|REVOKE|GRANT)\b/i.test(sql)));
   assert.ok(prisma.queries.every((sql) => !/SELECT\s+\*/i.test(sql)));
+  assert.match(SCHEMA_COLUMNS_SQL, /FROM pg_catalog\.pg_class/i);
+  assert.doesNotMatch(SCHEMA_COLUMNS_SQL, /information_schema\.columns/i);
 });
 
 test('missing database roles cannot be mistaken for successful privilege revokes', async () => {
@@ -604,17 +606,20 @@ test('successful policy response is summarized without exposing returned values'
 test('workflow masks target values before the guarded DB step and stays Preview-only/read-only', () => {
   const maskStep = workflow.indexOf('Mask Preview and Production target fingerprints before use');
   const guardStep = workflow.indexOf('Prove isolated non-Production Preview target before database inspection');
+  const proofStep = workflow.indexOf('Prove dedicated credential is read-only before inspection');
   const inspectStep = workflow.indexOf('Inspect migration status and schema using read-only queries only');
   const maskBlock = workflow.slice(maskStep, guardStep);
   assert.match(workflow, /^on:\n\s+workflow_dispatch:/m);
-  assert.match(workflow, /name: 'Preview – sms-v3-staging'/);
-  assert.ok(maskStep >= 0 && maskStep < guardStep && guardStep < inspectStep);
+  assert.match(workflow, /name: 'Preview Read-Only – sms-v3-staging'/);
+  assert.ok(maskStep >= 0 && maskStep < guardStep && guardStep < proofStep && proofStep < inspectStep);
   assert.match(maskBlock, /APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT:\s*\$\{\{\s*vars\.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT\s*\}\}/);
   assert.match(maskBlock, /APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT:\s*\$\{\{\s*vars\.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT\s*\}\}/);
   assert.match(maskBlock, /process\.env\[name\]/);
   assert.doesNotMatch(maskBlock, /github\.request|GET \/repos\//);
   assert.match(workflow, /core\.setSecret\(value\)/);
   assert.match(workflow, /node scripts\/ci\/verify-preview-migration-target\.js/);
+  assert.match(workflow, /node scripts\/ci\/verify-preview-readonly-role\.js/);
+  assert.match(workflow, /secrets\.PREVIEW_READONLY_DATABASE_URL/);
   assert.match(workflow, /node scripts\/ci\/inspect-approved-pr-preview-attendance-time-policy-migration\.js/);
   assert.doesNotMatch(workflow, /prisma\s+(?:migrate\s+deploy|db\s+push|migrate\s+resolve|migrate\s+repair|db\s+execute|db\s+seed|migrate\s+reset)/i);
   assert.doesNotMatch(workflow, /\b(?:INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE|TRUNCATE\s+TABLE)\b/i);

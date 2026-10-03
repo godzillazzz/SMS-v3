@@ -15,13 +15,13 @@ concurrency:
 
 env:
   EXPECTED_SOURCE_BRANCH: fix/serverless-database-reliability
-  EXPECTED_RELEASE_CONTROL_SHA: 948fc05816e0947de921fb9a0aba3927390b74fa
+  EXPECTED_RELEASE_CONTROL_SHA: 9fc77d0490f6a49f8d637879f6395237ac34247a
   EXPECTED_PR_NUMBER: '417'
   EXPECTED_PR_BRANCH: codex/g06-time-policy-20261002
-  EXPECTED_APPLICATION_SHA: 074189b34c4696ce000c060f60d2ace1736a582c
-  EXPECTED_APPLICATION_TREE: 45e799119f03a482590e26e6d73887194e1c7dd2
+  EXPECTED_APPLICATION_SHA: e12c28c339c6d420c6db13b02aa1ddffb2c3e5ba
+  EXPECTED_APPLICATION_TREE: a2cdfc2f2eea4ad52eeca07b41183d74e5fcfa74
   EXPECTED_MIGRATION: 202610020002_attendance_time_policy_v1
-  EXPECTED_SCHEMA_SHA256: e4143928cfa88d4bad053aff022ad5a7f4ec15c9feb22c864b797317ebdf154b
+  EXPECTED_SCHEMA_SHA256: 4f0c0b129b8b52826ddca8ddb03ddbd678ef25ea96fa22aa1928e406e4112d03
   EXPECTED_MIGRATION_SHA256: 5822719590321945832adf87647ca448773f5eff8cb40b7d35ccdd8cf5f443ee
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment:
-      name: 'Preview – sms-v3-staging'
+      name: 'Preview Read-Only – sms-v3-staging'
     env:
       NODE_ENV: production
     steps:
@@ -86,14 +86,14 @@ jobs:
       - name: Checkout pinned release-control source
         uses: actions/checkout@v4
         with:
-          ref: 948fc05816e0947de921fb9a0aba3927390b74fa
+          ref: 9fc77d0490f6a49f8d637879f6395237ac34247a
           path: release-control
           fetch-depth: 0
 
       - name: Checkout pinned application source
         uses: actions/checkout@v4
         with:
-          ref: 074189b34c4696ce000c060f60d2ace1736a582c
+          ref: e12c28c339c6d420c6db13b02aa1ddffb2c3e5ba
           path: application-source
           fetch-depth: 1
 
@@ -153,8 +153,8 @@ jobs:
         working-directory: release-control
         env:
           VERCEL_ENV: preview
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          DATABASE_URL: ${{ secrets.PREVIEW_READONLY_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PREVIEW_READONLY_DATABASE_URL }}
           APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
           APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
         run: |
@@ -162,13 +162,28 @@ jobs:
           node scripts/ci/verify-preview-migration-target.js
           echo 'guard=PASS' >> "$GITHUB_OUTPUT"
 
+      - name: Prove dedicated credential is read-only before inspection
+        id: readonly_proof
+        shell: bash
+        env:
+          VERCEL_ENV: preview
+          DATABASE_URL: ${{ secrets.PREVIEW_READONLY_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PREVIEW_READONLY_DATABASE_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+          RELEASE_CONTROL_ROOT: ${{ github.workspace }}/release-control
+        run: |
+          set -euo pipefail
+          node scripts/ci/verify-preview-readonly-role.js
+          echo 'proof=PASS' >> "$GITHUB_OUTPUT"
+
       - name: Inspect migration status and schema using read-only queries only
         id: inspect
         shell: bash
         env:
           VERCEL_ENV: preview
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          DATABASE_URL: ${{ secrets.PREVIEW_READONLY_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PREVIEW_READONLY_DATABASE_URL }}
           APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
           APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
           APPLICATION_SOURCE_ROOT: ${{ github.workspace }}/application-source

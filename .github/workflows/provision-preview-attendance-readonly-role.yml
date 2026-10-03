@@ -1,0 +1,233 @@
+name: Provision Preview Attendance Read-only Inspector Role
+
+on:
+  workflow_dispatch:
+    inputs:
+      recipient_public_key:
+        description: Ephemeral RSA-3072 public key for encrypted secret handoff; never submit the private key
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+  statuses: read
+
+concurrency:
+  group: sms-v3-staging-preview-attendance-readonly-role-provisioning
+  cancel-in-progress: false
+
+env:
+  EXPECTED_SOURCE_BRANCH: fix/serverless-database-reliability
+  EXPECTED_RELEASE_CONTROL_SHA: 9fc77d0490f6a49f8d637879f6395237ac34247a
+  EXPECTED_PR_NUMBER: '417'
+  EXPECTED_PR_BRANCH: codex/g06-time-policy-20261002
+  EXPECTED_APPLICATION_SHA: e12c28c339c6d420c6db13b02aa1ddffb2c3e5ba
+  EXPECTED_APPLICATION_TREE: a2cdfc2f2eea4ad52eeca07b41183d74e5fcfa74
+  EXPECTED_SCHEMA_SHA256: 4f0c0b129b8b52826ddca8ddb03ddbd678ef25ea96fa22aa1928e406e4112d03
+  EXPECTED_MIGRATION: 202610020002_attendance_time_policy_v1
+  EXPECTED_MIGRATION_SHA256: 5822719590321945832adf87647ca448773f5eff8cb40b7d35ccdd8cf5f443ee
+
+jobs:
+  provision:
+    name: Provision least-privilege Preview inspection role
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: 'Preview – sms-v3-staging'
+    env:
+      NODE_ENV: production
+      VERCEL_ENV: preview
+    steps:
+      - name: Require manual dispatch from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REF_NAME" = "main"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test -n "$RECIPIENT_PUBLIC_KEY"
+          echo 'DISPATCH_AUTHORITY=PASS'
+        env:
+          RECIPIENT_PUBLIC_KEY: ${{ inputs.recipient_public_key }}
+
+      - name: Verify PR #417 exact Draft source and release branch checkpoint
+        uses: actions/github-script@v7
+        env:
+          EXPECTED_SOURCE_BRANCH: ${{ env.EXPECTED_SOURCE_BRANCH }}
+          EXPECTED_RELEASE_CONTROL_SHA: ${{ env.EXPECTED_RELEASE_CONTROL_SHA }}
+          EXPECTED_PR_NUMBER: ${{ env.EXPECTED_PR_NUMBER }}
+          EXPECTED_PR_BRANCH: ${{ env.EXPECTED_PR_BRANCH }}
+          EXPECTED_APPLICATION_SHA: ${{ env.EXPECTED_APPLICATION_SHA }}
+          EXPECTED_APPLICATION_TREE: ${{ env.EXPECTED_APPLICATION_TREE }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { owner, repo } = context.repo;
+            const prNumber = Number(process.env.EXPECTED_PR_NUMBER);
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });
+            if (pr.state !== 'open' || !pr.draft) throw new Error('PR #417 must remain open and Draft');
+            if (pr.base.ref !== process.env.EXPECTED_SOURCE_BRANCH) throw new Error('PR #417 base ref mismatch');
+            if (pr.head.ref !== process.env.EXPECTED_PR_BRANCH || pr.head.repo?.full_name !== `${owner}/${repo}`) throw new Error('PR #417 head ref mismatch');
+            if (pr.head.sha !== process.env.EXPECTED_APPLICATION_SHA) throw new Error('PR #417 head SHA mismatch');
+            const { data: appCommit } = await github.rest.git.getCommit({ owner, repo, commit_sha: pr.head.sha });
+            if (appCommit.tree.sha !== process.env.EXPECTED_APPLICATION_TREE) throw new Error('PR #417 tree mismatch');
+
+            const { data: releaseRef } = await github.rest.git.getRef({ owner, repo, ref: `heads/${process.env.EXPECTED_SOURCE_BRANCH}` });
+            if (releaseRef.object.sha !== process.env.EXPECTED_RELEASE_CONTROL_SHA) throw new Error('Release branch SHA mismatch');
+
+            const { data: workflowList } = await github.rest.actions.listRepoWorkflows({ owner, repo, per_page: 100 });
+            const ci = workflowList.workflows.find((workflow) => workflow.path === '.github/workflows/ci.yml' && workflow.name === 'CI');
+            if (!ci) throw new Error('Required CI workflow unavailable');
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({ owner, repo, workflow_id: ci.id, branch: process.env.EXPECTED_PR_BRANCH, event: 'pull_request', per_page: 100 });
+            const exactRun = runs.workflow_runs
+              .filter((run) => run.head_sha === pr.head.sha && run.head_branch === process.env.EXPECTED_PR_BRANCH)
+              .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+            if (!exactRun || exactRun.status !== 'completed' || exactRun.conclusion !== 'success') throw new Error('Exact-head CI must be successful');
+
+            const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({ owner, repo, ref: pr.head.sha, per_page: 100 });
+            const preview = statuses.filter((status) => status.context === 'Vercel').sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+            if (!preview || preview.state !== 'success') throw new Error('Exact-head Vercel Preview must be successful');
+            core.info(`PR_417_DRAFT=PASS application_sha=${pr.head.sha} tree=${appCommit.tree.sha}`);
+            core.info(`RELEASE_BRANCH_CHECKPOINT=PASS sha=${releaseRef.object.sha}`);
+            core.info(`EXACT_HEAD_CI=PASS run_id=${exactRun.id}`);
+            core.info('EXACT_HEAD_PREVIEW=PASS');
+
+      - name: Checkout exact release-control target guard
+        uses: actions/checkout@v4
+        with:
+          ref: 9fc77d0490f6a49f8d637879f6395237ac34247a
+          path: release-control
+          fetch-depth: 1
+
+      - name: Verify pinned release-control commit and remote branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C release-control rev-parse HEAD)" = "$EXPECTED_RELEASE_CONTROL_SHA"
+          git -C release-control fetch --no-tags origin "refs/heads/$EXPECTED_SOURCE_BRANCH"
+          test "$(git -C release-control rev-parse FETCH_HEAD)" = "$EXPECTED_RELEASE_CONTROL_SHA"
+          echo 'RELEASE_CONTROL_SOURCE=PASS'
+
+      - name: Checkout pinned PR #417 application source
+        uses: actions/checkout@v4
+        with:
+          ref: e12c28c339c6d420c6db13b02aa1ddffb2c3e5ba
+          path: application-source
+          fetch-depth: 1
+
+      - name: Verify exact application tree and governance hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C application-source rev-parse HEAD)" = "$EXPECTED_APPLICATION_SHA"
+          test "$(git -C application-source rev-parse 'HEAD^{tree}')" = "$EXPECTED_APPLICATION_TREE"
+          printf '%s  %s\n' "$EXPECTED_SCHEMA_SHA256" application-source/prisma/schema.prisma | sha256sum --check --status
+          printf '%s  %s\n' "$EXPECTED_MIGRATION_SHA256" "application-source/prisma/migrations/$EXPECTED_MIGRATION/migration.sql" | sha256sum --check --status
+          echo 'PINNED_APPLICATION_AND_MIGRATION=PASS'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install PostgreSQL client and inspection tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --no-install-recommends -y postgresql-client-16 expect
+          fi
+          if ! command -v expect >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --no-install-recommends -y expect
+          fi
+          psql --version >/dev/null
+          npm ci --ignore-scripts --no-audit --no-fund
+          echo 'PROVISIONING_TOOLING=PASS'
+
+      - name: Mask protected Preview connection and target fingerprints
+        uses: actions/github-script@v7
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            for (const name of ['DATABASE_URL', 'DIRECT_URL', 'APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT', 'APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT']) {
+              const value = process.env[name];
+              if (!value) throw new Error('Required protected Preview target setting is unavailable');
+              core.setSecret(value);
+            }
+            core.info('PROTECTED_TARGET_VALUES_MASKED=true');
+
+      - name: Prove Preview isolation before any database inspection or mutation
+        id: target_guard
+        working-directory: release-control
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+          node scripts/ci/verify-preview-migration-target.js
+          echo 'guard=PASS' >> "$GITHUB_OUTPUT"
+
+      - name: Create and prove the read-only Preview role
+        id: provision
+        shell: bash
+        env:
+          VERCEL_ENV: preview
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+          RELEASE_CONTROL_ROOT: ${{ github.workspace }}/release-control
+          RECIPIENT_PUBLIC_KEY: ${{ inputs.recipient_public_key }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: node scripts/ci/provision-preview-readonly-role.js
+
+      - name: Upload encrypted one-time connection secret
+        id: envelope_upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-readonly-connection-envelope-${{ github.run_id }}
+          path: ${{ runner.temp }}/preview-readonly-db-url.envelope.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Disable the role if encrypted handoff was not preserved
+        if: always() && steps.provision.outcome == 'success' && steps.envelope_upload.outcome != 'success'
+        shell: bash
+        env:
+          VERCEL_ENV: preview
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+          RELEASE_CONTROL_ROOT: ${{ github.workspace }}/release-control
+        run: node scripts/ci/disable-preview-readonly-role.js
+
+      - name: Publish sanitized provisioning summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Preview read-only inspector role provisioning'
+            echo "- Preview isolation guard: ${{ steps.target_guard.outputs.guard || 'NOT_PASSED' }}"
+            echo "- Role provisioning/proof: ${{ steps.provision.outcome == 'success' && 'PASS' || 'FAIL' }}"
+            echo '- Authority: CONNECT, public schema USAGE, SELECT on public._prisma_migrations, PostgreSQL catalog reads.'
+            echo '- Persistent CREATE/DML/DDL, sequence mutation, ownership, role membership, grant options, and SECURITY DEFINER execution must be absent.'
+            echo '- Connection handoff: encrypted RSA-OAEP/AES-GCM artifact only; one day retention.'
+            echo '- No Preview Attendance/business rows were read.'
+            echo '- Production was not accessed.'
+            echo '- No migration, DDL other than this isolated Preview role/grants, or application data mutation was run.'
+            echo '- No credential, raw connection value, or private key was emitted.'
+          } >> "$GITHUB_STEP_SUMMARY"
