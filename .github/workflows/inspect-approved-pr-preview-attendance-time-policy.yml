@@ -1,0 +1,184 @@
+name: Inspect Approved PR Preview Attendance Time Policy Migration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+  statuses: read
+
+concurrency:
+  group: sms-v3-staging-preview-attendance-time-policy-readonly-inspection
+  cancel-in-progress: false
+
+env:
+  EXPECTED_SOURCE_BRANCH: fix/serverless-database-reliability
+  EXPECTED_RELEASE_CONTROL_SHA: 948fc05816e0947de921fb9a0aba3927390b74fa
+  EXPECTED_PR_NUMBER: '417'
+  EXPECTED_PR_BRANCH: codex/g06-time-policy-20261002
+  EXPECTED_APPLICATION_SHA: 074189b34c4696ce000c060f60d2ace1736a582c
+  EXPECTED_APPLICATION_TREE: 45e799119f03a482590e26e6d73887194e1c7dd2
+  EXPECTED_MIGRATION: 202610020002_attendance_time_policy_v1
+  EXPECTED_SCHEMA_SHA256: e4143928cfa88d4bad053aff022ad5a7f4ec15c9feb22c864b797317ebdf154b
+  EXPECTED_MIGRATION_SHA256: 5822719590321945832adf87647ca448773f5eff8cb40b7d35ccdd8cf5f443ee
+
+jobs:
+  inspect:
+    name: Read-only isolated Preview migration inspection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: 'Preview – sms-v3-staging'
+    env:
+      NODE_ENV: production
+    steps:
+      - name: Require manual dispatch from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REF_NAME" = "main"
+          test "$GITHUB_REF" = "refs/heads/main"
+          echo 'DISPATCH_AUTHORITY=PASS'
+
+      - name: Checkout diagnostic workflow source
+        uses: actions/checkout@v4
+
+      - name: Verify exact Draft PR source and release-control checkpoint
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const expectedAppSha = process.env.EXPECTED_APPLICATION_SHA;
+            const expectedAppTree = process.env.EXPECTED_APPLICATION_TREE;
+            const expectedReleaseSha = process.env.EXPECTED_RELEASE_CONTROL_SHA;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: Number(process.env.EXPECTED_PR_NUMBER) });
+            if (pr.state !== 'open' || pr.draft !== true) throw new Error('Source PR must remain open and Draft');
+            if (pr.base.ref !== process.env.EXPECTED_SOURCE_BRANCH) throw new Error('Source PR base branch mismatch');
+            if (pr.head.ref !== process.env.EXPECTED_PR_BRANCH || pr.head.repo?.full_name !== `${owner}/${repo}`) throw new Error('Source PR head branch mismatch');
+            if (pr.head.sha !== expectedAppSha) throw new Error('Source PR head SHA changed');
+            const { data: commit } = await github.rest.git.getCommit({ owner, repo, commit_sha: expectedAppSha });
+            if (commit.tree.sha !== expectedAppTree) throw new Error('Source PR tree changed');
+            const { data: releaseRef } = await github.rest.git.getRef({ owner, repo, ref: `heads/${process.env.EXPECTED_SOURCE_BRANCH}` });
+            if (releaseRef.object.sha !== expectedReleaseSha) throw new Error('Release-control branch advanced from the approved checkpoint');
+
+            const { data: workflows } = await github.rest.actions.listRepoWorkflows({ owner, repo, per_page: 100 });
+            const ci = workflows.workflows.find((workflow) => workflow.path === '.github/workflows/ci.yml' && workflow.name === 'CI');
+            if (!ci) throw new Error('Authoritative CI workflow was not found');
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({ owner, repo, workflow_id: ci.id, branch: process.env.EXPECTED_PR_BRANCH, event: 'pull_request', per_page: 100 });
+            const latest = runs.workflow_runs
+              .filter((run) => run.head_sha === expectedAppSha && run.head_branch === process.env.EXPECTED_PR_BRANCH)
+              .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+            if (!latest || latest.status !== 'completed' || latest.conclusion !== 'success') throw new Error('Exact-head CI must be successful');
+            const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({ owner, repo, ref: expectedAppSha, per_page: 100 });
+            const vercel = statuses
+              .filter((status) => status.context === 'Vercel')
+              .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+            if (!vercel || vercel.state !== 'success') throw new Error('Exact-head Vercel Preview must be successful');
+            core.info(`SOURCE_PR=${pr.number} DRAFT=PASS`);
+            core.info(`APPLICATION_SHA=${expectedAppSha} TREE=${expectedAppTree}`);
+            core.info(`RELEASE_CONTROL_SHA=${expectedReleaseSha}`);
+            core.info(`EXACT_HEAD_CI=PASS run_id=${latest.id}`);
+            core.info('EXACT_HEAD_PREVIEW=PASS');
+
+      - name: Checkout pinned release-control source
+        uses: actions/checkout@v4
+        with:
+          ref: 948fc05816e0947de921fb9a0aba3927390b74fa
+          path: release-control
+          fetch-depth: 0
+
+      - name: Checkout pinned application source
+        uses: actions/checkout@v4
+        with:
+          ref: 074189b34c4696ce000c060f60d2ace1736a582c
+          path: application-source
+          fetch-depth: 1
+
+      - name: Verify pinned sources and migration inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C release-control rev-parse HEAD)" = "$EXPECTED_RELEASE_CONTROL_SHA"
+          git -C release-control fetch --no-tags origin "$EXPECTED_SOURCE_BRANCH"
+          test "$(git -C release-control rev-parse FETCH_HEAD)" = "$EXPECTED_RELEASE_CONTROL_SHA"
+          test "$(git -C application-source rev-parse HEAD)" = "$EXPECTED_APPLICATION_SHA"
+          test "$(git -C application-source rev-parse 'HEAD^{tree}')" = "$EXPECTED_APPLICATION_TREE"
+          test -f "application-source/prisma/schema.prisma"
+          test -f "application-source/prisma/migrations/$EXPECTED_MIGRATION/migration.sql"
+          printf '%s  %s\n' "$EXPECTED_SCHEMA_SHA256" application-source/prisma/schema.prisma | sha256sum --check --status
+          printf '%s  %s\n' "$EXPECTED_MIGRATION_SHA256" "application-source/prisma/migrations/$EXPECTED_MIGRATION/migration.sql" | sha256sum --check --status
+          echo 'PINNED_SOURCE_AND_MIGRATION=PASS'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install inspection-only tooling and generate pinned Prisma client
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --include=dev
+          npx --no-install prisma generate --schema "$GITHUB_WORKSPACE/application-source/prisma/schema.prisma"
+          echo 'PRISMA_READ_ONLY_TOOLING=PASS'
+
+      - name: Prove isolated non-Production Preview target before database inspection
+        id: target_guard
+        shell: bash
+        working-directory: release-control
+        env:
+          VERCEL_ENV: preview
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+          node scripts/ci/verify-preview-migration-target.js
+          echo 'guard=PASS' >> "$GITHUB_OUTPUT"
+
+      - name: Inspect migration status and schema using read-only queries only
+        id: inspect
+        shell: bash
+        env:
+          VERCEL_ENV: preview
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+          APPLICATION_SOURCE_ROOT: ${{ github.workspace }}/application-source
+          RELEASE_CONTROL_ROOT: ${{ github.workspace }}/release-control
+        run: node scripts/ci/inspect-approved-pr-preview-attendance-time-policy-migration.js
+
+      - name: Verify Preview health, readiness, CORS, and unauthenticated policy GET
+        if: steps.inspect.outputs.preview_get_allowed == 'YES'
+        id: runtime
+        shell: bash
+        env:
+          PREVIEW_ORIGIN: https://sms-v3-staging-git-codex-g06-time-policy-20261002-godzillazz.vercel.app
+        run: node scripts/ci/verify-preview-attendance-time-policy-readonly-runtime.js
+
+      - name: Publish sanitized migration-status summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Protected read-only Preview migration inspection'
+            echo "- Preview target/isolation guard: ${{ steps.target_guard.outputs.guard || 'NOT_PASSED' }}"
+            echo '- Target migration: 202610020002_attendance_time_policy_v1'
+            echo "- Status class: ${{ steps.inspect.outputs.migration_class || 'UNKNOWN_FAIL_CLOSED' }}"
+            echo "- Target migration applied: ${{ steps.inspect.outputs.migration_applied || 'UNKNOWN' }}"
+            echo "- Schema invariants: ${{ steps.inspect.outputs.schema_verified || 'UNKNOWN' }}"
+            echo "- Preview health/readiness/CORS: ${{ steps.runtime.outputs.runtime_checks || 'NOT_RUN' }}"
+            echo "- GET /attendance/time-policies: ${{ steps.runtime.outputs.policy_get_result || 'NOT_RUN' }}"
+            echo "- Company policy loaded: ${{ steps.runtime.outputs.company_policy_loaded || 'UNKNOWN' }}"
+            echo "- Site list count: ${{ steps.runtime.outputs.site_count || 'UNKNOWN' }}"
+            echo "- Shift Type list count: ${{ steps.runtime.outputs.shift_type_count || 'UNKNOWN' }}"
+            echo '- No migration apply, schema push, DDL, data write, repair, or resolve command was run.'
+            echo '- Production database was not accessed.'
+            echo '- Raw connection values, migration logs, and Attendance/Policy rows were not emitted or read.'
+          } >> "$GITHUB_STEP_SUMMARY"
