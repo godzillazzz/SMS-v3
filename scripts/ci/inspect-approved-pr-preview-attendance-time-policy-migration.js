@@ -6,7 +6,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const EXPECTED_MIGRATION = '202610020002_attendance_time_policy_v1';
-const EXPECTED_SCHEMA_SHA256 = 'e4143928cfa88d4bad053aff022ad5a7f4ec15c9feb22c864b797317ebdf154b';
+const EXPECTED_SCHEMA_SHA256 = '4f0c0b129b8b52826ddca8ddb03ddbd678ef25ea96fa22aa1928e406e4112d03';
 const EXPECTED_MIGRATION_SHA256 = '5822719590321945832adf87647ca448773f5eff8cb40b7d35ccdd8cf5f443ee';
 const SAFE_MIGRATION_NAME = /^\d{12,14}_[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
@@ -45,12 +45,18 @@ const MIGRATION_LEDGER_SQL = [
   'ORDER BY started_at, migration_name',
 ].join('\n');
 const SCHEMA_COLUMNS_SQL = [
-  'SELECT table_name, column_name, udt_name, is_nullable, character_maximum_length',
-  'FROM information_schema.columns',
-  "WHERE table_schema = 'public'",
-  "  AND ((table_name = 'attendance_time_policies' AND column_name IN ('id', 'scope_type', 'site_id', 'shift_type_id', 'policy', 'effective_from', 'created_by_user_id', 'created_at'))",
-  "    OR (table_name = 'attendance_events' AND column_name IN ('punctuality', 'checkout_condition', 'time_policy_snapshot'))",
-  "    OR (table_name = 'attendance_pending_events' AND column_name = 'time_policy_snapshot'))",
+  'SELECT c.relname AS table_name, a.attname AS column_name, t.typname AS udt_name,',
+  "  CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable,",
+  '  CASE WHEN t.typname = \'varchar\' AND a.atttypmod >= 4 THEN (a.atttypmod - 4)::integer ELSE NULL::integer END AS character_maximum_length',
+  'FROM pg_catalog.pg_class c',
+  'JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace',
+  'JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid',
+  'JOIN pg_catalog.pg_type t ON t.oid = a.atttypid',
+  "WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f')",
+  '  AND a.attnum > 0 AND NOT a.attisdropped',
+  "  AND ((c.relname = 'attendance_time_policies' AND a.attname IN ('id', 'scope_type', 'site_id', 'shift_type_id', 'policy', 'effective_from', 'created_by_user_id', 'created_at'))",
+  "    OR (c.relname = 'attendance_events' AND a.attname IN ('punctuality', 'checkout_condition', 'time_policy_snapshot'))",
+  "    OR (c.relname = 'attendance_pending_events' AND a.attname = 'time_policy_snapshot'))",
 ].join('\n');
 
 function sha256File(filePath) {
