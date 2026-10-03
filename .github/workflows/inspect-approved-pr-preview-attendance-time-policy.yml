@@ -126,6 +126,43 @@ jobs:
           npx --no-install prisma generate --schema "$GITHUB_WORKSPACE/application-source/prisma/schema.prisma"
           echo 'PRISMA_READ_ONLY_TOOLING=PASS'
 
+      - name: Mask Preview and Production target fingerprints before use
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { owner, repo } = context.repo;
+            const environmentName = 'Preview – sms-v3-staging';
+            const names = [
+              'APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT',
+              'APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT',
+            ];
+            for (const name of names) {
+              let value;
+              try {
+                const response = await github.request(
+                  'GET /repos/{owner}/{repo}/environments/{environment_name}/variables/{name}',
+                  { owner, repo, environment_name: environmentName, name }
+                );
+                value = response.data?.value;
+              } catch {
+                try {
+                  const response = await github.request(
+                    'GET /repos/{owner}/{repo}/actions/variables/{name}',
+                    { owner, repo, name }
+                  );
+                  value = response.data?.value;
+                } catch {
+                  value = null;
+                }
+              }
+              if (typeof value !== 'string' || value.length === 0) {
+                throw new Error('Approved Preview target setting is unavailable');
+              }
+              core.setSecret(value);
+            }
+            core.info('TARGET_FINGERPRINT_VALUES_MASKED=true');
+
       - name: Prove isolated non-Production Preview target before database inspection
         id: target_guard
         shell: bash
@@ -171,7 +208,19 @@ jobs:
             echo "- Preview target/isolation guard: ${{ steps.target_guard.outputs.guard || 'NOT_PASSED' }}"
             echo '- Target migration: 202610020002_attendance_time_policy_v1'
             echo "- Status class: ${{ steps.inspect.outputs.migration_class || 'UNKNOWN_FAIL_CLOSED' }}"
+            echo "- Status reason: ${{ steps.inspect.outputs.migration_reason || 'UNKNOWN' }}"
+            echo "- Migration history class: ${{ steps.inspect.outputs.history_class || 'UNKNOWN' }}"
             echo "- Target migration applied: ${{ steps.inspect.outputs.migration_applied || 'UNKNOWN' }}"
+            echo "- Target record: ${{ steps.inspect.outputs.target_record || 'UNKNOWN' }}"
+            echo "- Target finished_at: ${{ steps.inspect.outputs.target_finished_at || 'UNKNOWN' }}"
+            echo "- Target rolled_back_at: ${{ steps.inspect.outputs.target_rolled_back_at || 'UNKNOWN' }}"
+            echo "- Target failure category: ${{ steps.inspect.outputs.target_failure_category || 'UNKNOWN' }}"
+            echo "- Other pending migration count: ${{ steps.inspect.outputs.other_pending_count || 'UNKNOWN' }}"
+            echo "- Schema table/columns/indexes/constraints: ${{ steps.inspect.outputs.schema_objects || 'UNKNOWN' }}"
+            echo "- Prisma model/database shape: ${{ steps.inspect.outputs.model_database_shape || 'UNKNOWN' }}"
+            echo "- Prisma model/migration shape: ${{ steps.inspect.outputs.model_migration_shape || 'UNKNOWN' }}"
+            echo "- Migration-source mismatch columns: ${{ steps.inspect.outputs.migration_source_mismatch_columns || 'UNKNOWN' }}"
+            echo "- Physical schema invariants: ${{ steps.inspect.outputs.physical_schema_verified || 'UNKNOWN' }}"
             echo "- Schema invariants: ${{ steps.inspect.outputs.schema_verified || 'UNKNOWN' }}"
             echo "- Preview health/readiness/CORS: ${{ steps.runtime.outputs.runtime_checks || 'NOT_RUN' }}"
             echo "- GET /attendance/time-policies: ${{ steps.runtime.outputs.policy_get_result || 'NOT_RUN' }}"
@@ -180,5 +229,6 @@ jobs:
             echo "- Shift Type list count: ${{ steps.runtime.outputs.shift_type_count || 'UNKNOWN' }}"
             echo '- No migration apply, schema push, DDL, data write, repair, or resolve command was run.'
             echo '- Production database was not accessed.'
-            echo '- Raw connection values, migration logs, and Attendance/Policy rows were not emitted or read.'
+            echo '- Raw connection values and migration log contents were not emitted; only target log presence/category were inspected.'
+            echo '- Attendance/Policy rows were not read.'
           } >> "$GITHUB_STEP_SUMMARY"
