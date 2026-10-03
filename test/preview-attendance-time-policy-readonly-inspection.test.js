@@ -14,14 +14,18 @@ const {
   REQUIRED_INDEXES,
   SCHEMA_COLUMNS_SQL,
   inspectPrismaMigrationShape,
+  inspectPrismaMappings,
   inspectPreviewMigrationState,
   inspectSchema,
   finalizeStatus,
   migrationSchemaClass,
   prismaCliState,
+  prismaScalarShape,
   readPrismaColumnExpectations,
   safeFailureCategory,
+  safeSchemaReadCategory,
   targetRecordFacts,
+  validateMigrationLedgerRows,
   writeOutputs,
 } = require('../scripts/ci/inspect-approved-pr-preview-attendance-time-policy-migration');
 const {
@@ -50,9 +54,11 @@ const PRISMA_SCHEMA = [
   '  punctuality       String? @db.VarChar(16)',
   '  checkoutCondition String? @map("checkout_condition") @db.VarChar(24)',
   '  timePolicySnapshot Json?  @map("time_policy_snapshot")',
+  '  @@map("attendance_events")',
   '}',
   'model AttendancePendingEvent {',
   '  timePolicySnapshot Json? @map("time_policy_snapshot")',
+  '  @@map("attendance_pending_events")',
   '}',
 ].join('\n');
 
@@ -93,7 +99,7 @@ function validSchemaOptions(overrides = {}) {
     indexes: REQUIRED_INDEXES.map((indexname) => ({ indexname, valid: true })),
     constraints: REQUIRED_CONSTRAINTS.map((conname) => ({ conname, convalidated: true })),
     rls: true,
-    privileges: { anon_has_any_privilege: false, authenticated_has_any_privilege: false },
+    privileges: { anon_role_exists: true, authenticated_role_exists: true, anon_has_any_privilege: false, authenticated_has_any_privilege: false },
     ...overrides,
   };
 }
@@ -105,12 +111,14 @@ function schemaClient(options = validSchemaOptions(), ledgerRows = []) {
     async $queryRawUnsafe(sql) {
       queries.push(sql);
       if (sql === MIGRATION_LEDGER_SQL) return ledgerRows;
+      if (sql.includes('has_table_privilege')) return [options.tablePresent === false
+        ? { anon_role_exists: true, authenticated_role_exists: true, anon_has_any_privilege: null, authenticated_has_any_privilege: null }
+        : options.privileges];
       if (sql.includes('pg_constraint')) return options.constraints;
       if (sql.includes('to_regclass')) return options.tablePresent ? [{ name: 'attendance_time_policies' }] : [{ name: null }];
       if (sql === SCHEMA_COLUMNS_SQL) return options.columns;
       if (sql.includes('pg_index')) return options.indexes;
       if (sql.includes('relrowsecurity')) return options.rls ? [{ enabled: true }] : [];
-      if (sql.includes('has_table_privilege')) return [options.privileges];
       throw new Error('unexpected read-only query');
     },
   };
@@ -209,6 +217,89 @@ test('classifies any other source migration pending separately', () => {
   assert.equal(migrationSchemaClass(history, schemaState({ present: true, verified: true })), 'OTHER_PENDING_MIGRATIONS');
 });
 
+test('target failed or incomplete state remains visible when a later source migration is also pending', () => {
+  const migrations = sourceMigrations([EXPECTED_MIGRATION, '202610030001_followup']);
+  const history = targetRecordFacts([ledgerRow({ finished_at: null })], migrations);
+  assert.equal(history.otherPendingCount, 1);
+  assert.equal(migrationSchemaClass(history, schemaState({ present: false })), 'FAILED_MIGRATION_SCHEMA_ABSENT');
+});
+
+test('inventories known, unknown, missing, duplicate, completion, and checksum states without emitting checksums', () => {
+  const earlier = '202609010001_baseline';
+  const unknown = '202608010001_legacy_source';
+  const later = '202610030001_followup';
+  const migrations = [earlier, EXPECTED_MIGRATION, later].map((name, index) => ({ name, checksum: 'checksum-' + index }));
+  const rows = [
+    { migration_name: earlier, checksum: 'checksum-0', finished_at: new Date(), rolled_back_at: null, logs: null },
+    { migration_name: earlier, checksum: 'checksum-0', finished_at: null, rolled_back_at: new Date(), logs: null },
+    { migration_name: unknown, checksum: 'legacy-checksum', finished_at: new Date(), rolled_back_at: null, logs: null },
+    { migration_name: unknown, checksum: 'legacy-checksum', finished_at: null, rolled_back_at: new Date(), logs: null },
+  ];
+  const history = targetRecordFacts(rows, migrations);
+  const earlierEntry = history.ledgerMigrations.find((entry) => entry.name === earlier);
+  const unknownEntry = history.ledgerMigrations.find((entry) => entry.name === unknown);
+  const sourceEarlier = history.sourceInventory.find((entry) => entry.name === earlier);
+  const sourceLater = history.sourceInventory.find((entry) => entry.name === later);
+  assert.deepEqual(earlierEntry.classifications, ['KNOWN_SOURCE_MIGRATION', 'DUPLICATE_RECORD', 'COMPLETED', 'ROLLED_BACK']);
+  assert.equal(earlierEntry.completionSummary, 'ROLLED_BACK_THEN_COMPLETED');
+  assert.equal(earlierEntry.checksumState, 'AGREE');
+  assert.deepEqual(unknownEntry.classifications, ['UNKNOWN_TO_SOURCE', 'DUPLICATE_RECORD', 'COMPLETED', 'ROLLED_BACK']);
+  assert.equal(unknownEntry.checksumState, 'AGREE');
+  assert.equal(sourceEarlier.ledgerState, 'DUPLICATED_IN_LEDGER');
+  assert.equal(sourceLater.ledgerState, 'MISSING_FROM_LEDGER');
+  assert.equal(history.targetRecord, 'ABSENT');
+  assert.equal(history.targetOrdering.valid, true);
+  assert.deepEqual(history.targetOrdering.earlierPendingNames, []);
+  assert.equal(history.otherPendingCount, 1);
+  assert.equal(history.unknownMigrationCount, 2);
+  assert.equal(history.duplicateRecordCount, 2);
+  const serialized = JSON.stringify({ ledger: history.ledgerMigrations, source: history.sourceInventory });
+  assert.doesNotMatch(serialized, /legacy-checksum|checksum-0/);
+  assert.match(serialized, /202608010001_legacy_source/);
+});
+
+test('duplicate ledger checksum disagreement is reported without disclosing checksums', () => {
+  const history = targetRecordFacts([
+    ledgerRow({ checksum: 'checksum-one', rolled_back_at: new Date(), finished_at: null }),
+    ledgerRow({ checksum: 'checksum-two', rolled_back_at: null, finished_at: new Date() }),
+  ], sourceMigrations());
+  const duplicate = history.duplicateMigrationGroups[0];
+  assert.equal(duplicate.name, EXPECTED_MIGRATION);
+  assert.equal(duplicate.recordCount, 2);
+  assert.equal(duplicate.completionSummary, 'ROLLED_BACK_THEN_COMPLETED');
+  assert.equal(duplicate.checksumState, 'DISAGREE');
+  assert.equal(history.integrityOk, false);
+  assert.doesNotMatch(JSON.stringify(duplicate), /checksum-one|checksum-two/);
+});
+
+test('unsafe ledger migration names are redacted in inventory', () => {
+  const history = targetRecordFacts([
+    { migration_name: 'postgres://user:secret@host/db', checksum: 'secret-checksum', finished_at: new Date(), rolled_back_at: null },
+  ], sourceMigrations());
+  const serialized = JSON.stringify(history.ledgerMigrations);
+  assert.match(serialized, /UNSAFE_NAME_REDACTED/);
+  assert.doesNotMatch(serialized, /postgres:|secret|host/);
+  const longName = '202608010001_' + 'x'.repeat(200);
+  assert.equal(targetRecordFacts([{ migration_name: longName, checksum: 'checksum', finished_at: new Date(), rolled_back_at: null }], sourceMigrations()).ledgerMigrations[0].name, 'UNSAFE_NAME_REDACTED');
+});
+
+test('history divergence takes precedence over unavailable physical schema facts', () => {
+  const history = targetRecordFacts([
+    { migration_name: '202608010001_unknown', checksum: 'unknown', finished_at: new Date(), rolled_back_at: null },
+  ], sourceMigrations());
+  assert.equal(migrationSchemaClass(history, { readable: false, schemaReadCategory: 'SCHEMA_READ_UNKNOWN' }), 'HISTORY_DIVERGED');
+});
+
+test('schema read failures map to sanitized categories', () => {
+  assert.equal(safeSchemaReadCategory(Object.assign(new Error('permission denied'), { code: 'P2010', meta: { code: '42501' } })), 'SCHEMA_READ_PERMISSION_DENIED');
+  assert.equal(safeSchemaReadCategory(Object.assign(new Error('unreachable'), { code: 'P1001' })), 'SCHEMA_CONNECTION_FAILED');
+  assert.equal(safeSchemaReadCategory(Object.assign(new Error('timeout'), { code: 'P1008' })), 'SCHEMA_QUERY_TIMEOUT');
+  assert.equal(safeSchemaReadCategory(Object.assign(new Error('missing relation'), { code: '42P01' })), 'SCHEMA_OBJECT_NOT_FOUND');
+  assert.equal(safeSchemaReadCategory(Object.assign(new Error('raw query failed'), { code: 'P2010' })), 'SCHEMA_CATALOG_QUERY_FAILED');
+  assert.equal(safeSchemaReadCategory(new Error('opaque')), 'SCHEMA_READ_UNKNOWN');
+  assert.equal(safeSchemaReadCategory(Object.assign(new Error('malformed'), { schemaReadCategory: 'SCHEMA_RESULT_MALFORMED' })), 'SCHEMA_RESULT_MALFORMED');
+});
+
 test('fails closed when migration history cannot be read', () => {
   assert.equal(migrationSchemaClass({ readable: false }, schemaState()), 'STATUS_READ_FAILED');
 });
@@ -220,9 +311,50 @@ test('detects migration and Prisma model timestamp shape mismatch without reveal
   });
   const result = inspectPrismaMigrationShape(PRISMA_SCHEMA, timezoneMigration);
   assert.equal(result.prismaModelParsed, true);
+  assert.equal(result.mappingMatches, true);
+  assert.deepEqual(result.tableMappingMismatchModels, []);
+  assert.deepEqual(result.fieldMappingMismatchColumns, []);
+  assert.equal(result.typeShapeMatches, false);
   assert.equal(result.migrationMatchesPrisma, false);
   assert.equal(result.mismatchCount, 2);
   assert.deepEqual(result.mismatchColumns, ['effective_from', 'created_at']);
+  assert.deepEqual(result.typeMismatchColumns, ['attendance_time_policies.effective_from', 'attendance_time_policies.created_at']);
+});
+
+test('Prisma @map and @@map resolve camelCase logical names to physical migration names', () => {
+  const mappings = inspectPrismaMappings(PRISMA_SCHEMA);
+  const fields = readPrismaColumnExpectations(PRISMA_SCHEMA);
+  assert.equal(mappings.prismaModelParsed, true);
+  assert.equal(mappings.mappingMatches, true);
+  assert.deepEqual(mappings.tableMappingMismatchModels, []);
+  assert.deepEqual(mappings.fieldMappingMismatchColumns, []);
+  assert.equal(fields['attendance_time_policies.effective_from'].column, 'effective_from');
+  assert.equal(fields['attendance_time_policies.created_at'].column, 'created_at');
+  assert.equal(fields['attendance_time_policies.effective_from'].table, 'attendance_time_policies');
+  assert.equal(fields['attendance_time_policies.created_at'].fieldMapped, true);
+  assert.equal(fields['attendance_time_policies.created_at'].tableMapped, true);
+  const result = inspectPrismaMigrationShape(PRISMA_SCHEMA, migrationFixture());
+  assert.equal(result.mappingMatches, true);
+  assert.equal(result.typeShapeMatches, true);
+  assert.equal(result.migrationMatchesPrisma, true);
+});
+
+test('unmapped Prisma model and field names remain their physical names', () => {
+  const shape = prismaScalarShape('model PlainRecord {\n  createdAt DateTime\n}', 'PlainRecord', 'createdAt');
+  assert.equal(shape.model, 'PlainRecord');
+  assert.equal(shape.table, 'PlainRecord');
+  assert.equal(shape.column, 'createdAt');
+  assert.equal(shape.fieldMapped, false);
+  assert.equal(shape.tableMapped, false);
+});
+
+test('model and field map mismatches are reported separately from type mismatches', () => {
+  const changed = PRISMA_SCHEMA.replace('@@map("attendance_time_policies")', '@@map("wrong_table")')
+    .replace('@map("effective_from")', '@map("wrong_column")');
+  const result = inspectPrismaMigrationShape(changed, migrationFixture());
+  assert.equal(result.mappingMatches, false);
+  assert.ok(result.tableMappingMismatchModels.includes('AttendanceTimePolicy'));
+  assert.ok(result.fieldMappingMismatchColumns.includes('attendance_time_policies.effective_from'));
 });
 
 test('keeps physical schema evidence separate from migration-source compatibility', async () => {
@@ -233,21 +365,26 @@ test('keeps physical schema evidence separate from migration-source compatibilit
   }));
   assert.equal(result.physicalVerified, true);
   assert.equal(result.verified, true);
+  assert.equal(result.mappingMatches, true);
+  assert.equal(result.migrationTypeShapeMatches, false);
   assert.equal(result.migrationMatchesPrisma, false);
   assert.deepEqual(result.migrationModelMismatchColumns, ['effective_from', 'created_at']);
 });
 
 test('does not call an exact-pending migration safe when its SQL differs from the pinned Prisma schema', () => {
   const history = targetRecordFacts([], sourceMigrations());
-  const schema = schemaState({ present: false, verified: false, physicalVerified: false, migrationMatchesPrisma: false });
-  assert.equal(migrationSchemaClass(history, schema), 'PRISMA_MIGRATION_SOURCE_MISMATCH');
-  assert.equal(finalizeStatus('PRISMA_MIGRATION_SOURCE_MISMATCH').reason, 'SOURCE_SHAPE_MISMATCH');
+  const shape = inspectPrismaMigrationShape(PRISMA_SCHEMA, migrationFixture({ effective_from: 'TIMESTAMPTZ', created_at: 'TIMESTAMPTZ' }));
+  const schema = schemaState({ present: false, verified: false, physicalVerified: false, mappingMatches: true,
+    migrationTypeShapeMatches: shape.typeShapeMatches, migrationMatchesPrisma: shape.migrationMatchesPrisma });
+  assert.equal(shape.mappingMatches, true);
+  assert.equal(migrationSchemaClass(history, schema), 'STATUS_READ_FAILED');
+  assert.equal(finalizeStatus('STATUS_READ_FAILED').reason, 'READ_FAILURE');
 });
 
 test('distinguishes an applied physical schema from a source mismatch', () => {
   const history = targetRecordFacts([ledgerRow()], sourceMigrations());
-  const schema = schemaState({ present: true, verified: true, physicalVerified: true, migrationMatchesPrisma: false });
-  assert.equal(migrationSchemaClass(history, schema), 'PRISMA_MIGRATION_SOURCE_MISMATCH');
+  const schema = schemaState({ present: true, verified: true, physicalVerified: true, mappingMatches: true, migrationTypeShapeMatches: false, migrationMatchesPrisma: false });
+  assert.equal(migrationSchemaClass(history, schema), 'STATUS_READ_FAILED');
 });
 
 test('Prisma field parsing maps DateTime default to timestamp and reads explicit native types', () => {
@@ -267,6 +404,22 @@ test('schema inspection queries catalog metadata only and validates shape, index
   assert.ok(prisma.queries.every((sql) => /^\s*SELECT\b/i.test(sql)));
   assert.ok(prisma.queries.every((sql) => !/^\s*(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|REVOKE|GRANT)\b/i.test(sql)));
   assert.ok(prisma.queries.every((sql) => !/SELECT\s+\*/i.test(sql)));
+});
+
+test('missing database roles cannot be mistaken for successful privilege revokes', async () => {
+  const result = await inspectSchema(schemaClient(validSchemaOptions({
+    privileges: { anon_role_exists: false, authenticated_role_exists: true, anon_has_any_privilege: false, authenticated_has_any_privilege: false },
+  })), PRISMA_SCHEMA, migrationFixture());
+  assert.equal(result.revokesApplied, false);
+  assert.equal(result.verified, false);
+});
+
+test('absent policy table is inspected as absent without making privilege catalog lookup fail', async () => {
+  const result = await inspectSchema(schemaClient(validSchemaOptions({ tablePresent: false, columns: [], indexes: [], constraints: [], rls: false })), PRISMA_SCHEMA, migrationFixture());
+  assert.equal(result.readable, true);
+  assert.equal(result.tablePresent, false);
+  assert.equal(result.present, false);
+  assert.equal(result.revokesApplied, false);
 });
 
 test('inspector query failure is classified as STATUS_READ_FAILED and leaks no error text', async () => {
@@ -289,6 +442,74 @@ test('inspector query failure is classified as STATUS_READ_FAILED and leaks no e
     assert.doesNotMatch(output, /postgres:\/\/|password|secret|connection refused/i);
     assert.match(output, /PRISMA_MIGRATE_ERROR_CODE=P1000/);
     assert.match(output, /RAW_CONNECTION_VALUES_EMITTED=false/);
+  } finally {
+    fs.rmSync(files.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('malformed migration ledger results fail closed without exposing result values', async () => {
+  const files = inspectorFiles();
+  const logs = [];
+  const prisma = schemaClient();
+  const query = prisma.$queryRawUnsafe.bind(prisma);
+  prisma.$queryRawUnsafe = async (sql) => sql === MIGRATION_LEDGER_SQL
+    ? [{ migration_name: 'postgres://secret', checksum: 4, target_logs: 'password=hidden' }]
+    : query(sql);
+  try {
+    const result = await inspectPreviewMigrationState({
+      env: { VERCEL_ENV: 'preview', DATABASE_URL: 'postgres://secret', DIRECT_URL: 'postgres://secret2' },
+      applicationRoot: files.applicationRoot,
+      prisma,
+      targetGuard() {},
+      run() { return { status: 1, stdout: 'database migrations diverged', stderr: '' }; },
+      expectedSchemaSha256: files.expectedSchemaSha256,
+      expectedMigrationSha256: files.expectedMigrationSha256,
+      log: (line) => logs.push(String(line)),
+    });
+    assert.equal(result.state, 'STATUS_READ_FAILED');
+    assert.equal(result.history.ledgerReadCategory, 'LEDGER_RESULT_MALFORMED');
+    assert.doesNotMatch(logs.join('\n'), /postgres:\/\/|password|secret|hidden/i);
+  } finally {
+    fs.rmSync(files.tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('migration ledger row validator accepts Prisma timestamp and integer representations only', () => {
+  assert.equal(validateMigrationLedgerRows([{
+    migration_name: EXPECTED_MIGRATION,
+    checksum: 'safe-to-compare-only',
+    finished_at: new Date('2026-10-01T00:00:00Z'),
+    rolled_back_at: null,
+    applied_steps_count: 1n,
+    target_logs: null,
+  }]).length, 1);
+  assert.throws(() => validateMigrationLedgerRows([{ migration_name: EXPECTED_MIGRATION, checksum: {} }]), /Migration ledger result malformed/);
+});
+
+test('schema catalog failure reports sanitized category and query stage only', async () => {
+  const files = inspectorFiles();
+  const logs = [];
+  const secretError = Object.assign(new Error('postgres://user:password@host/private'), {
+    code: 'P2010', meta: { code: '42501', message: 'password=do-not-print permission denied' },
+  });
+  try {
+    const result = await inspectPreviewMigrationState({
+      env: { VERCEL_ENV: 'preview', DATABASE_URL: 'postgres://secret', DIRECT_URL: 'postgres://secret2' },
+      applicationRoot: files.applicationRoot,
+      prisma: { async $queryRawUnsafe(sql) { if (sql === MIGRATION_LEDGER_SQL) return []; throw secretError; } },
+      targetGuard() {},
+      run() { return { status: 0, stdout: 'Database schema is up to date!', stderr: '' }; },
+      expectedSchemaSha256: files.expectedSchemaSha256,
+      expectedMigrationSha256: files.expectedMigrationSha256,
+      log: (line) => logs.push(String(line)),
+    });
+    assert.equal(result.state, 'SCHEMA_READ_FAILED');
+    assert.equal(result.schema.schemaReadCategory, 'SCHEMA_READ_PERMISSION_DENIED');
+    assert.equal(result.schema.schemaReadStage, 'TABLE_LOOKUP');
+    const output = logs.join('\n');
+    assert.match(output, /SCHEMA_READ_CATEGORY=SCHEMA_READ_PERMISSION_DENIED/);
+    assert.match(output, /SCHEMA_READ_STAGE=TABLE_LOOKUP/);
+    assert.doesNotMatch(output, /postgres:\/\/|password|secret|host\/private|permission denied/i);
   } finally {
     fs.rmSync(files.tempRoot, { recursive: true, force: true });
   }
@@ -331,14 +552,16 @@ test('writeOutputs returns only sanitized status values', () => {
     state: 'FAILED_MIGRATION_SCHEMA_ABSENT',
     historyClass: 'FAILED_MIGRATION_SCHEMA_ABSENT',
     history: { targetRecord: 'PRESENT', targetFinishedAt: 'ABSENT', targetRolledBackAt: 'ABSENT' },
-    sourceShape: { migrationMatchesPrisma: false, mismatchColumns: ['effective_from', 'created_at'] },
+    sourceShape: { mappingMatches: true, typeShapeMatches: false, typeMismatchColumns: ['attendance_time_policies.effective_from', 'attendance_time_policies.created_at'] },
     schema: { readable: true, verified: false, physicalVerified: false, tablePresent: false, columnsPresent: false, indexesPresent: false, constraintsPresent: false, modelShapeMatches: false, migrationMatchesPrisma: false },
   });
   const output = rows.join('\n');
   assert.match(output, /migration_applied=UNKNOWN/);
   assert.match(output, /preview_get_allowed=NO/);
   assert.match(output, /physical_schema_verified=NO/);
-  assert.match(output, /migration_source_mismatch_columns=effective_from,created_at/);
+  assert.match(output, /model_migration_mapping=PASS/);
+  assert.match(output, /migration_type_mismatch_columns=\["effective_from","created_at"\]/);
+  assert.doesNotMatch(output, /migration_source_mismatch_columns/);
   assert.doesNotMatch(output, /postgres:\/\/|password|logs/);
 });
 

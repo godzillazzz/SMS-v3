@@ -8,6 +8,7 @@ const { spawnSync } = require('node:child_process');
 const EXPECTED_MIGRATION = '202610020002_attendance_time_policy_v1';
 const EXPECTED_SCHEMA_SHA256 = 'e4143928cfa88d4bad053aff022ad5a7f4ec15c9feb22c864b797317ebdf154b';
 const EXPECTED_MIGRATION_SHA256 = '5822719590321945832adf87647ca448773f5eff8cb40b7d35ccdd8cf5f443ee';
+const SAFE_MIGRATION_NAME = /^\d{12,14}_[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
 const PRISMA_COLUMN_FIELDS = Object.freeze([
   ['attendance_time_policies.id', 'AttendanceTimePolicy', 'id'],
@@ -72,6 +73,56 @@ function safeErrorCode(error) {
   return String(error && (error.code || (error.meta && error.meta.code)) || '').match(/^P\d{4}$/)?.[0] || 'NOT_EXPOSED';
 }
 
+function safeSchemaReadCategory(error) {
+  if (error?.schemaReadCategory === 'SCHEMA_RESULT_MALFORMED') return 'SCHEMA_RESULT_MALFORMED';
+  const codes = [error?.code, error?.meta?.code, error?.cause?.code]
+    .filter((value) => value != null)
+    .map((value) => String(value).toUpperCase());
+  const messages = [error?.message, error?.meta?.message, error?.cause?.message]
+    .filter((value) => value != null)
+    .map((value) => String(value).toLowerCase())
+    .join(' ');
+  if (codes.some((code) => ['42501', 'P1010'].includes(code)) || /permission denied|insufficient privilege|not authorized/.test(messages)) {
+    return 'SCHEMA_READ_PERMISSION_DENIED';
+  }
+  if (codes.some((code) => ['P1001', 'P1000', 'P1017', 'ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EHOSTUNREACH'].includes(code)
+    || /^08[A-Z0-9]{3}$/.test(code)) || /can't reach database|connection refused|connection reset|could not connect|server closed the connection/.test(messages)) {
+    return 'SCHEMA_CONNECTION_FAILED';
+  }
+  if (codes.some((code) => ['P1002', 'P1008', '57014', 'ETIMEDOUT'].includes(code))
+    || /timed out|timeout|query canceled|statement timeout/.test(messages)) {
+    return 'SCHEMA_QUERY_TIMEOUT';
+  }
+  if (codes.some((code) => ['P2021', 'P2022', '42P01', '42703', '3F000'].includes(code))
+    || /does not exist|undefined table|undefined column|relation .* missing/.test(messages)) {
+    return 'SCHEMA_OBJECT_NOT_FOUND';
+  }
+  if (codes.some((code) => ['P2010', '42601'].includes(code)) || /raw query failed|syntax error|error at or near/.test(messages)) {
+    return 'SCHEMA_CATALOG_QUERY_FAILED';
+  }
+  return 'SCHEMA_READ_UNKNOWN';
+}
+
+function schemaReadFailure(error, stage) {
+  const failure = new Error('Schema inspection failed');
+  failure.schemaReadCategory = safeSchemaReadCategory(error);
+  failure.schemaReadStage = stage;
+  return failure;
+}
+
+async function runSchemaQuery(prisma, sql, stage, validateRow) {
+  let rows;
+  try {
+    rows = await prisma.$queryRawUnsafe(sql);
+  } catch (error) {
+    throw schemaReadFailure(error, stage);
+  }
+  if (!Array.isArray(rows) || rows.some((row) => !validateRow(row))) {
+    throw schemaReadFailure(Object.assign(new Error('Malformed catalog result'), { schemaReadCategory: 'SCHEMA_RESULT_MALFORMED' }), stage);
+  }
+  return rows;
+}
+
 function safeFailureCategory(logs) {
   const value = String(logs || '').toLowerCase();
   if (!value.trim()) return 'NO_FAILURE_LOG';
@@ -115,13 +166,30 @@ function runPrismaMigrateStatus(args = {}) {
   return prismaCliState({ stdout: result && result.stdout, stderr: result && result.stderr, exitCode: result && result.status });
 }
 
-function prismaScalarShape(schemaText, modelName, fieldName) {
-  const block = String(schemaText || '').match(new RegExp('^model\\s+' + modelName + '\\s*\\{([\\s\\S]*?)^\\}', 'm'));
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function prismaModelShape(schemaText, modelName) {
+  const block = String(schemaText || '').match(new RegExp('^model\\s+' + escapeRegExp(modelName) + '\\s*\\{([\\s\\S]*?)^\\}', 'm'));
   if (!block) return null;
-  const line = block[1].split(/\r?\n/).find((entry) => new RegExp('^\\s*' + fieldName + '\\s+\\S+').test(entry));
-  const match = line && line.match(/^\s*(\w+)\s+(\w+\??)\s+(.*)$/);
+  const tableMap = block[1].match(/^\s*@@map\s*\(\s*"([^"]+)"\s*\)/m);
+  return {
+    body: block[1],
+    modelName,
+    table: tableMap ? tableMap[1] : modelName,
+    tableMapped: Boolean(tableMap),
+  };
+}
+
+function prismaScalarShape(schemaText, modelName, fieldName) {
+  const model = prismaModelShape(schemaText, modelName);
+  if (!model) return null;
+  const line = model.body.split(/\r?\n/).find((entry) => new RegExp('^\\s*' + escapeRegExp(fieldName) + '\\s+\\S+').test(entry));
+  const match = line && line.match(/^\s*(\w+)\s+(\w+\??)(?:\s+(.*))?$/);
   if (!match) return null;
-  const native = match[3].match(/@db\.(Uuid|VarChar|JsonB|Timestamptz|Timestamp)(?:\((\d+)\))?/);
+  const attributes = match[3] || '';
+  const native = attributes.match(/@db\.(Uuid|VarChar|JsonB|Timestamptz|Timestamp)(?:\((\d+)\))?/);
   const nativeName = native ? native[1] : '';
   const maxLength = nativeName === 'VarChar' && native[2] ? Number(native[2]) : null;
   const scalar = match[2].replace(/\?$/, '');
@@ -130,23 +198,43 @@ function prismaScalarShape(schemaText, modelName, fieldName) {
   else if (scalar === 'DateTime') udtName = nativeName === 'Timestamptz' ? 'timestamptz' : 'timestamp';
   else if (scalar === 'Json') udtName = nativeName === 'JsonB' || !nativeName ? 'jsonb' : null;
   else return null;
-  const mapped = match[3].match(/@map\("([A-Za-z0-9_]+)"\)/);
+  const mapped = attributes.match(/@map\s*\(\s*"([^"]+)"\s*\)/);
   return {
+    model: modelName,
+    table: model.table,
     column: mapped ? mapped[1] : match[1],
+    fieldMapped: Boolean(mapped),
+    tableMapped: model.tableMapped,
     udtName,
     nullable: match[2].endsWith('?') ? 'YES' : 'NO',
     maxLength,
   };
 }
 
-function readPrismaColumnExpectations(schemaText) {
-  const expectations = {};
+function inspectPrismaMappings(schemaText) {
+  const columns = {};
+  const tableMappingMismatchModels = new Set();
+  const fieldMappingMismatchColumns = [];
   for (const field of PRISMA_COLUMN_FIELDS) {
     const parsed = prismaScalarShape(schemaText, field.model, field.field);
-    if (!parsed || parsed.column !== field.column.split('.')[1]) return null;
-    expectations[field.column] = parsed;
+    const [expectedTable, expectedColumn] = field.column.split('.');
+    if (!parsed) return { prismaModelParsed: false, mappingMatches: false, columns: {}, tableMappingMismatchModels: [], fieldMappingMismatchColumns: [] };
+    if (parsed.table !== expectedTable) tableMappingMismatchModels.add(field.model);
+    if (parsed.column !== expectedColumn) fieldMappingMismatchColumns.push(field.column);
+    columns[field.column] = parsed;
   }
-  return expectations;
+  return {
+    prismaModelParsed: true,
+    mappingMatches: tableMappingMismatchModels.size === 0 && fieldMappingMismatchColumns.length === 0,
+    columns,
+    tableMappingMismatchModels: [...tableMappingMismatchModels].sort(),
+    fieldMappingMismatchColumns,
+  };
+}
+
+function readPrismaColumnExpectations(schemaText) {
+  const mappings = inspectPrismaMappings(schemaText);
+  return mappings.prismaModelParsed && mappings.mappingMatches ? mappings.columns : null;
 }
 
 function normalizeSqlType(sqlType) {
@@ -166,29 +254,50 @@ function migrationColumnType(migrationText, columnName) {
 }
 
 function inspectPrismaMigrationShape(schemaText, migrationText) {
-  const modelColumns = readPrismaColumnExpectations(schemaText);
-  if (!modelColumns) return { prismaModelParsed: false, migrationMatchesPrisma: false, mismatchCount: null, mismatchColumns: [] };
-  const mismatchColumns = [];
+  const mappings = inspectPrismaMappings(schemaText);
+  if (!mappings.prismaModelParsed) {
+    return {
+      prismaModelParsed: false, mappingMatches: false, mappingMismatchCount: null,
+      tableMappingMismatchModels: [], fieldMappingMismatchColumns: [], typeShapeMatches: false,
+      typeMismatchCount: null, typeMismatchColumns: [], migrationMatchesPrisma: false, mismatchCount: null, mismatchColumns: [],
+    };
+  }
+  const typeMismatchColumns = [];
   for (const field of PRISMA_COLUMN_FIELDS) {
-    const model = modelColumns[field.column];
-    const sql = normalizeSqlType(migrationColumnType(migrationText, field.column.split('.')[1]));
+    const model = mappings.columns[field.column];
+    const expectedColumn = field.column.split('.')[1];
+    const sql = normalizeSqlType(migrationColumnType(migrationText, expectedColumn));
     if (!model || !sql || model.udtName !== sql.udtName || model.maxLength !== sql.maxLength) {
-      mismatchColumns.push(field.column.split('.')[1]);
+      typeMismatchColumns.push(field.column);
     }
   }
+  const mismatchColumns = [...mappings.fieldMappingMismatchColumns, ...typeMismatchColumns]
+    .map((column) => column.split('.')[1]);
   return {
     prismaModelParsed: true,
-    migrationMatchesPrisma: mismatchColumns.length === 0,
+    mappingMatches: mappings.mappingMatches,
+    mappingMismatchCount: mappings.tableMappingMismatchModels.length + mappings.fieldMappingMismatchColumns.length,
+    tableMappingMismatchModels: mappings.tableMappingMismatchModels,
+    fieldMappingMismatchColumns: mappings.fieldMappingMismatchColumns,
+    typeShapeMatches: typeMismatchColumns.length === 0,
+    typeMismatchCount: typeMismatchColumns.length,
+    typeMismatchColumns,
+    migrationMatchesPrisma: mappings.mappingMatches && typeMismatchColumns.length === 0,
     mismatchCount: mismatchColumns.length,
     mismatchColumns,
   };
 }
 
 async function inspectSchema(prisma, schemaText, migrationText) {
-  const tableRows = await prisma.$queryRawUnsafe("SELECT to_regclass('public.attendance_time_policies')::text AS name");
-  const tablePresent = (Array.isArray(tableRows) ? tableRows : []).some((row) => ['attendance_time_policies', 'public.attendance_time_policies'].includes(String(row?.name || '')));
-  const columnRows = await prisma.$queryRawUnsafe(SCHEMA_COLUMNS_SQL);
-  const actual = new Map((Array.isArray(columnRows) ? columnRows : []).map((row) => [
+  const tableRows = await runSchemaQuery(prisma, "SELECT to_regclass('public.attendance_time_policies')::text AS name", 'TABLE_LOOKUP',
+    (row) => row && Object.prototype.hasOwnProperty.call(row, 'name') && (row.name === null || typeof row.name === 'string'));
+  if (tableRows.length !== 1) throw schemaReadFailure(Object.assign(new Error(), { schemaReadCategory: 'SCHEMA_RESULT_MALFORMED' }), 'TABLE_LOOKUP');
+  const tablePresent = ['attendance_time_policies', 'public.attendance_time_policies'].includes(String(tableRows[0]?.name || ''));
+  const columnRows = await runSchemaQuery(prisma, SCHEMA_COLUMNS_SQL, 'COLUMNS',
+    (row) => row && typeof row.table_name === 'string' && typeof row.column_name === 'string'
+      && typeof row.udt_name === 'string' && ['YES', 'NO'].includes(String(row.is_nullable))
+      && (row.character_maximum_length == null || Number.isSafeInteger(Number(row.character_maximum_length))));
+  const actual = new Map(columnRows.map((row) => [
     String(row.table_name) + '.' + String(row.column_name),
     { udtName: String(row?.udt_name || ''), nullable: String(row?.is_nullable || ''), maxLength: row?.character_maximum_length == null ? null : Number(row.character_maximum_length) },
   ]));
@@ -210,45 +319,61 @@ async function inspectSchema(prisma, schemaText, migrationText) {
     : [];
   const modelShapeMatches = modelShapeMismatchCount === 0;
 
-  const indexRows = await prisma.$queryRawUnsafe([
+  const indexRows = await runSchemaQuery(prisma, [
     'SELECT ic.relname AS indexname, ix.indisvalid AS valid',
     'FROM pg_index ix JOIN pg_class tc ON tc.oid = ix.indrelid',
     'JOIN pg_namespace tn ON tn.oid = tc.relnamespace JOIN pg_class ic ON ic.oid = ix.indexrelid',
     "WHERE tn.nspname = 'public' AND tc.relname = 'attendance_time_policies'",
-  ].join('\n'));
-  const indexes = new Map((Array.isArray(indexRows) ? indexRows : []).map((row) => [String(row?.indexname || ''), row?.valid === true]));
+  ].join('\n'), 'INDEXES', (row) => row && typeof row.indexname === 'string' && typeof row.valid === 'boolean');
+  const indexes = new Map(indexRows.map((row) => [String(row.indexname), row.valid]));
   const indexesPresent = REQUIRED_INDEXES.every((name) => indexes.get(name) === true);
 
-  const constraintRows = await prisma.$queryRawUnsafe([
+  const constraintRows = await runSchemaQuery(prisma, [
     'SELECT conname, convalidated FROM pg_constraint',
     "WHERE conrelid IN (to_regclass('public.attendance_time_policies'), to_regclass('public.attendance_events'))",
-  ].join('\n'));
-  const constraints = new Map((Array.isArray(constraintRows) ? constraintRows : []).map((row) => [String(row?.conname || ''), row?.convalidated === true]));
+  ].join('\n'), 'CONSTRAINTS', (row) => row && typeof row.conname === 'string' && typeof row.convalidated === 'boolean');
+  const constraints = new Map(constraintRows.map((row) => [String(row.conname), row.convalidated]));
   const constraintsPresent = REQUIRED_CONSTRAINTS.every((name) => constraints.get(name) === true);
 
-  const rlsRows = await prisma.$queryRawUnsafe([
+  const rlsRows = await runSchemaQuery(prisma, [
     'SELECT c.relrowsecurity AS enabled FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace',
     "WHERE n.nspname = 'public' AND c.relname = 'attendance_time_policies'",
-  ].join('\n'));
-  const rlsEnabled = rlsRows?.length === 1 && rlsRows[0]?.enabled === true;
-  const revokeRows = await prisma.$queryRawUnsafe([
+  ].join('\n'), 'RLS', (row) => row && typeof row.enabled === 'boolean');
+  if (rlsRows.length > 1) throw schemaReadFailure(Object.assign(new Error(), { schemaReadCategory: 'SCHEMA_RESULT_MALFORMED' }), 'RLS');
+  const rlsEnabled = rlsRows.length === 1 && rlsRows[0].enabled === true;
+  const revokeRows = await runSchemaQuery(prisma, [
     'SELECT',
-    "  EXISTS (SELECT 1 FROM pg_roles r WHERE r.rolname = 'anon' AND (has_table_privilege(r.oid, 'public.attendance_time_policies', 'SELECT') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'INSERT') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'UPDATE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'DELETE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'TRUNCATE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'REFERENCES') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'TRIGGER'))) AS anon_has_any_privilege,",
-    "  EXISTS (SELECT 1 FROM pg_roles r WHERE r.rolname = 'authenticated' AND (has_table_privilege(r.oid, 'public.attendance_time_policies', 'SELECT') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'INSERT') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'UPDATE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'DELETE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'TRUNCATE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'REFERENCES') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'TRIGGER'))) AS authenticated_has_any_privilege",
-  ].join('\n'));
-  const revokesApplied = revokeRows?.[0]?.anon_has_any_privilege === false && revokeRows?.[0]?.authenticated_has_any_privilege === false;
+    "  EXISTS (SELECT 1 FROM pg_roles r WHERE r.rolname = 'anon') AS anon_role_exists,",
+    "  EXISTS (SELECT 1 FROM pg_roles r WHERE r.rolname = 'authenticated') AS authenticated_role_exists,",
+    "  CASE WHEN to_regclass('public.attendance_time_policies') IS NULL THEN NULL::boolean ELSE EXISTS (SELECT 1 FROM pg_roles r WHERE r.rolname = 'anon' AND (has_table_privilege(r.oid, 'public.attendance_time_policies', 'SELECT') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'INSERT') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'UPDATE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'DELETE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'TRUNCATE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'REFERENCES') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'TRIGGER'))) END AS anon_has_any_privilege,",
+    "  CASE WHEN to_regclass('public.attendance_time_policies') IS NULL THEN NULL::boolean ELSE EXISTS (SELECT 1 FROM pg_roles r WHERE r.rolname = 'authenticated' AND (has_table_privilege(r.oid, 'public.attendance_time_policies', 'SELECT') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'INSERT') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'UPDATE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'DELETE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'TRUNCATE') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'REFERENCES') OR has_table_privilege(r.oid, 'public.attendance_time_policies', 'TRIGGER'))) END AS authenticated_has_any_privilege",
+  ].join('\n'), 'REVOKES', (row) => row && typeof row.anon_role_exists === 'boolean' && typeof row.authenticated_role_exists === 'boolean'
+    && (row.anon_has_any_privilege === null || typeof row.anon_has_any_privilege === 'boolean')
+    && (row.authenticated_has_any_privilege === null || typeof row.authenticated_has_any_privilege === 'boolean'));
+  if (revokeRows.length !== 1) throw schemaReadFailure(Object.assign(new Error(), { schemaReadCategory: 'SCHEMA_RESULT_MALFORMED' }), 'REVOKES');
+  const revokeFacts = revokeRows[0];
+  const revokesApplied = tablePresent && revokeFacts.anon_role_exists === true && revokeFacts.authenticated_role_exists === true
+    && revokeFacts.anon_has_any_privilege === false && revokeFacts.authenticated_has_any_privilege === false;
   const anyExpectedColumn = PRISMA_COLUMN_FIELDS.some((field) => actual.has(field.column));
   const anyExpectedIndex = [...indexes.keys()].some((name) => REQUIRED_INDEXES.includes(name));
   const anyExpectedConstraint = [...constraints.keys()].some((name) => REQUIRED_CONSTRAINTS.includes(name));
   const present = tablePresent || anyExpectedColumn || anyExpectedIndex || anyExpectedConstraint;
   const migrationShape = inspectPrismaMigrationShape(schemaText, migrationText);
+  const mappings = inspectPrismaMappings(schemaText);
   const physicalVerified = tablePresent && columnsPresent && modelShapeMatches && indexesPresent && constraintsPresent
     && rlsEnabled && revokesApplied;
   return {
-    readable: true, present, verified: physicalVerified, physicalVerified, tablePresent, columnsPresent, indexesPresent, constraintsPresent,
+    readable: true, schemaReadCategory: 'SCHEMA_READ_OK', schemaReadStage: 'COMPLETE', present, verified: physicalVerified, physicalVerified, tablePresent, columnsPresent, indexesPresent, constraintsPresent,
     rlsEnabled, revokesApplied, modelShapeMatches, modelShapeMismatchCount,
     modelShapeMismatchColumns,
+    mappingMatches: mappings.mappingMatches,
+    mappingMismatchCount: migrationShape.mappingMismatchCount,
+    tableMappingMismatchModels: mappings.tableMappingMismatchModels,
+    fieldMappingMismatchColumns: mappings.fieldMappingMismatchColumns,
     migrationMatchesPrisma: migrationShape.migrationMatchesPrisma,
+    migrationTypeShapeMatches: migrationShape.typeShapeMatches,
+    migrationTypeMismatchCount: migrationShape.typeMismatchCount,
+    migrationTypeMismatchColumns: migrationShape.typeMismatchColumns,
     migrationModelMismatchCount: migrationShape.mismatchCount,
     migrationModelMismatchColumns: migrationShape.mismatchColumns,
     missingColumnCount: PRISMA_COLUMN_FIELDS.filter((field) => !actual.has(field.column)).length,
@@ -257,8 +382,79 @@ async function inspectSchema(prisma, schemaText, migrationText) {
   };
 }
 
+function safeMigrationName(name) {
+  const value = String(name || '');
+  return value.length <= 128 && SAFE_MIGRATION_NAME.test(value) ? value : 'UNSAFE_NAME_REDACTED';
+}
+
+function migrationRecordState(row) {
+  if (row.finished && !row.rolledBack) return 'COMPLETED';
+  if (!row.finished && row.rolledBack) return 'ROLLED_BACK';
+  if (!row.finished && !row.rolledBack) return 'FAILED_OR_INCOMPLETE';
+  return 'INCONSISTENT';
+}
+
+function summarizeMigrationGroup(name, rows, sourceNames) {
+  const states = rows.map(migrationRecordState);
+  const checksums = rows.map((row) => row.checksum).filter(Boolean);
+  const checksumState = checksums.length !== rows.length ? 'UNKNOWN'
+    : new Set(checksums).size === 1 ? 'AGREE' : 'DISAGREE';
+  const rolledBackCount = rows.filter((row) => row.rolledBack).length;
+  const activeRows = rows.filter((row) => !row.rolledBack);
+  let completionSummary;
+  if (states.every((state) => state === 'ROLLED_BACK')) completionSummary = 'ALL_ROLLED_BACK';
+  else if (activeRows.length > 1) completionSummary = 'MULTIPLE_ACTIVE_RECORDS';
+  else if (states.some((state) => state === 'INCONSISTENT')) completionSummary = 'INCONSISTENT';
+  else if (activeRows.length === 1 && migrationRecordState(activeRows[0]) === 'COMPLETED') {
+    completionSummary = rolledBackCount ? 'ROLLED_BACK_THEN_COMPLETED' : 'COMPLETED';
+  } else if (activeRows.length === 1) completionSummary = 'FAILED_OR_INCOMPLETE';
+  else completionSummary = 'UNKNOWN';
+  const classifications = [sourceNames.has(name) ? 'KNOWN_SOURCE_MIGRATION' : 'UNKNOWN_TO_SOURCE'];
+  if (rows.length > 1) classifications.push('DUPLICATE_RECORD');
+  if (states.includes('FAILED_OR_INCOMPLETE')) classifications.push('FAILED_OR_INCOMPLETE');
+  if (states.includes('COMPLETED')) classifications.push('COMPLETED');
+  if (states.includes('ROLLED_BACK')) classifications.push('ROLLED_BACK');
+  if (states.includes('INCONSISTENT')) classifications.push('INCONSISTENT_RECORD_STATE');
+  return {
+    name: safeMigrationName(name),
+    recordCount: rows.length,
+    classifications,
+    completionSummary,
+    checksumState,
+    activeRecordCount: activeRows.length,
+    rolledBackRecordCount: rolledBackCount,
+  };
+}
+
+function migrationInventories(normalized, sourceMigrations) {
+  const sourceByName = new Map((sourceMigrations || []).map((entry) => [entry.name, String(entry.checksum || '').toLowerCase()]));
+  const sourceNames = new Set(sourceByName.keys());
+  const groups = new Map();
+  for (const row of normalized) {
+    if (!groups.has(row.name)) groups.set(row.name, []);
+    groups.get(row.name).push(row);
+  }
+  const ledgerMigrations = [...groups.entries()]
+    .map(([name, rows]) => summarizeMigrationGroup(name, rows, sourceNames))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const sourceInventory = (sourceMigrations || []).map((entry) => {
+    const rows = groups.get(entry.name) || [];
+    let ledgerState;
+    if (rows.length === 0) ledgerState = 'MISSING_FROM_LEDGER';
+    else if (rows.length > 1) ledgerState = 'DUPLICATED_IN_LEDGER';
+    else ledgerState = migrationRecordState(rows[0]);
+    return {
+      name: safeMigrationName(entry.name),
+      sourceState: 'PRESENT_IN_SOURCE',
+      ledgerState,
+      recordCount: rows.length,
+      completionSummary: rows.length ? summarizeMigrationGroup(entry.name, rows, sourceNames).completionSummary : 'NO_LEDGER_RECORD',
+    };
+  });
+  return { groups, ledgerMigrations, sourceInventory, sourceByName, sourceNames };
+}
+
 function targetRecordFacts(rows, sourceMigrations) {
-  const source = new Map((sourceMigrations || []).map((entry) => [entry.name, String(entry.checksum || '').toLowerCase()]));
   const normalized = (Array.isArray(rows) ? rows : []).map((row) => ({
     name: String(row?.migration_name || ''),
     checksum: String(row?.checksum || '').toLowerCase(),
@@ -267,54 +463,107 @@ function targetRecordFacts(rows, sourceMigrations) {
     logs: String(row?.target_logs ?? row?.logs ?? ''),
     steps: Number.isSafeInteger(Number(row?.applied_steps_count)) && Number(row?.applied_steps_count) >= 0 ? Number(row.applied_steps_count) : null,
   }));
-  const targetRows = normalized.filter((row) => row.name === EXPECTED_MIGRATION);
-  const target = targetRows.length === 1 ? targetRows[0] : null;
-  const unknownCount = normalized.filter((row) => !source.has(row.name)).length;
-  const checksumMismatchCount = normalized.filter((row) => source.has(row.name) && row.checksum !== source.get(row.name)).length;
-  const duplicateCount = Array.from(new Set(normalized.map((row) => row.name)))
-    .reduce((sum, name) => sum + Math.max(0, normalized.filter((row) => row.name === name).length - 1), 0);
-  const completed = new Set(normalized.filter((row) => row.finished && !row.rolledBack).map((row) => row.name));
-  const otherPendingCount = (sourceMigrations || []).filter((row) => row.name !== EXPECTED_MIGRATION && !completed.has(row.name)).length;
-  const otherIncompleteCount = normalized.filter((row) => row.name !== EXPECTED_MIGRATION && !row.finished && !row.rolledBack).length;
-  const checksumMatches = target && source.has(target.name) ? target.checksum === source.get(target.name) : null;
-  const targetState = !target
-    ? targetRows.length ? 'AMBIGUOUS' : 'ABSENT'
-    : target.finished && !target.rolledBack ? 'APPLIED'
-      : !target.finished && !target.rolledBack ? 'FAILED_OR_INCOMPLETE'
-        : target.rolledBack && !target.finished ? 'ROLLED_BACK' : 'INCONSISTENT';
+  const inventory = migrationInventories(normalized, sourceMigrations);
+  const targetRows = inventory.groups.get(EXPECTED_MIGRATION) || [];
+  const targetSummary = targetRows.length ? summarizeMigrationGroup(EXPECTED_MIGRATION, targetRows, inventory.sourceNames) : null;
+  const targetActiveRows = targetRows.filter((row) => !row.rolledBack);
+  const target = targetActiveRows.length === 1 ? targetActiveRows[0] : null;
+  const unknownCount = normalized.filter((row) => !inventory.sourceNames.has(row.name)).length;
+  const checksumMismatchCount = normalized.filter((row) => inventory.sourceByName.has(row.name)
+    && row.checksum !== inventory.sourceByName.get(row.name)).length;
+  const duplicateCount = [...inventory.groups.values()].reduce((sum, migrationRows) => sum + Math.max(0, migrationRows.length - 1), 0);
+  const duplicateDivergenceCount = inventory.ledgerMigrations.filter((entry) => entry.recordCount > 1
+    && (entry.checksumState !== 'AGREE' || entry.completionSummary === 'MULTIPLE_ACTIVE_RECORDS' || entry.completionSummary === 'INCONSISTENT')).length;
+  const completed = new Set([...inventory.groups.entries()]
+    .filter(([, migrationRows]) => migrationRows.some((row) => row.finished && !row.rolledBack))
+    .map(([name]) => name));
+  const sourceNames = (sourceMigrations || []).map((row) => row.name);
+  const otherPendingNames = (sourceMigrations || [])
+    .filter((row) => row.name !== EXPECTED_MIGRATION && !completed.has(row.name))
+    .map((row) => safeMigrationName(row.name));
+  const otherIncompleteNames = (sourceMigrations || []).filter((row) => row.name !== EXPECTED_MIGRATION)
+    .filter((row) => (inventory.groups.get(row.name) || []).some((entry) => !entry.finished && !entry.rolledBack))
+    .map((row) => safeMigrationName(row.name));
+  const targetIndex = sourceNames.indexOf(EXPECTED_MIGRATION);
+  const earlierPendingNames = targetIndex < 0 ? [] : (sourceMigrations || []).slice(0, targetIndex)
+    .filter((row) => !completed.has(row.name)).map((row) => safeMigrationName(row.name));
+  const targetOrdering = {
+    targetPresentInSource: targetIndex >= 0,
+    targetSourceIndex: targetIndex >= 0 ? targetIndex : 'UNKNOWN',
+    sourceMigrationCount: sourceNames.length,
+    earlierPendingNames,
+    valid: targetIndex >= 0 && earlierPendingNames.length === 0,
+  };
+  const targetChecksumMatches = target && inventory.sourceByName.has(target.name)
+    ? target.checksum === inventory.sourceByName.get(target.name) : null;
+  const targetState = targetRows.length === 0 ? 'ABSENT'
+    : targetActiveRows.length > 1 ? 'INCONSISTENT'
+      : targetActiveRows.length === 0 ? 'ROLLED_BACK'
+        : target.finished && !target.rolledBack ? 'APPLIED'
+          : !target.finished && !target.rolledBack ? 'FAILED_OR_INCOMPLETE' : 'INCONSISTENT';
+  const integrityOk = unknownCount === 0 && checksumMismatchCount === 0 && duplicateDivergenceCount === 0
+    && targetState !== 'INCONSISTENT';
   return {
     readable: true,
-    integrityOk: unknownCount === 0 && checksumMismatchCount === 0 && duplicateCount === 0,
+    integrityOk,
     unknownMigrationCount: unknownCount,
+    unknownMigrationNames: inventory.ledgerMigrations.filter((entry) => entry.classifications.includes('UNKNOWN_TO_SOURCE')).map((entry) => entry.name),
     checksumMismatchCount,
     duplicateRecordCount: duplicateCount,
-    otherPendingCount,
-    otherIncompleteCount,
-    targetRecord: targetRows.length === 0 ? 'ABSENT' : targetRows.length === 1 ? 'PRESENT' : 'AMBIGUOUS',
+    duplicateDivergenceCount,
+    duplicateMigrationGroups: inventory.ledgerMigrations.filter((entry) => entry.recordCount > 1),
+    ledgerMigrations: inventory.ledgerMigrations,
+    sourceInventory: inventory.sourceInventory,
+    otherPendingCount: otherPendingNames.length,
+    otherPendingNames,
+    otherIncompleteCount: otherIncompleteNames.length,
+    otherIncompleteNames,
+    targetRecord: targetRows.length === 0 ? 'ABSENT' : 'PRESENT',
+    targetRecordCount: targetRows.length,
     targetFinishedAt: target ? target.finished ? 'PRESENT' : 'ABSENT' : 'UNKNOWN',
-    targetRolledBackAt: target ? target.rolledBack ? 'PRESENT' : 'ABSENT' : 'UNKNOWN',
+    targetRolledBackAt: target ? target.rolledBack ? 'PRESENT' : 'ABSENT' : targetRows.length ? 'PRESENT_IN_HISTORY' : 'UNKNOWN',
     targetLogsPresent: target ? target.logs.trim() ? 'YES' : 'NO' : 'UNKNOWN',
     targetAppliedStepsCount: target?.steps ?? 'UNKNOWN',
-    targetChecksumMatches: checksumMatches === null ? 'UNKNOWN' : checksumMatches ? 'YES' : 'NO',
+    targetChecksumMatches: targetChecksumMatches === null ? 'UNKNOWN' : targetChecksumMatches ? 'YES' : 'NO',
     targetFailureCategory: target && target.logs.trim() ? safeFailureCategory(target.logs) : target && !target.finished && !target.rolledBack ? 'NO_FAILURE_LOG' : 'NOT_FAILED',
     targetState,
+    targetOrdering,
   };
 }
 
+function validateMigrationLedgerRows(rows) {
+  const validNullableTimestamp = (value) => value == null || value instanceof Date || typeof value === 'string';
+  const validNullableSteps = (value) => value == null || typeof value === 'bigint'
+    || (typeof value === 'number' && Number.isSafeInteger(value));
+  const valid = Array.isArray(rows) && rows.every((row) => row && typeof row.migration_name === 'string'
+    && typeof row.checksum === 'string'
+    && validNullableTimestamp(row.finished_at)
+    && validNullableTimestamp(row.rolled_back_at)
+    && validNullableSteps(row.applied_steps_count)
+    && (row.target_logs == null || typeof row.target_logs === 'string'));
+  if (!valid) {
+    const error = new Error('Migration ledger result malformed');
+    error.ledgerReadCategory = 'LEDGER_RESULT_MALFORMED';
+    throw error;
+  }
+  return rows;
+}
+
 function migrationSchemaClass(history, schema) {
-  if (!history?.readable || !schema?.readable) return 'STATUS_READ_FAILED';
-  if (!history.integrityOk || history.targetRecord === 'AMBIGUOUS' || history.targetState === 'INCONSISTENT') return 'MIGRATION_HISTORY_INCONSISTENT';
-  if (history.otherPendingCount > 0 || history.otherIncompleteCount > 0) return 'OTHER_PENDING_MIGRATIONS';
-  if (history.targetState === 'ROLLED_BACK') return 'MIGRATION_ROLLED_BACK';
+  if (!history?.readable) return 'STATUS_READ_FAILED';
+  if (!history.integrityOk) return 'HISTORY_DIVERGED';
+  if (!schema?.readable) return 'SCHEMA_READ_FAILED';
   if (history.targetState === 'FAILED_OR_INCOMPLETE') return schema.present ? 'FAILED_MIGRATION_SCHEMA_PARTIAL' : 'FAILED_MIGRATION_SCHEMA_ABSENT';
+  if (history.targetState === 'ROLLED_BACK') return 'MIGRATION_ROLLED_BACK';
+  if (history.otherPendingCount > 0 || history.otherIncompleteCount > 0 || history.targetOrdering?.valid === false) return 'OTHER_PENDING_MIGRATIONS';
   if (history.targetState === 'ABSENT') {
     if (schema.present) return 'SCHEMA_PRESENT_HISTORY_ABSENT';
-    if (schema.migrationMatchesPrisma === false) return 'PRISMA_MIGRATION_SOURCE_MISMATCH';
+    if (schema.mappingMatches === false || schema.migrationTypeShapeMatches === false || schema.migrationMatchesPrisma === false) return 'STATUS_READ_FAILED';
     return 'EXACTLY_PENDING_SCHEMA_ABSENT';
   }
   if (history.targetState === 'APPLIED') {
     if (!(schema.physicalVerified ?? schema.verified)) return 'HISTORY_APPLIED_SCHEMA_MISSING';
-    if (schema.migrationMatchesPrisma === false) return 'PRISMA_MIGRATION_SOURCE_MISMATCH';
+    if (schema.mappingMatches === false || schema.migrationTypeShapeMatches === false || schema.migrationMatchesPrisma === false) return 'STATUS_READ_FAILED';
     return 'APPLIED_AND_SCHEMA_VALID';
   }
   return 'STATUS_READ_FAILED';
@@ -324,7 +573,8 @@ function finalizeStatus(historyClass) {
   if (historyClass === 'STATUS_READ_FAILED') return { state: 'STATUS_READ_FAILED', reason: 'READ_FAILURE' };
   if (historyClass === 'MIGRATION_HISTORY_INCONSISTENT') return { state: historyClass, reason: 'LEDGER_INCONSISTENT' };
   const reasonByState = {
-    PRISMA_MIGRATION_SOURCE_MISMATCH: 'SOURCE_SHAPE_MISMATCH',
+    SCHEMA_READ_FAILED: 'SCHEMA_READ_FAILED',
+    HISTORY_DIVERGED: 'LEDGER_DIVERGED',
     HISTORY_APPLIED_SCHEMA_MISSING: 'PHYSICAL_SCHEMA_INCOMPLETE',
     FAILED_MIGRATION_SCHEMA_ABSENT: 'FAILED_RECORD_SCHEMA_ABSENT',
     FAILED_MIGRATION_SCHEMA_PARTIAL: 'FAILED_RECORD_SCHEMA_PARTIAL',
@@ -343,8 +593,12 @@ async function inspectPreviewMigrationState(args = {}) {
   let client;
   let ownedClient = false;
   let history = { readable: false, targetRecord: 'UNKNOWN' };
-  let schema = { readable: false, present: false, verified: false };
-  let sourceShape = { prismaModelParsed: false, migrationMatchesPrisma: false, mismatchCount: null, mismatchColumns: [] };
+  let schema = { readable: false, present: false, verified: false, schemaReadCategory: 'SCHEMA_READ_UNKNOWN', schemaReadStage: 'NOT_RUN' };
+  let sourceShape = {
+    prismaModelParsed: false, mappingMatches: false, mappingMismatchCount: null,
+    tableMappingMismatchModels: [], fieldMappingMismatchColumns: [], typeShapeMatches: false,
+    typeMismatchCount: null, typeMismatchColumns: [], migrationMatchesPrisma: false, mismatchCount: null, mismatchColumns: [],
+  };
   let prismaStatus = { exitCode: null, errorCode: 'NOT_EXPOSED', category: 'NOT_RUN', pendingNameCount: 0 };
   let result = { state: 'STATUS_READ_FAILED', history, schema, sourceShape, prismaStatus, reason: 'READ_FAILURE' };
   try {
@@ -372,14 +626,18 @@ async function inspectPreviewMigrationState(args = {}) {
       ownedClient = true;
     }
     try {
-      history = targetRecordFacts(await client.$queryRawUnsafe(MIGRATION_LEDGER_SQL), sourceMigrations);
+      history = targetRecordFacts(validateMigrationLedgerRows(await client.$queryRawUnsafe(MIGRATION_LEDGER_SQL)), sourceMigrations);
     } catch (error) {
-      history = { readable: false, targetRecord: 'UNKNOWN', ledgerErrorCode: safeErrorCode(error) };
+      history = { readable: false, targetRecord: 'UNKNOWN', ledgerReadCategory: error?.ledgerReadCategory || safeSchemaReadCategory(error) };
     }
     try {
       schema = await inspectSchema(client, schemaText, migrationText);
     } catch (error) {
-      schema = { readable: false, present: false, verified: false, schemaErrorCode: safeErrorCode(error) };
+      schema = {
+        readable: false, present: false, verified: false, physicalVerified: false,
+        schemaReadCategory: error?.schemaReadCategory || safeSchemaReadCategory(error),
+        schemaReadStage: error?.schemaReadStage || 'UNKNOWN_STAGE',
+      };
     }
     prismaStatus = runPrismaMigrateStatus({ schemaPath, env, run: args.run || spawnSync });
     schema.migrationMatchesPrisma = sourceShape.migrationMatchesPrisma;
@@ -393,6 +651,7 @@ async function inspectPreviewMigrationState(args = {}) {
       ['MIGRATION_STATUS_CLASS', result.state],
       ['MIGRATION_STATUS_REASON', result.reason],
       ['TARGET_MIGRATION_RECORD', history.targetRecord || 'UNKNOWN'],
+      ['TARGET_MIGRATION_RECORD_COUNT', Number.isInteger(history.targetRecordCount) ? history.targetRecordCount : 'UNKNOWN'],
       ['TARGET_MIGRATION_FINISHED_AT', history.targetFinishedAt || 'UNKNOWN'],
       ['TARGET_MIGRATION_ROLLED_BACK_AT', history.targetRolledBackAt || 'UNKNOWN'],
       ['TARGET_MIGRATION_LOGS_PRESENT', history.targetLogsPresent || 'UNKNOWN'],
@@ -400,19 +659,31 @@ async function inspectPreviewMigrationState(args = {}) {
       ['TARGET_MIGRATION_CHECKSUM_MATCHES', history.targetChecksumMatches || 'UNKNOWN'],
       ['TARGET_MIGRATION_FAILURE_CATEGORY', history.targetFailureCategory || 'UNKNOWN'],
       ['OTHER_PENDING_MIGRATIONS_COUNT', Number.isInteger(history.otherPendingCount) ? history.otherPendingCount : 'UNKNOWN'],
+      ['OTHER_PENDING_MIGRATION_NAMES_JSON', JSON.stringify(history.otherPendingNames || [])],
       ['OTHER_INCOMPLETE_MIGRATIONS_COUNT', Number.isInteger(history.otherIncompleteCount) ? history.otherIncompleteCount : 'UNKNOWN'],
       ['UNKNOWN_MIGRATION_RECORD_COUNT', Number.isInteger(history.unknownMigrationCount) ? history.unknownMigrationCount : 'UNKNOWN'],
+      ['UNKNOWN_MIGRATION_NAMES_JSON', JSON.stringify(history.unknownMigrationNames || [])],
       ['CHECKSUM_MISMATCH_COUNT', Number.isInteger(history.checksumMismatchCount) ? history.checksumMismatchCount : 'UNKNOWN'],
       ['DUPLICATE_MIGRATION_RECORD_COUNT', Number.isInteger(history.duplicateRecordCount) ? history.duplicateRecordCount : 'UNKNOWN'],
+      ['DUPLICATE_MIGRATION_GROUPS_JSON', JSON.stringify(history.duplicateMigrationGroups || [])],
+      ['MIGRATION_LEDGER_INVENTORY_JSON', JSON.stringify(history.ledgerMigrations || [])],
+      ['SOURCE_MIGRATION_INVENTORY_JSON', JSON.stringify(history.sourceInventory || [])],
+      ['TARGET_MIGRATION_ORDERING_JSON', JSON.stringify(history.targetOrdering || { valid: false })],
       ['EXPECTED_POLICY_TABLE', schema.readable ? schema.tablePresent ? 'PRESENT' : 'ABSENT' : 'UNKNOWN'],
       ['EXPECTED_REQUIRED_COLUMNS', schema.readable ? schema.columnsPresent ? 'PRESENT' : 'ABSENT' : 'UNKNOWN'],
       ['EXPECTED_INDEXES', schema.readable ? schema.indexesPresent ? 'PRESENT' : 'ABSENT' : 'UNKNOWN'],
       ['EXPECTED_CONSTRAINTS', schema.readable ? schema.constraintsPresent ? 'PRESENT' : 'ABSENT' : 'UNKNOWN'],
       ['PRISMA_MODEL_DATABASE_SHAPE_MATCH', schema.readable ? schema.modelShapeMatches ? 'YES' : 'NO' : 'UNKNOWN'],
-      ['PRISMA_MODEL_MIGRATION_SHAPE_MATCH', sourceShape.migrationMatchesPrisma ? 'YES' : 'NO'],
-      ['PRISMA_MIGRATION_SOURCE_MISMATCH_COLUMNS', sourceShape.mismatchColumns.length ? sourceShape.mismatchColumns.join(',') : 'NONE'],
+      ['PRISMA_MODEL_MIGRATION_MAPPING_MATCH', sourceShape.mappingMatches ? 'PASS' : 'FAIL'],
+      ['PRISMA_TABLE_MAPPING_MISMATCH_MODELS', sourceShape.tableMappingMismatchModels.length ? sourceShape.tableMappingMismatchModels.join(',') : 'NONE'],
+      ['PRISMA_FIELD_MAPPING_MISMATCH_COLUMNS', sourceShape.fieldMappingMismatchColumns.length ? sourceShape.fieldMappingMismatchColumns.join(',') : 'NONE'],
+      ['PRISMA_MODEL_MIGRATION_TYPE_SHAPE_MATCH', sourceShape.typeShapeMatches ? 'PASS' : 'FAIL'],
+      ['PRISMA_MODEL_MIGRATION_TYPE_MISMATCH_COLUMNS', sourceShape.typeMismatchColumns.length ? sourceShape.typeMismatchColumns.map((column) => column.split('.')[1]).join(',') : 'NONE'],
       ['PHYSICAL_SCHEMA_INVARIANTS', schema.physicalVerified ? 'PASS' : schema.readable ? 'FAIL' : 'UNKNOWN'],
       ['SCHEMA_INVARIANTS', schema.verified ? 'PASS' : schema.readable ? 'FAIL' : 'UNKNOWN'],
+      ['SCHEMA_READ_CATEGORY', schema.schemaReadCategory || 'SCHEMA_READ_UNKNOWN'],
+      ['SCHEMA_READ_STAGE', schema.schemaReadStage || 'UNKNOWN_STAGE'],
+      ['MIGRATION_LEDGER_READ_CATEGORY', history.ledgerReadCategory || 'LEDGER_READ_OK'],
       ['MISSING_COLUMN_COUNT', Number.isInteger(schema.missingColumnCount) ? schema.missingColumnCount : 'UNKNOWN'],
       ['MODEL_SHAPE_MISMATCH_COUNT', Number.isInteger(schema.modelShapeMismatchCount) ? schema.modelShapeMismatchCount : 'UNKNOWN'],
       ['MISSING_OR_INVALID_INDEX_COUNT', Number.isInteger(schema.invalidIndexCount) ? schema.invalidIndexCount : 'UNKNOWN'],
@@ -450,18 +721,31 @@ async function inspectPreviewMigrationState(args = {}) {
 }
 
 function writeOutputs(result, outputPath) {
-  const applied = result.history?.targetFinishedAt === 'PRESENT' && result.history?.targetRolledBackAt === 'ABSENT'
-    ? 'YES' : result.history?.targetRecord === 'ABSENT' ? 'NO' : 'UNKNOWN';
+  const applied = result.history?.targetState === 'APPLIED' ? 'YES'
+    : result.history?.targetRecord === 'ABSENT' && result.schema?.readable && result.schema.present === false
+      && result.history?.integrityOk && result.history?.otherPendingCount === 0 ? 'NO' : 'UNKNOWN';
+  const retryRequired = result.state === 'EXACTLY_PENDING_SCHEMA_ABSENT' ? 'YES'
+    : result.state === 'APPLIED_AND_SCHEMA_VALID' ? 'NO' : 'UNKNOWN';
+  const retrySafe = result.state === 'EXACTLY_PENDING_SCHEMA_ABSENT' ? 'YES' : 'NO';
   const rows = [
     'migration_class=' + result.state,
     'migration_reason=' + (result.reason || 'UNKNOWN'),
     'history_class=' + (result.historyClass || 'UNKNOWN'),
     'migration_applied=' + applied,
     'target_record=' + (result.history?.targetRecord || 'UNKNOWN'),
+    'target_record_count=' + (Number.isInteger(result.history?.targetRecordCount) ? result.history.targetRecordCount : 'UNKNOWN'),
     'target_finished_at=' + (result.history?.targetFinishedAt || 'UNKNOWN'),
     'target_rolled_back_at=' + (result.history?.targetRolledBackAt || 'UNKNOWN'),
     'target_failure_category=' + (result.history?.targetFailureCategory || 'UNKNOWN'),
     'other_pending_count=' + (Number.isInteger(result.history?.otherPendingCount) ? result.history.otherPendingCount : 'UNKNOWN'),
+    'other_pending_names=' + JSON.stringify(result.history?.otherPendingNames || []),
+    'unknown_migration_count=' + (Number.isInteger(result.history?.unknownMigrationCount) ? result.history.unknownMigrationCount : 'UNKNOWN'),
+    'unknown_migration_names=' + JSON.stringify(result.history?.unknownMigrationNames || []),
+    'duplicate_record_count=' + (Number.isInteger(result.history?.duplicateRecordCount) ? result.history.duplicateRecordCount : 'UNKNOWN'),
+    'duplicate_groups=' + JSON.stringify(result.history?.duplicateMigrationGroups || []),
+    'migration_ledger_inventory=' + JSON.stringify(result.history?.ledgerMigrations || []),
+    'source_migration_inventory=' + JSON.stringify(result.history?.sourceInventory || []),
+    'target_ordering=' + JSON.stringify(result.history?.targetOrdering || { valid: false }),
     'schema_objects=' + (result.schema?.readable
       ? ['table=' + (result.schema.tablePresent ? 'PRESENT' : 'ABSENT'),
         'columns=' + (result.schema.columnsPresent ? 'PRESENT' : 'ABSENT'),
@@ -469,11 +753,18 @@ function writeOutputs(result, outputPath) {
         'constraints=' + (result.schema.constraintsPresent ? 'PRESENT' : 'ABSENT')].join('; ')
       : 'UNKNOWN'),
     'model_database_shape=' + (result.schema?.readable ? result.schema.modelShapeMatches ? 'YES' : 'NO' : 'UNKNOWN'),
-    'model_migration_shape=' + (result.schema?.readable ? result.schema.migrationMatchesPrisma ? 'YES' : 'NO' : 'UNKNOWN'),
-    'migration_source_mismatch_columns=' + (result.sourceShape?.mismatchColumns?.length ? result.sourceShape.mismatchColumns.join(',') : 'NONE'),
+    'schema_read_category=' + (result.schema?.schemaReadCategory || 'SCHEMA_READ_UNKNOWN'),
+    'schema_read_stage=' + (result.schema?.schemaReadStage || 'UNKNOWN_STAGE'),
+    'model_migration_mapping=' + (result.sourceShape?.mappingMatches ? 'PASS' : 'FAIL'),
+    'table_mapping_mismatch_models=' + JSON.stringify(result.sourceShape?.tableMappingMismatchModels || []),
+    'field_mapping_mismatch_columns=' + JSON.stringify(result.sourceShape?.fieldMappingMismatchColumns || []),
+    'model_migration_type_shape=' + (result.sourceShape?.typeShapeMatches ? 'PASS' : 'FAIL'),
+    'migration_type_mismatch_columns=' + JSON.stringify((result.sourceShape?.typeMismatchColumns || []).map((column) => column.split('.')[1])),
     'physical_schema_verified=' + (result.schema?.physicalVerified ? 'YES' : result.schema?.readable ? 'NO' : 'UNKNOWN'),
     'schema_verified=' + (result.schema?.verified ? 'YES' : result.schema?.readable ? 'NO' : 'UNKNOWN'),
-    'preview_get_allowed=' + (result.state === 'APPLIED_AND_SCHEMA_VALID' && result.schema?.physicalVerified && result.sourceShape?.migrationMatchesPrisma ? 'YES' : 'NO'),
+    'migration_retry_required=' + retryRequired,
+    'migration_retry_safe=' + retrySafe,
+    'preview_get_allowed=' + (result.state === 'APPLIED_AND_SCHEMA_VALID' && result.schema?.physicalVerified && result.sourceShape?.mappingMatches && result.sourceShape?.typeShapeMatches ? 'YES' : 'NO'),
   ];
   if (outputPath) fs.appendFileSync(outputPath, rows.join('\n') + '\n', { encoding: 'utf8' });
   return rows;
@@ -508,6 +799,9 @@ module.exports = {
   runPrismaMigrateStatus,
   safeErrorCode,
   safeFailureCategory,
+  safeSchemaReadCategory,
+  inspectPrismaMappings,
   targetRecordFacts,
+  validateMigrationLedgerRows,
   writeOutputs,
 };
