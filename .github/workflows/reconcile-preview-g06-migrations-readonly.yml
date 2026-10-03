@@ -1,0 +1,225 @@
+name: Reconcile G06 Preview Migration State (Read Only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+  statuses: read
+
+concurrency:
+  group: sms-v3-staging-preview-g06-migration-readonly-reconciliation
+  cancel-in-progress: false
+
+env:
+  EXPECTED_RELEASE_BRANCH: fix/serverless-database-reliability
+  EXPECTED_RELEASE_SHA: 9fc77d0490f6a49f8d637879f6395237ac34247a
+  EXPECTED_RELEASE_TREE: 0cf1a6806625a28633b2697d5b6068df509a1a79
+  EXPECTED_PR_NUMBER: '417'
+  EXPECTED_PR_BRANCH: codex/g06-time-policy-20261002
+  EXPECTED_APPLICATION_SHA: e12c28c339c6d420c6db13b02aa1ddffb2c3e5ba
+  EXPECTED_APPLICATION_TREE: a2cdfc2f2eea4ad52eeca07b41183d74e5fcfa74
+  EXPECTED_SCHEMA_SHA256: 4f0c0b129b8b52826ddca8ddb03ddbd678ef25ea96fa22aa1928e406e4112d03
+  EXPECTED_PREDECESSOR_SHA256: 0cb317e8c243793321f3b3d5cad7f23b845d595f8373f9b62edab1c31c79c82f
+  EXPECTED_TARGET_SHA256: 5822719590321945832adf87647ca448773f5eff8cb40b7d35ccdd8cf5f443ee
+  EXPECTED_EF96_SHA: ef96af501582553c14ff7c6eab9f21f6aec7167b
+  EXPECTED_F212_SHA: f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1
+
+jobs:
+  inspect:
+    name: Inspect Preview migration ledger and schema without mutation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: 'Preview – sms-v3-staging'
+    env:
+      NODE_ENV: production
+      VERCEL_ENV: preview
+
+    steps:
+      - name: Require manual dispatch from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_REF_NAME" = "main"
+          echo 'DISPATCH_AUTHORITY=PASS'
+
+      - name: Checkout workflow source from dispatched main SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact PR, release checkpoint, CI and Preview state
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { owner, repo } = context.repo;
+            const expected = process.env;
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: Number(expected.EXPECTED_PR_NUMBER) });
+            if (pr.state !== 'open' || pr.draft !== true) throw new Error('PR #417 must remain open and Draft');
+            if (pr.base.ref !== expected.EXPECTED_RELEASE_BRANCH || pr.base.sha !== expected.EXPECTED_RELEASE_SHA) throw new Error('PR #417 base checkpoint mismatch');
+            if (pr.head.ref !== expected.EXPECTED_PR_BRANCH || pr.head.repo?.full_name !== `${owner}/${repo}`) throw new Error('PR #417 head identity mismatch');
+            if (pr.head.sha !== expected.EXPECTED_APPLICATION_SHA) throw new Error('PR #417 head SHA mismatch');
+            const { data: appCommit } = await github.rest.git.getCommit({ owner, repo, commit_sha: pr.head.sha });
+            if (appCommit.tree.sha !== expected.EXPECTED_APPLICATION_TREE) throw new Error('PR #417 tree mismatch');
+
+            const { data: releaseRef } = await github.rest.git.getRef({ owner, repo, ref: `heads/${expected.EXPECTED_RELEASE_BRANCH}` });
+            if (releaseRef.object.sha !== expected.EXPECTED_RELEASE_SHA) throw new Error('Release branch checkpoint mismatch');
+            const { data: releaseCommit } = await github.rest.git.getCommit({ owner, repo, commit_sha: releaseRef.object.sha });
+            if (releaseCommit.tree.sha !== expected.EXPECTED_RELEASE_TREE) throw new Error('Release branch tree mismatch');
+
+            const { data: workflows } = await github.rest.actions.listRepoWorkflows({ owner, repo, per_page: 100 });
+            const ci = workflows.workflows.find((item) => item.path === '.github/workflows/ci.yml' && item.name === 'CI');
+            if (!ci) throw new Error('Required CI workflow unavailable');
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({ owner, repo, workflow_id: ci.id, branch: expected.EXPECTED_PR_BRANCH, event: 'pull_request', per_page: 100 });
+            const exactRun = runs.workflow_runs.filter((run) => run.head_sha === pr.head.sha && run.head_branch === expected.EXPECTED_PR_BRANCH)
+              .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+            if (!exactRun || exactRun.status !== 'completed' || exactRun.conclusion !== 'success') throw new Error('Exact-head CI must pass');
+            const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({ owner, repo, ref: pr.head.sha, per_page: 100 });
+            const preview = statuses.filter((status) => status.context === 'Vercel').sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+            if (!preview || preview.state !== 'success') throw new Error('Exact-head Preview must pass');
+            core.info(`PR_417_DRAFT=PASS exact_ci_run=${exactRun.id} preview=PASS`);
+            core.info('RELEASE_BRANCH_CHECKPOINT=PASS');
+        env:
+          EXPECTED_RELEASE_BRANCH: ${{ env.EXPECTED_RELEASE_BRANCH }}
+          EXPECTED_RELEASE_SHA: ${{ env.EXPECTED_RELEASE_SHA }}
+          EXPECTED_RELEASE_TREE: ${{ env.EXPECTED_RELEASE_TREE }}
+          EXPECTED_PR_NUMBER: ${{ env.EXPECTED_PR_NUMBER }}
+          EXPECTED_PR_BRANCH: ${{ env.EXPECTED_PR_BRANCH }}
+          EXPECTED_APPLICATION_SHA: ${{ env.EXPECTED_APPLICATION_SHA }}
+          EXPECTED_APPLICATION_TREE: ${{ env.EXPECTED_APPLICATION_TREE }}
+
+      - name: Checkout exact release-control target guard
+        uses: actions/checkout@v4
+        with:
+          ref: 9fc77d0490f6a49f8d637879f6395237ac34247a
+          path: release-control
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify pinned release-control target guard checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C release-control rev-parse HEAD)" = "$EXPECTED_RELEASE_SHA"
+          echo 'RELEASE_CONTROL_SOURCE=PASS'
+
+      - name: Checkout exact PR #417 migration source for inspection only
+        uses: actions/checkout@v4
+        with:
+          ref: e12c28c339c6d420c6db13b02aa1ddffb2c3e5ba
+          path: application-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout immutable historical source ef96af5
+        uses: actions/checkout@v4
+        with:
+          ref: ef96af501582553c14ff7c6eab9f21f6aec7167b
+          path: historical-ef96
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout immutable historical source f2121bb
+        uses: actions/checkout@v4
+        with:
+          ref: f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1
+          path: historical-f212
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify pinned migration and schema source hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C application-source rev-parse HEAD)" = "$EXPECTED_APPLICATION_SHA"
+          test "$(git -C application-source rev-parse 'HEAD^{tree}')" = "$EXPECTED_APPLICATION_TREE"
+          printf '%s  %s\n' "$EXPECTED_SCHEMA_SHA256" application-source/prisma/schema.prisma | sha256sum --check --status
+          printf '%s  %s\n' "$EXPECTED_PREDECESSOR_SHA256" application-source/prisma/migrations/202610020001_g06_simple_device_offline/migration.sql | sha256sum --check --status
+          printf '%s  %s\n' "$EXPECTED_TARGET_SHA256" application-source/prisma/migrations/202610020002_attendance_time_policy_v1/migration.sql | sha256sum --check --status
+          test "$(git -C historical-ef96 rev-parse HEAD)" = "$EXPECTED_EF96_SHA"
+          test "$(git -C historical-f212 rev-parse HEAD)" = "$EXPECTED_F212_SHA"
+          echo 'PINNED_MIGRATION_SOURCES=PASS'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install pinned read-only inspection tooling
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Mask protected Preview inputs
+        uses: actions/github-script@v7
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            for (const name of ['DATABASE_URL','DIRECT_URL','APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT','APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT']) {
+              const value = process.env[name];
+              if (!value) throw new Error('Required protected Preview target setting is unavailable');
+              core.setSecret(value);
+            }
+            core.info('PROTECTED_TARGET_VALUES_MASKED=true');
+
+      - name: Prove Preview target first, then perform SELECT-only reconciliation
+        id: reconcile
+        shell: bash
+        env:
+          VERCEL_ENV: preview
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT }}
+          APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT }}
+          RELEASE_CONTROL_ROOT: ${{ github.workspace }}/release-control
+          APPLICATION_SOURCE_ROOT: ${{ github.workspace }}/application-source
+          HISTORICAL_EF96_ROOT: ${{ github.workspace }}/historical-ef96
+          HISTORICAL_F212_ROOT: ${{ github.workspace }}/historical-f212
+        run: node scripts/ci/reconcile-preview-g06-migrations-readonly.js
+
+      - name: Publish sanitized reconciliation summary
+        if: always()
+        shell: bash
+        env:
+          PLAN: ${{ steps.reconcile.outputs.migration_plan || 'FAIL_CLOSED_UNKNOWN' }}
+          TARGET_GUARD: ${{ steps.reconcile.outputs.preview_target_guard || 'UNKNOWN' }}
+          PREDECESSOR_SCHEMA: ${{ steps.reconcile.outputs.predecessor_schema || 'UNKNOWN' }}
+          PREDECESSOR_LEDGER: ${{ steps.reconcile.outputs.predecessor_ledger || 'UNKNOWN' }}
+          TARGET_LEDGER: ${{ steps.reconcile.outputs.target_ledger || 'UNKNOWN' }}
+          TARGET_SCHEMA: ${{ steps.reconcile.outputs.target_policy_schema || 'UNKNOWN' }}
+          HISTORICAL_28001: ${{ steps.reconcile.outputs.historical_28001 || 'UNKNOWN' }}
+          HISTORICAL_28002: ${{ steps.reconcile.outputs.historical_28002 || 'UNKNOWN' }}
+          HISTORICAL_VARIANT: ${{ steps.reconcile.outputs.historical_variant || 'UNKNOWN' }}
+          GPS_ONLY_UAT: ${{ steps.reconcile.outputs.gps_only_uat || 'UNKNOWN' }}
+          PROVENANCE_CHECK: ${{ steps.reconcile.outputs.provenance_check || 'UNKNOWN' }}
+          FACE_NULLABILITY: ${{ steps.reconcile.outputs.face_nullability || 'UNKNOWN' }}
+          CANONICAL_ORDER: ${{ steps.reconcile.outputs.canonical_order || 'ORDER_UNKNOWN' }}
+          OTHER_PENDING: ${{ steps.reconcile.outputs.other_canonical_pending || 'UNKNOWN' }}
+        run: |
+          {
+            echo '### Protected Preview G06 migration reconciliation (read-only)'
+            echo "- Preview isolation guard: $TARGET_GUARD"
+            echo "- Predecessor ledger/schema: $PREDECESSOR_LEDGER / $PREDECESSOR_SCHEMA"
+            echo "- Target ledger/schema: $TARGET_LEDGER / $TARGET_SCHEMA"
+            echo "- Historical 202609280001 checksum: $HISTORICAL_28001"
+            echo "- Historical 202609280002 checksum: $HISTORICAL_28002"
+            echo "- Historical variant compatibility: $HISTORICAL_VARIANT"
+            echo "- GPS_ONLY_UAT / provenance constraint / face session: $GPS_ONLY_UAT / $PROVENANCE_CHECK / $FACE_NULLABILITY"
+            echo "- Canonical ordering: $CANONICAL_ORDER; other pending: $OTHER_PENDING"
+            echo "- Migration plan: $PLAN"
+            echo '- Database transaction: READ ONLY; only catalog and migration metadata queried.'
+            echo '- Migration apply/resolve, DDL/DML, business-row reads, and Production access: NO.'
+            echo '- Checksums and raw DB errors emitted: NO.'
+          } >> "$GITHUB_STEP_SUMMARY"
