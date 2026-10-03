@@ -1,0 +1,40 @@
+{
+  "formatVersion": 1,
+  "evidenceRun": "37124477331",
+  "application": {
+    "pullRequest": 417,
+    "branch": "codex/g06-time-policy-20261002",
+    "sha": "e12c28c339c6d420c6db13b02aa1ddffb2c3e5ba",
+    "tree": "a2cdfc2f2eea4ad52eeca07b41183d74e5fcfa74",
+    "baseBranch": "fix/serverless-database-reliability",
+    "baseSha": "9fc77d0490f6a49f8d637879f6395237ac34247a"
+  },
+  "historicalPreviewMigrations": [
+    {"name":"202609280001_g06_gps_only_uat_event_provenance","commit":"f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1","blob":"98eef164de3ec545eaaddf8217ef1cc257850a25","label":"MATCH_F2121BB"},
+    {"name":"202609280002_g06_gps_only_uat_event_provenance_constraint","commit":"f2121bb5e1a2c6cf12ec4ca34ea604a8893fded1","blob":"eb05444e539a2b65a2810378e8a7dce52d5b72db","label":"MATCH_F2121BB"}
+  ],
+  "canonicalCandidates": [
+    {"name":"202607160000_initial_schema","commit":"ca5e6c0ea8b747bdc0a55cfad5b467ca789fe3c2","blob":"17dd0c9166fd5bc38d0739b0d7dd0230f186eaca","label":"MATCH_ORIGINAL"},
+    {"name":"202607170001_hardening","commit":"ca5e6c0ea8b747bdc0a55cfad5b467ca789fe3c2","blob":"1d21ba3bc87e08d16ec88484dc7f7e45cfc736d1","label":"MATCH_ORIGINAL"},
+    {"name":"202607170002_refresh_sessions","commit":"ca5e6c0ea8b747bdc0a55cfad5b467ca789fe3c2","blob":"d5621221e604358724bfb12da89a714d23135376","label":"MATCH_ORIGINAL"},
+    {"name":"202607220001_shared_rate_limit_buckets","commit":"48c2f19a161049cf8945239c4b47f5bc52da200b","blob":"b253823f932e94e051f9f310c2f79dfe95641c09","label":"MATCH_ORIGINAL"},
+    {"name":"202607220002_shared_alert_deduplication","commit":"d4044544f47c56341c546e5f5733b8c250779a24","blob":"6d9bfc6b66b6e55bccf184e41da5eef04352f692","label":"MATCH_ORIGINAL"},
+    {"name":"202607240001_legacy_sms_data_foundation","commit":"6fa9ce4b7d2e14dea6e102f991d68bda9271a295","blob":"b03e2a887e87a15341ee185fcbe4c78232aaa3bd","label":"MATCH_ORIGINAL"},
+    {"name":"202607240002_email_otp_authentication","commit":"f2dd5ebe69cf838f80dfd6df3bead472a7968dfb","blob":"0e140dc29a0b69685c251a497ca711a069f21194","label":"MATCH_ORIGINAL"},
+    {"name":"202607250001_consolidate_user_roles","commit":"2f96969f95f921d0006b3294af2f4a5e9495e2a5","blob":"22ed1bc45bee4d11170488d122f8849290f0515c","label":"MATCH_ORIGINAL"},
+    {"name":"202607250001_leave_attachments","commit":"1b055cdbe192fdd541e067c0110014c5f296edd3","blob":"bc91d984904454e0df5c59a7a1bd0f860515d724","label":"MATCH_ORIGINAL"},
+    {"name":"202607270001_date_effective_license_scheduling","commit":"4336ce391d088759ee261bf41640d09a7c914bc6","blob":"a1d8273bf73ff239ea9f504e826e9f4571b43350","label":"MATCH_ORIGINAL"},
+    {"name":"202607310001_employee_license_documents","commit":"b276afca9cadb583b3cc4ac6d68577b2f76c60ec","blob":"9edab5c90e8885e312a25416934204c2c4e754f2","label":"MATCH_ORIGINAL"},
+    {"name":"202608010001_license_document_retention","commit":"b6cfd3d6503c8e14b725bb5dcc838523c35154d5","blob":"0257f4c61e31bf6576c0b4a709b3818b523791bf","label":"MATCH_ORIGINAL"},
+    {"name":"202608020001_license_correction_disposal","commit":"d58cd66d42c7aa2d686ffa64602d57e2f37e1033","blob":"50bdfa039f126b2b75ab4ebd51d1fdb829d3e2b9","label":"MATCH_ORIGINAL"},
+    {"name":"202608030001_email_delivery_reservations","commit":"5ec48690251d68a1e2db14eb8b6787af977ad541","blob":"622dbbb5ab951baaf994ec784f8546f57256457b","label":"MATCH_ORIGINAL"},
+    {"name":"20260805000000_add_leave_request_created_by_user","commit":"54db863852464dd043e4373b90c119b2daac88c1","blob":"2eff558323a7b7409be3d5c06e998048b28f1844","label":"MATCH_ORIGINAL"},
+    {"name":"202608130001_employee_lifecycle_v1","commit":"ba3677f9e9a9fc66493054f73c8f96893183550c","blob":"9f606c1a79b9036b8a636114aaf4e77f59f8a4b2","label":"MATCH_ORIGINAL"},
+    {"name":"202608170001_annual_leave_quota_year","commit":"e39b15df57e9c90f9997e2c1a365f66662ff75c3","blob":"ba36296b748bb6626f7330752dd0be0d9c35190d","label":"MATCH_ORIGINAL"},
+    {"name":"202608170002_g04_private_registration_request","commit":"27a90fbd5d05427a9b03fcae6d7c511a40fd3a1e","blob":"bbafa4201f94988f7c613be79b2c0992324a4734","label":"MATCH_ORIGINAL"}
+  ],
+  "notes": {
+    "ac5dd81e64af76d36f61b5b94328371acbe950daChangedMigrationContents": false,
+    "8b20f0c15b61e85880109945530631b8b834b6e4EmailMigrationMatchesOriginalBlob": true
+  }
+}
