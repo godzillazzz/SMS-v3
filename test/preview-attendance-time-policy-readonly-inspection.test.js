@@ -382,9 +382,14 @@ test('workflow masks target values before the guarded DB step and stays Preview-
   const maskStep = workflow.indexOf('Mask Preview and Production target fingerprints before use');
   const guardStep = workflow.indexOf('Prove isolated non-Production Preview target before database inspection');
   const inspectStep = workflow.indexOf('Inspect migration status and schema using read-only queries only');
+  const maskBlock = workflow.slice(maskStep, guardStep);
   assert.match(workflow, /^on:\n\s+workflow_dispatch:/m);
   assert.match(workflow, /name: 'Preview – sms-v3-staging'/);
   assert.ok(maskStep >= 0 && maskStep < guardStep && guardStep < inspectStep);
+  assert.match(maskBlock, /APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT:\s*\$\{\{\s*vars\.APPROVED_PREVIEW_DATABASE_TARGET_FINGERPRINT\s*\}\}/);
+  assert.match(maskBlock, /APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT:\s*\$\{\{\s*vars\.APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT\s*\}\}/);
+  assert.match(maskBlock, /process\.env\[name\]/);
+  assert.doesNotMatch(maskBlock, /github\.request|GET \/repos\//);
   assert.match(workflow, /core\.setSecret\(value\)/);
   assert.match(workflow, /node scripts\/ci\/verify-preview-migration-target\.js/);
   assert.match(workflow, /node scripts\/ci\/inspect-approved-pr-preview-attendance-time-policy-migration\.js/);
