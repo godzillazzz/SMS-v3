@@ -63,6 +63,9 @@ function reviewContextDetails(result: SimpleEventResult, evidence = result.event
 
 function acceptedAttendanceDisplay(result: SimpleEventResult): { tone: StatusTone; message: string } {
   const details = reviewContextDetails(result);
+  if (result.event?.punctuality === 'LATE') details.push('มาสาย');
+  else if (result.event?.punctuality === 'ON_TIME') details.push('ตรงเวลา');
+  if (result.event?.checkoutCondition === 'EARLY_LEAVE') details.push('ออกก่อนเวลา');
   const tone: StatusTone = details.length || result.reviewRequired ? 'warning' : 'success';
   return { tone, message: details.length ? `ลงเวลาสำเร็จ · ${details.join(' · ')}` : 'ลงเวลาสำเร็จ' };
 }

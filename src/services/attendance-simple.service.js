@@ -8,6 +8,13 @@ const { normalizeScheduleTime } = require('../utils/schedule-time');
 const { createAttendanceSiteEvidenceService } = require('./attendance-site-evidence.service');
 const { createSecuritySiteAuthorityService } = require('./security-site-authority.service');
 const { createAttendancePolicyService } = require('./attendance-policy.service');
+const {
+  snapshotFor: timePolicySnapshotFor,
+  validateAttendanceTime,
+  classifyAttendanceEventTime,
+  valuesFromSnapshot,
+  createAttendanceTimePolicyService
+} = require('./attendance-time-policy.service');
 const { bangkokParts, isOvernightAssignment, actionableAssignment } = require('./attendance-verification-context.service');
 
 const SIMPLE_EVENT_VERSION = 'SMS_ATTENDANCE_SIMPLE_EVENT_V1';
@@ -122,11 +129,13 @@ function assertFirstDeviceCanAutoBind(activeEnrollment, existingEnrollment) {
 function createAttendanceSimpleService({
   prisma = prismaDefault, audit = auditDefault, clock = () => new Date(),
   siteEvidenceService = null, siteAuthorityService = null, policyService = null,
+  timePolicyService = null,
   bundleSecret = () => process.env.JWT_SECRET
 } = {}) {
   const siteEvidence = siteEvidenceService || createAttendanceSiteEvidenceService({ prisma, clock });
   const siteAuthority = siteAuthorityService || createSecuritySiteAuthorityService({ prisma });
   const policies = policyService || createAttendancePolicyService({ prisma });
+  const timePolicies = timePolicyService || createAttendanceTimePolicyService({ prisma, audit, clock });
 
   async function resolveIdentity(client, actor) {
     const user = await client.user.findUnique({
@@ -144,14 +153,17 @@ function createAttendanceSimpleService({
     const yesterday = shiftDate(local.date, -1);
     const rows = await client.shiftAssignment.findMany({
       where: { employeeId, workDate: { in: [new Date(`${yesterday}T00:00:00.000Z`), new Date(`${local.date}T00:00:00.000Z`)] } },
-      include: { shiftType: true, securitySite: true }, orderBy: { workDate: 'asc' }
+      include: { shiftType: true, securitySite: true, attendanceSession: { include: { events: { select: { eventType: true } } } } }, orderBy: { workDate: 'asc' }
     });
     const byDate = new Map(rows.map((row) => [workDateText(row.workDate), row]));
     const previous = byDate.get(yesterday);
     const today = byDate.get(local.date);
     if (previous && isOvernightAssignment(previous)) {
       const end = timeMinutes(previous.endTime || previous.shiftType?.endTime);
-      if (end !== null && local.minutes < end) return previous;
+      const hasOpenCheckout = previous.attendanceSession?.state === 'OPEN'
+        && (previous.attendanceSession.events || []).some((event) => event.eventType === 'CHECK_IN')
+        && !(previous.attendanceSession.events || []).some((event) => event.eventType === 'CHECK_OUT');
+      if (hasOpenCheckout || (end !== null && local.minutes < end)) return previous;
     }
     if (today) return today;
     throw http(409, 'ATTENDANCE_ASSIGNMENT_REQUIRED', 'No authoritative Shift Assignment is available for Attendance.');
@@ -374,6 +386,11 @@ function createAttendanceSimpleService({
       if (existingEvent) return { counted: true, idempotent: true, event: existingEvent, status: 'ACCEPTED' };
       const existingPending = await tx.attendancePendingEvent.findUnique({ where: { captureId: input.captureId } });
       if (existingPending) return { counted: false, idempotent: true, pendingEvent: existingPending, status: existingPending.status };
+      const effectiveAt = offline ? capturedAt : now;
+      const resolvedTimePolicy = await timePolicies.resolveForAssignment({ assignment, at: effectiveAt }, tx);
+      validateAttendanceTime({ assignment, eventIntent: action, effectiveAt, policy: resolvedTimePolicy.values });
+      const timePolicySnapshot = timePolicySnapshotFor(resolvedTimePolicy);
+      const timeClassification = classifyAttendanceEventTime({ assignment, eventIntent: action, effectiveAt, policy: resolvedTimePolicy.values });
       const binding = await bindOrObserveDevice(tx, { actor, identity, material,
         device: { ...input.device, userAgentSnapshot: requestUserAgent || input.device?.userAgentSnapshot || null }, now });
       riskFlags.push(...binding.reviewFlags);
@@ -387,6 +404,7 @@ function createAttendanceSimpleService({
           data: { employeeId: identity.employeeId, shiftAssignmentId: assignment.id, captureId: input.captureId,
             eventType: action, sourceMode: 'OFFLINE', capturedAt, receivedAt: now,
             locationEvidence: locationResult.evidenceRef, deviceSnapshot: snapshot,
+            timePolicySnapshot,
             riskFlags: [...new Set([...uniqueRiskFlags, 'DELAYED_OFFLINE'])],
             payloadDigest: objectDigest(signedPayload), status: 'PENDING_CONFIRMATION' }
         });
@@ -397,6 +415,8 @@ function createAttendanceSimpleService({
             assignedSiteId: locationResult.evidenceRef.expectedSiteId, assignedSiteCode: locationResult.evidenceRef.assignedSite?.code || null,
             actualSiteId: locationResult.evidenceRef.actualSiteId, actualSiteCode: locationResult.evidenceRef.actualSite?.code || null,
             workSiteContext: locationResult.evidenceRef.workSiteContext, gpsEvidenceDigest: locationResult.locationBindingDigest,
+            punctuality: timeClassification.punctuality, checkoutCondition: timeClassification.checkoutCondition,
+            timePolicyId: resolvedTimePolicy.source.policyId, timePolicyScope: resolvedTimePolicy.source.scopeType,
             riskFlags: pending.riskFlags } }, tx);
         return { counted: false, status: 'PENDING_CONFIRMATION', pendingEvent: pending, reviewRequired: true, reviewReasons: pending.riskFlags };
       }
@@ -412,7 +432,9 @@ function createAttendanceSimpleService({
         data: { sessionId: session.id, faceVerificationSessionId: null, deviceEnrollmentId: binding.enrollment.id,
           captureId: input.captureId, eventType: action, provenance: 'ONLINE', sourceMode: offline ? 'OFFLINE' : 'ONLINE',
           receivedAt: now, effectiveEventAt: offline ? capturedAt : now, deviceCapturedAt: offline ? capturedAt : null,
-          timeBasis: 'SERVER_RECEIVED', contextDigest: objectDigest(context),
+          timeBasis: 'SERVER_RECEIVED', punctuality: timeClassification.punctuality,
+          checkoutCondition: timeClassification.checkoutCondition, timePolicySnapshot,
+          contextDigest: objectDigest(context),
           locationEvidence: locationResult.evidenceRef, verificationSnapshot: snapshot,
           reviewRequired, reviewReasons: reviewRequired ? uniqueRiskFlags : null }
       });
@@ -426,6 +448,8 @@ function createAttendanceSimpleService({
           assignedSiteCode: locationResult.evidenceRef.assignedSite?.code || null,
           actualSiteId: locationResult.evidenceRef.actualSiteId, actualSiteCode: locationResult.evidenceRef.actualSite?.code || null,
           workSiteContext: locationResult.evidenceRef.workSiteContext, capturedAt: (offline ? capturedAt : now).toISOString(),
+          punctuality: timeClassification.punctuality, checkoutCondition: timeClassification.checkoutCondition,
+          timePolicyId: resolvedTimePolicy.source.policyId, timePolicyScope: resolvedTimePolicy.source.scopeType,
           gpsEvidenceDigest: locationResult.locationBindingDigest,
           reviewRequired, reviewReasons: uniqueRiskFlags } }, tx);
       return { counted: true, status: reviewRequired ? 'ACCEPTED_REVIEW_FLAGGED' : 'ACCEPTED',
@@ -498,6 +522,18 @@ function createAttendanceSimpleService({
       const approval = await approvedSchedule(tx, assignment);
       const existingSession = await tx.attendanceSession.findUnique({ where: { shiftAssignmentId: assignment.id } });
       const authority = await siteAuthority.resolve({ assignment, employee: assignment.employee, existingSession }, tx);
+      const resolvedTimePolicy = pending.timePolicySnapshot
+        ? { values: valuesFromSnapshot(pending.timePolicySnapshot), source: {
+          policyId: pending.timePolicySnapshot.policyId || null,
+          scopeType: pending.timePolicySnapshot.scopeType || 'COMPANY_DEFAULT',
+          scopeId: pending.timePolicySnapshot.scopeId || null,
+          effectiveFrom: pending.timePolicySnapshot.effectiveFrom || null
+        } }
+        : await timePolicies.resolveForAssignment({ assignment, at: pending.capturedAt }, tx);
+      if (!resolvedTimePolicy.values) throw http(409, 'ATTENDANCE_PENDING_TIME_POLICY_INVALID', 'The pending Attendance time policy snapshot is invalid.');
+      validateAttendanceTime({ assignment, eventIntent: pending.eventType, effectiveAt: pending.capturedAt, policy: resolvedTimePolicy.values });
+      const timeClassification = classifyAttendanceEventTime({ assignment, eventIntent: pending.eventType, effectiveAt: pending.capturedAt, policy: resolvedTimePolicy.values });
+      const timePolicySnapshot = pending.timePolicySnapshot || timePolicySnapshotFor(resolvedTimePolicy);
       const session = await sessionForEvent(tx, identity, assignment, approval, authority, pending.eventType, now);
       const existingCapture = await tx.attendanceEvent.findUnique({ where: { captureId: pending.captureId } });
       if (existingCapture) {
@@ -512,6 +548,7 @@ function createAttendanceSimpleService({
         data: { sessionId: session.id, faceVerificationSessionId: null, deviceEnrollmentId: snapshot.deviceEnrollmentId || null,
           captureId: pending.captureId, eventType: pending.eventType, provenance: 'ONLINE', sourceMode: 'OFFLINE',
           receivedAt: pending.receivedAt, effectiveEventAt: pending.capturedAt, deviceCapturedAt: pending.capturedAt, timeBasis: 'SERVER_RECEIVED',
+          punctuality: timeClassification.punctuality, checkoutCondition: timeClassification.checkoutCondition, timePolicySnapshot,
           contextDigest: pending.payloadDigest, locationEvidence: pending.locationEvidence,
           verificationSnapshot: snapshot, reviewRequired: pendingRiskFlags.length > 0,
           reviewReasons: pendingRiskFlags.length > 0 ? pendingRiskFlags : null }
@@ -526,6 +563,8 @@ function createAttendanceSimpleService({
           assignedSiteId: pendingLocation.expectedSiteId || null, assignedSiteCode: pendingLocation.assignedSite?.code || null,
           actualSiteId: pendingLocation.actualSiteId || null, actualSiteCode: pendingLocation.actualSite?.code || null,
           workSiteContext: pendingLocation.workSiteContext || 'ASSIGNED_SITE',
+          punctuality: timeClassification.punctuality, checkoutCondition: timeClassification.checkoutCondition,
+          timePolicyId: resolvedTimePolicy.source.policyId, timePolicyScope: resolvedTimePolicy.source.scopeType,
           gpsEvidenceDigest: pendingLocation.locationBindingDigest || null, deviceEnrollmentId: snapshot.deviceEnrollmentId || null,
           reviewReasons: pendingRiskFlags } }, tx);
       return { status: 'CONFIRMED', pendingEvent: confirmed, event, counted: true };

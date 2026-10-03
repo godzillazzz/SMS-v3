@@ -10,6 +10,7 @@ const {
   createAttendanceSimpleService
 } = require('../src/services/attendance-simple.service');
 const { createAttendanceSiteEvidenceService } = require('../src/services/attendance-site-evidence.service');
+const { DEFAULT_ATTENDANCE_TIME_POLICY } = require('../src/services/attendance-time-policy.contract');
 
 const ids = {
   user: '11111111-1111-4111-8111-111111111111',
@@ -27,7 +28,7 @@ function site({ id, code, name, latitude, longitude, radius = 100, active = true
   return { id, code, name, latitude, longitude, geofenceRadiusMeters: radius, isActive: active };
 }
 
-function harness({ sites = null, activePrimary = null } = {}) {
+function harness({ sites = null, activePrimary = null, timePolicyValues = null } = {}) {
   const state = {
     now: new Date(now),
     sites: sites || [
@@ -39,7 +40,8 @@ function harness({ sites = null, activePrimary = null } = {}) {
     session: null,
     events: new Map(),
     pending: new Map(),
-    audits: []
+    audits: [],
+    timePolicyResolutions: []
   };
   const employee = { id: ids.employee, employeeCode: 'UAT-TEST', displayName: 'Attendance Test', firstName: 'Attendance', lastName: 'Test', department: 'SECURITY', isActive: true, deletedAt: null };
   const assignment = {
@@ -96,8 +98,14 @@ function harness({ sites = null, activePrimary = null } = {}) {
   const audit = { log: async (entry) => { state.audits.push(entry); } };
   const siteAuthorityService = { resolve: async () => ({ site: state.sites.find((row) => row.id === ids.siteA), source: 'ASSIGNMENT' }) };
   const siteEvidenceService = createAttendanceSiteEvidenceService({ prisma, clock: () => state.now, policyOverride: policy });
+  const timePolicyService = timePolicyValues ? {
+    resolveForAssignment: async ({ assignment: target, at }) => {
+      state.timePolicyResolutions.push({ assignmentId: target.id, at: new Date(at) });
+      return { values: timePolicyValues, source: { policyId: 'time-policy-test', scopeType: 'SHIFT_TYPE', scopeId: ids.shift, effectiveFrom: new Date('2026-10-01T00:00:00.000Z') } };
+    }
+  } : undefined;
   const service = createAttendanceSimpleService({ prisma, audit, clock: () => state.now, siteAuthorityService, siteEvidenceService,
-    policyService: { getPolicy: async () => policy }, bundleSecret: () => 'test-only-offline-signing-secret-at-least-32-bytes' });
+    policyService: { getPolicy: async () => policy }, timePolicyService, bundleSecret: () => 'test-only-offline-signing-secret-at-least-32-bytes' });
   return { state, prisma, service, assignment };
 }
 
@@ -137,6 +145,8 @@ test('online support Site keeps assigned Site, derives actual Site, emits contex
   assert.equal(result.event.locationEvidence.expectedSiteId, ids.siteA);
   assert.equal(result.event.locationEvidence.actualSiteId, ids.siteB);
   assert.equal(result.event.locationEvidence.workSiteContext, 'SUPPORT_SITE');
+  assert.equal(result.event.punctuality, 'LATE');
+  assert.equal(result.event.checkoutCondition, null);
   assert.equal(result.event.locationEvidence.assignedSite.code, 'A');
   assert.equal(result.event.locationEvidence.actualSite.code, 'B');
   assert.equal(result.session.expectedSiteId, ids.siteA);
@@ -199,12 +209,14 @@ test('delayed offline support attendance stays uncounted until ADMIN confirms an
   assert.equal(pending.counted, false);
   assert.equal(pending.status, 'PENDING_CONFIRMATION');
   assert.equal(pending.pendingEvent.locationEvidence.workSiteContext, 'SUPPORT_SITE');
+  assert.equal(pending.pendingEvent.timePolicySnapshot.values.lateGraceMinutes, 0);
   assert.equal(h.state.events.size, 0);
   const confirmed = await h.service.reviewPending({ actor: { sub: ids.admin, role: 'ADMIN' }, pendingId: pending.pendingEvent.id, action: 'CONFIRM', comment: 'Reviewed test record' });
   assert.equal(confirmed.counted, true);
   assert.equal(confirmed.event.locationEvidence.expectedSiteId, ids.siteA);
   assert.equal(confirmed.event.locationEvidence.actualSiteId, ids.siteB);
   assert.equal(confirmed.event.locationEvidence.workSiteContext, 'SUPPORT_SITE');
+  assert.equal(confirmed.event.punctuality, 'LATE');
   assert.equal(confirmed.event.reviewRequired, true);
   assert.ok(confirmed.event.reviewReasons.includes('DEVICE_MISMATCH'));
   assert.ok(confirmed.event.reviewReasons.includes('ASSIST_OTHER_SITE'));
@@ -230,4 +242,50 @@ test('support Site duplicate capture is idempotent and poor/stale GPS remains bl
   const old = new Date(now.getTime() - 4 * 60 * 1000);
   await assert.rejects(() => stale.service.submit({ actor: { sub: ids.user }, input: signedInput({ ...staleKey, location: { ...locB(), capturedAt: old.toISOString() } }) }),
     (error) => error.details?.code === 'ATTENDANCE_LOCATION_STALE');
+});
+
+test('an explicitly enabled latest CHECK_IN policy blocks before session or Attendance mutation', async () => {
+  const h = harness({ timePolicyValues: { ...DEFAULT_ATTENDANCE_TIME_POLICY, latestCheckInEnabled: true, latestCheckInMinutesAfterStart: 30 } });
+  const key = keyMaterial();
+  await assert.rejects(() => h.service.submit({ actor: { sub: ids.user }, input: signedInput({ ...key, location: locA() }) }),
+    (error) => error.details?.code === 'ATTENDANCE_CHECK_IN_LATEST_WINDOW_EXCEEDED');
+  assert.equal(h.state.events.size, 0);
+  assert.equal(h.state.session, null);
+  assert.equal(h.state.devices.length, 0);
+});
+
+test('delayed offline CHECK_IN uses signed capture time for lateness and confirms without counting early', async () => {
+  const h = harness({ timePolicyValues: DEFAULT_ATTENDANCE_TIME_POLICY });
+  h.state.now = new Date('2026-10-02T00:00:00.000Z'); // 07:00 Asia/Bangkok: issue bundle
+  const bootstrap = await h.service.bootstrap({ actor: { sub: ids.user } });
+  const capturedAt = new Date('2026-10-02T00:15:00.000Z'); // 07:15 Asia/Bangkok
+  h.state.now = new Date('2026-10-02T01:20:00.000Z'); // 08:20 Asia/Bangkok: delayed sync
+  const key = keyMaterial();
+  const input = signedInput({ ...key, capturedAt, offlineBundle: bootstrap.offline.bundle,
+    location: { ...locB(), capturedAt: capturedAt.toISOString() } });
+  const pending = await h.service.submit({ actor: { sub: ids.user }, input });
+  assert.equal(pending.status, 'PENDING_CONFIRMATION');
+  assert.equal(pending.counted, false);
+  assert.equal(h.state.events.size, 0);
+  assert.equal(h.state.timePolicyResolutions.length, 1);
+  assert.equal(h.state.timePolicyResolutions[0].at.toISOString(), capturedAt.toISOString());
+  assert.equal(pending.pendingEvent.timePolicySnapshot.values.lateGraceMinutes, 0);
+  const confirmed = await h.service.reviewPending({ actor: { sub: ids.admin, role: 'ADMIN' }, pendingId: pending.pendingEvent.id, action: 'CONFIRM', comment: 'Reviewed delayed time-policy test' });
+  assert.equal(confirmed.counted, true);
+  assert.equal(confirmed.event.effectiveEventAt.toISOString(), capturedAt.toISOString());
+  assert.equal(confirmed.event.punctuality, 'LATE');
+  assert.equal(h.state.events.size, 1);
+});
+
+test('SUPPORT_SITE, DEVICE_MISMATCH and LATE survive together', async () => {
+  const h = harness({ activePrimary: { id: crypto.randomUUID(), employeeId: ids.employee, status: 'ACTIVE', credentialFingerprint: 'different-primary' } });
+  h.state.devices.push(h.state.activePrimary);
+  const key = keyMaterial();
+  const result = await h.service.submit({ actor: { sub: ids.user }, input: signedInput({ ...key, location: locB() }) });
+  assert.equal(result.counted, true);
+  assert.equal(result.event.locationEvidence.workSiteContext, 'SUPPORT_SITE');
+  assert.equal(result.event.punctuality, 'LATE');
+  assert.equal(result.event.reviewRequired, true);
+  assert.ok(result.event.reviewReasons.includes('ASSIST_OTHER_SITE'));
+  assert.ok(result.event.reviewReasons.includes('DEVICE_MISMATCH'));
 });

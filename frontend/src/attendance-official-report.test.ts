@@ -44,7 +44,7 @@ describe('Official Attendance report presentation', () => {
 
   it('uses Owner-locked missing checkout and assist-site wording', () => {
     expect(attendanceReportPresentation.resultText(row({ flags: ['MISSING_CHECK_OUT', 'TIME_ABNORMAL'], checkOutAt: null, workedMinutes: null })))
-      .toBe('เวลาผิดปกติ / ไม่มีเวลาออก');
+      .toBe('ไม่ได้ลงเวลาออก / เวลาผิดปกติ');
     expect(attendanceReportPresentation.resultText(row({ flags: ['ASSIST_OTHER_SITE'], actualSite: { id: 'site-b', code: 'B', name: 'Site B' } })))
       .toBe('ช่วยปฏิบัติงาน ณ Site B');
   });
@@ -57,5 +57,18 @@ describe('Official Attendance report presentation', () => {
     expect(summary.late).toBe(1);
     expect(summary.abnormal).toBe(1);
     expect(attendanceReportPresentation.durationText(null)).toBe('-');
+  });
+
+  it('keeps lateness, Support Site and foreign-device review visible together', () => {
+    const presentation = row({
+      workSiteContext: 'SUPPORT_SITE',
+      assignedSite: { id: 'site-a', code: 'A', name: 'Site A' },
+      actualSite: { id: 'site-b', code: 'B', name: 'Site B' },
+      punctuality: 'LATE', flags: ['LATE', 'ASSIST_OTHER_SITE', 'DEVICE_MISMATCH']
+    });
+    const text = attendanceReportPresentation.resultText(presentation);
+    expect(text).toContain('ช่วยปฏิบัติงาน ณ Site B');
+    expect(text).toContain('มาสาย');
+    expect(text).toContain('ใช้อุปกรณ์อื่น · ตรวจสอบ');
   });
 });
