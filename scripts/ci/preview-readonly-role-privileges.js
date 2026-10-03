@@ -78,13 +78,10 @@ SELECT
   ) AS public_security_definer_execution,
   EXISTS (
     SELECT 1 FROM pg_catalog.pg_largeobject_metadata l
-    CROSS JOIN LATERAL pg_catalog.aclexplode(l.lomacl) acl
+    CROSS JOIN LATERAL pg_catalog.aclexplode(
+      COALESCE(l.lomacl, pg_catalog.acldefault('L', l.lomowner))
+    ) acl
     WHERE acl.grantee = 0::oid AND acl.privilege_type IN ('SELECT', 'UPDATE')
-  ) AS public_large_object_privilege,
-  EXISTS (
-    SELECT 1 FROM pg_catalog.pg_largeobject_metadata l
-    WHERE has_largeobject_privilege('public', l.oid, 'SELECT')
-       OR has_largeobject_privilege('public', l.oid, 'UPDATE')
   ) AS public_large_object_privilege,
   EXISTS (
     SELECT 1 FROM pg_catalog.pg_proc p
@@ -227,8 +224,10 @@ SELECT
   ) AS no_sequence_privileges,
   NOT EXISTS (
     SELECT 1 FROM pg_catalog.pg_largeobject_metadata l
-    WHERE has_largeobject_privilege(r.rolname, l.oid, 'SELECT')
-       OR has_largeobject_privilege(r.rolname, l.oid, 'UPDATE')
+    CROSS JOIN LATERAL pg_catalog.aclexplode(
+      COALESCE(l.lomacl, pg_catalog.acldefault('L', l.lomowner))
+    ) acl
+    WHERE acl.grantee IN (r.oid, 0::oid) AND acl.privilege_type IN ('SELECT', 'UPDATE')
   ) AS no_large_object_privileges,
   NOT EXISTS (
     SELECT 1 FROM pg_catalog.pg_proc p
@@ -356,6 +355,7 @@ function safeFailureCategory(error) {
   const code = String(error?.code || '').toUpperCase();
   if (code === '28P01' || code === '28000') return 'AUTHENTICATION_FAILED';
   if (code === '42501') return 'PRIVILEGE_CHECK_FAILED';
+  if (code === '42883') return 'REQUIRED_CATALOG_FUNCTION_UNAVAILABLE';
   if (/^08[A-Z0-9]{3}$/.test(code) || ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND'].includes(code)) return 'CONNECTION_FAILED';
   if (['42P01', '42703', '3F000'].includes(code)) return 'REQUIRED_CATALOG_OBJECT_UNAVAILABLE';
   return 'READ_ONLY_CHECK_FAILED';

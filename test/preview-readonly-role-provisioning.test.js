@@ -86,7 +86,22 @@ test('pre-provision public privilege scan fails closed on TEMP, mutating large-o
   }
   assert.match(PUBLIC_MUTATION_SURFACE_SQL, /acl\.privilege_type IN \('TEMP', 'TEMPORARY'\)/);
   assert.match(PUBLIC_MUTATION_SURFACE_SQL, /pg_catalog\.aclexplode\(p\.proacl\)/);
+  assert.match(PUBLIC_MUTATION_SURFACE_SQL, /pg_catalog\.acldefault\('L', l\.lomowner\)/);
+  assert.doesNotMatch(PUBLIC_MUTATION_SURFACE_SQL, /has_largeobject_privilege/i);
+  assert.equal((PUBLIC_MUTATION_SURFACE_SQL.match(/AS public_large_object_privilege/g) || []).length, 1);
+  assert.match(PRIVILEGE_FACTS_SQL, /acl\.grantee IN \(r\.oid, 0::oid\)/);
+  assert.match(PRIVILEGE_FACTS_SQL, /pg_catalog\.acldefault\('L', l\.lomowner\)/);
+  assert.doesNotMatch(PRIVILEGE_FACTS_SQL, /has_largeobject_privilege/i);
   assert.ok(PUBLIC_MUTATING_FUNCTION_NAMES.includes('lo_create'));
+});
+
+test('large-object privilege checks use portable catalog ACLs and preserve default grants', () => {
+  for (const sql of [PUBLIC_MUTATION_SURFACE_SQL, PRIVILEGE_FACTS_SQL]) {
+    assert.match(sql, /pg_catalog\.pg_largeobject_metadata/);
+    assert.match(sql, /pg_catalog\.aclexplode\(/);
+    assert.match(sql, /COALESCE\(l\.lomacl, pg_catalog\.acldefault\('L', l\.lomowner\)\)/);
+    assert.doesNotMatch(sql, /has_largeobject_privilege/i);
+  }
 });
 
 test('pre-provision privilege scan is a read-only SELECT and returns only sanitized checks', async () => {
@@ -168,6 +183,28 @@ test('connection failures are reduced to safe categories with no raw database er
   assert.equal(proof.passed, false);
   assert.equal(proof.category, 'CONNECTION_FAILED');
   assert.equal(safeFailureCategory(Object.assign(new Error('postgres://user:secret@host'), { code: '42501' })), 'PRIVILEGE_CHECK_FAILED');
+  assert.equal(safeFailureCategory(Object.assign(new Error('postgres://user:secret@host'), { code: '42883' })), 'REQUIRED_CATALOG_FUNCTION_UNAVAILABLE');
+  assert.doesNotMatch(JSON.stringify(proof), /postgres:|secret|@host/i);
+});
+
+test('missing catalog function failures stay fail-closed and emit only a sanitized category', async () => {
+  const calls = [];
+  const client = {
+    async connect() {},
+    async query(sql) {
+      calls.push(sql);
+      if (sql === 'BEGIN READ ONLY' || sql === 'ROLLBACK') return { rows: [] };
+      throw Object.assign(new Error('postgres://user:secret@host:5432/db function detail'), { code: '42883' });
+    },
+    async end() {},
+  };
+  const result = await inspectPublicMutationSurface(client, EXPECTED_ROLE);
+  assert.equal(result.passed, false);
+  assert.equal(result.category, 'REQUIRED_CATALOG_FUNCTION_UNAVAILABLE');
+  assert.equal(Object.keys(result.checks).length, 0);
+  assert.doesNotMatch(JSON.stringify(result), /postgres:|secret|host:5432|function detail/i);
+  assert.ok(calls.includes('BEGIN READ ONLY'));
+  assert.ok(calls.includes('ROLLBACK'));
 });
 
 test('recipient public key must be RSA 3072 bits or stronger', () => {
