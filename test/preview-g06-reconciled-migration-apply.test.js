@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const {
   EXPECTED_PENDING,
@@ -16,6 +17,7 @@ const {
   hasNewlineInsideSqlQuotedConstruct,
   inspectPendingMigrationRecords,
   runApprovedPreviewMutation,
+  safeEphemeralSourceFailureDetails,
   safeCrlfCandidate,
   safeApplyFailure,
 } = require('../scripts/ci/apply-reconciled-preview-g06-migrations');
@@ -261,14 +263,64 @@ test('unexpected predecessor/target ledger record is summarized without mutation
 });
 
 test('ephemeral migration source build failures receive a safe category', async () => {
-  const setup = runOptions({ buildBundle: async () => { throw new Error('private path and connection text'); } });
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smsv3-g06-source-failure-test-'));
+  const outputPath = path.join(tempDir, 'github-output.txt');
+  const setup = runOptions({ outputPath, buildBundle: async () => {
+    throw Object.assign(new Error('private path and connection text'), {
+      code: 'ENOENT', path: 'C:/private/path', ephemeralSourceFailureStage: 'COPY_SCHEMA', ephemeralSourceFailureCode: 'FS_ENOENT',
+    });
+  } });
+  try {
+    const report = await runApprovedPreviewMutation(setup.options);
+    assert.equal(report.ephemeralSource, 'FAIL');
+    assert.equal(report.ephemeralSourceFailureStage, 'COPY_SCHEMA');
+    assert.equal(report.ephemeralSourceFailureCode, 'FS_ENOENT');
+    assert.equal(report.failureCategory, 'EPHEMERAL_SOURCE_BUILD_FAILED');
+    assert.equal(report.applyAttempted, false);
+    const output = setup.calls.join('\n') + fs.readFileSync(outputPath, 'utf8');
+    assert.equal(output.includes('private path'), false);
+    assert.equal(output.includes('connection text'), false);
+    assert.equal(output.includes('C:/private/path'), false);
+    assert.match(output, /ephemeral_source_failure_stage=COPY_SCHEMA/);
+    assert.match(output, /ephemeral_source_failure_code=FS_ENOENT/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('ephemeral source failure details allow only fixed stages and non-sensitive error codes', () => {
+  assert.deepEqual(
+    safeEphemeralSourceFailureDetails('CREATE_TEMP_ROOT', Object.assign(new Error('secret path'), { code: 'EACCES', path: 'secret/path' })),
+    { stage: 'CREATE_TEMP_ROOT', code: 'FS_EACCES' },
+  );
+  assert.deepEqual(
+    safeEphemeralSourceFailureDetails('UNTRUSTED_STAGE', Object.assign(new Error('secret path'), { code: 'EACCES', path: 'secret/path' })),
+    { stage: 'UNKNOWN_STAGE', code: 'FS_EACCES' },
+  );
+  assert.deepEqual(
+    safeEphemeralSourceFailureDetails('VERIFY_PROVIDER', new Error('MIGRATION_PROVIDER_UNVERIFIED')),
+    { stage: 'VERIFY_PROVIDER', code: 'MIGRATION_PROVIDER_UNVERIFIED' },
+  );
+  assert.deepEqual(
+    safeEphemeralSourceFailureDetails('COPY_SCHEMA', Object.assign(new Error('postgres://user:secret@host/db'), { code: 'CUSTOM', detail: 'secret' })),
+    { stage: 'COPY_SCHEMA', code: 'UNKNOWN' },
+  );
+});
+
+test('verified ledger candidate selections are passed into the ephemeral source builder', async () => {
+  let receivedSources;
+  const setup = runOptions({
+    buildBundle: async ({ candidateSources }) => {
+      receivedSources = candidateSources;
+      return { schemaPath: 'schema.prisma', migrationsRoot: 'migrations', targetMigrationPath: 'target.sql' };
+    },
+  });
   const report = await runApprovedPreviewMutation(setup.options);
-  assert.equal(report.ephemeralSource, 'FAIL');
-  assert.equal(report.failureCategory, 'EPHEMERAL_SOURCE_BUILD_FAILED');
-  assert.equal(report.applyAttempted, false);
-  const output = setup.calls.join('\n');
-  assert.equal(output.includes('private path'), false);
-  assert.equal(output.includes('connection text'), false);
+  assert.equal(report.failureCategory, 'NONE');
+  assert.ok(receivedSources.selected instanceof Map);
+  assert.equal(receivedSources.selected.size, manifest.canonicalCandidates.length);
+  assert.deepEqual([...receivedSources.selected.keys()], manifest.canonicalCandidates.map((item) => item.name));
+  assert.equal(setup.calls.includes('apply'), true);
 });
 
 test('workflow applies exactly once only after two stable read-only passes and exact pending status', async () => {
@@ -310,6 +362,8 @@ test('protected workflow runs only from main in Preview Environment and contains
   assert.match(workflow, /predecessor_ledger_before_apply/);
   assert.match(workflow, /target_ledger_before_apply/);
   assert.match(workflow, /ephemeral_source/);
+  assert.match(workflow, /ephemeral_source_failure_stage/);
+  assert.match(workflow, /ephemeral_source_failure_code/);
   assert.doesNotMatch(workflow, /prisma\s+migrate\s+resolve/i);
   assert.doesNotMatch(workflow, /prisma\s+db\s+push/i);
   assert.match(workflow, /APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT/);

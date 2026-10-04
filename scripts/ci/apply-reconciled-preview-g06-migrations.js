@@ -15,11 +15,50 @@ const PENDING = [PRED, TARGET];
 const SAFE_NAME = /^\d{12,14}_[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const ALLOWED_CANDIDATE_TRANSFORMS = Object.freeze(['IDENTITY', 'LF_TO_CRLF_SQL_SAFE']);
 const LEDGER_SQL = 'SELECT migration_name, checksum, started_at, finished_at, rolled_back_at, applied_steps_count FROM public."_prisma_migrations" ORDER BY started_at, migration_name';
+const EPHEMERAL_SOURCE_STAGES = Object.freeze([
+  'VERIFY_APPLICATION_SOURCE', 'VERIFY_SELECTED_CANONICAL_SOURCES', 'CREATE_TEMP_ROOT', 'CREATE_PRISMA_ROOT', 'COPY_SCHEMA',
+  'COPY_CANONICAL_MIGRATIONS', 'REPLACE_CANONICAL_MIGRATION', 'ADD_HISTORICAL_PREVIEW_MIGRATION',
+  'VERIFY_PROVIDER', 'WRITE_MIGRATION_LOCK',
+]);
+const SAFE_SOURCE_FILESYSTEM_CODES = new Set([
+  'EBUSY', 'EEXIST', 'EISDIR', 'EMFILE', 'ENFILE', 'ENODEV', 'ENOENT', 'ENOSPC',
+  'ENOTDIR', 'EIO', 'EPERM', 'EACCES', 'EROFS', 'EXDEV',
+]);
+const SAFE_SOURCE_INVARIANT_CODES = new Set([
+  'APPLICATION_SOURCE_IDENTITY_MISMATCH', 'APPLICATION_MIGRATION_PIN_MISMATCH',
+  'CANONICAL_MIGRATION_SOURCE_MISSING', 'PREVIEW_HISTORICAL_MIGRATION_NAME_CONFLICT',
+  'MIGRATION_PROVIDER_UNVERIFIED', 'SELECTED_CANONICAL_SOURCES_UNAVAILABLE',
+]);
 
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 function validHex(value, size) { return typeof value === 'string' && new RegExp('^[0-9a-f]{' + size + '}$', 'i').test(value); }
 function gitText(root, args) { return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim(); }
 function gitBytes(root, args) { return execFileSync('git', args, { cwd: root, encoding: null, stdio: ['ignore', 'pipe', 'pipe'] }); }
+
+function safeEphemeralSourceFailureDetails(stage, error) {
+  const failureStage = EPHEMERAL_SOURCE_STAGES.includes(stage) ? stage : 'UNKNOWN_STAGE';
+  let failureCode = 'UNKNOWN';
+  if (SAFE_SOURCE_INVARIANT_CODES.has(error?.safeSourceCode)
+      || SAFE_SOURCE_INVARIANT_CODES.has(error?.message)) {
+    failureCode = error.safeSourceCode || error.message;
+  } else if (SAFE_SOURCE_FILESYSTEM_CODES.has(error?.code)) {
+    failureCode = 'FS_' + error.code;
+  }
+  return { stage: failureStage, code: failureCode };
+}
+
+function ephemeralSourceStage(stage, operation) {
+  try {
+    return operation();
+  } catch (error) {
+    const details = safeEphemeralSourceFailureDetails(stage, error);
+    throw Object.assign(new Error('EPHEMERAL_SOURCE_BUILD_FAILED'), {
+      safeCategory: 'EPHEMERAL_SOURCE_BUILD_FAILED',
+      ephemeralSourceFailureStage: details.stage,
+      ephemeralSourceFailureCode: details.code,
+    });
+  }
+}
 
 function readAndValidateManifest(file) {
   const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -239,30 +278,44 @@ function ledgerFingerprint(rows) {
 }
 
 function buildEphemeralMigrationSource({ applicationRoot, gitRoot, manifest, candidateSources, tempRoot }) {
-  const pins = applicationRootFacts(applicationRoot, manifest);
-  const root = fs.mkdtempSync(path.join(tempRoot || os.tmpdir(), 'smsv3-g06-preview-migration-'));
+  const pins = ephemeralSourceStage('VERIFY_APPLICATION_SOURCE', () => applicationRootFacts(applicationRoot, manifest));
+  const selectedSources = ephemeralSourceStage('VERIFY_SELECTED_CANONICAL_SOURCES', () => {
+    const expected = manifest.canonicalCandidates.map((item) => item.name);
+    if (!(candidateSources.selected instanceof Map) || candidateSources.selected.size !== expected.length
+        || expected.some((name) => !candidateSources.selected.has(name))) {
+      throw new Error('SELECTED_CANONICAL_SOURCES_UNAVAILABLE');
+    }
+    return candidateSources.selected;
+  });
+  const root = ephemeralSourceStage('CREATE_TEMP_ROOT', () => fs.mkdtempSync(path.join(tempRoot || os.tmpdir(), 'smsv3-g06-preview-migration-')));
   const prismaRoot = path.join(root, 'prisma');
   const migrationsRoot = path.join(prismaRoot, 'migrations');
-  fs.mkdirSync(prismaRoot, { recursive: true });
-  fs.copyFileSync(path.join(applicationRoot, 'prisma', 'schema.prisma'), path.join(prismaRoot, 'schema.prisma'));
-  fs.cpSync(path.join(applicationRoot, 'prisma', 'migrations'), migrationsRoot, { recursive: true });
-  for (const [name, item] of candidateSources.selected) {
-    const target = path.join(migrationsRoot, name, 'migration.sql');
-    if (!fs.existsSync(target)) throw new Error('CANONICAL_MIGRATION_SOURCE_MISSING');
-    fs.writeFileSync(target, item.bytes);
+  ephemeralSourceStage('CREATE_PRISMA_ROOT', () => fs.mkdirSync(prismaRoot, { recursive: true }));
+  ephemeralSourceStage('COPY_SCHEMA', () => fs.copyFileSync(path.join(applicationRoot, 'prisma', 'schema.prisma'), path.join(prismaRoot, 'schema.prisma')));
+  ephemeralSourceStage('COPY_CANONICAL_MIGRATIONS', () => fs.cpSync(path.join(applicationRoot, 'prisma', 'migrations'), migrationsRoot, { recursive: true }));
+  for (const [name, item] of selectedSources) {
+    ephemeralSourceStage('REPLACE_CANONICAL_MIGRATION', () => {
+      const target = path.join(migrationsRoot, name, 'migration.sql');
+      if (!fs.existsSync(target)) throw new Error('CANONICAL_MIGRATION_SOURCE_MISSING');
+      fs.writeFileSync(target, item.bytes);
+    });
   }
   for (const item of candidateSources.historicalPreview) {
-    const target = path.join(migrationsRoot, item.name);
-    if (fs.existsSync(target)) throw new Error('PREVIEW_HISTORICAL_MIGRATION_NAME_CONFLICT');
-    fs.mkdirSync(target, { recursive: true });
-    fs.writeFileSync(path.join(target, 'migration.sql'), item.bytes);
+    ephemeralSourceStage('ADD_HISTORICAL_PREVIEW_MIGRATION', () => {
+      const target = path.join(migrationsRoot, item.name);
+      if (fs.existsSync(target)) throw new Error('PREVIEW_HISTORICAL_MIGRATION_NAME_CONFLICT');
+      fs.mkdirSync(target, { recursive: true });
+      fs.writeFileSync(path.join(target, 'migration.sql'), item.bytes);
+    });
   }
   const lock = path.join(migrationsRoot, 'migration_lock.toml');
   if (!fs.existsSync(lock)) {
-    const schemaText = pins.schema.toString('utf8');
-    const provider = schemaText.match(/datasource\s+\w+\s*\{[\s\S]*?\bprovider\s*=\s*"([^"]+)"/);
-    if (!provider || provider[1] !== 'postgresql') throw new Error('MIGRATION_PROVIDER_UNVERIFIED');
-    fs.writeFileSync(lock, 'provider = "postgresql"\n', 'utf8');
+    ephemeralSourceStage('VERIFY_PROVIDER', () => {
+      const schemaText = pins.schema.toString('utf8');
+      const provider = schemaText.match(/datasource\s+\w+\s*\{[\s\S]*?\bprovider\s*=\s*"([^"]+)"/);
+      if (!provider || provider[1] !== 'postgresql') throw new Error('MIGRATION_PROVIDER_UNVERIFIED');
+    });
+    ephemeralSourceStage('WRITE_MIGRATION_LOCK', () => fs.writeFileSync(lock, 'provider = "postgresql"\n', 'utf8'));
   }
   return { root, prismaRoot, migrationsRoot, schemaPath: path.join(prismaRoot, 'schema.prisma'), targetMigrationPath: path.join(migrationsRoot, TARGET, 'migration.sql') };
 }
@@ -396,6 +449,8 @@ function outputReport(report, file = process.env.GITHUB_OUTPUT) {
     ['phase_a', report.phaseA], ['candidate_match', report.candidateMatch], ['migration_plan', report.migrationPlan],
     ['migration_status', report.migrationStatus], ['predecessor_ledger_before_apply', report.predecessorLedgerBeforeApply],
     ['target_ledger_before_apply', report.targetLedgerBeforeApply], ['ephemeral_source', report.ephemeralSource],
+    ['ephemeral_source_failure_stage', report.ephemeralSourceFailureStage],
+    ['ephemeral_source_failure_code', report.ephemeralSourceFailureCode],
     ['migration_apply_attempted', report.applyAttempted ? 'YES' : 'NO'],
     ['migration_apply_result', report.applyResult], ['post_schema', report.postSchema], ['preview_runtime', report.previewRuntime],
     ['policy_get', report.policyGet], ['iphone_ui_gate_ready', report.iphoneUiGateReady], ['failure_category', report.failureCategory],
@@ -406,7 +461,7 @@ function outputReport(report, file = process.env.GITHUB_OUTPUT) {
 async function runApprovedPreviewMutation(options = {}) {
   const env = options.env || process.env;
   const log = options.log || console.log;
-  const report = { phaseA: 'FAIL', candidateMatch: 'UNKNOWN', migrationPlan: 'NOT_RUN', migrationStatus: 'NOT_RUN', predecessorLedgerBeforeApply: 'NOT_READ', targetLedgerBeforeApply: 'NOT_READ', ephemeralSource: 'NOT_RUN', applyAttempted: false, applyResult: 'NOT_RUN', postSchema: 'NOT_RUN', previewRuntime: 'NOT_RUN', policyGet: 'NOT_RUN', iphoneUiGateReady: 'NO', failureCategory: 'NONE' };
+  const report = { phaseA: 'FAIL', candidateMatch: 'UNKNOWN', migrationPlan: 'NOT_RUN', migrationStatus: 'NOT_RUN', predecessorLedgerBeforeApply: 'NOT_READ', targetLedgerBeforeApply: 'NOT_READ', ephemeralSource: 'NOT_RUN', ephemeralSourceFailureStage: 'NONE', ephemeralSourceFailureCode: 'NONE', applyAttempted: false, applyResult: 'NOT_RUN', postSchema: 'NOT_RUN', previewRuntime: 'NOT_RUN', policyGet: 'NOT_RUN', iphoneUiGateReady: 'NO', failureCategory: 'NONE' };
   const emit = (key, value) => log(key + '=' + value);
   let targetGuard = options.targetGuard;
   let targetGuardPassed = false;
@@ -445,12 +500,22 @@ async function runApprovedPreviewMutation(options = {}) {
 
     let bundle;
     try {
+      // Preserve the exact SQL blobs whose checksums matched the read-only ledger.
+      const bundleSources = { ...candidateSources, selected: first.selected };
       bundle = await (options.buildBundle || buildEphemeralMigrationSource)({
-        applicationRoot, gitRoot, manifest, candidateSources, tempRoot: env.RUNNER_TEMP || os.tmpdir(),
+        applicationRoot, gitRoot, manifest, candidateSources: bundleSources, tempRoot: env.RUNNER_TEMP || os.tmpdir(),
       });
       report.ephemeralSource = 'PASS';
-    } catch {
+    } catch (error) {
       report.ephemeralSource = 'FAIL';
+      const details = safeEphemeralSourceFailureDetails(error?.ephemeralSourceFailureStage, error);
+      report.ephemeralSourceFailureStage = details.stage;
+      report.ephemeralSourceFailureCode = error?.ephemeralSourceFailureCode
+        && SAFE_SOURCE_INVARIANT_CODES.has(error.ephemeralSourceFailureCode)
+        ? error.ephemeralSourceFailureCode
+        : SAFE_SOURCE_FILESYSTEM_CODES.has(String(error?.ephemeralSourceFailureCode || '').replace(/^FS_/, ''))
+          ? 'FS_' + String(error.ephemeralSourceFailureCode).replace(/^FS_/, '')
+          : details.code;
       throw Object.assign(new Error(), { safeCategory: 'EPHEMERAL_SOURCE_BUILD_FAILED' });
     }
     emit('EPHEMERAL_MIGRATION_SOURCE', report.ephemeralSource);
@@ -517,6 +582,7 @@ if (require.main === module) main().then((status) => { process.exitCode = status
 
 module.exports = {
   EXPECTED_PENDING: PENDING, LEDGER_SQL, assertPendingMigrations, assertReconciliationPlan, buildEphemeralMigrationSource,
+  safeEphemeralSourceFailureDetails,
   inspectPendingMigrationRecords,
   candidateVariants, classifyCandidateMatches, classifyPrismaStatus, hasNewlineInsideSqlQuotedConstruct,
   ledgerFingerprint, loadCandidateSources, outputReport, readAndValidateManifest, runApprovedPreviewMutation,

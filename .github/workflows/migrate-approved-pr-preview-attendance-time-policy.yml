@@ -198,6 +198,8 @@ jobs:
           PREDECESSOR_LEDGER: ${{ steps.migration.outputs.predecessor_ledger_before_apply || 'UNKNOWN' }}
           TARGET_LEDGER: ${{ steps.migration.outputs.target_ledger_before_apply || 'UNKNOWN' }}
           EPHEMERAL_SOURCE: ${{ steps.migration.outputs.ephemeral_source || 'UNKNOWN' }}
+          SOURCE_FAILURE_STAGE: ${{ steps.migration.outputs.ephemeral_source_failure_stage || 'NONE' }}
+          SOURCE_FAILURE_CODE: ${{ steps.migration.outputs.ephemeral_source_failure_code || 'NONE' }}
           ATTEMPTED: ${{ steps.migration.outputs.migration_apply_attempted || 'UNKNOWN' }}
           APPLY: ${{ steps.migration.outputs.migration_apply_result || 'UNKNOWN' }}
           SCHEMA: ${{ steps.migration.outputs.post_schema || 'UNKNOWN' }}
@@ -214,6 +216,7 @@ jobs:
             echo "- Predecessor ledger before apply: $PREDECESSOR_LEDGER"
             echo "- Target ledger before apply: $TARGET_LEDGER"
             echo "- Ephemeral source build: $EPHEMERAL_SOURCE"
+            echo "- Ephemeral source failure stage/code: $SOURCE_FAILURE_STAGE / $SOURCE_FAILURE_CODE"
             echo "- Migration plan: $PLAN"
             echo "- Migration apply attempted: $ATTEMPTED; result: $APPLY"
             echo "- Post-migration schema: $SCHEMA"
