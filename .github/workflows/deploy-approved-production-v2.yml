@@ -149,6 +149,11 @@ jobs:
               test "$changed_prisma" = "$expected_prisma"
 
               case "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" in
+                .github/releases/approved-attendance-time-policy-production-migration.json)
+                  EVIDENCE_WORKFLOW_NAME='Apply Approved Attendance Time Policy Production Migration'
+                  EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-attendance-time-policy-production-migration.yml'
+                  EVIDENCE_WORKFLOW_EVENT='push'
+                  ;;
                 .github/releases/approved-emp-ux-production-migration.json)
                   EVIDENCE_WORKFLOW_NAME='Apply Approved EMP-UX Production Migration'
                   EVIDENCE_WORKFLOW_PATH='.github/workflows/apply-approved-emp-ux-production-migration.yml'
@@ -200,6 +205,10 @@ jobs:
                 "$EVIDENCE_WORKFLOW_PATH" \
                 scripts/ci/verify-approved-production-migration.js \
                 "$POST_VERIFY_SCRIPT"
+
+              if test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
+                git diff --quiet "$EVIDENCE_HEAD" "$GITHUB_SHA" -- scripts/ci/verify-g06-simple-attendance-production-migration.js
+              fi
 
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID/jobs?per_page=100" >/tmp/pre-applied-jobs.json
               node - /tmp/pre-applied-jobs.json <<'NODE'
@@ -375,6 +384,9 @@ jobs:
               git merge-base --is-ancestor "$MIGRATION_SOURCE_SHA" "$TARGET_SHA"
               git diff --quiet "$MIGRATION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
               git show "$GITHUB_SHA:$POST_VERIFY_SCRIPT" >/tmp/pre-applied-post-verify.js
+              if test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
+                git show "$GITHUB_SHA:scripts/ci/verify-g06-simple-attendance-production-migration.js" >/tmp/verify-g06-simple-attendance-production-migration.js
+              fi
               ;;
             *)
               exit 1

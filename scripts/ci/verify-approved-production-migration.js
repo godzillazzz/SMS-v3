@@ -16,6 +16,14 @@ const EXPECTED = Object.freeze({
 });
 
 const MIGRATIONS = Object.freeze({
+  'G06-TIME-POLICY': Object.freeze({
+    migrationName: '202610020002_attendance_time_policy_v1',
+    migrationPolicy: 'ADDITIVE_ATTENDANCE_TIME_POLICY_SCHEMA_ONLY_NO_BACKFILL',
+    postVerifyScript: 'scripts/ci/verify-attendance-time-policy-production-migration.js',
+    sqlSha256: '5822719590321945832adf87647ca448773f5eff8cb40b7d35ccdd8cf5f443ee',
+    dataBackfill: false,
+    schemaChanged: true
+  }),
   'CFG-03': Object.freeze({
     migrationName: '202608310001_cfg03_leave_type_master',
     migrationPolicy: 'ADDITIVE_SCHEMA_WITH_CONTROLLED_BACKFILL',
@@ -413,6 +421,10 @@ function validateMdg01bSql(sql) {
 }
 
 function validateSqlForMigration(migrationId, sql) {
+  if (migrationId === 'G06-TIME-POLICY') {
+    assert(crypto.createHash('sha256').update(String(sql).replace(/\r\n/g, '\n')).digest('hex') === MIGRATIONS[migrationId].sqlSha256, 'G06 time-policy SQL identity mismatch');
+    return { statementCount: 12, controlledUpdateCount: 0 };
+  }
   if (migrationId === 'CFG-03') return validateCfg03Sql(sql);
   if (migrationId === 'CFG-04') return validateCfg04Sql(sql);
   if (migrationId === 'CFG-05') return validateCfg05Sql(sql);
