@@ -195,6 +195,9 @@ jobs:
           PLAN: ${{ steps.migration.outputs.migration_plan || 'UNKNOWN' }}
           MATCH: ${{ steps.migration.outputs.candidate_match || 'UNKNOWN' }}
           STATUS: ${{ steps.migration.outputs.migration_status || 'UNKNOWN' }}
+          PREDECESSOR_LEDGER: ${{ steps.migration.outputs.predecessor_ledger_before_apply || 'UNKNOWN' }}
+          TARGET_LEDGER: ${{ steps.migration.outputs.target_ledger_before_apply || 'UNKNOWN' }}
+          EPHEMERAL_SOURCE: ${{ steps.migration.outputs.ephemeral_source || 'UNKNOWN' }}
           ATTEMPTED: ${{ steps.migration.outputs.migration_apply_attempted || 'UNKNOWN' }}
           APPLY: ${{ steps.migration.outputs.migration_apply_result || 'UNKNOWN' }}
           SCHEMA: ${{ steps.migration.outputs.post_schema || 'UNKNOWN' }}
@@ -208,6 +211,9 @@ jobs:
             echo "- Application PR: #$PR; exact SHA: $SHA"
             echo "- Historical checksum candidate reconciliation: $MATCH"
             echo "- Read-only Prisma pending state: $STATUS"
+            echo "- Predecessor ledger before apply: $PREDECESSOR_LEDGER"
+            echo "- Target ledger before apply: $TARGET_LEDGER"
+            echo "- Ephemeral source build: $EPHEMERAL_SOURCE"
             echo "- Migration plan: $PLAN"
             echo "- Migration apply attempted: $ATTEMPTED; result: $APPLY"
             echo "- Post-migration schema: $SCHEMA"
