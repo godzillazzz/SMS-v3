@@ -12,7 +12,7 @@ test('completed session is a separate expected server error, not invented missin
  assert.equal(classification('ATTENDANCE_SCHEDULE_NOT_APPROVED'),'NO_APPROVED_SHIFT_AT_TIME');
  assert.equal(classification('unrecognized'),'UNKNOWN_FAIL_CLOSED');
 });
-function fixture(subjects=[{actor_user_id:id,employee_id:id}],count=0){const calls=[];const session={state:'CLOSED',events:[{eventType:'CHECK_IN'},{eventType:'CHECK_OUT'}]};
+function fixture(subjects=[{actor_user_id:id,employee_id:id}],count=0){const calls=[];const session={employeeId:id,state:'CLOSED',events:[{eventType:'CHECK_IN'},{eventType:'CHECK_OUT'}]};
  const tx={$executeRawUnsafe:async q=>{calls.push(q);},$queryRawUnsafe:async q=>{calls.push(q);return q===SUBJECT?subjects:q===STATS?[{event_count:count,pending_count:0,active_device_count:1}]:[{readonly:'on'}];},scheduleApproval:{findFirst:async()=>({status:'APPROVED'})},attendanceSession:{findUnique:async()=>session}};
  const dependencies={authority:{createSecuritySiteAuthorityService:()=>({resolve:async()=>({source:'DEPARTMENT_DEFAULT',site:{code:'WCS'}})})},
  service:{createAttendanceSimpleService:options=>({bootstrap:async()=>{await options.prisma.scheduleApproval.findFirst();await options.siteAuthorityService.resolve({assignment:{shiftType:{code:'D'}}},options.prisma);await options.prisma.attendanceSession.findUnique();const e=new Error('private data must not appear');e.statusCode=409;e.details={code:'ATTENDANCE_ALREADY_CHECKED_OUT'};throw e;}})},
