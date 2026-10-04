@@ -4,15 +4,15 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { verify } = require('../scripts/ci/verify-preapplied-attendance-policy-readonly');
 const { validateReleaseManifest } = require('../scripts/ci/verify-release-manifest');
-test('application release pins merged #417, immediate rollback and successful protected 002 evidence',()=>{
+test('application release pins merged #439, immediate rollback and no database changes',()=>{
   const manifest=JSON.parse(fs.readFileSync('.github/releases/approved-production.json'));
   const valid=validateReleaseManifest(manifest);
-  assert.equal(valid.commitSha,'500aaa53d60d6835cccec16c79ca25de00ab06c6');
-  assert.equal(valid.treeSha,'a2cdfc2f2eea4ad52eeca07b41183d74e5fcfa74');
-  assert.equal(valid.rollbackDeploymentId,'dpl_G8AKkHcwD98NKPQSWpvP7XBBs67B');
-  assert.equal(valid.preAppliedMigrationEvidenceRunId,37177481995);
+  assert.equal(valid.commitSha,'8bae84a50e8cd2c3d96ba2393a8004ea4abaafeb');
+  assert.equal(valid.treeSha,'e125272c8ab6f934d973212b444a8a918887854a');
+  assert.equal(valid.rollbackDeploymentId,'dpl_7ARdP3yKSMyXbsoFhput84BPrTrh');
+  assert.equal(valid.preAppliedMigrationEvidenceRunId,'');
   assert.equal(valid.runMigrations,false);
-  assert.equal(manifest.application_exact_sha_ci_run_id,37174427286);
+  assert.equal(manifest.application_exact_sha_ci_run_id,37183292547);
 });
 test('read-only release revalidation accepts only no-database-change plan',async()=>{
   const result=await verify({env:{},readFacts:async()=>({plan:'PLAN_NO_DATABASE_CHANGE'}),run:async(options)=>options.observe({}, {}, ()=>{})});
@@ -20,6 +20,17 @@ test('read-only release revalidation accepts only no-database-change plan',async
   for(const plan of ['PLAN_APPLY_001_THEN_002','PLAN_APPLY_002_ONLY','PLAN_FAIL_CLOSED','PLAN_HISTORY_RECOVERY_REQUIRED']) {
     await assert.rejects(verify({env:{},readFacts:async()=>({plan}),run:async(options)=>options.observe({}, {}, ()=>{})}),/PREAPPLIED_SCHEMA_NOT_VALID/);
   }
+});
+test('unchanged-schema hotfix preserves history checks and all Time Policy runtime sentinels',()=>{
+  const workflow=fs.readFileSync('.github/workflows/deploy-approved-production-v2.yml','utf8');
+  const block=workflow.split('      - name: Revalidate unchanged Attendance schema read-only')[1].split('      - name: Revalidate pre-applied Production database state')[0];
+  assert(block.includes("needs.prepare.outputs.database_change_policy == 'NO_DATABASE_CHANGES'"));
+  assert(block.includes('git diff --quiet "$CURRENT_PRODUCTION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations'));
+  assert(block.includes('HISTORY_BASELINE_MISMATCH'));
+  assert(block.includes('PRODUCTION_CANDIDATE_MANIFEST=/tmp/unchanged-attendance-history.json node scripts/ci/verify-preapplied-attendance-policy-readonly.js'));
+  assert.doesNotMatch(block,/migrate deploy|migrate resolve|db push/);
+  assert(workflow.includes("process.env.DATABASE_CHANGE_POLICY === 'NO_DATABASE_CHANGES'"));
+  assert(workflow.includes("test \"$DATABASE_CHANGE_POLICY\" = 'NO_DATABASE_CHANGES' ||"));
 });
 test('release wrapper has no migration fallback, even if runner tried invoking apply',async()=>{
   await assert.rejects(verify({env:{},run:async(options)=>options.apply()}),/APPLICATION_RELEASE_MIGRATION_FORBIDDEN/);
