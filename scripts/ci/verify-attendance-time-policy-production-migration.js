@@ -140,4 +140,4 @@ async function inspect({ prisma, root = process.cwd(), log = console.log, post =
 if (require.main === module) inspect({ post: process.argv.includes('--post') }).catch(() => {
   process.stderr.write('PRODUCTION_MIGRATION_INSPECTION=FAIL_CLOSED\n'); process.exitCode = 1;
 });
-module.exports = { PREDECESSOR, TARGET, REQUIRED_COLUMNS, INDEXES, CONSTRAINTS, sourceMigrations, classifyHistory, policyShape, verifyPolicySchema, inspect };
+module.exports = { PREDECESSOR, TARGET, REQUIRED_COLUMNS, INDEXES, CONSTRAINTS, sourceMigrations, classifyHistory, policyShape, verifyPolicySchema, columns, inspect };
