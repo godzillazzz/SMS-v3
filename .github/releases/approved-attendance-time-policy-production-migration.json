@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "migration_id": "G06-TIME-POLICY",
+  "manifest_state": "APPROVED_FOR_OWNER_PRODUCTION_MIGRATION_DECISION",
+  "source_commit_sha": "500aaa53d60d6835cccec16c79ca25de00ab06c6",
+  "source_tree_sha": "a2cdfc2f2eea4ad52eeca07b41183d74e5fcfa74",
+  "migration_name": "202610020002_attendance_time_policy_v1",
+  "migration_path": "prisma/migrations/202610020002_attendance_time_policy_v1/migration.sql",
+  "migration_policy": "ADDITIVE_ATTENDANCE_TIME_POLICY_SCHEMA_ONLY_NO_BACKFILL",
+  "post_verify_script": "scripts/ci/verify-attendance-time-policy-production-migration.js",
+  "current_production_deployment_id": "dpl_G8AKkHcwD98NKPQSWpvP7XBBs67B",
+  "current_production_application_sha": "c812b427561c60a3b46057d56ce55ef835de4976",
+  "target_environment": "production",
+  "target_project_name": "sms-v3-staging",
+  "target_project_id": "prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s",
+  "target_org_id": "team_nemCExHbZ8EAhSgsvefHPAEz",
+  "canonical_url": "https://sms-v3-staging-ten.vercel.app",
+  "owner_action": "APPROVE_PRODUCTION_MIGRATION_ONLY",
+  "data_backfill": false,
+  "application_deploy": false,
+  "destructive_rollback": false
+}
