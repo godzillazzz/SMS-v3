@@ -63,7 +63,7 @@ async function diagnose(prisma,input,dependencies={}){return prisma.$transaction
  }
  const types=observed.session?.events?.map(e=>e.eventType)||[];
  const expected=code==='ATTENDANCE_ALREADY_CHECKED_OUT'||classification(code)==='NO_APPROVED_SHIFT_AT_TIME';
- return{STATUS:stats.event_count===0&&stats.pending_count===0?'PASS':'PARTIAL',MODE:'READ_ONLY_FAILED_ATTEMPT_DIAGNOSIS',
+ return{STATUS:stats.event_count===0&&stats.pending_count===0&&classification(code)!=='UNKNOWN_FAIL_CLOSED'?'PASS':'PARTIAL',MODE:'READ_ONLY_FAILED_ATTEMPT_DIAGNOSIS',
   CLASSIFICATION:classification(code),SOURCE_REPLAY_CODE:code,SOURCE_REPLAY_HTTP_STATUS:status,
   CODE_PROVENANCE:'EXACT_UNCHANGED_SOURCE_READ_ONLY_REPLAY_AT_REPORTED_TIME_NOT_CAPTURED_HTTP_RESPONSE',
   EXPECTED_REJECTION:expected,SCHEDULE_RESOLVED:!!observed.assignment,SCHEDULE_APPROVED:observed.approval?.status==='APPROVED',
@@ -74,7 +74,7 @@ async function diagnose(prisma,input,dependencies={}){return prisma.$transaction
   GPS_VALIDATION_REACHED:false,DEVICE_VALIDATION_REACHED:false,DEVICE_CAUSED_REPLAY_REJECTION:false,
   ACTIVE_DEVICE_COUNT:stats.active_device_count,ATTEMPT_WINDOW_EVENT_COUNT:stats.event_count,
   ATTEMPT_WINDOW_PENDING_COUNT:stats.pending_count,ATTENDANCE_EVENT_CREATED:stats.event_count>0,
-  DATABASE_MUTATION_PERFORMED:false,ACTUAL_HTTP_CODE:'NOT_RETAINED_IN_AVAILABLE_REQUEST_LOGS'};
+  DATABASE_MUTATION_PERFORMED:false,ACTUAL_STRUCTURED_ERROR_CODE:'NOT_RETAINED_IN_AVAILABLE_REQUEST_LOGS'};
 },{maxWait:5000,timeout:20000});}
 async function main(env=process.env){let prisma;try{
  const input=failureInputs(env);await guard(env);
