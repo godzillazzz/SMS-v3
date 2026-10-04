@@ -28,3 +28,11 @@ test('bounded read-only replay correlates subject and keeps identifiers/details 
  const ambiguous=fixture([{},{},{}]);await assert.rejects(diagnose(ambiguous.prisma,failureInputs({REPORTED_AT:at,PRIOR_SCHEDULE_ID:id},Date.parse(at)),ambiguous.dependencies),/SUBJECT_AMBIGUOUS/);
  const withEvent=fixture(undefined,1);assert.equal((await diagnose(withEvent.prisma,failureInputs({REPORTED_AT:at,PRIOR_SCHEDULE_ID:id},Date.parse(at)),withEvent.dependencies)).STATUS,'PARTIAL');
 });
+
+test('replay invokes exact application bootstrap and stops before GPS/device for completed D shift',async()=>{
+ const f=fixture();const assignment={id,employeeId:id,workDate:new Date('2026-10-04T00:00:00Z'),shiftTypeId:id,shiftType:{code:'D',startTime:'07:00',endTime:'19:00'}};
+ const original=f.prisma.$transaction;f.prisma.$transaction=async(fn,opts)=>original(async tx=>{tx.user={findUnique:async()=>({id,employeeId:id,isActive:true,accountStatus:'ACTIVE',employee:{id,isActive:true,deletedAt:null}})};tx.shiftAssignment={findMany:async()=>[assignment]};return fn(tx);},opts);
+ const real=require('../src/services/attendance-simple.service');f.dependencies.service={createAttendanceSimpleService:options=>real.createAttendanceSimpleService({...options,policyService:{getPolicy:async()=>({})}})};
+ const result=await diagnose(f.prisma,failureInputs({REPORTED_AT:at,PRIOR_SCHEDULE_ID:id},Date.parse(at)),f.dependencies);
+ assert.equal(result.SOURCE_REPLAY_HTTP_STATUS,409);assert.equal(result.SOURCE_REPLAY_CODE,'ATTENDANCE_ALREADY_CHECKED_OUT');assert.equal(result.EXPECTED_REJECTION,true);assert.equal(result.SCHEDULE_APPROVED,true);assert.equal(result.SESSION_STATE,'CLOSED');
+});
