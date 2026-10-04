@@ -1,6 +1,7 @@
 {
   "formatVersion": 1,
   "evidenceRun": "37124477331",
+  "candidateTransforms": ["IDENTITY", "LF_TO_CRLF_SQL_SAFE"],
   "application": {
     "pullRequest": 417,
     "branch": "codex/g06-time-policy-20261002",
@@ -35,6 +36,7 @@
   ],
   "notes": {
     "ac5dd81e64af76d36f61b5b94328371acbe950daChangedMigrationContents": false,
-    "8b20f0c15b61e85880109945530631b8b834b6e4EmailMigrationMatchesOriginalBlob": true
+    "8b20f0c15b61e85880109945530631b8b834b6e4EmailMigrationMatchesOriginalBlob": true,
+    "lineEndingCandidatePolicy": "CRLF is derived only from a pinned UTF-8 LF source, only when newline conversion cannot alter quoted SQL or COPY data, and is accepted only by exact in-memory ledger digest match; this is a candidate, not an assertion about Preview history."
   }
 }
