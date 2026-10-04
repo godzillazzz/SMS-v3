@@ -402,6 +402,29 @@ jobs:
 
       - run: npm ci
 
+      - name: Revalidate unchanged Attendance schema read-only
+        if: ${{ needs.prepare.outputs.database_change_policy == 'NO_DATABASE_CHANGES' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --quiet "$CURRENT_PRODUCTION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations
+          git show "$GITHUB_SHA:scripts/ci/g06-production-migration-candidates.json" >/tmp/unchanged-attendance-history.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = '/tmp/unchanged-attendance-history.json';
+          const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
+          if (manifest.application.sha !== process.env.CURRENT_PRODUCTION_SOURCE_SHA) throw new Error('HISTORY_BASELINE_MISMATCH');
+          // SQL candidates remain pinned; only the unchanged application identity is rebound.
+          manifest.application = { sha: process.env.TARGET_SHA, tree: process.env.TARGET_TREE };
+          fs.writeFileSync(path, JSON.stringify(manifest));
+          NODE
+          npx prisma generate
+          PRODUCTION_CANDIDATE_MANIFEST=/tmp/unchanged-attendance-history.json node scripts/ci/verify-preapplied-attendance-policy-readonly.js
+          echo 'UNCHANGED_ATTENDANCE_SCHEMA_READONLY=PASS'
+
       - name: Revalidate pre-applied Production database state
         if: ${{ needs.prepare.outputs.database_change_policy == 'PRE_APPLIED_APPROVED_MIGRATION' }}
         env:
@@ -548,7 +571,7 @@ jobs:
           compgen -G 'frontend/dist/assets/index-*.js' >/dev/null
           test -f .vercel/output/config.json
           node scripts/ci/verify-release-artifact.js frontend/dist .vercel/output/static
-          if test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
+          if test "$DATABASE_CHANGE_POLICY" = 'NO_DATABASE_CHANGES' || test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
             node - <<'NODE'
           const { verifyArtifact, DEFAULT_SENTINELS } = require('./scripts/ci/verify-release-artifact');
           verifyArtifact(['frontend/dist','.vercel/output/static'], [...DEFAULT_SENTINELS,'นโยบายเวลาลงงาน','ผ่อนผันการมาสาย (นาที)','latestCheckInEnabled']);
@@ -621,7 +644,7 @@ jobs:
           const label = process.argv[3];
           const useVercelCurl = process.argv[4] === 'true';
           const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน', 'Approval Authority Matrix / SLA', 'การเปลี่ยนแปลงสำคัญ', 'เปลี่ยนชื่อ', 'ย้ายหน่วยงาน / แผนก', 'เปลี่ยนตำแหน่ง', 'Data Retention Center / การเก็บรักษาข้อมูล', 'รัน Cleanup รอบถัดไป', 'GPS / GEOFENCE', 'เครื่องแรก · ผูกอัตโนมัติ', 'เครื่องอื่น · ติดธงตรวจ', 'AES-GCM encrypted queue', 'รอ ADMIN ยืนยันก่อนนับ', 'SUPPORT_SITE', 'ช่วยปฏิบัติงาน'];
-          if (process.env.PRE_APPLIED_MIGRATION_MANIFEST_PATH === '.github/releases/approved-attendance-time-policy-production-migration.json') sentinels.push('นโยบายเวลาลงงาน','ผ่อนผันการมาสาย (นาที)','latestCheckInEnabled');
+          if (process.env.DATABASE_CHANGE_POLICY === 'NO_DATABASE_CHANGES' || process.env.PRE_APPLIED_MIGRATION_MANIFEST_PATH === '.github/releases/approved-attendance-time-policy-production-migration.json') sentinels.push('นโยบายเวลาลงงาน','ผ่อนผันการมาสาย (นาที)','latestCheckInEnabled');
           const { verifyPublicRuntime } = require('/tmp/sms-release-control-plane/verify-public-runtime.js');
           const { createVercelCurlFetch } = require('/tmp/sms-release-control-plane/vercel-curl-fetch.js');
           const fetchImpl = useVercelCurl
@@ -814,7 +837,7 @@ jobs:
             echo "- Manifest SHA-256: $MANIFEST_SHA256"
             echo '- Post-deploy verification: PASS'
             echo '- Critical UI sentinels: PASS (19/19) base contract'
-            if test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
+            if test "$DATABASE_CHANGE_POLICY" = 'NO_DATABASE_CHANGES' || test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
               echo '- Attendance Time Policy sentinels: PASS (3/3 additional)'
             fi
             echo '- Canonical credentialed CORS policy: PASS'
