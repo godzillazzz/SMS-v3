@@ -1,0 +1,80 @@
+name: Verify G06 Physical Event Read Only
+on:
+  workflow_dispatch:
+    inputs:
+      reported_at:
+        description: 'Owner screen time as ISO8601 with date and timezone, e.g. 2026-10-05T07:01:00+07:00'
+        required: true
+        type: string
+      event_type:
+        required: true
+        type: choice
+        options: [CHECK_IN, CHECK_OUT]
+      window_seconds:
+        description: 'Bounded +/- seconds; 15..300, default120'
+        default: '120'
+        type: string
+      capture_id:
+        description: 'Optional known capture UUID; never guess'
+        type: string
+      subject_user_id:
+        description: 'Optional already-authorized app user UUID to resolve ambiguity; not an employee name'
+        type: string
+      expected_context:
+        description: 'Optional expected ASSIGNED_SITE or SUPPORT_SITE'
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: g06-physical-event-readonly
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production-sms-v3-staging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Require exact verified tool source and unchanged application schema
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/fix/serverless-database-reliability'
+          git merge-base --is-ancestor 8bae84a50e8cd2c3d96ba2393a8004ea4abaafeb HEAD
+          test "$(git rev-parse 8bae84a50e8cd2c3d96ba2393a8004ea4abaafeb^{tree})" = 'e125272c8ab6f934d973212b444a8a918887854a'
+          git diff --quiet 8bae84a50e8cd2c3d96ba2393a8004ea4abaafeb HEAD -- prisma/schema.prisma prisma/migrations src frontend package.json package-lock.json
+          test -z "$(git status --porcelain)"
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&per_page=20" --jq '.workflow_runs' >/tmp/g06-tool-ci.json
+          node - <<'NODE'
+          const runs=JSON.parse(require('node:fs').readFileSync('/tmp/g06-tool-ci.json'));
+          if(!runs.some(r=>r.head_sha===process.env.GITHUB_SHA&&r.status==='completed'&&r.conclusion==='success'))throw new Error('EXACT_TOOL_CI_REQUIRED');
+          NODE
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Bounded read-only event and audit evidence
+        env:
+          NODE_ENV: production
+          VERCEL_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          APPROVED_DATABASE_TARGET_FINGERPRINT: ${{ vars.APPROVED_DATABASE_TARGET_FINGERPRINT }}
+          REPORTED_AT: ${{ inputs.reported_at }}
+          EVENT_TYPE: ${{ inputs.event_type }}
+          WINDOW_SECONDS: ${{ inputs.window_seconds }}
+          CAPTURE_ID: ${{ inputs.capture_id }}
+          SUBJECT_USER_ID: ${{ inputs.subject_user_id }}
+          EXPECTED_CONTEXT: ${{ inputs.expected_context }}
+        run: node scripts/ci/g06-physical-event-readonly.js
