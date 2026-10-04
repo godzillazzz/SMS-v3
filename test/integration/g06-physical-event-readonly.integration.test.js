@@ -2,7 +2,7 @@
 const test=require('node:test');const assert=require('node:assert/strict');
 const {inputs,verify,CANDIDATES,COUNTS,ORDER,AUDIT}=require('../../scripts/ci/g06-physical-event-readonly');
 const target=new URL(process.env.DATABASE_URL||'postgresql://invalid/invalid');
-const enabled=process.env.RUN_INTEGRATION_TESTS==='true'&&target.hostname==='127.0.0.1'&&target.port==='55438'&&target.pathname==='/sms_v3_test';
+const enabled=process.env.RUN_INTEGRATION_TESTS==='true'&&process.env.TEST_DATABASE_RUNNER==='g06-physical-readonly-disposable-ci'&&target.hostname==='127.0.0.1'&&target.port==='55438'&&target.pathname==='/sms_v3_test';
 test('physical verifier SQL and PostgreSQL read-only enforcement in disposable CI database',{skip:!enabled},async()=>{
  const {PrismaClient}=require('@prisma/client');const p=new PrismaClient();const id='22222222-2222-4222-8222-222222222222',at=new Date();
  try {
