@@ -2,27 +2,35 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
   EXPECTED_PENDING,
   LEDGER_SQL,
   assertReconciliationPlan,
+  candidateVariants,
   classifyCandidateMatches,
   classifyPrismaStatus,
+  hasNewlineInsideSqlQuotedConstruct,
   runApprovedPreviewMutation,
+  safeCrlfCandidate,
   safeApplyFailure,
 } = require('../scripts/ci/apply-reconciled-preview-g06-migrations');
 
 const root = path.join(__dirname, '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'scripts/ci/g06-preview-migration-candidates.json'), 'utf8'));
-const workflow = fs.readFileSync(path.join(root, '.github/workflows/migrate-approved-pr-preview-attendance-time-policy.yml'), 'utf8');
+const workflow = fs.readFileSync(path.join(root, '.github/workflows/migrate-approved-pr-preview-attendance-time-policy.yml'), 'utf8').replace(/\r\n/g, '\n');
 
 function candidateSet(digest = 'a'.repeat(64)) {
   return new Map(manifest.canonicalCandidates.map((item, index) => [
     item.name,
     [{ blob: index.toString(16).padStart(40, '0'), digest, label: 'MATCH_ORIGINAL', bytes: Buffer.from('pinned') }],
   ]));
+}
+
+function digest(bytes) {
+  return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
 function ledgerRows(checksum = 'a'.repeat(64)) {
@@ -127,6 +135,45 @@ test('candidate matcher recognizes a single pinned source without exposing check
   assert.equal(JSON.stringify(result).includes('a'.repeat(64)), false);
 });
 
+test('SQL-safe LF-to-CRLF candidate is derived deterministically and only accepted by exact byte digest', () => {
+  const lf = Buffer.from('-- pinned source\nCREATE TABLE sample (id integer);\n', 'utf8');
+  const crlf = safeCrlfCandidate(lf);
+  assert.ok(crlf);
+  assert.equal(crlf.toString('utf8').replace(/\r\n/g, '\n'), lf.toString('utf8'));
+  assert.equal(safeCrlfCandidate(crlf), null);
+  const variants = candidateVariants({ bytes: lf, blob: '1'.repeat(40), label: 'MATCH_ORIGINAL', commit: '2'.repeat(40) }, manifest);
+  assert.equal(variants.length, 2);
+  assert.equal(variants[1].label, 'MATCH_ORIGINAL_CRLF');
+  assert.equal(variants[1].transform, 'LF_TO_CRLF_SQL_SAFE');
+
+  const name = manifest.canonicalCandidates[0].name;
+  const candidates = new Map([[name, [
+    { blob: '1'.repeat(40), digest: digest(lf), label: 'MATCH_ORIGINAL', bytes: lf },
+    { blob: '1'.repeat(40), digest: digest(crlf), label: 'MATCH_ORIGINAL_CRLF', bytes: crlf },
+  ]]]);
+  const row = { ...ledgerRows()[0], checksum: digest(crlf) };
+  const result = classifyCandidateMatches([row], candidates, [name]);
+  assert.equal(result.ok, true);
+  assert.equal(result.results[0].classification, 'MATCH_ORIGINAL_CRLF');
+  assert.equal(JSON.stringify(result).includes(digest(crlf)), false);
+});
+
+test('line-ending candidate is refused when newlines occur in SQL literals, quoted identifiers, dollar blocks, or COPY data', () => {
+  const quotedInputs = [
+    "INSERT INTO sample VALUES ('first line\nsecond line');\n",
+    "INSERT INTO sample VALUES (E'first\\\nsecond');\n",
+    'CREATE TABLE sample ("first\nsecond" text);\n',
+    'DO $$ BEGIN\n  PERFORM 1;\nEND $$;\n',
+  ];
+  for (const input of quotedInputs) {
+    assert.equal(hasNewlineInsideSqlQuotedConstruct(input), true);
+    assert.equal(safeCrlfCandidate(Buffer.from(input, 'utf8')), null);
+  }
+  const copyInput = 'COPY sample FROM STDIN;\nrow\n\\.\n';
+  assert.equal(hasNewlineInsideSqlQuotedConstruct(copyInput), false);
+  assert.equal(safeCrlfCandidate(Buffer.from(copyInput, 'utf8')), null);
+});
+
 test('candidate matcher fails closed for no match, duplicate ledger rows, incomplete row, and ambiguous source blobs', () => {
   const names = [manifest.canonicalCandidates[0].name];
   assert.equal(classifyCandidateMatches(ledgerRows('b'.repeat(64)), candidateSet(), names).results[0].classification, 'NO_MATCH');
@@ -221,6 +268,7 @@ test('protected workflow runs only from main in Preview Environment and contains
 test('candidate manifest pins names and immutable Git sources, never database ledger values', () => {
   assert.equal(manifest.canonicalCandidates.length, 18);
   assert.equal(manifest.historicalPreviewMigrations.length, 2);
+  assert.deepEqual(manifest.candidateTransforms, ['IDENTITY', 'LF_TO_CRLF_SQL_SAFE']);
   for (const item of [...manifest.canonicalCandidates, ...manifest.historicalPreviewMigrations]) {
     assert.match(item.commit, /^[0-9a-f]{40}$/);
     assert.match(item.blob, /^[0-9a-f]{40}$/);

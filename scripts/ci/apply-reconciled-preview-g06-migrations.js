@@ -13,6 +13,7 @@ const PRED = '202610020001_g06_simple_device_offline';
 const TARGET = '202610020002_attendance_time_policy_v1';
 const PENDING = [PRED, TARGET];
 const SAFE_NAME = /^\d{12,14}_[A-Za-z0-9][A-Za-z0-9_-]*$/;
+const ALLOWED_CANDIDATE_TRANSFORMS = Object.freeze(['IDENTITY', 'LF_TO_CRLF_SQL_SAFE']);
 const LEDGER_SQL = 'SELECT migration_name, checksum, started_at, finished_at, rolled_back_at, applied_steps_count FROM public."_prisma_migrations" ORDER BY started_at, migration_name';
 
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
@@ -23,7 +24,8 @@ function gitBytes(root, args) { return execFileSync('git', args, { cwd: root, en
 function readAndValidateManifest(file) {
   const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (manifest.formatVersion !== 1 || manifest.evidenceRun !== '37124477331'
-      || manifest.canonicalCandidates?.length !== 18 || manifest.historicalPreviewMigrations?.length !== 2) {
+      || manifest.canonicalCandidates?.length !== 18 || manifest.historicalPreviewMigrations?.length !== 2
+      || JSON.stringify(manifest.candidateTransforms) !== JSON.stringify(ALLOWED_CANDIDATE_TRANSFORMS)) {
     throw new Error('PINNED_CANDIDATE_MANIFEST_INVALID');
   }
   const seen = new Set();
@@ -43,6 +45,76 @@ function loadPinnedFile(root, item) {
   const actual = execFileSync('git', ['hash-object', '--stdin'], { cwd: root, input: bytes, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
   if (actual !== item.blob.toLowerCase()) throw new Error('PINNED_GIT_BLOB_MISMATCH');
   return { bytes, blob: actual, label: item.label, commit: item.commit };
+}
+
+function hasNewlineInsideSqlQuotedConstruct(sql) {
+  let state = 'normal';
+  let dollarTag = '';
+  for (let i = 0; i < sql.length; i += 1) {
+    const current = sql[i];
+    const next = sql[i + 1];
+    if ((current === '\n' || current === '\r') && ['single', 'double', 'dollar'].includes(state)) return true;
+    if (state === 'line-comment') {
+      if (current === '\n' || current === '\r') state = 'normal';
+      continue;
+    }
+    if (state === 'block-comment') {
+      if (current === '*' && next === '/') { state = 'normal'; i += 1; }
+      continue;
+    }
+    if (state === 'single') {
+      if (current === '\\') {
+        if (next === '\n' || next === '\r') return true;
+        i += 1;
+        continue;
+      }
+      if (current === "'" && next === "'") { i += 1; continue; }
+      if (current === "'") state = 'normal';
+      continue;
+    }
+    if (state === 'double') {
+      if (current === '"' && next === '"') { i += 1; continue; }
+      if (current === '"') state = 'normal';
+      continue;
+    }
+    if (state === 'dollar') {
+      if (sql.startsWith(dollarTag, i)) { i += dollarTag.length - 1; state = 'normal'; dollarTag = ''; }
+      continue;
+    }
+    if (current === '-' && next === '-') { state = 'line-comment'; i += 1; continue; }
+    if (current === '/' && next === '*') { state = 'block-comment'; i += 1; continue; }
+    if (current === "'") { state = 'single'; continue; }
+    if (current === '"') { state = 'double'; continue; }
+    if (current === '$') {
+      const match = sql.slice(i).match(/^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/);
+      if (match) { dollarTag = match[0]; state = 'dollar'; i += dollarTag.length - 1; }
+    }
+  }
+  return false;
+}
+
+function safeCrlfCandidate(bytes) {
+  const sql = bytes.toString('utf8');
+  if (!Buffer.from(sql, 'utf8').equals(bytes) || sql.includes('\r') || !sql.includes('\n')
+      || /\bCOPY\b[\s\S]*\bFROM\s+STDIN\b/i.test(sql)
+      || hasNewlineInsideSqlQuotedConstruct(sql)) return null;
+  const candidate = Buffer.from(sql.replace(/\n/g, '\r\n'), 'utf8');
+  return candidate.equals(bytes) ? null : candidate;
+}
+
+function candidateVariants(source, manifest) {
+  const variants = [{ ...source, digest: sha256(source.bytes), transform: 'IDENTITY' }];
+  if (manifest.candidateTransforms.includes('LF_TO_CRLF_SQL_SAFE')) {
+    const crlf = safeCrlfCandidate(source.bytes);
+    if (crlf) variants.push({
+      ...source,
+      bytes: crlf,
+      digest: sha256(crlf),
+      label: source.label + '_CRLF',
+      transform: 'LF_TO_CRLF_SQL_SAFE',
+    });
+  }
+  return variants;
 }
 
 function applicationRootFacts(root, manifest) {
@@ -67,8 +139,8 @@ function loadCandidateSources({ manifest, gitRoot, applicationRoot }) {
     const verifiedCurrent = execFileSync('git', ['hash-object', '--stdin'], { cwd: applicationRoot, input: current, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
     if (verifiedCurrent !== currentBlob) throw new Error('PINNED_APPLICATION_BLOB_MISMATCH');
     canonical.set(item.name, [
-      { ...historical, digest: sha256(historical.bytes) },
-      { bytes: current, blob: currentBlob, label: 'MATCH_CURRENT_SOURCE', commit: manifest.application.sha, digest: sha256(current) },
+      ...candidateVariants(historical, manifest),
+      ...candidateVariants({ bytes: current, blob: currentBlob, label: 'MATCH_CURRENT_SOURCE', commit: manifest.application.sha }, manifest),
     ]);
   }
   const historicalPreview = manifest.historicalPreviewMigrations.map((item) => ({ ...item, ...loadPinnedFile(gitRoot, item) }));
@@ -98,13 +170,16 @@ function classifyCandidateMatches(rows, candidates, names) {
       continue;
     }
     const matches = (candidates.get(name) || []).filter((item) => item.digest === String(records[0].checksum).toLowerCase());
-    const distinct = new Map();
-    for (const item of matches) if (!distinct.has(item.blob)) distinct.set(item.blob, item);
-    if (distinct.size !== 1) {
-      results.push({ name, classification: distinct.size ? 'AMBIGUOUS' : 'NO_MATCH' });
+    const distinct = [];
+    for (const item of matches) {
+      if (!Buffer.isBuffer(item.bytes)) return { ok: false, results: [{ name, classification: 'CANDIDATE_SOURCE_MALFORMED' }], selected };
+      if (!distinct.some((candidate) => candidate.bytes.equals(item.bytes))) distinct.push(item);
+    }
+    if (distinct.length !== 1) {
+      results.push({ name, classification: distinct.length ? 'AMBIGUOUS' : 'NO_MATCH' });
       continue;
     }
-    const item = [...distinct.values()][0];
+    const item = distinct[0];
     selected.set(name, item);
     results.push({ name, classification: item.label });
   }
@@ -216,7 +291,10 @@ function assertPendingMigrations(rows) {
 
 function sameCandidateResult(a, b) {
   if (!a.ok || !b.ok || a.selected.size !== b.selected.size) return false;
-  for (const [name, item] of a.selected) if (b.selected.get(name)?.blob !== item.blob) return false;
+  for (const [name, item] of a.selected) {
+    const selected = b.selected.get(name);
+    if (!selected || selected.digest !== item.digest || !Buffer.isBuffer(selected.bytes) || !selected.bytes.equals(item.bytes)) return false;
+  }
   return true;
 }
 
@@ -406,6 +484,7 @@ if (require.main === module) main().then((status) => { process.exitCode = status
 
 module.exports = {
   EXPECTED_PENDING: PENDING, LEDGER_SQL, assertPendingMigrations, assertReconciliationPlan, buildEphemeralMigrationSource,
-  classifyCandidateMatches, classifyPrismaStatus, ledgerFingerprint, loadCandidateSources, outputReport,
-  readAndValidateManifest, runApprovedPreviewMutation, safeApplyFailure, safeDatabaseFailure, verifyPostMigration,
+  candidateVariants, classifyCandidateMatches, classifyPrismaStatus, hasNewlineInsideSqlQuotedConstruct,
+  ledgerFingerprint, loadCandidateSources, outputReport, readAndValidateManifest, runApprovedPreviewMutation,
+  safeApplyFailure, safeCrlfCandidate, safeDatabaseFailure, verifyPostMigration,
 };
