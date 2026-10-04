@@ -3,7 +3,7 @@ const test=require('node:test');const assert=require('node:assert/strict');const
 const {inputs,verify,summarize,CANDIDATES}=require('../scripts/ci/g06-physical-event-readonly');
 const at='2026-10-05T07:01:00+07:00',now=Date.parse(at),id='11111111-1111-4111-8111-111111111111';
 const input=()=>inputs({REPORTED_AT:at,EVENT_TYPE:'CHECK_IN'},now);
-const row=()=>({id,session_id:id,capture_id:id,event_type:'CHECK_IN',source_mode:'ONLINE',received_at:new Date(at),effective_event_at:new Date(at),device_captured_at:null,time_basis:'SERVER_RECEIVED',shift_assignment_id:id,work_date:new Date('2026-10-05'),shift_code:'D',shift_start:'07:00',shift_end:'19:00',session_state:'OPEN',assigned_site:'A',actual_site:'A',assignment_unchanged:true,expected_site_matches:true,same_site:true,context:'ASSIGNED_SITE',geofence:'CONFIDENT_INSIDE',gps_captured_at:at,gps_present:true,accuracy:'8.00',device_binding:'PRIMARY',device_matches:true,simple_mode:true,current_device_status:'ACTIVE',review_required:false,review_reasons:null,policy_snapshot_present:true,punctuality:'LATE',checkout_condition:null});
+const row=()=>({id,session_id:id,capture_id:id,event_type:'CHECK_IN',source_mode:'ONLINE',received_at:new Date(at),effective_event_at:new Date(at),device_captured_at:null,time_basis:'SERVER_RECEIVED',shift_assignment_id:id,work_date:new Date('2026-10-05'),shift_code:'D',shift_start:'07:00',shift_end:'19:00',session_state:'OPEN',assigned_site:'A',actual_site:'A',assignment_unchanged:true,expected_site_matches:true,same_site:true,context:'ASSIGNED_SITE',geofence:'CONFIDENT_INSIDE',gps_captured_at:at,gps_present:true,accuracy:'8.00',device_binding:'PRIMARY',device_matches:true,simple_mode:true,current_device_status:'ACTIVE',review_required:false,review_reasons:null,policy_snapshot_present:true,punctuality:'LATE',checkout_condition:null,schedule_approved:true,simple_gate_evidence:true,policy_values:{lateGraceMinutes:0}});
 const event=()=>({event_type:'CHECK_IN',effective_event_at:new Date(at),received_at:new Date(at)});
 const good=r=>summarize(r,{capture_count:1,type_count:1},[event()],{audit_count:1,correlated:true},input());
 test('strict recent zoned time/type and max bounded radius; selectors parameterized',()=>{
@@ -44,4 +44,17 @@ test('workflow keeps normal protection, exact CI and contains no deployment/migr
  const s=fs.readFileSync('.github/workflows/diagnose-production-database.yml','utf8');
  for(const value of ['production-sms-v3-staging','contents: read','actions: read','EXACT_TOOL_CI_REQUIRED','npx prisma generate'])assert(s.includes(value));
  assert.doesNotMatch(s,/migrate deploy|migrate resolve|db push|vercel promote|environment_ids|bypass/);
+});
+
+test('nullable department-default authority stays fail closed and exact time uses ceiling',()=>{
+ const r={...row(),effective_event_at:new Date('2026-10-05T00:01:46.616Z'),site_authority_source:'DEPARTMENT_DEFAULT',assignment_site_explicitly_unset:true,actual_site:'BV#AN1'};
+ const result=good(r);assert.equal(result.STATUS,'PASS');assert.equal(result.LATE_MINUTES,2);assert.equal(result.ACTUAL_SITE,'BV#AN1');
+ for(const change of [{assignment_unchanged:null},{schedule_approved:false},{simple_gate_evidence:false},{policy_values:null},{policy_values:{latestCheckInEnabled:true,latestCheckInMinutesAfterStart:0}}])assert.equal(good({...r,...change}).STATUS,'PARTIAL');
+ assert(CANDIDATES.includes('sa.security_site_id IS NULL'));assert(CANDIDATES.includes('DEPARTMENT_DEFAULT'));assert(CANDIDATES.includes('schedule_approvals'));
+});
+
+test('cross-midnight checkout and policy boundaries remain authoritative',()=>{
+ const r={...row(),event_type:'CHECK_OUT',shift_start:'19:00',shift_end:'07:00',effective_event_at:new Date('2026-10-06T00:00:00+07:00'),punctuality:null,checkout_condition:'EARLY_LEAVE',session_state:'CLOSED'};
+ const out={...event(),event_type:'CHECK_OUT',effective_event_at:r.effective_event_at};
+ const result=summarize(r,{capture_count:1,type_count:1},[event(),out],{audit_count:1,correlated:true},{...input(),type:'CHECK_OUT'});assert.equal(result.TIME_POLICY_ACCEPTED,true);assert.equal(result.TIME_CLASSIFICATION_MATCH,true);
 });

@@ -22,7 +22,19 @@ const CANDIDATES=`SELECT e.id, e.session_id, e.capture_id, e.event_type, e.sourc
  st.code AS shift_code, COALESCE(sa.start_time,st.start_time) AS shift_start,
  COALESCE(sa.end_time,st.end_time) AS shift_end,
  assigned.code AS assigned_site, actual.code AS actual_site,
- (sa.security_site_id=s.expected_site_id AND sa.employee_id=s.employee_id AND sa.shift_type_id=s.expected_shift_type_id) AS assignment_unchanged,
+ assigned.name AS assigned_site_name, actual.name AS actual_site_name,
+ s.expectation_snapshot#>>'{site,authoritySource}' AS site_authority_source,
+ (sa.security_site_id IS NULL) AS assignment_site_explicitly_unset,
+ (ap.status='APPROVED' AND ap.revision::text=s.expectation_snapshot->>'scheduleRevision') AS schedule_approved,
+ (e.face_verification_session_id IS NULL AND e.verification_snapshot->>'mode'='ACCOUNT_DEVICE_GPS_GEOFENCE_V1') AS simple_gate_evidence,
+ e.time_policy_snapshot->'values' AS policy_values,
+ (sa.employee_id=s.employee_id AND sa.shift_type_id=s.expected_shift_type_id
+ AND s.expectation_snapshot->>'shiftAssignmentId'=sa.id::text
+ AND s.expectation_snapshot->>'shiftTypeId'=s.expected_shift_type_id::text
+ AND s.expectation_snapshot#>>'{site,id}'=s.expected_site_id::text
+ AND ((sa.security_site_id=s.expected_site_id AND s.expectation_snapshot#>>'{site,authoritySource}'='SCHEDULE')
+ OR (sa.security_site_id IS NULL AND s.expectation_snapshot#>>'{site,authoritySource}'='DEPARTMENT_DEFAULT'
+ AND NULLIF(s.expectation_snapshot#>>'{site,departmentName}','') IS NOT NULL))) AS assignment_unchanged,
  (e.location_evidence->>'expectedSiteId'=s.expected_site_id::text) AS expected_site_matches,
  (e.location_evidence->>'actualSiteId'=s.expected_site_id::text) AS same_site,
  e.location_evidence->>'workSiteContext' AS context,
@@ -40,6 +52,7 @@ const CANDIDATES=`SELECT e.id, e.session_id, e.capture_id, e.event_type, e.sourc
  JOIN security_sites assigned ON assigned.id=s.expected_site_id
  LEFT JOIN security_sites actual ON actual.id::text=e.location_evidence->>'actualSiteId'
  LEFT JOIN attendance_device_enrollments d ON d.id=e.device_enrollment_id
+ LEFT JOIN schedule_approvals ap ON ap.id::text=s.expectation_snapshot->>'scheduleApprovalId'
  WHERE e.event_type::text=$1 AND ((e.received_at BETWEEN $2::timestamp AND $3::timestamp) OR (e.effective_event_at BETWEEN $2::timestamp AND $3::timestamp))
  AND ($4::uuid IS NULL OR e.capture_id=$4::uuid)
  AND ($5::uuid IS NULL OR EXISTS(SELECT 1 FROM users u WHERE u.id=$5::uuid AND u.employee_id=s.employee_id))
@@ -58,12 +71,27 @@ const AUDIT=`SELECT count(*)::int AS audit_count,
  FROM audit_logs WHERE entity_type='AttendanceEvent' AND entity_id=$1 AND created_at BETWEEN $11::timestamp AND $12::timestamp`;
 const KNOWN_FLAGS=new Set(['ASSIST_OTHER_SITE','LOCATION_RISK','DEVICE_MISMATCH','DEVICE_MOVE_PENDING','DEVICE_SECURE_CONTEXT_RISK','DEVICE_WEBCRYPTO_RISK','DEVICE_STORAGE_RISK','DEVICE_KEY_EXPORTABILITY_RISK','DEVICE_AUTOMATION_RISK','SITE_AUTHORITY_CHANGED','OFFLINE_LOCATION_TIME_MISMATCH']);
 function flags(value){if(value==null)return[];if(!Array.isArray(value)||value.length>32)fail('REVIEW_FLAGS_INVALID');return value.map(x=>KNOWN_FLAGS.has(x)?x:'OTHER_REVIEW_FLAG');}
-function code(value){return typeof value==='string'&&/^[A-Za-z0-9._-]{1,50}$/.test(value)?value:'REDACTED_CODE';}
+function code(value){return typeof value==='string'&&/^[A-Za-z0-9.#_-]{1,50}$/.test(value)?value:'REDACTED_CODE';}
 function safeEnum(value,allowed){return value==null?null:allowed.includes(value)?value:'UNKNOWN';}
 function clock(value){return typeof value==='string'&&/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value)?value:'REDACTED_CLOCK';}
 function iso(value){if(value==null)return null;const d=new Date(value);if(!Number.isFinite(d.getTime()))fail('EVENT_TIME_INVALID');return d.toISOString();}
+function siteName(value){return typeof value==='string'&&value.length>0&&value.length<=255&&!/[\x00-\x1f]/.test(value)?value:'REDACTED_SITE_NAME';}
+function timeEvidence(row){
+ try {
+  const {normalizeAttendanceTimePolicy}=require('../../src/services/attendance-time-policy.contract');
+  if(!row.policy_values)throw new Error('SNAPSHOT_REQUIRED');
+  const values=normalizeAttendanceTimePolicy(row.policy_values);
+  const date=iso(row.work_date).slice(0,10),start=Date.parse(date+'T'+clock(row.shift_start)+'+07:00');
+  let end=Date.parse(date+'T'+clock(row.shift_end)+'+07:00');if(end<=start)end+=86400000;
+  const at=new Date(row.effective_event_at).getTime();if(![start,end,at].every(Number.isFinite))throw new Error('WINDOW_INVALID');
+  const checkIn=row.event_type==='CHECK_IN';
+  const accepted=checkIn?(!values.earliestCheckInEnabled||at>=start-values.earliestCheckInMinutesBeforeStart*60000)&&(!values.latestCheckInEnabled||at<=start+values.latestCheckInMinutesAfterStart*60000):(!values.earliestCheckOutEnabled||at>=start+values.earliestCheckOutMinutesAfterStart*60000)&&(!values.latestCheckOutEnabled||at<=end+values.latestCheckOutMinutesAfterEnd*60000);
+  const classification=checkIn?(at>start+values.lateGraceMinutes*60000?'LATE':'ON_TIME'):(values.earlyLeaveEnabled&&at<end-values.earlyCheckoutToleranceMinutes*60000?'EARLY_LEAVE':'NORMAL');
+  return {POLICY_VALUES:values,TIME_POLICY_ACCEPTED:accepted,TIME_CLASSIFICATION_MATCH:classification===(checkIn?row.punctuality:row.checkout_condition),LATE_MINUTES:checkIn?Math.max(0,Math.ceil((at-start)/60000)):null};
+ }catch{return{TIME_POLICY_ACCEPTED:false,TIME_CLASSIFICATION_MATCH:false,LATE_MINUTES:null};}
+}
 function summarize(row,counts,events,audit,input){
-  const review=flags(row.review_reasons),binding=row.device_binding;
+  const review=flags(row.review_reasons),binding=row.device_binding;const time=timeEvidence(row);
   const validContext=['ASSIGNED_SITE','SUPPORT_SITE'].includes(row.context)&&row.same_site===(row.context==='ASSIGNED_SITE');
   const accuracy=Number(row.accuracy);
   const gps=row.gps_present&&row.accuracy!=null&&Number.isFinite(accuracy)&&accuracy>=0&&accuracy<=50&&['CONFIDENT_INSIDE','BORDERLINE'].includes(row.geofence)&&!!row.gps_captured_at&&Number.isFinite(Date.parse(row.gps_captured_at));
@@ -74,11 +102,11 @@ function summarize(row,counts,events,audit,input){
   const auditOk=audit.audit_count===1&&audit.correlated===true;
   const timeOk=row.event_type==='CHECK_IN'?['ON_TIME','LATE'].includes(row.punctuality):['NORMAL','EARLY_LEAVE'].includes(row.checkout_condition);
   const flagsOk=row.review_required===(review.length>0)&&(row.context!=='SUPPORT_SITE'||review.includes('ASSIST_OTHER_SITE'))&&(row.geofence!=='BORDERLINE'||review.includes('LOCATION_RISK'));
-  const pass=row.event_type===input.type&&['ONLINE','OFFLINE'].includes(row.source_mode)&&!!row.assigned_site&&!!row.actual_site&&duplicate&&auditOk&&order&&stateOk&&gps&&device&&validContext&&flagsOk&&row.assignment_unchanged&&row.expected_site_matches&&row.policy_snapshot_present&&timeOk&&(!input.context||input.context===row.context);
+  const pass=row.event_type===input.type&&['ONLINE','OFFLINE'].includes(row.source_mode)&&!!row.assigned_site&&!!row.actual_site&&duplicate&&auditOk&&order&&stateOk&&gps&&device&&validContext&&flagsOk&&row.assignment_unchanged&&row.expected_site_matches&&row.policy_snapshot_present&&timeOk&&row.schedule_approved===true&&row.simple_gate_evidence===true&&time.TIME_POLICY_ACCEPTED&&time.TIME_CLASSIFICATION_MATCH&&(!input.context||input.context===row.context);
   return{STATUS:pass?'PASS':'PARTIAL',MODE:'READ_ONLY_PHYSICAL_EVENT_EVIDENCE',APPLICATION_SHA:EXPECTED.sha,
     EVENT_ID:row.id,EVENT_TYPE:row.event_type,EFFECTIVE_TIME:iso(row.effective_event_at),RECEIVED_TIME:iso(row.received_at),CAPTURED_TIME:iso(row.device_captured_at),SOURCE_MODE:safeEnum(row.source_mode,['ONLINE','OFFLINE']),TIME_BASIS:safeEnum(row.time_basis,['SERVER_RECEIVED']),
     SCHEDULE_ID:row.shift_assignment_id,WORK_DATE:iso(row.work_date)?.slice(0,10),SHIFT:code(row.shift_code),SHIFT_START:clock(row.shift_start),SHIFT_END:clock(row.shift_end),
-    ASSIGNED_SITE:code(row.assigned_site),ACTUAL_SITE:code(row.actual_site),WORK_SITE_CONTEXT:safeEnum(row.context,['ASSIGNED_SITE','SUPPORT_SITE']),ASSIGNMENT_UNCHANGED:row.assignment_unchanged,
+    ASSIGNED_SITE:code(row.assigned_site),ACTUAL_SITE:code(row.actual_site),ASSIGNED_SITE_NAME:siteName(row.assigned_site_name),ACTUAL_SITE_NAME:siteName(row.actual_site_name),SITE_AUTHORITY_SOURCE:safeEnum(row.site_authority_source,['SCHEDULE','DEPARTMENT_DEFAULT']),ASSIGNMENT_SITE_EXPLICITLY_UNSET:row.assignment_site_explicitly_unset,SCHEDULE_APPROVED:row.schedule_approved,SIMPLE_GATE_EVIDENCE:row.simple_gate_evidence,...time,WORK_SITE_CONTEXT:safeEnum(row.context,['ASSIGNED_SITE','SUPPORT_SITE']),ASSIGNMENT_UNCHANGED:row.assignment_unchanged,
     PUNCTUALITY:safeEnum(row.punctuality,['ON_TIME','LATE']),CHECKOUT_CONDITION:safeEnum(row.checkout_condition,['NORMAL','EARLY_LEAVE']),SESSION_STATE:row.session_state,SESSION_STATE_MATCH:stateOk,SERVER_NEXT_ACTION:events.length===2?'NONE_THIS_SHIFT':'CHECK_OUT',
     DEVICE_BINDING:safeEnum(binding,['PRIMARY','FOREIGN']),DEVICE_EVIDENCE_MATCH:!!device,CURRENT_DEVICE_STATUS:row.current_device_status,REVIEW_REQUIRED:row.review_required,REVIEW_FLAGS:review,REVIEW_FLAGS_MATCH:flagsOk,
     GEOFENCE:safeEnum(row.geofence,['CONFIDENT_INSIDE','BORDERLINE','CONFIDENT_OUTSIDE']),GPS_EVIDENCE:!!gps,GPS_COORDINATES_EXPOSED:false,
