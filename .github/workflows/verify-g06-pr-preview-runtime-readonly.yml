@@ -1,0 +1,119 @@
+name: Verify G06 PR Preview runtime (read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+  statuses: read
+
+concurrency:
+  group: g06-pr-preview-runtime-readonly
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PR_NUMBER: '417'
+  EXPECTED_PR_BRANCH: codex/g06-time-policy-20261002
+  EXPECTED_PR_SHA: e12c28c339c6d420c6db13b02aa1ddffb2c3e5ba
+  EXPECTED_PR_TREE: a2cdfc2f2eea4ad52eeca07b41183d74e5fcfa74
+  EXPECTED_BASE_BRANCH: fix/serverless-database-reliability
+  EXPECTED_BASE_SHA: 9fc77d0490f6a49f8d637879f6395237ac34247a
+jobs:
+  verify-preview:
+    name: Verify exact PR #417 Preview without database access
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Require manual dispatch from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/main
+          echo "WORKFLOW_SOURCE_SHA=$GITHUB_SHA"
+          echo 'DISPATCH_AUTHORITY=PASS'
+
+      - name: Checkout immutable workflow source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify PR #417 exact source, exact-head CI, and Vercel status
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { owner, repo } = context.repo;
+            const number = Number(process.env.EXPECTED_PR_NUMBER);
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+            if (pr.state !== 'open' || pr.draft !== true) throw new Error('PR_417_NOT_OPEN_DRAFT');
+            if (pr.head.repo?.full_name !== `${owner}/${repo}` || pr.head.ref !== process.env.EXPECTED_PR_BRANCH) throw new Error('PR_417_HEAD_IDENTITY_MISMATCH');
+            if (pr.head.sha !== process.env.EXPECTED_PR_SHA) throw new Error('PR_417_HEAD_SHA_MISMATCH');
+            if (pr.base.ref !== process.env.EXPECTED_BASE_BRANCH || pr.base.sha !== process.env.EXPECTED_BASE_SHA) throw new Error('PR_417_BASE_CHECKPOINT_MISMATCH');
+            const { data: commit } = await github.rest.git.getCommit({ owner, repo, commit_sha: pr.head.sha });
+            if (commit.tree.sha !== process.env.EXPECTED_PR_TREE) throw new Error('PR_417_TREE_MISMATCH');
+            const { data: workflows } = await github.rest.actions.listRepoWorkflows({ owner, repo, per_page: 100 });
+            const ci = workflows.workflows.find((item) => item.path === '.github/workflows/ci.yml' && item.name === 'CI');
+            if (!ci) throw new Error('CI_WORKFLOW_NOT_FOUND');
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({ owner, repo, workflow_id: ci.id, branch: pr.head.ref, event: 'pull_request', per_page: 100 });
+            const run = runs.workflow_runs.filter((item) => item.head_sha === pr.head.sha && item.head_branch === pr.head.ref)
+              .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+            if (!run || run.status !== 'completed' || run.conclusion !== 'success') throw new Error('PR_417_EXACT_HEAD_CI_NOT_GREEN');
+            const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({ owner, repo, ref: pr.head.sha, per_page: 100 });
+            const preview = statuses.filter((item) => item.context === 'Vercel').sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+            if (!preview || preview.state !== 'success') throw new Error('PR_417_VERCEL_STATUS_NOT_GREEN');
+            core.info(`PR_417_SOURCE=PASS SHA=${pr.head.sha} TREE=${commit.tree.sha}`);
+            core.info(`PR_417_EXACT_HEAD_CI=PASS RUN=${run.id}`);
+            core.info('PR_417_VERCEL_STATUS=PASS');
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Mask and require Vercel verification credentials
+        uses: actions/github-script@v7
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        with:
+          script: |
+            for (const name of ['VERCEL_TOKEN', 'VERCEL_ORG_ID', 'VERCEL_PROJECT_ID', 'VERCEL_AUTOMATION_BYPASS_SECRET']) {
+              const value = process.env[name];
+              if (!value) throw new Error(`${name}_MISSING`);
+              core.setSecret(value);
+            }
+            if (process.env.VERCEL_ORG_ID !== 'team_nemCExHbZ8EAhSgsvefHPAEz') throw new Error('VERCEL_ORG_ID_MISMATCH');
+            if (process.env.VERCEL_PROJECT_ID !== 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s') throw new Error('VERCEL_PROJECT_ID_MISMATCH');
+            core.info('VERCEL_READ_ONLY_CHECK_SETTINGS=PASS');
+
+      - name: Verify pinned Preview's native Vercel identity
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: node scripts/ci/verify-g06-preview-deployment.js
+
+      - name: Run health, readiness, CORS, and unauthenticated policy GET checks
+        env:
+          PREVIEW_ORIGIN: https://sms-v3-staging-git-codex-g06-time-policy-20261002-godzillazz.vercel.app
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/ci/verify-preview-attendance-time-policy-readonly-runtime.js
+
+      - name: Publish sanitized verification summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### G06 Preview runtime verification (read-only)'
+            echo "- Workflow source SHA: $GITHUB_SHA"
+            echo '- Preview identity was checked against the pinned Vercel project, native application SHA and native ref.'
+            echo '- No database credentials, authenticated application session, or Attendance mutation was used.'
+            echo '- Runtime output is limited to HTTP statuses and allowlisted categories.'
+          } >> "$GITHUB_STEP_SUMMARY"

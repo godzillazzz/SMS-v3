@@ -11,8 +11,35 @@ function approvedPreviewOrigin(value) {
   return url.origin;
 }
 
-async function request(url, options = {}, fetchImpl = fetch) {
-  return fetchImpl(url, { ...options, redirect: 'manual', signal: AbortSignal.timeout(15000) });
+function previewRequestOptions(url, options = {}, env = process.env, previewOrigin = env.PREVIEW_ORIGIN) {
+  const origin = approvedPreviewOrigin(previewOrigin);
+  const target = new URL(url, origin);
+  if (target.origin !== origin) throw new Error('PREVIEW_REQUEST_ORIGIN_MISMATCH');
+
+  const bypassSecret = String(env.VERCEL_AUTOMATION_BYPASS_SECRET || '');
+  if (!bypassSecret) throw new Error('VERCEL_AUTOMATION_BYPASS_SECRET_MISSING');
+
+  const headers = new Headers(options.headers || {});
+  headers.delete('x-vercel-protection-bypass');
+  headers.delete('x-vercel-set-bypass-cookie');
+  headers.delete('authorization');
+  headers.delete('cookie');
+  headers.set('x-vercel-protection-bypass', bypassSecret);
+
+  return {
+    url: target.toString(),
+    options: {
+      ...options,
+      headers,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15000),
+    },
+  };
+}
+
+async function request(url, options = {}, fetchImpl = fetch, env = process.env, previewOrigin = env.PREVIEW_ORIGIN) {
+  const requestOptions = previewRequestOptions(url, options, env, previewOrigin);
+  return fetchImpl(requestOptions.url, requestOptions.options);
 }
 
 async function safeJson(response) {
@@ -44,13 +71,13 @@ async function verifyReadonlyRuntime({ env = process.env, fetchImpl = fetch, log
   let shiftTypeCount = 'UNKNOWN';
   let policyFailure = false;
 
-  const healthResponse = await request(`${origin}/api/v1/health`, {}, fetchImpl);
+  const healthResponse = await request(`${origin}/api/v1/health`, {}, fetchImpl, env, origin);
   const healthBody = await safeJson(healthResponse);
   healthy = healthResponse.status === 200 && healthBody?.status === 'ok';
   log(`PREVIEW_HEALTH_HTTP=${healthResponse.status}`);
   log(`PREVIEW_HEALTH=${healthy ? 'PASS' : 'FAIL'}`);
 
-  const readyResponse = await request(`${origin}/api/v1/ready`, {}, fetchImpl);
+  const readyResponse = await request(`${origin}/api/v1/ready`, {}, fetchImpl, env, origin);
   const readyBody = await safeJson(readyResponse);
   ready = readyResponse.status === 200 && readyBody?.status === 'ready' && readyBody?.database === 'ok';
   log(`PREVIEW_READY_HTTP=${readyResponse.status}`);
@@ -63,7 +90,7 @@ async function verifyReadonlyRuntime({ env = process.env, fetchImpl = fetch, log
       'Access-Control-Request-Method': 'GET',
       'Access-Control-Request-Headers': 'authorization,content-type',
     },
-  }, fetchImpl);
+  }, fetchImpl, env, origin);
   trustedCors = allowedOptions.status === 204 && allowedOptions.headers.get('access-control-allow-origin') === origin;
   log(`TRUSTED_PREVIEW_CORS_HTTP=${allowedOptions.status}`);
   log(`TRUSTED_PREVIEW_CORS=${trustedCors ? 'PASS' : 'FAIL'}`);
@@ -75,12 +102,12 @@ async function verifyReadonlyRuntime({ env = process.env, fetchImpl = fetch, log
       'Access-Control-Request-Method': 'GET',
       'Access-Control-Request-Headers': 'authorization,content-type',
     },
-  }, fetchImpl);
+  }, fetchImpl, env, origin);
   deniedCors = deniedOptions.status === 403 && !deniedOptions.headers.get('access-control-allow-origin');
   log(`UNTRUSTED_CORS_HTTP=${deniedOptions.status}`);
   log(`UNTRUSTED_CORS=${deniedCors ? 'PASS' : 'FAIL'}`);
 
-  const policyResponse = await request(`${origin}${POLICY_PATH}`, { headers: { Accept: 'application/json' } }, fetchImpl);
+  const policyResponse = await request(`${origin}${POLICY_PATH}`, { headers: { Accept: 'application/json' } }, fetchImpl, env, origin);
   const policyBody = await safeJson(policyResponse);
   if (policyResponse.status === 200) {
     const summary = summarizePolicyBody(policyBody);
@@ -135,4 +162,4 @@ async function main() {
 
 if (require.main === module) main().then((code) => { process.exitCode = code; });
 
-module.exports = { EXPECTED_HOST, POLICY_PATH, approvedPreviewOrigin, safeCode, summarizePolicyBody, verifyReadonlyRuntime };
+module.exports = { EXPECTED_HOST, POLICY_PATH, approvedPreviewOrigin, previewRequestOptions, safeCode, summarizePolicyBody, verifyReadonlyRuntime };

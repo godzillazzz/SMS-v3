@@ -30,6 +30,7 @@ const {
 } = require('../scripts/ci/inspect-approved-pr-preview-attendance-time-policy-migration');
 const {
   approvedPreviewOrigin,
+  previewRequestOptions,
   summarizePolicyBody,
   verifyReadonlyRuntime,
   POLICY_PATH,
@@ -574,6 +575,31 @@ test('Preview origin stays pinned to exact HTTPS PR deployment alias', () => {
   assert.throws(() => approvedPreviewOrigin('http://sms-v3-staging-git-codex-g06-time-policy-20261002-godzillazz.vercel.app'));
 });
 
+test('Preview automation bypass is restricted to the pinned same-origin host', () => {
+  const origin = 'https://sms-v3-staging-git-codex-g06-time-policy-20261002-godzillazz.vercel.app';
+  const request = previewRequestOptions(`${origin}/api/v1/health`, {
+    headers: {
+      Authorization: 'should-be-removed',
+      Cookie: 'should-be-removed',
+      'x-vercel-protection-bypass': 'caller-controlled',
+      Accept: 'application/json',
+    },
+  }, { PREVIEW_ORIGIN: origin, VERCEL_AUTOMATION_BYPASS_SECRET: 'test-only-bypass' }, origin);
+  const headers = request.options.headers;
+  assert.equal(new URL(request.url).origin, origin);
+  assert.equal(headers.get('x-vercel-protection-bypass'), 'test-only-bypass');
+  assert.equal(headers.get('authorization'), null);
+  assert.equal(headers.get('cookie'), null);
+  assert.equal(headers.get('x-vercel-set-bypass-cookie'), null);
+  assert.equal(headers.get('accept'), 'application/json');
+  assert.equal(request.options.redirect, 'manual');
+  assert.throws(() => previewRequestOptions('https://untrusted.invalid/api/v1/health', {}, {
+    PREVIEW_ORIGIN: origin,
+    VERCEL_AUTOMATION_BYPASS_SECRET: 'test-only-bypass',
+  }, origin), /PREVIEW_REQUEST_ORIGIN_MISMATCH/);
+  assert.throws(() => previewRequestOptions(`${origin}/api/v1/health`, {}, { PREVIEW_ORIGIN: origin }, origin), /VERCEL_AUTOMATION_BYPASS_SECRET_MISSING/);
+});
+
 test('unauthenticated policy GET sends no credentials and emits only status/category', async () => {
   const origin = 'https://sms-v3-staging-git-codex-g06-time-policy-20261002-godzillazz.vercel.app';
   const calls = [];
@@ -581,16 +607,19 @@ test('unauthenticated policy GET sends no credentials and emits only status/cate
     calls.push({ url, options });
     if (url.endsWith('/api/v1/health')) return new Response(JSON.stringify({ status: 'ok' }), { status: 200 });
     if (url.endsWith('/api/v1/ready')) return new Response(JSON.stringify({ status: 'ready', database: 'ok' }), { status: 200 });
-    if (options.method === 'OPTIONS' && options.headers.Origin === 'https://untrusted.invalid') return new Response(null, { status: 403 });
+    if (options.method === 'OPTIONS' && options.headers.get('origin') === 'https://untrusted.invalid') return new Response(null, { status: 403 });
     if (options.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': origin } });
     return new Response(JSON.stringify({ error: { code: 'AUTH_REQUIRED' } }), { status: 401 });
   };
   const logs = [];
-  const result = await verifyReadonlyRuntime({ env: { PREVIEW_ORIGIN: origin }, fetchImpl, log: (line) => logs.push(line), outputPath: null });
+  const bypassSecret = 'test-only-bypass';
+  const result = await verifyReadonlyRuntime({ env: { PREVIEW_ORIGIN: origin, VERCEL_AUTOMATION_BYPASS_SECRET: bypassSecret }, fetchImpl, log: (line) => logs.push(line), outputPath: null });
   assert.equal(result.runtimeChecks, 'PASS');
   assert.equal(result.policyGetResult, 'HTTP_401_AUTH_REQUIRED; CODE_AUTH_REQUIRED');
-  assert.ok(calls.every((call) => !call.options.headers?.Authorization && !call.options.headers?.Cookie));
+  assert.ok(calls.every((call) => !call.options.headers.get('authorization') && !call.options.headers.get('cookie')));
+  assert.ok(calls.every((call) => call.options.headers.get('x-vercel-protection-bypass') === bypassSecret));
   assert.ok(logs.includes('RAW_RESPONSE_BODY_EMITTED=false'));
+  assert.ok(logs.every((line) => !line.includes(bypassSecret)));
   assert.equal(calls.find((call) => call.url.endsWith(POLICY_PATH) && call.options.method !== 'OPTIONS').options.method, undefined);
 });
 
