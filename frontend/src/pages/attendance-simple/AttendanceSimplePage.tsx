@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   simpleAttendanceBootstrap,
   simpleAttendanceMoveRequest,
@@ -154,6 +154,7 @@ export function AttendanceSimplePage({
   const [pendingSiteCapture, setPendingSiteCapture] = useState<{ location: Awaited<ReturnType<typeof getLocation>>; context: NonNullable<ReturnType<typeof gpsGeofenceDecision>['actualSite']> } | null>(null);
   const [moveReason, setMoveReason] = useState('');
   const [moveBusy, setMoveBusy] = useState(false);
+  const queueSyncInFlight = useRef(false);
 
   const refreshQueueCount = useCallback(async () => {
     setQueueCount(await encryptedQueueCount().catch(() => 0));
@@ -177,32 +178,48 @@ export function AttendanceSimplePage({
   }, [online, token]);
 
   const syncQueue = useCallback(async () => {
-    if (!online || !token) return;
-    const rows = await listEncryptedQueue<SimpleEventInput>();
-    for (const row of rows) {
-      try {
-        const result = await simpleAttendanceSubmit(token, row.value);
-        if (result.counted || result.status === 'PENDING_CONFIRMATION') {
-          await removeQueued(row.captureId);
-          setLastResult(result);
-          const evidence = result.event?.locationEvidence || result.pendingEvent?.locationEvidence;
-          if (evidence?.assignedSite) setSiteContext({ assignedSite: evidence.assignedSite, actualSite: evidence.actualSite || null, workSiteContext: evidence.workSiteContext || 'ASSIGNED_SITE' });
-          if (result.status === 'PENDING_CONFIRMATION') {
-            setTone('warning');
-            const details = reviewContextDetails(result, evidence);
-            const contextMessage = details.length ? `${details.join(' · ')} · ` : '';
-            setMessage(`${contextMessage}ส่งรายการ Offline แล้ว แต่ส่งช้าเกินกำหนด · รอ ADMIN ยืนยันก่อนนับ`);
-          } else {
-            const accepted = acceptedAttendanceDisplay(result);
-            setTone(accepted.tone);
-            setMessage(`ส่งรายการ Offline แล้ว · ${accepted.message}`);
+    if (!online || !token || queueSyncInFlight.current) return;
+    queueSyncInFlight.current = true;
+    try {
+      const rows = await listEncryptedQueue<SimpleEventInput>();
+      for (const row of rows) {
+        let acknowledged = false;
+        try {
+          const result = await simpleAttendanceSubmit(token, row.value);
+          if (result.counted || result.status === 'PENDING_CONFIRMATION') {
+            acknowledged = true;
+            setBootstrap(null);
+            const fresh = await simpleAttendanceBootstrap(token);
+            await storeEncryptedBootstrap(fresh);
+            setBootstrap(fresh);
+            await removeQueued(row.captureId);
+            setLastResult(result);
+            const evidence = result.event?.locationEvidence || result.pendingEvent?.locationEvidence;
+            if (evidence?.assignedSite) setSiteContext({ assignedSite: evidence.assignedSite, actualSite: evidence.actualSite || null, workSiteContext: evidence.workSiteContext || 'ASSIGNED_SITE' });
+            if (result.status === 'PENDING_CONFIRMATION') {
+              setTone('warning');
+              const details = reviewContextDetails(result, evidence);
+              const contextMessage = details.length ? `${details.join(' · ')} · ` : '';
+              setMessage(`${contextMessage}ส่งรายการ Offline แล้ว แต่ส่งช้าเกินกำหนด · รอ ADMIN ยืนยันก่อนนับ`);
+            } else {
+              const accepted = acceptedAttendanceDisplay(result);
+              setTone(accepted.tone);
+              setMessage(`ส่งรายการ Offline แล้ว · ${accepted.message}`);
+            }
           }
+        } catch {
+          if (acknowledged) {
+            setBootstrap(null);
+            setTone('warning');
+            setMessage('ส่งรายการแล้ว แต่ยังตรวจสถานะล่าสุดไม่สำเร็จ · จะลองอีกครั้งเมื่อเชื่อมต่อ');
+          }
+          break;
         }
-      } catch {
-        break;
       }
+    } finally {
+      queueSyncInFlight.current = false;
+      await refreshQueueCount();
     }
-    await refreshQueueCount();
   }, [online, token, refreshQueueCount]);
 
   useEffect(() => {
