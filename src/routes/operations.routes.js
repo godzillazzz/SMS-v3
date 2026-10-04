@@ -30,6 +30,7 @@ const { createLeaveTypeService, resolveLeaveTypeForRequest, leaveTypeSnapshot } 
 const { createAutoSchedulePatternService } = require('../services/auto-schedule-pattern.service');
 const { createApprovalPolicyService, positionClass } = require('../services/approval-policy.service');
 const { createDataRetentionService } = require('../services/data-retention.service');
+const { createAttendanceTimePolicyService } = require('../services/attendance-time-policy.service');
 const { createSupabaseLicenseDocumentStorage } = require('../services/license-document-storage.service');
 const { createLicenseDocumentService } = require('../services/license-document.service');
 const { optimizeAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
@@ -51,10 +52,34 @@ const { logger } = require('../utils/logger');
 const { listMatrix, updateEmailEvent, providerReadiness } = require('../services/notification-center.service');
 
 const router = express.Router();
+const attendanceTimePolicyService = createAttendanceTimePolicyService({ prisma, audit });
 const paging = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(1000).default(100)
 });
+const attendanceTimePolicyPayload = z.object({
+  scopeType: z.enum(['COMPANY', 'SITE', 'SHIFT_TYPE']),
+  siteId: z.string().uuid().nullable().optional(),
+  shiftTypeId: z.string().uuid().nullable().optional(),
+  effectiveFrom: z.string().datetime({ offset: true }).optional(),
+  policy: z.object({
+    lateGraceMinutes: z.number().int().min(0).max(360),
+    earliestCheckInEnabled: z.boolean(),
+    earliestCheckInMinutesBeforeStart: z.number().int().min(0).max(720),
+    latestCheckInEnabled: z.boolean(),
+    latestCheckInMinutesAfterStart: z.number().int().min(0).max(1440).nullable(),
+    earliestCheckOutEnabled: z.boolean(),
+    earliestCheckOutMinutesAfterStart: z.number().int().min(0).max(2880),
+    latestCheckOutEnabled: z.boolean(),
+    latestCheckOutMinutesAfterEnd: z.number().int().min(0).max(1440).nullable(),
+    earlyLeaveEnabled: z.boolean(),
+    earlyCheckoutToleranceMinutes: z.number().int().min(0).max(720),
+    missingCheckoutEnabled: z.boolean(),
+    missingCheckoutAfterMinutes: z.number().int().min(0).max(1440),
+    maxShiftDurationEnabled: z.boolean(),
+    maxShiftDurationMinutes: z.number().int().min(60).max(2880).nullable()
+  }).strict()
+}).strict();
 const uuid = z.string().uuid();
 const nullableText = (max) => z.string().trim().max(max).nullable().optional();
 const scheduleTimeInput = nullableText(20)
@@ -988,6 +1013,22 @@ router.put('/system-settings/:key', authorize('ADMIN'), async (req, res, next) =
     });
     res.set('Cache-Control', 'no-store');
     res.json({ data: result });
+  } catch (error) { next(error); }
+});
+
+router.get('/attendance/time-policies', authorize('ADMIN'), async (_req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: await attendanceTimePolicyService.list() });
+  } catch (error) { next(error); }
+});
+
+router.post('/attendance/time-policies', authorize('ADMIN'), async (req, res, next) => {
+  try {
+    const input = attendanceTimePolicyPayload.parse(req.body);
+    const data = await attendanceTimePolicyService.save({ actor: req.user, input });
+    res.set('Cache-Control', 'no-store');
+    res.status(201).json({ data });
   } catch (error) { next(error); }
 });
 

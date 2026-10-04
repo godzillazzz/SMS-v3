@@ -5,6 +5,7 @@ import { formatRequestErrorMessage } from '../../request-error';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import { useAccessibleOverlay } from '../../components/useAccessibleOverlay';
 import { roleDisplayName } from '../../role-display';
+import { attendanceOperationalLabels, attendanceTimeLabels } from './attendance-time-labels';
 import {
   attendanceSupervisorDaily,
   attendanceSupervisorHistory,
@@ -64,6 +65,8 @@ type AttendanceRow = {
   shift: Shift;
   expectedStartAt?: string | null;
   expectedEndAt?: string | null;
+  scheduledStartAt?: string | null;
+  scheduledEndAt?: string | null;
   originalCheckInAt?: string | null;
   originalCheckOutAt?: string | null;
   checkInAt?: string | null;
@@ -71,6 +74,11 @@ type AttendanceRow = {
   workedMinutes?: number | null;
   lateMinutes?: number | null;
   earlyOutMinutes?: number | null;
+  punctuality?: string | null;
+  checkoutCondition?: string | null;
+  abnormalTime?: boolean;
+  abnormalReasons?: string[];
+  effectivePolicy?: { id?: string; scopeType?: string; effectiveFrom?: string } | null;
   attendanceStatus: string;
   flags: string[];
   correctionAuthority?: string;
@@ -217,6 +225,14 @@ function actualSiteLabel(row: AttendanceRow) {
   const fallback = row.actualSite?.name || row.actualSite?.code || (row.assignedSite || row.expectedSite)?.name || '—';
   if (sites.length <= 1) return fallback;
   return sites.map((site) => `${site.eventType === 'CHECK_OUT' ? 'ออก' : 'เข้า'}: ${site.actualSite?.name || site.actualSite?.code || fallback}`).join(' / ');
+}
+
+function scheduledWindow(row: AttendanceRow) {
+  const start = row.scheduledStartAt || row.expectedStartAt;
+  const end = row.scheduledEndAt || row.expectedEndAt;
+  if (start || end) return `${time(start)}–${time(end)}`;
+  if (row.shift.startTime || row.shift.endTime) return `${row.shift.startTime || '—'}–${row.shift.endTime || '—'}`;
+  return '—';
 }
 
 function dateTime(value?: string | null) {
@@ -373,18 +389,20 @@ function AttendanceMobileCard({
 
     <dl>
       <div><dt>กะ</dt><dd>{row.shift.code || row.shift.name || '—'}</dd></div>
+      <div><dt>เวลาตามกะ</dt><dd>{scheduledWindow(row)}</dd></div>
       <div><dt>สถานที่ตามตาราง</dt><dd>{(row.assignedSite || row.expectedSite)?.name || '—'}</dd></div>
       <div><dt>สถานที่ลงเวลาจริง</dt><dd>{actualSiteLabel(row)}</dd></div>
       <div><dt>ประเภท</dt><dd>{row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</dd></div>
       <div><dt>เข้า</dt><dd>{time(row.checkInAt)}</dd></div>
       <div><dt>ออก</dt><dd>{time(row.checkOutAt)}</dd></div>
+      <div><dt>สถานะเวลา</dt><dd>{attendanceTimeLabels(row).join(' · ') || '—'}</dd></div>
       <div><dt>เวลาปฏิบัติงาน</dt><dd>{duration(row.workedMinutes)}</dd></div>
     </dl>
 
     <div className="attendance-supervisor-v4__mobile-flags">
       <span className="attendance-supervisor-v4__mobile-label">ข้อสังเกต</span>
       <div className="attendance-supervisor-v4__flags">
-        {row.flags.length ? row.flags.map((flag) => <span key={flag}>{flag}</span>) : <span>ไม่มี</span>}
+        {attendanceOperationalLabels(row).length ? attendanceOperationalLabels(row).map((label) => <span key={label}>{label}</span>) : <span>ไม่มี</span>}
       </div>
     </div>
 
@@ -850,7 +868,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
     }
   };
 
-  const attendanceColumnCount = mode === 'history' ? 11 : 10;
+  const attendanceColumnCount = mode === 'history' ? 14 : 13;
   const attendanceTableLabel = mode === 'history' ? 'ประวัติ Attendance' : 'สถานะ Attendance ประจำวัน';
   const attendanceStateTitle = error ? 'ไม่สามารถแสดงข้อมูล Attendance ได้' : rows.length ? '' : 'ไม่พบข้อมูล Attendance ตามตัวกรอง';
   const attendanceDesktop = <div className="attendance-supervisor-v4__table-wrap data-table-scroll">
@@ -860,11 +878,13 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
           {mode === 'history' && <th scope="col">วันที่</th>}
           <th scope="col">พนักงาน</th>
           <th scope="col">กะ</th>
+          <th scope="col">เวลาตามกะ</th>
           <th scope="col">สถานที่ตามตาราง</th>
           <th scope="col">สถานที่ลงเวลาจริง</th>
           <th scope="col">ประเภท</th>
           <th scope="col">เข้า</th>
           <th scope="col">ออก</th>
+          <th scope="col">สถานะเวลา</th>
           <th scope="col">เวลาปฏิบัติงาน</th>
           <th scope="col">สถานะ</th>
           <th scope="col">ข้อสังเกต</th>
@@ -885,11 +905,13 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
               <small>{row.department || '—'}</small>
             </td>
             <td>{row.shift.code || row.shift.name || '—'}</td>
+            <td>{scheduledWindow(row)}</td>
             <td>{(row.assignedSite || row.expectedSite)?.name || '—'}</td>
             <td>{actualSiteLabel(row)}</td>
             <td>{row.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</td>
             <td>{time(row.checkInAt)}</td>
             <td>{time(row.checkOutAt)}</td>
+            <td>{attendanceTimeLabels(row).join(' · ') || '—'}</td>
             <td>{duration(row.workedMinutes)}</td>
             <td>
               <span className={`attendance-supervisor-v4__status is-${statusTone(row.attendanceStatus)}`}>
@@ -898,9 +920,9 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
             </td>
             <td>
               <div className="attendance-supervisor-v4__flags">
-                {row.flags.slice(0, 3).map((flag) => <span key={flag}>{flag}</span>)}
-                {row.flags.length > 3 && <span>+{row.flags.length - 3}</span>}
-                {!row.flags.length && <span>ไม่มี</span>}
+                {attendanceOperationalLabels(row).slice(0, 3).map((label) => <span key={label}>{label}</span>)}
+                {attendanceOperationalLabels(row).length > 3 && <span>+{attendanceOperationalLabels(row).length - 3}</span>}
+                {!attendanceOperationalLabels(row).length && <span>ไม่มี</span>}
               </div>
             </td>
             <td>
@@ -1249,6 +1271,10 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
               <div><span>วันที่</span><strong>{detail.date}</strong></div>
               <div><span>พนักงาน</span><strong>{detail.employeeCode || '—'}</strong></div>
               <div><span>กะ</span><strong>{detail.shift.code || detail.shift.name || '—'}</strong></div>
+              <div><span>เวลาตามกะ</span><strong>{scheduledWindow(detail)}</strong></div>
+              <div><span>สถานะเข้างาน</span><strong>{attendanceTimeLabels(detail).filter((label) => ['ตรงเวลา', 'มาสาย'].includes(label)).join(' · ') || '—'}</strong></div>
+              <div><span>สถานะเวลาออก</span><strong>{attendanceTimeLabels(detail).filter((label) => ['ออกก่อนเวลา', 'ไม่ได้ลงเวลาออก'].includes(label)).join(' · ') || '—'}</strong></div>
+              <div><span>เวลาผิดปกติ</span><strong>{detail.abnormalTime ? 'ใช่' : 'ไม่พบ'}</strong></div>
               <div><span>สถานที่ตามตาราง</span><strong>{(detail.assignedSite || detail.expectedSite)?.name || '—'}</strong></div>
               <div><span>สถานที่ลงเวลาจริง</span><strong>{actualSiteLabel(detail)}</strong></div>
               <div><span>ประเภท</span><strong>{detail.workSiteContext === 'SUPPORT_SITE' ? 'ช่วยปฏิบัติงาน' : 'ปกติ'}</strong></div>

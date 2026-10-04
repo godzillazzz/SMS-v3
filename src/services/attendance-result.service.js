@@ -3,6 +3,7 @@
 const prismaDefault = require('../config/prisma');
 const HttpError = require('../utils/http-error');
 const { normalizeScheduleTime } = require('../utils/schedule-time');
+const { DEFAULT_ATTENDANCE_TIME_POLICY, normalizeAttendanceTimePolicy } = require('./attendance-time-policy.contract');
 
 const BANGKOK_OFFSET = '+07:00';
 const ATTENDANCE_RESULT_FLAGS = Object.freeze({
@@ -100,16 +101,39 @@ function leaveResult({ window = null, evaluatedAt }) {
     flags: [ATTENDANCE_RESULT_FLAGS.LEAVE],
     expectedStartAt: window?.startAt || null,
     expectedEndAt: window?.endAt || null,
+    scheduledStartAt: window?.startAt || null,
+    scheduledEndAt: window?.endAt || null,
     checkInAt: null,
     checkOutAt: null,
+    effectiveCheckInAt: null,
+    effectiveCheckOutAt: null,
     workedMinutes: null,
     lateMinutes: null,
     earlyOutMinutes: null,
+    punctuality: null,
+    checkoutCondition: null,
+    abnormalTime: false,
+    abnormalReasons: [],
+    effectivePolicy: null,
+    effectivePolicies: { checkIn: null, checkOut: null },
     evaluatedAt
   };
 }
 
-function classifyAttendanceDay({ assignment, events = [], approvedLeave = false, asOf = new Date() } = {}) {
+function policyForEvent(event, fallback) {
+  const snapshot = event?.timePolicySnapshot;
+  const values = snapshot?.values && typeof snapshot.values === 'object'
+    ? normalizeAttendanceTimePolicy(snapshot.values)
+    : normalizeAttendanceTimePolicy(fallback || DEFAULT_ATTENDANCE_TIME_POLICY);
+  return {
+    values,
+    source: snapshot && typeof snapshot === 'object'
+      ? { policyId: snapshot.policyId || null, scopeType: snapshot.scopeType || 'COMPANY_DEFAULT', scopeId: snapshot.scopeId || null, effectiveFrom: snapshot.effectiveFrom || null }
+      : null
+  };
+}
+
+function classifyAttendanceDay({ assignment, events = [], approvedLeave = false, asOf = new Date(), policy = DEFAULT_ATTENDANCE_TIME_POLICY } = {}) {
   if (!assignment) throw http(400, 'ATTENDANCE_RESULT_ASSIGNMENT_REQUIRED', 'Shift Assignment is required.');
   const evaluatedAt = new Date(asOf);
   if (Number.isNaN(evaluatedAt.getTime())) throw http(400, 'ATTENDANCE_RESULT_AS_OF_INVALID', 'Attendance result evaluation time is invalid.');
@@ -120,11 +144,21 @@ function classifyAttendanceDay({ assignment, events = [], approvedLeave = false,
       flags: [],
       expectedStartAt: null,
       expectedEndAt: null,
+      scheduledStartAt: null,
+      scheduledEndAt: null,
       checkInAt: null,
       checkOutAt: null,
+      effectiveCheckInAt: null,
+      effectiveCheckOutAt: null,
       workedMinutes: null,
       lateMinutes: null,
       earlyOutMinutes: null,
+      punctuality: null,
+      checkoutCondition: null,
+      abnormalTime: false,
+      abnormalReasons: [],
+      effectivePolicy: null,
+      effectivePolicies: { checkIn: null, checkOut: null },
       evaluatedAt
     };
   }
@@ -136,12 +170,25 @@ function classifyAttendanceDay({ assignment, events = [], approvedLeave = false,
 
   const checkIn = eventAt(eventByType(events, 'CHECK_IN'));
   const checkOut = eventAt(eventByType(events, 'CHECK_OUT'));
+  const checkInEvent = eventByType(events, 'CHECK_IN');
+  const checkOutEvent = eventByType(events, 'CHECK_OUT');
+  const fallbackPolicy = normalizeAttendanceTimePolicy(policy || DEFAULT_ATTENDANCE_TIME_POLICY);
+  const checkInPolicy = checkIn ? policyForEvent(checkInEvent, fallbackPolicy) : { values: fallbackPolicy, source: null };
+  const checkOutPolicy = checkOut ? policyForEvent(checkOutEvent, fallbackPolicy) : { values: fallbackPolicy, source: null };
   const flags = [];
+  const abnormalReasons = [];
+  let punctuality = null;
+  let checkoutCondition = null;
+  const lateThreshold = new Date(window.startAt.getTime() + checkInPolicy.values.lateGraceMinutes * 60000);
+  const earlyThreshold = new Date(window.endAt.getTime() - checkOutPolicy.values.earlyCheckoutToleranceMinutes * 60000);
+  // Keep duration fields relative to the scheduled boundary for existing
+  // reports; grace/tolerance changes classification, not elapsed minutes.
   const lateMinutes = checkIn ? positiveMinuteDelta(checkIn, window.startAt) : null;
   const earlyOutMinutes = checkOut ? positiveMinuteDelta(window.endAt, checkOut) : null;
 
   if (checkIn) {
-    flags.push(lateMinutes > 0
+    punctuality = checkIn.getTime() > window.startAt.getTime() + checkInPolicy.values.lateGraceMinutes * 60000 ? 'LATE' : 'ON_TIME';
+    flags.push(punctuality === 'LATE'
       ? ATTENDANCE_RESULT_FLAGS.LATE
       : ATTENDANCE_RESULT_FLAGS.ON_TIME);
   } else if (evaluatedAt.getTime() >= window.endAt.getTime()) {
@@ -152,10 +199,37 @@ function classifyAttendanceDay({ assignment, events = [], approvedLeave = false,
     if (!checkIn && !flags.includes(ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_IN)) {
       flags.push(ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_IN);
     }
-    if (earlyOutMinutes > 0) flags.push(ATTENDANCE_RESULT_FLAGS.EARLY_OUT);
-    if (checkIn && checkOut.getTime() < checkIn.getTime()) flags.push(ATTENDANCE_RESULT_FLAGS.TIME_ABNORMAL);
-  } else if (checkIn && evaluatedAt.getTime() >= window.endAt.getTime()) {
-    flags.push(ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_OUT, ATTENDANCE_RESULT_FLAGS.TIME_ABNORMAL);
+    const earlyLeave = checkOutPolicy.values.earlyLeaveEnabled
+      && checkOut.getTime() < window.endAt.getTime() - checkOutPolicy.values.earlyCheckoutToleranceMinutes * 60000;
+    if (earlyLeave) {
+      flags.push(ATTENDANCE_RESULT_FLAGS.EARLY_OUT);
+      checkoutCondition = 'EARLY_LEAVE';
+    } else checkoutCondition = 'NORMAL';
+    if (checkIn && checkOut.getTime() < checkIn.getTime()) {
+      flags.push(ATTENDANCE_RESULT_FLAGS.TIME_ABNORMAL);
+      abnormalReasons.push('CHECK_OUT_BEFORE_CHECK_IN');
+    }
+  } else if (checkIn) {
+    const checkInValues = checkInPolicy.values;
+    const missingCheckoutAt = window.endAt.getTime() + checkInValues.missingCheckoutAfterMinutes * 60000;
+    if (checkInValues.missingCheckoutEnabled && evaluatedAt.getTime() >= missingCheckoutAt) {
+      flags.push(ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_OUT, ATTENDANCE_RESULT_FLAGS.TIME_ABNORMAL);
+      abnormalReasons.push('MISSING_CHECK_OUT');
+      checkoutCondition = 'MISSING_CHECK_OUT';
+    }
+    if (checkInValues.maxShiftDurationEnabled
+      && checkInValues.maxShiftDurationMinutes !== null
+      && evaluatedAt.getTime() >= checkIn.getTime() + checkInValues.maxShiftDurationMinutes * 60000) {
+      flags.push(ATTENDANCE_RESULT_FLAGS.TIME_ABNORMAL);
+      abnormalReasons.push('MAX_SHIFT_DURATION_EXCEEDED');
+    }
+  }
+
+  if (checkIn && checkOut && checkInPolicy.values.maxShiftDurationEnabled
+    && checkInPolicy.values.maxShiftDurationMinutes !== null
+    && checkOut.getTime() - checkIn.getTime() > checkInPolicy.values.maxShiftDurationMinutes * 60000) {
+    flags.push(ATTENDANCE_RESULT_FLAGS.TIME_ABNORMAL);
+    abnormalReasons.push('MAX_SHIFT_DURATION_EXCEEDED');
   }
 
   const workedMinutes = checkIn && checkOut && checkOut.getTime() >= checkIn.getTime()
@@ -176,21 +250,34 @@ function classifyAttendanceDay({ assignment, events = [], approvedLeave = false,
     flags,
     expectedStartAt: window.startAt,
     expectedEndAt: window.endAt,
+    scheduledStartAt: window.startAt,
+    scheduledEndAt: window.endAt,
     checkInAt: checkIn,
     checkOutAt: checkOut,
+    effectiveCheckInAt: checkIn,
+    effectiveCheckOutAt: checkOut,
     workedMinutes,
     lateMinutes,
     earlyOutMinutes,
+    punctuality,
+    checkoutCondition,
+    abnormalTime: flags.includes(ATTENDANCE_RESULT_FLAGS.TIME_ABNORMAL) || flags.includes(ATTENDANCE_RESULT_FLAGS.MISSING_CHECK_OUT),
+    abnormalReasons: [...new Set(abnormalReasons)],
+    effectivePolicy: checkInPolicy.source || checkOutPolicy.source || null,
+    effectivePolicies: { checkIn: checkInPolicy.source, checkOut: checkOutPolicy.source },
     evaluatedAt
   };
 }
 
-function createAttendanceResultService({ prisma = prismaDefault, clock = () => new Date() } = {}) {
+function createAttendanceResultService({ prisma = prismaDefault, clock = () => new Date(), timePolicyService = null } = {}) {
+  const { createAttendanceTimePolicyService } = require('./attendance-time-policy.service');
+  const timePolicies = timePolicyService || createAttendanceTimePolicyService({ prisma, clock });
   async function evaluateAssignment({ assignmentId, asOf = clock() } = {}, client = prisma) {
     const assignment = await client.shiftAssignment.findUnique({
       where: { id: assignmentId },
       include: {
         shiftType: true,
+        securitySite: true,
         attendanceSession: {
           include: { events: { orderBy: { effectiveEventAt: 'asc' } } }
         }
@@ -208,9 +295,10 @@ function createAttendanceResultService({ prisma = prismaDefault, clock = () => n
       select: { id: true }
     });
 
+    const events = await timePolicies.hydrateEvents({ assignment, events: assignment.attendanceSession?.events || [] }, client);
     return classifyAttendanceDay({
       assignment,
-      events: assignment.attendanceSession?.events || [],
+      events,
       approvedLeave: Boolean(leave),
       asOf
     });

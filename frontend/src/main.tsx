@@ -112,6 +112,7 @@ const AttendanceSupervisorPage = React.lazy(() => import('./pages/attendance-sup
 const RegistrationReviewPanel = React.lazy(() => import('./pages/access-management/RegistrationReviewPanel').then((module) => ({ default: module.RegistrationReviewPanel })));
 const PasskeySecurityPanel = React.lazy(() => import('./components/PasskeySecurityPanel').then((module) => ({ default: module.PasskeySecurityPanel })));
 const AttendancePolicySettingsCard = React.lazy(() => import('./components/AttendancePolicySettingsCard').then((module) => ({ default: module.AttendancePolicySettingsCard })));
+const AttendanceTimePolicySettingsCard = React.lazy(() => import('./components/AttendanceTimePolicySettingsCard').then((module) => ({ default: module.AttendanceTimePolicySettingsCard })));
 const LeavePolicySettingsCard = React.lazy(() => import('./components/LeavePolicySettingsCard').then((module) => ({ default: module.LeavePolicySettingsCard })));
 const LeaveTypeMasterPanel = React.lazy(() => import('./components/LeaveTypeMasterPanel').then((module) => ({ default: module.LeaveTypeMasterPanel })));
 const AutoSchedulePatternPanel = React.lazy(() => import('./components/AutoSchedulePatternPanel').then((module) => ({ default: module.AutoSchedulePatternPanel })));
@@ -1116,6 +1117,7 @@ function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading,
     {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
     {loading ? <div className="loading-row">กำลังอ่าน Configuration Registry…</div> : <ConfigurationRegistryPanel settings={settings} />}
     <AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />
+    <AttendanceTimePolicySettingsCard token={token} />
     <LeavePolicySettingsCard settings={settings} onSave={onSaveLeavePolicy} onRefresh={onRefresh} />
     <LeaveTypeMasterPanel items={leaveTypes} loading={leaveTypesLoading} onCreate={onCreateLeaveType} onUpdate={onUpdateLeaveType} onRefresh={onRefresh} />
     <AutoSchedulePatternPanel token={token} />

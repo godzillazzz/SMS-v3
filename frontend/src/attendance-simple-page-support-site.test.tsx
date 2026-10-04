@@ -51,7 +51,7 @@ describe('Attendance support-Site confirmation UX', () => {
     mocks.bootstrap.mockResolvedValue(bootstrap);
     mocks.submit.mockResolvedValue({
       counted: true, status: 'ACCEPTED', deviceBinding: 'PRIMARY', reviewRequired: false,
-      event: { id: 'event-a', eventType: 'CHECK_IN', locationEvidence: {
+      event: { id: 'event-a', eventType: 'CHECK_IN', punctuality: 'LATE', locationEvidence: {
         expectedSiteId: siteA.id, actualSiteId: siteB.id,
         assignedSite: { id: siteA.id, code: siteA.code, name: siteA.name },
         actualSite: { id: siteB.id, code: siteB.code, name: siteB.name }, workSiteContext: 'SUPPORT_SITE'
@@ -88,13 +88,14 @@ describe('Attendance support-Site confirmation UX', () => {
     expect(submitted.location.latitude).toBe(siteB.latitude);
     expect('actualSiteId' in submitted).toBe(false);
     await screen.findByText(/ลงเวลาสำเร็จ · ช่วยปฏิบัติงานที่ Site B/);
+    expect(screen.getByText(/ลงเวลาสำเร็จ · ช่วยปฏิบัติงานที่ Site B · มาสาย/)).toBeTruthy();
   });
 
   it('keeps support-Site and foreign-device review flags independent in the accepted message', async () => {
     mocks.submit.mockResolvedValue({
       counted: true, status: 'ACCEPTED_REVIEW_FLAGGED', deviceBinding: 'FOREIGN', reviewRequired: true,
       reviewReasons: ['ASSIST_OTHER_SITE', 'DEVICE_MISMATCH'],
-      event: { id: 'event-b', eventType: 'CHECK_IN', locationEvidence: {
+      event: { id: 'event-b', eventType: 'CHECK_IN', punctuality: 'LATE', locationEvidence: {
         expectedSiteId: siteA.id, actualSiteId: siteB.id,
         assignedSite: { id: siteA.id, code: siteA.code, name: siteA.name },
         actualSite: { id: siteB.id, code: siteB.code, name: siteB.name }, workSiteContext: 'SUPPORT_SITE'
@@ -108,6 +109,7 @@ describe('Attendance support-Site confirmation UX', () => {
     const message = await screen.findByText(/ลงเวลาสำเร็จ/);
     expect(message.textContent).toContain('ช่วยปฏิบัติงานที่ Site B');
     expect(message.textContent).toContain('ใช้อุปกรณ์อื่นจากเครื่องหลัก');
+    expect(message.textContent).toContain('มาสาย');
     expect(message.textContent).not.toContain('เครื่องนี้ไม่ใช่เครื่องหลัก จึงติดธง');
   });
 });
