@@ -41,7 +41,7 @@ test('transaction read-only is enforced before any bounded lookup; unique match 
  for(const [rows,reason] of [[[],'EVENT_NOT_FOUND'],[[row(),row()],'EVENT_AMBIGUOUS'],[Array(21).fill(row()),'EVENT_WINDOW_OVERFLOW']]){const f=fake(rows);await assert.rejects(verify(f.db,input()),new RegExp(reason));assert.equal(f.calls.filter(c=>typeof c==='object').length,2);}
 });
 test('workflow keeps normal protection, exact CI and contains no deployment/migration/business mutation commands',()=>{
- const s=fs.readFileSync('.github/workflows/verify-g06-physical-event-readonly.yml','utf8');
+ const s=fs.readFileSync('.github/workflows/diagnose-production-database.yml','utf8');
  for(const value of ['production-sms-v3-staging','contents: read','actions: read','EXACT_TOOL_CI_REQUIRED','npx prisma generate'])assert(s.includes(value));
  assert.doesNotMatch(s,/migrate deploy|migrate resolve|db push|vercel promote|environment_ids|bypass/);
 });
