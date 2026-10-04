@@ -92,6 +92,13 @@ jobs:
           DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
           DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
         run: node --test --test-concurrency=1 test/integration/attendance-support-site.integration.test.js
+      - name: Verify physical acceptance SQL and PostgreSQL read-only enforcement
+        env:
+          RUN_INTEGRATION_TESTS: 'true'
+          TEST_DATABASE_RUNNER: g06-physical-readonly-disposable-ci
+          DATABASE_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
+          DIRECT_URL: postgresql://ci_user:ci_test_only@127.0.0.1:55438/sms_v3_test?schema=public
+        run: node --test test/integration/g06-physical-event-readonly.integration.test.js
       - run: npm --prefix frontend test
       - run: npx tsc --noEmit
         working-directory: frontend
