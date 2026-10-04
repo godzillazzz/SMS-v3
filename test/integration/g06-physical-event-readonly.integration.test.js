@@ -12,7 +12,7 @@ test('physical verifier SQL and PostgreSQL read-only enforcement in disposable C
    assert.deepEqual(await tx.$queryRawUnsafe(CANDIDATES,'CHECK_IN',at,at,id,null),[]);
    assert.equal((await tx.$queryRawUnsafe(COUNTS,id,id,'CHECK_IN'))[0].capture_count,0);
    assert.deepEqual(await tx.$queryRawUnsafe(ORDER,id),[]);
-   assert.equal((await tx.$queryRawUnsafe(AUDIT,id,id,'CHECK_IN','ASSIGNED_SITE','PRIMARY',id,'A','A','LATE',null,at,at))[0].audit_count,0);
+   assert.equal((await tx.$queryRawUnsafe(AUDIT,id,id,'CHECK_IN','ASSIGNED_SITE','PRIMARY',id,'A','A','LATE',null,at,at,'false','[]'))[0].audit_count,0);
   });
   await assert.rejects(p.$transaction(async tx=>{
    await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');

@@ -53,6 +53,7 @@ const AUDIT=`SELECT count(*)::int AS audit_count,
  AND metadata->>'deviceBinding'=$5 AND metadata->>'shiftAssignmentId'=$6
  AND metadata->>'assignedSiteCode'=$7 AND metadata->>'actualSiteCode'=$8
  AND metadata->>'punctuality' IS NOT DISTINCT FROM $9 AND metadata->>'checkoutCondition' IS NOT DISTINCT FROM $10
+ AND metadata->>'reviewRequired'=$13 AND metadata->'reviewReasons'=$14::jsonb
  AND COALESCE(metadata->>'gpsEvidenceDigest','') ~ '^[0-9a-f]{64}$'),false) AS correlated
  FROM audit_logs WHERE entity_type='AttendanceEvent' AND entity_id=$1 AND created_at BETWEEN $11::timestamp AND $12::timestamp`;
 const KNOWN_FLAGS=new Set(['ASSIST_OTHER_SITE','LOCATION_RISK','DEVICE_MISMATCH','DEVICE_MOVE_PENDING','DEVICE_SECURE_CONTEXT_RISK','DEVICE_WEBCRYPTO_RISK','DEVICE_STORAGE_RISK','DEVICE_KEY_EXPORTABILITY_RISK','DEVICE_AUTOMATION_RISK','SITE_AUTHORITY_CHANGED','OFFLINE_LOCATION_TIME_MISMATCH']);
@@ -72,13 +73,14 @@ function summarize(row,counts,events,audit,input){
   const duplicate=counts.capture_count===1&&counts.type_count===1;
   const auditOk=audit.audit_count===1&&audit.correlated===true;
   const timeOk=row.event_type==='CHECK_IN'?['ON_TIME','LATE'].includes(row.punctuality):['NORMAL','EARLY_LEAVE'].includes(row.checkout_condition);
-  const pass=row.event_type===input.type&&['ONLINE','OFFLINE'].includes(row.source_mode)&&!!row.assigned_site&&!!row.actual_site&&duplicate&&auditOk&&order&&stateOk&&gps&&device&&validContext&&row.assignment_unchanged&&row.expected_site_matches&&row.policy_snapshot_present&&timeOk&&(!input.context||input.context===row.context);
+  const flagsOk=row.review_required===(review.length>0)&&(row.context!=='SUPPORT_SITE'||review.includes('ASSIST_OTHER_SITE'))&&(row.geofence!=='BORDERLINE'||review.includes('LOCATION_RISK'));
+  const pass=row.event_type===input.type&&['ONLINE','OFFLINE'].includes(row.source_mode)&&!!row.assigned_site&&!!row.actual_site&&duplicate&&auditOk&&order&&stateOk&&gps&&device&&validContext&&flagsOk&&row.assignment_unchanged&&row.expected_site_matches&&row.policy_snapshot_present&&timeOk&&(!input.context||input.context===row.context);
   return{STATUS:pass?'PASS':'PARTIAL',MODE:'READ_ONLY_PHYSICAL_EVENT_EVIDENCE',APPLICATION_SHA:EXPECTED.sha,
     EVENT_ID:row.id,EVENT_TYPE:row.event_type,EFFECTIVE_TIME:iso(row.effective_event_at),RECEIVED_TIME:iso(row.received_at),CAPTURED_TIME:iso(row.device_captured_at),SOURCE_MODE:safeEnum(row.source_mode,['ONLINE','OFFLINE']),TIME_BASIS:safeEnum(row.time_basis,['SERVER_RECEIVED']),
     SCHEDULE_ID:row.shift_assignment_id,WORK_DATE:iso(row.work_date)?.slice(0,10),SHIFT:code(row.shift_code),SHIFT_START:clock(row.shift_start),SHIFT_END:clock(row.shift_end),
     ASSIGNED_SITE:code(row.assigned_site),ACTUAL_SITE:code(row.actual_site),WORK_SITE_CONTEXT:safeEnum(row.context,['ASSIGNED_SITE','SUPPORT_SITE']),ASSIGNMENT_UNCHANGED:row.assignment_unchanged,
     PUNCTUALITY:safeEnum(row.punctuality,['ON_TIME','LATE']),CHECKOUT_CONDITION:safeEnum(row.checkout_condition,['NORMAL','EARLY_LEAVE']),SESSION_STATE:row.session_state,SESSION_STATE_MATCH:stateOk,SERVER_NEXT_ACTION:events.length===2?'NONE_THIS_SHIFT':'CHECK_OUT',
-    DEVICE_BINDING:safeEnum(binding,['PRIMARY','FOREIGN']),DEVICE_EVIDENCE_MATCH:!!device,CURRENT_DEVICE_STATUS:row.current_device_status,REVIEW_REQUIRED:row.review_required,REVIEW_FLAGS:review,
+    DEVICE_BINDING:safeEnum(binding,['PRIMARY','FOREIGN']),DEVICE_EVIDENCE_MATCH:!!device,CURRENT_DEVICE_STATUS:row.current_device_status,REVIEW_REQUIRED:row.review_required,REVIEW_FLAGS:review,REVIEW_FLAGS_MATCH:flagsOk,
     GEOFENCE:safeEnum(row.geofence,['CONFIDENT_INSIDE','BORDERLINE','CONFIDENT_OUTSIDE']),GPS_EVIDENCE:!!gps,GPS_COORDINATES_EXPOSED:false,
     AUDIT_COUNT:audit.audit_count,AUDIT_CORRELATED:auditOk,ORDERING:order?'PASS':'FAIL',SESSION_EVENT_TYPES:types,
     DUPLICATE_COUNT:counts.capture_count,SESSION_TYPE_COUNT:counts.type_count,POLICY_SNAPSHOT_PRESENT:row.policy_snapshot_present,
@@ -91,9 +93,10 @@ async function verify(prisma,input){return prisma.$transaction(async tx=>{
   const rows=await tx.$queryRawUnsafe(CANDIDATES,input.type,input.from,input.to,input.capture,input.subject);
   if(rows.length!==1)fail(rows.length===0?'EVENT_NOT_FOUND':rows.length>20?'EVENT_WINDOW_OVERFLOW':'EVENT_AMBIGUOUS');
   const row=rows[0];
+  flags(row.review_reasons);
   const [counts]=await tx.$queryRawUnsafe(COUNTS,row.capture_id,row.session_id,row.event_type);
   const events=await tx.$queryRawUnsafe(ORDER,row.session_id);
-  const [audit]=await tx.$queryRawUnsafe(AUDIT,row.id,row.capture_id,row.event_type,row.context,row.device_binding,row.shift_assignment_id,row.assigned_site,row.actual_site,row.punctuality,row.checkout_condition,new Date(new Date(row.received_at).getTime()-60000),new Date(new Date(row.received_at).getTime()+60000));
+  const [audit]=await tx.$queryRawUnsafe(AUDIT,row.id,row.capture_id,row.event_type,row.context,row.device_binding,row.shift_assignment_id,row.assigned_site,row.actual_site,row.punctuality,row.checkout_condition,new Date(new Date(row.received_at).getTime()-60000),new Date(new Date(row.received_at).getTime()+60000),String(row.review_required),JSON.stringify(row.review_reasons||[]));
   return summarize(row,counts,events,audit,input);
 },{maxWait:5000,timeout:20000});}
 async function guard(env,fetchImpl=fetch){
@@ -106,7 +109,7 @@ async function guard(env,fetchImpl=fetch){
 }
 async function main(env=process.env){let prisma;try{
   const input=inputs(env);await guard(env);
-  const {PrismaClient}=require('@prisma/client');prisma=new PrismaClient({datasources:{db:{url:env.DIRECT_URL}}});
+  const {PrismaClient}=require('@prisma/client');prisma=new PrismaClient({log:[],errorFormat:'minimal',datasources:{db:{url:env.DIRECT_URL}}});
   const result=await verify(prisma,input);console.log(JSON.stringify(result,null,2));if(result.STATUS!=='PASS')process.exitCode=1;
 }catch(e){console.error(JSON.stringify({STATUS:'FAIL_CLOSED',REASON:e.safeCode||'GUARD_OR_QUERY_FAILED',DATABASE_MUTATION_PERFORMED:false}));process.exitCode=1;}finally{if(prisma)await prisma.$disconnect().catch(()=>{});}}
 if(require.main===module)main();
