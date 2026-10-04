@@ -813,6 +813,9 @@ jobs:
             echo "- Rollback checkpoint: $ROLLBACK_DEPLOYMENT_ID"
             echo "- Manifest SHA-256: $MANIFEST_SHA256"
             echo '- Post-deploy verification: PASS'
-            echo '- Critical UI sentinels: PASS (base contract plus applicable Attendance Time Policy controls)'
+            echo '- Critical UI sentinels: PASS (19/19) base contract'
+            if test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
+              echo '- Attendance Time Policy sentinels: PASS (3/3 additional)'
+            fi
             echo '- Canonical credentialed CORS policy: PASS'
           } >> "$GITHUB_STEP_SUMMARY"

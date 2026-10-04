@@ -39,5 +39,7 @@ test('workflow pins independent history tools to migration evidence and preserve
   assert(workflow.includes('candidate_canonical_alias_assigned'));
   assert(workflow.includes('Auto-rollback to manifest checkpoint'));
   assert(workflow.includes('ATTENDANCE_TIME_POLICY_ARTIFACT=PASS'));
+  assert(workflow.includes('Critical UI sentinels: PASS (19/19) base contract'));
+  assert(workflow.includes('Attendance Time Policy sentinels: PASS (3/3 additional)'));
   assert(workflow.includes("sentinels.push('นโยบายเวลาลงงาน','ผ่อนผันการมาสาย (นาที)','latestCheckInEnabled')"));
 });
