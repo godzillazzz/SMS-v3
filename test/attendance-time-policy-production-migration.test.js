@@ -78,7 +78,7 @@ test('protected workflow inspects ledger/schema before apply and keeps applicati
   assert(workflow.includes('name: production-sms-v3-staging'));
   assert(workflow.indexOf('Verify Production database target guard') < workflow.indexOf('Inspect exact Production ledger'));
   assert(workflow.indexOf('Inspect exact Production ledger') < workflow.indexOf('Apply exact approved Production migration'));
-  assert(workflow.includes("if: steps.migration_state.outputs.apply_needed == 'true'"));
-  assert(workflow.includes('post-verify-production-migration.js --post'));
+  assert(workflow.includes('node /tmp/reconcile-production-attendance-migrations.js'));
+  assert(workflow.includes('g06-production-migration-candidates.json'));
   assert(!/migrate resolve|db push|UAT_PASSWORD|VERCEL_AUTOMATION_BYPASS_SECRET|reconcil.*preview/i.test(workflow));
 });

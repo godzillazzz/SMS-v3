@@ -10,6 +10,8 @@ on:
       - .github/releases/approved-attendance-time-policy-production-migration.json
       - scripts/ci/verify-approved-production-migration.js
       - scripts/ci/verify-attendance-time-policy-production-migration.js
+      - scripts/ci/reconcile-production-attendance-migrations.js
+      - scripts/ci/g06-production-migration-candidates.json
 
 permissions:
   contents: read
@@ -156,6 +158,9 @@ jobs:
       MIGRATION_NAME: ${{ needs.prepare.outputs.migration_name }}
       MIGRATION_PATH: ${{ needs.prepare.outputs.migration_path }}
       POST_VERIFY_SCRIPT: ${{ needs.prepare.outputs.post_verify_script }}
+      PRODUCTION_CANDIDATE_MANIFEST: /tmp/g06-production-migration-candidates.json
+      CURRENT_PRODUCTION_ID: ${{ needs.prepare.outputs.current_production_deployment_id }}
+      CURRENT_PRODUCTION_SHA: ${{ needs.prepare.outputs.current_production_application_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -178,6 +183,9 @@ jobs:
           git show "$GITHUB_SHA:scripts/ci/verify-approved-production-migration.js" >/tmp/verify-approved-production-migration.js
           git show "$GITHUB_SHA:$MANIFEST_PATH" >/tmp/approved-production-migration.json
           git show "$GITHUB_SHA:$POST_VERIFY_SCRIPT" >/tmp/post-verify-production-migration.js
+          git show "$GITHUB_SHA:$POST_VERIFY_SCRIPT" >/tmp/verify-attendance-time-policy-production-migration.js
+          git show "$GITHUB_SHA:scripts/ci/reconcile-production-attendance-migrations.js" >/tmp/reconcile-production-attendance-migrations.js
+          git show "$GITHUB_SHA:scripts/ci/g06-production-migration-candidates.json" >/tmp/g06-production-migration-candidates.json
           git show "$GITHUB_SHA:scripts/ci/verify-g06-simple-attendance-production-migration.js" >/tmp/verify-g06-simple-attendance-production-migration.js
           node - <<'NODE'
           const fs = require('node:fs');
@@ -262,43 +270,27 @@ jobs:
           main().catch((error) => { process.stderr.write(error.message + '\n'); process.exitCode = 1; });
           NODE
 
-      - run: npm ci
-      - run: npx prisma generate
+      - run: npm ci --include=dev
+      - run: npx --no-install prisma generate
 
       - name: Verify Production database target guard
         run: node scripts/ci/verify-deployment-target.js --verify
 
-      - name: Inspect exact Production ledger and physical schema before mutation
-        id: migration_state
+      - name: Inspect exact Production ledger and physical schema before mutation; Apply exact approved Production migration only after proof
         shell: bash
         run: |
           set -euo pipefail
-          NODE_PATH="$PWD/node_modules" node /tmp/post-verify-production-migration.js
-          status_output=$(mktemp)
-          trap 'rm -f "$status_output"' EXIT
-          node scripts/ci/prisma-migration.js status --allow-pending >"$status_output"
-          grep -Eq '^MIGRATION_STATUS_CLASS=(UP_TO_DATE|PENDING_MIGRATIONS_ONLY)$' "$status_output"
-          grep -Fxq 'DRIFT_DETECTED=false' "$status_output"
-          grep -Fxq 'MIGRATION_HISTORY_MISMATCH=false' "$status_output"
           node - <<'NODE'
           const fs = require('node:fs');
           const verifier = require('/tmp/verify-approved-production-migration.js');
-          const manifest = JSON.parse(fs.readFileSync('/tmp/approved-production-migration.json', 'utf8'));
           verifier.validateSqlForMigration('G06-SIMPLE-ATTENDANCE', fs.readFileSync('prisma/migrations/202610020001_g06_simple_device_offline/migration.sql', 'utf8'));
-          verifier.validateSqlForMigration('G06-TIME-POLICY', fs.readFileSync(manifest.migration_path, 'utf8'));
+          verifier.validateSqlForMigration('G06-TIME-POLICY', fs.readFileSync(process.env.MIGRATION_PATH, 'utf8'));
           console.log('EXACT_001_002_SQL_IDENTITY=PASS');
           NODE
-
-      - name: Apply exact approved Production migration
-        if: steps.migration_state.outputs.apply_needed == 'true'
-        run: node scripts/ci/prisma-migration.js deploy
-
-      - name: Verify migration status and Attendance Time Policy database invariants
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/ci/prisma-migration.js status
-          NODE_PATH="$PWD/node_modules" node /tmp/post-verify-production-migration.js --post
+          # Phase A is a read-only transaction: ledger, catalog, exact immutable Git matches.
+          # Phase B can deploy once only after exact ephemeral status + repeated target/state proof.
+          # Post-apply ledger/schema/Prisma verification remains in this same protected execution.
+          NODE_PATH="$PWD/node_modules" node /tmp/reconcile-production-attendance-migrations.js
 
       - name: Verify canonical application remains healthy
         shell: bash
