@@ -10,6 +10,9 @@ test('physical verifier SQL and PostgreSQL read-only enforcement in disposable C
   await p.$transaction(async tx=>{
    await tx.$executeRawUnsafe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
    assert.deepEqual(await tx.$queryRawUnsafe(CANDIDATES,'CHECK_IN',at,at,id,null),[]);
+   const {SUBJECT,STATS}=require('../../scripts/ci/g06-failed-attempt-readonly');
+   assert.deepEqual(await tx.$queryRawUnsafe(SUBJECT,id,at),[]);
+   assert.equal((await tx.$queryRawUnsafe(STATS,id,at,at))[0].event_count,0);
    const expression=CANDIDATES.slice(CANDIDATES.indexOf('(sa.employee_id=s.employee_id'),CANDIDATES.indexOf(' AS assignment_unchanged,'));
    const fixture=async(site,source,snapshotSite)=>tx.$queryRawUnsafe(`WITH sa AS (SELECT $1::uuid AS security_site_id,$4::uuid AS employee_id,$4::uuid AS shift_type_id,$4::uuid AS id),s AS (SELECT $4::uuid AS employee_id,$4::uuid AS expected_shift_type_id,$4::uuid AS expected_site_id,jsonb_build_object('shiftAssignmentId',$4::text,'shiftTypeId',$4::text,'site',jsonb_build_object('id',$3::text,'authoritySource',$2::text,'departmentName','test')) AS expectation_snapshot) SELECT ${expression} AS matched FROM sa,s`,site,source,snapshotSite,id);
    assert.equal((await fixture(null,'DEPARTMENT_DEFAULT',id))[0].matched,true);

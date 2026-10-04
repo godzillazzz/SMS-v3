@@ -27,6 +27,13 @@ on:
       expected_context:
         description: 'Optional expected ASSIGNED_SITE or SUPPORT_SITE'
         type: string
+      failure_attempt:
+        description: 'Read-only rejected bootstrap diagnosis; requires physical_event=true'
+        type: boolean
+        default: false
+      prior_schedule_id:
+        description: 'Known prior accepted schedule for private subject correlation; never guess'
+        type: string
 permissions:
   contents: read
   actions: read
@@ -51,12 +58,14 @@ jobs:
           node-version: 22
           cache: npm
       - name: Require exact verified tool source and unchanged application schema
-        if: ${{ inputs.physical_event }}
+        if: ${{ inputs.physical_event || inputs.failure_attempt }}
         env:
           GH_TOKEN: ${{ github.token }}
+          PHYSICAL_EVENT: ${{ inputs.physical_event }}
         shell: bash
         run: |
           set -euo pipefail
+          test "$PHYSICAL_EVENT" = 'true'
           test "$GITHUB_REF" = 'refs/heads/fix/serverless-database-reliability'
           git merge-base --is-ancestor 8bae84a50e8cd2c3d96ba2393a8004ea4abaafeb HEAD
           test "$(git rev-parse 8bae84a50e8cd2c3d96ba2393a8004ea4abaafeb^{tree})" = 'e125272c8ab6f934d973212b444a8a918887854a'
@@ -95,4 +104,11 @@ jobs:
           CAPTURE_ID: ${{ inputs.capture_id }}
           SUBJECT_USER_ID: ${{ inputs.subject_user_id }}
           EXPECTED_CONTEXT: ${{ inputs.expected_context }}
-        run: node scripts/ci/g06-physical-event-readonly.js
+          FAILURE_ATTEMPT: ${{ inputs.failure_attempt }}
+          PRIOR_SCHEDULE_ID: ${{ inputs.prior_schedule_id }}
+        run: |
+          if [ "$FAILURE_ATTEMPT" = 'true' ]; then
+            node scripts/ci/g06-failed-attempt-readonly.js
+          else
+            node scripts/ci/g06-physical-event-readonly.js
+          fi
