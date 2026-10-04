@@ -207,7 +207,7 @@ jobs:
                 "$POST_VERIFY_SCRIPT"
 
               if test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
-                git diff --quiet "$EVIDENCE_HEAD" "$GITHUB_SHA" -- scripts/ci/verify-g06-simple-attendance-production-migration.js
+                git diff --quiet "$EVIDENCE_HEAD" "$GITHUB_SHA" -- scripts/ci/verify-g06-simple-attendance-production-migration.js scripts/ci/reconcile-production-attendance-migrations.js scripts/ci/g06-production-migration-candidates.json
               fi
 
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRE_APPLIED_MIGRATION_EVIDENCE_RUN_ID/jobs?per_page=100" >/tmp/pre-applied-jobs.json
@@ -386,6 +386,10 @@ jobs:
               git show "$GITHUB_SHA:$POST_VERIFY_SCRIPT" >/tmp/pre-applied-post-verify.js
               if test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
                 git show "$GITHUB_SHA:scripts/ci/verify-g06-simple-attendance-production-migration.js" >/tmp/verify-g06-simple-attendance-production-migration.js
+                for tool in reconcile-production-attendance-migrations.js verify-attendance-time-policy-production-migration.js verify-preapplied-attendance-policy-readonly.js; do
+                  git show "$GITHUB_SHA:scripts/ci/$tool" >"/tmp/$tool"
+                done
+                git show "$GITHUB_SHA:scripts/ci/g06-production-migration-candidates.json" >/tmp/g06-production-migration-candidates.json
               fi
               ;;
             *)
@@ -411,9 +415,14 @@ jobs:
           set -euo pipefail
           npx prisma generate
           node scripts/ci/verify-deployment-target.js --verify
-          node scripts/ci/prisma-migration.js status
-          test -f /tmp/pre-applied-post-verify.js
-          NODE_PATH="$PWD/node_modules" node /tmp/pre-applied-post-verify.js
+          if test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
+            # Re-read catalog/history without migration authority in the application release.
+            PRODUCTION_CANDIDATE_MANIFEST=/tmp/g06-production-migration-candidates.json NODE_PATH="$PWD/node_modules" node /tmp/verify-preapplied-attendance-policy-readonly.js
+          else
+            node scripts/ci/prisma-migration.js status
+            test -f /tmp/pre-applied-post-verify.js
+            NODE_PATH="$PWD/node_modules" node /tmp/pre-applied-post-verify.js
+          fi
           echo 'PRE_APPLIED_PRODUCTION_DATABASE_STATE=PASS'
 
       - name: Verify Vercel project linkage
@@ -539,6 +548,13 @@ jobs:
           compgen -G 'frontend/dist/assets/index-*.js' >/dev/null
           test -f .vercel/output/config.json
           node scripts/ci/verify-release-artifact.js frontend/dist .vercel/output/static
+          if test "$PRE_APPLIED_MIGRATION_MANIFEST_PATH" = '.github/releases/approved-attendance-time-policy-production-migration.json'; then
+            node - <<'NODE'
+          const { verifyArtifact, DEFAULT_SENTINELS } = require('./scripts/ci/verify-release-artifact');
+          verifyArtifact(['frontend/dist','.vercel/output/static'], [...DEFAULT_SENTINELS,'นโยบายเวลาลงงาน','ผ่อนผันการมาสาย (นาที)','latestCheckInEnabled']);
+          console.log('ATTENDANCE_TIME_POLICY_ARTIFACT=PASS');
+          NODE
+          fi
           node scripts/ci/verify-linux-artifact.js .vercel/output --require-sharp-load
 
       - name: Revalidate exact source identity after Production build
@@ -605,6 +621,7 @@ jobs:
           const label = process.argv[3];
           const useVercelCurl = process.argv[4] === 'true';
           const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน', 'Approval Authority Matrix / SLA', 'การเปลี่ยนแปลงสำคัญ', 'เปลี่ยนชื่อ', 'ย้ายหน่วยงาน / แผนก', 'เปลี่ยนตำแหน่ง', 'Data Retention Center / การเก็บรักษาข้อมูล', 'รัน Cleanup รอบถัดไป', 'GPS / GEOFENCE', 'เครื่องแรก · ผูกอัตโนมัติ', 'เครื่องอื่น · ติดธงตรวจ', 'AES-GCM encrypted queue', 'รอ ADMIN ยืนยันก่อนนับ', 'SUPPORT_SITE', 'ช่วยปฏิบัติงาน'];
+          if (process.env.PRE_APPLIED_MIGRATION_MANIFEST_PATH === '.github/releases/approved-attendance-time-policy-production-migration.json') sentinels.push('นโยบายเวลาลงงาน','ผ่อนผันการมาสาย (นาที)','latestCheckInEnabled');
           const { verifyPublicRuntime } = require('/tmp/sms-release-control-plane/verify-public-runtime.js');
           const { createVercelCurlFetch } = require('/tmp/sms-release-control-plane/vercel-curl-fetch.js');
           const fetchImpl = useVercelCurl
@@ -796,6 +813,6 @@ jobs:
             echo "- Rollback checkpoint: $ROLLBACK_DEPLOYMENT_ID"
             echo "- Manifest SHA-256: $MANIFEST_SHA256"
             echo '- Post-deploy verification: PASS'
-            echo '- Critical UI sentinels: PASS (19/19)'
+            echo '- Critical UI sentinels: PASS (base contract plus applicable Attendance Time Policy controls)'
             echo '- Canonical credentialed CORS policy: PASS'
           } >> "$GITHUB_STEP_SUMMARY"
