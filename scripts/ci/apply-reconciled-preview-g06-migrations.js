@@ -284,9 +284,28 @@ function assertReconciliationPlan(report) {
     && duplicateStates.every((value) => value === 'VALID_ROLLBACK_REAPPLY_HISTORY');
 }
 
+function classifyMigrationLedgerRecord(rows, name) {
+  const records = rows.filter((row) => row?.migration_name === name);
+  if (!records.length) return 'ABSENT';
+  if (records.length > 1) return 'DUPLICATE';
+  if (records[0].rolled_back_at) return 'ROLLED_BACK';
+  if (records[0].finished_at) return 'COMPLETED';
+  return 'FAILED_OR_INCOMPLETE';
+}
+
+function inspectPendingMigrationRecords(rows) {
+  return {
+    predecessor: classifyMigrationLedgerRecord(rows, PRED),
+    target: classifyMigrationLedgerRecord(rows, TARGET),
+  };
+}
+
 function assertPendingMigrations(rows) {
-  const names = new Set(rows.map((row) => row.migration_name));
-  if (PENDING.some((name) => names.has(name))) throw new Error('PREDECESSOR_OR_TARGET_LEDGER_CHANGED');
+  const state = inspectPendingMigrationRecords(rows);
+  if (state.predecessor !== 'ABSENT' || state.target !== 'ABSENT') {
+    throw Object.assign(new Error(), { safeCategory: 'PREDECESSOR_OR_TARGET_LEDGER_PRESENT' });
+  }
+  return state;
 }
 
 function sameCandidateResult(a, b) {
@@ -375,7 +394,9 @@ function outputReport(report, file = process.env.GITHUB_OUTPUT) {
   if (!file) return;
   const fields = [
     ['phase_a', report.phaseA], ['candidate_match', report.candidateMatch], ['migration_plan', report.migrationPlan],
-    ['migration_status', report.migrationStatus], ['migration_apply_attempted', report.applyAttempted ? 'YES' : 'NO'],
+    ['migration_status', report.migrationStatus], ['predecessor_ledger_before_apply', report.predecessorLedgerBeforeApply],
+    ['target_ledger_before_apply', report.targetLedgerBeforeApply], ['ephemeral_source', report.ephemeralSource],
+    ['migration_apply_attempted', report.applyAttempted ? 'YES' : 'NO'],
     ['migration_apply_result', report.applyResult], ['post_schema', report.postSchema], ['preview_runtime', report.previewRuntime],
     ['policy_get', report.policyGet], ['iphone_ui_gate_ready', report.iphoneUiGateReady], ['failure_category', report.failureCategory],
   ];
@@ -385,7 +406,7 @@ function outputReport(report, file = process.env.GITHUB_OUTPUT) {
 async function runApprovedPreviewMutation(options = {}) {
   const env = options.env || process.env;
   const log = options.log || console.log;
-  const report = { phaseA: 'FAIL', candidateMatch: 'UNKNOWN', migrationPlan: 'NOT_RUN', migrationStatus: 'NOT_RUN', applyAttempted: false, applyResult: 'NOT_RUN', postSchema: 'NOT_RUN', previewRuntime: 'NOT_RUN', policyGet: 'NOT_RUN', iphoneUiGateReady: 'NO', failureCategory: 'NONE' };
+  const report = { phaseA: 'FAIL', candidateMatch: 'UNKNOWN', migrationPlan: 'NOT_RUN', migrationStatus: 'NOT_RUN', predecessorLedgerBeforeApply: 'NOT_READ', targetLedgerBeforeApply: 'NOT_READ', ephemeralSource: 'NOT_RUN', applyAttempted: false, applyResult: 'NOT_RUN', postSchema: 'NOT_RUN', previewRuntime: 'NOT_RUN', policyGet: 'NOT_RUN', iphoneUiGateReady: 'NO', failureCategory: 'NONE' };
   const emit = (key, value) => log(key + '=' + value);
   let targetGuard = options.targetGuard;
   let targetGuardPassed = false;
@@ -415,12 +436,24 @@ async function runApprovedPreviewMutation(options = {}) {
       throw Object.assign(new Error(), { safeCategory: 'CANONICAL_HISTORY_CANDIDATE_MISMATCH' });
     }
     report.candidateMatch = 'PASS';
+    const pendingRecords = inspectPendingMigrationRecords(firstRows);
+    report.predecessorLedgerBeforeApply = pendingRecords.predecessor;
+    report.targetLedgerBeforeApply = pendingRecords.target;
+    emit('PREDECESSOR_LEDGER_BEFORE_APPLY', pendingRecords.predecessor);
+    emit('TARGET_LEDGER_BEFORE_APPLY', pendingRecords.target);
     assertPendingMigrations(firstRows);
 
-    const bundle = (options.buildBundle || buildEphemeralMigrationSource)({
-      applicationRoot, gitRoot, manifest, candidateSources, tempRoot: env.RUNNER_TEMP || os.tmpdir(),
-    });
-    emit('EPHEMERAL_MIGRATION_SOURCE', 'PASS');
+    let bundle;
+    try {
+      bundle = await (options.buildBundle || buildEphemeralMigrationSource)({
+        applicationRoot, gitRoot, manifest, candidateSources, tempRoot: env.RUNNER_TEMP || os.tmpdir(),
+      });
+      report.ephemeralSource = 'PASS';
+    } catch {
+      report.ephemeralSource = 'FAIL';
+      throw Object.assign(new Error(), { safeCategory: 'EPHEMERAL_SOURCE_BUILD_FAILED' });
+    }
+    emit('EPHEMERAL_MIGRATION_SOURCE', report.ephemeralSource);
     const reconcileFn = options.reconcile || reconcile;
     const initial = await reconcileFn(env, bundle, targetGuard, log);
     report.migrationPlan = initial.migrationPlan || 'FAIL_CLOSED_UNKNOWN';
@@ -484,6 +517,7 @@ if (require.main === module) main().then((status) => { process.exitCode = status
 
 module.exports = {
   EXPECTED_PENDING: PENDING, LEDGER_SQL, assertPendingMigrations, assertReconciliationPlan, buildEphemeralMigrationSource,
+  inspectPendingMigrationRecords,
   candidateVariants, classifyCandidateMatches, classifyPrismaStatus, hasNewlineInsideSqlQuotedConstruct,
   ledgerFingerprint, loadCandidateSources, outputReport, readAndValidateManifest, runApprovedPreviewMutation,
   safeApplyFailure, safeCrlfCandidate, safeDatabaseFailure, verifyPostMigration,

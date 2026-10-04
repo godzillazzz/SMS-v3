@@ -8,11 +8,13 @@ const path = require('node:path');
 const {
   EXPECTED_PENDING,
   LEDGER_SQL,
+  assertPendingMigrations,
   assertReconciliationPlan,
   candidateVariants,
   classifyCandidateMatches,
   classifyPrismaStatus,
   hasNewlineInsideSqlQuotedConstruct,
+  inspectPendingMigrationRecords,
   runApprovedPreviewMutation,
   safeCrlfCandidate,
   safeApplyFailure,
@@ -191,6 +193,26 @@ test('candidate matcher fails closed for no match, duplicate ledger rows, incomp
   assert.equal(classifyCandidateMatches([rows[0]], ambiguous, names).results[0].classification, 'AMBIGUOUS');
 });
 
+test('target/predecessor ledger state is reported safely and any existing row fails closed', () => {
+  const pred = EXPECTED_PENDING[0];
+  const target = EXPECTED_PENDING[1];
+  assert.deepEqual(inspectPendingMigrationRecords(ledgerRows()), { predecessor: 'ABSENT', target: 'ABSENT' });
+
+  const completed = { migration_name: pred, checksum: 'c'.repeat(64), started_at: new Date(), finished_at: new Date(), rolled_back_at: null };
+  assert.deepEqual(inspectPendingMigrationRecords([...ledgerRows(), completed]), { predecessor: 'COMPLETED', target: 'ABSENT' });
+  assert.deepEqual(
+    inspectPendingMigrationRecords([...ledgerRows(), { ...completed, migration_name: target, finished_at: null }]),
+    { predecessor: 'ABSENT', target: 'FAILED_OR_INCOMPLETE' },
+  );
+  assert.deepEqual(inspectPendingMigrationRecords([...ledgerRows(), completed, completed]), { predecessor: 'DUPLICATE', target: 'ABSENT' });
+  assert.deepEqual(inspectPendingMigrationRecords([...ledgerRows(), { ...completed, rolled_back_at: new Date() }]), { predecessor: 'ROLLED_BACK', target: 'ABSENT' });
+
+  assert.throws(
+    () => assertPendingMigrations([...ledgerRows(), completed]),
+    (error) => error.safeCategory === 'PREDECESSOR_OR_TARGET_LEDGER_PRESENT',
+  );
+});
+
 test('Prisma status accepts only the exact ordered pending pair or an up-to-date state', () => {
   assert.equal(classifyPrismaStatus(statusOutput()), 'EXACTLY_PENDING_001_THEN_002');
   assert.equal(classifyPrismaStatus(statusOutput([EXPECTED_PENDING[1], EXPECTED_PENDING[0]])), 'OTHER_PENDING_MIGRATIONS');
@@ -219,6 +241,34 @@ test('workflow stops before apply on candidate mismatch and never emits DB or ch
   assert.equal(output.includes('a'.repeat(64)), false);
   assert.equal(output.includes('b'.repeat(64)), false);
   assert.equal(output.includes('MIGRATION_APPLY_ATTEMPTED=NO'), true);
+});
+
+test('unexpected predecessor/target ledger record is summarized without mutation or checksum disclosure', async () => {
+  const setup = runOptions();
+  const pred = EXPECTED_PENDING[0];
+  const row = { migration_name: pred, checksum: 'f'.repeat(64), started_at: new Date(), finished_at: new Date(), rolled_back_at: null, applied_steps_count: 1 };
+  setup.options.readLedger = async () => [...ledgerRows(), row];
+  const report = await runApprovedPreviewMutation(setup.options);
+  assert.equal(report.predecessorLedgerBeforeApply, 'COMPLETED');
+  assert.equal(report.targetLedgerBeforeApply, 'ABSENT');
+  assert.equal(report.failureCategory, 'PREDECESSOR_OR_TARGET_LEDGER_PRESENT');
+  assert.equal(report.applyAttempted, false);
+  assert.equal(setup.calls.includes('reconcile'), false);
+  assert.equal(setup.calls.includes('apply'), false);
+  const output = setup.calls.join('\n');
+  assert.match(output, /PREDECESSOR_LEDGER_BEFORE_APPLY=COMPLETED/);
+  assert.equal(output.includes('f'.repeat(64)), false);
+});
+
+test('ephemeral migration source build failures receive a safe category', async () => {
+  const setup = runOptions({ buildBundle: async () => { throw new Error('private path and connection text'); } });
+  const report = await runApprovedPreviewMutation(setup.options);
+  assert.equal(report.ephemeralSource, 'FAIL');
+  assert.equal(report.failureCategory, 'EPHEMERAL_SOURCE_BUILD_FAILED');
+  assert.equal(report.applyAttempted, false);
+  const output = setup.calls.join('\n');
+  assert.equal(output.includes('private path'), false);
+  assert.equal(output.includes('connection text'), false);
 });
 
 test('workflow applies exactly once only after two stable read-only passes and exact pending status', async () => {
@@ -257,6 +307,9 @@ test('protected workflow runs only from main in Preview Environment and contains
   assert.match(workflow, /environment:\n\s+name: 'Preview – sms-v3-staging'/);
   assert.match(workflow, /GITHUB_REF.*refs\/heads\/main/);
   assert.match(workflow, /apply-reconciled-preview-g06-migrations\.js/);
+  assert.match(workflow, /predecessor_ledger_before_apply/);
+  assert.match(workflow, /target_ledger_before_apply/);
+  assert.match(workflow, /ephemeral_source/);
   assert.doesNotMatch(workflow, /prisma\s+migrate\s+resolve/i);
   assert.doesNotMatch(workflow, /prisma\s+db\s+push/i);
   assert.match(workflow, /APPROVED_PRODUCTION_DATABASE_TARGET_FINGERPRINT/);
