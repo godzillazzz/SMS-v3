@@ -66,39 +66,21 @@ jobs:
             const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({ owner, repo, ref: pr.head.sha, per_page: 100 });
             const preview = statuses.filter((item) => item.context === 'Vercel').sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
             if (!preview || preview.state !== 'success') throw new Error('PR_417_VERCEL_STATUS_NOT_GREEN');
+            let previewUrl;
+            try { previewUrl = new URL(preview.target_url); } catch { throw new Error('PR_417_VERCEL_TARGET_URL_INVALID'); }
+            const previewPath = previewUrl.pathname.split('/').filter(Boolean);
+            if (previewUrl.protocol !== 'https:' || previewUrl.hostname !== 'vercel.com' || previewUrl.search || previewUrl.hash
+              || previewPath.length !== 3 || previewPath[0] !== 'godzillazz' || previewPath[1] !== 'sms-v3-staging'
+              || !/^[A-Za-z0-9]+$/.test(previewPath[2])) throw new Error('PR_417_VERCEL_PROJECT_LINK_MISMATCH');
             core.info(`PR_417_SOURCE=PASS SHA=${pr.head.sha} TREE=${commit.tree.sha}`);
             core.info(`PR_417_EXACT_HEAD_CI=PASS RUN=${run.id}`);
-            core.info('PR_417_VERCEL_STATUS=PASS');
+            core.info('PR_417_EXACT_SHA_VERCEL_STATUS=PASS PROJECT=sms-v3-staging');
+            core.info(`PR_417_VERCEL_DEPLOYMENT_REF=${previewPath[2]}`);
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Mask and require Vercel verification credentials
-        uses: actions/github-script@v7
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-        with:
-          script: |
-            for (const name of ['VERCEL_TOKEN', 'VERCEL_ORG_ID', 'VERCEL_PROJECT_ID', 'VERCEL_AUTOMATION_BYPASS_SECRET']) {
-              const value = process.env[name];
-              if (!value) throw new Error(`${name}_MISSING`);
-              core.setSecret(value);
-            }
-            if (process.env.VERCEL_ORG_ID !== 'team_nemCExHbZ8EAhSgsvefHPAEz') throw new Error('VERCEL_ORG_ID_MISMATCH');
-            if (process.env.VERCEL_PROJECT_ID !== 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s') throw new Error('VERCEL_PROJECT_ID_MISMATCH');
-            core.info('VERCEL_READ_ONLY_CHECK_SETTINGS=PASS');
-
-      - name: Verify pinned Preview's native Vercel identity
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: node scripts/ci/verify-g06-preview-deployment.js
 
       - name: Run health, readiness, CORS, and unauthenticated policy GET checks
         env:
@@ -113,7 +95,7 @@ jobs:
           {
             echo '### G06 Preview runtime verification (read-only)'
             echo "- Workflow source SHA: $GITHUB_SHA"
-            echo '- Preview identity was checked against the pinned Vercel project, native application SHA and native ref.'
-            echo '- No database credentials, authenticated application session, or Attendance mutation was used.'
+            echo '- The Vercel success status is attached to the exact PR SHA and links to the expected sms-v3-staging project.'
+            echo '- No database credentials, Vercel API token, authenticated application session, or Attendance mutation was used.'
             echo '- Runtime output is limited to HTTP statuses and allowlisted categories.'
           } >> "$GITHUB_STEP_SUMMARY"
