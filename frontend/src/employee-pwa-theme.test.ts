@@ -118,6 +118,10 @@ describe('Employee PWA dark chrome ownership', () => {
     expect(css).toContain('--attendance-simple-text-secondary: var(--employee-pwa-text-secondary)');
     expect(css).toContain('--attendance-simple-text-muted: var(--employee-pwa-text-muted)');
     expect(css).toContain('.app-shell.pwa-shell .pwa-profile-hero p { color: var(--nexus-cyan-soft) !important; }');
+    expect(css).toContain('.app-shell.pwa-shell .pwa-profile-card .is-online { color: var(--nexus-success); }');
+    expect(css).toContain('.app-shell.pwa-shell .pwa-profile-card .is-offline { color: var(--nexus-warning); }');
+    expect(ratio('--nexus-success', '--nexus-surface')).toBeGreaterThanOrEqual(4.5);
+    expect(ratio('--nexus-warning', '--nexus-surface')).toBeGreaterThanOrEqual(4.5);
     expect(css).toContain('--signature-surface: var(--nexus-surface)');
     expect(css).toContain('--signature-brand-soft: var(--nexus-container)');
     expect(css).toContain('--signature-text: var(--employee-pwa-text-primary)');
@@ -125,7 +129,8 @@ describe('Employee PWA dark chrome ownership', () => {
     expect(signatureThemeV11).toContain('--signature-text-secondary: var(--signature-light-text-secondary);');
     expect(signatureThemeV11).toContain('--font-ui: "Noto Sans Thai", "Inter"');
     expect(signatureThemeV11).toContain('--font-heading: "Inter", "Noto Sans Thai"');
-    expect(css).not.toMatch(/(?:font-family|--font-(?:ui|heading))\s*:/i);
+    expect(css).toContain('.app-shell.pwa-shell .pwa-profile-card dd { font-family: var(--font-ui); }');
+    expect(css).not.toMatch(/--font-(?:ui|heading)\s*:/i);
     expect(signatureTheme).toContain(':is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-submit-card');
     expect(signatureTheme).toContain(':is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page textarea::placeholder');
     expect(signatureTheme).toContain('--signature-text-secondary: var(--signature-dark-text-secondary)');
