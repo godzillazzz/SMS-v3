@@ -499,3 +499,126 @@
   .employee-v4-schedule-date { width: 50px; height: 50px; border-radius: 14px; }
   .employee-v4-schedule-note { grid-column: 2; max-width: none; text-align: left; }
 }
+
+/* Attendance History contrast for the dark PWA shell. */
+.employee-v4-page.nexus-mobile-history {
+  --employee-v4-blue: #63b8d4;
+  --employee-v4-blue-deep: #f3f5fb;
+  --employee-v4-ink: #f3f5fb;
+  --employee-v4-muted: #b6bfd2;
+  --employee-v4-line: #3b4763;
+  --employee-v4-surface: #061421;
+  --employee-v4-history-inset: #020f1c;
+  --employee-v4-history-subtle: #0f1d2a;
+  --employee-v4-history-success: #57c698;
+  --employee-v4-history-success-soft: #15372e;
+  --employee-v4-history-warning: #e4ad59;
+  --employee-v4-history-warning-soft: #3a2c16;
+  --employee-v4-history-danger: #f17887;
+  --employee-v4-history-danger-soft: #44212a;
+  --employee-v4-history-info: #63b8d4;
+  --employee-v4-history-info-soft: #15323d;
+  --employee-v4-history-neutral: #a9b2c5;
+  --employee-v4-history-neutral-soft: #20293a;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-header-icon {
+  border-color: #3b4763;
+  color: var(--employee-v4-blue);
+  background: #0f1d2a;
+  box-shadow: none;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-segmented {
+  border-color: #3b4763;
+  background: #0f1d2a;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-segmented button.active {
+  color: #020813;
+  background: var(--employee-v4-blue);
+  box-shadow: none;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-status.is-success {
+  color: var(--employee-v4-history-success);
+  background: var(--employee-v4-history-success-soft);
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-status.is-warning {
+  color: var(--employee-v4-history-warning) !important;
+  background: var(--employee-v4-history-warning-soft) !important;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-status.is-danger {
+  color: var(--employee-v4-history-danger) !important;
+  background: var(--employee-v4-history-danger-soft) !important;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-status.is-info {
+  color: var(--employee-v4-history-info);
+  background: var(--employee-v4-history-info-soft);
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-status.is-neutral {
+  color: var(--employee-v4-history-neutral);
+  background: var(--employee-v4-history-neutral-soft);
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-correction-badge {
+  color: var(--employee-v4-history-info) !important;
+  background: var(--employee-v4-history-info-soft);
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-times {
+  background: var(--employee-v4-history-inset);
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-times i {
+  background: #3b4763;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-sites > div {
+  border-color: #273148;
+  background: var(--employee-v4-history-subtle);
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-correction {
+  border-color: #3b4763;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-correction summary {
+  color: var(--employee-v4-history-info);
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-correction[open] summary {
+  border-color: #273148;
+  background: var(--employee-v4-history-subtle);
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-correction > div {
+  border-color: #273148;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-correction > div:first-of-type {
+  color: #b6bfd2;
+  background: var(--employee-v4-history-subtle);
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-correction > div span {
+  color: #b6bfd2;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-correction > div strong {
+  color: #f3f5fb;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-correction > small {
+  border-color: #273148;
+  color: #b6bfd2;
+}
+
+.employee-v4-page.nexus-mobile-history .employee-v4-history-flags span {
+  color: var(--employee-v4-history-warning);
+  background: var(--employee-v4-history-warning-soft);
+}

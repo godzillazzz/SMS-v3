@@ -49,3 +49,8 @@
   .attendance-simple__footer { flex-direction:column; align-items:stretch; }
   .attendance-simple__footer span { text-align:left; }
 }
+
+/* Keep helper copy legible under the dark PWA button skin. */
+.app-shell.pwa-shell .attendance-simple__clock small {
+  color: #b6bfd2;
+}
