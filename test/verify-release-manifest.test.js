@@ -110,15 +110,15 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest pins PR #455 bundle-reduction application release with no DB or environment mutation', () => {
+test('current approved Production manifest pins Attendance P0 release with no DB or environment mutation', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-31c04fa48330-20261005');
-  assert.equal(result.commitSha, '31c04fa48330970fb89f18277ee29c88fbf7ac4c');
-  assert.equal(result.treeSha, '10270ed303bdebd2da560a518e80fefbc0632898');
-  assert.equal(result.currentProductionSourceSha, '32018116e66c70b9443601c1aa675d9fb6e9dfd7');
+  assert.equal(result.releaseId, 'sms-v3-prod-85a080c338cc-20261006');
+  assert.equal(result.commitSha, '85a080c338cc0d2d8ba728b181d29626880a79b2');
+  assert.equal(result.treeSha, '925bb3d5004097b11bfc28a032b9d9c0b8736ba2');
+  assert.equal(result.currentProductionSourceSha, '31c04fa48330970fb89f18277ee29c88fbf7ac4c');
   assert.equal(result.currentProductionSourceRef, 'fix/serverless-database-reliability');
-  assert.equal(result.rollbackDeploymentId, 'dpl_222Bc2u95XS9EsurxXs69w7uCdqU');
+  assert.equal(result.rollbackDeploymentId, 'dpl_5QHhQCfVSqSkC3CvdomVVhMnHgJ2');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
@@ -126,12 +126,14 @@ test('current approved Production manifest pins PR #455 bundle-reduction applica
   assert.equal(result.productionEnvironmentChangePolicy, 'NO_ENVIRONMENT_CHANGES');
   assert.equal(result.corsPolicy, 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY');
   assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION');
-  assert.equal(manifest.preview_deployment_id, 'dpl_8mm7yDoM94FEp5j4a3NfmWVZPfnr');
-  assert.equal(manifest.preview_url, 'https://sms-v3-staging-jb1w5tsso-godzillazz.vercel.app');
+  assert.equal(manifest.preview_deployment_id, 'dpl_2e4veirTiwC6LbLWDwx35eJ4QMJ6');
+  assert.equal(manifest.preview_url, 'https://sms-v3-staging-4e63u4y29-godzillazz.vercel.app');
   assert.equal(manifest.application_release_classification, 'APPLICATION_ONLY');
-  assert.equal(manifest.application_pr_number, 455);
-  assert.equal(manifest.application_pr_merge_sha, result.commitSha);
-  assert.equal(manifest.application_exact_sha_ci_run_id, 37329049240);
+  assert.equal(manifest.application_pr_number, 459);
+  assert.equal(manifest.application_pr_merge_sha, 'd6edd66f4c5a759ac259f93a82b02a649bd99093');
+  assert.equal(manifest.application_exact_sha_ci_run_id, 37345165059);
+  assert.equal(manifest.release_source_exact_sha_ci_run_id, 37388241527);
+  assert.equal(manifest.release_source_ci_result, 'SUCCESS_EXACT_RELEASE_SOURCE_SHA');
   assert.equal(manifest.preview_github_commit_sha, result.commitSha);
   assert.equal(manifest.preview_github_commit_ref, 'fix/serverless-database-reliability');
   assert.equal(manifest.preview_project_id, 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s');
@@ -140,11 +142,11 @@ test('current approved Production manifest pins PR #455 bundle-reduction applica
   assert.equal(manifest.preview_readiness_database_status, 'PASS');
   assert.equal(manifest.preview_trusted_cors_status, 'PASS');
   assert.equal(manifest.preview_untrusted_cors_status, 'REJECTED_403');
-  assert.equal(manifest.preview_technical_smoke_source_sha, '31c04fa48330970fb89f18277ee29c88fbf7ac4c');
-  assert.equal(manifest.preview_technical_smoke_run_id, 37332877626);
+  assert.equal(manifest.preview_technical_smoke_source_sha, '85a080c338cc0d2d8ba728b181d29626880a79b2');
+  assert.equal(manifest.preview_technical_smoke_run_id, 37388661402);
   assert.equal(manifest.preview_technical_smoke_status, 'SUCCESS');
-  assert.equal(manifest.production_canonical_deployment_id_before_release, 'dpl_222Bc2u95XS9EsurxXs69w7uCdqU');
-  assert.equal(manifest.production_canonical_source_sha_before_release, '32018116e66c70b9443601c1aa675d9fb6e9dfd7');
+  assert.equal(manifest.production_canonical_deployment_id_before_release, 'dpl_5QHhQCfVSqSkC3CvdomVVhMnHgJ2');
+  assert.equal(manifest.production_canonical_source_sha_before_release, '31c04fa48330970fb89f18277ee29c88fbf7ac4c');
   assert.equal(manifest.db_schema_mutation, 'NONE');
   assert.equal(manifest.db_data_mutation, 'NONE');
   assert.equal(manifest.production_data_mutation, 'NONE');
@@ -154,7 +156,9 @@ test('current approved Production manifest pins PR #455 bundle-reduction applica
   assert.equal(manifest.project_auto_assign_custom_domains, false);
   assert.equal(manifest.g06_acceptance_status, 'CLOSED');
   assert.equal(manifest.g06_acceptance_changed, 'NO');
-  assert.equal(manifest.live_authenticated_employee_ui_status, 'NOT_VERIFIED_NO_AUTHENTICATED_PRODUCTION_SESSION');
+  assert.equal(manifest.live_authenticated_employee_ui_status, 'OWNER_PHYSICAL_G06_ACCEPTANCE_PRIOR_RELEASE_P0_PREVIEW_NOT_AUTHENTICATED');
+  assert.equal(manifest.attendance_p0_clarity_status, 'APPROVED_FOR_PRODUCTION');
+  assert.equal(manifest.attendance_p0_clarity_application_sha, 'd6edd66f4c5a759ac259f93a82b02a649bd99093');
   assert.doesNotMatch(JSON.stringify(manifest), /dpl_64ar5GLQnBpGZPPUmoEFuGpE8evd|1504ab15b5937ab2906727e858ea65f82803ac23|43a303d91f7287f49bb3381e0287a117449aec51/);
 });
 
