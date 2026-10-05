@@ -12,6 +12,13 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <script>
       (() => {
+        // Set Employee-only browser chrome before the first paint; preserve desktop preferences.
+        const employeePwa = new URLSearchParams(location.search).get('pwa') === '1'
+          || navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+        if (employeePwa) {
+          document.documentElement.dataset.smsShell = 'employee';
+          document.querySelector('meta[name="theme-color"]').content = '#020813';
+        }
         try {
           const stored = localStorage.getItem('sms-v3-theme');
           const preference = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';

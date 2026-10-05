@@ -91,6 +91,7 @@ import './styles/tailwind.css';
 import './styles/command-nexus.css';
 import './styles/award-interior.css';
 import './styles/operational-layer.css';
+import './styles/employee-pwa-theme.css';
 
 const AwardPublicExperience = React.lazy(() => import('./components/AwardPublicExperience').then((module) => ({ default: module.AwardPublicExperience })));
 const ReportCenterPage = React.lazy(() => import('./pages/reports/ReportCenterPage').then((module) => ({ default: module.ReportCenterPage })));
