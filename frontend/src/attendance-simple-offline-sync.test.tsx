@@ -26,7 +26,7 @@ describe('isolated offline reconnect acceptance on exact released component', ()
   it('PWA offline-to-online state update automatically submits the original signed capture and drains it', async () => {
     queue = [{ captureId: queuedValue.captureId, value: queuedValue }];
     const view = render(<AttendanceSimplePage token="isolated-session" online={false} />);
-    await screen.findByText('Offline · พร้อมเก็บรายการแบบเข้ารหัสและส่งเมื่อออนไลน์');
+    await screen.findByText('ออฟไลน์พร้อมใช้งาน · ระบบจะเก็บรายการในเครื่องและส่งเมื่อออนไลน์');
     expect(mocks.submit).not.toHaveBeenCalled();
     view.rerender(<AttendanceSimplePage token="isolated-session" online />);
     await waitFor(() => expect(queue).toHaveLength(0));
