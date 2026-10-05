@@ -317,3 +317,20 @@ User requested that work be recorded here before continuing in a new chat.
 
 ### Remaining limitation
 - No authenticated employee role session was used for an additional live UI business-flow test in this storage-reduction release. Production workflow sentinels and read-only runtime checks passed; no Production employee/schedule/attendance data was altered for testing.
+
+## G06 Physical Production Acceptance Closure — 2026-10-05
+
+- Status: **G06 CLOSED / ACCEPTED / PRODUCTION LIVE**.
+- Owner supplied physical iPhone/PWA Production evidence from `sms-v3-staging-ten.vercel.app` showing successful online CHECK_OUT saved to Server, primary-device state, GPS/geofence gate presentation, separate expected/actual Site context, and `ASSIST_OTHER_SITE` for a valid support-site attendance.
+- This evidence is consistent with the active simplified G06 authority: device binding + secure offline + GPS/geofence. Face/QR remains intentionally outside the active Attendance flow.
+- The screenshot is owner-supplied physical evidence and does not independently attest physical location or expose GPS coordinates/credentials.
+- Offline physical mode was not exercised by this screenshot; that remains optional resilience validation and is not a blocker for the already-closed G06 acceptance.
+- No Production schedule, monthly approval, security policy, Environment/secret, database record, or device assignment was changed to obtain the evidence.
+- Durable closure: `docs/G06_PRODUCTION_PHYSICAL_ACCEPTANCE_20261005.md`.
+
+## UX Benchmark Continuation — 2026-10-05
+
+- Benchmark completed against UX Design Awards 2025 HR products (Hailey, Sapien HR, Workable HR), workforce products (Connecteam, UKG, Deputy), and NN/g progressive-disclosure guidance.
+- Highest-value next implementation: **P0 Attendance Clarity** — humanize employee-facing exception codes, restructure the mobile surface around Now / Next / Exception, and add a post-action receipt.
+- This recommendation is UX-only and must preserve device binding, secure offline, GPS/geofence, Schedule authority, Expected-vs-Actual Site evidence and audit flags.
+- Detailed benchmark and proposed employee/supervisor wireframes: `docs/UX_ATTENDANCE_BENCHMARK_20261005.md`.
