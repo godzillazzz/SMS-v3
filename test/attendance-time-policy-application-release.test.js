@@ -28,12 +28,17 @@ test('read-only release revalidation accepts only no-database-change plan',async
     await assert.rejects(verify({env:{},readFacts:async()=>({plan}),run:async(options)=>options.observe({}, {}, ()=>{})}),/PREAPPLIED_SCHEMA_NOT_VALID/);
   }
 });
-test('unchanged-schema hotfix preserves history checks and all Time Policy runtime sentinels',()=>{
+test('unchanged-schema release accepts historical G06 evidence only with exact ancestry and schema identity',()=>{
   const workflow=fs.readFileSync('.github/workflows/deploy-approved-production-v2.yml','utf8');
   const block=workflow.split('      - name: Revalidate unchanged Attendance schema read-only')[1].split('      - name: Revalidate pre-applied Production database state')[0];
   assert(block.includes("needs.prepare.outputs.database_change_policy == 'NO_DATABASE_CHANGES'"));
   assert(block.includes('git diff --quiet "$CURRENT_PRODUCTION_SOURCE_SHA" "$TARGET_SHA" -- prisma/schema.prisma prisma/migrations'));
-  assert(block.includes('HISTORY_BASELINE_MISMATCH'));
+  assert(block.includes("['merge-base', '--is-ancestor', sha, currentProductionSha]"));
+  assert(block.includes("['diff', '--quiet', sha, currentProductionSha, '--', 'prisma/schema.prisma', 'prisma/migrations']"));
+  assert(block.includes('HISTORY_BASELINE_TREE_MISMATCH'));
+  assert(block.includes('HISTORY_BASELINE_NOT_ANCESTOR'));
+  assert(block.includes('HISTORY_BASELINE_SCHEMA_MISMATCH'));
+  assert.doesNotMatch(block,/manifest\.application\.sha !== process\.env\.CURRENT_PRODUCTION_SOURCE_SHA/);
   assert(block.includes('PRODUCTION_CANDIDATE_MANIFEST=/tmp/unchanged-attendance-history.json node scripts/ci/verify-preapplied-attendance-policy-readonly.js'));
   assert.doesNotMatch(block,/migrate deploy|migrate resolve|db push/);
   assert(workflow.includes("process.env.DATABASE_CHANGE_POLICY === 'NO_DATABASE_CHANGES'"));
