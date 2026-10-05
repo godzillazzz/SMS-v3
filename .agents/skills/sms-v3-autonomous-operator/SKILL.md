@@ -5,7 +5,7 @@ description: Permanent evidence-first operating workflow for Codex sessions in S
 
 # SMS-v3 Autonomous Operator
 
-Use this skill from the start of every SMS-v3 task. `AGENTS.md` and a fresh `MASTER_HANDOFF.md` remain the project authorities; this skill defines the working method and does not relax their controls.
+Before each project action, fresh-read `AGENTS.md` and `MASTER_HANDOFF.md`; use this skill from the start of every SMS-v3 task. These files remain the project authorities; this skill defines the working method and does not relax their controls.
 
 ## Required operating loop
 
