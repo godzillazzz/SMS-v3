@@ -424,7 +424,7 @@
 }
 
 .employee-v4-shift-highlights span {
-  color: #5f7696;
+  color: var(--employee-v4-muted);
   font-size: 9px;
   font-weight: 750;
 }
@@ -435,7 +435,7 @@
 }
 
 .employee-v4-shift-highlights small {
-  color: #4f617b;
+  color: var(--employee-v4-muted);
   font-size: 10px;
 }
 
@@ -481,7 +481,7 @@
 .employee-v4-schedule-main { display: grid; min-width: 0; gap: 1px; }
 .employee-v4-schedule-main > strong { color: var(--employee-v4-blue-deep); font-size: 14px; }
 .employee-v4-schedule-main > span { color: var(--employee-v4-muted); font-size: 10px; }
-.employee-v4-schedule-main small { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: #5a6881; font-size: 9px; }
+.employee-v4-schedule-main small { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: var(--employee-v4-muted); font-size: 9px; }
 .employee-v4-schedule-main small svg { color: var(--employee-v4-blue); }
 .employee-v4-schedule-note { max-width: 120px; color: var(--employee-v4-muted); font-size: 9px; text-align: right; }
 

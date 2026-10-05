@@ -10,6 +10,8 @@
   --v12-dark-surface: #111a2b;
   --v12-dark-raised: #162137;
   --v12-dark-soft: #1a2840;
+  --signature-dark-text-secondary: #c4ccda;
+  --signature-dark-text-muted: #99a7bb;
 }
 
 /* ------------------------------------------------------------------
@@ -47,8 +49,8 @@
   --signature-surface-soft: #1a2840;
   --signature-surface-muted: #1d2c45;
   --signature-text: #f6f7fb;
-  --signature-text-secondary: #c4ccda;
-  --signature-text-muted: #99a7bb;
+  --signature-text-secondary: var(--signature-dark-text-secondary);
+  --signature-text-muted: var(--signature-dark-text-muted);
   --signature-border: #2b3950;
   --signature-border-strong: #40506b;
   --signature-brand-soft: #282442;
@@ -401,7 +403,7 @@ body,
 
 [data-theme="dark"] .report-center-page,
 [data-theme="dark"] .executive-report-page,
-[data-theme="dark"] .leave-page { color:var(--text-primary); }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page { color:var(--text-primary); }
 [data-theme="dark"] .report-center-filter-card,
 [data-theme="dark"] .report-center-export-card,
 [data-theme="dark"] .report-center-state,
@@ -454,43 +456,44 @@ body,
 [data-theme="dark"] .executive-report-attention-list article.critical { background:var(--color-danger-soft); }
 [data-theme="dark"] .executive-report-attention-list article.warning { background:var(--color-warning-soft); }
 
-[data-theme="dark"] .leave-page .leave-hero,
-[data-theme="dark"] .leave-page .leave-submit-card,
-[data-theme="dark"] .leave-page .leave-history-card,
-[data-theme="dark"] .leave-page .leave-pending-card,
-[data-theme="dark"] .leave-page .leave-quota-card,
-[data-theme="dark"] .leave-page .leave-decision-queue,
-[data-theme="dark"] .leave-page .leave-decision-detail,
-[data-theme="dark"] .leave-page .leave-decision-actions { color:var(--text-primary); background:var(--signature-surface); border-color:var(--signature-border); }
-[data-theme="dark"] .leave-page h1,
-[data-theme="dark"] .leave-page h2,
-[data-theme="dark"] .leave-page h3,
-[data-theme="dark"] .leave-page strong,
-[data-theme="dark"] .leave-page th,
-[data-theme="dark"] .leave-page td { color:var(--text-primary); }
-[data-theme="dark"] .leave-page p,
-[data-theme="dark"] .leave-page label,
-[data-theme="dark"] .leave-page small,
-[data-theme="dark"] .leave-page .muted-text,
-[data-theme="dark"] .leave-page .cell-note,
-[data-theme="dark"] .leave-page .leave-file-field span { color:var(--text-secondary); }
-[data-theme="dark"] .leave-page input,
-[data-theme="dark"] .leave-page select,
-[data-theme="dark"] .leave-page textarea { border-color:var(--signature-border-strong); color:var(--text-primary); background:var(--signature-surface-soft); color-scheme:dark; }
-[data-theme="dark"] .leave-page input::placeholder,
-[data-theme="dark"] .leave-page textarea::placeholder { color:var(--text-muted); }
-[data-theme="dark"] .leave-page .leave-history-filter,
-[data-theme="dark"] .leave-page .leave-days-note,
-[data-theme="dark"] .leave-page .leave-file-field,
-[data-theme="dark"] .leave-page .leave-decision-summary > div,
-[data-theme="dark"] .leave-page .leave-decision-item:hover,
-[data-theme="dark"] .leave-page .leave-decision-item.is-active { color:var(--text-primary); background:var(--signature-surface-soft); border-color:var(--signature-border); }
-[data-theme="dark"] .leave-page .leave-hero button,
-[data-theme="dark"] .leave-page .btn-neutral,
-[data-theme="dark"] .leave-page .leave-print-button { color:var(--text-primary); border-color:var(--signature-border-strong); background:var(--signature-surface-soft); }
-[data-theme="dark"] .leave-page .leave-submit-button,
-[data-theme="dark"] .leave-page .btn-success,
-[data-theme="dark"] .leave-page .btn-danger-outline { color:var(--text-primary); }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-hero,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-submit-card,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-history-card,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-pending-card,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-quota-card,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-queue,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-detail,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-actions { color:var(--text-primary); background:var(--signature-surface); border-color:var(--signature-border); }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page h1,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page h2,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page h3,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page strong,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page th,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page td { color:var(--text-primary); }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page p,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page label,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page small,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .muted-text,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .cell-note,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-file-field span { color:var(--text-secondary); }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page input,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page select,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page textarea { border-color:var(--signature-border-strong); color:var(--text-primary); background:var(--signature-surface-soft); color-scheme:dark; }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page input::placeholder,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page textarea::placeholder { color:var(--text-muted); }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-history-filter,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-days-note,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-file-field,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-summary > div,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-item:hover,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-decision-item.is-active { color:var(--text-primary); background:var(--signature-surface-soft); border-color:var(--signature-border); }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-hero button,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .btn-neutral,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-print-button { color:var(--text-primary); border-color:var(--signature-border-strong); background:var(--signature-surface-soft); }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-submit-button,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .btn-success,
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .btn-danger-outline { color:var(--text-primary); }
+:is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .status-badge.pending { color:var(--signature-light-text-secondary); }
 
 .data-action-column--cell.data-row-actions { display:table-cell; width:var(--data-action-column-width); min-width:var(--data-action-column-width); max-width:var(--data-action-column-width); padding-inline:14px; vertical-align:middle; text-align:center; }
 .data-action-column--cell .data-action-group { display:flex; min-height:40px; align-items:center; justify-content:center; gap:8px; width:100%; }
