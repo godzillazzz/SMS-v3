@@ -10,7 +10,6 @@ were not available in this environment, so no public URL or deployed verificatio
 is claimed.
 
 FILES ADDED OR CHANGED
-  api/index.js
   api/[...path].js
   vercel.json
   src/app.js
@@ -23,8 +22,8 @@ FILES ADDED OR CHANGED
 
 VERCEL ADAPTATION RESULT
   PASS (local configuration review).
-  The Vercel Function entry points reuse the existing Express app and do not
-  duplicate routes. Local `src/server.js` remains unchanged for development.
+  The single Vercel Function entry point reuses the existing Express app and does
+  not duplicate routes. Local `src/server.js` remains unchanged for development.
   Prisma Client remains module-scoped for warm function reuse. Runtime requests
   do not run migrations, background processes, or local-disk work.
 

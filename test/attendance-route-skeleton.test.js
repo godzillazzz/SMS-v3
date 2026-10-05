@@ -14,7 +14,6 @@ const {
   attendanceApiEnabled,
   attendanceGeofenceOnlyUatEnabled,
   selfHostedFaceRuntimeConfigured,
-  inProcessFaceRuntimeConfigured,
   attendanceBiometricRuntimeEnabled
 } = require('../src/routes/attendance.routes');
 
@@ -437,22 +436,18 @@ test('event acceptance accepts only opaque receipt + server-issued Attendance co
   assert.equal(spy.calls.length, 3);
 });
 
-test('runtime gates require explicit environment flags and trusted face configuration', () => {
+test('runtime gates keep Production biometric face execution retired and Preview self-hosted verification explicit', () => {
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), false);
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true' }), true);
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'preview' }), false);
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), true);
   assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), false);
-  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_POC_API_ENABLED: 'true' }), false);
+  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' }), false);
   assert.equal(selfHostedFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true' }), false);
   assert.equal(selfHostedFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), true);
-  assert.equal(inProcessFaceRuntimeConfigured({ VERCEL_ENV: 'preview' }), false);
-  assert.equal(inProcessFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' }), true);
-  assert.equal(inProcessFaceRuntimeConfigured({ VERCEL_ENV: 'preview', FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true', FACE_MATCH_SIMILARITY_THRESHOLD: 'not-a-number' }), false);
-  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' }), true);
-  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true', FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' }), true);
   assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), true);
-  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PREVIEW_ENABLED: 'true', FACE_VERIFICATION_POC_API_ENABLED: 'true', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), false);
+  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true', FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true' }), false);
+  assert.equal(attendanceBiometricRuntimeEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true', FACE_VERIFICATION_SELF_HOSTED_API_ENABLED: 'true', FACE_VERIFIER_URL: 'https://face.example/verify', FACE_VERIFIER_SHARED_TOKEN: '0123456789abcdef' }), false);
 });
 
 test('route skeleton is mounted only behind the Attendance prefix and imports no provider implementation', () => {

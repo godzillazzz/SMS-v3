@@ -4,8 +4,7 @@
   "outputDirectory": "frontend/dist",
   "functions": {
     "api/[...path].js": {
-      "maxDuration": 60,
-      "includeFiles": "{node_modules/@vladmandic/human/models/**,node_modules/@vladmandic/human/dist/human.node-wasm.js,node_modules/@tensorflow/tfjs-backend-wasm/dist/*.wasm}"
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -53,7 +52,6 @@
   "env": {
     "ATTENDANCE_API_PREVIEW_ENABLED": "true",
     "ATTENDANCE_FACE_EVIDENCE_BUCKET": "attendance-face-evidence",
-    "ATTENDANCE_API_PRODUCTION_ENABLED": "true",
-    "FACE_VERIFICATION_IN_PROCESS_ENABLED": "true"
+    "ATTENDANCE_API_PRODUCTION_ENABLED": "true"
   }
 }
