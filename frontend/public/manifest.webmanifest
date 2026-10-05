@@ -7,8 +7,8 @@
   "start_url": "/?pwa=1&page=attendance",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#F7FAFF",
-  "theme_color": "#0B58D8",
+  "background_color": "#020813",
+  "theme_color": "#020813",
   "icons": [
     {
       "src": "/pwa-icon-192.png",
