@@ -138,12 +138,12 @@ describe('Employee PWA dark chrome ownership', () => {
     expect(signatureTheme).toContain('.leave-page .status-badge.pending { color:var(--signature-light-text-secondary); }');
     expect(attendanceSimple).toContain('--attendance-simple-text-secondary: #a8bacb;');
     expect(attendanceSimple).toContain('--attendance-simple-text-muted: #7f94a8;');
-    expect(attendanceSimple).toContain('.attendance-simple__summary span { color:var(--attendance-simple-text-muted);');
+    expect(attendanceSimple).toContain('.attendance-simple__journey small { color:var(--attendance-simple-text-muted);');
     expect(attendanceSimple).toContain('.app-shell.pwa-shell .attendance-simple__clock small {');
     expect(attendanceSimple).toContain('color: var(--employee-pwa-text-muted);');
     expect(attendanceV4).toContain('.employee-v4-schedule-main small { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: var(--employee-v4-muted);');
-    expect(attendanceV4).toContain('.employee-v4-shift-highlights span {\n  color: var(--employee-v4-muted);');
-    expect(attendanceV4).toContain('.employee-v4-shift-highlights small {\n  color: var(--employee-v4-muted);');
+    expect(attendanceV4).toMatch(/\.employee-v4-shift-highlights span \{\r?\n  color: var\(--employee-v4-muted\);/);
+    expect(attendanceV4).toMatch(/\.employee-v4-shift-highlights small \{\r?\n  color: var\(--employee-v4-muted\);/);
     expect(css).not.toMatch(/(?:^|\n)\[data-theme="light"\]\s*\{/);
 
     for (const [label, fg, bg] of [

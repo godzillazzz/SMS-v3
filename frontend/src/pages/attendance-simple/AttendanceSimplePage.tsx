@@ -51,13 +51,13 @@ function reviewContextDetails(result: SimpleEventResult, evidence = result.event
   const reasons = new Set([...(result.reviewReasons || []), ...(result.event?.reviewReasons || [])]);
   const details: string[] = [];
   if (evidence?.workSiteContext === 'SUPPORT_SITE' || reasons.has('ASSIST_OTHER_SITE')) {
-    details.push(`ช่วยปฏิบัติงานที่ ${siteDisplayName(evidence?.actualSite)}`);
+    details.push(`ช่วยปฏิบัติงานต่าง Site · Site จริง: ${siteDisplayName(evidence?.actualSite)}`);
   }
   if (result.deviceBinding === 'FOREIGN' || reasons.has('DEVICE_MISMATCH')) {
-    details.push('ใช้อุปกรณ์อื่นจากเครื่องหลัก · ติดธงให้ตรวจสอบ');
+    details.push('ใช้อุปกรณ์อื่น · รายการนี้ต้องตรวจสอบ');
   }
   const unclassifiedRisk = [...reasons].some((reason) => !['ASSIST_OTHER_SITE', 'DEVICE_MISMATCH'].includes(reason));
-  if (unclassifiedRisk || (result.reviewRequired && details.length === 0)) details.push('มีธงความเสี่ยงให้ตรวจสอบ');
+  if (unclassifiedRisk || (result.reviewRequired && details.length === 0)) details.push('มีรายการที่ต้องตรวจสอบ');
   return details;
 }
 
@@ -68,6 +68,18 @@ function acceptedAttendanceDisplay(result: SimpleEventResult): { tone: StatusTon
   if (result.event?.checkoutCondition === 'EARLY_LEAVE') details.push('ออกก่อนเวลา');
   const tone: StatusTone = details.length || result.reviewRequired ? 'warning' : 'success';
   return { tone, message: details.length ? `ลงเวลาสำเร็จ · ${details.join(' · ')}` : 'ลงเวลาสำเร็จ' };
+}
+
+function formatReceiptTime(value?: string | null): string {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return new Intl.DateTimeFormat('th-TH', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Bangkok'
+  }).format(parsed);
 }
 
 function uuid(): string {
@@ -235,7 +247,7 @@ export function AttendanceSimplePage({
         if (!active) return;
         setBootstrap(nextBootstrap);
         setTone(online ? 'success' : 'warning');
-        setMessage(online ? 'พร้อมลงเวลา · GPS/GEOFENCE บังคับ' : 'Offline · พร้อมเก็บรายการแบบเข้ารหัสและส่งเมื่อออนไลน์');
+        setMessage(online ? 'พร้อมลงเวลา · ระบบจะตรวจตำแหน่งก่อนบันทึก' : 'ออฟไลน์พร้อมใช้งาน · ระบบจะเก็บรายการในเครื่องและส่งเมื่อออนไลน์');
         if (online && token) await syncQueue();
       } catch (error) {
         if (!active) return;
@@ -283,7 +295,7 @@ export function AttendanceSimplePage({
           workSiteContext: localDecision.workSiteContext });
         setPendingSiteCapture({ location, context: localDecision.actualSite });
         setTone('warning');
-        setMessage(`สถานที่ตามตาราง: ${bootstrap.assignment.site.name} · กำลังลงเวลาที่ ${siteDisplayName(localDecision.actualSite)} · ระบบจะบันทึกเป็น “ช่วยปฏิบัติงาน” · กดอีกครั้งเพื่อยืนยัน`);
+        setMessage(`พบตำแหน่งที่ ${siteDisplayName(localDecision.actualSite)} · ต่างจาก Site ตามตาราง · ระบบจะเก็บ Site จริงไว้และส่งรายการให้ตรวจ · กดอีกครั้งเพื่อยืนยัน`);
         return;
       }
       setPendingSiteCapture(null);
@@ -314,11 +326,11 @@ export function AttendanceSimplePage({
         setBootstrap(next);
         setTone(localDecision.classification === 'BORDERLINE' ? 'warning' : 'success');
         const siteMessage = localDecision.workSiteContext === 'SUPPORT_SITE'
-          ? `สถานที่ลงเวลาจริง: ${siteDisplayName(localDecision.actualSite)} · ช่วยปฏิบัติงาน · `
+          ? `ช่วยปฏิบัติงานต่าง Site · Site จริง: ${siteDisplayName(localDecision.actualSite)} · `
           : '';
         setMessage(localDecision.classification === 'BORDERLINE'
-          ? `${siteMessage}เก็บเวลา Offline แบบเข้ารหัสแล้ว · ตำแหน่งอยู่ขอบ GEOFENCE และจะถูกตรวจเมื่อส่ง`
-          : `${siteMessage}เก็บเวลา Offline แบบเข้ารหัสแล้ว · จะส่งอัตโนมัติเมื่อกลับมาออนไลน์`);
+          ? `${siteMessage}เก็บรายการในเครื่องแล้ว · ตำแหน่งอยู่ใกล้ขอบพื้นที่และจะถูกตรวจเมื่อส่ง`
+          : `${siteMessage}เก็บรายการในเครื่องแล้ว · จะส่งอัตโนมัติเมื่อกลับมาออนไลน์`);
         return;
       }
 
@@ -393,6 +405,28 @@ export function AttendanceSimplePage({
   const shiftText = bootstrap
     ? `${bootstrap.assignment.shift.code || ''} ${bootstrap.assignment.shift.startTime || ''}–${bootstrap.assignment.shift.endTime || ''}`.trim()
     : '—';
+  const nextActionLabel = bootstrap?.eventIntent === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า';
+  const nowLabel = !bootstrap
+    ? 'กำลังเตรียมระบบลงเวลา'
+    : bootstrap.eventIntent === 'CHECK_OUT'
+      ? 'ลงเวลาเข้าแล้ว · กำลังปฏิบัติงาน'
+      : 'พร้อมลงเวลาเข้า';
+  const attentionItems: string[] = [];
+  if (pendingSiteCapture) {
+    attentionItems.push(`ช่วยปฏิบัติงานต่าง Site · พบตำแหน่งที่ ${siteDisplayName(pendingSiteCapture.context)}`);
+  } else if (siteContext?.workSiteContext === 'SUPPORT_SITE') {
+    attentionItems.push(`ช่วยปฏิบัติงานต่าง Site · Site จริง: ${siteDisplayName(siteContext.actualSite)}`);
+  }
+  if (bindingState === 'FOREIGN') attentionItems.push('ใช้อุปกรณ์อื่น · รายการลงเวลาจะถูกส่งให้ตรวจสอบ');
+  if (queueCount > 0) attentionItems.push(`มี ${queueCount} รายการรอส่งเมื่อออนไลน์`);
+
+  const receiptEvent = lastResult?.counted ? lastResult.event : null;
+  const receiptEvidence = receiptEvent?.locationEvidence;
+  const receiptTime = formatReceiptTime(receiptEvent?.effectiveEventAt || receiptEvent?.receivedAt);
+  const receiptSite = siteDisplayName(receiptEvidence?.actualSite || receiptEvidence?.assignedSite || siteContext?.actualSite || siteContext?.assignedSite);
+  const receiptTitle = receiptEvent?.eventType === 'CHECK_OUT' ? 'ลงเวลาออกสำเร็จ' : 'ลงเวลาเข้าสำเร็จ';
+  const receiptDevice = lastResult?.deviceBinding === 'FOREIGN' ? 'อุปกรณ์อื่น · ต้องตรวจ' : 'อุปกรณ์นี้ยืนยันแล้ว';
+  const receiptDetails = lastResult ? reviewContextDetails(lastResult) : [];
 
   return <section className="attendance-simple">
     <header className="attendance-simple__header">
@@ -404,31 +438,47 @@ export function AttendanceSimplePage({
       <button type="button" onClick={onOpenSettings} aria-label="เปิดโปรไฟล์">⚙︎</button>
     </header>
 
-    <div className="attendance-simple__summary">
-      <div><span>กะ</span><strong>{shiftText}</strong></div>
-      <div><span>สถานที่ตามตาราง</span><strong>{bootstrap?.assignment.site.name || '—'}</strong></div>
-      <div><span>เครือข่าย</span><strong>{online ? 'Online' : 'Offline'}</strong></div>
+    <div className="attendance-simple__journey" aria-label="สถานะการลงเวลา">
+      <article>
+        <span>ตอนนี้</span>
+        <strong>{nowLabel}</strong>
+        <small>กะ {shiftText} · Site ตามตาราง: {bootstrap?.assignment.site.name || '—'}</small>
+      </article>
+      <article>
+        <span>ขั้นตอนถัดไป</span>
+        <strong>{nextActionLabel}</strong>
+        <small>{online ? 'ตรวจตำแหน่งแล้วบันทึกกับ Server' : 'เก็บในเครื่องแล้วส่งเมื่อออนไลน์'}</small>
+      </article>
     </div>
+
+    {attentionItems.length > 0 && <section className="attendance-simple__exception" aria-label="รายการที่ต้องทราบ">
+      <span>ต้องทราบ</span>
+      <strong>{attentionItems[0]}</strong>
+      {attentionItems.slice(1).map((item) => <p key={item}>{item}</p>)}
+      {siteContext?.workSiteContext === 'SUPPORT_SITE' || pendingSiteCapture
+        ? <small>ระบบเก็บ Site ตามตารางและ Site ที่ลงเวลาจริงแยกกันเพื่อการตรวจสอบ</small>
+        : null}
+    </section>}
 
     <div className={`attendance-simple__status is-${tone}`} role="status">
       <strong>{message}</strong>
       {siteContext && <span>สถานที่ตามตาราง: {siteContext.assignedSite.name || siteContext.assignedSite.code || '—'}</span>}
-      {siteContext && <span>สถานที่ลงเวลาจริง: {siteContext.workSiteContext === 'SUPPORT_SITE' ? siteDisplayName(siteContext.actualSite) : siteContext.actualSite?.name || siteContext.assignedSite.name || '—'}{siteContext.workSiteContext === 'SUPPORT_SITE' ? ' · ช่วยปฏิบัติงาน' : ' · ปกติ'}</span>}
-      {queueCount > 0 && <span>คิวเข้ารหัสรอส่ง {queueCount} รายการ</span>}
+      {siteContext && <span>สถานที่ลงเวลาจริง: {siteContext.workSiteContext === 'SUPPORT_SITE' ? siteDisplayName(siteContext.actualSite) : siteContext.actualSite?.name || siteContext.assignedSite.name || '—'}{siteContext.workSiteContext === 'SUPPORT_SITE' ? ' · ช่วยปฏิบัติงานต่าง Site' : ' · ปกติ'}</span>}
+      {queueCount > 0 && <span>รอส่งเมื่อออนไลน์ {queueCount} รายการ</span>}
     </div>
 
     <div className="attendance-simple__assurance">
       <article>
-        <b>GPS / GEOFENCE</b>
-        <span>ตรวจทุกครั้งก่อนบันทึก</span>
+        <b>ตำแหน่ง</b>
+        <span>GPS / GEOFENCE ตรวจทุกครั้งก่อนบันทึก</span>
       </article>
       <article>
-        <b>อุปกรณ์</b>
-        <span>{bindingState === 'PRIMARY' ? 'เครื่องหลัก' : bindingState === 'AUTO_BIND' ? 'เครื่องแรก · ผูกอัตโนมัติ' : bindingState === 'FOREIGN' ? 'เครื่องอื่น · ติดธงตรวจ' : 'กำลังตรวจ'}</span>
+        <b>{bindingState === 'PRIMARY' ? 'อุปกรณ์นี้ยืนยันแล้ว ✓' : 'อุปกรณ์'}</b>
+        <span>{bindingState === 'PRIMARY' ? 'เครื่องหลักของคุณ' : bindingState === 'AUTO_BIND' ? 'เครื่องแรกจะผูกอัตโนมัติ' : bindingState === 'FOREIGN' ? 'ใช้อุปกรณ์อื่น · ต้องตรวจ' : 'กำลังตรวจอุปกรณ์'}</span>
       </article>
       <article>
-        <b>Offline</b>
-        <span>AES-GCM encrypted queue</span>
+        <b>ออฟไลน์พร้อมใช้งาน</b>
+        <span>ถ้าเน็ตหลุด ระบบเก็บรายการในเครื่องและส่งให้อัตโนมัติเมื่อออนไลน์</span>
       </article>
     </div>
 
@@ -438,26 +488,45 @@ export function AttendanceSimplePage({
       disabled={readOnly || busy || !identity || !bootstrap}
       onClick={() => void recordAttendance()}
     >
-      <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยันช่วยปฏิบัติงานที่ ${siteDisplayName(pendingSiteCapture.context)}` : bootstrap?.eventIntent === 'CHECK_OUT' ? 'ลงเวลาออก' : 'ลงเวลาเข้า'}</span>
-      <small>{online ? 'บันทึกกับ Server' : 'เก็บเข้ารหัสไว้ในเครื่อง'}</small>
+      <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยันลงเวลาที่ ${siteDisplayName(pendingSiteCapture.context)}` : nextActionLabel}</span>
+      <small>{online ? 'กดครั้งเดียว · บันทึกกับ Server' : 'กดครั้งเดียว · เก็บไว้และส่งเมื่อออนไลน์'}</small>
     </button>
+
+    {receiptEvent && <section className="attendance-simple__receipt" aria-label="หลักฐานการลงเวลา">
+      <div className="attendance-simple__receipt-heading">
+        <span aria-hidden="true">✓</span>
+        <div>
+          <strong>{receiptTitle}</strong>
+          <small>{receiptTime} · บันทึกกับ Server แล้ว</small>
+        </div>
+      </div>
+      <div className="attendance-simple__receipt-grid">
+        <div><span>Site จริง</span><strong>{receiptSite}</strong></div>
+        <div><span>อุปกรณ์</span><strong>{receiptDevice}</strong></div>
+        <div><span>GPS / GEOFENCE</span><strong>ตรวจแล้ว</strong></div>
+        <div><span>สถานะ Sync</span><strong>บันทึกแล้ว</strong></div>
+      </div>
+      {receiptDetails.length > 0 && <p>{receiptDetails.join(' · ')}</p>}
+      <button type="button" onClick={onTodayHistory}>ดูประวัติวันนี้</button>
+    </section>}
 
     {bindingState === 'FOREIGN' && <section className="attendance-simple__move">
       <strong>ต้องการย้ายเครื่องหลักมาที่เครื่องนี้?</strong>
-      <p>การลงเวลายังทำได้แต่ติดธงตรวจ การย้ายเครื่องต้องให้ ADMIN อนุมัติและมี Audit log</p>
+      <p>การลงเวลายังทำได้แต่รายการจะถูกส่งให้ตรวจ การย้ายเครื่องต้องให้ ADMIN อนุมัติและมี Audit log</p>
       <textarea value={moveReason} onChange={(event) => setMoveReason(event.target.value)} maxLength={1000} placeholder="เหตุผลที่ย้ายเครื่อง เช่น เปลี่ยนโทรศัพท์เครื่องหลัก" />
       <button type="button" disabled={!online || !token || moveBusy || moveReason.trim().length < 3} onClick={() => void requestMove()}>
         {moveBusy ? 'กำลังส่ง…' : 'ขอให้ ADMIN อนุมัติย้ายเครื่อง'}
       </button>
     </section>}
 
-    {lastResult?.reviewReasons?.length ? <div className="attendance-simple__flags">
-      <b>ธงตรวจ:</b> {lastResult.reviewReasons.join(', ')}
-    </div> : null}
+    {lastResult?.reviewReasons?.length ? <details className="attendance-simple__technical">
+      <summary>รายละเอียดทางเทคนิค</summary>
+      <code>{lastResult.reviewReasons.join(', ')}</code>
+    </details> : null}
 
     <footer className="attendance-simple__footer">
       <button type="button" onClick={onTodayHistory}>ดูประวัติวันนี้</button>
-      <span>เวลา Online ใช้ Server · เวลา Offline ใช้เวลาจับบนเครื่องและอาจต้องยืนยันก่อนนับ</span>
+      <span>Online ใช้เวลา Server · Offline ใช้เวลาที่จับบนเครื่องและอาจต้องยืนยันก่อนนับ</span>
     </footer>
   </section>;
 }

@@ -51,7 +51,7 @@ describe('Attendance support-Site confirmation UX', () => {
     mocks.bootstrap.mockResolvedValue(bootstrap);
     mocks.submit.mockResolvedValue({
       counted: true, status: 'ACCEPTED', deviceBinding: 'PRIMARY', reviewRequired: false,
-      event: { id: 'event-a', eventType: 'CHECK_IN', punctuality: 'LATE', locationEvidence: {
+      event: { id: 'event-a', eventType: 'CHECK_IN', effectiveEventAt: '2026-10-02T13:32:00.000Z', receivedAt: '2026-10-02T13:32:01.000Z', punctuality: 'LATE', locationEvidence: {
         expectedSiteId: siteA.id, actualSiteId: siteB.id,
         assignedSite: { id: siteA.id, code: siteA.code, name: siteA.name },
         actualSite: { id: siteB.id, code: siteB.code, name: siteB.name }, workSiteContext: 'SUPPORT_SITE'
@@ -75,41 +75,50 @@ describe('Attendance support-Site confirmation UX', () => {
 
   it('shows assigned and actual Site before a separate support-Site confirmation, then submits GPS only', async () => {
     render(<AttendanceSimplePage token="test-session" online />);
-    await screen.findByText('พร้อมลงเวลา · GPS/GEOFENCE บังคับ');
+    await screen.findByText('พร้อมลงเวลา · ระบบจะตรวจตำแหน่งก่อนบันทึก');
     fireEvent.click(screen.getByRole('button', { name: /ลงเวลาเข้า/ }));
-    await screen.findByText(/ระบบจะบันทึกเป็น “ช่วยปฏิบัติงาน” · กดอีกครั้งเพื่อยืนยัน/);
+    await screen.findByText(/ต่างจาก Site ตามตาราง · ระบบจะเก็บ Site จริงไว้และส่งรายการให้ตรวจ · กดอีกครั้งเพื่อยืนยัน/);
     expect(mocks.submit).not.toHaveBeenCalled();
     expect(screen.getByText('สถานที่ตามตาราง: Site A')).toBeTruthy();
-    expect(screen.getByText('สถานที่ลงเวลาจริง: Site B · ช่วยปฏิบัติงาน')).toBeTruthy();
+    expect(screen.getByText('สถานที่ลงเวลาจริง: Site B · ช่วยปฏิบัติงานต่าง Site')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: /ยืนยันช่วยปฏิบัติงานที่ Site B/ }));
+    fireEvent.click(screen.getByRole('button', { name: /ยืนยันลงเวลาที่ Site B/ }));
     await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(1));
     const submitted = mocks.submit.mock.calls[0][1];
     expect(submitted.location.latitude).toBe(siteB.latitude);
     expect('actualSiteId' in submitted).toBe(false);
-    await screen.findByText(/ลงเวลาสำเร็จ · ช่วยปฏิบัติงานที่ Site B/);
-    expect(screen.getByText(/ลงเวลาสำเร็จ · ช่วยปฏิบัติงานที่ Site B · มาสาย/)).toBeTruthy();
+    await screen.findByText(/ลงเวลาสำเร็จ · ช่วยปฏิบัติงานต่าง Site · Site จริง: Site B/);
+    expect(screen.getByText(/ลงเวลาสำเร็จ · ช่วยปฏิบัติงานต่าง Site · Site จริง: Site B · มาสาย/)).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'หลักฐานการลงเวลา' })).toBeTruthy();
+    expect(screen.getByText('ลงเวลาเข้าสำเร็จ')).toBeTruthy();
+    expect(screen.getByText(/20:32 · บันทึกกับ Server แล้ว/)).toBeTruthy();
+    expect(screen.getByText('อุปกรณ์นี้ยืนยันแล้ว')).toBeTruthy();
+    expect(screen.getByText('ตรวจแล้ว')).toBeTruthy();
   });
 
   it('keeps support-Site and foreign-device review flags independent in the accepted message', async () => {
     mocks.submit.mockResolvedValue({
       counted: true, status: 'ACCEPTED_REVIEW_FLAGGED', deviceBinding: 'FOREIGN', reviewRequired: true,
       reviewReasons: ['ASSIST_OTHER_SITE', 'DEVICE_MISMATCH'],
-      event: { id: 'event-b', eventType: 'CHECK_IN', punctuality: 'LATE', locationEvidence: {
+      event: { id: 'event-b', eventType: 'CHECK_IN', effectiveEventAt: '2026-10-02T13:32:00.000Z', receivedAt: '2026-10-02T13:32:01.000Z', punctuality: 'LATE', locationEvidence: {
         expectedSiteId: siteA.id, actualSiteId: siteB.id,
         assignedSite: { id: siteA.id, code: siteA.code, name: siteA.name },
         actualSite: { id: siteB.id, code: siteB.code, name: siteB.name }, workSiteContext: 'SUPPORT_SITE'
       } }
     });
     render(<AttendanceSimplePage token="test-session" online />);
-    await screen.findByText('พร้อมลงเวลา · GPS/GEOFENCE บังคับ');
+    await screen.findByText('พร้อมลงเวลา · ระบบจะตรวจตำแหน่งก่อนบันทึก');
     fireEvent.click(screen.getByRole('button', { name: /ลงเวลาเข้า/ }));
     await screen.findByText(/กดอีกครั้งเพื่อยืนยัน/);
-    fireEvent.click(screen.getByRole('button', { name: /ยืนยันช่วยปฏิบัติงานที่ Site B/ }));
+    fireEvent.click(screen.getByRole('button', { name: /ยืนยันลงเวลาที่ Site B/ }));
     const message = await screen.findByText(/ลงเวลาสำเร็จ/);
-    expect(message.textContent).toContain('ช่วยปฏิบัติงานที่ Site B');
-    expect(message.textContent).toContain('ใช้อุปกรณ์อื่นจากเครื่องหลัก');
+    expect(message.textContent).toContain('ช่วยปฏิบัติงานต่าง Site');
+    expect(message.textContent).toContain('Site จริง: Site B');
+    expect(message.textContent).toContain('ใช้อุปกรณ์อื่น · รายการนี้ต้องตรวจสอบ');
     expect(message.textContent).toContain('มาสาย');
-    expect(message.textContent).not.toContain('เครื่องนี้ไม่ใช่เครื่องหลัก จึงติดธง');
+    const technical = screen.getByText('รายละเอียดทางเทคนิค').closest('details');
+    expect(technical?.open).toBe(false);
+    expect(technical?.textContent).toContain('ASSIST_OTHER_SITE');
+    expect(technical?.textContent).toContain('DEVICE_MISMATCH');
   });
 });
