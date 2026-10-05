@@ -113,12 +113,12 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
 test('current approved Production manifest pins PR #452 application-only release with no DB or environment mutation', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-3201811-20261005');
+  assert.equal(result.releaseId, 'sms-v3-prod-32018116e66c-20261005');
   assert.equal(result.commitSha, '32018116e66c70b9443601c1aa675d9fb6e9dfd7');
   assert.equal(result.treeSha, '14e6fc440866060fb0c71c623d9995ae01984022');
-  assert.equal(result.currentProductionSourceSha, '2e3ce737cb962cee77c8b800b2325aa270281380');
+  assert.equal(result.currentProductionSourceSha, '32018116e66c70b9443601c1aa675d9fb6e9dfd7');
   assert.equal(result.currentProductionSourceRef, 'fix/serverless-database-reliability');
-  assert.equal(result.rollbackDeploymentId, 'dpl_9QdjnSyeczSxiXmbRFjWRtaQ7uqj');
+  assert.equal(result.rollbackDeploymentId, 'dpl_5Aqcuxm84qvtNYtALXMS9demSB4C');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
@@ -143,8 +143,8 @@ test('current approved Production manifest pins PR #452 application-only release
   assert.equal(manifest.preview_technical_smoke_source_sha, '32018116e66c70b9443601c1aa675d9fb6e9dfd7');
   assert.equal(manifest.preview_technical_smoke_run_id, 37298555906);
   assert.equal(manifest.preview_technical_smoke_status, 'SUCCESS');
-  assert.equal(manifest.production_canonical_deployment_id_before_release, 'dpl_9QdjnSyeczSxiXmbRFjWRtaQ7uqj');
-  assert.equal(manifest.production_canonical_source_sha_before_release, '2e3ce737cb962cee77c8b800b2325aa270281380');
+  assert.equal(manifest.production_canonical_deployment_id_before_release, 'dpl_5Aqcuxm84qvtNYtALXMS9demSB4C');
+  assert.equal(manifest.production_canonical_source_sha_before_release, '32018116e66c70b9443601c1aa675d9fb6e9dfd7');
   assert.equal(manifest.db_schema_mutation, 'NONE');
   assert.equal(manifest.db_data_mutation, 'NONE');
   assert.equal(manifest.production_data_mutation, 'NONE');

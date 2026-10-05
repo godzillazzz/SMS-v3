@@ -9,8 +9,8 @@ test('application release pins merged #452, current Production checkpoint and no
   const valid=validateReleaseManifest(manifest);
   assert.equal(valid.commitSha,'32018116e66c70b9443601c1aa675d9fb6e9dfd7');
   assert.equal(valid.treeSha,'14e6fc440866060fb0c71c623d9995ae01984022');
-  assert.equal(valid.currentProductionSourceSha,'2e3ce737cb962cee77c8b800b2325aa270281380');
-  assert.equal(valid.rollbackDeploymentId,'dpl_9QdjnSyeczSxiXmbRFjWRtaQ7uqj');
+  assert.equal(valid.currentProductionSourceSha,'32018116e66c70b9443601c1aa675d9fb6e9dfd7');
+  assert.equal(valid.rollbackDeploymentId,'dpl_5Aqcuxm84qvtNYtALXMS9demSB4C');
   assert.equal(valid.preAppliedMigrationEvidenceRunId,'');
   assert.equal(valid.runMigrations,false);
   assert.equal(valid.databaseChangePolicy,'NO_DATABASE_CHANGES');
@@ -20,8 +20,8 @@ test('application release pins merged #452, current Production checkpoint and no
   assert.equal(manifest.preview_technical_smoke_run_id,37298555906);
   assert.equal(manifest.preview_trusted_cors_status,'PASS');
   assert.equal(manifest.preview_untrusted_cors_status,'REJECTED_403');
-  assert.equal(manifest.production_canonical_deployment_id_before_release,'dpl_9QdjnSyeczSxiXmbRFjWRtaQ7uqj');
-  assert.equal(manifest.production_canonical_source_sha_before_release,'2e3ce737cb962cee77c8b800b2325aa270281380');
+  assert.equal(manifest.production_canonical_deployment_id_before_release,'dpl_5Aqcuxm84qvtNYtALXMS9demSB4C');
+  assert.equal(manifest.production_canonical_source_sha_before_release,'32018116e66c70b9443601c1aa675d9fb6e9dfd7');
   assert.equal(manifest.g06_acceptance_status,'CLOSED');
   assert.equal(manifest.g06_acceptance_changed,'NO');
 });
