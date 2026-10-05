@@ -4,7 +4,7 @@ This repository is a production system. Optimize for finishing the requested out
 
 ## Codex bootstrap (every session)
 
-1. Fresh-read `MASTER_HANDOFF.md`.
+1. Fresh-read `AGENTS.md` before consequential actions; fresh-read `MASTER_HANDOFF.md` before each project action.
 2. Read and use `.agents/skills/sms-v3-autonomous-operator/SKILL.md` as the permanent operating method.
 3. Refresh live repository and runtime state before consequential actions.
 4. Continue through every authorized safe step until a genuine Owner-only gate or fail-closed blocker.
