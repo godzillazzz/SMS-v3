@@ -334,3 +334,21 @@ User requested that work be recorded here before continuing in a new chat.
 - Highest-value next implementation: **P0 Attendance Clarity** — humanize employee-facing exception codes, restructure the mobile surface around Now / Next / Exception, and add a post-action receipt.
 - This recommendation is UX-only and must preserve device binding, secure offline, GPS/geofence, Schedule authority, Expected-vs-Actual Site evidence and audit flags.
 - Detailed benchmark and proposed employee/supervisor wireframes: `docs/UX_ATTENDANCE_BENCHMARK_20261005.md`.
+
+
+## Attendance P0 Clarity — Release-source Closure — 2026-10-05
+
+- Status: **MERGED_RELEASE_SOURCE / PRODUCTION_NOT_DEPLOYED**.
+- Application PR #459 merged into `fix/serverless-database-reliability`.
+- Feature SHA: `be338c494abed9829181e2134b8590adccf464a4`.
+- Merge SHA: `d6edd66f4c5a759ac259f93a82b02a649bd99093`.
+- Exact PR-head CI run `37344552059`: SUCCESS on Node 22/PostgreSQL 16, including backend tests/integration, Attendance PostgreSQL integration, full frontend suite, TypeScript, production build and repository hygiene.
+- Exact merge CI run `37345165059`: SUCCESS.
+- PR-head Preview `dpl_DoBfXStdgVV62K1xpDnvqDm3WyCp`: READY from exact feature SHA.
+- Release-source merge Preview `dpl_7yhB1z5N66fF8G2CfnLZiiza2QBK`: READY from exact merge SHA/ref `fix/serverless-database-reliability`; one Node 22 Lambda remains `19,091,422 bytes`.
+- Merge Preview runtime verification: health HTTP 200/status ok; readiness HTTP 200/database ok; trusted Preview-origin CORS HTTP 204; untrusted origin HTTP 403.
+- Implemented employee UX: Now / Next / Exception hierarchy; human-facing support-Site wording; primary-device and offline wording; raw review reason codes behind technical progressive disclosure; post-action attendance receipt with server event time, actual Site, device, location-check and sync context.
+- 390px browser fixture using the real Attendance CSS was inspected during implementation; the dominant attendance action, exception state, receipt and history controls remained accessible.
+- Scope stayed frontend presentation/tests only. No API, database schema/data, Environment/secret, Attendance security policy, device-binding, secure-offline, Schedule authority, GPS/geofence or Expected-vs-Actual Site semantics changed.
+- Current Production was intentionally not promoted by this task. Canonical remains `dpl_5QHhQCfVSqSkC3CvdomVVhMnHgJ2`, READY, application SHA `31c04fa48330970fb89f18277ee29c88fbf7ac4c`.
+- Production promotion of `d6edd66f...` requires a separate explicit Owner Production authorization.
