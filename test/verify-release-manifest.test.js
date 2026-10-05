@@ -110,15 +110,15 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest pins PR #444 application-only release with no DB or environment mutation', () => {
+test('current approved Production manifest pins PR #449 application-only release with no DB or environment mutation', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-6a8126f-20261005');
-  assert.equal(result.commitSha, '6a8126f39ec105b350d37d538bf2e0053eb71d1d');
-  assert.equal(result.treeSha, '336fca225b86c197835fbe0f16afc382e65ee297');
-  assert.equal(result.currentProductionSourceSha, '8bae84a50e8cd2c3d96ba2393a8004ea4abaafeb');
+  assert.equal(result.releaseId, 'sms-v3-prod-2e3ce73-20261005');
+  assert.equal(result.commitSha, '2e3ce737cb962cee77c8b800b2325aa270281380');
+  assert.equal(result.treeSha, 'b13fe0409d98d7606d81b0b4653741a04ceebf43');
+  assert.equal(result.currentProductionSourceSha, '6a8126f39ec105b350d37d538bf2e0053eb71d1d');
   assert.equal(result.currentProductionSourceRef, 'fix/serverless-database-reliability');
-  assert.equal(result.rollbackDeploymentId, 'dpl_2y3cjq7qx13MLjCY54L24J54sJer');
+  assert.equal(result.rollbackDeploymentId, 'dpl_cyADFnXNCActE2wQALDZc8QEztJm');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
@@ -126,12 +126,12 @@ test('current approved Production manifest pins PR #444 application-only release
   assert.equal(result.productionEnvironmentChangePolicy, 'NO_ENVIRONMENT_CHANGES');
   assert.equal(result.corsPolicy, 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY');
   assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION');
-  assert.equal(manifest.preview_deployment_id, 'dpl_E6oMkMy3J9n6zzbv7cgnHxSNFtNH');
-  assert.equal(manifest.preview_url, 'https://sms-v3-staging-e6jlw5371-godzillazz.vercel.app');
+  assert.equal(manifest.preview_deployment_id, 'dpl_4uTckV8KkbhnzqzT97VchWdnTw8k');
+  assert.equal(manifest.preview_url, 'https://sms-v3-staging-e104ox4fs-godzillazz.vercel.app');
   assert.equal(manifest.application_release_classification, 'APPLICATION_ONLY');
-  assert.equal(manifest.application_pr_number, 444);
+  assert.equal(manifest.application_pr_number, 449);
   assert.equal(manifest.application_pr_merge_sha, result.commitSha);
-  assert.equal(manifest.application_exact_sha_ci_run_id, 37252148345);
+  assert.equal(manifest.application_exact_sha_ci_run_id, 37275653288);
   assert.equal(manifest.preview_github_commit_sha, result.commitSha);
   assert.equal(manifest.preview_github_commit_ref, 'fix/serverless-database-reliability');
   assert.equal(manifest.preview_project_id, 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s');
@@ -140,6 +140,11 @@ test('current approved Production manifest pins PR #444 application-only release
   assert.equal(manifest.preview_readiness_database_status, 'PASS');
   assert.equal(manifest.preview_trusted_cors_status, 'PASS');
   assert.equal(manifest.preview_untrusted_cors_status, 'REJECTED_403');
+  assert.equal(manifest.preview_technical_smoke_source_sha, 'bac90f5d4bd2d0f1b26c0c5fc94369ca193205b5');
+  assert.equal(manifest.preview_technical_smoke_run_id, 37278833332);
+  assert.equal(manifest.preview_technical_smoke_status, 'SUCCESS');
+  assert.equal(manifest.production_canonical_deployment_id_before_release, 'dpl_cyADFnXNCActE2wQALDZc8QEztJm');
+  assert.equal(manifest.production_canonical_source_sha_before_release, '6a8126f39ec105b350d37d538bf2e0053eb71d1d');
   assert.equal(manifest.db_schema_mutation, 'NONE');
   assert.equal(manifest.db_data_mutation, 'NONE');
   assert.equal(manifest.production_data_mutation, 'NONE');
@@ -149,7 +154,7 @@ test('current approved Production manifest pins PR #444 application-only release
   assert.equal(manifest.project_auto_assign_custom_domains, false);
   assert.equal(manifest.g06_acceptance_status, 'CLOSED');
   assert.equal(manifest.g06_acceptance_changed, 'NO');
-  assert.equal(manifest.live_authenticated_attendance_ui_status, 'NOT_VERIFIED_NO_AUTHENTICATED_PRODUCTION_SESSION');
+  assert.equal(manifest.live_authenticated_employee_ui_status, 'NOT_VERIFIED_NO_AUTHENTICATED_PRODUCTION_SESSION');
   assert.doesNotMatch(JSON.stringify(manifest), /dpl_64ar5GLQnBpGZPPUmoEFuGpE8evd|1504ab15b5937ab2906727e858ea65f82803ac23|43a303d91f7287f49bb3381e0287a117449aec51/);
 });
 
