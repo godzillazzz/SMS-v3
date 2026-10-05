@@ -289,3 +289,31 @@ User requested that work be recorded here before continuing in a new chat.
 - The dirty main worktree `C:\40.AI\_sms_v3_roster_prod` was not touched.
 - `frontend/tsconfig.tsbuildinfo` was not modified.
 - No application source changes were made after the already-passed Phase 4 QA/build gates; this closure only records release verification and deployment state.
+
+## Vercel Function Storage Reduction — Production Closure — 2026-10-05
+
+### CLOSED / Production live
+- Application change PR: #455, merged application source `31c04fa48330970fb89f18277ee29c88fbf7ac4c` on `fix/serverless-database-reliability`; source tree `10270ed303bdebd2da560a518e80fefbc0632898`.
+- Release-control PR: #456, merged control-plane SHA `702f9a3d6448c29834b193f96328229c7f133e41`.
+- Application exact-merge CI: run `37329049240` SUCCESS.
+- Exact Preview technical smoke: run `37332877626` SUCCESS against `dpl_8mm7yDoM94FEp5j4a3NfmWVZPfnr`.
+- Protected Production workflow: run `37334439171` SUCCESS. GitHub Environment approval used the existing `production-sms-v3-staging` protection; no protection rule was weakened or bypassed.
+- New canonical Production deployment: `dpl_5QHhQCfVSqSkC3CvdomVVhMnHgJ2` / `https://sms-v3-staging-5pnd8zdxu-godzillazz.vercel.app`, target `production`, state READY.
+- Canonical technical URL `https://sms-v3-staging-ten.vercel.app` resolves to that deployment. Native Vercel provenance: project `prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s`, githubCommitSha `31c04fa48330970fb89f18277ee29c88fbf7ac4c`, githubCommitRef `fix/serverless-database-reliability`.
+- Verified rollback deployment remains READY: `dpl_222Bc2u95XS9EsurxXs69w7uCdqU`, native source `32018116e66c70b9443601c1aa675d9fb6e9dfd7`. Automatic rollback steps were skipped because post-promotion verification passed.
+
+### Runtime and storage result
+- Production now emits exactly one Node 22 Lambda, `api/[...path]`, measured at `19,092,830 bytes` (~18.21 MiB). The duplicate `api/index` function is gone and Human/TFJS model/WASM payload is no longer explicitly bundled into the deployed runtime.
+- Audited pre-change two-function baseline was `71,064,463 bytes`; new Production raw function artifact footprint is lower by `51,971,633 bytes`, approximately 73.14% per deployment.
+- Independent post-release checks: `/api/v1/health` HTTP 200 `{"status":"ok"}`; `/api/v1/ready` HTTP 200 with `database:"ok"`; trusted canonical-origin CORS HTTP 204 with exact allow-origin; untrusted origin HTTP 403.
+- No database schema migration, Production business-data mutation, Environment/secret change, auth policy change, device-binding policy change, or GPS/geofence policy change occurred in this release.
+- G06 simplified Attendance authority remains device binding + secure offline + GPS/geofence; Face/QR remains intentionally outside the active Attendance flow.
+
+### Retained deployment cleanup
+- Previously audited safe Preview deployments `dpl_5NmjRNpLfb83GufNNDU5X6HZrG3u` and `dpl_5Y78qMe9WhyeESBPF1VjsX6wSTP2` were removed with Vercel `--safe` deletion after Production verification.
+- Vercel reported both deletions successful. Direct deployment API re-check returns `404 Deployment not found` for both IDs and the deployments are absent from the retained deployment listing.
+- Their audited raw function artifacts totalled `142,128,926 bytes` (~135.55 MiB). This is raw deployment-artifact cleanup evidence; do not equate it directly to billed Function Storage because Vercel accounting/deduplication and dashboard refresh timing are provider-controlled.
+- Branch aliases previously associated with those old deployments remain attached to newer READY deployments and were not removed.
+
+### Remaining limitation
+- No authenticated employee role session was used for an additional live UI business-flow test in this storage-reduction release. Production workflow sentinels and read-only runtime checks passed; no Production employee/schedule/attendance data was altered for testing.
