@@ -4,15 +4,22 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { verify } = require('../scripts/ci/verify-preapplied-attendance-policy-readonly');
 const { validateReleaseManifest } = require('../scripts/ci/verify-release-manifest');
-test('application release pins merged #439, immediate rollback and no database changes',()=>{
+test('application release pins merged #444, current Production checkpoint and no database changes',()=>{
   const manifest=JSON.parse(fs.readFileSync('.github/releases/approved-production.json'));
   const valid=validateReleaseManifest(manifest);
-  assert.equal(valid.commitSha,'8bae84a50e8cd2c3d96ba2393a8004ea4abaafeb');
-  assert.equal(valid.treeSha,'e125272c8ab6f934d973212b444a8a918887854a');
-  assert.equal(valid.rollbackDeploymentId,'dpl_7ARdP3yKSMyXbsoFhput84BPrTrh');
+  assert.equal(valid.commitSha,'6a8126f39ec105b350d37d538bf2e0053eb71d1d');
+  assert.equal(valid.treeSha,'336fca225b86c197835fbe0f16afc382e65ee297');
+  assert.equal(valid.currentProductionSourceSha,'8bae84a50e8cd2c3d96ba2393a8004ea4abaafeb');
+  assert.equal(valid.rollbackDeploymentId,'dpl_2y3cjq7qx13MLjCY54L24J54sJer');
   assert.equal(valid.preAppliedMigrationEvidenceRunId,'');
   assert.equal(valid.runMigrations,false);
-  assert.equal(manifest.application_exact_sha_ci_run_id,37183292547);
+  assert.equal(valid.databaseChangePolicy,'NO_DATABASE_CHANGES');
+  assert.equal(valid.productionEnvironmentChangePolicy,'NO_ENVIRONMENT_CHANGES');
+  assert.equal(manifest.application_pr_number,444);
+  assert.equal(manifest.application_exact_sha_ci_run_id,37252148345);
+  assert.equal(manifest.pre_release_immediate_rollback_deployment_id,'dpl_7ARdP3yKSMyXbsoFhput84BPrTrh');
+  assert.equal(manifest.g06_acceptance_status,'CLOSED');
+  assert.equal(manifest.g06_acceptance_changed,'NO');
 });
 test('read-only release revalidation accepts only no-database-change plan',async()=>{
   const result=await verify({env:{},readFacts:async()=>({plan:'PLAN_NO_DATABASE_CHANGE'}),run:async(options)=>options.observe({}, {}, ()=>{})});
