@@ -110,15 +110,15 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest pins PR #449 application-only release with no DB or environment mutation', () => {
+test('current approved Production manifest pins PR #452 application-only release with no DB or environment mutation', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-2e3ce73-20261005');
-  assert.equal(result.commitSha, '2e3ce737cb962cee77c8b800b2325aa270281380');
-  assert.equal(result.treeSha, 'b13fe0409d98d7606d81b0b4653741a04ceebf43');
-  assert.equal(result.currentProductionSourceSha, '6a8126f39ec105b350d37d538bf2e0053eb71d1d');
+  assert.equal(result.releaseId, 'sms-v3-prod-3201811-20261005');
+  assert.equal(result.commitSha, '32018116e66c70b9443601c1aa675d9fb6e9dfd7');
+  assert.equal(result.treeSha, '14e6fc440866060fb0c71c623d9995ae01984022');
+  assert.equal(result.currentProductionSourceSha, '2e3ce737cb962cee77c8b800b2325aa270281380');
   assert.equal(result.currentProductionSourceRef, 'fix/serverless-database-reliability');
-  assert.equal(result.rollbackDeploymentId, 'dpl_cyADFnXNCActE2wQALDZc8QEztJm');
+  assert.equal(result.rollbackDeploymentId, 'dpl_9QdjnSyeczSxiXmbRFjWRtaQ7uqj');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
@@ -126,12 +126,12 @@ test('current approved Production manifest pins PR #449 application-only release
   assert.equal(result.productionEnvironmentChangePolicy, 'NO_ENVIRONMENT_CHANGES');
   assert.equal(result.corsPolicy, 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY');
   assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION');
-  assert.equal(manifest.preview_deployment_id, 'dpl_4uTckV8KkbhnzqzT97VchWdnTw8k');
-  assert.equal(manifest.preview_url, 'https://sms-v3-staging-e104ox4fs-godzillazz.vercel.app');
+  assert.equal(manifest.preview_deployment_id, 'dpl_APfqebCL6gYUigeNudVhwPizFP2F');
+  assert.equal(manifest.preview_url, 'https://sms-v3-staging-a2g8ue3l9-godzillazz.vercel.app');
   assert.equal(manifest.application_release_classification, 'APPLICATION_ONLY');
-  assert.equal(manifest.application_pr_number, 449);
+  assert.equal(manifest.application_pr_number, 452);
   assert.equal(manifest.application_pr_merge_sha, result.commitSha);
-  assert.equal(manifest.application_exact_sha_ci_run_id, 37275653288);
+  assert.equal(manifest.application_exact_sha_ci_run_id, 37298178660);
   assert.equal(manifest.preview_github_commit_sha, result.commitSha);
   assert.equal(manifest.preview_github_commit_ref, 'fix/serverless-database-reliability');
   assert.equal(manifest.preview_project_id, 'prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s');
@@ -140,11 +140,11 @@ test('current approved Production manifest pins PR #449 application-only release
   assert.equal(manifest.preview_readiness_database_status, 'PASS');
   assert.equal(manifest.preview_trusted_cors_status, 'PASS');
   assert.equal(manifest.preview_untrusted_cors_status, 'REJECTED_403');
-  assert.equal(manifest.preview_technical_smoke_source_sha, 'bac90f5d4bd2d0f1b26c0c5fc94369ca193205b5');
-  assert.equal(manifest.preview_technical_smoke_run_id, 37278833332);
+  assert.equal(manifest.preview_technical_smoke_source_sha, '32018116e66c70b9443601c1aa675d9fb6e9dfd7');
+  assert.equal(manifest.preview_technical_smoke_run_id, 37298555906);
   assert.equal(manifest.preview_technical_smoke_status, 'SUCCESS');
-  assert.equal(manifest.production_canonical_deployment_id_before_release, 'dpl_cyADFnXNCActE2wQALDZc8QEztJm');
-  assert.equal(manifest.production_canonical_source_sha_before_release, '6a8126f39ec105b350d37d538bf2e0053eb71d1d');
+  assert.equal(manifest.production_canonical_deployment_id_before_release, 'dpl_9QdjnSyeczSxiXmbRFjWRtaQ7uqj');
+  assert.equal(manifest.production_canonical_source_sha_before_release, '2e3ce737cb962cee77c8b800b2325aa270281380');
   assert.equal(manifest.db_schema_mutation, 'NONE');
   assert.equal(manifest.db_data_mutation, 'NONE');
   assert.equal(manifest.production_data_mutation, 'NONE');
