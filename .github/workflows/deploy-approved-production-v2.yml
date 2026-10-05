@@ -414,10 +414,37 @@ jobs:
           git show "$GITHUB_SHA:scripts/ci/g06-production-migration-candidates.json" >/tmp/unchanged-attendance-history.json
           node - <<'NODE'
           const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
           const path = '/tmp/unchanged-attendance-history.json';
           const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
-          if (manifest.application.sha !== process.env.CURRENT_PRODUCTION_SOURCE_SHA) throw new Error('HISTORY_BASELINE_MISMATCH');
-          // SQL candidates remain pinned; only the unchanged application identity is rebound.
+          const sha = manifest?.application?.sha;
+          const tree = manifest?.application?.tree;
+          const targetSha = process.env.TARGET_SHA;
+          const targetTree = process.env.TARGET_TREE;
+          const currentProductionSha = process.env.CURRENT_PRODUCTION_SOURCE_SHA;
+          const isSha = value => /^[a-f0-9]{40}$/.test(value || '');
+          if (!isSha(sha) || !isSha(tree) || !isSha(targetSha) || !isSha(targetTree) || !isSha(currentProductionSha)) {
+            throw new Error('HISTORY_BASELINE_INVALID');
+          }
+          let actualTree;
+          try {
+            actualTree = execFileSync('git', ['rev-parse', `${sha}^{tree}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+          } catch {
+            throw new Error('HISTORY_BASELINE_COMMIT_INVALID');
+          }
+          if (actualTree !== tree) throw new Error('HISTORY_BASELINE_TREE_MISMATCH');
+          try {
+            execFileSync('git', ['merge-base', '--is-ancestor', sha, currentProductionSha], { stdio: 'ignore' });
+          } catch {
+            throw new Error('HISTORY_BASELINE_NOT_ANCESTOR');
+          }
+          try {
+            execFileSync('git', ['diff', '--quiet', sha, currentProductionSha, '--', 'prisma/schema.prisma', 'prisma/migrations'], { stdio: 'ignore' });
+          } catch {
+            throw new Error('HISTORY_BASELINE_SCHEMA_MISMATCH');
+          }
+          // The pinned migration candidates remain unchanged; rebind only after
+          // proving their source is in Production history with the same schema.
           manifest.application = { sha: process.env.TARGET_SHA, tree: process.env.TARGET_TREE };
           fs.writeFileSync(path, JSON.stringify(manifest));
           NODE
