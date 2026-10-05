@@ -8,8 +8,6 @@ const { createAttendanceApiContractService } = require('../services/attendance-a
 const { createAttendanceFaceVerificationService } = require('../services/attendance-face-verification.service');
 const { ACTIVE_FACE_CHALLENGE_FRAME_COUNT } = require('../services/active-face-challenge.service');
 const { createAttendanceFaceChallengeUatService } = require('../services/attendance-face-challenge-uat.service');
-const { createAttendanceFaceEngineUatService } = require('../services/attendance-face-engine-uat.service');
-const { inProcessFaceConfig } = require('../services/in-process-face-match.provider');
 const { validateAttachment, ATTACHMENT_PROFILES } = require('../services/attachment-optimizer.service');
 const { createAttendanceSelfService } = require('../services/attendance-self.service');
 const { createAttendanceSimpleService } = require('../services/attendance-simple.service');
@@ -139,14 +137,10 @@ function selfHostedFaceRuntimeConfigured(environment = process.env) {
   try { return new URL(String(environment.FACE_VERIFIER_URL || '')).protocol === 'https:'; } catch { return false; }
 }
 
-function inProcessFaceRuntimeConfigured(environment = process.env) {
-  if (environment.FACE_VERIFICATION_IN_PROCESS_ENABLED !== 'true') return false;
-  try { inProcessFaceConfig(environment); return true; } catch { return false; }
-}
-
 function attendanceBiometricRuntimeEnabled(environment = process.env) {
+  if (environment.VERCEL_ENV === 'production') return false;
   if (!attendanceApiEnabled(environment)) return false;
-  return inProcessFaceRuntimeConfigured(environment) || selfHostedFaceRuntimeConfigured(environment);
+  return selfHostedFaceRuntimeConfigured(environment);
 }
 
 function attendanceFaceChallengeUatEnabled(environment = process.env) {
@@ -154,18 +148,11 @@ function attendanceFaceChallengeUatEnabled(environment = process.env) {
   return environment.VERCEL_ENV === 'preview' && environment.G06_FACE_CHALLENGE_UAT_PREVIEW_ENABLED === 'true';
 }
 
-function attendanceFaceEngineUatEnabled(environment = process.env) {
-  if (environment.VERCEL_ENV === 'production') return false;
-  return environment.VERCEL_ENV === 'preview'
-    && environment.G06_FACE_ENGINE_UAT_PREVIEW_ENABLED === 'true'
-    && inProcessFaceRuntimeConfigured(environment);
-}
-
 function defaultAuthenticate(req, res, next) {
   return require('../middlewares/authenticate').authenticate(req, res, next);
 }
 
-function createAttendanceRoutes({ environment = process.env, authenticateMiddleware = defaultAuthenticate, contractService = null, faceChallengeUatService = null, faceEngineUatService = null, selfService = null, simpleService = null, evidenceStorage = null } = {}) {
+function createAttendanceRoutes({ environment = process.env, authenticateMiddleware = defaultAuthenticate, contractService = null, faceChallengeUatService = null, selfService = null, simpleService = null, evidenceStorage = null } = {}) {
   const router = express.Router();
   const privateEvidence = evidenceStorage || createSupabaseAttendanceFaceEvidenceStorage({ environment });
   const service = contractService || createAttendanceApiContractService({
@@ -174,7 +161,6 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
     isGeofenceOnlyUatEnabled: () => attendanceGeofenceOnlyUatEnabled(environment)
   });
   const uatService = faceChallengeUatService || createAttendanceFaceChallengeUatService();
-  const engineUatService = faceEngineUatService || createAttendanceFaceEngineUatService({ environment });
   const employeeSelf = selfService || createAttendanceSelfService();
   const simpleAttendance = simpleService || createAttendanceSimpleService();
 
@@ -184,10 +170,6 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
 
   function requireFaceChallengeUat(_req, _res, next) {
     return attendanceFaceChallengeUatEnabled(environment) ? next() : next(new HttpError(404, 'Not found.'));
-  }
-
-  function requireFaceEngineUat(_req, _res, next) {
-    return attendanceFaceEngineUatEnabled(environment) ? next() : next(new HttpError(404, 'Not found.'));
   }
 
   function requireGeofenceOnlyUat(_req, _res, next) {
@@ -205,16 +187,6 @@ function createAttendanceRoutes({ environment = process.env, authenticateMiddlew
       const challengeFrameFiles = Array.isArray(req.files?.challengeFrame) ? req.files.challengeFrame : [];
       if (photoFiles.length !== 1 || challengeFrameFiles.length !== ACTIVE_FACE_CHALLENGE_FRAME_COUNT) throw new HttpError(400, 'UAT face capture is incomplete.', { code: 'FACE_CHALLENGE_UAT_CAPTURE_INVALID' });
       res.json({ data: uatService.acceptCapture({ attemptId: uuid.parse(req.params.id), livePhotoFile: photoFiles[0], challengeFrameFiles }) });
-    } catch (error) { next(error); }
-  });
-
-  router.post('/uat/in-process-face-engine/probe', requireFaceEngineUat, faceCaptureUpload, async (req, res, next) => {
-    try {
-      if (Object.keys(req.body || {}).length !== 0) throw new HttpError(400, 'Unexpected face-engine UAT fields.', { code: 'FACE_ENGINE_UAT_INPUT_INVALID' });
-      const photoFiles = Array.isArray(req.files?.photo) ? req.files.photo : [];
-      const challengeFrameFiles = Array.isArray(req.files?.challengeFrame) ? req.files.challengeFrame : [];
-      if (photoFiles.length !== 1 || challengeFrameFiles.length !== 0) throw new HttpError(400, 'Face-engine UAT image is invalid.', { code: 'FACE_ENGINE_UAT_INPUT_INVALID' });
-      res.json({ data: await engineUatService.probe({ photoFile: photoFiles[0] }) });
     } catch (error) { next(error); }
   });
 
@@ -325,10 +297,8 @@ module.exports = {
   attendanceApiEnabled,
   attendanceGeofenceOnlyUatEnabled,
   selfHostedFaceRuntimeConfigured,
-  inProcessFaceRuntimeConfigured,
   attendanceBiometricRuntimeEnabled,
   attendanceFaceChallengeUatEnabled,
-  attendanceFaceEngineUatEnabled,
   createAttendanceRoutes,
   prepareInput,
   deviceProofInput,

@@ -7,12 +7,11 @@ const assert = require('node:assert/strict');
 
 const root = path.resolve(__dirname, '..');
 
-test('G06 in-process face Vercel function bundles required local model and WASM assets with a valid string glob', () => {
+test('G06 release contract keeps retired in-process face assets out of the Vercel function bundle', () => {
   const config = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
   const fn = config.functions?.['api/[...path].js'];
   assert.ok(fn, 'API serverless function config is required');
-  assert.equal(typeof fn.includeFiles, 'string', 'Vercel includeFiles must be a string glob');
-  assert.match(fn.includeFiles, /@vladmandic\/human\/models\/\*\*/);
-  assert.match(fn.includeFiles, /human\.node-wasm\.js/);
-  assert.match(fn.includeFiles, /@tensorflow\/tfjs-backend-wasm\/dist\/\*\.wasm/);
+  assert.equal(fn.includeFiles, undefined);
+  assert.equal(config.env?.FACE_VERIFICATION_IN_PROCESS_ENABLED, undefined);
+  assert.doesNotMatch(JSON.stringify(config), /@vladmandic\/human|human\.node-wasm|@tensorflow\/tfjs-backend-wasm/i);
 });

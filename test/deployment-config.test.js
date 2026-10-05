@@ -107,11 +107,11 @@ test('In-process face environment contract is Production-capable but strictly bo
 });
 
 
-test('repository config explicitly activates Attendance + in-process face runtime for Production cutover', () => {
+test('repository config activates Attendance without reactivating the retired in-process face runtime', () => {
   const vercelConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'vercel.json'), 'utf8'));
   assert.equal(vercelConfig.env?.ATTENDANCE_API_PREVIEW_ENABLED, 'true');
   assert.equal(vercelConfig.env?.ATTENDANCE_API_PRODUCTION_ENABLED, 'true');
-  assert.equal(vercelConfig.env?.FACE_VERIFICATION_IN_PROCESS_ENABLED, 'true');
+  assert.equal(vercelConfig.env?.FACE_VERIFICATION_IN_PROCESS_ENABLED, undefined);
   assert.equal(vercelConfig.env?.ATTENDANCE_FACE_EVIDENCE_BUCKET, 'attendance-face-evidence');
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'preview', ATTENDANCE_API_PREVIEW_ENABLED: 'true' }), true);
   assert.equal(attendanceApiEnabled({ VERCEL_ENV: 'production', ATTENDANCE_API_PRODUCTION_ENABLED: 'true' }), true);
@@ -119,5 +119,5 @@ test('repository config explicitly activates Attendance + in-process face runtim
     VERCEL_ENV: 'production',
     ATTENDANCE_API_PRODUCTION_ENABLED: 'true',
     FACE_VERIFICATION_IN_PROCESS_ENABLED: 'true'
-  }), true);
+  }), false);
 });
