@@ -670,7 +670,7 @@ jobs:
           const base = process.argv[2].replace(/\/$/, '');
           const label = process.argv[3];
           const useVercelCurl = process.argv[4] === 'true';
-          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน', 'Approval Authority Matrix / SLA', 'การเปลี่ยนแปลงสำคัญ', 'เปลี่ยนชื่อ', 'ย้ายหน่วยงาน / แผนก', 'เปลี่ยนตำแหน่ง', 'Data Retention Center / การเก็บรักษาข้อมูล', 'รัน Cleanup รอบถัดไป', 'GPS / GEOFENCE', 'เครื่องแรก · ผูกอัตโนมัติ', 'เครื่องอื่น · ติดธงตรวจ', 'AES-GCM encrypted queue', 'รอ ADMIN ยืนยันก่อนนับ', 'SUPPORT_SITE', 'ช่วยปฏิบัติงาน'];
+          const sentinels = ['เข้าสู่ระบบด้วย Passkey', 'ลงเวลา', 'อุปกรณ์ลงเวลา', 'Security Site', 'ลงเวลาแทนพนักงาน', 'Approval Authority Matrix / SLA', 'การเปลี่ยนแปลงสำคัญ', 'เปลี่ยนชื่อ', 'ย้ายหน่วยงาน / แผนก', 'เปลี่ยนตำแหน่ง', 'Data Retention Center / การเก็บรักษาข้อมูล', 'รัน Cleanup รอบถัดไป', 'GPS / GEOFENCE', 'เครื่องแรกจะผูกอัตโนมัติ', 'ใช้อุปกรณ์อื่น · ต้องตรวจ', 'ออฟไลน์พร้อมใช้งาน', 'รอ ADMIN ยืนยันก่อนนับ', 'SUPPORT_SITE', 'ช่วยปฏิบัติงาน'];
           if (process.env.DATABASE_CHANGE_POLICY === 'NO_DATABASE_CHANGES' || process.env.PRE_APPLIED_MIGRATION_MANIFEST_PATH === '.github/releases/approved-attendance-time-policy-production-migration.json') sentinels.push('นโยบายเวลาลงงาน','ผ่อนผันการมาสาย (นาที)','latestCheckInEnabled');
           const { verifyPublicRuntime } = require('/tmp/sms-release-control-plane/verify-public-runtime.js');
           const { createVercelCurlFetch } = require('/tmp/sms-release-control-plane/vercel-curl-fetch.js');

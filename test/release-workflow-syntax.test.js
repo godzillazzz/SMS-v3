@@ -146,9 +146,9 @@ test("Production runtime verification includes the G06 Simple Attendance contrac
     "GPS / GEOFENCE",
     "SUPPORT_SITE",
     "ช่วยปฏิบัติงาน",
-    "เครื่องแรก · ผูกอัตโนมัติ",
-    "เครื่องอื่น · ติดธงตรวจ",
-    "AES-GCM encrypted queue",
+    "เครื่องแรกจะผูกอัตโนมัติ",
+    "ใช้อุปกรณ์อื่น · ต้องตรวจ",
+    "ออฟไลน์พร้อมใช้งาน",
     "รอ ADMIN ยืนยันก่อนนับ",
   ]) {
     assert.ok(runtime.includes(sentinel), `missing G06 runtime sentinel: ${sentinel}`);
