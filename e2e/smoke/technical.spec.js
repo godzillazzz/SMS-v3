@@ -68,6 +68,30 @@ test('TECHNICAL: HTTP health, readiness, Vite assets, and audit authorization bo
   monitor.assertClean();
 });
 
+test('TECHNICAL: credentialed CORS trusts the target origin and rejects an untrusted origin', async ({ page }) => {
+  const targetUrl = new URL(process.env.UAT_BASE_URL);
+  const targetOrigin = targetUrl.origin;
+  const endpoint = new URL('/api/v1/auth/login', targetUrl).toString();
+  const preflight = (origin) => page.request.fetch(endpoint, automationRequestOptions({
+    method: 'OPTIONS',
+    headers: {
+      Origin: origin,
+      'Access-Control-Request-Method': 'POST'
+    },
+    maxRedirects: 0,
+    timeout: 20_000
+  }, process.env, process.env.UAT_BASE_URL, endpoint));
+
+  const trusted = await preflight(targetOrigin);
+  expect(trusted.status(), 'The exact target origin must receive a successful CORS preflight.').toBe(204);
+  expect(trusted.headers()['access-control-allow-origin']).toBe(targetOrigin);
+  expect(trusted.headers()['access-control-allow-credentials']).toBe('true');
+
+  const untrusted = await preflight('https://untrusted.invalid');
+  expect(untrusted.status(), 'An untrusted origin must be rejected.').toBe(403);
+  expect(untrusted.headers()['access-control-allow-origin']).toBeUndefined();
+});
+
 for (const viewport of viewports) {
   test(`TECHNICAL: login page browser smoke ${viewport.name}`, async ({ page }, testInfo) => {
     const monitor = startPageMonitor(page);
