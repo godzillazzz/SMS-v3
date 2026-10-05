@@ -78,7 +78,8 @@ describe('SMS Signature Experience V1.2 visual reconciliation', () => {
     expect(css).toContain('--license-local-surface:var(--color-surface-elevated);');
     expect(css).toContain('[data-theme="dark"] .report-center-filter-card');
     expect(css).toContain('[data-theme="dark"] .executive-report-panel');
-    expect(css).toContain('[data-theme="dark"] .leave-page');
+    expect(css).toContain(':is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page');
+    expect(css).toContain(':is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .status-badge.pending');
     expect(css).toContain('.leave-page h1');
     expect(licenseDocuments).toContain('.license-modal-dialog');
     expect(reportCenter).toContain('.report-center-filter-card');

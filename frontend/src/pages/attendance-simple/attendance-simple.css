@@ -1,4 +1,6 @@
 .attendance-simple {
+  --attendance-simple-text-secondary: #a8bacb;
+  --attendance-simple-text-muted: #7f94a8;
   min-height: 100%;
   padding: 20px;
   display: grid;
@@ -10,21 +12,21 @@
 .attendance-simple__header { display:flex; align-items:center; justify-content:space-between; gap:16px; }
 .attendance-simple__header span { color:#6faeff; font-size:12px; font-weight:800; letter-spacing:.12em; }
 .attendance-simple__header h1 { margin:4px 0 2px; font-size:24px; }
-.attendance-simple__header p { margin:0; color:#9fb0c2; }
+.attendance-simple__header p { margin:0; color:var(--attendance-simple-text-secondary); }
 .attendance-simple__header button { border:1px solid #27465f; border-radius:14px; background:#0c2030; color:#d8e7f5; min-width:44px; min-height:44px; }
 .attendance-simple__summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
 .attendance-simple__summary > div { padding:12px; border:1px solid #1d4259; border-radius:14px; background:#091b29; display:grid; gap:5px; }
-.attendance-simple__summary span { color:#7f94a8; font-size:11px; }
+.attendance-simple__summary span { color:var(--attendance-simple-text-muted); font-size:11px; }
 .attendance-simple__summary strong { font-size:14px; overflow-wrap:anywhere; }
 .attendance-simple__status { padding:14px 16px; border-radius:14px; border:1px solid #294759; display:grid; gap:4px; background:#0b1d2a; }
-.attendance-simple__status span { font-size:12px; color:#a8bacb; }
+.attendance-simple__status span { font-size:12px; color:var(--attendance-simple-text-secondary); }
 .attendance-simple__status.is-success { border-color:#19785d; background:#08281f; }
 .attendance-simple__status.is-warning { border-color:#9a6922; background:#2b210d; }
 .attendance-simple__status.is-danger { border-color:#a13c45; background:#2b1115; }
 .attendance-simple__assurance { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
 .attendance-simple__assurance article { min-height:88px; border:1px solid #1f4860; border-radius:15px; background:#081a28; display:grid; align-content:center; justify-items:center; text-align:center; gap:7px; padding:10px; }
 .attendance-simple__assurance b { font-size:13px; color:#dcecff; }
-.attendance-simple__assurance span { font-size:11px; color:#7fa1ba; }
+.attendance-simple__assurance span { font-size:11px; color:var(--attendance-simple-text-muted); }
 .attendance-simple__clock { width:min(340px,82vw); aspect-ratio:1; justify-self:center; border-radius:50%; border:10px solid #d9e9f8; outline:4px solid #176de3; background:#f8fbff; color:#075ac7; box-shadow:0 10px 40px rgba(0,76,178,.35), inset 0 -18px 0 rgba(18,102,221,.12); display:grid; place-content:center; gap:8px; font:inherit; }
 .attendance-simple__clock span { font-size:30px; font-weight:850; }
 .attendance-simple__clock small { color:#60758a; font-size:12px; font-weight:650; }
@@ -35,7 +37,7 @@
 .attendance-simple__move button, .attendance-simple__footer button { min-height:42px; border:1px solid #2a64a7; border-radius:10px; background:#0b5dcc; color:white; padding:8px 12px; font:inherit; font-weight:750; }
 .attendance-simple__move button:disabled { opacity:.5; }
 .attendance-simple__flags { font-size:12px; color:#efc778; overflow-wrap:anywhere; }
-.attendance-simple__footer { display:flex; align-items:center; justify-content:space-between; gap:12px; color:#7f93a6; font-size:11px; }
+.attendance-simple__footer { display:flex; align-items:center; justify-content:space-between; gap:12px; color:var(--attendance-simple-text-muted); font-size:11px; }
 .attendance-simple__footer span { text-align:right; max-width:430px; }
 
 @media (max-width: 640px) {
@@ -50,7 +52,7 @@
   .attendance-simple__footer span { text-align:left; }
 }
 
-/* Keep helper copy legible under the dark PWA button skin. */
+/* Employee PWA action buttons use the dark operational surface. */
 .app-shell.pwa-shell .attendance-simple__clock small {
-  color: #b6bfd2;
+  color: var(--employee-pwa-text-muted);
 }

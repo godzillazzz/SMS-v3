@@ -4,6 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const css = read('./styles/employee-pwa-theme.css');
+const signatureThemeV11 = read('./styles/signature-experience-v1-1.css');
+const signatureTheme = read('./styles/signature-experience-v1-2.css');
+const attendanceSimple = read('./pages/attendance-simple/attendance-simple.css');
+const attendanceV4 = read('./pages/pwa-attendance/employee-attendance-v4.css');
 const index = read('../index.html');
 const main = read('./main.tsx');
 const manifest = JSON.parse(read('../public/manifest.webmanifest'));
@@ -27,14 +31,26 @@ for (const file of ['./styles/command-nexus.css', './styles/operational-layer.cs
     for (const [, name, value] of block[1].matchAll(/(--nexus-[\w-]+):\s*(#[\da-f]{6})/gi)) palette.set(name, value);
   }
 }
+for (const [, name, value] of signatureThemeV11.matchAll(/(--signature-light-text-secondary):\s*(#[\da-f]{6})/gi)) {
+  palette.set(name, value);
+}
+for (const [, name, value] of signatureTheme.matchAll(/(--signature-dark-text-(?:secondary|muted)):\s*(#[\da-f]{6})/gi)) {
+  palette.set(name, value);
+}
 function luminance(hex: string) {
   const c = hex.slice(1).match(/.{2}/g)!.map(v => parseInt(v, 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
   return .2126 * c[0] + .7152 * c[1] + .0722 * c[2];
 }
-function ratio(fg: string, bg: string) {
-  const [a, b] = [luminance(palette.get(fg)!), luminance(palette.get(bg)!)].sort((x, y) => y - x);
+function mix(foreground: string, background: string, foregroundWeight: number) {
+  const fg = foreground.slice(1).match(/.{2}/g)!.map(v => parseInt(v, 16));
+  const bg = background.slice(1).match(/.{2}/g)!.map(v => parseInt(v, 16));
+  return `#${fg.map((channel, index) => Math.round(channel * foregroundWeight + bg[index] * (1 - foregroundWeight)).toString(16).padStart(2, '0')).join('')}`;
+}
+function ratioColors(fg: string, bg: string) {
+  const [a, b] = [luminance(fg), luminance(bg)].sort((x, y) => y - x);
   return (a + .05) / (b + .05);
 }
+function ratio(fg: string, bg: string) { return ratioColors(palette.get(fg)!, palette.get(bg)!); }
 
 describe('Employee PWA dark chrome ownership', () => {
   it.each([
@@ -88,5 +104,62 @@ describe('Employee PWA dark chrome ownership', () => {
     ['active nav label / icon', '--nexus-cyan-soft', '--nexus-container']
   ])('keeps %s at WCAG AA normal-text contrast', (_, fg, bg) => {
     expect(ratio(fg, bg)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('maps Employee PWA semantic text and Leave surfaces to the dark design tokens only inside the shell', () => {
+    expect(css).toContain('--employee-pwa-text-primary: var(--nexus-text)');
+    expect(css).toContain('--employee-pwa-text-secondary: var(--signature-dark-text-secondary)');
+    expect(css).toContain('--employee-pwa-text-muted: color-mix(in srgb, var(--employee-pwa-text-secondary) 88%, var(--nexus-surface))');
+    expect(css).toContain('--employee-pwa-text-on-light-surface: var(--signature-light-text-secondary)');
+    expect(css).toContain('--color-text-secondary: var(--employee-pwa-text-secondary)');
+    expect(css).toContain('--color-text-muted: var(--employee-pwa-text-muted)');
+    expect(css).toContain('--employee-v4-muted: var(--employee-pwa-text-muted)');
+    expect(css).toContain('--employee-v4-blue-deep: var(--employee-pwa-text-primary)');
+    expect(css).toContain('--attendance-simple-text-secondary: var(--employee-pwa-text-secondary)');
+    expect(css).toContain('--attendance-simple-text-muted: var(--employee-pwa-text-muted)');
+    expect(css).toContain('.app-shell.pwa-shell .pwa-profile-hero p { color: var(--nexus-cyan-soft) !important; }');
+    expect(css).toContain('.app-shell.pwa-shell .pwa-profile-card .is-online { color: var(--nexus-success); }');
+    expect(css).toContain('.app-shell.pwa-shell .pwa-profile-card .is-offline { color: var(--nexus-warning); }');
+    expect(ratio('--nexus-success', '--nexus-surface')).toBeGreaterThanOrEqual(4.5);
+    expect(ratio('--nexus-warning', '--nexus-surface')).toBeGreaterThanOrEqual(4.5);
+    expect(css).toContain('--signature-surface: var(--nexus-surface)');
+    expect(css).toContain('--signature-brand-soft: var(--nexus-container)');
+    expect(css).toContain('--signature-text: var(--employee-pwa-text-primary)');
+    expect(signatureThemeV11).toContain('--signature-light-text-secondary: #526075;');
+    expect(signatureThemeV11).toContain('--signature-text-secondary: var(--signature-light-text-secondary);');
+    expect(signatureThemeV11).toContain('--font-ui: "Noto Sans Thai", "Inter"');
+    expect(signatureThemeV11).toContain('--font-heading: "Inter", "Noto Sans Thai"');
+    expect(css).toContain('.app-shell.pwa-shell .pwa-profile-card dd { font-family: var(--font-ui); }');
+    expect(css).not.toMatch(/--font-(?:ui|heading)\s*:/i);
+    expect(signatureTheme).toContain(':is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page .leave-submit-card');
+    expect(signatureTheme).toContain(':is([data-theme="dark"], html[data-sms-shell="employee"]) .leave-page textarea::placeholder');
+    expect(signatureTheme).toContain('--signature-text-secondary: var(--signature-dark-text-secondary)');
+    expect(signatureTheme).toContain('--signature-text-muted: var(--signature-dark-text-muted)');
+    expect(signatureTheme).toContain('.leave-page .status-badge.pending { color:var(--signature-light-text-secondary); }');
+    expect(attendanceSimple).toContain('--attendance-simple-text-secondary: #a8bacb;');
+    expect(attendanceSimple).toContain('--attendance-simple-text-muted: #7f94a8;');
+    expect(attendanceSimple).toContain('.attendance-simple__summary span { color:var(--attendance-simple-text-muted);');
+    expect(attendanceSimple).toContain('.app-shell.pwa-shell .attendance-simple__clock small {');
+    expect(attendanceSimple).toContain('color: var(--employee-pwa-text-muted);');
+    expect(attendanceV4).toContain('.employee-v4-schedule-main small { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: var(--employee-v4-muted);');
+    expect(attendanceV4).toContain('.employee-v4-shift-highlights span {\n  color: var(--employee-v4-muted);');
+    expect(attendanceV4).toContain('.employee-v4-shift-highlights small {\n  color: var(--employee-v4-muted);');
+    expect(css).not.toMatch(/(?:^|\n)\[data-theme="light"\]\s*\{/);
+
+    for (const [label, fg, bg] of [
+      ['primary on surface', '--nexus-text', '--nexus-surface'],
+      ['secondary on surface', '--signature-dark-text-secondary', '--nexus-surface']
+    ]) {
+      expect(ratio(fg, bg), label).toBeGreaterThanOrEqual(7);
+    }
+    expect(ratio('--signature-dark-text-muted', '--nexus-container')).toBeGreaterThanOrEqual(4.5);
+    expect(ratio('--signature-dark-text-secondary', '--nexus-container')).toBeGreaterThanOrEqual(7);
+
+    const employeeMuted = mix(palette.get('--signature-dark-text-secondary')!, palette.get('--nexus-surface')!, .88);
+    const raisedLuminance = luminance(palette.get('--nexus-container')!);
+    const mutedLuminance = luminance(employeeMuted);
+    expect((Math.max(raisedLuminance, mutedLuminance) + .05) / (Math.min(raisedLuminance, mutedLuminance) + .05)).toBeGreaterThanOrEqual(7);
+    expect(ratioColors(palette.get('--signature-light-text-secondary')!, '#f8fbff')).toBeGreaterThanOrEqual(4.5);
+    expect(ratioColors(palette.get('--signature-light-text-secondary')!, '#fff6dc')).toBeGreaterThanOrEqual(4.5);
   });
 });

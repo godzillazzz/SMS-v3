@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 const css = readFileSync(new URL('./pages/pwa-attendance/employee-attendance-v4.css', import.meta.url), 'utf8');
 const simpleCss = readFileSync(new URL('./pages/attendance-simple/attendance-simple.css', import.meta.url), 'utf8');
 const shellCss = readFileSync(new URL('./styles/operational-layer.css', import.meta.url), 'utf8');
+const employeePwaThemeCss = readFileSync(new URL('./styles/employee-pwa-theme.css', import.meta.url), 'utf8');
+const signatureThemeCss = readFileSync(new URL('./styles/signature-experience-v1-2.css', import.meta.url), 'utf8');
 const darkHistoryStyles = css.slice(css.indexOf('/* Attendance History contrast for the dark PWA shell. */'));
 const variablesBlock = darkHistoryStyles.match(/\.employee-v4-page\.nexus-mobile-history\s*\{([\s\S]*?)\}/)?.[1] || '';
 const palette = new Map([...variablesBlock.matchAll(/(--[\w-]+):\s*(#[\da-f]{6})/gi)].map(([, name, value]) => [name, value.toLowerCase()]));
@@ -18,6 +20,11 @@ function luminance(hex: string) {
 function contrastRatio(foreground: string, background: string) {
   const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
   return (values[0] + 0.05) / (values[1] + 0.05);
+}
+
+function colorMix(foreground: string, background: string, foregroundWeight: number) {
+  const channels = [foreground, background].map((value) => value.slice(1).match(/.{2}/g)!.map((channel) => parseInt(channel, 16)));
+  return `#${channels[0].map((channel, index) => Math.round(channel * foregroundWeight + channels[1][index] * (1 - foregroundWeight)).toString(16).padStart(2, '0')).join('')}`;
 }
 
 function color(name: string) {
@@ -58,10 +65,16 @@ describe('Attendance History mobile dark-shell contrast', () => {
 
 describe('main Attendance PWA action helper contrast', () => {
   it('keeps the clock action helper readable against the dark PWA button surface', () => {
-    const helperColor = simpleCss.match(/\.app-shell\.pwa-shell \.attendance-simple__clock small\s*\{[^}]*color:\s*(#[\da-f]{6})/i)?.[1];
+    const helperRule = simpleCss.match(/\.app-shell\.pwa-shell \.attendance-simple__clock small\s*\{([^}]*)\}/i)?.[1];
+    const secondaryColor = signatureThemeCss.match(/--signature-dark-text-secondary:\s*(#[\da-f]{6})/i)?.[1];
+    const nexusSurface = shellCss.match(/--nexus-surface:\s*(#[\da-f]{6})/i)?.[1];
     const buttonSurface = shellCss.match(/\.pwa-shell :is\(input,select,textarea,button:not\(\.btn-primary\)\)\s*\{\s*background-color:\s*(#[\da-f]{6})/i)?.[1];
-    expect(helperColor).toBeDefined();
+    expect(helperRule).toContain('color: var(--employee-pwa-text-muted);');
+    expect(employeePwaThemeCss).toContain('--employee-pwa-text-muted: color-mix(in srgb, var(--employee-pwa-text-secondary) 88%, var(--nexus-surface))');
+    expect(secondaryColor).toBeDefined();
+    expect(nexusSurface).toBeDefined();
     expect(buttonSurface).toBeDefined();
-    expect(contrastRatio(helperColor!, buttonSurface!)).toBeGreaterThanOrEqual(4.5);
+    const helperColor = colorMix(secondaryColor!, nexusSurface!, 0.88);
+    expect(contrastRatio(helperColor, buttonSurface!)).toBeGreaterThanOrEqual(7);
   });
 });
