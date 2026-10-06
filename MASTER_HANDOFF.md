@@ -21,7 +21,7 @@
 | #475 | ยังไม่ update; `116dd0a92b7377a2b570d09f144f8f3b4215cd61` | ยังไม่มี CI หลัง update | — | รอ R1 ผ่าน |
 | #476 | ยังไม่ update; `b817d8a9eaa4c148c6541e2a399b3d5338732ab0` | ยังไม่มี CI หลัง update | — | รอ R1 ผ่าน |
 | #477 | ยังไม่ update; `6b6a488462f2098f79d47cc7470ec968dbc98bfa` | ยังไม่มี CI หลัง update | — | รอ R1 ผ่าน |
-| #478 | ยังไม่ update; `9600e2fbd5a1c5071dc25016d3bf70652b9362bf` | ยังไม่มี CI หลัง update; head ปัจจุบันมี CI `37506838166` SUCCESS | — | รอ R1 ผ่าน |
+| #478 | ยังไม่ update branch กับ integration; มี handoff-status commit(s) บน branch | ยังไม่มี CI หลัง update branch; CI `37506838166` SUCCESS บน head `9600e2fbd5a1c5071dc25016d3bf70652b9362bf` ก่อน handoff-status commit(s) | — | รอ R1 ผ่าน |
 
 | Release | SHA | CI run | Production workflow | Deployment ID / เวลา | Post-release checks |
 |---|---|---|---|---|---|
