@@ -800,6 +800,9 @@ router.put('/schedule-approvals/:id', authorize('ADMIN', 'SUPERVISOR'), async (r
     }
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.scheduleApproval.findUniqueOrThrow({ where: { id } });
+      if (['APPROVED', 'REJECTED'].includes(before.status) && input.status !== before.status) {
+        throw new HttpError(409, 'รายการอนุมัติที่พิจารณาแล้วไม่สามารถเปลี่ยนสถานะได้', { code: 'SCHEDULE_APPROVAL_INVALID_STATE' });
+      }
       if (['APPROVED', 'REJECTED'].includes(input.status) && before.status !== 'PENDING') {
         throw new HttpError(409, 'รายการอนุมัติไม่อยู่ในสถานะรออนุมัติ จึงดำเนินการต่อไม่ได้', { code: 'SCHEDULE_APPROVAL_INVALID_STATE' });
       }
@@ -810,7 +813,7 @@ router.put('/schedule-approvals/:id', authorize('ADMIN', 'SUPERVISOR'), async (r
           orderBy: { revision: 'desc' }
         });
         if (newerRevision) {
-          throw new HttpError(409, 'รายการนี้ถูกแทนที่ด้วย revision ที่ใหม่กว่า จึงดำเนินการต่อไม่ได้', { code: 'SCHEDULE_APPROVAL_SUPERSEDED' });
+          throw new HttpError(409, 'รายการนี้มีฉบับที่ใหม่กว่าแล้ว จึงดำเนินการต่อไม่ได้', { code: 'SCHEDULE_APPROVAL_SUPERSEDED' });
         }
       }
       let after;

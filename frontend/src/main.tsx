@@ -2386,7 +2386,8 @@ function Dashboard() {
       return;
     }
     let approvalNote: string | undefined;
-    if (activePage === 'approvals' && action === 'reject') {
+    const isScheduleRejection = activePage === 'approvals' && action === 'reject';
+    if (isScheduleRejection) {
       const reason = await actionDialog.prompt({
         title: 'ไม่อนุมัติตารางกะ',
         message: 'ระบุเหตุผลเพื่อบันทึกประกอบประวัติการพิจารณา',
@@ -2459,7 +2460,7 @@ function Dashboard() {
       : action === 'cancel'
         ? 'ยืนยันยกเลิกคำขอนี้? การดำเนินการจะถูกบันทึกใน Audit'
         : 'ยืนยันการดำเนินการนี้?';
-    const confirmed = await actionDialog.confirm({
+    const confirmed = isScheduleRejection ? true : await actionDialog.confirm({
       title: action === 'delete' ? 'ยืนยันลบรายการ' : action === 'cancel' ? 'ยืนยันยกเลิกคำขอ' : action === 'return' ? 'ส่งกลับให้แก้ไข' : 'ยืนยันการดำเนินการ',
       message: confirmMessage,
       context: `${activePage} · ${id}`,

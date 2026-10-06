@@ -21,7 +21,7 @@ const changeTypeLabels: Record<string, string> = {
 
 const errorMessages: Record<string, string> = {
   SCHEDULE_APPROVAL_INVALID_STATE: 'รายการอนุมัติไม่อยู่ในสถานะรออนุมัติ จึงดำเนินการต่อไม่ได้',
-  SCHEDULE_APPROVAL_SUPERSEDED: 'รายการนี้ถูกแทนที่ด้วย revision ที่ใหม่กว่า จึงดำเนินการต่อไม่ได้',
+  SCHEDULE_APPROVAL_SUPERSEDED: 'รายการนี้มีฉบับที่ใหม่กว่าแล้ว จึงดำเนินการต่อไม่ได้',
   SCHEDULE_REJECTION_REASON_REQUIRED: 'กรุณาระบุเหตุผลการไม่อนุมัติอย่างน้อย 5 ตัวอักษร'
 };
 

@@ -37,7 +37,7 @@ describe('schedule approval presentation and decision guard', () => {
     expect(scheduleApprovalTone('PENDING')).toBe('warning');
     expect(scheduleApprovalTone('SUPERSEDED')).toBe('neutral');
     expect(scheduleApprovalErrorMessage('SCHEDULE_APPROVAL_INVALID_STATE')).toContain('สถานะรออนุมัติ');
-    expect(scheduleApprovalErrorMessage('SCHEDULE_APPROVAL_SUPERSEDED')).toContain('ถูกแทนที่');
+    expect(scheduleApprovalErrorMessage('SCHEDULE_APPROVAL_SUPERSEDED')).toBe('รายการนี้มีฉบับที่ใหม่กว่าแล้ว จึงดำเนินการต่อไม่ได้');
     expect(scheduleApprovalErrorMessage('SCHEDULE_REJECTION_REASON_REQUIRED')).toContain('เหตุผล');
   });
 
@@ -47,6 +47,8 @@ describe('schedule approval presentation and decision guard', () => {
     expect(main).toContain('canDecideScheduleApproval(selectedRow)');
     expect(main).toContain('scheduleApprovalStatusLabel(row.status, superseded)');
     expect(main).toContain('scheduleApprovalChangeTypeLabel(row.changeType)');
+    expect(main).toContain("const isScheduleRejection = activePage === 'approvals' && action === 'reject';");
+    expect(main).toContain('const confirmed = isScheduleRejection ? true : await actionDialog.confirm({');
     expect(main).toContain('minLength: 5');
     expect(main).toContain('approvalNote');
   });

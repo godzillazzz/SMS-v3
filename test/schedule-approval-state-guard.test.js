@@ -142,6 +142,23 @@ test('schedule approval API rejects a decision on an already approved row withou
   assert.equal(state.updateCalls, 0);
 });
 
+for (const status of ['PENDING', 'DRAFT']) {
+  test(`schedule approval API prevents an approved row from reverting to ${status}`, async (t) => {
+    const before = approval('APPROVED', 3);
+    const approvedAt = before.approvedAt;
+    const { app, state } = appFor(t, before);
+    const response = await request(app)
+      .put(`/api/v1/schedule-approvals/${approvalId}`)
+      .send({ status });
+
+    assert.equal(response.status, 409);
+    assert.equal(response.body.details.code, 'SCHEDULE_APPROVAL_INVALID_STATE');
+    assert.deepEqual(state.approval, before);
+    assert.equal(state.approval.approvedAt.getTime(), approvedAt.getTime());
+    assert.equal(state.updateCalls, 0);
+  });
+}
+
 test('schedule approval API rejects a decision on a superseded revision', async (t) => {
   const before = approval('PENDING', 3);
   const { app, state } = appFor(t, before, { id: 'newer-row', revision: 4 });
