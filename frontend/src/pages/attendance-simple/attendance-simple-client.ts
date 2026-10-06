@@ -111,9 +111,7 @@ const ATTENDANCE_SIMPLE_ERROR_MESSAGES: Record<string, string> = {
   ATTENDANCE_LOCATION_ACCURACY_INSUFFICIENT: 'ตำแหน่ง GPS ยังไม่แม่นยำพอ กรุณาลองอีกครั้งในบริเวณที่โล่ง',
   ATTENDANCE_LOCATION_STALE: 'ตำแหน่ง GPS หมดอายุแล้ว กรุณาลองอีกครั้ง',
   ATTENDANCE_LOCATION_ASSURANCE_INSUFFICIENT: 'ยังยืนยันตำแหน่งไม่ได้ กรุณาลองอีกครั้งหรือติดต่อหัวหน้างาน',
-  ATTENDANCE_QR_STEP_UP_REQUIRED: 'กรุณาสแกน QR ของสถานที่ทำงานก่อนลงเวลา',
   ATTENDANCE_DEVICE_PROOF_INVALID: 'ยืนยันอุปกรณ์ไม่สำเร็จ กรุณาลองอีกครั้ง',
-  ATTENDANCE_DEVICE_CHALLENGE_INVALID: 'การยืนยันอุปกรณ์หมดอายุ กรุณาลองอีกครั้ง',
   ATTENDANCE_OFFLINE_BUNDLE_STALE: 'สิทธิ์ลงเวลา Offline หมดอายุหรือไม่ตรงกับกะปัจจุบัน กรุณาเชื่อมต่ออินเทอร์เน็ต',
   ATTENDANCE_OFFLINE_SITE_NOT_AUTHORIZED: 'ไม่สามารถลงเวลา Offline ที่สถานที่นี้ได้ กรุณาเชื่อมต่ออินเทอร์เน็ต',
   ATTENDANCE_OFFLINE_SITE_INACTIVE: 'สถานที่ทำงานนี้ไม่ได้เปิดใช้งาน กรุณาติดต่อหัวหน้างาน'
