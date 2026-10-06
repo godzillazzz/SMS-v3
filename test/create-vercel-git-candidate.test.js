@@ -177,6 +177,26 @@ test('fails closed when project auto-assignment of custom Production domains is 
   await assert.rejects(main({ env, fetchImpl, sleep: async () => {}, now: () => 0 }), /automatic custom Production domain assignment disabled/);
 });
 
+test('waits for a transient Vercel alias to settle to the approved branch alias before accepting the candidate', async () => {
+  let deploymentReads = 0;
+  const sleeps = [];
+  const fetchImpl = async (url) => {
+    if (url.includes('/v9/projects/')) return response(projectRecord());
+    deploymentReads += 1;
+    if (deploymentReads === 1) {
+      return response(candidateRecord({ alias: ['transient-generated.vercel.app'], aliasAssigned: true }));
+    }
+    return response(candidateRecord({
+      alias: ['sms-v3-staging-git-fix-serverless-database-re-662e13-godzillazz.vercel.app'],
+      aliasAssigned: true,
+    }));
+  };
+
+  await main({ env, fetchImpl, sleep: async (ms) => sleeps.push(ms), now: () => 0 });
+  assert.equal(deploymentReads, 2);
+  assert.deepEqual(sleeps, [3000]);
+});
+
 test('fails closed when the canonical Production alias is assigned to the candidate', async () => {
   const fetchImpl = async (url) => {
     if (url.includes('/v9/projects/')) return response(projectRecord());

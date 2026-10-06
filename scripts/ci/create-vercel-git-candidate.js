@@ -145,7 +145,26 @@ async function main({ env = process.env, fetchImpl = globalThis.fetch, sleep = (
     throw new Error(`Production candidate did not become READY (${detail})`);
   }
 
-  const candidate = assertCandidateRecord(record, { projectId, commitSha, commitRef });
+  let candidate;
+  for (let aliasAttempt = 0; aliasAttempt < 20; aliasAttempt += 1) {
+    try {
+      candidate = assertCandidateRecord(record, { projectId, commitSha, commitRef });
+      break;
+    } catch (error) {
+      const message = String(error?.message || '');
+      const aliases = Array.isArray(record.alias) ? record.alias.map(aliasHost) : [];
+      if (aliases.includes(canonicalHost)) throw error;
+      const retryableAliasPropagation = message.includes('unexpected non-branch alias')
+        || message.includes('alias assignment is reported without a branch alias');
+      if (!retryableAliasPropagation || aliasAttempt === 19) throw error;
+      await sleep(3_000);
+      record = await api(`/v13/deployments/${encodeURIComponent(candidateId)}?${query}`);
+      if (record.readyState !== 'READY') {
+        throw new Error(`Production candidate changed state during alias stabilization (${record.readyState || 'missing'})`);
+      }
+    }
+  }
+  assert(candidate, 'candidate alias stabilization ended without a verified candidate');
   process.stdout.write([
     `deployment_id=${candidate.id}`,
     `deployment_url=${candidate.url}`,
