@@ -7,7 +7,7 @@
 - Integration base `fix/serverless-database-reliability` หลัง Phase B: `3ed0585567091e88135bdbc3f7087a589c30e7d4`; SHA นี้มีเฉพาะ Vercel Preview deployment ของ branch.
 - Canonical `sms-v3-staging-ten.vercel.app` ยังรัน `f63c785` โดยมี `VERCEL_ENV=production`; ยังไม่ได้ deploy integration SHA `3ed0585` ไปที่ canonical staging.
 - เฟส A: ปิดรายการที่ระบุใน #470 และ #471 โดยไม่เปิด PR ใหม่.
-- เฟส B: merge #470 → #471 → #472 → #473 เข้า integration branch ตามลำดับ; CI หลัง rebase ผ่านทุก PR. Staging deploy integration SHA ล่าสุดเป็น READY.
+- เฟส B: merge #470 → #471 → #472 → #473 เข้า integration branch ตามลำดับ; CI หลัง rebase ผ่านทุก PR. Integration SHA มี Preview deployment เท่านั้น; canonical staging ยังเป็น `f63c785` (`VERCEL_ENV=production`).
 - เฟส C: เปิด PR แยกตามลำดับ T05 → T01 → T02 → T03 → T06. #474–#477 ผ่าน CI และ Vercel Preview READY; ไม่ merge. #478 เปิดแล้วและ Preview READY บน implementation SHA `cf45f3aadbde45a8855ca055526e1e52503dcb81`; CI ถูกหยุดที่ dependency audit ก่อนเริ่ม tests/build เพราะ `sharp` เวอร์ชันใน base ต่ำกว่าเวอร์ชันแก้ CVE. จึงยังไม่ผ่านเงื่อนไข CI ของ T06.
 - ไม่มีการ deploy Production, promote, แตะ Environment approval หรือเขียนข้อมูลลงฐานข้อมูล staging/Production.
 
