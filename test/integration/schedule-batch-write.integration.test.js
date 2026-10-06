@@ -25,6 +25,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
   const createdIds = {
     user: new Set(),
     employee: new Set(),
+    employeeLicense: new Set(),
     shiftAssignment: new Set(),
     scheduleApproval: new Set(),
     auditLog: new Set()
@@ -74,6 +75,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     await deleteTracked(prisma.auditLog, 'auditLog');
     await deleteTracked(prisma.shiftAssignment, 'shiftAssignment');
     await deleteTracked(prisma.scheduleApproval, 'scheduleApproval');
+    await deleteTracked(prisma.employeeLicense, 'employeeLicense');
     await deleteTracked(prisma.employee, 'employee');
     await deleteTracked(prisma.user, 'user');
 
@@ -81,6 +83,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       [prisma.auditLog, 'auditLog'],
       [prisma.shiftAssignment, 'shiftAssignment'],
       [prisma.scheduleApproval, 'scheduleApproval'],
+      [prisma.employeeLicense, 'employeeLicense'],
       [prisma.employee, 'employee'],
       [prisma.user, 'user']
     ]) {
@@ -156,6 +159,60 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       assert.equal(await prisma.shiftAssignment.findUnique({
         where: { workDate_employeeId: { workDate: new Date(Date.UTC(testMonth.getUTCFullYear(), testMonth.getUTCMonth(), 5)), employeeId: employee.id } }
       }), null);
+
+      const operationalShift = await prisma.shiftType.findFirstOrThrow({
+        where: { isActive: true, code: { notIn: ['OFF', 'AL'] } },
+        orderBy: { code: 'asc' }
+      });
+      const largeBatchEmployees = [employee];
+      for (let index = 1; index < 6; index += 1) {
+        const extra = await prisma.employee.create({
+          data: {
+            employeeCode: `SBW-LARGE-${runToken.slice(0, 8)}-${index}`,
+            firstName: 'Large',
+            lastName: `Batch ${index}`,
+            department: `Integration ${runMarker}`,
+            isActive: true
+          }
+        });
+        createdIds.employee.add(extra.id);
+        largeBatchEmployees.push(extra);
+      }
+
+      const licenseExpiry = new Date(Date.UTC(testMonth.getUTCFullYear(), testMonth.getUTCMonth() + 1, 0));
+      for (const [index, row] of largeBatchEmployees.entries()) {
+        const license = await prisma.employeeLicense.create({
+          data: {
+            legacyLicenseId: `SBW-LIC-${runToken}-${index}`,
+            employeeId: row.id,
+            licenseType: 'Security',
+            licenseNumber: `SBW-${runToken.slice(0, 8)}-${index}`,
+            issueDate: testMonth,
+            expiryDate: licenseExpiry,
+            status: 'Active'
+          }
+        });
+        createdIds.employeeLicense.add(license.id);
+      }
+
+      const largeAssignments = [];
+      for (const row of largeBatchEmployees) {
+        for (let day = 7; day <= 26; day += 1) {
+          largeAssignments.push({
+            employeeId: row.id,
+            shiftTypeId: operationalShift.id,
+            workDate: isoDate(new Date(Date.UTC(testMonth.getUTCFullYear(), testMonth.getUTCMonth(), day))),
+            remark: `${runMarker}:large-batch`
+          });
+        }
+      }
+      assert.equal(largeAssignments.length, 120);
+      const largeWrite = await write(largeAssignments);
+      assert.equal(largeWrite.status, 200, JSON.stringify(largeWrite.body));
+      assert.equal(largeWrite.body.data.count, 120);
+      assert.equal(largeWrite.body.data.data.length, 120);
+      assert.equal(largeWrite.body.data.data.every((row) => row.licenseStatus === 'VALID'), true);
+      for (const record of largeWrite.body.data.data) createdIds.shiftAssignment.add(record.id);
     } finally {
       await cleanupFixtures();
     }

@@ -3,7 +3,7 @@ const HttpError = require('../utils/http-error');
 const { evaluateRulesForAssignments } = require('./schedule-rules.service');
 const audit = require('./audit.service');
 const { licenseStateForWorkDate, loadLicenseAuthorityByEmployee } = require('./license-state.service');
-const { ensureEmployeeOperationalForShift } = require('./employee-operational-eligibility.service');
+const { NON_OPERATIONAL_SHIFT_CODES, createEmployeeProjectedStateResolver, ensureEmployeeOperationalForShift } = require('./employee-operational-eligibility.service');
 const { createSchedulePersonnelResolver, enrichScheduleAssignments } = require('./schedule-personnel-history.service');
 const { loadCalendarRoster } = require('./schedule-roster.service');
 
@@ -111,6 +111,15 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
     });
     const existingAssMap = new Map(existingAssList.map(a => [`${a.workDate.toISOString().slice(0, 10)}|${a.employeeId}`, a]));
     const resolvePersonnel = await createSchedulePersonnelResolver(tx, employees);
+    const operationalRows = assignments
+      .map((ass) => {
+        const shift = typeMap.get(ass.shiftTypeId);
+        return shift ? { employeeId: ass.employeeId, workDate: ass.workDate, shiftCode: String(shift.code || '').toUpperCase() } : null;
+      })
+      .filter((row) => row && !NON_OPERATIONAL_SHIFT_CODES.has(row.shiftCode));
+    const resolveProjectedState = operationalRows.length
+      ? await createEmployeeProjectedStateResolver(tx, operationalRows)
+      : null;
 
     const monthChangeStats = {};
 
@@ -155,7 +164,7 @@ async function saveBatchAssignments(assignments, actorUserId, actorRole = 'ADMIN
       }
 
       const shiftCode = String(shift.code || '').toUpperCase();
-      await ensureEmployeeOperationalForShift(tx, { employeeId: ass.employeeId, workDate: parsedDate, shiftCode });
+      await ensureEmployeeOperationalForShift(tx, { employeeId: ass.employeeId, workDate: parsedDate, shiftCode, projectedStateResolver: resolveProjectedState });
       let licenseStatus = 'VALID';
       let licenseExpiryDate = null;
       let licenseOverride = Boolean(ass.licenseOverride);
