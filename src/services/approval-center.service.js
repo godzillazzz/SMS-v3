@@ -36,6 +36,16 @@ function approvalUrgency(submittedAt, now = new Date(), thresholds = { dueSoonHo
   return { ageHours, urgency: 'NEW' };
 }
 
+async function latestScheduleApprovalConditions(prisma) {
+  const latestByMonth = await prisma.scheduleApproval.groupBy({
+    by: ['month'],
+    _max: { revision: true }
+  });
+  return latestByMonth
+    .filter((row) => row?._max?.revision != null)
+    .map((row) => ({ month: row.month, revision: row._max.revision }));
+}
+
 function employeeSummary(employee) {
   return employee ? {
     id: employee.id,
@@ -155,6 +165,15 @@ function createApprovalCenterService({
       return Number(result?.meta?.total || 0);
     };
 
+    const scheduleApprovalTask = async () => {
+      if (!allowed('SCHEDULE_APPROVAL')) return 0;
+      const latestRevisions = await latestScheduleApprovalConditions(prisma);
+      if (!latestRevisions.length) return 0;
+      return prisma.scheduleApproval.count({
+        where: { status: 'PENDING', OR: latestRevisions }
+      });
+    };
+
     const [
       employeeMasterChanges,
       referencePhotos,
@@ -163,7 +182,8 @@ function createApprovalCenterService({
       registrationRequests,
       userAccessRequests,
       leaveRequests,
-      attendanceAdjustmentRequests
+      attendanceAdjustmentRequests,
+      scheduleApprovals
     ] = await runApprovalQueries([
       () => allowed('EMPLOYEE_MASTER_CHANGE') ? prisma.employeeChangeRequest.count({ where: { status: 'PENDING_APPROVAL' } }) : 0,
       () => allowed('EMPLOYEE_REFERENCE_PHOTO') ? prisma.employeeReferencePhoto.count({ where: { status: 'PENDING_APPROVAL' } }) : 0,
@@ -172,14 +192,15 @@ function createApprovalCenterService({
       () => allowed('REGISTRATION_REQUEST') ? prisma.registrationRequest.count({ where: { status: { in: ['PENDING', 'MATCHED'] }, emailVerifiedAt: { not: null } } }) : 0,
       () => allowed('USER_ACCESS') ? prisma.user.count({ where: { accountStatus: 'PENDING' } }) : 0,
       managerLeaveTask,
-      attendanceAdjustmentTask
+      attendanceAdjustmentTask,
+      scheduleApprovalTask
     ]);
 
     const byType = {
       EMPLOYEE_MASTER_CHANGE: employeeMasterChanges,
       EMPLOYEE_REFERENCE_PHOTO: referencePhotos,
       LICENSE_DOCUMENT: licenseDocuments,
-      SCHEDULE_APPROVAL: 0,
+      SCHEDULE_APPROVAL: scheduleApprovals,
       ATTENDANCE_DEVICE_REQUEST: attendanceDeviceRequests,
       ATTENDANCE_ADJUSTMENT_REQUEST: attendanceAdjustmentRequests,
       REGISTRATION_REQUEST: registrationRequests,
@@ -306,6 +327,16 @@ function createApprovalCenterService({
     const attendanceAdjustmentsTask = () => allowed('ATTENDANCE_ADJUSTMENT_REQUEST')
       ? listAttendanceAdjustments({ actor, status: 'PENDING_APPROVAL', page: 1, pageSize: 100 })
       : Promise.resolve({ data: [], meta: { total: 0 } });
+    const scheduleApprovalsTask = async () => {
+      if (!allowed('SCHEDULE_APPROVAL')) return [0, []];
+      const latestRevisions = await latestScheduleApprovalConditions(prisma);
+      if (!latestRevisions.length) return [0, []];
+      return listWithOverflowCount(prisma.scheduleApproval, {
+        where: { status: 'PENDING', OR: latestRevisions },
+        select: { id: true, month: true, status: true, revision: true, changedAt: true, changeType: true, createdAt: true },
+        orderBy: [{ changedAt: 'asc' }, { month: 'asc' }, { revision: 'asc' }]
+      });
+    };
 
     const [
       [employeeChangeTotal, employeeChanges],
@@ -315,7 +346,8 @@ function createApprovalCenterService({
       [registrationTotal, registrations],
       [userAccessTotal, users],
       [rawLeaveTotal, rawLeaves],
-      attendanceAdjustments
+      attendanceAdjustments,
+      [scheduleApprovalTotal, scheduleApprovals]
     ] = await runApprovalQueries([
       employeeChangesTask,
       referencePhotosTask,
@@ -324,7 +356,8 @@ function createApprovalCenterService({
       registrationTask,
       userAccessTask,
       leaveTask,
-      attendanceAdjustmentsTask
+      attendanceAdjustmentsTask,
+      scheduleApprovalsTask
     ]);
 
     const leaves = role === 'ADMIN'
@@ -504,6 +537,25 @@ function createApprovalCenterService({
       }, now, policies.get('ATTENDANCE_ADJUSTMENT_REQUEST')));
     }
 
+    for (const row of scheduleApprovals) {
+      const monthLabel = new Intl.DateTimeFormat('th-TH', {
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Bangkok'
+      }).format(new Date(row.month));
+      items.push(withAge({
+        id: 'schedule-approval:' + row.id,
+        requestId: row.id,
+        type: 'SCHEDULE_APPROVAL',
+        title: `ตารางกะ ${monthLabel} ฉบับที่ ${row.revision}`,
+        status: row.status,
+        sourcePage: 'approvals',
+        submittedAt: row.changedAt || row.createdAt,
+        revision: row.revision,
+        metadata: { month: row.month, revision: row.revision, changeType: row.changeType || null }
+      }, now, policies.get('SCHEDULE_APPROVAL')));
+    }
+
     items.sort((a, b) => {
       const urgency = (PRIORITY[b.urgency] || 0) - (PRIORITY[a.urgency] || 0);
       if (urgency) return urgency;
@@ -514,7 +566,7 @@ function createApprovalCenterService({
       EMPLOYEE_MASTER_CHANGE: employeeChangeTotal,
       EMPLOYEE_REFERENCE_PHOTO: referencePhotoTotal,
       LICENSE_DOCUMENT: licenseDocumentTotal,
-      SCHEDULE_APPROVAL: 0,
+      SCHEDULE_APPROVAL: scheduleApprovalTotal,
       ATTENDANCE_DEVICE_REQUEST: attendanceDeviceTotal,
       ATTENDANCE_ADJUSTMENT_REQUEST: Number(attendanceAdjustments?.meta?.total || 0),
       REGISTRATION_REQUEST: registrationTotal,
@@ -534,7 +586,7 @@ function createApprovalCenterService({
         registrationRequests: byType.REGISTRATION_REQUEST,
         userAccessRequests: byType.USER_ACCESS,
         licenseDocuments: byType.LICENSE_DOCUMENT,
-        scheduleApprovals: 0,
+        scheduleApprovals: byType.SCHEDULE_APPROVAL,
         attendanceDeviceRequests: byType.ATTENDANCE_DEVICE_REQUEST,
         attendanceAdjustmentRequests: byType.ATTENDANCE_ADJUSTMENT_REQUEST,
         dueSoon: items.filter((item) => item.urgency === 'DUE_SOON').length,
