@@ -516,3 +516,123 @@ The next security/product task after the proven Production Attendance flow is:
 **G06.1 — Anti-Buddy-Punching Hardening, Phase 0 architecture/threat-model audit.**
 
 Authenticated ADMIN/MANAGER/VIEWER E2E and optional physical offline resilience validation remain useful follow-up validation, but they do not replace the G06.1 anti-buddy-punching phase and are not the definition of G06.1.
+
+
+## CLOSED — Schedule Large-Batch Save Production Fix — 2026-10-06
+
+### Final status
+
+**CLOSED / PRODUCTION LIVE / BUSINESS LOGIC PRESERVED**
+
+The Owner-reported failure to save Schedule batches above roughly 60 assignments has been permanently addressed and promoted through the governed Production release path.
+
+### Root cause
+
+There was no business rule or validation cap of 60 assignments.
+
+The active Schedule UI submitted the entire edited Schedule draft to `POST /api/v1/schedules/batch` as one atomic request. Inside the backend transaction, operational employee lifecycle state was previously queried repeatedly per assignment before each `ShiftAssignment.upsert`. For larger batches this created N+1 database round trips inside the existing 60-second Prisma interactive-transaction / serverless execution boundary.
+
+The fix removes those repeated lifecycle reads by bulk-loading employee/lifecycle evidence once per transaction and resolving projected state in memory while retaining the existing `ensureEmployeeOperationalForShift()` business decision gate.
+
+### Business-rule lock
+
+This release intentionally did **not** solve the issue by relaxing behavior:
+
+- no Schedule batch hard cap was added;
+- no transaction/serverless timeout was increased;
+- no frontend chunking was introduced;
+- the batch remains atomic;
+- OFF / AL non-operational bypass semantics remain unchanged;
+- employee lifecycle ACTIVE / TERMINATED projection semantics remain unchanged, including same-date lifecycle sequence ordering;
+- License validation/override behavior remains unchanged;
+- ScheduleApproval reset / AL-only semantics remain unchanged;
+- Audit and rollback behavior remain unchanged;
+- no API contract or database schema changed.
+
+### Validation evidence
+
+Application PR **#466 — Fix large schedule batch timeout**:
+
+- final PR-head SHA: `4d6f511a4238e4679bc4028ef57fc13a3e5753fa`;
+- application merge SHA: `f63c785e8af1d63f3d27754c66709e6a0d9b3443`;
+- application tree: `896fd370fe8a0c26b153a245fbeeba3c47499359`;
+- PR-head CI: `37398937027` — SUCCESS;
+- exact application-merge CI: `37399279989` — SUCCESS;
+- exact merge technical smoke: `37399537515` — SUCCESS;
+- exact merge Preview: `dpl_9z9FUgogmkV8w2g27dVo9kuk4Yp5` — READY.
+
+The PostgreSQL 16 integration suite exercised **120 operational Schedule assignments in a single batch** (6 employees × 20 work dates) with valid Licenses and asserted:
+
+- HTTP 200;
+- saved count = 120;
+- returned assignment count = 120;
+- License status = VALID for every returned assignment.
+
+Focused parity/safety tests also verified that the bulk projected-state resolver matches the pre-existing projected lifecycle semantics and that OFF/AL/inactive/deleted employee behavior remains unchanged.
+
+### Dependency audit closure
+
+Two newly surfaced dependency advisories blocked CI before the Schedule integration gate and were patched without framework/business-code upgrades:
+
+- backend `proxy-addr` lock resolution: `2.0.7 -> 2.0.8`;
+- frontend `source-map-js` lock resolution: `1.2.1 -> 1.2.2`.
+
+Both backend and frontend high/critical dependency audit gates passed after the lock-only updates.
+
+### Governed Production release
+
+Release-control PR **#467**:
+
+- release-control branch SHA: `c45b00c806e5d7fc54fd36c8f22d0047fd1e3238`;
+- release-control merge SHA: `01085b486d8e0ff19622b53e54c7795618276b4f`;
+- PR control CI: `37400009131` — SUCCESS;
+- exact control-plane merge CI: `37400212302` — SUCCESS;
+- approved release id: `sms-v3-prod-f63c785e8af1-20261006`.
+
+Protected Production workflow:
+
+- workflow run: `37400666492` — **SUCCESS**;
+- GitHub Environment protection: `production-sms-v3-staging`;
+- normal Owner Environment approval used; no protection bypass;
+- exact prebuilt artifact / feature sentinels: PASS;
+- immutable Production candidate creation: PASS;
+- explicit promotion: PASS;
+- canonical Production verification: PASS;
+- automatic rollback: **not used**.
+
+### Current Production
+
+Canonical technical URL:
+
+`https://sms-v3-staging-ten.vercel.app`
+
+Current canonical deployment:
+
+- deployment id: `dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK`;
+- state: READY;
+- target: production;
+- native GitHub source SHA: `f63c785e8af1d63f3d27754c66709e6a0d9b3443`;
+- source ref: `fix/serverless-database-reliability`;
+- Vercel project: `prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s`.
+
+Independent post-deploy checks:
+
+- `/api/v1/health`: status ok;
+- `/api/v1/ready`: status ready / database ok;
+- trusted canonical-origin CORS preflight: HTTP 204;
+- untrusted `https://evil.example`: HTTP 403.
+
+Verified rollback checkpoint preserved READY:
+
+- `dpl_6vduk7ttKLL6sw2y5FDE6xYu42TY`;
+- native source SHA: `85a080c338cc0d2d8ba728b181d29626880a79b2`.
+
+No Production employee/schedule/attendance business data, database schema, Environment/secret, authentication policy, device-binding policy, G06 biometric authority, or GPS/geofence policy was changed to deliver or verify this fix.
+
+### Roadmap continuity
+
+This Schedule incident is CLOSED and does not supersede the current security roadmap.
+
+The next security/product phase remains:
+
+**G06.1 — Anti-Buddy-Punching Hardening, Phase 0 architecture/threat-model audit — OPEN / NEXT PHASE.**
