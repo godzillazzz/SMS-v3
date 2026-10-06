@@ -3242,6 +3242,11 @@ function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
+                  <tr className="schedule-department-group-row print-department-group-row">
+                    <th className="schedule-department-group-sticky" scope="rowgroup" colSpan={printData.dates.length + 4}>
+                      {dept || 'ไม่ระบุแผนก'} · {deptEmployees.length} คน
+                    </th>
+                  </tr>
                   {deptEmployees.map((employee, idx) => {
                     const employeeShifts = Array.isArray(employee.shifts) ? (employee.shifts as DataRow[]) : [];
                     let totalHours = 0;
