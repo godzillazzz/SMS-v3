@@ -2,11 +2,51 @@
 
 อัปเดต 6 ตุลาคม 2569 (UTC)
 
-## สถานะปัจจุบัน
+## OPEN — R1/R2 task stopped before Phase C rebase (6 October 2026, 17:50 UTC / 7 October 2026, 00:50 Bangkok)
 
-- Integration branch `fix/serverless-database-reliability` head หลัง Phase B: `3ed0585567091e88135bdbc3f7087a589c30e7d4`; SHA นี้มีเฉพาะ Vercel Preview deployment ของ branch.
+- Owner-provided Production facts: `sms-v3-staging-ten.vercel.app` is live Production at `f63c785e8af1d63f3d27754c66709e6a0d9b3443` (`VERCEL_ENV=production`); `3ed0585567091e88135bdbc3f7087a589c30e7d4` was Preview only. The rollback URL for R1 is `https://sms-v3-staging-bgyhhtjad-godzillazz.vercel.app` at `f63c785`.
+- Phase A: handoff facts corrected.
+- Phase B complete: PR #479 pinned sharp to 0.35.5, made the Linux guard read an exact root `dependencies.sharp` pin, added mismatch/range tests, and corrected the Production workflow's schema/migration baseline from stale `70d1113` to the actual live source `f63c785`. Verified `f63c785..3ed0585` has no Prisma schema/migration diff. The two excluded workflows remain unchanged and still hard-code sharp 0.35.4: `.github/workflows/deploy-date-format-preview.yml` and `.github/workflows/one-time-g06-v4-staged-production.yml`; they are not the R1/R2 deploy/promote path.
+- PR #479 head `839891cf7ef40202d5e5be303e3f67bfa03375d2`: CI `37505539698` SUCCESS; Preview READY: [deployment](https://sms-v3-staging-git-fix-maintenance-sharp-0-35-1c06ac-godzillazz.vercel.app); normal merge commit `fd14d4557bb76bc02d81e0acb32829090595db89`.
+- CI on the new integration base `fd14d4557bb76bc02d81e0acb32829090595db89` also passed: run `37505866684`. Integration branch currently points to this SHA.
+- Linux evidence after clean Node 22/npm 10 `npm ci`: sharp 0.35.5 and `@img/sharp-linux-x64/sharp.node` loaded; the Linux libvips binary resolved; root/frontend high-level audits found 0 vulnerabilities; focused Linux guard tests passed 8/8; frontend tests passed 835/835 and production build passed. Local root `npm test` had 1,254 pass / 24 fail due absent local test DB/config and PowerShell service; exact CI passed with its disposable test environment.
+- No local Vercel CLI/artifact was available. The exact `.vercel/output --require-sharp-load` gate remains in the protected `deploy-production.yml` release workflow and must pass before promotion (fail-closed).
+- Phase C stopped before rebasing #474. Its remote head `917e158dcf325481789595415bc9a65d1661cf37` is based on `3ed0585`; new base `fd14d45` is not its ancestor. Rebase would rewrite the published PR head and require a non-fast-forward update, which the task expressly forbids. No force-push or alternative PR/merge path was attempted. Phase C merge and dependent Phases D–G remain OPEN; no R1/R2 SHA exists.
+- Phase D instruction is to skip T22 benchmarking; no benchmark was run, and the 15-second threshold remains unmeasured.
+- No Production workflow, promotion, Environment review, rollback, or Production business-data mutation occurred in this run. Current Production is still reported as `f63c785`. Last documented Production deployment ID is `dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK` (from the 6 October release handoff); re-verify its live association before any future release.
+- Owner decision: October Schedule item in `PENDING` with note `G06 UAT` is expected to appear in the bell after R1; Owner must decide how that pending item should be handled. No approval or business-data change was performed.
+- Overall handoff state remains **OPEN** until an authorized no-force method for updating/replacing PR #474 is decided and the gated releases are completed.
+
+### PR evidence at stop
+
+| PR | SHA after rebase | CI run for this sequence | Merge commit | State |
+|---|---|---|---|---|
+| #479 | N/A — created from base `3ed0585` | `37505539698` SUCCESS | `fd14d4557bb76bc02d81e0acb32829090595db89` | Merged normally; Preview READY |
+| #474 | Not rebased | Not run after rebase | — | Open; blocked by no-force rebase update |
+| #475 | Not rebased | Not run after rebase | — | Open; Phase F not reached |
+| #476 | Not rebased | Not run after rebase | — | Open; Phase F not reached |
+| #477 | Not rebased | Not run after rebase | — | Open; Phase F not reached |
+| #478 | Not rebased | Not run after rebase | — | Open; Phase F not reached |
+
+### R1 / R2 release evidence at stop
+
+| Release | SHA | CI run | Production workflow run | Deployment ID / time | Post-release checks |
+|---|---|---|---|---|---|
+| R1 | Not assigned; Phase C did not complete | — | Not started | — | E1–E4 not checked; no rollback |
+| R2 | Not reached | — | Not started | — | G1–G5 not checked; no rollback |
+
+Rollback reference is the owner-provided canonical target `https://sms-v3-staging-bgyhhtjad-godzillazz.vercel.app` at SHA `f63c785`. The 6 October handoff last recorded Production deployment ID `dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK` for that source; verify its live association before a future release.
+
+### Owner decisions still open
+
+- Resolve the no-force update path for PR #474 (for example, authorize a replacement PR/branch workflow in a future task). Do not force-update the existing remote PR branch under this task.
+- Review the October Schedule item in `PENDING` with note `G06 UAT`; it is expected to appear in the bell after R1. No approval, cancellation, or data change was performed.
+
+## สถานะก่อนงาน R1/R2 (ข้อมูลย้อนหลัง ณ 6 ตุลาคม 2569)
+
+- Integration branch `fix/serverless-database-reliability` currently points to `fd14d4557bb76bc02d81e0acb32829090595db89` after PR #479; base CI `37505866684` passed. The earlier SHA `3ed0585567091e88135bdbc3f7087a589c30e7d4` had only a Vercel Preview deployment.
 - Production URL `sms-v3-staging-ten.vercel.app` ซึ่งผู้ใช้จริงใช้งานยังรัน SHA `f63c785` (`VERCEL_ENV=production`). Canonical deployment/rollback target คือ `sms-v3-staging-bgyhhtjad-godzillazz.vercel.app` ที่ SHA `f63c785`.
-- ห้ามเริ่มปล่อยในช่วง 06:30–07:30 หรือ 18:30–19:30 เวลาไทย; หากคาดว่าจะไม่เสร็จก่อน 06:30 ให้หยุดก่อนเริ่มปล่อย.
+- กติกางานล่าสุด: ห้ามเริ่ม Production release รอบใหม่หลัง 07:00 เวลาไทย; หากยังไม่เริ่มเมื่อถึงเวลา ให้หยุดที่พร้อมปล่อย. Rollback ฉุกเฉินทำได้ทุกเวลา.
 - เฟส A: ปิดรายการที่ระบุใน #470 และ #471 โดยไม่เปิด PR ใหม่.
 - เฟส B: merge #470 → #471 → #472 → #473 เข้า integration branch ตามลำดับ; CI หลัง rebase ผ่านทุก PR. Integration SHA มี Preview deployment เท่านั้น; ไม่ได้ปล่อย SHA นี้ไป Production.
 - เฟส C: เปิด PR แยกตามลำดับ T05 → T01 → T02 → T03 → T06. #474–#477 ผ่าน CI และ Vercel Preview READY; ไม่ merge. #478 เปิดแล้วและ Preview READY บน implementation SHA `cf45f3aadbde45a8855ca055526e1e52503dcb81`; CI ถูกหยุดที่ dependency audit ก่อนเริ่ม tests/build เพราะ `sharp` เวอร์ชันใน base ต่ำกว่าเวอร์ชันแก้ CVE. จึงยังไม่ผ่านเงื่อนไข CI ของ T06.
