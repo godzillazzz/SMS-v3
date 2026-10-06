@@ -33,6 +33,10 @@ type PromptState = { kind: 'prompt'; options: PromptDialogOptions; value: string
 type DialogState = ConfirmState | PromptState;
 type DialogResolution = boolean | string | null;
 
+export function isActionDialogPromptValid(value: string, minLength = 0) {
+  return value.trim().length >= Math.max(0, minLength || 0);
+}
+
 function ActionDialogPortal({
   state,
   onCancel,
@@ -53,6 +57,7 @@ function ActionDialogPortal({
   });
   const tone = options.tone || 'default';
   const confirmClass = tone === 'danger' ? 'btn-danger' : tone === 'warning' ? 'btn-warning' : 'btn-primary';
+  const promptValid = state.kind !== 'prompt' || isActionDialogPromptValid(state.value, state.options.minLength);
 
   const content = <div className="sms-action-dialog-backdrop" role="presentation" onMouseDown={(event) => {
     if (event.target === event.currentTarget) onCancel();
@@ -102,7 +107,7 @@ function ActionDialogPortal({
       </div>
       <footer className="sms-action-dialog__actions">
         <button type="button" className="btn-neutral" onClick={onCancel}>{options.cancelLabel || 'ยกเลิก'}</button>
-        <button type="button" className={confirmClass} data-action-dialog-confirm onClick={onConfirm}>{options.confirmLabel || 'ยืนยัน'}</button>
+        <button type="button" className={confirmClass} data-action-dialog-confirm onClick={onConfirm} disabled={!promptValid}>{options.confirmLabel || 'ยืนยัน'}</button>
       </footer>
     </section>
   </div>;
@@ -159,9 +164,8 @@ export function useActionDialog() {
       settle(true);
       return;
     }
-    const trimmed = state.value.trim();
     const minLength = Math.max(0, state.options.minLength || 0);
-    if (trimmed.length < minLength) {
+    if (!isActionDialogPromptValid(state.value, minLength)) {
       setState({ ...state, validationError: `กรุณาระบุอย่างน้อย ${minLength} ตัวอักษร` });
       return;
     }

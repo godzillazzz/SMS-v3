@@ -50,7 +50,8 @@ describe('Q12-C native dialog replacement contracts', () => {
   it('provides validated prompt semantics and responsive in-app presentation', () => {
     expect(actionDialog).toContain('state.options.minLength');
     expect(actionDialog).toContain('validationError');
-    expect(actionDialog).toContain('state.value.trim()');
+    expect(actionDialog).toContain('value.trim().length >= Math.max(0, minLength || 0)');
+    expect(actionDialog).toContain('isActionDialogPromptValid(state.value, state.options.minLength)');
     expect(actionDialog).toContain('maxLength={state.options.maxLength}');
     expect(actionDialogCss).toContain('@media (max-width: 640px)');
     expect(actionDialogCss).toContain('.sms-action-dialog__validation');
@@ -87,7 +88,8 @@ describe('Q12-C native dialog replacement contracts', () => {
   });
 
   it('keeps safe request error handling on the governed main and employee flows', () => {
-    expect(main).toContain("setOperationError(toRequestErrorState(reason, 'ดำเนินการไม่สำเร็จ'))");
+    expect(main).toContain("const requestError = toRequestErrorState(reason, 'ดำเนินการไม่สำเร็จ')");
+    expect(main).toContain('setOperationError(localizedMessage ? { ...requestError, message: localizedMessage } : requestError)');
     expect(main).toContain("setOperationError(toRequestErrorState(reason, 'อนุมัติตารางไม่สำเร็จ'))");
     expect(employeeGoverned).toContain("setError(toRequestErrorState(cause, 'ยกเลิกคำขอไม่สำเร็จ'))");
   });

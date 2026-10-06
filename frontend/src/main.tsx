@@ -25,6 +25,7 @@ import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
+import { canDecideScheduleApproval, isSupersededScheduleApproval, scheduleApprovalChangeTypeLabel, scheduleApprovalErrorMessage, scheduleApprovalStatusLabel, scheduleApprovalTone } from './approval-display';
 import { isG06DeviceContextDiagnosticRequested, shouldOpenG06DeviceContextDiagnostic } from './lib/g06-device-context-diagnostic-route';
 import { readEncryptedBootstrap } from './pages/attendance-simple/attendance-simple-storage';
 import type { SimpleBootstrap } from './pages/attendance-simple/attendance-simple-client';
@@ -552,6 +553,8 @@ const leaveTypeDisplayText = (row: DataRow) => {
 
 const semanticStatusTone = (value: unknown) => {
   const status = String(value ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+  const scheduleTone = scheduleApprovalTone(value);
+  if (scheduleTone) return scheduleTone;
   if (['APPROVED', 'ACTIVE', 'COMPLETED', 'COMPLETE', 'DONE', 'VALID', 'ENABLED', 'SUCCESS'].includes(status)) return 'success';
   if (['PENDING', 'WAITING', 'SUBMITTED', 'REQUESTED', 'IN_REVIEW', 'UNDER_REVIEW'].includes(status)) return 'warning';
   if (['EXPIRING', 'ATTENTION', 'DUE_SOON', 'RETURNED_FOR_CORRECTION'].includes(status)) return 'attention';
@@ -892,8 +895,8 @@ const tablePages: Record<OperationalPage, { title: string; eyebrow: string; desc
   ] },
   approvals: { title: 'อนุมัติตารางกะ', eyebrow: 'ตารางและกฎการทำงาน', description: 'ประวัติสถานะและ revision การอนุมัติตาราง', columns: [
     { label: 'เดือน', value: (row) => date(row.month) }, { label: 'Revision', value: (row) => text(row.revision) },
-    { label: 'สถานะ', value: (row) => <span className={`status-badge status-badge--${semanticStatusTone(row.status)}`}>{text(row.status)}</span> },
-    { label: 'ประเภทการเปลี่ยน', value: (row) => text(row.changeType) }, { label: 'อนุมัติเมื่อ', value: (row) => date(row.approvedAt) }, { label: 'หมายเหตุ', value: (row) => text(row.approvalNote) }
+    { label: 'สถานะ', value: (row) => { const superseded = isSupersededScheduleApproval(row); return <span className={`status-badge status-badge--${superseded ? 'neutral' : semanticStatusTone(row.status)}`}>{scheduleApprovalStatusLabel(row.status, superseded)}</span>; } },
+    { label: 'ประเภทการเปลี่ยน', value: (row) => scheduleApprovalChangeTypeLabel(row.changeType) }, { label: 'อนุมัติเมื่อ', value: (row) => date(row.approvedAt) }, { label: 'หมายเหตุ', value: (row) => text(row.approvalNote) }
   ] },
   rules: { title: 'กฎการทำงาน', eyebrow: 'ตารางและกฎการทำงาน', description: 'กฎที่ใช้ตรวจสอบและจัดตารางกำลังคน', columns: [
     { label: 'รหัสกฎ', value: (row) => text(row.ruleId) }, { label: 'ชื่อกฎ', value: (row) => text(row.name) },
@@ -945,7 +948,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
   const canEditRows = canManage && (page !== 'approvals' || role === 'ADMIN');
   const rowActions = (row: DataRow) => {
     if (!canEditRows || !actionPages.includes(page)) return null;
-    if (page === 'approvals') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
+    if (page === 'approvals') return canDecideScheduleApproval(row) ? <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></> : null;
     if (page === 'leave') return <><button className="btn-success compact" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className="btn-danger-outline compact" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>;
     if (page === 'rules') return <><button className="btn-info-outline data-row-primary-action" onClick={() => onAction(row, 'edit')}>แก้ไข</button><button className="btn-neutral" onClick={() => onAction(row, 'toggle')}>{row.enabled ? 'ปิดใช้' : 'เปิดใช้'}</button></>;
     if (page === 'licenses') return <><button className="btn-info-outline data-row-primary-action" aria-label="แก้ไขใบอนุญาต" onClick={() => (onEditLicense ? onEditLicense(row) : onAction(row, 'edit'))}>จัดการ</button>{role === 'ADMIN' && <DataRowActionMenu label="การทำงานเพิ่มเติมของใบอนุญาต" actions={[{ label: 'ลบใบอนุญาต', tone: 'danger', onSelect: () => onAction(row, 'delete') }]} />}</>;
@@ -998,7 +1001,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     else if (page === 'quota') primaryAction = { label: 'แก้ไขโควตา', icon: 'edit', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
     else if (page === 'rules') primaryAction = { label: 'แก้ไขกฎ', icon: 'edit', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
     else if (page === 'schedule') primaryAction = { label: 'แก้ไขกะ', icon: 'calendar', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'edit'); } };
-    else if (page === 'approvals') {
+    else if (page === 'approvals' && canDecideScheduleApproval(selectedRow)) {
       primaryAction = { label: 'อนุมัติ', icon: 'check', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'approve'); } };
       secondaryActions.push({ label: 'ไม่อนุมัติ', tone: 'danger', icon: 'close', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'reject'); } });
     } else if (page === 'leave') primaryAction = { label: 'อนุมัติ', icon: 'check', onSelect: () => { const row = selectedRow; closeDrawer(); onAction(row, 'approve'); } };
@@ -1065,7 +1068,7 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     {page === 'licenses' && <div className="toolbar data-toolbar signature-filter-bar"><label className="search-box data-search-control"><span aria-hidden="true"><SmsIcon name="search" size={17} /></span><input aria-label="ค้นหาใบอนุญาต" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ" /></label><label className="license-employee-status-filter"><span>สถานะพนักงาน</span><select aria-label="กรองสถานะพนักงาน" value={licenseEmployeeStatus} onChange={(event) => { onLicenseEmployeeStatusChange?.(event.target.value as LicenseEmployeeStatus); onPageChange(1); }}><option value="ACTIVE">ปฏิบัติงาน</option><option value="INACTIVE">พ้นสภาพ</option><option value="ALL">ทั้งหมด</option></select></label><span className="toolbar-count data-result-count">แสดง {visibleRows.length} จาก {rows.length} รายการ</span>{tableSearch && <button className="btn-neutral small-action" type="button" onClick={() => setTableSearch('')}>ล้างคำค้นหา</button>}</div>}
     {shouldRenderLicenseSurface() ? licenseSurface : shouldRenderQuotaSurface() ? quotaSurface : shouldRenderApprovalSurface() ? approvalSurface : <div className="table-card data-surface-card signature-data-surface">{loading ? <div className="signature-table-skeleton" role="status" aria-label="กำลังอ่านข้อมูล">{Array.from({ length: 6 }, (_, index) => <span key={index} />)}</div> : <><div className="table-scroll data-table-scroll"><table className="data-table data-surface-table signature-data-table"><thead><tr>{config.columns.map((column) => <th key={column.label}>{column.label}</th>)}{showActions && <TableActionHeader label="ดำเนินการ" />}</tr></thead><tbody>{visibleRows.length ? visibleRows.map((row, index) => <tr key={text(row.id) + index} className="signature-data-row" data-operational-row={text(row.id)} tabIndex={0} aria-label={`เปิดรายละเอียด ${config.title}`} onClick={() => selectRow(row)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectRow(row); } }}>{config.columns.map((column) => <td key={column.label}>{tableValue(row, column)}</td>)}{showActions && <TableActionCell className="row-actions data-row-actions" onClick={(event) => event.stopPropagation()}>{rowActions(row)}</TableActionCell>}</tr>) : <tr><td colSpan={config.columns.length + (showActions ? 1 : 0)} className="no-rows data-table-empty-cell"><div className="empty-state data-state data-state--empty"><span aria-hidden="true">⌁</span><strong>{noResultsMessage}</strong><p>{page === 'licenses' && tableSearch ? 'ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองแล้วค้นหาอีกครั้ง' : 'ยังไม่มีรายการที่ต้องดำเนินการในขอบเขตนี้'}</p>{canCreate && !(page === 'licenses' && tableSearch) && <button className="btn-neutral small-action" onClick={onCreate}>{createLabel}</button>}</div></td></tr>}</tbody></table></div><div className="signature-mobile-records">{visibleRows.map((row) => <button type="button" key={`mobile-${text(row.id)}`} className="signature-mobile-record" data-operational-row={text(row.id)} onClick={() => selectRow(row)}><span className="signature-mobile-record__eyebrow">{config.eyebrow}</span><strong>{text(row.employeeNameSnapshot || row.name || row.displayName || row.ruleType || row.id)}</strong><div>{config.columns.slice(0, 3).map((column) => <span key={column.label}><small>{column.label}</small>{tableValue(row, column)}</span>)}</div><em>แตะเพื่อเปิดรายละเอียด</em></button>)}</div></>}</div>}
     {(page === 'licenses' || page === 'quota' || page === 'approvals') ? <DataTablePagination page={currentPage} totalPages={totalPages} onChange={onPageChange} ariaLabel={page === 'quota' ? 'แบ่งหน้าโควตาวันลา' : page === 'approvals' ? 'แบ่งหน้าประวัติการอนุมัติตารางกะ' : 'แบ่งหน้าใบอนุญาต'} loading={loading} className="pagination-bar" /> : totalPages > 1 && <div className="pagination-bar data-pagination"><button aria-label="หน้าก่อนหน้า" disabled={currentPage <= 1 || loading} onClick={() => onPageChange(currentPage - 1)}>‹ ก่อนหน้า</button><span>หน้า {currentPage} จาก {totalPages}</span><button aria-label="หน้าถัดไป" disabled={currentPage >= totalPages || loading} onClick={() => onPageChange(currentPage + 1)}>หน้าถัดไป ›</button></div>}
-    {selectedRow && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดรายละเอียด…</div>}><OperationalRecordDrawer open={Boolean(selectedRow)} eyebrow={config.eyebrow} title={drawerTitle || config.title} subtitle={drawerSubtitle} status={selectedRow?.status ? <span className={`status-badge status-badge--${semanticStatusTone(selectedRow.status)}`}>{text(selectedRow.status)}</span> : undefined} fields={drawerFields} primaryAction={primaryAction} secondaryActions={secondaryActions} onClose={closeDrawer} /></React.Suspense>}
+    {selectedRow && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดรายละเอียด…</div>}><OperationalRecordDrawer open={Boolean(selectedRow)} eyebrow={config.eyebrow} title={drawerTitle || config.title} subtitle={drawerSubtitle} status={selectedRow?.status ? <span className={`status-badge status-badge--${isSupersededScheduleApproval(selectedRow) ? 'neutral' : semanticStatusTone(selectedRow.status)}`}>{page === 'approvals' ? scheduleApprovalStatusLabel(selectedRow.status, isSupersededScheduleApproval(selectedRow)) : text(selectedRow.status)}</span> : undefined} fields={drawerFields} primaryAction={primaryAction} secondaryActions={secondaryActions} onClose={closeDrawer} /></React.Suspense>}
   </section>;
 }
 const defaultNewLeaveTemplate = `🔔 [คำขอลางานใหม่] รอตรวจรับเอกสาร
@@ -2382,6 +2385,24 @@ function Dashboard() {
       openLeaveDecision(row, action as LeaveDecisionAction);
       return;
     }
+    let approvalNote: string | undefined;
+    const isScheduleRejection = activePage === 'approvals' && action === 'reject';
+    if (isScheduleRejection) {
+      const reason = await actionDialog.prompt({
+        title: 'ไม่อนุมัติตารางกะ',
+        message: 'ระบุเหตุผลเพื่อบันทึกประกอบประวัติการพิจารณา',
+        eyebrow: 'เหตุผลการไม่อนุมัติ',
+        fieldLabel: 'เหตุผล (จำเป็น)',
+        helperText: 'กรอกอย่างน้อย 5 ตัวอักษร',
+        minLength: 5,
+        maxLength: 2000,
+        multiline: true,
+        confirmLabel: 'ยืนยันไม่อนุมัติ',
+        tone: 'danger'
+      });
+      if (reason === null) return;
+      approvalNote = reason.trim();
+    }
     if (action === 'link' && activePage === 'quota') {
       runEditor({ title: row.employeeId ? 'จัดประเภทปีให้ข้อมูลโควตาเดิม' : 'จับคู่ข้อมูลเดิมกับพนักงานและปี', submitLabel: 'ยืนยันการจัดประเภท', fields: [{ name: 'employeeId', label: 'พนักงาน (รหัส · ชื่อ · หน่วยงาน)', type: 'select', required: true, options: row.employeeId ? employeeOptions.filter((option) => option.value === String(row.employeeId)) : employeeOptions }, { name: 'quotaYear', label: 'ปีสิทธิ์', type: 'select', required: true, options: quotaYearOptions }], values: { employeeId: String(row.employeeId || ''), quotaYear: String(quotaYear) } }, (form) => api.linkLeaveQuota(auth.token!, id, form.employeeId, Number(form.quotaYear)));
       return;
@@ -2439,7 +2460,7 @@ function Dashboard() {
       : action === 'cancel'
         ? 'ยืนยันยกเลิกคำขอนี้? การดำเนินการจะถูกบันทึกใน Audit'
         : 'ยืนยันการดำเนินการนี้?';
-    const confirmed = await actionDialog.confirm({
+    const confirmed = isScheduleRejection ? true : await actionDialog.confirm({
       title: action === 'delete' ? 'ยืนยันลบรายการ' : action === 'cancel' ? 'ยืนยันยกเลิกคำขอ' : action === 'return' ? 'ส่งกลับให้แก้ไข' : 'ยืนยันการดำเนินการ',
       message: confirmMessage,
       context: `${activePage} · ${id}`,
@@ -2451,12 +2472,18 @@ function Dashboard() {
     try {
       if (action === 'delete' && activePage === 'licenses') await api.deleteLicense(auth.token, id);
       else if (action === 'delete' && activePage === 'schedule') await api.deleteShift(auth.token, id);
-      else if (activePage === 'approvals') await api.updateScheduleApproval(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED' });
+      else if (activePage === 'approvals') await api.updateScheduleApproval(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED', ...(action === 'reject' && { approvalNote }) });
       else if (activePage === 'rules') await api.updateSchedulingRule(auth.token, id, { enabled: !row.enabled });
       else if (activePage === 'schedule') await api.updateShift(auth.token, id, { locked: !row.locked });
       else if (activePage === 'users') await api.updateUser(auth.token, id, { isActive: !row.isActive, accountStatus: row.isActive ? 'SUSPENDED' : 'ACTIVE' });
       setOperationRefresh((value) => value + 1);
-    } catch (reason) { setOperationError(toRequestErrorState(reason, 'ดำเนินการไม่สำเร็จ')); }
+    } catch (reason) {
+      const requestError = toRequestErrorState(reason, 'ดำเนินการไม่สำเร็จ');
+      const details = reason && typeof reason === 'object' && 'details' in reason ? reason.details : undefined;
+      const code = details && typeof details === 'object' && 'code' in details ? details.code : undefined;
+      const localizedMessage = activePage === 'approvals' ? scheduleApprovalErrorMessage(code) : undefined;
+      setOperationError(localizedMessage ? { ...requestError, message: localizedMessage } : requestError);
+    }
     finally { setOperationLoading(false); }  };
 
   const content = () => {
