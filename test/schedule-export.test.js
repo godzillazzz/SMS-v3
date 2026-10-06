@@ -53,3 +53,22 @@ test('approved export sorts by employee code, ignoring historic custom positions
   assert.ok(xml.indexOf('Sample 1') < xml.indexOf('Sample 2'));
   assert.ok(xml.indexOf('Sample 2') < xml.indexOf('Sample 10'));
 });
+
+test('approved export orders department sheets naturally and employee rows by department then code', () => {
+  const shifts = [
+    { employeeId: 'ten', employeeCodeSnapshot: 'ST-1', employeeNameSnapshot: 'AN10 Employee', departmentSnapshot: 'AN10', workDate: new Date('2026-07-01T00:00:00Z'), hours: 12, shiftType: { code: 'D' } },
+    { employeeId: 'code-10', employeeCodeSnapshot: 'ST-10', employeeNameSnapshot: 'Sample 10', departmentSnapshot: 'AN2', workDate: new Date('2026-07-01T00:00:00Z'), hours: 12, shiftType: { code: 'N' } },
+    { employeeId: 'code-2', employeeCodeSnapshot: 'ST-2', employeeNameSnapshot: 'Sample 2', departmentSnapshot: 'AN2', workDate: new Date('2026-07-01T00:00:00Z'), hours: 12, shiftType: { code: 'OFF' } }
+  ];
+  const workbook = buildApprovedScheduleWorkbook({
+    month: '2026-07', approval: { revision: 1 }, departments: ['AN10', 'AN2'], shifts,
+    employees: shifts.map((row) => ({ id: row.employeeId, employeeCode: row.employeeCodeSnapshot, department: row.departmentSnapshot, jobTitle: 'Security' })),
+    shiftTypes: [{ code: 'D', name: 'Day' }, { code: 'N', name: 'Night' }, { code: 'OFF', name: 'Off' }],
+    exportedBy: 'Test'
+  });
+  const files = unzipSync(workbook);
+  const workbookXml = strFromU8(files['xl/workbook.xml']);
+  const scheduleSheet = strFromU8(files['xl/worksheets/sheet1.xml']);
+  assert.ok(workbookXml.indexOf('name="AN2"') < workbookXml.indexOf('name="AN10"'));
+  assert.ok(scheduleSheet.indexOf('Sample 2') < scheduleSheet.indexOf('Sample 10'));
+});
