@@ -4,12 +4,13 @@
 
 ## สถานะปัจจุบัน
 
-- Integration base `fix/serverless-database-reliability` หลัง Phase B: `3ed0585567091e88135bdbc3f7087a589c30e7d4`; SHA นี้มีเฉพาะ Vercel Preview deployment ของ branch.
-- Canonical `sms-v3-staging-ten.vercel.app` ยังรัน `f63c785` โดยมี `VERCEL_ENV=production`; ยังไม่ได้ deploy integration SHA `3ed0585` ไปที่ canonical staging.
+- Integration branch `fix/serverless-database-reliability` head หลัง Phase B: `3ed0585567091e88135bdbc3f7087a589c30e7d4`; SHA นี้มีเฉพาะ Vercel Preview deployment ของ branch.
+- Production URL `sms-v3-staging-ten.vercel.app` ซึ่งผู้ใช้จริงใช้งานยังรัน SHA `f63c785` (`VERCEL_ENV=production`). Canonical deployment/rollback target คือ `sms-v3-staging-bgyhhtjad-godzillazz.vercel.app` ที่ SHA `f63c785`.
+- ห้ามเริ่มปล่อยในช่วง 06:30–07:30 หรือ 18:30–19:30 เวลาไทย; หากคาดว่าจะไม่เสร็จก่อน 06:30 ให้หยุดก่อนเริ่มปล่อย.
 - เฟส A: ปิดรายการที่ระบุใน #470 และ #471 โดยไม่เปิด PR ใหม่.
-- เฟส B: merge #470 → #471 → #472 → #473 เข้า integration branch ตามลำดับ; CI หลัง rebase ผ่านทุก PR. Integration SHA มี Preview deployment เท่านั้น; canonical staging ยังเป็น `f63c785` (`VERCEL_ENV=production`).
+- เฟส B: merge #470 → #471 → #472 → #473 เข้า integration branch ตามลำดับ; CI หลัง rebase ผ่านทุก PR. Integration SHA มี Preview deployment เท่านั้น; ไม่ได้ปล่อย SHA นี้ไป Production.
 - เฟส C: เปิด PR แยกตามลำดับ T05 → T01 → T02 → T03 → T06. #474–#477 ผ่าน CI และ Vercel Preview READY; ไม่ merge. #478 เปิดแล้วและ Preview READY บน implementation SHA `cf45f3aadbde45a8855ca055526e1e52503dcb81`; CI ถูกหยุดที่ dependency audit ก่อนเริ่ม tests/build เพราะ `sharp` เวอร์ชันใน base ต่ำกว่าเวอร์ชันแก้ CVE. จึงยังไม่ผ่านเงื่อนไข CI ของ T06.
-- ไม่มีการ deploy Production, promote, แตะ Environment approval หรือเขียนข้อมูลลงฐานข้อมูล staging/Production.
+- ณ เวลาที่อัปเดต handoff นี้ ยังไม่ได้ปล่อย Production, promote, แตะ Environment approval หรือเขียนข้อมูลธุรกิจลงฐานข้อมูล Production.
 
 ## เฟส A+B — PR ค้างและ integration
 
@@ -20,7 +21,7 @@
 | #472 | `06adee290b2fe2be4a359fdab2772a92d574f278` | `923447d7c7da6661463c64c2195dae01ad374cda` | `37458878815` ผ่าน | ใช่ — merge SHA `5a0fbe299bedd165a580995dc326b54e946aaaa3` | [READY](https://sms-v3-staging-git-fix-schedule-auto-preview-108969-godzillazz.vercel.app) | ผ่านจาก tests/build: preview คงข้อมูลเดิมและเติมเฉพาะช่องว่าง; path บันทึกไม่ลบ/แก้ assignment เดิม. |
 | #473 | `2282dda340bef35ec830a46e53be5f7bd09a3a80` | `d8c8ad0706c5d7feb9b038c6dde8204f622c1235` | `37459833957` ผ่าน | ใช่ — merge SHA / integration base `3ed0585567091e88135bdbc3f7087a589c30e7d4` | [READY](https://sms-v3-staging-git-fix-schedule-batch-save-10-c701ee-godzillazz.vercel.app) | ผ่าน: batch save และ regression tests. เวลา 1,000 รายการยังไม่ได้วัดตามตัวเลือก (ข). |
 
-สถานะ Vercel หลัง Phase B: integration SHA `3ed0585567091e88135bdbc3f7087a589c30e7d4` มี Preview deployment เท่านั้น. Canonical `sms-v3-staging-ten.vercel.app` ยังคงเป็น `f63c785` (`VERCEL_ENV=production`).
+สถานะ deployment หลัง Phase B: `3ed0585567091e88135bdbc3f7087a589c30e7d4` มี Preview deployment เท่านั้น. Production URL `sms-v3-staging-ten.vercel.app` ยังเป็น `f63c785` (`VERCEL_ENV=production`); canonical rollback target คือ `sms-v3-staging-bgyhhtjad-godzillazz.vercel.app` ที่ SHA เดียวกัน.
 
 ## เฟส C — PR แยกตาม task (ยังไม่ merge)
 
