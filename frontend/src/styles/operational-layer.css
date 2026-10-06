@@ -633,3 +633,59 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .shift-editor-modal__viewport .shift-editor-modal__dialog :is(h1, h2, h3) {
   font-family: "Kanit", "Plus Jakarta Sans", sans-serif !important;
 }
+
+/* Department separators stay visible above the roster in both themes and print. */
+.schedule-grid tbody .schedule-department-group-row > :is(th, td),
+.print-table tbody .schedule-department-group-row > .schedule-department-group-sticky {
+  background: #e8eff6 !important;
+  border-color: #cbd8e5 !important;
+  color: #22384e !important;
+  font-weight: 700 !important;
+}
+.schedule-grid tbody .schedule-department-group-row > .schedule-department-group-sticky,
+.print-table tbody .schedule-department-group-row > .schedule-department-group-sticky {
+  z-index: 6;
+}
+.schedule-grid tbody .schedule-department-group-row strong {
+  color: #22384e !important;
+  font-weight: 750 !important;
+}
+[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-grid tbody .schedule-department-group-row > :is(th, td) {
+  background: #e8eff6 !important;
+  color: #22384e !important;
+}
+[data-theme="dark"] .app-shell .schedule-grid tbody .schedule-department-group-row > :is(th, td) {
+  background: #1c3448 !important;
+  border-color: #365169 !important;
+  color: #e6edf5 !important;
+}
+[data-theme="dark"] .app-shell .schedule-grid tbody .schedule-department-group-row strong {
+  color: #e6edf5 !important;
+}
+@media (max-width: 1024px) {
+  .schedule-grid tbody .schedule-department-group-row > .schedule-department-group-sticky {
+    position: sticky;
+    left: 0;
+    box-shadow: 4px 0 8px rgba(30, 52, 75, .08) !important;
+  }
+}
+@media print {
+  .schedule-grid tbody .schedule-department-group-row > :is(th, td),
+  .print-table tbody .schedule-department-group-row > .schedule-department-group-sticky {
+    background: #e8eff6 !important;
+    border-color: #b8c5d2 !important;
+    color: #1f2937 !important;
+    font-weight: 700 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .schedule-grid tbody .schedule-department-group-row > .schedule-department-group-sticky {
+    position: sticky;
+    left: 0;
+  }
+  .print-table tbody .print-department-group-row > .schedule-department-group-sticky {
+    text-align: left;
+    position: static;
+    box-shadow: none !important;
+  }
+}

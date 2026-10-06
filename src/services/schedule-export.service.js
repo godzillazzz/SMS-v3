@@ -1,4 +1,5 @@
 const { zipSync, strToU8 } = require('fflate');
+const { compareScheduleDepartmentNames, compareScheduleEmployeesByDepartment } = require('./schedule-employee-order.service');
 
 const xmlEscape = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 const columnName = (number) => { let result = ''; for (let value = number; value > 0; value = Math.floor((value - 1) / 26)) result = String.fromCharCode(65 + ((value - 1) % 26)) + result; return result; };
@@ -63,17 +64,17 @@ function buildApprovedScheduleWorkbook({ month, approval, departments, shifts, e
   const dates = Array.from({ length: days }, (_, index) => `${month}-${String(index + 1).padStart(2, '0')}`);
   const usedNames = new Set();
   const exportedAt = new Date();
-  const sheets = departments.map((department) => {
+  const sheets = [...departments].sort(compareScheduleDepartmentNames).map((department) => {
     const rows = shifts.filter((shift) => String(shift.departmentSnapshot || '') === department);
     const peopleMap = new Map();
     rows.forEach((shift) => {
       const employee = employeeById.get(shift.employeeId) || {};
-      const person = peopleMap.get(shift.employeeId) || { name: shift.employeeNameSnapshot, position: shift.positionSnapshot || employee.jobTitle || '', employeeCode: shift.employeeCodeSnapshot || employee.employeeCode || '', shifts: new Map(), totalHours: 0 };
+      const person = peopleMap.get(shift.employeeId) || { id: shift.employeeId, department: shift.departmentSnapshot || employee.department || '', name: shift.employeeNameSnapshot, position: shift.positionSnapshot || employee.jobTitle || '', employeeCode: shift.employeeCodeSnapshot || employee.employeeCode || '', shifts: new Map(), totalHours: 0 };
       person.shifts.set(new Date(shift.workDate).toISOString().slice(0, 10), { code: shift.shiftType.code, hours: Number(shift.hours || 0) });
       person.totalHours += Number(shift.hours || 0);
       peopleMap.set(shift.employeeId, person);
     });
-    const people = [...peopleMap.values()].sort((first, second) => String(first.employeeCode).localeCompare(String(second.employeeCode), 'en', { numeric: true, sensitivity: 'base' }) || first.name.localeCompare(second.name, 'th'));
+    const people = [...peopleMap.values()].sort(compareScheduleEmployeesByDepartment);
     return { name: safeSheetName(department, usedNames), xml: sheetXml({ department, month, dates, people, shiftTypes, approval, exportedBy, exportedAt }) };
   });
   const sheetEntries = sheets.map((sheet, index) => `<sheet name="${xmlEscape(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`).join('');

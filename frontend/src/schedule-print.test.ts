@@ -20,6 +20,8 @@ describe('schedule PDF export', () => {
   test('renders an explicit empty-state page instead of an empty print root', () => {
     expect(mainTsx).toContain('className="print-empty-state"');
     expect(mainTsx).toContain('ไม่พบข้อมูลตารางกะสำหรับเดือนนี้');
+    expect(mainTsx).toContain('sortScheduleEmployeesByDepartment(rawCalendarEmployees)');
+    expect(mainTsx).toContain("const printDepartments = Array.from(new Set(calendarEmployees.map((e) => String(e.department ?? '').trim())));");
   });
 
   test('uses print-safe fragmentation rules for multi-page schedules', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { sortScheduleEmployeesByCode } from './schedule-employee-code-order';
+import { groupScheduleEmployeesByDepartment, sortScheduleEmployeesByCode, sortScheduleEmployeesByDepartment } from './schedule-employee-code-order';
 
 const root = path.resolve(__dirname);
 const main = fs.readFileSync(path.join(root, 'main.tsx'), 'utf8');
@@ -27,12 +27,40 @@ describe('Owner-approved roster and brand contracts', () => {
       .toEqual(['a', 'b']);
   });
 
-  it('sorts both live monthly roster and printed schedule, without user reordering controls', () => {
-    expect(main.match(/sortScheduleEmployeesByCode\(rawCalendarEmployees\)/g)).toHaveLength(2);
+  it('sorts schedule employees by natural department, then code and id, with missing departments last', () => {
+    const rows = [
+      { id: 'z', department: 'AN10', employeeCode: 'ST-1' },
+      { id: 'multi', department: 'AN1,AN2,AN3', employeeCode: 'ST-1' },
+      { id: 'c', department: 'AN2', employeeCode: 'ST-10' },
+      { id: 'b', department: 'AN2', employeeCode: 'ST-2' },
+      { id: 'a', department: 'AN2', employeeCode: 'ST-2' },
+      { id: 'none', department: ' ', employeeCode: 'ST-0' }
+    ];
+    expect(sortScheduleEmployeesByDepartment(rows).map((row) => row.id)).toEqual(['multi', 'a', 'b', 'c', 'z', 'none']);
+    expect(groupScheduleEmployeesByDepartment(rows).map((group) => [group.department, group.employees.length]))
+      .toEqual([['AN1,AN2,AN3', 1], ['AN2', 3], ['AN10', 1], ['', 1]]);
+  });
+
+  it('sorts on-screen and printed schedule by department with grouped on-screen headings', () => {
+    expect(main.match(/sortScheduleEmployeesByDepartment\(rawCalendarEmployees\)/g)).toHaveLength(2);
+    expect(main).toContain('schedule-department-group-row');
+    expect(main).toContain('scope="rowgroup"');
+    expect(main).toContain("departmentGroup.employees.length} คน");
     expect(main).not.toMatch(/getScheduleRosterOrder|updateScheduleRosterOrder|ScheduleRosterOrderModal|canReorderRoster|rosterOrderDepartment|จัดลำดับพนักงาน/);
     expect(main).toContain('className="schedule-grid"');
     expect(main).toContain('แสดง {calendarEmployees.length} จาก {allCalendarEmployees.length} คน');
     expect(main).not.toContain('แสดง {calendarEmployees.length} จาก {operationResponse.meta?.total || 0} คน');
+  });
+
+  it('styles department group rows distinctly, with a sticky label in light, dark and print layouts', () => {
+    expect(operational).toContain('.schedule-grid tbody .schedule-department-group-row');
+    expect(operational).toContain('position: sticky;');
+    expect(operational).toContain('[data-theme="light"] .app-shell:not(.pwa-shell) .schedule-grid tbody .schedule-department-group-row');
+    expect(operational).toContain('[data-theme="dark"] .app-shell .schedule-grid tbody .schedule-department-group-row');
+    expect(operational).toContain('@media print');
+    expect(operational).toContain('.print-table tbody .print-department-group-row > .schedule-department-group-sticky');
+    expect(main).toContain('className="schedule-department-group-row print-department-group-row"');
+    expect(main).toContain("{dept || 'ไม่ระบุแผนก'} · {deptEmployees.length} คน");
   });
 
   it('keeps the Security Management System subtitle visible in the authenticated sidebar and public tablet navbar', () => {

@@ -63,7 +63,7 @@ test('monthly roster is live from Employee master plus assigned employees and ne
   assert.deepEqual(roster.employees.map((row) => row.employeeCode), ['ST-1', 'ST-2', 'ST-10']);
 });
 
-test('calendar, print and approved Excel export use employee code without roster snapshots or custom positions', () => {
+test('calendar, print and approved Excel export use department then employee code without roster snapshots or custom positions', () => {
   const service = read('src/services/schedule-roster.service.js');
   const operations = read('src/routes/operations.routes.js');
   const exportSource = read('src/services/schedule-export.service.js');
@@ -73,9 +73,9 @@ test('calendar, print and approved Excel export use employee code without roster
   assert.match(operations, /employeeCodeSnapshot: codeByEmployee\.get/);
   assert.doesNotMatch(operations, /scheduleRosterSnapshot|snapshotCodeByEmployee|rosterSnapshotLocked/);
   assert.doesNotMatch(operations.slice(operations.indexOf("router.post('/schedule/export.xlsx'")), /rosterOrderByEmployee/);
-  assert.match(exportSource, /numeric: true, sensitivity: 'base'/);
+  assert.match(exportSource, /sort\(compareScheduleEmployeesByDepartment\)/);
   assert.doesNotMatch(exportSource, /first\.rosterOrder|second\.rosterOrder/);
-  assert.equal((main.match(/sortScheduleEmployeesByCode\(rawCalendarEmployees\)/g) || []).length, 2);
+  assert.equal((main.match(/sortScheduleEmployeesByDepartment\(rawCalendarEmployees\)/g) || []).length, 2);
 });
 
 test('manual reorder controls and runtime roster snapshot plumbing are removed', () => {
