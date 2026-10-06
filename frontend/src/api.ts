@@ -31,6 +31,15 @@ export class ApiRequestError extends Error {
   }
 }
 
+export type ScheduleBatchChange = { action: 'create' | 'update' | 'delete'; id?: string; payload?: unknown; draftKey?: string };
+export type ScheduleBatchProgress = { total: number; completed: number; saved: number; failed: number };
+export type ScheduleBatchWriteResult = {
+  successfulChanges: ScheduleBatchChange[];
+  failedChanges: ScheduleBatchChange[];
+  successCount: number;
+  failureCount: number;
+};
+
 let isRefreshing = false;
 let refreshPromise: Promise<any> | null = null;
 let onTokenRefreshed: ((token: string, user: any) => void) | null = null;
@@ -311,36 +320,78 @@ export const api = {
   permanentlyDeleteLicenseDocument: (token: string, documentId: string) => call(`/license-documents/${documentId}/permanent`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
   createShift: (token: string, data: unknown) => call('/shifts', { method: 'POST', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
   updateShift: (token: string, id: string, data: unknown) => call(`/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),
-  batchSaveShifts: (token: string, changes: Array<{ action: 'create' | 'update' | 'delete'; id?: string; payload?: unknown }>) => {
+  batchSaveShifts: async (
+    token: string,
+    changes: ScheduleBatchChange[],
+    onProgress?: (progress: ScheduleBatchProgress) => void
+  ): Promise<ScheduleBatchWriteResult> => {
     const isUuid = (v?: string) => Boolean(v && typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v));
-    const deletes = changes.filter((c) => c.action === 'delete' && isUuid(c.id));
-    const upserts = changes
-      .filter((c) => c.action !== 'delete')
-      .map((c) => {
-        const p = (c.payload as Record<string, unknown>) || {};
-        return {
-          employeeId: String(p.employeeId || ''),
-          shiftTypeId: String(p.shiftTypeId || ''),
-          workDate: String(p.workDate || '').slice(0, 10),
-          remark: String(p.remark || ''),
-          licenseOverride: Boolean(p.licenseOverride),
-          overrideReason: String(p.overrideReason || '')
-        };
-      })
-      .filter((item) => isUuid(item.employeeId) && isUuid(item.shiftTypeId) && item.workDate.length === 10);
+    const upserts: Array<{ change: ScheduleBatchChange; assignment: Record<string, unknown> }> = [];
+    const deletes: Array<{ change: ScheduleBatchChange; id: string }> = [];
+    const failedChanges: ScheduleBatchChange[] = [];
 
-    const tasks: Promise<unknown>[] = [];
-    if (upserts.length > 0) {
-      tasks.push(call('/schedules/batch', {
-        method: 'POST',
-        body: JSON.stringify({ assignments: upserts }),
-        headers: { Authorization: `Bearer ${token}` }
-      }));
+    for (const change of changes) {
+      if (change.action === 'delete') {
+        if (isUuid(change.id)) deletes.push({ change, id: change.id! });
+        else failedChanges.push(change);
+        continue;
+      }
+      const payload = (change.payload as Record<string, unknown>) || {};
+      const employeeId = String(payload.employeeId || '');
+      const shiftTypeId = String(payload.shiftTypeId || '');
+      const workDate = String(payload.workDate || '').slice(0, 10);
+      if (!isUuid(employeeId) || !isUuid(shiftTypeId) || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+        failedChanges.push(change);
+        continue;
+      }
+      upserts.push({
+        change,
+        assignment: {
+          employeeId,
+          shiftTypeId,
+          workDate,
+          remark: String(payload.remark || ''),
+          licenseOverride: Boolean(payload.licenseOverride),
+          overrideReason: String(payload.overrideReason || '')
+        }
+      });
     }
-    for (const del of deletes) {
-      tasks.push(api.deleteShift(token, del.id!));
+
+    const successfulChanges: ScheduleBatchChange[] = [];
+    const requestCount = Math.max(Math.ceil(upserts.length / 1000), Math.ceil(deletes.length / 1000));
+    const reportProgress = () => onProgress?.({
+      total: changes.length,
+      completed: successfulChanges.length + failedChanges.length,
+      saved: successfulChanges.length,
+      failed: failedChanges.length
+    });
+    reportProgress();
+
+    for (let chunkIndex = 0; chunkIndex < requestCount; chunkIndex += 1) {
+      const upsertChunk = upserts.slice(chunkIndex * 1000, (chunkIndex + 1) * 1000);
+      const deleteChunk = deletes.slice(chunkIndex * 1000, (chunkIndex + 1) * 1000);
+      try {
+        await call('/schedules/batch', {
+          method: 'POST',
+          body: JSON.stringify({
+            assignments: upsertChunk.map((item) => item.assignment),
+            deletes: deleteChunk.map((item) => item.id)
+          }),
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        successfulChanges.push(...upsertChunk.map((item) => item.change), ...deleteChunk.map((item) => item.change));
+      } catch {
+        failedChanges.push(...upsertChunk.map((item) => item.change), ...deleteChunk.map((item) => item.change));
+      }
+      reportProgress();
     }
-    return Promise.all(tasks);
+
+    return {
+      successfulChanges,
+      failedChanges,
+      successCount: successfulChanges.length,
+      failureCount: failedChanges.length
+    };
   },
   deleteShift: (token: string, id: string) => call(`/shifts/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }),
   updateScheduleApproval: (token: string, id: string, data: unknown) => call(`/schedule-approvals/${id}`, { method: 'PUT', body: JSON.stringify(data), headers: { Authorization: `Bearer ${token}` } }),

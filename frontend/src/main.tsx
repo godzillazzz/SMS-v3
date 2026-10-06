@@ -26,6 +26,7 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, setTokenRefreshHandler } from './api';
 import { canDecideScheduleApproval, isSupersededScheduleApproval, scheduleApprovalChangeTypeLabel, scheduleApprovalErrorMessage, scheduleApprovalStatusLabel, scheduleApprovalTone } from './approval-display';
+import type { ScheduleBatchProgress } from './api';
 import { isG06DeviceContextDiagnosticRequested, shouldOpenG06DeviceContextDiagnostic } from './lib/g06-device-context-diagnostic-route';
 import { readEncryptedBootstrap } from './pages/attendance-simple/attendance-simple-storage';
 import type { SimpleBootstrap } from './pages/attendance-simple/attendance-simple-client';
@@ -1813,6 +1814,8 @@ function Dashboard() {
   const [scheduleExportBusy, setScheduleExportBusy] = useState(false);
   const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, { action: 'create' | 'update' | 'delete'; id?: string; employeeId: string; workDate: string; shiftTypeId?: string; shiftCode?: string; shiftName?: string; startTime?: string; endTime?: string; color?: string; remark?: string; licenseStatus?: string; licenseOverride?: boolean; overrideReason?: string; payload?: unknown }>>({});
   const [batchSaveBusy, setBatchSaveBusy] = useState(false);
+  const [batchSaveProgress, setBatchSaveProgress] = useState<ScheduleBatchProgress>();
+  const [batchSaveSummary, setBatchSaveSummary] = useState<string>();
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [deptMenuOpen, setDeptMenuOpen] = useState(false);
 
@@ -1849,15 +1852,18 @@ function Dashboard() {
   const saveAllDrafts = async () => {
     if (!auth.token || !Object.keys(scheduleDrafts).length) return;
     setBatchSaveBusy(true); setOperationError(undefined);
+    setBatchSaveSummary(undefined);
+    setBatchSaveProgress({ total: Object.keys(scheduleDrafts).length, completed: 0, saved: 0, failed: 0 });
     try {
       const defaultType = activeShiftTypes.find((t) => String(t.code).toUpperCase() === 'D') || activeShiftTypes[0];
       const validDefaultTypeId = String(defaultType?.id || '');
+      const draftSnapshot = scheduleDrafts;
 
-      const changes = Object.values(scheduleDrafts)
-        .filter((d) => Boolean(d.employeeId && d.workDate))
-        .map((d) => {
+      const changes = Object.entries(scheduleDrafts)
+        .map(([draftKey, d]) => {
           const shiftTypeId = (d.shiftTypeId && d.shiftTypeId.length >= 10) ? d.shiftTypeId : validDefaultTypeId;
           return {
+            draftKey,
             action: d.action,
             id: d.id,
             payload: d.action === 'delete' ? undefined : {
@@ -1873,17 +1879,31 @@ function Dashboard() {
         });
 
       if (!changes.length) {
-        setScheduleDrafts({});
-        setBatchSaveBusy(false);
         return;
       }
 
-      await api.batchSaveShifts(auth.token, changes);
-      setScheduleDrafts({});
-      const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment);
-      setOperationResponse(updated);
+      const result = await api.batchSaveShifts(auth.token, changes, setBatchSaveProgress);
+      const successfulDraftKeys = new Set(result.successfulChanges.map((change) => change.draftKey).filter((key): key is string => Boolean(key)));
+      setScheduleDrafts((current) => {
+        const remaining = { ...current };
+        for (const key of successfulDraftKeys) {
+          if (current[key] === draftSnapshot[key]) delete remaining[key];
+        }
+        return remaining;
+      });
+      setBatchSaveSummary(`บันทึกสำเร็จ ${result.successCount} / ล้มเหลว ${result.failureCount}`);
+      if (result.failureCount > 0) setOperationError('บันทึกไม่สำเร็จ ข้อมูลยังอยู่ในฉบับร่าง');
+
+      if (result.successCount > 0) {
+        try {
+          const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment);
+          setOperationResponse(updated);
+        } catch (reason) {
+          if (result.failureCount === 0) setOperationError(toRequestErrorState(reason, 'บันทึกแล้ว แต่โหลดตารางล่าสุดไม่สำเร็จ'));
+        }
+      }
     } catch (reason) {
-      setOperationError(toRequestErrorState(reason, 'บันทึกการเปลี่ยนแปลงไม่สำเร็จ'));
+      setOperationError(toRequestErrorState(reason, 'บันทึกไม่สำเร็จ ข้อมูลยังอยู่ในฉบับร่าง'));
     } finally {
       setBatchSaveBusy(false);
     }
@@ -2867,7 +2887,7 @@ function Dashboard() {
 
           <div className="schedule-draft-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', paddingTop: '12px', borderTop: '1px dashed #bfdbfe' }}>
             <button type="button" className="btn-primary compact" style={{ padding: '8px 18px', fontWeight: 'bold', fontSize: '14px', borderRadius: '8px' }} disabled={batchSaveBusy || Object.keys(scheduleDrafts).length === 0} onClick={saveAllDrafts}>
-              {batchSaveBusy ? 'กำลังบันทึก…' : `บันทึกการเปลี่ยนแปลงทั้งหมด (${Object.keys(scheduleDrafts).length})`}
+              {batchSaveBusy ? `กำลังบันทึก ${batchSaveProgress?.total ?? Object.keys(scheduleDrafts).length} รายการ…` : `บันทึกการเปลี่ยนแปลงทั้งหมด (${Object.keys(scheduleDrafts).length})`}
             </button>
             <button
               className="btn-danger compact"
@@ -2877,6 +2897,8 @@ function Dashboard() {
             >
               ยกเลิกรายการเปลี่ยนแปลงทั้งหมด
             </button>
+            {batchSaveBusy && batchSaveProgress && <span role="status" aria-live="polite" style={{ fontSize: '13px' }}>บันทึกสำเร็จ {batchSaveProgress.saved} / ล้มเหลว {batchSaveProgress.failed}</span>}
+            {!batchSaveBusy && batchSaveSummary && <span role="status" aria-live="polite" style={{ fontSize: '13px' }}>{batchSaveSummary}</span>}
             <span style={{ fontSize: '13px', color: '#475569' }}>
               คลิกช่องกะเพื่อแก้หลายรายการ แล้วค่อยบันทึกครั้งเดียว
             </span>

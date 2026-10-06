@@ -8,7 +8,7 @@ const read = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8')
 
 test('schedule batch uses its transaction client for the existing-assignment lookup', () => {
   const source = read('src/services/schedule.service.js');
-  const start = source.indexOf('const results = await prisma.$transaction(async (tx) => {');
+  const start = source.indexOf('const result = await prisma.$transaction(async (tx) => {');
   const end = source.indexOf("  }, { maxWait: 10000, timeout: 60000 });", start);
   const transactionBody = source.slice(start, end);
 
@@ -18,13 +18,13 @@ test('schedule batch uses its transaction client for the existing-assignment loo
 
 test('schedule batch preloads projected lifecycle state once instead of querying it per assignment', () => {
   const source = read('src/services/schedule.service.js');
-  const start = source.indexOf('const results = await prisma.$transaction(async (tx) => {');
+  const start = source.indexOf('const result = await prisma.$transaction(async (tx) => {');
   const end = source.indexOf("  }, { maxWait: 10000, timeout: 60000 });", start);
   const transactionBody = source.slice(start, end);
 
   assert.equal((transactionBody.match(/createEmployeeProjectedStateResolver\(/g) || []).length, 1);
   assert.match(transactionBody, /projectedStateResolver: resolveProjectedState/);
-  assert.doesNotMatch(transactionBody, /ensureEmployeeOperationalForShift\(tx, \{ employeeId: ass\.employeeId, workDate: parsedDate, shiftCode \}\)/);
+  assert.doesNotMatch(transactionBody, /ensureEmployeeOperationalForShift\(tx, \{ employeeId: assignment\.employeeId, workDate, shiftCode \}\)/);
 });
 
 test('schedule batch validates calendar dates and logs sanitized write diagnostics', () => {
@@ -34,11 +34,11 @@ test('schedule batch validates calendar dates and logs sanitized write diagnosti
   assert.match(source, /schedule_batch_write_failed/);
   assert.match(source, /requestId: req\.requestId/);
   assert.match(source, /assignmentCount/);
-  assert.match(source, /operation: 'upsert_batch'/);
+  assert.match(source, /operation: 'upsert_delete_batch'/);
   assert.match(source, /model: 'ShiftAssignment'/);
 });
 
-test('batch write uses the same transaction flow for one and several assignments', async () => {
+test('batch write uses set-based SQL in the same transaction for one and several assignments', async () => {
   const prisma = require('../src/config/prisma');
   const scheduleService = require('../src/services/schedule.service');
   const original = {
@@ -49,22 +49,20 @@ test('batch write uses the same transaction flow for one and several assignments
     globalAssignmentFindMany: prisma.shiftAssignment.findMany,
     transaction: prisma.$transaction
   };
-  const calls = { existingFindMany: 0, upserts: 0, globalFindMany: 0, commits: 0, rollbacks: 0 };
+  const calls = { existingFindMany: 0, rawWrites: 0, globalFindMany: 0, commits: 0, rollbacks: 0 };
   let approval;
   const tx = {
     shiftAssignment: {
       findMany: async () => { calls.existingFindMany += 1; return []; },
-      upsert: async ({ where, create }) => {
-        calls.upserts += 1;
-        return { id: `assignment-${calls.upserts}`, ...create, workDate: where.workDate_employeeId.workDate };
-      }
+      deleteMany: async () => ({ count: 0 })
     },
     scheduleApproval: {
       findFirst: async () => approval,
       create: async ({ data }) => { approval = { id: 'approval-1', ...data }; return approval; },
       update: async ({ data }) => { approval = { ...approval, ...data }; return approval; }
     },
-    auditLog: { create: async ({ data }) => ({ id: 'audit-1', ...data }) }
+    auditLog: { create: async ({ data }) => ({ id: 'audit-1', ...data }), createMany: async () => ({ count: 0 }) },
+    $executeRaw: async () => { calls.rawWrites += 1; return 1; }
   };
   const employee = { id: '00000000-0000-4000-8000-000000000001', displayName: 'Test Employee', firstName: 'Test', lastName: 'Employee', department: 'Test' };
   const shiftType = { id: '00000000-0000-4000-8000-000000000002', code: 'OFF', startTime: '00:00', endTime: '00:00', hours: 0 };
@@ -86,7 +84,7 @@ test('batch write uses the same transaction flow for one and several assignments
     assert.equal(one.count, 1);
     assert.equal(many.count, 2);
     assert.equal(calls.existingFindMany, 2);
-    assert.equal(calls.upserts, 3);
+    assert.equal(calls.rawWrites, 2);
     assert.equal(calls.globalFindMany, 0);
     assert.equal(calls.commits, 2);
     assert.equal(calls.rollbacks, 0);
@@ -133,7 +131,7 @@ test('an unknown employee in a later item rolls back earlier upserts in the same
   const original = { employeeFindMany: prisma.employee.findMany, shiftTypeFindMany: prisma.shiftType.findMany, licenseFindMany: prisma.employeeLicense.findMany, transaction: prisma.$transaction };
   const knownEmployee = { id: '00000000-0000-4000-8000-000000000031', displayName: 'Known Employee', department: 'Test' };
   const shiftType = { id: '00000000-0000-4000-8000-000000000032', code: 'OFF', startTime: '00:00', endTime: '00:00', hours: 0 };
-  let upserts = 0;
+  let rawWrites = 0;
   let rolledBack = false;
   try {
     prisma.employee.findMany = async () => [knownEmployee];
@@ -144,8 +142,9 @@ test('an unknown employee in a later item rolls back earlier upserts in the same
       const tx = {
         shiftAssignment: {
           findMany: async () => [],
-          upsert: async () => { upserts += 1; return { id: 'assignment-rollback', workDate: new Date('2026-08-01T00:00:00.000Z'), employeeId: knownEmployee.id }; }
-        }
+          deleteMany: async () => ({ count: 0 })
+        },
+        $executeRaw: async () => { rawWrites += 1; return 1; }
       };
       try { return await callback(tx); } catch (error) { rolledBack = true; throw error; }
     };
@@ -153,7 +152,7 @@ test('an unknown employee in a later item rolls back earlier upserts in the same
       { employeeId: knownEmployee.id, shiftTypeId: shiftType.id, workDate: '2026-08-01' },
       { employeeId: '00000000-0000-4000-8000-000000000033', shiftTypeId: shiftType.id, workDate: '2026-08-02' }
     ], knownEmployee.id), /Employee not found/);
-    assert.equal(upserts, 1);
+    assert.equal(rawWrites, 0);
     assert.equal(rolledBack, true);
   } finally {
     prisma.employee.findMany = original.employeeFindMany;
@@ -170,6 +169,86 @@ test('date validation accepts real dates without timezone shifting and rejects i
   assert.equal(batchSchema.parse(valid).assignments[0].workDate, '2026-07-31');
   assert.equal(new Date(`${valid.assignments[0].workDate}T00:00:00.000Z`).toISOString().slice(0, 10), '2026-07-31');
   assert.throws(() => batchSchema.parse({ ...valid, assignments: [{ ...valid.assignments[0], workDate: '2026-02-30' }] }), ZodError);
+});
+
+test('batch schema caps assignments and deletes at 1000 with Thai validation messages', () => {
+  const { batchSchema } = require('../src/routes/schedules.routes');
+  const assignment = { employeeId: '00000000-0000-4000-8000-000000000021', shiftTypeId: '00000000-0000-4000-8000-000000000022', workDate: '2026-07-31' };
+  const id = '00000000-0000-4000-8000-000000000023';
+  assert.equal(batchSchema.parse({ assignments: [assignment] }).deletes.length, 0);
+  assert.throws(() => batchSchema.parse({ assignments: Array(1001).fill(assignment) }), (error) => error instanceof ZodError && /1,000/.test(error.issues[0].message));
+  assert.throws(() => batchSchema.parse({ assignments: [], deletes: Array(1001).fill(id) }), (error) => error instanceof ZodError && /1,000/.test(error.issues[0].message));
+});
+
+test('1000 assignments and 50 deletes use one transaction, two set-based chunks and one monthly approval transition', async () => {
+  const prisma = require('../src/config/prisma');
+  const scheduleService = require('../src/services/schedule.service');
+  const original = {
+    employeeFindMany: prisma.employee.findMany,
+    shiftTypeFindMany: prisma.shiftType.findMany,
+    licenseFindMany: prisma.employeeLicense.findMany,
+    licenseDocumentFindMany: prisma.employeeLicenseDocument.findMany,
+    transaction: prisma.$transaction
+  };
+  const uuid = (value) => `00000000-0000-4000-8000-${String(value).padStart(12, '0')}`;
+  const employees = Array.from({ length: 1000 }, (_, index) => ({
+    id: uuid(index + 1), displayName: `Employee ${index + 1}`, firstName: 'Employee', lastName: String(index + 1),
+    department: 'Test', isActive: true, deletedAt: null
+  }));
+  const shiftType = { id: uuid(3000), code: 'OFF', startTime: '00:00', endTime: '00:00', hours: 0, isActive: true };
+  const deletedRows = Array.from({ length: 50 }, (_, index) => ({
+    id: uuid(4000 + index), employeeId: uuid(5000 + index), shiftTypeId: shiftType.id,
+    workDate: new Date('2026-08-02T00:00:00.000Z')
+  }));
+  const assignments = employees.map((employee) => ({ employeeId: employee.id, shiftTypeId: shiftType.id, workDate: '2026-08-01', remark: 'batch fixture' }));
+  const deletes = deletedRows.map((row) => row.id);
+  const calls = { transactions: 0, assignmentLookups: 0, setWrites: [], deleteMany: 0, approvalCreates: 0, auditBatches: [] };
+  let approval;
+  const tx = {
+    shiftAssignment: {
+      findMany: async ({ where }) => {
+        if (where.OR) { calls.assignmentLookups += 1; return []; }
+        return deletedRows;
+      },
+      deleteMany: async ({ where }) => { calls.deleteMany += 1; assert.deepEqual(where.id.in, deletes); return { count: deletedRows.length }; }
+    },
+    scheduleApproval: {
+      findFirst: async () => approval,
+      create: async ({ data }) => { calls.approvalCreates += 1; approval = { id: 'approval-1', ...data }; return approval; },
+      update: async ({ data }) => { approval = { ...approval, ...data }; return approval; }
+    },
+    auditLog: {
+      create: async ({ data }) => ({ id: 'audit-approval', ...data }),
+      createMany: async ({ data }) => { calls.auditBatches.push(data); return { count: data.length }; }
+    },
+    $executeRaw: async (query) => { calls.setWrites.push(query); return 500; }
+  };
+  try {
+    prisma.employee.findMany = async () => employees;
+    prisma.shiftType.findMany = async () => [shiftType];
+    prisma.employeeLicense.findMany = async () => [];
+    prisma.employeeLicenseDocument.findMany = async () => [];
+    prisma.$transaction = async (callback) => { calls.transactions += 1; return callback(tx); };
+
+    const result = await scheduleService.saveBatchAssignments(assignments, uuid(6000), 'ADMIN', deletes);
+
+    assert.equal(calls.transactions, 1);
+    assert.equal(calls.assignmentLookups, 1);
+    assert.equal(calls.setWrites.length, 2);
+    assert.equal(calls.setWrites.every((query) => query.sql.includes('FROM unnest(') && query.sql.includes('ON CONFLICT ("work_date", "employee_id")')), true);
+    assert.equal(calls.setWrites.every((query) => !query.sql.slice(query.sql.indexOf('DO UPDATE SET')).includes('"source" = EXCLUDED')), true);
+    assert.equal(calls.deleteMany, 1);
+    assert.equal(calls.approvalCreates, 1);
+    assert.equal(calls.auditBatches.length, 1);
+    assert.equal(calls.auditBatches[0].length, 50);
+    assert.deepEqual(result, { count: 1050, months: ['2026-08'], revision: [{ month: '2026-08', revision: 1 }] });
+  } finally {
+    prisma.employee.findMany = original.employeeFindMany;
+    prisma.shiftType.findMany = original.shiftTypeFindMany;
+    prisma.employeeLicense.findMany = original.licenseFindMany;
+    prisma.employeeLicenseDocument.findMany = original.licenseDocumentFindMany;
+    prisma.$transaction = original.transaction;
+  }
 });
 
 test('validation errors remain HTTP 400 and do not expose stack details', () => {

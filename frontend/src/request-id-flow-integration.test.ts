@@ -35,7 +35,7 @@ describe('Request ID visibility representative flow wiring', () => {
 
   it('shared Schedule/Leave mutation paths retain structured request IDs', () => {
     const main = source('main.tsx');
-    expect(main).toContain("setOperationError(toRequestErrorState(reason, 'บันทึกการเปลี่ยนแปลงไม่สำเร็จ'))");
+    expect(main).toContain("setOperationError(toRequestErrorState(reason, 'บันทึกไม่สำเร็จ ข้อมูลยังอยู่ในฉบับร่าง'))");
     expect(main).toContain("setSubmitError(toRequestErrorState(reason, 'ส่งคำขอลาไม่สำเร็จ'))");
     expect(main).toContain("setEditorError(toRequestErrorState(reason, 'บันทึกข้อมูลไม่สำเร็จ'))");
   });
