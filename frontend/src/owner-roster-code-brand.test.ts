@@ -48,7 +48,7 @@ describe('Owner-approved roster and brand contracts', () => {
     expect(main).toContain("departmentGroup.employees.length} คน");
     expect(main).not.toMatch(/getScheduleRosterOrder|updateScheduleRosterOrder|ScheduleRosterOrderModal|canReorderRoster|rosterOrderDepartment|จัดลำดับพนักงาน/);
     expect(main).toContain('className="schedule-grid"');
-    expect(main).toContain('แสดง {calendarEmployees.length} จาก {allCalendarEmployees.length} คน');
+    expect(main).toContain('`แสดง ${calendarEmployees.length} จาก ${allCalendarEmployees.length} คน`');
     expect(main).not.toContain('แสดง {calendarEmployees.length} จาก {operationResponse.meta?.total || 0} คน');
   });
 
