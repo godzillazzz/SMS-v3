@@ -73,6 +73,12 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     };
 
     await deleteTracked(prisma.auditLog, 'auditLog');
+    const fixtureEmployeeIds = ids('employee');
+    if (fixtureEmployeeIds.length > 0) {
+      // The batch endpoint creates rows that are not individually tracked by
+      // this test. Scope cleanup to the exact employee fixtures created here.
+      await prisma.shiftAssignment.deleteMany({ where: { employeeId: { in: fixtureEmployeeIds } } });
+    }
     await deleteTracked(prisma.shiftAssignment, 'shiftAssignment');
     await deleteTracked(prisma.scheduleApproval, 'scheduleApproval');
     await deleteTracked(prisma.employeeLicense, 'employeeLicense');
@@ -89,6 +95,13 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
     ]) {
       const trackedIds = ids(name);
       if (trackedIds.length > 0) assert.equal(await model.count({ where: { id: { in: trackedIds } } }), 0, `${name} fixtures for ${runMarker} were not cleaned up`);
+    }
+    if (fixtureEmployeeIds.length > 0) {
+      assert.equal(
+        await prisma.shiftAssignment.count({ where: { employeeId: { in: fixtureEmployeeIds } } }),
+        0,
+        `shift assignments for ${runMarker} employee fixtures were not cleaned up`
+      );
     }
   }
 
