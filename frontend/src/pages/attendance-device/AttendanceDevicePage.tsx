@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
-import { formatRequestErrorMessage } from '../../request-error';
+import { formatRequestErrorMessage, RequestErrorReference, toRequestErrorState } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
 import { useActionDialog } from '../../components/useActionDialog';
 import { attendanceDeviceAdminOverview, revokeAttendanceDeviceCurrent } from '../attendance/attendance-client';
@@ -86,6 +86,17 @@ type Props = { token: string; role: string; readOnly?: boolean };
 type ReviewAction = 'RETURN' | 'REJECT';
 type ReviewTarget = { row: AttendanceDeviceRequest; action: ReviewAction } | null;
 
+function attendanceDeviceRequestCode(reason: unknown) {
+  if (!reason || typeof reason !== 'object') return undefined;
+  const error = reason as { code?: unknown; details?: unknown };
+  if (typeof error.code === 'string') return error.code;
+  if (error.details && typeof error.details === 'object' && 'code' in error.details) {
+    const code = (error.details as { code?: unknown }).code;
+    return typeof code === 'string' ? code : undefined;
+  }
+  return undefined;
+}
+
 const formatDate = (value?: string | null) => value
   ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value))
   : '—';
@@ -131,11 +142,11 @@ function inspectFromInventory(inventory: AttendanceDeviceKeyInventory, enrollmen
 }
 
 function localKeyStatusCopy(inspection: AttendanceDeviceKeyInspection | null) {
-  if (!inspection) return 'ยังไม่มี Server device ID ให้ตรวจ';
-  if (inspection.status === 'PRESENT') return 'Private key พร้อมใน browser นี้ · พร้อมทำ device proof';
-  if (inspection.status === 'MISSING') return 'ไม่พบ key ที่ตรงกับ enrollment ID นี้ใน browser/profile ปัจจุบัน; หน้านี้แยกไม่ได้ว่าเกิดจากล้างข้อมูลเว็บไซต์, private browsing หรือใช้ browser/profile อื่น';
-  if (inspection.status === 'INVALID') return 'พบ key record แต่ metadata ไม่ถูกต้อง จึงใช้ทำ device proof ไม่ได้';
-  return 'อ่าน IndexedDB ไม่ได้ จึงยังยืนยัน local private key ไม่ได้';
+  if (!inspection) return 'ยังไม่มีรหัสอุปกรณ์จากระบบให้ตรวจสอบ';
+  if (inspection.status === 'PRESENT') return 'คีย์ลับพร้อมใช้งานบนอุปกรณ์นี้ · พร้อมยืนยันอุปกรณ์';
+  if (inspection.status === 'MISSING') return 'ไม่พบคีย์ที่ตรงกับรหัสอุปกรณ์นี้ในอุปกรณ์หรือโปรไฟล์ปัจจุบัน อาจเกิดจากการล้างข้อมูลหรือเปลี่ยนอุปกรณ์/โปรไฟล์';
+  if (inspection.status === 'INVALID') return 'พบข้อมูลคีย์ แต่ตรวจสอบไม่ผ่าน จึงยืนยันอุปกรณ์ไม่ได้';
+  return 'อ่านพื้นที่จัดเก็บข้อมูลของอุปกรณ์ไม่ได้ จึงยังตรวจสอบคีย์ได้ไม่ครบ';
 }
 
 function localKeyReadinessState(inspection: AttendanceDeviceKeyInspection | null, capabilitySupported: boolean) {
@@ -152,6 +163,8 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
   const [selfState, setSelfState] = useState<SelfState | null>(null);
   const [selfLoading, setSelfLoading] = useState(true);
   const [selfError, setSelfError] = useState<string>();
+  const [selfErrorRequestId, setSelfErrorRequestId] = useState<string>();
+  const [employeeLinkRequired, setEmployeeLinkRequired] = useState(false);
   const [queue, setQueue] = useState<AttendanceDeviceRequest[]>([]);
   const [queueLoading, setQueueLoading] = useState(role === 'ADMIN');
   const [queueError, setQueueError] = useState<string>();
@@ -171,11 +184,12 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
   const [revokeReason, setRevokeReason] = useState('');
 
   const loadSelf = async () => {
-    setSelfLoading(true); setSelfError(undefined);
+    setSelfLoading(true); setSelfError(undefined); setSelfErrorRequestId(undefined); setEmployeeLinkRequired(false);
     try {
       const response = await api.attendanceDeviceState(token);
       const next = response.data as SelfState;
       setSelfState(next);
+      setEmployeeLinkRequired(false);
       let inventory = await listAttendanceDeviceKeyIds(next.employeeId);
       let activeInspection = inspectFromInventory(inventory, next.activeDevice?.id);
       let candidateInspection = inspectFromInventory(inventory, next.activeRequest?.candidateDeviceEnrollmentId);
@@ -195,7 +209,14 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
       setKeyInventory(null);
       setActiveKeyInspection(null);
       setCandidateKeyInspection(null);
-      setSelfError(formatRequestErrorMessage(error, 'ไม่สามารถอ่านสถานะอุปกรณ์ลงเวลาได้'));
+      const requestError = toRequestErrorState(error, 'ไม่สามารถอ่านสถานะอุปกรณ์ลงเวลาได้ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ');
+      const linkedAccountRequired = ['ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED', 'ATTENDANCE_EMPLOYEE_LINK_REQUIRED']
+        .includes(attendanceDeviceRequestCode(error) || '');
+      setEmployeeLinkRequired(linkedAccountRequired);
+      setSelfError(linkedAccountRequired
+        ? 'บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อผู้ดูแลระบบ'
+        : requestError.message);
+      setSelfErrorRequestId(requestError.requestId);
     } finally { setSelfLoading(false); }
   };
 
@@ -227,7 +248,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
   };
 
   const enroll = async () => {
-    if (readOnly) return;
+    if (readOnly || employeeLinkRequired) return;
     setMessage(undefined); setSelfError(undefined);
     if (!capability.supported) { setSelfError(capabilityMessage(capability.reason)); return; }
     const name = displayName.trim();
@@ -315,10 +336,10 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
 
   const approve = async (row: AttendanceDeviceRequest) => {
     if (readOnly || role !== 'ADMIN') return;
-    if (!row.candidateDevice?.proofVerifiedAt) { setQueueError('ยังอนุมัติไม่ได้: อุปกรณ์นี้ยังไม่ผ่านการพิสูจน์ possession ของ private key'); return; }
+    if (!row.candidateDevice?.proofVerifiedAt) { setQueueError('ยังอนุมัติไม่ได้: อุปกรณ์นี้ยังยืนยันรหัสประจำเครื่องไม่สำเร็จ'); return; }
     const confirmed = await actionDialog.confirm({
       title: 'อนุมัติอุปกรณ์ลงเวลา',
-      message: 'อุปกรณ์นี้ผ่าน Device Proof แล้ว การอนุมัติจะทำให้อุปกรณ์ candidate กลายเป็นอุปกรณ์ลงเวลาที่ ACTIVE ตามกฎปัจจุบัน',
+      message: 'อุปกรณ์นี้ผ่านการยืนยันแล้ว การอนุมัติจะเปิดใช้งานเป็นอุปกรณ์ลงเวลาตามกฎปัจจุบัน',
       context: `${employeeName(row)} · ${row.candidateDevice.displayName}`,
       confirmLabel: 'ยืนยันอนุมัติอุปกรณ์',
       tone: 'primary'
@@ -358,16 +379,16 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
   const activeLocalKeyReady = activeLocalKeyPresent && capability.supported;
   const candidateLocalKeyPresent = candidateKeyInspection?.status === 'PRESENT';
   const activeLocalKeyCopy = activeLocalKeyPresent && !capability.supported
-    ? `พบ local key record แต่ browser นี้ยังทำ device proof ไม่ได้: ${capabilityMessage(capability.reason)}`
-    : `${localKeyStatusCopy(activeKeyInspection)}${activeKeyInspection?.status === 'MISSING' ? ' Attendance จะหยุดก่อน device proof; ตรวจ ID chain ก่อนใช้ governed replacement/re-registration flow' : ''}`;
+    ? `พบข้อมูลคีย์ในอุปกรณ์นี้ แต่เบราว์เซอร์ยังยืนยันอุปกรณ์ไม่ได้: ${capabilityMessage(capability.reason)}`
+    : `${localKeyStatusCopy(activeKeyInspection)}${activeKeyInspection?.status === 'MISSING' ? ' ระบบจะหยุดการลงเวลาก่อนยืนยันอุปกรณ์ โปรดตรวจสอบรหัสอุปกรณ์ก่อนขอเปลี่ยนหรือลงทะเบียนใหม่' : ''}`;
   const candidateLocalKeyCopy = candidateLocalKeyPresent && !capability.supported
-    ? `พบ local key record แต่ browser นี้ยังทำ device proof ไม่ได้: ${capabilityMessage(capability.reason)}`
+    ? `พบข้อมูลคีย์ในอุปกรณ์นี้ แต่เบราว์เซอร์ยังยืนยันอุปกรณ์ไม่ได้: ${capabilityMessage(capability.reason)}`
     : localKeyStatusCopy(candidateKeyInspection);
 
-  return <><section className="view-pane attendance-device-page nexus-device-registry" aria-label="Trusted Device Registry">
-    <div className="nexus-page-breadcrumb">SMS NEXUS / SECURITY / ATTENDANCE DEVICES</div>
+  return <><section className="view-pane attendance-device-page nexus-device-registry" aria-label="จัดการอุปกรณ์ลงเวลา">
+    <div className="nexus-page-breadcrumb">อุปกรณ์ลงเวลา</div>
     <div className="page-heading attendance-device-heading">
-      <div><p className="eyebrow">G06 · PERSONAL DEVICE</p><h1>อุปกรณ์ลงเวลา</h1><p>ผูกอุปกรณ์หลักกับ Employee แบบ 1 คน = 1 เครื่อง โดยเครื่องแรกและการเปลี่ยนเครื่องต้อง Admin อนุมัติ</p></div>
+      <div><p className="eyebrow">อุปกรณ์ลงเวลา</p><h1>อุปกรณ์ลงเวลา</h1><p>พนักงานหนึ่งคนใช้อุปกรณ์หลักได้หนึ่งเครื่อง การลงทะเบียนครั้งแรกและการเปลี่ยนเครื่องต้องได้รับอนุมัติจากผู้ดูแลระบบ</p></div>
       <div className="heading-actions"><button type="button" className="btn-neutral small-action" disabled={busy} onClick={() => void refresh()}><SmsIcon name="refresh" size={17} />รีเฟรช</button></div>
     </div>
 
@@ -377,60 +398,60 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
 
     <div className="attendance-device-grid">
       <article className="attendance-device-card attendance-device-card--primary">
-        <header><span className="attendance-device-card__icon"><SmsIcon name="key" size={21} /></span><div><h2>อุปกรณ์หลักของฉัน</h2><p>Private key อยู่เฉพาะใน browser storage ของอุปกรณ์นี้ และส่งออกไม่ได้</p></div></header>
+        <header><span className="attendance-device-card__icon"><SmsIcon name="key" size={21} /></span><div><h2>อุปกรณ์หลักของฉัน</h2><p>คีย์สำหรับยืนยันอุปกรณ์จัดเก็บไว้ในเบราว์เซอร์นี้และไม่สามารถส่งออกได้</p></div></header>
         {selfLoading ? <div className="attendance-device-state">กำลังอ่านสถานะอุปกรณ์…</div>
           : activeDevice ? <div className="attendance-device-current" data-testid="attendance-active-device" data-local-key-state={localKeyReadinessState(activeKeyInspection, capability.supported)}>
-            <div className="attendance-device-current__hero"><span className={`device-orb ${activeLocalKeyReady ? '' : 'is-warning'}`}><SmsIcon name={activeLocalKeyReady ? 'check' : 'key'} size={22} /></span><div><strong>{activeDevice.displayName}</strong><span>Server device ACTIVE · ใช้เป็นอุปกรณ์หลักสำหรับ Attendance/Patrol</span></div></div>
+            <div className="attendance-device-current__hero"><span className={`device-orb ${activeLocalKeyReady ? '' : 'is-warning'}`}><SmsIcon name={activeLocalKeyReady ? 'check' : 'key'} size={22} /></span><div><strong>{activeDevice.displayName}</strong><span>อุปกรณ์หลักเปิดใช้งานสำหรับลงเวลาและตรวจเวร</span></div></div>
             <div className={`device-proof-state ${activeLocalKeyReady ? 'is-ready' : 'is-warning'}`} role={activeLocalKeyReady ? 'status' : 'alert'}>
               <SmsIcon name={activeLocalKeyReady ? 'check' : 'key'} size={18} />
-              <div><strong>{activeLocalKeyReady ? 'Private key พร้อมใน browser นี้' : 'สถานะ Server ACTIVE แต่ local key ยังไม่พร้อม'}</strong><span>{activeLocalKeyCopy}</span></div>
+              <div><strong>{activeLocalKeyReady ? 'คีย์ลับพร้อมใช้งานบนอุปกรณ์นี้' : 'ระบบระบุว่าอุปกรณ์ใช้งานอยู่ แต่ยังไม่พบคีย์ในอุปกรณ์นี้'}</strong><span>{activeLocalKeyCopy}</span></div>
             </div>
             <dl><div><dt>เปิดใช้งาน</dt><dd>{formatDate(activeDevice.activatedAt)}</dd></div><div><dt>ผู้อนุมัติ</dt><dd>{activeDevice.approvedBy?.displayName || 'ไม่พบชื่อผู้อนุมัติ'}</dd></div><div><dt>แพลตฟอร์ม</dt><dd>{activeDevice.platformHint || 'Web'}</dd></div><div><dt>Key</dt><dd>{activeDevice.keyAlgorithm}</dd></div></dl>
           </div> : !selfError ? <div className="attendance-device-state attendance-device-state--empty"><strong>ยังไม่มีอุปกรณ์หลัก</strong><span>ลงทะเบียนจากโทรศัพท์หรืออุปกรณ์ที่ต้องการใช้ลงเวลา แล้วรอ Admin อนุมัติ</span></div> : null}
         {activeDevice && <details className="attendance-device-diagnostics" data-testid="attendance-device-id-diagnostics">
-          <summary>รายละเอียดการตรวจสถานะ key ใน browser นี้</summary>
+          <summary>รายละเอียดการตรวจสถานะคีย์ในเบราว์เซอร์นี้</summary>
           <dl>
             <div><dt>SERVER_ACTIVE_DEVICE</dt><dd>{activeIdChain.activeDeviceId || '—'}</dd></div>
             <div><dt>LOCAL_PRIVATE_KEY_PRESENT</dt><dd>{activeKeyInspection?.status === 'PRESENT' && activeIdChain.activeKeyIdMatch === true ? 'true' : activeKeyInspection?.status === 'MISSING' ? 'false' : 'unknown'} · {activeKeyInspection?.status || 'UNKNOWN'}</dd></div>
             <div><dt>ACTIVE_DEVICE_KEY_ID_MATCH</dt><dd>{activeIdChain.activeKeyIdMatch === true ? 'MATCH' : activeIdChain.activeKeyIdMatch === false ? 'MISMATCH' : 'ยังตรวจไม่ได้'}</dd></div>
             <div><dt>VERIFICATION_DEVICE_ID</dt><dd>ยังไม่มี verification session ในหน้านี้</dd></div>
             <div><dt>VERIFICATION_DEVICE_ID_MATCH</dt><dd>ยังไม่ได้ตรวจในหน้านี้</dd></div>
-            <div><dt>ACTIVE_REQUEST_CANDIDATE_ID</dt><dd>{activeIdChain.candidateDeviceId || '—'}</dd></div>
-            <div><dt>CANDIDATE_LOCAL_PRIVATE_KEY</dt><dd>{candidateKeyInspection?.status || 'ไม่มี candidate'}{candidateLocalKeyPresent ? ' · ID ตรงกัน' : ''}</dd></div>
+            <div><dt>รหัสอุปกรณ์ที่รอพิจารณา</dt><dd>{activeIdChain.candidateDeviceId || '—'}</dd></div>
+            <div><dt>สถานะรหัสยืนยันอุปกรณ์</dt><dd>{candidateKeyInspection?.status || 'ไม่พบอุปกรณ์ที่รอพิจารณา'}{candidateLocalKeyPresent ? ' · รหัสตรงกัน' : ''}</dd></div>
             <div><dt>INDEXEDDB_STORED_ENROLLMENT_IDS</dt><dd>{keyInventory?.available ? activeIdChain.storedEnrollmentIds.join(', ') || 'ไม่มี enrollment ID ที่อ่านได้' : 'อ่าน IndexedDB ไม่ได้'}</dd></div>
             <div><dt>MALFORMED_LOCAL_KEY_RECORDS</dt><dd>{keyInventory?.available ? keyInventory.malformedRecordCount : 'unknown'}</dd></div>
             <div><dt>LOCAL_KEY_METADATA</dt><dd>{activeKeyInspection?.algorithm || '—'} / {activeKeyInspection?.namedCurve || '—'} · extractable={String(activeKeyInspection?.extractable ?? 'unknown')} · usages={activeKeyInspection?.usages.join(', ') || '—'}</dd></div>
             <div><dt>BROWSER_STORAGE</dt><dd>secureContext={String(window.isSecureContext)} · WebCrypto={String(Boolean(globalThis.crypto?.subtle))} · IndexedDB={keyInventory?.available ? 'readable' : 'unavailable'}</dd></div>
           </dl>
         </details>}
-        {selfError && <div className="alert alert-error" role="alert">{selfError}</div>}
+        {selfError && <div className="alert alert-error" role="alert"><span>{selfError}</span>{selfErrorRequestId && <details className="attendance-device-error-reference"><summary>รายละเอียดสำหรับผู้ดูแล</summary><RequestErrorReference requestId={selfErrorRequestId} /></details>}</div>}
       </article>
 
       <article className="attendance-device-card">
-        <header><span className="attendance-device-card__icon"><SmsIcon name="shield" size={21} /></span><div><h2>{request ? 'คำขอที่กำลังดำเนินการ' : isReplacement ? 'ขอเปลี่ยนอุปกรณ์' : 'ลงทะเบียนอุปกรณ์เครื่องแรก'}</h2><p>บัญชี/Passkey ไม่ถือเป็นหลักฐานว่าเครื่องนี้เป็น Attendance device จนกว่า Admin จะอนุมัติ</p></div></header>
+        <header><span className="attendance-device-card__icon"><SmsIcon name="shield" size={21} /></span><div><h2>{employeeLinkRequired ? 'ลงทะเบียนอุปกรณ์ไม่ได้' : request ? 'คำขอที่กำลังดำเนินการ' : isReplacement ? 'ขอเปลี่ยนอุปกรณ์' : 'ลงทะเบียนอุปกรณ์เครื่องแรก'}</h2><p>{employeeLinkRequired ? 'ต้องผูกบัญชีกับข้อมูลพนักงานก่อน จึงจะลงทะเบียนอุปกรณ์ได้' : 'บัญชีหรือรหัสผ่านยืนยันตัวตนเพียงอย่างเดียวไม่ยืนยันว่าอุปกรณ์นี้เป็นเครื่องที่ใช้ลงเวลา ต้องรอผู้ดูแลระบบอนุมัติ'}</p></div></header>
         {request ? <div className="attendance-device-request">
-          <div className="attendance-device-request__top"><div><strong>{request.candidateDevice?.displayName || 'Candidate device'}</strong><span>{request.requestType === 'INITIAL' ? 'เครื่องแรก' : 'เปลี่ยนอุปกรณ์'}</span></div><span className={`status-badge ${statusClass[request.status]}`}>{statusLabel[request.status]}</span></div>
-          <div className={`device-proof-state ${proofReady ? 'is-ready' : 'is-warning'}`} data-testid="attendance-candidate-key-state" data-local-key-state={candidateKeyInspection?.status || 'UNKNOWN'}><SmsIcon name={proofReady ? 'check' : 'key'} size={18} /><div><strong>{proofReady ? 'Device proof ผ่านแล้ว' : 'สถานะ local key ของ candidate'}</strong><span>{proofReady ? `พิสูจน์เมื่อ ${formatDate(request.candidateDevice?.proofVerifiedAt)}` : candidateLocalKeyCopy}</span></div></div>
+          <div className="attendance-device-request__top"><div><strong>{request.candidateDevice?.displayName || 'อุปกรณ์ที่ขอลงทะเบียน'}</strong><span>{request.requestType === 'INITIAL' ? 'เครื่องแรก' : 'เปลี่ยนอุปกรณ์'}</span></div><span className={`status-badge ${statusClass[request.status]}`}>{statusLabel[request.status]}</span></div>
+          <div className={`device-proof-state ${proofReady ? 'is-ready' : 'is-warning'}`} data-testid="attendance-candidate-key-state" data-local-key-state={candidateKeyInspection?.status || 'UNKNOWN'}><SmsIcon name={proofReady ? 'check' : 'key'} size={18} /><div><strong>{proofReady ? 'ยืนยันอุปกรณ์ผ่านแล้ว' : 'สถานะการยืนยันอุปกรณ์'}</strong><span>{proofReady ? `ยืนยันเมื่อ ${formatDate(request.candidateDevice?.proofVerifiedAt)}` : candidateLocalKeyCopy}</span></div></div>
           {request.reason && <p className="attendance-device-reason"><b>เหตุผล:</b> {request.reason}</p>}
           {request.reviewerComment && <div className="attendance-device-review-note"><b>ความเห็นผู้ตรวจ:</b><span>{request.reviewerComment}</span></div>}
           {request.status === 'RETURNED_FOR_CORRECTION' && <label className="attendance-device-field"><span>เหตุผล/คำชี้แจงสำหรับส่งใหม่</span><textarea value={reason} maxLength={1000} onChange={(event) => setReason(event.target.value)} placeholder={request.reason || 'ระบุคำชี้แจงเพิ่มเติม'} /></label>}
-          {!proofReady && candidateKeyInspection?.status !== 'MISSING' && candidateKeyInspection?.status !== 'INVALID' && <button type="button" className="btn-primary" disabled={busy || readOnly || !capability.supported} onClick={() => void retryProof()}><SmsIcon name="key" size={17} />{busy ? 'กำลังยืนยัน…' : 'ยืนยันคีย์อีกครั้ง'}</button>}
+          {!proofReady && candidateKeyInspection?.status !== 'MISSING' && candidateKeyInspection?.status !== 'INVALID' && <button type="button" className="btn-primary" disabled={busy || readOnly || !capability.supported} onClick={() => void retryProof()}><SmsIcon name="key" size={17} />{busy ? 'กำลังยืนยัน…' : 'ยืนยันอุปกรณ์อีกครั้ง'}</button>}
           {request.status === 'RETURNED_FOR_CORRECTION' && <button type="button" className="btn-primary" disabled={busy || readOnly} onClick={() => void resubmit()}><SmsIcon name="refresh" size={17} />ส่งให้ Admin พิจารณาอีกครั้ง</button>}
           <div className="attendance-device-cancel"><label className="attendance-device-field"><span>เหตุผลที่ยกเลิกคำขอ</span><input value={cancelReason} maxLength={1000} onChange={(event) => setCancelReason(event.target.value)} placeholder="เช่น เลือกอุปกรณ์ผิด / ต้องการลงทะเบียนใหม่" /></label><button type="button" className="btn-danger-outline" disabled={busy || readOnly || !cancelReason.trim()} onClick={() => void cancelRequest()}>ยกเลิกคำขอนี้</button></div>
-        </div> : <div className="attendance-device-enroll-form">
+        </div> : employeeLinkRequired ? <div className="attendance-device-state attendance-device-state--empty"><strong>กรุณาติดต่อผู้ดูแลระบบ</strong><span>ผู้ดูแลจะผูกบัญชีนี้กับข้อมูลพนักงานก่อนเปิดให้ลงทะเบียนอุปกรณ์</span></div> : <div className="attendance-device-enroll-form">
           <label className="attendance-device-field"><span>ชื่ออุปกรณ์</span><input value={displayName} maxLength={120} onChange={(event) => setDisplayName(event.target.value)} placeholder="เช่น iPhone เครื่องหลัก" /></label>
           {isReplacement && <label className="attendance-device-field"><span>เหตุผลที่ขอเปลี่ยนอุปกรณ์</span><textarea value={reason} maxLength={1000} onChange={(event) => setReason(event.target.value)} placeholder="เช่น เปลี่ยนโทรศัพท์ใหม่ / เครื่องเดิมชำรุด" /></label>}
-          <div className="attendance-device-security-note"><SmsIcon name="shield" size={18} /><span>ระบบจะสร้าง P-256 private key แบบ non-exportable บนอุปกรณ์นี้ ส่งขึ้น server เฉพาะ public key และ cryptographic proof</span></div>
+          <div className="attendance-device-security-note"><SmsIcon name="shield" size={18} /><span>ระบบจะผูกบัญชีของคุณกับอุปกรณ์นี้อย่างปลอดภัย และต้องรอผู้ดูแลระบบอนุมัติ</span></div>
           <button type="button" className="btn-primary attendance-device-enroll-action" disabled={busy || readOnly || !capability.supported || !displayName.trim() || (isReplacement && !reason.trim())} onClick={() => void enroll()}><SmsIcon name="key" size={18} />{busy ? 'กำลังสร้างและยืนยันคีย์…' : isReplacement ? 'ส่งคำขอเปลี่ยนอุปกรณ์' : 'ลงทะเบียนอุปกรณ์เครื่องแรก'}</button>
         </div>}
       </article>
     </div>
 
     {role === 'ADMIN' && <section className="attendance-device-admin-section">
-      <div className="section-title"><div><p className="eyebrow">ADMIN REVIEW</p><h2>คำขออุปกรณ์ที่รออนุมัติ</h2><p>อนุมัติได้เฉพาะ candidate ที่พิสูจน์ possession ของ private key ผ่านแล้ว</p></div><span className="attendance-device-queue-count">{queue.length}</span></div>
+      <div className="section-title"><div><p className="eyebrow">ADMIN REVIEW</p><h2>คำขออุปกรณ์ที่รออนุมัติ</h2><p>อนุมัติได้เมื่ออุปกรณ์ผ่านการยืนยันแล้วเท่านั้น</p></div><span className="attendance-device-queue-count">{queue.length}</span></div>
       {queueError && <div className="alert alert-error" role="alert">{queueError}</div>}
       {queueLoading ? <div className="attendance-device-state">กำลังโหลดคิวอนุมัติ…</div> : queue.length ? <div className="attendance-device-review-list">{queue.map((row) => <article className="attendance-device-review-card" key={row.id}>
-        <div className="attendance-device-review-card__head"><div><strong>{employeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'} · ผู้ยื่น {row.requestedBy?.displayName || 'บัญชีพนักงาน'}</span></div><span className={`status-badge ${row.candidateDevice?.proofVerifiedAt ? 'active' : 'pending'}`}>{row.candidateDevice?.proofVerifiedAt ? 'PROOF VERIFIED' : 'PROOF REQUIRED'}</span></div>
+        <div className="attendance-device-review-card__head"><div><strong>{employeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'} · ผู้ยื่น {row.requestedBy?.displayName || 'บัญชีพนักงาน'}</span></div><span className={`status-badge ${row.candidateDevice?.proofVerifiedAt ? 'active' : 'pending'}`}>{row.candidateDevice?.proofVerifiedAt ? 'ยืนยันอุปกรณ์แล้ว' : 'รอยืนยันอุปกรณ์'}</span></div>
         <div className="attendance-device-review-meta"><div><span>ประเภท</span><b>{row.requestType === 'INITIAL' ? 'เครื่องแรก' : 'เปลี่ยนอุปกรณ์'}</b></div><div><span>อุปกรณ์</span><b>{row.candidateDevice?.displayName || '—'}</b></div><div><span>แพลตฟอร์ม</span><b>{row.candidateDevice?.platformHint || 'Web'}</b></div><div><span>ยื่นเมื่อ</span><b>{formatDate(row.createdAt)}</b></div></div>
         {row.reason && <p className="attendance-device-reason"><b>เหตุผล:</b> {row.reason}</p>}
         <footer><button type="button" className="btn-neutral" disabled={busy || readOnly} onClick={() => { setReviewTarget({ row, action: 'RETURN' }); setReviewReason(''); }}>ส่งกลับแก้ไข</button><button type="button" className="btn-danger-outline" disabled={busy || readOnly} onClick={() => { setReviewTarget({ row, action: 'REJECT' }); setReviewReason(''); }}>ไม่อนุมัติ</button><button type="button" className="btn-primary" disabled={busy || readOnly || !row.candidateDevice?.proofVerifiedAt} onClick={() => void approve(row)}><SmsIcon name="check" size={17} />อนุมัติ</button></footer>
@@ -438,7 +459,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
     </section>}
 
     {role === 'ADMIN' && <section className="attendance-device-admin-section">
-      <div className="section-title"><div><p className="eyebrow">CFG-08 · ADMIN</p><h2>จัดการอุปกรณ์ลงเวลาพนักงาน</h2><p>ดูอุปกรณ์ปัจจุบัน ประวัติ Device Proof / Activation / Revocation และ Audit ที่เกี่ยวข้อง โดยชื่อเครื่องและ Platform เป็นข้อมูลประกอบเท่านั้น ไม่ใช่ Trusted Identity</p></div><span className="attendance-device-queue-count">{adminOverview.length}</span></div>
+      <div className="section-title"><div><p className="eyebrow">จัดการอุปกรณ์</p><h2>จัดการอุปกรณ์ลงเวลาพนักงาน</h2><p>ตรวจสอบอุปกรณ์ที่ลงทะเบียน ประวัติการอนุมัติและการยกเลิก โดยใช้ชื่อเครื่องและแพลตฟอร์มเป็นข้อมูลประกอบเท่านั้น</p></div><span className="attendance-device-queue-count">{adminOverview.length}</span></div>
       {overviewLoading ? <div className="attendance-device-state">กำลังโหลดประวัติอุปกรณ์…</div> : adminOverview.length ? <div className="attendance-device-review-list">{adminOverview.map((row) => <article className="attendance-device-review-card" key={row.employeeId}>
         <div className="attendance-device-review-card__head"><div><strong>{adminEmployeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'}</span></div><span className={`status-badge ${row.activeDevice ? 'active' : 'muted'}`}>{row.activeDevice ? 'ACTIVE DEVICE' : 'NO ACTIVE DEVICE'}</span></div>
         {row.activeDevice ? <div className="attendance-device-review-meta"><div><span>อุปกรณ์ปัจจุบัน</span><b>{row.activeDevice.displayName}</b></div><div><span>Device Proof</span><b>{row.activeDevice.proofVerifiedAt ? `ผ่าน · ${formatDate(row.activeDevice.proofVerifiedAt)}` : 'ไม่พบหลักฐาน'}</b></div><div><span>Activated</span><b>{formatDate(row.activeDevice.activatedAt)}</b></div><div><span>Credential</span><b>{row.activeDevice.credentialFingerprint?.slice(0, 12) || '—'}…</b></div></div> : <div className="attendance-device-state attendance-device-state--empty"><strong>ไม่มีอุปกรณ์ ACTIVE</strong><span>พนักงานต้องลงทะเบียนและผ่าน Device Proof ก่อนส่ง Admin อนุมัติอุปกรณ์ใหม่</span></div>}

@@ -965,7 +965,7 @@ export function AttendanceSupervisorPage({ token, role, department, userId, onOp
   </div>;
 
   return <section className="attendance-supervisor-v4 nexus-attendance-ops" aria-label="Attendance Operations Control">
-    <div className="nexus-page-breadcrumb">SMS NEXUS / WORKFORCE / ATTENDANCE SUPERVISOR</div>
+    <div className="nexus-page-breadcrumb">ติดตามการลงเวลา</div>
     <header className="attendance-supervisor-v4__hero">
       <div>
         <span className="attendance-supervisor-v4__eyebrow">การควบคุมการลงเวลา</span>

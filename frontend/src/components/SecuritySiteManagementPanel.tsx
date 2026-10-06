@@ -386,7 +386,7 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
   };
 
   return <><section className="security-site-admin nexus-gis-workspace nexus-site-command" aria-label="Security Site & Checkpoint Command">
-    <div className="nexus-page-breadcrumb">SMS NEXUS / SECURITY / SITE MANAGEMENT</div>
+    <div className="nexus-page-breadcrumb">จัดการสถานที่ปฏิบัติงาน</div>
     <header className="security-site-admin__header gis-legacy-header">
       <div><p className="eyebrow">ADMIN · ATTENDANCE SITE AUTHORITY</p><h2>Security Site Management</h2><p>กำหนด Site, Geofence, Department ↔ Site และ Default/Home Site โดยไม่ผูก Site ถาวรไว้ที่ Employee</p></div>
       <button type="button" className="btn-neutral" disabled={loading || saving} onClick={() => void reload()}>↻ รีเฟรช</button>
@@ -398,18 +398,17 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
 
     <section className="gis-command-header">
       <div>
-        <p className="gis-command-breadcrumb">SMS NEXUS / GEOSPATIAL / SITE SURVEILLANCE</p>
+        <p className="gis-command-breadcrumb">ดูแลพิกัดสถานที่</p>
         <h1>GIS Surveillance &amp; Site Control</h1>
         <p>ระบบแผนที่ยุทธวิธีและการกำกับ Security Site / Geofence จากข้อมูลจริงของระบบ</p>
       </div>
-      <button type="button" className="btn-neutral" disabled={loading || saving} onClick={() => void reload()}>REFRESH MATRIX</button>
+      <button type="button" className="btn-neutral" disabled={loading || saving} onClick={() => void reload()}>รีเฟรชข้อมูล</button>
     </section>
 
-    <div className="nexus-gis-status-strip" aria-label="GIS telemetry">
-      <span><small>TOTAL SITES</small><b>{loading && !sites.length ? 'AWAITING TELEMETRY' : sites.length}</b><em>Configured sites</em></span>
-      <span><small>ACTIVE STATUS</small><b className="is-nominal">{loading && !sites.length ? 'AWAITING TELEMETRY' : activeSiteCount}</b><em>Operational sites</em></span>
-      <span><small>GEOFENCE WATCH</small><b className={overlaps.length ? 'is-warning' : 'is-nominal'}>{loading && !sites.length ? 'AWAITING TELEMETRY' : overlaps.length}</b><em>{overlaps.length ? 'Configuration overlap review' : 'No overlap warning'}</em></span>
-      <span><small>MATRIX CALIBRATION</small><b>AWAITING TELEMETRY</b><em>No calibration channel in backend</em></span>
+    <div className="nexus-gis-status-strip" aria-label="สรุปสถานที่" aria-busy={loading}>
+      <span><small>สถานที่ทั้งหมด</small><b>{loading ? <i className="gis-status-skeleton" aria-hidden="true" /> : sites.length}</b><em>สถานที่ในระบบ</em></span>
+      <span><small>สถานะใช้งาน</small><b className="is-nominal">{loading ? <i className="gis-status-skeleton" aria-hidden="true" /> : activeSiteCount}</b><em>สถานะพื้นที่ทำงาน</em></span>
+      <span><small>พื้นที่ซ้อนทับ</small><b className={overlaps.length ? 'is-warning' : 'is-nominal'}>{loading ? <i className="gis-status-skeleton" aria-hidden="true" /> : overlaps.length}</b><em>{overlaps.length ? 'พบพื้นที่ที่ควรตรวจสอบ' : 'ไม่พบพื้นที่ซ้อนทับ'}</em></span>
     </div>
 
     <section className="gis-tactical-workspace" aria-label="Tactical GIS workspace">
@@ -431,7 +430,6 @@ export function SecuritySiteManagementPanel({ token }: { token: string }) {
           }))}
         />
         </Suspense>
-        <div className="gis-map-channel-state"><strong>CHECKPOINT CHANNEL NOT CONFIGURED</strong><span>ไม่มี Checkpoint API / patrol route / RTK telemetry ใน backend ปัจจุบัน</span></div>
       </article>
 
       <aside className={`gis-intelligence-sheet ${intelligenceOpen ? 'is-open' : ''}`} aria-label="Site intelligence panel">

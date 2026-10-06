@@ -5,7 +5,13 @@ import { api } from '../../api';
 import { AttendanceDevicePage } from './AttendanceDevicePage';
 import type { AttendanceDeviceKeyInspection, AttendanceDeviceKeyInventory } from '../../lib/attendance-device-key';
 
-vi.mock('../../api', () => ({ api: { attendanceDeviceState: vi.fn() } }));
+vi.mock('../../api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../api')>();
+  return {
+    ...actual,
+    api: { ...actual.api, attendanceDeviceState: vi.fn(), createAttendanceDeviceRequest: vi.fn() }
+  };
+});
 vi.mock('../../pages/attendance/attendance-client', () => ({
   attendanceDeviceAdminOverview: vi.fn(),
   revokeAttendanceDeviceCurrent: vi.fn()
@@ -58,8 +64,8 @@ describe('AttendanceDevicePage local key readiness', () => {
 
     const device = await screen.findByTestId('attendance-active-device');
     await waitFor(() => expect(device.getAttribute('data-local-key-state')).toBe('READY_LOCAL_KEY'));
-    expect(screen.getByText('Private key พร้อมใน browser นี้')).toBeTruthy();
-    expect(screen.getByText(/พร้อมทำ device proof/)).toBeTruthy();
+    expect(screen.getByText('คีย์ลับพร้อมใช้งานบนอุปกรณ์นี้')).toBeTruthy();
+    expect(screen.getByText(/พร้อมยืนยันอุปกรณ์/)).toBeTruthy();
     expect(screen.getByText('SERVER_ACTIVE_DEVICE')).toBeTruthy();
     expect(screen.getByText('LOCAL_PRIVATE_KEY_PRESENT')).toBeTruthy();
     expect(screen.getByText('VERIFICATION_DEVICE_ID_MATCH')).toBeTruthy();
@@ -74,11 +80,11 @@ describe('AttendanceDevicePage local key readiness', () => {
 
     const device = await screen.findByTestId('attendance-active-device');
     await waitFor(() => expect(device.getAttribute('data-local-key-state')).toBe('MISSING_LOCAL_KEY'));
-    expect(screen.getByText('สถานะ Server ACTIVE แต่ local key ยังไม่พร้อม')).toBeTruthy();
+    expect(screen.getByText('ระบบระบุว่าอุปกรณ์ใช้งานอยู่ แต่ยังไม่พบคีย์ในอุปกรณ์นี้')).toBeTruthy();
     expect(screen.getByText('LOCAL_PRIVATE_KEY_PRESENT')).toBeTruthy();
     expect(screen.getByText('VERIFICATION_DEVICE_ID_MATCH')).toBeTruthy();
-    expect(screen.getByText(/Attendance จะหยุดก่อน device proof/)).toBeTruthy();
-    expect(screen.queryByText('Private key พร้อมใน browser นี้')).toBeNull();
+    expect(screen.getByText(/ระบบจะหยุดการลงเวลาก่อนยืนยันอุปกรณ์/)).toBeTruthy();
+    expect(screen.queryByText('คีย์ลับพร้อมใช้งานบนอุปกรณ์นี้')).toBeNull();
   });
 
   it('reports active and in-flight candidate key states independently', async () => {
@@ -103,6 +109,28 @@ describe('AttendanceDevicePage local key readiness', () => {
       expect(candidate.getAttribute('data-local-key-state')).toBe('PRESENT');
     });
     expect(screen.getByText('SERVER_ACTIVE_DEVICE')).toBeTruthy();
-    expect(screen.getByText('ACTIVE_REQUEST_CANDIDATE_ID')).toBeTruthy();
+    expect(screen.getByText('รหัสอุปกรณ์ที่รอพิจารณา')).toBeTruthy();
+  });
+
+  it('shows the employee-link error in Thai, folds the request ID, and hides first-device enrollment', async () => {
+    const requestId = 'req-attendance-employee-link-42';
+    const error = Object.assign(new Error('A linked employee account is required.'), {
+      details: { code: 'ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED' },
+      requestId
+    });
+    vi.mocked(api.attendanceDeviceState).mockReset();
+    vi.mocked(api.attendanceDeviceState).mockImplementation(() => Promise.reject(error));
+
+    render(<AttendanceDevicePage token="test" role="EMPLOYEE" />);
+
+    await waitFor(() => expect(api.attendanceDeviceState).toHaveBeenCalled());
+    expect(api.attendanceDeviceState).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อผู้ดูแลระบบ')).toBeTruthy();
+    expect(screen.queryByLabelText('ชื่ออุปกรณ์')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'ลงทะเบียนอุปกรณ์เครื่องแรก' })).toBeNull();
+    const details = screen.getByText('รายละเอียดสำหรับผู้ดูแล').closest('details');
+    expect(details?.open).toBe(false);
+    expect(details?.textContent).toContain(requestId);
+    expect(api.createAttendanceDeviceRequest).not.toHaveBeenCalled();
   });
 });

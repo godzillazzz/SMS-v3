@@ -6,7 +6,8 @@ const enableG06DeviceContextDiagnostic = isG06DeviceContextDiagnosticBuild(proce
 
 export default defineConfig({
   define: {
-    __SMSV3_G06_DEVICE_CONTEXT_DIAGNOSTIC__: JSON.stringify(enableG06DeviceContextDiagnostic)
+    __SMSV3_G06_DEVICE_CONTEXT_DIAGNOSTIC__: JSON.stringify(enableG06DeviceContextDiagnostic),
+    'import.meta.env.VERCEL_ENV': JSON.stringify(process.env.VERCEL_ENV || '')
   },
   plugins: [react(), tailwindcss()],
   build: {

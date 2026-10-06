@@ -51,7 +51,7 @@ describe('G04.2 VF-02 owner visual fidelity correction contract', () => {
     expect(dashboardPage).toContain('Command Overview');
     expect(dashboardPage).toContain('nexus-command__grid');
     for (const label of ['ACTIVE PERSONNEL', 'ON DUTY TODAY', 'LEAVE / PENDING', 'LICENSE WATCH']) expect(dashboardPage).toContain(label);
-    expect(dashboardPage).toContain('GIS INTEGRATION PENDING');
+    expect(dashboardPage).not.toContain('GIS INTEGRATION PENDING');
     expect(dashboardPage).toContain('nexus-kpis');
     expect(dashboardPage.indexOf('nexus-kpis')).toBeLessThan(dashboardPage.indexOf('nexus-lower-grid'));
     expect(css).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
