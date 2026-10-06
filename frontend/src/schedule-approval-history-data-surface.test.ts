@@ -18,11 +18,12 @@ describe('WAVE 4B Schedule Approval History responsive surface', () => {
     expect(main).toContain('แบ่งหน้า');
   });
 
-  it('keeps approve and reject actions reachable on desktop, mobile, and the detail drawer', () => {
-    expect(main).toContain("if (page === 'approvals') return <><button className=\"btn-success compact\" onClick={() => onAction(row, 'approve')}>อนุมัติ</button><button className=\"btn-danger-outline compact\" onClick={() => onAction(row, 'reject')}>ไม่อนุมัติ</button></>");
+  it('keeps decisions reachable only for pending latest revisions on desktop, mobile, and the detail drawer', () => {
+    expect(main).toContain("if (page === 'approvals') return canDecideScheduleApproval(row) ? <>");
     expect(main).toContain('className="approval-mobile-actions"');
+    expect(main).toContain('canDecideScheduleApproval(selectedRow)');
     expect(main).toContain("secondaryActions.push({ label: 'ไม่อนุมัติ', tone: 'danger'");
-    expect(main).toContain("api.updateScheduleApproval(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED' })");
+    expect(main).toContain("api.updateScheduleApproval(auth.token, id, { status: action === 'approve' ? 'APPROVED' : 'REJECTED', ...(action === 'reject' && { approvalNote }) })");
   });
 
   it('preserves schedule approval authority and meaningful row identity', () => {

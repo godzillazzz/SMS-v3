@@ -775,8 +775,19 @@ router.get('/schedule-approvals', async (req, res, next) => {
       select: { id: true, month: true, status: true, revision: true, changeType: true, changedAt: true, approvedAt: true, approvedByLegacyRef: true, approvalNote: true },
       orderBy: [{ month: 'desc' }, { revision: 'desc' }]
     });
+    const latestByMonth = response.data.length
+      ? await prisma.scheduleApproval.groupBy({
+        by: ['month'],
+        where: { month: { in: [...new Map(response.data.map((row) => [new Date(row.month).getTime(), row.month])).values()] } },
+        _max: { revision: true }
+      })
+      : [];
+    const latestRevisionByMonth = new Map(latestByMonth.map((row) => [new Date(row.month).getTime(), row._max.revision]));
     const approvers = await resolveApprovalActors(prisma, response.data.map((row) => row.approvedByLegacyRef));
-    res.json({ ...response, data: response.data.map((row) => withApprovalIdentity(row, 'approvedByLegacyRef', approvers)) });
+    res.json({ ...response, data: response.data.map((row) => ({
+      ...withApprovalIdentity(row, 'approvedByLegacyRef', approvers),
+      isLatestRevision: row.revision === latestRevisionByMonth.get(new Date(row.month).getTime())
+    })) });
   } catch (error) { next(error); }
 });
 router.put('/schedule-approvals/:id', authorize('ADMIN', 'SUPERVISOR'), async (req, res, next) => {
@@ -784,8 +795,24 @@ router.put('/schedule-approvals/:id', authorize('ADMIN', 'SUPERVISOR'), async (r
     const id = uuid.parse(req.params.id);
     const input = z.object({ status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']), approvalNote: nullableText(2000) }).parse(req.body);
     if (req.user.role === 'SUPERVISOR' && input.status !== 'APPROVED') throw new HttpError(403, 'Managers may approve monthly schedules but may not set other approval states.', { code: 'SCHEDULE_SUPERVISOR_APPROVAL_ONLY' });
+    if (input.status === 'REJECTED' && String(input.approvalNote || '').trim().length < 5) {
+      throw new HttpError(400, 'กรุณาระบุเหตุผลการไม่อนุมัติอย่างน้อย 5 ตัวอักษร', { code: 'SCHEDULE_REJECTION_REASON_REQUIRED' });
+    }
     const result = await prisma.$transaction(async (tx) => {
       const before = await tx.scheduleApproval.findUniqueOrThrow({ where: { id } });
+      if (['APPROVED', 'REJECTED'].includes(input.status) && before.status !== 'PENDING') {
+        throw new HttpError(409, 'รายการอนุมัติไม่อยู่ในสถานะรออนุมัติ จึงดำเนินการต่อไม่ได้', { code: 'SCHEDULE_APPROVAL_INVALID_STATE' });
+      }
+      if (['APPROVED', 'REJECTED'].includes(input.status)) {
+        const newerRevision = await tx.scheduleApproval.findFirst({
+          where: { month: before.month, revision: { gt: before.revision } },
+          select: { id: true, revision: true },
+          orderBy: { revision: 'desc' }
+        });
+        if (newerRevision) {
+          throw new HttpError(409, 'รายการนี้ถูกแทนที่ด้วย revision ที่ใหม่กว่า จึงดำเนินการต่อไม่ได้', { code: 'SCHEDULE_APPROVAL_SUPERSEDED' });
+        }
+      }
       let after;
       if (input.status === 'APPROVED') {
         after = await approveMonthlySchedule(tx, { month: before.month, approvalNote: input.approvalNote, actorUser: req.user });
