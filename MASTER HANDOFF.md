@@ -388,3 +388,131 @@ Attendance P0 Clarity is now live in Production:
 - server-backed post-action receipt.
 
 G06 remains CLOSED / ACCEPTED / PRODUCTION LIVE with device binding + secure offline + GPS/geofence as the active Attendance authority. Face/QR remains intentionally outside the active Attendance flow.
+
+
+## ACTIVE — CURRENT ROADMAP AUTHORITY — G06.1 Anti-Buddy-Punching Hardening — 2026-10-06
+
+### Naming clarification
+
+- **G06 is CLOSED / ACCEPTED / PRODUCTION LIVE.**
+- Historical labels **G06.1A — Attendance Core Foundation** and **G06.1B — Admin Configuration** are legacy completed gates from the older Attendance lineage. They remain historical evidence only.
+- For all roadmap discussion after this section, **G06.1 means the new post-G06 phase: Anti-Buddy-Punching Hardening** unless a note explicitly says “historical G06.1A/B”.
+- This clarification supersedes any prior interpretation that “G06.1 is already finished” merely because historical G06.1A/B were completed.
+
+### Current live baseline
+
+Production is currently verified as:
+- canonical deployment: `dpl_6vduk7ttKLL6sw2y5FDE6xYu42TY`;
+- canonical technical URL: `https://sms-v3-staging-ten.vercel.app`;
+- native Production source SHA: `85a080c338cc0d2d8ba728b181d29626880a79b2`;
+- Production release workflow: `37392358478` — SUCCESS;
+- active G06 Attendance authority: **device binding + secure offline + GPS/geofence + Schedule/Shift authority + Server validation/audit/risk controls**;
+- Attendance P0 Clarity is live in Production.
+
+Owner physical Production acceptance already proved that a normal iPhone/PWA Attendance event can be recorded successfully, the device can be recognized as the primary device, GPS/geofence remains in the flow, Expected Site and Actual Site remain distinct, and support-Site work can be preserved with the review classification rather than silently rewriting Schedule authority.
+
+### Why G06.1 exists
+
+The next risk is **buddy punching / proxy attendance**: another person may possess or borrow the employee’s valid primary device/account and attempt to record Attendance for that employee.
+
+The current controls strongly validate **device, location, schedule, event integrity and server acceptance**, but those controls alone do not prove with high assurance that the human pressing the button is the employee who owns the Attendance identity.
+
+G06.1 therefore upgrades **person-present / user-verification evidence** while preserving the already-proven G06 flow and avoiding unnecessary friction for legitimate employees.
+
+A failure of a future G06.1 verification step is a **risk / verification outcome**, not automatic proof of misconduct.
+
+### Scope lock — do not silently reintroduce retired controls
+
+The current simplified G06 scope intentionally removed Face and QR from the active Attendance flow.
+
+Therefore G06.1 MUST NOT silently reintroduce:
+- server-side face matching;
+- liveness / PAD;
+- QR;
+- routine Attendance event photos;
+- biometric-template storage;
+- 1:N employee identification.
+
+Any return of server-side 1:1 face verification/liveness or QR requires a separate explicit Owner scope/security/privacy decision.
+
+If a future Owner-approved biometric option is considered, it must remain **1:1 only**, require appropriate anti-spoof/liveness assurance, retain no routine check-in/check-out live frames, and never become broad 1:N identification.
+
+### G06.1 Phase 0 — next gate
+
+**Status: OPEN / NEXT PHASE.**
+
+Earliest gate is a current-Production **architecture + threat-model + device-compatibility audit**. No Production data, DB, Environment, secret, auth policy, or biometric-authority mutation is authorized merely by this roadmap entry.
+
+The audit must evaluate a non-biometric-first design using the existing G06 foundation:
+
+1. **Device-bound cryptographic proof**
+   - continue using dedicated Attendance device authority rather than browser fingerprint, User-Agent, arbitrary device name, or passkey record alone;
+   - private credential remains local/non-exportable where platform support allows;
+   - server challenge is high-entropy, short-lived, single-use, purpose-bound, employee/device/event-bound and replay-safe.
+
+2. **Platform user-verification step-up**
+   - evaluate WebAuthn/passkey user verification or equivalent platform-mediated verification on iPhone/Android/PWA;
+   - Face ID / Touch ID / device PIN may be used by the platform as the local user-verification mechanism where supported;
+   - this step-up is additional person-present evidence only;
+   - it MUST NOT be misrepresented as authoritative Attendance device identity and MUST NOT replace the dedicated primary-device registry.
+
+3. **Risk-based step-up policy**
+   - determine when stronger user verification is mandatory versus when the normal low-friction path is sufficient;
+   - candidate triggers include foreign/new device, device replacement, unusual Site/time behavior, repeated failed proof, suspicious replay pattern, delayed/offline events requiring review, or other server risk signals;
+   - support-Site attendance must remain a legitimate operational case and must not automatically be treated as fraud.
+
+4. **Anti-replay / anti-cloning controls**
+   - preserve capture/event idempotency;
+   - reject replayed challenge/signature material;
+   - test copied session/local-storage scenarios;
+   - do not downgrade to a reusable bearer “device token” simply for browser compatibility.
+
+5. **Governed device replacement**
+   - primary-device move remains **ADMIN-only**;
+   - old credential revocation and replacement activation must be atomic where applicable;
+   - preserve actor/reason/time/before-after Audit evidence.
+
+6. **Rate / anomaly controls**
+   - evaluate bounded server-side rate limits and anomaly signals for rapid/repeated punches, repeated failed verification, impossible/repeated device transitions and replay attempts;
+   - do not treat a single anomaly as proof of misconduct.
+
+### Required G06.1 attack / acceptance matrix
+
+Before G06.1 can be marked CLOSED, verification must cover at least:
+
+- legitimate employee on the bound primary iPhone/PWA can still CHECK_IN/CHECK_OUT successfully;
+- required user-verification step-up cannot simply be skipped when policy requires it;
+- another/non-primary device cannot silently become a normal trusted primary device;
+- copied/replayed challenge or signed payload is rejected;
+- stale/consumed challenge is rejected;
+- device replacement requires ADMIN authority and leaves audit evidence;
+- secure-offline queue/integrity and delayed-event review semantics remain intact;
+- Expected Site vs Actual Site and `ASSIST_OTHER_SITE` semantics remain intact;
+- View As / impersonation remains read-only for Attendance evidence submission;
+- no Production schedule/month approval/business-data mutation is used merely to manufacture a test case;
+- physical iPhone/PWA validation is performed for the final selected user-verification mechanism.
+
+### High-assurance future option — Owner gate only
+
+Historical architecture notes correctly identify **1:1 face + liveness/anti-spoof** as a stronger anti-buddy-punching signal because device/location controls alone cannot prove the presenter’s human identity.
+
+However, Face was later intentionally removed from the active G06 contract. Therefore server-side 1:1 face/liveness is **not part of G06.1 by default**.
+
+If the non-biometric-first G06.1 design cannot reach the Owner’s required assurance level, present a separate decision with:
+- exact threat reduction gained by 1:1 face/liveness;
+- iPhone/Android/PWA compatibility;
+- false-reject and field-operations impact;
+- privacy/retention consequences;
+- cost/runtime impact;
+- no-event-photo-retention design;
+- explicit rollback/fallback behavior.
+
+Do not implement or enable it before that decision.
+
+### Current priority
+
+The next security/product task after the proven Production Attendance flow is:
+
+**G06.1 — Anti-Buddy-Punching Hardening, Phase 0 architecture/threat-model audit.**
+
+Authenticated ADMIN/MANAGER/VIEWER E2E and optional physical offline resilience validation remain useful follow-up validation, but they do not replace the G06.1 anti-buddy-punching phase and are not the definition of G06.1.
