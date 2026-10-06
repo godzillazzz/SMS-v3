@@ -59,7 +59,7 @@ test('schedule calendar and approved export resolve historical personnel instead
 
 test('schedule writes snapshot personnel state for each work date, not current Employee master values', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'schedule.service.js'), 'utf8');
-  assert.match(source, /resolvePersonnel\(ass\.employeeId, parsedDate\)/);
+  assert.match(source, /resolvePersonnel\(assignment\.employeeId, workDate\)/);
   assert.match(source, /employeeNameSnapshot: personnelState\.displayName/);
   assert.match(source, /departmentSnapshot: personnelState\.department/);
 });

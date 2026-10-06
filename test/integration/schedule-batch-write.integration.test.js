@@ -128,7 +128,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
         const workDate = new Date(Date.UTC(testMonth.getUTCFullYear(), testMonth.getUTCMonth(), day));
         return { employeeId: employee.id, shiftTypeId: off.id, workDate: isoDate(workDate), remark: `${runMarker}:${remark}` };
       };
-      const write = (assignments) => request(app).post('/api/v1/schedules/batch').set('Authorization', `Bearer ${token}`).send({ assignments });
+      const write = (assignments, deletes = []) => request(app).post('/api/v1/schedules/batch').set('Authorization', `Bearer ${token}`).send({ assignments, deletes });
 
       const first = await write([assignment(1, 'create')]);
       assert.equal(first.status, 200);
@@ -151,7 +151,10 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
       const batch = await write([assignment(2, 'batch-2'), assignment(3, 'batch-3'), assignment(4, 'batch-4')]);
       assert.equal(batch.status, 200);
       assert.equal(batch.body.data.count, 3);
-      for (const record of batch.body.data.data) createdIds.shiftAssignment.add(record.id);
+      const batchRows = await prisma.shiftAssignment.findMany({
+        where: { employeeId: employee.id, workDate: { in: [1, 2, 3, 4].map((day) => new Date(Date.UTC(testMonth.getUTCFullYear(), testMonth.getUTCMonth(), day))) } }
+      });
+      for (const record of batchRows) createdIds.shiftAssignment.add(record.id);
       assert.equal(await prisma.shiftAssignment.count({ where: { id: { in: [...createdIds.shiftAssignment] } } }), 4);
 
       const rollback = await write([assignment(5, 'must-rollback'), { ...assignment(6, 'invalid-employee'), employeeId: randomUUID() }]);
@@ -165,7 +168,7 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
         orderBy: { code: 'asc' }
       });
       const largeBatchEmployees = [employee];
-      for (let index = 1; index < 6; index += 1) {
+      for (let index = 1; index < 50; index += 1) {
         const extra = await prisma.employee.create({
           data: {
             employeeCode: `SBW-LARGE-${runToken.slice(0, 8)}-${index}`,
@@ -206,13 +209,72 @@ if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
           });
         }
       }
-      assert.equal(largeAssignments.length, 120);
-      const largeWrite = await write(largeAssignments);
+      assert.equal(largeAssignments.length, 1000);
+
+      const deleteFixtures = [];
+      for (const row of largeBatchEmployees.slice(0, 25)) {
+        for (const day of [27, 28]) {
+          const saved = await prisma.shiftAssignment.create({
+            data: {
+              employeeId: row.id,
+              shiftTypeId: off.id,
+              workDate: new Date(Date.UTC(testMonth.getUTCFullYear(), testMonth.getUTCMonth(), day)),
+              employeeNameSnapshot: row.displayName || `${row.firstName} ${row.lastName}`,
+              departmentSnapshot: row.department,
+              startTime: off.startTime,
+              endTime: off.endTime,
+              hours: off.hours,
+              locked: true,
+              source: 'T22_TEST_DELETE'
+            }
+          });
+          createdIds.shiftAssignment.add(saved.id);
+          deleteFixtures.push(saved.id);
+        }
+      }
+      assert.equal(deleteFixtures.length, 50);
+
+      const existingSourceSample = await prisma.shiftAssignment.create({
+        data: {
+          employeeId: largeBatchEmployees[0].id,
+          shiftTypeId: off.id,
+          workDate: new Date(Date.UTC(testMonth.getUTCFullYear(), testMonth.getUTCMonth(), 7)),
+          employeeNameSnapshot: largeBatchEmployees[0].displayName || `${largeBatchEmployees[0].firstName} ${largeBatchEmployees[0].lastName}`,
+          departmentSnapshot: largeBatchEmployees[0].department,
+          startTime: off.startTime,
+          endTime: off.endTime,
+          hours: off.hours,
+          locked: true,
+          source: 'MANUAL_TEST_SOURCE'
+        }
+      });
+      createdIds.shiftAssignment.add(existingSourceSample.id);
+      const approvalAuditBaseline = await prisma.auditLog.count({ where: { actorUserId: user.id, entityType: 'ScheduleApproval' } });
+      const startedAt = performance.now();
+      const largeWrite = await write(largeAssignments, deleteFixtures);
+      const elapsedMs = performance.now() - startedAt;
       assert.equal(largeWrite.status, 200, JSON.stringify(largeWrite.body));
-      assert.equal(largeWrite.body.data.count, 120);
-      assert.equal(largeWrite.body.data.data.length, 120);
-      assert.equal(largeWrite.body.data.data.every((row) => row.licenseStatus === 'VALID'), true);
-      for (const record of largeWrite.body.data.data) createdIds.shiftAssignment.add(record.id);
+      assert.equal(largeWrite.body.data.count, 1050);
+      assert.equal(largeWrite.body.data.months.length, 1);
+      assert.equal(largeWrite.body.data.revision.length, 1);
+      assert.equal(largeWrite.body.data.revision[0].month, isoDate(testMonth).slice(0, 7));
+      console.log(`T22 isolated test database batch elapsed_ms=${elapsedMs.toFixed(1)}`);
+
+      const largeRows = await prisma.shiftAssignment.findMany({
+        where: {
+          employeeId: { in: largeBatchEmployees.map((row) => row.id) },
+          workDate: { gte: new Date(Date.UTC(testMonth.getUTCFullYear(), testMonth.getUTCMonth(), 7)), lte: new Date(Date.UTC(testMonth.getUTCFullYear(), testMonth.getUTCMonth(), 26)) }
+        },
+        orderBy: [{ employeeId: 'asc' }, { workDate: 'asc' }],
+        include: { shiftType: true }
+      });
+      assert.equal(largeRows.length, 1000);
+      assert.equal(largeRows.every((row) => row.licenseStatus === 'VALID' && row.locked === true), true);
+      assert.equal(largeRows.every((row) => row.startTime === operationalShift.startTime && row.endTime === operationalShift.endTime), true);
+      assert.equal(largeRows.find((row) => row.id === existingSourceSample.id)?.source, 'MANUAL_TEST_SOURCE');
+      assert.equal(largeRows.find((row) => row.employeeId === largeBatchEmployees[1].id && isoDate(row.workDate) === isoDate(testMonth).slice(0, 8) + '07')?.source, 'SMS_V3');
+      assert.equal(await prisma.shiftAssignment.count({ where: { id: { in: deleteFixtures } } }), 0);
+      assert.equal(await prisma.auditLog.count({ where: { actorUserId: user.id, entityType: 'ScheduleApproval' } }) - approvalAuditBaseline, 1);
     } finally {
       await cleanupFixtures();
     }

@@ -31,7 +31,8 @@ const batchSchema = z.object({
       licenseOverride: z.boolean().optional(),
       overrideReason: z.string().optional()
     })
-  )
+  ).max(1000, 'บันทึกได้ครั้งละไม่เกิน 1,000 รายการ'),
+  deletes: z.array(z.string().uuid()).max(1000, 'ลบได้ครั้งละไม่เกิน 1,000 รายการ').optional().default([])
 });
 
 const autoPlanSchema = z.object({
@@ -55,10 +56,12 @@ router.get('/', async (req, res, next) => {
 
 router.post('/batch', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, res, next) => {
   let assignmentCount = Array.isArray(req.body?.assignments) ? req.body.assignments.length : 0;
+  let deleteCount = Array.isArray(req.body?.deletes) ? req.body.deletes.length : 0;
   try {
-    const { assignments } = batchSchema.parse(req.body);
+    const { assignments, deletes } = batchSchema.parse(req.body);
     assignmentCount = assignments.length;
-    res.json({ data: await scheduleService.saveBatchAssignments(assignments, req.user.sub, req.user.role) });
+    deleteCount = deletes.length;
+    res.json({ data: await scheduleService.saveBatchAssignments(assignments, req.user.sub, req.user.role, deletes) });
   } catch (error) {
     // Keep operational diagnostics tied to the write endpoint without
     // recording request bodies, credentials, or connection strings.
@@ -66,7 +69,8 @@ router.post('/batch', authorize('ADMIN', 'MANAGER', 'SUPERVISOR'), async (req, r
       endpoint: `${req.baseUrl}${req.path}`,
       requestId: req.requestId,
       assignmentCount,
-      operation: 'upsert_batch',
+      deleteCount,
+      operation: 'upsert_delete_batch',
       model: 'ShiftAssignment',
       errorName: error?.name,
       errorCode: error?.code,

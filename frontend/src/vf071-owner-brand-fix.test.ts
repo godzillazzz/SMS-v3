@@ -77,6 +77,6 @@ describe('G04.2 VF-07.1 Owner brand + login hero correction', () => {
     expect(css).toMatch(/\.auth-brand \.brand-logo \{[\s\S]*?width: 44px;[\s\S]*?height: 44px;/);
   });
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {
-    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('088ed2f76851165ca59dab2245542e56946014b70fbca3e86bc4a986714bf9a3');
+    expect(crypto.createHash('sha256').update(apiBytes).digest('hex')).toBe('ff0cc5aed002645202239ff621257b592a9e12983327dee3bd3c29382dfb771e');
   });
 });

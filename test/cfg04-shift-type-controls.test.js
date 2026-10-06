@@ -59,7 +59,7 @@ test('CFG-04 create and partial update schemas do not apply create defaults duri
 
 test('CFG-04 blocks inactive Shift Types from new schedule assignment while preserving same historical assignment', () => {
   assert.match(scheduleService, /prisma\.shiftType\.findMany\(\{ where: \{ isActive: true \}/);
-  assert.match(scheduleService, /shift\.isActive === false && \(!beforeAss \|\| beforeAss\.shiftTypeId !== ass\.shiftTypeId\)/);
+  assert.match(scheduleService, /shift\.isActive === false && \(!beforeAssignment \|\| beforeAssignment\.shiftTypeId !== assignment\.shiftTypeId\)/);
   assert.match(scheduleService, /Shift type is inactive and cannot be assigned to a new schedule/);
   assert.match(operations, /if \(shiftType\.isActive === false\) throw new HttpError\(409/);
   assert.match(operations, /const changingShiftType = Boolean\(input\.shiftTypeId && input\.shiftTypeId !== before\.shiftTypeId\)/);

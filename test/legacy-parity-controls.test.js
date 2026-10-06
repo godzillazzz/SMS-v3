@@ -24,7 +24,7 @@ test('legacy license permissions and date validation remain enforced', () => {
   assert.match(operations, /Issue date must not be after expiry date/);
   assert.match(operations, /License number already exists/);
   assert.doesNotMatch(operations, /License number or employee license type already exists/);
-  assert.match(batchSchedules, /saveBatchAssignments\(assignments, req\.user\.sub, req\.user\.role\)/);
+  assert.match(batchSchedules, /saveBatchAssignments\(assignments, req\.user\.sub, req\.user\.role, deletes\)/);
   assert.match(scheduleService, /actorRole === 'ADMIN'/);
   assert.match(scheduleService, /License Block/);
   assert.match(operations, /sortByEmployeeCode/);
