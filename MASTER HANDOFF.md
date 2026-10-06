@@ -636,3 +636,109 @@ This Schedule incident is CLOSED and does not supersede the current security roa
 The next security/product phase remains:
 
 **G06.1 — Anti-Buddy-Punching Hardening, Phase 0 architecture/threat-model audit — OPEN / NEXT PHASE.**
+
+
+## CLOSED — Vercel Preview Deployment Cleanup — 2026-10-06
+
+### Final status
+
+**CLOSED / SAFE CLEANUP COMPLETED / PRODUCTION UNCHANGED**
+
+Owner authorized a conservative cleanup of stale Vercel Preview deployments to reduce retained deployment/function-storage pressure.
+
+The cleanup policy was intentionally fail-safe:
+
+- only Preview deployments were eligible;
+- current Production was excluded;
+- the current rollback deployment was excluded;
+- deployment ids still referenced by the current `MASTER HANDOFF.md` or approved Production manifest were excluded;
+- the latest READY Preview for every still-existing remote branch was excluded;
+- the exact Schedule large-batch merge/technical-smoke Preview was excluded;
+- Vercel `remove --safe` was used;
+- aliases were **not** detached automatically;
+- old Production deployments were **not** deleted in this pass.
+
+### Inventory and result
+
+Pre-cleanup project inventory:
+
+- total deployments: **188**;
+- Preview deployments: **161**;
+- Production-target deployments: **27**.
+
+Conservative cleanup candidates after allowlisting release/rollback/current/evidence/latest-per-live-branch deployments:
+
+- Preview candidates: **84**.
+
+Cleanup result:
+
+- safely removed: **83 Preview deployments**;
+- retained by Vercel safety guard: **1 Preview deployment**;
+- retained deployment: `dpl_BVQJ8KWNtBMGYSd6TVXP9k5ibzyf`;
+- retained native source SHA: `cad6d9d8279e9d3d90bbb61a70a0a09bd9e4967c`;
+- retained historical branch ref: `fix/preview-readonly-role-provisioning-20261003`;
+- reason retained: `--safe` protection because an alias/usage association still exists;
+- no alias was removed or reassigned.
+
+Post-cleanup project inventory:
+
+- total deployments: **105**;
+- Preview deployments: **78**;
+- Production-target deployments: **27**.
+
+Therefore the cleanup removed **83 deployments total**, all from the Preview population, while the Production-target population remained unchanged.
+
+### Protected deployments verified after cleanup
+
+Current Production remains:
+
+- `dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK`;
+- READY;
+- native source SHA `f63c785e8af1d63f3d27754c66709e6a0d9b3443`.
+
+Current rollback remains:
+
+- `dpl_6vduk7ttKLL6sw2y5FDE6xYu42TY`;
+- READY;
+- native source SHA `85a080c338cc0d2d8ba728b181d29626880a79b2`.
+
+Latest release-source Preview retained:
+
+- `dpl_xNZMN47iWtV7pi2bYEJ5z5eVGqhW`;
+- READY;
+- native source SHA `c9d01c2c42d134f118ee38804fbe383ea9240add`.
+
+Schedule large-batch exact merge / technical-smoke Preview retained:
+
+- `dpl_9z9FUgogmkV8w2g27dVo9kuk4Yp5`;
+- READY;
+- native source SHA `f63c785e8af1d63f3d27754c66709e6a0d9b3443`.
+
+### Runtime verification after cleanup
+
+Canonical `https://sms-v3-staging-ten.vercel.app` remained healthy after the deletion pass:
+
+- `/api/v1/health`: HTTP 200, status ok;
+- `/api/v1/ready`: HTTP 200, status ready / database ok;
+- trusted canonical-origin CORS preflight: HTTP 204;
+- untrusted `https://evil.example`: HTTP 403.
+
+No Production employee/schedule/attendance data, database schema, Environment/secret, authentication policy, device-binding policy, G06 security scope, GPS/geofence policy, canonical alias, rollback alias, or release branch was changed by this cleanup.
+
+### Storage-accounting limitation
+
+Do **not** interpret 83 deleted deployments as a directly additive Function Storage reclaim.
+
+Vercel may deduplicate function artifacts across deployments, and billed Function Storage / dashboard usage may refresh asynchronously. The deployment deletion count above is exact; the resulting billed GB reclaim is provider-accounting dependent and was not guessed.
+
+Historical high-value evidence remains relevant: older pre-storage-reduction deployments could contain two Lambdas totaling about 71 MB, while the current Production deployment contains one Lambda around 19.09 MB. This explains why pruning old deployments is useful, but it still does not establish an exact billed-storage delta.
+
+### Remaining optional cleanup
+
+The single `--safe`-retained Preview `dpl_BVQJ8KWNtBMGYSd6TVXP9k5ibzyf` may be reviewed separately if the Owner wants to remove its historical alias association.
+
+Old Production deployments were intentionally preserved and require a separate evidence/rollback review before any deletion.
+
+Roadmap continuity remains unchanged:
+
+**G06.1 — Anti-Buddy-Punching Hardening, Phase 0 architecture/threat-model audit — OPEN / NEXT PHASE.**
