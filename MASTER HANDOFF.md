@@ -352,3 +352,39 @@ User requested that work be recorded here before continuing in a new chat.
 - Scope stayed frontend presentation/tests only. No API, database schema/data, Environment/secret, Attendance security policy, device-binding, secure-offline, Schedule authority, GPS/geofence or Expected-vs-Actual Site semantics changed.
 - Current Production was intentionally not promoted by this task. Canonical remains `dpl_5QHhQCfVSqSkC3CvdomVVhMnHgJ2`, READY, application SHA `31c04fa48330970fb89f18277ee29c88fbf7ac4c`.
 - Production promotion of `d6edd66f...` requires a separate explicit Owner Production authorization.
+
+
+## Attendance P0 Clarity — Production Closure — 2026-10-06
+
+### CLOSED / Production live
+- Status: **CLOSED / PRODUCTION LIVE / VERIFIED**.
+- Employee UX application PR #459 remains the application authority: feature SHA `be338c494abed9829181e2134b8590adccf464a4`, application merge SHA `d6edd66f4c5a759ac259f93a82b02a649bd99093`.
+- Governed release target was exact immutable source `85a080c338cc0d2d8ba728b181d29626880a79b2` / tree `925bb3d5004097b11bfc28a032b9d9c0b8736ba2`; release-control manifest prepared by PR #461.
+- Final successful protected Production workflow: run `37392358478`, dispatched from release-control SHA `2f6ddbcde63acfd3fe61df0635f46600937f97aa`, conclusion SUCCESS.
+- New canonical Production deployment: `dpl_6vduk7ttKLL6sw2y5FDE6xYu42TY` / `https://sms-v3-staging-nyeokwlps-godzillazz.vercel.app`, target `production`, READY.
+- Canonical technical URL `https://sms-v3-staging-ten.vercel.app` resolves to that deployment.
+- Native Vercel provenance: project `prj_XwhNUOB2zLSPZ6UgQcfyOKBYJ75s`, githubCommitSha `85a080c338cc0d2d8ba728b181d29626880a79b2`, githubCommitRef `fix/serverless-database-reliability`.
+- Production emits one Node 22 Lambda, `api/[...path]`, measured at `19,092,830 bytes`.
+- Previous canonical `dpl_5QHhQCfVSqSkC3CvdomVVhMnHgJ2` remains READY as rollback evidence, native source `31c04fa48330970fb89f18277ee29c88fbf7ac4c`.
+- Final post-deploy checks independently re-confirmed: `/api/v1/health` HTTP 200/status ok; `/api/v1/ready` HTTP 200/database ok; trusted canonical-origin CORS HTTP 204 with exact allow-origin; untrusted origin HTTP 403.
+- Production workflow runtime verification reported `SENTINELS=22`; base critical UI sentinel contract reported PASS `19/19`. Automatic rollback and fail-closed-after-rollback steps were skipped because final verification passed.
+- No database migration, Production business-data mutation, Environment/secret mutation, auth policy change, device-binding change, secure-offline policy change, Schedule authority change, or GPS/geofence policy change occurred.
+
+### Release incident trail and resolved safeguards
+- Attempt 1: Production run `37389640501` reached promotion, then the runtime verifier rejected three intentionally retired Attendance labels. Automatic rollback succeeded to `dpl_5QHh...`. The application itself was not the failing component.
+- PR #462 / merge `ad3b7a413354a17ffc2eee18ea10558a891e50a2` aligned Production runtime sentinels with the P0 employee copy. Exact merge CI run `37390924317` SUCCESS.
+- Attempt 2: Production run `37391172905` passed build/sentinels but failed before promotion because Vercel candidate alias assignment was still stabilizing immediately after READY. Canonical Production remained unchanged.
+- PR #463 / merge `2f6ddbcde63acfd3fe61df0635f46600937f97aa` added bounded alias-stabilization verification. It preserves strict final validation and canonical-alias fail-fast behavior. Exact merge CI run `37392102374` SUCCESS.
+- A duplicate retry run `37392379212` was explicitly cancelled before deployment; only final run `37392358478` was allowed to proceed.
+- Final candidate creation, explicit promotion, canonical verification, runtime sentinels and release summary all completed successfully.
+
+### Product result
+Attendance P0 Clarity is now live in Production:
+- Now / Next / Exception hierarchy;
+- employee-readable support-Site wording;
+- affirmative primary-device wording;
+- human-readable offline readiness;
+- raw reason codes behind technical progressive disclosure;
+- server-backed post-action receipt.
+
+G06 remains CLOSED / ACCEPTED / PRODUCTION LIVE with device binding + secure offline + GPS/geofence as the active Attendance authority. Face/QR remains intentionally outside the active Attendance flow.
