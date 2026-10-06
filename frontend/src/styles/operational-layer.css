@@ -633,7 +633,6 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 .shift-editor-modal__viewport .shift-editor-modal__dialog :is(h1, h2, h3) {
   font-family: "Kanit", "Plus Jakarta Sans", sans-serif !important;
 }
-
 /* Department separators stay visible above the roster in both themes and print. */
 .schedule-grid tbody .schedule-department-group-row > :is(th, td),
 .print-table tbody .schedule-department-group-row > .schedule-department-group-sticky {
@@ -689,3 +688,10 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
     box-shadow: none !important;
   }
 }
+.nexus-roster-workspace .auto-schedule-fill-summary{color:#f1f5f9!important;font-weight:700}
+.nexus-roster-workspace .auto-schedule-empty-notice{margin:0 0 14px;padding:12px 14px;border:1px solid rgba(245,158,11,.5);border-radius:8px;background:#24180a;color:#fcd34d;font-weight:700}
+.nexus-roster-workspace .preview-table tr.auto-schedule-preview-preserved td{background:#101a25!important;box-shadow:inset 0 1px rgba(245,158,11,.18),inset 0 -1px rgba(245,158,11,.18)}
+.nexus-roster-workspace .preview-table tr.auto-schedule-preview-generated td{background:#0b211e!important;box-shadow:inset 0 1px rgba(52,211,153,.18),inset 0 -1px rgba(52,211,153,.18)}
+.nexus-roster-workspace .auto-schedule-origin{display:inline-flex;align-items:center;white-space:nowrap;border:1px solid transparent;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:700}
+.nexus-roster-workspace .auto-schedule-origin.is-preserved{border-color:rgba(245,158,11,.42);background:#3b2a12;color:#fcd34d}
+.nexus-roster-workspace .auto-schedule-origin.is-generated{border-color:rgba(52,211,153,.38);background:#0b302c;color:#6ee7b7}

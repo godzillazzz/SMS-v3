@@ -41,6 +41,7 @@ import { acquireDocumentScrollLock } from './document-scroll-lock';
 import { buildLeaveQuotaProvisioningPayload, canProvisionLeaveQuota, currentBangkokQuotaYear, hasUnmatchedLegacyQuota, leaveQuotaDefaultsFromPolicy, quotaProvisioningEmployeeOptions, thaiQuotaYearLabel } from './leave-quota-provisioning';
 import { printScheduleDocument } from './schedule-print';
 import { groupScheduleEmployeesByDepartment, sortScheduleEmployeesByDepartment } from './schedule-employee-code-order';
+import { addAutoSchedulePreviewDrafts, summarizeAutoSchedulePreview } from './auto-schedule-drafts';
 
 import { currentBangkokMonth, formatThaiMonth, MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
 import './styles.css';
@@ -2715,28 +2716,22 @@ function Dashboard() {
       const previewRows = Array.isArray(autoSchedulePreview?.rows) ? autoSchedulePreview.rows as DataRow[] : [];
       const previewWarnings = Array.isArray(autoSchedulePreview?.warnings) ? autoSchedulePreview.warnings : [];
       const previewSummary = nested(autoSchedulePreview?.summary);
+      const previewFillSummary = summarizeAutoSchedulePreview(previewRows, scheduleDrafts);
 
-      const applyPreviewToDrafts = (previewRowsParam: DataRow[], replaceEmployeeId?: string) => {
-        const newDrafts = { ...scheduleDrafts };
-        if (replaceEmployeeId) {
-          for (const key of Object.keys(newDrafts)) {
-            if (key.startsWith(`${replaceEmployeeId}_`) && String(newDrafts[key].workDate || '').startsWith(scheduleMonth)) delete newDrafts[key];
-          }
-        }
-        for (const row of previewRowsParam) {
+      const buildPreviewDraft = (row: DataRow) => {
           const workDateStr = inputDate(row.date);
           const empId = String(row.employeeId || '');
-          if (!empId || !workDateStr) continue;
+          if (!empId || !workDateStr) return undefined;
           const key = `${empId}_${workDateStr}`;
           const codeStr = String(row.code || 'OFF').toUpperCase();
           const selectedType = activeShiftTypes.find((t) => String(t.code).toUpperCase() === codeStr)
             || activeShiftTypes.find((t) => String(t.id) === row.shiftTypeId)
             || activeShiftTypes[0];
           const validShiftTypeId = String(selectedType?.id || '');
-          if (!validShiftTypeId || validShiftTypeId.length < 10) continue;
+          if (!validShiftTypeId || validShiftTypeId.length < 10) return undefined;
 
-          newDrafts[key] = {
-            action: row.existingShiftId ? 'update' : 'create',
+          return { key, draft: {
+            action: row.existingShiftId ? 'update' as const : 'create' as const,
             id: row.existingShiftId ? String(row.existingShiftId) : undefined,
             employeeId: empId,
             workDate: workDateStr,
@@ -2758,7 +2753,22 @@ function Dashboard() {
               licenseOverride: Boolean(row.licenseOverride),
               overrideReason: String(row.overrideReason || '')
             }
-          };
+          } };
+      };
+
+      const applyPreviewToDrafts = (previewRowsParam: DataRow[], replaceEmployeeId?: string) => {
+        if (!replaceEmployeeId) {
+          setScheduleDrafts(addAutoSchedulePreviewDrafts(scheduleDrafts, previewRowsParam, (row) => buildPreviewDraft(row as DataRow)?.draft));
+          return;
+        }
+        const newDrafts = { ...scheduleDrafts };
+        for (const key of Object.keys(newDrafts)) {
+          if (key.startsWith(`${replaceEmployeeId}_`) && String(newDrafts[key].workDate || '').startsWith(scheduleMonth)) delete newDrafts[key];
+        }
+        for (const row of previewRowsParam) {
+          const prepared = buildPreviewDraft(row);
+          if (!prepared) continue;
+          newDrafts[prepared.key] = prepared.draft;
         }
         setScheduleDrafts(newDrafts);
       };
@@ -2881,11 +2891,13 @@ function Dashboard() {
               </div>
 
               <div className="preview-summary" style={{ display: 'flex', gap: '16px', marginBottom: '14px', fontSize: '13px', color: '#334155' }}>
+                <strong className="auto-schedule-fill-summary">จะเติม {previewFillSummary.generated} ช่องว่าง · คงกะเดิมไว้ {previewFillSummary.preservedExisting} ช่อง</strong>
                 <span><b>{text(previewSummary.employees)}</b> พนักงาน</span>
                 <span><b>{text(previewSummary.totalRows)}</b> กะทั้งหมด</span>
-                <span><b>{text(previewSummary.manualLocked)}</b> รายการที่คงไว้</span>
                 <span><b>{previewWarnings.length}</b> คำเตือน</span>
               </div>
+
+              {previewFillSummary.generated === 0 && <div className="auto-schedule-empty-notice" role="status">ทุกช่องจัดไว้แล้ว ไม่มีอะไรให้เติม</div>}
 
               {previewWarnings.length > 0 && (
                 <div className="preview-warning" style={{ backgroundColor: '#211807', border: '1px solid #ffedd5', color: '#c2410c', padding: '12px', borderRadius: '10px', marginBottom: '14px', fontSize: '13px' }}>
@@ -2897,24 +2909,28 @@ function Dashboard() {
               <div className="table-scroll preview-table-wrap" style={{ maxHeight: '320px', overflowY: 'auto', marginBottom: '16px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
                 <table className="data-table preview-table" style={{ width: '100%' }}>
                   <thead>
-                    <tr><th>พนักงาน</th><th>วันที่</th><th>กะ</th><th>เหตุผล</th></tr>
+                    <tr><th>พนักงาน</th><th>วันที่</th><th>กะ</th><th>เหตุผล</th><th>สถานะ</th></tr>
                   </thead>
                   <tbody>
-                    {previewRows.slice(0, 50).map((row, index) => (
-                      <tr key={`${text(row.employeeId)}-${text(row.date)}-${index}`}>
+                    {previewRows.slice(0, 50).map((row, index) => {
+                      const draftKey = `${text(row.employeeId)}_${inputDate(row.date)}`;
+                      const hasDraft = Object.prototype.hasOwnProperty.call(scheduleDrafts, draftKey);
+                      const preserved = Boolean(row.locked || row.preserved || row.existingShiftId || hasDraft);
+                      return <tr key={`${text(row.employeeId)}-${text(row.date)}-${index}`} className={preserved ? 'auto-schedule-preview-preserved' : 'auto-schedule-preview-generated'}>
                         <td>{text(row.employeeName)}</td>
                         <td>{date(row.date)}</td>
                         <td><span className={`status-badge ${row.code === 'OFF' ? 'inactive' : 'active'}`}>{text(row.code)}</span></td>
                         <td>{text(row.remark)}</td>
-                      </tr>
-                    ))}
+                        <td><span className={`auto-schedule-origin ${preserved ? 'is-preserved' : 'is-generated'}`}>{hasDraft ? 'คงฉบับร่าง' : preserved ? 'คงกะเดิม' : 'เติมอัตโนมัติ'}</span></td>
+                      </tr>;
+                    })}
                   </tbody>
                 </table>
               </div>
 
               <div className="preview-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <button className="btn-secondary" style={{ padding: '9px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#0f1d2a', cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={() => setAutoSchedulePreview(undefined)}>ยกเลิก Preview</button>
-                <button className="btn-primary compact" style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)', color: '#ffffff', fontWeight: 700, cursor: 'pointer' }} disabled={autoScheduleBusy} onClick={saveAutoSchedule}>🪄 ใส่ลงในฉบับร่าง (ยังไม่บันทึก)</button>
+                <button className="btn-primary compact" style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)', color: '#ffffff', fontWeight: 700, cursor: 'pointer' }} disabled={autoScheduleBusy || previewFillSummary.generated === 0} onClick={saveAutoSchedule}>🪄 ใส่ลงในฉบับร่าง (ยังไม่บันทึก)</button>
               </div>
             </section>
           </div>

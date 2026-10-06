@@ -152,7 +152,7 @@ function requireShiftTemplate(shiftTypeMap, shiftCode, patternCode) {
   return template;
 }
 
-const applyEmployeePattern = ({ rows, history, shiftTypeMap, startPhase = 'AUTO', pattern: patternInput }) => {
+const applyEmployeePattern = ({ rows, history, shiftTypeMap, startPhase = 'AUTO', pattern: patternInput, preserveLocked = false }) => {
   const pattern = runtimePattern(patternInput);
   const analysis = getPhaseAnalysis(history, pattern);
   const phaseIndex = phaseIndexFor(pattern, startPhase, analysis);
@@ -170,7 +170,7 @@ const applyEmployeePattern = ({ rows, history, shiftTypeMap, startPhase = 'AUTO'
 
     // One shared magic-wand engine is authoritative for this employee/month.
     // Approved leave and an explicit Admin license override remain authoritative evidence.
-    if (row.code === 'AL' || row.licenseOverride) {
+    if ((preserveLocked && row.locked) || row.code === 'AL' || row.licenseOverride) {
       return {
         ...row,
         patternCode: pattern.code,
@@ -257,7 +257,7 @@ async function buildAutoSchedulePlan(client, month) {
   const employeeIds = new Set(employees.map((employee) => employee.id));
   const existing = new Map(
     currentShifts
-      .filter((row) => employeeIds.has(row.employeeId) && (String(row.shiftType.code).toUpperCase() === 'AL' || row.licenseOverride))
+      .filter((row) => employeeIds.has(row.employeeId))
       .map((row) => [`${row.employeeId}|${isoDate(row.workDate)}`, row])
   );
   const histories = new Map();
@@ -268,36 +268,40 @@ async function buildAutoSchedulePlan(client, month) {
   });
   const makeBaseRow = (employee, date) => {
     const dateText = isoDate(date);
-    const preserved = existing.get(`${employee.id}|${dateText}`);
+    const existingAssignment = existing.get(`${employee.id}|${dateText}`);
     const license = licenseForDate(licensesByEmployee.get(employee.id) || [], date);
-    const shift = preserved?.shiftType || shifts.get('OFF');
-    const hours = Number(shift.hours || 0);
-    const allowedOverride = Boolean(preserved?.licenseOverride);
+    const shift = existingAssignment?.shiftType || shifts.get('OFF');
+    const hours = Number(existingAssignment?.hours ?? shift.hours ?? 0);
+    const allowedOverride = Boolean(existingAssignment?.licenseOverride);
     return {
       date: dateText,
       employeeId: employee.id,
       employeeCode: employee.employeeCode,
-      employeeName: displayName(employee),
-      department: employee.department,
+      employeeName: existingAssignment?.employeeNameSnapshot || displayName(employee),
+      department: existingAssignment?.departmentSnapshot ?? employee.department,
       shiftTypeId: shift.id,
       code: String(shift.code).toUpperCase(),
       name: shift.name,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
+      startTime: existingAssignment?.startTime ?? shift.startTime,
+      endTime: existingAssignment?.endTime ?? shift.endTime,
       hours,
       color: shift.color,
-      remark: String(preserved?.remark || ''),
-      source: preserved?.source || 'AUTO',
-      locked: Boolean(preserved),
-      licenseStatus: allowedOverride ? 'OVERRIDDEN' : (preserved?.licenseStatus || (hours === 0 ? 'NOT_REQUIRED' : license.code)),
-      licenseExpiryDate: license.expiryDate ? isoDate(license.expiryDate) : null,
+      remark: String(existingAssignment?.remark || ''),
+      source: existingAssignment?.source || 'AUTO',
+      locked: Boolean(existingAssignment),
+      preserved: Boolean(existingAssignment),
+      existingShiftId: existingAssignment?.id ? String(existingAssignment.id) : undefined,
+      licenseStatus: allowedOverride ? 'OVERRIDDEN' : (existingAssignment?.licenseStatus || (hours === 0 ? 'NOT_REQUIRED' : license.code)),
+      licenseExpiryDate: existingAssignment?.licenseExpiryDate
+        ? isoDate(existingAssignment.licenseExpiryDate)
+        : (license.expiryDate ? isoDate(license.expiryDate) : null),
       licenseOverride: allowedOverride,
-      overrideReason: allowedOverride ? String(preserved?.overrideReason || '') : '',
+      overrideReason: allowedOverride ? String(existingAssignment?.overrideReason || '') : '',
       licenseValidForWorkDate: license.valid,
       licenseStateForWorkDate: license.code,
-      licenseBlockedFromShiftTypeId: preserved?.licenseBlockedFromShiftTypeId || null,
-      licenseBlockedFromRemark: preserved?.licenseBlockedFromRemark || null,
-      licenseBlockedAt: preserved?.licenseBlockedAt || null
+      licenseBlockedFromShiftTypeId: existingAssignment?.licenseBlockedFromShiftTypeId || null,
+      licenseBlockedFromRemark: existingAssignment?.licenseBlockedFromRemark || null,
+      licenseBlockedAt: existingAssignment?.licenseBlockedAt || null
     };
   };
 
@@ -311,13 +315,25 @@ async function buildAutoSchedulePlan(client, month) {
       history: histories.get(employee.id) || [],
       shiftTypeMap: shifts,
       startPhase: 'AUTO',
-      pattern
+      pattern,
+      preserveLocked: true
     });
     rows.push(...applied.rows);
     warnings.push(...applied.warnings);
   }
 
   rows.sort((first, second) => first.date.localeCompare(second.date) || first.employeeCode.localeCompare(second.employeeCode));
+  for (const date of dates.map(isoDate)) {
+    const dateRows = rows.filter((row) => row.date === date);
+    const dayCount = dateRows.filter((row) => row.code === 'D').length;
+    const nightCount = dateRows.filter((row) => row.code === 'N').length;
+    if (dayMinimum > 0 && dayCount < dayMinimum) {
+      warnings.push(`วันที่ ${date}: กะ D มี ${dayCount}/${dayMinimum} คน ต่ำกว่าขั้นต่ำ RULE003 (คงกะเดิมและเติมเฉพาะช่องว่าง)`);
+    }
+    if (nightMinimum > 0 && nightCount < nightMinimum) {
+      warnings.push(`วันที่ ${date}: กะ N มี ${nightCount}/${nightMinimum} คน ต่ำกว่าขั้นต่ำ RULE004 (คงกะเดิมและเติมเฉพาะช่องว่าง)`);
+    }
+  }
   const counts = rows.reduce((result, row) => ({ ...result, [row.code]: (result[row.code] || 0) + 1 }), {});
   const patternsUsed = [...new Map(
     rows
@@ -348,6 +364,8 @@ async function buildAutoSchedulePlan(client, month) {
       days: dates.length,
       totalRows: rows.length,
       manualLocked: rows.filter((row) => row.locked).length,
+      preservedExisting: rows.filter((row) => row.preserved).length,
+      generated: rows.filter((row) => !row.preserved).length,
       counts,
       maxWeeklyHours,
       dayMinimum,
@@ -359,7 +377,16 @@ async function buildAutoSchedulePlan(client, month) {
 
 async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPhase = 'AUTO', patternType = 'AUTO') {
   const plan = await buildAutoSchedulePlan(client, month);
-  const rows = plan.rows.filter((row) => row.employeeId === employeeId);
+  const rows = plan.rows
+    .filter((row) => row.employeeId === employeeId)
+    .map((row) => {
+      const replaceableExisting = row.preserved && row.code !== 'AL' && !row.licenseOverride;
+      return {
+        ...row,
+        ...(replaceableExisting ? { locked: false, preserved: false } : {}),
+        existingShiftId: undefined
+      };
+    });
   if (!rows.length) throw new HttpError(404, 'Eligible employee was not found for automatic scheduling.');
 
   const requestedPatternCode = String(patternType || 'AUTO').trim().toUpperCase() === 'AUTO'
@@ -399,6 +426,8 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
       employees: 1,
       totalRows: applied.rows.length,
       manualLocked: applied.rows.filter((row) => row.locked).length,
+      preservedExisting: applied.rows.filter((row) => row.preserved).length,
+      generated: applied.rows.filter((row) => !row.preserved).length,
       patternsUsed: [{ code: applied.pattern.code, name: applied.pattern.name }]
     }
   };
@@ -407,23 +436,12 @@ async function buildEmployeeAutoSchedulePlan(client, month, employeeId, startPha
 async function commitAutoSchedule(prisma, month, actorUserId) {
   return prisma.$transaction(async (tx) => {
     const plan = await buildAutoSchedulePlan(tx, month);
-    const employeeIds = [...new Set(plan.rows.map((row) => row.employeeId))];
-    const al = await tx.shiftType.findUniqueOrThrow({ where: { code: 'AL' }, select: { id: true } });
-    const { start, end } = monthBounds(month);
     const generated = plan.rows.filter((row) => !row.locked);
     await validateScheduleRowsOperational(tx, generated.map((row) => ({
       employeeId: row.employeeId,
       workDate: new Date(`${row.date}T00:00:00Z`),
       code: row.code
     })));
-    const deleted = await tx.shiftAssignment.deleteMany({
-      where: {
-        employeeId: { in: employeeIds },
-        workDate: { gte: start, lt: end },
-        locked: false,
-        shiftTypeId: { not: al.id }
-      }
-    });
     if (generated.length) {
       await tx.shiftAssignment.createMany({
         data: generated.map((row) => ({
@@ -448,6 +466,7 @@ async function commitAutoSchedule(prisma, month, actorUserId) {
         }))
       });
     }
+    const { start } = monthBounds(month);
     const latest = await tx.scheduleApproval.findFirst({ where: { month: start }, orderBy: { revision: 'desc' }, select: { revision: true } });
     const approval = await tx.scheduleApproval.create({
       data: {
@@ -466,8 +485,8 @@ async function commitAutoSchedule(prisma, month, actorUserId) {
       entityId: month,
       metadata: {
         generatedRows: generated.length,
-        replacedRows: deleted.count,
-        preservedRows: plan.summary.manualLocked,
+        replacedRows: 0,
+        preservedRows: plan.summary.preservedExisting,
         revision: approval.revision,
         warningCount: plan.warnings.length,
         patternsUsed: plan.summary.patternsUsed
@@ -475,8 +494,8 @@ async function commitAutoSchedule(prisma, month, actorUserId) {
     }, tx);
     return {
       writtenRows: generated.length,
-      replacedRows: deleted.count,
-      preservedRows: plan.summary.manualLocked,
+      replacedRows: 0,
+      preservedRows: plan.summary.preservedExisting,
       warnings: plan.warnings,
       startDate: plan.startDate,
       endDate: plan.endDate,
