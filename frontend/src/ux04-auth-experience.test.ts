@@ -11,6 +11,9 @@ const apiSource = read('api.ts');
 const themeControl = read('components/ThemeControl.tsx');
 const iconSource = read('components/SmsIcon.tsx');
 const authCss = read('styles/auth-experience.css');
+const t06Css = read('styles/ux-t06-login-public.css');
+const publicPage = read('components/AwardPublicExperience.tsx');
+const globe = read('components/CyberGlobe.tsx');
 const designSystem = read('design-system.css');
 const themeFoundation = read('styles/theme-foundation.css');
 const login = main.slice(main.indexOf('function Login() {'), main.indexOf('\nconst text = ', main.indexOf('function Login() {')));
@@ -129,6 +132,45 @@ describe('G04.2 UX-04 auth experience contract', () => {
     expect(apiSource).toContain("call('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, clientType: 'browser' }) })");
     expect(login).toContain("autoComplete={mode === 'login' ? 'username' : 'email'}");
     expect(login).toContain("autoComplete={mode === 'login' ? 'current-password' : 'new-password'}");
+  });
+
+  it('uses an organization email label, Thai native validation, and no masked password placeholder', () => {
+    expect(login).toContain("mode === 'login' ? 'อีเมลองค์กร' : 'อีเมล'");
+    expect(login).toContain("input.setCustomValidity(input.validity.valueMissing ? 'กรุณากรอกอีเมลองค์กร' : 'กรุณากรอกอีเมลให้ถูกต้อง')");
+    expect(login).toContain("event.currentTarget.setCustomValidity('')");
+    expect(login).toContain("placeholder={mode === 'resetVerify' ? 'อย่างน้อย 8 ตัวอักษร' : undefined}");
+    expect(login).not.toContain('ชื่อผู้ใช้หรืออีเมล (Corporate Email)');
+    expect(login).not.toContain('••••••••••••');
+  });
+
+  it('moves the public login block below the hero on mobile and focuses email from both entry links', () => {
+    expect(main).toContain('accessContent={mode === \'login\' ? authStage : undefined}');
+    expect(main).toContain('onRequestAccess={focusLoginEmail}');
+    expect(main).toContain('emailField.focus();');
+    expect(publicPage).toContain('onRequestAccess?.()');
+    expect(publicPage).toContain('{accessContent && <div className="nexus-public__access">{accessContent}</div>}');
+    expect(t06Css).toContain('@media (max-width: 768px)');
+    expect(t06Css).toContain('.nexus-public__main > .nexus-public__access {\n    order: 1;');
+    expect(t06Css).toContain('.nexus-public__main > .nexus-telemetry-section {\n    order: 2;');
+  });
+
+  it('keeps one public h1, gives the login block a lower heading level, and hides tiny decorative telemetry from assistive technology', () => {
+    expect((publicPage.match(/<h1\b/g) || []).length).toBe(1);
+    expect(login).not.toMatch(/<h1\b/);
+    expect(login).toContain('<h2>Zero-Trust Identity Hub<br />สำหรับ Command Console</h2>');
+    expect(publicPage).toContain('className="nexus-mesh-strip" aria-hidden="true"');
+    expect(publicPage).toContain('className="nexus-hero__eyebrow" aria-hidden="true"');
+    expect(publicPage).toContain('className="nexus-micro-metrics" aria-hidden="true"');
+    expect(publicPage).toContain('className="nexus-kpi__top" aria-hidden="true"');
+    expect(publicPage).toContain('className="nexus-signal-console" aria-hidden="true"');
+    expect(globe).toContain('className="cyber-node__label" aria-hidden="true"');
+    expect(t06Css).toContain('font-size: 12px !important;');
+  });
+
+  it('keeps the forgot-password touch target at least 44px high with readable contrast', () => {
+    expect(t06Css).toContain('.nexus-password-meta button {');
+    expect(t06Css).toContain('min-height: 44px;');
+    expect(t06Css).toContain('color: #e2e8f0;');
   });
 
   it('locks the authorized API source after the Attachment Optimizer V1 upload boundary', () => {

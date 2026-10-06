@@ -1,0 +1,99 @@
+/* T06 — keep the public login entry visible near the hero on small screens. */
+.nexus-public__access {
+  width: 100%;
+}
+
+.nexus-password-meta button {
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #e2e8f0;
+  font: 500 13px/1.2 "Kanit", "Plus Jakarta Sans", sans-serif;
+}
+
+.nexus-password-meta button:hover {
+  border-color: rgba(37, 184, 211, .3);
+  background: rgba(37, 184, 211, .08);
+  color: #a5f3fc;
+}
+
+.nexus-password-meta button:focus-visible {
+  outline: 2px solid #74e6f7;
+  outline-offset: 2px;
+}
+
+.nexus-command-button span {
+  font-size: 12px !important;
+}
+
+.nexus-auth-stage .sms-brand-copy strong {
+  font-size: 12px !important;
+}
+
+.award-auth-page .nexus-auth-shell .auth-brand-copy h2 {
+  font-size: 32px !important;
+  line-height: 1.18 !important;
+  letter-spacing: -.03em !important;
+  color: #fff !important;
+}
+
+/* User-facing public copy stays readable; the tiny telemetry labels are hidden from AT. */
+.nexus-brand__copy small,
+.nexus-simulated-pill,
+.nexus-simulated-pill :is(b, span),
+.nexus-section-heading p,
+.nexus-kpi__value span,
+.cyber-globe__caption {
+  font-size: 12px !important;
+}
+
+.nexus-brand__copy small {
+  color: #a8bac9 !important;
+}
+
+.nexus-simulated-pill {
+  line-height: 1.45 !important;
+}
+
+.nexus-section-heading p {
+  line-height: 1.65;
+}
+
+.cyber-globe__caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  line-height: 1.4 !important;
+}
+
+@media (max-width: 768px) {
+  .nexus-public__main {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .nexus-public__main > .nexus-hero {
+    order: 0;
+  }
+
+  .nexus-public__main > .nexus-public__access {
+    order: 1;
+  }
+
+  .nexus-public__main > .nexus-telemetry-section {
+    order: 2;
+  }
+
+  .nexus-command-button,
+  .nexus-hero__primary,
+  .nexus-hero__secondary {
+    font-size: 12px !important;
+  }
+
+  .nexus-auth-methods button {
+    font-size: 12px !important;
+  }
+}

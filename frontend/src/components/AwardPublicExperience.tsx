@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CyberGlobe } from './CyberGlobe';
 
-type AwardPublicExperienceProps = { showLanding: boolean; renderLogo: () => ReactNode };
+type AwardPublicExperienceProps = {
+  showLanding: boolean;
+  renderLogo: () => ReactNode;
+  accessContent?: ReactNode;
+  onRequestAccess?(): void;
+};
 
 type PublicTelemetry = {
   bkk: number;
@@ -34,7 +39,7 @@ const initialTelemetry: PublicTelemetry = {
   uptime: 99.999
 };
 
-export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicExperienceProps) {
+export function AwardPublicExperience({ showLanding, renderLogo, accessContent, onRequestAccess }: AwardPublicExperienceProps) {
   const [live, setLive] = useState<PublicTelemetry>(initialTelemetry);
 
   useEffect(() => {
@@ -69,7 +74,7 @@ export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicEx
       <div className="nexus-ambient nexus-ambient--north" aria-hidden="true" />
       <div className="nexus-ambient nexus-ambient--east" aria-hidden="true" />
 
-      <section className="nexus-mesh-strip" aria-label="ข้อมูล telemetry จำลองสำหรับหน้า public">
+      <section className="nexus-mesh-strip" aria-hidden="true">
         <div className="nexus-shell nexus-mesh-strip__inner">
           <div className="nexus-mesh-strip__cluster">
             <span className="nexus-live-dot"><i />GLOBAL MESH: SYNCHRONIZED</span>
@@ -99,25 +104,25 @@ export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicEx
             <a href="#operations">Command Telemetry</a>
             <a href="#access">Identity Hub</a>
           </nav>
-          <a className="nexus-command-button" href="#auth-login-form"><span>เข้าสู่ระบบ</span><i aria-hidden="true">↗</i></a>
+          <a className="nexus-command-button" href="#auth-login-form" onClick={(event) => { event.preventDefault(); onRequestAccess?.(); }}><span>เข้าสู่ระบบ</span><i aria-hidden="true">↗</i></a>
         </div>
       </header>
 
-      <main>
+      <main className="nexus-public__main">
         <section className="nexus-hero" id="overview">
           <div className="nexus-hero__rail nexus-hero__rail--left" aria-hidden="true"><span>SMS / SECURITY OPERATIONS</span><b>04</b></div>
           <div className="nexus-hero__rail nexus-hero__rail--right" aria-hidden="true"><span>ZERO TRUST / ACTIVE</span><b>TH-BKK</b></div>
           <div className="nexus-shell nexus-hero__grid">
             <div className="nexus-hero__copy">
-              <div className="nexus-hero__eyebrow"><i />DEFENSE MATRIX <span>ENCRYPTED / ZERO-TRUST ACTIVE</span></div>
+              <div className="nexus-hero__eyebrow" aria-hidden="true"><i />DEFENSE MATRIX <span>ENCRYPTED / ZERO-TRUST ACTIVE</span></div>
               <div className="nexus-simulated-pill"><b>SIMULATED LIVE DATA</b><span>ข้อมูลจำลองสำหรับหน้า Public — ไม่ใช่ข้อมูลปฏิบัติการจริง</span></div>
               <h1>เห็นภาพรวมทุกงาน<span>มั่นใจในทุกการปฏิบัติ</span></h1>
               <p>ศูนย์บัญชาการงานรักษาความปลอดภัยระดับองค์กรที่รวมกำลังพล ตารางกะ จุดตรวจ การลงเวลา การอนุมัติ และการกำกับสิทธิ์ไว้ในประสบการณ์เดียว — ออกแบบให้เห็นสถานะสำคัญได้ทันทีโดยไม่ลดทอนความปลอดภัยของข้อมูลจริง</p>
               <div className="nexus-hero__actions">
-                <a className="nexus-hero__primary" href="#auth-login-form">เข้าสู่ระบบศูนย์บัญชาการ <span aria-hidden="true">→</span></a>
+                <a className="nexus-hero__primary" href="#auth-login-form" onClick={(event) => { event.preventDefault(); onRequestAccess?.(); }}>เข้าสู่ระบบศูนย์บัญชาการ <span aria-hidden="true">→</span></a>
                 <a className="nexus-hero__secondary" href="#operations"><i aria-hidden="true">⌁</i> สำรวจ Command Surface</a>
               </div>
-              <div className="nexus-micro-metrics" aria-label="ตัวชี้วัดจำลอง">
+              <div className="nexus-micro-metrics" aria-hidden="true">
                 <Metric value={`< ${live.bkk.toFixed(1)}`} unit="ms" label="LATENCY SYNC" meta="SIMULATED" />
                 <Metric value={live.uptime.toFixed(3)} unit="%" label="SYSTEM UPTIME" meta="DEMO SLA" />
                 <Metric value="256" unit="-BIT" label="ENCRYPTION" meta="SECURE CHANNEL" />
@@ -138,7 +143,7 @@ export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicEx
         <section id="operations" className="nexus-telemetry-section">
           <div className="nexus-shell">
             <div className="nexus-section-heading">
-              <div><span className="nexus-section-kicker"><i />LIVE TELEMETRY / PUBLIC SIMULATION</span><h2>สถานะระบบในภาษาของศูนย์บัญชาการ</h2></div>
+              <div><span className="nexus-section-kicker" aria-hidden="true"><i />LIVE TELEMETRY / PUBLIC SIMULATION</span><h2>สถานะระบบในภาษาของศูนย์บัญชาการ</h2></div>
               <p>ตัวเลขด้านล่างถูกจำลองเพื่อสื่อสารประสบการณ์ของผลิตภัณฑ์บนหน้า Public เท่านั้น ข้อมูลหลังเข้าสู่ระบบจึงค่อยใช้ข้อมูลจริงตามสิทธิ์ของผู้ใช้</p>
             </div>
 
@@ -186,7 +191,7 @@ export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicEx
               />
             </div>
 
-            <div className="nexus-signal-console" aria-label="สัญญาณ telemetry จำลอง">
+            <div className="nexus-signal-console" aria-hidden="true">
               <div className="nexus-signal-console__head"><span>PUBLIC SIGNAL STREAM / 24H</span><b><i /> AUTO-SYNTH ACTIVE</b></div>
               <div className="nexus-signal-console__chart" aria-hidden="true">
                 <svg viewBox="0 0 1200 180" preserveAspectRatio="none">
@@ -202,6 +207,7 @@ export function AwardPublicExperience({ showLanding, renderLogo }: AwardPublicEx
             </div>
           </div>
         </section>
+        {accessContent && <div className="nexus-public__access">{accessContent}</div>}
 
       </main>
     </div>
@@ -239,12 +245,12 @@ function Kpi({
 }) {
   return (
     <article className={`nexus-kpi ${featured ? 'is-featured' : ''} ${accent ? 'is-accent' : ''}`}>
-      <div className="nexus-kpi__index">{index}</div>
-      <div className="nexus-kpi__top"><span>{title}</span><b className={`tone-${badgeTone}`}>{badge}</b></div>
+      <div className="nexus-kpi__index" aria-hidden="true">{index}</div>
+      <div className="nexus-kpi__top" aria-hidden="true"><span>{title}</span><b className={`tone-${badgeTone}`}>{badge}</b></div>
       <h3>{thai}</h3>
       <div className="nexus-kpi__value"><strong>{value}</strong><span>{suffix}</span></div>
       {progress !== undefined && <div className="nexus-kpi__progress"><i style={{ width: `${progress}%` }} /></div>}
-      <div className="nexus-kpi__foot">{foot}</div>
+      <div className="nexus-kpi__foot" aria-hidden="true">{foot}</div>
     </article>
   );
 }
