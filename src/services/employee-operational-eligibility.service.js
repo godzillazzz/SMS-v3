@@ -10,10 +10,62 @@ async function employeeProjectedStateAt(client, employeeId, workDate) {
   return service.projectedStateAt(employeeId, workDate, client);
 }
 
-async function ensureEmployeeOperationalForShift(client, { employeeId, workDate, shiftCode }) {
+async function createEmployeeProjectedStateResolver(client, rows = []) {
+  const normalizedRows = (rows || [])
+    .filter((row) => row?.employeeId && (row.workDate || row.date))
+    .map((row) => ({ employeeId: String(row.employeeId), workDate: lifecycle.dateOnly(row.workDate || row.date) }));
+  const employeeIds = [...new Set(normalizedRows.map((row) => row.employeeId))];
+  if (!employeeIds.length) {
+    return () => {
+      throw new HttpError(404, 'Employee not found.');
+    };
+  }
+
+  const maxDate = new Date(Math.max(...normalizedRows.map((row) => row.workDate.getTime())));
+  const employees = await client.employee.findMany({
+    where: { id: { in: employeeIds } },
+    select: { id: true, firstName: true, lastName: true, displayName: true, department: true, jobTitle: true, isActive: true, deletedAt: true }
+  });
+  const events = lifecycle.hasLifecycleModel(client) && client.employeeLifecycleEvent?.findMany
+    ? await client.employeeLifecycleEvent.findMany({
+      where: { employeeId: { in: employeeIds }, effectiveDate: { lte: maxDate } },
+      select: { employeeId: true, effectiveDate: true, sequence: true, newValue: true },
+      orderBy: [{ employeeId: 'asc' }, { effectiveDate: 'asc' }, { sequence: 'asc' }]
+    })
+    : [];
+
+  const employeeById = new Map(employees.map((employee) => [String(employee.id), employee]));
+  const eventsByEmployee = new Map();
+  for (const event of events) {
+    const key = String(event.employeeId);
+    const list = eventsByEmployee.get(key) || [];
+    list.push(event);
+    eventsByEmployee.set(key, list);
+  }
+
+  return (employeeId, workDate) => {
+    const id = String(employeeId);
+    const date = lifecycle.dateOnly(workDate);
+    const employee = employeeById.get(id);
+    if (!employee || employee.deletedAt) throw new HttpError(404, 'Employee not found.');
+
+    let latestEvent = null;
+    for (const event of eventsByEmployee.get(id) || []) {
+      if (new Date(event.effectiveDate) <= date) latestEvent = event;
+      else break;
+    }
+    return latestEvent?.newValue?.employee
+      ? lifecycle.employeeState(latestEvent.newValue.employee)
+      : lifecycle.employeeState(employee);
+  };
+}
+
+async function ensureEmployeeOperationalForShift(client, { employeeId, workDate, shiftCode, projectedStateResolver = null }) {
   const code = String(shiftCode || '').trim().toUpperCase();
   if (NON_OPERATIONAL_SHIFT_CODES.has(code)) return { allowed: true, nonOperational: true };
-  const state = await employeeProjectedStateAt(client, employeeId, workDate);
+  const state = projectedStateResolver
+    ? projectedStateResolver(employeeId, workDate)
+    : await employeeProjectedStateAt(client, employeeId, workDate);
   if (!state.isActive) {
     throw new HttpError(409, 'Employee is not operational on the selected work date.', {
       code: 'INACTIVE_EMPLOYEE_SCHEDULE_CONFLICT',
@@ -55,4 +107,4 @@ async function validateScheduleRowsOperational(client, rows) {
   }
 }
 
-module.exports = { NON_OPERATIONAL_SHIFT_CODES, employeeProjectedStateAt, ensureEmployeeOperationalForShift, validateScheduleRowsOperational, projectedScheduleConflictIds };
+module.exports = { NON_OPERATIONAL_SHIFT_CODES, employeeProjectedStateAt, createEmployeeProjectedStateResolver, ensureEmployeeOperationalForShift, validateScheduleRowsOperational, projectedScheduleConflictIds };

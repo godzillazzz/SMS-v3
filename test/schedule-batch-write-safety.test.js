@@ -16,6 +16,17 @@ test('schedule batch uses its transaction client for the existing-assignment loo
   assert.doesNotMatch(transactionBody, /await prisma\.shiftAssignment\.findMany\(/);
 });
 
+test('schedule batch preloads projected lifecycle state once instead of querying it per assignment', () => {
+  const source = read('src/services/schedule.service.js');
+  const start = source.indexOf('const results = await prisma.$transaction(async (tx) => {');
+  const end = source.indexOf("  }, { maxWait: 10000, timeout: 60000 });", start);
+  const transactionBody = source.slice(start, end);
+
+  assert.equal((transactionBody.match(/createEmployeeProjectedStateResolver\(/g) || []).length, 1);
+  assert.match(transactionBody, /projectedStateResolver: resolveProjectedState/);
+  assert.doesNotMatch(transactionBody, /ensureEmployeeOperationalForShift\(tx, \{ employeeId: ass\.employeeId, workDate: parsedDate, shiftCode \}\)/);
+});
+
 test('schedule batch validates calendar dates and logs sanitized write diagnostics', () => {
   const source = read('src/routes/schedules.routes.js');
 
