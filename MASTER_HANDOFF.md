@@ -1,8 +1,36 @@
 # MASTER HANDOFF
 
-อัปเดต 6 ตุลาคม 2569 (UTC)
+อัปเดต 7 ตุลาคม 2569, 06:34 น. เวลาไทย (6 ตุลาคม 2026, 23:34 UTC)
 
-## OPEN — R1/R2 task stopped before Phase C rebase (6 October 2026, 17:50 UTC / 7 October 2026, 00:50 Bangkok)
+## OPEN — R1 source merged; Production release not started (7 October 2026, 06:34 Bangkok / 6 October 2026, 23:34 UTC)
+
+- Phase C ใช้วิธี update branch แบบ merge ตามคำสั่งล่าสุด: #474 head หลัง update `a6c46bfc324745b5e3b6900c1fce408075b37d01`, CI `37546460311` SUCCESS, และ Vercel Preview Ready: [deployment](https://sms-v3-staging-git-fix-ux-t05-schedule-approv-752411-godzillazz.vercel.app). Merge ปกติเป็น `60f6109a09eb8e27c5d8b83820d7df8014667ae5`.
+- `R1_SHA=60f6109a09eb8e27c5d8b83820d7df8014667ae5`; `fd14d4557bb76bc02d81e0acb32829090595db89` เป็นบรรพบุรุษ. CI push ของ SHA นี้ `37546753747` SUCCESS; Vercel status บน SHA นี้ SUCCESS ที่ [Vercel deployment details](https://vercel.com/godzillazz/sms-v3-staging/5qew6AwyrzooDgGA8JXBfVrPPNHz). ไม่มี Prisma schema/migration diff ระหว่าง `f63c785` กับ R1_SHA.
+- Vercel status ของ commit `f63c785e8af1d63f3d27754c66709e6a0d9b3443` เป็น SUCCESS และ URL รายละเอียดลงท้าย `F4E5kVXqpYuhQjcQSDP49ViJJvpK`, ตรงกับ deployment id ที่ handoff เดิมบันทึกเป็น `dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK`. หลักฐานนี้ยืนยัน Vercel deployment record ของ SHA ดังกล่าว; การผูก alias canonical กับ deployment id ยังไม่ได้ตรวจตรงผ่าน Vercel API.
+- Production preflight `node scripts/ci/verify-health.js` ล้มด้วย `fetch failed`; direct request ถูก outbound proxy บล็อกด้วย HTTP 403. ดังนั้น canonical `/api/v1/health`, `/api/v1/ready`, หน้าเว็บ และ live alias/native SHA ยังไม่ได้ตรวจในงานนี้. ไม่มี Vercel CLI/token ใน workspace และ `gh` CLI ใช้ `GH_TOKEN` ที่ไม่ถูกต้อง; จึงยัง dispatch workflow จาก workspace นี้ไม่ได้.
+- เวลาไทยขณะหยุดคือ 06:34 น. ซึ่งอยู่นอกช่วงปล่อย 10:00–16:00. ยังไม่ได้เริ่ม Production stage/deploy, promote, Environment approval หรือ rollback. E1–E3 ยังไม่ได้ตรวจหลังปล่อยเพราะไม่มีการปล่อย.
+- Phase D: งด benchmark T22 ตามคำสั่ง; เกณฑ์ 15 วินาทียังไม่ถูกวัด. Phase F ยังไม่เริ่มเพราะต้องให้ R1 ผ่านก่อน.
+- Production ยังเป็น SHA `f63c785` ตามข้อเท็จจริงที่เจ้าของระบบให้ไว้; ไม่มีการเขียน/ลบข้อมูลธุรกิจหรือแก้ secret/env/schema/migration.
+- สถานะ handoff OPEN: R1_SHA และ CI พร้อม แต่ต้องตรวจ alias/health ผ่านเส้นทางที่เข้าถึง Vercel ได้ และเริ่ม workflow ภายในช่วงเวลาที่อนุญาต. ไม่มี Environment approval request ที่รออยู่.
+
+### PR และ release evidence ณ เวลาหยุด
+
+| PR | Head หลัง update | CI หลัง update | Merge commit | สถานะ |
+|---|---|---|---|---|
+| #474 | `a6c46bfc324745b5e3b6900c1fce408075b37d01` | `37546460311` SUCCESS | `60f6109a09eb8e27c5d8b83820d7df8014667ae5` | Merged; Vercel Preview Ready |
+| #475 | ยังไม่ update; `116dd0a92b7377a2b570d09f144f8f3b4215cd61` | ยังไม่มี CI หลัง update | — | รอ R1 ผ่าน |
+| #476 | ยังไม่ update; `b817d8a9eaa4c148c6541e2a399b3d5338732ab0` | ยังไม่มี CI หลัง update | — | รอ R1 ผ่าน |
+| #477 | ยังไม่ update; `6b6a488462f2098f79d47cc7470ec968dbc98bfa` | ยังไม่มี CI หลัง update | — | รอ R1 ผ่าน |
+| #478 | ยังไม่ update; `9600e2fbd5a1c5071dc25016d3bf70652b9362bf` | ยังไม่มี CI หลัง update; head ปัจจุบันมี CI `37506838166` SUCCESS | — | รอ R1 ผ่าน |
+
+| Release | SHA | CI run | Production workflow | Deployment ID / เวลา | Post-release checks |
+|---|---|---|---|---|---|
+| R1 | `60f6109a09eb8e27c5d8b83820d7df8014667ae5` | `37546753747` SUCCESS | ยังไม่เริ่ม | — | E1–E3 ยังไม่ได้ตรวจ; ไม่มี rollback |
+| R2 | ยังไม่ถึงขั้น | — | ยังไม่เริ่ม | — | G1–G4 ยังไม่ได้ตรวจ; ไม่มี rollback |
+
+Rollback reference ตามข้อมูลเจ้าของระบบ: `https://sms-v3-staging-bgyhhtjad-godzillazz.vercel.app`, SHA `f63c785`, deployment ID ที่บันทึกไว้ `dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK`; Vercel status URL ของ commit นี้ตรงกับ suffix ของ deployment ID แต่ canonical alias mapping ยังไม่ได้ยืนยันตรงจาก Vercel API.
+
+## Historical handoff status before update-branch method (6 October 2026, 17:50 UTC / 7 October 2026, 00:50 Bangkok)
 
 - Owner-provided Production facts: `sms-v3-staging-ten.vercel.app` is live Production at `f63c785e8af1d63f3d27754c66709e6a0d9b3443` (`VERCEL_ENV=production`); `3ed0585567091e88135bdbc3f7087a589c30e7d4` was Preview only. The rollback URL for R1 is `https://sms-v3-staging-bgyhhtjad-godzillazz.vercel.app` at `f63c785`.
 - Phase A: handoff facts corrected.
