@@ -12,6 +12,7 @@ const REQUEST_TYPE_DEFINITIONS = Object.freeze([
   Object.freeze({ type: 'EMPLOYEE_MASTER_CHANGE', label: 'แก้ไขข้อมูลพนักงาน', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'EMPLOYEE_REFERENCE_PHOTO', label: 'รูปอ้างอิงพนักงาน', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'LICENSE_DOCUMENT', label: 'เอกสารใบอนุญาต', safeReviewerRoles: Object.freeze(['ADMIN']) }),
+  Object.freeze({ type: 'SCHEDULE_APPROVAL', label: 'อนุมัติตารางกะ', safeReviewerRoles: Object.freeze(['ADMIN', 'SUPERVISOR']) }),
   Object.freeze({ type: 'ATTENDANCE_DEVICE_REQUEST', label: 'อุปกรณ์ลงเวลา', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'ATTENDANCE_ADJUSTMENT_REQUEST', label: 'ปรับปรุงเวลา Attendance', safeReviewerRoles: Object.freeze(['ADMIN']) }),
   Object.freeze({ type: 'REGISTRATION_REQUEST', label: 'ลงทะเบียนบัญชี', safeReviewerRoles: Object.freeze(['ADMIN', 'MANAGER', 'SUPERVISOR']) }),
@@ -149,6 +150,11 @@ function parseStoredPolicy(definition, rowsByKey) {
   const required = settingKeysFor(definition);
   const missing = required.filter((key) => !rowsByKey.has(key));
   if (missing.length) {
+    // Existing databases predate this request type. Use its code-enforced safe
+    // defaults only when none of its settings exist; partial configuration fails closed.
+    if (definition.type === 'SCHEDULE_APPROVAL' && missing.length === required.length) {
+      return defaultPolicyFor(definition);
+    }
     throw policyError(503, 'APPROVAL_POLICY_INCOMPLETE', 'Approval policy configuration is incomplete.', { requestType: definition.type, missingKeys: missing });
   }
   try {
