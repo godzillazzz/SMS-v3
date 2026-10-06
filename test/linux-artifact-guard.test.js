@@ -6,22 +6,32 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { verifyLinuxArtifact } = require('../scripts/ci/verify-linux-artifact');
+const EXPECTED_SHARP_VERSION = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')).dependencies.sharp;
 
-function fixture({ includeWindows = false, includeSharp = true } = {}) {
+function fixture({ includeWindows = false, includeSharp = true, sharpVersion = EXPECTED_SHARP_VERSION } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-linux-artifact-'));
   if (includeSharp) {
     for (const name of ['sharp', '@img/sharp-linux-x64', '@img/sharp-libvips-linux-x64']) {
       const packageDir = path.join(root, 'functions', 'api.func', 'node_modules', ...name.split('/'));
       fs.mkdirSync(packageDir, { recursive: true });
-      fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name, version: name === 'sharp' ? '0.35.4' : name.includes('libvips') ? '1.3.3' : '0.35.4' }));
+      fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name, version: name === 'sharp' ? sharpVersion : name.includes('libvips') ? '1.3.3' : sharpVersion }));
     }
   }
   if (includeWindows) {
     const packageDir = path.join(root, 'functions', 'api.func', 'node_modules', '@img', 'sharp-win32-x64');
     fs.mkdirSync(packageDir, { recursive: true });
-    fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: '@img/sharp-win32-x64', version: '0.35.4' }));
+    fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: '@img/sharp-win32-x64', version: sharpVersion }));
   }
   return root;
+}
+
+function sharpContext({ dependencyVersion = EXPECTED_SHARP_VERSION, loadedVersion = dependencyVersion } = {}) {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'sms-sharp-context-'));
+  fs.writeFileSync(path.join(cwd, 'package.json'), JSON.stringify({ dependencies: { sharp: dependencyVersion } }));
+  const sharpDir = path.join(cwd, 'node_modules', 'sharp');
+  fs.mkdirSync(sharpDir, { recursive: true });
+  fs.writeFileSync(path.join(sharpDir, 'index.js'), `module.exports = { versions: { sharp: '${loadedVersion}' } };\n`);
+  return cwd;
 }
 
 test('valid Linux x64 sharp artifact passes', () => {
@@ -60,4 +70,44 @@ test('generic artifact mode can be used for non-sharp functions without weakenin
     const result = verifyLinuxArtifact({ root, platform: 'linux', arch: 'x64', requireSharp: false });
     assert.equal(result.hasSharp, false);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('sharp load must match the exact version pinned in the root package.json', () => {
+  const root = fixture();
+  const cwd = sharpContext();
+  try {
+    const result = verifyLinuxArtifact({ root, cwd, platform: 'linux', arch: 'x64', requireSharpLoad: true });
+    assert.equal(result.hasSharp, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('sharp load fails when its runtime version does not match the root package.json', () => {
+  const root = fixture();
+  const cwd = sharpContext({ loadedVersion: '0.35.4' });
+  try {
+    assert.throws(
+      () => verifyLinuxArtifact({ root, cwd, platform: 'linux', arch: 'x64', requireSharpLoad: true }),
+      /does not match root dependency/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('sharp artifact verification rejects a non-exact root dependency version', () => {
+  const root = fixture();
+  const cwd = sharpContext({ dependencyVersion: '~0.35.5', loadedVersion: '0.35.5' });
+  try {
+    assert.throws(
+      () => verifyLinuxArtifact({ root, cwd, platform: 'linux', arch: 'x64', requireSharpLoad: true }),
+      /dependencies\.sharp must be an exact version/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
 });
