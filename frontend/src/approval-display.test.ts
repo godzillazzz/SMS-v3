@@ -30,8 +30,24 @@ describe('schedule approval presentation and decision guard', () => {
   });
 
   it('maps change types, badge tones, and state-guard errors to Thai labels', () => {
+    const expectedChangeTypeLabels = {
+      CREATE_SHIFT: 'เพิ่มกะ',
+      UPDATE_SHIFT: 'แก้ไขกะ',
+      DELETE_SHIFT: 'ลบกะ',
+      BATCH_UPDATE_SHIFT: 'แก้ไขกะหลายรายการ',
+      AUTO_SCHEDULE: 'จัดกะอัตโนมัติทั้งเดือน',
+      AUTO_SCHEDULE_EMPLOYEE: 'จัดกะอัตโนมัติรายบุคคล',
+      MANUAL_SCHEDULE: 'จัดกะด้วยตนเอง',
+      LEAVE_APPROVAL: 'ปรับตามใบลาที่อนุมัติ',
+      AL_ONLY_CHANGE: 'ปรับวันลาพักร้อน',
+      LICENSE_RECONCILIATION: 'ปรับตามใบอนุญาต',
+      REAPPROVAL_REQUIRED: 'ต้องอนุมัติใหม่',
+      PRODUCTION_SHIFT_TIME_NORMALIZATION: 'ปรับรูปแบบเวลากะ'
+    };
+    for (const [changeType, label] of Object.entries(expectedChangeTypeLabels)) {
+      expect(scheduleApprovalChangeTypeLabel(changeType)).toBe(label);
+    }
     expect(scheduleApprovalChangeTypeLabel('batch_update_shift')).toBe('แก้ไขกะหลายรายการ');
-    expect(scheduleApprovalChangeTypeLabel('AUTO_SCHEDULE_EMPLOYEE')).toBe('จัดกะอัตโนมัติ');
     expect(scheduleApprovalChangeTypeLabel('UNKNOWN_CHANGE')).toBe('อื่น ๆ');
     expect(scheduleApprovalTone('APPROVED')).toBe('success');
     expect(scheduleApprovalTone('PENDING')).toBe('warning');

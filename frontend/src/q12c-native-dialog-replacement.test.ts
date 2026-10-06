@@ -50,7 +50,8 @@ describe('Q12-C native dialog replacement contracts', () => {
   it('provides validated prompt semantics and responsive in-app presentation', () => {
     expect(actionDialog).toContain('state.options.minLength');
     expect(actionDialog).toContain('validationError');
-    expect(actionDialog).toContain('state.value.trim()');
+    expect(actionDialog).toContain('value.trim().length >= Math.max(0, minLength || 0)');
+    expect(actionDialog).toContain('isActionDialogPromptValid(state.value, state.options.minLength)');
     expect(actionDialog).toContain('maxLength={state.options.maxLength}');
     expect(actionDialogCss).toContain('@media (max-width: 640px)');
     expect(actionDialogCss).toContain('.sms-action-dialog__validation');
