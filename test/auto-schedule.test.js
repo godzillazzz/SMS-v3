@@ -1,7 +1,7 @@
 process.env.NODE_ENV = 'test';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildAutoSchedulePlan, buildEmployeeAutoSchedulePlan, monthBounds, suggestedPhase } = require('../src/services/auto-schedule.service');
+const { buildAutoSchedulePlan, buildEmployeeAutoSchedulePlan, commitAutoSchedule, monthBounds, suggestedPhase } = require('../src/services/auto-schedule.service');
 const { CORE_AUTO_SCHEDULE_PATTERNS } = require('../src/services/auto-schedule-pattern.service');
 
 const shiftTypes = [
@@ -16,10 +16,10 @@ const employees = [
 ];
 const licenses = employees.map((employee) => ({ employeeId: employee.id, issueDate: new Date('2020-01-01T00:00:00Z'), expiryDate: new Date('2030-01-01T00:00:00Z'), status: 'Active' }));
 
-function client({ current = [], history = [], employeeRows = employees, licenseRows = licenses, patternRows = CORE_AUTO_SCHEDULE_PATTERNS } = {}) {
+function client({ current = [], history = [], employeeRows = employees, licenseRows = licenses, patternRows = CORE_AUTO_SCHEDULE_PATTERNS, ruleRows = [] } = {}) {
   let shiftQuery = 0;
   return {
-    schedulingRule: { findMany: async () => [{ ruleId: 'RULE001', value: '72', enabled: true }] },
+    schedulingRule: { findMany: async () => [{ ruleId: 'RULE001', value: '72', enabled: true }, ...ruleRows] },
     employee: { findMany: async () => employeeRows },
     shiftType: { findMany: async () => shiftTypes },
     shiftAssignment: { findMany: async () => (++shiftQuery === 1 ? current : history) },
@@ -41,7 +41,7 @@ test('auto schedule preview follows Supervisor and six-day rotating patterns wit
   assert.deepEqual(plan.rows.filter((row) => row.employeeId === 'worker').slice(0, 7).map((row) => row.code), ['D', 'D', 'D', 'D', 'D', 'D', 'OFF']);
 });
 
-test('bulk magic-wand preview replaces ordinary manual rows but preserves approved leave and Admin license overrides', async () => {
+test('bulk magic-wand preview preserves every existing assignment and fills only empty rows', async () => {
   const current = [
     { employeeId: 'worker', workDate: new Date('2026-07-01T00:00:00Z'), locked: true, source: 'MANUAL', remark: 'replace me', licenseOverride: false, shiftType: shiftTypes[1] },
     { employeeId: 'worker', workDate: new Date('2026-07-02T00:00:00Z'), locked: false, source: 'LEAVE_APPROVAL', remark: 'leave', licenseOverride: false, shiftType: shiftTypes[3] },
@@ -51,13 +51,131 @@ test('bulk magic-wand preview replaces ordinary manual rows but preserves approv
   const manual = plan.rows.find((row) => row.employeeId === 'worker' && row.date === '2026-07-01');
   const leave = plan.rows.find((row) => row.employeeId === 'worker' && row.date === '2026-07-02');
   const override = plan.rows.find((row) => row.employeeId === 'worker' && row.date === '2026-07-03');
-  assert.equal(manual.code, 'D');
-  assert.equal(manual.locked, false);
+  assert.equal(manual.code, 'N');
+  assert.equal(manual.locked, true);
+  assert.equal(manual.preserved, true);
   assert.equal(leave.code, 'AL');
+  assert.equal(leave.preserved, true);
   assert.equal(override.code, 'N');
+  assert.equal(override.preserved, true);
   assert.equal(override.licenseOverride, true);
   assert.equal(override.overrideReason, 'Approved coverage');
-  assert.equal(plan.summary.manualLocked, 2);
+  assert.equal(plan.summary.manualLocked, 3);
+  assert.equal(plan.summary.preservedExisting, 3);
+  assert.equal(plan.summary.generated, 59);
+});
+
+test('bulk preview keeps ten persisted shifts unchanged and continues the pattern across them', async () => {
+  const current = Array.from({ length: 10 }, (_, index) => ({
+    id: `existing-${index + 1}`,
+    employeeId: 'worker',
+    workDate: new Date(`2026-07-${String(index + 1).padStart(2, '0')}T00:00:00Z`),
+    employeeNameSnapshot: 'Roster Snapshot Name',
+    departmentSnapshot: 'Roster Snapshot Department',
+    startTime: '09:15',
+    endTime: '21:15',
+    hours: 12,
+    locked: true,
+    source: 'MANUAL',
+    remark: `preserve-${index + 1}`,
+    licenseStatus: 'VALID',
+    licenseOverride: false,
+    shiftType: shiftTypes[0]
+  }));
+  const plan = await buildAutoSchedulePlan(client({ current }), '2026-07');
+  const workerRows = plan.rows.filter((row) => row.employeeId === 'worker');
+
+  for (const [index, assignment] of current.entries()) {
+    const row = workerRows[index];
+    assert.equal(row.date, `2026-07-${String(index + 1).padStart(2, '0')}`);
+    assert.equal(row.existingShiftId, assignment.id);
+    assert.equal(row.preserved, true);
+    assert.equal(row.locked, true);
+    assert.equal(row.code, 'D');
+    assert.equal(row.employeeName, assignment.employeeNameSnapshot);
+    assert.equal(row.department, assignment.departmentSnapshot);
+    assert.equal(row.startTime, assignment.startTime);
+    assert.equal(row.endTime, assignment.endTime);
+    assert.equal(row.hours, assignment.hours);
+    assert.equal(row.source, assignment.source);
+    assert.equal(row.remark, assignment.remark);
+    assert.equal(row.licenseStatus, assignment.licenseStatus);
+  }
+  assert.equal(workerRows.find((row) => row.date === '2026-07-11').phaseCode, 'N4');
+  assert.equal(workerRows.find((row) => row.date === '2026-07-11').code, 'N');
+  assert.equal(plan.summary.preservedExisting, 10);
+  assert.equal(plan.summary.generated, 52);
+});
+
+test('bulk preview reports RULE003/RULE004 minimum shortfalls without changing preserved shifts', async () => {
+  const current = [{
+    id: 'existing-day-shift',
+    employeeId: 'worker',
+    workDate: new Date('2026-07-01T00:00:00Z'),
+    source: 'MANUAL',
+    remark: 'do not change',
+    shiftType: shiftTypes[0]
+  }];
+  const plan = await buildAutoSchedulePlan(client({
+    current,
+    ruleRows: [
+      { ruleId: 'RULE003', value: '99', enabled: true },
+      { ruleId: 'RULE004', value: '99', enabled: true }
+    ]
+  }), '2026-07');
+
+  assert.ok(plan.warnings.some((warning) => warning.includes('RULE003')));
+  assert.ok(plan.warnings.some((warning) => warning.includes('RULE004')));
+  assert.equal(plan.rows.find((row) => row.existingShiftId === 'existing-day-shift').remark, 'do not change');
+});
+
+test('bulk commit creates only empty-slot rows and never deletes or updates existing assignments', async () => {
+  const current = Array.from({ length: 10 }, (_, index) => ({
+    id: `persisted-${index + 1}`,
+    employeeId: 'worker',
+    workDate: new Date(`2026-07-${String(index + 1).padStart(2, '0')}T00:00:00Z`),
+    source: 'MANUAL',
+    remark: `persisted-${index + 1}`,
+    shiftType: shiftTypes[0]
+  }));
+  const base = client({ current });
+  let createdRows = [];
+  let deletedRows = 0;
+  let updatedRows = 0;
+  const tx = {
+    ...base,
+    employee: {
+      ...base.employee,
+      findUnique: async ({ where }) => {
+        const employee = employees.find((row) => row.id === where.id);
+        return employee ? { ...employee, isActive: true, deletedAt: null } : null;
+      }
+    },
+    shiftAssignment: {
+      ...base.shiftAssignment,
+      deleteMany: async () => { deletedRows += 1; return { count: 0 }; },
+      update: async () => { updatedRows += 1; },
+      updateMany: async () => { updatedRows += 1; },
+      createMany: async ({ data }) => { createdRows = data; return { count: data.length }; }
+    },
+    scheduleApproval: {
+      findFirst: async () => null,
+      create: async ({ data }) => ({ id: 'approval-1', ...data })
+    },
+    auditLog: { create: async ({ data }) => ({ id: 'audit-1', ...data }) }
+  };
+
+  const result = await commitAutoSchedule({ $transaction: (callback) => callback(tx) }, '2026-07', 'admin-1');
+  const createdKeys = new Set(createdRows.map((row) => `${row.employeeId}_${row.workDate.toISOString().slice(0, 10)}`));
+
+  assert.equal(deletedRows, 0);
+  assert.equal(updatedRows, 0);
+  assert.equal(result.replacedRows, 0);
+  assert.equal(result.preservedRows, 10);
+  assert.equal(result.writtenRows, createdRows.length);
+  for (const row of current) {
+    assert.equal(createdKeys.has(`${row.employeeId}_${row.workDate.toISOString().slice(0, 10)}`), false);
+  }
 });
 
 test('bulk and individual magic-wand share AUTO Continue phase analysis', async () => {

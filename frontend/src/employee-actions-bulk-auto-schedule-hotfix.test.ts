@@ -36,4 +36,12 @@ describe('Employee action and bulk auto-schedule hotfix', () => {
     expect(main).toContain('อ่านแพทเทิร์น Supervisor/พนักงานทั่วไปจากค่าที่ Admin จัดการ');
     expect(main).toContain('คง AL และ Admin license override');
   });
+
+  it('keeps bulk auto-schedule preview fill-only while retaining the individual replace path', () => {
+    expect(main).toContain('addAutoSchedulePreviewDrafts(scheduleDrafts, previewRowsParam');
+    expect(main).toContain('applyPreviewToDrafts(rows, employeeId)');
+    expect(main).toContain('จะเติม {previewFillSummary.generated} ช่องว่าง · คงกะเดิมไว้ {previewFillSummary.preservedExisting} ช่อง');
+    expect(main).toContain('ทุกช่องจัดไว้แล้ว ไม่มีอะไรให้เติม');
+    expect(main).toContain("'คงฉบับร่าง' : preserved ? 'คงกะเดิม' : 'เติมอัตโนมัติ'");
+  });
 });
