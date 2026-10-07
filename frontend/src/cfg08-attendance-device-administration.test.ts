@@ -18,12 +18,12 @@ describe('CFG-08 Attendance Device Administration', () => {
     const page = read('./pages/attendance-device/AttendanceDevicePage.tsx');
     expect(page).not.toContain('CFG-08 · ADMIN');
     expect(page).toContain('อุปกรณ์ลงเวลา</p><h1>อุปกรณ์ลงเวลา');
-    expect(page).toContain('Device History');
-    expect(page).toContain('Recent Audit');
-    expect(page).toContain('Device Proof');
+    expect(page).toContain('ประวัติอุปกรณ์');
+    expect(page).toContain('ประวัติเหตุการณ์');
+    expect(page).toContain('การยืนยันอุปกรณ์');
     expect(page).toContain("revokeReason.trim().length < 3");
     expect(page).toContain('revokeAttendanceDeviceCurrent');
-    expect(page).toContain('stale approval');
+    expect(page).toContain('คำขอเก่าค้างอยู่');
   });
 
   it('keeps display and platform metadata informational instead of trusted identity', () => {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
 import { formatRequestErrorMessage, RequestErrorReference, toRequestErrorState } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
+import { auditEventLabel } from '../../components/audit/audit-utils';
 import { useActionDialog } from '../../components/useActionDialog';
 import { attendanceDeviceAdminOverview, revokeAttendanceDeviceCurrent } from '../attendance/attendance-client';
 import {
@@ -102,7 +103,7 @@ const formatDate = (value?: string | null) => value
   : '—';
 
 const statusLabel: Record<AttendanceDeviceRequest['status'], string> = {
-  PENDING_APPROVAL: 'รอ Admin อนุมัติ',
+  PENDING_APPROVAL: 'รอผู้ดูแลระบบอนุมัติ',
   RETURNED_FOR_CORRECTION: 'ส่งกลับให้แก้ไข',
   APPROVED: 'อนุมัติแล้ว',
   REJECTED: 'ไม่อนุมัติ',
@@ -116,6 +117,26 @@ const statusClass: Record<AttendanceDeviceRequest['status'], string> = {
   REJECTED: 'inactive',
   CANCELLED: 'muted'
 };
+
+const enrollmentStatusLabel: Record<AttendanceDeviceEnrollment['status'], string> = {
+  PENDING_APPROVAL: 'รออนุมัติ',
+  ACTIVE: 'ใช้งานอยู่',
+  REVOKED: 'ยกเลิกการใช้งาน',
+  REJECTED: 'ไม่อนุมัติ',
+  CANCELLED: 'ยกเลิกแล้ว'
+};
+
+const requestTypeLabel: Record<AttendanceDeviceRequest['requestType'], string> = {
+  INITIAL: 'ลงทะเบียนอุปกรณ์เครื่องแรก',
+  REPLACEMENT: 'เปลี่ยนอุปกรณ์'
+};
+
+const keyInspectionLabel: Record<string, string> = {
+  PRESENT: 'พบคีย์', MISSING: 'ไม่พบคีย์', INVALID: 'คีย์ไม่ถูกต้อง', UNAVAILABLE: 'อ่านคีย์ไม่ได้', UNKNOWN: 'ยังตรวจสอบไม่ได้'
+};
+
+const diagnosticBoolean = (value: boolean | null | undefined) => value === true ? 'ใช่' : value === false ? 'ไม่ใช่' : 'ยังตรวจสอบไม่ได้';
+const keyInspectionText = (value?: string | null) => keyInspectionLabel[value || 'UNKNOWN'] || 'ยังตรวจสอบไม่ได้';
 
 function employeeName(row: AttendanceDeviceRequest) {
   const employee = row.employee;
@@ -411,17 +432,17 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
         {activeDevice && <details className="attendance-device-diagnostics" data-testid="attendance-device-id-diagnostics">
           <summary>รายละเอียดการตรวจสถานะคีย์ในเบราว์เซอร์นี้</summary>
           <dl>
-            <div><dt>SERVER_ACTIVE_DEVICE</dt><dd>{activeIdChain.activeDeviceId || '—'}</dd></div>
-            <div><dt>LOCAL_PRIVATE_KEY_PRESENT</dt><dd>{activeKeyInspection?.status === 'PRESENT' && activeIdChain.activeKeyIdMatch === true ? 'true' : activeKeyInspection?.status === 'MISSING' ? 'false' : 'unknown'} · {activeKeyInspection?.status || 'UNKNOWN'}</dd></div>
-            <div><dt>ACTIVE_DEVICE_KEY_ID_MATCH</dt><dd>{activeIdChain.activeKeyIdMatch === true ? 'MATCH' : activeIdChain.activeKeyIdMatch === false ? 'MISMATCH' : 'ยังตรวจไม่ได้'}</dd></div>
-            <div><dt>VERIFICATION_DEVICE_ID</dt><dd>ยังไม่มี verification session ในหน้านี้</dd></div>
-            <div><dt>VERIFICATION_DEVICE_ID_MATCH</dt><dd>ยังไม่ได้ตรวจในหน้านี้</dd></div>
+            <div><dt>อุปกรณ์หลักในระบบ</dt><dd>{activeIdChain.activeDeviceId || '—'}</dd></div>
+            <div><dt>มีคีย์ส่วนตัวในอุปกรณ์นี้</dt><dd>{activeKeyInspection?.status === 'PRESENT' && activeIdChain.activeKeyIdMatch === true ? 'มี' : activeKeyInspection?.status === 'MISSING' ? 'ไม่มี' : 'ยังตรวจสอบไม่ได้'} · {keyInspectionText(activeKeyInspection?.status)}</dd></div>
+            <div><dt>ผลการเทียบรหัสอุปกรณ์</dt><dd>{activeIdChain.activeKeyIdMatch === true ? 'ตรงกัน' : activeIdChain.activeKeyIdMatch === false ? 'ไม่ตรงกัน' : 'ยังตรวจสอบไม่ได้'}</dd></div>
+            <div><dt>รหัสอุปกรณ์ในการตรวจสอบ</dt><dd>ยังไม่มีข้อมูลการตรวจสอบในหน้านี้</dd></div>
+            <div><dt>ผลการตรวจสอบรหัสอุปกรณ์</dt><dd>ยังไม่ได้ตรวจในหน้านี้</dd></div>
             <div><dt>รหัสอุปกรณ์ที่รอพิจารณา</dt><dd>{activeIdChain.candidateDeviceId || '—'}</dd></div>
-            <div><dt>สถานะรหัสยืนยันอุปกรณ์</dt><dd>{candidateKeyInspection?.status || 'ไม่พบอุปกรณ์ที่รอพิจารณา'}{candidateLocalKeyPresent ? ' · รหัสตรงกัน' : ''}</dd></div>
-            <div><dt>INDEXEDDB_STORED_ENROLLMENT_IDS</dt><dd>{keyInventory?.available ? activeIdChain.storedEnrollmentIds.join(', ') || 'ไม่มี enrollment ID ที่อ่านได้' : 'อ่าน IndexedDB ไม่ได้'}</dd></div>
-            <div><dt>MALFORMED_LOCAL_KEY_RECORDS</dt><dd>{keyInventory?.available ? keyInventory.malformedRecordCount : 'unknown'}</dd></div>
-            <div><dt>LOCAL_KEY_METADATA</dt><dd>{activeKeyInspection?.algorithm || '—'} / {activeKeyInspection?.namedCurve || '—'} · extractable={String(activeKeyInspection?.extractable ?? 'unknown')} · usages={activeKeyInspection?.usages.join(', ') || '—'}</dd></div>
-            <div><dt>BROWSER_STORAGE</dt><dd>secureContext={String(window.isSecureContext)} · WebCrypto={String(Boolean(globalThis.crypto?.subtle))} · IndexedDB={keyInventory?.available ? 'readable' : 'unavailable'}</dd></div>
+            <div><dt>สถานะคีย์อุปกรณ์ที่รอพิจารณา</dt><dd>{candidateKeyInspection ? keyInspectionText(candidateKeyInspection.status) : 'ไม่พบอุปกรณ์ที่รอพิจารณา'}{candidateLocalKeyPresent ? ' · รหัสตรงกัน' : ''}</dd></div>
+            <div><dt>รหัสอุปกรณ์ที่เก็บในเบราว์เซอร์</dt><dd>{keyInventory?.available ? activeIdChain.storedEnrollmentIds.join(', ') || 'ไม่มีรหัสอุปกรณ์ที่อ่านได้' : 'อ่านพื้นที่จัดเก็บไม่ได้'}</dd></div>
+            <div><dt>จำนวนข้อมูลคีย์ที่อ่านไม่ได้</dt><dd>{keyInventory?.available ? keyInventory.malformedRecordCount : 'ยังตรวจสอบไม่ได้'}</dd></div>
+            <div><dt>รายละเอียดคีย์ในอุปกรณ์</dt><dd>{activeKeyInspection?.algorithm || '—'} / {activeKeyInspection?.namedCurve || '—'} · ส่งออกได้={diagnosticBoolean(activeKeyInspection?.extractable)} · ใช้เพื่อ={activeKeyInspection?.usages.map((usage) => usage === 'sign' ? 'ลงนาม' : usage === 'verify' ? 'ตรวจลายเซ็น' : usage).join(', ') || '—'}</dd></div>
+            <div><dt>พื้นที่จัดเก็บในเบราว์เซอร์</dt><dd>การเชื่อมต่อปลอดภัย={diagnosticBoolean(window.isSecureContext)} · Web Crypto={diagnosticBoolean(Boolean(globalThis.crypto?.subtle))} · IndexedDB={keyInventory?.available ? 'อ่านได้' : 'ใช้ไม่ได้'}</dd></div>
           </dl>
         </details>}
         {selfError && <div className="alert alert-error" role="alert"><span>{selfError}</span>{selfErrorRequestId && <details className="attendance-device-error-reference"><summary>รายละเอียดสำหรับผู้ดูแล</summary><RequestErrorReference requestId={selfErrorRequestId} /></details>}</div>}
@@ -448,7 +469,7 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
     </div>
 
     {role === 'ADMIN' && <section className="attendance-device-admin-section">
-      <div className="section-title"><div><p className="eyebrow">ADMIN REVIEW</p><h2>คำขออุปกรณ์ที่รออนุมัติ</h2><p>อนุมัติได้เมื่ออุปกรณ์ผ่านการยืนยันแล้วเท่านั้น</p></div><span className="attendance-device-queue-count">{queue.length}</span></div>
+      <div className="section-title"><div><p className="eyebrow">ADMIN REVIEW</p><h2>คำขออุปกรณ์ที่รออนุมัติ</h2><p>อนุมัติได้เมื่ออุปกรณ์ผ่านการยืนยันแล้วเท่านั้น</p></div>{!queueLoading && !queueError && <span className="attendance-device-queue-count">{queue.length}</span>}</div>
       {queueError && <div className="alert alert-error" role="alert">{queueError}</div>}
       {queueLoading ? <div className="attendance-device-state">กำลังโหลดคิวอนุมัติ…</div> : queue.length ? <div className="attendance-device-review-list">{queue.map((row) => <article className="attendance-device-review-card" key={row.id}>
         <div className="attendance-device-review-card__head"><div><strong>{employeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'} · ผู้ยื่น {row.requestedBy?.displayName || 'บัญชีพนักงาน'}</span></div><span className={`status-badge ${row.candidateDevice?.proofVerifiedAt ? 'active' : 'pending'}`}>{row.candidateDevice?.proofVerifiedAt ? 'ยืนยันอุปกรณ์แล้ว' : 'รอยืนยันอุปกรณ์'}</span></div>
@@ -459,19 +480,19 @@ export function AttendanceDevicePage({ token, role, readOnly = false }: Props) {
     </section>}
 
     {role === 'ADMIN' && <section className="attendance-device-admin-section">
-      <div className="section-title"><div><p className="eyebrow">จัดการอุปกรณ์</p><h2>จัดการอุปกรณ์ลงเวลาพนักงาน</h2><p>ตรวจสอบอุปกรณ์ที่ลงทะเบียน ประวัติการอนุมัติและการยกเลิก โดยใช้ชื่อเครื่องและแพลตฟอร์มเป็นข้อมูลประกอบเท่านั้น</p></div><span className="attendance-device-queue-count">{adminOverview.length}</span></div>
+      <div className="section-title"><div><p className="eyebrow">จัดการอุปกรณ์</p><h2>จัดการอุปกรณ์ลงเวลาพนักงาน</h2><p>ตรวจสอบอุปกรณ์ที่ลงทะเบียน ประวัติการอนุมัติและการยกเลิก โดยใช้ชื่อเครื่องและแพลตฟอร์มเป็นข้อมูลประกอบเท่านั้น</p></div>{!overviewLoading && !queueError && <span className="attendance-device-queue-count">{adminOverview.length}</span>}</div>
       {overviewLoading ? <div className="attendance-device-state">กำลังโหลดประวัติอุปกรณ์…</div> : adminOverview.length ? <div className="attendance-device-review-list">{adminOverview.map((row) => <article className="attendance-device-review-card" key={row.employeeId}>
-        <div className="attendance-device-review-card__head"><div><strong>{adminEmployeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'}</span></div><span className={`status-badge ${row.activeDevice ? 'active' : 'muted'}`}>{row.activeDevice ? 'ACTIVE DEVICE' : 'NO ACTIVE DEVICE'}</span></div>
-        {row.activeDevice ? <div className="attendance-device-review-meta"><div><span>อุปกรณ์ปัจจุบัน</span><b>{row.activeDevice.displayName}</b></div><div><span>Device Proof</span><b>{row.activeDevice.proofVerifiedAt ? `ผ่าน · ${formatDate(row.activeDevice.proofVerifiedAt)}` : 'ไม่พบหลักฐาน'}</b></div><div><span>Activated</span><b>{formatDate(row.activeDevice.activatedAt)}</b></div><div><span>Credential</span><b>{row.activeDevice.credentialFingerprint?.slice(0, 12) || '—'}…</b></div></div> : <div className="attendance-device-state attendance-device-state--empty"><strong>ไม่มีอุปกรณ์ ACTIVE</strong><span>พนักงานต้องลงทะเบียนและผ่าน Device Proof ก่อนส่ง Admin อนุมัติอุปกรณ์ใหม่</span></div>}
-        {row.activeRequest && <p className="attendance-device-reason"><b>คำขอที่กำลังดำเนินการ:</b> {row.activeRequest.requestType} · {row.activeRequest.status}{row.activeRequest.reason ? ` · ${row.activeRequest.reason}` : ''}</p>}
-        <div className="attendance-device-history-block"><strong>Device History ({row.history.length})</strong>{row.history.map((device) => <div className="attendance-device-review-meta" key={device.id}><div><span>สถานะ</span><b>{device.status}</b></div><div><span>อุปกรณ์</span><b>{device.displayName}</b></div><div><span>Proof / Activation</span><b>{device.proofVerifiedAt ? 'PROOF VERIFIED' : 'PROOF NOT VERIFIED'} · {formatDate(device.activatedAt)}</b></div><div><span>ผู้อนุมัติ</span><b>{device.approvedBy?.displayName || (device.status === 'ACTIVE' ? 'ไม่พบชื่อผู้อนุมัติ' : '-')}</b></div><div><span>Revoked</span><b>{formatDate(device.revokedAt)}{device.revokedReason ? ` · ${device.revokedReason}` : ''}</b></div></div>)}</div>
-        {row.recentAudit.length > 0 && <div className="attendance-device-history-block"><strong>Recent Audit</strong>{row.recentAudit.slice(0, 5).map((audit) => <p className="attendance-device-reason" key={audit.id}><b>{String(audit.metadata?.event || audit.action)}</b> · {formatDate(audit.createdAt)} · {audit.actor?.displayName || 'System/Admin'}{typeof audit.metadata?.reason === 'string' ? ` · ${audit.metadata.reason}` : ''}</p>)}</div>}
+        <div className="attendance-device-review-card__head"><div><strong>{adminEmployeeName(row)}</strong><span>{row.employee?.department || 'ไม่ระบุหน่วยงาน'}</span></div><span className={`status-badge ${row.activeDevice ? 'active' : 'muted'}`}>{row.activeDevice ? 'มีอุปกรณ์ใช้งานอยู่' : 'ไม่มีอุปกรณ์ใช้งานอยู่'}</span></div>
+        {row.activeDevice ? <div className="attendance-device-review-meta"><div><span>อุปกรณ์ปัจจุบัน</span><b>{row.activeDevice.displayName}</b></div><div><span>การยืนยันอุปกรณ์</span><b>{row.activeDevice.proofVerifiedAt ? `ผ่าน · ${formatDate(row.activeDevice.proofVerifiedAt)}` : 'ไม่พบหลักฐาน'}</b></div><div><span>เปิดใช้งานเมื่อ</span><b>{formatDate(row.activeDevice.activatedAt)}</b></div><div><span>รหัสอ้างอิงอุปกรณ์</span><b>{row.activeDevice.credentialFingerprint?.slice(0, 12) || '—'}…</b></div></div> : <div className="attendance-device-state attendance-device-state--empty"><strong>ไม่มีอุปกรณ์ใช้งานอยู่</strong><span>พนักงานต้องลงทะเบียนและผ่านการยืนยันอุปกรณ์ก่อนส่งให้ผู้ดูแลระบบอนุมัติอุปกรณ์ใหม่</span></div>}
+        {row.activeRequest && <p className="attendance-device-reason"><b>คำขอที่กำลังดำเนินการ:</b> {requestTypeLabel[row.activeRequest.requestType]} · {statusLabel[row.activeRequest.status]}{row.activeRequest.reason ? ` · ${row.activeRequest.reason}` : ''}</p>}
+        <div className="attendance-device-history-block"><strong>ประวัติอุปกรณ์ ({row.history.length})</strong>{row.history.map((device) => <div className="attendance-device-review-meta" key={device.id}><div><span>สถานะ</span><b>{enrollmentStatusLabel[device.status]}</b></div><div><span>อุปกรณ์</span><b>{device.displayName}</b></div><div><span>การยืนยันอุปกรณ์ / เปิดใช้งาน</span><b>{device.proofVerifiedAt ? 'ยืนยันแล้ว' : 'ยังไม่ยืนยัน'} · {formatDate(device.activatedAt)}</b></div><div><span>ผู้อนุมัติ</span><b>{device.approvedBy?.displayName || (device.status === 'ACTIVE' ? 'ไม่พบชื่อผู้อนุมัติ' : '—')}</b></div><div><span>ยกเลิกเมื่อ</span><b>{formatDate(device.revokedAt)}{device.revokedReason ? ` · ${device.revokedReason}` : ''}</b></div></div>)}</div>
+        {row.recentAudit.length > 0 && <div className="attendance-device-history-block"><strong>ประวัติเหตุการณ์</strong>{row.recentAudit.slice(0, 5).map((audit) => <p className="attendance-device-reason" key={audit.id}><b>{auditEventLabel(audit.metadata?.event || audit.action)}</b> · {formatDate(audit.createdAt)} · {audit.actor?.displayName || 'ระบบ'}{typeof audit.metadata?.reason === 'string' ? ` · ${audit.metadata.reason}` : ''}</p>)}</div>}
         {row.activeDevice && <footer><button type="button" className="btn-danger-outline" disabled={busy || readOnly} onClick={() => { setRevokeTarget(row); setRevokeReason(''); }}>ยกเลิกอุปกรณ์ปัจจุบัน</button></footer>}
       </article>)}</div> : <div className="attendance-device-state attendance-device-state--empty"><strong>ยังไม่มีประวัติอุปกรณ์</strong><span>เมื่อมีการลงทะเบียนอุปกรณ์ รายการจะปรากฏที่นี่</span></div>}
     </section>}
 
-    {revokeTarget?.activeDevice && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setRevokeTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-revoke-title"><header><div><p>ADMIN DEVICE GOVERNANCE</p><h3 id="attendance-device-revoke-title">ยกเลิกอุปกรณ์ปัจจุบัน</h3><span>{adminEmployeeName(revokeTarget)} · {revokeTarget.activeDevice.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setRevokeTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><div className="settings-notice">การยกเลิกมีผลทันที ระบบจะไม่เปิดใช้อุปกรณ์อื่นอัตโนมัติ และคำขอเปลี่ยนอุปกรณ์ที่ค้างอยู่จะถูกยกเลิกเพื่อป้องกัน stale approval</div><label className="attendance-device-field"><span>เหตุผลการยกเลิก (บังคับ)</span><textarea autoFocus value={revokeReason} maxLength={1000} onChange={(event) => setRevokeReason(event.target.value)} placeholder="เช่น อุปกรณ์สูญหาย / เลิกใช้งาน / เปลี่ยนเครื่อง" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setRevokeTarget(null)}>ยกเลิก</button><button type="button" className="btn-danger" disabled={busy || revokeReason.trim().length < 3} onClick={() => void submitRevoke()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันยกเลิกอุปกรณ์'}</button></footer></div></div>}
+    {revokeTarget?.activeDevice && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setRevokeTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-revoke-title"><header><div><p>การดูแลอุปกรณ์โดยผู้ดูแลระบบ</p><h3 id="attendance-device-revoke-title">ยกเลิกอุปกรณ์ปัจจุบัน</h3><span>{adminEmployeeName(revokeTarget)} · {revokeTarget.activeDevice.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setRevokeTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><div className="settings-notice">การยกเลิกมีผลทันที ระบบจะไม่เปิดใช้อุปกรณ์อื่นอัตโนมัติ และคำขอเปลี่ยนอุปกรณ์ที่ค้างอยู่จะถูกยกเลิกเพื่อป้องกันคำขอเก่าค้างอยู่</div><label className="attendance-device-field"><span>เหตุผลการยกเลิก (บังคับ)</span><textarea autoFocus value={revokeReason} maxLength={1000} onChange={(event) => setRevokeReason(event.target.value)} placeholder="เช่น อุปกรณ์สูญหาย / เลิกใช้งาน / เปลี่ยนเครื่อง" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setRevokeTarget(null)}>ยกเลิก</button><button type="button" className="btn-danger" disabled={busy || revokeReason.trim().length < 3} onClick={() => void submitRevoke()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันยกเลิกอุปกรณ์'}</button></footer></div></div>}
 
-    {reviewTarget && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setReviewTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-review-title"><header><div><p>ADMIN DECISION</p><h3 id="attendance-device-review-title">{reviewTarget.action === 'RETURN' ? 'ส่งกลับให้แก้ไข' : 'ไม่อนุมัติคำขอ'}</h3><span>{employeeName(reviewTarget.row)} · {reviewTarget.row.candidateDevice?.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setReviewTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><label className="attendance-device-field"><span>{reviewTarget.action === 'RETURN' ? 'สิ่งที่ต้องแก้ไข' : 'เหตุผลที่ไม่อนุมัติ'}</span><textarea autoFocus value={reviewReason} maxLength={1000} onChange={(event) => setReviewReason(event.target.value)} placeholder="ระบุเหตุผลอย่างน้อย 3 ตัวอักษร" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setReviewTarget(null)}>ยกเลิก</button><button type="button" className={reviewTarget.action === 'RETURN' ? 'btn-primary' : 'btn-danger'} disabled={busy || reviewReason.trim().length < 3} onClick={() => void submitReview()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันผลพิจารณา'}</button></footer></div></div>}
+    {reviewTarget && <div className="attendance-device-review-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setReviewTarget(null); }}><div className="attendance-device-review-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-device-review-title"><header><div><p>การพิจารณาคำขอของผู้ดูแลระบบ</p><h3 id="attendance-device-review-title">{reviewTarget.action === 'RETURN' ? 'ส่งกลับให้แก้ไข' : 'ไม่อนุมัติคำขอ'}</h3><span>{employeeName(reviewTarget.row)} · {reviewTarget.row.candidateDevice?.displayName}</span></div><button type="button" className="drawer-close overlay-close" disabled={busy} onClick={() => setReviewTarget(null)} aria-label="ปิด"><SmsIcon name="close" size={20} /></button></header><label className="attendance-device-field"><span>{reviewTarget.action === 'RETURN' ? 'สิ่งที่ต้องแก้ไข' : 'เหตุผลที่ไม่อนุมัติ'}</span><textarea autoFocus value={reviewReason} maxLength={1000} onChange={(event) => setReviewReason(event.target.value)} placeholder="ระบุเหตุผลอย่างน้อย 3 ตัวอักษร" /></label><footer><button type="button" className="btn-neutral" disabled={busy} onClick={() => setReviewTarget(null)}>ยกเลิก</button><button type="button" className={reviewTarget.action === 'RETURN' ? 'btn-primary' : 'btn-danger'} disabled={busy || reviewReason.trim().length < 3} onClick={() => void submitReview()}>{busy ? 'กำลังบันทึก…' : 'ยืนยันผลพิจารณา'}</button></footer></div></div>}
   </section>{actionDialog.dialog}</>;
 }

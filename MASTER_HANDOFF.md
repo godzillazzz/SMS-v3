@@ -1,8 +1,8 @@
 # MASTER HANDOFF
 
-## Current state — R2 Production ผ่าน; T25–T24 merge แล้ว, T26 กำลังเตรียม PR (7 ตุลาคม 2569)
+## Current state — R2 Production ผ่าน; T25–T26 merge แล้ว, T27 local checks ผ่าน (7 ตุลาคม 2569)
 
-**สถานะ: OPEN — R2 Production สำเร็จและเจ้าของระบบยืนยันการตรวจหน้าจอหลังล็อกอินผ่านแล้ว. T25 PR #488 และ T24 PR #489 merge แล้ว. T26 เพิ่ม null-label fallback; read-only query หาค่า approval ใน business DB ยังทำไม่ได้จาก execution นี้และบันทึกเป็น blocker. T27/T28 ยังไม่เริ่ม; ไม่มีการปล่อย R3. Audit ของบัญชี Sermpong UAT ยัง UNKNOWN.**
+**สถานะ: OPEN — R2 Production สำเร็จและเจ้าของระบบยืนยันการตรวจหน้าจอหลังล็อกอินผ่านแล้ว. T25 PR #488, T24 PR #489 และ T26 PR #490 merge แล้ว. T27 local suite 863/863, build และ diff-check ผ่าน; กำลังเปิด PR รอ CI/Preview. T28 ยังไม่เริ่ม. ไม่มีการปล่อย R3 และยังไม่มี RELEASE_SHA. Audit ของบัญชี Sermpong UAT ยัง UNKNOWN.**
 
 ### Production now — R2
 
@@ -10,7 +10,7 @@
 - Production workflow: [run 37572338555](https://github.com/godzillazzz/SMS-v3/actions/runs/37572338555), completed successfully on source `d868a6003d2e069245a8e166e17ff20211579b64`. ทั้งสอง job ผ่าน; ขั้น Linux artifact guard, immutable candidate, promote/canonical verification, runtime verification และ CORS verification สำเร็จ. Automatic rollback steps ถูก skip.
 - Deployment id: `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`, URL `https://sms-v3-staging-e71ppzlg5-godzillazz.vercel.app`. Run log ยืนยัน `sms-v3-staging` ถูก promote ไป deployment นี้; `CANONICAL_PRODUCTION_RUNTIME_VERIFY=PASS` และ `CANONICAL_PRODUCTION_CORS_VERIFY=PASS`.
 - เจ้าของระบบยืนยันว่า R2 ผ่านการตรวจหน้าจอหลังล็อกอิน.
-- **Rollback reference ปัจจุบัน:** R2 deployment `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`, source `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`. R1B `dpl_ExgyPfG7tYcby5PYDUVwn4iqrygE` เป็น checkpoint ก่อน R2 แล้ว.
+- **Rollback reference ปัจจุบัน:** R2 deployment `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`, source `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`; เจ้าของระบบยืนยันว่าตรวจหน้าจอหลังล็อกอินผ่าน. R1B `dpl_ExgyPfG7tYcby5PYDUVwn4iqrygE` เป็น checkpoint ก่อน R2 แล้ว.
 - ไม่มีการเขียน/ลบข้อมูลธุรกิจ, เปลี่ยน secret/environment/schema หรือกดส่งฟอร์มบน Production ในงานนี้.
 
 ### R2 release evidence
@@ -34,6 +34,8 @@
 |---|---|---|---|---|
 | T25 / #488 | `a846541aea13b6e27fb4963be65a5f69acd3ff55` | `37575249077` success | READY — https://sms-v3-staging-git-codex-r3-t25-secure-refres-0a8bee-godzillazz.vercel.app | `47c1628a092e8bc02fbc608500bcf6fc58abd1f5` |
 | T24 / #489 | `d420ce2f3977d32e93f6a35e320f86f915635e38` | `37575658761` success | READY — https://sms-v3-staging-git-codex-r3-t24-performance-20261007-godzillazz.vercel.app | `70e807b8982277a0617552229ae6c7d993336be9` |
+| T26 / #490 | `86923ed517ad61f6d05eb13e684f6f38e3db5ea5` | `37576069884` success | READY — https://sms-v3-staging-git-codex-r3-t26-approval-labe-a17eee-godzillazz.vercel.app | `c582eabb824b2fabcda734c387c0d4af3be3866d` |
+| T27 / in progress | branch `codex/r3-t27-approval-queue-polish-20261007` | local frontend 863/863 and build pass; exact-head CI pending | Preview pending | not merged |
 
 ### R3 — T25 security gate
 
@@ -44,9 +46,10 @@
 - จึง **ยังไม่ได้ตรวจ audit ของ Sermpong UAT**; ไม่มีหลักฐานให้สรุปว่า token รั่ว และก็ยังตัดความเป็นไปได้นั้นไม่ได้. เป็น blocker สำหรับการสรุปสถานะบัญชี ต้องให้เจ้าของระบบตรวจ audit ผ่าน session ที่ได้รับอนุญาต. ได้ทำ client mitigation จาก race ที่ยืนยันได้ใน source; ไม่มีการ revoke session, ระงับบัญชี หรือแก้ auth policy.
 - T24 batches supervisor/daily event-policy hydration and actual-site reads. Query-count test with 12 assignments reduces policy reads from 72 `findFirst` calls to one `findMany`, and actual-site reads from three `findUnique` calls to one `findMany`. Employees/readiness-center and dashboard already use batch/aggregate queries; no logic change there. Approval-center polling remains every 60 seconds and stops querying while the document is not visible.
 - T24 local checks: backend focused 63/63, frontend full 859/859, frontend build and `git diff --check` passed. Exact-head CI `37575658761` and Preview READY passed before PR #489 merge. Full local backend `npm test` has database-backed failures because PostgreSQL is unavailable in this sandbox. Preview timing is not measured because protected pages require an authorized session; no credential was requested or created. Function region is `sin1`; DB region remains UNKNOWN. Production workflow logs show verified Supabase session mode but do not report DB region. No DB/business data was written.
-- T26: null/blank `status` and `change_type` now map to `ไม่ระบุ`; source still maps other unmatched values to `อื่น ๆ`. Local frontend suite 859/859, build, and `git diff --check` pass. The requested read-only query of production schedule approvals could not be run: no authorized read-only DB connection or existing safe query workflow is available from this execution, and no production data was queried. Any concrete unknown non-null values remain UNKNOWN pending owner-provided authorized audit evidence.
+- T26: null/blank `status` and `change_type` now map to `ไม่ระบุ`; source still maps other unmatched values to `อื่น ๆ`. PR #490 exact-head CI `37576069884` passed and its Preview is READY at `https://sms-v3-staging-git-codex-r3-t26-approval-labe-a17eee-godzillazz.vercel.app`; merge commit `c582eabb824b2fabcda734c387c0d4af3be3866d`. The requested read-only query of production schedule approvals could not be run: no authorized read-only DB connection or existing safe query workflow is available from this execution, and no production data was queried. Any concrete unknown non-null values remain UNKNOWN pending owner-provided authorized audit evidence.
+- T27 implementation is on `codex/r3-t27-approval-queue-polish-20261007` based on `c582eabb824b2fabcda734c387c0d4af3be3866d`. It removes displayed request UUIDs from Approval Center desktop/mobile queue and rejection dialog, shows a people icon plus sender name, localizes device/Audit status and event enums, and suppresses device count defaults during loading. Local frontend suite 863/863, production build, and `git diff --check` passed. Browser/authenticated view was not available; a jsdom component fixture verifies desktop/mobile queue rendering, sender, icon, and UUID omission. Exact-head CI and Vercel Preview are pending. No Production data or authenticated account was used.
 - งาน T28 ที่เพิ่มตามคำสั่งให้รวม: (6) ลบ/แสดงข้อมูลจริงแทนการ์ด `AWAITING DATA` (`ROSTER READINESS / SHIFT COVERAGE`); (7) เอาคำ “ไม้กายสิทธิ์” และ `CFG-06` ออกจากข้อความผู้ใช้; (8) แปล 403 ของ `/attendance/simple/bootstrap` สำหรับบัญชีที่ไม่มี employee link เป็นข้อความเฉพาะ; (9) ห้ามแสดง badge `0` ก่อนมีค่าครั้งแรก; (10) ค้นหาและลบ placeholder `••••••••••••` ตาม T06.
-- T25–T24 merged; T26 local checks passed and awaits exact-head CI and Preview; T27/T28 not started. No R3 RELEASE_SHA. Integration HEAD after T24 merge is `70e807b8982277a0617552229ae6c7d993336be9`.
+- T25–T26 merged; T27 is in progress; T28 is not started. No R3 RELEASE_SHA. Integration HEAD after T26 merge is `c582eabb824b2fabcda734c387c0d4af3be3866d`.
 
 ### R2 PR / release table
 

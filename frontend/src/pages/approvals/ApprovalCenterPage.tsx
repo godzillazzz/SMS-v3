@@ -4,6 +4,7 @@ import { getApprovalCenter } from '../../approval-center-client';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
 import { roleDisplayName } from '../../role-display';
+import { actionLabel, auditEventLabel, auditRoleLabel, entityLabel, moduleLabel } from '../../components/audit/audit-utils';
 import type { LeaveDecisionAction } from '../../components/LeaveDecisionConfirmation';
 import { approveAttendanceAdjustment, rejectAttendanceAdjustment } from '../attendance-supervisor/attendance-adjustment-client';
 import type { AuditEvent } from '../../components/audit/audit-types';
@@ -114,9 +115,6 @@ const employeeName = (item?: ApprovalCenterItem) =>
   || item?.title
   || 'รายการคำขอ';
 
-const initials = (value: string) =>
-  value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.slice(0, 1)).join('').toUpperCase() || 'SMS';
-
 const meta = (item: ApprovalCenterItem, key: string) => item.metadata?.[key];
 
 function relevantSchedule(item: ApprovalCenterItem) {
@@ -133,6 +131,8 @@ function relevantSchedule(item: ApprovalCenterItem) {
 const reasonFor = (item: ApprovalCenterItem) =>
   text(meta(item, 'reason') || meta(item, 'departmentHint') || item.title);
 
+const senderName = (item: ApprovalCenterItem) => item.requestedBy?.displayName?.trim() || 'ไม่ระบุผู้ส่ง';
+
 function urgencyTone(item: ApprovalCenterItem) {
   if (item.urgency === 'OVERDUE') return 'border-[#ef4444]/45 bg-[#ef4444]/10 text-[#ef4444]';
   if (item.urgency === 'DUE_SOON') return 'border-[#f59e0b]/45 bg-[#f59e0b]/10 text-[#f59e0b]';
@@ -140,20 +140,16 @@ function urgencyTone(item: ApprovalCenterItem) {
 }
 
 function urgencyText(item: ApprovalCenterItem) {
-  if (item.urgency === 'OVERDUE') return 'URGENT · OVER ' + text(item.sla?.overdueHours) + 'H';
-  if (item.urgency === 'DUE_SOON') return 'URGENT · DUE ≤ ' + text(item.sla?.dueSoonHours) + 'H';
-  return 'STANDARD';
+  if (item.urgency === 'OVERDUE') return 'เกินกำหนด ' + text(item.sla?.overdueHours) + ' ชม.';
+  if (item.urgency === 'DUE_SOON') return 'ใกล้ครบกำหนด ' + text(item.sla?.dueSoonHours) + ' ชม.';
+  return 'ปกติ';
 }
 
 function auditLabel(event: AuditEvent) {
   const metadata = event.metadata && typeof event.metadata === 'object'
     ? event.metadata as Record<string, unknown>
     : {};
-  const eventName = metadata.event ? String(metadata.event) : '';
-
-  return (eventName || [event.entityType, event.action].filter(Boolean).join(' '))
-    .replace(/_/g, ' ')
-    .toUpperCase() || 'AUDIT EVENT';
+  return metadata.event ? auditEventLabel(metadata.event) : actionLabel(event.action);
 }
 
 function auditTone(event: AuditEvent) {
@@ -604,11 +600,11 @@ export function ApprovalCenterPage({
               <table className="w-full min-w-[860px] border-collapse text-left">
                 <thead className="bg-[#0f1d2a] font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
                   <tr>
-                    <th className="px-3 py-3 font-semibold">Request / Submitter</th>
-                    <th className="px-3 py-3 font-semibold">Type</th>
-                    <th className="px-3 py-3 font-semibold">Date / Shift</th>
-                    <th className="px-3 py-3 font-semibold">Reason</th>
-                    <th className="px-3 py-3 text-right font-semibold">Action</th>
+                    <th className="px-3 py-3 font-semibold">ผู้ส่งคำขอ</th>
+                    <th className="px-3 py-3 font-semibold">ประเภท</th>
+                    <th className="px-3 py-3 font-semibold">วันที่ / กะ</th>
+                    <th className="px-3 py-3 font-semibold">เหตุผล</th>
+                    <th className="px-3 py-3 text-right font-semibold">ดำเนินการ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -632,18 +628,18 @@ export function ApprovalCenterPage({
                           onClick={() => setSelectedId(item.id)}
                           className="nexus-approval-select flex min-w-0 items-start gap-3 text-left"
                         >
-                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[7px] border border-[#25b8d3]/25 bg-[#0f1d2a] font-mono text-[10px] font-bold text-[#8be5f2]">
-                            {initials(employeeName(item))}
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[7px] border border-[#25b8d3]/25 bg-[#0f1d2a] text-[#8be5f2]" aria-hidden="true">
+                            <SmsIcon name="users" size={17} />
                           </span>
                           <span className="min-w-0">
-                            <code className="block break-all font-mono text-[10px] font-semibold text-[#25b8d3]">
-                              {item.requestId}
-                            </code>
-                            <strong className="mt-1 block font-['Kanit'] text-sm font-medium text-slate-100">
+                            <strong className="block font-['Kanit'] text-sm font-medium text-slate-100">
                               {employeeName(item)}
                             </strong>
                             <small className="block font-['Kanit'] text-[11px] text-slate-500">
-                              {item.employee?.jobTitle || item.requestedBy?.role || item.employee?.department || 'REQUESTER'}
+                              ผู้ส่ง: {senderName(item)}
+                            </small>
+                            <small className="block font-['Kanit'] text-[11px] text-slate-500">
+                              {item.employee?.jobTitle || item.employee?.department || (item.requestedBy?.role ? auditRoleLabel(item.requestedBy.role) : 'คำขออนุมัติ')}
                             </small>
                           </span>
                         </button>
@@ -694,16 +690,16 @@ export function ApprovalCenterPage({
                 className="nexus-approval-select w-full text-left"
               >
                 <div className="flex min-w-0 items-start gap-3">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[7px] border border-[#25b8d3]/25 bg-[#0f1d2a] font-mono text-[10px] font-bold text-[#8be5f2]">
-                    {initials(employeeName(item))}
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[7px] border border-[#25b8d3]/25 bg-[#0f1d2a] text-[#8be5f2]" aria-hidden="true">
+                    <SmsIcon name="users" size={18} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <code className="block break-all font-mono text-[10px] text-[#25b8d3]">{item.requestId}</code>
-                    <strong className="mt-1 block font-['Kanit'] text-base font-medium text-white">{employeeName(item)}</strong>
+                    <strong className="block font-['Kanit'] text-base font-medium text-white">{employeeName(item)}</strong>
+                    <small className="block font-['Kanit'] text-xs text-slate-400">ผู้ส่ง: {senderName(item)}</small>
                     <small className="block font-['Kanit'] text-xs text-slate-500">{typeLabel[item.type]}</small>
                   </span>
                   <span className={'shrink-0 rounded-[6px] border px-2 py-1 font-mono text-[9px] font-bold ' + urgencyTone(item)}>
-                    {item.urgency === 'NEW' ? 'STD' : 'URGENT'}
+                    {item.urgency === 'NEW' ? 'ปกติ' : 'เร่งด่วน'}
                   </span>
                 </div>
 
@@ -766,9 +762,8 @@ export function ApprovalCenterPage({
                     {auditLabel(event)}
                   </strong>
                   <p className="mt-1 break-words font-['Kanit'] text-[11px] leading-4 text-slate-500">
-                    {event.actor?.displayName ? String(event.actor.displayName) : 'SYSTEM'} · {text(event.module)}
+                    {event.actor?.displayName ? String(event.actor.displayName) : 'ระบบ'} · {moduleLabel(event.module)} · {entityLabel(event.entityType)}
                   </p>
-                  <code className="mt-1 block break-all font-mono text-[9px] text-slate-600">{text(event.entityId)}</code>
                 </div>
               </article>;
             }) : <div className="py-12 text-center font-['Kanit'] text-sm text-slate-500">
@@ -810,8 +805,6 @@ export function ApprovalCenterPage({
       <section className="w-full max-w-[480px] rounded-[8px] border border-[#ef4444]/45 bg-[#061421] p-4 shadow-2xl">
         <p className="font-mono text-[10px] tracking-[0.12em] text-[#ef4444]">REJECT REQUEST</p>
         <h2 className="mt-2 font-['Kanit'] text-xl font-semibold text-white">{employeeName(rejecting)}</h2>
-        <code className="mt-1 block break-all font-mono text-[10px] text-[#25b8d3]">{rejecting.requestId}</code>
-
         <label className="mt-4 grid gap-2 font-['Kanit'] text-sm text-slate-400">
           เหตุผลการปฏิเสธ
           <textarea
