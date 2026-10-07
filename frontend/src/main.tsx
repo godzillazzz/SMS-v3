@@ -32,6 +32,7 @@ import { readEncryptedBootstrap } from './pages/attendance-simple/attendance-sim
 import type { SimpleBootstrap } from './pages/attendance-simple/attendance-simple-client';
 import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
 import { getApprovalCenterSummary } from './approval-center-client';
+import { shouldPollApprovalCenter } from './approval-center-polling';
 import { getLeavePolicy } from './leave-policy-client';
 import { createLeaveType, getLeaveTypes, updateLeaveType, type LeaveTypeMaster } from './leave-type-client';
 import { getShiftTypes } from './shift-type-client';
@@ -2023,10 +2024,13 @@ function Dashboard() {
   useEffect(() => {
     if (pwaShell || !auth.token || !['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') || auth.isViewingAs) { setPendingApprovalCount(0); return; }
     let active = true;
-    const refreshApprovalCount = () => getApprovalCenterSummary(auth.token!).then((result) => { if (active) setPendingApprovalCount(Number(result?.summary?.total || 0)); }).catch(() => undefined);
-    void refreshApprovalCount();
+    const refreshApprovalCount = () => {
+      if (!active || !shouldPollApprovalCenter(document.visibilityState)) return;
+      void getApprovalCenterSummary(auth.token!).then((result) => { if (active) setPendingApprovalCount(Number(result?.summary?.total || 0)); }).catch(() => undefined);
+    };
+    refreshApprovalCount();
     const timer = window.setInterval(refreshApprovalCount, 60000);
-    const onVisibility = () => { if (document.visibilityState === 'visible') void refreshApprovalCount(); };
+    const onVisibility = () => refreshApprovalCount();
     document.addEventListener('visibilitychange', onVisibility);
     return () => { active = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisibility); };
   }, [auth.token, auth.user?.role, auth.isViewingAs, pwaShell, operationRefresh, employeeRefresh, approvalCenterRefresh]);
