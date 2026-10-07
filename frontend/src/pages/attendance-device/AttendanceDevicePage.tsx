@@ -5,6 +5,7 @@ import { SmsIcon } from '../../components/SmsIcon';
 import { auditEventLabel } from '../../components/audit/audit-utils';
 import { useActionDialog } from '../../components/useActionDialog';
 import { attendanceDeviceAdminOverview, revokeAttendanceDeviceCurrent } from '../attendance/attendance-client';
+import { formatThaiDateTime } from '../../thai-date-time';
 import {
   ATTENDANCE_DEVICE_KEY_ALGORITHM,
   attendanceDeviceCapability,
@@ -99,7 +100,7 @@ function attendanceDeviceRequestCode(reason: unknown) {
 }
 
 const formatDate = (value?: string | null) => value
-  ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value))
+  ? formatThaiDateTime(value)
   : '—';
 
 const statusLabel: Record<AttendanceDeviceRequest['status'], string> = {

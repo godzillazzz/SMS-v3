@@ -9,6 +9,7 @@ import {
   type SimpleEventResult
 } from './attendance-simple-client';
 import { RequestErrorReference, toRequestErrorState } from '../../request-error';
+import { formatThaiDateTime } from '../../thai-date-time';
 import {
   deviceFingerprint,
   deviceRiskSignals,
@@ -76,12 +77,7 @@ function formatReceiptTime(value?: string | null): string {
   if (!value) return '—';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '—';
-  return new Intl.DateTimeFormat('th-TH', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Asia/Bangkok'
-  }).format(parsed);
+  return formatThaiDateTime(parsed, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
 function attendanceFailure(reason: unknown, fallback: string): AttendanceSimpleErrorDetails {

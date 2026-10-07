@@ -1,11 +1,18 @@
-import { describe, expect, test } from 'vitest';
+// @vitest-environment jsdom
+import { afterEach, describe, expect, test } from 'vitest';
+import { createElement } from 'react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import fs from 'node:fs';
 import path from 'node:path';
-import { currentBangkokMonth, formatThaiMonth, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
+import { formatThaiMonth, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
+import { currentBangkokMonth } from './thai-date-time';
+import { MonthGridPicker } from './components/MonthGridPicker';
 
 const mainTsx = fs.readFileSync(path.join(__dirname, 'main.tsx'), 'utf-8');
 const pickerTsx = fs.readFileSync(path.join(__dirname, 'components', 'MonthGridPicker.tsx'), 'utf-8');
 const stylesCss = fs.readFileSync(path.join(__dirname, 'styles.css'), 'utf-8');
+
+afterEach(() => cleanup());
 
 describe('MonthGridPicker month behavior', () => {
   test('uses Bangkok month without a UTC date shift', () => {
@@ -24,6 +31,31 @@ describe('MonthGridPicker month behavior', () => {
 
   test('formats Thai month and year', () => {
     expect(formatThaiMonth('2026-08')).toBe('สิงหาคม พ.ศ. 2569');
+  });
+
+  test('shows the selected month and Buddhist year in Thai in the picker', async () => {
+    render(createElement(MonthGridPicker, { value: '2026-10', onChange: () => undefined }));
+    const trigger = screen.getByRole('button', { name: /ตุลาคม 2569/ });
+    expect(trigger).toBeTruthy();
+    fireEvent.click(trigger);
+    await waitFor(() => expect(screen.getByRole('grid', { name: 'เลือกเดือน' })).toBeTruthy());
+    expect(screen.getByRole('gridcell', { name: 'ต.ค.' })).toBeTruthy();
+  });
+
+  test.each([1366, 375])('keeps the month picker inside the viewport at %ipx', async (width) => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    try {
+      render(createElement(MonthGridPicker, { value: '2026-10', onChange: () => undefined }));
+      fireEvent.click(screen.getByRole('button', { name: /ตุลาคม 2569/ }));
+      const grid = await screen.findByRole('grid', { name: 'เลือกเดือน' });
+      const panel = grid.parentElement;
+      expect(panel).toBeTruthy();
+      expect(Number.parseFloat(panel!.style.width)).toBeLessThanOrEqual(width - 32);
+      expect(Number.parseFloat(panel!.style.left)).toBeGreaterThanOrEqual(16);
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+    }
   });
 
   test('reuses the picker on schedule and leave history with a body portal', () => {

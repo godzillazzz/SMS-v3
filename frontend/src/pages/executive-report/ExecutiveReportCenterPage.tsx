@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { printDocument } from '../../schedule-print';
+import { currentBangkokMonth, currentBangkokYear, formatThaiDateTime, formatThaiMonthName } from '../../thai-date-time';
 import '../../styles/executive-report.css';
 
 type ReportItem = { label: string; count: number };
@@ -20,9 +21,9 @@ export type ExecutiveReport = {
 };
 
 export type ExecutiveReportFilters = { year: number; month: number; department: string };
-export const monthNames = Array.from({ length: 12 }, (_, index) => new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, index, 1))));
+export const monthNames = Array.from({ length: 12 }, (_, index) => formatThaiMonthName(index + 1));
 const thaiNumber = (value: number) => new Intl.NumberFormat('th-TH').format(value);
-const formatDateTime = (value: string) => new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value));
+const formatDateTime = (value: string) => formatThaiDateTime(value);
 
 function Chart({ title, items }: { title: string; items: ReportItem[] }) {
   const max = Math.max(1, ...items.map((item) => item.count));
@@ -60,9 +61,8 @@ type ExecutiveReportCenterPageProps = {
 };
 
 export function ExecutiveReportCenterPage({ token, role, onNavigate, filters, onFiltersChange, embedded = false, includePrint = true, onReportChange, fetchEnabled = true }: ExecutiveReportCenterPageProps) {
-  const bangkokParts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: 'numeric' }).formatToParts(new Date());
-  const bangkokYear = Number(bangkokParts.find((part) => part.type === 'year')?.value);
-  const bangkokMonth = Number(bangkokParts.find((part) => part.type === 'month')?.value);
+  const bangkokYear = currentBangkokYear();
+  const bangkokMonth = Number(currentBangkokMonth().slice(5, 7));
   const [localYear, setLocalYear] = useState(bangkokYear);
   const [localMonth, setLocalMonth] = useState(bangkokMonth);
   const [localDepartment, setLocalDepartment] = useState('');

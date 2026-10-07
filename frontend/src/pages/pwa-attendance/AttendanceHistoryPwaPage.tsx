@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { formatRequestErrorMessage } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
 import { activateTabFromKeyboard } from '../../components/AccessibleTabs';
+import { bangkokDateInput, formatThaiDate, formatThaiDateTime } from '../../thai-date-time';
 import { attendanceSelfHistory, type AttendanceSelfHistoryData, type AttendanceSelfRow } from '../attendance/attendance-client';
 import './employee-attendance-v4.css';
 
@@ -10,9 +11,7 @@ type Props = { token: string; online: boolean };
 type RangeKey = 'today' | 'week' | 'month';
 
 function bangkokDateText(value = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(value);
-  const get = (type: string) => parts.find((part) => part.type === type)?.value || '';
-  return `${get('year')}-${get('month')}-${get('day')}`;
+  return bangkokDateInput(value);
 }
 
 function shiftDate(value: string, offset: number) {
@@ -30,7 +29,7 @@ function ranges(key: RangeKey) {
 
 function time(value?: string | null) {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(value));
+  return formatThaiDateTime(value, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
 function actualSiteLabel(row: AttendanceSelfRow) {
@@ -41,7 +40,7 @@ function actualSiteLabel(row: AttendanceSelfRow) {
 }
 
 function dateLabel(value: string) {
-  return new Intl.DateTimeFormat('th-TH', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(`${value}T00:00:00.000Z`));
+  return formatThaiDate(`${value}T00:00:00.000Z`, { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 function duration(minutes?: number | null) {

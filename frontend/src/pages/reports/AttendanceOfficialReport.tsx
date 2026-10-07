@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { printDocument } from '../../schedule-print';
+import { formatThaiDate, formatThaiDateTime } from '../../thai-date-time';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import {
   downloadAttendanceOfficialWorkbook,
@@ -14,26 +15,24 @@ function formatDate(value?: string | null) {
   if (!value) return '-';
   const date = new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).format(date);
+  return formatThaiDate(date, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
 }
 
 function formatDateTime(value?: string | null) {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
-  return new Intl.DateTimeFormat('th-TH', {
-    timeZone: 'Asia/Bangkok', day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hour12: false
-  }).format(date);
+  return formatThaiDateTime(date, {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  });
 }
 
 function formatTime(value?: string | null) {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
-  return new Intl.DateTimeFormat('th-TH', {
-    timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false
-  }).format(date);
+  return formatThaiDateTime(date, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
 function durationText(minutes?: number | null) {

@@ -1,17 +1,13 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { currentBangkokMonth, formatThaiBuddhistYear, formatThaiMonthName, formatThaiMonthPickerLabel } from '../thai-date-time';
+
+export { currentBangkokMonth, formatThaiMonth } from '../thai-date-time';
 
 export type MonthParts = { year: number; month: number };
 
 const MIN_YEAR = 1900;
 const MAX_YEAR = 2200;
-
-export function currentBangkokMonth(date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit' }).formatToParts(date);
-  const year = parts.find((part) => part.type === 'year')?.value || String(date.getUTCFullYear());
-  const month = parts.find((part) => part.type === 'month')?.value || String(date.getUTCMonth() + 1).padStart(2, '0');
-  return `${year}-${month}`;
-}
 
 export function parseMonthValue(value: string | null | undefined, fallback = currentBangkokMonth()): MonthParts {
   const match = /^(\d{4})-(\d{1,2})$/.exec(String(value || ''));
@@ -30,13 +26,6 @@ export function shiftMonthValue(value: string, delta: number): string {
   const { year, month } = parseMonthValue(value);
   const next = new Date(Date.UTC(year, month - 1 + delta, 1));
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}`;
-}
-
-export function formatThaiMonth(value: string): string {
-  const { year, month } = parseMonthValue(value);
-  const date = new Date(Date.UTC(year, month - 1, 1));
-  const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(date);
-  return `${name} พ.ศ. ${year + 543}`;
 }
 
 function getModalRoot(): { element: HTMLElement; owned: boolean } {
@@ -128,14 +117,12 @@ export function MonthGridPicker({ value, onChange }: { value: string; onChange(v
     choose(nextMonth, nextYear);
   };
 
-  const selectedDate = new Date(Date.UTC(selected.year, selected.month - 1, 1));
-  const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(selectedDate);
-  const monthNames = Array.from({ length: 12 }, (_, index) => new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(year, index, 1))));
+  const monthNames = Array.from({ length: 12 }, (_, index) => formatThaiMonthName(index + 1, year, 'short'));
 
   const panel = portalRoot && open ? createPortal(
     <div ref={panelRef} id={pickerId} className="month-grid-panel month-grid-panel-portal" style={{ top: position.top, left: position.left, width: position.width }} onMouseDown={(event) => event.stopPropagation()} onKeyDown={handleGridKeyDown}>
       <div className="month-grid-year">
-        <strong>{year}</strong>
+        <strong>{formatThaiBuddhistYear(year)}</strong>
         <span><button type="button" className="btn-icon-only" aria-label="ปีก่อนหน้า" onClick={() => setYear((current) => current - 1)}>▲</button><button type="button" className="btn-icon-only" aria-label="ปีถัดไป" onClick={() => setYear((current) => current + 1)}>▼</button></span>
       </div>
       <div className="month-grid" role="grid" aria-label="เลือกเดือน">
@@ -152,7 +139,7 @@ export function MonthGridPicker({ value, onChange }: { value: string; onChange(v
   return <>
     <div className="month-grid-picker">
       <button ref={triggerRef} type="button" className="month-grid-trigger" onClick={() => { previousFocusRef.current = document.activeElement as HTMLElement; setOpen((visible) => !visible); }} aria-expanded={open} aria-controls={open ? pickerId : undefined} aria-haspopup="grid">
-        <span>{monthLabel}, {selected.year}</span><b>⌄</b>
+        <span>{formatThaiMonthPickerLabel(normalizedValue)}</span><b>⌄</b>
       </button>
     </div>
     {panel}

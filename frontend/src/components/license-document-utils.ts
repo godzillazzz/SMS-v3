@@ -1,4 +1,5 @@
 import { approvalStatusUi } from '../approval-workflow-semantics';
+import { formatThaiDate, formatThaiDateTime } from '../thai-date-time';
 
 export type LicenseDocumentStatus = 'PENDING' | 'RETURNED_FOR_CORRECTION' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'SUPERSEDED' | 'EXPIRED';
 
@@ -127,14 +128,14 @@ export function formatLicenseDate(value?: string | null) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOnly);
   if (!match) return '-';
   const parsed = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(parsed);
+  return formatThaiDate(parsed, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
 export function formatLicenseDateTime(value?: string | null) {
   if (!value) return '-';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '-';
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(parsed);
+  return formatThaiDateTime(parsed);
 }
 
 export function formatFileSize(bytes: number) {

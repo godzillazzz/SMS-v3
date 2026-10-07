@@ -3,6 +3,7 @@ import { formatRequestErrorMessage } from '../../request-error';
 import { getSystemHealth } from '../../system-health-client';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
 import { SmsIcon } from '../../components/SmsIcon';
+import { formatThaiDateTime } from '../../thai-date-time';
 
 type SlowRoute = {
   method: string;
@@ -66,11 +67,7 @@ function formatDate(value: string | null | undefined) {
   if (!value) return '—';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '—';
-  return new Intl.DateTimeFormat('th-TH', {
-    dateStyle: 'medium',
-    timeStyle: 'medium',
-    timeZone: 'Asia/Bangkok'
-  }).format(parsed);
+  return formatThaiDateTime(parsed, { dateStyle: 'medium', timeStyle: 'medium' });
 }
 
 function shortSha(value: string | null | undefined) {

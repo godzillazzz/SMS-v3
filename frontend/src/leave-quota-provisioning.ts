@@ -1,3 +1,5 @@
+import { currentBangkokYear } from './thai-date-time';
+
 export const LEAVE_QUOTA_DEFAULTS = Object.freeze({
   sickLeave: '30',
   personalLeave: '3',
@@ -46,8 +48,7 @@ export function canProvisionLeaveQuota(role?: string) {
 }
 
 export function currentBangkokQuotaYear(date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric' }).formatToParts(date);
-  return Number(parts.find((part) => part.type === 'year')?.value || date.getUTCFullYear());
+  return currentBangkokYear(date);
 }
 
 export function thaiQuotaYearLabel(year: number) {

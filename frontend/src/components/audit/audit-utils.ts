@@ -1,4 +1,5 @@
 import type { AuditEvent } from './audit-types';
+import { formatThaiDateTime } from '../../thai-date-time';
 
 const sensitiveFragments = ['password', 'secret', 'token', 'authorization', 'cookie', 'otp', 'apikey', 'jwt', 'refresh', 'access', 'database', 'connection', 'storagekey', 'signedurl'];
 const actionLabels: Record<string, string> = {
@@ -68,7 +69,7 @@ export const safe = (value: unknown, fallback = 'ไม่ระบุ') => valu
 
 export function formatAuditTime(value: unknown) {
   const parsed = new Date(String(value || ''));
-  return Number.isNaN(parsed.getTime()) ? 'ไม่ระบุเวลา' : new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(parsed);
+  return Number.isNaN(parsed.getTime()) ? 'ไม่ระบุเวลา' : formatThaiDateTime(parsed);
 }
 
 export function actionLabel(value: unknown) { return actionLabels[safe(value, '')] || (safe(value, '') ? 'เหตุการณ์อื่น' : 'ไม่ระบุ'); }

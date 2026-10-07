@@ -4,6 +4,7 @@ import { api } from '../api';
 import { formatRequestErrorMessage } from '../request-error';
 import { SmsIcon } from './SmsIcon';
 import { useActionDialog } from './useActionDialog';
+import { formatThaiDateTime } from '../thai-date-time';
 
 type PasskeyRecord = {
   id: string;
@@ -16,7 +17,7 @@ type PasskeyRecord = {
 
 type Props = { token: string; onClose(): void };
 
-const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value)) : 'ยังไม่เคยใช้';
+const formatDate = (value?: string | null) => value ? formatThaiDateTime(value) : 'ยังไม่เคยใช้';
 
 export function PasskeySecurityPanel({ token, onClose }: Props) {
   const actionDialog = useActionDialog();

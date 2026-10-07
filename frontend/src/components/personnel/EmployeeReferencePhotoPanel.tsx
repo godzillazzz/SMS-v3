@@ -3,6 +3,7 @@ import { api } from '../../api';
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { SmsIcon } from '../SmsIcon';
 import { ATTACHMENT_POLICIES } from '../../lib/attachment-optimizer';
+import { formatThaiDateTime } from '../../thai-date-time';
 import type { PersonnelRole } from './types';
 import '../../styles/employee-reference-photo.css';
 
@@ -16,7 +17,7 @@ type ReferencePhoto = {
 type State = { employeeId: string; activePhoto: ReferencePhoto | null; pendingPhoto: ReferencePhoto | null; history: ReferencePhoto[] };
 type Props = { token: string; employeeId: string; role: PersonnelRole; onChanged?(): void };
 
-const fmt = (value?: string | null) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value)) : '—';
+const fmt = (value?: string | null) => value ? formatThaiDateTime(value) : '—';
 const fileSize = (value: number) => value < 1024 * 1024 ? `${Math.max(1, Math.round(value / 1024))} KB` : `${(value / 1024 / 1024).toFixed(1)} MB`;
 
 export function EmployeeReferencePhotoPanel({ token, employeeId, role, onChanged }: Props) {
