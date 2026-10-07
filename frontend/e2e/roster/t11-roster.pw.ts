@@ -80,6 +80,7 @@ async function openAdminRoster(page: Page, testInfo: TestInfo) {
 
   const target = `/app/roster?month=${fixture.monthKey}`;
   await page.goto(target);
+  await expect(page.locator('.nexus-public[data-design="sms-command-nexus-full-bleed"]')).toBeVisible();
   await expect(page.locator('#auth-login-form')).toBeVisible();
   await page.locator('#email').fill('admin@example.test');
   await page.locator('#password').fill('fixture-password');

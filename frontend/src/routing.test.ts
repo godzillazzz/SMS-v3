@@ -3,10 +3,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   canViewRoutePage,
   navigate,
+  navigateSettingsSection,
   pageFromLocation,
   pageFromPath,
   PAGE_PATHS,
   pageTitle,
+  settingsSectionFromPath,
+  settingsSectionPath,
+  SETTINGS_SECTIONS,
   routeQueryMonth,
   routeQueryNumber,
   ROUTE_CHANGE_EVENT,
@@ -30,6 +34,14 @@ describe('application History API routes', () => {
     }
     expect(pageFromPath('/')).toBe('dashboard');
     expect(pageFromPath('/app/leave/history/')).toBe('leaveHistory');
+    expect(pageFromPath('/app/settings')).toBe('settings');
+    for (const section of SETTINGS_SECTIONS) {
+      const path = settingsSectionPath(section.id);
+      expect(pageFromPath(path)).toBe('settings');
+      expect(settingsSectionFromPath(path)).toBe(section.id);
+    }
+    expect(pageFromPath('/app/settings/not-a-section')).toBeNull();
+    expect(pageFromLocation({ pathname: '/app/settings/notifications', search: '?tab=templates' })).toEqual({ kind: 'page', page: 'settings' });
     expect(pageFromPath('/app/not-a-real-page')).toBeNull();
   });
 
@@ -74,6 +86,19 @@ describe('application History API routes', () => {
     expect(routeQueryNumber('missing')).toBe(1);
   });
 
+  it('navigates between nested settings sections while preserving query state and browser history', () => {
+    window.history.replaceState({ fixture: true }, '', '/app/settings/overview?source=deep-link');
+    const onRouteChange = vi.fn();
+    const unsubscribe = subscribeToRouteChanges(onRouteChange);
+    const target = navigateSettingsSection('notifications');
+    expect(target.pathname).toBe('/app/settings/notifications');
+    expect(target.searchParams.get('source')).toBe('deep-link');
+    expect(window.history.state).toMatchObject({ fixture: true, smsPage: 'settings', smsSettingsSection: 'notifications' });
+    expect(onRouteChange).toHaveBeenCalledTimes(1);
+    expect(settingsSectionFromPath(window.location.pathname)).toBe('notifications');
+    unsubscribe();
+  });
+
   it('returns a Thai in-app 404 route for unknown paths and keeps PWA deep links', () => {
     expect(pageFromLocation({ pathname: '/unknown', search: '' })).toEqual({ kind: 'not-found', pathname: '/unknown' });
     expect(pageFromLocation({ pathname: '/', search: '?pwa=1&page=leave' })).toEqual({ kind: 'page', page: 'leave' });
@@ -89,6 +114,8 @@ describe('application History API routes', () => {
 
     updateDocumentTitle('schedule');
     expect(document.title).toBe('ตารางกะรายเดือน | SMS-v3');
+    updateDocumentTitle('settings', 'page', 'leave-types');
+    expect(document.title).toBe('ประเภทการลา | SMS-v3');
     updateDocumentTitle(null, 'not-found');
     expect(document.title).toBe('ไม่พบหน้าที่ต้องการ | SMS-v3');
   });

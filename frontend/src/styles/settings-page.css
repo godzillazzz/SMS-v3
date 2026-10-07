@@ -1,0 +1,82 @@
+/* Loaded with the nested settings route to keep settings-only styles out of the application shell. */
+.settings-section-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.settings-section-nav a {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  color: var(--color-text);
+  text-decoration: none;
+  background: var(--color-surface);
+}
+
+.settings-section-nav a:hover,
+.settings-section-nav a:focus-visible {
+  border-color: var(--color-primary, #2563eb);
+  outline: 2px solid color-mix(in srgb, var(--color-primary, #2563eb) 22%, transparent);
+  outline-offset: 1px;
+}
+
+.settings-section-nav a[aria-current="page"] {
+  border-color: var(--color-primary, #2563eb);
+  background: color-mix(in srgb, var(--color-primary, #2563eb) 7%, var(--color-surface));
+}
+
+.settings-section-nav strong { font-size: 14px; line-height: 1.35; }
+.settings-section-nav small { color: var(--color-text-muted); font-size: 12px; line-height: 1.4; }
+.settings-section-content { min-width: 0; }
+.settings-section-content > * + * { margin-top: 14px; }
+.configuration-registry__current-value { min-width: 145px; max-width: 250px; overflow-wrap: anywhere; }
+.configuration-setting-technical { min-width: 0; }
+.configuration-setting-technical summary { color: var(--color-primary, #2563eb); cursor: pointer; font-size: 12px; font-weight: 700; }
+.configuration-setting-technical dl { display: grid; gap: 5px; margin: 9px 0 0; }
+.configuration-setting-technical dl > div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px; }
+.configuration-setting-technical dt { color: var(--color-text-muted); font-size: 11px; }
+.configuration-setting-technical dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: 12px; }
+.configuration-setting-technical code { white-space: normal; overflow-wrap: anywhere; }
+
+.configuration-setting-description {
+  display: block;
+  margin-top: 4px;
+  max-width: 360px;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.configuration-registry__footnote {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .configuration-registry__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-section-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .configuration-registry__intro { display: grid; }
+  .configuration-registry__metrics { grid-template-columns: 1fr 1fr; }
+  .settings-section-nav { grid-template-columns: 1fr; }
+  .settings-section-nav a { min-height: 64px; }
+}
+
+@media (max-width: 900px) {
+  .settings-section-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .settings-section-nav { grid-template-columns: 1fr; }
+  .settings-section-nav a { min-height: 64px; }
+}

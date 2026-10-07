@@ -7,6 +7,7 @@ const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'u
 
 describe('CFG-03 Leave Type Master contract', () => {
   const main = read('main.tsx');
+  const settingsPage = read('pages/settings/SettingsPage.tsx');
   const client = read('leave-type-client.ts');
   const panel = read('components/LeaveTypeMasterPanel.tsx');
   const api = read('api.ts');
@@ -21,7 +22,7 @@ describe('CFG-03 Leave Type Master contract', () => {
   });
 
   it('renders Leave Type Master in Configuration Center with immutable codes and no delete control', () => {
-    expect(main).toContain('<LeaveTypeMasterPanel');
+    expect(settingsPage).toContain('<LeaveTypeMasterPanel');
     expect(panel).toContain('รหัสเป็นตัวตนถาวรของประเภทการลาและแก้ไม่ได้หลังสร้าง');
     expect(panel).toContain('ไม่มีคำสั่ง Delete สำหรับ Leave Type Master');
     expect(panel).toContain('ประเภทหลัก · ป้องกันรหัส/โควตา');

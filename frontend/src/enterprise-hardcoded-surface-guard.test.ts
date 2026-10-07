@@ -22,13 +22,14 @@ describe('enterprise interaction contract',()=>{
  });
  it('keeps the global shell on semantic theme surfaces and enterprise SVG controls',()=>{
   const app=fs.readFileSync(path.join(__dirname,'main.tsx'),'utf8');
+  const settingsPage=fs.readFileSync(path.join(__dirname,'pages/settings/SettingsPage.tsx'),'utf8');
   expect(app).toContain("backgroundColor: 'var(--surface-page, #020813)'");
   expect(app).toContain("color: 'var(--text-on-surface, #f1f5f9)'");
   expect(app).toContain("<SmsIcon name={desktopView ? 'device' : 'system'} size={16} />");
   expect(app).toContain('<SmsIcon name="eye" size={16} />');
   expect(app).not.toContain("desktopView ? '📱' : '🖥️'");
-  expect(app).toContain('line-settings-title"><span aria-hidden="true"><SmsIcon name="bell"');
-  expect(app).toContain('<SmsIcon name="report" size={15} /> Export governed values');
+  expect(settingsPage).toContain('line-settings-title"><span aria-hidden="true"><SmsIcon name="bell"');
+  expect(settingsPage).toContain('<SmsIcon name="report" size={15} /> Export governed values');
  });
  it('closes residual Audit and GIS Light Mode surfaces while preserving semantic warning hierarchy',()=>{
   expect(operational).toContain('Enterprise Evolution Phase A.3');

@@ -5,6 +5,7 @@ import path from 'node:path';
 const root = path.resolve(__dirname);
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8').replace(/\r\n/g, '\n');
 const main = read('main.tsx');
+const settingsPage = read('pages/settings/SettingsPage.tsx');
 const attendancePolicyContract = read('components/attendance-policy-contract.ts');
 const leavePolicyContract = read('components/leave-policy-contract.ts');
 
@@ -50,11 +51,12 @@ describe('Q12-B route-level code splitting contracts', () => {
       'ConfigurationRegistryPanel',
       'NotificationCenterPanel'
     ]) {
-      expect(main).toContain(`const ${name} = React.lazy(() => import(`);
+      expect(settingsPage).toContain(`const ${name} = React.lazy(() => import(`);
     }
-    expect(main).toContain('<ApprovalAuthorityMatrixPanel token={token} />');
-    expect(main).toContain('<DataRetentionCenterPanel token={token} />');
-    expect(main).toContain('<PersonnelMasterPanel token={token} />');
+    expect(settingsPage).toContain('<ApprovalAuthorityMatrixPanel token={token} />');
+    expect(settingsPage).toContain('<DataRetentionCenterPanel token={token} />');
+    expect(settingsPage).toContain('<PersonnelMasterPanel token={token} />');
+    expect(main).toContain("const SettingsPage = React.lazy(() => import('./pages/settings/SettingsPage')");
   });
 
   it('keeps policy keys/defaults in lightweight contracts so policy UI chunks can split effectively', () => {

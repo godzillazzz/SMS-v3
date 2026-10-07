@@ -4,6 +4,7 @@ import path from 'node:path';
 
 const read = (relative: string) => fs.readFileSync(path.join(__dirname, relative), 'utf8').replace(/\r\n/g, '\n');
 const main = read('main.tsx');
+const settingsPage = read('pages/settings/SettingsPage.tsx');
 const client = read('approval-policy-client.ts');
 const panel = read('components/ApprovalAuthorityMatrixPanel.tsx');
 const approvalCenter = read('pages/approvals/ApprovalCenterPage.tsx');
@@ -18,8 +19,8 @@ describe('CFG-06 Approval Authority Matrix / SLA', () => {
   });
 
   it('places an Admin-only matrix in Configuration Center', () => {
-    expect(main).toContain("const ApprovalAuthorityMatrixPanel = React.lazy(() => import('./components/ApprovalAuthorityMatrixPanel')");
-    expect(main).toContain('<ApprovalAuthorityMatrixPanel token={token} />');
+    expect(settingsPage).toContain("const ApprovalAuthorityMatrixPanel = React.lazy(() => import('../../components/ApprovalAuthorityMatrixPanel')");
+    expect(settingsPage).toContain('<ApprovalAuthorityMatrixPanel token={token} />');
     expect(panel).toContain('Approval Authority Matrix / SLA');
     expect(panel).toContain('Admin-only ถูกล็อกโดยระบบ');
     expect(panel).toContain('security ceiling');

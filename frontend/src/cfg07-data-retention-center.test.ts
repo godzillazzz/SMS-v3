@@ -6,12 +6,14 @@ const read = (file: string) => fs.readFileSync(path.join(__dirname, file), 'utf8
 const panel = read('components/DataRetentionCenterPanel.tsx');
 const client = read('data-retention-client.ts');
 const main = read('main.tsx');
+const settingsPage = read('pages/settings/SettingsPage.tsx');
 const css = read('styles/configuration-center.css');
 
 describe('CFG-07 Data Retention Center', () => {
   it('mounts the governed Retention panel in Configuration Center', () => {
-    expect(main).toContain("const DataRetentionCenterPanel = React.lazy(() => import('./components/DataRetentionCenterPanel')");
-    expect(main).toContain('<DataRetentionCenterPanel token={token} />');
+    expect(main).toContain("const SettingsPage = React.lazy(() => import('./pages/settings/SettingsPage')");
+    expect(settingsPage).toContain("const DataRetentionCenterPanel = React.lazy(() => import('../../components/DataRetentionCenterPanel')");
+    expect(settingsPage).toContain('<DataRetentionCenterPanel token={token} />');
     expect(panel).toContain('Data Retention Center / การเก็บรักษาข้อมูล');
     expect(panel).toContain('Asia/Bangkok');
   });

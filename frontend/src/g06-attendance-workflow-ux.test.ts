@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const main = read('./main.tsx');
+const settingsPage = read('./pages/settings/SettingsPage.tsx');
 const routing = read('./routing.ts');
 const page = read('./pages/attendance/AttendancePage.tsx');
 const deviceProof = read('./pages/attendance/attendance-device-proof.ts');
@@ -358,7 +359,7 @@ describe('G06 Attendance frontend UX skeleton', () => {
   it('keeps Attendance policy controls on the existing ADMIN-only Settings page', () => {
     const policyCard = read('./components/AttendancePolicySettingsCard.tsx');
     expect(routing).toContain("if (page === 'settings') return auth.user?.role === 'ADMIN'");
-    expect(main).toContain('<AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />');
+    expect(settingsPage).toContain('<AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />');
     expect(main).toContain('onSaveAttendancePolicy={async (policy) =>');
     expect(policyCard).toContain('บันทึก Attendance Policy');
     expect(policyCard).toContain('คืนค่าแนะนำ');

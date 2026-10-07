@@ -15,7 +15,7 @@ describe('WAVE 4B Settings table surfaces', () => {
     expect(registry).toContain('configuration-registry-mobile-cards');
     expect(registry).toContain('DataTableState');
     expect(registry).toContain('className="data-surface-table configuration-registry-data-table"');
-    expect((registry.match(/<th scope="col"/g) ?? []).length).toBe(7);
+    expect((registry.match(/<th scope="col"/g) ?? []).length).toBe(6);
   });
 
   it('keeps Leave Type edit/create authority while exposing equivalent mobile actions', () => {

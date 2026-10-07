@@ -74,7 +74,7 @@ import { leavePolicyKeys, type LeavePolicyForm } from './components/leave-policy
 import type { LeaveDecisionAction, LeaveDecisionTarget } from './components/LeaveDecisionConfirmation';
 import { registrationResultPresentation } from './components/auth-experience';
 import { sanitizeLicenseDocumentError, type LicenseDocument } from './components/license-document-utils';
-import { canViewRoutePage, navigate, pageFromLocation, routeQueryMonth, routeQueryNumber, ROUTE_CHANGE_EVENT, subscribeToRouteChanges, updateDocumentTitle, updateRouteQuery, type RoutePage, type RouteResolution } from './routing';
+import { canViewRoutePage, navigate, navigateSettingsSection, pageFromLocation, routeQueryMonth, routeQueryNumber, ROUTE_CHANGE_EVENT, settingsSectionFromPath, subscribeToRouteChanges, updateDocumentTitle, updateRouteQuery, type RoutePage, type RouteResolution, type SettingsSectionId } from './routing';
 import './styles/license-table.css';
 import './styles/responsive-shell.css';
 import './styles/action-system.css';
@@ -106,6 +106,7 @@ import './styles/schedule-roster-ux.css';
 
 const AwardPublicExperience = React.lazy(() => import('./components/AwardPublicExperience').then((module) => ({ default: module.AwardPublicExperience })));
 const ReportCenterPage = React.lazy(() => import('./pages/reports/ReportCenterPage').then((module) => ({ default: module.ReportCenterPage })));
+const SettingsPage = React.lazy(() => import('./pages/settings/SettingsPage').then((module) => ({ default: module.SettingsPage })));
 const PersonnelDirectoryPage = React.lazy(() => import('./pages/personnel/PersonnelDirectoryPage').then((module) => ({ default: module.PersonnelDirectoryPage })));
 const EmployeeGovernedEditModal = React.lazy(() => import('./components/personnel/EmployeeGovernedEditModal').then((module) => ({ default: module.EmployeeGovernedEditModal })));
 const EmployeeChangeReviewModal = React.lazy(() => import('./components/personnel/EmployeeChangeReviewModal').then((module) => ({ default: module.EmployeeChangeReviewModal })));
@@ -123,16 +124,6 @@ const AttendanceSimplePage = React.lazy(() => import('./pages/attendance-simple/
 const AttendanceSupervisorPage = React.lazy(() => import('./pages/attendance-supervisor/AttendanceSupervisorPage').then((module) => ({ default: module.AttendanceSupervisorPage })));
 const RegistrationReviewPanel = React.lazy(() => import('./pages/access-management/RegistrationReviewPanel').then((module) => ({ default: module.RegistrationReviewPanel })));
 const PasskeySecurityPanel = React.lazy(() => import('./components/PasskeySecurityPanel').then((module) => ({ default: module.PasskeySecurityPanel })));
-const AttendancePolicySettingsCard = React.lazy(() => import('./components/AttendancePolicySettingsCard').then((module) => ({ default: module.AttendancePolicySettingsCard })));
-const AttendanceTimePolicySettingsCard = React.lazy(() => import('./components/AttendanceTimePolicySettingsCard').then((module) => ({ default: module.AttendanceTimePolicySettingsCard })));
-const LeavePolicySettingsCard = React.lazy(() => import('./components/LeavePolicySettingsCard').then((module) => ({ default: module.LeavePolicySettingsCard })));
-const LeaveTypeMasterPanel = React.lazy(() => import('./components/LeaveTypeMasterPanel').then((module) => ({ default: module.LeaveTypeMasterPanel })));
-const AutoSchedulePatternPanel = React.lazy(() => import('./components/AutoSchedulePatternPanel').then((module) => ({ default: module.AutoSchedulePatternPanel })));
-const ApprovalAuthorityMatrixPanel = React.lazy(() => import('./components/ApprovalAuthorityMatrixPanel').then((module) => ({ default: module.ApprovalAuthorityMatrixPanel })));
-const PersonnelMasterPanel = React.lazy(() => import('./components/PersonnelMasterPanel').then((module) => ({ default: module.PersonnelMasterPanel })));
-const DataRetentionCenterPanel = React.lazy(() => import('./components/DataRetentionCenterPanel').then((module) => ({ default: module.DataRetentionCenterPanel })));
-const ConfigurationRegistryPanel = React.lazy(() => import('./components/ConfigurationRegistryPanel').then((module) => ({ default: module.ConfigurationRegistryPanel })));
-const NotificationCenterPanel = React.lazy(() => import('./components/NotificationCenterPanel').then((module) => ({ default: module.NotificationCenterPanel })));
 const RuleCheckingDataSurfaces = React.lazy(() => import('./components/RuleCheckingDataSurfaces').then((module) => ({ default: module.RuleCheckingDataSurfaces })));
 const OperationalRecordDrawer = React.lazy(() => import('./components/OperationalRecordDrawer').then((module) => ({ default: module.OperationalRecordDrawer })));
 const DataRowActionMenu = React.lazy(() => import('./components/DataRowActionMenu').then((module) => ({ default: module.DataRowActionMenu })));
@@ -1091,76 +1082,6 @@ function OperationalTable({ page, response, loading, error, onPageChange, onActi
     {selectedRow && <React.Suspense fallback={<div className="full-loader" role="status">กำลังโหลดรายละเอียด…</div>}><OperationalRecordDrawer open={Boolean(selectedRow)} eyebrow={config.eyebrow} title={drawerTitle || config.title} subtitle={drawerSubtitle} status={selectedRow?.status ? <span className={`status-badge status-badge--${isSupersededScheduleApproval(selectedRow) ? 'neutral' : semanticStatusTone(selectedRow.status)}`}>{page === 'approvals' ? scheduleApprovalStatusLabel(selectedRow.status, isSupersededScheduleApproval(selectedRow)) : text(selectedRow.status)}</span> : undefined} fields={drawerFields} primaryAction={primaryAction} secondaryActions={secondaryActions} onClose={closeDrawer} /></React.Suspense>}
   </section>;
 }
-const defaultNewLeaveTemplate = `🔔 [คำขอลางานใหม่] รอตรวจรับเอกสาร
---------------------------------
-👤 พนักงาน: {Name}
-📍 แผนก/พื้นที่: {Department}
-📋 ประเภท: {Type} ({Days} วัน)
-📅 วันที่: {StartDate} ถึง {EndDate}
-📝 เหตุผล: {Reason}
-📎 ไฟล์แนบ: {FileUrl}
---------------------------------
-⚙️ จัดการใบลาคลิกที่ระบบ Security Management System`;
-const defaultLeaveStatusTemplate = `📢 [อัปเดตสถานะใบลาจากระบบ]
---------------------------------
-👤 พนักงาน: {Name}
-📋 ประเภท: {Type} ({Days} วัน)
-🔄 ผลการตรวจรับ: {Status}
-📅 วันที่: {StartDate} ถึง {EndDate}
-📝 เหตุผล: {Reason}`;
-
-function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading, error, onRefresh, onSaveTemplates, onSaveAttendancePolicy, onSaveLeavePolicy, onCreateLeaveType, onUpdateLeaveType, onAudit }: { token: string; settings: DataRow[]; leaveTypes: LeaveTypeMaster[]; leaveTypesLoading: boolean; loading: boolean; error?: RequestErrorInput; onRefresh(): void; onSaveTemplates(newLeave: string, leaveStatus: string): Promise<void>; onSaveAttendancePolicy(policy: AttendancePolicyForm): Promise<void>; onSaveLeavePolicy(policy: LeavePolicyForm): Promise<void>; onCreateLeaveType(input: Parameters<typeof createLeaveType>[1]): Promise<void>; onUpdateLeaveType(id: string, input: Parameters<typeof updateLeaveType>[2]): Promise<void>; onAudit(): void }) {
-  const readSetting = (key: string, fallback: string) => String(settings.find((setting) => setting.key === key)?.value || fallback);
-  const [newLeaveTemplate, setNewLeaveTemplate] = useState(defaultNewLeaveTemplate);
-  const [leaveStatusTemplate, setLeaveStatusTemplate] = useState(defaultLeaveStatusTemplate);
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<string>();
-  useEffect(() => {
-    setNewLeaveTemplate(readSetting('LINE_TEMPLATE_NEW_LEAVE', defaultNewLeaveTemplate));
-    setLeaveStatusTemplate(readSetting('LINE_TEMPLATE_LEAVE_STATUS', defaultLeaveStatusTemplate));
-  }, [settings]);
-  const exportableSettings = settings
-    .filter((setting) => setting.registryStatus === 'REGISTERED' && Boolean(setting.configured))
-    .map((setting) => ({
-      key: setting.key,
-      value: setting.value,
-      group: setting.group,
-      valueType: setting.valueType,
-      configured: setting.configured,
-      description: setting.description,
-      updatedAt: setting.updatedAt
-    }));
-  const saveTemplates = async () => {
-    setSaving(true); setNotice(undefined);
-    try { await onSaveTemplates(newLeaveTemplate, leaveStatusTemplate); setNotice('บันทึกเทมเพลตการแจ้งเตือนสำเร็จแล้ว'); }
-    catch (reason) { setNotice(formatRequestErrorMessage(reason, 'บันทึกเทมเพลตไม่สำเร็จ')); }
-    finally { setSaving(false); }
-  };
-  return <section className="view-pane settings-page">
-    <div className="page-heading settings-heading"><div><p className="eyebrow">ADMIN · GOVERNED CONFIGURATION</p><h1>Configuration Center</h1><p>จัดการค่าที่ระบบ register และ validate ไว้แล้ว โดยแยก secret/operational authority ออกจาก SystemSetting อย่างชัดเจน</p></div><div className="heading-actions"><button type="button" className="btn-neutral small-action" disabled={!exportableSettings.length} onClick={() => downloadCsv(exportableSettings, 'smsv3-governed-settings')}><SmsIcon name="report" size={15} /> Export governed values</button><button type="button" className="btn-neutral small-action" onClick={onAudit}><SmsIcon name="audit" size={15} /> Audit Log</button></div></div>
-    {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
-    {loading ? <div className="loading-row">กำลังอ่าน Configuration Registry…</div> : <ConfigurationRegistryPanel settings={settings} />}
-    <AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />
-    <AttendanceTimePolicySettingsCard token={token} />
-    <LeavePolicySettingsCard settings={settings} onSave={onSaveLeavePolicy} onRefresh={onRefresh} />
-    <LeaveTypeMasterPanel items={leaveTypes} loading={leaveTypesLoading} onCreate={onCreateLeaveType} onUpdate={onUpdateLeaveType} onRefresh={onRefresh} />
-    <AutoSchedulePatternPanel token={token} />
-    <PersonnelMasterPanel token={token} />
-    <ApprovalAuthorityMatrixPanel token={token} />
-    <DataRetentionCenterPanel token={token} />
-    <NotificationCenterPanel token={token} />
-    <section className="line-settings-card">
-      <div className="line-settings-title"><span aria-hidden="true"><SmsIcon name="bell" size={20} /></span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
-      <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><span className="line-secret-managed" role="status">จัดการผ่าน Vercel Environment Variables</span><small>ระบบไม่แสดงค่า credential ในหน้านี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>
-      <div className="line-template-grid"><label className="field-group"><span>เทมเพลตคำขอลางานใหม่ (New Leave Request Template)</span><textarea rows={7} value={newLeaveTemplate} onChange={(event) => setNewLeaveTemplate(event.target.value)} maxLength={2000} /></label><label className="field-group"><span>เทมเพลตอัปเดตสถานะใบลา (Leave Status Update Template)</span><textarea rows={7} value={leaveStatusTemplate} onChange={(event) => setLeaveStatusTemplate(event.target.value)} maxLength={2000} /></label></div>
-      <div className="template-help"><strong><SmsIcon name="quality" size={15} /> ตัวแปรที่ใช้ในข้อความได้</strong><span><code>{'{Name}'}</code> พนักงาน</span><span><code>{'{Department}'}</code> แผนก</span><span><code>{'{Type}'}</code> ประเภทการลา</span><span><code>{'{Days}'}</code> จำนวนวัน</span><span><code>{'{StartDate}'}</code> / <code>{'{EndDate}'}</code> วันที่ลา</span><span><code>{'{Reason}'}</code> เหตุผล</span><span><code>{'{FileUrl}'}</code> ไฟล์แนบ</span><span><code>{'{Status}'}</code> สถานะ</span></div>
-      {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
-      <div className="line-settings-actions"><button type="button" className="btn-primary compact" disabled={saving} onClick={saveTemplates}><SmsIcon name="check" size={15} /> {saving ? 'กำลังบันทึก…' : 'บันทึกเทมเพลตการแจ้งเตือน'}</button><button type="button" className="btn-neutral small-action" disabled title="การส่ง LINE ยังไม่เปิดใช้ใน staging"><SmsIcon name="bell" size={15} /> ทดสอบส่งข้อความแจ้งเตือน</button><button type="button" className="btn-neutral small-action" onClick={onRefresh}><SmsIcon name="refresh" size={15} /> รีเฟรช</button></div>
-      <p className="line-settings-footnote">สถานะปัจจุบัน: การส่ง LINE ยังไม่เปิดใช้งานใน staging — การบันทึกด้านบนเก็บเฉพาะเทมเพลตที่ไม่มีข้อมูลลับ</p>
-    </section>
-  </section>;
-}
-
 interface ShiftEditorModalProps {
   shift?: DataRow;
   defaults?: Record<string, string>;
@@ -1691,9 +1612,15 @@ function Dashboard() {
     const route = pageFromLocation();
     return route.kind === 'page' ? route.page : 'dashboard';
   });
+  const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSectionId>(() => settingsSectionFromPath(window.location.pathname));
   const setActivePage = (page: Page) => {
     applyRoutePage(page, false);
     if (!pwaShell) navigate(page);
+  };
+  const setSettingsSection = (section: SettingsSectionId) => {
+    setActivePageState('settings');
+    setActiveSettingsSection(section);
+    navigateSettingsSection(section);
   };
   const [pwaOnline, setPwaOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -1839,6 +1766,7 @@ function Dashboard() {
   const [scheduleDepartment, setScheduleDepartment] = useState(() => new URLSearchParams(window.location.search).get('department') || '');
   const applyRoutePage = (page: Page, syncSearch = true) => {
     setActivePageState(page);
+    setActiveSettingsSection(settingsSectionFromPath(window.location.pathname));
     const params = new URLSearchParams(window.location.search);
     if (!pwaShell) setOperationPage(params.has('page') ? routeQueryNumber('page') : 1);
     if (page === 'schedule') {
@@ -1871,7 +1799,10 @@ function Dashboard() {
     };
     const syncAppNavigation = () => {
       const route = pageFromLocation();
-      if (route.kind === 'page') setActivePageState(route.page);
+      if (route.kind === 'page') {
+        setActivePageState(route.page);
+        setActiveSettingsSection(settingsSectionFromPath(window.location.pathname));
+      }
     };
     window.addEventListener('popstate', syncBrowserHistory);
     window.addEventListener(ROUTE_CHANGE_EVENT, syncAppNavigation);
@@ -3264,7 +3195,7 @@ function Dashboard() {
     }
     if (activePage === 'settings') {
       const settings = Array.isArray(operationResponse.data) ? operationResponse.data : [];
-      return <SettingsPage token={auth.token!} settings={settings} leaveTypes={leaveTypes} leaveTypesLoading={leaveTypesLoading} loading={operationLoading} error={operationError} onRefresh={() => setOperationRefresh((value) => value + 1)} onAudit={() => setActivePage('audit')} onSaveTemplates={async (newLeave, leaveStatus) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_NEW_LEAVE', { value: newLeave, description: 'เทมเพลตข้อความคำขอลาใหม่ (รูปแบบเดิม)' }), api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_LEAVE_STATUS', { value: leaveStatus, description: 'เทมเพลตข้อความอัปเดตสถานะการลา (รูปแบบเดิม)' })]); setOperationRefresh((value) => value + 1); }} onSaveAttendancePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, attendancePolicyKeys.qrPolicy, { value: policy.qrPolicy, description: 'Attendance QR policy: ADAPTIVE / REQUIRED / DISABLED' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAccuracyMeters, { value: String(policy.maxAccuracyMeters), description: 'GPS accuracy สูงสุดที่ Attendance ยอมรับ (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAgeSeconds, { value: String(policy.maxAgeSeconds), description: 'อายุ GPS sample สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.futureSkewSeconds, { value: String(policy.futureSkewSeconds), description: 'GPS future clock skew สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.autoPassAccuracyMeters, { value: String(policy.autoPassAccuracyMeters), description: 'GPS accuracy สำหรับข้าม QR ใน Adaptive mode (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.innerMarginMeters, { value: String(policy.innerMarginMeters), description: 'ระยะจากขอบ geofence ที่ใช้ตัดสิน QR Step-up (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.stepUpOnSiteOverlap, { value: String(policy.stepUpOnSiteOverlap), description: 'ขอ QR Step-up เมื่อ GPS อยู่ในหลาย Site พร้อมกัน' })]); setOperationRefresh((value) => value + 1); }} onSaveLeavePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, leavePolicyKeys.defaultSickDays, { value: String(policy.defaultSickDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.defaultPersonalDays, { value: String(policy.defaultPersonalDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.defaultVacationDays, { value: String(policy.defaultVacationDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.sickAttachmentRequiredAfterDays, { value: String(policy.sickAttachmentRequiredAfterDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.managerRetroactiveOnBehalfEnabled, { value: String(policy.managerRetroactiveOnBehalfEnabled) }), api.updateSystemSetting(auth.token, leavePolicyKeys.managerRetroactiveMaxDaysBack, { value: String(policy.managerRetroactiveMaxDaysBack) })]); setOperationRefresh((value) => value + 1); }} onCreateLeaveType={async (input) => { if (!auth.token) return; await createLeaveType(auth.token, input); setOperationRefresh((value) => value + 1); }} onUpdateLeaveType={async (id, input) => { if (!auth.token) return; await updateLeaveType(auth.token, id, input); setOperationRefresh((value) => value + 1); }} />;
+      return <SettingsPage token={auth.token!} settings={settings} leaveTypes={leaveTypes} leaveTypesLoading={leaveTypesLoading} loading={operationLoading} error={operationError} section={activeSettingsSection} onSectionChange={setSettingsSection} onRefresh={() => setOperationRefresh((value) => value + 1)} onAudit={() => setActivePage('audit')} onSaveTemplates={async (newLeave, leaveStatus) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_NEW_LEAVE', { value: newLeave, description: 'เทมเพลตข้อความคำขอลาใหม่ (รูปแบบเดิม)' }), api.updateSystemSetting(auth.token, 'LINE_TEMPLATE_LEAVE_STATUS', { value: leaveStatus, description: 'เทมเพลตข้อความอัปเดตสถานะการลา (รูปแบบเดิม)' })]); setOperationRefresh((value) => value + 1); }} onSaveAttendancePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, attendancePolicyKeys.qrPolicy, { value: policy.qrPolicy, description: 'Attendance QR policy: ADAPTIVE / REQUIRED / DISABLED' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAccuracyMeters, { value: String(policy.maxAccuracyMeters), description: 'GPS accuracy สูงสุดที่ Attendance ยอมรับ (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.maxAgeSeconds, { value: String(policy.maxAgeSeconds), description: 'อายุ GPS sample สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.futureSkewSeconds, { value: String(policy.futureSkewSeconds), description: 'GPS future clock skew สูงสุด (วินาที)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.autoPassAccuracyMeters, { value: String(policy.autoPassAccuracyMeters), description: 'GPS accuracy สำหรับข้าม QR ใน Adaptive mode (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.innerMarginMeters, { value: String(policy.innerMarginMeters), description: 'ระยะจากขอบ geofence ที่ใช้ตัดสิน QR Step-up (เมตร)' }), api.updateSystemSetting(auth.token, attendancePolicyKeys.stepUpOnSiteOverlap, { value: String(policy.stepUpOnSiteOverlap), description: 'ขอ QR Step-up เมื่อ GPS อยู่ในหลาย Site พร้อมกัน' })]); setOperationRefresh((value) => value + 1); }} onSaveLeavePolicy={async (policy) => { if (!auth.token) return; await Promise.all([api.updateSystemSetting(auth.token, leavePolicyKeys.defaultSickDays, { value: String(policy.defaultSickDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.defaultPersonalDays, { value: String(policy.defaultPersonalDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.defaultVacationDays, { value: String(policy.defaultVacationDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.sickAttachmentRequiredAfterDays, { value: String(policy.sickAttachmentRequiredAfterDays) }), api.updateSystemSetting(auth.token, leavePolicyKeys.managerRetroactiveOnBehalfEnabled, { value: String(policy.managerRetroactiveOnBehalfEnabled) }), api.updateSystemSetting(auth.token, leavePolicyKeys.managerRetroactiveMaxDaysBack, { value: String(policy.managerRetroactiveMaxDaysBack) })]); setOperationRefresh((value) => value + 1); }} onCreateLeaveType={async (input) => { if (!auth.token) return; await createLeaveType(auth.token, input); setOperationRefresh((value) => value + 1); }} onUpdateLeaveType={async (id, input) => { if (!auth.token) return; await updateLeaveType(auth.token, id, input); setOperationRefresh((value) => value + 1); }} />;
     }
     if ((activePage === 'reportCenter' || activePage === 'executiveReport' || activePage === 'reports' || activePage === 'attendanceReport') && auth.token) {
       const initialTab = activePage === 'attendanceReport' ? 'export' : activePage === 'reports' ? 'details' : 'executive';
@@ -3564,9 +3495,14 @@ function App() {
 
   useEffect(() => subscribeToRouteChanges(() => setRoute(pageFromLocation())), []);
   useEffect(() => {
+    if (auth.token && canViewRoutePage('settings', auth) && route.kind === 'page' && route.page === 'settings' && window.location.pathname.replace(/\/+$/, '') === '/app/settings') {
+      navigateSettingsSection('overview', { replace: true });
+    }
+  }, [auth.isViewingAs, auth.token, auth.user?.role, route]);
+  useEffect(() => {
     if (auth.loading) return;
     const forbidden = route.kind === 'page' && Boolean(auth.token) && !canViewRoutePage(route.page, auth);
-    updateDocumentTitle(route.kind === 'page' ? route.page : null, route.kind === 'not-found' ? 'not-found' : forbidden ? 'forbidden' : 'page');
+    updateDocumentTitle(route.kind === 'page' ? route.page : null, route.kind === 'not-found' ? 'not-found' : forbidden ? 'forbidden' : 'page', settingsSectionFromPath(window.location.pathname));
   }, [auth.isViewingAs, auth.loading, auth.token, auth.user?.role, route]);
 
   if (auth.loading) return <div className="full-loader">กำลังเตรียมระบบ…</div>;
