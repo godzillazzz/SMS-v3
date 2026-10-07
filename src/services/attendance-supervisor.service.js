@@ -220,16 +220,52 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
   async function buildRows({ assignments, leaves, correctionsByAssignment, asOf, filters, client }) {
     const rows = [];
     const actualSiteCache = new Map();
+    const policyEntries = assignments.map((assignment) => ({
+      assignment,
+      events: applyCurrentCorrections(assignment.attendanceSession?.events || [], correctionsByAssignment.get(assignment.id) || [])
+    }));
+    const hydratedEvents = typeof timePolicies.hydrateAssignmentsEvents === 'function'
+      ? await timePolicies.hydrateAssignmentsEvents(policyEntries, client)
+      : await Promise.all(policyEntries.map((entry) => timePolicies.hydrateEvents(entry, client)));
+    const actualSiteIds = [...new Set(policyEntries.flatMap(({ events }) => events.flatMap((event) => {
+      const evidence = event?.locationEvidence;
+      const siteId = evidence && typeof evidence === 'object' && !Array.isArray(evidence)
+        ? evidence.actualSiteId || evidence.siteId
+        : null;
+      return siteId ? [String(siteId)] : [];
+    })))];
+    const hasBulkSiteLookup = actualSiteIds.length > 0 && typeof client.securitySite?.findMany === 'function';
+    if (hasBulkSiteLookup) {
+      actualSiteIds.forEach((id) => actualSiteCache.set(id, null));
+      const sites = await client.securitySite.findMany({
+        where: { id: { in: actualSiteIds } },
+        select: { id: true, code: true, name: true }
+      });
+      for (const site of sites || []) actualSiteCache.set(String(site.id), site);
+    }
+    const defaultAuthorityCache = new Map();
 
-    for (const assignment of assignments) {
+    for (const [assignmentIndex, assignment] of assignments.entries()) {
       const session = assignment.attendanceSession || null;
       const rawEvents = session?.events || [];
       const corrections = correctionsByAssignment.get(assignment.id) || [];
-      const correctedEvents = applyCurrentCorrections(rawEvents, corrections);
-      const events = await timePolicies.hydrateEvents({ assignment, events: correctedEvents }, client);
+      const events = hydratedEvents[assignmentIndex] || [];
       let expectedSite = session?.expectedSite || assignment.securitySite || null;
       if (!expectedSite) {
-        try { expectedSite = (await siteAuthority.resolve({ assignment, existingSession: session }, client)).site; }
+        try {
+          const department = String(assignment.departmentSnapshot || assignment.employee?.department || '').trim();
+          const cacheKey = !session?.expectedSiteId && !assignment.securitySiteId && department
+            ? `DEPARTMENT_DEFAULT:${department}`
+            : null;
+          if (cacheKey) {
+            if (!defaultAuthorityCache.has(cacheKey)) {
+              defaultAuthorityCache.set(cacheKey, siteAuthority.resolve({ assignment, existingSession: session }, client));
+            }
+            expectedSite = (await defaultAuthorityCache.get(cacheKey)).site;
+          } else {
+            expectedSite = (await siteAuthority.resolve({ assignment, existingSession: session }, client)).site;
+          }
+        }
         catch { expectedSite = null; }
       }
 
@@ -247,17 +283,17 @@ function createAttendanceSupervisorService({ prisma = prismaDefault, clock = () 
       if (actualSiteId) {
         if (expectedSite?.id === actualSiteId) actualSite = expectedSite;
         else if (actualSiteCache.has(actualSiteId)) actualSite = actualSiteCache.get(actualSiteId);
-        else {
+        else if (!hasBulkSiteLookup) {
           actualSite = await client.securitySite.findUnique({
             where: { id: actualSiteId },
             select: { id: true, code: true, name: true }
           }).catch(() => null);
           actualSiteCache.set(actualSiteId, actualSite);
-        }
+        } else actualSite = null;
       }
       const attendanceSites = await Promise.all(observations.map(async (row) => {
         let site = row.actualSiteId === String(expectedSite?.id || '') ? expectedSite : actualSiteCache.get(row.actualSiteId);
-        if (site === undefined || (!site && row.actualSiteId !== String(expectedSite?.id || ''))) {
+        if ((site === undefined || (!site && row.actualSiteId !== String(expectedSite?.id || ''))) && !hasBulkSiteLookup) {
           site = await client.securitySite.findUnique({
             where: { id: row.actualSiteId },
             select: { id: true, code: true, name: true }

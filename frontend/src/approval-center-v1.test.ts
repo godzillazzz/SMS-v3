@@ -11,6 +11,12 @@ const review = read('components/personnel/EmployeeChangeReviewModal.tsx');
 const css = read('styles/approval-center.css');
 
 describe('Approval Center Command Nexus frontend contracts', () => {
+  it('polls Approval Center summary every 60 seconds only while the document is visible', () => {
+    expect(main).toContain('shouldPollApprovalCenter(document.visibilityState)');
+    expect(main).toContain('window.setInterval(refreshApprovalCount, 60000)');
+    expect(main).toContain("document.addEventListener('visibilitychange', onVisibility)");
+  });
+
   it('keeps Approval Center role scope and the existing aggregate API', () => {
     expect(main).toContain("{ label: 'ตรวจสอบ', items: [");
     expect(main).toContain("{ id: 'approvalCenter', icon: 'bell', label: 'ศูนย์อนุมัติ' }");

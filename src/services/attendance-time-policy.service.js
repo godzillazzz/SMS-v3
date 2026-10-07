@@ -174,6 +174,63 @@ function createAttendanceTimePolicyService({ prisma = prismaDefault, audit = aud
     return result;
   }
 
+  async function hydrateAssignmentsEvents(entries = [], client = prisma) {
+    const prepared = entries.map(({ assignment, events = [] }) => ({
+      assignment,
+      events: events.map((event) => {
+        if (event?.timePolicySnapshot) return { event, effectiveAt: null };
+        if (!assignment) throw http(400, 'ATTENDANCE_TIME_POLICY_ASSIGNMENT_REQUIRED', 'Shift Assignment is required to resolve an Attendance time policy.');
+        const value = event?.effectiveEventAt || event?.receivedAt || clock();
+        const effectiveAt = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(effectiveAt.getTime())) throw http(400, 'ATTENDANCE_EFFECTIVE_TIME_INVALID', 'Attendance effective time is invalid.');
+        return { event, effectiveAt };
+      })
+    }));
+    const pending = prepared.flatMap((entry) => entry.events
+      .filter((row) => row.effectiveAt)
+      .map((row) => ({ ...row, assignment: entry.assignment })));
+    if (!pending.length) return prepared.map((entry) => entry.events.map((row) => row.event));
+    if (!client?.attendanceTimePolicy?.findMany) {
+      return Promise.all(prepared.map((entry) => hydrateEvents({ assignment: entry.assignment, events: entry.events.map((row) => row.event) }, client)));
+    }
+
+    const siteIds = [...new Set(pending.map((row) => scopeParts(row.assignment).siteId).filter(Boolean))];
+    const shiftTypeIds = [...new Set(pending.map((row) => scopeParts(row.assignment).shiftTypeId).filter(Boolean))];
+    const scopes = [{ scopeType: 'COMPANY', siteId: null, shiftTypeId: null }];
+    if (siteIds.length) scopes.push({ scopeType: 'SITE', siteId: { in: siteIds }, shiftTypeId: null });
+    if (shiftTypeIds.length) scopes.push({ scopeType: 'SHIFT_TYPE', siteId: null, shiftTypeId: { in: shiftTypeIds } });
+    const latestAt = new Date(Math.max(...pending.map((row) => row.effectiveAt.getTime())));
+    const policyRows = await client.attendanceTimePolicy.findMany({
+      where: { effectiveFrom: { lte: latestAt }, OR: scopes },
+      orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }]
+    });
+    const byScope = new Map();
+    for (const row of policyRows || []) {
+      const key = row.scopeType === 'COMPANY' ? 'COMPANY' : `${row.scopeType}:${row.siteId || row.shiftTypeId}`;
+      const rows = byScope.get(key) || [];
+      rows.push(row);
+      byScope.set(key, rows);
+    }
+    for (const rows of byScope.values()) {
+      rows.sort((left, right) => new Date(right.effectiveFrom).getTime() - new Date(left.effectiveFrom).getTime()
+        || new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+    }
+    const latestAtScope = (scope, effectiveAt) => (byScope.get(scope) || []).find((row) => new Date(row.effectiveFrom).getTime() <= effectiveAt.getTime()) || null;
+
+    return prepared.map((entry) => entry.events.map((item) => {
+      if (!item.effectiveAt) return item.event;
+      const { siteId, shiftTypeId } = scopeParts(entry.assignment);
+      const row = (shiftTypeId && latestAtScope(`SHIFT_TYPE:${shiftTypeId}`, item.effectiveAt))
+        || (siteId && latestAtScope(`SITE:${siteId}`, item.effectiveAt))
+        || latestAtScope('COMPANY', item.effectiveAt);
+      return { ...item.event, timePolicySnapshot: snapshotFor({
+        values: row ? normalizeAttendanceTimePolicy(row.policy) : { ...DEFAULT_ATTENDANCE_TIME_POLICY },
+        source: sourceFor(row),
+        effectiveAt: item.effectiveAt
+      }) };
+    }));
+  }
+
   async function list() {
     const now = clock();
     const [sites, shiftTypes, rows] = await Promise.all([
@@ -235,7 +292,7 @@ function createAttendanceTimePolicyService({ prisma = prismaDefault, audit = aud
     });
   }
 
-  return { list, save, resolveForAssignment, hydrateEvents };
+  return { list, save, resolveForAssignment, hydrateEvents, hydrateAssignmentsEvents };
 }
 
 module.exports = {

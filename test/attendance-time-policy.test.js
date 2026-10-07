@@ -150,6 +150,35 @@ test('effective policy resolution selects Shift Type then Site then Company', as
   assert.equal((await companyOnlyService.resolveForAssignment({ assignment: assigned, at: instant('2026-10-02T00:00:00.000Z') })).values.lateGraceMinutes, 1);
 });
 
+test('supervisor event hydration batches policy reads and preserves scope/effective-date precedence', async () => {
+  const assigned = assignment();
+  const otherShift = assignment({ siteId: 'site-a', shiftTypeId: 'shift-other' });
+  const policies = [
+    { ...source('SHIFT_TYPE', 'shift-d', { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 10 }, 'shift-old'), effectiveFrom: instant('2026-10-01T00:00:00.000Z'), createdAt: instant('2026-10-01T01:00:00.000Z') },
+    { ...source('SHIFT_TYPE', 'shift-d', { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 12 }, 'shift-new'), effectiveFrom: instant('2026-10-03T00:00:00.000Z'), createdAt: instant('2026-10-03T01:00:00.000Z') },
+    { ...source('SITE', 'site-a', { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 5 }, 'site-policy'), effectiveFrom: instant('2026-10-01T00:00:00.000Z'), createdAt: instant('2026-10-01T01:00:00.000Z') },
+    { ...source('COMPANY', null, { ...DEFAULT_ATTENDANCE_TIME_POLICY, lateGraceMinutes: 1 }, 'company-policy'), effectiveFrom: instant('2026-10-01T00:00:00.000Z'), createdAt: instant('2026-10-01T01:00:00.000Z') }
+  ];
+  let calls = 0;
+  let args;
+  const service = createAttendanceTimePolicyService({ prisma: { attendanceTimePolicy: {
+    findMany: async (query) => { calls += 1; args = query; return policies; }
+  } } });
+  const hydrated = await service.hydrateAssignmentsEvents([
+    { assignment: assigned, events: [event('CHECK_IN', '2026-10-02T00:00:00.000Z'), event('CHECK_OUT', '2026-10-04T00:00:00.000Z')] },
+    { assignment: otherShift, events: [event('CHECK_IN', '2026-10-02T00:00:00.000Z')] }
+  ]);
+  assert.equal(calls, 1);
+  assert.equal(args.where.effectiveFrom.lte.toISOString(), '2026-10-04T00:00:00.000Z');
+  assert.deepEqual(args.where.OR.map((row) => row.scopeType), ['COMPANY', 'SITE', 'SHIFT_TYPE']);
+  assert.equal(hydrated[0][0].timePolicySnapshot.policyId, 'shift-old');
+  assert.equal(hydrated[0][0].timePolicySnapshot.values.lateGraceMinutes, 10);
+  assert.equal(hydrated[0][1].timePolicySnapshot.policyId, 'shift-new');
+  assert.equal(hydrated[0][1].timePolicySnapshot.values.lateGraceMinutes, 12);
+  assert.equal(hydrated[1][0].timePolicySnapshot.policyId, 'site-policy');
+  assert.equal(hydrated[1][0].timePolicySnapshot.values.lateGraceMinutes, 5);
+});
+
 test('event policy snapshot keeps historical lateness classification after a later policy change', () => {
   const assigned = assignment();
   const captured = event('CHECK_IN', '2026-10-02T00:05:00.000Z', {

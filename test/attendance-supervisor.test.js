@@ -140,6 +140,44 @@ test('supervisor read model serializes scheduled and actual Sites independently 
   ]);
 });
 
+test('daily batches effective-policy hydration and actual-site resolution across assignments', async () => {
+  const assignments = Array.from({ length: 12 }, (_, index) => {
+    const id = `batch-${index}`;
+    const actualSiteId = `actual-site-${index % 3}`;
+    const row = shiftAssignment({ id, employeeId: `emp-${index}`, name: `Guard ${index}`, department: 'OPS' });
+    row.attendanceSession = {
+      id: `${id}-session`,
+      expectedSite: row.securitySite,
+      events: [
+        { eventType: 'CHECK_IN', effectiveEventAt: new Date('2026-08-25T00:00:00.000Z'), locationEvidence: { expectedSiteId: row.securitySite.id, actualSiteId, workSiteContext: 'SUPPORT_SITE' } },
+        { eventType: 'CHECK_OUT', effectiveEventAt: new Date('2026-08-25T12:00:00.000Z'), locationEvidence: { expectedSiteId: row.securitySite.id, actualSiteId, workSiteContext: 'SUPPORT_SITE' } }
+      ]
+    };
+    return row;
+  });
+  let policyQueries = 0;
+  let siteQueries = 0;
+  const prisma = {
+    shiftAssignment: { findMany: async () => assignments },
+    leaveRequest: { findMany: async () => [] },
+    attendanceTimePolicy: { findMany: async () => { policyQueries += 1; return []; } },
+    securitySite: { findMany: async ({ where }) => {
+      siteQueries += 1;
+      return where.id.in.map((id) => ({ id, code: id, name: `Site ${id}` }));
+    } }
+  };
+  const service = createAttendanceSupervisorService({
+    prisma,
+    clock: () => new Date('2026-08-25T13:00:00.000Z'),
+    siteAuthorityService: { resolve: async ({ assignment }) => ({ site: assignment.securitySite }) }
+  });
+  const result = await service.daily({ actor: { role: 'MANAGER', department: 'OPS' }, filters: { date: '2026-08-25' } });
+  assert.equal(result.rows.length, 12);
+  assert.equal(policyQueries, 1);
+  assert.equal(siteQueries, 1);
+  assert.equal(result.rows[0].attendanceSites[0].actualSite.name, 'Site actual-site-0');
+});
+
 
 test('history range is bounded to protect serverless read cost', () => {
   const range = parseHistoryRange({ from: '2026-08-01', to: '2026-08-27' }, new Date('2026-08-27T01:00:00.000Z'));
