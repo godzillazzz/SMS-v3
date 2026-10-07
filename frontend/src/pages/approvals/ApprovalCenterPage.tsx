@@ -14,12 +14,13 @@ type ApprovalType =
   | 'EMPLOYEE_MASTER_CHANGE'
   | 'EMPLOYEE_REFERENCE_PHOTO'
   | 'LICENSE_DOCUMENT'
+  | 'SCHEDULE_APPROVAL'
   | 'ATTENDANCE_DEVICE_REQUEST'
   | 'ATTENDANCE_ADJUSTMENT_REQUEST'
   | 'REGISTRATION_REQUEST'
   | 'USER_ACCESS'
   | 'LEAVE_REQUEST';
-type ApprovalSourcePage = 'employees' | 'licenses' | 'attendanceDevice' | 'attendance' | 'users' | 'leavePending';
+type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals' | 'attendanceDevice' | 'attendance' | 'users' | 'leavePending';
 type CategoryFilter = 'ALL' | 'LEAVE';
 type UrgencyFilter = 'ALL' | 'URGENT' | 'STANDARD';
 type MobileTab = 'QUEUE' | 'AUDIT';
@@ -67,6 +68,7 @@ const typeLabel: Record<ApprovalType, string> = {
   EMPLOYEE_MASTER_CHANGE: 'แก้ไขข้อมูลพนักงาน',
   EMPLOYEE_REFERENCE_PHOTO: 'รูปอ้างอิงพนักงาน',
   LICENSE_DOCUMENT: 'เอกสารใบอนุญาต',
+  SCHEDULE_APPROVAL: 'อนุมัติตารางกะ',
   ATTENDANCE_DEVICE_REQUEST: 'อุปกรณ์ลงเวลา',
   ATTENDANCE_ADJUSTMENT_REQUEST: 'ปรับปรุงเวลา Attendance',
   REGISTRATION_REQUEST: 'ลงทะเบียนบัญชี',
@@ -409,6 +411,16 @@ export function ApprovalCenterPage({
         onClick={() => onOpenEmployeeChange(item.requestId)}
       >
         เปิดตรวจสอบ BEFORE → AFTER
+      </button>;
+    }
+
+    if (item.type === 'SCHEDULE_APPROVAL') {
+      return <button
+        type="button"
+        className="min-h-[44px] rounded-[7px] border border-[#25b8d3]/40 bg-[#0f1d2a] px-4 text-sm font-semibold text-[#8be5f2] transition hover:bg-[#1a2836]"
+        onClick={() => onNavigate(item)}
+      >
+        เปิดอนุมัติตารางกะ
       </button>;
     }
 

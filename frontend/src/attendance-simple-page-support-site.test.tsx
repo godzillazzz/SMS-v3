@@ -121,4 +121,33 @@ describe('Attendance support-Site confirmation UX', () => {
     expect(technical?.textContent).toContain('ASSIST_OTHER_SITE');
     expect(technical?.textContent).toContain('DEVICE_MISMATCH');
   });
+
+  it('explains a disabled clock and links the worker to device setup with a folded request reference', async () => {
+    const onOpenAttendanceDevice = vi.fn();
+    mocks.ensureIdentity.mockRejectedValue(Object.assign(new Error('อุปกรณ์ลงเวลานี้ต้องรอผู้ดูแลอนุมัติก่อนใช้งาน'), {
+      code: 'ATTENDANCE_DEVICE_NOT_ALLOWED',
+      requestId: 'a1492eb7-60ac-4ad8-9990-e9f80bb963a9'
+    }));
+
+    render(<AttendanceSimplePage token="test-session" online onOpenAttendanceDevice={onOpenAttendanceDevice} />);
+
+    const clock = await screen.findByRole('button', { name: /ลงเวลาเข้า/ });
+    expect((clock as HTMLButtonElement).disabled).toBe(true);
+    expect(clock.getAttribute('aria-describedby')).toBe('attendance-simple-clock-disabled-reason');
+    expect(screen.getByText('อุปกรณ์ลงเวลานี้ต้องรอผู้ดูแลอนุมัติก่อนใช้งาน', { selector: 'p' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'เปิดสถานะอุปกรณ์ลงเวลา' }));
+    expect(onOpenAttendanceDevice).toHaveBeenCalledTimes(1);
+
+    const details = screen.getByText('รายละเอียดสำหรับผู้ดูแล').closest('details');
+    expect(details?.open).toBe(false);
+    expect(details?.textContent).toContain('a1492eb7-60ac-4ad8-9990-e9f80bb963a9');
+  });
+
+  it('gives read-only workers a Thai reason when the clock is disabled', async () => {
+    render(<AttendanceSimplePage token="test-session" online readOnly />);
+    const clock = await screen.findByRole('button', { name: /ลงเวลาเข้า/ });
+    expect((clock as HTMLButtonElement).disabled).toBe(true);
+    expect(clock.getAttribute('aria-describedby')).toBe('attendance-simple-clock-disabled-reason');
+    expect(screen.getByText('โหมดดูแทนไม่สามารถลงเวลาได้ กรุณาออกจากโหมดดูแทนก่อนลงเวลา')).toBeTruthy();
+  });
 });

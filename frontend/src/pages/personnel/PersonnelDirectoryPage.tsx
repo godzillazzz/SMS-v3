@@ -38,7 +38,8 @@ const pageSize = 10;
 export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit }: Props) {
   const [employees, setEmployees] = useState<PersonnelRecord[]>([]);
   const [meta, setMeta] = useState<DirectoryMeta>({ page: 1, pageSize, total: 0, totalPages: 1, departments: [], summary: { total: 0, active: 0, incomplete: 0 } });
-  const [loading, setLoading] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [responseKey, setResponseKey] = useState('');
   const [error, setError] = useState('');
   const [search, setSearch] = useState(searchValue || '');
   const [debouncedSearch, setDebouncedSearch] = useState(searchValue || '');
@@ -48,6 +49,13 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
   const [selected, setSelected] = useState<PersonnelRecord>();
   const lastSelectedId = useRef<string>();
+
+  const currentQueryKey = JSON.stringify({ token: token || '', role, page, search: search.trim(), debouncedSearch: debouncedSearch.trim(), department, status, refreshKey, localRefreshKey });
+  const responseMatches = responseKey === currentQueryKey;
+  const loading = Boolean(token) && (!responseMatches || requestLoading);
+  const visibleEmployees = responseMatches ? employees : [];
+  const visibleMeta = responseMatches ? meta : { page: 1, pageSize, total: 0, totalPages: 1, departments: [], summary: { total: 0, active: 0, incomplete: 0 } };
+  const visibleError = responseMatches ? error : '';
 
   useEffect(() => {
     const next = searchValue || '';
@@ -66,10 +74,12 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
     if (!token) {
       setEmployees([]);
       setMeta({ page: 1, pageSize, total: 0, totalPages: 1, departments: [], summary: { total: 0, active: 0, incomplete: 0 } });
+      setResponseKey(currentQueryKey);
+      setRequestLoading(false);
       return;
     }
     let active = true;
-    setLoading(true);
+    setRequestLoading(true);
     setError('');
     api.employees(token, {
       page,
@@ -101,10 +111,13 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
       setEmployees([]);
       setError(formatRequestErrorMessage(reason, 'ไม่สามารถอ่านข้อมูลพนักงานได้'));
     }).finally(() => {
-      if (active) setLoading(false);
+      if (active) {
+        setResponseKey(currentQueryKey);
+        setRequestLoading(false);
+      }
     });
     return () => { active = false; };
-  }, [token, page, debouncedSearch, department, status, refreshKey, localRefreshKey]);
+  }, [token, role, page, debouncedSearch, department, status, refreshKey, localRefreshKey]);
 
   const changeFilter = (fn: (value: string) => void) => (value: string) => {
     fn(value);
@@ -119,10 +132,10 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
     setStatus('');
     setPage(1);
   };
-  const totalCount = Number(meta.summary?.total ?? meta.total);
-  const activeCount = Number(meta.summary?.active ?? 0);
-  const incompleteCount = Number(meta.summary?.incomplete ?? 0);
-  const permissionDenied = error === 'PERMISSION_DENIED';
+  const totalCount = Number(visibleMeta.summary?.total ?? visibleMeta.total);
+  const activeCount = Number(visibleMeta.summary?.active ?? 0);
+  const incompleteCount = Number(visibleMeta.summary?.incomplete ?? 0);
+  const permissionDenied = visibleError === 'PERMISSION_DENIED';
   const hasActiveFilters = Boolean(search || department || status);
   const closeDrawer = () => {
     const id = lastSelectedId.current;
@@ -135,12 +148,12 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
   };
 
   return <section className="personnel-directory-page data-surface-page" aria-label="Personnel Directory">
-    <PersonnelDirectoryHeader canManage={canManage} canReviewChanges={role === 'ADMIN'} totalCount={totalCount} onAdd={onAdd} onReviewChanges={onReviewChanges} onRefresh={() => setLocalRefreshKey((value) => value + 1)} />
+    <PersonnelDirectoryHeader canManage={canManage} canReviewChanges={role === 'ADMIN'} totalCount={loading ? undefined : totalCount} onAdd={onAdd} onReviewChanges={onReviewChanges} onRefresh={() => setLocalRefreshKey((value) => value + 1)} />
     <AttendanceReadinessCenter token={token} />
-    <PersonnelSearchToolbar search={search} department={department} status={status} departments={meta.departments || []} onSearch={changeFilter(setSearch)} onDepartment={changeFilter(setDepartment)} onStatus={changeFilter(setStatus)} onClear={clear} />
-    <div className="personnel-summary-grid"><PersonnelMetricCard icon="users" label="บุคลากรทั้งหมด" value={totalCount} context="รายการที่เข้าถึงได้" tone="indigo" /><PersonnelMetricCard icon="check" label="บุคลากรที่ใช้งาน" value={activeCount} context="จากข้อมูลทั้งหมด" tone="green" /><PersonnelMetricCard icon="quality" label="โปรไฟล์ไม่สมบูรณ์" value={incompleteCount} context={incompleteCount ? 'ต้องตรวจสอบข้อมูล' : 'ข้อมูลครบถ้วน'} tone="amber" /></div>
+    <PersonnelSearchToolbar search={search} department={department} status={status} departments={visibleMeta.departments || []} onSearch={changeFilter(setSearch)} onDepartment={changeFilter(setDepartment)} onStatus={changeFilter(setStatus)} onClear={clear} />
+    <div className="personnel-summary-grid"><PersonnelMetricCard icon="users" label="บุคลากรทั้งหมด" value={loading ? undefined : totalCount} context="รายการที่เข้าถึงได้" loading={loading} tone="indigo" /><PersonnelMetricCard icon="check" label="บุคลากรที่ใช้งาน" value={loading ? undefined : activeCount} context="จากข้อมูลทั้งหมด" loading={loading} tone="green" /><PersonnelMetricCard icon="quality" label="โปรไฟล์ไม่สมบูรณ์" value={loading ? undefined : incompleteCount} context={incompleteCount ? 'ต้องตรวจสอบข้อมูล' : 'ข้อมูลครบถ้วน'} loading={loading} tone="amber" /></div>
     {permissionDenied ? <div className="personnel-empty-state data-state data-state--permission"><span aria-hidden="true"><SmsIcon name="shield" size={24} /></span><h2>ไม่มีสิทธิ์เข้าถึงข้อมูล</h2><p>บัญชีนี้ไม่ได้รับอนุญาตให้ดู Personnel Directory</p></div>
-      : <>{!loading && !error && <div className="personnel-result-line data-result-count">แสดง {employees.length} จาก {meta.total} รายการ{hasActiveFilters ? ' · กรองจากข้อมูลทั้งหมด' : ''}</div>}<PersonnelTable rows={employees} canManage={canManage} selectedId={selected?.id} onSelect={(employee) => { lastSelectedId.current = employee.id; setSelected(employee); }} onEdit={onEdit} loading={loading} error={Boolean(error)} onRetry={() => setLocalRefreshKey((value) => value + 1)} hasActiveFilters={hasActiveFilters} emptyAction={meta.total === 0 && hasActiveFilters ? { label: 'ล้างตัวกรอง', onClick: clear } : { label: 'รีเฟรช', onClick: () => setLocalRefreshKey((value) => value + 1) }} />{!loading && !error && <PersonnelPagination page={page} totalPages={meta.totalPages} onChange={setPage} />}</>}
+      : <>{!loading && !visibleError && <div className="personnel-result-line data-result-count">แสดง {visibleEmployees.length} จาก {visibleMeta.total} รายการ{hasActiveFilters ? ' · กรองจากข้อมูลทั้งหมด' : ''}</div>}<PersonnelTable rows={visibleEmployees} canManage={canManage} selectedId={selected?.id} onSelect={(employee) => { lastSelectedId.current = employee.id; setSelected(employee); }} onEdit={onEdit} loading={loading} error={Boolean(visibleError)} onRetry={() => setLocalRefreshKey((value) => value + 1)} hasActiveFilters={hasActiveFilters} emptyAction={visibleMeta.total === 0 && hasActiveFilters ? { label: 'ล้างตัวกรอง', onClick: clear } : { label: 'รีเฟรช', onClick: () => setLocalRefreshKey((value) => value + 1) }} />{!loading && !visibleError && <PersonnelPagination page={page} totalPages={visibleMeta.totalPages} onChange={setPage} />}</>}
     <PersonnelDetailDrawer employee={selected} token={token} canManage={canManage} onClose={closeDrawer} onEdit={() => { if (selected) onEdit(selected); closeDrawer(); }} />
   </section>;
 }

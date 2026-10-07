@@ -110,15 +110,15 @@ test('fails closed when pre-applied evidence fields are attached to a no-databas
   assert.throws(() => validateReleaseManifest(manifest), /only valid for PRE_APPLIED_APPROVED_MIGRATION/);
 });
 
-test('current approved Production manifest pins the large-schedule-batch release with unchanged business rules', () => {
+test('current approved Production manifest pins R1 after successful technical smoke without weakening release policy', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.github', 'releases', 'approved-production.json'), 'utf8'));
   const result = validateReleaseManifest(manifest);
-  assert.equal(result.releaseId, 'sms-v3-prod-f63c785e8af1-20261006');
-  assert.equal(result.commitSha, 'f63c785e8af1d63f3d27754c66709e6a0d9b3443');
-  assert.equal(result.treeSha, '896fd370fe8a0c26b153a245fbeeba3c47499359');
-  assert.equal(result.currentProductionSourceSha, '85a080c338cc0d2d8ba728b181d29626880a79b2');
+  assert.equal(result.releaseId, 'sms-v3-prod-31b17868642b-20261007');
+  assert.equal(result.commitSha, '31b17868642b3b653630ad5356b8d26c08fde55d');
+  assert.equal(result.treeSha, '24e8cd0052818c41cb6e0dd17a19f333b342baa0');
+  assert.equal(result.currentProductionSourceSha, 'f63c785e8af1d63f3d27754c66709e6a0d9b3443');
   assert.equal(result.currentProductionSourceRef, 'fix/serverless-database-reliability');
-  assert.equal(result.rollbackDeploymentId, 'dpl_6vduk7ttKLL6sw2y5FDE6xYu42TY');
+  assert.equal(result.rollbackDeploymentId, 'dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK');
   assert.equal(result.runMigrations, false);
   assert.equal(result.databaseChangePolicy, 'NO_DATABASE_CHANGES');
   assert.equal(result.preAppliedMigrationManifestPath, '');
@@ -126,13 +126,14 @@ test('current approved Production manifest pins the large-schedule-batch release
   assert.equal(result.productionEnvironmentChangePolicy, 'NO_ENVIRONMENT_CHANGES');
   assert.equal(result.corsPolicy, 'EXPLICIT_CREDENTIALED_ALLOWLIST_CANONICAL_RUNTIME_VERIFY');
   assert.equal(result.deploymentMethod, 'GOVERNED_VERCEL_GIT_SOURCE_PRODUCTION_CANDIDATE_NO_CANONICAL_ALIAS_EXPLICIT_PROMOTION');
-  assert.equal(manifest.preview_deployment_id, 'dpl_9z9FUgogmkV8w2g27dVo9kuk4Yp5');
-  assert.equal(manifest.preview_url, 'https://sms-v3-staging-3dme1evo1-godzillazz.vercel.app');
+  assert.equal(manifest.preview_deployment_id, 'dpl_9iVQBHyiTUzffBBqCtHncbAzSjR9');
+  assert.equal(manifest.preview_url, 'https://sms-v3-staging-chd2sa7ey-godzillazz.vercel.app');
   assert.equal(manifest.application_release_classification, 'APPLICATION_ONLY');
-  assert.equal(manifest.application_pr_number, 466);
+  assert.equal(manifest.application_pr_number, 481);
+  assert.equal(manifest.application_pr_head_sha, '2046f45e1534e3938ae7c5585c3838235d9b7cce');
   assert.equal(manifest.application_pr_merge_sha, result.commitSha);
-  assert.equal(manifest.application_exact_sha_ci_run_id, 37399279989);
-  assert.equal(manifest.release_source_exact_sha_ci_run_id, 37399279989);
+  assert.equal(manifest.application_exact_sha_ci_run_id, 37557051194);
+  assert.equal(manifest.release_source_exact_sha_ci_run_id, 37557051194);
   assert.equal(manifest.release_source_ci_result, 'SUCCESS_EXACT_RELEASE_SOURCE_SHA');
   assert.equal(manifest.preview_github_commit_sha, result.commitSha);
   assert.equal(manifest.preview_github_commit_ref, 'fix/serverless-database-reliability');
@@ -143,10 +144,10 @@ test('current approved Production manifest pins the large-schedule-batch release
   assert.equal(manifest.preview_trusted_cors_status, 'PASS');
   assert.equal(manifest.preview_untrusted_cors_status, 'REJECTED_403');
   assert.equal(manifest.preview_technical_smoke_source_sha, result.commitSha);
-  assert.equal(manifest.preview_technical_smoke_run_id, 37399537515);
+  assert.equal(manifest.preview_technical_smoke_run_id, 37557641064);
   assert.equal(manifest.preview_technical_smoke_status, 'SUCCESS');
-  assert.equal(manifest.production_canonical_deployment_id_before_release, 'dpl_6vduk7ttKLL6sw2y5FDE6xYu42TY');
-  assert.equal(manifest.production_canonical_source_sha_before_release, '85a080c338cc0d2d8ba728b181d29626880a79b2');
+  assert.equal(manifest.production_canonical_deployment_id_before_release, 'dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK');
+  assert.equal(manifest.production_canonical_source_sha_before_release, 'f63c785e8af1d63f3d27754c66709e6a0d9b3443');
   assert.equal(manifest.db_schema_mutation, 'NONE');
   assert.equal(manifest.db_data_mutation, 'NONE');
   assert.equal(manifest.production_data_mutation, 'NONE');
@@ -157,7 +158,7 @@ test('current approved Production manifest pins the large-schedule-batch release
   assert.equal(manifest.g06_acceptance_status, 'CLOSED');
   assert.equal(manifest.g06_acceptance_changed, 'NO');
   assert.equal(manifest.schedule_large_batch_status, 'APPROVED_FOR_PRODUCTION');
-  assert.equal(manifest.schedule_large_batch_postgres_batch_size, 120);
+  assert.equal(manifest.schedule_large_batch_postgres_batch_size, 500);
   assert.equal(manifest.schedule_large_batch_business_logic_change, 'NO');
   assert.equal(manifest.schedule_large_batch_atomicity, 'PRESERVED');
   assert.equal(manifest.schedule_large_batch_timeout_increase, 'NO');

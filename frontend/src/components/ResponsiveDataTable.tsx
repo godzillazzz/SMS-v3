@@ -82,12 +82,12 @@ export type DataTablePaginationProps = {
 
 /** Shared accessible pagination contract for server- and client-paginated tables. */
 export function DataTablePagination({ page, totalPages, onChange, ariaLabel, loading = false, className = '' }: DataTablePaginationProps) {
-  if (totalPages <= 1) return null;
+  if (!loading && totalPages <= 1) return null;
   const previousDisabled = page <= 1 || loading;
   const nextDisabled = page >= totalPages || loading;
   return <nav className={`data-pagination ${className}`.trim()} aria-label={ariaLabel}>
     <button type="button" aria-label="หน้าก่อนหน้า" disabled={previousDisabled} onClick={() => onChange(page - 1)}>‹ ก่อนหน้า</button>
-    <span aria-live="polite">หน้า {page} จาก {totalPages}</span>
+    <span aria-live="polite">{loading ? 'หน้า — จาก —' : `หน้า ${page} จาก ${totalPages}`}</span>
     <button type="button" aria-label="หน้าถัดไป" disabled={nextDisabled} onClick={() => onChange(page + 1)}>หน้าถัดไป ›</button>
   </nav>;
 }

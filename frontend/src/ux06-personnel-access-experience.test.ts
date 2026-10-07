@@ -28,17 +28,17 @@ describe('G04.2 UX-06 Personnel + Access experience contract', () => {
     expect(personnelPage).toContain('department: department || undefined');
     expect(personnelPage).toContain("isActive: status ? status === 'active' : undefined");
     expect(personnelPage).toContain('const pageSize = 10;');
-    expect(personnelPage).toContain('meta.totalPages');
+    expect(personnelPage).toContain('nextMeta.totalPages');
     expect(personnelPage).not.toContain('filtered.slice(');
-    expect(personnelPage).toContain('<PersonnelPagination page={page} totalPages={meta.totalPages} onChange={setPage} />');
+    expect(personnelPage).toContain('<PersonnelPagination page={page} totalPages={visibleMeta.totalPages} onChange={setPage} />');
   });
 
   it('keeps only real-backed Personnel metrics and does not restore the unavailable review metric', () => {
     expect(personnelPage).toContain('บุคลากรทั้งหมด');
     expect(personnelPage).toContain('บุคลากรที่ใช้งาน');
     expect(personnelPage).toContain('โปรไฟล์ไม่สมบูรณ์');
-    expect(personnelPage).toContain('const activeCount = Number(meta.summary?.active ?? 0)');
-    expect(personnelPage).toContain('const incompleteCount = Number(meta.summary?.incomplete ?? 0)');
+    expect(personnelPage).toContain('const activeCount = Number(visibleMeta.summary?.active ?? 0)');
+    expect(personnelPage).toContain('const incompleteCount = Number(visibleMeta.summary?.incomplete ?? 0)');
     expect(personnelPage).not.toContain('รอตรวจสอบ');
   });
 
