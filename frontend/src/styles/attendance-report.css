@@ -170,19 +170,26 @@
 }
 
 @media print {
-  @page {
-    size: A4 landscape;
-    margin: 0;
-  }
-
   .attendance-official-report-print {
     display: block !important;
   }
 
   .attendance-report-page {
-    width: 297mm;
-    min-height: 210mm;
-    max-height: 210mm;
-    overflow: hidden;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .attendance-report-table thead {
+    display: table-header-group;
+  }
+
+  .attendance-report-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

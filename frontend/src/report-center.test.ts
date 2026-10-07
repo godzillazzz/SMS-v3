@@ -46,7 +46,7 @@ describe('Unified Report Center V1 source contract', () => {
   });
 
   it('exposes only the currently enabled export capability and keeps preview-only Attendance governance fail-closed', () => {
-    expect(page).toContain("printDocument('.executive-report-print', pdfFilename)");
+    expect(page).toContain("printDocument('.executive-report-print', pdfFilename, { orientation: 'landscape', margin: '12mm' })");
     expect(page).toContain('รายงานผู้บริหาร PDF');
     expect(page).toContain('รูปแบบที่รองรับ: PDF');
     expect(page).toContain('<ExecutiveReportPrint report={executiveReport} />');
