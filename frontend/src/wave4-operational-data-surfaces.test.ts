@@ -50,7 +50,7 @@ describe('WAVE 4 operational data surfaces contract', () => {
   it('keeps the monthly Schedule matrix on its intentional custom scroll surface', () => {
     const main = read('./main.tsx');
     const mobile = read('./styles/production-mobile-responsive-v1.css');
-    expect(main).toContain('<table className="schedule-grid">');
+    expect(main).toContain('schedule-grid schedule-grid--compact${showScheduleTimes ?');
     expect(main).toContain('className="table-card calendar-card"');
     expect(mobile).toContain('.schedule-calendar-page .calendar-card > .table-scroll');
     expect(mobile).toContain('overflow-x: auto;');
