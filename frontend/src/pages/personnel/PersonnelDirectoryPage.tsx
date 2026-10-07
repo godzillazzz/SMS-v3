@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../api';
 import { formatRequestErrorMessage } from '../../request-error';
 import { PersonnelDetailDrawer } from '../../components/personnel/PersonnelDetailDrawer';
@@ -7,7 +7,7 @@ import { PersonnelMetricCard } from '../../components/personnel/PersonnelMetricC
 import { PersonnelPagination } from '../../components/personnel/PersonnelPagination';
 import { PersonnelSearchToolbar } from '../../components/personnel/PersonnelSearchToolbar';
 import { PersonnelTable } from '../../components/personnel/PersonnelTable';
-import { AttendanceReadinessCenter } from '../../components/personnel/AttendanceReadinessCenter';
+import { AttendanceReadinessCenter, type EmployeeReadinessStatus, type EmployeeReadinessViewState } from '../../components/personnel/AttendanceReadinessCenter';
 import { SmsIcon } from '../../components/SmsIcon';
 import type { PersonnelRecord, PersonnelRole } from '../../components/personnel/types';
 import '../../styles/personnel-directory.css';
@@ -35,6 +35,12 @@ type Props = {
 
 const pageSize = 10;
 
+type ReadinessSnapshot = {
+  token?: string;
+  state: EmployeeReadinessViewState;
+  byEmployeeId: Record<string, EmployeeReadinessStatus>;
+};
+
 export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, searchValue, onSearchValueChange, onAdd, onReviewChanges, onEdit }: Props) {
   const [employees, setEmployees] = useState<PersonnelRecord[]>([]);
   const [meta, setMeta] = useState<DirectoryMeta>({ page: 1, pageSize, total: 0, totalPages: 1, departments: [], summary: { total: 0, active: 0, incomplete: 0 } });
@@ -48,7 +54,14 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
   const [page, setPage] = useState(1);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
   const [selected, setSelected] = useState<PersonnelRecord>();
+  const [readinessSnapshot, setReadinessSnapshot] = useState<ReadinessSnapshot>({ state: 'error', byEmployeeId: {} });
   const lastSelectedId = useRef<string>();
+
+  const canViewReadiness = role === 'ADMIN' || role === 'MANAGER' || role === 'SUPERVISOR';
+  const handleReadinessChange = useCallback((state: ReadinessSnapshot) => setReadinessSnapshot(state), []);
+  const tableReadiness = readinessSnapshot.token === token
+    ? readinessSnapshot
+    : { token, state: 'loading' as const, byEmployeeId: {} };
 
   const currentQueryKey = JSON.stringify({ token: token || '', role, page, search: search.trim(), debouncedSearch: debouncedSearch.trim(), department, status, refreshKey, localRefreshKey });
   const responseMatches = responseKey === currentQueryKey;
@@ -149,11 +162,11 @@ export function PersonnelDirectoryPage({ token, refreshKey, canManage, role, sea
 
   return <section className="personnel-directory-page data-surface-page" aria-label="Personnel Directory">
     <PersonnelDirectoryHeader canManage={canManage} canReviewChanges={role === 'ADMIN'} totalCount={loading ? undefined : totalCount} onAdd={onAdd} onReviewChanges={onReviewChanges} onRefresh={() => setLocalRefreshKey((value) => value + 1)} />
-    <AttendanceReadinessCenter token={token} />
+    <AttendanceReadinessCenter token={token} enabled={canViewReadiness} onReadinessChange={handleReadinessChange} />
     <PersonnelSearchToolbar search={search} department={department} status={status} departments={visibleMeta.departments || []} onSearch={changeFilter(setSearch)} onDepartment={changeFilter(setDepartment)} onStatus={changeFilter(setStatus)} onClear={clear} />
     <div className="personnel-summary-grid"><PersonnelMetricCard icon="users" label="บุคลากรทั้งหมด" value={loading ? undefined : totalCount} context="รายการที่เข้าถึงได้" loading={loading} tone="indigo" /><PersonnelMetricCard icon="check" label="บุคลากรที่ใช้งาน" value={loading ? undefined : activeCount} context="จากข้อมูลทั้งหมด" loading={loading} tone="green" /><PersonnelMetricCard icon="quality" label="โปรไฟล์ไม่สมบูรณ์" value={loading ? undefined : incompleteCount} context={incompleteCount ? 'ต้องตรวจสอบข้อมูล' : 'ข้อมูลครบถ้วน'} loading={loading} tone="amber" /></div>
     {permissionDenied ? <div className="personnel-empty-state data-state data-state--permission"><span aria-hidden="true"><SmsIcon name="shield" size={24} /></span><h2>ไม่มีสิทธิ์เข้าถึงข้อมูล</h2><p>บัญชีนี้ไม่ได้รับอนุญาตให้ดู Personnel Directory</p></div>
-      : <>{!loading && !visibleError && <div className="personnel-result-line data-result-count">แสดง {visibleEmployees.length} จาก {visibleMeta.total} รายการ{hasActiveFilters ? ' · กรองจากข้อมูลทั้งหมด' : ''}</div>}<PersonnelTable rows={visibleEmployees} canManage={canManage} selectedId={selected?.id} onSelect={(employee) => { lastSelectedId.current = employee.id; setSelected(employee); }} onEdit={onEdit} loading={loading} error={Boolean(visibleError)} onRetry={() => setLocalRefreshKey((value) => value + 1)} hasActiveFilters={hasActiveFilters} emptyAction={visibleMeta.total === 0 && hasActiveFilters ? { label: 'ล้างตัวกรอง', onClick: clear } : { label: 'รีเฟรช', onClick: () => setLocalRefreshKey((value) => value + 1) }} />{!loading && !visibleError && <PersonnelPagination page={page} totalPages={visibleMeta.totalPages} onChange={setPage} />}</>}
+      : <>{!loading && !visibleError && <div className="personnel-result-line data-result-count">แสดง {visibleEmployees.length} จาก {visibleMeta.total} รายการ{hasActiveFilters ? ' · กรองจากข้อมูลทั้งหมด' : ''}</div>}<PersonnelTable rows={visibleEmployees} canManage={canManage} canViewReadiness={canViewReadiness} readinessByEmployeeId={tableReadiness.byEmployeeId} readinessState={tableReadiness.state} selectedId={selected?.id} onSelect={(employee) => { lastSelectedId.current = employee.id; setSelected(employee); }} onEdit={onEdit} loading={loading} error={Boolean(visibleError)} onRetry={() => setLocalRefreshKey((value) => value + 1)} hasActiveFilters={hasActiveFilters} emptyAction={visibleMeta.total === 0 && hasActiveFilters ? { label: 'ล้างตัวกรอง', onClick: clear } : { label: 'รีเฟรช', onClick: () => setLocalRefreshKey((value) => value + 1) }} />{!loading && !visibleError && <PersonnelPagination page={page} totalPages={visibleMeta.totalPages} onChange={setPage} />}</>}
     <PersonnelDetailDrawer employee={selected} token={token} canManage={canManage} onClose={closeDrawer} onEdit={() => { if (selected) onEdit(selected); closeDrawer(); }} />
   </section>;
 }
