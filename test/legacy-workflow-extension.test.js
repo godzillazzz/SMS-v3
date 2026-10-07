@@ -51,7 +51,7 @@ test('Settings retains the legacy LINE template layout without persisting notifi
   assert.match(frontend, /LINE_TEMPLATE_NEW_LEAVE/);
   assert.match(frontend, /LINE_TEMPLATE_LEAVE_STATUS/);
   assert.match(frontend, /Vercel Environment Variables/);
-  assert.match(frontend, /Google Sheets ถูกยกเลิก/);
+  assert.doesNotMatch(frontend, /Google Sheets ถูกยกเลิก/);
   assert.match(routes, /isSensitiveSystemSettingKey\(key\)/);
   assert.match(registry, /secret\|token\|password\|credential/);
 });
@@ -61,7 +61,7 @@ test('legacy schedule and leave controls remain available to Admin and Manager',
   const routes = read('src/routes/operations.routes.js');
   const employees = read('src/services/employee.service.js');
 
-  assert.match(frontend, /ไม้กายสิทธิ์สำหรับ Admin/);
+  assert.match(frontend, /จัดกะแพทเทิร์นด่วน/);
   assert.match(frontend, /จัดกะแพทเทิร์นด่วน: 6 วันทำงาน \/ 1 วันหยุด/);
   assert.match(frontend, /รายการใบลาที่รออนุมัติ/);
   assert.match(frontend, /Submit Leave Request/);

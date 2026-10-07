@@ -20,14 +20,17 @@ describe('Approval Center Command Nexus frontend contracts', () => {
   });
 
   it('renders the zero-white command-nexus surface and real telemetry fallbacks', () => {
-    expect(page).toContain('SMS NEXUS / GOVERNANCE / APPROVAL CENTER');
+    expect(page).toContain('ศูนย์อนุมัติ');
     expect(page).toContain('Approval Center &amp; Incident Logs');
     expect(page).toContain('bg-[#020813]');
     expect(page).toContain('bg-[#061421]');
     expect(page).toContain('bg-[#020f1c]');
     expect(page).toContain('bg-[#0f1d2a]');
     expect(page).toContain('text-white');
-    expect(page).toContain('AWAITING TELEMETRY');
+    expect(page).not.toContain('AWAITING TELEMETRY');
+    expect(page).toContain('metric.loading ? <span');
+    expect(page).toContain('metric.value !== null');
+    expect(page).toContain('value: summaryAvailable ? String(summary.total) : null');
     expect(page).not.toContain('bg-white');
     expect(css).toContain('.nexus-approval-center{background:#020813!important');
   });
@@ -70,7 +73,7 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(page).toContain("onLeaveDecision(item, action)");
     expect(page).toContain("onLeaveDecision(item, 'reject')");
     expect(page).toContain('selectedLeaveIsSelf');
-    expect(page).toContain('backend ยังคงตรวจสอบสิทธิ์อีกชั้นหนึ่ง');
+    expect(page).not.toContain('backend ยังคงตรวจสอบสิทธิ์อีกชั้นหนึ่ง');
     expect(main).toContain('onLeaveDecision={(item, action) => openLeaveDecision(');
     expect(main).toContain('await api.returnLeaveRequestForCorrection');
     expect(main).toContain("await api.updateLeaveRequest(auth.token, id, { status: request.action === 'approve' ? 'APPROVED' : 'REJECTED' })");
@@ -82,16 +85,16 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(page).toContain("if (role !== 'ADMIN')");
     expect(page).toContain('api.auditEvents(token, 1, 100');
     expect(page).toContain("category: 'all'");
-    expect(page).toContain('Audit API จำกัดสิทธิ์ Admin ตามเดิม');
+    expect(page).not.toContain('Audit API จำกัดสิทธิ์ Admin ตามเดิม');
     expect(page).toContain('onOpenAudit');
     expect(main).toContain("onOpenAudit={() => setActivePage('audit')}");
   });
 
   it('implements requested desktop split, category filters, urgency filters, and mobile tabs', () => {
-    expect(page).toContain("type CategoryFilter = 'ALL' | 'SHIFT_SWAP' | 'SECURE_VAULT' | 'LEAVE'");
+    expect(page).toContain("type CategoryFilter = 'ALL' | 'LEAVE'");
     expect(page).toContain("type MobileTab = 'QUEUE' | 'AUDIT'");
-    expect(page).toContain('ขอสลับกะเวร (Shift Swap)');
-    expect(page).toContain('ขอเข้าพื้นที่พิเศษ (Secure Vault Access)');
+    expect(page).not.toContain('Shift Swap');
+    expect(page).not.toContain('Secure Vault Access');
     expect(page).toContain('ขอลางาน (Leave)');
     expect(page).toContain('ด่วนที่สุด (Urgent)');
     expect(page).toContain('ปกติ (Standard)');
@@ -101,5 +104,6 @@ describe('Approval Center Command Nexus frontend contracts', () => {
     expect(page).toContain('overflow-x-hidden');
     expect(page).toContain('aria-pressed={selected?.id === item.id}');
     expect(css).toContain('.nexus-audit-dot--critical');
+    expect(page).not.toContain('backend ยังคงตรวจสอบสิทธิ์อีกชั้นหนึ่ง');
   });
 });

@@ -51,7 +51,7 @@ export function G06DeviceContextDiagnosticPage() {
 
   return <main className="g06-device-context-diagnostic">
     <header className="g06-device-context-diagnostic__header">
-      <p className="g06-device-context-diagnostic__eyebrow">G06 · READ-ONLY DEVICE CONTEXT DIAGNOSTIC</p>
+      <p className="g06-device-context-diagnostic__eyebrow">ตรวจสอบสถานะอุปกรณ์</p>
       <h1>ตรวจ Browser Storage ของอุปกรณ์ลงเวลา</h1>
       <p>หน้านี้อ่าน origin, enrollment IDs และ safe CryptoKey metadata ใน browser นี้เท่านั้น ไม่เรียก Attendance verification, device proof หรือ event endpoints; ระบบยังใช้ authentication flow ปกติก่อนแสดงหน้านี้</p>
     </header>

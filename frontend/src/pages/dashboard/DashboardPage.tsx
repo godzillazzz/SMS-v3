@@ -45,7 +45,7 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
 
   return <section className="nexus-command" aria-label="SMS Command Overview">
     <header className="nexus-command__hero">
-      <div><p className="nexus-kicker">SMS NEXUS / OPERATIONAL LAYER / COMMAND OVERVIEW</p><h1>Command Overview</h1><p>ศูนย์ควบคุมสถานะกำลังพล งานที่ต้องดำเนินการ และข้อมูลปฏิบัติการตามสิทธิ์ของคุณ</p></div>
+      <div><p className="nexus-kicker">ภาพรวมการปฏิบัติงาน</p><h1>Command Overview</h1><p>ศูนย์ควบคุมสถานะกำลังพล งานที่ต้องดำเนินการ และข้อมูลปฏิบัติการตามสิทธิ์ของคุณ</p></div>
       <div className="nexus-hero-status"><span><i /> AUTHENTICATED</span><strong>{firstName}</strong><small>SYNC {syncTime}</small></div>
     </header>
 
@@ -56,16 +56,6 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
     {error ? <div className="nexus-command__alert dashboard-data-error" role="alert"><strong>DATA CHANNEL DEGRADED</strong><span>ไม่สามารถโหลดข้อมูล Dashboard ได้ ระบบจะไม่สร้างข้อมูลทดแทน</span><RequestErrorReference requestId={typeof error === 'string' ? undefined : error?.requestId} /></div> : partialErrors.length > 0 ? <div className="nexus-command__alert dashboard-data-warning" role="status"><strong>PARTIAL DATA CHANNEL</strong><span>ข้อมูลบางส่วนยังไม่พร้อม ส่วนที่พร้อมยังแสดงตามสิทธิ์ของคุณ</span></div> : null}
 
     <section className="nexus-command__grid dashboard-command-grid">
-      <article className="nexus-map-panel nexus-panel">
-        <header><div><p className="nexus-kicker">GEOSPATIAL VECTOR MATRIX</p><h2>Operational Coverage</h2></div><span className="nexus-state nexus-state--standby">STANDBY</span></header>
-        <div className="nexus-vector-field" aria-label="GIS telemetry unavailable">
-          <div className="nexus-radar-ring r1"/><div className="nexus-radar-ring r2"/><div className="nexus-radar-ring r3"/>
-          <div className="nexus-vector-cross x"/><div className="nexus-vector-cross y"/>
-          <div className="nexus-vector-core"><SmsIcon name="location" size={24}/><strong>GIS CHANNEL</strong><span>Awaiting verified site telemetry</span></div>
-        </div>
-        <footer><span>NO SIMULATED COORDINATES</span><span>GIS INTEGRATION PENDING</span></footer>
-      </article>
-
       <article className="nexus-stream nexus-panel">
         <header><div><p className="nexus-kicker">PRIORITY STREAM</p><h2>Attention Required</h2></div><b>{actions.length}</b></header>
         <div className="nexus-stream__list">{loading ? <div className="nexus-loading">READING SECURE CHANNEL…</div> : actions.length ? actions.slice(0,5).map((row, index) => <div className="nexus-stream__item" key={String((row as any).id || index)}><span className="nexus-stream__pulse"/><div><strong>{String((row as any).title || (row as any).label || (row as any).type || 'รายการที่ต้องตรวจสอบ')}</strong><small>{String((row as any).description || (row as any).detail || 'เปิดข้อมูลที่เกี่ยวข้องเพื่อตรวจสอบรายละเอียด')}</small></div><em>{String((row as any).count || '')}</em></div>) : <div className="nexus-clear"><SmsIcon name="check" size={28}/><strong>QUEUE CLEAR</strong><span>ไม่มีรายการเร่งด่วนจากข้อมูลที่ระบบได้รับ</span></div>}</div>

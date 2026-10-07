@@ -1121,7 +1121,7 @@ function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading,
     finally { setSaving(false); }
   };
   return <section className="view-pane settings-page">
-    <div className="page-heading settings-heading"><div><p className="eyebrow">ADMIN · GOVERNED CONFIGURATION</p><h1>Configuration Center</h1><p>จัดการค่าที่ระบบ register และ validate ไว้แล้ว โดยแยก secret/operational authority ออกจาก SystemSetting อย่างชัดเจน</p></div><div className="heading-actions"><button type="button" className="btn-neutral small-action" disabled={!exportableSettings.length} onClick={() => downloadCsv(exportableSettings, 'smsv3-governed-settings')}><SmsIcon name="report" size={15} /> Export governed values</button><button type="button" className="btn-neutral small-action" onClick={onAudit}><SmsIcon name="audit" size={15} /> Audit Log</button><button type="button" className="btn-primary compact" disabled title="SMS ไม่ใช้ Google Sheets เป็นแหล่งข้อมูลหลัก"><SmsIcon name="refresh" size={15} /> Google Sheets ถูกยกเลิก</button></div></div>
+    <div className="page-heading settings-heading"><div><p className="eyebrow">ADMIN · GOVERNED CONFIGURATION</p><h1>Configuration Center</h1><p>จัดการค่าที่ระบบ register และ validate ไว้แล้ว โดยแยก secret/operational authority ออกจาก SystemSetting อย่างชัดเจน</p></div><div className="heading-actions"><button type="button" className="btn-neutral small-action" disabled={!exportableSettings.length} onClick={() => downloadCsv(exportableSettings, 'smsv3-governed-settings')}><SmsIcon name="report" size={15} /> Export governed values</button><button type="button" className="btn-neutral small-action" onClick={onAudit}><SmsIcon name="audit" size={15} /> Audit Log</button></div></div>
     {error && <div className="alert alert-error"><RequestErrorContent error={error} /></div>}
     {loading ? <div className="loading-row">กำลังอ่าน Configuration Registry…</div> : <ConfigurationRegistryPanel settings={settings} />}
     <AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />
@@ -1592,7 +1592,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
         <aside className="leave-decision-actions" aria-label="การตัดสินใจ">
           <div><p className="eyebrow">การตัดสินใจ</p><h2>ดำเนินการ</h2><p>ตรวจสอบข้อมูลคำขอให้ครบก่อนเลือกผลการพิจารณา</p></div>
           {selectedPendingIsSelf ? <div className="leave-self-approval-block"><strong>ไม่สามารถอนุมัติใบลาของตนเอง</strong><p>ระบบยังคงบังคับกฎ self-approval เดิม รายการนี้ต้องให้ผู้มีอำนาจคนอื่นพิจารณา</p></div> : selectedPending ? <div className="leave-decision-buttons"><button type="button" className="btn-success" disabled={!mutationsEnabled} onClick={() => onApprove(selectedPending)}><SmsIcon name="check" size={18} />อนุมัติคำขอ</button><button type="button" className="btn-warning" disabled={!mutationsEnabled} onClick={() => onReturnForCorrection(selectedPending)}>ส่งกลับไปแก้ไข</button><button type="button" className="btn-danger-outline" disabled={!mutationsEnabled} onClick={() => onReject(selectedPending)}>ไม่อนุมัติ</button></div> : <p className="muted-text">ยังไม่มีรายการที่เลือก</p>}
-          <small>การไม่อนุมัติยังใช้ขั้นตอนและ validation เดิมของระบบ ไม่มีการเปลี่ยน authority หรือ backend behavior</small>
+
         </aside>
       </div>
     </section>;
@@ -2856,7 +2856,7 @@ function Dashboard() {
         finally { setScheduleExportBusy(false); }
       };
       return <section className="view-pane schedule-calendar-page nexus-roster-workspace">
-        <div className="roster-command-kicker">SMS NEXUS / PERSONNEL / DUTY ROSTER</div>
+        <div className="roster-command-kicker">จัดตารางเวร</div>
         <div className="roster-telemetry-strip" aria-label="Roster telemetry">
           <div><span>ROSTER READINESS</span><strong>AWAITING DATA</strong><small>Verified telemetry only</small></div>
           <div><span>SHIFT COVERAGE · 24H</span><strong>AWAITING DATA</strong><small>No simulated coverage</small></div>
@@ -2918,9 +2918,6 @@ function Dashboard() {
               </button>
             )}
             <span className="toolbar-count" style={{ marginLeft: 'auto' }}>{operationLoading ? 'แสดง — จาก — คน' : `แสดง ${calendarEmployees.length} จาก ${allCalendarEmployees.length} คน`}</span>
-          </div>
-          <div title="ไม้กายสิทธิ์สำหรับ Admin — จัดกะทุกคนด้วย Shared Pattern Engine เดียวกับไม้กายสิทธิ์รายบุคคล" style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>
-            Shared Pattern Engine เดียวกับไม้กายสิทธิ์รายบุคคล · Auto Continue แบบเดียวกับไม้กายสิทธิ์รายบุคคล · ใช้ Pattern Master เดียวกับไม้กายสิทธิ์รายบุคคล · อ่านแพทเทิร์น Supervisor/พนักงานทั่วไปจากค่าที่ Admin จัดการ · คง AL และ Admin license override
           </div>
 
           <div className="schedule-draft-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', paddingTop: '12px', borderTop: '1px dashed #bfdbfe' }}>
@@ -3088,7 +3085,7 @@ function Dashboard() {
       const results = Array.isArray(ruleCheckResponse.ruleResults) ? ruleCheckResponse.ruleResults as DataRow[] : [];
       const violations = Array.isArray(ruleCheckResponse.violations) ? ruleCheckResponse.violations as DataRow[] : [];
       const metrics = nested(ruleCheckResponse.metrics);
-      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Rule Checking</h1><p>ตรวจสอบกฎเดิมกับตารางกะจาก PostgreSQL แบบ read-only</p></div><div className="heading-actions"><label className="month-filter"><span>เดือน</span><select value={scheduleMonth} onChange={(event) => setScheduleMonth(event.target.value)} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0' }}>{Array.from({ length: 24 }, (_, i) => { const d = new Date(Date.UTC(2025, i, 1)); const val = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d); const thaiYear = d.getUTCFullYear() + 543; return <option key={val} value={val}>{name} พ.ศ. {thaiYear}</option>; })}</select></label><button className="btn-neutral small-action" onClick={() => setOperationRefresh((value) => value + 1)}>ตรวจสอบอีกครั้ง</button></div></div>
+      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Rule Checking</h1><p>ตรวจตารางกะกับกฎการทำงาน</p></div><div className="heading-actions"><label className="month-filter"><span>เดือน</span><select value={scheduleMonth} onChange={(event) => setScheduleMonth(event.target.value)} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0' }}>{Array.from({ length: 24 }, (_, i) => { const d = new Date(Date.UTC(2025, i, 1)); const val = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d); const thaiYear = d.getUTCFullYear() + 543; return <option key={val} value={val}>{name} พ.ศ. {thaiYear}</option>; })}</select></label><button className="btn-neutral small-action" onClick={() => setOperationRefresh((value) => value + 1)}>ตรวจสอบอีกครั้ง</button></div></div>
         <ErrorAlert message={operationError} />
         <div className="rule-summary-grid"><article><span className={Number(metrics.violations || 0) ? 'rule-state fail' : 'rule-state pass'}>{Number(metrics.violations || 0) ? '!' : '✓'}</span><div><p>รายการขัดกฎทั้งหมด</p><strong>{text(metrics.violations)}</strong></div></article><article><span className="rule-state pass">✓</span><div><p>กฎที่ผ่าน</p><strong>{text(metrics.rulesPassed)} / {text(metrics.rulesChecked)}</strong></div></article><article><span className="rule-state pass">♙</span><div><p>พนักงาน Active</p><strong>{text(metrics.activeEmployees)}</strong></div></article><article><span className="rule-state pass">◷</span><div><p>ชั่วโมงรวม</p><strong>{text(metrics.totalHours)}</strong></div></article></div>
         <RuleCheckingDataSurfaces rules={rules} results={results} violations={violations} loading={operationLoading} canManage={canManage} onAction={(row, action) => handleOperationAction(row, action)} />
