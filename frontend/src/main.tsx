@@ -26,6 +26,7 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import { api, refreshAuth, setTokenRefreshHandler } from './api';
 import { canDecideScheduleApproval, isSupersededScheduleApproval, scheduleApprovalChangeTypeLabel, scheduleApprovalErrorMessage, scheduleApprovalStatusLabel, scheduleApprovalTone } from './approval-display';
+import { getEmployeeLeaveQuota } from './leave-request-quota-api';
 import type { ScheduleBatchProgress } from './api';
 import { isG06DeviceContextDiagnosticRequested, shouldOpenG06DeviceContextDiagnostic } from './lib/g06-device-context-diagnostic-route';
 import { readEncryptedBootstrap } from './pages/attendance-simple/attendance-simple-storage';
@@ -35,6 +36,7 @@ import { getApprovalCenterSummary } from './approval-center-client';
 import { shouldPollApprovalCenter } from './approval-center-polling';
 import { approvalBadgeText, approvalCountValue } from './components/approval-count-badge';
 import { ApprovalCenterNotificationButton } from './components/ApprovalCenterNotificationButton';
+import type { EmployeeComboboxOption } from './components/SearchableEmployeeCombobox';
 import { getLeavePolicy } from './leave-policy-client';
 import { createLeaveType, getLeaveTypes, updateLeaveType, type LeaveTypeMaster } from './leave-type-client';
 import { getShiftTypes } from './shift-type-client';
@@ -130,6 +132,7 @@ const DataRowActionMenu = React.lazy(() => import('./components/DataRowActionMen
 const TableActionCell = React.lazy(() => import('./components/TableActionColumn').then((module) => ({ default: module.TableActionCell })));
 const TableActionHeader = React.lazy(() => import('./components/TableActionColumn').then((module) => ({ default: module.TableActionHeader })));
 const LeaveDecisionConfirmation = React.lazy(() => import('./components/LeaveDecisionConfirmation').then((module) => ({ default: module.LeaveDecisionConfirmation })));
+const SearchableEmployeeCombobox = React.lazy(() => import('./components/SearchableEmployeeCombobox').then((module) => ({ default: module.SearchableEmployeeCombobox })));
 
 type User = { id: string; email: string; displayName: string; role: string; department?: string };
 type Employee = { id: string; employeeCode: string; firstName: string; lastName: string; displayName?: string; email?: string | null; phone?: string | null; department?: string; jobTitle?: string; hiredAt?: string | null; skill?: string | null; isActive: boolean; updatedAt?: string };
@@ -1404,13 +1407,16 @@ function ShiftEditorModal({ shift, defaults, employees, shiftTypes, licenses, is
   );
 }
 
-function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePolicy, leaveTypes, quotaYear, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mutationsEnabled = true, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, onSubmit, onApprove, onReject, onReturnForCorrection, onEditReturned, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: RequestErrorInput; linked: boolean; remaining: DataRow; leavePolicy: DataRow; leaveTypes: LeaveTypeMaster[]; quotaYear?: number; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mutationsEnabled?: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onReturnForCorrection(row: DataRow): void; onEditReturned(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
+function LeaveManagementPage({ rows, loading, error, linked, remaining, quotaSummary, leavePolicy, leaveTypes, quotaYear, employeeId, currentUserId, currentUserRole, canManage, canSubmit, canCancelApprovedLeave, mutationsEnabled = true, mode = 'all', historyScope = 'mine', historyMonth, historyTotal, historyPage, historyTotalPages, historyStatusCounts, employeeOptions, onSubmit, onApprove, onReject, onReturnForCorrection, onEditReturned, onCancel, onRefresh, onHistoryMonthChange, onHistoryMonthStep, onHistoryPageChange, onAttachment, onPrint }: { rows: DataRow[]; loading: boolean; error?: RequestErrorInput; linked: boolean; remaining: DataRow; quotaSummary: DataRow; leavePolicy: DataRow; leaveTypes: LeaveTypeMaster[]; quotaYear?: number; employeeId?: string; currentUserId?: string; currentUserRole?: string; canManage: boolean; canSubmit: boolean; canCancelApprovedLeave: boolean; mutationsEnabled?: boolean; mode?: 'all' | 'pending' | 'history'; historyScope?: 'mine' | 'all'; historyMonth?: string; historyTotal?: number; historyPage?: number; historyTotalPages?: number; historyStatusCounts?: Record<string, number>; employeeOptions: Array<{ value: string; label: string }>; onSubmit(values: Record<string, string>, file?: File): Promise<void>; onApprove(row: DataRow): void; onReject(row: DataRow): void; onReturnForCorrection(row: DataRow): void; onEditReturned(row: DataRow): void; onCancel(row: DataRow): void; onRefresh(): void; onHistoryMonthChange?(value: string): void; onHistoryMonthStep?(delta: number): void; onHistoryPageChange?(page: number): void; onAttachment(row: DataRow): void; onPrint(row: DataRow): void }) {
+  const auth = useContext(AuthContext)!;
   const [form, setForm] = useState({ employeeId: '', leaveType: '', startDate: '', endDate: '', substitute: '', reason: '' });
   const [file, setFile] = useState<File>();
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [submitError, setSubmitError] = useState<RequestErrorInput>();
   const [selectedPendingId, setSelectedPendingId] = useState<string>();
+  const [requestQuota, setRequestQuota] = useState<{ entitlement: unknown; used: unknown; remaining: unknown }>();
+  const [requestQuotaState, setRequestQuotaState] = useState<'idle' | 'loading' | 'ready' | 'missing' | 'error'>('idle');
   const pendingRows = rows.filter((row) => row.status === 'PENDING');
   const historyRows = historyScope === 'all' ? rows : rows.filter((row) => String(row.employeeId || '') === String(employeeId || ''));
   const days = form.startDate && form.endDate ? Math.max(0, Math.floor((Date.parse(`${form.endDate}T00:00:00Z`) - Date.parse(`${form.startDate}T00:00:00Z`)) / 86400000) + 1) : 0;
@@ -1419,9 +1425,9 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
   const selectedLeaveType = leaveTypes.find((item) => item.code === form.leaveType);
   const requiresAttachment = selectedLeaveType?.quotaBucket === 'SICK' && days > attachmentThresholdDays;
   const summaryLoading = loading || Boolean(error);
-
-  const todayBkk = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
-  const todayString = `${todayBkk.getFullYear()}-${String(todayBkk.getMonth() + 1).padStart(2, '0')}-${String(todayBkk.getDate()).padStart(2, '0')}`;
+  const todayString = formatBangkokDateInput();
+  const selectedQuotaYear = Number(form.startDate.slice(0, 4)) || quotaYear || currentBangkokQuotaYear();
+  const requestSpansYears = Boolean(form.startDate && form.endDate && form.startDate.slice(0, 4) !== form.endDate.slice(0, 4));
   const isRetroactive = form.startDate ? form.startDate < todayString : false;
   const managerRetroactiveEnabled = leavePolicy.managerRetroactiveOnBehalfEnabled !== false && String(leavePolicy.managerRetroactiveOnBehalfEnabled ?? 'true').toLowerCase() !== 'false';
   const rawManagerLookback = Number(leavePolicy.managerRetroactiveMaxDaysBack);
@@ -1435,6 +1441,68 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
     || !managerRetroactiveEnabled
     || (managerRetroactiveMaxDaysBack > 0 && retroactiveDaysBackCount > managerRetroactiveMaxDaysBack)
   );
+
+  useEffect(() => {
+    let active = true;
+    const bucket = selectedLeaveType?.quotaBucket;
+    if (!bucket || bucket === 'NONE' || !['SICK', 'PERSONAL', 'VACATION'].includes(bucket)) {
+      setRequestQuota(undefined);
+      setRequestQuotaState('idle');
+      return () => { active = false; };
+    }
+    if (canManage && !form.employeeId) {
+      setRequestQuota(undefined);
+      setRequestQuotaState('idle');
+      return () => { active = false; };
+    }
+    const field = bucket === 'SICK' ? 'sickLeave' : bucket === 'PERSONAL' ? 'personalLeave' : 'vacationLeave';
+    setRequestQuota(undefined);
+    setRequestQuotaState('loading');
+    const load = async () => {
+      try {
+        if (!auth.token) throw new Error('Missing authenticated session');
+        if (canManage) {
+          const result = await getEmployeeLeaveQuota(auth.token, selectedQuotaYear, form.employeeId);
+          if (!active) return;
+          const rows = Array.isArray(result?.data) ? result.data as DataRow[] : [];
+          const row = rows.find((item) => String(item.employeeId || '') === form.employeeId);
+          if (!row) { setRequestQuotaState('missing'); return; }
+          const entitlement = row[field];
+          const used = row[`${field}Used`];
+          const available = row[`${field}Remaining`];
+          if (entitlement === undefined || used === undefined || available === undefined) { setRequestQuotaState('missing'); return; }
+          setRequestQuota({ entitlement, used, remaining: available });
+          setRequestQuotaState('ready');
+          return;
+        }
+        const summary = Number(quotaSummary.quotaYear) === selectedQuotaYear
+          ? quotaSummary
+          : nested((await api.leaveSummary(auth.token, selectedQuotaYear))?.data);
+        if (!active) return;
+        const entitlement = nested(summary.entitlement)[field];
+        const used = nested(summary.used)[field];
+        const available = nested(summary.remaining)[field];
+        if (entitlement === undefined || used === undefined || available === undefined) { setRequestQuotaState('missing'); return; }
+        setRequestQuota({ entitlement, used, remaining: available });
+        setRequestQuotaState('ready');
+      } catch {
+        if (active) { setRequestQuota(undefined); setRequestQuotaState('error'); }
+      }
+    };
+    void load();
+    return () => { active = false; };
+  }, [auth.token, canManage, form.employeeId, quotaSummary, selectedLeaveType?.quotaBucket, selectedQuotaYear]);
+
+  const searchEmployees = async (query: string): Promise<EmployeeComboboxOption[]> => {
+    if (!auth.token) return [];
+    const result = await api.employees(auth.token, { page: 1, pageSize: 20, search: query, isActive: true });
+    const rows = Array.isArray(result?.data) ? result.data as DataRow[] : [];
+    return rows.map((row) => {
+      const name = String(row.displayName || `${row.firstName || ''} ${row.lastName || ''}`.trim());
+      const code = String(row.employeeCode || '').trim();
+      return { value: String(row.id || ''), label: [code, name].filter(Boolean).join(' · ') };
+    }).filter((option) => option.value && option.label);
+  };
 
   const formReady = Boolean((canManage ? form.employeeId : linked) && form.leaveType && form.startDate && form.endDate && form.substitute.trim() && (!isRetroactive || form.reason.trim()) && (!requiresAttachment || file) && !managerRetroactiveBlocked);
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
@@ -1565,7 +1633,7 @@ function LeaveManagementPage({ rows, loading, error, linked, remaining, leavePol
       </div>
     )}
     {linked ? <div className="leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <article className={`leave-quota-card ${tone}`} key={label}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ที่กำหนด (วัน)</small></div><span>{icon}</span></article>)}</div> : !canManage && <div className="alert alert-error">บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อ Admin ก่อนส่งคำขอลา</div>}
-    <div className="leave-main-grid"><section className="leave-submit-card"><header><span>✍️</span><div><h2>ยื่นคำขอลาพัก (Submit Leave Request)</h2><p>กรอกข้อมูลให้ครบก่อนส่งเข้าคิวอนุมัติ</p></div></header><form onSubmit={submit}>{canManage && <label className="field-group"><span>👤 พนักงาน <b>*</b></span><select required value={form.employeeId} onChange={(event) => update('employeeId', event.target.value)}><option value="">-- เลือกพนักงาน --</option>{employeeOptions.map((employee) => <option key={employee.value} value={employee.value}>{employee.label}</option>)}</select></label>}<label className="field-group"><span>📌 ประเภทการลา <b>*</b></span><select required value={form.leaveType} onChange={(event) => update('leaveType', event.target.value)}><option value="">-- กรุณาเลือกประเภทการลา --</option>{leaveTypes.filter((item) => item.isActive).map((item) => <option key={item.id} value={item.code}>{item.name} ({item.code})</option>)}</select></label><div className="leave-date-grid"><label className="field-group"><span>📅 วันที่เริ่มต้น <b>*</b></span><input required type="date" min={!canManage ? todayString : undefined} value={form.startDate} onChange={(event) => update('startDate', event.target.value)} /></label><label className="field-group"><span>🏁 วันที่สิ้นสุด <b>*</b></span><input required type="date" min={form.startDate || (!canManage ? todayString : undefined)} value={form.endDate} onChange={(event) => update('endDate', event.target.value)} /></label></div>{days > 0 && <div className="leave-days-note">ระยะเวลาการลา: <strong>{days}</strong> วัน</div>}<label className="field-group"><span>👥 ผู้ปฏิบัติงานแทน <b>*</b></span><input required value={form.substitute} placeholder="ระบุชื่อ-นามสกุล ผู้เข้าเวร/ปฏิบัติงานแทน" onChange={(event) => update('substitute', event.target.value)} /></label><label className="field-group"><span>📝 เหตุผลการลา {isRetroactive && <b>*</b>}</span><textarea required={isRetroactive} rows={3} value={form.reason} placeholder={isRetroactive ? "ต้องระบุเหตุผลเมื่อเลือกวันลาย้อนหลัง" : "ระบุเหตุผลหรือความจำเป็นในการลา... (ไม่บังคับ)"} onChange={(event) => update('reason', event.target.value)} /></label><label className="leave-file-field"><span>📎 แนบไฟล์เอกสาร (ใบรับรองแพทย์/รูปภาพ/PDF)</span><small>{attachmentThresholdDays === 0 ? 'ลาป่วยทุกจำนวนวันต้องแนบเอกสาร' : `จำเป็นเมื่อลาป่วยเกิน ${attachmentThresholdDays} วัน`} · ระบบปรับไฟล์อัตโนมัติ: รูป 300–450 KB (สูงสุด 500 KB) · PDF สูงสุด 1 MB</small><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} />{file && <em>เลือกไฟล์แล้ว: {file.name}</em>}</label>{managerRetroactiveBlocked && <div className="alert alert-error">{managerSelfRetroactive ? 'Manager ไม่สามารถบันทึกการลาย้อนหลังให้ตนเองได้' : !managerRetroactiveEnabled ? 'นโยบายปัจจุบันไม่อนุญาตให้ Manager บันทึกการลาย้อนหลังแทนพนักงาน' : `นโยบายปัจจุบันอนุญาตให้ Manager ย้อนหลังได้สูงสุด ${managerRetroactiveMaxDaysBack} วัน`}</div>}{notice && <div className="settings-notice success">{notice}</div>}{submitError && <ErrorAlert message={submitError} className="leave-submit-error" />}<button className="leave-submit-button" disabled={!mutationsEnabled || !canSubmit || !formReady || submitting} type="submit">🚀 {submitting ? 'กำลังส่งคำขอลา…' : 'ยืนยันและส่งคำขอลา'}</button></form></section>
+    <div className="leave-main-grid"><section className="leave-submit-card"><header><span>✍️</span><div><h2>ยื่นคำขอลาพัก (Submit Leave Request)</h2><p>กรอกข้อมูลให้ครบก่อนส่งเข้าคิวอนุมัติ</p></div></header><form onSubmit={submit}>{canManage ? <label className="field-group"><span>👤 พนักงาน <b>*</b></span><React.Suspense fallback={<span role="status">กำลังเตรียมค้นหาพนักงาน…</span>}><SearchableEmployeeCombobox id="leave-employee" value={form.employeeId} options={employeeOptions} onChange={(value) => update('employeeId', value)} onSearch={searchEmployees} /></React.Suspense></label> : linked && <div className="leave-self-employee leave-days-note" role="status"><strong>ส่งคำขอในชื่อของคุณ</strong><span>{auth.user?.displayName || auth.user?.email || 'บัญชีพนักงาน'}</span><small>รายการนี้ส่งสำหรับบัญชีที่เข้าสู่ระบบ ไม่สามารถเปลี่ยนพนักงานได้</small></div>}<label className="field-group"><span>📌 ประเภทการลา <b>*</b></span><select required value={form.leaveType} onChange={(event) => update('leaveType', event.target.value)}><option value="">-- กรุณาเลือกประเภทการลา --</option>{leaveTypes.filter((item) => item.isActive).map((item) => <option key={item.id} value={item.code}>{item.name} ({item.code})</option>)}</select></label><div className="leave-date-grid"><label className="field-group"><span>📅 วันที่เริ่มต้น <b>*</b></span><input required type="date" min={!canManage ? todayString : undefined} value={form.startDate} onChange={(event) => update('startDate', event.target.value)} /></label><label className="field-group"><span>🏁 วันที่สิ้นสุด <b>*</b></span><input required type="date" min={form.startDate || (!canManage ? todayString : undefined)} value={form.endDate} onChange={(event) => update('endDate', event.target.value)} /></label></div>{days > 0 && <div className="leave-days-note">ระยะเวลาการลา: <strong>{days}</strong> วัน</div>}{selectedLeaveType?.quotaBucket === 'NONE' && <div className="leave-request-quota-note" role="status">ประเภทการลานี้ไม่มีโควต้ารายปี</div>}{selectedLeaveType && selectedLeaveType.quotaBucket !== 'NONE' && (canManage ? Boolean(form.employeeId) : linked) && <section className="leave-request-quota leave-days-note" aria-live="polite" aria-busy={requestQuotaState === 'loading'}><h3>สิทธิ์{selectedLeaveType.name} · {thaiQuotaYearLabel(selectedQuotaYear)}</h3>{requestQuotaState === 'loading' ? <p role="status">กำลังโหลดข้อมูลสิทธิ์จากระบบ…</p> : requestQuotaState === 'error' ? <p role="alert">โหลดข้อมูลสิทธิ์ไม่สำเร็จ กรุณาลองใหม่ก่อนส่งคำขอ</p> : requestQuotaState === 'missing' ? <p role="status">ยังไม่มีข้อมูลสิทธิ์ที่แสดงได้สำหรับพนักงานและปีที่เลือก ระบบจะตรวจสอบสิทธิ์เมื่อส่งคำขอ</p> : requestQuotaState === 'ready' && requestQuota ? <><p><strong>สิทธิ์ทั้งหมด:</strong> {text(requestQuota.entitlement)} วัน · <strong>ใช้แล้ว:</strong> {text(requestQuota.used)} วัน · <strong>คงเหลือ:</strong> {text(requestQuota.remaining)} วัน</p>{requestSpansYears ? <p className="leave-request-quota-note">ช่วงวันที่ลาคร่อมปี ระบบจะตรวจสิทธิ์แยกตามแต่ละปีเมื่อส่งคำขอ</p> : days > 0 && Number.isFinite(Number(requestQuota.remaining)) && days > Number(requestQuota.remaining) ? <p className="leave-request-quota-warning alert alert-warning" role="status">วันที่เลือกมากกว่าสิทธิ์คงเหลือ ข้อมูลนี้เป็นคำเตือนเท่านั้น ระบบจะตรวจสิทธิ์อีกครั้งเมื่อส่งคำขอ</p> : <p className="leave-request-quota-note">ข้อมูลสิทธิ์จากระบบ · การส่งคำขอจะตรวจสอบตามกติกาฝั่งระบบ</p>}</> : requestQuotaState === 'idle' ? <p role="status">กำลังเตรียมข้อมูลสิทธิ์…</p> : <p>เลือกประเภทการลาและวันที่เพื่อดูข้อมูลสิทธิ์</p>}</section>}<label className="field-group"><span>👥 ผู้ปฏิบัติงานแทน <b>*</b></span><input required value={form.substitute} placeholder="ระบุชื่อ-นามสกุล ผู้เข้าเวร/ปฏิบัติงานแทน" onChange={(event) => update('substitute', event.target.value)} /></label><label className="field-group"><span>📝 เหตุผลการลา {isRetroactive && <b>*</b>}</span><textarea required={isRetroactive} rows={3} value={form.reason} placeholder={isRetroactive ? "ต้องระบุเหตุผลเมื่อเลือกวันลาย้อนหลัง" : "ระบุเหตุผลหรือความจำเป็นในการลา... (ไม่บังคับ)"} onChange={(event) => update('reason', event.target.value)} /></label><label className="leave-file-field"><span>📎 แนบไฟล์เอกสาร (ใบรับรองแพทย์/รูปภาพ/PDF)</span><small>{attachmentThresholdDays === 0 ? 'ลาป่วยทุกจำนวนวันต้องแนบเอกสาร' : `จำเป็นเมื่อลาป่วยเกิน ${attachmentThresholdDays} วัน`} · ระบบปรับไฟล์อัตโนมัติ: รูป 300–450 KB (สูงสุด 500 KB) · PDF สูงสุด 1 MB</small><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0])} />{file && <em>เลือกไฟล์แล้ว: {file.name}</em>}</label>{managerRetroactiveBlocked && <div className="alert alert-error">{managerSelfRetroactive ? 'Manager ไม่สามารถบันทึกการลาย้อนหลังให้ตนเองได้' : !managerRetroactiveEnabled ? 'นโยบายปัจจุบันไม่อนุญาตให้ Manager บันทึกการลาย้อนหลังแทนพนักงาน' : `นโยบายปัจจุบันอนุญาตให้ Manager ย้อนหลังได้สูงสุด ${managerRetroactiveMaxDaysBack} วัน`}</div>}{notice && <div className="settings-notice success">{notice}</div>}{submitError && <ErrorAlert message={submitError} className="leave-submit-error" />}<button className="leave-submit-button" disabled={!mutationsEnabled || !canSubmit || !formReady || submitting} type="submit">🚀 {submitting ? 'กำลังส่งคำขอลา…' : 'ยืนยันและส่งคำขอลา'}</button></form></section>
       <section className="leave-history-card data-surface-card"><header><span>📋</span><div><h2>{mode === 'history' ? 'ประวัติการลาพนักงานทั้งหมด (All Employee Leaves & Print A4)' : 'ประวัติคำขอลาของฉัน (My Leave History)'}</h2><p>{mode === 'history' ? 'สำหรับหัวหน้างานและ Admin ตรวจสอบรายการลาทั้งหมด และพิมพ์ใบลาอนุมัติ' : 'วันที่ลา ประเภทการลา และสถานะคำขอลา'}</p></div>{mode === 'history' && <button className="btn-neutral small-action" onClick={onRefresh} disabled={loading}>↻ รีเฟรชข้อมูล</button>}</header>{mode === 'history' && historyMonth && onHistoryMonthChange && onHistoryMonthStep && <div className="leave-history-filter data-toolbar-panel"><div><strong>แสดงข้อมูล: {formatThaiMonth(historyMonth)}</strong><small>รายการลาที่มีช่วงวันทับซ้อนกับเดือนที่เลือก</small></div><div className="leave-history-month-controls"><MonthGridPicker value={historyMonth} onChange={onHistoryMonthChange} /><button className="btn-neutral small-action" onClick={() => onHistoryMonthStep(-1)} disabled={loading}>‹ เดือนก่อน</button><button className="btn-neutral small-action" onClick={() => onHistoryMonthStep(1)} disabled={loading}>เดือนถัดไป ›</button></div></div>}{mode !== 'history' && <><div className="my-leave-quota-heading">โควต้าคงเหลือ{quotaYear ? ` · ${thaiQuotaYearLabel(quotaYear)}` : ''}</div><div className="my-leave-quota-grid">{quotaCards.map(([icon, label, value, tone]) => <article className={`leave-quota-card ${tone}`} key={`my-${label}`}><div><p>{icon} {label}</p><strong>{text(value)}</strong><small>ตามสิทธิ์ที่กำหนด (วัน)</small></div><span>{icon}</span></article>)}</div></>}{loading ? <DataTableState variant="loading" title="กำลังดึงประวัติการลา…" /> : error ? <DataTableState variant="error" title="ไม่สามารถโหลดประวัติการลา" description="ระบบไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่อีกครั้ง" action={{ label: 'ลองใหม่', onClick: onRefresh }} /> : leaveTable(historyRows, false, mode === 'history' && historyMonth ? `ไม่พบประวัติการลาในเดือน${formatThaiMonth(historyMonth)}` : 'ไม่มีรายการ', true)}{mode === 'history' && onHistoryPageChange && (loading || Boolean(historyTotalPages)) && <DataTablePagination page={historyPage || 1} totalPages={historyTotalPages || 0} onChange={onHistoryPageChange} ariaLabel="การแบ่งหน้าประวัติการลา" loading={loading} className="pagination-bar" />}{mode === 'history' && <div className="leave-history-total">ทั้งหมด {summaryLoading ? '—' : historyTotal ?? historyRows.length} รายการในเดือนที่เลือก</div>}</section>
     </div>
     <ErrorAlert message={error} className="leave-error" />
@@ -3100,7 +3168,7 @@ function Dashboard() {
       const rows = Array.isArray(operationResponse.data) ? operationResponse.data : [];
       const remaining = nested(leaveSummary.remaining);
         const canCancelApprovedLeave = auth.user?.role === 'ADMIN';
-        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} currentUserId={auth.user?.id} currentUserRole={auth.user?.role} leavePolicy={leavePolicy} leaveTypes={activeLeaveTypes} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} quotaYear={Number(leaveSummary.quotaYear || currentBangkokQuotaYear())} canManage={pwaShell ? false : canManage} canSubmit={(pwaShell ? pwaOnline : true) && (auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked))} canCancelApprovedLeave={canCancelApprovedLeave} mutationsEnabled={!pwaShell || pwaOnline} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onReturnForCorrection={(row) => handleOperationAction(row, 'return')} onEditReturned={(row) => runEditor({
+        return <LeaveManagementPage mode={activePage === 'leavePending' ? 'pending' : activePage === 'leaveHistory' ? 'history' : 'all'} historyScope={activePage === 'leaveHistory' ? 'all' : 'mine'} historyMonth={activePage === 'leaveHistory' ? leaveMonth : undefined} historyTotal={activePage === 'leaveHistory' ? operationResponse.meta?.total : undefined} historyPage={activePage === 'leaveHistory' ? operationResponse.meta?.page : undefined} historyTotalPages={activePage === 'leaveHistory' ? operationResponse.meta?.totalPages : undefined} historyStatusCounts={activePage === 'leaveHistory' ? operationResponse.meta?.statusCounts : undefined} employeeId={String(leaveSummary.employeeId || '')} currentUserId={auth.user?.id} currentUserRole={auth.user?.role} leavePolicy={leavePolicy} leaveTypes={activeLeaveTypes} rows={rows} loading={operationLoading} error={operationError} linked={Boolean(leaveSummary.linked)} remaining={remaining} quotaSummary={leaveSummary} quotaYear={Number(leaveSummary.quotaYear || currentBangkokQuotaYear())} canManage={pwaShell ? false : canManage} canSubmit={(pwaShell ? pwaOnline : true) && (auth.user?.role !== 'VIEWER' || Boolean(leaveSummary.linked))} canCancelApprovedLeave={canCancelApprovedLeave} mutationsEnabled={!pwaShell || pwaOnline} employeeOptions={employeeOptions} onRefresh={() => setOperationRefresh((value) => value + 1)} onHistoryMonthChange={changeLeaveMonth} onHistoryMonthStep={(delta) => changeLeaveMonth(shiftMonthValue(leaveMonth, delta))} onHistoryPageChange={setOperationPage} onApprove={(row) => handleOperationAction(row, 'approve')} onReject={(row) => handleOperationAction(row, 'reject')} onReturnForCorrection={(row) => handleOperationAction(row, 'return')} onEditReturned={(row) => runEditor({
           title: `แก้ไขคำขอลา · ${text(row.employeeNameSnapshot)}`,
           submitLabel: 'บันทึกและส่งตรวจสอบอีกครั้ง',
           fields: [
