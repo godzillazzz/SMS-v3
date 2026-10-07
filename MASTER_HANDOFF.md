@@ -2,7 +2,7 @@
 
 ## Current state — R2 Production ผ่าน; R3 application work พร้อมให้เจ้าของระบบหา Preview และรัน Technical Smoke (7 ตุลาคม 2569)
 
-**สถานะ: OPEN — Production ยังเป็น R2 (`2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`), เจ้าของระบบยืนยันหน้าจอหลังล็อกอินผ่าน และ rollback reference คือ `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`. งาน R3 T25 → T24 → T26 → T27 → T28 อยู่บน integration แล้ว. Application RELEASE_SHA สำหรับ Smoke คือ `dad05e83ad4fa44affa8175c520b087a5f94b509` (merge #492). Exact-head CI และ Vercel status ของ PR #492 head `f7c86882b10822e1277f68ec977a092c639b7784` ผ่าน; tree ของ PR head ตรงกับ merge SHA. Status check โดยตรงบน merge SHA ยังเป็น Vercel `pending` และ connector ไม่ได้ให้ Preview alias/deployment id ดังนั้นเจ้าของระบบต้องยืนยัน Preview ที่ native SHA/ref/project/READY ตรงกับ RELEASE_SHA ก่อน Technical Smoke. ยังไม่มี R3 Smoke หรือ Production release.**
+**สถานะ: OPEN — Production ยังเป็น R2 (`2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`), เจ้าของระบบยืนยันหน้าจอหลังล็อกอินผ่าน และ rollback reference คือ `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`. งาน R3 T25 → T24 → T26 → T27 → T28 อยู่บน integration แล้ว. Application code merge #492 SHA คือ `dad05e83ad4fa44affa8175c520b087a5f94b509`. PR #493 ปรับ handoff เท่านั้น; final R3 Technical Smoke RELEASE_SHA จะเป็น integration merge SHA ของ #493 (GitHub คาด `9ca3624ce533a96a6d93b57b297f6f0364535895`, ต้องยืนยันหลัง merge). Exact-head CI และ Vercel status ของ PR #492 head `f7c86882b10822e1277f68ec977a092c639b7784` ผ่านและ tree ตรงกับ merge #492. ต้องให้ Owner ยืนยัน Preview ที่ native SHA/ref/project/READY ตรงกับ final RELEASE_SHA ก่อน Technical Smoke. ยังไม่มี R3 Smoke หรือ Production release.**
 
 ### Production now — R2
 
@@ -43,12 +43,12 @@
 - **T27 queue/device UI:** #491 hides request UUIDs, shows sender and people icon, localizes event/status enums and avoids default device counts while loading. CI passed; local frontend suite 863/863, build and diff-check passed. Authenticated browser inspection was unavailable; jsdom fixture used. Vercel alias and dpl id were not returned.
 - **T28 additions (6–10):** #492 removes schedule `AWAITING DATA` readiness/coverage cards; removes visible “ไม้กายสิทธิ์” and `CFG-06` wording; regression-tests the employee-link-specific Thai response for `/attendance/simple/bootstrap` 403; leaves bell/approval badges unset until a valid initial value (and hides zero); removes fake `••••••••••••` masked-token placeholder. Focused T28 regressions 14/14, frontend 871/871, build and diff-check passed. Exact-head CI run `37578638934` succeeded and Vercel status is success for the PR head. Authenticated schedule/settings pages were not opened; no credentials or Production data were used.
 
-- **Next step:** Owner locates a READY Preview with native SHA `dad05e83ad4fa44affa8175c520b087a5f94b509`, ref `fix/serverless-database-reliability`, and the expected `sms-v3-staging` project; then Owner dispatches Technical Smoke. No workflow was dispatched by Codex. If smoke passes, record its run ID before any later release-control work. Production remains R2 throughout.
+- **Next step:** After PR #493 merge, Owner locates a READY Preview with native SHA equal to the final integration RELEASE_SHA, ref `fix/serverless-database-reliability`, and expected `sms-v3-staging` project; then Owner dispatches Technical Smoke. No workflow was dispatched by Codex. If smoke passes, record its run ID before any later release-control work. Production remains R2 throughout.
 
 ### R3 release candidate identity
 
-- Application RELEASE_SHA: `dad05e83ad4fa44affa8175c520b087a5f94b509` (integration after #492; tree `8ae480e51f544694278ff1d65d9a97e439d23292`).
-- Exact PR-head CI `37578638934` passed for `f7c86882b10822e1277f68ec977a092c639b7784`; its tree is identical to the merge SHA. Vercel status on that PR head succeeded. Combined status on `dad05e8…` currently reports Vercel `pending`; exact-SHA Preview alias and deployment ID must be obtained by Owner before Smoke.
+- Application code after #492: `dad05e83ad4fa44affa8175c520b087a5f94b509` (tree `8ae480e51f544694278ff1d65d9a97e439d23292`). The final Smoke RELEASE_SHA is the integration HEAD after normal merge of documentation PR #493; GitHub currently reports expected merge SHA `9ca3624ce533a96a6d93b57b297f6f0364535895` (confirm actual result).
+- Exact PR-head CI `37578638934` passed for application head `f7c86882b10822e1277f68ec977a092c639b7784`, whose tree equals #492 merge SHA. Handoff PR #493 CI `37579202353` and Vercel status succeeded on its head `c924361018cf90cdb0a6e9f627cd0ec8d06cbec8`; after merge, Owner must locate/confirm a READY Preview with native SHA equal to the final Smoke RELEASE_SHA and obtain its alias/dpl id.
 - R3 has not been released to Production; rollback reference remains `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`.
 
 ### R2 application PRs
