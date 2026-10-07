@@ -16,7 +16,7 @@ describe('G06 Personal Device Enrollment V1 Phase 2 UI contract', () => {
     expect(main).toContain("{ id: 'attendanceDevice', icon: 'key', label: 'อุปกรณ์ลงเวลา' }");
     expect(main).toContain('<AttendanceDevicePage token={auth.token}');
     expect(main).toContain("'attendanceDevice' | 'profile' | 'reportCenter'");
-    expect(page).toContain('บัญชี/Passkey ไม่ถือเป็นหลักฐานว่าเครื่องนี้เป็น Attendance device');
+    expect(page).toContain('บัญชีหรือรหัสผ่านยืนยันตัวตนเพียงอย่างเดียวไม่ยืนยันว่าอุปกรณ์นี้เป็นเครื่องที่ใช้ลงเวลา');
   });
 
   it('wires self enrollment, proof, cancellation, and Admin-only review API calls', () => {
@@ -51,16 +51,19 @@ describe('G06 Personal Device Enrollment V1 Phase 2 UI contract', () => {
     expect(keys).toContain('!globalThis.crypto?.subtle');
     expect(keys).toContain('!globalThis.indexedDB');
     expect(page).toContain('LOCAL_KEY_STORAGE_FAILED');
-    expect(page).toContain('สถานะ Server ACTIVE แต่ local key ยังไม่พร้อม');
-    expect(page).toContain('ACTIVE_REQUEST_CANDIDATE_ID');
+    expect(page).toContain('ระบบระบุว่าอุปกรณ์ใช้งานอยู่ แต่ยังไม่พบคีย์ในอุปกรณ์นี้');
+    expect(page).not.toContain('ACTIVE_REQUEST_CANDIDATE_ID');
     expect(page).not.toContain('bearer device token');
   });
 
   it('requires replacement reason in the UX and keeps first/replacement activation behind Admin approval', () => {
     expect(page).toContain("if (selfState?.activeDevice && !reason.trim())");
-    expect(page).toContain('เครื่องแรกและการเปลี่ยนเครื่องต้อง Admin อนุมัติ');
+    expect(page).toContain('การลงทะเบียนครั้งแรกและการเปลี่ยนเครื่องต้องได้รับอนุมัติจากผู้ดูแลระบบ');
     expect(page).toContain("disabled={busy || readOnly || !row.candidateDevice?.proofVerifiedAt}");
-    expect(page).toContain('อนุมัติได้เฉพาะ candidate ที่พิสูจน์ possession ของ private key ผ่านแล้ว');
+    expect(page).not.toContain('possession');
+    expect(page).not.toContain('cryptographic proof');
+    expect(page).not.toContain('P-256');
+    expect(page).not.toContain('non-exportable');
   });
 
   it('prunes only stale keys for the same Employee and preserves active/pending enrollment keys', () => {

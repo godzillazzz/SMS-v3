@@ -65,6 +65,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify Linux sharp install excludes musl and loads pinned runtime
+        run: node scripts/ci/verify-linux-artifact.js node_modules --require-sharp-load
       - run: npm --prefix frontend ci
       - name: Audit backend dependencies
         run: npm audit --audit-level=high

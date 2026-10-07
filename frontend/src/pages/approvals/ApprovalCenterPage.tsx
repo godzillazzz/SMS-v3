@@ -14,13 +14,14 @@ type ApprovalType =
   | 'EMPLOYEE_MASTER_CHANGE'
   | 'EMPLOYEE_REFERENCE_PHOTO'
   | 'LICENSE_DOCUMENT'
+  | 'SCHEDULE_APPROVAL'
   | 'ATTENDANCE_DEVICE_REQUEST'
   | 'ATTENDANCE_ADJUSTMENT_REQUEST'
   | 'REGISTRATION_REQUEST'
   | 'USER_ACCESS'
   | 'LEAVE_REQUEST';
-type ApprovalSourcePage = 'employees' | 'licenses' | 'attendanceDevice' | 'attendance' | 'users' | 'leavePending';
-type CategoryFilter = 'ALL' | 'SHIFT_SWAP' | 'SECURE_VAULT' | 'LEAVE';
+type ApprovalSourcePage = 'employees' | 'licenses' | 'approvals' | 'attendanceDevice' | 'attendance' | 'users' | 'leavePending';
+type CategoryFilter = 'ALL' | 'LEAVE';
 type UrgencyFilter = 'ALL' | 'URGENT' | 'STANDARD';
 type MobileTab = 'QUEUE' | 'AUDIT';
 
@@ -67,6 +68,7 @@ const typeLabel: Record<ApprovalType, string> = {
   EMPLOYEE_MASTER_CHANGE: 'แก้ไขข้อมูลพนักงาน',
   EMPLOYEE_REFERENCE_PHOTO: 'รูปอ้างอิงพนักงาน',
   LICENSE_DOCUMENT: 'เอกสารใบอนุญาต',
+  SCHEDULE_APPROVAL: 'อนุมัติตารางกะ',
   ATTENDANCE_DEVICE_REQUEST: 'อุปกรณ์ลงเวลา',
   ATTENDANCE_ADJUSTMENT_REQUEST: 'ปรับปรุงเวลา Attendance',
   REGISTRATION_REQUEST: 'ลงทะเบียนบัญชี',
@@ -116,23 +118,6 @@ const initials = (value: string) =>
   value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.slice(0, 1)).join('').toUpperCase() || 'SMS';
 
 const meta = (item: ApprovalCenterItem, key: string) => item.metadata?.[key];
-
-function categoryFor(item: ApprovalCenterItem): Exclude<CategoryFilter, 'ALL'> | 'OTHER' {
-  if (item.type === 'LEAVE_REQUEST') return 'LEAVE';
-
-  const haystack = [
-    item.type,
-    item.title,
-    meta(item, 'requestType'),
-    meta(item, 'accessScope'),
-    meta(item, 'accessType'),
-    meta(item, 'reason')
-  ].map(text).join(' ').toUpperCase();
-
-  if (/SHIFT[\s_-]*SWAP|SWAP[\s_-]*SHIFT/.test(haystack)) return 'SHIFT_SWAP';
-  if (/SECURE[\s_-]*VAULT|VAULT[\s_-]*ACCESS/.test(haystack)) return 'SECURE_VAULT';
-  return 'OTHER';
-}
 
 function relevantSchedule(item: ApprovalCenterItem) {
   const start = meta(item, 'startDate');
@@ -193,14 +178,15 @@ export function ApprovalCenterPage({
 }: Props) {
   const [items, setItems] = useState<ApprovalCenterItem[]>([]);
   const [summary, setSummary] = useState<Summary>({ total: 0, byType: {}, dueSoon: 0, overdue: 0 });
+  const [summaryAvailable, setSummaryAvailable] = useState(false);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
-  const [audit24Label, setAudit24Label] = useState('AWAITING TELEMETRY');
+  const [audit24Label, setAudit24Label] = useState<string | null>(null);
   const [filter, setFilter] = useState<CategoryFilter>('ALL');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('ALL');
   const [mobileTab, setMobileTab] = useState<MobileTab>('QUEUE');
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
-  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(role === 'ADMIN');
   const [busyAction, setBusyAction] = useState<{ id: string; action: 'approve' | 'reject' }>();
   const [error, setError] = useState<RequestErrorInput>();
   const [notice, setNotice] = useState('');
@@ -209,6 +195,7 @@ export function ApprovalCenterPage({
 
   const loadQueue = async () => {
     setLoading(true);
+    setSummaryAvailable(false);
     setError(undefined);
 
     try {
@@ -223,8 +210,10 @@ export function ApprovalCenterPage({
         overdue: Number(result?.summary?.overdue || 0),
         truncated: Boolean(result?.summary?.truncated)
       });
+      setSummaryAvailable(true);
       setSelectedId((current) => next.some((item) => item.id === current) ? current : next[0]?.id || '');
     } catch (cause) {
+      setSummaryAvailable(false);
       setError(toRequestErrorState(cause, 'ไม่สามารถโหลด Approval Center ได้'));
     } finally {
       setLoading(false);
@@ -234,7 +223,7 @@ export function ApprovalCenterPage({
   const loadAudit = async () => {
     if (role !== 'ADMIN') {
       setAuditEvents([]);
-      setAudit24Label('AWAITING TELEMETRY');
+      setAudit24Label(null);
       return;
     }
 
@@ -262,7 +251,7 @@ export function ApprovalCenterPage({
       setAudit24Label(String(within24h.length) + (truncatedInsideWindow ? '+' : ''));
     } catch {
       setAuditEvents([]);
-      setAudit24Label('AWAITING TELEMETRY');
+      setAudit24Label(null);
     } finally {
       setAuditLoading(false);
     }
@@ -279,7 +268,7 @@ export function ApprovalCenterPage({
   }, [token, role]);
 
   const visible = useMemo(() => items.filter((item) => {
-    const categoryMatches = filter === 'ALL' || categoryFor(item) === filter;
+    const categoryMatches = filter === 'ALL' || item.type === 'LEAVE_REQUEST';
     const urgencyMatches = urgencyFilter === 'ALL'
       || (urgencyFilter === 'URGENT' ? item.urgency !== 'NEW' : item.urgency === 'NEW');
 
@@ -293,9 +282,7 @@ export function ApprovalCenterPage({
 
   const counts = useMemo(() => ({
     ALL: items.length,
-    SHIFT_SWAP: items.filter((item) => categoryFor(item) === 'SHIFT_SWAP').length,
-    SECURE_VAULT: items.filter((item) => categoryFor(item) === 'SECURE_VAULT').length,
-    LEAVE: items.filter((item) => categoryFor(item) === 'LEAVE').length,
+    LEAVE: items.filter((item) => item.type === 'LEAVE_REQUEST').length,
     URGENT: items.filter((item) => item.urgency !== 'NEW').length,
     STANDARD: items.filter((item) => item.urgency === 'NEW').length
   }), [items]);
@@ -427,6 +414,16 @@ export function ApprovalCenterPage({
       </button>;
     }
 
+    if (item.type === 'SCHEDULE_APPROVAL') {
+      return <button
+        type="button"
+        className="min-h-[44px] rounded-[7px] border border-[#25b8d3]/40 bg-[#0f1d2a] px-4 text-sm font-semibold text-[#8be5f2] transition hover:bg-[#1a2836]"
+        onClick={() => onNavigate(item)}
+      >
+        เปิดอนุมัติตารางกะ
+      </button>;
+    }
+
     if (selfLeave) {
       return <span className="rounded-[7px] border border-[#f59e0b]/35 bg-[#f59e0b]/10 px-3 py-2 text-xs text-[#f59e0b]">
         SELF-APPROVAL BLOCKED
@@ -455,31 +452,19 @@ export function ApprovalCenterPage({
 
   const telemetry = [
     {
-      label: 'PENDING REQUESTS',
-      value: loading ? '…' : String(summary.total),
+      label: 'คำขอรออนุมัติ',
+      value: summaryAvailable ? String(summary.total) : null,
+      loading,
       note: 'คำขอรอการอนุมัติตามสิทธิ์ ' + roleDisplayName(role),
       tone: 'text-[#f59e0b]'
     },
-    {
-      label: 'SLA RESOLUTION TIME',
-      value: 'AWAITING TELEMETRY',
-      note: 'ยังไม่มี API เวลาเฉลี่ยการปิดคำขอ',
-      tone: 'text-slate-300'
-    },
-    {
-      label: 'AUTO-VERIFIED RULES',
-      value: 'AWAITING TELEMETRY',
-      note: 'ยังไม่มี API อัตรา Rule auto-verify',
-      tone: 'text-slate-300'
-    },
-    {
-      label: 'INCIDENT LOGS (24H)',
-      value: role === 'ADMIN'
-        ? (auditLoading && audit24Label === 'AWAITING TELEMETRY' ? '…' : audit24Label)
-        : 'AWAITING TELEMETRY',
-      note: role === 'ADMIN' ? 'จาก Audit API เดิมของระบบ' : 'Audit API จำกัดสิทธิ์ Admin ตามเดิม',
+    ...(role === 'ADMIN' ? [{
+      label: 'เหตุการณ์ใน 24 ชั่วโมง',
+      value: audit24Label,
+      loading: auditLoading,
+      note: 'จากข้อมูล Audit ที่ระบบบันทึกไว้',
       tone: 'text-[#10b981]'
-    }
+    }] : [])
   ];
 
   return <section
@@ -491,13 +476,13 @@ export function ApprovalCenterPage({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <p className="mb-2 font-mono text-[11px] font-semibold tracking-[0.14em] text-[#25b8d3]">
-              SMS NEXUS / GOVERNANCE / APPROVAL CENTER
+              ศูนย์อนุมัติ
             </p>
             <h1 className="font-['Kanit'] text-2xl font-semibold tracking-[-0.02em] text-white sm:text-[30px]">
               Approval Center &amp; Incident Logs
             </h1>
             <p className="mt-1 max-w-3xl font-['Kanit'] text-sm text-slate-400">
-              ศูนย์ควบคุมคำขออนุมัติและติดตามบันทึกเหตุการณ์ความปลอดภัย โดยคง Workflow, API และ Permission เดิมของระบบ
+              ศูนย์ควบคุมคำขออนุมัติและติดตามบันทึกเหตุการณ์ความปลอดภัย
             </p>
           </div>
           <button
@@ -506,7 +491,7 @@ export function ApprovalCenterPage({
             onClick={() => void Promise.all([loadQueue(), loadAudit()])}
             className="inline-flex min-h-[42px] items-center justify-center gap-2 self-start rounded-[7px] border border-[#25b8d3]/30 bg-[#0f1d2a] px-3 text-sm font-semibold text-[#8be5f2] transition hover:bg-[#1a2836] disabled:opacity-50"
           >
-            <SmsIcon name="refresh" size={16} />รีเฟรช Telemetry
+            <SmsIcon name="refresh" size={16} />รีเฟรชข้อมูล
           </button>
         </div>
       </header>
@@ -518,8 +503,8 @@ export function ApprovalCenterPage({
         {notice}
       </div>}
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        {telemetry.map((metric) => <article
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {telemetry.filter((metric) => metric.loading || metric.value !== null).map((metric) => <article
           key={metric.label}
           className="nexus-telemetry-card min-w-0 rounded-[8px] border border-[#25b8d3]/20 bg-[#061421] p-3 sm:p-4"
         >
@@ -527,7 +512,7 @@ export function ApprovalCenterPage({
             {metric.label}
           </span>
           <strong className={'mt-2 block break-words font-mono text-lg font-bold sm:text-2xl ' + metric.tone}>
-            {metric.value}
+            {metric.loading ? <span className="block h-7 w-24 animate-pulse rounded bg-slate-700/70" aria-label="กำลังโหลด" /> : metric.value}
           </strong>
           <small className="mt-1 block font-['Kanit'] text-[11px] leading-4 text-slate-500">
             {metric.note}
@@ -540,8 +525,6 @@ export function ApprovalCenterPage({
           <div className="flex min-w-0 flex-wrap gap-2" role="group" aria-label="ตัวกรองประเภทคำขอ">
             {([
               ['ALL', 'ทั้งหมด'],
-              ['SHIFT_SWAP', 'ขอสลับกะเวร (Shift Swap)'],
-              ['SECURE_VAULT', 'ขอเข้าพื้นที่พิเศษ (Secure Vault Access)'],
               ['LEAVE', 'ขอลางาน (Leave)']
             ] as Array<[CategoryFilter, string]>).map(([id, label]) => <button
               type="button"
@@ -813,7 +796,7 @@ export function ApprovalCenterPage({
 
       <div className="sr-only" aria-live="polite">
         {selectedLeaveIsSelf
-          ? 'คำขอลาที่เลือกเป็นคำขอของผู้ใช้ปัจจุบัน backend ยังคงตรวจสอบสิทธิ์อีกชั้นหนึ่ง'
+          ? 'คำขอลาที่เลือกเป็นคำขอของผู้ใช้ปัจจุบัน'
           : ''}
       </div>
     </div>

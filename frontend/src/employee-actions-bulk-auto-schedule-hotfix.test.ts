@@ -30,11 +30,13 @@ describe('Employee action and bulk auto-schedule hotfix', () => {
   it('describes bulk auto scheduling as all-employee magic-wand continuation from the previous month', () => {
     expect(main).toContain('✨ ดูตัวอย่างจัดกะอัตโนมัติ');
     expect(main).toContain('api.previewAutoSchedule(auth.token, scheduleMonth)');
-    expect(main).toContain('Shared Pattern Engine เดียวกับไม้กายสิทธิ์รายบุคคล');
-    expect(main).toContain('Auto Continue แบบเดียวกับไม้กายสิทธิ์รายบุคคล');
-    expect(main).toContain('ใช้ Pattern Master เดียวกับไม้กายสิทธิ์รายบุคคล');
-    expect(main).toContain('อ่านแพทเทิร์น Supervisor/พนักงานทั่วไปจากค่าที่ Admin จัดการ');
-    expect(main).toContain('คง AL และ Admin license override');
+    expect(main).not.toContain('Shared Pattern Engine');
+    expect(main).not.toContain('ตรวจสอบ workflow, validation และ backend behavior');
+    expect(main).not.toContain('Auto Continue แบบเดียวกับไม้กายสิทธิ์รายบุคคล');
+    expect(main).not.toContain('ใช้ Pattern Master เดียวกับไม้กายสิทธิ์รายบุคคล');
+    expect(main).not.toContain('อ่านแพทเทิร์น Supervisor/พนักงานทั่วไปจากค่าที่ Admin จัดการ');
+    expect(main).not.toContain('คง AL และ Admin license override');
+    expect(main).not.toContain('Google Sheets ถูกยกเลิก');
   });
 
   it('keeps bulk auto-schedule preview fill-only while retaining the individual replace path', () => {

@@ -42,6 +42,20 @@ function hasPackage(paths, packageName) {
   return paths.some((entry) => entry.replaceAll('\\', '/').endsWith(marker));
 }
 
+function expectedSharpVersion(cwd) {
+  let packageJson;
+  try {
+    packageJson = JSON.parse(fs.readFileSync(path.resolve(cwd, 'package.json'), 'utf8'));
+  } catch {
+    throw new Error('Linux artifact guard: root package.json could not be read');
+  }
+  const version = packageJson?.dependencies?.sharp;
+  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error('Linux artifact guard: dependencies.sharp must be an exact version');
+  }
+  return version;
+}
+
 function verifyLinuxArtifact({
   root = '.vercel/output',
   platform = process.platform,
@@ -78,9 +92,12 @@ function verifyLinuxArtifact({
   const windowsNativeFiles = paths.filter((entry) => /(?:^|[\\/])(?:win32|windows)[^\\/]*\.(?:node|dll|lib|exe)$/i.test(entry));
   if (windowsNativeFiles.length) throw new Error('Linux artifact guard: Windows native files are present in the Linux artifact');
   if (requireSharpLoad) {
+    const expectedVersion = expectedSharpVersion(cwd);
     let sharp;
     try { sharp = require(require.resolve('sharp', { paths: [cwd] })); } catch { throw new Error('Linux artifact guard: sharp failed to load on the build runner'); }
-    if (sharp?.versions?.sharp !== '0.35.4') throw new Error('Linux artifact guard: unexpected sharp version');
+    if (sharp?.versions?.sharp !== expectedVersion) {
+      throw new Error(`Linux artifact guard: sharp version ${sharp?.versions?.sharp || 'unknown'} does not match root dependency ${expectedVersion}`);
+    }
   }
   return {
     root: resolvedRoot,
@@ -114,4 +131,4 @@ function main(argv = process.argv.slice(2), { log = console.log, error = console
 
 if (require.main === module) process.exitCode = main();
 
-module.exports = { EXPECTED_LINUX_PACKAGES, collectPaths, hasPackage, main, packageNames, verifyLinuxArtifact };
+module.exports = { EXPECTED_LINUX_PACKAGES, collectPaths, expectedSharpVersion, hasPackage, main, packageNames, verifyLinuxArtifact };

@@ -16,7 +16,8 @@ describe('CFG-08 Attendance Device Administration', () => {
 
   it('keeps Admin revoke reason-required and renders history and audit context', () => {
     const page = read('./pages/attendance-device/AttendanceDevicePage.tsx');
-    expect(page).toContain('CFG-08 · ADMIN');
+    expect(page).not.toContain('CFG-08 · ADMIN');
+    expect(page).toContain('อุปกรณ์ลงเวลา</p><h1>อุปกรณ์ลงเวลา');
     expect(page).toContain('Device History');
     expect(page).toContain('Recent Audit');
     expect(page).toContain('Device Proof');
@@ -27,7 +28,7 @@ describe('CFG-08 Attendance Device Administration', () => {
 
   it('keeps display and platform metadata informational instead of trusted identity', () => {
     const page = read('./pages/attendance-device/AttendanceDevicePage.tsx');
-    expect(page).toContain('Trusted Identity');
+    expect(page).not.toContain('Trusted Identity');
     const service = read('../../src/services/attendance-device.service.js');
     expect(service).toContain("SUPPORTED_KEY_ALGORITHMS = new Set(['ECDSA_P256_SHA256'])");
     expect(service).toContain('credentialFingerprint');

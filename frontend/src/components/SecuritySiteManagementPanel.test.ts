@@ -76,4 +76,13 @@ describe('Security Site Admin token role gate', () => {
     expect(qrStyleSource).not.toContain('.security-site-qr-print-sheet');
     expect(qrStyleSource).not.toContain('@page { size: A4 portrait; margin: 0; }');
   });
+
+  it('uses loading skeletons and removes empty telemetry placeholders', () => {
+    expect(panelSource).toContain('aria-busy={loading}');
+    expect(panelSource).toContain('className="gis-status-skeleton"');
+    expect(panelSource).not.toContain('AWAITING TELEMETRY');
+    expect(panelSource).not.toContain('MATRIX CALIBRATION');
+    expect(panelSource).not.toContain('CHECKPOINT CHANNEL');
+    expect(panelSource).not.toContain('RTK STATUS');
+  });
 });

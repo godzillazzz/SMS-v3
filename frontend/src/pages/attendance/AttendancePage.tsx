@@ -1220,7 +1220,7 @@ export function AttendancePage({ token, displayName, department, readOnly = fals
         </section>
       </div>}
 
-      <div className="attendance-nexus-checkin__breadcrumb">SMS NEXUS / WORKFORCE / ATTENDANCE VERIFICATION</div>
+      <div className="attendance-nexus-checkin__breadcrumb">การยืนยันการลงเวลา</div>
       <header className="attendance-nexus-checkin__hero">
         <div><h1>Attendance Verification</h1><p>ตรวจสอบการลงเวลาเข้า-ออกเวร การสแกนจุดตรวจ และความแม่นยำของพิกัดภาคสนาม</p></div>
       </header>

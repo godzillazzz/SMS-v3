@@ -42,7 +42,7 @@ export function PwaProfilePage({ user, online, readOnly = false, onOpenPasskeys,
       : 'ไม่รองรับ';
 
   return <section className="pwa-profile-page nexus-mobile-profile" aria-label="Officer Profile">
-    <div className="nexus-mobile-breadcrumb">SMS NEXUS / MY DUTY / OFFICER PROFILE</div>
+    <div className="nexus-mobile-breadcrumb">โปรไฟล์พนักงาน</div>
     <header className="pwa-profile-hero">
       <span className="pwa-profile-avatar">{initials(user?.displayName)}</span>
       <div><p>SMS EMPLOYEE</p><h1>{user?.displayName || 'ผู้ใช้งาน'}</h1><span>{roleDisplayName(user?.role || 'VIEWER')}</span></div>

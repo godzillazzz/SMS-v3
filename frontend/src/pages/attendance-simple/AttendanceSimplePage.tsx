@@ -3,10 +3,12 @@ import {
   simpleAttendanceBootstrap,
   simpleAttendanceMoveRequest,
   simpleAttendanceSubmit,
+  type AttendanceSimpleErrorDetails,
   type SimpleBootstrap,
   type SimpleEventInput,
   type SimpleEventResult
 } from './attendance-simple-client';
+import { RequestErrorReference, toRequestErrorState } from '../../request-error';
 import {
   deviceFingerprint,
   deviceRiskSignals,
@@ -82,6 +84,18 @@ function formatReceiptTime(value?: string | null): string {
   }).format(parsed);
 }
 
+function attendanceFailure(reason: unknown, fallback: string): AttendanceSimpleErrorDetails {
+  const normalized = toRequestErrorState(reason, fallback);
+  const message = /[\u0E00-\u0E7F]/.test(normalized.message) ? normalized.message : fallback;
+  const details = reason && typeof reason === 'object' ? reason as { code?: unknown } : {};
+  const code = typeof details.code === 'string' ? details.code : undefined;
+  return {
+    message,
+    ...(code ? { code } : {}),
+    ...(normalized.requestId ? { requestId: normalized.requestId } : {})
+  };
+}
+
 function uuid(): string {
   if (crypto.randomUUID) return crypto.randomUUID();
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -152,7 +166,9 @@ export function AttendanceSimplePage({
   readOnly = false,
   online = navigator.onLine,
   onTodayHistory,
-  onOpenSettings
+  onOpenSettings,
+  onOpenAttendanceDevice,
+  onOpenSupervisor
 }: Props) {
   const [bootstrap, setBootstrap] = useState<SimpleBootstrap | null>(null);
   const [identity, setIdentity] = useState<DeviceIdentity | null>(null);
@@ -166,6 +182,9 @@ export function AttendanceSimplePage({
   const [pendingSiteCapture, setPendingSiteCapture] = useState<{ location: Awaited<ReturnType<typeof getLocation>>; context: NonNullable<ReturnType<typeof gpsGeofenceDecision>['actualSite']> } | null>(null);
   const [moveReason, setMoveReason] = useState('');
   const [moveBusy, setMoveBusy] = useState(false);
+  const [bootstrapRetry, setBootstrapRetry] = useState(0);
+  const [requestErrorCode, setRequestErrorCode] = useState<string>();
+  const [requestErrorId, setRequestErrorId] = useState<string>();
   const queueSyncInFlight = useRef(false);
 
   const refreshQueueCount = useCallback(async () => {
@@ -246,17 +265,22 @@ export function AttendanceSimplePage({
         const nextBootstrap = await loadBootstrap();
         if (!active) return;
         setBootstrap(nextBootstrap);
+        setRequestErrorCode(undefined);
+        setRequestErrorId(undefined);
         setTone(online ? 'success' : 'warning');
         setMessage(online ? 'พร้อมลงเวลา · ระบบจะตรวจตำแหน่งก่อนบันทึก' : 'ออฟไลน์พร้อมใช้งาน · ระบบจะเก็บรายการในเครื่องและส่งเมื่อออนไลน์');
         if (online && token) await syncQueue();
       } catch (error) {
         if (!active) return;
+        const failure = attendanceFailure(error, 'ไม่สามารถเตรียมระบบลงเวลาได้ กรุณาลองใหม่หรือติดต่อหัวหน้างาน');
+        setRequestErrorCode(failure.code);
+        setRequestErrorId(failure.requestId);
         setTone('danger');
-        setMessage(error instanceof Error ? error.message : 'เตรียมระบบลงเวลาไม่สำเร็จ');
+        setMessage(failure.message);
       }
     })();
     return () => { active = false; };
-  }, [loadBootstrap, online, refreshQueueCount, syncQueue, token]);
+  }, [bootstrapRetry, loadBootstrap, online, refreshQueueCount, syncQueue, token]);
 
   useEffect(() => {
     const onOnline = () => { if (token) void syncQueue(); };
@@ -279,6 +303,8 @@ export function AttendanceSimplePage({
     if (readOnly || busy || !identity || !bootstrap) return;
     setBusy(true);
     setLastResult(null);
+    setRequestErrorCode(undefined);
+    setRequestErrorId(undefined);
     setTone('neutral');
     setMessage('กำลังตรวจ GPS/GEOFENCE…');
     try {
@@ -361,8 +387,11 @@ export function AttendanceSimplePage({
       }
     } catch (error) {
       setPendingSiteCapture(null);
+      const failure = attendanceFailure(error, 'ไม่สามารถลงเวลาได้ กรุณาลองใหม่หรือติดต่อหัวหน้างาน');
+      setRequestErrorCode(failure.code);
+      setRequestErrorId(failure.requestId);
       setTone('danger');
-      setMessage(error instanceof Error ? error.message : 'ลงเวลาไม่สำเร็จ');
+      setMessage(failure.message);
     } finally {
       setBusy(false);
     }
@@ -394,8 +423,10 @@ export function AttendanceSimplePage({
       setMessage('ส่งคำขอย้ายเครื่องแล้ว · รอ ADMIN อนุมัติ เครื่องหลักเดิมยังไม่ถูกยกเลิก');
       setMoveReason('');
     } catch (error) {
+      const failure = attendanceFailure(error, 'ส่งคำขอย้ายเครื่องไม่สำเร็จ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ');
+      setRequestErrorId(failure.requestId);
       setTone('danger');
-      setMessage(error instanceof Error ? error.message : 'ส่งคำขอย้ายเครื่องไม่สำเร็จ');
+      setMessage(failure.message);
     } finally {
       setMoveBusy(false);
     }
@@ -427,6 +458,37 @@ export function AttendanceSimplePage({
   const receiptTitle = receiptEvent?.eventType === 'CHECK_OUT' ? 'ลงเวลาออกสำเร็จ' : 'ลงเวลาเข้าสำเร็จ';
   const receiptDevice = lastResult?.deviceBinding === 'FOREIGN' ? 'อุปกรณ์อื่น · ต้องตรวจ' : 'อุปกรณ์นี้ยืนยันแล้ว';
   const receiptDetails = lastResult ? reviewContextDetails(lastResult) : [];
+  const deviceBlockCodes = ['ATTENDANCE_DEVICE_REQUIRED', 'ATTENDANCE_DEVICE_NOT_ALLOWED', 'ATTENDANCE_DEVICE_AUTHORITY_CONFLICT'];
+  const accountBlockCodes = ['ATTENDANCE_EMPLOYEE_LINK_REQUIRED', 'ATTENDANCE_DEVICE_EMPLOYEE_LINK_REQUIRED', 'INACTIVE_EMPLOYEE_OPERATION'];
+  const scheduleBlockCodes = ['ATTENDANCE_ASSIGNMENT_REQUIRED', 'ATTENDANCE_SCHEDULE_NOT_APPROVED', 'ATTENDANCE_SHIFT_NOT_ACTIONABLE'];
+  const clockBlockedByServer = [...deviceBlockCodes, ...accountBlockCodes, ...scheduleBlockCodes].includes(requestErrorCode || '');
+  const clockDisabled = readOnly || busy || !identity || !bootstrap || clockBlockedByServer;
+  const disabledGuidance = readOnly
+    ? { message: 'โหมดดูแทนไม่สามารถลงเวลาได้ กรุณาออกจากโหมดดูแทนก่อนลงเวลา' }
+    : busy
+      ? { message: 'กำลังตรวจตำแหน่งหรือบันทึกรายการ กรุณารอให้เสร็จก่อน' }
+      : accountBlockCodes.includes(requestErrorCode || '')
+        ? { message: message || 'บัญชีนี้ยังไม่พร้อมสำหรับการลงเวลา กรุณาติดต่อผู้ดูแลระบบ' }
+        : deviceBlockCodes.includes(requestErrorCode || '')
+          ? { message: message || 'อุปกรณ์ลงเวลายังไม่พร้อม กรุณาตรวจสอบสถานะอุปกรณ์' , actionLabel: requestErrorCode === 'ATTENDANCE_DEVICE_REQUIRED' ? 'ลงทะเบียนอุปกรณ์นี้' : 'เปิดสถานะอุปกรณ์ลงเวลา', action: onOpenAttendanceDevice }
+          : scheduleBlockCodes.includes(requestErrorCode || '')
+            ? { message: message || 'ตารางกะยังไม่พร้อม กรุณาติดต่อหัวหน้างาน', actionLabel: onOpenSupervisor ? 'เปิดหน้าติดตามการลงเวลา' : undefined, action: onOpenSupervisor }
+            : !identity
+              ? tone === 'danger'
+                ? { message: 'อุปกรณ์นี้ยังไม่พร้อมสำหรับการยืนยัน กรุณาลองใหม่หรือตรวจสอบอุปกรณ์ลงเวลา', actionLabel: onOpenAttendanceDevice ? 'เปิดอุปกรณ์ลงเวลา' : undefined, action: onOpenAttendanceDevice }
+                : { message: 'กำลังเตรียมอุปกรณ์สำหรับการลงเวลา กรุณารอสักครู่' }
+              : !bootstrap
+                ? tone === 'danger'
+                  ? { message: message || 'ยังอ่านข้อมูลกะงานไม่ได้ กรุณาลองใหม่', actionLabel: 'ลองโหลดข้อมูลอีกครั้ง', action: () => {
+                    setBootstrap(null);
+                    setRequestErrorCode(undefined);
+                    setRequestErrorId(undefined);
+                    setTone('neutral');
+                    setMessage('กำลังเตรียมระบบลงเวลา…');
+                    setBootstrapRetry((value) => value + 1);
+                  } }
+                  : { message: 'กำลังโหลดข้อมูลกะงาน กรุณารอสักครู่' }
+                : null;
 
   return <section className="attendance-simple">
     <header className="attendance-simple__header">
@@ -467,30 +529,38 @@ export function AttendanceSimplePage({
       {queueCount > 0 && <span>รอส่งเมื่อออนไลน์ {queueCount} รายการ</span>}
     </div>
 
-    <div className="attendance-simple__assurance">
-      <article>
-        <b>ตำแหน่ง</b>
-        <span>GPS / GEOFENCE ตรวจทุกครั้งก่อนบันทึก</span>
-      </article>
-      <article>
-        <b>{bindingState === 'PRIMARY' ? 'อุปกรณ์นี้ยืนยันแล้ว ✓' : 'อุปกรณ์'}</b>
-        <span>{bindingState === 'PRIMARY' ? 'เครื่องหลักของคุณ' : bindingState === 'AUTO_BIND' ? 'เครื่องแรกจะผูกอัตโนมัติ' : bindingState === 'FOREIGN' ? 'ใช้อุปกรณ์อื่น · ต้องตรวจ' : 'กำลังตรวจอุปกรณ์'}</span>
-      </article>
-      <article>
-        <b>ออฟไลน์พร้อมใช้งาน</b>
-        <span>ถ้าเน็ตหลุด ระบบเก็บรายการในเครื่องและส่งให้อัตโนมัติเมื่อออนไลน์</span>
-      </article>
+    <div className="attendance-simple__action">
+      <div className="attendance-simple__clock-stack">
+        <button
+          type="button"
+          className="attendance-simple__clock"
+          disabled={clockDisabled}
+          aria-describedby={clockDisabled ? 'attendance-simple-clock-disabled-reason' : undefined}
+          onClick={() => void recordAttendance()}
+        >
+          <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยันลงเวลาที่ ${siteDisplayName(pendingSiteCapture.context)}` : nextActionLabel}</span>
+          <small>{online ? 'กดครั้งเดียว · บันทึกกับ Server' : 'กดครั้งเดียว · เก็บไว้และส่งเมื่อออนไลน์'}</small>
+        </button>
+        {clockDisabled && disabledGuidance && <div className="attendance-simple__disabled-guidance">
+          <p id="attendance-simple-clock-disabled-reason">{disabledGuidance.message}</p>
+          {disabledGuidance.actionLabel && disabledGuidance.action && <button type="button" onClick={disabledGuidance.action}>{disabledGuidance.actionLabel}</button>}
+        </div>}
+      </div>
+      <div className="attendance-simple__assurance">
+        <article>
+          <b>ตำแหน่ง</b>
+          <span>GPS / GEOFENCE ตรวจทุกครั้งก่อนบันทึก</span>
+        </article>
+        <article>
+          <b>{bindingState === 'PRIMARY' ? 'อุปกรณ์นี้ยืนยันแล้ว ✓' : 'อุปกรณ์'}</b>
+          <span>{bindingState === 'PRIMARY' ? 'เครื่องหลักของคุณ' : bindingState === 'AUTO_BIND' ? 'เครื่องแรกจะผูกอัตโนมัติ' : bindingState === 'FOREIGN' ? 'ใช้อุปกรณ์อื่น · ต้องตรวจ' : 'กำลังตรวจอุปกรณ์'}</span>
+        </article>
+        <article>
+          <b>ออฟไลน์พร้อมใช้งาน</b>
+          <span>ถ้าเน็ตหลุด ระบบเก็บรายการในเครื่องและส่งให้อัตโนมัติเมื่อออนไลน์</span>
+        </article>
+      </div>
     </div>
-
-    <button
-      type="button"
-      className="attendance-simple__clock"
-      disabled={readOnly || busy || !identity || !bootstrap}
-      onClick={() => void recordAttendance()}
-    >
-      <span>{busy ? 'กำลังตรวจ…' : pendingSiteCapture ? `ยืนยันลงเวลาที่ ${siteDisplayName(pendingSiteCapture.context)}` : nextActionLabel}</span>
-      <small>{online ? 'กดครั้งเดียว · บันทึกกับ Server' : 'กดครั้งเดียว · เก็บไว้และส่งเมื่อออนไลน์'}</small>
-    </button>
 
     {receiptEvent && <section className="attendance-simple__receipt" aria-label="หลักฐานการลงเวลา">
       <div className="attendance-simple__receipt-heading">
@@ -523,6 +593,10 @@ export function AttendanceSimplePage({
       <summary>รายละเอียดทางเทคนิค</summary>
       <code>{lastResult.reviewReasons.join(', ')}</code>
     </details> : null}
+    {requestErrorId && <details className="attendance-simple__technical">
+      <summary>รายละเอียดสำหรับผู้ดูแล</summary>
+      <RequestErrorReference requestId={requestErrorId} />
+    </details>}
 
     <footer className="attendance-simple__footer">
       <button type="button" onClick={onTodayHistory}>ดูประวัติวันนี้</button>

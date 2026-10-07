@@ -45,4 +45,9 @@ describe('WAVE 4B Rule Checking responsive data surfaces', () => {
     expect(styles).toContain('.rule-checking-violations-responsive-table > .data-table-mobile');
     expect(styles).toContain('min-height: 40px;');
   });
+
+  it('uses concise Thai copy for the Rule Checking page', () => {
+    expect(main).toContain('<p>ตรวจตารางกะกับกฎการทำงาน</p>');
+    expect(main).not.toContain('PostgreSQL แบบ read-only');
+  });
 });

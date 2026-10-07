@@ -45,8 +45,9 @@ describe('CFG-05 Auto Schedule Pattern Manager', () => {
   });
 
   it('removes hardcoded bulk pattern wording and describes the managed source instead', () => {
-    expect(main).toContain('ใช้ Pattern Master เดียวกับไม้กายสิทธิ์รายบุคคล');
-    expect(main).toContain('อ่านแพทเทิร์น Supervisor/พนักงานทั่วไปจากค่าที่ Admin จัดการ');
+    expect(main).not.toContain('Shared Pattern Engine');
+    expect(main).not.toContain('ใช้ Pattern Master เดียวกับไม้กายสิทธิ์รายบุคคล');
+    expect(main).not.toContain('อ่านแพทเทิร์น Supervisor/พนักงานทั่วไปจากค่าที่ Admin จัดการ');
     expect(main).not.toContain('พนักงานทั่วไป 6D / OFF / 6N / OFF');
   });
 
