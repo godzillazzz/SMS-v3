@@ -41,8 +41,9 @@ describe('Attendance Supervisor UX V4', () => {
       expect(source).not.toContain('fetch(');
     }
     expect(attendanceAuth).toContain('export async function attendanceAuthenticatedRequest');
-    expect(attendanceAuth).toContain('api.refresh()');
-    expect(attendanceAuth).toContain('refreshPromise');
+    expect(attendanceAuth).toContain('refreshAuth()');
+    expect(attendanceAuth).toContain("import { api, refreshAuth } from './api'");
+    expect(attendanceAuth).not.toContain('refreshPromise');
     expect(attendanceAuth).toContain('onAttendanceTokenRefreshed');
     expect(attendanceAuth).not.toContain("headers.set('Content-Type'");
   });

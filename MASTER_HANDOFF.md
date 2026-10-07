@@ -1,8 +1,8 @@
 # MASTER HANDOFF
 
-## Current state — R2 Production ผ่าน; R3 หยุดที่หลักฐานตรวจ T25 (7 ตุลาคม 2569)
+## Current state — R2 Production ผ่าน; R3 T25 กำลังตรวจ CI/Preview (7 ตุลาคม 2569)
 
-**สถานะ: OPEN — R2 Production สำเร็จและเจ้าของระบบยืนยันการตรวจหน้าจอหลังล็อกอินผ่านแล้ว. R3 เริ่มเฉพาะการอ่าน source สำหรับ T25; ยังตรวจ audit ของบัญชี Sermpong UAT ไม่ได้เพราะ endpoint ต้องใช้ session ADMIN ที่มีสิทธิ์และไม่มี session ที่ได้รับอนุญาตใน execution นี้. สถานะเหตุ token reuse/leak สำหรับบัญชีนี้จึงเป็น UNKNOWN. ยังไม่มีการแก้ code, สร้าง PR หรือปล่อย R3.**
+**สถานะ: OPEN — R2 Production สำเร็จและเจ้าของระบบยืนยันการตรวจหน้าจอหลังล็อกอินผ่านแล้ว. T25 พบว่า refresh single-flight เดิมจำกัดอยู่ใน module/tab จึงเพิ่ม Web Lock แบบ exclusive ข้าม tab ให้ทุกเส้นทาง refresh; การเปลี่ยนแปลงอยู่ระหว่างตรวจ CI/Preview. ยังตรวจ audit ของบัญชี Sermpong UAT ไม่ได้เพราะ endpoint ต้องใช้ session ADMIN ที่มีสิทธิ์และไม่มี session ที่ได้รับอนุญาตใน execution นี้. สถานะเหตุ token reuse/leak ของบัญชีนี้จึงยัง UNKNOWN; ไม่มีหลักฐานยืนยันว่าเกิดหรือไม่เกิด. ไม่มีการ revoke session หรือแก้ auth policy.**
 
 ### Production now — R2
 
@@ -31,11 +31,12 @@
 ### R3 — T25 security gate
 
 - Read-only source review พบว่า browser `api.ts` มี single-flight เฉพาะ module instance ของ tab นั้น; `attendance-auth-request.ts` มี `refreshPromise` แยกกัน. แต่ละ tab มี state แยกกัน จึงยังมีทางให้ refresh cookie เดียวกันถูกใช้พร้อมกันข้าม tab (ข้อเท็จจริงจาก code; ยังไม่ใช่หลักฐานว่าเกิดกับบัญชี UAT).
+- T25 เพิ่ม `navigator.locks` origin-wide exclusive lock ให้ `api.refresh()` ทุกครั้ง และใช้ `refreshAuth()` ร่วมกันกับ request retry และ Attendance/startup path. ถ้า Web Lock API ไม่มี จะ fail closed ก่อนเรียก refresh endpoint. เพิ่ม test serialization/fail-closed และอัปเดต source hash guards เพื่อ pin API surface หลัง T25. Local frontend: 857/857 tests และ build ผ่าน; Preview/CI ยังรอ. Full backend `npm test` ไม่ได้ผ่านใน sandbox เพราะ DB-backed tests ต้องใช้ PostgreSQL ซึ่งไม่มีให้เชื่อมต่อ; T25 ไม่มี backend changes.
 - Backend หมุน refresh token และเมื่อพบ token ที่ revoke แล้ว จะบันทึก `TOKEN_REUSE` และเรียก `revokeAllForUser` เพื่อ revoke session ของ user ทั้งหมดและเพิ่ม `tokenVersion`.
 - Audit route คือ `GET /api/v1/operations/audit-events`; ใน source กำหนด `authorize('ADMIN')`. ไม่มี authorized ADMIN session ให้ใช้ใน execution นี้. ไม่มีช่องทาง query account-specific audit แบบ read-only จาก GitHub/Vercel ที่ใช้ได้โดยไม่ต้องมี Production Environment approval. `.github/workflows/diagnose-production-database.yml` ต้องผ่าน Environment `production-sms-v3-staging` และ scripts/inputs ที่มีตรวจ LIC-HIST/G06 ไม่ได้ตรวจ refresh-token audit.
-- จึง **ยังไม่ได้ตรวจ audit ของ Sermpong UAT**; ไม่พบ/ไม่มีหลักฐานให้สรุปว่า token รั่ว และก็ยังตัดความเป็นไปได้นั้นไม่ได้. ไม่มีการ revoke session, ระงับบัญชี หรือแก้ auth policy. ตาม fail-closed, R3 หยุดก่อน T24 จนกว่าจะมีช่องทางอ่าน audit ที่ได้รับอนุญาต; T24, T26, T27 และ T28 ยังไม่เริ่ม.
+- จึง **ยังไม่ได้ตรวจ audit ของ Sermpong UAT**; ไม่มีหลักฐานให้สรุปว่า token รั่ว และก็ยังตัดความเป็นไปได้นั้นไม่ได้. เป็น blocker สำหรับการสรุปสถานะบัญชี ต้องให้เจ้าของระบบตรวจ audit ผ่าน session ที่ได้รับอนุญาต. ตามคำสั่งให้ทำงานอิสระต่อ ได้ทำ client mitigation จาก race ที่ยืนยันได้ใน source; ไม่มีการ revoke session, ระงับบัญชี หรือแก้ auth policy. งาน T24 จะเริ่มหลัง T25 ผ่าน CI/Preview ตามลำดับ.
 - งาน T28 ที่เพิ่มตามคำสั่งให้รวม: (6) ลบ/แสดงข้อมูลจริงแทนการ์ด `AWAITING DATA` (`ROSTER READINESS / SHIFT COVERAGE`); (7) เอาคำ “ไม้กายสิทธิ์” และ `CFG-06` ออกจากข้อความผู้ใช้; (8) แปล 403 ของ `/attendance/simple/bootstrap` สำหรับบัญชีที่ไม่มี employee link เป็นข้อความเฉพาะ; (9) ห้ามแสดง badge `0` ก่อนมีค่าครั้งแรก; (10) ค้นหาและลบ placeholder `••••••••••••` ตาม T06.
-- ไม่มี R3 RELEASE_SHA, PR, CI หรือ Preview ในขณะนี้. จะเริ่ม task ถัดไปจาก integration HEAD ล่าสุด หลังผ่าน T25 ตามลำดับ.
+- T25 PR/CI/Preview/merge ยังไม่เกิด; ไม่มี R3 RELEASE_SHA. เมื่อ T25 ผ่าน CI และ Vercel Preview READY จึง merge และเริ่ม T24 จาก integration HEAD ใหม่.
 
 ### R2 PR / release table
 

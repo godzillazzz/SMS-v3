@@ -1,9 +1,8 @@
-import { api } from './api';
+import { api, refreshAuth } from './api';
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('smsv3_csrf='))?.split('=')[1];
 
-let refreshPromise: Promise<any> | null = null;
 let onAttendanceTokenRefreshed: ((token: string, user: any) => void) | null = null;
 let attendanceTokenRefreshGuard: ((requestToken: string) => boolean) | null = null;
 
@@ -31,12 +30,7 @@ export async function attendanceAuthenticatedRequest(
   if (!attendanceTokenRefreshGuard || attendanceTokenRefreshGuard(token) !== true) return response;
 
   try {
-    if (!refreshPromise) {
-      refreshPromise = api.refresh().finally(() => {
-        refreshPromise = null;
-      });
-    }
-    const refreshResult = await refreshPromise;
+    const refreshResult = await refreshAuth();
     if (!refreshResult?.accessToken) return response;
     if (onAttendanceTokenRefreshed) {
       onAttendanceTokenRefreshed(refreshResult.accessToken, refreshResult.user);

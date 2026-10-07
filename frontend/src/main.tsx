@@ -24,7 +24,7 @@ import '@fontsource/inter/latin-700.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
-import { api, setTokenRefreshHandler } from './api';
+import { api, refreshAuth, setTokenRefreshHandler } from './api';
 import { canDecideScheduleApproval, isSupersededScheduleApproval, scheduleApprovalChangeTypeLabel, scheduleApprovalErrorMessage, scheduleApprovalStatusLabel, scheduleApprovalTone } from './approval-display';
 import type { ScheduleBatchProgress } from './api';
 import { isG06DeviceContextDiagnosticRequested, shouldOpenG06DeviceContextDiagnostic } from './lib/g06-device-context-diagnostic-route';
@@ -200,7 +200,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string>();
 
   const refresh = async () => {
-    const result = await api.refresh();
+    const result = await refreshAuth();
     setToken(result.accessToken);
     setUser(result.user);
     setViewAs(undefined);

@@ -1,12 +1,17 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError, api, normalizeRequestId, setTokenRefreshHandler } from './api';
 import { sanitizeLicenseDocumentError } from './components/license-document-utils';
 import { PDFDocument } from 'pdf-lib';
 
 const success = () => ({ status: 200, ok: true, json: async () => ({ accessToken: 'test-access-token', user: {} }) });
+const refreshLockRequest = vi.fn((_name: string, _options: unknown, callback: () => Promise<unknown>) => callback());
 afterEach(() => {
   setTokenRefreshHandler(null);
   vi.unstubAllGlobals();
+});
+beforeEach(() => {
+  refreshLockRequest.mockClear();
+  vi.stubGlobal('navigator', { locks: { request: refreshLockRequest } });
 });
 
 describe('API client', () => {
@@ -96,6 +101,16 @@ describe('API client', () => {
       expect(options.credentials).toBe('include');
       expect(options.headers.get('x-csrf-token')).toBe('test-csrf-value');
     }
+  });
+  it('serializes every browser refresh through the origin-wide Web Lock', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(success());
+    vi.stubGlobal('document', { cookie: '' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.refresh();
+
+    expect(refreshLockRequest).toHaveBeenCalledTimes(1);
+    expect(refreshLockRequest).toHaveBeenCalledWith('smsv3-auth-refresh-v1', { mode: 'exclusive' }, expect.any(Function));
   });
   it('sends the CSRF header for startup refresh from /dashboard', async () => {
     const fetchMock = vi.fn().mockResolvedValue(success());
