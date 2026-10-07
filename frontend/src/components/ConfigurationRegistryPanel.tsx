@@ -21,6 +21,15 @@ function text(value: unknown, fallback = '—') {
   return normalized || fallback;
 }
 
+export function configurationDescriptionText(value: unknown) {
+  const normalized = String(value ?? '')
+    .replace(/\bCFG-06\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([.;,:])/g, '$1')
+    .trim();
+  return normalized || '—';
+}
+
 function statusLabel(row: SettingRow) {
   if (row.registryStatus === 'PROTECTED') return 'Protected';
   if (row.registryStatus === 'UNREGISTERED') return 'Legacy · Read only';
@@ -48,7 +57,7 @@ function ConfigurationRegistryCards({ settings }: { settings: SettingRow[] }) {
       <div><small>{text(row.groupLabel)}</small><h3>{text(row.label, text(row.key))}</h3></div>
       <span className={`status-badge ${row.registryStatus === 'REGISTERED' ? (row.configured ? 'active' : 'pending') : 'inactive'}`}>{statusLabel(row)}</span>
     </header>
-    <p className="configuration-setting-description">{text(row.description)}</p>
+    <p className="configuration-setting-description">{configurationDescriptionText(row.description)}</p>
     <dl>
       <div><dt>Key</dt><dd><code>{text(row.key)}</code></dd></div>
       <div><dt>Type</dt><dd>{text(row.valueType)}</dd></div>
@@ -101,7 +110,7 @@ export function ConfigurationRegistryPanel({ settings }: { settings: SettingRow[
       </thead><tbody>
         {settings.length ? settings.map((row) => <tr key={text(row.key)}>
           <td>{text(row.groupLabel)}</td>
-          <td><strong>{text(row.label, text(row.key))}</strong><small className="configuration-setting-description">{text(row.description)}</small></td>
+          <td><strong>{text(row.label, text(row.key))}</strong><small className="configuration-setting-description">{configurationDescriptionText(row.description)}</small></td>
           <td><code>{text(row.key)}</code></td>
           <td>{text(row.valueType)}</td>
           <td>{constraintLabel(row)}</td>

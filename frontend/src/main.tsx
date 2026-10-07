@@ -33,6 +33,8 @@ import type { SimpleBootstrap } from './pages/attendance-simple/attendance-simpl
 import { ROLE_DISPLAY_LABEL, roleDisplayName } from './role-display';
 import { getApprovalCenterSummary } from './approval-center-client';
 import { shouldPollApprovalCenter } from './approval-center-polling';
+import { approvalBadgeText, approvalCountValue } from './components/approval-count-badge';
+import { ApprovalCenterNotificationButton } from './components/ApprovalCenterNotificationButton';
 import { getLeavePolicy } from './leave-policy-client';
 import { createLeaveType, getLeaveTypes, updateLeaveType, type LeaveTypeMaster } from './leave-type-client';
 import { getShiftTypes } from './shift-type-client';
@@ -1153,7 +1155,7 @@ function SettingsPage({ token, settings, leaveTypes, leaveTypesLoading, loading,
     <NotificationCenterPanel token={token} />
     <section className="line-settings-card">
       <div className="line-settings-title"><span aria-hidden="true"><SmsIcon name="bell" size={20} /></span><div><h2>LINE Notification Settings (ตั้งค่าแจ้งเตือน LINE)</h2><p>รูปแบบเดิมถูกคงไว้ แต่ credential ต้องตั้งค่าที่ Vercel Environment Variables เท่านั้น</p></div></div>
-      <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><input type="password" value="••••••••••••••••" disabled aria-label="LINE access token is managed securely" /><small>ไม่แสดงและไม่บันทึก token ในหน้าจอนี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>
+      <div className="line-secure-grid"><label className="field-group"><span>LINE Access Token / Channel Access Token</span><span className="line-secret-managed" role="status">จัดการผ่าน Vercel Environment Variables</span><small>ระบบไม่แสดงค่า credential ในหน้านี้</small></label><label className="field-group"><span>LINE Group ID / Target ID</span><input type="text" value="จัดการผ่าน deployment configuration" disabled /><small>ตั้งค่าจาก Vercel Environment Variables เมื่อเปิดใช้ provider ที่อนุมัติ</small></label></div>
       <div className="line-template-grid"><label className="field-group"><span>เทมเพลตคำขอลางานใหม่ (New Leave Request Template)</span><textarea rows={7} value={newLeaveTemplate} onChange={(event) => setNewLeaveTemplate(event.target.value)} maxLength={2000} /></label><label className="field-group"><span>เทมเพลตอัปเดตสถานะใบลา (Leave Status Update Template)</span><textarea rows={7} value={leaveStatusTemplate} onChange={(event) => setLeaveStatusTemplate(event.target.value)} maxLength={2000} /></label></div>
       <div className="template-help"><strong><SmsIcon name="quality" size={15} /> ตัวแปรที่ใช้ในข้อความได้</strong><span><code>{'{Name}'}</code> พนักงาน</span><span><code>{'{Department}'}</code> แผนก</span><span><code>{'{Type}'}</code> ประเภทการลา</span><span><code>{'{Days}'}</code> จำนวนวัน</span><span><code>{'{StartDate}'}</code> / <code>{'{EndDate}'}</code> วันที่ลา</span><span><code>{'{Reason}'}</code> เหตุผล</span><span><code>{'{FileUrl}'}</code> ไฟล์แนบ</span><span><code>{'{Status}'}</code> สถานะ</span></div>
       {notice && <div className={notice.includes('สำเร็จ') ? 'settings-notice success' : 'settings-notice error'}>{notice}</div>}
@@ -1792,7 +1794,7 @@ function Dashboard() {
   }, [activePage]);
   const [operationRefresh, setOperationRefresh] = useState(0);
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
-  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState<number | null>(null);
   const [approvalCenterRefresh, setApprovalCenterRefresh] = useState(0);
   const [employeeRefresh, setEmployeeRefresh] = useState(0);
   const [shiftTypes, setShiftTypes] = useState<DataRow[]>([]);
@@ -2022,11 +2024,15 @@ function Dashboard() {
   }, [auth.token, auth.user?.role, operationRefresh, pwaShell]);
 
   useEffect(() => {
-    if (pwaShell || !auth.token || !['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') || auth.isViewingAs) { setPendingApprovalCount(0); return; }
+    setPendingApprovalCount(null);
+    if (pwaShell || !auth.token || !['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') || auth.isViewingAs) return;
     let active = true;
     const refreshApprovalCount = () => {
       if (!active || !shouldPollApprovalCenter(document.visibilityState)) return;
-      void getApprovalCenterSummary(auth.token!).then((result) => { if (active) setPendingApprovalCount(Number(result?.summary?.total || 0)); }).catch(() => undefined);
+      void getApprovalCenterSummary(auth.token!).then((result) => {
+        const count = approvalCountValue(result?.summary?.total);
+        if (active && count !== null) setPendingApprovalCount(count);
+      }).catch(() => undefined);
     };
     refreshApprovalCount();
     const timer = window.setInterval(refreshApprovalCount, 60000);
@@ -2820,7 +2826,7 @@ function Dashboard() {
             startTime: String(selectedType?.startTime || (codeStr === 'N' ? '22:00' : codeStr === 'D' ? '08:00' : '00:00')),
             endTime: String(selectedType?.endTime || (codeStr === 'N' ? '06:00' : codeStr === 'D' ? '16:00' : '00:00')),
             color: String(selectedType?.color || (codeStr === 'D' ? '#2563eb' : codeStr === 'N' ? '#7c3aed' : '#64748b')),
-            remark: String(row.remark || 'จัดด้วยไม้กายสิทธิ์ (ฉบับร่าง)'),
+            remark: String(row.remark || 'จัดกะอัตโนมัติ (ฉบับร่าง)'),
             licenseStatus: String(row.licenseStatus || ''),
             licenseOverride: Boolean(row.licenseOverride),
             overrideReason: String(row.overrideReason || ''),
@@ -2828,7 +2834,7 @@ function Dashboard() {
               employeeId: empId,
               workDate: workDateStr,
               shiftTypeId: validShiftTypeId,
-              remark: String(row.remark || 'จัดด้วยไม้กายสิทธิ์'),
+              remark: String(row.remark || 'จัดกะอัตโนมัติ'),
               licenseOverride: Boolean(row.licenseOverride),
               overrideReason: String(row.overrideReason || '')
             }
@@ -2878,11 +2884,6 @@ function Dashboard() {
       };
       return <section className="view-pane schedule-calendar-page nexus-roster-workspace">
         <div className="roster-command-kicker">จัดตารางเวร</div>
-        <div className="roster-telemetry-strip" aria-label="Roster telemetry">
-          <div><span>ROSTER READINESS</span><strong>AWAITING DATA</strong><small>Verified telemetry only</small></div>
-          <div><span>SHIFT COVERAGE · 24H</span><strong>AWAITING DATA</strong><small>No simulated coverage</small></div>
-          <div><span>ROSTER STATE</span><strong className={approval.status === 'APPROVED' ? 'is-secure' : 'is-warning'}>{approval.status === 'APPROVED' ? 'PUBLISHED' : 'DRAFT'}</strong><small>{monthLabel}</small></div>
-        </div>
         <div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>ตารางกะรายเดือน</h1><p>จัดกะรายเดือน (โหมดบันทึกด้วยตนเอง: แก้ไขกะหรือลบกะในตารางได้ต่อเนื่อง แล้วกด 💾 บันทึกการเปลี่ยนแปลง เพื่อบันทึกทีเดียว)</p></div><div className="heading-actions">{auth.user?.role === 'ADMIN' && !auth.isViewingAs && <button className="btn-neutral small-action" onClick={() => setActivePage('approvals')}>ประวัติการอนุมัติ</button>}{approval.status === 'APPROVED' && <><button className="excel-action" disabled={scheduleExportBusy} onClick={exportApprovedExcel}>▦ {scheduleExportBusy ? 'กำลังสร้าง Excel…' : `Export Excel${selectedDepartments.length ? ` · ${selectedDepartments.length} แผนก` : ''}`}</button><button className="btn-info small-action" onClick={() => void printScheduleDocument()}>📄 Export PDF</button></>}</div></div>
         <div className={`approval-banner ${approval.status === 'APPROVED' ? 'approved' : 'pending'}`}><div><strong>{approval.status === 'APPROVED' ? '✓ อนุมัติแล้ว' : '● รออนุมัติ'} · {monthLabel}</strong><small>Revision {text(approval.revision || 1)}{approval.approvedAt ? ` · อนุมัติโดย ${text(approval.approvedBy || approval.approvedByDisplayName || 'ผู้มีอำนาจอนุมัติ')} เมื่อ ${date(approval.approvedAt)}` : ' · การแก้ตารางจะสร้าง revision ใหม่โดยอัตโนมัติ'}</small></div>{['ADMIN', 'SUPERVISOR'].includes(auth.user?.role || '') && approval.status !== 'APPROVED' && <button className="btn-primary compact" style={{ backgroundColor: '#059669', borderColor: '#047857', fontWeight: 'bold' }} onClick={async () => { if (!auth.token) return; const confirmed = await actionDialog.confirm({ title: 'อนุมัติตารางกะรายเดือน', message: 'การอนุมัติจะเปลี่ยนสถานะตารางเดือนนี้เป็น APPROVED ตาม workflow เดิม และการแก้ไขภายหลังจะสร้าง revision ใหม่โดยอัตโนมัติ', context: monthLabel, confirmLabel: 'ยืนยันอนุมัติตาราง', tone: 'primary' }); if (!confirmed) return; setOperationError(undefined); try { if (approval.id) { await api.updateScheduleApproval(auth.token, String(approval.id), { status: 'APPROVED' }); } else { await api.approveScheduleMonth(auth.token, scheduleMonth); } const updated = await api.scheduleCalendar(auth.token, scheduleMonth, operationPage, scheduleDepartment); setOperationResponse(updated); } catch (reason) { setOperationError(toRequestErrorState(reason, 'อนุมัติตารางไม่สำเร็จ')); } }}>อนุมัติ ตารางเดือนนี้</button>}</div>
         <div className="calendar-toolbar-box schedule-workbench" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px 20px', margin: '14px 0 16px 0', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.05)' }}>
@@ -3231,7 +3232,7 @@ function Dashboard() {
           <button type="button" className="sidebar-close-button" aria-label="ปิดเมนูหลัก" onClick={() => setMobileMenuOpen(false)}><SmsIcon name="close" size={20} /></button>
         </div>
         <nav className="nav-menu" aria-label="เมนูหลัก">{visibleNavigation.map((section) => (
-          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}{item.id === 'approvalCenter' && pendingApprovalCount > 0 && <b className="nav-count-badge">{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</b>}</span></button>)}</div>
+          <div className="nav-section" key={section.label}><p>{section.label}</p>{section.items.map((item) => <button type="button" key={item.id} className={`nav-item ${navigationPage === item.id ? 'active' : ''}`} onClick={() => { setActivePage(item.id); setMobileMenuOpen(false); }}><span className="nav-icon"><SmsIcon name={item.icon} size={19} /></span><span>{item.label}{item.id === 'leavePending' && pendingLeaveCount > 0 && <b className="nav-count-badge">{pendingLeaveCount}</b>}{item.id === 'approvalCenter' && approvalBadgeText(pendingApprovalCount) && <b className="nav-count-badge">{approvalBadgeText(pendingApprovalCount)}</b>}</span></button>)}</div>
         ))}</nav>
         <div className="sidebar-footer">
           <div className="sidebar-user sidebar-profile"><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></div>
@@ -3251,7 +3252,7 @@ function Dashboard() {
           <div className="topbar-actions">
             {!pwaShell && <button type="button" className="workflow-command-trigger" aria-label="เปิดเมนูนำทางด่วน" title="ไปยังงานหรือหน้าที่ต้องการ" onClick={() => setCommandPaletteOpen(true)}><SmsIcon name="search" size={16} /><span>Quick nav</span><kbd>Ctrl K</kbd></button>}
             <span className="environment-pill">{import.meta.env.PROD ? 'DEPLOYED' : 'LOCAL'}</span>
-            {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <button type="button" className="topbar-notification-button" aria-label={'คำขออนุมัติ ' + pendingApprovalCount + ' รายการ'} title="คำขอที่รอการอนุมัติ" onClick={() => setActivePage('approvalCenter')}><SmsIcon name="bell" size={19} />{pendingApprovalCount > 0 && <span className="topbar-notification-badge">{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
+            {['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs && <ApprovalCenterNotificationButton count={pendingApprovalCount} onClick={() => setActivePage('approvalCenter')} />}
             <ThemeControl compact />
             <button type="button" className="display-mode-toggle" aria-pressed={desktopView} title={desktopView ? 'กลับมุมมองมือถือ' : 'แสดงแบบเดสก์ท็อป'} onClick={toggleDesktopView}><SmsIcon name={desktopView ? 'device' : 'system'} size={16} /><span>{desktopView ? 'Mobile' : 'Desktop'}</span></button>
             <button type="button" className="topbar-profile topbar-profile-button" title="การเข้าสู่ระบบและ Passkey" onClick={() => setPasskeyPanelOpen(true)}><span className="avatar">{initials}</span><span><b>{auth.user?.displayName || 'ผู้ใช้งาน'}</b><small>{roleDisplayName(auth.user?.role || 'VIEWER')}</small></span></button>

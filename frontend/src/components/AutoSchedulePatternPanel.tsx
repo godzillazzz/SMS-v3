@@ -311,7 +311,7 @@ export function AutoSchedulePatternPanel({ token }: { token: string }) {
       <span>🪄</span>
       <div>
         <h2>Auto Schedule Pattern Manager</h2>
-        <p id="auto-schedule-pattern-description">บริหารแพทเทิร์นและ Phase ที่ไม้กายสิทธิ์ใช้จริง โดย Preview ก่อน Commit และไม่เขียนทับกะ/ชั่วโมงย้อนหลัง</p>
+        <p id="auto-schedule-pattern-description">บริหารรูปแบบและขั้นตอนการจัดกะอัตโนมัติ โดยดูตัวอย่างก่อนบันทึก และไม่เขียนทับกะหรือชั่วโมงย้อนหลัง</p>
       </div>
     </div>
 
