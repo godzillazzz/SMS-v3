@@ -33,7 +33,7 @@
 | T24 / #489 | `d420ce2f3977d32e93f6a35e320f86f915635e38` | `37575658761` success | READY — https://sms-v3-staging-git-codex-r3-t24-performance-20261007-godzillazz.vercel.app | `70e807b8982277a0617552229ae6c7d993336be9` |
 | T26 / #490 | `86923ed517ad61f6d05eb13e684f6f38e3db5ea5` | `37576069884` success | READY — https://sms-v3-staging-git-codex-r3-t26-approval-labe-a17eee-godzillazz.vercel.app | `c582eabb824b2fabcda734c387c0d4af3be3866d` |
 | T27 / #491 | `bad8d3856d1d5018436da2455b513cb18e12d14b` | `37577516049` success | Vercel success — dashboard target only; alias and dpl id unavailable from connector | `463b1650eadde1b55345f2f1ca3244d9bf9ae713` |
-| T28 / #492 | `f7c86882b10822e1277f68ec977a092c639b7784` | `37578638934` success | Vercel success — [deployment dashboard](https://vercel.com/godzillazz/sms-v3-staging/5mi7x24MXR4j3ccL4eS4wP823mQ3); alias/dpl id unavailable. Merge SHA status remains pending in connector. | `dad05e83ad4fa44affa8175c520b087a5f94b509` |
+| T28 / #492 | `f7c86882b10822e1277f68ec977a092c639b7784` | `37578638934` success | Vercel success — [deployment dashboard](https://vercel.com/godzillazz/sms-v3-staging/5mi7x24MXR4j3ccL4eS4wP823mQ3); alias/dpl id unavailable. Combined status on merge SHA is now success; connector target is a Vercel dashboard, not an alias/dpl record. | `dad05e83ad4fa44affa8175c520b087a5f94b509` |
 
 ### R3 — outcomes and unresolved read-only checks
 
@@ -48,7 +48,7 @@
 ### R3 release candidate identity
 
 - Application RELEASE_SHA: `dad05e83ad4fa44affa8175c520b087a5f94b509` (integration after #492; tree `8ae480e51f544694278ff1d65d9a97e439d23292`).
-- Exact PR-head CI `37578638934` passed for `f7c86882b10822e1277f68ec977a092c639b7784`; its tree is identical to the merge SHA. Vercel status on that PR head succeeded. Combined status on `dad05e8…` reports Vercel `pending`; exact-SHA Preview alias and deployment ID must be obtained by Owner before Smoke.
+- Exact PR-head CI `37578638934` passed for `f7c86882b10822e1277f68ec977a092c639b7784`; its tree is identical to the merge SHA. Vercel status on that PR head succeeded. Latest combined status on `dad05e8…` reports Vercel `success` (dashboard target only); exact-SHA Preview alias and deployment ID remain unavailable here and must be obtained by Owner before Smoke.
 - R3 has not been released to Production; rollback reference remains `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`.
 
 ### R2 application PRs
