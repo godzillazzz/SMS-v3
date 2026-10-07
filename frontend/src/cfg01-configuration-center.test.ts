@@ -7,38 +7,50 @@ const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'u
 
 describe('CFG-01 Configuration Center shell contract', () => {
   const main = read('main.tsx');
+  const settingsPage = read('pages/settings/SettingsPage.tsx');
   const routing = read('routing.ts');
   const registry = read('components/ConfigurationRegistryPanel.tsx');
   const api = read('api.ts');
 
-  it('keeps Settings ADMIN-only while presenting the Configuration Center shell', () => {
+  it('keeps Settings ADMIN-only and routes each Thai settings section to its own nested page', () => {
     expect(routing).toContain("if (page === 'settings') return auth.user?.role === 'ADMIN'");
-    expect(main).toContain('<h1>Configuration Center</h1>');
-    expect(main).toContain('<ConfigurationRegistryPanel settings={settings} />');
-    expect(main).toContain('<AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />');
-    expect(main).toContain('LINE Notification Settings');
+    expect(routing).toContain("settings: '/app/settings/overview'");
+    for (const section of ['overview', 'attendance-location', 'leave-policy', 'leave-types', 'auto-schedule', 'departments-positions', 'approval-permissions', 'data-retention', 'notifications']) {
+      expect(routing).toContain(`path: '${section}'`);
+      expect(settingsPage).toContain(`section === '${section}'`);
+    }
+    expect(settingsPage).toContain('<h1>{currentSection.label}</h1>');
+    expect(settingsPage).toContain('aria-label="หมวดตั้งค่าระบบ"');
+    expect(settingsPage).toContain('{sectionContent}');
+    expect(settingsPage).toContain('<ConfigurationRegistryPanel settings={settings} />');
+    expect(settingsPage).toContain('<AttendancePolicySettingsCard settings={settings} onSave={onSaveAttendancePolicy} onRefresh={onRefresh} />');
+    expect(settingsPage).toContain('LINE Notification Settings');
+    expect(main).toContain('onSectionChange={setSettingsSection}');
   });
 
-  it('shows governance domains, registry status and authority without generic arbitrary-key editor controls', () => {
-    expect(registry).toContain('Configuration Registry');
-    expect(registry).toContain('Legacy read-only');
-    expect(registry).toContain('Protected');
-    expect(registry).toContain('Authority');
-    expect(registry).toContain('key ที่ยังไม่ได้ register จะไม่สามารถสร้างหรือแก้ผ่าน SystemSetting API ได้');
+  it('shows current values and validation ranges while keeping raw keys in collapsed technical details', () => {
+    expect(registry).toContain('ค่าปัจจุบัน');
+    expect(registry).toContain('ช่วง / ตัวเลือก');
+    expect(registry).toContain('รายละเอียดทางเทคนิค');
+    expect(registry).toContain('<details className="configuration-setting-technical">');
+    expect(registry).toContain('key ที่ยังไม่ได้ register จะไม่สามารถสร้างหรือแก้ผ่าน API ตั้งค่าระบบได้');
+    expect(registry).toContain('ใช้ค่าเริ่มต้น');
+    expect(registry).toContain("if (typeof row.key === 'string' && row.key in knownDefaults)");
     expect(registry).not.toMatch(/<input[^>]+name=["']key["']/i);
     expect(registry).not.toMatch(/เพิ่ม.*key/i);
   });
 
   it('exports only registered configured values and keeps central SystemSetting API signatures unchanged', () => {
-    expect(main).toContain("setting.registryStatus === 'REGISTERED' && Boolean(setting.configured)");
-    expect(main).toContain("downloadCsv(exportableSettings, 'smsv3-governed-settings')");
+    expect(settingsPage).toContain("setting.registryStatus === 'REGISTERED' && Boolean(setting.configured)");
+    expect(settingsPage).toContain("downloadCsv(exportableSettings, 'smsv3-governed-settings')");
     expect(api).toContain("systemSettings: (token: string) => call('/system-settings'");
     expect(api).toContain("updateSystemSetting: (token: string, key: string, data: unknown) => call(`/system-settings/");
   });
 
   it('states that secrets and operational authority are outside the SystemSetting control plane', () => {
-    expect(main).toContain('แยก secret/operational authority ออกจาก SystemSetting อย่างชัดเจน');
-    expect(registry).toContain('secret และ operational settings เป็น read-only หรือใช้ protected workflow เท่านั้น');
-    expect(registry).toContain('Registry นี้ไม่ใช่ secret store และไม่ใช่ deployment control plane');
+    expect(settingsPage).toContain('ส่วน secret และสิทธิ์เชิงปฏิบัติการแยกจาก SystemSetting');
+    expect(registry).toContain('ไม่แสดงค่า secret และไม่ใช่หน้าควบคุม deployment');
+    expect(registry).toContain('ค่าเดิม · อ่านอย่างเดียว');
+    expect(registry).toContain('อยู่ภายใต้ขั้นตอนกำกับ');
   });
 });

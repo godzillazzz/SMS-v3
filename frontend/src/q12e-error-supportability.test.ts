@@ -45,6 +45,7 @@ describe('Q12-E error supportability contract', () => {
 
   it('keeps main application API error fallbacks on the shared formatter', () => {
     const code = source('main.tsx');
+    const settingsPage = source('pages/settings/SettingsPage.tsx');
     expect(code).toContain('formatRequestErrorMessage');
     for (const fallback of [
       'ไม่สามารถเข้าสู่ระบบได้',
@@ -53,7 +54,7 @@ describe('Q12-E error supportability contract', () => {
       'วิเคราะห์ Phase จากประวัติไม่สำเร็จ',
       'บันทึกเทมเพลตไม่สำเร็จ'
     ]) {
-      expect(code).toContain(fallback);
+      expect(fallback === 'บันทึกเทมเพลตไม่สำเร็จ' ? settingsPage : code).toContain(fallback);
     }
   });
 

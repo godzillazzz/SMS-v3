@@ -49,8 +49,8 @@ function MasterColumn({ title, rows, kind, busy, onCreate, onEdit, onActivate, o
   return <section className="personnel-master-column">
     <header><div><h3>{title}</h3><small>{active} Active / {rows.length} ทั้งหมด</small></div></header>
     <div className="personnel-master-create personnel-master-create--coded">
-      <input value={code} maxLength={50} placeholder={kind === 'department' ? 'Code เช่น SEC' : 'Code เช่น OFFICER'} onChange={(event) => setCode(event.target.value.toUpperCase())} />
-      <input value={name} maxLength={100} placeholder={kind === 'department' ? 'ชื่อหน่วยงานใหม่' : 'ชื่อตำแหน่งใหม่'} onChange={(event) => setName(event.target.value)} />
+      <input aria-label={`รหัส${kind === 'department' ? 'หน่วยงาน' : 'ตำแหน่ง'}ใหม่`} value={code} maxLength={50} placeholder={kind === 'department' ? 'Code เช่น SEC' : 'Code เช่น OFFICER'} onChange={(event) => setCode(event.target.value.toUpperCase())} />
+      <input aria-label={`ชื่อ${kind === 'department' ? 'หน่วยงาน' : 'ตำแหน่ง'}ใหม่`} value={name} maxLength={100} placeholder={kind === 'department' ? 'ชื่อหน่วยงานใหม่' : 'ชื่อตำแหน่งใหม่'} onChange={(event) => setName(event.target.value)} />
       <button type="button" className="btn-primary compact" disabled={!code.trim() || !name.trim() || Boolean(busy)} onClick={async () => { await onCreate(kind, code.trim(), name.trim()); setCode(''); setName(''); }}>เพิ่ม</button>
     </div>
     <label className="personnel-master-search"><span>ค้นหา</span><input value={query} placeholder={kind === 'department' ? 'ค้นหา Department' : 'ค้นหา Position'} onChange={(event)=>setQuery(event.target.value)} /></label>

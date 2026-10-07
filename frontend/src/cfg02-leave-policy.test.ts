@@ -7,12 +7,13 @@ const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'u
 
 describe('CFG-02 Leave Policy configuration contract', () => {
   const main = read('main.tsx');
+  const settingsPage = read('pages/settings/SettingsPage.tsx');
   const card = read('components/LeavePolicySettingsCard.tsx');
   const client = read('leave-policy-client.ts');
   const api = read('api.ts');
 
   it('adds Leave Policy to Configuration Center with six governed settings and immutable invariants', () => {
-    expect(main).toContain('<LeavePolicySettingsCard settings={settings} onSave={onSaveLeavePolicy} onRefresh={onRefresh} />');
+    expect(settingsPage).toContain('<LeavePolicySettingsCard settings={settings} onSave={onSaveLeavePolicy} onRefresh={onRefresh} />');
     expect(main).toContain('leavePolicyKeys.defaultSickDays');
     expect(main).toContain('leavePolicyKeys.defaultPersonalDays');
     expect(main).toContain('leavePolicyKeys.defaultVacationDays');

@@ -28,11 +28,49 @@ export const PAGE_PATHS = {
   reports: '/app/reports/details',
   executiveReport: '/app/reports/executive',
   attendanceReport: '/app/reports/attendance',
-  settings: '/app/settings'
+  settings: '/app/settings/overview'
 } as const;
 
 export type RoutePage = keyof typeof PAGE_PATHS;
 export type RouteResolution = { kind: 'page'; page: RoutePage } | { kind: 'not-found'; pathname: string };
+
+export const SETTINGS_SECTIONS = [
+  { id: 'overview', path: 'overview', label: 'ภาพรวม', description: 'สถานะและรายการค่าที่ระบบเปิดให้ดูแล' },
+  { id: 'attendance-location', path: 'attendance-location', label: 'การลงเวลาและตำแหน่ง', description: 'นโยบายเวลา GPS และตำแหน่ง' },
+  { id: 'leave-policy', path: 'leave-policy', label: 'นโยบายการลา', description: 'ค่าเริ่มต้นและเงื่อนไขคำขอลา' },
+  { id: 'leave-types', path: 'leave-types', label: 'ประเภทการลา', description: 'ชื่อและสถานะประเภทการลา' },
+  { id: 'auto-schedule', path: 'auto-schedule', label: 'รูปแบบจัดกะอัตโนมัติ', description: 'รูปแบบและลำดับการจัดกะ' },
+  { id: 'departments-positions', path: 'departments-positions', label: 'หน่วยงานและตำแหน่ง', description: 'ข้อมูลหน่วยงานและตำแหน่งที่ใช้ในระบบ' },
+  { id: 'approval-permissions', path: 'approval-permissions', label: 'สิทธิ์อนุมัติ', description: 'ผู้ตรวจคำขอและเกณฑ์เวลาอนุมัติ' },
+  { id: 'data-retention', path: 'data-retention', label: 'การเก็บรักษาข้อมูล', description: 'ระยะเวลาเก็บข้อมูลภายใต้ขั้นตอนกำกับ' },
+  { id: 'notifications', path: 'notifications', label: 'การแจ้งเตือน', description: 'ช่องทางและข้อความแจ้งเตือน' }
+] as const;
+
+export type SettingsSectionId = typeof SETTINGS_SECTIONS[number]['id'];
+const SETTINGS_BASE_PATH = '/app/settings';
+const SETTINGS_SECTION_BY_PATH = new Map<string, SettingsSectionId>(SETTINGS_SECTIONS.map(({ id, path }) => [`${SETTINGS_BASE_PATH}/${path}`, id]));
+
+export function settingsSectionFromPath(pathname: string): SettingsSectionId {
+  return SETTINGS_SECTION_BY_PATH.get(normalizePath(pathname)) ?? 'overview';
+}
+
+export function settingsSectionPath(section: SettingsSectionId): string {
+  const definition = SETTINGS_SECTIONS.find((item) => item.id === section)!;
+  return `${SETTINGS_BASE_PATH}/${definition.path}`;
+}
+
+export function navigateSettingsSection(section: SettingsSectionId, options: { replace?: boolean; preserveQuery?: boolean } = {}): URL {
+  const current = new URL(window.location.href);
+  const next = new URL(settingsSectionPath(section), current.origin);
+  if (options.preserveQuery !== false) next.search = current.search;
+  next.hash = current.hash;
+  const target = `${next.pathname}${next.search}${next.hash}`;
+  const state = { ...(window.history.state ?? {}), smsPage: 'settings', smsSettingsSection: section };
+  if (options.replace) window.history.replaceState(state, '', target);
+  else window.history.pushState(state, '', target);
+  window.dispatchEvent(new Event(ROUTE_CHANGE_EVENT));
+  return next;
+}
 
 const PAGE_TITLES: Record<RoutePage, string> = {
   dashboard: 'ภาพรวม',
@@ -74,7 +112,10 @@ function normalizePath(pathname: string): string {
 }
 
 export function pageFromPath(pathname: string): RoutePage | null {
-  return PATH_PAGES.get(normalizePath(pathname)) ?? null;
+  const normalized = normalizePath(pathname);
+  if (normalized === SETTINGS_BASE_PATH) return 'settings';
+  if (normalized.startsWith(`${SETTINGS_BASE_PATH}/`)) return SETTINGS_SECTION_BY_PATH.has(normalized) ? 'settings' : null;
+  return PATH_PAGES.get(normalized) ?? null;
 }
 
 export function pageFromLocation(location: Pick<Location, 'pathname' | 'search'> = window.location): RouteResolution {
@@ -91,8 +132,8 @@ export function pageTitle(page: RoutePage): string {
   return PAGE_TITLES[page];
 }
 
-export function updateDocumentTitle(page: RoutePage | null, kind: 'page' | 'not-found' | 'forbidden' = 'page'): void {
-  const title = kind === 'not-found' ? 'ไม่พบหน้าที่ต้องการ' : kind === 'forbidden' ? 'ไม่มีสิทธิ์เข้าถึง' : page ? pageTitle(page) : 'ระบบจัดการงาน';
+export function updateDocumentTitle(page: RoutePage | null, kind: 'page' | 'not-found' | 'forbidden' = 'page', settingsSection: SettingsSectionId = 'overview'): void {
+  const title = kind === 'not-found' ? 'ไม่พบหน้าที่ต้องการ' : kind === 'forbidden' ? 'ไม่มีสิทธิ์เข้าถึง' : page === 'settings' ? SETTINGS_SECTIONS.find((section) => section.id === settingsSection)?.label || pageTitle(page) : page ? pageTitle(page) : 'ระบบจัดการงาน';
   document.title = `${title} | SMS-v3`;
 }
 

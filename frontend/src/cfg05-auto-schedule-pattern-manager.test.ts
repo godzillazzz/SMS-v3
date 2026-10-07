@@ -4,6 +4,7 @@ import path from 'node:path';
 
 const read = (file: string) => fs.readFileSync(path.join(__dirname, file), 'utf8').replace(/\r\n/g, '\n');
 const main = read('main.tsx');
+const settingsPage = read('pages/settings/SettingsPage.tsx');
 const client = read('auto-schedule-pattern-client.ts');
 const panel = read('components/AutoSchedulePatternPanel.tsx');
 const api = read('api.ts');
@@ -36,7 +37,7 @@ describe('CFG-05 Auto Schedule Pattern Manager', () => {
   });
 
   it('shows an Admin Pattern Manager with protected core routing and no Delete action', () => {
-    expect(main).toContain('<AutoSchedulePatternPanel token={token} />');
+    expect(settingsPage).toContain('<AutoSchedulePatternPanel token={token} />');
     expect(panel).toContain('Auto Schedule Pattern Manager');
     expect(panel).toContain('Core SUPERVISOR / ROTATE ปิดใช้งาน');
     expect(panel).toContain('Custom pattern จะเป็น “เลือกเอง”');
