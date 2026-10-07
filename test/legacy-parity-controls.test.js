@@ -57,7 +57,7 @@ test('legacy navigation and four-role model are represented in the frontend', ()
 
 test('schedule month picker and license search match legacy usability expectations', () => {
   assert.match(monthPicker, /export function MonthGridPicker/);
-  assert.match(frontend, /<MonthGridPicker value=\{scheduleMonth\} onChange=\{setScheduleMonth\} \/>/);
+  assert.match(frontend, /<MonthGridPicker value=\{scheduleMonth\} onChange=\{\(value\) => \{ setScheduleMonth\(value\); setOperationPage\(1\); \}\} \/>/);
   assert.match(frontend, /page === 'licenses' && <div className="[^"]*\btoolbar\b[^"]*">/);
   assert.match(frontend, /value=\{tableSearch\} onChange=\{\(event\) => setTableSearch\(event\.target\.value\)\}/);
   assert.match(frontend, /ค้นหารหัสพนักงาน ชื่อ เลขที่ใบอนุญาต หรือสถานะ/);
