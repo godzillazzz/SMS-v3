@@ -24,7 +24,7 @@ describe('admin audit log viewer contract', () => {
     for (const label of ['ตั้งแต่วันที่', 'ถึงวันที่', 'ผู้ใช้งาน', 'Module', 'Action', 'ค้นหา', 'ล้างตัวกรอง']) expect(toolbar).toContain(label);
     expect(toolbar).toContain('value={25}');
     expect(toolbar).toContain('value={100}');
-    expect(dataTable).toContain('หน้า {page} จาก {totalPages}');
+    expect(dataTable).toContain("loading ? 'หน้า — จาก —' : `หน้า ${page} จาก ${totalPages}`");
   });
 
   it('exposes existing governed master and configuration audit entities in the filter', () => {

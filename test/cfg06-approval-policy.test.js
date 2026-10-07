@@ -32,7 +32,7 @@ function rowsFromDefaults(overrides = {}) {
 }
 
 test('CFG-06 defines every current Approval Center request type with Admin preserved as mandatory reviewer', () => {
-  assert.equal(REQUEST_TYPE_DEFINITIONS.length, 8);
+  assert.equal(REQUEST_TYPE_DEFINITIONS.length, 9);
   for (const definition of REQUEST_TYPE_DEFINITIONS) {
     assert.equal(definition.safeReviewerRoles.includes('ADMIN'), true, definition.type);
     const policy = defaultPolicyFor(definition);
@@ -40,11 +40,12 @@ test('CFG-06 defines every current Approval Center request type with Admin prese
     assert.equal(policy.dueSoonHours, 24);
     assert.equal(policy.overdueHours, 48);
   }
-  assert.equal(ALL_SETTING_KEYS.length, 26);
+  assert.equal(ALL_SETTING_KEYS.length, 29);
 });
 
 test('CFG-06 Supervisor reviewer ceiling exactly inherits Manager reviewer ceiling', () => {
   for (const definition of REQUEST_TYPE_DEFINITIONS) {
+    if (definition.type === 'SCHEDULE_APPROVAL') continue;
     assert.equal(definition.safeReviewerRoles.includes('SUPERVISOR'), definition.safeReviewerRoles.includes('MANAGER'), definition.type);
   }
   for (const type of ['REGISTRATION_REQUEST', 'USER_ACCESS', 'LEAVE_REQUEST']) {
@@ -53,6 +54,11 @@ test('CFG-06 Supervisor reviewer ceiling exactly inherits Manager reviewer ceili
   }
   const policy = normalizePolicyInput('USER_ACCESS', { reviewerRoles: ['ADMIN', 'MANAGER', 'SUPERVISOR'], dueSoonHours: 12, overdueHours: 36 });
   assert.deepEqual(policy.reviewerRoles, ['ADMIN', 'MANAGER', 'SUPERVISOR']);
+  assert.deepEqual(normalizePolicyInput('SCHEDULE_APPROVAL', { reviewerRoles: ['SUPERVISOR', 'ADMIN'], dueSoonHours: 12, overdueHours: 36 }).reviewerRoles, ['ADMIN', 'SUPERVISOR']);
+  assert.throws(
+    () => normalizePolicyInput('SCHEDULE_APPROVAL', { reviewerRoles: ['ADMIN', 'MANAGER'], dueSoonHours: 12, overdueHours: 36 }),
+    (error) => error.details?.code === 'APPROVAL_POLICY_ROLE_EXCEEDS_SECURITY_CEILING'
+  );
 });
 
 test('CFG-06 security ceiling cannot grant Manager or Supervisor to an Admin-only workflow or remove Admin', () => {
@@ -102,6 +108,29 @@ test('CFG-06 policy master fails closed when its governed seed is incomplete', a
   });
   await assert.rejects(
     () => service.list(),
+    (error) => error.statusCode === 503 && error.details?.code === 'APPROVAL_POLICY_INCOMPLETE'
+  );
+});
+
+test('CFG-06 uses safe defaults for an entirely unseeded schedule approval policy, but fails on partial settings', async () => {
+  const scheduleKeyPrefix = 'APPROVAL_POLICY.SCHEDULE_APPROVAL.';
+  const existingRows = rowsFromDefaults().filter((row) => !row.key.startsWith(scheduleKeyPrefix));
+  const service = createApprovalPolicyService({
+    prismaClient: { systemSetting: { findMany: async () => existingRows } },
+    auditService: { log: async () => {} }
+  });
+  const policies = await service.list();
+  const schedulePolicy = policies.find((policy) => policy.requestType === 'SCHEDULE_APPROVAL');
+  assert.deepEqual(schedulePolicy.reviewerRoles, ['ADMIN', 'SUPERVISOR']);
+  assert.equal(schedulePolicy.dueSoonHours, 24);
+  assert.equal(policySettingDefinitions().filter((row) => row.key.startsWith(scheduleKeyPrefix)).length, 3);
+
+  const partiallySeededService = createApprovalPolicyService({
+    prismaClient: { systemSetting: { findMany: async () => [...existingRows, { key: policyKey('SCHEDULE_APPROVAL', 'REVIEWER_ROLES'), value: '["ADMIN"]' }] } },
+    auditService: { log: async () => {} }
+  });
+  await assert.rejects(
+    () => partiallySeededService.list(),
     (error) => error.statusCode === 503 && error.details?.code === 'APPROVAL_POLICY_INCOMPLETE'
   );
 });
@@ -190,7 +219,7 @@ test('CFG-06 migration seeds only governed approval policy defaults and is non-d
 
 test('CFG-06 registry exposes policy keys as registered but not editable one key at a time', () => {
   const definitions = policySettingDefinitions();
-  assert.equal(definitions.length, 26);
+  assert.equal(definitions.length, 29);
   assert.equal(definitions.every((row) => row.group === 'APPROVAL'), true);
   assert.equal(definitions.every((row) => row.editable === false), true);
   assert.equal(definitions.every((row) => row.authority === 'ADMIN_GOVERNED_VIA_APPROVAL_POLICY_API'), true);
