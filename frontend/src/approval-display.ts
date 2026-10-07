@@ -37,6 +37,10 @@ function normalizedCode(value: unknown) {
   return String(value ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_');
 }
 
+function isMissingValue(value: unknown) {
+  return value == null || (typeof value === 'string' && value.trim() === '');
+}
+
 export function isSupersededScheduleApproval(row: ScheduleApprovalRowState) {
   const status = normalizedCode(row.status);
   return status === 'SUPERSEDED' || (status === 'PENDING' && row.isLatestRevision === false);
@@ -48,6 +52,7 @@ export function canDecideScheduleApproval(row: ScheduleApprovalRowState) {
 
 export function scheduleApprovalStatusLabel(value: unknown, superseded = false) {
   if (superseded) return statusLabels.SUPERSEDED;
+  if (isMissingValue(value)) return 'ไม่ระบุ';
   return statusLabels[normalizedCode(value)] || 'อื่น ๆ';
 }
 
@@ -61,6 +66,7 @@ export function scheduleApprovalTone(value: unknown) {
 }
 
 export function scheduleApprovalChangeTypeLabel(value: unknown) {
+  if (isMissingValue(value)) return 'ไม่ระบุ';
   return changeTypeLabels[normalizedCode(value)] || 'อื่น ๆ';
 }
 

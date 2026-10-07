@@ -17,6 +17,9 @@ describe('schedule approval presentation and decision guard', () => {
     expect(scheduleApprovalStatusLabel('DRAFT')).toBe('ฉบับร่าง');
     expect(scheduleApprovalStatusLabel('CANCELLED')).toBe('ยกเลิก');
     expect(scheduleApprovalStatusLabel('UNRECOGNIZED_ENUM')).toBe('อื่น ๆ');
+    expect(scheduleApprovalStatusLabel(null)).toBe('ไม่ระบุ');
+    expect(scheduleApprovalStatusLabel(undefined)).toBe('ไม่ระบุ');
+    expect(scheduleApprovalStatusLabel('  ')).toBe('ไม่ระบุ');
   });
 
   it('shows older pending revisions as superseded and allows decisions only on the latest pending revision', () => {
@@ -49,6 +52,9 @@ describe('schedule approval presentation and decision guard', () => {
     }
     expect(scheduleApprovalChangeTypeLabel('batch_update_shift')).toBe('แก้ไขกะหลายรายการ');
     expect(scheduleApprovalChangeTypeLabel('UNKNOWN_CHANGE')).toBe('อื่น ๆ');
+    expect(scheduleApprovalChangeTypeLabel(null)).toBe('ไม่ระบุ');
+    expect(scheduleApprovalChangeTypeLabel(undefined)).toBe('ไม่ระบุ');
+    expect(scheduleApprovalChangeTypeLabel('  ')).toBe('ไม่ระบุ');
     expect(scheduleApprovalTone('APPROVED')).toBe('success');
     expect(scheduleApprovalTone('PENDING')).toBe('warning');
     expect(scheduleApprovalTone('SUPERSEDED')).toBe('neutral');
