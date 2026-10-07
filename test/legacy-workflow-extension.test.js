@@ -43,7 +43,7 @@ test('leave attachment and Excel routes never expose binary content in JSON', ()
 });
 
 test('Settings retains the legacy LINE template layout without persisting notification credentials', () => {
-  const frontend = read('frontend/src/main.tsx');
+  const frontend = read('frontend/src/pages/settings/SettingsPage.tsx');
   const routes = read('src/routes/operations.routes.js');
   const registry = read('src/services/system-setting-registry.service.js');
 
