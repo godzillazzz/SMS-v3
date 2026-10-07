@@ -17,6 +17,7 @@ async function signInOnDeepLink(page: Page, target: string, role = 'VIEWER') {
   }));
 
   await page.goto(target);
+  await expect(page.locator('.nexus-public[data-design="sms-command-nexus-full-bleed"]')).toBeVisible();
   await expect(page.locator('#auth-login-form')).toBeVisible();
   await expect(page).toHaveURL(target);
   await page.locator('#email').fill('viewer@example.test');
