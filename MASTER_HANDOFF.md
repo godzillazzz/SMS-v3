@@ -6,17 +6,18 @@
 
 ### Current source and T17 recovery
 
-- ใช้ `origin/fix/serverless-database-reliability` เท่านั้น; remote HEAD ณ การตรวจคือ `d2977e351ff1688e1609a8e8e44866f690b5f9ee`. SHA Production ล่าสุดที่ handoff บันทึก `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea` เป็น ancestor ของ HEAD นี้. Diff จาก Production source ดังกล่าวไม่มี `prisma/schema.prisma` หรือ `prisma/migrations`.
+- ใช้ `origin/fix/serverless-database-reliability` เท่านั้น; remote HEAD ปัจจุบันคือ `ea8c6a6fddaaa44a056528e4e437945abb98f4bb`. PR #523 merge จาก `30631e9613eac0a3db3461e89306e6e19b704baa` โดยเปลี่ยนเฉพาะ `MASTER_HANDOFF.md`; `d2977e351ff1688e1609a8e8e44866f690b5f9ee` จึงยังเป็น application source ที่ต้องผ่าน smoke. SHA Production ล่าสุดที่ handoff บันทึก `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea` เป็น ancestor ของ HEAD; source diff ไม่มี `prisma/schema.prisma` หรือ `prisma/migrations`.
+- Fresh check: PR #523 exact-head CI run `37658629472` สำเร็จ; job รวม backend/PostgreSQL, frontend, typecheck/build/bundle/hygiene และ Preview health/readiness/database/CORS checks. GitHub รายงาน Vercel status `success` บน merge SHA `ea8c6a6…`; ไม่มี native Vercel source-provenance record หรือ technical smoke ของ `ea8c6a6…` ที่ตรวจได้ในรอบนี้.
 - `codex/t17-a11y-1007` บน origin ยังชี้ `d2977e…`; PR/T17 implementation commit ไม่ได้อยู่บน remote.
 - ตามข้อมูลจาก Owner, T17 local state คือ base `d2977e…`, implementation `259f794e21a512b65f8a8de6c4f22be8714085e1`, handoff `9d0b7d6aba719031b62847abf7429e5b0298b7d3`, และ clean worktree `/workspace/SMS-v3/.worktrees/t17-a11y`. Worktree/branch/ref และ commit objects เหล่านี้ไม่มีใน workspace ปัจจุบัน; GitHub commit/PR search ไม่พบ และ `git fetch` commit SHA ตอบ `not our ref`. ดังนั้น test evidence ที่ Owner ให้ไว้ (Playwright 19/19, frontend 154 files / 916 tests, audit 0 vulnerabilities, TypeScript/build, bundle guard, axe และ Lighthouse 100) ยังไม่ได้ตรวจซ้ำบน artifact ที่กู้คืนได้. T17 ยังไม่มี PR, merge SHA, exact-head CI หรือ Preview ที่ตรวจได้ใน session นี้.
 
-### Production release readiness — candidate `d2977e…`
+### Production release readiness — application candidate `d2977e…` (integration docs descendant `ea8c6a6…`)
 
-- Latest recorded Production release: protected workflow #37572338555 — SUCCESS; source `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`; rollback `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`. Current Production was not freshly re-queried: direct runtime access from this environment returned HTTP 403 before usable health/readiness evidence.
+- Latest recorded Production release: protected workflow #37572338555 — SUCCESS; source `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`; rollback reference `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`. Fresh canonical health/readiness requests could not reach the service from this environment (HTTP 000; proxy CONNECT 403), so live source, health, readiness and current rollback remain UNKNOWN.
 - Exact candidate CI run #37633962744 — SUCCESS on `d2977e…`, including `npm test`, PostgreSQL integration, frontend tests, production build/bundle, Prisma and hygiene. The integration-PR Preview runtime step was skipped on this push event.
 - Vercel status for the exact candidate completed successfully; deployment `dpl_28pZRExgZBT7PeSCmDDrjq6SXTBS`, Preview `https://sms-v3-staging-7jilnxz50-godzillazz.vercel.app`.
-- Exact-source technical smoke run #37652582109 — FAILURE. Health/readiness, Vite assets and credentialed trusted/untrusted CORS checks passed; 10 tests passed, 1 failed, 23 skipped. Desktop Login at 1440px failed twice (initial attempt and retry): `Primary login control must have a viewport box` at `e2e/smoke/technical.spec.js:112`. Credentialed UAT was not established and remains UNKNOWN. This is a release blocker until resolved and rerun on the final exact source.
-- `.github/releases/approved-production.json` still targets the earlier R3 SHA `b3e70834977a1b29b367e8a1d3b3cfebac0d74c8`, not `d2977e…`; no release-control PR for `d2977e…` was prepared. `Deploy Approved Production Manifest V2` is `workflow_dispatch` only. The local GitHub CLI is unauthenticated and no Actions-dispatch operation is exposed by the connected GitHub tools, so dispatch and normal Environment review were unavailable here. No attempt was made to bypass them.
+- Exact-source technical smoke run #37652582109 — FAILURE (reconfirmed from job `112899462566`). Health/readiness, Vite assets and credentialed trusted/untrusted CORS checks passed; 10 tests passed, 1 failed, 23 skipped. Desktop Login at 1440px failed twice (initial attempt and retry): `Primary login control must have a viewport box` at `e2e/smoke/technical.spec.js:112`. Credentialed UAT was not established and remains UNKNOWN. This is a release blocker until resolved and rerun on the final exact source.
+- `.github/releases/approved-production.json` was freshly read and still targets earlier R3 SHA `b3e70834977a1b29b367e8a1d3b3cfebac0d74c8`, not `d2977e…` or `ea8c6a6…`. The manifest’s canonical URL is `https://sms-v3-staging-ten.vercel.app`; fresh GET requests to `/api/v1/health` and `/api/v1/ready` failed before HTTP with `CONNECT tunnel failed, response 403`, so live Production source, health, readiness and rollback target remain UNKNOWN. `Deploy Approved Production Manifest V2` is `workflow_dispatch` only; fresh `gh auth status` reports no GitHub login and the connected GitHub tools expose no workflow-dispatch action. Therefore the protected workflow and normal Environment review cannot be submitted from this session. No bypass was attempted.
 
 ### Final audit status / next gates
 
@@ -24,7 +25,7 @@
 |---|---|---|
 | T29, T07, T09, T16, T10–T15 | MERGED to integration; not promoted by this session | PR, merge SHA, exact CI, Preview, tests and task-specific gaps remain recorded in the table/details below. |
 | T08 Approval Detail | BLOCKED — Owner/API decision | Keep client-side schedule-revision diff out. Owner must choose an authoritative immutable revision-diff/read API or defer schedule detail; any schema work needs separate authorization. |
-| T17 Accessibility | BLOCKED — exact local worktree/commit missing | Restore the exact branch/commit or recreate from the approved base; then open its PR, pass exact-head CI and Preview, merge, fetch and reread this handoff. |
+| T17 Accessibility | BLOCKED — exact local worktree/commit missing | Remote T17 branch remains at base `d2977e…`; restore the exact branch/commit or recreate from the approved base, then open its PR, pass exact-head CI and Preview, merge, fetch and reread this handoff. |
 | T19 | NOT STARTED | Wait for the T17 gate and current-HEAD audit. |
 | T18 | NOT STARTED | Verify the task scope from an authoritative plan before implementation; `PLAN.md` is absent from the current allowlisted branch. |
 | T24 | PARTIAL / VERIFY-FIRST | Prior batching/query work #489 is recorded as complete. Readiness/dashboard query work, DB/function region comparison and before/after Preview timing remain unverified/deferred; do not label the whole task closed. |
@@ -33,7 +34,7 @@
 
 Required instructions were re-read from `AGENTS.md`, this canonical `MASTER_HANDOFF.md`, and `.agents/skills/sms-v3-autonomous-operator/SKILL.md`. `PLAN.md` is absent. The separate legacy file `MASTER HANDOFF.md` (with a space) has a conflicting checkpoint; `AGENTS.md` designates this underscore-named file as the sole current-state handoff, so that legacy copy was not edited.
 
-No Production mutation occurred in this session. Do not advance to T19 until the exact T17 commit is restored/merged; do not release `d2977e…` while the exact-source Login smoke remains failed. After a passing final candidate and corrected manifest, re-verify current canonical/rollback and use only the protected Production workflow.
+No Production mutation occurred in this audit. Do not advance to T19 until T17 is restored/merged; do not release `d2977e…` while exact-source Login smoke fails. After a passing final candidate and corrected manifest, freshly verify canonical/rollback and use only the protected Production workflow.
 
 ---
 
