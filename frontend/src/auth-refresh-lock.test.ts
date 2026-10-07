@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AUTH_REFRESH_LOCK_NAME, withAuthRefreshLock, type AuthRefreshLockManager } from './auth-refresh-lock';
 
 function createSerialLockManager(): AuthRefreshLockManager {
@@ -37,9 +37,18 @@ describe('cross-tab auth refresh coordination', () => {
     expect(maxActive).toBe(1);
   });
 
-  it('fails closed without browser lock support instead of racing refresh-token rotation', async () => {
-    let refreshCalls = 0;
-    await expect(withAuthRefreshLock(async () => { refreshCalls += 1; }, null)).rejects.toThrow(/cross-tab session refresh/);
-    expect(refreshCalls).toBe(0);
+  it('falls back to same-tab refresh when browser lock support is unavailable and warns once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const refresh = vi.fn(async () => 'refreshed');
+    const invalidLockManager = { request: null } as unknown as AuthRefreshLockManager;
+
+    try {
+      await expect(withAuthRefreshLock(refresh, null)).resolves.toBe('refreshed');
+      await expect(withAuthRefreshLock(refresh, invalidLockManager)).resolves.toBe('refreshed');
+      expect(refresh).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

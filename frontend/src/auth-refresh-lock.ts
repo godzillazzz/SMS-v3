@@ -1,5 +1,7 @@
 export const AUTH_REFRESH_LOCK_NAME = 'smsv3-auth-refresh-v1';
 
+let warnedAboutMissingLockManager = false;
+
 export type AuthRefreshLockManager = {
   request<T>(
     name: string,
@@ -13,7 +15,11 @@ export function withAuthRefreshLock<T>(
   lockManager: AuthRefreshLockManager | null | undefined = typeof navigator === 'undefined' ? undefined : navigator.locks
 ): Promise<T> {
   if (!lockManager || typeof lockManager.request !== 'function') {
-    return Promise.reject(new Error('Secure cross-tab session refresh is unavailable.'));
+    if (!warnedAboutMissingLockManager) {
+      warnedAboutMissingLockManager = true;
+      console.warn('navigator.locks is unavailable; using same-tab auth refresh fallback.');
+    }
+    return refresh();
   }
   return lockManager.request(AUTH_REFRESH_LOCK_NAME, { mode: 'exclusive' }, refresh);
 }
