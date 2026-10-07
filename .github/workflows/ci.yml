@@ -138,3 +138,10 @@ jobs:
           fi
           git diff --check
           test -z "$(git status --porcelain)"
+      - name: Verify integration PR Preview health, readiness, and CORS
+        if: github.event_name == 'pull_request' && github.base_ref == 'fix/serverless-database-reliability'
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="${GITHUB_HEAD_REF//\//-}"
+          PREVIEW_BASE_URL="https://sms-v3-staging-git-${branch}-godzillazz.vercel.app" node scripts/ci/verify-preview-runtime.js
