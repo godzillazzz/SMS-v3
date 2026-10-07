@@ -1,8 +1,8 @@
 # MASTER HANDOFF
 
-## Current state — R2 Production ผ่าน; R3 T25 กำลังตรวจ CI/Preview (7 ตุลาคม 2569)
+## Current state — R2 Production ผ่าน; T25 merge แล้ว, T24 เตรียม PR (7 ตุลาคม 2569)
 
-**สถานะ: OPEN — R2 Production สำเร็จและเจ้าของระบบยืนยันการตรวจหน้าจอหลังล็อกอินผ่านแล้ว. T25 พบว่า refresh single-flight เดิมจำกัดอยู่ใน module/tab จึงเพิ่ม Web Lock แบบ exclusive ข้าม tab ให้ทุกเส้นทาง refresh; การเปลี่ยนแปลงอยู่ระหว่างตรวจ CI/Preview. ยังตรวจ audit ของบัญชี Sermpong UAT ไม่ได้เพราะ endpoint ต้องใช้ session ADMIN ที่มีสิทธิ์และไม่มี session ที่ได้รับอนุญาตใน execution นี้. สถานะเหตุ token reuse/leak ของบัญชีนี้จึงยัง UNKNOWN; ไม่มีหลักฐานยืนยันว่าเกิดหรือไม่เกิด. ไม่มีการ revoke session หรือแก้ auth policy.**
+**สถานะ: OPEN — R2 Production สำเร็จและเจ้าของระบบยืนยันการตรวจหน้าจอหลังล็อกอินผ่านแล้ว. PR #488 (T25) merge แล้ว; T24 implementation พร้อมตรวจใน PR แต่ยังรอ exact-head CI และ Preview READY. ยังตรวจ audit ของบัญชี Sermpong UAT ไม่ได้เพราะ endpoint ต้องใช้ session ADMIN ที่มีสิทธิ์และไม่มี session ที่ได้รับอนุญาตใน execution นี้. สถานะเหตุ token reuse/leak ของบัญชีนี้จึงยัง UNKNOWN. ไม่มีการปล่อย R3.**
 
 ### Production now — R2
 
@@ -28,15 +28,23 @@
 | #477 | `442ef0562a2d13d27e51e5279a317b0572795af6` | `37567934048` success | READY — https://sms-v3-staging-git-fix-ux-t03-remove-dev-copy-dfd2f3-godzillazz.vercel.app | `3ae26fc39c2c914c75d26daabe1945c946deafae` |
 | #478 | `0b392472f1c56aa785b72e8f161ffd137534fbf9` | `37568236186` success | READY — https://sms-v3-staging-git-fix-ux-t06-login-20261006-godzillazz.vercel.app | `ad0cc766bf2e24d81ee025d19cdb9301b0f32809` |
 
+### R3 PRs
+
+| Task / PR | Head | CI | Vercel Preview | Merge |
+|---|---|---|---|---|
+| T25 / #488 | `a846541aea13b6e27fb4963be65a5f69acd3ff55` | `37575249077` success | READY — https://sms-v3-staging-git-codex-r3-t25-secure-refres-0a8bee-godzillazz.vercel.app | `47c1628a092e8bc02fbc608500bcf6fc58abd1f5` |
+
 ### R3 — T25 security gate
 
 - Read-only source review พบว่า browser `api.ts` มี single-flight เฉพาะ module instance ของ tab นั้น; `attendance-auth-request.ts` มี `refreshPromise` แยกกัน. แต่ละ tab มี state แยกกัน จึงยังมีทางให้ refresh cookie เดียวกันถูกใช้พร้อมกันข้าม tab (ข้อเท็จจริงจาก code; ยังไม่ใช่หลักฐานว่าเกิดกับบัญชี UAT).
-- T25 เพิ่ม `navigator.locks` origin-wide exclusive lock ให้ `api.refresh()` ทุกครั้ง และใช้ `refreshAuth()` ร่วมกันกับ request retry และ Attendance/startup path. ถ้า Web Lock API ไม่มี จะ fail closed ก่อนเรียก refresh endpoint. เพิ่ม test serialization/fail-closed และอัปเดต source hash guards เพื่อ pin API surface หลัง T25. Local frontend: 857/857 tests และ build ผ่าน; Preview/CI ยังรอ. Full backend `npm test` ไม่ได้ผ่านใน sandbox เพราะ DB-backed tests ต้องใช้ PostgreSQL ซึ่งไม่มีให้เชื่อมต่อ; T25 ไม่มี backend changes.
+- T25 เพิ่ม `navigator.locks` origin-wide exclusive lock ให้ `api.refresh()` ทุกครั้ง และใช้ `refreshAuth()` ร่วมกันกับ request retry และ Attendance/startup path. ถ้า Web Lock API ไม่มี จะ fail closed ก่อนเรียก refresh endpoint. เพิ่ม test serialization/fail-closed และอัปเดต source hash guards. Frontend 857/857, build, exact-head CI `37575249077` ผ่าน; Vercel Preview READY `https://sms-v3-staging-git-codex-r3-t25-secure-refres-0a8bee-godzillazz.vercel.app`. PR #488 merge commit `47c1628a092e8bc02fbc608500bcf6fc58abd1f5`.
 - Backend หมุน refresh token และเมื่อพบ token ที่ revoke แล้ว จะบันทึก `TOKEN_REUSE` และเรียก `revokeAllForUser` เพื่อ revoke session ของ user ทั้งหมดและเพิ่ม `tokenVersion`.
 - Audit route คือ `GET /api/v1/operations/audit-events`; ใน source กำหนด `authorize('ADMIN')`. ไม่มี authorized ADMIN session ให้ใช้ใน execution นี้. ไม่มีช่องทาง query account-specific audit แบบ read-only จาก GitHub/Vercel ที่ใช้ได้โดยไม่ต้องมี Production Environment approval. `.github/workflows/diagnose-production-database.yml` ต้องผ่าน Environment `production-sms-v3-staging` และ scripts/inputs ที่มีตรวจ LIC-HIST/G06 ไม่ได้ตรวจ refresh-token audit.
-- จึง **ยังไม่ได้ตรวจ audit ของ Sermpong UAT**; ไม่มีหลักฐานให้สรุปว่า token รั่ว และก็ยังตัดความเป็นไปได้นั้นไม่ได้. เป็น blocker สำหรับการสรุปสถานะบัญชี ต้องให้เจ้าของระบบตรวจ audit ผ่าน session ที่ได้รับอนุญาต. ตามคำสั่งให้ทำงานอิสระต่อ ได้ทำ client mitigation จาก race ที่ยืนยันได้ใน source; ไม่มีการ revoke session, ระงับบัญชี หรือแก้ auth policy. งาน T24 จะเริ่มหลัง T25 ผ่าน CI/Preview ตามลำดับ.
+- จึง **ยังไม่ได้ตรวจ audit ของ Sermpong UAT**; ไม่มีหลักฐานให้สรุปว่า token รั่ว และก็ยังตัดความเป็นไปได้นั้นไม่ได้. เป็น blocker สำหรับการสรุปสถานะบัญชี ต้องให้เจ้าของระบบตรวจ audit ผ่าน session ที่ได้รับอนุญาต. ได้ทำ client mitigation จาก race ที่ยืนยันได้ใน source; ไม่มีการ revoke session, ระงับบัญชี หรือแก้ auth policy.
+- T24 batches supervisor/daily event-policy hydration and actual-site reads. Query-count test with 12 assignments reduces policy reads from 72 `findFirst` calls to one `findMany`, and actual-site reads from three `findUnique` calls to one `findMany`. Employees/readiness-center and dashboard already use batch/aggregate queries; no logic change there. Approval-center polling remains every 60 seconds and stops querying while the document is not visible.
+- T24 local checks: backend focused 63/63, frontend full 856/856, frontend build and `git diff --check` passed. Full local backend `npm test` has database-backed failures because PostgreSQL is unavailable in this sandbox. Preview timing is not measured yet because protected pages require an authorized session; no credential was requested or created. Function region is `sin1`; DB region remains UNKNOWN. Production workflow logs show verified Supabase session mode but do not report DB region. No DB/business data was written.
 - งาน T28 ที่เพิ่มตามคำสั่งให้รวม: (6) ลบ/แสดงข้อมูลจริงแทนการ์ด `AWAITING DATA` (`ROSTER READINESS / SHIFT COVERAGE`); (7) เอาคำ “ไม้กายสิทธิ์” และ `CFG-06` ออกจากข้อความผู้ใช้; (8) แปล 403 ของ `/attendance/simple/bootstrap` สำหรับบัญชีที่ไม่มี employee link เป็นข้อความเฉพาะ; (9) ห้ามแสดง badge `0` ก่อนมีค่าครั้งแรก; (10) ค้นหาและลบ placeholder `••••••••••••` ตาม T06.
-- T25 PR/CI/Preview/merge ยังไม่เกิด; ไม่มี R3 RELEASE_SHA. เมื่อ T25 ผ่าน CI และ Vercel Preview READY จึง merge และเริ่ม T24 จาก integration HEAD ใหม่.
+- T24 PR/CI/Preview ยังไม่เกิด; T26–T28 ยังไม่เริ่ม. ไม่มี R3 RELEASE_SHA. Integration HEAD หลัง T25 merge คือ `47c1628a092e8bc02fbc608500bcf6fc58abd1f5`.
 
 ### R2 PR / release table
 
