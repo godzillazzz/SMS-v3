@@ -1,5 +1,32 @@
 # MASTER HANDOFF
 
+## HOTFIX — R1B release-control and Production status (7 ตุลาคม 2569 เวลาไทย)
+
+**สถานะ: OPEN — เจ้าของระบบแจ้งว่าเรียบร้อยแล้ว แต่ยังไม่มีหลักฐาน run/deployment สำหรับบันทึกผล Production**
+
+สถานะนี้เป็นข้อมูลล่าสุด; เนื้อหาด้านล่างเป็นบันทึกประวัติ ณ วันที่ 6 ตุลาคม และไม่ใช่สถานะปัจจุบันของ R1B.
+
+### R1B และ release-control
+
+- Integration branch `fix/serverless-database-reliability` ปัจจุบันอยู่ที่ merge commit `aa8e8bb42ffd7f920fb4275e3c4aea9be69c582b` จาก PR #482.
+- PR #481 แก้ Linux `libc` metadata ของ sharp 0.35.5; R1B source SHA `31b17868642b3b653630ad5356b8d26c08fde55d`, tree `24e8cd0052818c41cb6e0dd17a19f333b342baa0`.
+- CI exact SHA ของ R1B: run `37557051194` สำเร็จ. Vercel status ของ R1B เป็น success: https://vercel.com/godzillazz/sms-v3-staging/9iVQBHyiTUzffBBqCtHncbAzSjR9.
+- R1B Preview: https://sms-v3-staging-chd2sa7ey-godzillazz.vercel.app, deployment `dpl_9iVQBHyiTUzffBBqCtHncbAzSjR9`.
+- Technical Smoke run `37557641064` สำเร็จ; workflow ยืนยัน source SHA, target URL และ deployment ID ข้างต้นตรงกัน. ผล Playwright: 11 ผ่าน, 23 ข้าม.
+- Release-control PR #482 merged; head `852773e07c4e55764a22991c67b9438afe88d319`, merge SHA `aa8e8bb42ffd7f920fb4275e3c4aea9be69c582b`. PR CI run `37560247568` ผ่าน และ Vercel status เป็น success: https://vercel.com/godzillazz/sms-v3-staging/2ZTV7Jrffroc5L4xxEVXrZFznubo.
+- Manifest ที่ merge แล้วชี้ R1B SHA/tree, application PR #481, CI run `37557051194`, Technical Smoke run `37557641064`, Preview deployment ข้างต้น และ `schedule_large_batch_postgres_batch_size = 500`. Policy เดิมยังคงอยู่: `NO_DATABASE_CHANGES`, schema/data mutation `NONE`, `NO_ENVIRONMENT_CHANGES`, secrets `NONE`.
+
+### Production release evidence
+
+- Production release run `37555538076` ก่อนหน้า R1B ล้มที่ step `Build exact prebuilt Production artifact` เพราะพบแพ็กเกจ sharp musl บน Linux/glibc. ตามรายงานในงานนั้น Production ไม่ถูกแตะ.
+- หลังได้รับแจ้งว่า manifest พร้อม เจ้าของระบบตอบว่า “เรียบร้อยแล้ว”. ข้อความนั้นไม่ได้ให้ Production workflow run ID, deployment ID/SHA ที่ปล่อยจริง หรือผลตรวจหลังปล่อย.
+- Codex ไม่ได้ dispatch Production workflow ในขั้นตอนนี้ และยังไม่ได้ตรวจ canonical หรือทำ post-release checks หลังข้อความดังกล่าว. ดังนั้นสถานะ Production หลังการดำเนินการของเจ้าของระบบยังเป็น `UNKNOWN` ใน handoff นี้; “เรียบร้อยแล้ว” เป็นรายงานจากเจ้าของระบบ ไม่ใช่ผลตรวจอิสระ.
+- Manifest เก็บ pre-release checkpoint เป็น source `f63c785e8af1d63f3d27754c66709e6a0d9b3443` / deployment `dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK`. ใช้เป็น rollback reference ก่อนปล่อยเท่านั้น; ยังยืนยันไม่ได้ว่าเป็น canonical หรือ rollback target ปัจจุบันหลังการปล่อยที่เจ้าของระบบรายงาน.
+- ปิดสถานะ release ได้เมื่อบันทึก workflow run ID, ผล gate, deployment ID/native SHA และผลตรวจหลังปล่อยแบบ read-only จากหลักฐานที่ตรวจสอบได้. ไม่มีการเขียน/ลบข้อมูล Production, แก้ secret/env/schema หรือ dispatch release workflow ในขั้นตอนนี้.
+
+---
+
+
 อัปเดต 6 ตุลาคม 2569 (เวลาไทย)
 
 ## สถานะงาน
