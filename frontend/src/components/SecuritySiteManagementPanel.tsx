@@ -4,6 +4,7 @@ import { formatRequestErrorMessage } from '../request-error';
 import { securitySiteOperations } from './security-site-operations-client';
 const SecuritySiteMapPicker = lazy(() => import('./SecuritySiteMapPicker').then((module) => ({ default: module.SecuritySiteMapPicker })));
 import { useActionDialog } from './useActionDialog';
+import { formatThaiDateTime } from '../thai-date-time';
 import '../styles/security-site-management.css';
 import {
   createSecuritySiteQrDataUrl,
@@ -58,7 +59,7 @@ function SiteMapLoading() {
 
 function displayDate(value?: string | null) {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value));
+  return formatThaiDateTime(value);
 }
 
 function requestErrorMessage(reason: unknown, fallback: string) {

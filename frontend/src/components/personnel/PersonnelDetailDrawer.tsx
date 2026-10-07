@@ -4,6 +4,7 @@ import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { SmsIcon } from '../SmsIcon';
 import type { PersonnelRecord } from './types';
 import { roleDisplayName } from '../../role-display';
+import { formatThaiDate, formatThaiDateTime } from '../../thai-date-time';
 
 type Props = {
   employee?: PersonnelRecord;
@@ -24,8 +25,8 @@ const activeRequestStatuses = new Set(['DRAFT', 'PENDING_APPROVAL', 'RETURNED_FO
 const requestStatusLabel: Record<string, string> = { DRAFT: 'ฉบับร่าง', PENDING_APPROVAL: 'รอ Admin อนุมัติ', RETURNED_FOR_CORRECTION: 'ส่งกลับให้แก้ไข' };
 const lifecycleLabel: Record<string, string> = { NAME_CHANGE: 'เปลี่ยนชื่อ', DEPARTMENT_TRANSFER: 'ย้ายหน่วยงาน', POSITION_CHANGE: 'เปลี่ยนตำแหน่ง', EMPLOYMENT_TERMINATION: 'ลาออก', REHIRE: 'กลับเข้าทำงาน', MASTER_EDIT: 'แก้ไขข้อมูลพนักงาน' };
 const fieldLabel: Record<string, string> = { firstName: 'ชื่อ', lastName: 'นามสกุล', department: 'หน่วยงาน', jobTitle: 'ตำแหน่ง', isActive: 'สถานะ', email: 'อีเมล', phone: 'โทรศัพท์', hiredAt: 'วันที่เริ่มงาน', skill: 'ทักษะ/คุณสมบัติ' };
-const fmtDate = (value?: string | null) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeZone: 'Asia/Bangkok' }).format(new Date(value)) : '—';
-const fmtDateTime = (value?: string | null) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value)) : '—';
+const fmtDate = (value?: string | null) => value ? formatThaiDate(value, { dateStyle: 'medium' }) : '—';
+const fmtDateTime = (value?: string | null) => value ? formatThaiDateTime(value) : '—';
 const valueText = (field: string, value: unknown) => field === 'isActive' ? (value === true ? 'ปฏิบัติงาน' : 'ลาออก') : value === null || value === undefined || value === '' ? '—' : String(value);
 const accountReady = (account?: AccountState) => Boolean(account && account.accountStatus === 'ACTIVE' && account.isActive !== false);
 

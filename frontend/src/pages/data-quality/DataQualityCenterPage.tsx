@@ -1,6 +1,7 @@
 import '../../styles/data-quality.css';
 import '../../styles/data-quality-responsive.css';
 import { DataTablePagination, DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from '../../components/ResponsiveDataTable';
+import { formatThaiDate } from '../../thai-date-time';
 
 export type DataQualityFilters = {
   severity: string;
@@ -67,7 +68,7 @@ function formatDate(value?: string | null) {
   if (!value) return '—';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeZone: 'Asia/Bangkok' }).format(parsed);
+  return formatThaiDate(parsed, { dateStyle: 'medium' });
 }
 
 function severityClass(value: string) {

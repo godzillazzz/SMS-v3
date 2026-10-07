@@ -4,6 +4,7 @@ import { formatRequestErrorMessage } from '../../request-error';
 import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { SmsIcon } from '../../components/SmsIcon';
 import { DataTablePagination } from '../../components/ResponsiveDataTable';
+import { formatThaiDate } from '../../thai-date-time';
 import '../../styles/registration-review.css';
 
 type RequestRow = {
@@ -44,7 +45,7 @@ function formatRequestDate(value?: string) {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(date);
+  return formatThaiDate(date, { dateStyle: 'medium' });
 }
 
 function ReviewProgress({ status, candidateSelected }: { status: RequestRow['status']; candidateSelected: boolean }) {

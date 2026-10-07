@@ -4,6 +4,7 @@ import { getApprovalCenter, getApprovalCenterSummary } from '../../approval-cent
 import { RequestErrorContent, toRequestErrorState, type RequestErrorInput } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
 import { roleDisplayName } from '../../role-display';
+import { formatThaiDateTime } from '../../thai-date-time';
 import type { LeaveDecisionAction } from '../../components/LeaveDecisionConfirmation';
 import { approveAttendanceAdjustment, rejectAttendanceAdjustment } from '../attendance-supervisor/attendance-adjustment-client';
 import '../../styles/approval-center.css';
@@ -85,11 +86,7 @@ const approvalTypeOrder: ApprovalType[] = [
 
 const text = (value: unknown) => value === undefined || value === null || value === '' ? '—' : String(value);
 
-const fmt = (value: string) => new Intl.DateTimeFormat('th-TH', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Bangkok'
-}).format(new Date(value));
+const fmt = (value: string) => formatThaiDateTime(value);
 
 const employeeName = (item?: ApprovalCenterItem) =>
   item?.employee?.displayName

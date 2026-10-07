@@ -47,8 +47,9 @@ import { printDocument, printScheduleDocument, printTableReport } from './schedu
 import { groupScheduleEmployeesByDepartment, sortScheduleEmployeesByDepartment } from './schedule-employee-code-order';
 import { addAutoSchedulePreviewDrafts, summarizeAutoSchedulePreview } from './auto-schedule-drafts';
 import { responseForCurrentQuery, type PageResponseBinding } from './operation-response';
+import { bangkokDateInput as formatBangkokDateInput, currentBangkokMonth, formatThaiDate, formatThaiDateTime, formatThaiMonth, formatThaiMonthName } from './thai-date-time';
 
-import { currentBangkokMonth, formatThaiMonth, MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
+import { MonthGridPicker, normalizeMonthValue, parseMonthValue, shiftMonthValue } from './components/MonthGridPicker';
 import './styles.css';
 import './design-system.css';
 import './styles/dashboard.css';
@@ -150,11 +151,7 @@ type FormField = { name: string; label: string; type?: 'text' | 'email' | 'passw
 type Editor = { title: string; submitLabel: string; fields: FormField[]; values: Record<string, string>; notice?: string; experience?: 'personnel'; submit(values: Record<string, string>, files: Record<string, File>): Promise<void> };
 type LeaveDecisionRequest = { row: DataRow; action: LeaveDecisionAction; target: LeaveDecisionTarget };
 
-const bangkokDateInput = (value = new Date()) => {
-  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(value);
-  const values = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-};
+const bangkokDateInput = (value = new Date()) => formatBangkokDateInput(value);
 
 const AuthContext = createContext<Auth | undefined>(undefined);
 
@@ -595,17 +592,13 @@ const date = (value: unknown) => {
   if (!value) return '-';
   const d = new Date(String(value));
   if (isNaN(d.getTime())) return String(value);
-  const thaiYear = d.getUTCFullYear() + 543;
-  const thaiDayMonth = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(d);
-  return `${thaiDayMonth} ${thaiYear}`;
+  return formatThaiDate(d);
 };
 const formatApprovalDateTime = (value: unknown) => {
   if (!value) return '-';
   const d = new Date(String(value));
   if (isNaN(d.getTime())) return String(value);
-  const datePart = new Intl.DateTimeFormat('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Bangkok' }).format(d);
-  const timePart = new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' }).format(d);
-  return `${datePart} ${timePart}`;
+  return formatThaiDateTime(d, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
 };
 const inputDate = (value: unknown) => value ? new Date(String(value)).toISOString().slice(0, 10) : '';
 const nested = (value: unknown): DataRow => value && typeof value === 'object' ? value as DataRow : {};
@@ -2653,7 +2646,7 @@ function Dashboard() {
     // is the only runtime dashboard presentation.
     if (false) {
       const pendingTotal = Number(dashboardSummary.pendingLeaves || 0) + Number(dashboardSummary.pendingUsers || 0) + Number(dashboardSummary.expiringLicenses || 0);
-      const todayThaiStr = new Intl.DateTimeFormat('th-TH', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
+      const todayThaiStr = formatThaiDate(new Date(), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
       return (
         <section className="view-pane dashboard-page">
@@ -3188,10 +3181,15 @@ function Dashboard() {
     }
     if (activePage === 'rules') {
       const rules = Array.isArray(operationResponse.data) ? operationResponse.data : [];
+      const ruleMonthAnchor = currentBangkokMonth();
+      const ruleMonthOptions = [...new Set([
+        ...Array.from({ length: 24 }, (_, index) => shiftMonthValue(ruleMonthAnchor, index - 12)),
+        normalizeMonthValue(scheduleMonth),
+      ])].sort();
       const results = Array.isArray(ruleCheckResponse.ruleResults) ? ruleCheckResponse.ruleResults as DataRow[] : [];
       const violations = Array.isArray(ruleCheckResponse.violations) ? ruleCheckResponse.violations as DataRow[] : [];
       const metrics = nested(ruleCheckResponse.metrics);
-      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Rule Checking</h1><p>ตรวจตารางกะกับกฎการทำงาน</p></div><div className="heading-actions"><label className="month-filter"><span>เดือน</span><select value={scheduleMonth} onChange={(event) => { setScheduleMonth(event.target.value); setOperationPage(1); }} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0' }}>{Array.from({ length: 24 }, (_, i) => { const d = new Date(Date.UTC(2025, i, 1)); const val = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; const name = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(d); const thaiYear = d.getUTCFullYear() + 543; return <option key={val} value={val}>{name} พ.ศ. {thaiYear}</option>; })}</select></label><button className="btn-neutral small-action" onClick={() => setOperationRefresh((value) => value + 1)}>ตรวจสอบอีกครั้ง</button></div></div>
+      return <section className="view-pane"><div className="page-heading"><div><p className="eyebrow">ตารางและกฎการทำงาน</p><h1>Rule Checking</h1><p>ตรวจตารางกะกับกฎการทำงาน</p></div><div className="heading-actions"><label className="month-filter"><span>เดือน</span><select value={scheduleMonth} onChange={(event) => { setScheduleMonth(event.target.value); setOperationPage(1); }} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', backgroundColor: '#0f1d2a', color: '#e2e8f0' }}>{ruleMonthOptions.map((value) => <option key={value} value={value}>{formatThaiMonth(value)}</option>)}</select></label><button className="btn-neutral small-action" onClick={() => setOperationRefresh((value) => value + 1)}>ตรวจสอบอีกครั้ง</button></div></div>
         <ErrorAlert message={operationError} />
         <div className="rule-summary-grid"><article><span className={Number(metrics.violations || 0) ? 'rule-state fail' : 'rule-state pass'}>{Number(metrics.violations || 0) ? '!' : '✓'}</span><div><p>รายการขัดกฎทั้งหมด</p><strong>{text(metrics.violations)}</strong></div></article><article><span className="rule-state pass">✓</span><div><p>กฎที่ผ่าน</p><strong>{text(metrics.rulesPassed)} / {text(metrics.rulesChecked)}</strong></div></article><article><span className="rule-state pass">♙</span><div><p>พนักงาน Active</p><strong>{text(metrics.activeEmployees)}</strong></div></article><article><span className="rule-state pass">◷</span><div><p>ชั่วโมงรวม</p><strong>{text(metrics.totalHours)}</strong></div></article></div>
         <RuleCheckingDataSurfaces rules={rules} results={results} violations={violations} loading={operationLoading} canManage={canManage} onAction={(row, action) => handleOperationAction(row, action)} />
@@ -3276,7 +3274,7 @@ function Dashboard() {
     const approval = nested(calendar.approval);
     const [yStr, mStr] = scheduleMonth.split('-');
     const thaiYearNum = Number(yStr) + 543;
-    const monthNameOnly = new Intl.DateTimeFormat('th-TH', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(yStr), Number(mStr) - 1, 1)));
+    const monthNameOnly = formatThaiMonthName(Number(mStr), Number(yStr));
     const printMonthLabel = `${monthNameOnly} ${thaiYearNum}`;
     const printDepartments = Array.from(new Set(calendarEmployees.map((e) => String(e.department ?? '').trim())));
 

@@ -11,6 +11,7 @@ import {
   type RetentionState
 } from '../data-retention-client';
 import { DataTableSkeletonCards, DataTableSkeletonRows, DataTableState, ResponsiveDataTable } from './ResponsiveDataTable';
+import { formatThaiDateTime } from '../thai-date-time';
 
 type Draft = Omit<RetentionPolicy, 'timezone'>;
 
@@ -28,7 +29,7 @@ const impactKey = {
 
 function thaiDateTime(value?: string | null) {
   if (!value) return '—';
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value));
+  return formatThaiDateTime(value);
 }
 
 function draftFrom(policy: RetentionPolicy): Draft {

@@ -2,25 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { formatRequestErrorMessage } from '../../request-error';
 import { SmsIcon } from '../../components/SmsIcon';
 import { attendanceSelfSchedule, type AttendanceSelfScheduleData } from '../attendance/attendance-client';
+import { bangkokDateInput, currentBangkokMonth, formatThaiDate, formatThaiMonthPickerLabel } from '../../thai-date-time';
 import './employee-attendance-v4.css';
 
 type Props = { token: string; online: boolean };
 
-function currentBangkokMonth() {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
-  const get = (type: string) => parts.find((part) => part.type === type)?.value || '';
-  return `${get('year')}-${get('month')}`;
-}
-
 function currentBangkokDate() {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Bangkok',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(new Date());
-  const get = (type: string) => parts.find((part) => part.type === type)?.value || '';
-  return `${get('year')}-${get('month')}-${get('day')}`;
+  return bangkokDateInput();
 }
 
 function shiftMonth(value: string, offset: number) {
@@ -30,11 +18,11 @@ function shiftMonth(value: string, offset: number) {
 }
 
 function monthLabel(value: string) {
-  return new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}-01T00:00:00.000Z`));
+  return formatThaiMonthPickerLabel(value);
 }
 
 function dateLabel(value: string) {
-  return new Intl.DateTimeFormat('th-TH', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00.000Z`));
+  return formatThaiDate(`${value}T00:00:00.000Z`, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
 export function AttendanceSchedulePwaPage({ token, online }: Props) {

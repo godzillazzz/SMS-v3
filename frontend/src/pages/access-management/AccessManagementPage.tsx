@@ -5,6 +5,7 @@ import { acquireDocumentScrollLock } from '../../document-scroll-lock';
 import { useAccessibleOverlay } from '../../components/useAccessibleOverlay';
 import { SmsIcon, type SmsIconName } from '../../components/SmsIcon';
 import { ROLE_MANAGEMENT_LABEL } from '../../role-display';
+import { formatThaiDate } from '../../thai-date-time';
 import {
   accessManagementState,
   accessSummary,
@@ -45,7 +46,7 @@ const statusLabel: Record<string, string> = { ACTIVE: 'ใช้งานอย�
 function formatDate(value?: string) {
   if (!value) return 'ไม่ระบุ';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'ไม่ระบุ' : new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(date);
+  return Number.isNaN(date.getTime()) ? 'ไม่ระบุ' : formatThaiDate(date, { dateStyle: 'medium' });
 }
 
 function AccountStatusBadge({ account }: { account: AccountRecord }) {
