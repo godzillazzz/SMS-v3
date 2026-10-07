@@ -1,8 +1,21 @@
 # MASTER HANDOFF
 
-อัปเดต 7 ตุลาคม 2569, 06:34 น. เวลาไทย (6 ตุลาคม 2026, 23:34 UTC)
+อัปเดต 2026-10-07 00:18 UTC
 
-## OPEN — R1 source merged; Production release not started (7 October 2026, 06:34 Bangkok / 6 October 2026, 23:34 UTC)
+## OPEN — R1 dispatch blocked; latest Owner instructions (2026-10-07 00:18 UTC)
+
+- Latest Owner instruction cancels ALL release time restrictions. Production release is authorized immediately; only Owner will submit GitHub Environment approval. Do not submit reviews on Owner's behalf.
+- Re-verified remote integration head: `60f6109a09eb8e27c5d8b83820d7df8014667ae5` (`R1_SHA`). GitHub CI run [37546753747](https://github.com/godzillazzz/SMS-v3/actions/runs/37546753747) is completed/SUCCESS on this exact SHA; tree `b38d8b333629d752d7716b89b2295314e1a2e8f4`.
+- Sandbox proxy denial is NOT an outage signal and is NOT a rollback trigger. Owner permits runner health/ready/canonical evidence and workflow expected-previous-canonical gate in place of unavailable local fetches. Keep that gate enabled, expecting `dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK` / `f63c785e8af1d63f3d27754c66709e6a0d9b3443`.
+- Dispatch capability blocker: `gh api repos/godzillazzz/SMS-v3/actions/workflows` returns Forbidden; removing inherited GH_TOKEN leaves no logged-in GitHub account. Available GitHub connector tools support reads/merges/reruns but no workflow dispatch. Managed environment reports no configured ready secrets/runtime identities. Normal Git transport is available but does not establish Actions API authorization. No credential values were printed or changed.
+- Release-control mismatch found before dispatch: R1's `.github/releases/approved-production.json` still selects source `f63c785`, previous source `85a080c`, rollback `dpl_6vduk7ttKLL6sw2y5FDE6xYu42TY`, and an old Preview. `deploy-approved-production-v2.yml` creates a strictly verified Git-sourced immutable candidate, but must not be dispatched with that stale manifest for R1. No manifest fields were fabricated or changed. `deploy-production.yml` accepts R1 inputs and stage-only, but its prebuilt path does not by itself establish all DoD Git-source provenance gates; do not substitute a missing-provenance candidate.
+- Phase E remains blocked before dispatch: no R1 workflow run/deployment/Environment request, no post-release E1–E3 results, and no Owner confirmation. Phase F must wait for explicit Owner message `R1 ผ่าน`; #475–#478 were not updated or merged. R2 workflow/deployment/G1–G4 are not started.
+- Benchmark T22 is skipped as instructed; the 15-second criterion remains unmeasured before release.
+- Production source remains `f63c785` according to Owner-provided facts; canonical association has not been independently re-verified this session. No deploy/promote/rollback, business-data mutation, or secret/env/schema change occurred.
+- Rollback reference remains Owner-provided `dpl_F4E5kVXqpYuhQjcQSDP49ViJJvpK`, URL `https://sms-v3-staging-bgyhhtjad-godzillazz.vercel.app`, SHA `f63c785e8af1d63f3d27754c66709e6a0d9b3443`. Rollback only on runner health/ready/canonical failure or Owner instruction.
+- Required continuation: an authorized workflow-dispatch channel and a governed release-control manifest/evidence matching R1, with exact Preview provenance and runner checks. No Environment approval is pending yet. Owner decision about October PENDING `G06 UAT` remains open; no schedule action was performed.
+
+## Historical — R1 source merged; Production release not started (7 October 2026, 06:34 Bangkok / 6 October 2026, 23:34 UTC)
 
 - Phase C ใช้วิธี update branch แบบ merge ตามคำสั่งล่าสุด: #474 head หลัง update `a6c46bfc324745b5e3b6900c1fce408075b37d01`, CI `37546460311` SUCCESS, และ Vercel Preview Ready: [deployment](https://sms-v3-staging-git-fix-ux-t05-schedule-approv-752411-godzillazz.vercel.app). Merge ปกติเป็น `60f6109a09eb8e27c5d8b83820d7df8014667ae5`.
 - `R1_SHA=60f6109a09eb8e27c5d8b83820d7df8014667ae5`; `fd14d4557bb76bc02d81e0acb32829090595db89` เป็นบรรพบุรุษ. CI push ของ SHA นี้ `37546753747` SUCCESS; Vercel status บน SHA นี้ SUCCESS ที่ [Vercel deployment details](https://vercel.com/godzillazz/sms-v3-staging/5qew6AwyrzooDgGA8JXBfVrPPNHz). ไม่มี Prisma schema/migration diff ระหว่าง `f63c785` กับ R1_SHA.
