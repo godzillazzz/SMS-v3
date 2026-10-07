@@ -4,6 +4,6 @@ const drawer = readFileSync(new URL('./components/personnel/PersonnelDetailDrawe
 const api = readFileSync(new URL('./api.ts', import.meta.url), 'utf8');
 describe('Employee onboarding readiness authority', () => {
  it('loads the employee-target server readiness endpoint', () => { expect(api).toContain('employeeOnboardingReadiness'); expect(api).toContain('/onboarding-readiness'); expect(drawer).toContain('api.employeeOnboardingReadiness'); });
- it('never infers READY from client-only account/photo state', () => { expect(drawer).toContain("onboardingReadiness.status === 'READY'"); expect(drawer).toContain('Onboarding readiness authority ไม่พร้อม'); expect(drawer).toContain('ไม่คาดเดาสถานะจาก client'); });
- it('shows authoritative schedule site and cryptographic device blockers', () => { expect(drawer).toContain('Schedule / Shift'); expect(drawer).toContain('Security Site'); expect(drawer).toContain('Active cryptographic device'); expect(drawer).toContain('Blocking reasons'); });
+ it('does not combine the legacy aggregate that includes the retired photo gate', () => { expect(drawer).not.toContain("onboardingReadiness.status === 'READY'"); expect(drawer).not.toContain('onboardingReadiness?.blockers'); expect(drawer).toContain('ไม่คำนวณผลรวม'); });
+ it('shows schedule, site, and device checks as individual server results', () => { expect(drawer).toContain('scheduleCheck'); expect(drawer).toContain('siteCheck'); expect(drawer).toContain('deviceCheck'); expect(drawer).toContain('ระบบยืนยันอุปกรณ์ Active ที่ผ่าน proof'); });
 });
