@@ -96,6 +96,7 @@ import './styles/command-nexus.css';
 import './styles/award-interior.css';
 import './styles/operational-layer.css';
 import './styles/employee-pwa-theme.css';
+import './styles/ux-t06-login-public.css';
 
 const AwardPublicExperience = React.lazy(() => import('./components/AwardPublicExperience').then((module) => ({ default: module.AwardPublicExperience })));
 const ReportCenterPage = React.lazy(() => import('./pages/reports/ReportCenterPage').then((module) => ({ default: module.ReportCenterPage })));
@@ -411,20 +412,16 @@ function Login() {
   const registrationStep = mode === 'registerVerify' ? 2 : 1;
   const resetStep = mode === 'resetVerify' ? 2 : 1;
 
-  return (
-    <main className="login-page auth-experience-page award-auth-page">
-      <React.Suspense fallback={null}>
-        <AwardPublicExperience showLanding={mode === 'login'} renderLogo={() => <Logo />} />
-      </React.Suspense>
-      <section className="nexus-auth-stage" id="access">
+  const authStage = (
+    <section className="nexus-auth-stage" id="access">
       <a className="auth-skip-link" href="#auth-login-form">ข้ามไปแบบฟอร์มเข้าสู่ระบบ</a>
-      {mode === 'login' && <div className="nexus-auth-heading"><span>ZERO-TRUST ENTERPRISE IDENTITY HUB</span><h2>ศูนย์ยืนยันตัวตน Command Console SMS</h2><p>เข้าถึงพื้นที่ปฏิบัติการรักษาความปลอดภัยด้วยการรับรองตัวตนหลายปัจจัยและ Enterprise Identity Policy</p></div>}
+      {mode === 'login' && <div className="nexus-auth-heading"><span aria-hidden="true">ZERO-TRUST ENTERPRISE IDENTITY HUB</span><h2>ศูนย์ยืนยันตัวตน Command Console SMS</h2><p>เข้าถึงพื้นที่ปฏิบัติการรักษาความปลอดภัยด้วยการรับรองตัวตนหลายปัจจัยและ Enterprise Identity Policy</p></div>}
       <section className="login-shell auth-experience-shell nexus-auth-shell" aria-label="เข้าสู่ระบบ Security Management System">
         <aside className="login-intro auth-brand-panel nexus-auth-intro">
           <div className="intro-brand auth-brand"><Logo /><span className="sms-brand-copy"><b>SMS</b><strong>Security Management System</strong></span></div>
           <div className="intro-copy auth-brand-copy">
-            <p className="auth-brand-eyebrow">MULTI-FACTOR SECURITY ENCLAVE</p>
-            <h1>Zero-Trust Identity Hub<br />สำหรับ Command Console</h1>
+            <p className="auth-brand-eyebrow" aria-hidden="true">MULTI-FACTOR SECURITY ENCLAVE</p>
+            <h2>Zero-Trust Identity Hub<br />สำหรับ Command Console</h2>
             <p>FIDO2 / WebAuthn · Secure session · Access governed by account role and enterprise policy</p>
             <div className="auth-brand-points" aria-label="ความสามารถหลักของระบบ">
               <span><SmsIcon name="employees" size={18} />ข้อมูลบุคลากร</span>
@@ -502,7 +499,7 @@ function Login() {
               </div>
             </section> : <>
               <header className="auth-form-heading nexus-auth-card-header">
-                {mode === 'login' ? <><span className="nexus-enclave-badge"><i />ZERO-TRUST ENCLAVE</span><h2>เข้าสู่ระบบปฏิบัติการ</h2><p className="nexus-protocol-label">SELECT VERIFICATION PROTOCOL</p></> : <><span className="auth-form-kicker">SMS</span><h2>{title}</h2><p className="form-lead">{lead}</p></>}
+                {mode === 'login' ? <><span className="nexus-enclave-badge" aria-hidden="true"><i />ZERO-TRUST ENCLAVE</span><h2>เข้าสู่ระบบปฏิบัติการ</h2><p className="nexus-protocol-label" aria-hidden="true">SELECT VERIFICATION PROTOCOL</p></> : <><span className="auth-form-kicker">SMS</span><h2>{title}</h2><p className="form-lead">{lead}</p></>}
               </header>
               {(mode === 'register' || mode === 'registerVerify') && <AuthProgress flow="registration" current={registrationStep} />}
               {(mode === 'reset' || mode === 'resetVerify') && <AuthProgress flow="reset" current={resetStep} />}
@@ -518,13 +515,13 @@ function Login() {
               {mode === 'registerVerify' && <div className="auth-otp-intro"><span><SmsIcon name="shield" size={18} /></span><div><b>เราได้ส่งรหัส 6 หลักไปยัง</b><strong>{maskedEmail}</strong></div></div>}
               {mode === 'resetVerify' && <div className="auth-otp-intro"><span><SmsIcon name="shield" size={18} /></span><div><b>กรอกรหัสยืนยันที่ได้รับทางอีเมล</b><strong>{maskedEmail}</strong><small>OTP และรหัสผ่านใหม่จะถูกตรวจสอบพร้อมกันเมื่อกดยืนยัน</small></div></div>}
 
-              {(mode !== 'login' || authMethod === 'password') && <label className="field-group auth-field" htmlFor="email"><span>{mode === 'login' ? 'ชื่อผู้ใช้หรืออีเมล (Corporate Email)' : 'อีเมล'}</span><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder={mode === 'login' ? 'operator@sms.local' : 'name@company.com'} required autoComplete={mode === 'login' ? 'username' : 'email'} disabled={mode === 'registerVerify'} /></label>}
+              {(mode !== 'login' || authMethod === 'password') && <label className="field-group auth-field" htmlFor="email"><span>{mode === 'login' ? 'อีเมลองค์กร' : 'อีเมล'}</span><input id="email" value={email} onChange={(event) => { event.currentTarget.setCustomValidity(''); setEmail(event.target.value); }} type="email" placeholder={mode === 'login' ? 'operator@sms.local' : 'name@company.com'} required onInvalid={(event) => { const input = event.currentTarget; input.setCustomValidity(input.validity.valueMissing ? 'กรุณากรอกอีเมลองค์กร' : 'กรุณากรอกอีเมลให้ถูกต้อง'); }} autoComplete={mode === 'login' ? 'username' : 'email'} disabled={mode === 'registerVerify'} /></label>}
 
               {(mode === 'registerVerify' || mode === 'resetVerify') && <label className="field-group auth-field auth-otp-field" htmlFor="otp-code"><span>รหัส OTP 6 หลัก</span><input id="otp-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" aria-describedby={mode === 'registerVerify' ? 'registration-otp-help' : undefined} placeholder="000000" /></label>}
 
-              {(((mode === 'login' && authMethod === 'password') || mode === 'register' || mode === 'resetVerify')) && <label className="field-group auth-field" htmlFor="password"><span>{mode === 'resetVerify' ? 'รหัสผ่านใหม่' : mode === 'login' ? 'รหัสผ่านความปลอดภัย (Security Passphrase)' : 'รหัสผ่าน'}</span><span className="password-field auth-password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'อย่างน้อย 8 ตัวอักษร' : '••••••••••••'} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle auth-password-toggle" type="button" aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} aria-pressed={showPassword} onMouseDown={(event) => event.preventDefault()} onClick={() => setShowPassword((visible) => !visible)}><SmsIcon name={showPassword ? 'eyeOff' : 'eye'} size={18} /><span>{showPassword ? 'ซ่อน' : 'แสดง'}</span></button></span></label>}
+              {(((mode === 'login' && authMethod === 'password') || mode === 'register' || mode === 'resetVerify')) && <label className="field-group auth-field" htmlFor="password"><span>{mode === 'resetVerify' ? 'รหัสผ่านใหม่' : mode === 'login' ? 'รหัสผ่านความปลอดภัย (Security Passphrase)' : 'รหัสผ่าน'}</span><span className="password-field auth-password-field"><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder={mode === 'resetVerify' ? 'อย่างน้อย 8 ตัวอักษร' : undefined} minLength={mode === 'login' ? undefined : 8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /><button className="password-toggle auth-password-toggle" type="button" aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} aria-pressed={showPassword} onMouseDown={(event) => event.preventDefault()} onClick={() => setShowPassword((visible) => !visible)}><SmsIcon name={showPassword ? 'eyeOff' : 'eye'} size={18} /><span>{showPassword ? 'ซ่อน' : 'แสดง'}</span></button></span></label>}
 
-              {mode === 'login' && authMethod === 'password' && <div className="nexus-password-meta"><span>SECURE CREDENTIAL CHANNEL</span><button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน?</button></div>}
+              {mode === 'login' && authMethod === 'password' && <div className="nexus-password-meta"><span aria-hidden="true">SECURE CREDENTIAL CHANNEL</span><button type="button" onClick={() => resetView('reset')}>ลืมรหัสผ่าน?</button></div>}
               {(mode !== 'login' || authMethod === 'password') && <button className="btn-primary auth-primary-action" type="submit" disabled={submitDisabled}>{busy ? 'กำลังดำเนินการ…' : mode === 'login' ? 'เข้าสู่ระบบปฏิบัติการ →' : mode === 'register' ? 'ส่งคำขอและรหัส OTP' : mode === 'registerVerify' ? 'ยืนยันอีเมล' : mode === 'reset' ? 'ส่งรหัส OTP' : 'ตั้งรหัสผ่านใหม่'}</button>}
 
               {mode === 'login' && authMethod === 'passkey' && <div className="nexus-webauthn-panel"><div className="nexus-auth-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 11c0 3.5-1 6.8-2.75 9.57M5.8 18.53l.06-.09A13.9 13.9 0 008 11a4 4 0 118 0c0 1.02-.07 2.02-.2 3M13.68 20.84A21.9 21.9 0 0015.17 17M19 18.13A20.7 20.7 0 0020 11.8 8 8 0 004 12m0 0c0 1.55.29 3.04.82 4.4M7.3 19.71A16 16 0 0012 21c2.25 0 4.36-.47 6.28-1.3"/></svg></div><h4>สแกนลายนิ้วมือหรือใบหน้า (Passkey)</h4><p>ใช้ Touch ID, Face ID, Windows Hello หรือ Passkey บนอุปกรณ์ของคุณ</p><small>FIDO2 / WEBAUTHN · PLATFORM AUTHENTICATOR</small>{!passkeyEnabled && <em>WebAuthn ยังไม่พร้อมใช้งานใน environment นี้</em>}<button type="button" disabled={busy || !passkeyEnabled} onClick={() => signInWithPasskey('passkey')}>เริ่มการยืนยันด้วย Passkey →</button></div>}
@@ -532,14 +529,34 @@ function Login() {
 
               {mode === 'registerVerify' && <div className="auth-resend" id="registration-otp-help"><p>หากยังไม่พบอีเมล กรุณาตรวจสอบ Spam/Junk</p><button type="button" disabled={busy || resendSeconds > 0} onClick={resendRegistrationCode}>{resendSeconds > 0 ? `ส่งรหัสอีกครั้งใน ${resendSeconds} วินาที` : 'ส่งรหัสอีกครั้ง'}</button></div>}
 
-              {mode === 'login' && <div className="nexus-auth-security-footer" aria-label="สถานะระบบยืนยันตัวตน"><span><i className="is-ready" />ENCLAVE READY</span><b>•</b><span><i />SESSION SECURE</span><b>•</b><span><i className={passkeyEnabled ? 'is-ready' : ''} />FIDO2 / WEBAUTHN</span></div>}
+              {mode === 'login' && <div className="nexus-auth-security-footer" aria-hidden="true"><span><i className="is-ready" />ENCLAVE READY</span><b>•</b><span><i />SESSION SECURE</span><b>•</b><span><i className={passkeyEnabled ? 'is-ready' : ''} />FIDO2 / WEBAUTHN</span></div>}
               {mode === 'login' ? <div className="login-links auth-links">{!showAccountRecovery && <button type="button" onClick={() => resetView('register')}>ส่งคำขอลงทะเบียน</button>}</div> : <div className="login-links auth-links auth-links--back"><button type="button" onClick={() => resetView('login')}>กลับหน้าเข้าสู่ระบบ</button></div>}
               <p className="login-help auth-support-note">พบปัญหาการใช้งาน กรุณาติดต่อผู้ดูแลระบบของหน่วยงาน</p>
             </>}
           </form>
         </section>
       </section>
-      </section>
+    </section>
+  );
+
+  const focusLoginEmail = () => {
+    const emailField = document.querySelector<HTMLInputElement>('#email');
+    if (!emailField) return;
+    emailField.focus();
+  };
+
+  return (
+    <main className="login-page auth-experience-page award-auth-page">
+      <React.Suspense fallback={mode === 'login' ? authStage : null}>
+        <AwardPublicExperience
+          showLanding={mode === 'login'}
+          renderLogo={() => <Logo />}
+          accessContent={mode === 'login' ? authStage : undefined}
+          onRequestAccess={focusLoginEmail}
+        />
+      </React.Suspense>
+      {mode !== 'login' && authStage}
+
       <footer className="award-public-footer"><span lang="th">SMS · ระบบบริหารงานรักษาความปลอดภัย</span><small lang="en">Secure operations, designed for clarity.</small></footer>
     </main>
   );

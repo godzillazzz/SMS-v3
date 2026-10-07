@@ -104,7 +104,7 @@ export function CyberGlobe({ bkkLatency, tyoLatency, sinLatency, lonLatency, sat
         <Node className="is-sin" name="SIN-HUB" value={`${sinLatency.toFixed(1)}ms`} detail="EDGE RELAY" />
         <Node className="is-lon" name="LON-GATE" value={`${lonLatency.toFixed(1)}ms`} detail="ENCLAVE" muted />
 
-        <div className="cyber-orbital-badge">
+        <div className="cyber-orbital-badge" aria-hidden="true">
           <span className="cyber-orbital-badge__icon" aria-hidden="true">⌁</span>
           <span><small>ORBITAL BEACON</small><b>{satelliteCount} SATELLITES LOCKED</b><em>SIMULATED</em></span>
         </div>
@@ -119,7 +119,7 @@ function Node({ className, name, value, detail, master = false, muted = false }:
   return (
     <div className={`cyber-node ${className} ${master ? 'is-master' : ''} ${muted ? 'is-muted' : ''}`}>
       <span className="cyber-node__beacon" aria-hidden="true"><i /><b /></span>
-      <span className="cyber-node__label"><strong>{name}</strong><em>{value}</em><small>{detail}</small></span>
+      <span className="cyber-node__label" aria-hidden="true"><strong>{name}</strong><em>{value}</em><small>{detail}</small></span>
     </div>
   );
 }
