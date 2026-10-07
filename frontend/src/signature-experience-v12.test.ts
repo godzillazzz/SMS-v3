@@ -102,7 +102,7 @@ describe('SMS V1.2 Passkey product/security UI contract', () => {
     expect(main).toContain("setAuthMethod('hardware')");
     expect(main).toContain('Touch ID, Face ID, Windows Hello');
     expect(main).toContain('FIDO2 / WEBAUTHN · ROAMING SECURITY KEY');
-    expect(main).toContain('type="password"');
+    expect(main).toContain("type={showPassword ? 'text' : 'password'}");
     expect(main).toContain('auth-primary-action');
     expect(main).not.toMatch(/face recognition only/i);
   });

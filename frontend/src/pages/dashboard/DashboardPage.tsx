@@ -12,11 +12,11 @@ import { LicenseSummaryCard } from '../../components/dashboard/LicenseSummaryCar
 import { RequestErrorReference, type RequestErrorInput } from '../../request-error';
 import { asNumber, type DashboardAction, type DashboardActivity, type DashboardExpiringLicense, type DashboardFilters, type DashboardNavigate, type DashboardSummary, type DashboardUser } from '../../components/dashboard/types';
 
-type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: RequestErrorInput; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; pendingApprovalCount?: number; onOpenApprovalCenter?(): void; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
+type DashboardPageProps = { summary: DashboardSummary; loading: boolean; error?: RequestErrorInput; user?: DashboardUser; canManage: boolean; filters: DashboardFilters; pendingApprovalCount?: number | null; onOpenApprovalCenter?(): void; onFiltersChange: (filters: Partial<DashboardFilters>) => void; onNavigate: DashboardNavigate };
 
 const numberText = (value: unknown) => new Intl.NumberFormat('th-TH').format(asNumber(value));
 
-export function DashboardPage({ summary, loading, error, user, canManage, filters, pendingApprovalCount = 0, onOpenApprovalCenter, onFiltersChange, onNavigate }: DashboardPageProps) {
+export function DashboardPage({ summary, loading, error, user, canManage, filters, pendingApprovalCount, onOpenApprovalCenter, onFiltersChange, onNavigate }: DashboardPageProps) {
   const total = asNumber(summary.totalEmployees);
   const active = asNumber(summary.activeEmployees);
   const onDuty = asNumber(summary.onDutyToday ?? summary.workingToday);
@@ -59,7 +59,7 @@ export function DashboardPage({ summary, loading, error, user, canManage, filter
       <article className="nexus-stream nexus-panel">
         <header><div><p className="nexus-kicker">PRIORITY STREAM</p><h2>Attention Required</h2></div><b>{actions.length}</b></header>
         <div className="nexus-stream__list">{loading ? <div className="nexus-loading">READING SECURE CHANNEL…</div> : actions.length ? actions.slice(0,5).map((row, index) => <div className="nexus-stream__item" key={String((row as any).id || index)}><span className="nexus-stream__pulse"/><div><strong>{String((row as any).title || (row as any).label || (row as any).type || 'รายการที่ต้องตรวจสอบ')}</strong><small>{String((row as any).description || (row as any).detail || 'เปิดข้อมูลที่เกี่ยวข้องเพื่อตรวจสอบรายละเอียด')}</small></div><em>{String((row as any).count || '')}</em></div>) : <div className="nexus-clear"><SmsIcon name="check" size={28}/><strong>QUEUE CLEAR</strong><span>ไม่มีรายการเร่งด่วนจากข้อมูลที่ระบบได้รับ</span></div>}</div>
-        {canManage && <button className="nexus-stream__cta dashboard-approval-alert" type="button" onClick={() => onOpenApprovalCenter?.()}>OPEN APPROVAL CENTER <span>{pendingApprovalCount}</span></button>}
+        {canManage && <button className="nexus-stream__cta dashboard-approval-alert" type="button" onClick={() => onOpenApprovalCenter?.()}>OPEN APPROVAL CENTER {pendingApprovalCount != null && pendingApprovalCount > 0 && <span>{pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}</span>}</button>}
       </article>
     </section>
 

@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { attendanceSimpleErrorDetails, attendanceSimpleErrorMessage } from './attendance-simple-client';
+import { describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({ attendanceAuthenticatedRequest: vi.fn() }));
+
+vi.mock('../../attendance-auth-request', () => ({ attendanceAuthenticatedRequest: mocks.attendanceAuthenticatedRequest }));
+
+import { attendanceSimpleErrorDetails, attendanceSimpleErrorMessage, simpleAttendanceBootstrap } from './attendance-simple-client';
 
 describe('Attendance structured error messages', () => {
   it('localizes the outside-all-Sites geofence block using its stable server code', () => {
@@ -25,6 +30,18 @@ describe('Attendance structured error messages', () => {
       message: 'บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อผู้ดูแลระบบ',
       code: 'ATTENDANCE_EMPLOYEE_LINK_REQUIRED',
       requestId: 'a1492eb7-60ac-4ad8-9990-e9f80bb963a9'
+    });
+  });
+
+  it('shows the employee-link explanation when bootstrap returns its specific 403 code', async () => {
+    mocks.attendanceAuthenticatedRequest.mockResolvedValue(new Response(JSON.stringify({
+      error: { code: 'ATTENDANCE_EMPLOYEE_LINK_REQUIRED', message: 'A linked employee account is required.' }
+    }), { status: 403, headers: { 'content-type': 'application/json' } }));
+
+    await expect(simpleAttendanceBootstrap('test-token')).rejects.toMatchObject({
+      name: 'AttendanceSimpleRequestError',
+      code: 'ATTENDANCE_EMPLOYEE_LINK_REQUIRED',
+      message: 'บัญชีนี้ยังไม่ได้ผูกกับข้อมูลพนักงาน กรุณาติดต่อผู้ดูแลระบบ'
     });
   });
 
