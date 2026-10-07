@@ -111,3 +111,17 @@ test('sharp artifact verification rejects a non-exact root dependency version', 
     fs.rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test('sharp lockfile records the libc for both Linux x64 variants', () => {
+  const lock = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package-lock.json'), 'utf8'));
+  const expected = {
+    '@img/sharp-linux-x64': ['glibc'],
+    '@img/sharp-libvips-linux-x64': ['glibc'],
+    '@img/sharp-linuxmusl-x64': ['musl'],
+    '@img/sharp-libvips-linuxmusl-x64': ['musl'],
+  };
+
+  for (const [name, libc] of Object.entries(expected)) {
+    assert.deepEqual(lock.packages[`node_modules/${name}`]?.libc, libc, `${name} libc metadata`);
+  }
+});
