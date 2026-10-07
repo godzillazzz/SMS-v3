@@ -1,8 +1,8 @@
 # MASTER HANDOFF
 
-## Current state — R2 Production ผ่าน; R3 application work พร้อมให้เจ้าของระบบหา Preview และรัน Technical Smoke (7 ตุลาคม 2569)
+## Current state — R3 Technical Smoke ผ่าน; เตรียม release-control manifest แล้ว (7 ตุลาคม 2569)
 
-**สถานะ: OPEN — Production ยังเป็น R2 (`2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`), เจ้าของระบบยืนยันหน้าจอหลังล็อกอินผ่าน และ rollback reference คือ `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`. งาน R3 T25 → T24 → T26 → T27 → T28 อยู่บน integration แล้ว. Candidate เดิมจาก #492 (`dad05e83ad4fa44affa8175c520b087a5f94b509`) ถูกแทนที่ด้วย PR แก้ fallback ของ auth refresh lock ซึ่งเริ่มจาก integration HEAD `c07ab4a5b5fcd5d8f70e085f88e280c7a6156542`; เมื่อ PR นี้ merge ให้ใช้ SHA ของ merge commit เป็น RELEASE_SHA ใหม่ และยืนยัน Preview provenance ก่อน Technical Smoke. ยังไม่มี R3 Smoke หรือ Production release.**
+**สถานะ: OPEN — Production ยังคงเป็น R2 (2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea) และ rollback reference คือ dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh. R3 T25 → T24 → T26 → T27 → T28 และ PR แก้ auth-refresh-lock fallback #495 merge เข้า integration แล้ว. R3 RELEASE_SHA คือ b3e70834977a1b29b367e8a1d3b3cfebac0d74c8; exact-SHA CI 37581186514 ผ่าน. ใช้ Preview https://sms-v3-staging-r01nag9m3-godzillazz.vercel.app / dpl_GhzQTqwXtvN28GUntKXEEtgximw9 (ไม่ใช่ Preview ของ PR head 0ced553f). Technical Smoke 37581750104 ผ่าน. Release-control manifest/test ของ R3 ถูกเตรียมให้ชี้ source, CI, Preview, Smoke และ rollback/canonical ของ R2; เมื่อ PR นี้ merge แล้ว ขั้นถัดไปคือให้ Owner dispatch Deploy Approved Production Manifest V2. ไม่มีการ dispatch Production workflow หรือ promote ในขั้นนี้.**
 
 ### Production now — R2
 
@@ -43,13 +43,18 @@
 - **T27 queue/device UI:** #491 hides request UUIDs, shows sender and people icon, localizes event/status enums and avoids default device counts while loading. CI passed; local frontend suite 863/863, build and diff-check passed. Authenticated browser inspection was unavailable; jsdom fixture used. Vercel alias and dpl id were not returned.
 - **T28 additions (6–10):** #492 removes schedule `AWAITING DATA` readiness/coverage cards; removes visible “ไม้กายสิทธิ์” and `CFG-06` wording; regression-tests the employee-link-specific Thai response for `/attendance/simple/bootstrap` 403; leaves bell/approval badges unset until a valid initial value (and hides zero); removes fake `••••••••••••` masked-token placeholder. Focused T28 regressions 14/14, frontend 871/871, build and diff-check passed. Exact-head CI run `37578638934` succeeded and Vercel status is success for the PR head. Authenticated schedule/settings pages were not opened; no credentials or Production data were used.
 
-- **Next step:** merge the auth-refresh-lock fallback PR after exact-head CI passes. Then Owner locates a READY Preview with native SHA equal to the integration merge SHA, ref `fix/serverless-database-reliability`, and expected `sms-v3-staging` project, and runs Technical Smoke. Codex will not dispatch Smoke. Production remains R2 throughout.
+- **Next step:** after the R3 release-control PR passes CI and merges, the manifest is ready for Owner to run Deploy Approved Production Manifest V2. Production remains R2 until that separately approved workflow is run.
 
-### R3 release candidate identity
+### R3 release candidate identity and P5 release-control
 
-- Previous application candidate `dad05e83ad4fa44affa8175c520b087a5f94b509` (integration after #492; tree `8ae480e51f544694278ff1d65d9a97e439d23292`) is superseded by the auth-refresh-lock fallback PR from base `c07ab4a5b5fcd5d8f70e085f88e280c7a6156542`. After merge, use the integration merge SHA as the new R3 Technical Smoke RELEASE_SHA.
-- Exact PR-head CI `37578638934` passed for `f7c86882b10822e1277f68ec977a092c639b7784`; its tree is identical to the merge SHA. Vercel status on that PR head succeeded. Latest combined status on `dad05e8…` reports Vercel `success` (dashboard target only); exact-SHA Preview alias and deployment ID remain unavailable here and must be obtained by Owner before Smoke.
-- R3 has not been released to Production; rollback reference remains `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`.
+- RELEASE_SHA: b3e70834977a1b29b367e8a1d3b3cfebac0d74c8; tree SHA 4601da889216edba0b2d4d80b0af77acda65f14c.
+- Application PR #495 head 0ced553f6e7dbc3b9047b3fe2a8e64f8f0fd4408 merged as b3e70834977a1b29b367e8a1d3b3cfebac0d74c8; exact-SHA CI [run 37581186514](https://github.com/godzillazzz/SMS-v3/actions/runs/37581186514) succeeded.
+- Use exact integration Preview https://sms-v3-staging-r01nag9m3-godzillazz.vercel.app, deployment dpl_GhzQTqwXtvN28GUntKXEEtgximw9; the PR-head Preview for 0ced553f is not the release candidate.
+- Automated Technical Smoke [run 37581750104](https://github.com/godzillazzz/SMS-v3/actions/runs/37581750104) completed successfully on GitHub-hosted runner. Its inputs pin URL, source SHA, and expected deployment ID above. Logs show health/readiness and credentialed CORS smoke checks passed; 11 smoke tests passed.
+- R2 remains Production and rollback checkpoint: deployment dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh, source SHA 2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea.
+- The R3 release-control PR updates the manifest/test to this exact release SHA, PR #495, CI 37581186514, Preview/deployment, Smoke 37581750104, and R2 canonical/rollback reference. Existing database, environment, secret, auth-policy, CORS, deployment, and rollback policies remain unchanged; batch size remains 500.
+- Production workflow has not been dispatched. After release-control PR CI passes and it is merged, the manifest is ready for Owner to run Deploy Approved Production Manifest V2. Authenticated pages were not tested in Technical Smoke; account audit remains UNKNOWN. T24 timing, readiness/dashboard work, and DB/function region comparison remain deferred as recorded above.
+- No Production release or rollback has occurred in R3; rollback reference remains the R2 deployment above.
 
 ### R2 application PRs
 
