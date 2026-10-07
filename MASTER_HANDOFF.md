@@ -1,8 +1,8 @@
 # MASTER HANDOFF
 
-## Current state — R2 Production ผ่าน; T25 merge แล้ว, T24 เตรียม PR (7 ตุลาคม 2569)
+## Current state — R2 Production ผ่าน; T25–T24 merge แล้ว, T26 กำลังเตรียม PR (7 ตุลาคม 2569)
 
-**สถานะ: OPEN — R2 Production สำเร็จและเจ้าของระบบยืนยันการตรวจหน้าจอหลังล็อกอินผ่านแล้ว. PR #488 (T25) merge แล้ว; T24 implementation พร้อมตรวจใน PR แต่ยังรอ exact-head CI และ Preview READY. ยังตรวจ audit ของบัญชี Sermpong UAT ไม่ได้เพราะ endpoint ต้องใช้ session ADMIN ที่มีสิทธิ์และไม่มี session ที่ได้รับอนุญาตใน execution นี้. สถานะเหตุ token reuse/leak ของบัญชีนี้จึงยัง UNKNOWN. ไม่มีการปล่อย R3.**
+**สถานะ: OPEN — R2 Production สำเร็จและเจ้าของระบบยืนยันการตรวจหน้าจอหลังล็อกอินผ่านแล้ว. T25 PR #488 และ T24 PR #489 merge แล้ว. T26 เพิ่ม null-label fallback; read-only query หาค่า approval ใน business DB ยังทำไม่ได้จาก execution นี้และบันทึกเป็น blocker. T27/T28 ยังไม่เริ่ม; ไม่มีการปล่อย R3. Audit ของบัญชี Sermpong UAT ยัง UNKNOWN.**
 
 ### Production now — R2
 
@@ -33,6 +33,7 @@
 | Task / PR | Head | CI | Vercel Preview | Merge |
 |---|---|---|---|---|
 | T25 / #488 | `a846541aea13b6e27fb4963be65a5f69acd3ff55` | `37575249077` success | READY — https://sms-v3-staging-git-codex-r3-t25-secure-refres-0a8bee-godzillazz.vercel.app | `47c1628a092e8bc02fbc608500bcf6fc58abd1f5` |
+| T24 / #489 | `d420ce2f3977d32e93f6a35e320f86f915635e38` | `37575658761` success | READY — https://sms-v3-staging-git-codex-r3-t24-performance-20261007-godzillazz.vercel.app | `70e807b8982277a0617552229ae6c7d993336be9` |
 
 ### R3 — T25 security gate
 
@@ -42,9 +43,10 @@
 - Audit route คือ `GET /api/v1/operations/audit-events`; ใน source กำหนด `authorize('ADMIN')`. ไม่มี authorized ADMIN session ให้ใช้ใน execution นี้. ไม่มีช่องทาง query account-specific audit แบบ read-only จาก GitHub/Vercel ที่ใช้ได้โดยไม่ต้องมี Production Environment approval. `.github/workflows/diagnose-production-database.yml` ต้องผ่าน Environment `production-sms-v3-staging` และ scripts/inputs ที่มีตรวจ LIC-HIST/G06 ไม่ได้ตรวจ refresh-token audit.
 - จึง **ยังไม่ได้ตรวจ audit ของ Sermpong UAT**; ไม่มีหลักฐานให้สรุปว่า token รั่ว และก็ยังตัดความเป็นไปได้นั้นไม่ได้. เป็น blocker สำหรับการสรุปสถานะบัญชี ต้องให้เจ้าของระบบตรวจ audit ผ่าน session ที่ได้รับอนุญาต. ได้ทำ client mitigation จาก race ที่ยืนยันได้ใน source; ไม่มีการ revoke session, ระงับบัญชี หรือแก้ auth policy.
 - T24 batches supervisor/daily event-policy hydration and actual-site reads. Query-count test with 12 assignments reduces policy reads from 72 `findFirst` calls to one `findMany`, and actual-site reads from three `findUnique` calls to one `findMany`. Employees/readiness-center and dashboard already use batch/aggregate queries; no logic change there. Approval-center polling remains every 60 seconds and stops querying while the document is not visible.
-- T24 local checks: backend focused 63/63, frontend full 856/856, frontend build and `git diff --check` passed. Full local backend `npm test` has database-backed failures because PostgreSQL is unavailable in this sandbox. Preview timing is not measured yet because protected pages require an authorized session; no credential was requested or created. Function region is `sin1`; DB region remains UNKNOWN. Production workflow logs show verified Supabase session mode but do not report DB region. No DB/business data was written.
+- T24 local checks: backend focused 63/63, frontend full 859/859, frontend build and `git diff --check` passed. Exact-head CI `37575658761` and Preview READY passed before PR #489 merge. Full local backend `npm test` has database-backed failures because PostgreSQL is unavailable in this sandbox. Preview timing is not measured because protected pages require an authorized session; no credential was requested or created. Function region is `sin1`; DB region remains UNKNOWN. Production workflow logs show verified Supabase session mode but do not report DB region. No DB/business data was written.
+- T26: null/blank `status` and `change_type` now map to `ไม่ระบุ`; source still maps other unmatched values to `อื่น ๆ`. Local frontend suite 859/859, build, and `git diff --check` pass. The requested read-only query of production schedule approvals could not be run: no authorized read-only DB connection or existing safe query workflow is available from this execution, and no production data was queried. Any concrete unknown non-null values remain UNKNOWN pending owner-provided authorized audit evidence.
 - งาน T28 ที่เพิ่มตามคำสั่งให้รวม: (6) ลบ/แสดงข้อมูลจริงแทนการ์ด `AWAITING DATA` (`ROSTER READINESS / SHIFT COVERAGE`); (7) เอาคำ “ไม้กายสิทธิ์” และ `CFG-06` ออกจากข้อความผู้ใช้; (8) แปล 403 ของ `/attendance/simple/bootstrap` สำหรับบัญชีที่ไม่มี employee link เป็นข้อความเฉพาะ; (9) ห้ามแสดง badge `0` ก่อนมีค่าครั้งแรก; (10) ค้นหาและลบ placeholder `••••••••••••` ตาม T06.
-- T24 PR/CI/Preview ยังไม่เกิด; T26–T28 ยังไม่เริ่ม. ไม่มี R3 RELEASE_SHA. Integration HEAD หลัง T25 merge คือ `47c1628a092e8bc02fbc608500bcf6fc58abd1f5`.
+- T25–T24 merged; T26 local checks passed and awaits exact-head CI and Preview; T27/T28 not started. No R3 RELEASE_SHA. Integration HEAD after T24 merge is `70e807b8982277a0617552229ae6c7d993336be9`.
 
 ### R2 PR / release table
 
