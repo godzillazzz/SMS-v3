@@ -115,7 +115,7 @@ test('current approved Production manifest pins R2 after successful technical sm
   const result = validateReleaseManifest(manifest);
   assert.equal(result.releaseId, 'sms-v3-prod-2d9a21c9c8d9-20261007');
   assert.equal(result.commitSha, '2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea');
-  assert.equal(result.treeSha, '2a5e1b08871c19d1b07ae7eb5a13fde24dbecdf8);
+  assert.equal(result.treeSha, '2a5e1b08871c19d1b07ae7eb5a13fde24dbecdf8');
   assert.equal(result.currentProductionSourceSha, '31b17868642b3b653630ad5356b8d26c08fde55d');
   assert.equal(result.currentProductionSourceRef, 'fix/serverless-database-reliability');
   assert.equal(result.rollbackDeploymentId, 'dpl_ExgyPfG7tYcby5PYDUVwn4iqrygE');
