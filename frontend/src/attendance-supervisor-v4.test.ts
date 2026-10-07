@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const main = read('./main.tsx');
+const routing = read('./routing.ts');
 const client = read('./pages/attendance-supervisor/attendance-supervisor-client.ts');
 const page = read('./pages/attendance-supervisor/AttendanceSupervisorPage.tsx');
 const css = read('./pages/attendance-supervisor/attendance-supervisor-v4.css');
@@ -13,7 +14,7 @@ const attendanceAuth = read('./attendance-auth-request.ts');
 describe('Attendance Supervisor UX V4', () => {
   it('restores a dedicated governed on-behalf Attendance destination for Manager/Admin', () => {
     expect(main).toContain("{ id: 'attendanceSupervisor', icon: 'dashboard', label: 'ลงเวลาแทนพนักงาน' }");
-    expect(main).toContain("if (page === 'leavePending' || page === 'attendanceSupervisor')");
+    expect(routing).toContain("if (page === 'leavePending' || page === 'attendanceSupervisor')");
     expect(main).toContain("activePage === 'attendanceSupervisor' && auth.token && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(main).toContain('<AttendanceSupervisorPage');
     expect(main).toContain("activePage === 'attendance' && auth.token");
@@ -24,7 +25,7 @@ describe('Attendance Supervisor UX V4', () => {
     expect(page).toContain('onOpenAttendanceReport?: () => void');
     expect(page).toContain('ส่งออกรายงาน');
     expect(main).toContain("onOpenAttendanceReport={!pwaShell && auth.user?.role === 'ADMIN' ? () => setActivePage('attendanceReport') : undefined}");
-    expect(main).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("activePage === 'attendanceReport' ? 'export'");
   });
 

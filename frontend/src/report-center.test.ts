@@ -4,6 +4,7 @@ import path from 'node:path';
 
 const read = (file: string) => fs.readFileSync(path.join(__dirname, file), 'utf8').replace(/\r\n/g, '\n');
 const app = read('main.tsx');
+const routing = read('routing.ts');
 const page = read('pages/reports/ReportCenterPage.tsx');
 const executive = read('pages/executive-report/ExecutiveReportCenterPage.tsx');
 const api = read('api.ts');
@@ -58,11 +59,11 @@ describe('Unified Report Center V1 source contract', () => {
   });
 
   it('preserves report RBAC and legacy internal compatibility', () => {
-    expect(app).toContain("if (['licenses', 'reportCenter', 'reports', 'executiveReport'].includes(page)) return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '');");
+    expect(routing).toContain("if (['licenses', 'reportCenter', 'reports', 'executiveReport'].includes(page)) return ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '')");
     expect(app).toContain("executiveReport: 'reportCenter'");
     expect(app).toContain("reports: 'reportCenter'");
     expect(app).toContain("attendanceReport: 'reportCenter'");
-    expect(app).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'attendanceReport') return auth.user?.role === 'ADMIN'");
     expect(app).toContain("const initialTab = activePage === 'attendanceReport' ? 'export' : activePage === 'reports' ? 'details' : 'executive';");
   });
 

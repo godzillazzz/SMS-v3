@@ -29,7 +29,8 @@ describe('Attendance UX V4 Employee Mobile/PWA shell', () => {
     expect(mode).toContain("queryValue('pwa') === '1'");
     expect(main).toContain("const supervisorAllowed = activePage === 'attendanceSupervisor' && ['ADMIN', 'MANAGER', 'SUPERVISOR'].includes(auth.user?.role || '') && !auth.isViewingAs");
     expect(main).toContain("if (!isSmsPwaPage(activePage) && !supervisorAllowed) setActivePage('attendance')");
-    expect(main).toContain("pwaShell ? initialSmsPwaPage() : 'dashboard'");
+    expect(main).toContain('const route = pageFromLocation()');
+    expect(main).toContain("return route.kind === 'page' ? route.page : 'dashboard'");
   });
 
   it('adds a role-gated on-behalf Attendance shortcut without adding a sixth employee tab', () => {

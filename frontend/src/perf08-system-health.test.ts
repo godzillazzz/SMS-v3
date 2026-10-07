@@ -7,6 +7,7 @@ const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'u
 
 describe('PERF-08 Admin Performance & System Health contract', () => {
   const main = read('main.tsx');
+  const routing = read('routing.ts');
   const api = read('api.ts');
   const client = read('system-health-client.ts');
   const page = read('pages/system-health/SystemHealthPage.tsx');
@@ -14,7 +15,7 @@ describe('PERF-08 Admin Performance & System Health contract', () => {
   it('adds an explicit ADMIN-only Performance & System Health navigation surface', () => {
     expect(main).toContain("'systemHealth'");
     expect(main).toContain("{ id: 'systemHealth', icon: 'dashboard', label: 'ประสิทธิภาพและสถานะระบบ' }");
-    expect(main).toContain("if (page === 'systemHealth') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'systemHealth') return auth.user?.role === 'ADMIN'");
     expect(main).toContain("if (activePage === 'systemHealth' && auth.token) return <SystemHealthPage token={auth.token} />");
   });
 

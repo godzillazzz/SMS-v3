@@ -64,7 +64,8 @@ describe('SMS Signature Experience V1.2 visual reconciliation', () => {
 
   it('provides an explicit active, inactive, and all License employee filter', () => {
     expect(main).toContain("type LicenseEmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'ALL';");
-    expect(main).toContain("useState<LicenseEmployeeStatus>('ACTIVE')");
+    expect(main).toContain("const status = new URLSearchParams(window.location.search).get('status');");
+    expect(main).toContain("return status === 'INACTIVE' || status === 'ALL' ? status : 'ACTIVE';");
     expect(main).toContain('className="license-employee-status-filter"');
     expect(main).toContain('<option value="ACTIVE">ปฏิบัติงาน</option>');
     expect(main).toContain('<option value="INACTIVE">พ้นสภาพ</option>');

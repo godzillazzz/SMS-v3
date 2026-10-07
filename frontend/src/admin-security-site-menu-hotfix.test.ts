@@ -2,13 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const main = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
+const routing = readFileSync(new URL('./routing.ts', import.meta.url), 'utf8');
 const panel = readFileSync(new URL('./components/SecuritySiteManagementPanel.tsx', import.meta.url), 'utf8');
 
 describe('Admin Security Site menu hotfix', () => {
   it('restores an explicit Admin navigation route for Security Site and QR lifecycle', () => {
     expect(main).toContain("| 'securitySite' | 'settings'");
     expect(main).toContain("{ id: 'securitySite', icon: 'location', label: 'จุดรักษาความปลอดภัยและ QR' }");
-    expect(main).toContain("if (page === 'securitySite') return auth.user?.role === 'ADMIN'");
+    expect(routing).toContain("if (page === 'securitySite') return auth.user?.role === 'ADMIN'");
   });
 
   it('mounts the existing governed Security Site panel instead of duplicating QR logic in the app shell', () => {

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 const frontendDirectory = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig({
-  testDir: './e2e/print',
+  testDir: './e2e',
   testMatch: '**/*.pw.ts',
   fullyParallel: true,
   reporter: [['list'], ['html', { outputFolder: 'playwright-report/print', open: 'never' }]],
