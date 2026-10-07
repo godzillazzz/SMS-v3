@@ -2,6 +2,7 @@
 
 const PREVIEW_HOST = /^sms-v3-staging-git-[a-z0-9-]+-godzillazz\.vercel\.app$/i;
 const UNTRUSTED_ORIGIN = 'https://example.invalid';
+const { automationRequestOptions } = require('../../e2e/helpers/technical-smoke');
 
 function normalizedPreviewOrigin(raw) {
   const url = new URL(raw);
@@ -11,23 +12,25 @@ function normalizedPreviewOrigin(raw) {
   return url.origin;
 }
 
-async function verifyPreviewRuntime({ baseUrl, fetchImpl = globalThis.fetch, log = console.log } = {}) {
+async function verifyPreviewRuntime({ baseUrl, fetchImpl = globalThis.fetch, env = process.env, log = console.log } = {}) {
   const origin = normalizedPreviewOrigin(baseUrl || '');
   if (typeof fetchImpl !== 'function') throw new Error('FETCH_UNAVAILABLE');
+  if (!env.VERCEL_AUTOMATION_BYPASS_SECRET) throw new Error('VERCEL_AUTOMATION_BYPASS_SECRET_MISSING');
+  const withPreviewBypass = (options) => automationRequestOptions(options, env, origin, origin);
 
-  const health = await fetchImpl(`${origin}/api/v1/health`, {
+  const health = await fetchImpl(`${origin}/api/v1/health`, withPreviewBypass({
     redirect: 'manual',
     signal: AbortSignal.timeout(20_000)
-  });
+  }));
   if (health.status !== 200) throw new Error(`PREVIEW_HEALTH_HTTP_${health.status}`);
   const healthBody = await health.json();
   if (healthBody.status !== 'ok') throw new Error('PREVIEW_HEALTH_INVALID');
   log('PREVIEW_HEALTH=PASS');
 
-  const ready = await fetchImpl(`${origin}/api/v1/ready`, {
+  const ready = await fetchImpl(`${origin}/api/v1/ready`, withPreviewBypass({
     redirect: 'manual',
     signal: AbortSignal.timeout(20_000)
-  });
+  }));
   if (ready.status !== 200) throw new Error(`PREVIEW_READY_HTTP_${ready.status}`);
   const readyBody = await ready.json();
   if (readyBody.status !== 'ready' || readyBody.database !== 'ok') throw new Error('PREVIEW_DATABASE_READINESS_FAILED');
@@ -38,23 +41,23 @@ async function verifyPreviewRuntime({ baseUrl, fetchImpl = globalThis.fetch, log
     'Access-Control-Request-Method': 'GET',
     'Access-Control-Request-Headers': 'authorization,content-type'
   };
-  const trusted = await fetchImpl(`${origin}/api/v1/health`, {
+  const trusted = await fetchImpl(`${origin}/api/v1/health`, withPreviewBypass({
     method: 'OPTIONS',
     headers: preflightHeaders,
     redirect: 'manual',
     signal: AbortSignal.timeout(20_000)
-  });
+  }));
   if (trusted.status !== 204 || trusted.headers.get('access-control-allow-origin') !== origin || trusted.headers.get('access-control-allow-credentials') !== 'true') {
     throw new Error('PREVIEW_TRUSTED_CORS_FAILED');
   }
   log('PREVIEW_TRUSTED_CORS=PASS');
 
-  const untrusted = await fetchImpl(`${origin}/api/v1/health`, {
+  const untrusted = await fetchImpl(`${origin}/api/v1/health`, withPreviewBypass({
     method: 'OPTIONS',
     headers: { ...preflightHeaders, Origin: UNTRUSTED_ORIGIN },
     redirect: 'manual',
     signal: AbortSignal.timeout(20_000)
-  });
+  }));
   if (untrusted.status !== 403 || untrusted.headers.get('access-control-allow-origin') !== null) {
     throw new Error('PREVIEW_UNTRUSTED_CORS_FAILED');
   }

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { UNTRUSTED_ORIGIN, verifyPreviewRuntime } = require('../scripts/ci/verify-preview-runtime');
 
 const previewOrigin = 'https://sms-v3-staging-git-codex-t29-printing-a4-20261007-godzillazz.vercel.app';
+const previewEnv = { VERCEL_AUTOMATION_BYPASS_SECRET: 'synthetic-preview-bypass-secret' };
 
 function jsonResponse(status, body, headers = {}) {
   return { status, headers: new Headers(headers), json: async () => body };
@@ -23,7 +24,7 @@ test('Preview runtime gate checks health, database readiness, and trusted/untrus
     });
   };
 
-  const result = await verifyPreviewRuntime({ baseUrl: previewOrigin, fetchImpl, log: () => undefined });
+  const result = await verifyPreviewRuntime({ baseUrl: previewOrigin, env: previewEnv, fetchImpl, log: () => undefined });
   assert.deepEqual(result, {
     origin: previewOrigin,
     health: 'ok',
@@ -36,11 +37,13 @@ test('Preview runtime gate checks health, database readiness, and trusted/untrus
   assert.equal(calls[2].options.method, 'OPTIONS');
   assert.equal(calls[2].options.headers.Origin, previewOrigin);
   assert.equal(calls[3].options.headers.Origin, UNTRUSTED_ORIGIN);
+  assert.ok(calls.every(({ options }) => options.headers['x-vercel-protection-bypass'] === previewEnv.VERCEL_AUTOMATION_BYPASS_SECRET));
 });
 
 test('Preview runtime gate rejects unready database and untrusted CORS allow responses', async () => {
   await assert.rejects(() => verifyPreviewRuntime({
     baseUrl: previewOrigin,
+    env: previewEnv,
     fetchImpl: async (url) => url.endsWith('/api/v1/health')
       ? jsonResponse(200, { status: 'ok' })
       : jsonResponse(503, { status: 'not_ready', database: 'unavailable' }),
@@ -50,6 +53,7 @@ test('Preview runtime gate rejects unready database and untrusted CORS allow res
   const calls = [];
   await assert.rejects(() => verifyPreviewRuntime({
     baseUrl: previewOrigin,
+    env: previewEnv,
     fetchImpl: async (url, options) => {
       calls.push({ url, options });
       if (url.endsWith('/api/v1/health') && options.method !== 'OPTIONS') return jsonResponse(200, { status: 'ok' });
@@ -62,6 +66,15 @@ test('Preview runtime gate rejects unready database and untrusted CORS allow res
     },
     log: () => undefined
   }), /PREVIEW_UNTRUSTED_CORS_FAILED/);
+});
+
+test('Preview runtime gate fails closed when the protected Preview bypass is unavailable', async () => {
+  await assert.rejects(() => verifyPreviewRuntime({
+    baseUrl: previewOrigin,
+    env: {},
+    fetchImpl: async () => { throw new Error('must not fetch'); },
+    log: () => undefined
+  }), /VERCEL_AUTOMATION_BYPASS_SECRET_MISSING/);
 });
 
 test('Preview runtime gate accepts only the SMS-v3 Vercel branch alias', async () => {

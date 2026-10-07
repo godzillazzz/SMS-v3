@@ -141,6 +141,8 @@ jobs:
       - name: Verify integration PR Preview health, readiness, and CORS
         if: github.event_name == 'pull_request' && github.base_ref == 'fix/serverless-database-reliability'
         shell: bash
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           set -euo pipefail
           branch="${GITHUB_HEAD_REF//\//-}"
