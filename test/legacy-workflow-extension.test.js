@@ -64,7 +64,7 @@ test('legacy schedule and leave controls remain available to Admin and Manager',
   assert.match(frontend, /จัดกะแพทเทิร์นด่วน/);
   assert.match(frontend, /จัดกะแพทเทิร์นด่วน: 6 วันทำงาน \/ 1 วันหยุด/);
   assert.match(frontend, /รายการใบลาที่รออนุมัติ/);
-  assert.match(frontend, /Submit Leave Request/);
+  assert.match(frontend, /ส่งคำขอลา/);
   assert.match(routes, /schedule\/auto-preview', authorize\('ADMIN'\)/);
   assert.match(routes, /schedule\/auto-commit', authorize\('ADMIN'\)/);
   assert.match(routes, /schedule\/employee-auto-commit', authorize\('ADMIN', 'MANAGER', 'SUPERVISOR'\)/);

@@ -96,7 +96,7 @@ function sourceRegressionContracts() {
     'error ?',
     'partialErrors.length > 0',
     'dashboard-data-warning',
-    'ข้อมูลบางส่วนยังไม่พร้อม'
+    'ข้อมูลบางส่วนไม่พร้อม'
   ], 'DASHBOARD_PARTIAL_WARNING_CONTRACT_FAILED');
 
   requireIncludes(executiveReportPage, [
