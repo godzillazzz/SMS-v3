@@ -19,9 +19,9 @@ describe('Q12-A data scale and export correctness contracts', () => {
     expect(personnel).toContain('api.employees(token, {');
     expect(personnel).toContain('pageSize,');
     expect(personnel).toContain('directoryMeta: true');
-    expect(personnel).toContain('meta.totalPages');
-    expect(personnel).toContain('meta.departments');
-    expect(personnel).toContain('meta.summary');
+    expect(personnel).toContain('nextMeta.totalPages');
+    expect(personnel).toContain('nextMeta.departments');
+    expect(personnel).toContain('nextMeta.summary');
     expect(personnel).not.toContain('filtered.slice(');
     expect(personnel).not.toContain('employees.filter((employee) =>');
     expect(main).not.toContain("['employees', 'licenses', 'schedule', 'leave', 'leavePending', 'leaveHistory', 'quota'].includes(activePage)");

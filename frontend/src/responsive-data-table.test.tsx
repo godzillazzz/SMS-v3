@@ -55,6 +55,8 @@ describe('WAVE 3 ResponsiveDataTable contract', () => {
     expect(loading).toContain('aria-label="หน้าก่อนหน้า" disabled');
     expect(loading).toContain('aria-label="หน้าถัดไป" disabled');
     expect(loading).toContain('aria-live="polite"');
+    expect(loading).toContain('หน้า — จาก —');
+    expect(loading).not.toContain('หน้า 2 จาก 3');
   });
 
   it('keeps Audit as a labelled table/card pair with safe long-content and state coverage', () => {

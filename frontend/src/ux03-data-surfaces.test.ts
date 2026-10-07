@@ -72,7 +72,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
     expect(personnelPage).toContain('department: department || undefined');
     expect(personnelPage).toContain("isActive: status ? status === 'active' : undefined");
     expect(personnelPage).toContain('const pageSize = 10;');
-    expect(personnelPage).toContain('meta.totalPages');
+    expect(personnelPage).toContain('nextMeta.totalPages');
     expect(personnelPage).not.toContain('filtered.slice(');
     expect(personnelToolbar).toContain('onSearch(event.target.value)');
     expect(personnelToolbar).toContain('onDepartment(event.target.value)');
@@ -115,7 +115,7 @@ describe('G04.2 UX-03 data surfaces contract', () => {
     expect(main).toContain('onHistoryMonthChange={changeLeaveMonth}');
     expect(main).toContain('onHistoryMonthStep(-1)');
     expect(main).toContain('onHistoryMonthStep(1)');
-    expect(main).toContain('DataTablePagination page={historyPage || 1} totalPages={historyTotalPages} onChange={onHistoryPageChange}');
+    expect(main).toContain('DataTablePagination page={historyPage || 1} totalPages={historyTotalPages || 0} onChange={onHistoryPageChange}');
     expect(main).toContain('ariaLabel="การแบ่งหน้าประวัติการลา"');
     expect(main).toContain('onApprove(row)');
     expect(main).toContain('onReject(row)');
@@ -166,8 +166,8 @@ describe('G04.2 UX-03 data surfaces contract', () => {
   it('does not fabricate the unavailable Personnel review count', () => {
     expect(personnelPage).not.toContain('label="รอตรวจสอบ"');
     expect(personnelPage).not.toContain('context="ยังไม่มีข้อมูล" tone="blue"');
-    expect(personnelPage).toContain('label="บุคลากรทั้งหมด" value={totalCount}');
-    expect(personnelPage).toContain('label="โปรไฟล์ไม่สมบูรณ์" value={incompleteCount}');
+    expect(personnelPage).toContain('label="บุคลากรทั้งหมด" value={loading ? undefined : totalCount}');
+    expect(personnelPage).toContain('label="โปรไฟล์ไม่สมบูรณ์" value={loading ? undefined : incompleteCount}');
   });
 
   it('contains horizontal table scrolling within data surfaces and preserves mobile domain cards', () => {
