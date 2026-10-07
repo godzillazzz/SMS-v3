@@ -1,27 +1,24 @@
 # MASTER HANDOFF
 
-## Current state — R2 Production ผ่าน; T25–T27 merge แล้ว, T28 กำลังเตรียม PR (7 ตุลาคม 2569)
+## Current state — R2 Production ผ่าน; R3 application work พร้อมให้เจ้าของระบบหา Preview และรัน Technical Smoke (7 ตุลาคม 2569)
 
-**สถานะ: OPEN — R2 Production สำเร็จและเจ้าของระบบยืนยันการตรวจหน้าจอหลังล็อกอินผ่านแล้ว. T25–T27 PR #488–#491 merge แล้ว. T28 local frontend suite 871/871, production build และ diff-check ผ่าน; กำลังเปิด PR รอ exact-head CI/Preview. ไม่มีการปล่อย R3 และยังไม่มี RELEASE_SHA. Audit ของบัญชี Sermpong UAT ยัง UNKNOWN.**
+**สถานะ: OPEN — Production ยังเป็น R2 (`2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`), เจ้าของระบบยืนยันหน้าจอหลังล็อกอินผ่าน และ rollback reference คือ `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`. งาน R3 T25 → T24 → T26 → T27 → T28 อยู่บน integration แล้ว. Application RELEASE_SHA สำหรับ Smoke คือ `dad05e83ad4fa44affa8175c520b087a5f94b509` (merge #492). Exact-head CI และ Vercel status ของ PR #492 head `f7c86882b10822e1277f68ec977a092c639b7784` ผ่าน; tree ของ PR head ตรงกับ merge SHA. Status check โดยตรงบน merge SHA ยังเป็น Vercel `pending` และ connector ไม่ได้ให้ Preview alias/deployment id ดังนั้นเจ้าของระบบต้องยืนยัน Preview ที่ native SHA/ref/project/READY ตรงกับ RELEASE_SHA ก่อน Technical Smoke. ยังไม่มี R3 Smoke หรือ Production release.**
 
 ### Production now — R2
 
 - Production source SHA: `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`.
-- Production workflow: [run 37572338555](https://github.com/godzillazzz/SMS-v3/actions/runs/37572338555), completed successfully on source `d868a6003d2e069245a8e166e17ff20211579b64`. ทั้งสอง job ผ่าน; ขั้น Linux artifact guard, immutable candidate, promote/canonical verification, runtime verification และ CORS verification สำเร็จ. Automatic rollback steps ถูก skip.
-- Deployment id: `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`, URL `https://sms-v3-staging-e71ppzlg5-godzillazz.vercel.app`. Run log ยืนยัน `sms-v3-staging` ถูก promote ไป deployment นี้; `CANONICAL_PRODUCTION_RUNTIME_VERIFY=PASS` และ `CANONICAL_PRODUCTION_CORS_VERIFY=PASS`.
-- เจ้าของระบบยืนยันว่า R2 ผ่านการตรวจหน้าจอหลังล็อกอิน.
-- **Rollback reference ปัจจุบัน:** R2 deployment `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`, source `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`; เจ้าของระบบยืนยันว่าตรวจหน้าจอหลังล็อกอินผ่าน. R1B `dpl_ExgyPfG7tYcby5PYDUVwn4iqrygE` เป็น checkpoint ก่อน R2 แล้ว.
-- ไม่มีการเขียน/ลบข้อมูลธุรกิจ, เปลี่ยน secret/environment/schema หรือกดส่งฟอร์มบน Production ในงานนี้.
+- Production workflow: [run 37572338555](https://github.com/godzillazzz/SMS-v3/actions/runs/37572338555), completed successfully. Workflow output ระบุ deployment `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`, URL `https://sms-v3-staging-e71ppzlg5-godzillazz.vercel.app`; runtime, readiness/database, canonical SHA และ CORS checks ผ่าน.
+- เจ้าของระบบยืนยันว่าตรวจหน้าจอหลังล็อกอินของ R2 ผ่านแล้ว.
+- **Rollback reference ปัจจุบัน:** R2 deployment `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`, source `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`.
+- ไม่มีการเขียน/ลบข้อมูลธุรกิจ, เปลี่ยน secret/environment/schema หรือส่งฟอร์มบน Production ระหว่าง R3.
 
 ### R2 release evidence
 
 - Application RELEASE_SHA: `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea`; exact-SHA CI run `37570803508` ผ่าน.
-- PR #475 → #478 merge เข้า integration ตามลำดับ; รายละเอียด head/CI/Preview/merge commit อยู่ในตารางด้านล่าง.
-- Preview ของ R2: `https://sms-v3-staging-jqlzeasds-godzillazz.vercel.app`, deployment `dpl_G5oZbZ39TpUPceR5WiahRLxURGgR`.
-- Automated Technical Smoke [run 37571365579](https://github.com/godzillazzz/SMS-v3/actions/runs/37571365579) สำเร็จและผูกกับ source SHA ข้างต้น.
-- Release-control PR #486 ปรับ manifest สำหรับ R2 และ merge เป็น `d868a6003d2e069245a8e166e17ff20211579b64`.
+- Preview: `https://sms-v3-staging-jqlzeasds-godzillazz.vercel.app`, deployment `dpl_G5oZbZ39TpUPceR5WiahRLxURGgR`.
+- Automated Technical Smoke [run 37571365579](https://github.com/godzillazzz/SMS-v3/actions/runs/37571365579) ผ่าน. Release-control PR #486 merge `d868a6003d2e069245a8e166e17ff20211579b64`.
 
-| PR | Head หลัง update-branch | Exact-head CI | Vercel Preview | Merge commit |
+| PR | Head หลัง update | Exact-head CI | Vercel Preview | Merge commit |
 |---|---|---|---|---|
 | #475 | `9bb5d3a098a671ee6a14631546c03ce420f355af` | `37567238651` success | READY — https://sms-v3-staging-git-fix-ux-t01-loading-state-n-77d77f-godzillazz.vercel.app | `5f1f1f72df019fdffbf24d5fd8c221e70a6c5a2e` |
 | #476 | `fdf903408a7d1e5d0658869b7fd7520d85523865` | `37567479738` success | READY — https://sms-v3-staging-git-fix-ux-t02-attendance-page-e7112f-godzillazz.vercel.app | `57e81ee9fab3590164da37a7e40e2b902d3149de` |
@@ -30,34 +27,39 @@
 
 ### R3 PRs
 
-| Task / PR | Head | CI | Vercel Preview | Merge |
+| Task / PR | Head | Exact-head CI | Vercel status / Preview | Merge commit |
 |---|---|---|---|---|
 | T25 / #488 | `a846541aea13b6e27fb4963be65a5f69acd3ff55` | `37575249077` success | READY — https://sms-v3-staging-git-codex-r3-t25-secure-refres-0a8bee-godzillazz.vercel.app | `47c1628a092e8bc02fbc608500bcf6fc58abd1f5` |
 | T24 / #489 | `d420ce2f3977d32e93f6a35e320f86f915635e38` | `37575658761` success | READY — https://sms-v3-staging-git-codex-r3-t24-performance-20261007-godzillazz.vercel.app | `70e807b8982277a0617552229ae6c7d993336be9` |
 | T26 / #490 | `86923ed517ad61f6d05eb13e684f6f38e3db5ea5` | `37576069884` success | READY — https://sms-v3-staging-git-codex-r3-t26-approval-labe-a17eee-godzillazz.vercel.app | `c582eabb824b2fabcda734c387c0d4af3be3866d` |
-| T27 / #491 | `bad8d3856d1d5018436da2455b513cb18e12d14b` | `37577516049` success; Vercel check success | READY — [Vercel deployment page](https://vercel.com/godzillazz/sms-v3-staging/54WXBHzLTE1m1pHZ3SATXXXKQerg); Preview alias and dpl id were not returned by the status connector | `463b1650eadde1b55345f2f1ca3244d9bf9ae713` |
-| T28 / in progress | branch `codex/r3-t28-user-facing-cleanup-20261007` | local frontend 871/871 and build pass; exact-head CI pending | Preview pending | not merged |
+| T27 / #491 | `bad8d3856d1d5018436da2455b513cb18e12d14b` | `37577516049` success | Vercel success — dashboard target only; alias and dpl id unavailable from connector | `463b1650eadde1b55345f2f1ca3244d9bf9ae713` |
+| T28 / #492 | `f7c86882b10822e1277f68ec977a092c639b7784` | `37578638934` success | Vercel success — [deployment dashboard](https://vercel.com/godzillazz/sms-v3-staging/5mi7x24MXR4j3ccL4eS4wP823mQ3); alias/dpl id unavailable. Merge SHA status remains pending in connector. | `dad05e83ad4fa44affa8175c520b087a5f94b509` |
 
-### R3 — T25 security gate
+### R3 — outcomes and unresolved read-only checks
 
-- Read-only source review พบว่า browser `api.ts` มี single-flight เฉพาะ module instance ของ tab นั้น; `attendance-auth-request.ts` มี `refreshPromise` แยกกัน. แต่ละ tab มี state แยกกัน จึงยังมีทางให้ refresh cookie เดียวกันถูกใช้พร้อมกันข้าม tab (ข้อเท็จจริงจาก code; ยังไม่ใช่หลักฐานว่าเกิดกับบัญชี UAT).
-- T25 เพิ่ม `navigator.locks` origin-wide exclusive lock ให้ `api.refresh()` ทุกครั้ง และใช้ `refreshAuth()` ร่วมกันกับ request retry และ Attendance/startup path. ถ้า Web Lock API ไม่มี จะ fail closed ก่อนเรียก refresh endpoint. เพิ่ม test serialization/fail-closed และอัปเดต source hash guards. Frontend 857/857, build, exact-head CI `37575249077` ผ่าน; Vercel Preview READY `https://sms-v3-staging-git-codex-r3-t25-secure-refres-0a8bee-godzillazz.vercel.app`. PR #488 merge commit `47c1628a092e8bc02fbc608500bcf6fc58abd1f5`.
-- Backend หมุน refresh token และเมื่อพบ token ที่ revoke แล้ว จะบันทึก `TOKEN_REUSE` และเรียก `revokeAllForUser` เพื่อ revoke session ของ user ทั้งหมดและเพิ่ม `tokenVersion`.
-- Audit route คือ `GET /api/v1/operations/audit-events`; ใน source กำหนด `authorize('ADMIN')`. ไม่มี authorized ADMIN session ให้ใช้ใน execution นี้. ไม่มีช่องทาง query account-specific audit แบบ read-only จาก GitHub/Vercel ที่ใช้ได้โดยไม่ต้องมี Production Environment approval. `.github/workflows/diagnose-production-database.yml` ต้องผ่าน Environment `production-sms-v3-staging` และ scripts/inputs ที่มีตรวจ LIC-HIST/G06 ไม่ได้ตรวจ refresh-token audit.
-- จึง **ยังไม่ได้ตรวจ audit ของ Sermpong UAT**; ไม่มีหลักฐานให้สรุปว่า token รั่ว และก็ยังตัดความเป็นไปได้นั้นไม่ได้. เป็น blocker สำหรับการสรุปสถานะบัญชี ต้องให้เจ้าของระบบตรวจ audit ผ่าน session ที่ได้รับอนุญาต. ได้ทำ client mitigation จาก race ที่ยืนยันได้ใน source; ไม่มีการ revoke session, ระงับบัญชี หรือแก้ auth policy.
-- T24 batches supervisor/daily event-policy hydration and actual-site reads. Query-count test with 12 assignments reduces policy reads from 72 `findFirst` calls to one `findMany`, and actual-site reads from three `findUnique` calls to one `findMany`. Employees/readiness-center and dashboard already use batch/aggregate queries; no logic change there. Approval-center polling remains every 60 seconds and stops querying while the document is not visible.
-- T24 local checks: backend focused 63/63, frontend full 859/859, frontend build and `git diff --check` passed. Exact-head CI `37575658761` and Preview READY passed before PR #489 merge. Full local backend `npm test` has database-backed failures because PostgreSQL is unavailable in this sandbox. Preview timing is not measured because protected pages require an authorized session; no credential was requested or created. Function region is `sin1`; DB region remains UNKNOWN. Production workflow logs show verified Supabase session mode but do not report DB region. No DB/business data was written.
-- T26: null/blank `status` and `change_type` now map to `ไม่ระบุ`; source still maps other unmatched values to `อื่น ๆ`. PR #490 exact-head CI `37576069884` passed and its Preview is READY at `https://sms-v3-staging-git-codex-r3-t26-approval-labe-a17eee-godzillazz.vercel.app`; merge commit `c582eabb824b2fabcda734c387c0d4af3be3866d`. The requested read-only query of production schedule approvals could not be run: no authorized read-only DB connection or existing safe query workflow is available from this execution, and no production data was queried. Any concrete unknown non-null values remain UNKNOWN pending owner-provided authorized audit evidence.
-- T27 PR #491 merged as `463b1650eadde1b55345f2f1ca3244d9bf9ae713` after exact-head CI run `37577516049` and Vercel status both succeeded. It removes displayed request UUIDs from Approval Center desktop/mobile queue and rejection dialog, shows a people icon plus sender name, localizes device/Audit status and event enums, and suppresses device count defaults during loading. Local frontend suite 863/863, production build, and `git diff --check` passed. Browser/authenticated view was not available; a jsdom component fixture verifies desktop/mobile queue rendering, sender, icon, and UUID omission. The available Vercel status target is a dashboard page; its Preview alias and dpl id were not returned. No Production data or authenticated account was used.
-- T28 implementation is on `codex/r3-t28-user-facing-cleanup-20261007` from `463b1650eadde1b55345f2f1ca3244d9bf9ae713`. It removes the schedule `AWAITING DATA` cards and the masked LINE token field; removes user-facing “ไม้กายสิทธิ์” copy and strips `CFG-06` from settings descriptions; leaves the specific employee-link 403 text in place and adds an actual `/attendance/simple/bootstrap` response regression; keeps approval counts unset until a valid first summary and hides the badge while unset/zero. Placeholder string search is locked by test. Focused tests 14/14, full frontend 871/871, frontend build and diff-check pass. Local test/build ran on Node 24.19 (the repo declares Node 22); exact-head CI is pending. No Production data, credential, or authenticated view was used.
-- งาน T28 ที่เพิ่มตามคำสั่งให้รวม: (6) ลบ/แสดงข้อมูลจริงแทนการ์ด `AWAITING DATA` (`ROSTER READINESS / SHIFT COVERAGE`); (7) เอาคำ “ไม้กายสิทธิ์” และ `CFG-06` ออกจากข้อความผู้ใช้; (8) แปล 403 ของ `/attendance/simple/bootstrap` สำหรับบัญชีที่ไม่มี employee link เป็นข้อความเฉพาะ; (9) ห้ามแสดง badge `0` ก่อนมีค่าครั้งแรก; (10) ค้นหาและลบ placeholder `••••••••••••` ตาม T06.
-- T25–T27 merged; T28 is in progress. No R3 RELEASE_SHA. Integration HEAD after T27 merge is `463b1650eadde1b55345f2f1ca3244d9bf9ae713`.
+- **T25 security:** source review confirmed refresh attempts could race between browser tabs; #488 adds same-origin single-flight via Web Locks with fail-closed behavior when unavailable. Account-specific `Sermpong UAT` audit was not queryable: the audit endpoint requires ADMIN authorization and no authorized session was available. No evidence of token theft was found in accessible sources; the audit conclusion is UNKNOWN. No session was revoked and no account was suspended.
+- **T24 performance:** #489 batches supervisor/daily event-policy and actual-site reads; query-count test reduces policy reads from 72 per 12 assignments to one batch query and site reads from three queries to one. Approval summary polling is 60 seconds and visible-tab only. Focused backend 63/63, frontend 859/859, build and diff-check passed. Protected Preview timing before/after was not measured without an authorized session. Function region is `sin1`; database region remains UNKNOWN. Full local backend tests needing PostgreSQL could not complete in this sandbox; exact-head CI passed.
+- **T26 labels:** null/blank approval `status` and `change_type` display `ไม่ระบุ`; other unmapped values display `อื่น ๆ`. Production read-only approval query was unavailable, so concrete unknown non-null values remain UNKNOWN; no Production DB rows were queried.
+- **T27 queue/device UI:** #491 hides request UUIDs, shows sender and people icon, localizes event/status enums and avoids default device counts while loading. CI passed; local frontend suite 863/863, build and diff-check passed. Authenticated browser inspection was unavailable; jsdom fixture used. Vercel alias and dpl id were not returned.
+- **T28 additions (6–10):** #492 removes schedule `AWAITING DATA` readiness/coverage cards; removes visible “ไม้กายสิทธิ์” and `CFG-06` wording; regression-tests the employee-link-specific Thai response for `/attendance/simple/bootstrap` 403; leaves bell/approval badges unset until a valid initial value (and hides zero); removes fake `••••••••••••` masked-token placeholder. Focused T28 regressions 14/14, frontend 871/871, build and diff-check passed. Exact-head CI run `37578638934` succeeded and Vercel status is success for the PR head. Authenticated schedule/settings pages were not opened; no credentials or Production data were used.
 
-### R2 PR / release table
+- **Next step:** Owner locates a READY Preview with native SHA `dad05e83ad4fa44affa8175c520b087a5f94b509`, ref `fix/serverless-database-reliability`, and the expected `sms-v3-staging` project; then Owner dispatches Technical Smoke. No workflow was dispatched by Codex. If smoke passes, record its run ID before any later release-control work. Production remains R2 throughout.
 
-| PR | Head/RELEASE_SHA | CI | Merge / production |
+### R3 release candidate identity
+
+- Application RELEASE_SHA: `dad05e83ad4fa44affa8175c520b087a5f94b509` (integration after #492; tree `8ae480e51f544694278ff1d65d9a97e439d23292`).
+- Exact PR-head CI `37578638934` passed for `f7c86882b10822e1277f68ec977a092c639b7784`; its tree is identical to the merge SHA. Vercel status on that PR head succeeded. Combined status on `dad05e8…` currently reports Vercel `pending`; exact-SHA Preview alias and deployment ID must be obtained by Owner before Smoke.
+- R3 has not been released to Production; rollback reference remains `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh`.
+
+### R2 application PRs
+
+| PR | Head / RELEASE_SHA | Exact-head CI | Merge commit |
 |---|---|---|---|
-| #486 (R2 release-control) | source `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea` | merge-SHA CI `37571946527` success; app exact-SHA CI `37570803508` success; Technical Smoke `37571365579` success | merge `d868a6003d2e069245a8e166e17ff20211579b64`; Production run `37572338555` success; deployment `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh` |
+| #475 | `9bb5d3a098a671ee6a14631546c03ce420f355af` | `37567238651` success | `5f1f1f72df019fdffbf24d5fd8c221e70a6c5a2e` |
+| #476 | `fdf903408a7d1e5d0658869b7fd7520d85523865` | `37567479738` success | `57e81ee9fab3590164da37a7e40e2b902d3149de` |
+| #477 | `442ef0562a2d13d27e51e5279a317b0572795af6` | `37567934048` success | `3ae26fc39c2c914c75d26daabe1945c946deafae` |
+| #478 | `0b392472f1c56aa785b72e8f161ffd137534fbf9` | `37568236186` success | `ad0cc766bf2e24d81ee025d19cdb9301b0f32809` |
+| #486 release control | source `2d9a21c9c8d940fbd5c3c8c9dadceae073f0a9ea` | exact CI `37570803508`; smoke `37571365579`; release-control merge CI `37571946527` — all success | `d868a6003d2e069245a8e166e17ff20211579b64`; Production run `37572338555`; deployment `dpl_FbXBhBdjcNLvYEpN9sXs3EV6VEuh` |
 
 ---
 
